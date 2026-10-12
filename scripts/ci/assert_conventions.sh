@@ -1356,6 +1356,10 @@ delegate "no tracked archives or Terraform state" check_no_opaque_archives.sh
 # proved by writing a fixture into this tree.
 delegate "migrations are additive" check_migrations_additive.sh
 
+# Rule: migration files are numbered 0001, 0002, ... with no repeat and no gap,
+# because the deploy applies each one only on top of every lower-numbered one.
+delegate "migrations are numbered in sequence" check_migration_names.sh
+
 # Rule: no test may reach real cloud object storage or a deployed database.
 # Reason: a test suite is collectible by anyone and runs unattended, so it is
 # the wrong place to hold something that mutates a live bucket or database.

@@ -11,8 +11,15 @@ SQL and turns red the moment one lands.
 
 After go-live, production is the one database that is never rebuilt, and a migration file becomes
 the only way a schema change reaches it. Those files ship through `scripts/deploy-migrate.sh`,
-which applies the migration and its ledger row in one transaction, checks integrity and foreign
-keys, and restores the pre-migration copy on failure. Migrations are additive:
+which takes an on-host copy and an off-host snapshot, applies the migration and its ledger row in
+one transaction, checks integrity and foreign keys, and restores the pre-migration copy on failure.
+The ledger row records who applied the migration.
+
+Files are named `NNNN_snake_case_description.sql`, numbered from `0001` with no repeat and no gap;
+`scripts/ci/check_migration_names.sh` enforces that. The deploy refuses a numbered file unless every
+lower-numbered one is already in the database's ledger, and a production migration must be one of
+these committed, numbered files. Every build records a baseline row, `baseline:schema.sql`, with
+the checksum of the schema it was built from, so the chain is anchored to a known starting point. Migrations are additive:
 `scripts/ci/check_migrations_additive.sh` refuses a drop, a rename, a direct edit of the schema
 table, and any statement that writes or removes rows, and a genuine contraction arrives as its own
 later release. A statement that means one of those says so on its own line or just above it, with

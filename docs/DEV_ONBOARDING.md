@@ -220,7 +220,7 @@ cp .env.example .env
 
 Anything the file sets wins over a default, because the loader only falls back when a variable is unset.
 
-Nothing requires the file, deploying included. The post-deploy smoke check probes the address the deployed host records it serves, and a production deploy asks the staging host for its address the same way before verifying staging, so no site address needs a copy on the workstation.
+Nothing requires the file, deploying included. The post-deploy smoke check probes the address the deployed host records it serves, so no site address needs a copy on the workstation.
 
 A local `.env` looks like:
 
@@ -397,15 +397,15 @@ The suite includes a migration-testing cluster under `tests/integration/` that e
 ./run_all_tests.sh --quick    # before a commit (what npm run test:quick runs)
 ./run_all_tests.sh            # before a push or PR: the complete local suite
 ./run_all_tests.sh --plan     # print the rows a run would schedule, and run nothing
-./run_all_tests.sh --skip-py  # the full run minus the pre-go-live Python gates; ends INCOMPLETE, no pass receipt
+./run_all_tests.sh --skip-py  # the full run minus the pre-go-live Python gates; ends INCOMPLETE
                               # (the default flips to skipping them once that Python is declared done)
 ```
 
 The setup script (§1.5) already installed the Playwright browser the e2e gates drive, and every tool the gates use. The runner prints a report of missing or wrong-version tools before any gate starts, and refuses to start only when `sqlite3` or `curl` is missing, because every gate needs them. A push-gate check whose own tool is absent (the gitleaks secret scanner with no running Docker to supply it, or Terraform) skips itself; CI runs it on every push, so the run can still pass, and it ends with a warning that this machine lacks a tool the project uses, naming each skipped check. Re-run `bash scripts/setup-dev-workstation.sh` to install what it names.
 
-Developers and testers run the bare `./run_all_tests.sh` before a push, and it is meant to pass for them on a plain workstation: it contacts no deployed environment and needs no AWS identity or role. It runs every CI job that is safe on a workstation, each test once, most of them inside the clean room, which rebuilds the tree in a throwaway worktree with an empty home directory and runs them as the push gate sees it. The accessibility specs run inside the e2e gate. The only push-gate jobs it cannot carry are the two GitHub-hosted ones, CodeQL static analysis and the pull-request dependency review. A GREEN run writes the local pass receipt a production release needs. A run ends INCOMPLETE when a check standing for a push-gate job produced no result (for example, `--skip-secret-scan` left the scan out), and VOID when the tree changed while it was in flight: the gates did not all read the same source, so their verdict is about no single commit, and the report names each file whose content changed. The individual gate results still stand; only the verdict over them is withdrawn. Hold the tree still, or re-run. What each tier proves, both pass receipts, and production readiness are in `docs/TESTING.md` §11.7, and `./run_all_tests.sh --help` lists every flag.
+Developers and testers run the bare `./run_all_tests.sh` before a push, and it is meant to pass for them on a plain workstation: it contacts no deployed environment and needs no AWS identity or role. It runs every CI job that is safe on a workstation, each test once, most of them inside the clean room, which rebuilds the tree in a throwaway worktree with an empty home directory and runs them as the push gate sees it. The accessibility specs run inside the e2e gate. The only push-gate jobs it cannot carry are the two GitHub-hosted ones, CodeQL static analysis and the pull-request dependency review. It also runs gates continuous integration does not: the pentest harness, the pre-go-live data-load Python, the two real-data rows and the machine-local harness check. Every run ends with one verdict banner as its last output, naming its exit code, with the failure details just above it. A run ends INCOMPLETE when a check standing for a push-gate job produced no result (for example, `--skip-secret-scan` left the scan out) or a gate CI does not run either was skipped, and VOID when the tree changed while it was in flight: the gates did not all read the same source, so their verdict is about no single commit, and the report names each file whose content changed. The individual gate results still stand; only the verdict over them is withdrawn. Hold the tree still, or re-run. What each tier proves, the verdict, and production readiness are in `docs/TESTING.md` §11.7, and `./run_all_tests.sh --help` lists every flag.
 
-`--staging` adds four read-only checks against staging to either mode. They need the dev-tester role, which comes with staging access (§3), write nothing to staging, and never touch production:
+`--staging` adds four read-only checks against staging to either mode. They need at minimum the dev-tester role, which comes with staging access (§3) and which the operator identity also holds; they write nothing to staging and never touch production. A dev-tester runs them through the dev-tester switch:
 
 ```bash
 scripts/as-dev-tester.sh --account <your-name> ./run_all_tests.sh --quick --staging
@@ -679,7 +679,7 @@ Per `docs/TESTING.md` §9.6, every closed bug lands with a regression test at th
 With hello world running and the tests green, here is where to go next:
 
 - **Architecture orientation:** Path B (§2) for the mental model, scope boundaries, and repo map. Read it before doing code work.
-- **More tests:** `./run_all_tests.sh` is the complete local gate: the full suite once, with the unit and integration tiers run as the coverage run inside the clean room, plus the security probes and the pentest's scriptable probes; the OWASP ZAP scan runs only with `--zap`, before a production deploy. It needs nothing but the checkout and contacts no deployed environment; the real-data rows report "not required" without the full member load, and the read-only staging checks run only with `--staging` and the dev-tester role.
+- **More tests:** `./run_all_tests.sh` is the complete local gate: the full suite once, with the unit and integration tiers run as the coverage run inside the clean room, plus the security probes and the pentest's scriptable probes; the OWASP ZAP scan runs only with `--zap`, before a production deploy. It needs nothing but the checkout and contacts no deployed environment; the real-data rows report "not required" without the full member load, and the read-only staging checks run only with `--staging` and at minimum the dev-tester role.
 - **The full dataset:** load the full dataset (§1.10A) when you need the real event archive and member roster; the roster comes with access to the maintainers' private repository, and the mirror is a maintainer handoff.
 - **Testers:** browse and switch between seeded personas at `/dev/personas` and read captured dev/staging mail without a real inbox; the full tester runbook is `docs/TESTING.md` §16.
 - **AWS deployment and operations:** see §3. Get the application running locally and under Docker first: infrastructure is stood up after the app it serves, never before.

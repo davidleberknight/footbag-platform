@@ -11,9 +11,9 @@
 #     Nothing below passes a login user, a key or a hostname on the command
 #     line, so that alias is the only place the connection is defined.
 #   - for staging, ./run_all_tests.sh passed on this tree;
-#     for production, the release rules (scripts/verify-production-release.sh),
-#     which this script checks again itself before it touches the host, stopping
-#     only on a real problem
+#     for production, the release rules (scripts/verify-production-release.sh
+#     previews them), which this script checks again itself before it touches
+#     the host, refusing on any that fails
 #   - The target host already provisioned and serving. This deploy promotes code
 #     and images onto a host that is already standing; it creates no instance,
 #     no bucket and no credential, so a first-time environment must be built
@@ -27,14 +27,17 @@
 # Which file holds that password follows the account the alias connects as: the
 # shared footbag account reads ~/AWS/AWS_OPERATOR.txt and your own named account
 # reads ~/AWS/DEV_TESTER_HOST.txt. A run started without the redirect names the one
-# it needs. Neither has a production counterpart on this path, because a
-# production deploy takes the host password at the terminal instead.
+# it needs.
 #
 # Production has no direct form, and redirecting a credential file here does not
 # make one: this script refuses a production target unless a terminal is attached,
-# because the confirmation is a person rather than a password. Production goes
-# through deploy_to_aws.sh, which asks for the typed word and takes the host
-# password at the terminal in the same gate.
+# because the confirmation is a person rather than a password. A production run
+# reaches this script one of two ways, and the host password arrives on stdin
+# either way: through deploy_to_aws.sh, which asks for the typed word and takes
+# the password at the terminal in the same gate, or through
+# scripts/deploy-migrate.sh, which asks for its own typed APPLY and is given the
+# password from ~/AWS/AWS_OPERATOR_PRODUCTION.txt, as every production operator
+# script is.
 #
 # Skip the post-deploy direct-IP smoke check (required when nginx X-Origin-Verify
 # enforcement is active, since direct-to-origin curls return 444):
@@ -143,12 +146,11 @@ if [[ "$REMOTE" == "footbag-production" ]] && ! terminal_present; then
   exit 1
 fi
 
-# The production release rules: a clean tree on origin/main, green CI, a
-# ./run_all_tests.sh pass for this tree, staging already running it, a --staging
-# pass against that deploy, and no skipped verification or safety step.
-# Checked here as well as in deploy_to_aws.sh, however this leaf was reached: a
-# real problem stops the deploy, the rest are warnings, because footbag-operator
-# decides when production is deployed. Staging is not checked against them.
+# The production release rules: a clean tree whose HEAD is on the canonical
+# main, CI green on every run for that commit, and no skipped verification or
+# safety step. Checked here as well as in deploy_to_aws.sh, however this leaf was
+# reached; any rule that fails stops the deploy. Staging is not checked against
+# them.
 if [[ "$REMOTE" == "footbag-production" ]]; then
   # shellcheck source=lib/production-release-gate.sh
   source "${REPO_ROOT}/scripts/lib/production-release-gate.sh"
@@ -252,31 +254,6 @@ HOST_IP=$(ssh -G "$REMOTE" | awk '/^hostname / {print $2}')
 echo "==> Deploy target: $REMOTE ($HOST_IP)" >&2
 echo "==> Confirming SSH connectivity..."
 ssh "${SSH_OPTS[@]}" "$REMOTE" "echo '    SSH OK'" </dev/null
-
-# ── Verify staging before a production deploy ────────────────────────────────
-# A production deploy promotes what staging is already running, so the full
-# smoke gate (route smoke + security probes) must pass against staging first;
-# a failure aborts before anything on the production host is touched. The
-# release gate above refuses SKIP_SMOKE=yes on production, so this always runs.
-if [[ "$FOOTBAG_ENV" == "production" && "$SKIP_SMOKE" != "yes" ]]; then
-  # Staging's address is the one the staging host records, asked of it with the
-  # staging credential once it confirms it is staging.
-  if ! host_address_for staging; then
-    echo "ERROR: a production deploy first verifies the smoke gate against staging," >&2
-    echo "       and the staging address could not be read from the staging host." >&2
-    exit 1
-  fi
-  STAGING_BASE_URL="$HOST_ADDRESS"
-  echo "==> Verifying staging smoke gate before production deploy ($STAGING_BASE_URL) ..."
-  if ! BASE_URL="$STAGING_BASE_URL" SMOKE_ENV=staging bash "$REPO_ROOT/scripts/smoke-local.sh"; then
-    echo "ERROR: staging smoke check failed; refusing to deploy production." >&2
-    exit 1
-  fi
-  if ! BASE_URL="$STAGING_BASE_URL" SMOKE_ENV=staging bash "$REPO_ROOT/scripts/smoke-security.sh"; then
-    echo "ERROR: staging security probes failed; refusing to deploy production." >&2
-    exit 1
-  fi
-fi
 
 # ── Step 1: Prepare upload directory ─────────────────────────────────────────
 #
@@ -538,7 +515,12 @@ DEPLOY_DIRTY_COUNT="$(git -C "$REPO_ROOT" status --porcelain 2>/dev/null | wc -l
 if [[ "$DEPLOY_DIRTY_COUNT" -gt 40 ]]; then
   DEPLOY_DIRTY_PATHS="${DEPLOY_DIRTY_PATHS},+$((DEPLOY_DIRTY_COUNT - 40)) more not listed"
 fi
-DEPLOY_PROVENANCE="commit=$DEPLOY_COMMIT dirty=$DEPLOY_DIRTY_COUNT paths=${DEPLOY_DIRTY_PATHS:-none}"
+# Who acted: the host account the alias connected as, settled above, plus the
+# job-role session name where this run acts as FootbagDevTester. On production
+# every run connects as the shared account, so the record names that account
+# and no person, which is the design's accepted cost.
+DEPLOY_ACTOR="host=${OPERATOR_CREDENTIAL_ACCOUNT:-unknown}${FOOTBAG_ACTING_AS_PERSON:+ role-session=${FOOTBAG_ACTING_AS_PERSON}}"
+DEPLOY_PROVENANCE="commit=$DEPLOY_COMMIT dirty=$DEPLOY_DIRTY_COUNT paths=${DEPLOY_DIRTY_PATHS:-none} actor=${OPERATOR_CREDENTIAL_ACCOUNT:-unknown}${FOOTBAG_ACTING_AS_PERSON:+ actor_session=${FOOTBAG_ACTING_AS_PERSON}}"
 echo "==> Shipping working tree at commit $DEPLOY_COMMIT with $DEPLOY_DIRTY_COUNT uncommitted path(s)."
 if [[ "$DEPLOY_DIRTY_COUNT" != "0" ]]; then
   echo "    uncommitted: ${DEPLOY_DIRTY_PATHS}"
@@ -568,6 +550,7 @@ echo "==> Running remote-as-root deploy (promote, restart)..."
   printf 'MIGRATION_SQL=%q\n'               "${MIGRATION_SQL:-}"
   printf 'MIGRATION_NAME=%q\n'              "${MIGRATION_NAME:-}"
   printf 'MIGRATION_CHECKSUM=%q\n'          "${MIGRATION_CHECKSUM:-}"
+  printf 'DEPLOY_ACTOR=%q\n'                "$DEPLOY_ACTOR"
   # The pruning helper defines a function and runs nothing, so the remote half
   # can call it once the new release reports ready.
   cat "$PRUNE_LIB" "$REMOTE_HALF"

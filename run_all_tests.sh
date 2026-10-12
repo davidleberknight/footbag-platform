@@ -9,28 +9,32 @@
 #       generated-content check, secret scan, e2e, terraform validation, the
 #       security probes against a throwaway local stack, the clean room, which
 #       runs the coverage thresholds, the legacy-data pytest suite and the loader
-#       gates against what the push would carry), plus the pentest harness, the
-#       production-strength password hash, and, where this machine holds the
-#       authoritative member load, the real-claim crawl and the real-data
-#       invariants against it. It contacts no deployed environment of any kind,
-#       and needs no AWS identity. A GREEN run writes the pass receipt the
-#       production release gate reads. The report-only checks, the dependency
-#       audit (--audit) and the ZAP scan (--zap), run before a production deploy.
+#       gates against what the push would carry), plus the pentest harness and,
+#       where this machine holds the authoritative member load, the real-claim
+#       crawl and the real-data invariants against it. It contacts no deployed environment of any kind, and needs no AWS
+#       identity. The report-only checks, the dependency audit (--audit) and the
+#       ZAP scan (--zap), run before a production deploy.
 #   --quick  The fast pre-commit loop, and exactly what `npm run test:quick`
 #       runs: build and test type-check, lint, conventions, harness,
 #       generated-content, secret scan, and the unit and integration tiers.
 #   --staging  Adds four read-only checks against staging to either mode, and
-#       needs the dev-tester role: the staging AWS adapter smoke, the real-data
-#       invariants on the staging host, the route smoke against the staging site
-#       (GETs only) and the anonymous browser check. It never targets production
-#       and never writes to staging. A run whose staging rows all pass writes a
-#       staging pass receipt, keyed to the commit staging runs.
+#       needs at minimum the dev-tester role, which the footbag-operator IAM user
+#       also holds, so either runs it: the staging AWS adapter smoke, the
+#       real-data invariants on the staging host, the route smoke against the
+#       staging site (GETs only) and the anonymous browser check. It never
+#       targets production and never writes to staging, and its result has no
+#       bearing on a production deploy.
 #
-# Prints a per-gate summary with each gate's elapsed seconds and exits non-zero
-# if any gate fails. In the bare run the set of gates matches CI, save for the two
-# GitHub-hosted jobs listed below that cannot run here, and the report-only
-# dependency audit, which reads the package registry at the moment it runs and
-# so runs on request (--audit) before a production deploy.
+# Prints a per-gate summary with each gate's elapsed seconds, then ends every run,
+# however it ends, with one verdict banner as the last output, carrying the exit
+# code it returns; non-zero if any gate fails. In the bare run the set of gates
+# matches CI, save for the two GitHub-hosted jobs listed below that cannot run
+# here, and the report-only dependency audit, which reads the package registry at
+# the moment it runs and so runs on request (--audit) before a production deploy.
+# It also runs gates CI never does, each recorded with its reason in
+# scripts/ci/check_ci_parity.sh: the pentest harness, the pre-go-live data-load
+# Python (what --skip-py leaves out), the two real-data rows and the
+# machine-local harness check.
 #
 # SAFE BY DESIGN — never touches real data:
 #   - It NEVER invokes the loader-pipeline scripts (scripts/reset-local-db.sh,
@@ -47,8 +51,8 @@
 #
 # SAFE BY DESIGN — reaches beyond this machine only where it says it does:
 #   - Only --staging reaches a deployed environment, and only staging: its
-#     preflight asks AWS who the caller is and reads staging's address, host and
-#     deployed commit, and its four rows read staging and write nothing there.
+#     preflight asks AWS who the caller is and reads staging's address and
+#     dataset counts, and its four rows read staging and write nothing there.
 #     Every other gate runs through aws_isolated_run
 #     (scripts/lib/aws-isolation.sh), which points every credential source at
 #     nothing, so a gate that starts reaching AWS fails at once rather than
@@ -75,8 +79,10 @@
 # Usage:
 #   ./run_all_tests.sh                    # the thorough local gate
 #   ./run_all_tests.sh --quick            # the fast pre-commit loop (npm run test:quick)
-#   scripts/as-dev-tester.sh --account <you> ./run_all_tests.sh --staging
-#                                         # the bare run plus the read-only staging checks
+#   ./run_all_tests.sh --staging          # the bare run plus the read-only staging
+#                                         # checks, as footbag-operator; a dev-tester
+#                                         # runs it through scripts/as-dev-tester.sh
+#                                         # --account <you>
 #   ./run_all_tests.sh --plan             # print what a mode would run, and exit
 #   ./run_all_tests.sh --help
 
@@ -96,8 +102,6 @@ ZAP=0
 AUDIT=0
 WITH_PERSONA_CRAWL=0
 WITH_REALDATA_INVARIANTS=0
-# The password-hash suite at production argon2 cost. Implied by the bare run only.
-WITH_STRONG_HASH=0
 # The legacy-mirror suite covers code that is retired at go-live and takes long
 # enough to matter, and the push gate never runs it, so no other flag implies it.
 WITH_LEGACY_MIRROR=0
@@ -105,7 +109,8 @@ WITH_LEGACY_MIRROR=0
 # run that used this ends INCOMPLETE rather than passing and says why.
 SKIP_SECRET_SCAN=0
 # Leaves every Python gate out of the bare run, the clean room's included. The
-# push gate still runs them, so the run ends INCOMPLETE and writes no receipt.
+# push gate does not run them either, so nothing else checks them, and the run
+# ends INCOMPLETE.
 SKIP_PY=0
 A11Y=0
 FAIL_FAST=0
@@ -147,16 +152,15 @@ Modes:
                 throwaway worktree and runs the suite as the push gate sees it
                 (the coverage thresholds, the loader gates and the legacy
                 Python suite included). Plus the pentest harness, the a11y scan
-                (carried by e2e), the production-strength password hash, and the
-                real-claim crawl and real-data invariants against the local
-                database when it holds the authoritative member load; without
-                that load those two rows report "not required" and do not hold
-                the run back. Contacts no deployed environment and needs no AWS
-                identity. Before any gate it checks the tools it needs and
-                refuses, naming what is missing. Each test runs once: build,
-                lint, conventions, generated-content and the unit and
-                integration tiers run in the clean room. A GREEN run writes a
-                pass receipt the production release gate reads.
+                (carried by e2e), and the real-claim crawl and real-data
+                invariants against the local database when it holds the
+                authoritative member load; without that load those two rows
+                report "not required" and do not hold the run back.
+                Contacts no deployed environment and needs no AWS identity.
+                Before any gate it checks the tools it needs and refuses, naming
+                what is missing. Each test runs once: build, lint, conventions,
+                generated-content and the unit and integration tiers run in the
+                clean room.
   --quick       The fast pre-commit loop, and exactly what npm run test:quick
                 runs: build and test type-check, lint, conventions, harness,
                 generated-content, the secret scan (passing when no scanner is
@@ -164,8 +168,10 @@ Modes:
                 when all of that passed, naming what only the bare run runs.
 
 Switches:
-  --staging     Adds four read-only rows against staging to either mode, run
-                through the dev-tester role (scripts/as-dev-tester.sh):
+  --staging     Adds four read-only rows against staging to either mode. They
+                need at minimum the dev-tester role, which the IAM user
+                footbag-operator also holds: an operator runs them directly,
+                and a dev-tester through scripts/as-dev-tester.sh:
                   staging-aws-smoke            the staging AWS adapter smoke
                   staging-realdata-invariants  the whole-population invariants on
                                                the staging host (counts and
@@ -176,9 +182,9 @@ Switches:
                 role, wiring or site at minute 0; a row whose needs are missing
                 FAILs without running and names the fix, and the local gates
                 still run. Never production, and nothing written to staging. A
-                run whose staging rows all pass writes a staging pass receipt
-                keyed to the commit staging runs; a staging failure exits
-                non-zero but never voids the local receipt.
+                staging failure fails the run, and the verdict banner still says
+                what the local rows concluded; no staging result bears on a
+                production deploy.
   --plan        Print each row this run would schedule and where it points, then
                 exit before anything else happens.
   --fail-fast   Stop at the first failing gate instead of running them all.
@@ -220,9 +226,10 @@ Subtractions from the bare run:
                 the checkout and in the clean room: the Python-driven integration
                 suite, the generated-content guard, the loader gate, the
                 freestyle database guards and the legacy-data pytest suite. No
-                Python environment is built. The push gate still runs them, so
-                the run ends INCOMPLETE, names them NOT RUN and writes no pass
-                receipt. Cannot be combined with --quick or --with-legacy-mirror.
+                Python environment is built. The push gate does not run them
+                either, so nothing else checks them: the run ends INCOMPLETE and
+                names them NOT RUN. Cannot be combined with --quick or
+                --with-legacy-mirror.
 
 Run only by name, in any mode:
   --with-legacy-mirror
@@ -264,7 +271,6 @@ if (( FULL == 1 )); then
   A11Y=1
   WITH_PERSONA_CRAWL=1
   WITH_REALDATA_INVARIANTS=1
-  WITH_STRONG_HASH=1
 fi
 
 # The environment each staging row is pinned to, assigned rather than read, so a
@@ -275,6 +281,107 @@ STAGING_BROWSER_TARGET=staging
 
 mode_label() {
   printf '%s%s' "$( (( FULL == 1 )) && echo full || echo quick)" "$( (( STAGING == 1 )) && echo +staging || true)"
+}
+
+# -----------------------------------------------------------------------------
+# The verdict. Every way this run ends goes through end_run, so the last block of
+# output always says what the run concluded and carries the exit code it returns:
+# a pass, a failure, a fail-fast stop, an interrupt, a refusal before any gate,
+# a voided run and a real-data alarm alike. Defined before the preflight, which
+# can refuse the run before a single gate has started.
+# -----------------------------------------------------------------------------
+# shellcheck source=scripts/lib/verdict-banner.sh
+source scripts/lib/verdict-banner.sh
+
+# What the local rows concluded, set before the run ends, so a staging failure
+# cannot hide what the local tree proved.
+LOCAL_VERDICT=""
+
+# Set once a verdict banner has printed, so the exit backstop below prints one
+# only for a run that ended any other way.
+BANNER_DONE=0
+
+# "N passed, N failed, N skipped, N not run" over the summary rows so far. The
+# rows the clean room reported for the gates it ran inside it are counted apart,
+# since its own row already counts it as one gate.
+gate_counts() {
+  local r passed=0 failed=0 skipped=0 notrun=0 noted=0 rpass=0 rfail=0 rnot=0
+  for r in ${GATE_RESULTS[@]+"${GATE_RESULTS[@]}"}; do
+    case "$r" in
+      "PASS (clean room"*)    rpass=$((rpass + 1)) ;;
+      "FAIL (clean room"*)    rfail=$((rfail + 1)) ;;
+      "NOT RUN (clean room"*) rnot=$((rnot + 1)) ;;
+      PASS*)      passed=$((passed + 1)) ;;
+      FAIL*)      failed=$((failed + 1)) ;;
+      SKIP*)      skipped=$((skipped + 1)) ;;
+      "NOT RUN"*) notrun=$((notrun + 1)) ;;
+      *)          noted=$((noted + 1)) ;;
+    esac
+  done
+  printf '%s passed, %s failed, %s skipped, %s not run' "$passed" "$failed" "$skipped" "$notrun"
+  (( noted > 0 )) && printf ', %s noted' "$noted"
+  (( rpass + rfail + rnot > 0 )) && printf '; inside the clean room: %s passed, %s failed, %s not run' "$rpass" "$rfail" "$rnot"
+  return 0
+}
+
+# The failed gates by name, a failed clean room carrying the names of the gates
+# that failed inside it.
+failed_names() {
+  local i inner="" name out=""
+  for i in ${GATE_NAMES[@]+"${!GATE_NAMES[@]}"}; do
+    [[ "${GATE_RESULTS[$i]}" == "FAIL (clean room"* ]] || continue
+    # The two tiers are reported with the coverage run that executed them.
+    [[ "${GATE_RESULTS[$i]}" == *"in the coverage run"* ]] && continue
+    inner+="${inner:+, }${GATE_NAMES[$i]}"
+  done
+  for name in ${FAIL_LOGS[@]+"${FAIL_LOGS[@]}"}; do
+    if [[ "$name" == clean-room && -n "$inner" ]]; then name="clean-room (${inner})"; fi
+    out+="${out:+ }${name}"
+  done
+  printf '%s' "$out"
+}
+
+# The commit under test and whether the tree carried uncommitted changes, because
+# continuous integration tests the commit alone.
+tree_line() {
+  local head dirty n
+  head="$(git rev-parse --short=12 HEAD 2>/dev/null || echo unknown)"
+  dirty="${SOURCE_TREE_LIST_BEFORE-$(git status --porcelain 2>/dev/null || true)}"
+  if [[ -n "$dirty" ]]; then
+    n="$(printf '%s\n' "$dirty" | grep -c . || true)"
+    printf 'Tree: %s plus %s uncommitted path(s); CI tests the commit only' "$head" "$n"
+  else
+    printf 'Tree: %s, nothing uncommitted' "$head"
+  fi
+}
+
+# end_run <WORD> <exit-code> <why> [next] -- print the banner last, then exit.
+end_run() {
+  local word="$1" code="$2" why="$3" next="${4:-}" fails staging="not run"
+  fails="$(failed_names)"
+  if (( ${STAGING:-0} == 1 )); then
+    if (( ${STAGING_ANY_FAIL:-0} == 1 )); then staging="FAILED"; else staging="passed"; fi
+  fi
+  if [[ -z "$next" ]]; then
+    case "$word" in
+      GREEN)         next="push; a production deploy also needs CI green on the pushed commit" ;;
+      "QUICK PASS")  next="the bare ./run_all_tests.sh before a push" ;;
+      INCOMPLETE)    next="run what is named above, or run on a machine that can" ;;
+      FAILED)        next="fix the failures above and re-run" ;;
+      *)             next="re-run" ;;
+    esac
+  fi
+  BANNER_DONE=1
+  verdict_banner "$word" "$code" \
+    "Mode: $(mode_label)" \
+    "$(tree_line)" \
+    "Gates: $(gate_counts)" \
+    "Local rows: ${LOCAL_VERDICT:-none finished}.  Staging rows: ${staging}." \
+    "Failed: ${fails:-none}" \
+    "Why: ${why}" \
+    "Full logs: ${GATE_LOG_DIR:-none written}/" \
+    "Next: ${next}"
+  exit "$code"
 }
 
 # -----------------------------------------------------------------------------
@@ -291,7 +398,7 @@ mode_label() {
 # dataset, and the push gate never runs them either, so counting those would make
 # a clean verdict unreachable and teach the reader to ignore it. They are
 # reported, not held against the run.
-PUSH_GATE_EQUIVALENTS="build lint conventions harness generated-content secret-scan unit integration e2e terraform security-probes clean-room"
+PUSH_GATE_EQUIVALENTS="build lint conventions harness secret-scan e2e terraform security-probes clean-room"
 
 # The fast pre-commit loop, and its one home: `npm run test:quick` is
 # `./run_all_tests.sh --quick`, and check_ci_parity.sh binds this list to the
@@ -299,8 +406,13 @@ PUSH_GATE_EQUIVALENTS="build lint conventions harness generated-content secret-s
 QUICK_GATES="build lint conventions harness generated-content secret-scan unit integration"
 
 # The real-data rows. Without the authoritative load on this machine they are
-# not required, and their skip does not void the pass receipt.
+# not required, and their skip does not hold the verdict back.
 REALDATA_ROWS="persona-crawl realdata-invariants"
+
+# The clean room's pre-go-live data-load Python gates, which --skip-py leaves out.
+# Continuous integration does not run them, so when the room could not run them
+# they ran nowhere, and the verdict says so.
+ROOM_PYTHON_ROWS="integration-club-chain generated-content db-load-smoke freestyle-db-integrity legacy-pytest"
 
 # Each test runs once. In the bare run the clean room runs these against exactly what
 # the next push would carry, in the runner's own conditions, so the checkout does
@@ -365,9 +477,9 @@ local_sequence() {
   fi
   # The harness self-check's one machine-local check reads the gitignored
   # per-developer settings file, which the clean room cannot see, so in the bare run
-  # the checkout still runs it, leaving the hook fixture suite to the room.
+  # the checkout runs that check alone and leaves every other one to the room.
   if (( FULL == 1 )); then
-    run_gate harness-local bash scripts/ci/assert_claude_harness.sh --skip-hook-fixtures
+    run_gate harness-local bash scripts/ci/assert_claude_harness.sh --local-settings-only
   elif in_mode harness; then
     run_gate harness     bash scripts/ci/assert_claude_harness.sh
   fi
@@ -400,12 +512,6 @@ local_sequence() {
     run_gate realdata-invariants gate_realdata_invariants
   fi
 
-  # The password-hash suite at the cost production pays. Every other run uses
-  # the cheap test profile, so this is the only pass over the production
-  # parameters.
-  if (( WITH_STRONG_HASH == 1 )); then
-    run_gate strong-hash npm run test:strong-hash
-  fi
 
   # The e2e gate runs every Playwright spec, the @a11y ones included, so wherever
   # it ran the a11y gate would only repeat them. It runs on its own only where
@@ -461,13 +567,37 @@ if (( PLAN == 1 )); then
   exit 0
 fi
 
+# -----------------------------------------------------------------------------
+# The backstop. From here on this is a run, so every way it can end prints a
+# verdict. end_run covers every exit the runner chooses; this covers the rest: a
+# command that fails under set -e before any gate (a hook install, the rubbish
+# sweep, a temporary directory that cannot be made), and a signal before the
+# gate-time interrupt handler is installed. It also removes the scratch
+# directory, so it is the run's only EXIT trap.
+# -----------------------------------------------------------------------------
+on_unexpected_exit() {
+  local rc=$?
+  rm -rf "${LOG_DIR:-}"
+  (( BANNER_DONE == 1 )) && return 0
+  BANNER_DONE=1
+  verdict_banner ABORTED "$rc" \
+    "Mode: $(mode_label)" \
+    "Why: the runner stopped on an unexpected error before reaching a verdict; the lines above say where" \
+    "Full logs: ${GATE_LOG_DIR:-none written}/" \
+    "Next: fix what the lines above name and re-run"
+}
+trap on_unexpected_exit EXIT
+trap 'end_run INTERRUPTED 130 "the run was stopped before its first gate"' INT
+trap 'end_run INTERRUPTED 143 "the run was stopped before its first gate"' TERM
+trap 'end_run INTERRUPTED 129 "the run was stopped before its first gate"' HUP
+
 # Preflight: required tooling. Match deploy_to_aws.sh's need_cmd shape.
 need_cmd() {
   local cmd="$1" pkg_hint="$2"
   if ! command -v "$cmd" >/dev/null 2>&1; then
     echo "ERROR: required command not found: $cmd" >&2
     echo "Recommendation: $pkg_hint" >&2
-    exit 1
+    end_run REFUSED 1 "required command not found: ${cmd}; nothing has run" "$pkg_hint"
   fi
 }
 need_cmd node "Run bash scripts/setup-dev-workstation.sh (installs Node at the .nvmrc version)."
@@ -478,7 +608,7 @@ source scripts/lib/npm-deps.sh
 if ! npm_deps_current "$PWD"; then
   echo "ERROR: node_modules/ does not hold the versions package-lock.json pins." >&2
   echo "Recommendation: run 'npm ci' first." >&2
-  exit 1
+  end_run REFUSED 1 "node_modules/ does not hold the versions package-lock.json pins; nothing has run" "run 'npm ci' first"
 fi
 
 # Activate the repository's git hooks. npm does this on install, but a checkout
@@ -564,9 +694,8 @@ realdata_probe_value() {
 # minutes in. Only a real need refuses the run: a tool whose gate already copes
 # without it is not checked here (the secret scan falls back to the pinned
 # container or warns, the terraform gate and the pentest's ZAP leg skip, the
-# audit warns on an unreachable registry), and that gate's SKIP row withholds the
-# receipt instead. It asks no deployed environment anything and needs no AWS
-# identity.
+# audit warns on an unreachable registry), and that gate's SKIP row is reported
+# instead. It asks no deployed environment anything and needs no AWS identity.
 # -----------------------------------------------------------------------------
 full_preflight() {
   local problems=() tool
@@ -588,12 +717,10 @@ full_preflight() {
 # needs are missing is recorded here with the fix, and FAILs without running when
 # its turn comes, so a missing role or an unreachable site is named at the start,
 # never as a raw error mid-run, and the local gates still run. Every value that
-# comes back from staging is a count, an address or a commit, never a name.
+# comes back from staging is a count or an address, never a name.
 # -----------------------------------------------------------------------------
 declare -A STAGING_BLOCKERS=()
 STAGING_URL=""
-STAGING_DEPLOYED_COMMIT=""
-STAGING_DEPLOYED_DIRTY=""
 
 # staging_block <message> <row>... — the named rows will fail without running.
 staging_block() {
@@ -616,27 +743,45 @@ staging_blocked() {
 
 staging_preflight() {
   local all=(staging-aws-smoke staging-realdata-invariants staging-route-smoke staging-browser)
-  local fix_role="run it through the dev-tester switch: scripts/as-dev-tester.sh --account <your-name> ./run_all_tests.sh --staging (onboarding: scripts/accept-dev-tester-onboarding.sh)"
-  local fix_wire="the staging alias must connect as your own account (run through scripts/as-dev-tester.sh --account <your-name>), ~/AWS/DEV_TESTER_HOST.txt must hold your staging sudo password at mode 600, and the alias and its pinned host key come from scripts/accept-dev-tester-onboarding.sh"
-  local arn probe members authoritative claimable site ssh_bin
+  # Each fix names what puts the need in place for either identity, because the
+  # rows are run by both: the footbag-operator key holder in their own shell, and
+  # a dev-tester through the wrapper that names them.
+  local fix_wire="the staging ssh alias, its pinned host key and the staging sudo password file for the account the alias connects as must all be in place; bash scripts/setup-operator-workstation.sh --target staging names what is missing on a footbag-operator machine, and scripts/accept-dev-tester-onboarding.sh writes them on a dev-tester's"
+  local arn probe members authoritative claimable site
 
   echo "→ --staging preflight: checking what the staging rows need ..."
   if ! command -v aws >/dev/null 2>&1; then
     staging_block "the AWS CLI is not installed; bash scripts/setup-dev-workstation.sh --aws installs it" "${all[@]}"
   else
-    # An AWS fact, not a profile name found in a file: the caller must be a
-    # session of the dev-tester job role, and the staging runtime identity the
-    # smoke suite probes through must answer.
-    arn=$(aws sts get-caller-identity --query Arn --output text 2>/dev/null || true)
-    if [[ "$arn" != *":assumed-role/FootbagDevTester/"* ]]; then
-      staging_block "--staging requires the dev-tester role, and this shell is ${arn:-not signed in to AWS}; ${fix_role}" "${all[@]}"
-    elif ! aws sts get-caller-identity --profile footbag-staging-runtime >/dev/null 2>&1; then
-      staging_block "the staging runtime identity (profile footbag-staging-runtime) does not answer; re-run scripts/accept-dev-tester-onboarding.sh" staging-aws-smoke
+    # A shell with no AWS identity of its own gets the footbag-operator profile,
+    # as every operator script does, and whichever identity the run ends up with
+    # is proved against AWS. In this shell rather than a subshell, so the profile
+    # it settles reaches the rows.
+    # shellcheck source=scripts/lib/aws-profile.sh
+    source scripts/lib/aws-profile.sh
+    if ! aws_profile_ensure; then
+      staging_block "no AWS identity in this shell authenticates (the lines above say why)" "${all[@]}"
+    else
+      # An AWS fact, not a profile name found in a file. The rows need at minimum
+      # the dev-tester role, which the footbag-operator IAM user also holds, so
+      # either runs them; any other identity is refused. The staging runtime
+      # identity the smoke suite probes through must also answer.
+      arn="${AWS_IDENTITY_ARN:-}"
+      case "$arn" in
+        *":user/footbag-operator"|*":assumed-role/FootbagDevTester/"*)
+          if ! aws sts get-caller-identity --profile footbag-staging-runtime >/dev/null 2>&1; then
+            staging_block "the staging runtime identity (profile footbag-staging-runtime) does not answer; scripts/install-operator-key.sh writes it for the footbag-operator key holder, and scripts/accept-dev-tester-onboarding.sh for a dev-tester" staging-aws-smoke
+          fi
+          ;;
+        *)
+          staging_block "--staging runs as the IAM user footbag-operator or as a session of the FootbagDevTester role, and this shell is ${arn:-not signed in to AWS}; a dev-tester runs it through scripts/as-dev-tester.sh --account <your-name> ./run_all_tests.sh --staging" "${all[@]}"
+          ;;
+      esac
     fi
   fi
 
   [[ -d terraform/staging/.terraform ]] \
-    || staging_block "terraform/staging is not initialised; the staging smoke reads its outputs (run terraform init there, as the dev-tester)" \
+    || staging_block "terraform/staging is not initialised; the staging smoke reads its outputs (bash scripts/setup-operator-workstation.sh --target staging initialises it)" \
          staging-aws-smoke
 
   # Staging's address is the one the staging host records it serves, asked of
@@ -658,36 +803,25 @@ staging_preflight() {
   fi
 
   # Staging's dataset, which the invariants row reads on the host: counts only.
+  # A database without the export is not blocked here: the row runs and reports
+  # its legal-name and honor gates as "prerequisite not loaded". One the export
+  # has reached but left too thin to judge is blocked.
   if ! probe="$(bash scripts/realdata-staging.sh probe)"; then
     staging_block "staging's database could not be reached on the staging host; ${fix_wire}" staging-realdata-invariants
   else
     members="$(realdata_probe_value "$probe" RDI_MEMBERS)"
     authoritative="$(realdata_probe_value "$probe" RDI_AUTHORITATIVE)"
     claimable="$(realdata_probe_value "$probe" RDI_CLAIMABLE)"
-    if (( ${members:-0} < 200 || ${authoritative:-0} == 0 || ${claimable:-0} == 0 )); then
+    if (( ${authoritative:-0} > 0 && ( ${members:-0} < 200 || ${claimable:-0} == 0 ) )); then
       staging_block "staging's database carries no authoritative real dataset (${members:-0} legacy_members, ${authoritative:-0} from the footbag.org export, ${claimable:-0} claimable Hall-of-Fame records); an operator's staging deploy with --all-data loads it" \
         staging-realdata-invariants
     fi
   fi
 
-  # What staging runs: the commit a green run's pass receipt is keyed to, read the
-  # way the production release gate reads it. The test seam replaces the ssh
-  # client and says so, because a stubbed read proves nothing about staging.
-  # shellcheck source=scripts/lib/staging-deployed-from.sh
-  source scripts/lib/staging-deployed-from.sh
-  ssh_bin="${FOOTBAG_SSH_BIN:-ssh}"
-  if [[ -n "${FOOTBAG_SSH_BIN:-}" ]]; then
-    echo "TEST SEAM: FOOTBAG_SSH_BIN=${FOOTBAG_SSH_BIN}; what staging runs was not read from the staging host." >&2
-  fi
-  staging_deployed_from_read "$ssh_bin"
-  if [[ -z "$STAGING_DEPLOYED_COMMIT" ]]; then
-    echo "  WARNING: what staging runs (/srv/footbag/deployed-from) could not be read; the staging rows still run, but a green run writes no staging pass receipt. Check the pinned host keys and the alias."
-  fi
-
   if (( ${#STAGING_BLOCKERS[@]} > 0 )); then
     echo "→ --staging preflight: the rows named above will FAIL without running; the local gates still run."
   else
-    echo "→ --staging preflight: dev-tester identity, staging wiring, site and dataset all present; staging runs ${STAGING_DEPLOYED_COMMIT:-an unreadable commit}."
+    echo "→ --staging preflight: identity, staging wiring, site and dataset all present."
   fi
 }
 
@@ -697,8 +831,14 @@ if (( WITH_PERSONA_CRAWL == 1 || WITH_REALDATA_INVARIANTS == 1 )); then
   realdata_source
 fi
 if (( FULL == 1 )); then
-  full_preflight 2>&1 | tee -a "$PREFLIGHT_LOG"
-  (( PIPESTATUS[0] == 0 )) || exit 1
+  # Captured and then shown, not piped through tee: under pipefail a failing
+  # pipeline aborts the run on its own line, before its status can be read.
+  preflight_rc=0
+  full_preflight > "${GATE_LOG_DIR}/full-preflight.log" 2>&1 || preflight_rc=$?
+  tee -a "$PREFLIGHT_LOG" < "${GATE_LOG_DIR}/full-preflight.log"
+  (( preflight_rc == 0 )) \
+    || end_run REFUSED 1 "the bare run's preflight found a tool missing (named above); nothing has run" \
+         "install what is named above and re-run"
 fi
 # In this shell rather than a pipeline, so what it records reaches the gates; its
 # output is shown and kept once it finishes.
@@ -762,12 +902,6 @@ for d in "${REAL_DATA_DIRS[@]}"; do FP_BEFORE["$d"]=$(fingerprint "$d"); done
 # shellcheck source=scripts/lib/source-tree-state.sh
 source scripts/lib/source-tree-state.sh
 SOURCE_TREE_BEFORE="$(source_tree_state)"
-# shellcheck source=scripts/lib/full-pass-receipt.sh
-source scripts/lib/full-pass-receipt.sh
-# A run removes any earlier receipt it could write before it starts, so only a
-# run that ends passing can leave one behind.
-if (( FULL == 1 )); then rm -f "$(full_pass_receipt_path)"; fi
-if (( STAGING == 1 )); then rm -f "$(staging_pass_receipt_path)"; fi
 SOURCE_TREE_LIST_BEFORE="$(git status --porcelain 2>/dev/null || true)"
 
 # The content hash of every file that differs from the commit, tracked or not, so
@@ -830,8 +964,9 @@ assert_real_data_untouched() {
     echo "    ps -eo pid,etimes,cmd | grep -i mirror" >&2
     echo "  and whether any tracked file actually changed:" >&2
     echo "    git status --short legacy_data/ curated/" >&2
-    exit 2
+    return 1
   fi
+  return 0
 }
 
 # -----------------------------------------------------------------------------
@@ -841,17 +976,16 @@ GATE_NAMES=()
 GATE_RESULTS=()
 FAIL_LOGS=()
 ANY_FAIL=0
-# Kept apart because they decide different things: a local failure withholds the
-# local receipt, a staging failure only the staging one. Either fails the run.
+# Kept apart because the verdict reports them apart: a staging failure fails the
+# run without taking back what the local rows proved. Either fails the run.
 LOCAL_ANY_FAIL=0
 STAGING_ANY_FAIL=0
 
 # Scratch space a gate needs only while it runs (Terraform data directories, the
 # persona stack's log, pytest's bytecode). In the OS tmpdir, never a real-data
-# tree, and removed on exit. Gate output is not kept here: it goes to
-# GATE_LOG_DIR, which outlives the run.
+# tree, and removed on exit by the backstop trap. Gate output is not kept here:
+# it goes to GATE_LOG_DIR, which outlives the run.
 LOG_DIR=$(mktemp -d "${TMPDIR:-/tmp}/footbag-run-all.XXXXXX")
-trap 'rm -rf "$LOG_DIR"' EXIT
 
 # The gate a Ctrl-C or a kill lands in, named in the report the interrupt prints.
 CURRENT_GATE=""
@@ -879,9 +1013,9 @@ summarize() {
 # context. A blind tail was the wrong selection. A coverage run prints its table
 # after the failing assertions and pytest prints long tracebacks before its
 # summary, so the last sixty lines were the table or the middle of a traceback and
-# the error itself was above them. The same grammar the clean room uses, so the
-# two reports select alike.
-FAILURE_GRAMMAR='FAIL|FAILED|ERROR|Error:|error TS[0-9]|AssertionError|Traceback|✕|✗|×|violat|REFUSED|not ok'
+# the error itself was above them. The same grammar the clean room uses, from
+# scripts/lib/verdict-banner.sh, so the two reports select alike.
+FAILURE_GRAMMAR="$FOOTBAG_FAILURE_GRAMMAR"
 
 recap_gate_log() {
   local log="$1" hits total
@@ -911,7 +1045,13 @@ dump_failures() {
     log="${GATE_LOG_DIR}/${name}.log"
     echo ""
     echo "──── ${name} ────"
-    if [[ -s "$log" ]]; then
+    if [[ "$name" == clean-room ]] && grep -q ' clean-room failure details' "$log" 2>/dev/null; then
+      # The room already selected each of its failed gates' errors and tails. Its
+      # log streams every gate it ran, so a generic selection over it finds the
+      # earliest noise first and a tail that is mostly its verdict banner.
+      sed -n '/ clean-room failure details/,/Every gate.s full output, passing or failing/p' "$log" | sed 's/^/  /'
+      echo "  full output: ${log}"
+    elif [[ -s "$log" ]]; then
       recap_gate_log "$log"
       echo "  full output: ${log}"
     else
@@ -983,22 +1123,35 @@ skip_reason() {
 # A Ctrl-C or a kill used to end the run with no report at all, and the exit trap
 # then deleted every log. The logs now outlive the run, and the report for the
 # gates that finished is printed on the way out, naming the one interrupted.
+# on_interrupt <exit-code> -- 130 for INT, 143 for TERM, 129 for HUP.
 on_interrupt() {
-  trap - INT TERM
+  trap - INT TERM HUP
+  local code="${1:-130}" stopped_in="$CURRENT_GATE"
   echo "" >&2
-  echo "→ run_all_tests.sh: INTERRUPTED${CURRENT_GATE:+ during the ${CURRENT_GATE} gate}. The report below covers the gates that finished." >&2
+  echo "→ run_all_tests.sh: INTERRUPTED${stopped_in:+ during the ${stopped_in} gate}. The report below covers the gates that finished." >&2
   # The room writes each gate's line as that gate finishes, so the ones it
   # completed before the interrupt still get their rows.
-  if [[ "$CURRENT_GATE" == clean-room && -n "${CLEAN_ROOM_RESULTS:-}" ]]; then
+  if [[ "$stopped_in" == clean-room && -n "${CLEAN_ROOM_RESULTS:-}" ]]; then
     import_clean_room_results "$CLEAN_ROOM_RESULTS"
   fi
   summarize
-  dump_failures
   print_notices
   print_not_checked
-  exit 130
+  dump_failures
+  # The gate the interrupt landed in never got a row, so what it had printed is
+  # shown here, beside the verdict that names it.
+  if [[ -n "$stopped_in" && -s "${GATE_LOG_DIR}/${stopped_in}.log" ]]; then
+    echo ""
+    echo "──── ${stopped_in} (interrupted) ────"
+    recap_gate_log "${GATE_LOG_DIR}/${stopped_in}.log"
+    echo "  full output: ${GATE_LOG_DIR}/${stopped_in}.log"
+  fi
+  LOCAL_VERDICT="stopped"
+  end_run INTERRUPTED "$code" "the run was stopped${stopped_in:+ during the ${stopped_in} gate}; the report covers only the gates that finished"
 }
-trap on_interrupt INT TERM
+trap 'on_interrupt 130' INT
+trap 'on_interrupt 143' TERM
+trap 'on_interrupt 129' HUP
 
 # run_gate NAME CMD...   — a gate may return 77 to signal SKIP. Each row carries
 # the gate's elapsed seconds, so a long run says where its time went.
@@ -1050,11 +1203,15 @@ run_gate() {
       # failure tail this run had already produced. See the same ordering in
       # final_verdict.
       summarize
-      dump_failures
       print_notices
       print_not_checked
-      assert_real_data_untouched
-      exit 1
+      dump_failures
+      LOCAL_VERDICT="stopped"
+      if ! assert_real_data_untouched; then
+        end_run FATAL 2 "a real-data tree changed during this run (the FATAL lines above); do not trust any result" \
+          "find what wrote into the real-data tree before re-running"
+      fi
+      end_run FAILED 1 "--fail-fast stopped the run at its first failing gate, ${name}" "fix ${name} and re-run"
     fi
   fi
 }
@@ -1126,7 +1283,6 @@ print_not_checked() {
   for _opt_in in \
     "persona-crawl:--with-persona-crawl" \
     "realdata-invariants:--with-realdata-invariants" \
-    "strong-hash:the bare run" \
     "a11y:--a11y" \
     "pentest:--pentest" \
     "legacy-mirror:--with-legacy-mirror"; do
@@ -1141,7 +1297,7 @@ print_not_checked() {
     NOT_SCHEDULED_OPT_IN+=("the ZAP scan (not run; --zap runs it, before a production deploy)")
   fi
   if (( STAGING == 0 )); then
-    NOT_SCHEDULED_OPT_IN+=("the read-only staging checks (not run; --staging runs them, with the dev-tester role)")
+    NOT_SCHEDULED_OPT_IN+=("the read-only staging checks (not run; --staging runs them, as footbag-operator or a dev-tester)")
   fi
 
   echo ""
@@ -1234,118 +1390,50 @@ import_clean_room_results() {
 }
 
 # -----------------------------------------------------------------------------
-# The pass receipts and the verdict.
+# The verdict.
 # -----------------------------------------------------------------------------
 
-# How many skipped rows stand between this run and a local pass receipt. A skipped
-# gate is a check that did not happen, so it withholds the receipt, with two
-# exceptions: a staging row, which the staging receipt answers for, and a
-# real-data row on a machine with no authoritative load, where it is not required.
-receipt_voiding_skips() {
-  local i n=0
+# The skipped rows that stand between this run and a clean verdict, by name. A
+# skipped gate is a check that did not happen, so it holds the verdict at
+# INCOMPLETE, with three exceptions: a staging row, because what staging does
+# never bears on the local tree; a push-gate check, because continuous
+# integration runs it on every push and a production deploy requires that run
+# green for the commit; and a real-data row, which skips only where the data it
+# needs is not on this machine and never holds a run back. A data-load Python
+# gate the clean room reported NOT RUN counts too, since nothing else runs it.
+uncovered_skips() {
+  local i out=()
   for i in "${!GATE_NAMES[@]}"; do
-    [[ "${GATE_RESULTS[$i]}" == SKIP* ]] || continue
-    [[ "${GATE_NAMES[$i]}" == staging-* ]] && continue
-    # Continuous integration runs every push-gate check and the release gate
-    # requires it green for the commit, so a local skip of one proves no less.
-    grep -qw "${GATE_NAMES[$i]}" <<< "$PUSH_GATE_EQUIVALENTS" && continue
-    if [[ "${REALDATA_SOURCE:-}" == none && " ${REALDATA_ROWS} " == *" ${GATE_NAMES[$i]} "* ]]; then
+    if [[ "${GATE_RESULTS[$i]}" == "NOT RUN (clean room"* && " ${ROOM_PYTHON_ROWS} " == *" ${GATE_NAMES[$i]} "* ]]; then
+      out+=("${GATE_NAMES[$i]}")
       continue
     fi
-    n=$((n + 1))
+    [[ "${GATE_RESULTS[$i]}" == SKIP* ]] || continue
+    [[ "${GATE_NAMES[$i]}" == staging-* ]] && continue
+    [[ " ${PUSH_GATE_EQUIVALENTS} " == *" ${GATE_NAMES[$i]} "* ]] && continue
+    [[ " ${REALDATA_ROWS} " == *" ${GATE_NAMES[$i]} "* ]] && continue
+    out+=("${GATE_NAMES[$i]}")
   done
-  echo "$n"
+  printf '%s' "${out[*]+${out[*]}}"
 }
 
-# The receipt the production release gate reads, so a production deploy of this
-# exact tree need not run the whole suite again (scripts/lib/full-pass-receipt.sh
-# says where it lives and why). Called only once the local gates are GREEN. It
-# records what was proven (commit, tree fingerprint, whether the tree was clean)
-# and by which runner, so the gate can refuse a receipt for anything else.
-write_full_pass_receipt() {
-  local voiding runner_hash receipt
-  voiding="$(receipt_voiding_skips)"
-  runner_hash="$(sha256sum run_all_tests.sh 2>/dev/null | cut -d' ' -f1 || true)"
-  if (( voiding > 0 )); then
-    echo "  No pass receipt: ${voiding} gate(s) skipped, so this run cannot vouch for a production release."
-    return 0
-  fi
-  if [[ -z "$runner_hash" ]]; then
-    echo "  No pass receipt: sha256sum is unavailable, so the runner cannot be identified."
-    return 0
-  fi
-  receipt="$(full_pass_receipt_path)"
-  (
-    umask 077
-    {
-      echo "verdict=GREEN"
-      echo "commit=$(git rev-parse HEAD)"
-      echo "tree=${SOURCE_TREE_BEFORE}"
-      echo "clean=$([[ -z "$SOURCE_TREE_LIST_BEFORE" ]] && echo yes || echo no)"
-      echo "finished_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-      echo "runner=${runner_hash}"
-    } > "$receipt"
-  )
-  echo "  Pass receipt for the production release gate: ${receipt}"
-}
-
-# The staging receipt, written straight after the staging rows and independent of
-# everything after them: every staging row must have passed, and it is keyed to
-# the commit the staging preflight read from the host, since that is the deploy
-# the rows tested. Without a readable commit there is nothing to key it to, and
-# the gate would match it against nothing, so none is written.
-write_staging_pass_receipt() {
-  local row i found runner_hash receipt
-  for row in staging-aws-smoke staging-realdata-invariants staging-route-smoke staging-browser; do
-    found=""
-    for i in "${!GATE_NAMES[@]}"; do
-      [[ "${GATE_NAMES[$i]}" == "$row" ]] && found="${GATE_RESULTS[$i]}"
-    done
-    if [[ "$found" != PASS* ]]; then
-      echo "  No staging pass receipt: ${row} did not pass (${found:-not run})."
-      return 0
-    fi
-  done
-  if [[ -z "${STAGING_DEPLOYED_COMMIT:-}" ]]; then
-    echo "  No staging pass receipt: what staging runs could not be read, so the pass has no commit to vouch for."
-    return 0
-  fi
-  runner_hash="$(sha256sum run_all_tests.sh 2>/dev/null | cut -d' ' -f1 || true)"
-  if [[ -z "$runner_hash" ]]; then
-    echo "  No staging pass receipt: sha256sum is unavailable, so the runner cannot be identified."
-    return 0
-  fi
-  receipt="$(staging_pass_receipt_path)"
-  (
-    umask 077
-    {
-      echo "verdict=GREEN"
-      echo "commit=${STAGING_DEPLOYED_COMMIT}"
-      echo "dirty=${STAGING_DEPLOYED_DIRTY:-}"
-      echo "finished_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-      echo "runner=${runner_hash}"
-    } > "$receipt"
-  )
-  echo "  Staging pass receipt for the production release gate: ${receipt} (staging runs ${STAGING_DEPLOYED_COMMIT})"
-}
-
-# The verdicts, after the whole report. The real-data guard exits 2 the moment it
-# trips, and what trips it is usually a legacy mirror crawl writing alongside the
-# run rather than a gate misbehaving, so it must not run before the reader has
-# the results. The one-tree guard invalidates the verdict, so it comes before it.
-# The local verdict is judged on the local rows only; a staging failure then
-# fails the run without taking back what the local rows proved.
+# The verdict, after the whole report, and in this order: a real-data alarm, then
+# a tree that changed mid-run, then the local rows, then the staging rows. Both
+# guards return rather than exit, so the banner still carries the gate counts;
+# what trips the real-data guard is usually a legacy mirror crawl writing beside
+# the run rather than a gate misbehaving. The local rows are judged on their own,
+# so a staging failure fails the run without taking back what they proved.
 final_verdict() {
-  local code=0
-  assert_real_data_untouched
-
-  if ! assert_source_tree_unchanged; then
-    exit 4
+  local uncovered local_why=""
+  if ! assert_real_data_untouched; then
+    LOCAL_VERDICT="not trusted"
+    end_run FATAL 2 "a real-data tree changed during this run (the FATAL lines above); do not trust any result" \
+      "find what wrote into the real-data tree before re-running"
   fi
-
-  if (( LOCAL_ANY_FAIL == 1 )); then
-    echo "→ run_all_tests.sh: one or more gates FAILED." >&2
-    exit 1
+  if ! assert_source_tree_unchanged; then
+    LOCAL_VERDICT="void"
+    end_run VOID 4 "the tree changed while the run was in flight, so the gates did not all read the same source" \
+      "hold the tree still and re-run"
   fi
 
   # A tool the project uses belongs on the workstation. Its absence does not fail
@@ -1357,34 +1445,38 @@ final_verdict() {
     echo "  Install what they need: bash scripts/setup-dev-workstation.sh reports how." >&2
   fi
 
-  if (( ${#SKIPPED_PREDICTIVE[@]} > 0 )); then
-    echo "→ run_all_tests.sh: INCOMPLETE. Everything that ran passed, but the gates named" >&2
-    echo "  above stand for push-gate jobs and did not run, so this run cannot tell you" >&2
-    echo "  whether your push will pass." >&2
-    code=3
+  uncovered="$(uncovered_skips)"
+  if (( LOCAL_ANY_FAIL == 1 )); then
+    LOCAL_VERDICT="FAILED"
+  elif (( ${#SKIPPED_PREDICTIVE[@]} > 0 )); then
+    LOCAL_VERDICT="INCOMPLETE"
+    local_why="the push gate runs the checks listed under THE PUSH GATE RUNS THESE AND THIS RUN COULD NOT, and this run has no result for them"
   elif (( ${SKIP_PY:-0} == 1 )); then
     # Asked for, not a missing tool: the Python gates are named NOT RUN in the
-    # clean-room rows above, and a run that left them out vouches for nothing
-    # a production release needs, so it writes no receipt.
-    echo "→ run_all_tests.sh: INCOMPLETE. Everything that ran passed, but --skip-py left" >&2
-    echo "  out every Python gate (named NOT RUN above), so this run writes no pass receipt" >&2
-    echo "  and cannot tell you whether your push will pass." >&2
-    code=3
+    # clean-room rows above.
+    LOCAL_VERDICT="INCOMPLETE"
+    local_why="--skip-py left out every Python gate (named NOT RUN above), which continuous integration does not run either"
+  elif [[ -n "$uncovered" ]]; then
+    LOCAL_VERDICT="INCOMPLETE"
+    local_why="these gates skipped, and continuous integration does not run them: ${uncovered}"
   elif (( FULL == 1 )); then
-    echo "→ run_all_tests.sh: GREEN. Everything the push gate runs, apart from the two"
-    echo "  GitHub-only jobs named above, ran here and passed."
-    write_full_pass_receipt
+    LOCAL_VERDICT="GREEN"
+    local_why="everything the push gate runs, apart from the two GitHub-only jobs named above, ran here and passed"
   else
-    echo "→ run_all_tests.sh: QUICK PASS. Everything --quick schedules passed. The push"
-    echo "  gate also runs the gates named above, which the bare run runs."
+    LOCAL_VERDICT="QUICK PASS"
+    local_why="everything --quick schedules passed; the push gate also runs the gates named above, which the bare run runs"
   fi
 
-  if (( STAGING_ANY_FAIL == 1 )); then
-    echo "→ run_all_tests.sh: the staging rows FAILED (named above). The local verdict above" >&2
-    echo "  stands on its own; the staging checks did not pass and wrote no staging receipt." >&2
-    code=1
+  if (( LOCAL_ANY_FAIL == 1 )); then
+    end_run FAILED 1 "one or more local gates failed (details above)"
   fi
-  exit "$code"
+  if (( STAGING_ANY_FAIL == 1 )); then
+    end_run FAILED 1 "the staging rows failed (details above); the local rows on their own are ${LOCAL_VERDICT}"
+  fi
+  case "$LOCAL_VERDICT" in
+    INCOMPLETE) end_run INCOMPLETE 3 "$local_why" ;;
+    *)          end_run "$LOCAL_VERDICT" 0 "$local_why" ;;
+  esac
 }
 
 # -----------------------------------------------------------------------------
@@ -1662,8 +1754,14 @@ gate_realdata_invariants() {
 
 # realdata_invariants_verdict <output> <rc> <mirror-only 0|1> <mirror-only advice>
 # The verdict both sources share: the PII self-check over whatever output was
-# produced, before any of it is printed, then the mirror-only refusal, then the
+# produced, before any of it is printed, then the mirror-only verdict, then the
 # checks' own status.
+#
+# A mirror-only load is reported as skipped, "prerequisite not loaded": the
+# structural gates it can satisfy passed, and the legal-name and honor gates had
+# nothing to judge. That is not a failure of the run, and it is never a pass
+# either: the production deploy and the pre-cutover checklist block on the gate
+# script's non-zero exit.
 realdata_invariants_verdict() {
   local out="$1" rc="$2" mirror_only="$3" advice="$4"
   if grep -q '@' <<< "${out}"; then
@@ -1672,9 +1770,9 @@ realdata_invariants_verdict() {
   fi
   printf '%s\n' "${out}"
   if (( mirror_only == 1 )); then
-    echo "ERROR: real-data invariants need the authoritative legacy load; the legacy_members are entirely mirror-derived." >&2
-    echo "Recommendation: ${advice}" >&2
-    return 1
+    echo "  prerequisite not loaded: the legacy_members are entirely mirror-derived, so the legal-name and honor gates were not judged."
+    echo "  Recommendation: ${advice}"
+    return 77
   fi
   return "${rc}"
 }
@@ -1799,7 +1897,6 @@ gate_legacy_mirror() {
 run_sequence() {
   if (( STAGING == 1 )); then
     staging_sequence
-    write_staging_pass_receipt
   fi
   local_sequence
 }
@@ -1808,14 +1905,16 @@ echo "→ run_all_tests.sh starting (mode: $(mode_label))"
 
 run_sequence
 
-# The whole report first: the gate table, the failure details, the notices, and
-# what this run did not check. Every exit in final_verdict ends the run, and each
-# used to come before part of the report: the real-data guard discarded an hour
-# of results over a condition that says nothing about them, and a failed run
-# never reached the list of what it had skipped. Nothing after this point prints
+# The whole report first: the gate table, the notices, what this run did not
+# check, and the failure details last, so a reader at the end of an hour of
+# output finds each failing assertion just above the verdict rather than a
+# screen or more away. Every exit in final_verdict ends the run, and each used to
+# come before part of the report: the real-data guard discarded an hour of
+# results over a condition that says nothing about them, and a failed run never
+# reached the list of what it had skipped. Nothing after this point prints
 # anything a reader needs except the verdict.
 summarize
-dump_failures
 print_notices
 print_not_checked
+dump_failures
 final_verdict

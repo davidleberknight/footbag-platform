@@ -329,12 +329,14 @@ describe('gate_staging_realdata_invariants', () => {
     expect(res.stderr).toContain('possible PII leak');
   });
 
-  // Defect caught: a mirror-only staging load passes, or fails without saying
-  // that the authoritative load is what is missing.
-  it('fails a mirror-only staging load, naming it', () => {
+  // Defect caught: a staging copy built without the member load turns every
+  // staging run red, exactly as corrupt member data would, or passes as though
+  // its legal-name and honor gates had been judged. Skipped is neither.
+  it('reports a mirror-only staging load as prerequisite not loaded, naming it', () => {
     const res = runWith('gate_staging_realdata_invariants', mirrorDb, `${gateLines()}\nRDI_GATES_RC=78\nRDI_RI_RC=0\n`);
-    expect(res.status).toBe(1);
-    expect(res.stderr).toContain('entirely mirror-derived');
+    expect(res.status).toBe(77);
+    expect(res.stdout).toContain('prerequisite not loaded');
+    expect(res.stdout).toContain('entirely mirror-derived');
   });
 
   // Defect caught: a row whose staging wiring the preflight found missing runs

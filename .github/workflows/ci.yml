@@ -169,16 +169,10 @@ jobs:
       - name: Run convention gate
         run: bash scripts/ci/assert_conventions.sh
 
-      - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version-file: '.python-version'
-
-      # Pure source-to-generated-file currency check; the generators read no
-      # database, so this runs here (no DB build, no FOOTBAG_DB_PATH) rather than
-      # in the DB load-smoke tier.
-      - name: Assert generated content modules are current
-        run: bash scripts/ci/assert_generated_content_current.sh
+  # The pre-go-live data-load Python (the generated-content guard, the loader
+  # smoke, the freestyle database guards and the legacy-data pytest suite) is
+  # not run here: developers run it in the local bare run, it retires at
+  # go-live, and it is what ./run_all_tests.sh --skip-py leaves out.
 
   harness:
     name: Harness self-check
@@ -189,86 +183,17 @@ jobs:
         with:
           persist-credentials: false
 
+      # The hook fixture suite runs once, as the next step, not again inside the
+      # self-check.
       - name: Run harness self-check
-        run: bash scripts/ci/assert_claude_harness.sh
+        run: bash scripts/ci/assert_claude_harness.sh --skip-hook-fixtures
 
       - name: Run hook fixture tests
         run: bash scripts/ci/test_hooks.sh
 
-  unit-tests:
-    name: Unit tests
-    runs-on: ubuntu-24.04
-
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Set up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version-file: '.nvmrc'
-          cache: 'npm'
-
-      - name: Install ffmpeg + sqlite3
-        # The overlay-geometry cases derive their expected frame from the media,
-        # and the transcode parity cases encode a real clip. Without these the
-        # suites skip those cases and report green having executed none of them.
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg sqlite3
-
-      - name: Check tool versions against the recorded pins
-        run: source scripts/lib/tool-report.sh && tool_report_require ffmpeg sqlite3
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run unit tests
-        run: npm run test:unit
-
-  integration-tests:
-    name: Integration tests
-    runs-on: ubuntu-24.04
-
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Set up Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version-file: '.nvmrc'
-          cache: 'npm'
-
-      - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version-file: '.python-version'
-          cache: 'pip'
-          cache-dependency-path: legacy_data/requirements.txt
-
-      - name: Install Python pipeline dependencies
-        # tests/integration/clubChainRedirected.test.ts drives the legacy club
-        # extractors as real subprocesses, and they parse the mirror HTML with
-        # BeautifulSoup.
-        run: python3 -m pip install --require-hashes -r legacy_data/requirements.txt
-
-      - name: Install ffmpeg + sqlite3 + jq + age
-        # The overlay-geometry cases derive their expected frame from the media,
-        # and the transcode parity cases encode a real clip; the sealed-delivery
-        # case seals a file with age and opens it. Without these the suites skip
-        # those cases and report green having executed none of them.
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg sqlite3 jq age
-
-      - name: Check tool versions against the recorded pins
-        run: source scripts/lib/tool-report.sh && tool_report_require ffmpeg sqlite3 age jq
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run integration tests
-        run: npm run test:integration
-
+  # The unit and integration tiers run once, in the coverage job below, which
+  # runs exactly those files with instrumentation and then holds the thresholds.
+  # Separate unit and integration jobs would only run every test a second time.
   coverage:
     name: Coverage thresholds
     runs-on: ubuntu-24.04
@@ -284,18 +209,6 @@ jobs:
           node-version-file: '.nvmrc'
           cache: 'npm'
 
-      - name: Set up Python
-        # The suite includes the test that drives the legacy club extractors as
-        # real subprocesses, which parse the mirror HTML with BeautifulSoup.
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version-file: '.python-version'
-          cache: 'pip'
-          cache-dependency-path: legacy_data/requirements.txt
-
-      - name: Install Python pipeline dependencies
-        run: python3 -m pip install --require-hashes -r legacy_data/requirements.txt
-
       - name: Install ffmpeg + sqlite3 + jq + age
         # The overlay-geometry cases derive their expected frame from the media,
         # and the transcode parity cases encode a real clip; the sealed-delivery
@@ -310,7 +223,10 @@ jobs:
         run: npm ci
 
       - name: Run the suite with coverage and enforce the thresholds
-        run: npm run test:coverage -- --coverage.reporter=text --coverage.reporter=json-summary
+        # Without the one suite that drives the legacy club extractors through the
+        # pipeline's Python environment, which the local bare run carries; the
+        # clean room leaves it out the same way when that environment is absent.
+        run: npm run test:coverage -- --exclude tests/integration/clubChainRedirected.test.ts --coverage.reporter=text --coverage.reporter=json-summary
 
       - name: Coverage summary
         if: ${{ !cancelled() }}
@@ -324,105 +240,6 @@ jobs:
             echo "|---|---|"
             jq -r '.total | to_entries[] | select(.key|IN("statements","branches","functions","lines")) | "| \(.key) | \(.value.pct)% |"' "$summary"
           } >> "$GITHUB_STEP_SUMMARY"
-
-  db-load-smoke:
-    name: DB load smoke (loader regression gate)
-    runs-on: ubuntu-24.04
-
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Install sqlite3 CLI + ffmpeg
-        # ffmpeg: required by scripts/seed_curator_media.py to
-        # transcode the demo-loop sources through the curator pipeline (DD §6.8).
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends sqlite3 ffmpeg
-
-      - name: Check tool versions against the recorded pins
-        run: source scripts/lib/tool-report.sh && tool_report_require sqlite3 ffmpeg
-
-      - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version-file: '.python-version'
-
-      - name: Run reset-local-db.sh against the committed canonical data
-        env:
-          FOOTBAG_DB_PATH: ./database/footbag-ci.db
-          STUB_PASSWORD: ci-not-a-real-password
-        run: bash scripts/reset-local-db.sh
-
-      - name: Assert per-table row counts
-        run: python3 scripts/ci/assert_loader_row_counts.py --db ./database/footbag-ci.db
-
-      - name: Upload the built database for the integrity guards
-        # The freestyle integrity guards read loaded data, so they need a built
-        # database. Handing this one across is cheaper than building a second.
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: ci-database
-          path: ./database/footbag-ci.db
-          retention-days: 1
-
-  freestyle-db-integrity:
-    name: Freestyle database integrity guards (required, never skipped)
-    runs-on: ubuntu-24.04
-    needs: db-load-smoke
-
-    # These guards assert over loaded data and answer a missing database with a
-    # skip, which reads as success. Nothing in automation used to satisfy that
-    # precondition, so all five reported green while checking nothing. This job
-    # is the run that owns a database: the runner sets FOOTBAG_REQUIRE_DB, which
-    # turns an unmet precondition into a failure, so the guards either execute or
-    # this job is red.
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version-file: '.python-version'
-
-      - name: Install test dependencies
-        run: python3 -m pip install --require-hashes -r legacy_data/requirements.txt
-
-      - name: Download the database built by the load smoke
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: ci-database
-          path: ./database
-
-      - name: Run the required database-backed guards
-        env:
-          FOOTBAG_TEST_DB: ./database/footbag-ci.db
-        run: bash scripts/ci/run_db_integrity_guards.sh
-
-  legacy-pytest:
-    name: Legacy-data pipeline pytest (safety-guard regression gate)
-    runs-on: ubuntu-24.04
-
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-
-      - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version-file: '.python-version'
-
-      - name: Install test dependencies
-        run: python3 -m pip install --require-hashes -r legacy_data/requirements.txt
-
-      - name: Run the legacy-data pipeline suite
-        # Hermetic (synthetic fixtures, no real dump). Carries the only
-        # regression coverage for the member pipeline's production/staging
-        # refusal guards, the credential-header abort, claim-state
-        # preservation, and the loader exclusion rules.
-        run: PYTHONDONTWRITEBYTECODE=1 python3 -m pytest legacy_data/tests/ -q -p no:cacheprovider
 
   e2e:
     name: E2E click-through
@@ -544,7 +361,7 @@ jobs:
 
   ci-complete:
     name: Type-check and test
-    needs: [typecheck, lint, dependency-audit, dependency-review, secret-scan, conventions, harness, unit-tests, integration-tests, coverage, db-load-smoke, freestyle-db-integrity, legacy-pytest, e2e, security-probes, codeql, terraform]
+    needs: [typecheck, lint, dependency-audit, dependency-review, secret-scan, conventions, harness, coverage, e2e, security-probes, codeql, terraform]
     runs-on: ubuntu-24.04
     if: always()
 

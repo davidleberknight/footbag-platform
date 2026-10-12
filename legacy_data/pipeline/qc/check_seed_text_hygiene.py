@@ -69,9 +69,14 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 LEGACY_ROOT = SCRIPT_DIR.parents[1]
 
 # Seed files scanned, with the column that identifies a row in the failure
-# report. Text-bearing seeds are listed here as they gain committed text.
+# report. Every committed seed carrying text a person typed is listed here.
+# The club-member seed carries display names and aliases typed into the legacy
+# database, which is where encoding damage concentrates. The URL-verdicts seed
+# is deliberately left out: it holds URLs, timestamps and machine-written
+# reasons, so nothing a person typed.
 SCANNED_SEEDS: tuple[tuple[str, str], ...] = (
     ("seed/clubs.csv", "legacy_club_key"),
+    ("seed/club_members.csv", "legacy_club_key"),
 )
 
 _NUMERIC_ENTITY_RE = re.compile(r"&#(?:[0-9]{1,7}|[xX][0-9a-fA-F]{1,6});")
@@ -205,7 +210,8 @@ def main() -> int:
     print("that is scripts/overlay_clubs_from_dump.py; a row whose damage no general")
     print("rule can repair gets an entry in overrides/club_text_corrections.csv with")
     print("its reason. Clear the affected rows before re-running the producer, since")
-    print("it preserves rows already present in the seed verbatim.")
+    print("it preserves rows already present in the seed verbatim. For the")
+    print("club-member seed the producer is scripts/extract_club_members.py.")
     return 1
 
 

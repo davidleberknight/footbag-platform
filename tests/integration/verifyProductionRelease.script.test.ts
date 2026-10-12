@@ -1,28 +1,26 @@
 /**
  * The production release gate, proved against a throwaway repository.
  *
- * Contract: the standalone check passes a tree only when it is clean, its origin
- * is the canonical repository, its HEAD is that repository's main, every run of
- * the CI aggregate check on it succeeded, a GREEN ./run_all_tests.sh receipt
- * owned by this account covers exactly this tree, staging runs the same commit
- * shipped from a clean tree, and a GREEN ./run_all_tests.sh --staging receipt
- * owned by this account covers the commit staging runs; SKIP_SMOKE, SKIP_TESTS
- * and the schema-drift and lock-holder escape hatches are findings, and the test
- * seams are never honoured outside it. Every failing rule is named, and a
- * question that cannot be answered is a finding. A production deploy reports the
- * same findings as warnings and goes on: only footbag-operator deploys
- * production, and that holder decides at the typed confirmation.
+ * Contract: a production release ships only exactly what continuous integration
+ * proved. The gate allows a tree only when it is clean, its origin is the
+ * canonical repository, main contains its HEAD, and every run of the CI
+ * aggregate check on that commit succeeded. A HEAD that is an earlier commit of
+ * main is a rollback to a commit CI proved, and is allowed with a warning.
+ * SKIP_SMOKE and the schema-drift and lock-holder escape hatches are refused,
+ * and the test seam is never honoured outside the standalone check. Staging is
+ * no part of a production release: nothing about it is read, required or warned
+ * about. Every failing rule is named, and a question that cannot be answered is
+ * a refusal. The standalone check and the deploy form apply the same rules.
  *
  * Each case builds a repository whose origin names the canonical repository and
  * resolves, through git's insteadOf, to a local bare repository; copies in the
- * shipped gate and the libraries it sources; and runs the copy. gh and ssh are
- * stubs that answer only when called the way the gate must call them, so a gate
- * asking the wrong question, or reaching staging without the pinned host keys,
- * gets no answer and refuses.
+ * shipped gate; and runs the copy. gh is a stub that answers only when called
+ * the way the gate must call it, so a gate asking the wrong question gets no
+ * answer and refuses.
  */
 import { describe, it, expect, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, writeFileSync, copyFileSync, readFileSync, chmodSync } from 'node:fs';
+import { mkdirSync, writeFileSync, copyFileSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
@@ -30,16 +28,9 @@ import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 const REPO_ROOT = process.cwd();
 const CANONICAL = 'davidleberknight/footbag-platform';
 const CHECK = 'Type-check and test';
-const SHIPPED = [
-  'scripts/verify-production-release.sh',
-  'scripts/lib/production-release-gate.sh',
-  'scripts/lib/source-tree-state.sh',
-  'scripts/lib/ssh-known-hosts.sh',
-  'scripts/lib/full-pass-receipt.sh',
-  'scripts/lib/staging-deployed-from.sh',
-];
+const SHIPPED = ['scripts/verify-production-release.sh', 'scripts/lib/production-release-gate.sh'];
 const ESCAPE_HATCHES = ['FOOTBAG_SKIP_SCHEMA_DRIFT_CHECK', 'FOOTBAG_KEEP_DB_ACK_SCHEMA_DRIFT', 'FOOTBAG_AUTO_KILL_DB_LOCK_HOLDERS'];
-const SEAMS = ['FOOTBAG_GH_BIN', 'FOOTBAG_SSH_BIN', 'FOOTBAG_FULL_RECEIPT', 'FOOTBAG_STAGING_RECEIPT'];
+const SEAM = 'FOOTBAG_GH_BIN';
 
 const scratch: string[] = [];
 afterAll(() => scratch.forEach((s) => removeScratch(s)));
@@ -54,13 +45,8 @@ interface Fixture {
   work: string;
   bin: string;
   env: NodeJS.ProcessEnv;
-  head: string;
-  receipt: string;
-  stagingReceipt: string;
-  writeReceipt: (overrides?: Record<string, string>) => void;
-  writeStagingReceipt: (overrides?: Record<string, string>) => void;
+  head: () => string;
   answerCi: (conclusions: string[] | null) => void;
-  answerStaging: (record: string | null) => void;
 }
 
 function fixture(): Fixture {
@@ -78,79 +64,42 @@ function fixture(): Fixture {
     mkdirSync(join(work, rel, '..'), { recursive: true });
     copyFileSync(join(REPO_ROOT, rel), join(work, rel));
   }
-  writeFileSync(join(work, 'run_all_tests.sh'), '#!/usr/bin/env bash\necho runner\n');
   sh(work, 'git', ['add', '-A']);
   sh(work, 'git', ['commit', '-q', '-m', 'release candidate']);
   const url = `git@github.com:${CANONICAL}.git`;
   sh(work, 'git', ['remote', 'add', 'origin', url]);
   sh(work, 'git', ['config', `url.${origin}.insteadOf`, url]);
   sh(work, 'git', ['push', '-q', 'origin', 'main']);
-  const head = sh(work, 'git', ['rev-parse', 'HEAD']);
+  const head = (): string => sh(work, 'git', ['rev-parse', 'HEAD']);
 
+  // Answers for whatever commit HEAD is when the gate asks, the way the GitHub
+  // API does: a check-runs payload, with the gate's own --jq program run over it,
+  // so the filter that tells a finished run from a running one is what is
+  // judged. A run still going has a null conclusion. The payload also carries an
+  // unrelated check, finished red, which a filter selecting the wrong check reads.
   const answerCi = (conclusions: string[] | null): void => {
-    const endpoint = `repos/${CANONICAL}/commits/${head}/check-runs`;
+    const runs = conclusions?.map((c) => (c === 'in_progress'
+      ? { name: CHECK, status: 'in_progress', conclusion: null }
+      : { name: CHECK, status: 'completed', conclusion: c })) ?? [];
+    const payload = JSON.stringify({ check_runs: [...runs, { name: 'Some other check', status: 'completed', conclusion: 'failure' }] });
     writeFileSync(
       join(bin, 'gh'),
       conclusions === null
         ? '#!/usr/bin/env bash\necho "gh: not signed in" >&2\nexit 1\n'
         : '#!/usr/bin/env bash\n'
-          + `[[ " $* " == *" ${endpoint} "* && "$*" == *'.name == "${CHECK}"'* ]] || exit 1\n`
-          + `printf '%s\\n' ${conclusions.map((c) => `'${c}'`).join(' ')}\n`,
-      { mode: 0o755 },
-    );
-  };
-  const answerStaging = (record: string | null): void => {
-    writeFileSync(
-      join(bin, 'ssh'),
-      record === null
-        ? '#!/usr/bin/env bash\nexit 255\n'
-        : '#!/usr/bin/env bash\n'
-          + '[[ "$*" == *"StrictHostKeyChecking=yes"* && "$*" == *"UserKnownHostsFile="* && "$*" == *"footbag-staging"* ]] || exit 255\n'
-          + `printf 'deployed_at=2026-01-01T00:00:00Z\\n%s\\n' '${record}'\n`,
+          + `head="$(git rev-parse HEAD)"\n`
+          + `[[ "$1" == api && "$2" == "repos/${CANONICAL}/commits/\${head}/check-runs" ]] || exit 1\n`
+          + 'prog=""; while (( $# )); do [[ "$1" == --jq ]] && { prog="$2"; shift; }; shift; done\n'
+          + '[[ -n "$prog" ]] || exit 1\n'
+          + `jq -r "$prog" <<< ${JSON.stringify(payload)}\n`,
       { mode: 0o755 },
     );
   };
   answerCi(['success']);
-  answerStaging(`commit=${head.slice(0, 7)} dirty=0 paths=none`);
 
-  const pin = join(dir, 'known_hosts');
-  writeFileSync(pin, 'footbag-staging ssh-ed25519 AAAA\n');
-  chmodSync(pin, 0o600);
-  const receipt = join(dir, 'receipt');
-  const stagingReceipt = join(dir, 'staging-receipt');
-
-  const env: NodeJS.ProcessEnv = {
-    ...process.env,
-    FOOTBAG_GH_BIN: join(bin, 'gh'),
-    FOOTBAG_SSH_BIN: join(bin, 'ssh'),
-    FOOTBAG_FULL_RECEIPT: receipt,
-    FOOTBAG_STAGING_RECEIPT: stagingReceipt,
-    FOOTBAG_KNOWN_HOSTS: pin,
-  };
-  for (const k of ['SKIP_SMOKE', 'SKIP_TESTS', ...ESCAPE_HATCHES]) delete env[k];
-
-  const writeReceipt = (overrides: Record<string, string> = {}): void => {
-    const tree = sh(work, 'bash', ['-c', 'source scripts/lib/source-tree-state.sh && source_tree_state .']);
-    const runner = sh(work, 'bash', ['-c', "sha256sum run_all_tests.sh | cut -d' ' -f1"]);
-    const fields: Record<string, string> = {
-      verdict: 'GREEN', commit: head, tree, clean: 'yes', finished_at: '2026-01-01T00:00:00Z', runner, ...overrides,
-    };
-    writeFileSync(receipt, Object.entries(fields).map(([k, v]) => `${k}=${v}`).join('\n') + '\n');
-    chmodSync(receipt, 0o600);
-  };
-  writeReceipt();
-  // What a green --staging run writes: the commit exactly as staging's own
-  // record names it, which is the short form the stub above reports.
-  const writeStagingReceipt = (overrides: Record<string, string> = {}): void => {
-    const runner = sh(work, 'bash', ['-c', "sha256sum run_all_tests.sh | cut -d' ' -f1"]);
-    const fields: Record<string, string> = {
-      verdict: 'GREEN', commit: head.slice(0, 7), dirty: '0', finished_at: '2026-01-01T00:00:00Z', runner, ...overrides,
-    };
-    writeFileSync(stagingReceipt, Object.entries(fields).map(([k, v]) => `${k}=${v}`).join('\n') + '\n');
-    chmodSync(stagingReceipt, 0o600);
-  };
-  writeStagingReceipt();
-  return { work, bin, env, head, receipt, stagingReceipt, writeReceipt, writeStagingReceipt, answerCi, answerStaging };
+  const env: NodeJS.ProcessEnv = { ...process.env, [SEAM]: join(bin, 'gh') };
+  for (const k of ['SKIP_SMOKE', ...ESCAPE_HATCHES]) delete env[k];
+  return { work, bin, env, head, answerCi };
 }
 
 function runGate(f: Fixture, extraEnv: Record<string, string> = {}): { status: number | null; stdout: string; stderr: string } {
@@ -166,18 +115,34 @@ function expectRefused(f: Fixture, fragment: string, extraEnv: Record<string, st
   expect(res.stderr).toContain(fragment);
 }
 
+/** Adds a commit to main and pushes it, so the fixture's first commit becomes an earlier commit of main. */
+function advanceMain(f: Fixture): void {
+  writeFileSync(join(f.work, 'later.txt'), 'later\n');
+  sh(f.work, 'git', ['add', '-A']);
+  sh(f.work, 'git', ['commit', '-q', '-m', 'a later release']);
+  sh(f.work, 'git', ['push', '-q', 'origin', 'main']);
+}
+
 describe('the production release gate', () => {
   // Defect caught: a tree that meets every rule is refused, so production can
   // never be deployed.
-  it('passes a clean tree on the canonical main with green CI, a matching receipt, and staging running it', () => {
+  it('passes a clean tree at the tip of the canonical main with CI green', () => {
     const res = runGate(fixture());
     expect(res.status, res.stderr).toBe(0);
     expect(res.stdout).toContain('PASS: this tree may ship to production.');
-    for (const seam of SEAMS) {
-      expect(res.stderr, seam).toContain(`TEST SEAM: ${seam}=`);
-    }
+    expect(res.stderr).toContain(`TEST SEAM: ${SEAM}=`);
+    expect(res.stderr).not.toContain('WARNING');
   });
 
+  // Defect caught: a production release is held to staging. The fixture gives
+  // the gate no staging host and no staging pass of any kind.
+  it('passes with nothing known about staging, and names no staging rule in its output', () => {
+    const res = runGate(fixture());
+    expect(res.status, res.stderr).toBe(0);
+    expect(`${res.stdout}${res.stderr}`.toLowerCase()).not.toContain('staging');
+  });
+
+  // Defect caught: uncommitted changes ship, bytes no test has seen.
   it('refuses a working tree with uncommitted changes', () => {
     const f = fixture();
     writeFileSync(join(f.work, 'scratch.txt'), 'uncommitted\n');
@@ -191,12 +156,28 @@ describe('the production release gate', () => {
     expectRefused(f, "origin is 'someone/footbag-platform'");
   });
 
-  it('refuses a HEAD that is not main', () => {
+  // Defect caught: a commit main does not have ships, so production runs code CI
+  // never proved on main.
+  it('refuses a HEAD that main does not contain', () => {
     const f = fixture();
     writeFileSync(join(f.work, 'extra.txt'), 'x\n');
     sh(f.work, 'git', ['add', '-A']);
     sh(f.work, 'git', ['commit', '-q', '-m', 'not pushed']);
-    expectRefused(f, 'is not main');
+    expectRefused(f, 'is not on main');
+  });
+
+  // Defect caught: rolling production back to a commit CI already proved is
+  // refused, so the fastest safe answer to a bad release is unavailable; or it
+  // passes silently, so nobody notices production moved backwards.
+  it('allows an earlier commit of main, as a rollback, with a warning', () => {
+    const f = fixture();
+    const earlier = f.head();
+    advanceMain(f);
+    sh(f.work, 'git', ['checkout', '-q', earlier]);
+    const res = runGate(f);
+    expect(res.status, res.stderr).toBe(0);
+    expect(res.stderr).toContain('is an earlier commit of main, not its tip');
+    expect(res.stderr).toContain('rolls production back');
   });
 
   // Defect caught: an unreachable remote is taken as "HEAD is on main".
@@ -230,60 +211,15 @@ describe('the production release gate', () => {
     }
     const f = fixture();
     f.answerCi(['in_progress']);
-    expectRefused(f, 'is not green on every run (in_progress)');
+    expectRefused(f, 'is not green on every run yet (in_progress)');
   });
 
-  // Defect caught: an unreadable CI verdict is treated as a pass.
+  // Defect caught: an unreadable CI verdict, as for an unpushed commit, is
+  // treated as a pass.
   it('refuses when the CI check cannot be read', () => {
     const f = fixture();
     f.answerCi(null);
     expectRefused(f, 'could not be read');
-  });
-
-  // Defect caught: the refusal sends an operator to the dev-tester role for a
-  // local run that needs none, or names no command at all.
-  it('refuses without a local receipt, naming the local command that makes one', () => {
-    const f = fixture();
-    spawnSync('rm', ['-f', f.receipt], SPAWN_GUARD);
-    const res = runGate(f);
-    expect(res.status).toBe(1);
-    const line = res.stderr.split('\n').find((l) => l.includes('no ./run_all_tests.sh pass for this tree')) ?? '';
-    expect(line, res.stderr).toContain('run ./run_all_tests.sh');
-    expect(line).not.toContain('dev-tester');
-    // The local gate is the bare runner; the retired mode name must not come back.
-    expect(res.stderr).not.toContain('--full');
-  });
-
-  // Defect caught: production ships a commit whose read-only staging checks
-  // never ran, now that the local run no longer carries them.
-  it('refuses without a --staging receipt, naming the command that makes one', () => {
-    const f = fixture();
-    spawnSync('rm', ['-f', f.stagingReceipt], SPAWN_GUARD);
-    expectRefused(f, 'no ./run_all_tests.sh --staging pass');
-    expectRefused(f, 'scripts/as-dev-tester.sh --account <your-name> ./run_all_tests.sh --quick --staging');
-  });
-
-  // Defect caught: a staging pass for an older deploy vouches for whatever
-  // staging runs now.
-  it('refuses a --staging receipt for a commit other than the one staging runs', () => {
-    const f = fixture();
-    f.writeStagingReceipt({ commit: 'abcdef0' });
-    expectRefused(f, 'the last --staging pass was for abcdef0');
-  });
-
-  it('refuses a --staging receipt other accounts could have written, or one that is not GREEN', () => {
-    const f = fixture();
-    chmodSync(f.stagingReceipt, 0o644);
-    expectRefused(f, `the --staging receipt at ${f.stagingReceipt} is not owned by this account with mode 600`);
-    f.writeStagingReceipt({ verdict: 'RED' });
-    expectRefused(f, 'the --staging receipt');
-    expectRefused(f, 'is not GREEN');
-  });
-
-  it('refuses a --staging receipt made by a different version of the runner', () => {
-    const f = fixture();
-    f.writeStagingReceipt({ runner: 'f'.repeat(64) });
-    expectRefused(f, 'the last --staging pass was made by a different version of run_all_tests.sh');
   });
 
   // Defect caught: an escape hatch left exported in the operator's shell ships
@@ -300,129 +236,45 @@ describe('the production release gate', () => {
     }
   });
 
-  // Defect caught: on a machine where the fingerprint and the runner hash cannot
-  // be computed, a receipt with empty fields matches the empty values and passes.
-  it('refuses receipts it cannot check because the tree and the runner cannot be hashed', () => {
-    const f = fixture();
-    f.writeReceipt({ tree: '', runner: '' });
-    f.writeStagingReceipt({ runner: '' });
-    const noSha = join(f.bin, '..', 'no-sha');
-    mkdirSync(noSha, { recursive: true });
-    writeFileSync(join(noSha, 'sha256sum'), '#!/usr/bin/env bash\nexit 1\n', { mode: 0o755 });
-    const PATH = `${noSha}:${process.env.PATH ?? ''}`;
-    expectRefused(f, 'the tree has changed since the last ./run_all_tests.sh pass', { PATH });
-    expectRefused(f, 'the last --staging pass was made by a different version of run_all_tests.sh', { PATH });
-  });
-
-  // Defect caught: a receipt another local account wrote into /tmp vouches for
-  // a production release. Only the mode half of the trust check is driven here:
-  // a file owned by another account cannot be made without a second account, so
-  // the owner comparison is proven by review, not by this case.
-  it('refuses a receipt other accounts could have written', () => {
-    const f = fixture();
-    chmodSync(f.receipt, 0o644);
-    expectRefused(f, 'not owned by this account with mode 600');
-  });
-
-  it('refuses a receipt for another commit', () => {
-    const f = fixture();
-    f.writeReceipt({ commit: '0'.repeat(40) });
-    expectRefused(f, 'not this commit');
-  });
-
-  it('refuses a receipt from a run on an unclean tree', () => {
-    const f = fixture();
-    f.writeReceipt({ clean: 'no' });
-    expectRefused(f, 'ran on a tree with uncommitted changes');
-  });
-
-  it('refuses a receipt for a different tree fingerprint', () => {
-    const f = fixture();
-    f.writeReceipt({ tree: 'a'.repeat(64) });
-    expectRefused(f, 'the tree has changed since the last ./run_all_tests.sh pass');
-  });
-
-  it('refuses a receipt made by a different version of the runner', () => {
-    const f = fixture();
-    f.writeReceipt({ runner: 'f'.repeat(64) });
-    expectRefused(f, 'different version of run_all_tests.sh');
-  });
-
-  it('refuses a receipt that is not GREEN', () => {
-    const f = fixture();
-    f.writeReceipt({ verdict: 'INCOMPLETE' });
-    expectRefused(f, 'is not GREEN');
-  });
-
-  it('refuses SKIP_SMOKE and SKIP_TESTS', () => {
+  it('refuses SKIP_SMOKE, naming production as what the smoke protects', () => {
     const f = fixture();
     expectRefused(f, 'SKIP_SMOKE=yes', { SKIP_SMOKE: 'yes' });
-    expectRefused(f, 'SKIP_TESTS=yes', { SKIP_TESTS: 'yes' });
-  });
-
-  it('refuses when staging runs a different commit', () => {
-    const f = fixture();
-    f.answerStaging('commit=abcdef0 dirty=0 paths=none');
-    expectRefused(f, 'staging is running abcdef0');
-  });
-
-  it('refuses when staging was shipped from a dirty tree', () => {
-    const f = fixture();
-    f.answerStaging(`commit=${f.head.slice(0, 7)} dirty=3 paths=x`);
-    expectRefused(f, 'shipped from a tree with 3 uncommitted path(s)');
-  });
-
-  // Defect caught: a file named "dirty=0" among a dirty deploy's paths makes it
-  // read as clean.
-  it('reads the dirty count from its own field, not from a path that mentions it', () => {
-    const f = fixture();
-    f.answerStaging(`commit=${f.head.slice(0, 7)} dirty=2 paths=a,dirty=0`);
-    expectRefused(f, 'shipped from a tree with 2 uncommitted path(s)');
-  });
-
-  // Defect caught: an unreadable staging host, or one reached without the
-  // pinned host keys, is taken as agreement.
-  it('refuses when what staging runs cannot be read', () => {
-    const f = fixture();
-    f.answerStaging(null);
-    expectRefused(f, 'could not read what staging is running');
+    // Defect caught: the refusal tells the operator a production deploy checks
+    // staging first, which it does not; the smoke it protects is production's own.
+    const smokeLine = runGate(f, { SKIP_SMOKE: 'yes' }).stderr.split('\n').find((l) => l.includes('SKIP_SMOKE=yes')) ?? '';
+    expect(smokeLine).not.toContain('staging');
   });
 
   it('names every failing rule at once, not only the first', () => {
     const f = fixture();
     f.answerCi(['failure']);
-    f.answerStaging('commit=abcdef0 dirty=0 paths=none');
     writeFileSync(join(f.work, 'scratch.txt'), 'x\n');
     const res = runGate(f, { SKIP_SMOKE: 'yes' });
     expect(res.status).toBe(1);
-    for (const rule of ['SKIP_SMOKE=yes', 'not clean', 'finished red', 'staging is running']) {
+    for (const rule of ['SKIP_SMOKE=yes', 'not clean', 'finished red']) {
       expect(res.stderr, rule).toContain(rule);
     }
   });
 
-  // Defect caught: an exported fake gh or a hand-written receipt makes the
-  // strict check report a proof it does not have.
-  it('names every test seam as a finding when the seams are not allowed', () => {
+  // Defect caught: an exported fake gh makes the check report a CI result it
+  // does not have.
+  it('refuses the test seam when seams are not allowed', () => {
     const f = fixture();
     const res = spawnSync('bash', ['-c', 'source scripts/lib/production-release-gate.sh && production_release_gate_require "$PWD"'], {
       cwd: f.work, encoding: 'utf8', env: { ...process.env, ...f.env }, ...SPAWN_GUARD,
     });
     expect(res.status).toBe(1);
-    for (const seam of SEAMS) {
-      expect(res.stderr, seam).toContain(`${seam} is set; test seams are never honoured on a production deploy`);
-    }
+    expect(res.stderr).toContain(`${SEAM} is set; test seams are never honoured on a production deploy`);
   });
 });
 
 /**
- * The deploy form, run the way a deploy runs it: no seams, so gh and ssh are the
- * fixture's stubs found on PATH. The receipts live at their fixed per-account
- * paths, which a test cannot own, so no case here asserts on them; a receipt
- * finding is a warning either way and never changes the verdict.
+ * The deploy form, run the way a deploy runs it: no seam, so gh is the fixture's
+ * stub found on PATH.
  */
 function runDeploy(f: Fixture, extraEnv: Record<string, string> = {}): { rc: string; stderr: string } {
   const env: NodeJS.ProcessEnv = { ...f.env, PATH: `${f.bin}:${process.env.PATH ?? ''}`, ...extraEnv };
-  for (const seam of SEAMS) if (!(seam in extraEnv)) delete env[seam];
+  if (!(SEAM in extraEnv)) delete env[SEAM];
   const res = spawnSync('bash', ['-c', 'source scripts/lib/production-release-gate.sh; production_release_gate_deploy "$PWD"; echo "rc=$?"'], {
     cwd: f.work, encoding: 'utf8', env, ...SPAWN_GUARD,
   });
@@ -430,28 +282,34 @@ function runDeploy(f: Fixture, extraEnv: Record<string, string> = {}): { rc: str
 }
 
 describe('the release rules on a production deploy', () => {
-  // Defect caught: footbag-operator cannot deploy production when they decide
-  // to, because uncommitted, unpushed or untested work stops the deploy.
-  it('warns, and goes on, for uncommitted, unpushed, untested and not-yet-staged work', () => {
-    const f = fixture();
-    f.answerCi(['in_progress']);
-    f.answerStaging('commit=abcdef0 dirty=0 paths=none');
-    writeFileSync(join(f.work, 'scratch.txt'), 'x\n');
-    const res = runDeploy(f);
-    expect(res.rc, res.stderr).toBe('rc=0');
-    expect(res.stderr).toContain('WARNING: this tree does not meet every production release rule');
-    expect(res.stderr).not.toContain('stopped by a real problem');
-    for (const rule of ['not clean', 'is not green on every run (in_progress)', 'staging is running abcdef0']) {
-      expect(res.stderr, rule).toContain(rule);
+  // Defect caught: a deploy ships what CI never proved: uncommitted changes, a
+  // commit main does not have, or a commit whose CI has not finished green.
+  it('refuses uncommitted, unpushed and unproven work', () => {
+    const cases: Array<[string, (f: Fixture) => void, string]> = [
+      ['uncommitted', (f) => writeFileSync(join(f.work, 'scratch.txt'), 'x\n'), 'not clean'],
+      ['unpushed', (f) => {
+        writeFileSync(join(f.work, 'extra.txt'), 'x\n');
+        sh(f.work, 'git', ['add', '-A']);
+        sh(f.work, 'git', ['commit', '-q', '-m', 'not pushed']);
+      }, 'is not on main'],
+      ['CI still running', (f) => f.answerCi(['in_progress']), 'not green on every run yet'],
+      ['CI unreadable', (f) => f.answerCi(null), 'could not be read'],
+    ];
+    for (const [name, arrange, fragment] of cases) {
+      const f = fixture();
+      arrange(f);
+      const res = runDeploy(f);
+      expect(res.rc, `${name}: ${res.stderr}`).toBe('rc=1');
+      expect(res.stderr, name).toContain('ERROR: this tree may not ship to production:');
+      expect(res.stderr, name).toContain(fragment);
+      expect(res.stderr.toLowerCase(), name).not.toContain('staging');
     }
   });
 
-  // Defect caught: a real problem slips through as a warning, so production
-  // ships with a safety step switched off, from a fork, or with CI red.
-  it('stops on each real problem, naming it as one', () => {
+  // Defect caught: a safety step switched off, a fork, or red CI ships.
+  it('refuses each safety override, a fork origin and red CI', () => {
     const cases: Array<[string, (f: Fixture) => Record<string, string>, string]> = [
       ['SKIP_SMOKE', () => ({ SKIP_SMOKE: 'yes' }), 'SKIP_SMOKE=yes'],
-      ['SKIP_TESTS', () => ({ SKIP_TESTS: 'yes' }), 'SKIP_TESTS=yes'],
       ...ESCAPE_HATCHES.map((h): [string, (f: Fixture) => Record<string, string>, string] => [h, () => ({ [h]: '0' }), `${h} is set`]),
       ['a fork origin', (f) => {
         sh(f.work, 'git', ['config', 'remote.origin.url', 'git@github.com:someone/footbag-platform.git']);
@@ -463,37 +321,38 @@ describe('the release rules on a production deploy', () => {
       const f = fixture();
       const res = runDeploy(f, arrange(f));
       expect(res.rc, `${name}: ${res.stderr}`).toBe('rc=1');
-      const blockSection = res.stderr.slice(res.stderr.indexOf('stopped by a real problem'));
-      expect(res.stderr, name).toContain('ERROR: this deploy is stopped by a real problem:');
-      expect(blockSection.split('WARNING:')[0], name).toContain(fragment);
+      expect(res.stderr, name).toContain(fragment);
     }
   });
 
-  // Defect caught: on a deploy, an exported fake gh or hand-written receipt is
-  // honoured, so the deploy reports a proof the tree does not have.
-  it('never honours a test seam, and stops on one', () => {
+  it('allows a clean tree at the tip of main with CI green', () => {
+    const res = runDeploy(fixture());
+    expect(res.rc, res.stderr).toBe('rc=0');
+    expect(res.stderr).toContain('==> Production release gate: clean, on main, CI green on every run for this commit.');
+  });
+
+  // Defect caught: on a deploy, an exported fake gh is honoured, so the deploy
+  // reports a CI result it does not have.
+  it('never honours the test seam, and refuses on it', () => {
     const f = fixture();
-    const seams = Object.fromEntries(SEAMS.map((s) => [s, f.env[s] as string]));
-    const res = runDeploy(f, seams);
+    const res = runDeploy(f, { [SEAM]: f.env[SEAM] as string });
     expect(res.rc, res.stderr).toBe('rc=1');
-    for (const seam of SEAMS) {
-      expect(res.stderr, seam).toContain(`${seam} is set; test seams are never honoured on a production deploy`);
-      expect(res.stderr, seam).not.toContain(`TEST SEAM: ${seam}=`);
-    }
+    expect(res.stderr).toContain(`${SEAM} is set; test seams are never honoured on a production deploy`);
+    expect(res.stderr).not.toContain(`TEST SEAM: ${SEAM}=`);
   });
 });
 
 describe('where the gate is called', () => {
-  // Defect caught: a production path ships without checking the rules, a
-  // production deploy is held to the strict form (so uncommitted or untested
-  // work is refused), or staging starts being checked against production's rules.
-  it('checks the deploy form of the rules on every production shipping path, and only on its production branch', () => {
+  // Defect caught: a production path ships without checking the rules, or
+  // staging starts being checked against production's rules.
+  it('checks the rules on every production shipping path, and only on its production branch', () => {
     const entry = readFileSync(join(REPO_ROOT, 'deploy_to_aws.sh'), 'utf8');
-    const call = entry.indexOf('production_release_gate_deploy "$SCRIPT_DIR" || exit 1');
-    expect(entry).not.toContain('production_release_gate_require');
+    // A live line of its own, so a commented-out call does not count.
+    const call = entry.search(/^\s*production_release_gate_deploy "\$SCRIPT_DIR" \|\| exit 1$/m);
+    expect(call, 'deploy_to_aws.sh calls the gate on a live line').toBeGreaterThan(-1);
     expect(call).toBeGreaterThan(entry.indexOf('if [[ "${DEPLOY_TARGET:-footbag-staging}" == "footbag-production" ]]; then'));
-    // After the terminal check, and before the first prompt, so a real problem
-    // costs no typed word and no password.
+    // After the terminal check, and before the first prompt, so a refusal costs
+    // no typed word and no password.
     expect(call).toBeGreaterThan(entry.indexOf('stdin/stdout/stderr are not all TTYs'));
     expect(call).toBeLessThan(entry.indexOf("Type 'APPLY' to confirm"));
     expect(call).toBeLessThan(entry.indexOf('Skip the media upload'));
@@ -502,7 +361,6 @@ describe('where the gate is called', () => {
       const text = readFileSync(join(REPO_ROOT, leaf), 'utf8');
       const block = /if \[\[ "\$REMOTE" == "footbag-production" \]\]; then\n(?:\s*#[^\n]*\n)*\s*source "\$\{REPO_ROOT\}\/scripts\/lib\/production-release-gate\.sh"\n\s*production_release_gate_deploy "\$REPO_ROOT" \|\| exit 1\nfi/;
       expect(text, leaf).toMatch(block);
-      expect(text, leaf).not.toContain('production_release_gate_require');
       // Ahead of anything that reaches a host.
       expect(text.search(block), leaf).toBeLessThan(text.indexOf('require_pinned_known_hosts || exit 1'));
     }

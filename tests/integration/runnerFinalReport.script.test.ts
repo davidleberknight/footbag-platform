@@ -39,16 +39,19 @@ function extract(): string {
     spawnSync('sed', ['-n', `/^${name}() {/,/^}/p`, RUNNER], { encoding: 'utf8', ...SPAWN_GUARD }).stdout;
   const line = (prefix: string) => RUNNER_TEXT.split('\n').find((l) => l.startsWith(prefix)) ?? '';
   return [
+    `source ${JSON.stringify(join(REPO_ROOT, 'scripts', 'lib', 'verdict-banner.sh'))}`,
     line('FAILURE_GRAMMAR='),
     line('NOTICE_GRAMMAR='),
     line('ROOM_CARRIES_UNDER_FULL='),
     line('PUSH_GATE_EQUIVALENTS='),
     line('REALDATA_ROWS='),
-    ...['summarize', 'recap_gate_log', 'dump_failures', 'notices_from', 'print_notices', 'skip_reason',
+    line('ROOM_PYTHON_ROWS='),
+    'LOCAL_VERDICT=""; BANNER_DONE=0',
+    ...['mode_label', 'gate_counts', 'failed_names', 'tree_line', 'end_run', 'on_unexpected_exit', 'need_cmd',
+      'summarize', 'recap_gate_log', 'dump_failures', 'notices_from', 'print_notices', 'skip_reason',
       'on_interrupt', 'run_gate', 'note_gate', 'room_carries', 'checkout_gate', 'import_clean_room_results',
-      'print_not_checked', 'receipt_voiding_skips', 'write_full_pass_receipt', 'write_staging_pass_receipt',
-      'final_verdict'].map(fn),
-    line('trap on_interrupt'),
+      'print_not_checked', 'uncovered_skips', 'final_verdict'].map(fn),
+    ...RUNNER_TEXT.split('\n').filter((l) => l.startsWith("trap 'on_interrupt ")),
   ].join('\n');
 }
 
@@ -56,7 +59,7 @@ function extract(): string {
  * Runs `body` after the extracted functions, with the runner's globals in place
  * and a gate log directory of its own.
  */
-function drive(body: string): { status: number | null; out: string; logDir: string } {
+function drive(body: string): { status: number | null; out: string; stdout: string; logDir: string } {
   const dir = mkdtempSync(join(tmpdir(), 'footbag-test-runner-report-'));
   dirs.push(dir);
   const logDir = join(dir, 'gate-logs');
@@ -78,7 +81,7 @@ function drive(body: string): { status: number | null; out: string; logDir: stri
     ].join('\n'),
   );
   const res = spawnSync('bash', [driver], { encoding: 'utf8', ...SPAWN_GUARD });
-  return { status: res.status, out: `${res.stdout ?? ''}${res.stderr ?? ''}`, logDir };
+  return { status: res.status, out: `${res.stdout ?? ''}${res.stderr ?? ''}`, stdout: res.stdout ?? '', logDir };
 }
 
 /** A gate that names its failure first and then buries it, as coverage and pytest do. */
@@ -100,6 +103,38 @@ const INCOMPLETE_ROOM = [
   '}',
 ].join('\n');
 const WARNING_GATE = 'warning_gate() { echo "npm warn deprecated prebuild-install@7.1.3"; echo "WARNING: 2 opt-in gates not run"; return 0; }';
+
+const BAR = '#'.repeat(64);
+
+/**
+ * The verdict banner a run ended with: its word, the exit code it printed, its
+ * lines, and whether it is the very last output.
+ */
+function bannerOf(out: string): { word: string; code: number; text: string; last: boolean } {
+  const end = out.lastIndexOf(BAR);
+  const start = out.lastIndexOf(BAR, end - 1);
+  const text = start >= 0 && end > start ? out.slice(start, end + BAR.length) : '';
+  const m = /## VERDICT: (.+?)\s{3}\(exit (\d+)\)/.exec(text);
+  return {
+    word: m?.[1] ?? '',
+    code: m ? Number(m[2]) : -1,
+    text,
+    last: end >= 0 && out.slice(end + BAR.length).trim() === '',
+  };
+}
+
+/**
+ * Asserts the run ended with a banner carrying `word`, printed last on stdout (the
+ * stream the report is on; this harness reads stderr separately, so its lines
+ * cannot be placed in time against stdout's), naming the real exit code.
+ */
+function expectBanner(r: { status: number | null; out: string; stdout: string }, word: string): string {
+  const b = bannerOf(r.stdout);
+  expect(b.word, r.out).toBe(word);
+  expect(b.last, `the verdict banner is not the last output:\n${r.out}`).toBe(true);
+  expect(b.code, 'the banner names a different exit code from the one the run returned').toBe(r.status);
+  return b.text;
+}
 
 describe('the final report, driven through run_gate with stub gates', () => {
   it('shows a failed gate’s actual error, however far above the tail it was printed', () => {
@@ -171,12 +206,74 @@ describe('the final report, driven through run_gate with stub gates', () => {
     expect(r.out).toContain('run_all_tests.sh — summary');
     expect(r.out.slice(r.out.indexOf('failure details'))).toContain('FAIL tests/integration/seederEnv');
     expect(r.out).not.toContain('SHOULD NOT REACH');
+    // Defect caught: an interrupted run ends on its report with no verdict, or a
+    // verdict naming a different exit code from the one it returns.
+    const banner = expectBanner(r, 'INTERRUPTED');
+    expect(banner).toContain('during the e2e gate');
+    expect(banner).toContain('Failed: coverage');
   });
 
   // Defect caught: the handler exists but is never installed, so an interrupted
-  // run ends with no report at all.
-  it('installs the interrupt handler for both INT and TERM', () => {
-    expect(RUNNER_TEXT).toMatch(/^trap on_interrupt INT TERM$/m);
+  // run ends with no report at all, or a TERM is reported with INT's exit code.
+  it('installs the interrupt handler for INT, TERM and HUP, each with its own exit code', () => {
+    expect(RUNNER_TEXT).toMatch(/^trap 'on_interrupt 130' INT$/m);
+    expect(RUNNER_TEXT).toMatch(/^trap 'on_interrupt 143' TERM$/m);
+    expect(RUNNER_TEXT).toMatch(/^trap 'on_interrupt 129' HUP$/m);
+  });
+
+  // Defect caught: an interrupt lands in a gate, and the output that gate had
+  // printed is never shown, because the gate never got a row.
+  it('shows what the interrupted gate had printed, beside the verdict', () => {
+    const r = drive(
+      'mkdir -p "$GATE_LOG_DIR"; echo "FAIL half-way through a spec" > "$GATE_LOG_DIR/e2e.log"\nCURRENT_GATE=e2e\non_interrupt 143',
+    );
+    expect(r.status).toBe(143);
+    expectBanner(r, 'INTERRUPTED');
+    const tail = r.stdout.slice(r.stdout.indexOf('──── e2e (interrupted) ────'));
+    expect(tail, r.out).toContain('FAIL half-way through a spec');
+  });
+
+  // Defect caught: a command that fails under set -e before any gate, or a
+  // signal before the gate-time handler, ends the run with no verdict at all.
+  it('prints an ABORTED verdict for a run that stopped on an unexpected error', () => {
+    const r = drive('trap on_unexpected_exit EXIT\nLOG_DIR=""\nfalse\necho "SHOULD NOT REACH"');
+    expect(r.status).toBe(1);
+    expect(r.out).not.toContain('SHOULD NOT REACH');
+    expect(expectBanner(r, 'ABORTED')).toContain('unexpected error');
+  });
+
+  // Defect caught: the backstop prints a second verdict after a run that ended
+  // through its own banner.
+  it('prints no second verdict when the run ended through its own banner', () => {
+    const r = drive('trap on_unexpected_exit EXIT\nLOG_DIR=""\nFULL=1\nend_run GREEN 0 "fine"');
+    expect(r.status).toBe(0);
+    expect(r.stdout.split('## VERDICT:').length - 1).toBe(1);
+  });
+
+  // Defect caught: a failing preflight, the refusal this runner exists to make on
+  // a machine missing a tool, aborts under pipefail before its status is read,
+  // so the refusal and its verdict never print.
+  it('never pipes the preflight, so its refusal reaches the verdict', () => {
+    expect(RUNNER_TEXT).not.toMatch(/full_preflight[^\n]*\|\s*tee/);
+    expect(RUNNER_TEXT).toContain('full_preflight > "${GATE_LOG_DIR}/full-preflight.log" 2>&1 || preflight_rc=$?');
+  });
+
+  // Defect caught: a failing assertion from a common tool matches none of the
+  // patterns, so the report at the end shows only an unrelated tail.
+  it('selects the failure lines eslint, Playwright, pytest, npm and bash print', () => {
+    const lines = [
+      "  12:5  error  'x' is defined but never used  no-unused-vars",
+      '✖ 3 problems (3 errors, 0 warnings)',
+      '  ✘  1 [chromium] › tests/e2e/a.spec.ts:3:1 › loads',
+      'E   assert 1 == 2',
+      'npm error code 1',
+      'scripts/x.sh: line 4: foo: command not found',
+      'VIOLATION: a rule was broken',
+    ];
+    const gate = `noisy() { ${lines.map((l) => `echo ${JSON.stringify(l)}`).join('; ')}; local i; for i in $(seq 1 40); do echo "ok $i"; done; return 1; }`;
+    const r = drive(`${gate}\nrun_gate lint noisy\ndump_failures`);
+    const hits = r.out.slice(r.out.indexOf('lines naming a failure'), r.out.indexOf('last 20 lines'));
+    for (const l of lines) expect(hits, l).toContain(l.trim());
   });
 
   // Defect caught: a Ctrl-C or a CI cancel landing while the runner sets up a
@@ -255,6 +352,8 @@ describe('each test runs once in the bare run', () => {
     expect(r.status).toBe(1);
     expect(summaryOf(r.out)).toMatch(/coverage\s+FAIL \(clean room, exit 1\)/);
     expect(r.out).not.toContain('SHOULD NOT REACH');
+    // Defect caught: a fail-fast stop ends without a verdict.
+    expect(expectBanner(r, 'FAILED')).toContain('--fail-fast stopped the run at its first failing gate, clean-room');
   });
 
   it('keeps the rows of the gates the room finished when the run is interrupted inside it', () => {
@@ -309,17 +408,25 @@ describe('what the bare run turns on, read from the script', () => {
   it('has a block saying what the bare run implies', () => expect(FULL_BLOCK_AT).toBeGreaterThan(-1));
   const fullImplies = fullBlock.slice(0, fullBlock.indexOf('\nfi\n'));
 
-  // Defect caught: the thorough local run leaves out the local real-data checks
-  // or the production-strength hash, turns on a staging leg, or starts pulling
-  // in the retired legacy-mirror suite.
-  it('turns on the local real-data checks and the strong hash, never a staging leg or the retired suite', () => {
-    for (const implied of ['WITH_PERSONA_CRAWL=1', 'WITH_REALDATA_INVARIANTS=1', 'WITH_STRONG_HASH=1']) {
+  // Defect caught: the thorough local run leaves out the local real-data checks,
+  // turns on a staging leg, or starts pulling in the retired legacy-mirror suite.
+  it('turns on the local real-data checks, never a staging leg or the retired suite', () => {
+    for (const implied of ['WITH_PERSONA_CRAWL=1', 'WITH_REALDATA_INVARIANTS=1']) {
       expect(fullImplies, implied).toContain(implied);
     }
     for (const never of ['WITH_LEGACY_MIRROR', 'WITH_SMOKE', 'STAGING']) {
       expect(fullImplies, never).not.toContain(never);
     }
     expect(RUNNER_TEXT).not.toContain('gate_member_data_audits');
+  });
+
+  // Defect caught: the password-hash tests run a second time in one bare run. The
+  // unit tier already runs the production hash profile, and the login-timing
+  // suite forces it, so a separate pass over them repeats tests already run.
+  it('runs the password-hash tests once in a bare run, in the tiers, never as a gate of their own', () => {
+    expect(RUNNER_TEXT).not.toMatch(/test:strong-hash|FOOTBAG_CHEAP_PASSWORD_HASH=0/);
+    const unit = readFileSync(join(REPO_ROOT, 'tests', 'unit', 'passwordHash.test.ts'), 'utf8');
+    expect(unit, 'the unit suite no longer runs the production hash profile').toContain("FOOTBAG_CHEAP_PASSWORD_HASH = '0'");
   });
 
   // Defect caught: the bare run quietly drops the secret scan when given the
@@ -332,57 +439,51 @@ describe('what the bare run turns on, read from the script', () => {
 
   // Defect caught: a machine without the tools runs forty minutes of gates
   // before the first one that needs them fails, or skips them and reports; or
-  // the local run demands the dev-tester role, which only the staging legs need.
-  it('checks what it needs before the first gate, needs no dev-tester role, and refuses rather than skipping', () => {
-    const preflightCall = RUNNER_TEXT.indexOf('full_preflight 2>&1');
+  // the local run demands an AWS identity, which only the staging legs need; or
+  // the staging legs accept only one of the two identities that may run them.
+  it('checks what it needs before the first gate, needs no AWS identity, and refuses rather than skipping', () => {
+    const preflightCall = RUNNER_TEXT.indexOf('full_preflight > ');
     const firstGate = RUNNER_TEXT.indexOf('\nrun_sequence\n');
     expect(preflightCall).toBeGreaterThan(-1);
     expect(firstGate).toBeGreaterThan(-1);
     expect(preflightCall).toBeLessThan(firstGate);
     const preflight = RUNNER_TEXT.slice(RUNNER_TEXT.indexOf('full_preflight() {'), RUNNER_TEXT.indexOf('\n}\n', RUNNER_TEXT.indexOf('full_preflight() {')));
     expect(preflight).not.toContain('FootbagDevTester');
+    expect(preflight).not.toContain('aws_profile_ensure');
     expect(preflight).not.toContain('return 77');
     const stagingPreflight = RUNNER_TEXT.slice(RUNNER_TEXT.indexOf('staging_preflight() {'));
     expect(stagingPreflight).toContain(':assumed-role/FootbagDevTester/');
-  });
-
-  it('removes each receipt when a run that could write it starts, so an older pass cannot outlive a later failure', () => {
-    expect(RUNNER_TEXT).toContain('if (( FULL == 1 )); then rm -f "$(full_pass_receipt_path)"; fi');
-    expect(RUNNER_TEXT).toContain('if (( STAGING == 1 )); then rm -f "$(staging_pass_receipt_path)"; fi');
+    expect(stagingPreflight).toContain(':user/footbag-operator');
   });
 
   it('names each opt-in gate in every run that did not schedule it, with its switch', () => {
-    for (const optIn of ['"persona-crawl:--with-persona-crawl"', '"realdata-invariants:--with-realdata-invariants"', '"strong-hash:the bare run"']) {
+    for (const optIn of ['"persona-crawl:--with-persona-crawl"', '"realdata-invariants:--with-realdata-invariants"']) {
       expect(RUNNER_TEXT).toContain(optIn);
     }
   });
 });
 
 /**
- * The end of a run, driven: stub gates fill the table, both receipts are pointed
- * into the case's own directory, and the two guards that read the real tree are
- * replaced by ones that pass, so the verdict and the receipts are what is judged.
+ * The end of a run, driven: stub gates fill the table, and the two guards that
+ * read the real tree are replaced by ones that pass unless a case trips them, so
+ * the verdict is what is judged.
  */
 function finish(
   rows: string,
-  opts: { full?: boolean; staging?: boolean; source?: string; commit?: string; dirty?: boolean; noSha?: boolean } = {},
+  opts: { full?: boolean; staging?: boolean; source?: string; dirty?: boolean; realDataChanged?: boolean; treeChanged?: boolean } = {},
 ) {
   const setup = [
     `FULL=${opts.full === false ? 0 : 1}; STAGING=${opts.staging ? 1 : 0}; REALDATA_SOURCE=${JSON.stringify(opts.source ?? 'local')}`,
-    `STAGING_DEPLOYED_COMMIT=${JSON.stringify(opts.commit ?? '')}; STAGING_DEPLOYED_DIRTY=0`,
     `SOURCE_TREE_BEFORE=tree-fingerprint; SOURCE_TREE_LIST_BEFORE=${opts.dirty ? '" M src/app.ts"' : '""'}`,
-    // A machine without sha256sum: the function shadows the binary for this run.
-    ...(opts.noSha ? ['sha256sum() { return 127; }'] : []),
-    'full_pass_receipt_path() { printf "%s/full-receipt" "$(dirname "$GATE_LOG_DIR")"; }',
-    'staging_pass_receipt_path() { printf "%s/staging-receipt" "$(dirname "$GATE_LOG_DIR")"; }',
-    'assert_real_data_untouched() { :; }',
-    'assert_source_tree_unchanged() { :; }',
+    opts.realDataChanged
+      ? 'assert_real_data_untouched() { echo "FATAL: \'legacy_data/\' (real-data tree) changed during this run." >&2; return 1; }'
+      : 'assert_real_data_untouched() { :; }',
+    opts.treeChanged
+      ? 'assert_source_tree_unchanged() { echo " VERDICT VOID: the tree changed while this run was in flight" >&2; return 1; }'
+      : 'assert_source_tree_unchanged() { :; }',
     'pass() { echo ok; }; fail() { echo "broke"; return 1; }; skip() { echo "not required: no local load"; return 77; }',
   ].join('\n');
-  const r = drive(`${setup}\n${rows}\nprint_not_checked >/dev/null\nfinal_verdict`);
-  const base = dirname(r.logDir);
-  const read = (name: string) => (existsSync(join(base, name)) ? readFileSync(join(base, name), 'utf8') : null);
-  return { ...r, fullReceipt: read('full-receipt'), stagingReceipt: read('staging-receipt'), base };
+  return drive(`${setup}\n${rows}\nprint_not_checked >/dev/null\nfinal_verdict\necho "SHOULD NOT REACH"`);
 }
 
 const LOCAL_GREEN = [
@@ -393,135 +494,144 @@ const LOCAL_GREEN = [
 const STAGING_GREEN = ['staging-aws-smoke', 'staging-realdata-invariants', 'staging-route-smoke', 'staging-browser']
   .map((g) => `run_gate ${g} pass`).join('\n');
 
-describe('the verdict and the two pass receipts', () => {
-  // Defect caught: a flaky or unreachable staging leg voids the proof that the
-  // local tree passed, or a staging failure is reported as a green run.
-  it('keeps the local receipt when only a staging row failed, and still exits non-zero', () => {
-    const rows = `${STAGING_GREEN.replace('run_gate staging-browser pass', 'run_gate staging-browser fail')}\nwrite_staging_pass_receipt\n${LOCAL_GREEN}`;
-    const r = finish(rows, { staging: true, commit: 'abc1234' });
+describe('the verdict, printed last on every way a run ends', () => {
+  // Defect caught: a full run that passed ends without a verdict, or with one
+  // naming an exit code other than the one it returns.
+  it('ends a passing bare run GREEN, with the banner last and its real exit code', () => {
+    const r = finish(LOCAL_GREEN, { source: 'none' });
+    expect(r.status, r.out).toBe(0);
+    const banner = expectBanner(r, 'GREEN');
+    expect(banner).toContain('Mode: full');
+    expect(banner).toMatch(/Gates: 13 passed, 0 failed, 0 skipped, 0 not run/);
+    expect(r.out).not.toContain('SHOULD NOT REACH');
+  });
+
+  // Defect caught: a pass on a tree with uncommitted changes reads as a pass for
+  // the commit, which is all continuous integration and production ever see.
+  it('says when the tree under test carried uncommitted changes', () => {
+    expect(expectBanner(finish(LOCAL_GREEN, { source: 'none', dirty: true }), 'GREEN'))
+      .toMatch(/Tree: \S+ plus 1 uncommitted path\(s\); CI tests the commit only/);
+    expect(expectBanner(finish(LOCAL_GREEN, { source: 'none' }), 'GREEN')).toContain('nothing uncommitted');
+  });
+
+  // Defect caught: a staging failure is reported as a green run, or it hides
+  // what the local rows proved.
+  it('fails a run whose staging rows failed, still saying the local rows passed', () => {
+    const rows = `${STAGING_GREEN.replace('run_gate staging-browser pass', 'run_gate staging-browser fail')}\n${LOCAL_GREEN}`;
+    const r = finish(rows, { staging: true });
     expect(r.status, r.out).toBe(1);
-    expect(r.fullReceipt, r.out).toContain('verdict=GREEN');
-    expect(r.stagingReceipt, 'a failed staging leg left a staging receipt').toBeNull();
-    expect(r.out).toContain('staging');
+    const banner = expectBanner(r, 'FAILED');
+    expect(banner).toContain('Local rows: GREEN.  Staging rows: FAILED.');
+    expect(banner).toContain('Failed: staging-browser');
   });
 
-  // Defect caught: a green staging run leaves no record, or one the release
-  // gate cannot tie to the commit staging runs, or one other accounts can write.
-  it('writes an owner-only staging receipt keyed to the commit staging reports when every staging row passed', () => {
-    const r = finish(`${STAGING_GREEN}\nwrite_staging_pass_receipt\n${LOCAL_GREEN}`, { staging: true, commit: 'abc1234' });
-    expect(r.status, r.out).toBe(0);
-    expect(r.stagingReceipt).toMatch(/^verdict=GREEN$/m);
-    expect(r.stagingReceipt).toMatch(/^commit=abc1234$/m);
-    expect(r.stagingReceipt).toMatch(/^runner=[0-9a-f]{64}$/m);
-    const mode = spawnSync('stat', ['-c', '%a', join(r.base, 'staging-receipt')], { encoding: 'utf8', ...SPAWN_GUARD }).stdout.trim();
-    expect(mode).toBe('600');
+  // Defect caught: a staging row's skip holds the run back, although what
+  // staging does never bears on the local tree.
+  it('ends green when only a staging row skipped, whichever row it was', () => {
+    for (const row of ['staging-aws-smoke', 'staging-realdata-invariants', 'staging-route-smoke', 'staging-browser']) {
+      const r = finish(
+        `${STAGING_GREEN.replace(`run_gate ${row} pass`, `run_gate ${row} skip`)}\n${LOCAL_GREEN}`,
+        { staging: true },
+      );
+      expect(r.status, `${row}: ${r.out}`).toBe(0);
+      expectBanner(r, 'GREEN');
+    }
   });
 
-  // Defect caught: a staging row that skipped, or never ran, is treated as a
-  // pass, and a staging receipt vouches for checks that did not happen.
-  it('writes no staging receipt when a staging row skipped or never ran', () => {
-    const skipped = finish(
-      `${STAGING_GREEN.replace('run_gate staging-route-smoke pass', 'run_gate staging-route-smoke skip')}\nwrite_staging_pass_receipt\n${LOCAL_GREEN}`,
-      { staging: true, commit: 'abc1234' },
-    );
-    expect(skipped.stagingReceipt, skipped.out).toBeNull();
-    const absent = finish(
-      `${STAGING_GREEN.replace('run_gate staging-browser pass', '')}\nwrite_staging_pass_receipt\n${LOCAL_GREEN}`,
-      { staging: true, commit: 'abc1234' },
-    );
-    expect(absent.stagingReceipt, absent.out).toBeNull();
-    expect(absent.out).toContain('staging-browser did not pass (not run)');
-  });
-
-  // Defect caught: a staging row's skip withholds the local receipt, although the
-  // staging receipt is what answers for staging.
-  it('keeps the local receipt when only a staging row skipped', () => {
+  // Defect caught: a machine without the operator dataset can never end green,
+  // although the real-data rows are not required there.
+  it('does not let a not-required real-data row hold the verdict back', () => {
     const r = finish(
-      `${STAGING_GREEN.replace('run_gate staging-browser pass', 'run_gate staging-browser skip')}\nwrite_staging_pass_receipt\n${LOCAL_GREEN}`,
-      { staging: true, commit: 'abc1234' },
+      `${LOCAL_GREEN}\nrun_gate persona-crawl skip\nrun_gate realdata-invariants skip`,
+      { source: 'none' },
     );
-    expect(r.fullReceipt, r.out).toContain('verdict=GREEN');
-  });
-
-  // Defect caught: the local receipt is written readable or writable by other
-  // accounts, so another local user could plant one the release gate trusts.
-  it('writes the local receipt owner-only, recording whether the tree was clean', () => {
-    const clean = finish(LOCAL_GREEN, { source: 'none' });
-    const mode = spawnSync('stat', ['-c', '%a', join(clean.base, 'full-receipt')], { encoding: 'utf8', ...SPAWN_GUARD }).stdout.trim();
-    expect(mode).toBe('600');
-    expect(clean.fullReceipt).toMatch(/^clean=yes$/m);
-    // Defect caught: a pass on a dirty tree is recorded as clean, and the release
-    // gate then accepts it for the committed tree.
-    const dirty = finish(LOCAL_GREEN, { source: 'none', dirty: true });
-    expect(dirty.fullReceipt, dirty.out).toMatch(/^clean=no$/m);
-  });
-
-  // Defect caught: with no way to identify the runner, a receipt is written with
-  // an empty runner field, which the release gate cannot tie to a version.
-  it('writes neither receipt when sha256sum is unavailable', () => {
-    const r = finish(`${STAGING_GREEN}\nwrite_staging_pass_receipt\n${LOCAL_GREEN}`, { staging: true, commit: 'abc1234', noSha: true });
-    expect(r.fullReceipt, r.out).toBeNull();
-    expect(r.stagingReceipt).toBeNull();
-    expect(r.out).toContain('No pass receipt: sha256sum is unavailable');
-    expect(r.out).toContain('No staging pass receipt: sha256sum is unavailable');
-  });
-
-  // Defect caught: a staging receipt is written with no commit to key it to,
-  // which the release gate would then match against nothing.
-  it('writes no staging receipt when what staging runs could not be read', () => {
-    const r = finish(`${STAGING_GREEN}\nwrite_staging_pass_receipt\n${LOCAL_GREEN}`, { staging: true, commit: '' });
-    expect(r.stagingReceipt).toBeNull();
-    expect(r.out).toContain('No staging pass receipt');
-  });
-
-  // Defect caught: a machine without the operator dataset can never produce the
-  // local receipt, although those rows are not required there.
-  it('does not let a not-required real-data row void the local receipt', () => {
-    const r = finish(`${LOCAL_GREEN}\nrun_gate persona-crawl skip\nrun_gate realdata-invariants skip`, { source: 'none' });
     expect(r.status, r.out).toBe(0);
-    expect(r.fullReceipt, r.out).toContain('verdict=GREEN');
+    expectBanner(r, 'GREEN');
   });
 
   // Defect caught: a machine without an optional tool (no gitleaks and no running
-  // Docker, no terraform) ends INCOMPLETE and writes no receipt although every
-  // check that ran passed; continuous integration runs those checks on every push
-  // and the release gate requires it green for the commit, so the skip loses
-  // nothing and must be named, not treated as a failure.
-  it('ends green and keeps the receipt when only a check continuous integration runs skipped, and names it', () => {
+  // Docker, no terraform) ends INCOMPLETE although every check that ran passed;
+  // continuous integration runs those checks on every push and a production
+  // deploy requires it green for the commit, so the skip loses nothing and must
+  // be named, not treated as a failure.
+  it('ends green when only a check continuous integration runs skipped, and names it', () => {
     const rows = LOCAL_GREEN
       .replace('run_gate secret-scan pass', 'run_gate secret-scan skip')
       .replace('run_gate terraform pass', 'run_gate terraform skip');
     const r = finish(rows, { source: 'none' });
     expect(r.status, r.out).toBe(0);
-    expect(r.out).toContain('GREEN');
-    expect(r.fullReceipt, r.out).toContain('verdict=GREEN');
+    expectBanner(r, 'GREEN');
     const warning = r.out.slice(r.out.indexOf('WARNING: this machine lacks a tool the project uses'));
     expect(warning, r.out).toMatch(/^WARNING/);
     expect(warning).toContain('secret-scan');
     expect(warning).toContain('terraform');
   });
 
-  // Defect caught: a check that did not happen is treated as one that passed,
-  // and the receipt vouches for it.
-  it('writes no local receipt when any other gate skipped, or when a real-data row skipped on a machine holding the load', () => {
+  // Defect caught: a check that did not happen, and that continuous integration
+  // does not run either, is treated as one that passed.
+  it('ends INCOMPLETE, naming the gate, when a gate skipped that continuous integration does not run', () => {
     const other = finish(`${LOCAL_GREEN}\nrun_gate pentest skip`, { source: 'none' });
-    expect(other.fullReceipt).toBeNull();
-    expect(other.out).toContain('No pass receipt');
-    const withLoad = finish(`${LOCAL_GREEN}\nrun_gate persona-crawl skip`, { source: 'local' });
-    expect(withLoad.fullReceipt).toBeNull();
+    expect(other.status, other.out).toBe(3);
+    expect(expectBanner(other, 'INCOMPLETE')).toContain('continuous integration does not run them: pentest');
+  });
+
+  // Defect caught: the clean room could not build its Python environment, so the
+  // data-load Python gates ran nowhere (continuous integration does not run
+  // them), and the run still ends GREEN.
+  it('ends INCOMPLETE when the clean room could not run the data-load Python gates', () => {
+    const room = [
+      'CLEAN_ROOM_RESULTS="${GATE_LOG_DIR}/clean-room-results.tsv"',
+      `printf '%b\\n' ${JSON.stringify('build\tPASS\t\ncoverage\tPASS\t\nlegacy-pytest\tNOTRUN\tcould not build the pinned Python environment')} > "$CLEAN_ROOM_RESULTS"`,
+      'room_77() { echo "  legacy-pytest      NOT RUN (could not build the pinned Python environment)"; return 77; }',
+    ].join('\n');
+    const rows = `${room}\n${LOCAL_GREEN.replace('run_gate clean-room pass', 'run_gate clean-room room_77')}`;
+    const r = finish(rows, { source: 'none' });
+    expect(r.status, r.out).toBe(3);
+    expect(expectBanner(r, 'INCOMPLETE')).toContain('legacy-pytest');
+  });
+
+  // Defect caught: a machine whose load lacks what a real-data row needs (a
+  // mirror-only load, say) ends INCOMPLETE, although those rows never hold a run back.
+  it('never lets a real-data row hold the run back, even on a machine holding a load', () => {
+    const r = finish(`${LOCAL_GREEN}\nrun_gate persona-crawl skip\nrun_gate realdata-invariants skip`, { source: 'local' });
+    expect(r.status, r.out).toBe(0);
+    expectBanner(r, 'GREEN');
   });
 
   // Defect caught: a run that was asked to leave the Python gates out ends
-  // GREEN and writes the receipt a production release accepts, although the
-  // loader gate and the legacy-data suites never ran.
-  it('ends INCOMPLETE with no local receipt when --skip-py left the Python gates out', () => {
+  // GREEN, although the loader gate and the legacy-data suites never ran.
+  it('ends INCOMPLETE when --skip-py left the Python gates out', () => {
     const rows = `SKIP_PY=1\n${LOCAL_GREEN.replace('run_gate clean-room pass', 'run_gate clean-room skip')}`;
     const r = finish(rows, { source: 'none' });
     expect(r.status, r.out).toBe(3);
-    expect(r.out).toContain('INCOMPLETE');
-    expect(r.out).toContain('--skip-py');
-    expect(r.out).not.toContain('GREEN.');
-    expect(r.fullReceipt, r.out).toBeNull();
+    expect(expectBanner(r, 'INCOMPLETE')).toContain('--skip-py');
+  });
+
+  // Defect caught: a run whose real-data tree changed ends with the alarm buried
+  // above the report, or loses the gate counts the reader needs to judge it.
+  it('ends FATAL when a real-data tree changed, still carrying the gate counts', () => {
+    const r = finish(LOCAL_GREEN, { source: 'none', realDataChanged: true });
+    expect(r.status, r.out).toBe(2);
+    const banner = expectBanner(r, 'FATAL');
+    expect(banner).toMatch(/Gates: 13 passed/);
+    expect(r.out).not.toContain('SHOULD NOT REACH');
+  });
+
+  // Defect caught: a run whose tree changed mid-flight reports a verdict about no
+  // single commit as though it were one.
+  it('ends VOID when the tree changed during the run, ahead of any local result', () => {
+    const r = finish(LOCAL_GREEN.replace('run_gate e2e pass', 'run_gate e2e fail'), { source: 'none', treeChanged: true });
+    expect(r.status, r.out).toBe(4);
+    expectBanner(r, 'VOID');
+  });
+
+  // Defect caught: a missing tool refuses the run with an error line and no
+  // verdict, so a reader skimming the end sees nothing at all.
+  it('ends REFUSED when a required command is missing, before any gate', () => {
+    const r = drive('need_cmd footbag-no-such-command "install it"\necho "SHOULD NOT REACH"');
+    expect(r.status, r.out).toBe(1);
+    expect(expectBanner(r, 'REFUSED')).toContain('required command not found: footbag-no-such-command');
+    expect(r.out).not.toContain('SHOULD NOT REACH');
   });
 
   // Defect caught: a full run that left the ZAP scan out reads as though it ran
@@ -543,10 +653,38 @@ describe('the verdict and the two pass receipts', () => {
     expect(withAudit.out).not.toContain('the dependency audit (not run');
   });
 
-  it('writes no local receipt, and exits non-zero, when a local gate failed', () => {
+  // Defect caught: the banner of a run whose clean room failed names only the
+  // room, so the reader cannot tell which of its gates broke.
+  it('names the gates that failed inside a failed clean room', () => {
+    const r = finish(`${FAILED_ROOM}\nrun_gate clean-room failed_room`, { source: 'none' });
+    expect(r.status).toBe(1);
+    const banner = expectBanner(r, 'FAILED');
+    expect(banner).toContain('Failed: clean-room (coverage)');
+    expect(banner).toMatch(/inside the clean room: 1 passed, 3 failed, 1 not run/);
+  });
+
+  // Defect caught: a failed gate's error lines sit a screen or more above the
+  // verdict, under the notices and the list of what the run did not check.
+  it('prints the failure details after the notices and the not-checked list, just above the verdict', () => {
+    // The runner's own top-level ending, run as written.
+    const ending = RUNNER_TEXT.slice(RUNNER_TEXT.lastIndexOf('\nsummarize\n'));
+    const r = drive(
+      `${BURYING_GATE}\nFULL=1; REALDATA_SOURCE=none; SOURCE_TREE_LIST_BEFORE=""\nassert_real_data_untouched() { :; }; assert_source_tree_unchanged() { :; }\n${WARNING_GATE}\nrun_gate audit warning_gate\nrun_gate coverage burying_gate\n${ending}`,
+    );
+    const out = r.stdout;
+    const details = out.lastIndexOf('failure details');
+    expect(details, out).toBeGreaterThan(out.lastIndexOf('WHAT THIS RUN DID NOT CHECK'));
+    expect(details).toBeGreaterThan(out.lastIndexOf(' notices ('));
+    expect(out.indexOf('FAIL tests/integration/seederEnv', details)).toBeGreaterThan(details);
+    expectBanner(r, 'FAILED');
+  });
+
+  it('ends FAILED, naming the gate, when a local gate failed', () => {
     const r = finish(`${LOCAL_GREEN.replace('run_gate e2e pass', 'run_gate e2e fail')}`);
     expect(r.status).toBe(1);
-    expect(r.fullReceipt).toBeNull();
+    const banner = expectBanner(r, 'FAILED');
+    expect(banner).toContain('Failed: e2e');
+    expect(banner).toContain('Local rows: FAILED');
   });
 
   // Defect caught: the fast loop exits non-zero for the gates it never meant to
@@ -556,8 +694,20 @@ describe('the verdict and the two pass receipts', () => {
       .map((g) => `run_gate ${g} pass`).join('\n');
     const r = finish(quick, { full: false });
     expect(r.status, r.out).toBe(0);
-    expect(r.fullReceipt).toBeNull();
-    expect(r.out).toContain('which the bare run runs');
+    expect(expectBanner(r, 'QUICK PASS')).toContain('which the bare run runs');
+  });
+
+  // Defect caught: a new way out of the run is added that skips the banner, and
+  // a reader skimming the end of an hour of output finds no verdict.
+  it('leaves the verdict, interrupt and fail-fast paths no exit but through the banner', () => {
+    const body = (name: string) => {
+      const start = RUNNER_TEXT.indexOf(`\n${name}() {`);
+      return RUNNER_TEXT.slice(start, RUNNER_TEXT.indexOf('\n}\n', start));
+    };
+    for (const name of ['final_verdict', 'on_interrupt', 'run_gate', 'need_cmd']) {
+      expect(body(name), `${name} has an exit that skips the verdict banner`).not.toMatch(/^\s*exit\b/m);
+      expect(body(name), name).toContain('end_run ');
+    }
   });
 });
 
@@ -748,18 +898,18 @@ describe('the ending of the run, read from the script', () => {
   it('prints the whole report before any verdict can end the run', () => {
     // Every exit that ends a normal run lives in final_verdict, so the report
     // has to be printed in full before it is called.
-    expect(at('\nsummarize\ndump_failures\nprint_notices\nprint_not_checked\nfinal_verdict\n')).toBeGreaterThan(-1);
+    expect(at('\nsummarize\nprint_notices\nprint_not_checked\ndump_failures\nfinal_verdict\n')).toBeGreaterThan(-1);
     const verdict = RUNNER_TEXT.slice(at('final_verdict() {'));
     const body = verdict.slice(0, verdict.indexOf('\n}\n'));
     const guard = body.indexOf('assert_real_data_untouched');
     const oneTree = body.indexOf('assert_source_tree_unchanged');
     expect(guard).toBeGreaterThan(-1);
     expect(oneTree).toBeGreaterThan(guard);
-    expect(body.indexOf('one or more gates FAILED')).toBeGreaterThan(oneTree);
+    expect(body.indexOf('one or more local gates failed')).toBeGreaterThan(oneTree);
   });
 
-  it('prints the notices on the fail-fast exit too', () => {
-    const failFast = RUNNER_TEXT.indexOf('print_notices\n      print_not_checked\n      assert_real_data_untouched\n      exit 1');
+  it('prints the notices on the fail-fast exit too, before its verdict', () => {
+    const failFast = RUNNER_TEXT.indexOf('print_notices\n      print_not_checked\n      dump_failures\n      LOCAL_VERDICT="stopped"\n      if ! assert_real_data_untouched; then');
     expect(failFast).toBeGreaterThan(-1);
   });
 });

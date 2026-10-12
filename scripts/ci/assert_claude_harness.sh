@@ -10,10 +10,13 @@
 # aggregates failures so one run reports every problem, then exits non-zero if any
 # check failed.
 #
-# Usage: assert_claude_harness.sh [--skip-hook-fixtures]
+# Usage: assert_claude_harness.sh [--skip-hook-fixtures | --local-settings-only]
 #   --skip-hook-fixtures  leave Check 10 to the caller, which runs the hook fixture
 #                         suite as a gate of its own. The clean room does, and this is
 #                         what keeps a full local run executing that suite once.
+#   --local-settings-only run Check 11 alone. It reads the gitignored per-developer
+#                         settings file, which the clean room cannot see, so the bare
+#                         run's checkout runs it while the room runs every other check.
 set -uo pipefail
 # Reaches no AWS, and is cut off from it before anything runs, the hook fixture
 # suite it starts included.
@@ -22,9 +25,11 @@ aws_isolate_self "$@"
 cd "$(dirname "$0")/../.."
 
 SKIP_HOOK_FIXTURES=0
+LOCAL_SETTINGS_ONLY=0
 for arg in "$@"; do
   case "$arg" in
     --skip-hook-fixtures) SKIP_HOOK_FIXTURES=1 ;;
+    --local-settings-only) LOCAL_SETTINGS_ONLY=1 ;;
     *) echo "[harness] ERROR: unknown argument: $arg" >&2; exit 2 ;;
   esac
 done
@@ -32,6 +37,68 @@ done
 fail=0
 self="scripts/ci/assert_claude_harness.sh"
 SETTINGS=".claude/settings.json"
+
+# Heads that can delete or write despite reading in their common form (xargs rm,
+# find -delete, echo > f, awk/sed program-text writes), the outright destructive
+# ones, and WebFetch(domain:*) meaning every domain. Shared by the committed-allow
+# check and the machine-local check, so the two cannot drift into disagreeing
+# about what counts as unsafe.
+MUTATION_HEAD_RE='^Bash\((xargs|find|echo|awk|sed|rm|mv|cp|dd|tee|truncate|chmod|chown)([: *)]|$)|^WebFetch\(domain:\*\)$'
+
+# Check 11, defined here so --local-settings-only can run it alone.
+# settings.local.json is gitignored and per-developer, so it is absent in CI and this check
+# runs only where the file exists (a developer's machine). Its only routine writer is the
+# "always allow" click at a permission prompt, so it drifts toward over-permission by
+# construction, and no hook can intercept the product's own write.
+#
+# A rule may stay here only when it names an absolute machine path. Such a rule cannot be
+# committed, because an absolute home path is wrong on every other machine, and promoting
+# it to the developer's user-scope settings would widen it to every project they open,
+# which is the opposite of least privilege. Everything else is click residue: a shareable
+# rule belongs in the committed settings.json, and the rest is deleted. The file's other
+# legitimate content is the env block (machine-local values committed text must never
+# name), which is never scanned.
+#
+# Naming a path is not a licence to do anything: a path-scoped rule still clears the same
+# mutation-head screen the committed allow list faces, so a click cannot park a destructive
+# command here under cover of pointing it at a directory. deny entries are exempt from the
+# path requirement, since a deny only ever tightens.
+check_local_settings() {
+  local LOCAL=".claude/settings.local.json"
+  local LOCAL_PATH_RE='(^|[[:space:](,=])/[^[:space:])]'
+  local local_gated local_all local_unscoped local_unsafe
+  if [ -f "$LOCAL" ] && jq empty "$LOCAL" >/dev/null 2>&1; then
+    local_gated=$(jq -r '((.permissions.allow // []) + (.permissions.ask // []))[]' "$LOCAL" 2>/dev/null | grep -v '^[[:space:]]*$' | sort -u || true)
+    local_all=$(jq -r '((.permissions.allow // []) + (.permissions.ask // []) + (.permissions.deny // []))[]' "$LOCAL" 2>/dev/null | grep -v '^[[:space:]]*$' | sort -u || true)
+    local_unscoped=$(printf '%s\n' "$local_gated" | grep -v '^[[:space:]]*$' | grep -Ev "$LOCAL_PATH_RE" || true)
+    local_unsafe=$(printf '%s\n' "$local_all" | grep -v '^[[:space:]]*$' | grep -E "$MUTATION_HEAD_RE" || true)
+    if [ -n "$local_unscoped" ]; then
+      echo "[harness] FAIL: $LOCAL carries permission rule(s) naming no absolute path — promote to $SETTINGS (shareable) or delete:" >&2
+      ( IFS=$'\n'; printf '  %s\n' $local_unscoped >&2 )
+      fail=1
+    fi
+    if [ -n "$local_unsafe" ]; then
+      echo "[harness] FAIL: $LOCAL carries mutation-capable or unscoped rule(s), which naming a path does not excuse:" >&2
+      ( IFS=$'\n'; printf '  %s\n' $local_unsafe >&2 )
+      fail=1
+    fi
+    if [ -z "$local_unscoped" ] && [ -z "$local_unsafe" ]; then
+      echo "[harness] $LOCAL carries only path-scoped permission rules"
+    fi
+  else
+    echo "[harness] $LOCAL absent or empty (nothing to scan)"
+  fi
+}
+
+if [ "$LOCAL_SETTINGS_ONLY" -eq 1 ]; then
+  check_local_settings
+  if [ "$fail" -ne 0 ]; then
+    echo "[harness] FAIL: the machine-local settings check failed." >&2
+    exit 1
+  fi
+  echo "[harness] pass (machine-local settings check only)"
+  exit 0
+fi
 
 # Harness prose files scanned for path references (concrete, single-file paths only).
 # Nested CLAUDE.md files load like the root one, and the Claude Code guide cites the
@@ -215,13 +282,6 @@ else
   echo "[harness] every rule paths: glob matches a file"
 fi
 
-# Heads that can delete or write despite reading in their common form (xargs rm,
-# find -delete, echo > f, awk/sed program-text writes), the outright destructive
-# ones, and WebFetch(domain:*) meaning every domain. Shared by the committed-allow
-# check below and the machine-local check further down, so the two cannot drift
-# into disagreeing about what counts as unsafe.
-MUTATION_HEAD_RE='^Bash\((xargs|find|echo|awk|sed|rm|mv|cp|dd|tee|truncate|chmod|chown)([: *)]|$)|^WebFetch\(domain:\*\)$'
-
 # --- Check 8: the allow list never regains a mutation-capable command head ---
 # The read-only auto-approve hook covers the safe forms of these commands, so an
 # allow entry buys nothing and reopens the hole.
@@ -273,46 +333,7 @@ else
 fi
 
 # --- Check 11: the machine-local settings file holds only path-scoped permission rules ---
-# settings.local.json is gitignored and per-developer, so it is absent in CI and this check
-# runs only where the file exists (a developer's machine). Its only routine writer is the
-# "always allow" click at a permission prompt, so it drifts toward over-permission by
-# construction, and no hook can intercept the product's own write.
-#
-# A rule may stay here only when it names an absolute machine path. Such a rule cannot be
-# committed, because an absolute home path is wrong on every other machine, and promoting
-# it to the developer's user-scope settings would widen it to every project they open,
-# which is the opposite of least privilege. Everything else is click residue: a shareable
-# rule belongs in the committed settings.json, and the rest is deleted. The file's other
-# legitimate content is the env block (machine-local values committed text must never
-# name), which is never scanned.
-#
-# Naming a path is not a licence to do anything: a path-scoped rule still clears the same
-# mutation-head screen the committed allow list faces, so a click cannot park a destructive
-# command here under cover of pointing it at a directory. deny entries are exempt from the
-# path requirement, since a deny only ever tightens.
-LOCAL=".claude/settings.local.json"
-LOCAL_PATH_RE='(^|[[:space:](,=])/[^[:space:])]'
-if [ -f "$LOCAL" ] && jq empty "$LOCAL" >/dev/null 2>&1; then
-  local_gated=$(jq -r '((.permissions.allow // []) + (.permissions.ask // []))[]' "$LOCAL" 2>/dev/null | grep -v '^[[:space:]]*$' | sort -u || true)
-  local_all=$(jq -r '((.permissions.allow // []) + (.permissions.ask // []) + (.permissions.deny // []))[]' "$LOCAL" 2>/dev/null | grep -v '^[[:space:]]*$' | sort -u || true)
-  local_unscoped=$(printf '%s\n' "$local_gated" | grep -v '^[[:space:]]*$' | grep -Ev "$LOCAL_PATH_RE" || true)
-  local_unsafe=$(printf '%s\n' "$local_all" | grep -v '^[[:space:]]*$' | grep -E "$MUTATION_HEAD_RE" || true)
-  if [ -n "$local_unscoped" ]; then
-    echo "[harness] FAIL: $LOCAL carries permission rule(s) naming no absolute path — promote to $SETTINGS (shareable) or delete:" >&2
-    ( IFS=$'\n'; printf '  %s\n' $local_unscoped >&2 )
-    fail=1
-  fi
-  if [ -n "$local_unsafe" ]; then
-    echo "[harness] FAIL: $LOCAL carries mutation-capable or unscoped rule(s), which naming a path does not excuse:" >&2
-    ( IFS=$'\n'; printf '  %s\n' $local_unsafe >&2 )
-    fail=1
-  fi
-  if [ -z "$local_unscoped" ] && [ -z "$local_unsafe" ]; then
-    echo "[harness] $LOCAL carries only path-scoped permission rules"
-  fi
-else
-  echo "[harness] $LOCAL absent or empty (nothing to scan)"
-fi
+check_local_settings
 
 # --- Check 12: agent frontmatter hooks resolve and mirror the settings Bash chain ---
 # A custom agent with Bash declares the guard chain in its own frontmatter so it stays

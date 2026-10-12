@@ -83,7 +83,7 @@ exit 0
   return dir;
 }
 
-function runCleanRoom(binDir: string, args: string[] = ['--quick']): { status: number | null; out: string } {
+function runCleanRoom(binDir: string, args: string[] = ['--quick']): { status: number | null; out: string; stdout: string } {
   const home = path.join(scratch, path.basename(path.dirname(binDir)), 'home');
   mkdirSync(home, { recursive: true });
   // The script keeps the last run's gate logs under TMPDIR, at a path a real
@@ -98,7 +98,20 @@ function runCleanRoom(binDir: string, args: string[] = ['--quick']): { status: n
     env: { PATH: `${binDir}:${process.env.PATH ?? ''}`, HOME: home, TERM: 'dumb', TMPDIR: logRoot },
     ...SPAWN_GUARD,
   });
-  return { status: r.status, out: `${r.stdout ?? ''}${r.stderr ?? ''}` };
+  return { status: r.status, out: `${r.stdout ?? ''}${r.stderr ?? ''}`, stdout: r.stdout ?? '' };
+}
+
+const BAR = '#'.repeat(64);
+
+/**
+ * The verdict the room ended with: its word and printed exit code, read from the
+ * banner, which must be the last thing on stdout.
+ */
+function verdictOf(stdout: string): { word: string; code: number; last: boolean } {
+  const end = stdout.lastIndexOf(BAR);
+  const start = stdout.lastIndexOf(BAR, end - 1);
+  const m = /## VERDICT: (.+?)\s{3}\(exit (\d+)\)/.exec(start >= 0 ? stdout.slice(start, end) : '');
+  return { word: m?.[1] ?? '', code: m ? Number(m[2]) : -1, last: end >= 0 && stdout.slice(end + BAR.length).trim() === '' };
 }
 
 /** npm that passes every gate. */
@@ -294,6 +307,39 @@ describe('run_clean_room.sh: one result line per gate for the caller', () => {
     const { status, out } = runCleanRoom(stubBin('results-no-path', NPM_ALL_PASS), ['--results']);
     expect(status, out).toBe(2);
     expect(out).toContain('--results needs a file path');
+  });
+});
+
+describe('run_clean_room.sh: every run ends on its verdict', () => {
+  // Defect caught: a room that ends, however it ends, leaves no verdict at the
+  // end of its output, or one naming a different exit code from the one it
+  // returns, which is what the outer runner reads as pass, fail or skip.
+  it('ends a failed, an incomplete and a stopped room with a banner, last, naming the real exit code', () => {
+    const cases: Array<[string, string, string[], string]> = [
+      ['verdict-failed', NPM_INTEGRATION_FAILS, ['--quick'], 'CLEAN ROOM FAILED'],
+      ['verdict-incomplete', NPM_ALL_PASS, ['--quick'], 'CLEAN ROOM INCOMPLETE'],
+      // An install that fails ends the room before its summary.
+      ['verdict-stopped', 'if [ "$1" = ci ]; then exit 1; fi\nexit 0', ['--quick'], 'CLEAN ROOM STOPPED'],
+    ];
+    for (const [label, npm, args, word] of cases) {
+      const r = runCleanRoom(stubBin(label, npm), args);
+      const v = verdictOf(r.stdout);
+      expect(v.word, `${label}: ${r.out}`).toBe(word);
+      expect(v.last, `${label}: the verdict is not the last output`).toBe(true);
+      expect(v.code, label).toBe(r.status);
+    }
+  });
+
+  // Defect caught: a precondition refusal ends with an error line and no verdict.
+  it('ends a refused room with a banner, before anything has run', () => {
+    const bin = stubBin('verdict-refused', NPM_ALL_PASS);
+    writeFileSync(path.join(bin, 'node'), '#!/bin/bash\necho v1.0.0\n', { mode: 0o755 });
+    const r = runCleanRoom(bin);
+    expect(r.status, r.out).toBe(1);
+    const v = verdictOf(r.stdout);
+    expect(v.word, r.out).toBe('CLEAN ROOM REFUSED');
+    expect(v.last).toBe(true);
+    expect(r.out).toContain('the runner pins Node');
   });
 });
 

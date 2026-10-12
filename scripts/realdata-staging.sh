@@ -144,8 +144,9 @@ fi
 # kept. Anything else the host said is dropped without being printed, because
 # the point of this filter is that nothing unexpected leaves the host. A gate
 # line is held to the shape the two check scripts print: a known gate id, a
-# verdict, then the reason.
-GATE_LINE_RE='^GATE: (G[1-6]|RI[1-3]) (PASS|FAIL): .+$'
+# verdict, then the reason. SKIP is the verdict a gate gives when the data it
+# judges was never loaded.
+GATE_LINE_RE='^GATE: (G[1-6]|RI[1-3]) (PASS|FAIL|SKIP): .+$'
 REQUIRED_GATES=(G1 G2 G3 G4 G5 G6 RI1 RI2 RI3)
 kept=()
 seen_gates=" "

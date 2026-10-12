@@ -67,6 +67,7 @@ afterAll(() => {
 function applyMigration(
   sql: string,
   named?: { name: string; checksum: string },
+  opts: { systemctl?: string; env?: string; extraEnv?: NodeJS.ProcessEnv } = {},
 ): { status: number; stderr: string; stdout: string } {
   const remote = readFileSync(
     join(process.cwd(), 'scripts/internal/deploy-code-remote.sh'), 'utf8',
@@ -85,7 +86,7 @@ function applyMigration(
   // default is the case that matters, since the defaulted resolution could not
   // express it.
   const envPath = join(workDir, 'env');
-  writeFileSync(envPath, `FOOTBAG_ENV=staging\nFOOTBAG_DB_DIR=${workDir}\n`);
+  writeFileSync(envPath, `FOOTBAG_ENV=${opts.env ?? 'staging'}\nFOOTBAG_DB_DIR=${workDir}\n`);
 
   // Ends on a closing brace in the first column, not the next brace of any kind:
   // the function body holds an awk program whose own braces come first.
@@ -98,7 +99,7 @@ function applyMigration(
     'set -euo pipefail',
     // systemd is not present in a test; the migration must not depend on the
     // service actually stopping for its data handling to be correct.
-    'systemctl() { :; }',
+    opts.systemctl ?? 'systemctl() { :; }',
     `ENV_PATH=${JSON.stringify(envPath)}`,
     readEnv,
     block,
@@ -111,6 +112,7 @@ function applyMigration(
       MIGRATION_SQL: sql,
       MIGRATION_NAME: named?.name ?? '',
       MIGRATION_CHECKSUM: named?.checksum ?? '',
+      ...(opts.extraEnv ?? {}),
     },
     encoding: 'utf8',
     ...SPAWN_GUARD,
@@ -347,6 +349,137 @@ describe('the record of which migrations have been applied', () => {
     expect(res.status).toBe(1);
     expect(ledger()).toHaveLength(0);
   });
+
+  // Defect caught: the ledger, the permanent record of changes to live member
+  // data, does not say who made a change.
+  it('records who applied the migration', () => {
+    const res = applyMigration('ALTER TABLE payments ADD COLUMN currency TEXT;', NAMED, {
+      extraEnv: { DEPLOY_ACTOR: 'host=footbag role-session=alice' },
+    });
+    expect(res.status, res.stderr).toBe(0);
+    const row = readDb((db) => db.prepare('SELECT applied_by FROM schema_migrations WHERE filename = ?').get(NAMED.name)) as { applied_by: string };
+    expect(row.applied_by).toBe('host=footbag role-session=alice');
+  });
+
+  // Defect caught: an actor value carrying SQL reaches the statement that runs
+  // as root against the live database.
+  it('refuses an actor it could not safely record, before the service is stopped', () => {
+    const res = applyMigration('ALTER TABLE payments ADD COLUMN currency TEXT;', NAMED, {
+      extraEnv: { DEPLOY_ACTOR: "x'); DROP TABLE members; --" },
+    });
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('contains characters this host will not');
+    expect(ledger()).toHaveLength(0);
+  });
+
+  // Defect caught: a numbered migration applied on top of a database missing an
+  // earlier one, so hosts reach the same schema by different orders or skip a step.
+  it('refuses a numbered migration whose predecessors have not been applied', () => {
+    const third = applyMigration('ALTER TABLE payments ADD COLUMN c TEXT;', { name: '0003_add_c.sql', checksum: 'c'.repeat(64) });
+    expect(third.status).toBe(1);
+    expect(third.stderr).toContain('comes after migrations this database has not applied');
+    expect(third.stderr).toContain('0001, 0002');
+    expect(readDb((db) => db.prepare('PRAGMA table_info(payments)').all()))
+      .not.toContainEqual(expect.objectContaining({ name: 'c' }));
+  });
+
+  it('applies a numbered migration once every lower-numbered one is in the ledger', () => {
+    expect(applyMigration('ALTER TABLE payments ADD COLUMN a TEXT;', { name: '0001_add_a.sql', checksum: '1'.repeat(64) }).status).toBe(0);
+    const second = applyMigration('ALTER TABLE payments ADD COLUMN b TEXT;', { name: '0002_add_b.sql', checksum: '2'.repeat(64) });
+    expect(second.status, second.stderr).toBe(0);
+    expect(ledger().map((r) => r.filename).sort()).toEqual(['0001_add_a.sql', '0002_add_b.sql']);
+  });
+});
+
+describe('the off-host snapshot and the service around a migration', () => {
+  /** A systemctl that logs each call and fails the backup service when told to. */
+  const recordingSystemctl = (log: string, opts: { noBackupUnit?: boolean; backupFails?: boolean } = {}) => [
+    'systemctl() {',
+    `  echo "systemctl $*" >> ${JSON.stringify(log)}`,
+    `  case "$*" in`,
+    `    "cat footbag-backup.service") return ${opts.noBackupUnit ? 1 : 0} ;;`,
+    `    "start footbag-backup.service") return ${opts.backupFails ? 1 : 0} ;;`,
+    '  esac',
+    '  return 0',
+    '}',
+  ].join('\n');
+
+  // Defect caught: the only copy of the pre-migration database sits on the same
+  // disk as the database it protects.
+  it('takes an off-host snapshot after the service stops and before the migration runs', () => {
+    const log = join(workDir, 'systemctl.log');
+    const res = applyMigration('ALTER TABLE payments ADD COLUMN s TEXT;', undefined, { systemctl: recordingSystemctl(log) });
+    expect(res.status, res.stderr).toBe(0);
+    const calls = readFileSync(log, 'utf8');
+    expect(calls.indexOf('systemctl stop footbag\n')).toBeLessThan(calls.indexOf('systemctl start footbag-backup.service'));
+    expect(res.stdout).toContain('off-host snapshot taken');
+  });
+
+  // Defect caught: a migration runs although its off-host snapshot failed.
+  it('refuses to migrate, and restarts the service, when the off-host snapshot fails', () => {
+    const log = join(workDir, 'systemctl.log');
+    const res = applyMigration('ALTER TABLE payments ADD COLUMN s TEXT;', undefined, {
+      systemctl: recordingSystemctl(log, { backupFails: true }),
+    });
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('the off-host snapshot before the migration failed');
+    expect(readFileSync(log, 'utf8')).toContain('systemctl start footbag\n');
+    expect(readDb((db) => db.prepare('PRAGMA table_info(payments)').all()))
+      .not.toContainEqual(expect.objectContaining({ name: 's' }));
+  });
+
+  // Defect caught: production migrates with no off-host snapshot at all, or a
+  // staging host without the backup service cannot rehearse a migration.
+  it('refuses on a production host with no backup service, and only warns on staging', () => {
+    const log = join(workDir, 'systemctl.log');
+    const prod = applyMigration('ALTER TABLE payments ADD COLUMN s TEXT;', undefined, {
+      systemctl: recordingSystemctl(log, { noBackupUnit: true }), env: 'production',
+    });
+    expect(prod.status).toBe(1);
+    expect(prod.stderr).toContain('this production host has no footbag-backup.service');
+    const staging = applyMigration('ALTER TABLE payments ADD COLUMN s TEXT;', undefined, {
+      systemctl: recordingSystemctl(log, { noBackupUnit: true }),
+    });
+    expect(staging.status, staging.stderr).toBe(0);
+    expect(staging.stderr).toContain('the on-host copy above is the');
+  });
+
+  // Defect caught: a run that ends abnormally while the service is down for the
+  // migration leaves the site down with nobody told.
+  it('starts the service again when the run ends abnormally while it is stopped', () => {
+    const remote = readFileSync(join(process.cwd(), 'scripts/internal/deploy-code-remote.sh'), 'utf8');
+    const cleanup = remote.match(/^cleanup_env_tempfiles\(\) \{\n[\s\S]*?^\}$/m)![0];
+    const log = join(workDir, 'systemctl.log');
+    const harness = join(workDir, 'abnormal.sh');
+    writeFileSync(harness, [
+      'set -euo pipefail',
+      recordingSystemctl(log),
+      'backup_timer_paused=0; service_stopped_for_migration=0',
+      cleanup,
+      'trap cleanup_env_tempfiles EXIT',
+      'systemctl stop footbag',
+      'service_stopped_for_migration=1',
+      // A command failing under set -e in the window, as an interrupted or
+      // failing step would end the run.
+      'false',
+      'echo SHOULD_NOT_REACH',
+    ].join('\n'));
+    const res = spawnSync('bash', [harness], { encoding: 'utf8', ...SPAWN_GUARD });
+    expect(res.status).not.toBe(0);
+    expect(res.stdout).not.toContain('SHOULD_NOT_REACH');
+    const calls = readFileSync(log, 'utf8');
+    expect(calls.lastIndexOf('systemctl start footbag\n')).toBeGreaterThan(calls.indexOf('systemctl stop footbag\n'));
+    expect(res.stderr).toContain('ended while the service was stopped for the migration');
+  });
+
+  // Defect caught: the trap starts the service on a run that deliberately left
+  // it down because the restore itself failed and there is no database.
+  it('sets the flag where the service stops and clears it everywhere the run restarts it or leaves it down', () => {
+    const remote = readFileSync(join(process.cwd(), 'scripts/internal/deploy-code-remote.sh'), 'utf8');
+    expect(remote).toMatch(/systemctl stop footbag\n\s*service_stopped_for_migration=1/);
+    expect(remote).toMatch(/must be restored by hand\. NOT starting the[\s\S]{0,200}service_stopped_for_migration=0\n\s*exit 1/);
+    expect(remote).toMatch(/^systemctl restart footbag\nservice_stopped_for_migration=0$/m);
+  });
 });
 
 describe('the operator-facing script', () => {
@@ -462,13 +595,36 @@ describe('the operator-facing script', () => {
     expect(res.stderr).not.toContain('no terminal available to confirm on');
   });
 
-  it('refuses a production migration with no terminal at all', () => {
-    // The other half of the same rule: no unattended form, whether the operator
-    // reaches for the flag or simply has no terminal attached.
-    const res = runOperator(['--target', 'production', '--migration', ordinaryMigration()]);
-    expect(res.status).toBe(1);
-    expect(res.stderr).toContain('no terminal available to confirm on');
-    expect(res.stderr).toContain('no unattended form');
+  // Defect caught: a one-off written outside the tree, or a file outside the
+  // numbered chain, reaches the live production database, so hosts can diverge
+  // in what they applied and in what order.
+  it('refuses a production migration that is not a committed, numbered file', () => {
+    const outside = runOperator(['--target', 'production', '--migration', ordinaryMigration()]);
+    expect(outside.status).toBe(1);
+    expect(outside.stderr).toContain('a production migration must be a committed file in database/migrations');
+    expect(outside.stderr).not.toContain('ALTER TABLE');
+
+    const root = mkdtempSync(join(tmpdir(), 'footbag-test-migrate-tree-'));
+    mkdirSync(join(root, 'scripts'));
+    mkdirSync(join(root, 'database', 'migrations'), { recursive: true });
+    const script = join(root, 'scripts', 'deploy-migrate.sh');
+    copyFileSync(OPERATOR_SCRIPT, script);
+    writeFileSync(join(root, 'database', 'migrations', 'add-x.sql'), 'ALTER TABLE payments ADD COLUMN x TEXT;\n');
+    const unnumbered = runOperator(['--target', 'production', '--migration', 'add-x.sql'], {}, script);
+    rmSync(root, { recursive: true, force: true });
+    expect(unnumbered.status).toBe(1);
+    expect(unnumbered.stderr).toContain('a production migration is named NNNN_snake_case_description.sql');
+  });
+
+  // Defect caught: the operator types APPLY and only then learns the tree may
+  // not ship to production, or the release rules are skipped on this path.
+  it('checks the production release rules before showing the SQL or asking for confirmation', () => {
+    const text = readFileSync(OPERATOR_SCRIPT, 'utf8');
+    const gate = text.search(/^\s*production_release_gate_deploy "\$\(cd "\$\{SCRIPT_DIR\}\/\.\." && pwd\)" \|\| exit 1$/m);
+    expect(gate, 'the release gate is called on a live line').toBeGreaterThan(-1);
+    expect(gate).toBeGreaterThan(text.indexOf('if [[ "$DEPLOY_TARGET" == "footbag-production" ]]; then'));
+    expect(gate).toBeLessThan(text.indexOf('printf \'%s\\n\' "$MIGRATION_SQL"'));
+    expect(gate).toBeLessThan(text.indexOf("printf 'Type APPLY to continue: '"));
   });
 
   it('resolves a bare name against the migrations directory', () => {

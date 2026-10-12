@@ -2,8 +2,11 @@
 # scripts/validate-legacy-import-gates.sh -- pre-cutover validation gates G1-G6.
 #
 # Read-only SQLite probes against the loaded legacy data. Emits one
-# GATE: G<N> PASS|FAIL: <reason> line per gate to stdout; non-zero exit
-# if any gate fails. Consumed by scripts/pre-cutover-checklist.sh.
+# GATE: G<N> PASS|FAIL|SKIP: <reason> line per gate to stdout. Exit 0 when
+# every gate passes; 1 when any gate fails; 78 when none fails but G4 and G6
+# were skipped because no row comes from the footbag.org export (prerequisite
+# not loaded). Consumed by scripts/pre-cutover-checklist.sh, which blocks on
+# any non-zero, and by the real-data rows of the test runner.
 #
 # Gates. Each names a condition the loaded legacy data must satisfy before the
 # cutover may proceed, and the probe below it is what decides:
@@ -135,12 +138,30 @@ ${g3_exported} export-loaded, ${g3_fixtures} surviving system fixture(s) the exp
 cover -- each needs a recorded reason in the cutover report"
 fi
 
+# real_name and the HoF/BAP + tier-status flags are supplied only by the
+# authoritative legacy-site export, so G4 and G6 can only be judged once it has
+# written a row. Before that they report SKIP, "prerequisite not loaded", rather
+# than FAIL: a database holding only the local seed or the mirror-derived roster
+# would otherwise read exactly like corrupt member data. The structural gates
+# (G1, G2, G3, G5) still decide pass or fail on such a database.
+#
+# The test keys on the value the export stamps on every row it writes, because
+# that one value means the authoritative load has begun. "Anything but mirror"
+# would not do: the seeded persona catalog and the collision stub carry
+# provenance values of their own, and a dev seed carrying them would otherwise
+# be mistaken for a real load.
+authoritative="${g3_exported}"
+NOT_LOADED="prerequisite not loaded: no legacy_members row comes from the footbag.org export; \
+judged only on a load that includes it"
+
 # G4: profile/contact field shape. We require real_name to be populated on
 # >= 95% of rows; country on >= 50% (real-world legacy data is sparse).
 g4_total="${g3_total}"
 g4_realname=$(q "SELECT COUNT(*) FROM legacy_members WHERE real_name IS NOT NULL AND real_name <> '';")
 g4_country=$(q "SELECT COUNT(*) FROM legacy_members WHERE country IS NOT NULL AND country <> '';")
-if [[ "${g4_total}" -eq 0 ]]; then
+if [[ "${authoritative}" -eq 0 ]]; then
+  emit_gate G4 SKIP "${NOT_LOADED}"
+elif [[ "${g4_total}" -eq 0 ]]; then
   emit_gate G4 FAIL "no rows to sample"
 else
   rn_pct=$(( g4_realname * 100 / g4_total ))
@@ -177,7 +198,9 @@ g6_honors=$(q "SELECT COUNT(*) FROM legacy_members WHERE is_hof = 1 OR is_bap = 
 g6_tier2=$(q "SELECT COUNT(*) FROM legacy_members WHERE legacy_ever_paid_tier2 = 1;")
 g6_t1life=$(q "SELECT COUNT(*) FROM legacy_members WHERE legacy_ever_paid_tier1_lifetime = 1;")
 g6_t1annual=$(q "SELECT COUNT(*) FROM legacy_members WHERE legacy_tier1_annual_active_at_cutover = 1;")
-if [[ "${g6_honors}" -eq 0 ]]; then
+if [[ "${authoritative}" -eq 0 ]]; then
+  emit_gate G6 SKIP "${NOT_LOADED}"
+elif [[ "${g6_honors}" -eq 0 ]]; then
   emit_gate G6 FAIL "no legacy_members carry HoF or BAP honor flag; tier-mapping fallback produces zero upgrades"
 elif [[ $((g6_tier2 + g6_t1life)) -eq 0 ]]; then
   emit_gate G6 FAIL "honor flags present (${g6_honors}) but zero paid-tier flags; re-run the member extract so the tier-status derivation populates"
@@ -185,28 +208,17 @@ else
   emit_gate G6 PASS "${g6_honors} honor-flagged; paid-tier flags: ${g6_tier2} ever-paid Tier 2, ${g6_t1life} Tier 1 lifetime, ${g6_t1annual} Tier 1 annual active"
 fi
 
-if [[ "${fail}" -eq 0 ]]; then
-  exit 0
+if [[ "${fail}" -gt 0 ]]; then
+  echo "validate-legacy-import-gates: ${fail} gate(s) FAILED" >&2
+  exit 1
 fi
 
-echo "validate-legacy-import-gates: ${fail} gate(s) FAILED" >&2
-
-# real_name and the HoF/BAP + tier-status flags are supplied only by the
-# authoritative legacy-site export. A database holding only the local seed cannot
-# carry them, so G4 and G6 fail there for want of data, not a data defect. That
-# seed writes import_source='system_fixture', the schema's own term for a
-# platform-seeded stub; it wrote 'mirror' when this was first described, and the
-# value moved. Report that provenance with a
-# distinct exit status so an orchestrator running against a dev seed can choose
-# to skip these gates, while a consumer that blocks on any non-zero (the
-# pre-cutover checklist) still stops. The export stamps its own provenance value
-# on every row it writes, so one such row means the authoritative load has begun
-# and the ordinary failure status stands. The test keys on that value rather than
-# on "anything but mirror" because the seeded persona catalog and the collision
-# stub also carry non-mirror provenance, and a dev seed carrying them would
-# otherwise be mistaken for a real load.
-authoritative=$(q "SELECT COUNT(*) FROM legacy_members WHERE import_source = 'legacy_site_data';")
+# Every gate that could be judged passed, but G4 and G6 could not be judged.
+# A distinct exit status lets an orchestrator running against a database
+# without the export report "prerequisite not loaded", while a consumer that
+# blocks on any non-zero (the pre-cutover checklist, the production deploy)
+# still stops: this state is never a pass for production.
 if [[ "${authoritative}" -eq 0 ]]; then
   exit 78
 fi
-exit 1
+exit 0

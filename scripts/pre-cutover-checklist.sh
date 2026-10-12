@@ -162,10 +162,14 @@ run_step() {
   local out rc
   out=$("$@" 2>&1) || rc=$? && rc=${rc:-0}
   # Extract the last GATE: line for the summary if present; otherwise
-  # synthesize one from the exit code so every step contributes a row.
+  # synthesize one from the exit code so every step contributes a row. A step
+  # that exited non-zero is a failure whatever its last line says: a skipped
+  # gate (prerequisite not loaded) blocks the cutover, and its row must say so.
   local summary
   summary=$(printf '%s\n' "${out}" | grep -E '^GATE:' | tail -1 || true)
-  if [[ -z "${summary}" ]]; then
+  if [[ "${rc}" -ne 0 && -n "${summary}" && "${summary}" != *" FAIL: "* ]]; then
+    summary="GATE: ${label} FAIL: exit ${rc}; last line: ${summary#GATE: }"
+  elif [[ -z "${summary}" ]]; then
     if [[ "${rc}" -eq 0 ]]; then
       summary="GATE: ${label} PASS: ok"
     else

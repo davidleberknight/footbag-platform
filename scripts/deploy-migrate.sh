@@ -188,18 +188,6 @@ case "$TARGET" in
 esac
 export DEPLOY_TARGET="footbag-${TARGET}"
 
-# Shown rather than summarised. This is the one deploy step that can destroy
-# data no rebuild can recreate, and an operator who has not read the statements
-# is not in a position to confirm them.
-echo "Migration: ${MIGRATION_NAME}"
-echo "The following SQL will be applied to the LIVE database:"
-echo "----------------------------------------------------------------------"
-printf '%s\n' "$MIGRATION_SQL"
-echo "----------------------------------------------------------------------"
-echo "A copy of the database is taken immediately beforehand and restored if"
-echo "the migration or its integrity checks fail."
-echo
-
 # Production asks every time, and no flag supplies the answer in advance. --yes
 # exists for staging, which is fed unattended by design and whose data is
 # disposable; on production it is refused rather than honoured, because this is
@@ -211,6 +199,39 @@ echo
 if [[ "$DEPLOY_TARGET" == "footbag-production" && "$ASSUME_YES" == "yes" ]]; then
   die "--yes does not apply to a production migration: it asks every time, from the terminal, because a flag cannot establish that somebody is there. Re-run without --yes"
 fi
+
+if [[ "$DEPLOY_TARGET" == "footbag-production" ]]; then
+  # A production migration is one of the numbered, committed files, so every
+  # host applies the same chain in the same order and the release gate below can
+  # vouch for it. A one-off written outside the tree is for a staging rehearsal.
+  [[ -n "$MIGRATIONS_DIR" && "$MIGRATION_FILE" == "${MIGRATIONS_DIR}/"* ]] \
+    || die "a production migration must be a committed file in database/migrations; '${MIGRATION_FILE}' is not"
+  [[ "$MIGRATION_NAME" =~ ^[0-9]{4}_[a-z0-9_]+\.sql$ ]] \
+    || die "a production migration is named NNNN_snake_case_description.sql; '${MIGRATION_NAME}' is not"
+  # The release rules, before the operator is asked to confirm anything, so a
+  # tree that may not ship to production costs no typed word. scripts/deploy-code.sh
+  # checks them again however it was reached.
+  # shellcheck source=lib/production-release-gate.sh
+  source "${SCRIPT_DIR}/lib/production-release-gate.sh"
+  production_release_gate_deploy "$(cd "${SCRIPT_DIR}/.." && pwd)" || exit 1
+fi
+
+# Shown rather than summarised. This is the one deploy step that can destroy
+# data no rebuild can recreate, and an operator who has not read the statements
+# is not in a position to confirm them.
+echo "Target:    ${DEPLOY_TARGET} (${TARGET})"
+echo "Migration: ${MIGRATION_NAME}"
+echo "Effect:    the working tree is promoted as the new release; the service is"
+echo "           stopped; a copy of the database is taken on the host, and off it"
+echo "           where the host has its backup service; this SQL and its ledger row"
+echo "           are applied in one transaction; integrity and foreign keys are"
+echo "           checked, and the copy is restored if any of that fails; the"
+echo "           service restarts and the site is smoke-checked."
+echo "The following SQL will be applied to the LIVE database:"
+echo "----------------------------------------------------------------------"
+printf '%s\n' "$MIGRATION_SQL"
+echo "----------------------------------------------------------------------"
+echo
 
 if [[ "$ASSUME_YES" != "yes" ]]; then
   # From the terminal, never stdin: stdin carries the sudo password, and a read

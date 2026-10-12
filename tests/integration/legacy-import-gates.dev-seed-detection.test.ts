@@ -18,20 +18,33 @@ import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
 
 const { dbPath } = setTestEnv('3438');
 
-// Exit status of the gate script against this file's database. The script fails
-// non-zero whenever any gate fails, so the status is the contract under test, not
-// the pass/fail lines it prints.
-function gateExitStatus(): number {
+// Exit status of the gate script against this file's database, and the verdict
+// each gate printed. The script fails non-zero whenever any gate fails.
+function runGates(): { status: number; verdicts: Map<string, string> } {
+  let stdout = '';
+  let status = 0;
   try {
-    execFileSync('bash', ['scripts/validate-legacy-import-gates.sh'], {
+    stdout = execFileSync('bash', ['scripts/validate-legacy-import-gates.sh'], {
       env: { ...process.env, FOOTBAG_DB_PATH: dbPath },
+      encoding: 'utf8',
       stdio: 'pipe',
       ...SPAWN_GUARD,
     });
-    return 0;
   } catch (err) {
-    return (err as { status: number }).status;
+    const e = err as { stdout?: string; status: number };
+    stdout = e.stdout ?? '';
+    status = e.status;
   }
+  const verdicts = new Map<string, string>();
+  for (const line of stdout.split('\n')) {
+    const m = /^GATE: (G\d) (PASS|FAIL|SKIP): (.*)$/.exec(line);
+    if (m) verdicts.set(m[1], `${m[2]}: ${m[3]}`);
+  }
+  return { status, verdicts };
+}
+
+function gateExitStatus(): number {
+  return runGates().status;
 }
 
 beforeAll(async () => {
@@ -63,6 +76,46 @@ describe('legacy import gates: authoritative-load detection', () => {
     expect(gateExitStatus()).toBe(78);
   });
 
+  // Defect caught: a staging copy or workstation built without the member load
+  // reports two red gates that read exactly like corrupt member data, so every
+  // staging closing run is red and a real defect would look the same.
+  it('reports the legal-name and honor gates as prerequisite not loaded, not as failures', () => {
+    const { verdicts } = runGates();
+    for (const gate of ['G4', 'G6']) {
+      expect(verdicts.get(gate), gate).toMatch(/^SKIP: prerequisite not loaded: /);
+    }
+    for (const gate of ['G1', 'G2', 'G3', 'G5']) {
+      expect(verdicts.get(gate), gate).toMatch(/^PASS: /);
+    }
+  });
+
+  // Defect caught: a structural defect a mirror-derived load can carry hides
+  // behind the "not loaded" status, so a shared address reaches staging unflagged.
+  it('still fails outright when a structural gate fails on a load without the export', async () => {
+    const BetterSqlite3 = (await import('better-sqlite3')).default;
+    const { insertLegacyMember } = await import('../fixtures/factories');
+    const db = new BetterSqlite3(dbPath);
+    insertLegacyMember(db, {
+      legacy_member_id: '910010', real_name: null, display_name: 'Mirror Ten', import_source: 'mirror',
+      legacy_email: 'shared@example.test',
+    });
+    insertLegacyMember(db, {
+      legacy_member_id: '910011', real_name: null, display_name: 'Mirror Eleven', import_source: 'mirror',
+      legacy_email: 'SHARED@example.test',
+    });
+    db.close();
+
+    try {
+      const { status, verdicts } = runGates();
+      expect(verdicts.get('G1')).toMatch(/^FAIL: /);
+      expect(status).toBe(1);
+    } finally {
+      const cleanup = new BetterSqlite3(dbPath);
+      cleanup.prepare("DELETE FROM legacy_members WHERE legacy_member_id IN ('910010', '910011')").run();
+      cleanup.close();
+    }
+  });
+
   it('reports an ordinary failure once the export has written its first row', async () => {
     const BetterSqlite3 = (await import('better-sqlite3')).default;
     const { insertLegacyMember } = await import('../fixtures/factories');
@@ -72,6 +125,10 @@ describe('legacy import gates: authoritative-load detection', () => {
     });
     db.close();
 
-    expect(gateExitStatus()).toBe(1);
+    // Defect caught: once the export has begun, the missing legal names are a
+    // real defect, and a "not loaded" status there would wave it through.
+    const { status, verdicts } = runGates();
+    expect(verdicts.get('G4')).toMatch(/^FAIL: /);
+    expect(status).toBe(1);
   });
 });

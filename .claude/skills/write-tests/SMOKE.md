@@ -1,6 +1,6 @@
 # write-tests: staging smoke
 
-Smoke tests (`tests/smoke/`) run against real staging through `npm run test:smoke`, which reads the Terraform outputs and sets `RUN_STAGING_SMOKE=1` (`scripts/test-smoke.sh`), and as the staging-aws-smoke row of `./run_all_tests.sh --staging`, run through the dev-tester role. They are excluded from `npm test`, from CI and from every local-only runner mode. Against production they run only as the operator's pre-cutover wiring check, never from the runner. The canonical example is `tests/smoke/staging-readiness.test.ts`.
+Smoke tests (`tests/smoke/`) run against real staging through `npm run test:smoke`, which reads the Terraform outputs and sets `RUN_STAGING_SMOKE=1` (`scripts/test-smoke.sh`), and as the staging-aws-smoke row of `./run_all_tests.sh --staging`, run as `footbag-operator` or by a dev-tester through the dev-tester role. They are excluded from `npm test`, from CI and from every local-only runner mode. Against production they run only as the operator's pre-cutover wiring check, never from the runner. The canonical example is `tests/smoke/staging-readiness.test.ts`.
 
 ## Scope: wiring only
 

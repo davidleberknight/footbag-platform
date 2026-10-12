@@ -57,6 +57,10 @@ async function visit(page: Page, path: string): Promise<void> {
   const res = await page.goto(path, { waitUntil: 'load' });
   expect(res?.status(), `${path} status`).toBe(200);
   await expect(page.locator('h1').first(), `${path} rendered its heading`).toBeVisible();
+  // A script's own fetch after load (the clubs map's SVG) must finish here: the
+  // next navigation would abort it, reporting a failure the visitor never sees and
+  // hiding a real one.
+  await page.waitForLoadState('networkidle');
 }
 
 const ANONYMOUS_PAGES = ['/', '/freestyle/tricks', '/clubs', '/media', '/login'];

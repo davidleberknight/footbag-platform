@@ -43,6 +43,13 @@ ENV_PATH=/srv/footbag/env
 # nothing looks for it. The sweep is unconditional on exit for that reason: it
 # costs nothing on a clean run and is the only thing that cleans up a dirty one.
 backup_timer_paused=0
+# Set while the service is down for a migration. A run that ends abnormally in
+# that window, on an interrupt or a failing command, would otherwise leave the
+# site down with nobody told. The database needs no repair then: a transaction
+# that never committed rolls back, so the file is either the pre-migration state
+# or the migrated one, and the ledger row inside it says which. Cleared wherever
+# the run deliberately leaves the service down or has already restarted it.
+service_stopped_for_migration=0
 cleanup_env_tempfiles() {
   # Overwritten rather than unlinked: what a stranded temp file holds is the
   # host's entire secret set, and an unlink leaves the blocks readable to anyone
@@ -59,6 +66,14 @@ cleanup_env_tempfiles() {
   if [[ "$backup_timer_paused" == "1" ]]; then
     systemctl start footbag-backup.timer || \
       echo "WARNING: could not restart footbag-backup.timer. Backups are STOPPED; start it by hand." >&2
+  fi
+  if [[ "$service_stopped_for_migration" == "1" ]]; then
+    echo "WARNING: this run ended while the service was stopped for the migration; starting it." >&2
+    echo "         The database is as SQLite left it: a transaction that never committed rolled" >&2
+    echo "         back, so it holds either the pre-migration state or the migrated one, and its" >&2
+    echo "         schema_migrations ledger says which." >&2
+    systemctl start footbag || \
+      echo "WARNING: could not start the footbag service. The site is DOWN; start it by hand." >&2
   fi
 }
 trap cleanup_env_tempfiles EXIT
@@ -1457,6 +1472,16 @@ if [[ -n "${MIGRATION_SQL:-}" ]]; then
     echo "ERROR: migration checksum is not hexadecimal; refusing to record it." >&2
     exit 1
   fi
+  # Who applied it, recorded on the ledger row: the host account the run
+  # connected as, plus the job-role session name where it acted as one. Checked
+  # for the same reason as the two values above, and restricted to the characters
+  # an account name and a session name can hold.
+  if [[ -n "${DEPLOY_ACTOR:-}" ]] \
+     && ! grep -qE '^[A-Za-z0-9 =+,.@_:-]+$' <<< "$DEPLOY_ACTOR"; then
+    echo "ERROR: the deploy actor '${DEPLOY_ACTOR}' contains characters this host will not" >&2
+    echo "       put into SQL; refusing to record it." >&2
+    exit 1
+  fi
 
   if [[ -n "${MIGRATION_NAME:-}" ]]; then
     # Absent on a database that predates the ledger, which is the ordinary case
@@ -1508,6 +1533,36 @@ if [[ -n "${MIGRATION_SQL:-}" ]]; then
         exit 1
       fi
     fi
+
+    # A numbered migration lands only on top of every lower-numbered one, so no
+    # two hosts can reach the same schema by different orders and none can skip
+    # a step. The numbers are four digits from 0001, unique and contiguous in
+    # database/migrations (the convention gate holds the directory to that).
+    if [[ -n "${MIGRATION_SQL:-}" && "$MIGRATION_NAME" =~ ^([0-9]{4})_ ]]; then
+      _mig_number=$((10#${BASH_REMATCH[1]}))
+      _mig_applied=""
+      if [[ -n "$has_ledger" ]]; then
+        _mig_applied="$(sqlite3 "$DB_PATH" \
+          "SELECT filename FROM schema_migrations WHERE filename GLOB '[0-9][0-9][0-9][0-9]_*';" \
+          || echo 'read-failed')"
+        if [[ "$_mig_applied" == "read-failed" ]]; then
+          echo "ERROR: could not read the applied-migration ledger; refusing to migrate." >&2
+          echo "       The service has not been stopped." >&2
+          exit 1
+        fi
+      fi
+      _mig_missing=""
+      for (( _k = 1; _k < _mig_number; _k++ )); do
+        printf -v _mig_prefix '%04d_' "$_k"
+        grep -q "^${_mig_prefix}" <<< "$_mig_applied" || _mig_missing+="${_mig_missing:+, }${_mig_prefix%_}"
+      done
+      if [[ -n "$_mig_missing" ]]; then
+        echo "ERROR: ${MIGRATION_NAME} comes after migrations this database has not applied:" >&2
+        echo "       ${_mig_missing}. Apply them first, in order. The service has not been stopped." >&2
+        exit 1
+      fi
+      unset _mig_number _mig_applied _mig_missing _mig_prefix _k
+    fi
   fi
 fi
 
@@ -1532,6 +1587,7 @@ if [[ -n "${MIGRATION_SQL:-}" ]]; then
   # Stopped first: the application holds the database open, and SQLite writes
   # from two directions is how a half-applied migration becomes a corrupt file.
   systemctl stop footbag
+  service_stopped_for_migration=1
 
   # Folded into the main file before the copy is taken, the same idiom the
   # backup producer uses. The stop above normally checkpoints twice over, once
@@ -1555,6 +1611,7 @@ if [[ -n "${MIGRATION_SQL:-}" ]]; then
     echo "       Refusing to migrate: a copy taken now could not be restored intact." >&2
     echo "       Nothing was migrated; restarting the service." >&2
     systemctl start footbag || true
+    service_stopped_for_migration=0
     exit 1
   fi
 
@@ -1575,6 +1632,7 @@ if [[ -n "${MIGRATION_SQL:-}" ]]; then
     echo "       only way back from a bad migration." >&2
     echo "       Nothing was migrated; restarting the service." >&2
     systemctl start footbag || true
+    service_stopped_for_migration=0
     exit 1
   fi
   if (( avail_kb < db_kb * 2 )); then
@@ -1582,6 +1640,7 @@ if [[ -n "${MIGRATION_SQL:-}" ]]; then
     echo "       database ${db_kb} KB, free ${avail_kb} KB, need at least $(( db_kb * 2 )) KB." >&2
     echo "       Nothing was migrated; restarting the service." >&2
     systemctl start footbag || true
+    service_stopped_for_migration=0
     exit 1
   fi
 
@@ -1592,9 +1651,39 @@ if [[ -n "${MIGRATION_SQL:-}" ]]; then
     echo "ERROR: could not take the pre-migration copy; nothing was migrated." >&2
     echo "       Restarting the service." >&2
     systemctl start footbag || true
+    service_stopped_for_migration=0
     exit 1
   fi
   echo "    pre-migration copy at ${migration_backup}"
+
+  # An independent snapshot off this host as well. The copy above shares this
+  # host's disk, so a disk or host lost during the migration would take both the
+  # database and its only way back. The host's own backup service takes it: the
+  # same producer the five-minute timer runs, uploading to the snapshots bucket,
+  # and it exits non-zero unless the upload landed. With the service stopped and
+  # the log checkpointed, the snapshot is exactly the pre-migration database.
+  # Production refuses without it; a staging host without the service warns.
+  if systemctl cat footbag-backup.service >/dev/null 2>&1; then
+    if ! systemctl start footbag-backup.service; then
+      echo "ERROR: the off-host snapshot before the migration failed (footbag-backup.service)." >&2
+      echo "       Refusing to migrate without it; nothing was migrated. Restarting the service." >&2
+      echo "       journalctl -u footbag-backup.service says why." >&2
+      systemctl start footbag || true
+      service_stopped_for_migration=0
+      exit 1
+    fi
+    echo "    off-host snapshot taken (footbag-backup.service)"
+  elif [[ "$(read_env FOOTBAG_ENV)" == "production" ]]; then
+    echo "ERROR: this production host has no footbag-backup.service, so no off-host snapshot" >&2
+    echo "       can be taken before the migration. Install it (scripts/install-backup-timer.sh)" >&2
+    echo "       and re-run. Nothing was migrated; restarting the service." >&2
+    systemctl start footbag || true
+    service_stopped_for_migration=0
+    exit 1
+  else
+    echo "WARNING: no footbag-backup.service on this host, so the on-host copy above is the" >&2
+    echo "         only way back from this migration." >&2
+  fi
 
   # Restores the database only. The release and its images were promoted earlier
   # in this script, before the migration ran, and nothing here reverts them, so
@@ -1610,9 +1699,11 @@ if [[ -n "${MIGRATION_SQL:-}" ]]; then
       echo "ERROR: restoring the pre-migration database ALSO failed. It is intact at" >&2
       echo "       ${migration_backup} and must be restored by hand. NOT starting the" >&2
       echo "       service: it would come up against a database that is not there." >&2
+      service_stopped_for_migration=0
       exit 1
     fi
     systemctl start footbag || true
+    service_stopped_for_migration=0
     echo "" >&2
     echo "       STATE OF THIS HOST: the database is back as it was, but the code" >&2
     echo "       and images are the NEW release, promoted before the migration ran." >&2
@@ -1640,10 +1731,11 @@ if [[ -n "${MIGRATION_SQL:-}" ]]; then
     migration_ledger_sql="CREATE TABLE IF NOT EXISTS schema_migrations (
         filename   TEXT PRIMARY KEY,
         checksum   TEXT NOT NULL,
-        applied_at TEXT NOT NULL
+        applied_at TEXT NOT NULL,
+        applied_by TEXT
       );
-      INSERT INTO schema_migrations (filename, checksum, applied_at)
-      VALUES ('${MIGRATION_NAME}', '${MIGRATION_CHECKSUM:-}', strftime('%Y-%m-%dT%H:%M:%fZ','now'));"
+      INSERT INTO schema_migrations (filename, checksum, applied_at, applied_by)
+      VALUES ('${MIGRATION_NAME}', '${MIGRATION_CHECKSUM:-}', strftime('%Y-%m-%dT%H:%M:%fZ','now'), $( [[ -n "${DEPLOY_ACTOR:-}" ]] && printf "'%s'" "$DEPLOY_ACTOR" || printf 'NULL' ));"
   fi
 
   # `.bail on` makes this an actual transaction. Without it the sqlite3 CLI keeps
@@ -1693,6 +1785,7 @@ fi
 echo "==> Restarting service (compose up via systemctl, --no-build)..."
 cd "$LIVE_DIR"
 systemctl restart footbag
+service_stopped_for_migration=0
 
 # Every `compose exec` below reads from /dev/null, and that redirect is
 # load-bearing rather than tidiness. This whole script arrives on the remote

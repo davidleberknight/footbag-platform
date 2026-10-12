@@ -220,27 +220,6 @@ describe('deploy_to_aws.sh wrapper', () => {
     },
   );
 
-  it.skipIf(!HAS_DOCKER)(
-    'production DB-replace requires the explicit confirmation phrase (no TTY → refuses)',
-    () => {
-      // A DB-rebuild deploy (--from-csv; bare is now code-only) against
-      // footbag-production must not proceed without the operator typing the
-      // confirmation phrase. Test environment has no TTY, so the gate
-      // refuses with a clear "no TTY available" recommendation.
-      const tmpRoot = scaffoldWrapperRoot();
-      try {
-        const r = run('bash', ['deploy_to_aws.sh', '--from-csv', '--target', 'production'], {
-          cwd: tmpRoot,
-        });
-        expect(r.status).toBe(1);
-        const combined = (r.stderr ?? '') + (r.stdout ?? '');
-        expect(combined).toMatch(/PRODUCTION DB-TOUCHING DEPLOY/);
-        expect(combined).toMatch(/requires interactive confirmation/);
-      } finally {
-        fs.rmSync(tmpRoot, { recursive: true, force: true });
-      }
-    },
-  );
 
   it.skipIf(!HAS_DOCKER)(
     'production --all-data (full migration load) trips the DB-replace confirmation (no TTY → refuses)',
@@ -282,7 +261,7 @@ describe('deploy_to_aws.sh wrapper', () => {
       // running the suite, which is not a safety property at all.
       const tmpRoot = scaffoldWrapperRoot();
       try {
-        const r = run('bash', ['deploy_to_aws.sh', '--from-csv', '-n', '--target', 'production'], {
+        const r = run('bash', ['deploy_to_aws.sh', '--all-data', '-n', '--target', 'production'], {
           cwd: tmpRoot,
           env: {
             FOOTBAG_PROD_DB_REPLACE_ACK: '1',
@@ -1796,14 +1775,13 @@ describe('the production gate asks what happens to the media bucket', () => {
     // trailing conjunction, which is how a question that no longer gets asked
     // keeps a passing test.
     //
-    // Reuse mode is excluded, and that exclusion is part of the contract rather
-    // than a disabled branch. Reuse ships the local database as it stands and
-    // rebuilds nothing, so it reseeds no media and the question's premise is
-    // false there; worse, the "yes" answer emits a flag the orchestrator refuses
-    // outside a rebuild, which killed the run after the typed word and the
-    // password. Asking only where the answer can be carried is the whole point.
+    // Asked only for a rebuild, the one database-touching production mode: a
+    // reused local database is refused for production before this gate, so the
+    // question can never meet a mode that rebuilds nothing and cannot carry the
+    // answer.
     expect(question).toMatch(
-      /if \(\( PROD_DB_TOUCHING == 1 && MEDIA_INTENT_NAMED == 0 && MODE_REUSE == 0 \)\); then\n/);
+      /if \(\( PROD_DB_TOUCHING == 1 && MEDIA_INTENT_NAMED == 0 \)\); then\n/);
+    expect(wrapperSrc).toMatch(/if \(\( DB_REBUILD_INVOLVED == 1 \)\); then\n\s*PROD_DB_TOUCHING=1/);
     // Every media flag counts as the operator having said so, in either direction,
     // and combined short flags are expanded before this scan reads them.
     expect(wrapperSrc).toMatch(
@@ -2304,7 +2282,12 @@ describe('both deploy halves leave a host able to survive on its own', () => {
 
   it.each(HALVES)('%s does all of it before restarting the service', (file) => {
     const source = read(file);
-    const restartAt = source.search(/systemctl (restart|start) footbag\b(?!-)/);
+    // Searched past the exit trap's definition: the trap can start the service
+    // on an abnormal exit, but defining it starts nothing.
+    const trapAt = source.indexOf('\ntrap cleanup_env_tempfiles EXIT\n');
+    const from = trapAt > -1 ? trapAt : 0;
+    const rel = source.slice(from).search(/systemctl (restart|start) footbag\b(?!-)/);
+    const restartAt = rel > -1 ? from + rel : -1;
     expect(restartAt, `${file} never restarts the service`).toBeGreaterThan(-1);
     // Ordering is the half of this that a presence check cannot see. Containers
     // are budgeted against the sizing seed on the assumption the swap valve is
@@ -2693,11 +2676,11 @@ describe('the destructive remote half requires every guard that ran ahead of it'
 // rebuilds nothing, so it reseeds no media, and the "yes" answer emitted a flag
 // the orchestrator refuses, killing the run after the typed word and the password.
 describe('the production media question is only asked where the answer can be carried', () => {
-  it('is skipped in reuse mode', () => {
+  it('is never reached in reuse mode, which production refuses before the question', () => {
     const content = fs.readFileSync(path.join(REPO_ROOT, 'deploy_to_aws.sh'), 'utf8');
-    expect(content).toMatch(
-      /PROD_DB_TOUCHING == 1 && MEDIA_INTENT_NAMED == 0 && MODE_REUSE == 0/,
-    );
+    const refusal = content.indexOf('-r/--reuse-local-db is not a production mode');
+    expect(refusal, 'production refuses reuse').toBeGreaterThan(-1);
+    expect(refusal).toBeLessThan(content.indexOf('Skip the media upload'));
   });
 
   it('only emits the no-media flag in a mode the orchestrator accepts it in', () => {
@@ -2706,5 +2689,58 @@ describe('the production media question is only asked where the answer can be ca
     // produce it anywhere else.
     const orchestrator = fs.readFileSync(path.join(REPO_ROOT, 'scripts/deploy-to-aws.sh'), 'utf8');
     expect(orchestrator).toMatch(/--no-media is only meaningful with --from-csv/);
+  });
+});
+
+describe('production has two modes: code-only, and a database built in the run by --all-data', () => {
+  const REFUSED: Array<[string[], RegExp]> = [
+    [['--soup-to-nuts'], /--soup-to-nuts is not a production mode/],
+    [['--from-csv'], /--from-csv alone is not a production mode/],
+    [['-r'], /-r\/--reuse-local-db is not a production mode/],
+  ];
+
+  // Defect caught: production is rebuilt from the legacy mirror, without the
+  // member intake, or from an existing local database that may carry test
+  // personas or development settings, because the wrapper let the mode through.
+  it('refuses every other mode in the wrapper, ahead of the typed gate', () => {
+    for (const [args, message] of REFUSED) {
+      const tmpRoot = scaffoldWrapperRoot();
+      try {
+        const r = run('bash', ['deploy_to_aws.sh', ...args, '--target', 'production'], { cwd: tmpRoot });
+        const combined = (r.stderr ?? '') + (r.stdout ?? '');
+        expect(r.status, `${args.join(' ')}: ${combined}`).toBe(1);
+        expect(combined, args.join(' ')).toMatch(message);
+        expect(combined, args.join(' ')).not.toMatch(/Type 'APPLY'/);
+      } finally {
+        fs.rmSync(tmpRoot, { recursive: true, force: true });
+      }
+    }
+  });
+
+  // Defect caught: a direct invocation of the orchestrator skips the wrapper and
+  // reaches a mode, or the test personas, the wrapper would refuse.
+  it('refuses every other mode, and the persona flags, in the orchestrator for a direct invocation', () => {
+    const cases: Array<[string[], RegExp]> = [
+      ...REFUSED,
+      [['--seed-test-personas'], /the test personas never reach production/],
+      [['--refresh-test-personas'], /the test personas never reach production/],
+    ];
+    for (const [args, message] of cases) {
+      const r = run('bash', ['scripts/deploy-to-aws.sh', ...args, '-ny'], {
+        input: 'fake-pw\n',
+        env: { DEPLOY_TARGET: 'footbag-production' },
+      });
+      const combined = (r.stderr ?? '') + (r.stdout ?? '');
+      expect(r.status, `${args.join(' ')}: ${combined}`).toBe(1);
+      expect(combined, args.join(' ')).toMatch(message);
+    }
+  });
+
+  // Defect caught: the refusals reach staging, which may use any mode.
+  it('leaves staging free to use those modes', () => {
+    for (const [args, message] of REFUSED) {
+      const r = run('bash', ['scripts/deploy-to-aws.sh', ...args, '-ny'], { input: 'fake-pw\n' });
+      expect((r.stderr ?? '') + (r.stdout ?? ''), args.join(' ')).not.toMatch(message);
+    }
   });
 });

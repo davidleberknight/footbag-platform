@@ -10,7 +10,7 @@ the layout: layers, fixtures, isolation, naming.
 - **Integration** (`tests/integration/`): real HTTP routes through Supertest against a real SQLite
   file, services, and operator scripts driven through their test seams. No mocked DB.
 - **Smoke** (`tests/smoke/`): read-only live probes of staging wiring (`npm run test:smoke -- --target staging`, or the
-  `--staging` rows of `./run_all_tests.sh` through the dev-tester role).
+  `--staging` rows of `./run_all_tests.sh`, run as `footbag-operator` or by a dev-tester through the dev-tester role).
 - **Browser** (`tests/e2e/`): Playwright against a local throwaway stack (`npm run test:e2e`).
 - **Deployed browser check** (`tests/e2e/deployed/`): anonymous, submit-nothing page loads against
   staging or production (`npm run test:deployed -- --target <staging|production>`).

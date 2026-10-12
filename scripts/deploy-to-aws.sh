@@ -7,8 +7,8 @@
 #   scripts/deploy-code.sh         code + images only (no DB, no media)
 #   scripts/deploy-rebuild.sh      code + images + DB replacement (+ media w/ -m)
 #
-# Default with no flags = code-only: ship code + docker images, run tests +
-# smoke; the staging DB and S3 media are left untouched. A DB rebuild + staging
+# Default with no flags = code-only: ship code + docker images, then run the
+# post-deploy smoke checks (no test suite runs); the staging DB and S3 media are left untouched. A DB rebuild + staging
 # replace is opt-in via --from-csv (committed CSVs) or --soup-to-nuts
 # (everything on). Media sync to S3 is opt-in via -m / --sync-media (default
 # off). The media clean-sync step still prompts before acting.
@@ -165,15 +165,15 @@ Combinations work: `-rmW` = reuse local DB, sync media, additive (no S3 wipe).
 ALWAYS-ON
 ─────────────────────────────────────────────────────────────────────
 Code + docker images ship every deploy. The post-deploy smoke check runs every
-deploy, and a production deploy additionally runs the route smoke and security
-probes against staging first and refuses if either fails. A production deploy
-first checks the release rules (scripts/verify-production-release.sh holds a
-tree to all of them): it stops on a SKIP_SMOKE, SKIP_TESTS, schema-drift or
-lock-holder override, a test seam, a non-canonical origin, or CI finished red,
-and warns about an uncommitted or unpushed tree, a missing ./run_all_tests.sh
-pass, staging running another commit, or a missing ./run_all_tests.sh --staging
-pass. A staging deploy runs no tests: the local ./run_all_tests.sh run is the
-gate before it. The curator seed step (seed_fh_curator.py against
+deploy, against the environment just deployed. A production deploy first checks
+the release rules (scripts/verify-production-release.sh previews them): it is
+refused unless the tree is clean, HEAD is on the canonical main, and CI's
+aggregate check succeeded on every run for that commit, and it is refused on a
+SKIP_SMOKE, schema-drift or lock-holder override or a test seam. An earlier
+commit of main, a rollback, is allowed with a warning. Staging plays no part in a
+production deploy. No deploy runs the test suite: CI's green tick is the proof
+for production, and the local ./run_all_tests.sh run is the gate before a
+staging deploy. The curator seed step (seed_fh_curator.py against
 /curated/**/*.meta.json sidecars) runs unconditionally before any DB ships to
 staging.
 
@@ -319,6 +319,34 @@ if [[ "$PUBLIC_DATA" == "yes" &&"${DEPLOY_TARGET:-footbag-staging}" != "footbag-
   echo "ERROR: --public-data is staging only. Production's database is built from the full" >&2
   echo "       sources, never from the public inputs alone." >&2
   exit 1
+fi
+
+# Production has exactly two modes: code-only, and code with a database built in
+# this run by --all-data, which is all the data except the test personas, from
+# committed inputs. Staging may use any mode. Refused here as well as in
+# deploy_to_aws.sh, so a direct invocation of this orchestrator cannot reach one.
+if [[ "${DEPLOY_TARGET:-footbag-staging}" == "footbag-production" ]]; then
+  if [[ "$SOUP_TO_NUTS" == "yes" ]]; then
+    echo "ERROR: --soup-to-nuts is not a production mode: it rebuilds from the legacy mirror, and" >&2
+    echo "       production's database is built from committed inputs only. Use --all-data." >&2
+    exit 1
+  fi
+  if [[ "$FROM_CSV" == "yes" ]]; then
+    echo "ERROR: --from-csv alone is not a production mode: production's database is all the" >&2
+    echo "       data, member intake included. Use --all-data." >&2
+    exit 1
+  fi
+  if [[ "$MODE" == "reuse" ]]; then
+    echo "ERROR: -r/--reuse-local-db is not a production mode: production never ships an existing" >&2
+    echo "       local database, which may carry test personas or development settings. Its" >&2
+    echo "       database is built in the run, by --all-data." >&2
+    exit 1
+  fi
+  if [[ "$SEED_TEST_PERSONAS" == "yes" || "$REFRESH_ASKED_EXPLICITLY" == "yes" ]]; then
+    echo "ERROR: the test personas never reach production. Remove --seed-test-personas and" >&2
+    echo "       --refresh-test-personas." >&2
+    exit 1
+  fi
 fi
 
 # Opt-out / opt-in conflicts.

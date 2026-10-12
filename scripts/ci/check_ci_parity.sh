@@ -52,15 +52,10 @@ declare -A COVERED_BY=(
   [secret-scan]="secret-scan"
   [conventions]="conventions"
   [harness]="harness"
-  [unit-tests]="unit"
-  [integration-tests]="integration"
   [coverage]="coverage"
   [e2e]="e2e"
   [security-probes]="security-probes"
   [terraform]="terraform"
-  [legacy-pytest]="legacy-pytest"
-  [db-load-smoke]="db-load-smoke"
-  [freestyle-db-integrity]="freestyle-db-integrity"
   [codeql]="EXCLUDED: static analysis runs on GitHub's infrastructure and has no local form"
   [dependency-review]="EXCLUDED: a pull-request-only GitHub action with no local form"
   [ci-complete]="EXCLUDED: an aggregate of the jobs above, not a check of its own"
@@ -172,17 +167,12 @@ declare -A QUICK_COVERED_BY=(
   [lint]="lint"
   [conventions]="conventions"
   [secret-scan]="secret-scan"
-  [unit-tests]="unit"
-  [integration-tests]="integration"
   [harness]="harness"
   [dependency-audit]="EXCLUDED: needs a live call to the registry audit endpoint, so a network hiccup would block every commit"
   [coverage]="EXCLUDED: re-runs the whole instrumented suite, minutes on top of a loop with a sub-two-minute target"
   [e2e]="EXCLUDED: needs browsers and a running stack"
   [security-probes]="EXCLUDED: needs a running stack"
   [terraform]="EXCLUDED: needs the terraform binary"
-  [legacy-pytest]="EXCLUDED: needs Python and the legacy data trees"
-  [db-load-smoke]="EXCLUDED: runs the loader, which is safe only in the clean room's throwaway worktree"
-  [freestyle-db-integrity]="EXCLUDED: same clean-room condition as the loader gate"
   [codeql]="EXCLUDED: static analysis runs on GitHub's infrastructure and has no local form"
   [dependency-review]="EXCLUDED: a pull-request-only GitHub action with no local form"
   [ci-complete]="EXCLUDED: an aggregate of the jobs above, not a check of its own"
@@ -243,9 +233,7 @@ RUNNER_GATES="$(grep -oE "$RUNNER_GATE_RE" "$RUNNER" | awk '{print $2}')"
 # Gates on the runner's list that stand for a STEP of a workflow job rather than
 # a job of its own. The job table cannot reach these: a job's second `run:` line
 # has no job id to be keyed by.
-declare -A STEP_EQUIVALENTS=(
-  [generated-content]="the conventions job's second step, assert_generated_content_current.sh"
-)
+declare -A STEP_EQUIVALENTS=()
 
 PUSH_GATE_LINE="$(grep -E '^PUSH_GATE_EQUIVALENTS=' "$RUNNER" || true)"
 if [[ -z "$PUSH_GATE_LINE" ]]; then
@@ -318,6 +306,70 @@ else
     fi
   done
 fi
+
+# =============================================================================
+# The other direction: every gate a local run registers stands for a workflow
+# job, a step of one, or a recorded reason it has none.
+#
+# Everything above starts from the workflow, so a gate that only the local run
+# carries passed unnoticed: a production-strength hash pass ran in every bare run
+# while no push ever ran it, and nothing said so. A test the local run carries
+# and continuous integration does not is a test the committed code is held to
+# only on a workstation, so a gate here is either carried by a job or named, with
+# its reason, as one that stays local.
+# =============================================================================
+
+# Gates carried by a workflow job under another name, keyed to that job.
+declare -A CARRIED_BY_JOB=(
+  [unit]="coverage"
+  [integration]="coverage"
+  [hook-fixtures]="harness"
+  [audit]="dependency-audit"
+  [a11y]="e2e"
+)
+
+# Gates that stay local, each with the reason no job carries it.
+declare -A LOCAL_ONLY=(
+  [harness-local]="reads the gitignored per-developer settings file, which no runner has"
+  [pentest]="the operator-invoked heavyweight pentest harness: by design it runs on a workstation, in the bare run, and never in continuous integration"
+  [persona-crawl]="needs the authoritative member load, private data no runner holds"
+  [realdata-invariants]="needs the authoritative member load, private data no runner holds"
+  [legacy-mirror]="covers code retired at go-live, and runs only when asked for by name"
+  [generated-content]="pre-go-live data-load Python, which developers run locally and which retires at go-live; kept out of continuous integration to keep it fast (./run_all_tests.sh --skip-py leaves it out too)"
+  [db-load-smoke]="pre-go-live data-load Python, which developers run locally and which retires at go-live; kept out of continuous integration to keep it fast (./run_all_tests.sh --skip-py leaves it out too)"
+  [freestyle-db-integrity]="pre-go-live data-load Python, which developers run locally and which retires at go-live; kept out of continuous integration to keep it fast (./run_all_tests.sh --skip-py leaves it out too)"
+  [legacy-pytest]="pre-go-live data-load Python, which developers run locally and which retires at go-live; kept out of continuous integration to keep it fast (./run_all_tests.sh --skip-py leaves it out too)"
+  [clean-room]="an aggregate: each gate it runs is held to its own job above"
+  [staging-aws-smoke]="reads the deployed staging environment, which continuous integration has no identity to reach"
+  [staging-realdata-invariants]="reads the deployed staging environment, which continuous integration has no identity to reach"
+  [staging-route-smoke]="reads the deployed staging environment, which continuous integration has no identity to reach"
+  [staging-browser]="reads the deployed staging environment, which continuous integration has no identity to reach"
+)
+
+JOB_GATES="$(for job in "${!COVERED_BY[@]}"; do [[ "${COVERED_BY[$job]}" == EXCLUDED:* ]] || echo "${COVERED_BY[$job]}"; done)"
+
+while IFS= read -r local_gate; do
+  [[ -n "$local_gate" ]] || continue
+  grep -qx "$local_gate" <<<"$JOB_GATES" && continue
+  if [[ -n "${CARRIED_BY_JOB[$local_gate]:-}" ]]; then
+    if ! grep -qx "${CARRIED_BY_JOB[$local_gate]}" <<<"$JOBS_LIST"; then
+      echo "  FAIL: gate '${local_gate}' is recorded as carried by workflow job '${CARRIED_BY_JOB[$local_gate]}', which ${WORKFLOW} no longer has." >&2
+      violations=$((violations + 1))
+    fi
+    continue
+  fi
+  [[ -n "${LOCAL_ONLY[$local_gate]:-}" ]] && continue
+  echo "  FAIL: the local run registers gate '${local_gate}', which no workflow job carries and which is not" >&2
+  echo "        recorded as staying local. A push would never run it. Add a job, or record why it stays local." >&2
+  violations=$((violations + 1))
+done <<<"$(sort -u <<<"$LOCAL_GATES")"
+
+for local_gate in "${!LOCAL_ONLY[@]}" "${!CARRIED_BY_JOB[@]}"; do
+  if ! grep -qx "$local_gate" <<<"$LOCAL_GATES"; then
+    echo "  FAIL: '${local_gate}' is recorded here but no local run registers it any more." >&2
+    violations=$((violations + 1))
+  fi
+done
 
 # =============================================================================
 # Step-level parity: every command the workflow invokes, not merely every job.

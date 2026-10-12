@@ -110,22 +110,23 @@ function env(exits: Partial<Record<string, number>> = {}): Record<string, string
   };
 }
 
+/**
+ * A whole run as an operator starts it: the shared sudo password redirected in,
+ * and no terminal attached, because nothing in the proof changes anything a
+ * typed word would have to confirm.
+ */
 function run(
-  terminal: string,
   argv: string[] = ['--account', ACCOUNT],
   exits: Partial<Record<string, number>> = {},
   extra: Record<string, string> = {},
 ) {
-  const cred = join(dir, 'cred');
-  writeFileSync(cred, `${PASSWORD}\n`, { mode: 0o600 });
-  const inner = ['bash', JSON.stringify(SCRIPT), ...argv.map((a) => JSON.stringify(a)), '<', JSON.stringify(cred)].join(' ');
-  const r = spawnSync('script', ['-qec', inner, '/dev/null'], {
+  const r = spawnSync('bash', [SCRIPT, ...argv], {
     encoding: 'utf-8',
-    input: terminal,
+    input: `${PASSWORD}\n`,
     env: { ...process.env, ...env(exits), ...extra },
     ...SPAWN_GUARD,
   });
-  return { status: r.status, out: r.stdout ?? '' };
+  return { status: r.status, out: `${r.stdout ?? ''}${r.stderr ?? ''}` };
 }
 
 describe('prove-dev-tester-role.sh — refused before anything runs', () => {
@@ -149,22 +150,14 @@ describe('prove-dev-tester-role.sh — refused before anything runs', () => {
     expect(log()).toBe('');
   });
 
-  it('refuses with no terminal, since the deploy is confirmed by a typed word', () => {
-    const r = spawnSync('bash', [SCRIPT, '--account', ACCOUNT], { encoding: 'utf-8', input: `${PASSWORD}\n`, env: { ...process.env, ...env() }, ...SPAWN_GUARD });
-    expect(r.status).toBe(1);
-    expect(log()).toBe('');
-  });
-
-  it('runs nothing without the typed APPLY', () => {
-    const r = run('no\n');
-    expect(r.status).toBe(1);
-    expect(log()).toBe('');
-  });
 });
 
 describe('prove-dev-tester-role.sh — a whole run', () => {
-  it('runs the six steps in order, the staging three as the account, and only the read-back gets the password', () => {
-    const r = run('APPLY\n');
+  // Defect caught, beside the order and the password: a proof that changes
+  // nothing demands a typed word, so it cannot run where no terminal is attached
+  // and teaches the operator to type APPLY at something that applies nothing.
+  it('runs the six steps in order with no terminal and no typed word, the staging three as the account, and only the read-back gets the password', () => {
+    const r = run();
     expect(r.status, r.out).toBe(0);
     expect(r.out).toMatch(/PROVED/);
     expect(r.out).toContain(`chained into arn:aws:sts::000000000000:assumed-role/footbag-staging-app-runtime/${ACCOUNT}`);
@@ -193,7 +186,7 @@ describe('prove-dev-tester-role.sh — a whole run', () => {
     writeFileSync(newer, 'operator.id\tAIDAFIXTURE\n', { mode: 0o600 });
     utimesSync(baseline, new Date('2026-10-04T08:00:00Z'), new Date('2026-10-04T08:00:00Z'));
     utimesSync(newer, new Date('2026-10-04T09:00:00Z'), new Date('2026-10-04T09:00:00Z'));
-    const r = run('APPLY\n');
+    const r = run();
     expect(r.status, r.out).toBe(0);
     expect(log()).toContain(`baseline --compare ${newer} `);
   });
@@ -202,21 +195,21 @@ describe('prove-dev-tester-role.sh — a whole run', () => {
     // On a machine that also holds footbag-operator, the workstation's runtime
     // profile chains from footbag-operator, so only a direct assume-role from
     // the job-role session proves the job role's chain.
-    const r = run('APPLY\n', ['--account', ACCOUNT], {}, { PROVE_AWS_BIN: aws({ chainRefused: true }) });
+    const r = run(['--account', ACCOUNT], {}, { PROVE_AWS_BIN: aws({ chainRefused: true }) });
     expect(r.status).toBe(1);
     expect(r.out).toMatch(/FAILED at step 1: the job role could not assume the staging runtime role/);
     expect(log()).not.toMatch(/^apply/m);
   });
 
   it('stops when the chain lands on any role but the staging runtime role', () => {
-    const r = run('APPLY\n', ['--account', ACCOUNT], {}, { PROVE_AWS_BIN: aws({ chainLandsOn: 'footbag-production-app-runtime' }) });
+    const r = run(['--account', ACCOUNT], {}, { PROVE_AWS_BIN: aws({ chainLandsOn: 'footbag-production-app-runtime' }) });
     expect(r.status).toBe(1);
     expect(r.out).toMatch(/the chain landed on \S+footbag-production-app-runtime\S*, not footbag-staging-app-runtime/);
     expect(log()).not.toMatch(/^apply/m);
   });
 
   it('stops at a failing step, runs nothing after it, and names where to resume', () => {
-    const r = run('APPLY\n', ['--account', ACCOUNT], { runner: 1 });
+    const r = run(['--account', ACCOUNT], { runner: 1 });
     expect(r.status).toBe(1);
     expect(r.out).toMatch(/FAILED at step 3/);
     expect(r.out).toMatch(/--from-step 3/);
@@ -224,20 +217,20 @@ describe('prove-dev-tester-role.sh — a whole run', () => {
   });
 
   it('fails and says so when something administrative changed since the baseline', () => {
-    const r = run('APPLY\n', ['--account', ACCOUNT], { baseline: 3 });
+    const r = run(['--account', ACCOUNT], { baseline: 3 });
     expect(r.status).toBe(1);
     expect(r.out).toMatch(/something administrative CHANGED since the baseline/);
     expect(log()).not.toMatch(/^verify/m);
   });
 
   it('reports pending, with the step to re-run, when the acceptance is not yet in the trail', () => {
-    const r = run('APPLY\n', ['--account', ACCOUNT], { verify: 3 });
+    const r = run(['--account', ACCOUNT], { verify: 3 });
     expect(r.status).toBe(3);
     expect(r.out).toMatch(/--from-step 6/);
   });
 
   it('resumes from the step named, running nothing before it', () => {
-    const r = run('APPLY\n', ['--account', ACCOUNT, '--from-step', '6']);
+    const r = run(['--account', ACCOUNT, '--from-step', '6']);
     expect(r.status, r.out).toBe(0);
     expect(log().split('\n').filter(Boolean)).toEqual([`verify --verify --target staging --account ${ACCOUNT} | stdin=${PASSWORD}`]);
   });

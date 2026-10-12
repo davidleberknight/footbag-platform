@@ -51,7 +51,9 @@ function buildFixtureDb(dbPath: string, opts: { withNameVariants?: boolean } = {
 
   // Minimum legacy_members fixture: real_name + country + import_source +
   // honor flag + a derived paid-tier flag so G1-G6 pass (the honors gate
-  // requires the paid-tier derivation to have populated).
+  // requires the paid-tier derivation to have populated). The rows carry the
+  // export's own provenance, because legal names and honor flags come only from
+  // the footbag.org export and the gates judge them only once it has loaded.
   for (let i = 1; i <= 5; i++) {
     insertLegacyMember(db, {
       legacy_member_id: `legmem-${i}`,
@@ -67,7 +69,7 @@ function buildFixtureDb(dbPath: string, opts: { withNameVariants?: boolean } = {
       is_bap: i === 2 ? 1 : 0,
       legacy_ever_paid_tier2: i === 1 ? 1 : 0,  // paid-tier derivation signal
       legacy_ever_paid_tier1_lifetime: i === 3 ? 1 : 0,
-      import_source: 'mirror',
+      import_source: 'legacy_site_data',
     });
   }
 
@@ -324,6 +326,22 @@ describe.runIf(TOOLS_PRESENT)('pre-cutover checklist orchestrator', () => {
     const r = runChecklist(dbPath, snapshotDir);
     expect(r.status).not.toBe(0);
     expect(r.stdout).toMatch(/GATE: G1 FAIL/);
+    expect(r.stderr).toMatch(/BLOCKED: \d+ gate\(s\) FAIL/);
+  });
+
+  // Defect caught: a database the footbag.org export never reached goes into
+  // the cutover with its legal-name and honor gates unjudged, and the summary
+  // row reads SKIP, so an operator scanning the summary sees no failure.
+  it('red path: no row from the export → G1-G6 blocks, and its summary row says FAIL', () => {
+    buildFixtureDb(dbPath);
+    const db = new BetterSqlite3(dbPath);
+    db.prepare(`UPDATE legacy_members SET import_source = 'mirror'`).run();
+    db.close();
+    const r = runChecklist(dbPath, snapshotDir);
+    expect(r.status).not.toBe(0);
+    const summary = r.stdout.slice(r.stdout.indexOf('=== pre-cutover summary ==='));
+    expect(summary).toMatch(/GATE: G1-G6 FAIL: exit 78/);
+    expect(summary).not.toMatch(/GATE: G6 SKIP/);
     expect(r.stderr).toMatch(/BLOCKED: \d+ gate\(s\) FAIL/);
   });
 

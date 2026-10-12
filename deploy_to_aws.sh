@@ -185,6 +185,31 @@ if (( PUBLIC_REBUILD == 1 )) && [[ "$DEPLOY_TARGET" != "footbag-staging" ]]; the
   exit 1
 fi
 
+# Production has exactly two modes: code-only, and code with a database built in
+# this run by --all-data, which is all the data except the test personas, from
+# committed inputs. Refused here, ahead of the production gate, so the mistake
+# costs no typed confirmation or password; the orchestrator refuses them again
+# for a direct invocation. Staging may use any mode.
+if [[ "$DEPLOY_TARGET" == "footbag-production" ]]; then
+  for arg in "${EXPANDED_ARGS[@]+"${EXPANDED_ARGS[@]}"}"; do
+    case "$arg" in
+      --soup-to-nuts)
+        echo "ERROR: --soup-to-nuts is not a production mode: it rebuilds from the legacy mirror, and" >&2
+        echo "       production's database is built from committed inputs only. Use --all-data." >&2
+        exit 1 ;;
+      --from-csv)
+        echo "ERROR: --from-csv alone is not a production mode: production's database is all the" >&2
+        echo "       data, member intake included. Use --all-data." >&2
+        exit 1 ;;
+      -r|--reuse-local-db)
+        echo "ERROR: -r/--reuse-local-db is not a production mode: production never ships an existing" >&2
+        echo "       local database, which may carry test personas or development settings. Its" >&2
+        echo "       database is built in the run, by --all-data." >&2
+        exit 1 ;;
+    esac
+  done
+fi
+
 # Set by the production gate below once the operator has typed the host password,
 # and read twice afterwards: the credential-file block skips itself for production,
 # and the handoff pipes the typed value instead of the file. Declared here so both
@@ -208,8 +233,10 @@ PROD_MEDIA_ARGS=()
 # The gate fires here, before any preflight, so the operator sees the warning
 # before incidental tools like ssh/jq/sqlite checks consume time.
 if [[ "${DEPLOY_TARGET:-footbag-staging}" == "footbag-production" ]]; then
+  # A reused local database never reaches this point: production refuses -r
+  # above, so the only database-touching production mode is a rebuild.
   PROD_DB_TOUCHING=0
-  if (( DB_REBUILD_INVOLVED == 1 || MODE_REUSE == 1 )); then
+  if (( DB_REBUILD_INVOLVED == 1 )); then
     PROD_DB_TOUCHING=1
   fi
   echo "" >&2
@@ -221,9 +248,7 @@ if [[ "${DEPLOY_TARGET:-footbag-staging}" == "footbag-production" ]]; then
   fi
   echo "═══════════════════════════════════════════════════════════════" >&2
   echo "  Target:     footbag-production" >&2
-  if (( MODE_REUSE == 1 )); then
-    echo "  Mode:       reuse local DB (-r) — ships current ./database/footbag.db" >&2
-  elif (( PROD_DB_TOUCHING == 1 )); then
+  if (( PROD_DB_TOUCHING == 1 )); then
     echo "  Mode:       full rebuild from sources" >&2
   else
     echo "  Mode:       code only — the on-host database is left alone" >&2
@@ -257,12 +282,10 @@ if [[ "${DEPLOY_TARGET:-footbag-staging}" == "footbag-production" ]]; then
     echo "Recommendation: run it from a terminal. There is no non-interactive form of this confirmation." >&2
     exit 1
   fi
-  # The release rules, before anything is typed: a real problem stops the deploy
-  # without costing a confirmation or a password, and everything else is reported
-  # so the operator sees where this tree stands before confirming. Only
-  # footbag-operator deploys production, and that holder decides at the typed
-  # confirmation. After the terminal check, which decides whether the run may
-  # happen at all. The leaves this hands off to check again.
+  # The release rules, before anything is typed: a tree that fails them is
+  # refused without costing a confirmation or a password. After the terminal
+  # check, which decides whether the run may happen at all. The leaves this hands
+  # off to check again.
   # shellcheck source=scripts/lib/production-release-gate.sh
   source "${SCRIPT_DIR}/scripts/lib/production-release-gate.sh"
   production_release_gate_deploy "$SCRIPT_DIR" || exit 1
@@ -283,16 +306,7 @@ if [[ "${DEPLOY_TARGET:-footbag-staging}" == "footbag-production" ]]; then
   #
   # Deleting is deliberately not on the menu. The operator who wants it can say
   # so on the command line, and no prompt default should be able to select it.
-  #
-  # Reuse mode is excluded, and it has to be. It ships the local database as it
-  # stands and rebuilds nothing, so it reseeds no media and mints no storage keys,
-  # which makes the question's own premise false there. Worse, the answer had
-  # nowhere to go: --no-media is only meaningful alongside a rebuild, so the
-  # orchestrator refuses it, and a "yes" here killed the run on a flag the operator
-  # never typed, after the typed word and the password. That is the same
-  # start-over-with-a-flag defect this gate was written to remove, reintroduced by
-  # asking in a mode that cannot carry the answer.
-  if (( PROD_DB_TOUCHING == 1 && MEDIA_INTENT_NAMED == 0 && MODE_REUSE == 0 )); then
+  if (( PROD_DB_TOUCHING == 1 && MEDIA_INTENT_NAMED == 0 )); then
     echo "  This rebuild reseeds curated media under new storage keys, so the bytes" >&2
     echo "  need to reach the bucket or the rows it ships point at objects that are" >&2
     echo "  not there. Nothing in the bucket is deleted either way." >&2
@@ -659,8 +673,9 @@ fi
 
 # Code-only schema-sync (the bare default, or -k). A code-only deploy ships new
 # TS but does NOT reapply schema.sql on the host, so code that depends on a
-# table or column not yet on the host crashes at runtime. There is no in-place
-# migration by design, so the remedy is a rebuild. Compare database/schema.sql
+# table or column not yet on the host crashes at runtime. Before go-live the
+# remedy is a rebuild; after it, production is never rebuilt, and the remedy is a
+# numbered migration through scripts/deploy-migrate.sh. Compare database/schema.sql
 # against the schema of the DB the host actually runs on (read-only over SSH;
 # key auth, no operator password, no sudo, </dev/null so the credential pipe is
 # untouched). Git state is irrelevant — we compare against what is DEPLOYED, not
@@ -739,8 +754,9 @@ if (( MODE_CODE_ONLY == 1 )) \
     echo "" >&2
     echo "WARNING: database/schema.sql differs from the DB schema deployed on '$DEPLOY_TARGET'." >&2
     echo "         A code-only deploy does NOT reapply schema on the host, so code that depends" >&2
-    echo "         on the changed tables/columns will crash at runtime. There is no in-place" >&2
-    echo "         migration; the fix is a rebuild that ships a fresh schema + DB." >&2
+    echo "         on the changed tables/columns will crash at runtime. Before go-live the fix" >&2
+    echo "         is a rebuild that ships a fresh schema + DB; once production is live it is" >&2
+    echo "         never rebuilt, and the fix is a numbered migration (scripts/deploy-migrate.sh)." >&2
     echo "" >&2
     if (( DRY_RUN_ASKED )); then
       # A dry run deploys nothing, so there is no database decision to refuse

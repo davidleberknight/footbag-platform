@@ -117,12 +117,18 @@ sqlite3 "${DB_FILE}" < "${SCHEMA}"
 # ALTER whose column is already there, which would fail and roll the database
 # back for no reason. The checksum matches what the migrating deploy computes,
 # so a file edited afterwards is still caught.
-echo "  → Recording bundled migrations as already applied..."
+#
+# The baseline row comes first: it anchors the chain to the exact schema.sql
+# bytes this database was built from, so a later divergence between this
+# database and a fresh build has a fixed point to be measured against.
+echo "  → Recording the schema baseline and bundled migrations as already applied..."
+_schema_sum="$(sha256sum "${SCHEMA}" | cut -d' ' -f1)"
+sqlite3 "${DB_FILE}" "INSERT OR IGNORE INTO schema_migrations (filename, checksum, applied_at, applied_by) VALUES ('baseline:schema.sql', '${_schema_sum}', strftime('%Y-%m-%dT%H:%M:%fZ','now'), 'reset-local-db.sh');"
 for _migration in database/migrations/*.sql; do
   [[ -e "$_migration" ]] || continue
   _migration_name="$(basename "$_migration")"
   _migration_sum="$(sha256sum "$_migration" | cut -d' ' -f1)"
-  sqlite3 "${DB_FILE}" "INSERT OR IGNORE INTO schema_migrations (filename, checksum, applied_at) VALUES ('${_migration_name}', '${_migration_sum}', strftime('%Y-%m-%dT%H:%M:%fZ','now'));"
+  sqlite3 "${DB_FILE}" "INSERT OR IGNORE INTO schema_migrations (filename, checksum, applied_at, applied_by) VALUES ('${_migration_name}', '${_migration_sum}', strftime('%Y-%m-%dT%H:%M:%fZ','now'), 'reset-local-db.sh');"
 done
 
 # Local dev only: poll the email outbox every 2s instead of the 30s production

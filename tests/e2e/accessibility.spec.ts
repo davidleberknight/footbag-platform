@@ -65,6 +65,10 @@ test('high-traffic public pages have no structural WCAG 2.1 AA axe violations', 
     const res = await page.goto(path, { waitUntil: 'domcontentloaded' });
     expect(res, `${name} (${path}) should respond`).not.toBeNull();
     expect(res!.status(), `${name} (${path}) should render, not error`).toBeLessThan(400);
+    // The clubs map is fetched and drawn by a script after the page loads, and
+    // shown only once drawn, so the scan waits for that request to settle or it
+    // checks an empty, hidden container and never the map itself.
+    if (path === '/clubs') await page.waitForLoadState('networkidle');
     const findings = await scanWcagAa(page, { disableRules: ['color-contrast'] });
     if (findings.length > 0) report.push(formatFindings(name, findings));
   }

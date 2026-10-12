@@ -6,12 +6,15 @@
  * a deployed address left over from other work never reaches it. The preflight
  * names every missing need at the start and blocks exactly the rows that need
  * it, so a missing role or an unreachable site is reported once, up front, and
- * the other rows still run. A bare run never reaches any of this: the preflight
- * and the rows are called only under --staging.
+ * the other rows still run. The rows need at minimum the dev-tester role, which
+ * the footbag-operator IAM user also holds, so either identity runs them and
+ * any other is refused. A bare run never reaches any of this: the preflight and
+ * the rows are called only under --staging.
  *
  * The functions are extracted from run_all_tests.sh and run in a scratch
- * directory whose scripts, and the aws, curl and npm on PATH, are stubs that
- * record how they were called. Nothing here reaches AWS or a deployed host.
+ * directory whose scripts and libraries, and the aws, curl and npm on PATH, are
+ * stubs that record how they were called. Nothing here reaches AWS or a
+ * deployed host.
  */
 import { describe, it, expect, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
@@ -37,32 +40,36 @@ function extract(): string {
   const line = (prefix: string) => RUNNER_TEXT.split('\n').find((l) => l.startsWith(prefix)) ?? '';
   return [
     line('STAGING_SMOKE_TARGET_ENV='), line('STAGING_ROUTE_SMOKE_ENV='), line('STAGING_BROWSER_TARGET='),
-    line('declare -A STAGING_BLOCKERS='), line('STAGING_URL='), line('STAGING_DEPLOYED_COMMIT='), line('STAGING_DEPLOYED_DIRTY='),
+    line('declare -A STAGING_BLOCKERS='), line('STAGING_URL='),
     ...['realdata_probe_value', 'staging_block', 'staging_blocked', 'staging_preflight',
       'gate_staging_aws_smoke', 'gate_staging_route_smoke', 'gate_staging_browser'].map(fn),
   ].join('\n');
 }
 
 interface World {
-  /** What `aws sts get-caller-identity` answers; null means no aws on PATH. */
+  /** The identity the shell's AWS credentials resolve to; null means no aws on PATH. */
   arn?: string | null;
+  /** Whether the shared profile helper settles and proves an identity. */
+  identityResolves?: boolean;
   runtimeProfileAnswers?: boolean;
   terraformInitialised?: boolean;
   /** The address the staging host records it serves; empty means it answers none. */
   siteUrl?: string;
   siteAnswers?: boolean;
   probe?: string | null;
-  deployedCommit?: string;
 }
 
+const DEV_TESTER_ARN = 'arn:aws:sts::000000000000:assumed-role/FootbagDevTester/tester';
+const OPERATOR_ARN = 'arn:aws:iam::000000000000:user/footbag-operator';
+
 const GOOD: Required<World> = {
-  arn: 'arn:aws:sts::000000000000:assumed-role/FootbagDevTester/tester',
+  arn: DEV_TESTER_ARN,
+  identityResolves: true,
   runtimeProfileAnswers: true,
   terraformInitialised: true,
   siteUrl: 'https://staging-site.example.invalid',
   siteAnswers: true,
   probe: 'RDI_MEMBERS=25000\nRDI_AUTHORITATIVE=24000\nRDI_CLAIMABLE=140',
-  deployedCommit: 'abc1234',
 };
 
 function exe(path: string, lines: string[]): void {
@@ -85,6 +92,16 @@ function drive(body: string, w: World = {}, env: Record<string, string> = {}) {
       `echo ${JSON.stringify(world.arn)}`,
     ]);
   }
+  // The shared helper that supplies a shell with no identity of its own its
+  // profile, proves it, and leaves the proved ARN behind.
+  exe(join(work, 'scripts', 'lib', 'aws-profile.sh'), [
+    'aws_profile_ensure() {',
+    `  echo "aws_profile_ensure" >> ${JSON.stringify(log)}`,
+    world.identityResolves
+      ? `  AWS_IDENTITY_ARN=${JSON.stringify(world.arn ?? '')}; export AWS_PROFILE=fixture-profile; return 0`
+      : '  echo "ERROR: the profile did not authenticate against AWS." >&2; return 1',
+    '}',
+  ]);
   exe(join(bin, 'curl'), ['#!/usr/bin/env bash', `echo "curl $*" >> ${JSON.stringify(log)}`, `exit ${world.siteAnswers ? 0 : 7}`]);
   exe(join(bin, 'npm'), [
     '#!/usr/bin/env bash',
@@ -99,9 +116,6 @@ function drive(body: string, w: World = {}, env: Record<string, string> = {}) {
   exe(join(work, 'scripts', 'realdata-staging.sh'), world.probe === null
     ? ['#!/usr/bin/env bash', 'exit 1']
     : ['#!/usr/bin/env bash', `printf '%s\\n' ${world.probe.split('\n').map((l) => JSON.stringify(l)).join(' ')}`]);
-  exe(join(work, 'scripts', 'lib', 'staging-deployed-from.sh'), [
-    `staging_deployed_from_read() { STAGING_DEPLOYED_COMMIT=${JSON.stringify(world.deployedCommit)}; STAGING_DEPLOYED_DIRTY=0; }`,
-  ]);
   exe(join(work, 'scripts', 'smoke-local.sh'), [
     '#!/usr/bin/env bash',
     `echo "smoke-local SMOKE_ENV=\${SMOKE_ENV-unset} BASE_URL=\${BASE_URL-unset}" >> ${JSON.stringify(log)}`,
@@ -163,33 +177,76 @@ describe('the staging rows, whatever the shell exports', () => {
 describe('the --staging preflight', () => {
   // Defect caught: a fully wired machine has a row blocked, or the staging site's
   // address is not handed to the rows that need it.
-  it('blocks nothing when every need is present, and records the site and commit', () => {
-    const r = drive(`${BLOCKED}\necho "SITE=$STAGING_URL COMMIT=$STAGING_DEPLOYED_COMMIT"`);
+  it('blocks nothing when every need is present, and records the site', () => {
+    const r = drive(`${BLOCKED}\necho "SITE=$STAGING_URL"`);
     expect(blockedRows(r.out.split('SITE=')[0]), r.out).toEqual([]);
-    expect(r.out).toContain('SITE=https://staging-site.example.invalid COMMIT=abc1234');
+    expect(r.out).toContain('SITE=https://staging-site.example.invalid');
+  });
+
+  // Defect caught: the operator, whose identity holds everything the dev-tester
+  // role does, is refused the read-only staging checks or told to switch to the
+  // dev-tester wrapper, which an operator never uses.
+  it('runs every row for the footbag-operator IAM user, and never tells it to switch identity', () => {
+    const r = drive(`${BLOCKED}\necho "PROFILE=\${AWS_PROFILE:-unset}"`, { arn: OPERATOR_ARN });
+    expect(blockedRows(r.out.split('PROFILE=')[0]), r.out).toEqual([]);
+    // The profile the helper settled stays in the runner's shell for the rows.
+    expect(r.calls).toContain('aws_profile_ensure');
+    expect(r.out).toContain('PROFILE=fixture-profile');
+    // Every other need missing at once, so every hint is printed: none of them
+    // sends the operator to the wrapper or to a dev-tester's credential file.
+    const hints = drive('staging_preflight', {
+      arn: OPERATOR_ARN, runtimeProfileAnswers: false, terraformInitialised: false, siteUrl: '', probe: null,
+    }).out;
+    expect(hints).toContain('blocks:');
+    expect(hints).not.toContain('as-dev-tester.sh');
+    expect(hints).not.toContain('DEV_TESTER_HOST.txt');
+    expect(hints).not.toMatch(/as the dev-tester|requires the dev-tester role/);
+  });
+
+  // Defect caught: any identity at all, a dev-tester's own IAM user outside the
+  // job role or a name that merely ends like the operator's, runs the staging
+  // checks; or the refusal names only one of the two identities that may run them.
+  it('refuses every other identity, naming both that may run the rows', () => {
+    for (const arn of [
+      'arn:aws:iam::000000000000:user/footbag-dev-testers/jane_doe',
+      'arn:aws:iam::000000000000:user/not-footbag-operator',
+      'arn:aws:sts::000000000000:assumed-role/footbag-staging-app-runtime/jane_doe',
+    ]) {
+      const r = drive('staging_preflight; echo "BLOCKED:"; printf \'%s\\n\' "${!STAGING_BLOCKERS[@]}" | sort', { arn });
+      expect(blockedRows(r.out), arn).toEqual([...ROWS].sort());
+      const refusal = r.out.split('\n').find((l) => l.includes(arn)) ?? '';
+      expect(refusal, arn).toContain('footbag-operator');
+      expect(refusal, arn).toContain('FootbagDevTester');
+    }
+  });
+
+  // Defect caught: a shell whose AWS identity does not authenticate is judged
+  // as though it were a wrong identity, sending the reader to switch identity
+  // when the fix is a dead or missing credential.
+  it('blocks every row when no AWS identity authenticates, saying so rather than naming a wrong identity', () => {
+    // The helper's own error goes to stderr; only the preflight's report is read.
+    const r = drive('staging_preflight 2>/dev/null; echo "BLOCKED:"; printf \'%s\\n\' "${!STAGING_BLOCKERS[@]}" | sort', { identityResolves: false });
+    expect(blockedRows(r.out), r.out).toEqual([...ROWS].sort());
+    expect(r.out).toContain('no AWS identity in this shell authenticates');
+    expect(r.out).not.toContain('--staging runs as the IAM user footbag-operator');
   });
 
   // Each case: a missing need blocks exactly the rows that depend on it.
   it.each<[string, World, string[]]>([
     ['no AWS CLI', { arn: null }, ROWS],
-    ['a shell that is not the dev-tester role', { arn: 'arn:aws:iam::000000000000:user/operator' }, ROWS],
     ['a staging runtime identity that does not answer', { runtimeProfileAnswers: false }, ['staging-aws-smoke']],
     ['an uninitialised staging terraform', { terraformInitialised: false }, ['staging-aws-smoke']],
     ['a site address the staging host cannot give', { siteUrl: '' }, ['staging-browser', 'staging-route-smoke']],
     ['a site that fails its readiness check', { siteAnswers: false }, ['staging-browser', 'staging-route-smoke']],
     ['an unreachable staging database', { probe: null }, ['staging-realdata-invariants']],
-    ['a staging database without the authoritative load', { probe: 'RDI_MEMBERS=12\nRDI_AUTHORITATIVE=0\nRDI_CLAIMABLE=0' }, ['staging-realdata-invariants']],
+    ['an export-loaded staging database with too few members', { probe: 'RDI_MEMBERS=12\nRDI_AUTHORITATIVE=12\nRDI_CLAIMABLE=3' }, ['staging-realdata-invariants']],
+    ['an export-loaded staging database with no claimable honoree', { probe: 'RDI_MEMBERS=25000\nRDI_AUTHORITATIVE=24000\nRDI_CLAIMABLE=0' }, ['staging-realdata-invariants']],
+    // The row itself reports a database without the export as "prerequisite
+    // not loaded"; blocking it here would turn every such staging run red.
+    ['a staging database without the authoritative load', { probe: 'RDI_MEMBERS=2506\nRDI_AUTHORITATIVE=0\nRDI_CLAIMABLE=0' }, []],
   ])('%s blocks exactly the rows that need it', (_label, world, rows) => {
     const r = drive(BLOCKED, world);
     expect(blockedRows(r.out), r.out).toEqual([...rows].sort());
-  });
-
-  // Defect caught: an unreadable deploy record blocks the rows, or passes
-  // silently, leaving the reader to wonder why no staging receipt was written.
-  it('warns, without blocking, when what staging runs cannot be read', () => {
-    const r = drive('staging_preflight; echo "BLOCKED:"; printf \'%s\\n\' "${!STAGING_BLOCKERS[@]}"', { deployedCommit: '' });
-    expect(r.out).toContain('WARNING: what staging runs');
-    expect(blockedRows(r.out)).toEqual([]);
   });
 });
 

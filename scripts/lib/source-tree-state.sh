@@ -1,11 +1,9 @@
 #!/usr/bin/env bash
 # scripts/lib/source-tree-state.sh -- one fingerprint for "this exact tree".
 #
-# Sourced, never run. Two readers must agree on it byte for byte: the local
-# runner, which stamps it into the pass receipt a GREEN bare run writes, and the
-# production release gate, which refuses a receipt whose fingerprint differs from
-# the tree about to ship. A second copy of the recipe would let the two drift, and
-# the gate would then refuse every receipt, or accept one for a different tree.
+# Sourced, never run. The local runner takes it at the start of a run and again
+# at the end, and voids the verdict when the two differ, because gates that read
+# different source together describe no single commit.
 #
 # Asked of git rather than of the filesystem, and by content rather than by
 # modification time: it covers the commit, every tracked change against it, and

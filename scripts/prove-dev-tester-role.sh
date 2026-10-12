@@ -30,8 +30,8 @@
 #      plan. A proof replaces nothing staging runs; schema drift is reported
 #      here, ahead of any real deploy, rather than refused
 #   3  as the role: the quick test gate with the staging rows
-#      (run_all_tests.sh --quick --staging), which rewrites the staging pass
-#      receipt this machine keeps
+#      (run_all_tests.sh --quick --staging), which reads staging and writes
+#      nothing there
 #   4  as footbag-operator: the job role's denials, simulated
 #      (verify-dev-tester-role-denials.sh)
 #   5  as footbag-operator: the account's protected facts against a baseline
@@ -56,9 +56,9 @@
 #     before onboarding with: bash scripts/verify-account-baseline.sh --save
 #   - Hand the shared sudo password to anything but step 6. Every other step's
 #     stdin is closed.
-#   - Run without a terminal: step 3 rewrites this machine's staging pass
-#     receipt, and that is confirmed by a typed APPLY.
 #   - Deploy anything. Step 2 is a dry run.
+#   - Change anything. Every step plans, dry-runs, tests or reads, so there is
+#     nothing for a typed word to confirm and none is asked for.
 #
 # Usage, from the machine the account was accepted on, the redirect being the
 # shared account's staging sudo password:
@@ -93,12 +93,6 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "$REPO_ROOT"
-
-# confirm_from_tty, and the unconditional assignment of ASSUME_YES.
-# shellcheck source=lib/host-env-remote.sh
-source "${SCRIPT_DIR}/lib/host-env-remote.sh"
-# shellcheck source=lib/terminal.sh
-source "${SCRIPT_DIR}/lib/terminal.sh"
 
 WRAP_CMD="${PROVE_WRAP_CMD:-${SCRIPT_DIR}/as-dev-tester.sh}"
 AWS_CMD="${PROVE_AWS_BIN:-aws}"
@@ -224,11 +218,6 @@ if [[ -t 0 ]]; then
   echo "         < ~/AWS/AWS_OPERATOR.txt bash scripts/prove-dev-tester-role.sh --account ${ACCOUNT}" >&2
   exit 1
 fi
-if ! terminal_present; then
-  echo "ERROR: no terminal to confirm on. The deploy step replaces what staging runs" >&2
-  echo "       and is confirmed by a typed word. Nothing was run." >&2
-  exit 1
-fi
 # Read once, here, and given to step 6 alone. The steps before it run with
 # their stdin closed, so none of them can consume it or pass it on.
 SUDO_PASS=""
@@ -243,15 +232,10 @@ echo "  1. as the role: the chain into the staging runtime role, then a staging"
 echo "     plan that must be empty"
 echo "  2. as the role: a dry run of the code-only staging deploy, which connects"
 echo "     as the account and ships nothing"
-echo "  3. as the role: the quick test gate with the staging rows, which rewrites"
-echo "     this machine's staging pass receipt"
+echo "  3. as the role: the quick test gate with the staging rows, which reads"
+echo "     staging and writes nothing there"
 echo "  4-6. as footbag-operator, read-only: the role's denials, the protected"
 echo "     account facts against the baseline, and the onboarding read back"
-echo ""
-if ! confirm_from_tty "Type 'APPLY' to run them: " "APPLY"; then
-  echo "Not confirmed; nothing was run." >&2
-  exit 1
-fi
 
 # stop <step> <what>: one failure, one place to resume.
 stop() {

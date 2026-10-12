@@ -1138,11 +1138,19 @@ END;
 -- names its state.
 --
 -- Deliberately carries none of the usual metadata columns: nothing updates a
--- row here, and the applying deploy is the only writer.
+-- row here, and the applying deploy is the only writer. applied_by records who
+-- applied a migration: the host account the deploy connected as, plus the
+-- job-role session name where the run acted as one. The ledger is the permanent
+-- record of changes to live member data, so it names who made each one.
+--
+-- Every build writes one baseline row, filename 'baseline:schema.sql', carrying
+-- the checksum of the schema.sql bytes the database was built from, so the chain
+-- of migrations that follows is anchored to a known starting point.
 CREATE TABLE schema_migrations (
   filename   TEXT PRIMARY KEY,
   checksum   TEXT NOT NULL,
-  applied_at TEXT NOT NULL
+  applied_at TEXT NOT NULL,
+  applied_by TEXT
 );
 
 -- Execution history for background/scheduled system jobs.

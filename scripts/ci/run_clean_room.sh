@@ -86,6 +86,8 @@ set -euo pipefail
 CALLER_DIR="$PWD"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO_ROOT"
+# shellcheck source=scripts/lib/verdict-banner.sh
+source scripts/lib/verdict-banner.sh
 
 FROM_HEAD=0
 QUICK=0
@@ -128,12 +130,22 @@ record_result() {
   printf '%s\t%s\t%s\n' "$1" "$2" "$detail" >> "$RESULTS_FILE"
 }
 
-# ---- Preconditions -----------------------------------------------------------
+# Set once a verdict banner has printed, so the exit trap prints one only for a
+# room that ended any other way.
+ROOM_BANNER_DONE=0
 
-git rev-parse --git-dir >/dev/null 2>&1 || {
-  echo "ERROR: not a git repository; the clean room is built from a git worktree." >&2
+# room_refuse <message> -- a precondition the room cannot run without.
+room_refuse() {
+  echo "ERROR: $1" >&2
+  ROOM_BANNER_DONE=1
+  verdict_banner "CLEAN ROOM REFUSED" 1 "Why: $1" "Nothing has run."
   exit 1
 }
+
+# ---- Preconditions -----------------------------------------------------------
+
+git rev-parse --git-dir >/dev/null 2>&1 \
+  || room_refuse "not a git repository; the clean room is built from a git worktree."
 
 # The runner's Node is the one the lockfile and the prebuilt native addons were
 # resolved against. A different one here makes the answer this gate gives about
@@ -143,19 +155,14 @@ git rev-parse --git-dir >/dev/null 2>&1 || {
 CI_NODE="$(tr -d '[:space:]v' 2>/dev/null < .nvmrc || true)"
 LOCAL_NODE="$(node -v | tr -d '[:space:]v')"
 if [[ -z "$CI_NODE" ]]; then
-  echo "ERROR: could not read the pinned Node version from .nvmrc." >&2
-  exit 1
+  room_refuse "could not read the pinned Node version from .nvmrc."
 fi
 if [[ "$LOCAL_NODE" != "$CI_NODE" ]]; then
-  echo "ERROR: this machine runs Node ${LOCAL_NODE}; the runner pins Node ${CI_NODE} (.nvmrc)." >&2
-  echo "       A run under a different Node does not predict the runner. Install it (nvm install) and re-run." >&2
-  exit 1
+  room_refuse "this machine runs Node ${LOCAL_NODE}; the runner pins Node ${CI_NODE} (.nvmrc). A run under a different Node does not predict the runner. Install it (nvm install) and re-run."
 fi
 
-[[ -f package-lock.json ]] || {
-  echo "ERROR: package-lock.json is missing; the clean room installs from the lockfile." >&2
-  exit 1
-}
+[[ -f package-lock.json ]] \
+  || room_refuse "package-lock.json is missing; the clean room installs from the lockfile."
 
 # ---- The clean room ----------------------------------------------------------
 
@@ -176,14 +183,29 @@ GATE_LOG_DIR="${TMPDIR:-/tmp}/footbag-clean-room-last"
 rm -rf "$GATE_LOG_DIR"
 mkdir -p "$CLEAN_HOME" "$GATE_LOG_DIR"
 
+# The room's only EXIT trap. It also prints the verdict for a room that ended
+# without reaching its summary: a command failing under set -e, an install that
+# could not finish, or a signal. A signal exits with its own conventional code,
+# because a trap that read $? after one could report 0, which the runner would
+# take as a pass.
 cleanup() {
   local rc=$?
+  trap - EXIT INT TERM HUP
   git worktree remove --force "$TREE" >/dev/null 2>&1 || true
   rm -rf "$WORK_DIR"
   git worktree prune >/dev/null 2>&1 || true
+  if (( ROOM_BANNER_DONE == 0 )); then
+    (( rc == 0 )) && rc=1
+    verdict_banner "CLEAN ROOM STOPPED" "$rc" \
+      "Why: the room ended before its summary; the lines above say where" \
+      "Full logs: ${GATE_LOG_DIR}/"
+  fi
   exit "$rc"
 }
-trap cleanup EXIT INT TERM
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
 
 echo "→ building the clean room at ${TREE}"
 git worktree add --detach --quiet "$TREE" HEAD
@@ -260,7 +282,7 @@ unrun() {
 # non-zero when it matches nothing, and head closing the pipe early can leave
 # grep dead of SIGPIPE, either of which would otherwise end the run here, inside
 # the reporting, at the one moment the reader most needs output.
-FAILURE_GRAMMAR='FAIL|FAILED|ERROR|Error:|error TS[0-9]|AssertionError|Traceback|✕|✗|violat|REFUSED|not ok'
+FAILURE_GRAMMAR="$FOOTBAG_FAILURE_GRAMMAR"
 
 recap_gate_log() {
   local log="$1" hits total
@@ -484,7 +506,7 @@ echo "    dependency-review   pull-request only, GitHub-hosted"
 echo "    dependency-audit    reads registry state at push time, not now"
 echo ""
 echo "  Carried by the bare ./run_all_tests.sh, not by this room:"
-echo "    secret-scan  terraform  e2e  security-probes"
+echo "    secret-scan  terraform  e2e  security-probes  pentest"
 if (( QUICK )); then
   echo "  Not run by --quick: coverage, lint, conventions, generated-content, harness,"
   echo "    hook-fixtures, the database gates and the legacy Python suite."
@@ -505,10 +527,11 @@ echo "=============================================="
 # the time the summary lands a later gate has buried it under thousands of lines
 # — the loader gate and the Python suites alone run long after the vitest tiers —
 # and the summary names which gate failed without saying why. The recap goes last
-# on purpose: run_all_tests.sh shows only the tail of this log when the clean room
-# is the gate that failed, so the failure has to be what the tail holds. Without
-# it that outer report always showed the last gate's output, never the failing
-# one, and the reader was sent back to scroll-back to find anything at all.
+# but for the short verdict banner, and run_all_tests.sh lifts this block out of
+# the log whole when the clean room is the gate that failed, from its heading to
+# its closing line, so that block must keep both. Before that the outer report
+# showed the last gate's output, never the failing one, and the reader was sent
+# back to scroll-back to find anything at all.
 if (( ${#FAIL_LOGS[@]} > 0 )); then
   echo ""
   echo "=============================================="
@@ -530,15 +553,25 @@ if (( ${#FAIL_LOGS[@]} > 0 )); then
   echo "=============================================="
 fi
 
+ROOM_BANNER_DONE=1
 if (( ANY_FAIL )); then
   echo "CLEAN ROOM FAILED: the runner will see the same." >&2
+  verdict_banner "CLEAN ROOM FAILED" 1 \
+    "Failed: ${FAIL_LOGS[*]}" \
+    "Full logs: ${GATE_LOG_DIR}/"
   exit 1
 fi
 if (( ANY_UNRUN )); then
   echo "CLEAN ROOM INCOMPLETE: every gate that ran passed, but the ones marked above did not run," >&2
   echo "so this run does not speak for them. Close them or accept a narrower answer." >&2
+  verdict_banner "CLEAN ROOM INCOMPLETE" 77 \
+    "Every gate that ran passed; the gates the summary marks as not run did not run." \
+    "Full logs: ${GATE_LOG_DIR}/"
   exit 77
 fi
 echo "Clean room green: every gate it ran passed, in an empty home with no"
 echo "inherited shell state, and the working tree minus ignored files. Read that"
 echo "against the block above, which says what it did not run."
+verdict_banner "CLEAN ROOM GREEN" 0 \
+  "Every gate it ran passed; the block above says what it did not run." \
+  "Full logs: ${GATE_LOG_DIR}/"

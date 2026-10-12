@@ -114,17 +114,14 @@ describe('a job the local runners do not cover', () => {
   });
 
   it('refuses a claimed local gate that no runner registers', () => {
-    // The case the older checker could not fail: the two database jobs were
-    // mapped onto a constant, so the clean room could stop running the loader
-    // and the mapping still resolved.
+    // The case the older checker could not fail: jobs were once mapped onto a
+    // constant, so a runner could stop running a gate and the mapping still
+    // resolved.
     const res = inFixtureRepo({
-      'scripts/ci/run_clean_room.sh': replaceOnce(
-        'gate db-load-smoke ',
-        'gate removed-db-load-smoke ',
-      ),
+      'run_all_tests.sh': replaceOnce('run_gate e2e        gate_e2e', 'run_gate removed-e2e gate_e2e'),
     });
     expect(res.exitCode).toBe(1);
-    expect(res.stderr).toContain("claims local gate 'db-load-smoke', which no runner registers");
+    expect(res.stderr).toContain("claims local gate 'e2e', which no runner registers");
   });
 });
 
@@ -139,12 +136,14 @@ describe('the jobs only the clean room runs in the bare run', () => {
     expect(res.stderr).toContain("claims local gate 'coverage', which no runner registers");
   });
 
+  // The legacy Python suite runs only locally, so its record as a local-only gate
+  // is what notices the room dropping it.
   it('refuses a clean room that stops running the legacy Python suite', () => {
     const res = inFixtureRepo({
       'scripts/ci/run_clean_room.sh': replaceOnce('gate legacy-pytest ', 'gate removed-legacy-pytest '),
     });
     expect(res.exitCode).toBe(1);
-    expect(res.stderr).toContain("claims local gate 'legacy-pytest', which no runner registers");
+    expect(res.stderr).toContain("'legacy-pytest' is recorded here but no local run registers it any more");
   });
 
   it('refuses a gate the runner leaves to the clean room that the room does not run', () => {
@@ -170,10 +169,10 @@ describe("the runner's own list of gates that stand for a push-gate job", () => 
   // many holds the run to something the push gate never does.
   it('refuses a gate that stands for a push-gate job but is absent from the list', () => {
     const res = inFixtureRepo({
-      'run_all_tests.sh': replaceOnce(' generated-content secret-scan', ' secret-scan'),
+      'run_all_tests.sh': replaceOnce('harness secret-scan e2e', 'harness e2e'),
     });
     expect(res.exitCode).toBe(1);
-    expect(res.stderr).toContain("gate 'generated-content' stands for a push-gate job");
+    expect(res.stderr).toContain("gate 'secret-scan' stands for a push-gate job");
   });
 
   it('refuses a listed gate that stands for no workflow job', () => {
@@ -239,6 +238,40 @@ describe('the fast pre-commit loop', () => {
   });
 });
 
+describe('a gate only the local run carries', () => {
+  // Defect caught: a gate runs in every bare run while no push ever runs it, and
+  // nothing says so, so the committed code is held to it only on a workstation.
+  it('refuses a local gate that no job carries and that is not recorded as staying local', () => {
+    const res = inFixtureRepo({
+      'run_all_tests.sh': replaceOnce(
+        '  if (( PENTEST == 1 )); then\n',
+        '  run_gate phantom-local true\n  if (( PENTEST == 1 )); then\n',
+      ),
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain("registers gate 'phantom-local', which no workflow job carries");
+  });
+
+  // Defect caught: a gate recorded as staying local is dropped from the runner,
+  // and the record sits there reading as a reason for something that no longer runs.
+  it('refuses a recorded local gate that no local run registers any more', () => {
+    const res = inFixtureRepo({
+      'run_all_tests.sh': replaceOnce('run_gate pentest    gate_pentest', 'run_gate pentest-renamed gate_pentest'),
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain("'pentest' is recorded here but no local run registers it any more");
+  });
+
+  // Defect caught: a gate is recorded as carried by a job the workflow no longer has.
+  it('refuses a gate recorded as carried by a job that is gone', () => {
+    const res = inFixtureRepo({
+      '.github/workflows/ci.yml': replaceOnce('\n  e2e:\n', '\n  e2e-renamed:\n'),
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain("gate 'a11y' is recorded as carried by workflow job 'e2e'");
+  });
+});
+
 describe('step-level coverage, not merely job-level', () => {
   it('refuses a new run: step added to an already-mapped job', () => {
     // The job keeps its mapping and every job-level assertion stays green, so
@@ -256,7 +289,7 @@ describe('step-level coverage, not merely job-level', () => {
   it('refuses an npm script the workflow runs and no local runner does', () => {
     const res = inFixtureRepo({
       '.github/workflows/ci.yml': replaceOnce(
-        '        run: npm run test:unit',
+        '        run: npm run test:e2e',
         '        run: npm run test:invented',
       ),
     });

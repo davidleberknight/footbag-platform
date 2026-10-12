@@ -55,7 +55,6 @@ WARNING:
   Production media wipes are an out-of-band operator procedure.
 
 Env-var overrides (set by the orchestrator; document for direct invocation):
-  SKIP_TESTS=yes
   SKIP_DB_REBUILD=yes
   SKIP_SMOKE=yes
   CURATOR_SEED=no
@@ -79,7 +78,6 @@ fi
 IFS= read -r SUDO_PASS
 
 REMOTE="${DEPLOY_TARGET:-footbag-staging}"
-SKIP_TESTS="${SKIP_TESTS:-no}"
 SKIP_DB_REBUILD="${SKIP_DB_REBUILD:-no}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
@@ -143,12 +141,10 @@ if [[ "$REMOTE" == "footbag-production" ]] && ! terminal_present; then
   exit 1
 fi
 
-# The production release rules, as in scripts/deploy-code.sh: a clean tree on
-# origin/main, green CI, a ./run_all_tests.sh pass for this tree, staging already
-# running it, a --staging pass against that deploy, and no skipped verification
-# or safety step. A real problem stops the deploy, the rest are warnings:
-# footbag-operator decides when production is deployed. Staging is not checked
-# against them.
+# The production release rules, as in scripts/deploy-code.sh: a clean tree whose
+# HEAD is on the canonical main, CI green on every run for that commit, and no
+# skipped verification or safety step. Any rule that fails stops the deploy.
+# Staging is not checked against them.
 if [[ "$REMOTE" == "footbag-production" ]]; then
   # shellcheck source=lib/production-release-gate.sh
   source "${REPO_ROOT}/scripts/lib/production-release-gate.sh"
@@ -298,45 +294,11 @@ echo "==> Deploy target: $REMOTE ($HOST_IP)" >&2
 echo "==> Confirming SSH connectivity..."
 ssh "${SSH_OPTS[@]}" "$REMOTE" "echo '    SSH OK'" </dev/null
 
-# ── Verify staging before a production deploy ────────────────────────────────
-# A production deploy promotes what staging is already running, so the full
-# smoke gate (route smoke + security probes) must pass against staging first;
-# a failure aborts before anything on the production host is touched. The
-# release gate refuses SKIP_SMOKE=yes on production, so this always runs.
-# Mirrors deploy-code.sh.
-if [[ "$FOOTBAG_ENV" == "production" && "${SKIP_SMOKE:-no}" != "yes" ]]; then
-  # Staging's address is the one the staging host records. Mirrors deploy-code.sh.
-  if ! host_address_for staging; then
-    echo "ERROR: a production deploy first verifies the smoke gate against staging," >&2
-    echo "       and the staging address could not be read from the staging host." >&2
-    exit 1
-  fi
-  STAGING_BASE_URL="$HOST_ADDRESS"
-  echo "==> Verifying staging smoke gate before production deploy ($STAGING_BASE_URL) ..."
-  if ! BASE_URL="$STAGING_BASE_URL" SMOKE_ENV=staging bash "$REPO_ROOT/scripts/smoke-local.sh"; then
-    echo "ERROR: staging smoke check failed; refusing to deploy production." >&2
-    exit 1
-  fi
-  if ! BASE_URL="$STAGING_BASE_URL" SMOKE_ENV=staging bash "$REPO_ROOT/scripts/smoke-security.sh"; then
-    echo "ERROR: staging security probes failed; refusing to deploy production." >&2
-    exit 1
-  fi
-fi
-
-if [[ "$SKIP_TESTS" != "yes" ]]; then
-  echo "==> Running local test preflight..."
-  # Run the suite with this deploy's own environment cleared. The deploy exports
-  # the target and, once the operator has typed the production confirmation, the
-  # acknowledgement that threads it to the leaf. A child process inherits both,
-  # and the tests that assert the defaults -- that a target defaults to staging,
-  # and that a production database replacement refuses without an interactive
-  # confirmation -- then observe this deploy's state instead of the default and
-  # fail. That made a production data deploy unable to pass its own preflight,
-  # while staging passed because it sets neither to a value the suite objects to.
-  env -u DEPLOY_TARGET -u FOOTBAG_PROD_DB_REPLACE_ACK npm test
-else
-  echo "==> Skipping local npm test preflight (SKIP_TESTS=yes)"
-fi
+# No test suite runs here. A production deploy ships only a commit whose CI
+# check is green, and CI runs the same tests the local run does; a staging
+# deploy is preceded by the developer's own ./run_all_tests.sh. The tests never
+# touched the database this deploy builds either; the checks on that file are
+# further below.
 
 if [[ "$SKIP_DB_REBUILD" != "yes" ]]; then
   echo "==> Rebuilding local database from scratch..."
@@ -621,7 +583,10 @@ fi
 # shellcheck source=lib/email-template-digest.sh
 source "${REPO_ROOT}/scripts/lib/email-template-digest.sh"
 EMAIL_TEMPLATE_DIGEST="$(email_template_digest "${REPO_ROOT}/curated/email_templates" || echo unknown)"
-DEPLOY_PROVENANCE="commit=$DEPLOY_COMMIT dirty=$DEPLOY_DIRTY_COUNT paths=${DEPLOY_DIRTY_PATHS:-none} email_templates=$EMAIL_TEMPLATE_DIGEST"
+# Who acted: the host account the alias connects as, plus the job-role session
+# name where this run acts as FootbagDevTester, as scripts/deploy-code.sh records.
+DEPLOY_ACTOR_ACCOUNT="$(ssh -G "$REMOTE" 2>/dev/null | awk '/^user / {print $2}' | tail -1)" || DEPLOY_ACTOR_ACCOUNT=""
+DEPLOY_PROVENANCE="commit=$DEPLOY_COMMIT dirty=$DEPLOY_DIRTY_COUNT paths=${DEPLOY_DIRTY_PATHS:-none} email_templates=$EMAIL_TEMPLATE_DIGEST actor=${DEPLOY_ACTOR_ACCOUNT:-unknown}${FOOTBAG_ACTING_AS_PERSON:+ actor_session=${FOOTBAG_ACTING_AS_PERSON}}"
 echo "==> Shipping working tree at commit $DEPLOY_COMMIT with $DEPLOY_DIRTY_COUNT uncommitted path(s)."
 if [[ "$DEPLOY_DIRTY_COUNT" != "0" ]]; then
   echo "    uncommitted: ${DEPLOY_DIRTY_PATHS}"

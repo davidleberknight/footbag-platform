@@ -30,13 +30,13 @@ function read(relPath: string): string {
 describe('the local runner reports before it aborts on the real-data fingerprint', () => {
   const runner = read('run_all_tests.sh');
 
-  // The fingerprint guard exits 2 the moment it trips, and what usually trips it
-  // is an unrelated writer working alongside the run — a legacy mirror crawl
+  // A tripped fingerprint guard ends the run FATAL, and what usually trips it is
+  // an unrelated writer working alongside the run — a legacy mirror crawl
   // rewriting files for hours — rather than anything a gate did. Ahead of the
   // report it discarded the gate table and the tail of every failed gate.
   it.each([
     ['the end of a full run', runner.lastIndexOf('assert_real_data_untouched')],
-    ['the fail-fast exit', runner.indexOf('assert_real_data_untouched\n      exit 1')],
+    ['the fail-fast exit', runner.indexOf('      if ! assert_real_data_untouched; then\n        end_run FATAL')],
   ])('summarizes and dumps failures before the guard runs, at %s', (_where, guardAt) => {
     expect(guardAt).toBeGreaterThan(-1);
     const before = runner.slice(0, guardAt);
