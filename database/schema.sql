@@ -212,10 +212,17 @@ CREATE TABLE event_disciplines (
 
   event_id            TEXT NOT NULL REFERENCES events(id),
   name                TEXT NOT NULL,
-  discipline_category TEXT NOT NULL,
+  -- The sport family. Empty only on an aggregate standing that spans several
+  -- sports; a contested discipline, and a standing over one sport, carry one.
+  discipline_category TEXT,
   team_type TEXT NOT NULL DEFAULT 'singles'
     CHECK (team_type IN ('singles', 'doubles', 'mixed_doubles')),
-  sort_order    INTEGER NOT NULL DEFAULT 0
+  sort_order    INTEGER NOT NULL DEFAULT 0,
+  -- 1 when the discipline ranks competitors over several of the event's contests
+  -- (an overall or club standing) rather than in one contest.
+  is_aggregate_standing INTEGER NOT NULL DEFAULT 0
+    CHECK (is_aggregate_standing IN (0, 1)),
+  CHECK (discipline_category IS NOT NULL OR is_aggregate_standing = 1)
 );
 
 -- idx_event_disciplines_event dropped (left-prefix redundant with ux_event_discipline_name)

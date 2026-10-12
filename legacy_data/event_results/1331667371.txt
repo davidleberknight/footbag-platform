@@ -1,0 +1,42 @@
+# Paris Net Battle 2 (2012) — event 1331667371
+# Source: mirror HTML manually entered results section
+# Final standings only; initial seeding sections excluded.
+
+Open Singles Net
+1. Florian Goetze
+2. Karim Daouk
+3. Greg Lima
+4. JF Lemieux
+5. Janne Uusitalo
+6. Arthur Ledain
+7. Sebastien Maillet
+8. Lino Landau
+9. Jaka Stare
+10. Eurik Lindner
+11. Grischa Tellenbach
+12. Vincent Rousseau
+13. Sebastien Lefay
+14. Quentin Isackson
+15. Milan Ardalic
+16. Julien Apollonio
+17. Julien Coblence
+18. Boris Belouin
+19. Renato Zülli
+20. Felix Ostwaldt
+21. Radoslav Rusev
+22. Miquel Clemente
+
+Open Doubles Net
+1. Florian Goetze & Janne Uusitalo
+2. Greg Lima & Arthur Ledain
+3. JF Lemieux & Sebastien Maillet
+4. Karim Daouk & Miquel Clemente
+5. Grischa Tellenbach & Lino Landau
+6. Olivier Baillon & Sebastien Lefay
+7. Jaka Stare & Milan Ardalic
+8. Phil Schaefer & Eurik Lindner
+9. Quentin Isackson & Julien Coblence
+10. Vincent Rousseau & Radoslav Rusev
+11. Renato Zülli & Julien Apollonio
+12. Ugo Montironi & Felix Ostwaldt
+13. Arnaud Saniez & Boris Belouin

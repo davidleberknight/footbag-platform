@@ -1,0 +1,19 @@
+# 2001 Frankfurt Footbag Open
+# Fachhochschule Frankfurt am Main, Frankfurt, Germany
+# September 29, 2001
+# Source: footbag.org mirror (HTML ol/li format — parser captured p1 only)
+
+Ladies Open Freestyle
+1. Julia Böhm
+2. Nadine Beyeler
+3. Isabelle Widmer
+
+Gents Open Freestyle
+1. Brain McKenzie
+2. Christian Löw
+3. Dexter
+4. Ales Zelinka
+5. Ole Schnack
+6. Christoph Hitz
+7. Tomas Tyrpekl
+8. Venca Runstuk

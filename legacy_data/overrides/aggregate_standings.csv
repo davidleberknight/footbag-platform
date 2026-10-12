@@ -1,0 +1,43 @@
+event_key,discipline_key,scope,confidence,evidence
+1984_worlds_golden_wfa,mens_overall,cross_sport,inferred,WFA Worlds all-around; winners place in several sports (inferred; no method text)
+1984_worlds_golden_wfa,womens_overall,cross_sport,inferred,WFA Worlds all-around; winners place in several sports (inferred; no method text)
+1985_national,mens_overall,cross_sport,inferred,WFA all-around; winners place in several sports (inferred; no method text)
+1985_national,womens_overall,cross_sport,inferred,WFA all-around; winners place in several sports (inferred; no method text)
+1985_worlds_golden,mens_overall,cross_sport,inferred,WFA Worlds all-around; top three span three to four sports (inferred; no method text)
+1985_worlds_golden,womens_overall,cross_sport,inferred,WFA Worlds all-around; top three span three to four sports (inferred; no method text)
+1986_worlds_golden,open_overall_standings,cross_sport,verified,Footbag World Fall 1986 p.10 Open Overall Standings: points table of 97 players across net freestyle golf and consecutives
+1986_worlds_golden,womens_overall_standings,cross_sport,verified,Footbag World Fall 1986 p.10 Women's Overall Standings: points table of 23 players
+1987_worlds,mens_overall,cross_sport,inferred,WFA Worlds all-around (inferred; source lists the winner only)
+1987_worlds,womens_overall,cross_sport,inferred,WFA Worlds all-around (inferred; source lists the winner only)
+1988_worlds,mens_overall,cross_sport,inferred,WFA Worlds all-around (inferred; source lists the winner only)
+1988_worlds,womens_overall,cross_sport,inferred,WFA Worlds all-around (inferred; source lists the winner only)
+1989_worlds,mens_overall,cross_sport,inferred,WFA Worlds all-around (inferred; source lists the winner only)
+1989_worlds,womens_overall,cross_sport,inferred,WFA Worlds all-around (inferred; source lists the winner only)
+1990_worlds,mens_overall,cross_sport,inferred,WFA Worlds all-around (inferred; source lists the winner only)
+1990_worlds,womens_overall,cross_sport,inferred,WFA Worlds all-around (inferred; source lists the winner only)
+1991_worlds,mens_overall,cross_sport,inferred,WFA Worlds all-around (inferred; source lists the winner only)
+1991_worlds,womens_overall,cross_sport,inferred,WFA Worlds all-around (inferred; source lists the winner only)
+1992_worlds,mens_overall,cross_sport,inferred,WFA Worlds all-around (inferred; source lists the winner only)
+1992_worlds,womens_overall,cross_sport,inferred,WFA Worlds all-around (inferred; source lists the winner only)
+1993_worlds,mens_overall,cross_sport,inferred,WFA Worlds all-around (inferred; source lists the winner only)
+1993_worlds,womens_overall,cross_sport,inferred,WFA Worlds all-around (inferred; source lists the winner only)
+1993_heartland,open_overall,cross_sport,inferred,Footbag World Vol. 10 No. 2: placers span net freestyle golf and consecutives (inferred; no method text)
+1994_worlds,mens_overall,cross_sport,verified,mirror worlds94 Overall Standings: points from every Open event in net freestyle golf and consecutives
+1994_worlds,womens_overall,cross_sport,verified,mirror worlds94 Overall Standings: points from every Open event in net freestyle golf and consecutives
+1995_worlds,mens_overall,cross_sport,verified,mirror worlds95 overall.txt: per-event points for net freestyle golf speed and distance
+1995_worlds,womens_overall,cross_sport,verified,mirror worlds95 overall.txt: per-event points for net freestyle golf speed and distance
+1995_worlds,overall_club_standings,cross_sport,verified,Footbag World Vol. 12 No. 2: club points standings
+1996_worlds_montreal,overall,cross_sport,inferred,curated source category OVERALL separate from the sport categories; same format as 1994 1995 1997
+1996_worlds_montreal,womens_overall,cross_sport,inferred,curated source category OVERALL separate from the sport categories; same format as 1994 1995 1997
+1996_worlds_montreal,team_points,cross_sport,verified,curated source category TEAM: club points standings
+1997_worlds,mens_overall,cross_sport,verified,mirror worlds97 Men's Overall Rankings: points totals in the WFA format
+1997_worlds,womens_overall,cross_sport,verified,mirror worlds97 Women's Overall Rankings: points totals in the WFA format
+1998_worlds_montreal,mens_individual_overall,cross_sport,inferred,mirror event 876591529 OVERALL RANKINGS section after net freestyle and consecutive divisions
+1998_worlds_montreal,womens_individual_overall,cross_sport,inferred,mirror event 876591529 OVERALL RANKINGS section after net freestyle and consecutive divisions
+1999_montana_invitational,open_overall,cross_sport,verified,mirror event 931840905: 5-4-3-2-1 points over golf freestyle singles net doubles net and consecutives (recomputed)
+1999_montana_invitational,novice_overall,cross_sport,inferred,mirror event 931840905: novice placers span golf net freestyle and consecutives
+2004_umaine_hacky_sack,open_overall,cross_sport,provisional,"scope not established: combines Shred Endurance Elimination Shred 30 and Sick 3; Endurance is undefined in the source, so cross-sport holds only if it is a kick count"
+2004_umaine_hacky_sack,intermediate_overall,cross_sport,provisional,"scope not established: combines Shred Endurance Elimination Shred 30 and Sick 3; Endurance is undefined in the source, so cross-sport holds only if it is a kick count"
+2016_austrian,freestyle_overall,freestyle,verified,mirror event 1473932659 heading Overall Austria (Battle + Circle)
+2023_xxiii_polish_warsaw,freestyle_overall,freestyle,inferred,mirror event 1694170899: same players as the freestyle contests only; no formula given
+2025_worlds_nantes,freestyle_overall,freestyle,inferred,mirror event 1741024635: listed after the freestyle contests; golf and 2-square separate; no formula given

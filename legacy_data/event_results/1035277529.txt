@@ -1,0 +1,227 @@
+# 2003 World Footbag Championships — Full Results
+# Source: http://www.footbag.org/worlds2003/results.html
+# Recovered 2026-03-07 by pipeline tools / direct HTTP fetch
+# Event: Brno, Czech Republic — August 2003
+# event_id: 1035277529
+
+Open Singles Freestyle
+1. Vaclav Klouda
+2. Ryan Mulroney
+3. Yacine Merzouk
+4. Jan Weber
+5. Peter Irish
+6. Sunil Jani
+7. Greg Nelson
+8. Ales Zelinka
+9. Scott Davidson
+10. Ellis Piltz
+
+Women's Singles Freestyle
+1. Carol Wedemeyer
+2. Isabelle Widmer
+3. Jane Zerbe
+4. Nadine Beyeler
+5. Caroline Bourguoin
+6. Sunny Freeman Genz
+
+Open Shred:30
+1. Vaclav Klouda
+2. Felix Zenger
+3. Yacine Merzouk
+4. Ryan Mulroney
+5. Ales Zelinka
+6. Sunil Jani
+7. Lasse Salmenhaara
+8. Honza Weber
+9. Yves Kreil
+
+Women's Shred:30
+1. Carol Wedemeyer
+2. Caroline Bourguoin
+3. Jane Zerbe
+4. Isabelle Widmer
+5. Nadine Beyler
+6. Hania Mickiewicz
+
+Intermediate Singles Freestyle
+1. Tomas Tucek
+2. Michal Danek
+3. Fanda Hajek
+4. Martin Sladek
+5. Damian Budzik
+6. Max Kerkhoff
+
+Mixed Doubles Freestyle
+1. Sam Conlon & Greg Nelson
+2. Caroline Bourguoin & Ellis Piltz
+3. Jane Zerbe & Alex Zerbe
+
+Open Doubles Freestyle
+1. Ales Zelinka & Vaclav Klouda
+2. Daryl Genz & Rick Reese
+3. Sunil Jani & Tuan Vu
+4. Isabelle Widmer & Nadine Beyeler
+5. Greg Nelson & Sam Conlon
+6. Max Boucoiran & Fred Touzelet
+
+Sick 3
+1. Vaclav Klouda
+2. Daryl Genz
+3. Honza Weber
+4. Ales Zelinka
+5. Felix Zenger
+6. Sunil Jani
+7. Jon Schneider
+8. Yacine Merzouk
+9. Kenny Schults
+
+Open Doubles Net
+1. Emmanuel Bouchard & Yves Archambault
+2. Jake Leong & Andre Lemaire
+3. Brent Welch & James Harley
+4. John Leys & PT Lovern
+5. Peter Shunny & Chris Siebert
+5. Jukka Peltola & Jani Markkanen
+5. Tuomas Karki & Olli Savolainen
+5. Bruce Guettich & Jimmy Caveney
+9. Florian Goetze & Maude Landreville
+9. Bjarne Everberg & Jakob Hall
+11. Steve Goldberg & Mike Stefanelli
+11. Andreas Wolff & Henning Goetzke
+11. Jesse Ruotsalainen & Aleksi Ohman
+11. Matti Pohjola & Oskari Forsten
+11. Christian Loew & Sam Maleki
+11. Randy Pace & Chris Ott
+11. Juha-Matti Rithilati & Janne Uusitalo
+11. Yassin Khateeb & Thomas Forster
+11. Miquel Clemente & Nicolas de Zeeuw
+11. Ludovic Lacaze & Eric Wulff
+
+Open Singles Net
+1. Emmanuel Bouchard
+2. John Leys
+3. Bruce Guettich
+4. Jake Leong
+5. Yves Archambault
+6. Eric Wulff
+7. Jakob Hall
+8. Peter Shunny
+9. Jani Markkanen
+10. Aleksi Ohman
+11. Matti Pohjola
+11. James Harley
+13. Jukka Peltola
+13. David Butcher
+13. Andreas Wolff
+13. Tuomas Karki
+17. Janne Uusitalo
+17. Ole Schnack
+17. Michael Stefanelli
+17. Thomas Forster
+17. Florian Goetze
+17. David Chabannes
+17. Bjarne Everberg
+17. Sam Maleki
+17. Andre Lemaire
+17. Oskari Forsten
+17. Olli Savolainen
+17. Yassin Khateeb
+17. Jim Caveney
+17. Juha-Matti Rytilahti
+17. Chris Loew
+17. Miquel Clemente
+17. Randy Pace
+
+Mixed Doubles Net
+1. Amy Westberg & Emmanuel Bouchard
+2. Julie Symons & John Leys
+3. Jody Welch & Brent Welch
+3. Maude Landreville & Chris Siebert
+5. Lisa McDaniel & David Butcher
+5. Tina Lewis & James Harley
+5. Alexander Smirnov & Julia Tikhomirova
+
+Women's Open Doubles Net
+1. Amy Westberg & Lisa McDaniel
+2. Jody Welch & Julie Symons
+3. Tina Lewis & Sam Conlon
+4. Teresa Rogerson & Julia Tikhomirova
+
+Women's Open Singles Net
+1. Jody Welch
+2. Lisa McDaniel
+3. Julie Symons
+4. Tina Lewis
+5. Maude Landreville
+6. Teresa Rogerson
+7. Julia Tikhomirova
+
+Intermediate Doubles Net
+1. Max Koendgen & Hannes Daniel
+2. Francois Leh & Ted Fritsch
+3. Daniel Send & Faris Barakat
+4. Justin Eichenlaub & Markus Portenkirchner
+5. David Chabannes & Grisha Tellenbach
+6. Goran Vrasnesic & Jaka Stare
+7. Otso Kontinen & Dominik Rutz
+8. Christopher Reyer & Nicolas Dietl
+9. Zahrer & Waldispuhl
+9. Smirnov & Tikhomirova
+9. Copi & Kobe
+9. Lindner & Kaspczak
+13. Schnack & Rousseau
+13. Korff & Hofer
+13. Pelko & Kralj
+13. Morel & Dolinar
+13. Sceniowski & Budzik
+13. Schmidt & Kreil
+13. Riffaud & Brunet
+13. Dargent & Heyes
+13. Meneboo & Lamps
+13. Schlapfer & Dubuis
+13. Zdnidarsic & Majerhold
+13. Touzelet & Donnat
+13. Freller & Baker
+
+Intermediate Singles Net
+1. Max Koendgen
+2. Markus Portenkirchner
+3. Justin Eichenlaub
+4. Pavel Hejra
+5. Francois Leh
+6. Markus Kaspczak
+7. Faris Barakat
+8. Fabien Rifaud
+9. Smirnov
+9. Tellenbach
+9. Rutz
+9. Lacaze
+9. Daniel
+9. Send
+9. Rousseau
+9. Meneboo
+17. Fritsch
+17. Schmidt
+17. Heyes
+17. Lindner
+21. Brunet
+21. Freller
+21. Kontinen
+21. Majerhold
+21. De Zeeuw
+21. Pelko
+21. Hanak
+21. Korff
+21. Waldispuhl
+21. Reyer
+21. Lobmayer
+21. Copi
+21. Zahner
+21. Cernak
+21. Dietl
+21. Kobe
+21. Kralj
+21. Crain
+21. Donnat
+21. Hofer
+21. Baker

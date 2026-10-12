@@ -1,0 +1,78 @@
+# 32nd Annual East Coast Footbag Championships 2014
+# Source: mirror/www.footbag.org/events/show/1405875596/index.html
+# Recovered 2026-03-09 — "tie N." placement format not captured by stage2 placement
+# regex (requires numeric prefix like "N."). Open Circle Contest had 10 tied-5th places
+# all missed; Inter Circle Contest had 4 tied places missed. Stage2 captured 41/55.
+# All 55 recovered here with standard "N. Player" format for ties.
+# Note: "Andre P. Aberration" is a nickname; "Pascal T" is abbreviated (source-limited).
+# Note: Intermediate Singles Net had tied 3rd place (Pascal T and Zach Heffer).
+# event_id: 1405875596
+
+Open Singles Net
+1. Emmanuel Bouchard
+2. Dan Greer
+3. Luc Legault
+4. Martin Cote
+5. Pavel Hedra
+6. Jim Hankins
+7. Marilyn DeMuy
+8. Mark Hunsberger
+9. Brett Milliken
+10. Noah Hunsberger
+
+Intermediate Singles Net
+1. Brett Milliken
+2. Jack Lentz
+3. Pascal T
+3. Zach Heffer
+
+Open Doubles Net
+1. Emmanuel Bouchard & Luc Legault
+2. Dan Greer & Martin Cote
+3. Marilyn DeMuy & Greg Neumann
+4. Pavel Hedra & Ted Fritsch
+5. Jim Hankins & Anthony Intemann
+6. Jack Lentz & Brett Milliken
+7. Mark Hunsberger & Noah Hunsberger
+
+Open Routines
+1. Ken Somolinos
+2. Evan Gatesman
+3. Brian Sherrill
+4. Mathieu Gauthier
+5. Ryan Thomas
+6. Cassandra Taylor
+7. Kevin Hogan
+8. Anton Britting
+
+Intermediate Routines
+1. Ben Babyak
+2. Marc Peralta
+3. Greg Wenner
+4. Andre Aberration
+
+Open Circle Contest
+1. Evan Gatesman
+2. Ken Somolinos
+3. Adam Greenwood
+4. Chris Dean
+5. Brian Sherrill
+5. Mathieu Gauthier
+5. Derek Littlefield
+5. Mikey Etlinger
+5. Cassandra Taylor
+5. Anton Britting
+5. Kevin Hogan
+5. Ryan Thomas
+5. Matt Kemmer
+5. Nick Polini
+
+Intermediate Circle Contest
+1. Johnny Sarah
+2. Marc Peralta
+3. Greg Wenner
+4. Ben Babyak
+5. April Tou
+5. Ryan Morris
+6. Vince Richardson
+6. Daniel Carey

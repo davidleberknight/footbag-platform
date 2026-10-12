@@ -1,0 +1,87 @@
+# RNH Contest 2006 (France)
+# Source: mirror/www.footbag.org/events/show/1134914723/index.html
+# Recovered 2026-03-09 — "Big 1" (sick trick contest, 6 entries) not detected as a
+# division: "big" is not a DIVISION_KEYWORD. Renamed to "Open Sick Trick".
+# Stage2 captured 49/58. All 58 recovered here.
+# "+" team separator used in source; replaced with " & ".
+# French club annotations (e.g., "E-Lab/footbag Rouen") stripped.
+# "Simple Net Féminin" → "Women's Singles Net". "Shred 30 sec" → "Open Shred 30".
+# "Routine" → "Open Routines". "Mixte Double Net" → "Mixed Doubles Net".
+# Mini Net place 3: "Gerg Lima" is likely typo for "Greg Lima" — preserved as-is.
+# event_id: 1134914723
+
+Open Doubles Net
+1. Nicolas de Zeeuw & Jules Meneboo
+2. Miquel Clemente & Eric Fonteneau
+3. Vincent Rousseau & Grischa Tellenbach
+4. Greg Lima & Olivier Baillon
+5. Marco Brunet & Fabien Riffaud
+6. Lino Landau & Arnaud Saniez
+7. Anthony Rosay & Yohann Jobin
+8. Etienne Ruggeri & Mathieu
+9. Helena Schlichting & Thomas Sustrac
+10. Lisa Amengual & Myriam Carrier
+11. Thomas Jouan & Ivan Bel
+
+Open Singles Net
+1. Nicolas de Zeeuw
+2. Miquel Clemente
+3. Grischa Tellenbach
+4. Lino Landau
+5. Fabien Riffaud
+6. Eric Fonteneau
+7. Vincent Rousseau
+8. Arnaud Saniez
+9. Marco Brunet
+10. Mathieu
+11. Mouss Kabbal
+12. Lisa Amengual
+13. Etienne Ruggeri
+14. Helena Schlichting
+15. Thomas Sustrac
+
+Mixed Doubles Net
+1. Helena Schlichting & Nicolas de Zeeuw
+2. Lisa Amengual & Vincent Rousseau
+3. Myriam Carrier & Marco Brunet
+
+Women's Singles Net
+1. Helena Schlichting
+2. Myriam Carrier
+3. Lisa Amengual
+
+Open Routines
+1. Serge Kaldany
+2. Franck Remy
+3. Fred Touzelet
+4. Augustin Tiffaud
+5. Grischa Tellenbach
+6. Robinson Sustrac
+7. Thomas Sustrac
+
+Open Shred 30
+1. Serge Kaldany
+2. Robinson Sustrac
+3. Fred Touzelet
+4. Grischa Tellenbach
+5. Augustin Tiffaud
+6. Thomas Sustrac
+
+Open Sick 3
+1. Serge Kaldany
+2. Grischa Tellenbach
+3. Augustin Tiffaud
+4. Robinson Sustrac
+
+Open Sick Trick
+1. Serge Kaldany
+2. Augustin Tiffaud
+3. Grischa Tellenbach
+4. Fred Touzelet
+5. Robinson Sustrac
+6. Thomas Sustrac
+
+Mini Net
+1. Franck Remy
+2. Lino Landau
+3. Gerg Lima & Grischa Tellenbach

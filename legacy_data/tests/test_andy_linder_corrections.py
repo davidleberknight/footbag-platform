@@ -31,11 +31,13 @@ _CANON = _ROOT / "legacy_data" / "event_results" / "canonical_input"
 SOURCE = _SCRIPT.read_text(encoding="utf-8")
 ANDY = "64a7a989-aa2c-5a58-b141-e8378be4a962"
 
-# The two removals resolved from the file, as the pipeline declares them.
+# The removals resolved from the file that the pipeline still declares. His 1995
+# Worlds removal is satisfied at the source instead (see the test below).
 EXPECTED = {
-    ("S-20", "1995_worlds", "open_singles_5_minute_consecutive", "3"),
     ("S-21", "1986_worlds_golden", "open_singles_footbag_consecutive", "4"),
 }
+_CURATED_1994_97 = (_ROOT / "legacy_data" / "inputs" / "curated" / "events"
+                    / "structured" / "worlds94-97.txt")
 
 
 def _declared() -> set[tuple[str, str, str, str]]:
@@ -52,8 +54,18 @@ def _participants() -> list[dict]:
 
 # ── the resolved set ─────────────────────────────────────────────────────────
 
-def test_the_two_outstanding_removals_are_declared():
+def test_the_outstanding_removals_are_declared():
     assert _declared() == EXPECTED
+
+
+def test_he_is_not_a_competitor_in_the_curated_1995_worlds():
+    # Defect caught: his 1995 Worlds participation, which he asked to be
+    # removed, returning through the curated source now that no pipeline step
+    # removes it.
+    with _CURATED_1994_97.open(encoding="utf-8") as fh:
+        rows = [r for r in csv.DictReader(fh) if r["year"] == "1995"]
+    assert rows, "no 1995 rows in the curated 1994-97 Worlds file, so nothing was checked"
+    assert not [r for r in rows if r["player_name"].strip().lower() == "andy linder"]
 
 
 def test_the_declared_targets_use_real_discipline_keys_not_the_file_s_wording():
@@ -144,8 +156,7 @@ def test_only_the_named_rows_are_removed():
         _row("1986_worlds_golden", "open_overall_standings", "18"),
         _row("1991_worlds", "open_singles_freestyle", "2"),
     ]
-    targets = [_row("1995_worlds", "open_singles_5_minute_consecutive", "3"),
-               _row("1986_worlds_golden", "open_singles_footbag_consecutive", "4")]
+    targets = [_row("1986_worlds_golden", "open_singles_footbag_consecutive", "4")]
     before = [dict(r) for r in keep]
     after = _apply(sorted(_declared()), keep + targets)
     assert after == before, "an unrelated row was altered or dropped"

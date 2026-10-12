@@ -1,0 +1,15 @@
+# V. Basque Tournament of Footbag Net (Individual) 2023
+# Source: mirror/www.footbag.org/events/show/1677285621/index.html
+# Recovered 2026-03-09 — "1. round" section header parsed as placement;
+# stage2 captured 7 (6 real + 1 garbage "round"). 6 real placements.
+# Location annotations stripped.
+# event_id: 1677285621
+
+Open Singles Net
+1. Egoitz Campo
+2. Luis Getxo
+3. Joseba Zubiaurre
+4. Maximo Kulachenok
+5. Javier Pignoise
+6. Andi Erromo
+

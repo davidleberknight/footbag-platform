@@ -747,7 +747,11 @@ def main() -> None:
             discipline_id_map[(event_key, discipline_key)] = discipline_id
 
             name = row.get("discipline_name", "").strip()
-            discipline_category = (row.get("discipline_category") or "").strip() or "other"
+            # An aggregate standing over several sports carries no sport family; a
+            # contested discipline always carries one.
+            is_aggregate = 1 if (row.get("is_aggregate_standing") or "").strip() == "1" else 0
+            discipline_category = (row.get("discipline_category") or "").strip() or (
+                None if is_aggregate else "other")
             team_type = normalize_team_type(row.get("team_type", ""), name)
 
             sort_order_raw = (row.get("sort_order") or "").strip()
@@ -760,12 +764,14 @@ def main() -> None:
                 """
                 INSERT INTO event_disciplines (
                   id, created_at, created_by, updated_at, updated_by, version,
-                  event_id, name, discipline_category, team_type, sort_order
-                ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
+                  event_id, name, discipline_category, team_type, sort_order,
+                  is_aggregate_standing
+                ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     discipline_id, ts, system_user, ts, system_user,
                     event_id, name, discipline_category, team_type, sort_order,
+                    is_aggregate,
                 ),
             )
 

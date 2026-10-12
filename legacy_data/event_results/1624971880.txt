@@ -1,0 +1,50 @@
+# 21st IFPA European Footbag Net Championships 2021
+# Source: mirror/www.footbag.org/events/show/1624971880/index.html
+# Recovered 2026-03-09 — flag emoji (🇵🇱 🇫🇮 etc.) and country/city annotations
+# (e.g., "Poland, Kraków!") in player names caused 5 of 37 placements to fail
+# clean_player_name validation or looks_like_person checks. Stage2 captured 32/37.
+# All 37 recovered with names cleaned (emojis and country codes stripped).
+# "Eudardo Martinez" (typo in Doubles entry 8) → "Eduardo Martinez" (matches Singles).
+# "(scratch)" note on Doubles entry 13 — included (player was placed 13th).
+# event_id: 1624971880
+
+Open Singles Net
+1. Wiktor Dębski
+2. Tuomas Riisalo
+3. Michał Róg
+4. Michał Klimczak
+5. Paweł Rożek
+6. Quentin Isackson
+7. Yassin Khateeb
+8. Chris Löw
+9. Damian Budzik
+10. Grischa Tellenbach
+11. Marcin Czech
+12. Jakub Grabarczyk
+13. Pavel Hejra
+14. Lena Mlakar
+15. Sébastien Maillet
+16. Wojciech Jamski
+17. Milan Ardalic
+18. Eurik Lindner
+19. Andreas Beimel
+20. Eduardo Martinez
+21. Maciej Pietrzycki
+22. Łukasz Domin
+23. Audrey Tumelin
+24. Jędrzej Jurek
+
+Open Doubles Net
+1. Arthur Ledain & Sébastien Maillet
+2. Chris Löw & Yassin Khateeb
+3. Jyri Ilama & Damian Budzik
+4. Andreas Wolff & Eurik Lindner
+5. Jakub Grabarczyk & Marcin Czech
+6. Tuomas Riisalo & Quentin Isackson
+7. Grischa Tellenbach & Paweł Rożek
+8. Audrey Tumelin & Eduardo Martinez
+9. Michał Róg & Michał Klimczak
+10. Lena Mlakar & Milan Ardalic
+11. Łukasz Domin & Maciej Pietrzycki
+12. Andreas Beimel & Jędrzej Jurek
+13. Wiktor Dębski & Wojciech Jamski

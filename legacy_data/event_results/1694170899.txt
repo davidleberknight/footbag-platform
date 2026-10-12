@@ -1,0 +1,111 @@
+# event_id: 1694170899
+# 2023 XXIII Polish Footbag Championships - Warsaw 2023
+# Source: mirror "Manually Entered Results" section (final standings only)
+
+Singles Net
+1 Michał Klimczak
+2 Wiktor Dębski
+3 Paweł Rożek
+4 Michał R�g
+5 Marcin Czech
+6 Kuba Grabarczyk
+7 Łukasz Domin
+8 Maciej Pietrzycki
+
+Doubles Net
+1 Marcin Staroń / Wiktor Dębski
+2 Kuba Grabarczyk / Paweł Rożek
+3 Michał R�g / Michał Klimczak
+4 Maciej Samborowski / Marcin Czech
+5 Maciej Pietrzycki / Łukasz Domin
+
+Freestyle Overall
+1 Rafał Kaleta
+2 Damian Gielnicki
+3 Jakub Mościszewski
+4 Mariusz Wilk
+4 Paweł Nowak
+5 Filip W�jcik
+5 Maciej Niczyporuk
+8 Jakub Worek
+9 Arek Stanek
+10 Przemek Pietrzycki
+11 Kacper Kudyniuk
+
+
+Request Contest
+1 Mariusz Wilk
+2 Damian Gielnicki
+3 Arek Stanek
+4 Maciej Niczyporuk
+4 Rafał Kaleta
+5 Filip W�jcik
+5 Jakub Mościszewski
+8 Przemek Pietrzycki
+9 Jakub Worek
+10 Kacper Kudyniuk
+11 Paweł Nowak
+
+Last Man Standing
+1 Damian Gielnicki
+2 Paweł Nowak
+3 Filip W�jcik
+4 Mariusz Wilk
+5 Rafał Kaleta
+6 Jakub Mościszewski
+7 Jakub Worek
+8 Arek Stanek
+9 Przemek Pietrzycki
+10 Kacper Kudyniuk
+11 Maciej Niczyporuk
+
+Battles
+1 Jakub Mościszewski
+2 Maciej Niczyporuk
+3 Paweł Nowak
+4 Jakub Worek
+5 Arek Stanek
+5 Mariusz Wilk
+5 Filip W�jcik
+5 Rafał Kaleta
+9 Damian Gielnicki
+9 Przemek Pietrzycki
+9 Kacper Kudyniuk
+
+Sick3
+1 Rafał Kaleta
+2 Damian Gielnicki
+3 Mariusz Wilk
+4 Maciej Niczyporuk
+5 Paweł Nowak
+6 Jakub Worek
+7 Jakub Mościszewski
+8 Filip W�jcik
+
+ Big1 (BestTrick)
+1 Rafał Kaleta
+2 Jakub Mościszewski
+3 Damian Gielnicki
+4 Paweł Nowak
+5 Filip W�jcik
+6 Jakub Worek
+7 Maciej Niczyporuk
+8 Kacper Kudyniuk
+
+2Square
+1. Szymon Kałwak
+2. Filip W�jcik
+3. Paweł Rożek
+4. Przemek Pietrzycki
+5. Damian Gielnicki
+6. Konrad
+7. Mikołaj
+8. Michał
+9. Marcin Czech
+10. Michał R�g
+11. Kamil
+
+Footbag Golf
+1. Michał R�g
+2 Rafał Kaleta
+3 Przemek Pietrzycki

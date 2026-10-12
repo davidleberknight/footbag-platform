@@ -1,0 +1,34 @@
+# 1st Montreal Summer Freestyle Challenge
+# Montreal, Quebec, Canada
+# 2001
+# Source: footbag.org mirror — "Name, City, Province" format caused city/province
+# to be parsed as teammates. 8/23 placements in PBP. Fixed 2026-03-18.
+
+Intermediate Freestyle - Routines
+1. Kaiser Ahmad
+2. Simon-François Kolodenchuk
+3. Sébastien Desgens
+4. Stan Sagalovsky
+5. Caroline Bourgoin
+6. Jean-François Veillette
+7. Ted Fritch
+8. Alexandre Colpron
+
+Open Freestyle - Routines
+1. Yacine Merzouk
+2. Alex Faber
+3. Samuel Jobin
+4. Scott Bevier
+5. Luc Legault
+6. Sébastien Duchesne
+7. Eli Piltz
+8. Danny Cardonne
+9. Xavier Beauchamp-Tremblay
+10. Gabriel Gaudette
+
+Open Sick 10
+1. Yacine Merzouk
+1. Gordon Bevier
+1. Sébastien Duchesne
+4. Xavier Beauchamp-Tremblay
+5. Kaiser Ahmad

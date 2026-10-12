@@ -1,0 +1,35 @@
+# 3rd Annual Windy City Cup 2010
+# Source: mirror HTML pre block
+# Fix 1: Doubles place=1 "Emmanuel Bouchard and PT Lovern (2 years in a row!)"
+#         dropped by narrative filter — restored without the comment.
+# Fix 2: "Intermediates" section was grouped under Doubles due to interstitial
+#         paragraph breaking division detection. Explicit division header added.
+
+Singles
+1. Patrick Schrickel
+2. Jeremy Mirken
+3. Ben Alston
+4. Jack Harris
+5. Walt Houston
+6. Cory Current
+7. Tommy Whitworth
+8. Zeke Ibardaloza
+9. Fletcher Funk
+10. Mikey Bellman
+
+Doubles
+1. Emmanuel Bouchard & PT Lovern
+2. Patrick Schrickel & Eric Wulff
+3. Jack Harris & Jeremy Mirken
+4. Cory Current & Scot Hansen
+5. Ben Alston & Walt Houston
+6. Greg Grandy & Ted Martin
+7. Bryan Nelson & Tommy Whitworth
+8. Fletcher Funk & Jim Hankins
+9. Mikey Bellman & Zeke Ibardaloza
+
+Intermediates Singles
+1. Ben Appold
+2. Steve Richardson
+3. Ronnie Rodriguez
+4. Mark Zimmerman

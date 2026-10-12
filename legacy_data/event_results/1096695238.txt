@@ -1,0 +1,66 @@
+# 2nd Annual UMaine Hacky Sack Club Tournament 2004
+# Source: mirror/www.footbag.org/events/show/1096695238/index.html
+# Recovered 2026-03-09 — "LEVEL 1 RANKING" / "LEVEL 2 RANKING" sub-section headers
+# not detected as division boundaries; all 41 numbered lines absorbed into one bucket.
+# Stage2 captured 33/41 (wrong division attribution). All 41 recovered here.
+# Level 1 = advanced group (5 competitors); Level 2 = beginner group (4 competitors).
+# "OVERALL RANKING" is the aggregate multi-discipline ranking — included for completeness.
+# event_id: 1096695238
+
+Open Freestyle Shred
+1. Matthew O'Connor
+2. John MacCormack
+3. Anthony Gillis
+4. James Pleas
+5. Andrew Norster
+
+Intermediate Freestyle Shred
+1. John Fitzmorris
+2. Joe Kulacz
+3. Adam Sitarski
+4. Robbie Robinson
+
+Open Endurance
+1. Matthew O'Connor
+2. Anthony Gillis
+3. John MacCormack
+4. James Pleas
+5. Andrew Norster
+
+Intermediate Endurance
+1. Joe Kulacz
+2. Robbie Robinson
+3. John Fitzmorris
+4. Adam Sitarski
+
+Open Elimination
+1. James Pleas
+2. Matthew O'Connor
+3. John MacCormack
+4. Anthony Gillis
+5. Andrew Norster
+
+Intermediate Shred 30
+1. John Fitzmorris
+2. Adam Sitarski
+3. Joe Kulacz
+4. Robbie Robinson
+
+Intermediate Sick 3
+1. John Fitzmorris
+1. Joe Kulacz
+2. Robbie Robinson
+3. Adam Sitarski
+
+Open Overall
+1. Matthew O'Connor
+2. Anthony Gillis
+3. John MacCormack
+4. James Pleas
+5. Andrew Norster
+
+Intermediate Overall
+1. John Fitzmorris
+2. Joe Kulacz
+3. Adam Sitarski
+4. Robbie Robinson

@@ -1,0 +1,42 @@
+# Austrian Footbag Championships 2016
+# Source: mirror/www.footbag.org/events/show/1473932659/index.html
+# Recovered 2026-03-09 — "Overall Austria (Battle + Circle)" division not detected
+# by stage2 (parenthetical "(Battle + Circle)" may interfere with is_valid_division_label).
+# Also: "6. Laurenz Prokoph, Irene Ebermann" in Request Contest is two tied players at
+# place 6 (comma-separated, not a doubles team). Stage2 captured 18/22. All 22 recovered.
+# Names: "Dominik ?imku" = Dominik Šimků (encoding corruption in mirror; in PT as such).
+# Renamed "Overall Austria (Battle + Circle)" → "Freestyle Overall" (has "freestyle" keyword).
+# event_id: 1473932659
+
+Request Contest
+1. Dominik Šimků
+2. Jakub Mosciszewski
+3. Pawel Nowak
+4. Alexander Trenner
+5. Tobias Wöhrer
+6. Laurenz Prokoph
+6. Irene Ebermann
+
+Open Circle Contest
+1. Jakub Mosciszewski
+2. Pawel Nowak
+3. Dominik Šimků
+4. Alexander Trenner
+
+Circle Austria
+1. Alexander Trenner
+2. Laurenz Prokoph
+3. Tobias Wöhrer
+4. Julian Sinnl
+
+Battle
+1. Alexander Trenner
+2. Laurenz Prokoph
+3. Tobias Wöhrer
+4. Julian Sinnl
+
+Freestyle Overall
+1. Alexander Trenner
+2. Laurenz Prokoph
+3. Tobias Wöhrer
+4. Julian Sinnl

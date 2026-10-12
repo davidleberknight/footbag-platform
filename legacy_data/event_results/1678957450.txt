@@ -1,0 +1,191 @@
+# 42nd Annual IFPA World Footbag Championships 2023
+# Source: mirror/www.footbag.org/events/show/1678957450/index.html
+# Fix: source has two "Women's Singles Net" sections. The second section
+# (team results with "/" entries) is Women's Doubles Net — mislabeled by organizer.
+# event_id: 1678957450
+
+Intermediate Singles Net
+
+1. Matias Velasquez Salianas
+2. Yeison Alzate Marulanda
+3. Jorge Rivera
+4. Juan David
+5. Daniel Jaramilo / Anibal Montes / Benjamin Marin Betancurt
+9. Edgar Camargo / Simon Munoz Arango
+
+Intermediate Doubles Net
+
+1. Camilo Moreno / Carlos Moreno
+2. Matias Velasquez Salinas / Daniel Jaramillo
+3. Jorge Rivera Zapata / Benjamin Marin Betancur
+4. Juan Palomino Mosquera / Yeison Alzate Marulanda
+5. Edgar Camargo / Simon Munoz Arango
+
+Women's Singles Net
+
+1. Lena Mlakar
+2. Maude Landreville
+3. Marilyn Demuy
+4. Audrey Tumelin
+5. Léa L'espérance
+6. Jessica Cedeño
+7. Charlotte Gaudreau
+8. Marcela Mercado Montoya
+9. Camila Cardona
+10. Wladiuska Pacheco Castro
+
+Women's Doubles Net
+
+1. Maude Landreville & Marilyn Demuy
+2. Lena Mlakar & Wladiuska Pacheco Castro
+3. Geneviève Bousquet & Léa L'espérance
+4. Jessica Cedeño & Audrey Tumelin
+5. Marcela Mercado Montoya & Charlotte Gaudreau
+
+Mixed Doubles Net
+
+1. Maude Landreville & Luka Weyler-Lavallée
+2. Marilyn Demuy & Yves Kreil
+3. Lena Mlakar & Wiktor Debski
+4. Geneviève Bousquet & Zackary Bourdeau-Pouplier
+5. Audrey Tumelin & Michal Klimczak
+6. Wladiuska Pacheco Castro & Jhon Orace Valera
+7. Marcela Mercado & Germain Uzcategui Jimenez
+8. Léa L'espérance & Luis Lovera Calanche
+9. Charlotte Gaudreau & Corbin Steele
+10. Camila Cardona & Juan Palacios Lemos
+11. Jessica Cedeño & José Vargas Centeno
+
+Open Doubles Net
+
+1. Benjamin Alston & Walt Houston
+2. Yves Kreil & Wiktor Debski
+3. Jhon Orace Valera & Luis Lovera Calanche
+4. Luka Weyler-Lavallée & Zackary Bourdeau-Pouplier
+5. Russ Arsenault & Corbin Steele
+6. Michal Rog & Michal Klimczak
+7. Philippe Lessard & Grischa Tellenbach
+8. Victor Lezama & Oscar Loreto
+9. Gianni Almanza Amaya & Andres Vivas
+10. Esteban Restrepo & Juan Palacios Lemos
+11. Antoine Desrochers-Godin & Jorge Ramirez
+12. Sebastian Ceballos & Germain Uzcategui Jimenez
+13. Carlos Acosta Funes & Ivan Funes
+14. José Vargas Centeno & Luis Moreno Villegas
+15. Edison Rodriguez Betancur & Anibal Montes
+16. Mohamed Magri-Foughali & Matthias Schmidt
+17. Boris Ollivier & Jim Hankins
+
+Open Singles Net
+
+1. Walt Houston
+2. Luis Lovera Calanche
+3. Benjamin Alston
+4. Michal Klimczak
+5. Jhon Orace Valera
+6. Michal Rog
+7. Victor Lezama
+8. Oscar Loreto
+9. Corbin Steele
+10. Antoine Desrochers-Godin
+11. Esteban Restrepo
+12. Russ Arsenault
+13. Zackary Bourdeau-Pouplier
+14. Grischa Tellenbach
+15. Luka Weyler-Lavallée
+16. Christopher Siebert
+17. Germain Uzcategui Jimenez
+18. Andres Vivas
+19. Pavel Hejra
+20. Mohamed Magri-Foughali
+21. Ivan Funes
+22. Luis Moreno Villegas
+23. Juan Palacios Lemos
+24. Jorge Ramirez
+25. Carlos Acosta Funes
+26. Edison Rodriguez Betancur
+27. José Vargas Centeno
+28. Gianni Almanza Amaya
+29. Boris Ollivier
+30. Brayan Bosa Bedoya
+31. Julian Florez
+32. Angel Vivas
+33. Antonio Linero Castro
+
+Master Singles Net
+
+1. Michal Rog
+2. Jorge Ramirez
+3. Pavel Hejra
+4. Esteban Restrepo
+
+Master Doubles Net
+
+1. Michal Rog & Jorge Ramirez
+2. Juan Palacios Lemos & Pavel Hejra
+3. Boris Ollivier & Jim Hankins
+4. Esteban Restrepo & Edgar Camargo
+
+Request Contest
+
+1. Christopher Schillem
+2. Dominik Simku
+3. Brayan Bosa
+4. Sebastian Ceballos & Matthias Schmidt
+6. Nis Petersen
+7. Benjamin Barrows
+8. Yeison Alzate / Johnny Sarah / Guillermo Ramirez
+11. Antonio Linero / Diego Velásquez / Edgar Camargo
+
+Shred 30
+
+1. Dominik Simku
+2. Brayan Bosa
+3. Christopher Schillem
+4. Johnny Sarah
+5. Sebastian Ceballos
+6. Benjamin Barrows
+7. Guillermo Ramirez
+8. Antonio Linero
+9. Yeison Alzate
+10. Diego Velásquez
+
+Sick 3
+
+1. Dominik Simku
+2. Christopher Schillem
+3. Brayan Bosa
+4. Yeison Alzate
+5. Johnny Sarah
+6. Benjamin Marin
+7. Sebastian Ceballos
+8. Diego Velásquez
+9. Edgar Camargo
+10. Antonio Linero
+
+Circle Contest
+
+1. Dominik Simku
+2. Christopher Schillem
+3. Matthias Schmidt
+4. Filip Wojcik
+
+Battles
+
+1. Brayan Bosa
+2. Dominik Simku
+3. Nis Petersen
+4. Johnny Sarah
+5. Guillermo Ramirez / Antonio Linero / Diego Velásquez / Sebastian Ceballos
+9. Edgar Camargo / Yeison Alzate
+
+Routines
+
+1. Sebastian Ceballos
+2. Brayan Bosa
+3. Christopher Schillem
+4. Matthias Schmidt
+5. Filip Wojcik
+6. Scott Davidson
+7. Nis Petersen
+8. Dominik Simku

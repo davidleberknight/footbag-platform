@@ -1,0 +1,16 @@
+# VII.Basque Tournament of Footbag Net (Individual) 2025
+# Source: mirror/www.footbag.org/events/show/1742511366/index.html
+# Recovered 2026-03-09 — stage2 parsed date/location lines as placements
+# ("day in San Fuentes", "day in Trapaga") producing 2 garbage rows.
+# Points scores stripped from player names. 7 real placements.
+# event_id: 1742511366
+
+Open Singles Net
+1. Egoitz Campo
+2. Ander Lopez
+3. Lander Campo
+4. Ivan Carballo
+5. Joseba Zubiaurre
+6. Josu Royuela
+7. Garikoitz Casquero
+

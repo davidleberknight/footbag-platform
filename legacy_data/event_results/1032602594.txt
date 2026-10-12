@@ -1,0 +1,26 @@
+# Victorian Footbag Championships 2002
+# Source: mirror/www.footbag.org/events/show/1032602594/index.html
+# Recovered 2026-03-09 — two parser failures:
+#   - "Shred 30" section had no placement numbers (just Name - score), so stage2
+#     extracted 0 placements from it.
+#   - "Sic 3" division name does not match DIVISION_KEYWORD "sick".
+# Stage2 only captured 6 placements (Routines only). All 9 recovered here.
+# event_id: 1032602594
+
+Freestyle Routines
+1. Lynton Stephens
+2. Dan Ednie
+3. Brendan Erskine
+4. Fil Klindblad
+5. Brendan
+6. Jon Lee
+
+Sick 3
+1. Lynton Stephens
+2. Dan Ednie
+3. Brendan Erskine
+
+Shred 30
+1. Lynton Stephens
+2. Dan Ednie
+3. Brendan Erskine

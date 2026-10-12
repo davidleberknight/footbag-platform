@@ -66,7 +66,7 @@
       "parser_fix": "Already handled: QC tool 32 check 3 detects sub_round duplicates and tags as expected. No parser change needed — these are correctly preserved as pool-play artifacts.",
       "events_seen": ["937727262", "947026077", "1096318324"],
       "fix_priority": "NONE",
-      "status": "KNOWN — documented in known_issues.csv, QC check 3 handles detection"
+      "status": "KNOWN — QC check 3 handles detection"
     }
   ]
 }

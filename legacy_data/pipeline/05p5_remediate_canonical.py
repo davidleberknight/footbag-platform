@@ -1150,7 +1150,12 @@ for (ek, dk), place_groups in disc_slots.items():
     if tt == "singles":
         has_violation = False
     else:
-        has_violation = any(len(rows) != 2 for _, rows in place_groups)
+        # A curated team of three or more (two players plus members the export
+        # marked as additional) is one valid team, not a slot to re-pair.
+        has_violation = any(
+            len(rows) - sum("additional_team_member" in (r.get("notes") or "") for r in rows) != 2
+            for _, rows in place_groups
+        )
 
     if not has_violation:
         # No change — copy all rows verbatim
@@ -1699,6 +1704,8 @@ _f7_left_empty = 0   # left unresolved (genuinely unresolvable — allowed by QC
 for row in participants:
     if row.get("person_id", "").strip():
         continue  # already resolved by stage 05 or earlier fix
+    if "club_standing" in (row.get("notes") or ""):
+        continue  # a club's standing: shown by name, never linked to a person
     dname = row.get("display_name", "").strip()
     if dname and dname not in _SENTINEL_DISPLAY_NAMES and dname in _name_to_pid:
         row["person_id"] = _name_to_pid[dname]
@@ -1788,7 +1795,8 @@ clean_participants = []
 for row in participants:
     pid   = row.get("person_id", "").strip()
     dname = row.get("display_name", "").strip()
-    if not pid and _is_artifact(dname):
+    # A sourced club standing is a club's name by design, not a parsing artifact.
+    if not pid and _is_artifact(dname) and "club_standing" not in (row.get("notes") or ""):
         slot = (row.get("event_key", ""), row.get("discipline_key", ""))
         if slot in _doubles_slots:
             # Replace with explicit unknown sentinel — preserves doubles structure
@@ -1903,7 +1911,9 @@ print(f"  S-19: 1985_western_national_chicago renamed: {_s19_count}")
 # are the same work, finished.
 #
 # What the file asks for, resolved against the real keys:
-#   remove_participation: 1995_worlds   -> open_singles_5_minute_consecutive, p3
+#   remove_participation: 1995_worlds   -> satisfied at the source: the curated
+#                                          1995 results, transcribed from the
+#                                          Footbag World report, do not list him
 #   remove_results:       1986_worlds_golden, division "singles_consecutives"
 #                                       -> open_singles_footbag_consecutive, p4
 #
@@ -1913,7 +1923,6 @@ print(f"  S-19: 1985_western_national_chicago renamed: {_s19_count}")
 # as correct, so which row it means is exactly the kind of thing this block must
 # not guess. It stays for a ruling.
 _ANDY_REMOVALS = [
-    ("S-20", "1995_worlds", "open_singles_5_minute_consecutive", "3"),
     ("S-21", "1986_worlds_golden", "open_singles_footbag_consecutive", "4"),
 ]
 
@@ -2480,7 +2489,7 @@ _EXPLICIT_NONNET_TOKENS = frozenset([
     "consecutive", "consec", "distance", "one pass", "one-pass",
     "2-square", "2 square", "two square", "four square", "4-square", "4 square",
     # Overall (aggregate discipline — explicit, not ambiguous)
-    "overall",
+    "overall", "team points",
 ])
 _EXPLICIT_NET_TOKENS = frozenset(["net", "volley", "side-out", "side out", "rallye"])
 _ALL_EXPLICIT_TOKENS = _EXPLICIT_NONNET_TOKENS | _EXPLICIT_NET_TOKENS

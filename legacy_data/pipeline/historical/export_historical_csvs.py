@@ -54,7 +54,25 @@ csv.field_size_limit(10_000_000)
 # The script runs with its own directory on sys.path, so the sibling import
 # resolves at runtime; the helper lives in a side-effect-free module so it stays
 # unit testable without importing this pipeline script.
-from score_extraction import CONSECUTIVE_DISCIPLINE_RE, extract_consecutive_count
+from score_extraction import (ADDITIONAL_TEAM_MEMBER_NOTE, CLUB_STANDING_NOTE,
+                              CONSECUTIVE_DISCIPLINE_RE,
+                              WORLD_RECORD_RE, curated_extra_team_members,
+                              curated_score_text, extract_consecutive_count)
+
+
+def _load_curated_event_ids() -> set[str]:
+    """Stage-1 event ids that came from the curated pre-1997 inputs. Stage 2 does
+    not carry the source layer, so it is read from the merged stage-1 output that
+    pipeline/01c_merge_stage1.py writes earlier in the same backbone run."""
+    path = OUT / "stage1_raw_events.csv"
+    if not path.exists():
+        raise FileNotFoundError(
+            f"{path} not found. It is written by pipeline/01c_merge_stage1.py; run "
+            f"./run_pipeline.sh canonical_only (or full), which runs it first.")
+    csv.field_size_limit(2**31 - 1)
+    with open(path, newline="", encoding="utf-8") as f:
+        return {r["event_id"] for r in csv.DictReader(f)
+                if (r.get("source_layer") or "").strip() == "curated"}
 
 
 # ── Event identity overrides (loaded from overrides/) ─────────────────────────
@@ -522,6 +540,9 @@ DROP_EVENT_IDS = {
 
 EVENT_NAME_OVERRIDES = {
     "2001982005": "World Footbag Championships",
+    # The 1985 Worlds' published address and tag (#event_1985_world_footbag_championships)
+    # come from this name; keep it so existing links resolve. The displayed name is set later.
+    "1985_worlds": "1985 World Footbag Championships",
 }
 
 stage2_rows = [r for r in stage2_rows if str(r["event_id"]) not in DROP_EVENT_IDS]
@@ -1005,6 +1026,8 @@ sorted_rows = sorted(
     key=lambda r: (r["year"] or "0000", r["event_name"] or "")
 )
 
+CURATED_EVENT_IDS = _load_curated_event_ids()
+
 for row in sorted_rows:
     eid        = str(row["event_id"])
     event_key  = event_key_map[eid]
@@ -1209,6 +1232,8 @@ for row in sorted_rows:
         # Doubles: one result row per placement slot (teams share it).
         # Singles: computed per-participant after dedup (each tied player gets own row).
         result_key  = (event_key, disc_key, place)
+        additional_members: set[str] = set()
+        is_club_standing = False
 
         if event_pbp:
             person_id   = _src_row.get("person_id", "") or ""
@@ -1234,11 +1259,24 @@ for row in sorted_rows:
             p2 = (_src_row.get("player2_name") or "").strip()
             p1_token = (_src_row.get("player1_id") or "").strip()
             p2_token = (_src_row.get("player2_id") or "").strip()
-            if p1 and p2:
+            if p1 and _src_row.get("competitor_type") == "club":
+                # A club's standing: the name as written, never a person.
+                entries = [(p1, "", "")]
+                is_club_standing = True
+            elif p1 and p2:
                 entries = [
                     (p1, resolve_person_id(p1_token, p1) or "", ""),
                     (p2, resolve_person_id(p2_token, p2) or "", ""),
                 ]
+                # Stage 2 keeps two players per entry. A curated source names a
+                # three-person team explicitly ("A / B / C"); recover the third
+                # member from the raw entry and mark it so remediation keeps the
+                # team as one result instead of re-pairing it.
+                if eid in CURATED_EVENT_IDS:
+                    for extra in curated_extra_team_members(
+                            _src_row.get("entry_raw") or "", p1, p2):
+                        entries.append((extra, resolve_person_id(None, extra) or "", ""))
+                        additional_members.add(extra)
             elif p1:
                 entries = [(p1, resolve_person_id(p1_token, p1) or "", "")]
             else:
@@ -1267,20 +1305,22 @@ for row in sorted_rows:
 
             if result_key not in emitted_results:
                 # Consecutive disciplines carry a meaningful kick count in the raw
-                # placement text; recover it for score_text. Non-consecutive
-                # disciplines leave score_text empty (their trailing numbers are
-                # generic point totals).
+                # placement text; recover it for score_text. Curated sources also
+                # carry golf strokes and overall points, written with their unit.
+                # Other mirror results leave score_text empty (their trailing
+                # numbers are generic point totals).
                 score_text = ""
-                if CONSECUTIVE_DISCIPLINE_RE.search(disc_key):
-                    score_text = extract_consecutive_count(
-                        entry_raw_by_div_place.get((div, place), "")
-                    ) or ""
+                _entry_raw = entry_raw_by_div_place.get((div, place), "")
+                if eid in CURATED_EVENT_IDS:
+                    score_text = curated_score_text(disc_key, _entry_raw)
+                elif CONSECUTIVE_DISCIPLINE_RE.search(disc_key):
+                    score_text = extract_consecutive_count(_entry_raw) or ""
                 results_out.append({
                     "event_key":      event_key,
                     "discipline_key": disc_key,
                     "placement":      place,
                     "score_text":     score_text,
-                    "notes":          "",
+                    "notes":          "World Record" if WORLD_RECORD_RE.search(_entry_raw) else "",
                     "source":         "",
                 })
                 emitted_results.add(result_key)
@@ -1296,7 +1336,9 @@ for row in sorted_rows:
                 "display_name":      clean_display_str(m_name),
                 "person_id":         m_pid,
                 "team_person_key":   m_tpk,
-                "notes":             "",
+                "notes":             CLUB_STANDING_NOTE if is_club_standing
+                                     else ADDITIONAL_TEAM_MEMBER_NOTE
+                                     if m_name in additional_members else "",
             })
 
 

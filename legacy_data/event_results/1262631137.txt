@@ -1,0 +1,25 @@
+# Urban Komba Footbag Open Footbag Jam 2010
+# Source: mirror HTML — Bulgarian organizer format
+# "Name - Nickname (Club)" is ONE person, not a doubles team.
+# Doubles used two-line continuation format (parser captures only first line).
+# Fixed: singles un-split, doubles re-paired using & separator.
+
+Open Net Singles
+1. Rosen Rusev
+2. Ivan Stanev
+3. Stoian
+4. Hristo Marev
+5. Conkata
+
+Open Net Doubles
+1. Ivan Peev & Stoian
+2. Rosen Rusev & Hristo Marev
+3. Ivan Stanev & Georgy
+4. Dobri Markov & Valio Markov
+5. Hristo Georgiev & Denislav
+6. Shibun Bundit & Kristian Dimitrov
+7. Danny Peleva & Otto
+8. Loco Watevaman & Petq Slavova
+
+Freestyle
+1. Petko Tanev

@@ -96,6 +96,13 @@ def build_sandbox(tmp_path: Path, omit_inputs: list[str] | None = None) -> Path:
     for name in ("__init__.py", "alias_resolver.py", "person_consolidation.py"):
         shutil.copy2(LEGACY / "pipeline" / "identity" / name, identity / name)
 
+    # The exporter refuses to run without its curated aggregate-standings list;
+    # the synthetic disciplines carry no aggregate standing, so it lists none.
+    overrides = root / "overrides"
+    overrides.mkdir(parents=True)
+    (overrides / "aggregate_standings.csv").write_text(
+        "event_key,discipline_key,scope,confidence,evidence\n", encoding="utf-8")
+
     canonical = root / "out" / "canonical"
     canonical.mkdir(parents=True)
     for name, body in INPUTS.items():

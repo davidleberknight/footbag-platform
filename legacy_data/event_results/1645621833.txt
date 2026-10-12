@@ -1,0 +1,15 @@
+# IV.Basque Tournament of Footbag Net (Individual) 2022
+# Source: mirror/www.footbag.org/events/show/1645621833/index.html
+# Recovered 2026-03-09 — stage2 parsed 3 overlapping sections (seeding + partial +
+# final) producing 10 rows with duplicates and missing Frank Haase (p2).
+# Last Classification section used. 6 correct placements.
+# event_id: 1645621833
+
+Open Singles Net
+1. Egoitz Campo
+2. Frank Haase
+3. Daniel Barrientos
+4. Joseba Zubiaurre
+5. Mikel Maletxeberria
+6. Claudia Vera
+

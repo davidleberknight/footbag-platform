@@ -1,0 +1,89 @@
+# 5th Annual Wilanow Footbag Open 2007
+# Source: mirror/www.footbag.org/events/show/1189345008/index.html
+# Recovered 2026-03-09 — multiple parser failures:
+#   - Doubles Routines: "i" (Polish "and") separator not handled; teams dropped entirely
+#   - Big 3: continuation line "Pdx Torque" (line 57) caused parser confusion
+#   - Most Rippin' Run: backtick (`) in header "Most Rippin` Run:" failed div detection
+#   - Request Contest: no colon; absorbed into Most Rippin' Run in stage2
+#   - 2/4 Square: no colon; absorbed into Request Contest in stage2
+# Stage2 captured 47/57 placements.
+# Doubles separator replaced with " & ". Backtick replaced with apostrophe.
+# "G°ra" = Góra (encoding corruption in mirror; stripped by clean_player_name).
+# Fixed 2026-03-09: "Freestyle Big 3", "Freestyle Most Rippin' Run", "Four Square"
+# prefixes/replacements added so stage2 _has_division_keyword() matches. All 57 placements recovered.
+# event_id: 1189345008
+
+Freestyle Routines
+1. Arkadiusz Dudziński
+2. Damian Gielnicki
+3. Maciej Bujko
+4. Jakub Grabarczyk
+5. Kamil Hucał
+6. Paweł Frączek
+7. Wojciech Ignaczak
+8. Szymon Kałwak
+9. Paweł Rytelewski
+9. Paweł Rożek
+11. Kamil Burzyński
+11. Mariusz Wilk
+13. Adam Cieszkiel
+13. Bartosz Rząsa
+15. Krzysztof Sobótka
+15. Sebastian Jurzysta
+
+Doubles Routines
+1. Małgorzata Nycz & Wiktor Dębski
+2. Damian Gielnicki & Jakub Grabarczyk
+3. Damian Piechocki & Adam Cieszkiel
+
+Womens Routines
+1. Małgorzata Nycz
+
+Circle Contest
+1. Damian Gielnicki
+2. Arkadiusz Dudziński
+3. Maciej Bujko
+4. Wiktor Dębski
+
+Shred 30
+1. Arkadiusz Dudziński
+2. Maciej Bujko
+3. Damian Gielnicki
+4. Paweł Rożek
+5. Paweł Frączek
+6. Michał Biarda
+7. Wiktor Dębski
+8. Wojciech Ignaczak
+9. Krzysztof Sobótka
+10. Kamil Hucał
+11. Paweł Rytelewski
+12. Mariusz Wilk
+13. Marek Zalewski
+14. Kamil Burzyński
+15. Sebastian Jurzysta
+
+Freestyle Big 3
+1. Arkadiusz Dudziński
+2. Damian Gielnicki
+3. Szymon Kałwak
+4. Damian Piechocki
+5. Jakub Grabarczyk
+6. Paweł Rożek
+7. Piotr Kurt
+
+Freestyle Most Rippin' Run
+1. Arkadiusz Dudziński
+2. Damian Gielnicki
+3. Maciej Bujko
+4. Damian Piechocki
+
+Request Contest
+1. Arkadiusz Dudziński
+2. Wiktor Dębski
+3. Paweł Rytelewski
+
+Four Square
+1. Szymon Kałwak
+2. Michał Biarda
+3. Wiktor Dębski
+4. Kamil Hucał

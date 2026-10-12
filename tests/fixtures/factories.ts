@@ -247,22 +247,25 @@ export function insertEvent(db: BetterSqlite3.Database, o: EventOverrides = {}):
 export interface DisciplineOverrides {
   id?: string;
   name?: string;
-  discipline_category?: string;
+  /** null only on a cross-sport aggregate standing. */
+  discipline_category?: string | null;
   team_type?: string;
   sort_order?: number;
+  is_aggregate_standing?: 0 | 1;
 }
 
 export function insertDiscipline(db: BetterSqlite3.Database, eventId: string, o: DisciplineOverrides = {}): string {
   const id = o.id ?? `disc-test-${uid()}`;
   db.prepare(`
-    INSERT INTO event_disciplines (id, event_id, name, discipline_category, team_type, sort_order, created_at, created_by, updated_at, updated_by, version)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    INSERT INTO event_disciplines (id, event_id, name, discipline_category, team_type, sort_order, is_aggregate_standing, created_at, created_by, updated_at, updated_by, version)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
   `).run(
     id, eventId,
     o.name                ?? 'Freestyle',
-    o.discipline_category ?? 'freestyle',
+    o.discipline_category === undefined ? 'freestyle' : o.discipline_category,
     o.team_type           ?? 'singles',
     o.sort_order          ?? 1,
+    o.is_aggregate_standing ?? 0,
     TS, SYS, TS, SYS,
   );
   return id;

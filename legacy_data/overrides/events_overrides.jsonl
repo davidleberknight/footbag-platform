@@ -11,8 +11,6 @@
 {"confidence": "high", "event_id": "1031232420", "exclude": true, "reason": "JUNK_EVENTS_TO_EXCLUDE", "source": "stage2.JUNK_EVENTS_TO_EXCLUDE"}
 {"confidence": "high", "event_id": "1043428338", "exclude": true, "reason": "JUNK_EVENTS_TO_EXCLUDE", "source": "stage2.JUNK_EVENTS_TO_EXCLUDE"}
 {"confidence": "high", "event_id": "1044952105", "event_type": "net", "source": "stage2.EVENT_TYPE_OVERRIDES"}
-{"confidence": "high", "event_id": "1068164371", "event_name": "Portland Footbag Jam 2003 (Oct 23)", "source": "stage2.EVENT_NAME_OVERRIDES"}
-{"confidence": "high", "event_id": "1068164424", "event_name": "Portland Footbag Jam 2003 (Oct 31)", "source": "stage2.EVENT_NAME_OVERRIDES"}
 {"confidence": "high", "event_id": "1072202155", "location": "Oakland, California, USA", "source": "stage2.LOCATION_OVERRIDES"}
 {"confidence": "high", "event_id": "1076748214", "location": "St. Louis, Missouri, USA", "source": "stage2.LOCATION_OVERRIDES"}
 {"confidence": "high", "event_id": "1079664495", "event_type": "social", "source": "stage2.EVENT_TYPE_OVERRIDES"}

@@ -1,0 +1,40 @@
+# Frankfurt Footbag Open 2004
+# Source: mirror/www.footbag.org/events/show/1094201584/index.html
+# Recovered 2026-03-09 — all content under narrative header "And the winner are:"
+# Stage2 detected Open Double Net (4), Open Freestyle (5 of 8 — encoding issues
+# in mirror for entries 6-8 with German chars), Open Golf (4) = 13 captured.
+# "Open FIVES" (footbag net 5-up format) missed entirely — no DIVISION_KEYWORD.
+# Open Golf: place 1 has two names on separate lines (co-winners? or co-champs).
+# Renamed "Open FIVES" → "Open Net Fives" to supply "net" keyword.
+# Names: Löw → Low, Hanneß → Hannes (encoding corruption in mirror).
+# Open Golf place 1: Michael Müller (primary) and Jakob Wagner (co-champion — both listed
+# at place 1 in source).
+# event_id: 1094201584
+
+Open Doubles Net
+1. Patrick Schnickelsen & Ulli Haase
+2. Max Gerhardt & Flo Goetze
+3. Chris Low & Hannes Daniel
+4. Sam Maleki & Markus Portenkircher
+
+Open Freestyle
+1. Matthias Lino Schmidt
+2. Stefan Siegert
+3. Jakob Wagner
+4. Lise Thygessen
+5. Stefan Nold
+6. David Kaufmann
+7. Philipp Schafer
+8. Nils G
+
+Open Golf
+1. Michael Muller
+1. Jakob Wagner
+2. Sebastian Kleinichen
+3. Andreas Wolff
+
+Open Net Fives
+1. Matthias Lino Schmidt
+2. Jakob Wagner
+3. Jason
+4. Felix Graf

@@ -1,0 +1,89 @@
+# 1999 Southern Regional Footbag Championships
+# Source: mirror/www.footbag.org/events/show/909186885/index.html
+# Recovered 2026-03-09 — "***" sport headers (Singles Net, Doubles Net, Golf,
+# Freestyle, Mixed Doubles Net, Timed Consecutives, Open Singles Bowling) with
+# bare sub-division labels (Open, Women's, Intermediate, Novice, Junior).
+# Stage2 merged all "Open" sub-divisions across sports → same players deduplicated.
+# Stage2 captured 37/45. All 45 recovered here with fully qualified division names.
+# "/" doubles separator used in source; replaced with " & ".
+# "Open Singles Bowling" included as a competition result (footbag bowling format).
+# event_id: 909186885
+
+Open Singles Net
+1. Steve Smith
+2. James Harley
+3. Davie Piper
+
+Women's Singles Net
+1. Tina Lewis
+2. Kelly Kelley
+
+Intermediate Singles Net
+1. Dave Neill
+2. Ian Cummings
+3. Ariel Santesteban
+
+Novice Singles Net
+1. Brandon Sowers
+2. Shardul Sarhad
+3. Mike Sheridan
+
+Open Doubles Net
+1. Steve Smith & James Harley
+2. James Roberts & Jerry Vigil
+3. Craig Lord & Davie Piper
+
+Intermediate Doubles Net
+1. Ariel Santesteban & Ian Cummings
+2. Matt Strong & Dave Neill
+3. Ian Dubman & Brandon Sowers
+
+Novice Doubles Net
+1. Chad Rassmuson & Brian Pickup
+2. Shardul Sarhad & Mark Nelson
+3. Mark Willhite & Ross Irwin
+
+Open Golf
+1. Steve Smith
+2. Derric Scalf
+3. James Roberts
+
+Intermediate Golf
+1. Dave Neill
+
+Open Freestyle
+1. James Roberts
+2. Derric Scalf
+3. Kyle Crawford
+
+Intermediate Freestyle
+1. Ian Dubman
+2. Ariel Santesteban
+3. Aaron Finger
+
+Open Mixed Doubles Net
+1. James Harley & Tina Lewis
+2. James Roberts & Kelly Kelley
+
+Open Consecutive Kicks
+1. James Roberts
+2. Matt Strong
+3. Derric Scalf
+
+Women's Consecutive Kicks
+1. Tina Lewis
+2. Kelly Kelley
+
+Intermediate Consecutive Kicks
+1. Ian Dubman
+2. Brandon Finger
+3. Ariel Santesteban
+
+Junior Consecutive Kicks
+1. Jordan Hinojos
+2. Alex Spears
+
+Open Singles Bowling
+1. Wally Victory
+2. James Roberts
+3. Geoff Hand

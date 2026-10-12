@@ -18,7 +18,6 @@ Reads from:
   inputs/events_normalized.csv
   inputs/bap_data_updated.csv
   inputs/hof.csv
-  overrides/known_issues.csv
   (graceful fallback for any absent optional files)
 
 Writes:
@@ -1178,7 +1177,7 @@ def _floatv(r: dict, key: str) -> float | None:
 QUARANTINE_CSV_FULL = QUARANTINE_CSV  # same file, reuse the constant
 
 def build_data_notes(wb: Workbook, fffd_count: int = 0, quarantine_count: int = 0) -> None:
-    """Build DATA NOTES sheet natively from known_issues.csv and review_quarantine_events.csv."""
+    """Build DATA NOTES sheet natively from review_quarantine_events.csv."""
     if "DATA NOTES" in wb.sheetnames:
         idx = wb.sheetnames.index("DATA NOTES")
         del wb["DATA NOTES"]
@@ -1297,52 +1296,6 @@ def build_data_notes(wb: Workbook, fffd_count: int = 0, quarantine_count: int = 
                                   "'unresolved' — their names appear in the source but cannot be "
                                   "confidently matched to a canonical person. They are excluded from "
                                   "Player Summary statistics.")
-
-    # ── Known-Issue Events ────────────────────────────────────────────────────
-    # Load events to get names + years
-    events_for_notes: dict = {}
-    if os.path.exists(EVENTS_CSV):
-        for r in load_csv(EVENTS_CSV):
-            # events_normalized.csv uses legacy_event_id; fall back to event_id
-            eid = r.get("event_id", "") or r.get("legacy_event_id", "")
-            if eid:
-                events_for_notes[eid] = r
-
-    ki_rows: list[dict] = []
-    if os.path.exists(KNOWN_ISSUES_CSV):
-        ki_rows = load_csv(KNOWN_ISSUES_CSV)
-
-    section(f"Known-Issue Events ({len(ki_rows)} events — minor, moderate, or severe source limitations)")
-    body("These events are included in the dataset but have documented data quality issues. "
-         "The severity reflects impact on standings accuracy: minor = incomplete positions; "
-         "moderate = merged divisions; severe = unreliable standings.")
-
-    if ki_rows:
-        hdrs = ["Year", "Event", "Severity", "Note"]
-        widths_ki = [6, 46, 10, 46]
-        for col_i, (h, w) in enumerate(zip(hdrs, widths_ki), start=1):
-            c = ws.cell(row=row, column=col_i, value=h)
-            c.font = FONT_SUBHDR_DN
-            c.fill = FILL_SUBSEC_DN
-            ws.column_dimensions[get_column_letter(col_i)].width = w
-        row += 1
-        for ki in sorted(ki_rows, key=lambda r: (events_for_notes.get(r.get("event_id",""), {}).get("year","9999"),
-                                                   r.get("event_id",""))):
-            eid = ki.get("event_id", "")
-            ev  = events_for_notes.get(eid, {})
-            yr  = ev.get("year") or ""
-            nm  = ev.get("event_name") or eid
-            ws.cell(row=row, column=1, value=yr).font = FONT_BODY_DN
-            ws.cell(row=row, column=2, value=nm).font = FONT_BODY_DN
-            ws.cell(row=row, column=3, value=ki.get("severity","")).font = FONT_BODY_DN
-            c = ws.cell(row=row, column=4, value=ki.get("note",""))
-            c.font = FONT_BODY_DN
-            c.alignment = ALIGN_TOP_WRAP
-            ws.row_dimensions[row].height = 14
-            row += 1
-        # Restore main col widths after table (table used all 4)
-        ws.column_dimensions["A"].width = 22
-        ws.column_dimensions["B"].width = 90
 
     # ── Quarantined Events ────────────────────────────────────────────────────
     quar_rows: list[dict] = []
@@ -2015,7 +1968,6 @@ def build_all_year_sheets(wb: Workbook, pf_rows: list[dict],
 
 # ── EVENT INDEX builder ───────────────────────────────────────────────────────
 
-KNOWN_ISSUES_CSV = os.path.join(BASE_DIR, "overrides", "known_issues.csv")  # exists
 COVERAGE_CSV     = os.path.join(BASE_DIR, "out", "Coverage_ByEventDivision.csv")  # exists
 
 _IDX_FILL_OK   = PatternFill("solid", fgColor="E8F5E9")   # soft green
@@ -2029,18 +1981,6 @@ _IDX_ALIGN_CTR = Alignment(horizontal="center", vertical="top")
 _IDX_ALIGN_L   = Alignment(horizontal="left",   vertical="top")
 
 _FLAG_RANK = {"complete": 0, "partial": 1, "sparse": 2, "none": 3}
-
-
-def load_known_issues() -> dict:
-    """Returns {event_id: {severity, note}}."""
-    result: dict = {}
-    if not os.path.exists(KNOWN_ISSUES_CSV):
-        return result
-    for r in load_csv(KNOWN_ISSUES_CSV):
-        eid = r.get("event_id", "").strip()
-        if eid:
-            result[eid] = {"severity": r.get("severity", ""), "note": r.get("note", "")}
-    return result
 
 
 def load_coverage_by_event() -> dict:
@@ -2062,7 +2002,6 @@ def build_event_index(wb: Workbook,
                       events: dict,
                       placements_by_event: dict,
                       quarantine_set: set,
-                      known_issues: dict,
                       coverage_by_event: dict,
                       event_col_map: dict) -> None:
     """
@@ -2105,7 +2044,6 @@ def build_event_index(wb: Workbook,
         n_d = len(ep)
 
         is_quar  = eid in quarantine_set
-        issue    = known_issues.get(eid)
         cov_flag = coverage_by_event.get(eid, "complete" if n_p else "none")
 
         if is_quar:
@@ -2114,9 +2052,6 @@ def build_event_index(wb: Workbook,
         elif n_p == 0:
             status = "NO_RESULTS"
             notes  = "No competitive results in dataset"
-        elif issue:
-            status = f"KNOWN_ISSUE ({issue['severity']})"
-            notes  = issue["note"]
         else:
             status = "OK"
             notes  = ""
@@ -2229,7 +2164,6 @@ def main():
 
     # Build EVENT INDEX natively (must come after year sheets so hyperlinks resolve)
     print("\nBuilding EVENT INDEX sheet...")
-    known_issues      = load_known_issues()
     coverage_by_event = load_coverage_by_event()
     # Pre-position: insert placeholder before first year sheet
     first_year = next((s for s in out_wb.sheetnames if s.isdigit()), None)
@@ -2238,7 +2172,7 @@ def main():
         out_wb.create_sheet("EVENT INDEX", year_idx)
     build_event_index(
         out_wb, yr_events, placements_by_event,
-        yr_quarantine, known_issues, coverage_by_event, event_col_map
+        yr_quarantine, coverage_by_event, event_col_map
     )
 
     # Verify every event that has a year-sheet column has a matching defined-name anchor.

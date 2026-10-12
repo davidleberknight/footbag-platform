@@ -1,0 +1,100 @@
+# U.S. Open Footbag Championships 2014
+# Source: mirror/www.footbag.org/events/show/1386623061/index.html
+# Recovered 2026-03-09 — two-part failure:
+#   1. Freestyle: h2-scoped division sections; Open Sick 3-Trick captured only 2/6
+#      (entries 3-6 with trick combos lost); Open Sick Trick captured only 3/5.
+#   2. Net: in a separate "Manually Entered Results" <pre> block not processed by
+#      stage2 when h2-scoped freestyle sections are present. 31 net placements
+#      entirely missed.
+# Stage2 captured 24/61. All 61 recovered here.
+# Net "N ? Name/Name" format: "?" is encoding corruption for "–" separator.
+# "Becca EnglishKen Shults" (mashed in source) → "Becca English & Ken Shults".
+# "Drake Shults tie with Gaylene Grossen" → tied place 3.
+# Names cleaned of country codes in parentheses (handled by stage2 QC).
+# event_id: 1386623061
+
+Open Singles Routines
+1. Brian Sherrill
+2. Dustin Rhodes
+3. Chris Dean
+4. Cassandra Taylor
+5. Larry Workman
+6. Alex Dworetzky
+
+Intermediate Singles Routines
+1. Justin Blotsky
+2. Ken Moller
+
+Open Sick 3
+1. Matt Kemmer
+2. Chris Dean
+3. Brian Sherrill
+4. Alex Dworetzky
+5. Dustin Rhodes
+5. Derek Littlefield
+
+Open Sick Trick
+1. Matt Kemmer
+2. Brian Sherrill
+3. Chris Dean
+4. Dustin Rhodes
+5. Alex Dworetzky
+
+Open Circle Contest
+1. Brian Sherrill
+2. Matt Kemmer
+3. Chris Dean
+4. Dustin Rhodes
+5. Derek Littlefield
+5. Larry Workman
+7. Alex Dworetzky
+7. Cassandra Taylor
+
+Intermediate Circle Contest
+1. Warren Allen
+2. Justin Blotsky
+3. Ken Moller
+
+Mixed Doubles Net
+1. Genevieve Bousquet & Tuan Vu
+2. Becca English & Ken Shults
+3. Julie Symons & David Bernard
+4. Jody Badger Welch & Christopher Cleaver
+5. Sarah Femmel & Steve Dusablon
+6. Leanne Mackrow & Patrick Weinberg
+
+Open Doubles Net
+1. Tuan Vu & Kenny Shults
+2. Rob Adams & David Bernard
+3. Genevieve Bousquet & Becca English
+4. Chris Cleaver & Steve Dusablon
+5. Jody Welch & Julie Symons
+6. Dirk Janssens & Christopher Young
+7. Edwin Veltman & Luke Tarr
+
+Women's Singles Net
+1. Sarah Femmel
+2. Leanne Mackrow
+3. Renee Sheets Johnson
+
+Open Singles Net
+1. Kenny Shults
+2. Genevieve Bousquet
+3. Chris Young
+4. Edwin Veltman
+5. Jasper Shults
+6. Patrick Weinberg
+7. Dirk Janssens
+
+Intermediate Singles Net
+1. Steve Femmel
+2. Joey Vu
+3. Drake Shults
+3. Gaylene Grossen
+5. Ben Johnson
+
+Intermediate Doubles Net
+1. Joey Vu & Jasper Shults
+2. Steve Femmel & Patrick Weinberg
+3. Sarah Femmel & Dillon George
+4. Katie Storment & Leanne Mackrow

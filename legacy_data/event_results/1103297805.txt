@@ -1,0 +1,102 @@
+# 2e Championnat de France de Footbag 2005
+# Source: mirror/www.footbag.org/events/show/1103297805/index.html
+# Recovered 2026-03-09 — Two competitions on one page. Stage2 issues:
+#   (1) "Big 1" division unrecognized (no keyword) — 3+5 placements missed
+#   (2) "G*" nickname (=Grischa) fails person check — 2 placements missed
+#   (3) DOUBLE NET/SIMPLE NET bracket sections generate 6 junk rows
+#   (4) "Femmes"/"Mixte" parsed as Doubles instead of Women's/Mixed
+# Stage2 captured 51 (45 real + 6 junk). Full 53 real placements here.
+# French division names translated; "Big 1" → "Sick 1"; "G*" → "Grischa".
+# Note: "Reni, Samy, Karim" are Swiss invitees not included in rankings.
+# "5. G*, Tutur, Rico : rien" = tied 5th (no trick hit) in second comp Sick 3.
+# event_id: 1103297805
+
+# --- FIRST COMPETITION (Open / Femmes / Mixte) ---
+
+Open Freestyle Routines
+1. Arthur
+2. Franck
+3. Serge
+
+Open Shred 30
+1. Arthur
+2. Serge
+3. Franck
+
+Open Sick 3
+1. Serge
+2. Franck
+3. Leuch
+
+Open Sick 1
+1. Serge
+2. Arthur
+3. Franck
+
+Open Doubles Freestyle
+1. Arthur & Grischa
+2. Arnaud & Eric
+
+Open Singles Net
+1. Arthur
+2. Miquel
+3. Nicolas
+
+Open Doubles Net
+1. Arthur & Greg
+2. Vincent & Grischa
+3. Jules & Nicolas
+
+Women's Singles Net
+1. Lisa
+2. Myriam
+
+Mixed Doubles Net
+1. Lisa & Jules
+2. Myriam & Mamoute
+
+# --- SECOND COMPETITION (Club Rankings) ---
+
+Freestyle Routines
+1. Tutur
+2. Fcky
+3. Zerg
+4. Grischa
+5. Dreuf
+6. Leuch
+7. Nono
+8. Augustin
+
+Freestyle Doubles Routines
+1. Tutur & Grischa
+2. Nono & Rico
+
+Women's Freestyle Routines
+1. Ben
+
+Shred 30
+1. Tutur
+2. Zerg
+3. Fcky
+4. Leuch
+5. Dreuf
+6. Grischa
+7. Nono
+8. Augustin
+
+Sick 3
+1. Zerg
+2. Fcky
+3. Leuch
+4. Dreuf
+5. Grischa
+5. Tutur
+5. Rico
+
+Sick 1
+1. Zerg
+2. Tutur
+3. Fcky
+4. Leuch
+5. Grischa
+

@@ -1,0 +1,75 @@
+# Zocha Jam 2005 — Two blocks named "Open double Freestyle" in source HTML.
+# First block (after Open Women Freestyle) is Freestyle Doubles.
+# Second block (after Open Single Net) is actually Open Doubles Net.
+# Fix: renamed second block to "Open Doubles Net".
+Open Single Freestyle
+1. Michal Ostrowski
+2. Tomek Ostrowski
+3. Damian Gielnicki
+4. Szymon Kalwak
+5. Jan Struz
+6. Damian Budzik
+7. Rafal Kaleta
+8. Olaf Piwowar
+9. Lukasz Krysiewicz
+10. Pawel Fraczek
+11. Arek Dudzinski
+12. Piotr Czaja
+
+Open Sick 3-Trick
+1. Szymon Kalwak
+2. Tomek Ostrowski
+3. Damian Budzik
+4. Tomasz Wrobel
+
+Open Shred 30
+1. Damian Budzik
+2. Szymon Kalwak
+3. Tomasz Wrobel
+4. Tomek Ostrowski
+
+Open Women Freestyle
+1. Karolina Modrzejewska
+2. Jana Sassakova
+3. Malgorzata Szpulecka
+4. Patrycja Szczeniowska
+5. Gosia Nycz
+6. Gosia Oledzka
+7. Agata Gorska
+8. Sylwia Kocyk
+
+Open Double Freestyle
+1. Gosia Nycz & Damian Budzik
+2. Michal Ostrowski & Szymon Kalwak
+3. Malgorzata Oledzka & Tomek Ostrowski
+
+Intermediate Single Freestyle
+1. Marcin Zieleniecki
+2. Bartosz Bubula
+3. Michal Hadas
+4. Maciej Niczyporuk
+5. Pawel Rozek
+6. Piotr Gryko
+7. Micha Klimczak
+8. Pawel Holiczko
+9. Wojciech Popow
+10. Krzysztof Osikowski
+
+Open Single Net
+1. Jan Struz
+2. Piotr Baltrukiewicz
+3. Antoni Szczeniowski
+4. Damian Budzik
+5. Michal Rog
+6. Kamil Wysocki
+7. Slawomir Brzezinski
+8. Grzesiek Latuszynski
+9. Lukasz Osinski
+10. Patrycja Szczeniowska
+
+Open Doubles Net
+1. Jan Struz & Michal Rog
+2. Kamil Wysocki & Slawomir Brzezinski
+3. Piotr Baltrukiewicz & Grzesiek Latuszynski
+4. Antoni Szczeniowski & Damian Budzik
+5. Patrycja Szczeniowska & Lukasz Osinski

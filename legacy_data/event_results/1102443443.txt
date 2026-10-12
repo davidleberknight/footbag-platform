@@ -1,0 +1,62 @@
+# Footbag Fiesta 2005 (Poland)
+# Source: mirror/www.footbag.org/events/show/1102443443/index.html
+# Recovered 2026-03-09 — stage2 missed Open Sick3 (no colon on header) entirely
+# and truncated Open Big One at place 5 (blank line caused early division end).
+# Stage2 captured 32/41 placements across 6 of 7 divisions.
+# Open Big One has tied 1st place (both Szymon Kałwak and Adam Cieszkiel placed 1st).
+# event_id: 1102443443
+
+Intermediate Freestyle Man
+1. Łukasz Bochenek
+2. Marek Witt
+3. Radek Łątka
+4. Krzysiek Figiel
+5. Dawid Staszkiewicz
+
+Open Woman Freestyle
+1. Hania Mickiewicz
+2. Karolina Modrzejewska
+3. Gosia Szpulecka
+
+Open Double Freestyle
+1. Damian Piechocki & Adam Cieszkiel
+2. Hubert Godlewski & Gosia Szpulecka
+3. Daniel Kuźniec & Łukasz Bochenek
+
+Open Man Freestyle
+1. Kamil Wysocki
+2. Damian Piechocki
+3. Szymon Kałwak
+4. Wojciech Ignaczak
+5. Adam Cieszkiel
+6. Daniel Kuźniec
+7. Paweł Ptaszyński
+8. Mikołaj Kulesz
+9. Piotr Patora
+
+Open Sick 3
+1. Kamil Wysocki
+2. Adam Cieszkiel
+3. Szymon Kałwak
+4. Wojtek Ignaczak
+5. Damian Piechocki
+6. Paweł Ptaszyński
+7. Damian Budzik
+
+Open Big One
+1. Szymon Kałwak
+1. Adam Cieszkiel
+3. Hubert Godlewski
+4. Piotr Patora
+5. Damian Piechocki
+6. Wojtek Ignaczak
+7. Daniel Kuźniec
+
+Shred 30
+1. Hubert Godlewski
+2. Damian Budzik
+3. Damian Piechocki
+4. Wojciech Ignaczak
+5. Adam Cieszkiel
+6. Szymon Kałwak
+7. Hania Mickiewicz

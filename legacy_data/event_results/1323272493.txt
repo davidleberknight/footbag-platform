@@ -1,0 +1,368 @@
+# event_id: 1323272493
+# 2012 33rd IFPA WORLD FOOTBAG CHAMPIONSHIPS
+# Source: Placements_ByPerson_v85 — reconstructed from accumulated identity-locked data
+#         European-format names reversed (Last / First CC → First Last)
+#         Encoding artifacts fixed (U+FFFD removed; known corrupted chars corrected via PT)
+
+Open Singles Net
+1. Florian Goetze
+2. Jean-Francois Lemieux
+3. Tuomas Karki
+4. Karim Daouk
+5. Matti Pohjola
+6. Walt Houston
+7. Greg Lima
+8. Yves Kreil
+9. Arthur Ledain
+10. Ben Alston
+12. Victor Lezama
+13. Tammo Rockel
+14. Jack Harris
+15. Francois Depatie-Pelletier
+16. Oskari Forsten
+17. Guillaume Degat
+18. Roberto Da Silva
+19. Antonio Fritsch
+20. Wiktor Debski
+21. Carlos Marquez
+22. Yves Mingard
+23. Diego Diaz
+24. Darwins Mora
+25. Grischa Tellenbach
+26. Quentin Isackson
+27. Luka Weyler-Lavallée
+28. Wojciech Jamski
+29. Philippe Lessard
+30. Jairo Lagos
+31. Manuel Kruse
+32. Simon Voss
+33. Eduardo Martinez
+34. Hakan Hellberg
+35. Eurik Lindner
+36. Vincent Rousseau
+37. Johannes Korff
+38. Faris Barakat
+39. Marcin Staron
+40. Tuan Vu
+41. Nelson Castro
+42. Renato Zülli
+43. Christian Bock
+44. Jani Lirkki
+45. Felix Ostwaldt
+46. Oscar Loreto
+47. Maciej Samborowski
+48. Stéphane Tailleur
+49. Damian Budzik
+50. Stefan Nold
+51. Michal Klimczak
+52. David Kaufmann
+53. Carl-Antoine Boulay
+54. Simon Rollmann
+55. Marc Brunet
+56. Piotrek Koscielny
+57. Stephan Rautenberg
+58. Ville Laakso
+59. Rafal Andryka
+60. Steve Kuntze
+61. Robin Puchel
+61. Wojciech Ignaczak
+63. Michal Rog
+64. Arkady Lobankov
+65. Ingo Hartmann
+66. Boris Ollivier
+67. Jakub Grabarczyk
+68. Julien Coblence
+69. Pavel Hejra
+
+Women's Singles Net
+1. Marilyn Demuy
+2. Piia Tantarimäki
+3. Kerstin Anhuth
+4. Julia Tikhomirova
+5. Helena Schlichting
+6. Katharina Probst
+7. Ivaneidy Zambrano Torres
+8. Ulrike Hässler
+9. Sophie Andrey
+10. Gosia Debska
+11. Moka Szymankiewicz
+
+Intermediate Singles Net
+1. Brett Milliken
+2. Theodore Fritsch
+3. Andrey Laptev
+4. Moises Curie
+5. Alexey Antipov
+6. Daniel Stalmach
+7. Przemyslaw Pietrzycki
+8. Mikhail Mukhortykh
+
+Master's Singles Net
+1. Tuan Vu
+2. Yves Archambault
+3. Faris Barakat
+4. Hakan Hellberg
+5. Christian Bock
+6. Stéphane Tailleur
+7. Vincent Rousseau
+8. Magnus Hellberg
+9. Diego Chávez
+9. Marc Brunet
+9. Moises Curie
+
+Open Doubles Net
+1. Florian Goetze / Yves Kreil
+2. Karim Daouk / Grischa Tellenbach
+3. Oskari Forsten / Jani Sakari Markkanen
+4. Benjamin Alston / Walt Houston
+5. Janne Uusitalo / Matti Pohjola
+6. Tuomas Karki / Jukka Peltola
+7. Francois Pelletier / JF Lemieux
+8. Emmanuel Bouchard / PT Lovern
+9. Arthur Ledain / Luc Legeault
+10. Jack Harris / Jeremy Mirken
+11. Greg Lima / Antonio Fritsch
+12. Wojciech Jamski / Wiktor Debski
+13. Eurik Lindner / Markus Kapszak
+14. Uli Haase / Andreas Wolff
+15. Tuan Vu / Carlos Marquez
+16. Manuel Kruse / Simon Voss
+17. Alex Bartsch / Chris Low
+18. Amaya Straeten / Justin Eichenlaub
+19. Tammo Rockel / Phil Lessard
+20. Roberto Da Silva / Victor Lezama
+21. Hakan Hellberg / Guillaume Degat
+22. Jaíro Lagos / Darwins Mora
+23. Stéphane Tailleur / Yves Archambault
+24. Oscar Loretto / Eduardo Frenzel Martinez
+25. Vincent Rousseau / Marc Brunet
+26. Johannes Korff / Faris Barakat
+27. Nelson Castro / Diego Chávez
+28. Jyri Ilama / Janne Villikka
+29. Stefan Nold / Simon Rollmann
+30. Renato Zülli / Yves Mingard
+31. Michal Klimczak / Micha Rog
+32. Robin Puchel / Steve Kuntze
+33. Piotr Kosciekny / Marcin Staron
+34. Luka Weyler-Lavallée / Carl-Antoine Boulay
+35. Quentin Isackson / Julien Coblence
+36. Damian Budzik / Ville Laasko
+37. Chris Bock / David Kaufmann
+38. Rafal Andryka / Wojciech Ignaczak
+39. Maciej Samborowski / Jakub Grabarczyk
+40. Jani Lirkki / Felix Ostwaldt
+41. Stephan Rauthenberg / Ulrike Hässler
+42. Boris Ollivier / Arkady kemp Lobankov
+
+Women's Doubles Net
+1. Julie Symons / Jody Welch
+2. Marilyn Demuy / Yulia Tikhomirova
+3. Kerstin Anhuth / Piia Tantarimäki
+4. Helena Schlichting / Shirine Daouk
+5. Katharina Probst / Sophie Andrey
+6. Gosia Debska / Moka Szymankiewicz
+7. Ivaneidy Zambrano Torres / Ulrike Hässler
+
+Mixed Doubles Net
+1. Florian Goetze / Kerstin Anhuth
+2. Francois Depatie-Pelletier / Marilyn Demuy
+3. Karim Daouk / Shirine Daouk
+4. PT Lovern / Jody Welch
+5. Arthur Ledain / Helena Schlichting
+6. Janne Uusitalo / Piia Tantarimäki
+7. Yves Kreil / Yulia Tikhomirova
+8. Jack Harris / Julie Symons
+9. Wiktor Debski / Gosia Debska
+10. Simon Voss / Katharina Probst
+11. Roberto Da Silva / Ivaneidy Zambrano Torres
+12. Damian Budzik / Moka Szymankiewicz
+13. Victor Lezama / Sophie Andrey
+14. Stephan Rauthenberg / Ulrike Hässler
+15. Gabriel Salgado / Tabea Fetz
+
+Intermediate Doubles Net
+1. Michael Lamberjohann / Brett Milliken
+2. Alexey Antipov / Andrey Laptev
+3. Gabriel Salgado / Gaudenz Scherer
+4. Moises Curie / Daniel Stalmach
+5. Tabea Fetz / Theodore Fritsch
+5. Maciej Pietrzycki / Przemyslaw Pietrzycki
+5. Ingo Hartmann / Jari John
+5. Mikhail Mukhortykh / Unknown Freestyler
+
+Master's Doubles Net
+1. Yves Archambault / Tuan Vu
+2. Alex Bartsch / Andreas Wolff
+3. Marc Brunet / Vincent Rousseau
+4. Amaya Straeten / Stéphane Tailleur
+5. Faris Barakat / Helena Schlichting
+5. Christian Bock / Theodore Fritsch
+5. Moises Curie / Diego Chávez
+5. Hakan Hellberg / Magnus Hellberg
+
+Open Freestyle Routines
+1. Jan Weber
+2. Milan Benda
+3. Aleksi Airinen
+4. Vaclav Klouda
+5. Marcin Bujko
+6. Damian Gielnicki
+7. Rafal Kaleta
+8. Rene Ruehr
+
+Open Doubles Routines
+1. Micha Ostrowski / Tomas Ostrowski
+2. Tomas Tucek / Martin Sladek
+3. Wiktor Debski / Malgorzata Debska
+4. Jan Struz / Pavel Cerveny
+5. Dustin Rhodes / Brian Sherrill
+6. Julian Sinnl
+7. Theodore Fritsch
+
+Women's Freestyle Routines
+1. Tina Aeberli
+2. Hannia Mickiewicz
+3. Tanja Salakka
+4. Sylwia Kocyk
+5. Malgorzata Oledzka
+6. Dorota Wojtasiuk
+7. Caroline Birch
+7. Katharina Probst
+
+Mixed Doubles Routines
+1. Malgorzata Debska / Wiktor Debski
+2. Malgorzata Oledzka / Tomas Ostrowski
+3. Dorota Wojtasiuk / Damian Gielnicki
+
+Open Circle Contest
+1. Milan Benda
+2. Jan Weber
+3. Damian Gielnicki
+4. Aleksi Airinen
+5. Ken Somolinos
+5. Marcin Bujko
+5. Rene Ruehr
+5. Toni Pääkkönen
+9. Christopher Schillem
+9. Maciej Niczyporuk
+9. Mariusz Wilk
+9. Rafal Kaleta
+13. Bartosz Bubula
+13. Jakob Wagner
+13. Krzysztof Sobótka
+13. Santeri Karvinen
+17. Alexander Trenner
+17. Brian Sherrill
+17. Jakub Grabarczyk
+17. Jindrich Smola
+17. Lauri Airinen
+17. Tuomas Riisalo
+17. Tuukka Antikainen
+21. Alex Dworetzky
+21. Arkadiusz Stanek
+21. David Castillo
+21. Dustin Rhodes
+21. Jeff Mudd
+21. Micha Ostrowski
+21. Pawel Scierski
+21. Taishi Ishida
+30. Andreas Nawrath
+30. Ilya Sernov
+30. Michael Lamberjohann
+30. Przemyslaw Pietrzycki
+30. Tomas Konecny
+
+Women's Circle Contest
+1. Tina Aeberli
+2. Hannia Mickiewicz
+3. Tanja Salakka
+4. Sylwia Kocyk
+5. Caroline Birch
+5. Malgorzata Oledzka
+6. Dorota Wojtasiuk
+6. Katharina Probst
+
+Open Shred 30
+1. Aleksi Airinen
+2. Milan Benda
+3. Damian Gielnicki
+4. Jan Weber
+5. Toni Pääkkönen
+6. Bartosz Bubula
+7. Marcin Bujko
+8. Mathias Blau
+9. Jakob Wagner
+10. Lauri Airinen
+11. Jindrich Smola
+12. Maciej Niczyporuk
+13. Mariusz Wilk
+14. Dustin Rhodes
+15. Santeri Karvinen
+16. Taishi Ishida
+17. Alexander Trenner
+18. Tuukka Antikainen
+19. Pawel Rozek
+20. Rene Ruehr
+21. Tuomas Riisalo
+22. Arkadiusz Stanek
+23. Jonathan Schneider
+24. Brian Sherrill
+25. Micha Ostrowski
+26. Alex Dworetzky
+27. David Castillo
+28. Pawel Scierski
+29. Ilija Sernov
+30. Tomas Konecny
+31. Krzysztof Sobótka
+
+Women's Shred 30
+1. Tina Aeberli
+2. Hannia Mickiewicz
+3. Tanja Salakka
+4. Sylwia Kocyk
+5. Malgorzata Oledzka
+6. Caroline Birch
+
+Request Contest
+1. Milan Benda
+2. Lauri Airinen
+3. Marciej Niczyporuk
+4. Damian Gielnicki
+5. Bartosz Bubula
+5. Jakob Wagner
+5. Jindrich Smola
+8. Aleksi Airinen
+8. Anssi Sundberg
+8. Arkadiusz Stanek
+8. Tomas Ostrowski
+12. Krzysztof Sobótka
+13. Alexander Trenner
+13. Christopher Schillem
+13. David Castillo
+13. Santeri Karvinen
+13. Tuukka Antikainen
+18. Pawel Rozek
+18. Rafal Kaleta
+20. Przemysław Pietrzycki
+20. Renatto Zülli
+20. Rene Ruehr
+23. Ilja Sernov
+23. Matthias Lino Schmidt
+25. Konrad Chlebny
+25. Micha Ostrowski
+25. Pawel Scierski
+28. Jan Brekle
+28. Jan Struz
+28. Taishi Ishida
+31. Dustin Rhodes
+31. Jakub Mosciszewski
+31. Jeff Mudd
+31. Patryk Tenderenda
+31. Sylwia Kocyck
+36. Dorota Wojtasiuk
+36. Tomas Konecny
+38. Armin Moayad
+38. Caroline Birch
+38. Małgorzata Olędzka
+41. Julian Sinnl
+

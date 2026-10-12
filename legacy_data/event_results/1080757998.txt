@@ -1,0 +1,36 @@
+# Space City Freestyle Jam 2004
+# Source: mirror/www.footbag.org/events/show/1080757998/index.html
+# Recovered 2026-03-09 — Open Sick3 and Open Sick Trick each captured only 2/3
+# entries; 3rd place entries (Tim Vozar, Windsen Pan) missing. Possible cause:
+# trick annotations after second dash "Curtis Taylor- Superduperfly" interfering.
+# Stage2 captured 14/16. All 16 recovered here with trick combos removed.
+# "1st-" ordinal-with-dash format retained as standard "N." format.
+# event_id: 1080757998
+
+Open Singles Freestyle
+1. Juan Sanchez
+2. Curtis Taylor
+3. Windsen Pan
+
+Intermediate Singles Freestyle
+1. Steven Sevilla
+2. Vince Cleveland
+
+Open Shred 30
+1. Juan Sanchez
+2. Windsen Pan
+3. Curtis Taylor
+
+Intermediate Shred 30
+1. Steven Sevilla
+2. Vince Cleveland
+
+Open Sick 3
+1. Curtis Taylor
+2. Mike Stokely
+3. Tim Vozar
+
+Open Sick Trick
+1. Curtis Taylor
+2. Juan Sanchez
+3. Windsen Pan

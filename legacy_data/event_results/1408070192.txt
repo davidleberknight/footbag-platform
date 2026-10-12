@@ -1,0 +1,27 @@
+# New Year's Footbag Jam 2015
+# Source: mirror/www.footbag.org/events/show/1408070192/index.html
+# Recovered 2026-03-10 — inline format "Division-1.Name 2.Name 3.Name" caused
+# all placements to be parsed as a single garbage entry. Results manually extracted.
+# event_id: 1408070192
+
+Int Circle
+1. David Moutard
+2. Ryan Morris
+3. Ben Baybak
+
+Open Circle
+1. Evan Gatesman
+2. Nick Landes
+3. Nathan Pipenburg
+
+Int Request
+1. Khoa Nguyen
+
+Open Request
+1. Evan Gatesman
+
+Open Shred (Mirage Race)
+1. Brian Sherrill
+
+Ironman (Tiltless Till You Drop)
+1. Matt Kemmer

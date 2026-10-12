@@ -124,7 +124,8 @@ def test_redirected_run_leaves_the_committed_set_untouched(tmp_path):
 
 def test_no_production_input_is_read(tmp_path):
     # The sandbox holds no mirror, no database and no committed canonical_input,
-    # so a successful run proves the exporter needed none of them.
+    # so a successful run proves the exporter needed none of them. Its one curated
+    # input is the aggregate-standings list under overrides.
     script = build_sandbox(tmp_path)
     sandbox_root = script.parent.parent.parent
 
@@ -133,7 +134,7 @@ def test_no_production_input_is_read(tmp_path):
     assert result.returncode == 0, result.stderr
     assert not (sandbox_root.parent / "footbag_legacy_mirror").exists()
     assert not list(sandbox_root.rglob("*.db"))
-    assert sorted(p.name for p in sandbox_root.iterdir()) == ["out", "pipeline"]
+    assert sorted(p.name for p in sandbox_root.iterdir()) == ["out", "overrides", "pipeline"]
 
 
 # ─── missing intermediates ───────────────────────────────────────────────────

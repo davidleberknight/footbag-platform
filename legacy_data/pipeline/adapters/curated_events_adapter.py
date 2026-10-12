@@ -169,10 +169,27 @@ def _safe_place_int(s: str) -> int:
         return 9999
 
 
+# A Variant A row belongs to a team when its notes say so ("doubles", or "team").
+_TEAM_MARK_RE = re.compile(r"\b(doubles|team)\b", re.IGNORECASE)
+
+# A club's standing is marked in the source: category TEAM (Variant B) or the
+# note "club standing" (Variant A). The entry carries CLUB_STANDING_MARK so the
+# later stages publish the club's name as written and never treat it as a person.
+_CLUB_NOTE_RE = re.compile(r"\bclub standing\b", re.IGNORECASE)
+CLUB_STANDING_MARK = "[Club Standing]"
+
+
+def _is_club_standing(row: dict) -> bool:
+    return (row.get("category", "").strip().upper() == "TEAM"
+            or bool(_CLUB_NOTE_RE.search(row.get("notes") or "")))
+
+
 def _build_block_variant_a(rows: list[dict]) -> tuple[str, list[str]]:
     """
     Variant A: player_name schema.
-    Two rows per (division, place) for doubles → combined as "P1 / P2".
+    Rows marked as a team in notes (doubles/team) at one place combine as
+    "P1 / P2" (or more for a trio); unmarked rows sharing a place are a tie and
+    each keeps its own line, so a tie never reads as a partnership.
     Preserves division order of first appearance; sorts placements numerically.
     """
     warnings: list[str] = []
@@ -192,30 +209,50 @@ def _build_block_variant_a(rows: list[dict]) -> tuple[str, list[str]]:
     for div in div_order:
         div_rows = by_div[div]
 
-        # Group players by place
-        by_place: dict[str, list[str]] = defaultdict(list)
+        # Group players by place, keeping team-marked rows apart from ties. A
+        # score travels after the name ("Sean Flynn - 799"), the form the export
+        # reads a trailing score from.
+        by_place: dict[str, tuple[list[str], list[str]]] = {}
+        team_score: dict[str, str] = {}
         for r in div_rows:
             place = r.get("place", "").strip()
             name  = r.get("player_name", "").strip()
+            score = (r.get("score") or "").strip()
             if place and name:
-                by_place[place].append(name)
+                team, solo = by_place.setdefault(place, ([], []))
+                if _is_club_standing(r):
+                    entry = f"{name} {CLUB_STANDING_MARK}"
+                    solo.append(f"{entry} - {score}" if score else entry)
+                elif _TEAM_MARK_RE.search(r.get("notes") or ""):
+                    team.append(name)
+                    if score:
+                        team_score.setdefault(place, score)
+                else:
+                    solo.append(f"{name} - {score}" if score else name)
 
         if not by_place:
             continue
 
         out_lines.append(div)
         for place in sorted(by_place.keys(), key=_safe_place_int):
-            players = by_place[place]
-            if len(players) == 1:
-                entry = players[0]
-            elif len(players) == 2:
-                entry = f"{players[0]} / {players[1]}"
-            else:
-                entry = " / ".join(players)
+            team, solo = by_place[place]
+            if team and solo:
                 warnings.append(
-                    f"unexpected_player_count:{div!r}:p{place}:{len(players)} players"
+                    f"mixed_team_and_solo:{div!r}:p{place}:{len(team)} team, {len(solo)} solo"
                 )
-            out_lines.append(f"{place}. {entry}")
+            if len(team) == 1:
+                warnings.append(f"single_player_team:{div!r}:p{place}")
+                solo = team + solo
+                team = []
+            if len(team) > 2:
+                warnings.append(f"unexpected_player_count:{div!r}:p{place}:{len(team)} players")
+            if team:
+                entry = " / ".join(team)
+                if place in team_score:
+                    entry += f" - {team_score[place]}"
+                out_lines.append(f"{place}. {entry}")
+            for name in solo:
+                out_lines.append(f"{place}. {name}")
         out_lines.append("")
 
     while out_lines and out_lines[-1] == "":
@@ -252,7 +289,15 @@ def _build_block_variant_b(rows: list[dict]) -> tuple[str, list[str]]:
             if not p1:
                 warnings.append(f"empty_player_1:{div!r}:p{place}")
                 continue
-            entry = f"{p1} / {p2}" if p2 else p1
+            if _is_club_standing(r):
+                entry = f"{p1} {CLUB_STANDING_MARK}"
+            else:
+                entry = f"{p1} / {p2}" if p2 else p1
+            # The score travels after the entry, the form the export reads it from;
+            # a thousands separator is dropped so "12,411" is not read as 411.
+            score = (r.get("score") or "").strip()
+            if re.fullmatch(r"\d{1,3}(,\d{3})+|\d+", score):
+                entry += f" - {score.replace(',', '')}"
             out_lines.append(f"{place}. {entry}")
         out_lines.append("")
 
@@ -288,7 +333,7 @@ _OT_RE_ORD_LINE  = re.compile(r"^\s*(\d+)(?:st|nd|rd|th)\s*-\s*(.+?)\s*$", re.IG
 # match.  This handles "P1 2nd - P2" (single-space separation) correctly.
 _OT_RE_ORD_AHEAD = r"\s+(?=\d+(?:st|nd|rd|th)\s*-)"
 _OT_RE_INLINE    = re.compile(
-    r"(?P<div>.+?)\s*[-:]\s*1st\s*-\s*(?P<p1>.+?)(?:,|\s{2,}|" + _OT_RE_ORD_AHEAD + r"|$)\s*"
+    r"(?P<div>.+?)(?:\s*[-:]\s*|\s+)1st\s*-\s*(?P<p1>.+?)(?:,|\s{2,}|" + _OT_RE_ORD_AHEAD + r"|$)\s*"
     r"(?:2nd\s*-\s*(?P<p2>.+?)(?:,|\s{2,}|" + _OT_RE_ORD_AHEAD + r"|$)\s*)?"
     r"(?:3rd\s*-\s*(?P<p3>.+?)\s*)?$",
     re.IGNORECASE,
@@ -301,6 +346,17 @@ _OT_RE_SINGLE    = re.compile(r"^\s*(.+?)\s*-\s*1st\s*-\s*(.+?)\s*$", re.IGNOREC
 _OT_RE_CONT      = re.compile(r"^\s{3,}(.+?)\s*$")
 _OT_RE_ADMIN     = re.compile(r"^\s*world\s+record\b", re.IGNORECASE)
 _OT_RE_TRAIL_WR  = re.compile(r"\s*-\s*world\s+record\b.*$", re.IGNORECASE)
+# "- World Record - 12,838" inside a placement line. Rewritten in place to
+# "[World Record] - 12838": the record count stays a trailing score the export
+# reads, the designation stays visible (the canonicalizer drops a long bracketed
+# note from the name), and the placements after it on the same line survive.
+_OT_RE_WR_MARK   = re.compile(r"\s*-\s*world\s+record\b\s*(?:-\s*([\d,]+))?", re.IGNORECASE)
+
+
+def _ot_mark_world_records(line: str) -> str:
+    return _OT_RE_WR_MARK.sub(
+        lambda m: " [World Record]" + (f" - {m.group(1).replace(',', '')}" if m.group(1) else ""),
+        line)
 
 
 def _ot_repair_encoding(s: str) -> str:
@@ -418,6 +474,9 @@ def _ot_build_block(event_lines: List[str]) -> Tuple[str, List[str]]:
     # Rule 4 (new): current line is a bare name/doubles-pair continuation
     #   (starts with TitleCase followed immediately by "/") →
     #   e.g. "Hughes/Karen Uppinghouse" after "...2nd - Cheryl"
+    # Rule 5: current line starts with "World Record" → it is the wrapped tail
+    #   of the placement above ("1st - Gary Lautt/Jim Caveney -" then
+    #   "World Record - 1665"), so its count joins that placement.
     _RE_PREV_INCOMPLETE_ORD = re.compile(
         r"\b\d+(?:st|nd|rd|th)\s*-?\s*$", re.IGNORECASE
     )
@@ -436,6 +495,7 @@ def _ot_build_block(event_lines: List[str]) -> Tuple[str, List[str]]:
             or (stitched_raw and _RE_PREV_INCOMPLETE_ORD.search(prev))           # Rule 2
             or (stitched_raw and _RE_CUR_DASH_CONT.match(stripped_cur))          # Rule 3
             or (stitched_raw and _RE_CUR_SLASH_NAME.match(stripped_cur))         # Rule 4
+            or (stitched_raw and _OT_RE_ADMIN.match(stripped_cur))               # Rule 5
         )
         if should_stitch:
             stitched_raw[-1] = stitched_raw[-1].rstrip() + " " + stripped_cur
@@ -446,9 +506,9 @@ def _ot_build_block(event_lines: List[str]) -> Tuple[str, List[str]]:
         line = _ot_clean(raw_line)
         if not line:
             continue
-        # Strip "- World Record - N,NNN" annotations before pattern matching
-        # so they don't prevent inline regex from separating p2/p3.
-        line_for_parse = _OT_RE_TRAIL_WR.sub("", line).strip(" ,;-").strip()
+        # Mark "- World Record - N,NNN" in place before pattern matching, so it
+        # neither blocks the inline regex nor swallows the places after it.
+        line_for_parse = _ot_mark_world_records(line).strip(" ,;-").strip()
         if not line_for_parse:
             continue
         inline = _ot_extract_inline(line_for_parse)

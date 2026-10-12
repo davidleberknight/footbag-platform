@@ -1,0 +1,43 @@
+# 2007 Windchill / L'Hivernal 2007
+# Source: mirror HTML <pre> block (second pre tag)
+# Fix: Intermediate doubles entry 1 "Luka-Jean François Bélanger" uses bare dash
+# as team separator, but parser requires both sides to be multi-word. Changed to
+# spaced dash "Luka - Jean François Bélanger" so the spaced-dash rule fires.
+# All other entries unchanged.
+
+Open Singles
+1. Gilles Demers
+2. Yves Archambault
+3. François Depatie-Pelletier
+4. Russell Arsenault
+5. Luc Legault
+6. Tuan Vu
+7. Philippe Larose
+8. Mario Vaillancourt
+9. Grischa Tellenbach
+10. Dominique Soulard
+11. Dominic O'Brien
+12. Stéphane Tailleur
+
+Intermediate Singles
+1. Robert Creel
+2. Jean-François Bélanger
+3. Luka
+4. Félix-Antoine Guérard
+
+Open Doubles
+1. Robert Lavigne & Emmanuel Bouchard
+2. Eric Wulff & John Leys
+3. François Depatie Pelletier & Gilles Demers
+4. Patrick Asswad & Samuel Cloutier
+5. Luc Legault & Yves Archambault
+6. Dominique Soulard & Russel Arsenault
+7. Philippe Lessard & Grischa Tellenbach
+8. Mario Vaillancourt & Martin Côté
+9. Dominic O'Brien & Stéphane Tailleur
+10. Tuan Vu & Philippe Larose
+
+Intermediate Doubles
+1. Luka - Jean François Bélanger
+2. Robert Creel & Félix Antoine Guérard
+3. Francis Guimond & Stéphane Roy

@@ -1,0 +1,48 @@
+# 2003 Southeastern Regional Championships
+# Source: mirror/www.footbag.org/events/show/1044624680/index.html
+# Recovered 2026-03-09 — "Intermediate Big3" captured only 2/3 entries (3rd place
+# Nick Miller missing). "Open Big3" has no placements (source just says "Just don't ask").
+# Stage2 captured 22/24. All 24 recovered here.
+# Trick combos and prize money amounts stripped from names.
+# "4 Square" placed under "Novice Four Square" to preserve keyword detection.
+# event_id: 1044624680
+
+Open Shred 30
+1. Jon Schneider
+2. Alex Faber
+3. Andrew Coleman
+
+Open Sick Trick
+1. Jon Schneider
+2. Andrew Coleman
+3. Alex Faber
+
+Open Freestyle Routines
+1. Jon Schneider
+2. Andrew Coleman
+3. Alex Faber
+
+Intermediate Big 3
+1. Danny Iachini
+2. Danny Greer
+3. Nick Miller
+
+Intermediate Shred 30
+1. Danny Iachini
+2. Danny Greer
+3. Nick Miller
+
+Intermediate Freestyle Routines
+1. Ben Barrows
+2. Ben Scarborough
+3. Alex Heerman
+3. Tre Jones
+
+Novice Consecutive Kicks
+1. Scott Woodward
+2. Steven Pride
+3. James Walker
+
+Novice Four Square
+1. Mitch Carlsen
+2. Andy Silvy

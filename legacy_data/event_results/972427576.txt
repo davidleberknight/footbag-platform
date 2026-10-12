@@ -1,0 +1,87 @@
+# L'Hivernal Windchill Tournament 2001
+# Montreal, Quebec, Canada
+# Source: footbag.org mirror — "(City, Province)" format caused city/province to be parsed
+# as doubles partner in singles/freestyle divisions. Fixed 2026-03-18.
+# "T2." tied-place prefix not recognized by parser; missing p2 (Desgens/Kolodenchuk) restored.
+# Intermediate Doubles Net: only 1 team in source ("Joel Dion- Tim Melnyck").
+# Phat Combo Contest Winner (Yacine Merzouk) was missing from PBP; restored here.
+
+Intermediate Singles Net
+1. Tim Melnyck
+2. Jean-Philippe Rochefort
+3. Joel Dion
+3. Fabien Eggena
+5. Alexandre Belanger
+
+Intermediate Doubles Net
+1. Joel Dion & Tim Melnyck
+
+Open Singles Net
+1. Yves Archambault
+2. Martin Cote
+3. Chris Seibert
+4. Martin Graton
+5. Jean-Francois Lemieux
+6. Robert Lavigne
+7. Renaud Fanoni
+7. Mario Vaillancourt
+9. Stephane Comeau
+10. Marilyn Demuy
+11. Olivier Tronchon
+12. Philippe Larose
+13. Benjamin Rochon
+13. Eric Cote
+
+Open Doubles Net
+1. Sebastien Verdi & Emmanuel Bouchard
+2. Yves Archambault & Mario Vaillancourt
+3. Chris Seibert & Robert Lavigne
+4. Martin Cote & Martin Graton
+5. Jean-Francois Lemieux & Benjamin Rochon
+6. Marilyn Demuy & Renaud Fanoni
+7. Philippe Larose & Stephane Comeau
+7. Jean-Philippe Rochefort & Olivier Tronchon
+
+Routines Intermediate Freestyle
+1. Hugues Veillette
+2. Sebastien Desgens
+2. Simon Kolodenchuk
+4. Gabriel Gaudette
+5. Joel Dion
+6. Antonin Leclair
+7. Marilou Ouimet
+8. Adam Pirog
+9. Caroline Bourgoin
+10. Marc-Andre Veillette
+11. Francois Perreault
+12. Luce Gaudette
+
+Routines Open Freestyle
+1. Yacine Merzouk
+2. Kavin Thiffault
+3. Sebastien Duchesne
+4. Samuel Jobin
+5. Danny Cardonne
+
+Shred Contest
+1. Yacine Merzouk
+2. Sebastien Duchesne
+3. Kavin Thiffault
+4. Samuel Jobin
+5. Gabriel Gaudette
+6. Mark Edward Leeman
+7. Danny Cardonne
+8. Marc-Andre Veillette
+9. Sebastien Desgens
+10. Diego La Manna
+11. Hugues Veillette
+12. Antonin Leclair
+13. Luce Gaudette
+14. Adam Pirog
+15. Francois Perreault
+
+Phat Trick Contest
+1. Gabriel Gaudette
+
+Phat Combo Contest
+1. Yacine Merzouk

@@ -1,0 +1,17 @@
+# Footbag Finnish Open 2024 - Singles Net
+# Source: mirror/www.footbag.org/events/show/1745686591/index.html
+# Recovered 2026-03-09 — "1st round, Round Robin (to 25 points total) total points"
+# line parsed as a placement by stage2 (starts with "1"), adding garbage row.
+# "5-6" header also incorrectly counted by audit as placement.
+# Stage2 captured 7/6 (1 garbage row extra). 6 real placements here.
+# Soft hyphens (U+00AD) removed from Finnish names.
+# event_id: 1745686591
+
+Open Singles Net
+1. Matti Pohjola
+2. Tuomas Karki
+3. Mon Thike
+4. Tuomas Riisalo
+5. Santeri Karvinen
+6. Joona Koistinen
+

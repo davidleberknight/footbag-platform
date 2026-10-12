@@ -1,0 +1,47 @@
+# ShrEdmonton Freestyle Assembly 2008
+# Source: mirror/www.footbag.org/events/show/1208408135/index.html
+# Recovered 2026-03-09 — audit tool saw 23 rows as single unlabelled division.
+# Stage2 only captured 16/23 (missed Glow Four Square and Animation Challenge).
+# Division headers had no colons; "Glow Square Tournament" and "planetfootbag
+# animation challenge" contain no DIVISION_KEYWORDS. Renamed with freestyle/shred
+# prefixes and "Four Square" form to satisfy stage2 _has_division_keyword().
+# event_id: 1208408135
+
+Open Shred 30
+1. Andrew Grant
+2. Rory Dawson
+3. Byrin Wylie
+
+Open Sick 3
+1. Byrin Wylie
+2. Andrew Grant
+
+Open Sick Trick
+1. Byrin Wylie
+2. Andrew Grant
+3. Rory Dawson
+
+Intermediate Shred 30
+1. Manna Mpepo
+2. Denton Louis
+3. Kyle Warren
+
+Intermediate Sick 3
+1. Manna Mpepo
+2. Denton Louis
+3. Kyle Warren
+
+Intermediate Sick Trick
+1. Manna Mpepo
+2. Kyle Warren
+3. Denton Louis
+
+Open Glow Four Square
+1. Kevin Regamey
+2. Rory Dawson
+3. Manna Mpepo
+
+Open Animation Freestyle
+1. Kyle Warren
+2. Denton Louis
+3. Rory Dawson

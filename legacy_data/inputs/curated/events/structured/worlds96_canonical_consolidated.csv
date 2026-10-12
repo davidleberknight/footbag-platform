@@ -40,7 +40,7 @@ event_name,year,location,category,division,place,player_1,player_2,score,notes
 1996 World Footbag Championships,1996,"Montreal, Quebec, Canada",FREESTYLE,Women's Open Singles Routines,2,Carol Wedemeyer,,,
 1996 World Footbag Championships,1996,"Montreal, Quebec, Canada",FREESTYLE,Women's Open Singles Routines,3,Kendall Kic,,,
 1996 World Footbag Championships,1996,"Montreal, Quebec, Canada",FREESTYLE,Women's Open Singles Routines,4,Becca English-Ross,,,
-1996 World Footbag Championships,1996,"Montreal, Quebec, Canada",FREESTYLE,Mixed Doubles (non-official event),1,Sam Conlon,Steve Goldberg,,non-official event
+1996 World Footbag Championships,1996,"Montreal, Quebec, Canada",FREESTYLE,Mixed Doubles Freestyle Non-Official Event,1,Sam Conlon,Steve Goldberg,,"non-official event; source heading 'Mixed Doubles (non-official event)' in the FREESTYLE category, written without parentheses and with its category so it stays a separate freestyle division from the official net Mixed Doubles"
 1996 World Footbag Championships,1996,"Montreal, Quebec, Canada",FREESTYLE,Women's Open Team Routines,1,Lisa McDaniel,Sam Conlon,,
 1996 World Footbag Championships,1996,"Montreal, Quebec, Canada",FREESTYLE,Women's Open Team Routines,2,Carol Wedemeyer,Lisa Monti,,
 1996 World Footbag Championships,1996,"Montreal, Quebec, Canada",FREESTYLE,Women's Open Team Routines,3,Becca English-Ross,Kendall Kic,,
@@ -81,7 +81,7 @@ event_name,year,location,category,division,place,player_1,player_2,score,notes
 1996 World Footbag Championships,1996,"Montreal, Quebec, Canada",NET,Open Doubles,2,Kenny Shults,Randy Mulder,,
 1996 World Footbag Championships,1996,"Montreal, Quebec, Canada",NET,Open Doubles,3,Alf Marcussen,Brent Welch,,
 1996 World Footbag Championships,1996,"Montreal, Quebec, Canada",NET,Open Doubles,4,Andrew Ronald,Dany Borsky,,
-1996 World Footbag Championships,1996,"Montreal, Quebec, Canada",TEAM,Team Points,1,Illinois Footbag League,,,8087 points
+1996 World Footbag Championships,1996,"Montreal, Quebec, Canada",TEAM,Team Points,1,Illinois Footbag League,,8087,points
 1996 World Footbag Championships,1996,"Montreal, Quebec, Canada",TEAM,Team Points,2,Bay Area Footbag League,,,
 1996 World Footbag Championships,1996,"Montreal, Quebec, Canada",TEAM,Team Points,3,Kitsilano Kickers,,,
 1996 World Footbag Championships,1996,"Montreal, Quebec, Canada",TEAM,Team Points,4,DC All Stars,,,

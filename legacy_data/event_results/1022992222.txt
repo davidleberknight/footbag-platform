@@ -1,0 +1,20 @@
+# Shred Zero Summer Open 2002
+# Source: mirror/www.footbag.org/events/show/1022992222/index.html
+# Recovered 2026-03-09 — "Big 3" division lacks keyword; stage2 captured 6/7.
+# "Big 3" section had only 1 entrant. "1st:" ordinal-colon format already handled
+# by stage2 for the Shred 30 sections. Added "Open Sick 3" for the Big 3.
+# event_id: 1022992222
+
+Intermediate Shred 30
+1. Chris Gregory
+2. Jamie Lloyd
+3. Brian Johnson
+
+Open Shred 30
+1. Jeff Lopes
+2. Derek Vandall
+3. Erik Chan
+
+Open Sick 3
+1. Jamie Lloyd
+

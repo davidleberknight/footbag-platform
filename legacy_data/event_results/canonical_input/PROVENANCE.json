@@ -7,15 +7,15 @@
     "persons.csv"
   ],
   "produced_by": {
-    "fingerprint": "sha256:9e2a8b0d842c2a34e241d50649310da31aca8c8e0888572c5b33e623ee5a091b",
+    "fingerprint": "sha256:b93ca9980be435e1b970993e741db07c9ce822da65f134ee065cac8929c3d859",
     "generators": {
-      "pipeline/platform/export_canonical_platform.py": "ae529dc3e4524303c6eeabf02cb5633b8202d776c6f24438bab1b0916cd62d31",
+      "pipeline/platform/export_canonical_platform.py": "002dd9c40cb71c6b9a67f92a00c163630028ecf5f6ad50f2ea9937912520ba0d",
       "pipeline/platform/output_set.py": "cd32cc99753c08c3540c53237f9f752ed7c4e76c7c1db9bd14d36530c0cce5c3",
       "pipeline/platform/build_platform_exports.py": "b11cdcc1cb8970793d416bde156392d4634f9e443d24d4c09461484e8c0184ae",
-      "pipeline/historical/export_historical_csvs.py": "f401fec6dd8ca75750842a85db9eca5d5e455c55b2976d1a52f816cbc265c84a",
-      "pipeline/05p5_remediate_canonical.py": "d0b47e18a3a6094715999f3266101657d3fd1ca4c36ed2ac83d05f4ad4509c01"
+      "pipeline/historical/export_historical_csvs.py": "2727881836ae1bd725ed0854132fb1be3c2427aa3863a896f2b7c1a914451843",
+      "pipeline/05p5_remediate_canonical.py": "42c521a3c4833083156a97b152da0fa523b705bd268c6874fd394963e40754dd"
     },
-    "regenerated_at": "2026-10-09",
-    "commit": "d83c73cf"
+    "regenerated_at": "2026-10-11",
+    "commit": "edc0a943"
   }
 }

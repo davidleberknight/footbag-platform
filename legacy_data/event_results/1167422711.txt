@@ -1,0 +1,22 @@
+# '07 Southeastern Net Championships
+# Source: mirror/www.footbag.org/events/show/1167422711/index.html
+# Recovered 2026-03-09 — all 9 entries in one unnumbered list with no division header;
+# stage2 inferred division from event name. "*open champs" and "*intermediate champs"
+# annotations on entries 1 and 9. Stage2 captured 7/9 (entries 8-9 missing).
+# Possible cause: "sam conlon/tina lewis" or "robert creel/chris" (incomplete last name).
+# All 9 recovered here. "chris" only has first name — used as-is (source-limited).
+# All entries are Open Doubles Net (entry 9 "robert creel/chris" is the intermediate
+# champion who played in the open bracket and finished 9th overall).
+# "/" replaced with " & ".
+# event_id: 1167422711
+
+Open Doubles Net
+1. Cory Current & John Leys
+2. Mike McCarthy & Jeremy Mirken
+3. Tommy Carls & Ken Hamric
+4. Ben Alston & Walt Houston
+5. Elliott Johns & Ben Valentine
+6. Alex Grammer & Emily Johns
+7. David Pollen & Mike Williams
+8. Sam Conlon & Tina Lewis
+9. Robert Creel & Chris

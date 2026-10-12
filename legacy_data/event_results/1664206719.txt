@@ -1,0 +1,50 @@
+# 2023 US Open Footbag Championships
+# Source: mirror/www.footbag.org/events/show/1664206719/index.html
+# Recovered 2026-03-10 — 2v2 results used consecutive-line format (Name1\nName2)
+# which the parser treats as individual placements, missing all doubles partners.
+# Antoine The Rocks-Godin (p5 Open Singles Net) was also missing from stage2 parse.
+# event_id: 1664206719
+
+Open Singles Net
+1. Luka Weyler-Lavallée
+2. Chris Siebert
+3. Daniel Greer
+4. Jim Hogan
+5. Antoine The Rocks-Godin
+6. Anthony Ritz
+7. Mark Hunsbuger
+8. Rob McCloskey
+9. Sammy Hogan
+
+Open Doubles Net
+1. Luka Weyler-Lavallée & Emmanuel Bouchard
+2. Daniel Greer & Anthony Ritz
+3. Chris Siebert & Rob McCloskey
+4. Léa Lespérance & Antoine The Rocks-Godin
+5. Mark Hunsbuger & Jim Hogan
+
+Intermediate Singles Net
+1. Lyric Ester
+2. Dan Johnson
+3. Benjamin Babiak
+4. Kyle
+
+Intermediate Doubles Net
+1. Benjamin Babiak & Joe
+2. Kyle & Lyric Ester
+
+Circle Contest
+1. Mathew Kemmer
+2. Kevin Hogan
+3. Peter Bowler
+4. Josh Gayhart
+
+Open Routines
+1. Brian Sherrill
+2. Christian Britting
+3. Kevin Hogan
+4. Benjamin Barrows
+
+Intermediate Routines
+1. Ken Moller
+2. Lyric Ester

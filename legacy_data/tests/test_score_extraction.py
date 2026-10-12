@@ -62,3 +62,59 @@ def test_discipline_gate_matches_consecutive_keys_only():
         assert se.CONSECUTIVE_DISCIPLINE_RE.search(key)
     for key in ("open_singles_net", "intermediate_routines", "open_singles_golf"):
         assert not se.CONSECUTIVE_DISCIPLINE_RE.search(key)
+
+
+def test_curated_scores_keep_their_unit():
+    # Defect caught: a golf total or overall points shown as a bare number a
+    # visitor would read as kicks, or a kick count gaining a stray unit.
+    assert se.curated_score_text("open_5_min_speed_consecutives", "Sean Flynn - 799") == "799"
+    assert se.curated_score_text("open_footbag_golf", "Davie Piper - 173") == "173 strokes"
+    assert se.curated_score_text("open_overall", "Allan Petersen - 947") == "947 points"
+
+
+def test_a_third_team_member_is_recovered_from_a_curated_entry():
+    # Defect caught: a three-person team published with only two members.
+    assert se.curated_extra_team_members(
+        "Scott Cleere / Bill Bethurum / Randy Nelson", "Scott Cleere", "Bill Bethurum"
+    ) == ["Randy Nelson"]
+
+
+def test_a_four_person_team_keeps_both_additional_members():
+    # Defect caught: the third and fourth members of a sourced four-person team
+    # dropped.
+    assert se.curated_extra_team_members(
+        "Greg Cortopassi / Mag Hughes / Gary Lautt / Jim Caveney", "Greg Cortopassi", "Mag Hughes"
+    ) == ["Gary Lautt", "Jim Caveney"]
+
+
+def test_no_extra_member_unless_the_entry_really_names_them_after_the_kept_pair():
+    # Defect caught: a pair, an entry stage 2 split differently, or a garbled
+    # line of first names gaining invented team members.
+    assert se.curated_extra_team_members("A One / B Two", "A One", "B Two") == []
+    assert se.curated_extra_team_members(
+        "A One / B Two / C Three", "A One", "Somebody Else") == []
+    assert se.curated_extra_team_members(
+        "Sandro / Thorsten, Ole / Hannes, Fine", "Sandro", "Thorsten") == []
+
+
+def test_a_world_record_count_is_read_through_its_designation():
+    # Defect caught: a record-setting run losing its kick count because the
+    # designation sits between the name and the number.
+    assert se.curated_score_text("womens_singles_consecutive_kicks",
+                                 "Tricia George [World Record] - 12838") == "12838"
+    assert se.WORLD_RECORD_RE.search("Tricia George [World Record] - 12838")
+    assert not se.WORLD_RECORD_RE.search("Constance Constable")
+
+
+def test_team_points_and_distance_counts_keep_their_meaning():
+    # Defect caught: a club's team-points total dropped, or shown as a bare
+    # number a visitor would read as kicks; a distance one-pass kick count dropped.
+    assert se.curated_score_text("team_points", "Illinois Footbag League [Club Standing] - 8087") == "8087 points"
+    assert se.curated_score_text("open_doubles_distance_one_pass", "Brent Welch / Alf Marcussen - 246") == "246"
+
+
+def test_curated_score_needs_a_scoring_discipline_and_a_number():
+    # Defect caught: a net result's trailing point total surfacing as a score,
+    # or an unscored result gaining one.
+    assert se.curated_score_text("open_singles_footbag_net", "Randy Mulder - 15") == ""
+    assert se.curated_score_text("open_footbag_golf", "Davie Piper") == ""

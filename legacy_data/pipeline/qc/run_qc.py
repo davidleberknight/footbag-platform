@@ -471,6 +471,13 @@ def check_event_result_participants(
         .size()
         .reset_index(name="_participant_count")
     )
+    # A curated team of three or more carries its members beyond the two a doubles
+    # slot holds marked as additional; such a slot is one valid team.
+    marked_additional: dict = {}
+    if "notes" in participants.columns:
+        _marked = participants[participants["notes"].astype(str).str.contains("additional_team_member", na=False)]
+        for (_ek, _dk, _pl), _n in _marked.groupby(["event_key", "discipline_key", "placement"]).size().items():
+            marked_additional[(str(_ek).strip(), str(_dk).strip(), str(_pl).strip())] = int(_n)
 
     singles_shared_place_count = 0
     for _, row in grouped.iterrows():
@@ -481,7 +488,8 @@ def check_event_result_participants(
         if team_type == "singles" and n != 1:
             # Shared-place in singles: ties or pool-play. Aggregated to one INFO summary.
             singles_shared_place_count += 1
-        elif team_type == "doubles" and n != 2:
+        elif team_type == "doubles" and (
+                n - marked_additional.get(key + (str(row["placement"]).strip(),), 0)) != 2:
             collector.hard(
                 "invalid_doubles_participant_count",
                 f"Doubles result has {n} participants; expected 2",

@@ -1,0 +1,270 @@
+# 1999 World Footbag Championships — Full Results
+# Source: http://www.footbag.org/worlds99/results/results.html
+# Recovered 2026-03-07 by pipeline tools/36 / direct HTTP fetch
+# Event: Chicago, IL — August 1999
+# event_id: 915561090
+
+Open Singles Net
+1. Emmanuel Bouchard
+2. Randy Mulder
+3. Peter Shunny
+4. Bruce Guettich
+5. Steve Smith
+6. Robert Lavigne
+7. Jake Leong
+8. Sebastien Verdy
+9. Allen Petersen
+10. Yves Archambault
+11. Chris Siebert
+12. David Butcher
+13. Alexis Deschenes
+14. Hung Chang
+15. Jim Caveney
+16. Yossarian Kelley
+17. Rob Adams
+18. Bob Nicholson
+19. Jeff Bowling
+20. Jason Langis
+21. Vince Bradley
+22. Tuomas Karki
+23. Jukka Peltola
+24. Cory Current
+25. Jim Hankins
+25. James Roberts
+27. Jesse Fryckman
+28. Pierre Jacques Daigle
+29. Greg Durrett
+29. Christopher Young
+31. Jon Hayduk
+31. Jesse Ruotsalainen
+31. Jerry Vigil
+34. Jamie H. Lepley
+35. Thomas Bergamasco
+36. Aaron Dean
+37. Edwin Veltman
+38. Mike Bellman
+39. Matthew Quint
+40. Olli Savolainen
+40. Mike Voightmann
+42. Garth Smith
+43. Bryan Nelson
+44. Scot Hansen
+
+Women's Singles Net
+1. Tricia George
+2. Lisa McDaniel
+3. Julie Symons
+4. Genevieve Bousquet
+5. Tina Lewis
+6. Amy Westberg
+7. Ann Lasken
+8. Kelly Kelley
+9. Marilyn Demuy
+9. Maude Landreville
+
+Women's Doubles Net
+1. Julie Symons & Jody Welch
+2. Tricia George & Lisa McDaniel
+3. Genevieve Bousquet & Amy Westberg
+4. Tina Lewis & Ann Lasken
+
+Open Doubles Net
+1. Emmanuel Bouchard & Sebastien Verdy
+2. Randy Mulder & Kenny Shults
+3. David Butcher & Brent Welch
+4. Peter Shunny & Allen Petersen
+5. Alexis Deschenes & Yossarian Kelley
+6. Jake Leong & Andrew Ronald
+7. Rob Adams & Yves Archambault
+8. Patrick Asswad & Andrew Morgan
+9. Chris Siebert & Jason Langis
+10. Robert Lavigne & Hung Chang
+11. Bruce Guettich & Jim Caveney
+12. Steve Smith & James Harley
+13. Tuomas Karki & Jesse Fryckman
+14. Will Guyette & Patrick Keehan
+15. Greg Durrett & Jon Hayduk
+16. Mike Voightmann & Steve Goldberg
+17. Jeff Bowling & Vince Bradley
+18. James Roberts & Jerry Vigil
+19. Jamie H. Lepley & Garth Smith
+20. Aaron Dean & Mike Bellman
+21. Jim Hankins & Thomas Bergamasco
+22. Pierre Jacques Daigle & Iain McKechnie
+23. Cory Current & Matthew Quint
+24. Christopher Young & Edwin Veltman
+25. Jukka Peltola & Justin Sexton
+26. Jesse Ruotsalainen & Olli Savolainen
+27. Bryan Nelson & Scot Hansen
+
+Open Singles Freestyle
+1. Scott Davidson
+2. Ryan Mulroney
+3. Rick Reese
+4. Peter Irish
+5. Tuan Vu
+6. Greg Nelson
+7. Eric Wulff
+8. Sunil Jani
+9. Jonathan Schneider
+9. Ilkka Malin
+9. Daryl Genz
+9. Derrick Fogle
+9. Justin Sexton
+9. James Roberts
+9. Juho Vesa
+9. Tu Vu
+17. Chard Cook
+17. Frank Gutowski
+17. Joshua Penney
+17. Matt Strong
+17. James L. Widman
+
+Women's Singles Freestyle
+1. Sam Conlon
+2. Carol Wedemeyer
+3. Tricia George
+4. Melissa Schneider
+5. Jane Jones
+6. Valeria Davidson
+
+Mixed Doubles Net
+1. Sebastien Verdy & Tricia George
+2. Alexis Deschenes & Julie Symons
+3. Emmanuel Bouchard & Amy Westberg
+4. Brent Welch & Jody Welch
+5. David Butcher & Tina Lewis
+5. Patrick Asswad & Genevieve Bousquet
+7. Yves Archambault & Marilyn Demuy
+7. Chris Siebert & Alison Smith
+7. Jason Langis & Ann Lasken
+7. Yossarian Kelley & Lonya Julin
+7. Robert Lavigne & Maude Landreville
+7. Paul T. Lovern & Lisa McDaniel
+
+Open Doubles Freestyle
+1. Tuan Vu & Eric Wulff
+2. Rick Reese & Daryl Genz
+3. Lisa McDaniel & Sam Conlon
+4. Peter Irish & Greg Nelson
+5. James Roberts & Tu Vu
+
+Mixed Doubles Freestyle
+1. Lisa McDaniel & Greg Nelson
+2. Sam Conlon & Daryl Genz
+
+Women's Timed Consecutives
+1. Tricia George
+2. Sam Conlon
+3. Jody Welch
+4. Tina Lewis
+5. Kelly Kelley
+6. Melissa Schneider
+
+Open Doubles Distance One-Pass
+1. Yves Archambault & Andrew Ronald
+2. Alexis Deschenes & Yossarian Kelley
+3. Jim Caveney & Bruce Guettich
+4. David Butcher & Brent Welch
+5. Peter Shunny & Allen Petersen
+6. Steve Smith & Chris Siebert
+7. Chard Cook & Jon Hayduk
+8. James Roberts & Jerry Vigil
+
+Open Timed Consecutives
+1. Derrick Fogle
+2. Peter Shunny
+3. Steve Smith
+4. Marc Inzinger
+5. Chard Cook
+6. James Roberts
+7. Matt Strong
+8. Mark DeFilippo
+9. Bob Green
+10. Steve Richardson
+11. James L. Widman
+12. Jim Pomey
+
+Open Golf
+1. Steve Smith
+2. Allen Petersen
+3. Jamie H. Lepley
+4. James Roberts
+5. Larry Doyle
+6. Bruce Guettich
+7. Garth Smith
+7. Chard Cook
+9. Mark DeFilippo
+10. Matt Strong
+11. James L. Widman
+12. Peter Shunny
+13. Greg Durrett
+
+Women's Doubles Distance One-Pass
+1. Jody Welch & Julie Symons
+2. Lisa McDaniel & Tricia George
+3. Genevieve Bousquet & Marilyn Demuy
+4. Tina Lewis & Kelly Kelley
+
+Women's Golf
+1. Tricia George
+2. Tina Lewis
+3. Valeria Davidson
+4. Kelly Kelley
+
+Intermediate Singles Net
+1. Kyle Baird
+2. Anthony Raymond Intemann
+3. Jason Stover
+4. Derrick Fogle
+5. Mike Rex Stoler
+6. Kern McNutt
+7. Mark DeFilippo
+8. Brad Smith
+9. Varvel Josh
+9. Sam Gregory
+9. Gordon Gilges
+9. Carolyn Cruz
+9. Matt Churney
+9. Brett Bennett
+9. Antti Lehtovirta
+9. Jack Lentz
+9. Yacine Merzouk
+9. Tim Peters
+9. Jim Pomey
+9. Steve Richardson
+9. Ariel Santesteban
+
+Intermediate Singles Freestyle
+1. Alex Zerbe
+2. Marc Inzinger
+3. Brad Kaplan
+4. Antti Lehtovirta
+5. Cameron Kennedy
+6. Ken Somolinos
+7. Canyon Hart
+8. Zeke Ibardaloza
+9. Jon Nagela
+10. Matt Churney
+10. Ian Dubman
+10. Anthony Glick
+10. Bob Green
+10. Andrew Hires
+10. Dan Klokow
+10. Yacine Merzouk
+10. Neil Payne
+10. Chris Zagars
+
+Intermediate Doubles Net
+1. Mike Rex Stoler & Sam Gregory
+2. Anthony Raymond Intemann & Daniel Kramer
+3. Kyle Baird & Varvel Josh
+4. Jason Stover & Tim Peters
+5. Kern McNutt & Gordon Gilges
+6. Ariel Santesteban & Alison Smith
+
+Intermediate Golf
+1. Brad Smith
+2. Alex Smith
+3. Jim Pomey
+4. Steve Richardson

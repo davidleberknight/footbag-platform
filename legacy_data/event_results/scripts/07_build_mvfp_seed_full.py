@@ -448,7 +448,10 @@ def main() -> None:
     # canonical is "Renatto Zülli") were getting a uuid5 stub and a new
     # persons row, producing duplicate person rows in the DB.
 
-    missing_mask = event_result_participants["person_id"].str.strip().eq("")
+    # A club's standing is shown by name and never becomes a person, so it is kept
+    # out of both passes.
+    club_mask = event_result_participants["notes"].fillna("").str.contains("club_standing")
+    missing_mask = event_result_participants["person_id"].str.strip().eq("") & ~club_mask
     n_missing = int(missing_mask.sum())
 
     if n_missing:
@@ -466,7 +469,7 @@ def main() -> None:
                     n_alias_resolved += 1
 
         # Recompute missing AFTER alias resolution
-        missing_mask = event_result_participants["person_id"].str.strip().eq("")
+        missing_mask = event_result_participants["person_id"].str.strip().eq("") & ~club_mask
         n_still_missing = int(missing_mask.sum())
 
         # PASS 1: UUID5 stub (only for what's still missing)
@@ -554,6 +557,15 @@ def main() -> None:
         ]
     ].copy()
 
+    # An aggregate standing ranks competitors over an event's contests; a cross-sport
+    # one has no sport family. Older canonical sets predate the column: none of
+    # their disciplines is marked.
+    if "is_aggregate_standing" not in event_disciplines.columns:
+        event_disciplines["is_aggregate_standing"] = "0"
+    event_disciplines["is_aggregate_standing"] = (
+        event_disciplines["is_aggregate_standing"].fillna("").astype(str).str.strip()
+        .replace("", "0"))
+
     seed_event_disciplines = event_disciplines[
         [
             "event_key",
@@ -564,6 +576,7 @@ def main() -> None:
             "sort_order",
             "coverage_flag",
             "notes",
+            "is_aggregate_standing",
         ]
     ].copy()
 

@@ -102,10 +102,12 @@ export interface PublicEventDiscipline {
   disciplineId: string;
   eventId: string;
   name: string;
-  disciplineCategory: string;
+  /** null only on an aggregate standing that spans several sports. */
+  disciplineCategory: string | null;
   teamType: string;
   teamTypeLabel: string | null;
   sortOrder: number;
+  isAggregateStanding: boolean;
 }
 
 export interface PublicEventResultParticipant {
@@ -125,6 +127,7 @@ export interface PublicResultSection {
   disciplineName: string | null;
   disciplineCategory: string | null;
   teamType: string | null;
+  isAggregateStanding: boolean;
   placements: PublicResultPlacement[];
 }
 
@@ -272,6 +275,7 @@ function toPublicEventDiscipline(row: PublicEventDisciplineRow): PublicEventDisc
     teamType: row.team_type,
     teamTypeLabel: toTeamTypeLabel(row.team_type),
     sortOrder: row.sort_order,
+    isAggregateStanding: row.is_aggregate_standing === 1,
   };
 }
 
@@ -316,8 +320,14 @@ const DIVISION_PRIORITY_RULES: Array<{ patterns: Array<string | RegExp>; priorit
 const WOMEN_MARKERS = ['women', 'woman', 'ladies', 'girl'];
 const MEN_MARKERS = ["men's", 'mens', ' men', "man's", 'gents'];
 
-function disciplineSortKey(category: string | null, name: string | null): [number, number, string] {
-  const catPriority = DISCIPLINE_CATEGORY_PRIORITY[category ?? ''] ?? 5;
+// An aggregate standing ranks competitors over the event's contests, so it follows
+// every contested discipline, including one whose category is unrecognised (5).
+const AGGREGATE_STANDING_PRIORITY = 6;
+
+function disciplineSortKey(category: string | null, name: string | null, isAggregateStanding: boolean): [number, number, string] {
+  const catPriority = isAggregateStanding
+    ? AGGREGATE_STANDING_PRIORITY
+    : DISCIPLINE_CATEGORY_PRIORITY[category ?? ''] ?? 5;
   const lower = (name ?? '').toLowerCase();
   let divPriority = 8; // unmatched = last
   for (const rule of DIVISION_PRIORITY_RULES) {
@@ -345,6 +355,7 @@ function groupPublicResultRows(resultRows: PublicEventResultRow[]): PublicResult
     disciplineName: string | null;
     disciplineCategory: string | null;
     teamType: string | null;
+    isAggregateStanding: boolean;
     placements: MutablePlacement[];
     placementsByResultEntryId: Map<string, MutablePlacement>;
   };
@@ -367,6 +378,7 @@ function groupPublicResultRows(resultRows: PublicEventResultRow[]): PublicResult
         disciplineName: row.discipline_name,
         disciplineCategory: row.discipline_category,
         teamType: row.team_type,
+        isAggregateStanding: row.discipline_is_aggregate_standing === 1,
         placements: [],
         placementsByResultEntryId: new Map<string, MutablePlacement>(),
       };
@@ -402,12 +414,13 @@ function groupPublicResultRows(resultRows: PublicEventResultRow[]): PublicResult
     disciplineName: section.disciplineName,
     disciplineCategory: section.disciplineCategory,
     teamType: section.teamType,
+    isAggregateStanding: section.isAggregateStanding,
     placements: section.placements,
   }));
 
   mapped.sort((a, b) => {
-    const [aCat, aDiv, aName] = disciplineSortKey(a.disciplineCategory, a.disciplineName);
-    const [bCat, bDiv, bName] = disciplineSortKey(b.disciplineCategory, b.disciplineName);
+    const [aCat, aDiv, aName] = disciplineSortKey(a.disciplineCategory, a.disciplineName, a.isAggregateStanding);
+    const [bCat, bDiv, bName] = disciplineSortKey(b.disciplineCategory, b.disciplineName, b.isAggregateStanding);
     return aCat - bCat || aDiv - bDiv || aName.localeCompare(bName);
   });
 
@@ -474,8 +487,8 @@ function toPublicEventPage(
   return {
     event: toPublicEvent(eventRow),
     disciplines: disciplineRows.map(toPublicEventDiscipline).sort((a, b) => {
-      const [aCat, aDiv, aName] = disciplineSortKey(a.disciplineCategory, a.name);
-      const [bCat, bDiv, bName] = disciplineSortKey(b.disciplineCategory, b.name);
+      const [aCat, aDiv, aName] = disciplineSortKey(a.disciplineCategory, a.name, a.isAggregateStanding);
+      const [bCat, bDiv, bName] = disciplineSortKey(b.disciplineCategory, b.name, b.isAggregateStanding);
       return aCat - bCat || aDiv - bDiv || aName.localeCompare(bName);
     }),
     hasResults,

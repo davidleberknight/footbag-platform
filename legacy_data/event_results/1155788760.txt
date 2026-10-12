@@ -1,0 +1,29 @@
+# 2006 Southeast Regionals (Nashville)
+# Source: mirror/www.footbag.org/events/show/1155788760/index.html
+# Recovered 2026-03-09 — "sick 3" only captured 2/5 entries; entries 3-5 had trick
+# combo annotations (">"-separated) that caused clean_player_name to strip the name.
+# Stage2 captured 12/15. All 15 recovered here with trick combos removed.
+# "/" doubles separator replaced with " & ". Scores stripped from Shred 30.
+# "brain dennis" = likely typo for "Brian Dennis" (source all lowercase).
+# event_id: 1155788760
+
+Net Doubles
+1. Cory Current & Yves Archambault
+2. Ken Hamric & Ben Alston
+3. Elliott & Emily Johns
+4. Mike McCarthy & Alex Grammer
+5. Lani Rector & Ben Valentine
+
+Shred 30
+1. Lee Sickle
+2. Ben Barrows
+3. Alex Heerman
+4. Brian Dennis
+5. Dustin Yanofsky
+
+Sick 3
+1. Trey Lykins
+2. Lee Sickle
+3. Ben Barrows
+4. Brian Dennis
+5. Dustin Yanofsky

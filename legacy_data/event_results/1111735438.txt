@@ -1,0 +1,37 @@
+# Greater Rochester Area Shred Symposium and RIT Juggle-IN 2005
+# Source: mirror/www.footbag.org/events/show/1111735438/index.html
+# Recovered 2026-03-09 — mirror has "Intermediate" and "Open" section headers
+# (no colons) followed by bare division names ("Sick 3", "Shred 30", "Routines").
+# Stage2 treated bare sections as the same division across both levels, partially
+# deduplicating entries. Ordinal "1st:"/1st format present but trick combos after
+# names add noise. Stage2 captured 12/18. All 18 recovered here.
+# event_id: 1111735438
+
+Intermediate Sick 3
+1. Will Digges
+2. Nate Allison
+
+Intermediate Shred 30
+1. Nathan Pipenburg
+2. Josiah Digges
+3. Tom Mosher
+
+Intermediate Routines
+1. Will Digges
+2. Josiah Digges
+3. Paul Taylor
+
+Open Sick 3
+1. Jon Schnieder
+2. Jorden Moir
+3. Nick Laroche
+
+Open Shred 30
+1. Jorden Moir
+2. Jon Schnieder
+3. Gordon Bevier
+
+Open Routines
+1. Gordon Bevier
+2. Jorden Moir
+3. Jon Schnieder

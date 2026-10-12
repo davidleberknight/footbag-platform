@@ -1,0 +1,382 @@
+# event_id: 1269266785
+# 2010 12th Annual IFPA European Footbag Championships - Brussels
+# Source: mirror "Manually Entered Results" section (final standings only)
+
+Open Singles Freestyle
+
+1	David Clavens
+2	Jan Weber
+3	Milan Benda
+4	Damian Gielnicki
+5	Vaclav Klouda
+6	Jakob Wagner
+7	Anssi Sundberg
+8	Christopher Schillem
+9	Rene Ruhr
+9	Michal Biarda
+9	Tuukka Antikainen
+9	Mateusz Janicki
+13	Alexander Trenner
+13	Michal Minar
+13	Jindra Smola
+13	Wiktor Debski
+17	Christoph Larndorfer
+17	Jakub Grabarczyk
+17	Arthur Ledain
+17	David Castillo Tibocha
+21	Tuomas Risalo
+21	Silwan Daouk
+
+
+Women Singles Freestyle
+
+1	Tina Aeberli
+2	Jana Sassakova
+3	Paloma Mayo
+4	Dorota Wojtasiuk
+5	Gosia Nycz
+6	Katharina Probst
+
+
+Open Doubles Freestyle
+
+1	Martin Sladek / Tomas Tucek
+2	Damian Gielnicki / Jakub Grabarczyk
+3	Mateusz Janicki / Szymon Kalwak
+
+
+Mixed Doubles Freestyle
+
+1	Gosia Nycz / Wiktor Debski
+2	Dorota Wojtasiuk / Jakub Grabarczyk
+3	Hanna Mickiewicz / Szymon Kalwak
+
+
+Circle Contest
+
+1	David Clavens
+2	Damian Gielnicki
+3	Milan Benda
+4	Tuukka Antikainen
+5	Daniel Spacil
+5	Paul Cronjaeger
+5	Lauri Airinen
+5	Santeri Karvinen
+9	Anssi Sundberg
+9	Wiktor Debski
+9	Tuomas Riisalo
+9	Christopher Schillum
+13	Mateusz Janicki
+13	Matthias Schmidt
+15	Jakob Wagner
+15	Yves Kreil
+17	Michal Biarda
+17	Michal Minar
+17	Alexander Trenner
+17	Arthur Ledain
+17	Jindra Smola
+22	Christoph Larndorfer
+22	Matt Bailey
+22	Rene Ruhr
+22	David Castillo Tibocha
+22	Jakub Grabarczyk
+27	Julien Romiti
+27	Marco Hartig
+27	Silwan Daouk
+
+
+Shred 30
+
+1	Milan Benda		276
+2	David Clavens		261.70
+3	Damian Gielnicki	252
+4	Tuukka Antikainen	208.43
+5	Daniel Spacil		193.14
+6	Anssi Sundberg		178.5
+7	Mateusz Janicki		176.4
+8	Jindra Smola		172.77
+9	Santeri Karvinen	171.21
+10	Tuomas Risalo		170.68
+11	Wiktor Dębski		163.2
+12	Christopher Schillem	157.24
+13	Jakub Grabarczyk	150.16
+14	Alex Trenner		140.24
+15	Michal Minar 		123
+16	Christopher Larndorfer	122.89
+17	David Castillo Tibocha	94.24
+18	Michał Biarda		82.96
+
+
+Request Contest
+
+1	David Clavens
+2	Milan Benda
+3	Mateusz Janicki
+4	Michal Minar
+4	Tuomas Riisalo
+
+
+Sick 3
+
+1	Milan Benda		Frontside Blaze > Backside Fusion > PS Torque
+2	David Clavens		Nemesis > PS Whirling Swirl > Spinning Blender
+3	Damian Gielnicki	Spinning Eggbeater > Paradon Swirl > Symposium 
+Torque
+4	Michal Biarda		Rooted Dominatrix > Pixie Ducking Cloud > Pixie 
+SS Illusion
+
+
+2 Squares
+
+1	Wiktor Debski
+2	Michal Biarda
+3	Szymon Kalwak
+4	Marcin Staron
+
+
+Open Singles Net
+
+Initial seeding
+
+1.	Florian Goetze
+2.	Jani Markkanen
+3.	Greg Lima
+4.	Yves Archambault
+5.	Yves Kreil
+6.	Ales Pelko
+7.	Arthur Ledain
+8.	Chris Loew
+9.	Yassin Khateeb
+10.	Antonio Fritsch
+11.	Karim Daouk
+12.	Thomas Foerster
+13.	Markus Kaspczak
+14.	Grischa Tellenbach
+15.	Hannes Daniel
+16.	Janne Uusitalo
+17.	Henrik Martikainen
+18.	Amaya Straeten
+19.	Sebastien Maillet
+20.	Hakan Hellberg
+21.	Simon Voss
+22.	Mouss Kabbal
+23.	Tammo Rockel
+24.	Pavel Hejra
+25.	Jaka Stare
+26.	Vincent Rousseau
+27.	Yves Mingard
+28.	Justin Eichenlaub
+29.	Yannik Rockel
+30.	Christian Bock
+31.	Marc Brunet
+32.	Jonas Thull
+33.	Chris Young
+34.	Christian Bruhn
+35.	Milan Ardalic
+36.	Grega Morel
+37.	Olivier Baillon
+38.	Arnaud Saniez
+39.	Aleksi Oehman
+40.	David Kaufmann
+41.	Wojciech Ignaczak
+42.	Marcin Staron
+43.	Rosen Kyrta
+44.	Hristo Marev
+45.	Robin P�chel
+46.	Dirk Janssens
+47.	Timo Seidel
+48.	Steve Kuntze
+
+Results
+
+1.	Florian Goetze
+2.	Jani Markkanen
+3.	Karim Daouk
+4.	Yves Kreil
+5.	Greg Lima
+6.	Yves Archambault
+7.	Yassin Khateeb
+8.	Arthur Ledain
+9.	Ales Pelko
+10.	Hakan Hellberg
+11.	Sebastien Maillet
+12.	Thomas Foerster (scratch)
+13.	Antonio Fritsch
+14.	Chris Loew (scratch)
+15.	Hannes Daniel (scratch)
+16.	Janne Uusitalo (scratch)
+17.	Jaka Stare (scratch)
+18.	Justin Eichenlaub (scratch)
+19.	Grischa Tellenbach
+20.	Amaya Straeten (scratch)
+21.	Yves Mingard
+22.	Rosen Kyrta
+23.	Henrik Martikainen
+24.	Marc Brunet
+25.	Tammo Rockel
+26.	Chris Young
+27.	Grega Morel
+28.	Vincent Rousseau
+29.	Milan Ardalic
+30.	Markus Kaspczak (scratch)
+31.	Simon Voss (scratch)
+32.	Pavel Hejra (scratch)
+33.	Mouss Kabbal
+34.	Olivier Baillon
+35.	Yannik Rockel
+36.	Jonas Thull
+37.	Christian Bock
+38.	David Kaufmann
+39.	Christian Bruhn (scratch)
+40.	Arnaud Saniez (scratch)
+41.	Aleksi Oehman (scratch)
+42.	Timo Seidel
+43.	Robin P�chel
+44.	Steve Kuntze
+45.	Hristo Marev
+46.	Wojciech Ignaczak
+47.	Dirk Janssens
+48.	Marcin Staron (scratch)
+
+
+Open Doubles Net
+
+Initial seeding
+
+1.	Florian Goetze / Uli Haase
+2.	Jani Markkanen / Janne Uusitalo
+3.	Hannes Daniel / Chris Loew
+4.	Greg Lima / Arthur Ledain
+5.	Yassin Khateeb / Thomas Foerster
+6.	Yves Kreil / Antonio Fritsch
+7.	Ales Pelko / Jaka Stare
+8.	Karim Daouk / Tammo Rockel
+9.	Henrik Martikainen / Justin Sexton
+10.	Eurik Lindner / Markus Kaspczak
+11.	Yves Archambault / Justin Eichenlaub
+12.	Sebastien Maillet / Mouss Kabbal
+13.	Vincent Rousseau / Marc Brunet
+14.	Amaya Straeten / Yannik Rockel
+15.	Simon Voss / Christian Bruhn
+16.	Philipp Schaefer / Alexander Bartsch
+17.	Grischa Tellenbach / Aleksi Oehman
+18.	Hakan Hellberg / Magnus Hellberg
+19.	Olivier Baillon / Arnaud Saniez
+20.	Jonas Thull / Chris Bock
+21.	Milan Ardalic / Grega Morel
+22.	Thomas Sustrac / David Kaufmann
+23.	Yves Mingard / Silwan Daouk
+24.	Chris Young / Dirk Janssens
+25.	Hristo Marev / Rosen Kyrta
+26.	Robin P�chel / Steve Kuntze
+27.	Stefan Nold / Timo Seidel
+28.	Marcin Staron / Wojciech Ignaczak
+29.	Sebastien Vanhove / Julien Romiti (scratch)
+
+Results
+
+1.	Florian Goetze / Uli Haase
+2.	Jani Markkanen / Janne Uusitalo
+3.	Hannes Daniel / Chris Loew
+4.	Greg Lima / Arthur Ledain
+5.	Yassin Khateeb / Thomas Foerster
+6.	Yves Kreil / Antonio Fritsch
+7.	Ales Pelko / Jaka Stare
+8.	Eurik Lindner / Markus Kaspczak
+9.	Karim Daouk / Tammo Rockel
+10.	Yves Archambault / Justin Eichenlaub
+11.	Henrik Martikainen / Justin Sexton
+12.	Philipp Schaefer / Alexander Bartsch
+13.	Amaya Straeten / Yannik Rockel
+14.	Vincent Rousseau / Marc Brunet
+15.	Sebastien Maillet / Mouss Kabbal
+16.	Simon Voss / Christian Bruhn (Scratch)
+17.	Grischa Tellenbach / Aleksi Oehman
+18.	Hakan Hellberg / Magnus Hellberg (scratch)
+19.	Milan Ardalic / Grega Morel
+20.	Olivier Baillon / Arnaud Saniez
+21.	Hristo Marev / Rosen Kyrta
+22.	Yves Mingard / Silwan Daouk
+23.	Stefan Nold / Timo Seidel
+24.	Jonas Thull / Chris Bock
+25.	Chris Young / Dirk Janssens
+26.	Thomas Sustrac / David Kaufmann
+27.	Marcin Staron / Wojciech Ignaczak
+28.	Robin P�chel / Steve Kuntze
+29.	Sebastien Vanhove / Julien Romiti (scratch)
+
+
+Mixed Doubles Net
+
+Initial Seeding
+
+1.	Yulia Tikhomirova / Yves Kreil
+2.	Lena Mlakar / Ales Pelko
+3.	Lisa Uebele / Alexander Bartsch
+4.	Kerstin Anhuth / Eurik Lindner
+5.	Shirin Daouk / Karim Daouk
+6.	Helena Schlichting / Hakan Hellberg
+7.	Katharina Probst / Arthur Ledain
+8.	Lisa Amengual / Sebastien Maillet
+
+Results
+
+1.	Lena Mlakar / Ales Pelko
+2.	Yulia Tikhomirova / Yves Kreil
+3.	Kerstin Anhuth / Eurik Lindner
+4.	Shirin Daouk / Karim Daouk
+5.	Helena Schlichting / Hakan Hellberg
+6.	Lisa Uebele / Alexander Bartsch (scratch)
+7.	Katharina Probst / Arthur Ledain
+8.	Lisa Amengual / Sebastien Maillet
+
+
+Women?s Doubles Net
+
+Initial seeding
+
+1.	Lisa Uebele / Kerstin Anhuth
+2.	Yulia Tikhomirova / Lena Mlakar
+3.	Shirin Daouk / Helena Schlichting
+4.	Lisa Amengual / Katharina Probst
+
+Results
+
+1.	Lisa Uebele / Kerstin Anhuth
+2.	Yulia Tikhomirova / Lena Mlakar
+3.	Shirin Daouk / Helena Schlichting
+4.	Lisa Amengual / Katharina Probst
+
+
+Women?s Singles Net
+
+Initial seeding
+
+1.	Lisa Uebele
+2.	Yulia Tikhomirova
+3.	Kerstin Anhuth
+4.	Helena Schlichting
+5.	Lena Mlakar
+6.	Shirin Daouk
+7.	Lisa Amengual
+
+Results
+
+1.	Lisa Uebele
+2.	Kerstin Anhuth
+3.	Lena Mlakar
+4.	Yulia Tikhomirova (scratch)
+5.	Lisa Amengual
+6.	Shirin Daouk
+7.	Helena Schlichting
+
+
+Intermediate Singles Net
+
+1.	Timo Seidel
+2.	Robin P�chel
+3.	Steve Kuntze
+4.	Hirsto Marev
+5.	Wojciech Ignaczak
+6.	Dirk Janssens
+7.	Marcin Staron

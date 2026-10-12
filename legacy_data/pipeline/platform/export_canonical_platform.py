@@ -88,6 +88,7 @@ DISPLAY_NAMES_CSV    = LOCK_DIR / "Person_Display_Names_v1.csv"
 MEMBER_ID_SUPPLEMENT = LOCK_DIR / "member_id_supplement.csv"
 # Curated identity consolidation, applied before persons.csv is written.
 PERSON_MERGES_CSV    = ROOT / "overrides" / "person_merges.csv"
+AGGREGATE_STANDINGS_CSV = ROOT / "overrides" / "aggregate_standings.csv"
 
 # The five files are one output set, published together or not at all. This is
 # both the generation order and the replacement order, and it is also the list
@@ -107,6 +108,14 @@ _SENTINEL_DISPLAY: set[str] = {
     "__UNKNOWN_PARTNER__", "__NON_PERSON__",
     "[UNKNOWN PARTNER]", "[UNKNOWN]",
 }
+
+
+
+def _is_club_standing(participant: dict) -> bool:
+    """A club's standing shows the club's name as written and is never a person:
+    no junk-name rewrite, no mapping onto a person record."""
+    return "club_standing" in (participant.get("notes") or "")
+
 
 # person_name values that are never real people and must be removed from persons.csv;
 # any participant referencing such a person_id gets person_id="" (unresolved, not orphan)
@@ -295,6 +304,67 @@ def maybe_title_case(name: str) -> str:
     return name
 
 
+SPORT_FAMILIES = ("net", "freestyle", "golf", "sideline")
+AGGREGATE_CONFIDENCE = ("verified", "inferred", "provisional")
+
+
+def apply_aggregate_standings(disc_fields: list[str], disciplines: list[dict],
+                              path: Path) -> list[str]:
+    """Mark the curated aggregate standings on the discipline rows, in place.
+
+    An aggregate standing ranks competitors over several of an event's contests
+    rather than in one contest. It is kept apart from the sport families: a
+    cross-sport standing carries no family, and a standing over one sport keeps
+    that family. Every row gains is_aggregate_standing ("1" or "0"). A listed
+    division that is absent is an error, never a skip, so a renamed discipline
+    cannot silently lose its mark. Returns the field list with the new column.
+    """
+    if not path.exists():
+        raise SystemExit(
+            f"ERROR: aggregate standings list missing: {path}\n"
+            f"  It is curated input, not generated: restore it, then rerun "
+            f"./run_pipeline.sh canonical_only (or full).")
+    with open(path, newline="", encoding="utf-8") as f:
+        list_rows = list(csv.DictReader(f))
+    listed = {(r["event_key"].strip(), r["discipline_key"].strip()): r["scope"].strip()
+              for r in list_rows}
+    bad_scope = sorted(f"{k[0]}/{k[1]}: {s!r}" for k, s in listed.items()
+                       if s != "cross_sport" and s not in SPORT_FAMILIES)
+    if bad_scope:
+        raise SystemExit(f"ERROR: {path.name}: scope must be cross_sport or a sport "
+                         f"family ({', '.join(SPORT_FAMILIES)}): {'; '.join(bad_scope)}")
+    # How sure each classification is: verified from its source, inferred from the
+    # event's format, or provisional pending a ruling. Provisional rows are named on
+    # every run so they cannot pass as settled.
+    bad_conf = sorted(f"{r['event_key']}/{r['discipline_key']}: {r.get('confidence')!r}"
+                      for r in list_rows
+                      if (r.get("confidence") or "").strip() not in AGGREGATE_CONFIDENCE)
+    if bad_conf:
+        raise SystemExit(f"ERROR: {path.name}: confidence must be one of "
+                         f"{', '.join(AGGREGATE_CONFIDENCE)}: {'; '.join(bad_conf)}")
+    for r in list_rows:
+        if r["confidence"].strip() == "provisional":
+            print(f"  Aggregate standing classified provisionally: "
+                  f"{r['event_key']}/{r['discipline_key']} as {r['scope']}")
+    seen = set()
+    for d in disciplines:
+        key = (d["event_key"], d["discipline_key"])
+        scope = listed.get(key)
+        d["is_aggregate_standing"] = "1" if scope else "0"
+        if scope:
+            seen.add(key)
+            d["discipline_category"] = "" if scope == "cross_sport" else scope
+    missing = sorted(set(listed) - seen)
+    if missing:
+        raise SystemExit(
+            f"ERROR: {path.name} names {len(missing)} division(s) absent from the "
+            f"canonical disciplines: {'; '.join(f'{e}/{k}' for e, k in missing)}\n"
+            f"  Correct the list (a discipline key may have been renamed), then rerun "
+            f"./run_pipeline.sh canonical_only (or full).")
+    return disc_fields + ([] if "is_aggregate_standing" in disc_fields
+                          else ["is_aggregate_standing"])
+
+
 # ── Main ───────────────────────────────────────────────────────────────────────
 
 def main() -> None:
@@ -351,6 +421,7 @@ def main() -> None:
     res_fields,  results      = load_csv(CANONICAL / "event_results.csv")
     part_fields, participants = load_csv(CANONICAL / "event_result_participants.csv")
     pers_fields, persons      = load_csv(CANONICAL / "persons.csv")
+    disc_fields = apply_aggregate_standings(disc_fields, disciplines, AGGREGATE_STANDINGS_CSV)
 
     print(f"Input:")
     print(f"  events:       {len(events):>7,}")
@@ -392,7 +463,7 @@ def main() -> None:
     n_junk_dropped   = 0
     for r in participants:
         dn = r.get("display_name", "").strip()
-        if not dn or dn == "Unknown":
+        if not dn or dn == "Unknown" or _is_club_standing(r):
             continue
         # Strip trailing prize-amount suffixes before any other check
         cleaned = _PRIZE_SUFFIX_RE.sub("", dn).strip()
@@ -417,8 +488,8 @@ def main() -> None:
     # never touched.
     n_dn_mapped = 0
     for r in participants:
-        if r.get("person_id", "").strip():
-            continue                          # already resolved — leave alone
+        if r.get("person_id", "").strip() or _is_club_standing(r):
+            continue                          # resolved, or a club — leave alone
         dn = r.get("display_name", "").strip()
         if dn in dn_map:
             eid, canon = dn_map[dn]

@@ -1,0 +1,53 @@
+# Australian East Coast Regionals 2003
+# Source: mirror/www.footbag.org/events/show/1061453080/index.html
+# Recovered 2026-03-09 — stage2 captured 20/25 placements. Missing placements:
+#   - "= Jeremy O'Wheel" tied-3rd marker in Open Routines not matched by placement regex
+#   - Intermediate Routines (3) absorbed into another division
+#   - Intermediate Sick Trick (1) may have been captured but misattributed
+# All 25 recovered here with standard format. Intermediate "Sick Three" → "Sick 3".
+# "5 Minute Consecutive Kicks" keeps its heading and kick counts, so the counts reach the canonical scores.
+# "Scott K" is the only name available for place 3 in Inter Shred 30 (organiser note).
+# event_id: 1061453080
+
+5 Minute Consecutive Kicks
+1. Dyalan Govender - 412
+2. Dan Ednie - 375
+3. Ian Pritchard - 357
+4. Katrina Schultz - 242
+
+Intermediate Sick Trick
+1. Dylan Govender
+
+Intermediate Sick 3
+1. Mark Roberts
+2. Dyalan Govender
+3. Ian Pritchard
+
+Intermediate Shred 30
+1. Ian Pritchard
+2. Mark Roberts
+3. Scott K
+
+Intermediate Routines
+1. Scott K
+2. Ian Pritchard
+3. Dyalan Govender
+
+Open Sick Trick
+1. Brendan Erskine
+
+Open Sick 3
+1. Lynton Stephens
+2. Dan Ednie
+3. Jeremy O'Wheel
+
+Open Shred 30
+1. Dan Ednie
+2. Jeremy O'Wheel
+3. Brendan Erskine
+
+Open Routines
+1. Lynton Stephens
+2. Dan Ednie
+3. Jon Lee
+3. Jeremy O'Wheel

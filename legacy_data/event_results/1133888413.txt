@@ -1,0 +1,31 @@
+# Valentines Day Massacre 2006
+# Source: mirror/www.footbag.org/events/show/1133888413/index.html
+# Recovered 2026-03-09 — two parser failures:
+#   - "4 - SQUARE - 16 competing" parsed as placement entry (place=4, name="SQUARE...")
+#     instead of a division header; 4-Square placements merged into Sick 3 bucket.
+#   - "CONSECUTIVES 3 MIN." likely not detected (no colon, "consecutives" plural form).
+# Stage2 captured 11/14. All 14 recovered here.
+# Names: "Elliott" (quoted nickname preserved as-is), "Brain H." → "Brian H" (typo in source).
+# event_id: 1133888413
+
+Net Doubles
+1. David P & Walt H
+2. Elliott & Emily J
+3. Alex G & Justin W
+4. Brian H & Chris J
+
+Freestyle Sick 3
+1. Ben B
+2. Lee S
+3. Andrew C
+
+Four Square
+1. Andrew C
+2. Lee S
+3. Elliott J
+4. Tre L
+
+Consecutive Kicks
+1. Jeremy S
+2. Matt E
+3. Jared W

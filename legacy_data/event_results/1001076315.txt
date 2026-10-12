@@ -1,0 +1,57 @@
+# 5th Annual Finnish Footbag Championships
+# Turku, Southwest Finland, Finland
+# September 28-30, 2001
+# Source: footbag.org mirror — "Name - City" format caused city to be parsed
+# as doubles partner in all singles/freestyle divisions. Fixed 2026-03-18.
+# Note: "Henry Rautio" is PT alias for "Heikki Rautio" (same person, confirmed).
+
+Pro Freestyle
+1. Jere Vainikka
+2. Juha-Matti Rytilahti
+3. Ilkka Malin
+4. Mika Koistinen
+5. Jere Linnanen
+6. Samuli Viitanen
+
+Pro Doubles Net
+1. Jesse Fryckman & Tuomas Kärki
+2. Aleksi Öhman & Jani Markkanen
+3. Jukka Peltola & Jesse Ruotsalainen
+4. Juha-Matti Rytilahti & Janne Uusitalo
+5. Matti Pohjola & Tapio Karhunen
+6. Mikko Inkinen & Jaakko Inkinen
+
+Pro Singles Net
+1. Tuomas Kärki
+2. Jukka Peltola
+3. Jani Markkanen
+4. Janne Uusitalo
+5. Matti Pohjola
+6. Aleksi Öhman
+
+Intermediate Singles Net
+1. Tuukka Antikainen
+2. Kari Uusitalo
+3. Jari Linnonmaa
+4. Olli Lehtola
+5. Tim Livson
+6. Jyri Ilama
+
+Intermediate Doubles Net
+1. Iisak Liukko & Tuukka Antikainen
+2. Tim Livson & Jari Linnonmaa
+3. Mikko Tapaninaho & Jyri Ilama
+4. Sakarias Liukko & Teppo Harju
+5. Jani Lirkki & Juha Heinonen
+6. Olli Lehtola & Janne Tahvola
+
+Intermediate Freestyle
+1. Jaakko Inkinen
+2. Iisak Liukko
+3. Teppo Harju
+4. Sakarias Liukko
+5. Mikko Poikonen
+6. Tapio Karhunen
+7. Pekka Raitio
+8. Henry Rautio
+9. Teemu Ahlfors

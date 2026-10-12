@@ -1,0 +1,300 @@
+# event_id: 1102576153
+# 2005 26th Annual IFPA WORLD FOOTBAG CHAMPIONSHIPS
+# Source: mirror "Manually Entered Results" section (final standings only)
+
+FREESTYLE
+
+Open Singles Freestyle
+
+no.	Name:
+1.	Vasek Klouda (CZE)
+2.	Jan Weber (CZE)
+3.	Felix Zenger (FIN)
+4.	Jorden Moir (CAN)
+5.	Peter Irish (USA)
+6.	Gordon Bevier (USA)
+7.	Karim Daouk (SWI)
+8.	Jan Struz (CZE)
+9.	Jere Linnanen (FIN)
+10.	Toni P��kk�nen (FIN)
+11.	Michal Ostrowski
+11.	Tuukka Antikainen
+11.	Tomas ostrowski
+11.	Juho Marjo
+11.	Chris Kovacs
+16.	Anssi Sundberg
+16.	Ken Somolinos
+16.	Aaro Wichmann
+16.	Stefan Siegert
+16.	Oleg Donner
+21.	Jan Zimmerman
+21.	Mikko Lepist�
+21.	Wiktor Debski
+21.	Lasse Salmenhaara
+21.	Tuan Vu
+26.	Ales Zelinka
+26.	Jonathan Schneider
+26.	Sergey Pikalov
+26.	Nikolai Lorenzen
+26.	Matthias Schmidt
+31.	Tobias Larsen
+31.	Markus Tyrni
+33.	Szymon Kalwak
+33.	Jakob Wagner
+33.	Ondrei Skrabal
+33.	Josh Benham
+33.	Simon-Francois Kolodentchuk
+33.	Riku Ahola
+33.	Max Kerkhoff
+33.	Ilja Mitrofanov
+41.	Takatsugu Mihara
+41.	Tuomas Riisalo
+41.	Takumi Ozawa
+41.	Arkady Lobankov
+41.	Santeri Karvinen
+41.	Brett Campbell
+41.	Ian Pritchard
+41.	Jochen Bauer
+49.	Mikko Haario
+49.	Ville Laakso
+49.	Antti Lehikoinen
+49.	Michal Danek
+
+Open Shred
+no.	Name:	Score:
+1.	Vasek Klouda (CZE)	235.600
+2.	Jan Weber (CZE)	232.000
+3.	Jorden Moir (CAN)	210.250
+4.	Ken Somolinos (JPN)	196.903
+5.	Felix Zenger (FIN)	178.500
+6.	Mikko Lepist� (FIN)	175.000
+7.	Juho Marjo (FIN)	157.733
+8.	Toni P��kk�nen (FIN)	144.571
+9.	Yves Kreil (GER)	130.593
+10.	Matthias Schmidt (GER)	119.429
+
+
+Open Big3 (unofficial)
+no.	Name:	Big3:
+1.	Vasek Klouda (CZE)	Fairy Ripstein > Whirlwind > Montage
+2.	Felix Zenger (FIN)	Double Blender > Superfly > Spinning Blender
+3.	Jan Weber (CZE)	Alpine Legbeater > Blurry Torque > Paradox Blender
+4.	Aaro Wichmann (FIN)	Pigbeater > Phoenix > Flaming Tard
+5.	Riku Ahola (FIN)	Blizzard > Phoenix > Symposium Whirling Swirl
+
+Women's Freestyle
+no.	Name:
+1.	Carol Wedemeyer (USA)
+2.	Tina Aeberli (SWI)
+3.	Hania Mickiewicz (POL)
+4.	Verena Lenneis
+5.	Jule B�hm
+6.	Lise Thygesen
+7.	Jana Sassakova
+7.	Gosia Nycz
+
+Women's Shred
+no.	Name:	Score:
+1.	Tina Aeberli (SWI)	150.000
+2.	Carol Wedemeyer (USA)	121.833
+3.	Hania Mickiewicz (POL)	110.710
+4.	Lise Thygesen (DEN)	110.323
+5.	Oxana Prihodko (RUS)	102.500
+6.	Verena Lenneis (AUS)	100.800
+
+Open Doubles Freestyle
+no.	Name:
+1.	Vasek Klouda / Jan Weber (CZE)
+2.	Tomas Ostrowski / Michal Ostrowski (POL)
+3.	Peter Irish / Tuan Vu (USA)
+4.	Jan Struz / Karim Daouk (CZE / SUI)
+5.	Yves Kreil / Antonio Fritcsh (GER)
+6.	Anssi Sundberg / Lauri Airinen (FIN)
+
+Mixed Doubles Freestyle
+no.	Name:
+1.	Samuel Hufschmid / Isabelle Widmer (SWI)
+2.	Jan Zimmerman / Sam Conlon (GER/USA)
+3.	Wiktor Debski / Gosia Nycz (POL)
+4.	Manuel Schmid / Tina Aeberli (SUI)
+
+Intermediate Freestyle
+no.	Name:
+1.	Manuel Schmid (SWI)
+2.	Hector K�hler (FIN)
+3.	Benjamin Kellman (USA)
+4	Dustin Rhodes
+5	Miika Valle
+6	Mitya Burmitsov
+7	Evgeny Kichigin
+7	Yusuke Tomohiro
+9	Iiro Sunila
+9	Andrey Romanov
+11	Kentaro Hasegawa
+11	Tom Mosher
+13	Hideki Yamamoto
+13	Makim Zakirov
+15	Juha Vilpas
+15	Slava Sidorin
+17	Theodore Fritsch
+17	Sergey Kozlov
+17	Keita Oishi
+17	Alexander Semichev
+21	Hannes Aasamets
+21	Jakob Mai
+
+Intermediate Shred
+no.	Name:	Score:
+1.	Manuel Schmid (SWI)	141.176
+2.	Evgeny Kichigin (RUS)	122.667
+3.	Maxim Zakirov (RUS)	112.193
+4.	Mitya Burmitsov (RUS)	100.222
+5.	Yusuke Tomohiro (JPN)	93.167
+6.	Dustin Rhodes (USA)	89.333
+7.	Iiro Sunila (FIN)	78.440
+8.	Jakob Mai (GER)	75.391
+9.	Miika Valle (FIN)	69.307
+10.	Andrey Romanov (RUS)	68.000
+
+FOOTBAG NET
+
+Open Doubles Net Results
+no.	Name:
+1.	Emanuel Bouchard / Jean-Francois Lemieux (CAN)
+2.	Florian G�tze / Patrick Schrickel (GER)
+3.	PT Lovern / John Leys (USA)
+4.	Christopher Siebert / Eric Wulff (USA)
+5.	Jani Markkanen / Jukka Peltola (FIN)
+6.	Jaakko Inkinen / Janne Uusitalo (FIN)
+7.	Peter Shunny / Bruce Guettich (USA)
+8.	Tuomas K�rki / Olli Savolainen (FIN)
+9.	Matti Pohjola / Oskari Forst�n (FIN)
+10.	Chris Ott / Cory Current (USA)
+11.	Andy Ronald / Vince Bradley (CAN / USA)
+12.	Andreas Wolff / Max Gerhardt (GER)
+13.	Pat Keehan / Jack Harris (USA)
+14.	Yves Archambault / Juha-Matti Rytilahti (CAN / FIN)
+15.	Thomas F�rster / Yassin Khateeb (GER)
+16.	Markus Portenkirchner / Philippe Lessard (GER / CAN)
+17.	Eurik Lindner / Markus Kaspczak (CAN)
+18.	Christian Loew / Hannes Daniel (GER)
+19.	Steve Goldberg / Michael Stefanelli (USA)
+20.	Ole Schnack / Jan Zimmerman (GER)
+21.	Alexander Smirnov / Ben Cochrane (RUS / CAN)
+22.	Timo Vorne / Mikko Poikonen (FIN)
+23.	Jyri Ilama / Otso Konttinen (FIN)
+24.	Iisak Liukko / Sakarias Liukko (FIN)
+25.	Tapio Karhunen / Jarno Terho (FIN)
+26.	Janne Villikkka / Jani Lirkki (FIN)
+27.	Joona Koistinen / Olli Torkkeli (FIN)
+28.	Phil Schaefer / David Fujimura (GER)
+29.	Jesse Fryckman / Jesse Ruotsalainen (FIN)
+30.	Jim Hankins / Ben Kellman (USA)
+31.	Tuukka Antikainen / Janne Pesonen (FIN)
+
+Open Singles Net Results
+no.	Name:
+1.	Emanuel Bouchard (CAN)
+2.	John Leys (USA)
+3.	Patrick Schrickel (GER)
+4.	Christopher Siebert (USA)
+5.	Jani Markkanen (FIN)
+6.	Bruce Guettich (USA)
+7.	Andreas Wolff (GER)
+8.	Florian G�tze (GER)
+9.	Tuomas K�rki (FIN)
+10.	Matti Pohjola (FIN)
+11.	Cory Current (USA)
+12.	Janne Uusitalo (FIN)
+13.	Jean-Francois Lemieux (CAN)
+14.	Christian Loew (GER)
+15.	Andy Ronald (CAN)
+16.	Eric Wulff (USA)
+17.	Peter Shunny (USA)
+18.	Jaakko Inkinen (FIN)
+19.	Thomas F�rster (GER)
+20.	Michael Stefanelli (USA)
+21.	Oskari Forst�n (FIN)
+22.	Tapio Karhunen (FIN)
+23.	Olli Savolainen (FIN)
+24.	Yves Archambault (CAN)
+25.	Vince Bradley (USA)
+26.	Phil Schaefer (GER)
+27.	Alexander Smirnov (RUS)
+28.	Eurik Lindner (GER)
+29.	Juha-Matti Rytilahti (FIN)
+30.	Jyri Ilama (FIN)
+31.	H�kan Hellberg (SWE)
+32.	Markus Portenkirchner (GER)
+33.	Jim Hankins (USA)
+34.	Markus Kaspczak (GER)
+35.	Yassin Khateeb (GER)
+36.	Pavel Hejra (CZE)
+37.	Ben Cochrane (CAN)
+38.	Jani Lirkki (FIN)
+39.	Timo Vorne (FIN)
+40.	Joona Koistinen (FIN)
+41.	Otso Konttinen (FIN)
+42.	Chris Ott (USA)
+43.	Jack Harris (USA)
+44.	Hannes Daniel (GER)
+45.	Philippe Lessard (CAN)
+46.	Max Gerhardt (GER)
+47.	Jan Zimmerman (GER)
+48.	Ole Schnack (GER)
+
+Women's Doubles Net Results
+no.	Name:
+1.	T. Lewis / S.Conlon (USA)
+2.	J. Tikhomirova / O. Prihotko (RUS)
+3.	L. Uebele / H. Schlichting (GER)
+4.	T. Aeberli / J. B�hm (SUI)/(GER)
+
+Women's Singles Net Results
+no.	Name:
+1.	Tina Lewis (USA)
+2.	Julia Tikhomirova (RUS)
+3.	Oxana Prihotko (RUS)
+4.	Lisa Uebele (GER)
+5.	Helena Schlichting (GER)
+
+Mixed Doubles Net Results
+no.	Name:
+1.	A. Ronald / S. Conlon (CAN/USA)
+2.	A. Wolff / L. Uebele (GER)
+3.	T. Lewis / C. Siebert (USA)
+4.	P.Keehan / O. Prihotko (USA)/(RUS)
+5.	D. Filonenko / G. Vorotilina (RUS)
+6.	H. Hellberg / H. Schlichtling (SWE)/(GER)
+7.	I. Liukko / N. Liukko (FIN)
+8.	A. Smirnov / J. Tikhomirova (RUS)
+
+Intermediate Doubles Net Results
+no.	Name:
+1.	Fritsch / Hejra
+2.	Alexey Tushkanov / Shiryaev
+3.	Hellberg / Hellberg
+4.	Alexander Tushkanov / Filonenko
+5.	Fabriz / Mueller
+6.	Z�lli / Martikainen
+7.	Pet�inen / Hoznour
+8.	Kreil / A. Fritch
+9.	Tamme / Tapaninaho
+10.	Livson / Henderson
+11.	Benham / Strassman
+12.	Nyblom / Biribakken
+
+Intermediate Singles Net Results
+no.	Name:
+1.	Evgeni Shiryaev
+2.	Magnus Hellberg
+3.	David Fujimura
+4.	Theodore Fritsch
+5.	Alexey Tushkanov
+6.	Martin Fabriz
+7.	Mikko Tapaninaho
+8.	Henrik Martikainen
+9.	Enzy Tamme
+10.	Ilkka Malin
+11.	Alex Strassman
+12.	Josh Benham

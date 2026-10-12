@@ -1,0 +1,460 @@
+# event_id: 1293877677
+# 2011 32nd IFPA WORLD FOOTBAG CHAMPIONSHIPS
+# Source: mirror "Manually Entered Results" section (final standings only)
+
+FOOTBAG NET RESULTS
+
+Open Doubles Net
+
+1	Emmanuel Bouchard [1] 	CAN	Florian Goetze 	        GER
+2	Matti Pohjola [6] 	FIN	Janne Uusitalo 	        FIN
+3	Oskari Forst�n [5] 	FIN	Tuomas K�rki 	        FIN
+4	Yves Kreil [7] 	        GER	Luke Legault 	        CAN
+5	JF Lemieux [8] 	        CAN	Greg Lima 	        FRA
+6	P.T. Lovern [3] 	USA	Jeremy Mirken 	        USA
+7	Fran�ois Pelletier [2] 	CAN	Benjamin Rochon 	CAN
+8	Jack Harris [4] 	USA	John Leys 	        USA
+9	Karim Daouk [9] 	SUI	Jani Markkanen 	        FIN
+10	Lino Landau [11] 	FRA	Grischa Tellenbach 	FRA
+11	S�bastien Duchesne [13] CAN	Antonio Fritsch 	GER
+12	Uli Haase [10] 	        GER	Manuel Kruse 	        GER
+13	Carlos M�rquez [14] 	VEN	Tuan Vu 	        USA
+14	Mouss Kabbal [17] 	FRA	S�bastien Maillet 	FRA
+15	Alex Bartsch [26] 	GER	Chris L�w 	        GER
+16	Justin Eichenlaub 	GER	Victor Lezama 	        VEN
+17	Markus Kaspczak [16] 	GER	Eurik Lindner 	        GER
+18	Faris Barakat [28] 	GER	Phil Schaefer 	        GER
+19	Philippe Lessard [12] 	CAN	Jukka Peltola 	        FIN
+20	Rafał Andryka [29] 	POL	Maciej Samborowski 	POL
+21	Jaakko Inkinen [33] 	FIN	Amaya Straeten 	        GER
+22	Vesa Ruuskanen [27] 	FIN	Timo Vorne 	        FIN
+23	Miquel Clemente [24] 	FRA	Hakan Hellberg 	        SWE
+24	Yassin Khateeb [30] 	GER	Joona Koistinen 	FIN
+25	Yves Mingard [37] 	SUI	Renato Z�lli 	        SUI
+26	Evgeni Shiryaev [19] 	RUS	Alexander Smirnov 	RUS
+27	Micha Klimczak [31] 	POL	Michal Rog 	        POL
+28	Jyri Ilama [22] 	FIN	Tammo Rockel 	        GER
+29	Wojciech Jamski [21] 	POL	Piotrek Koscielny 	POL
+30	Jani Lirkki [23] 	FIN	Iisak Liukko 	        FIN
+31	Christian Bock [34] 	GER	Marcin Staroń 	        POL
+32	J-M Rytilahti [20] 	FIN	Justin Sexton 	        FIN
+33	Henrik Martikainen [25] FIN	Janne Villikka 	        FIN
+34	Guillaume Degat [32] 	FRA	Robin P�chel 	        GER
+35	Ville Laakso [35] 	FIN	Mikko Poikonen 	        FIN
+36	Sakarias Liukko [36] 	FIN	Petteri Pet�inen 	FIN
+37	Roman Belozerov [38] 	RUS	Arkady Lobankov 	RUS
+
+Mixed Doubles Net
+
+1	P.T. Lovern [1] 	USA	Jody Welch 	        USA
+2	Florian Goetze [5] 	GER	Kerstin Anhuth 	        GER
+3	Luke Legault [2] 	CAN	Genevi�ve Bousquet 	CAN
+4	Yves Kreil [4] 	        GER	Julia Tikhomirova 	RUS
+5	Fran�ois Pelletier [3] 	CAN	Maude Landreville 	CAN
+6	Jeremy Mirken [6] 	USA	Julie Symons 	        USA
+7	Karim Daouk [7] 	SUI	Shirine Daouk 	        SUI
+8	Oskari Forst�n [8] 	FIN	Lisa Mcdaniel 	        USA
+9	Janne Uusitalo [10] 	FIN	Piia Tantarim�ki 	FIN
+10	Phil Schaefer [9] 	GER	Helena Schlichting 	GER
+11	Manuel Kruse [12] 	GER	Heike Koller 	        GER
+12	Timo Vorne [13] 	FIN	Ninni Liukko 	        FIN
+13	Jyri Ilama [15] 	FIN	Marie-Lou Roy 	        CAN
+14	Roman Belozerov [14] 	RUS	Evgenia Tsybulskaya 	RUS
+
+Women's Doubles Net
+
+1	Julie Symons [1] 	USA	Jody Welch 	        USA
+2	Genevi�ve Bousquet [2] 	CAN	Maude Landreville 	CAN
+3	Ninni Liukko [5] 	FIN	Piia Tantarim�ki 	FIN
+4	Kerstin Anhuth [6] 	GER	Heike Koller 	        GER
+5	Shirine Daouk [4] 	SUI	Helena Schlichting 	GER
+6	Lisa Mcdaniel [3] 	USA	Julia Tikhomirova 	RUS
+7	Marie-Lou Roy [7] 	CAN	Evgenia Tsybulskaya 	RUS
+
+
+Open Singles Net
+
+1.	Tuomas K�rki FIN
+2.	Fran�ois Pelletier CAN
+3.	Matti Pohjola FIN
+4.	Jean-Francois Lemieux CAN
+5.	Jani Markkanen FIN
+6.	Victor Lezama VEN
+7.	Luke Legault CAN
+8.	Oskari Forst�m FIN
+9.	Florian G�tze GER
+10.	Lino Landau FRA
+11.	Karim Daouk SUI
+12.	Antonio Fritsch GER
+13.	Jack Harris USA
+14.	Philippe Lessard CAN
+15.	John Leys USA
+16.	Greg Lima FRA
+17.	Yves Kreil GER
+18.	S�bastian Duchesne CAN
+19.	Yassin Khateeb GER
+20.	Alexander Smirnov RUS
+21.	Tuan Vu USA
+22.	Markus Kaspczak GER
+23.	Vesa Ruuskanen FIN
+24.	Henrik Martikainen FIN
+25.	Justin Sexton FIN
+26.	Grischa Tellenbach FRA
+27.	Tammo Rockel GER
+28.	S�bastian Maillet FRA
+29.	Carlos M�rquez VEN
+30.	Hakan Hellberg SWE
+31.	Amaya Straeten GER
+32.	Oscar Loreto VEN
+33.	Yves Mingard SUI
+34.	Mouss Kabbal FRA
+35.	Timo Vorne FIN
+36.	Jyri Ilama FIN
+37.	Guillaume Degat FRA
+38.	Evgeni Shiryaev RUS
+39.	Justin Eichenlaub GER
+40.	Chris L�w GER
+41.	Wojciech Jamski POL
+42.	Miquel Clemente FRA
+43.	Micha Klimczak POL
+44.	Maciej Samborowski POL
+45.	Jani Lirkki FIN
+46.	Robin P�chel GER
+47.	Michal Rog POL
+48.	Jaakko Inkinen FIN
+49.	Joona Koistinen FIN
+50.	Ville Laakso FIN
+51.	Arkady Lobankov RUS
+52.	Roman Belozerov RUS
+53.	Christian Bock GER
+54.	Rafal Andryka POL
+55.	Renato Z�lli SUI
+56.	Sakarias Liukko FIN
+57.	Marcin Staron POL
+58.	Piotrek Koscielny POL
+59.	Mikko Poikonen FIN
+
+Women's Singles Net
+
+1	Genevi�ve Bousquet [1] 			CAN
+2	Piia Tantarim�ki [5] 			FIN
+3	Kerstin Anhuth [4] 			GER
+4	Maude Landreville [2] 			CAN
+5	Helena Schlichting [6] 			GER
+6	Julia Tikhomirova [3] 			RUS
+7	Heike Koller [10] 			GER
+8	Evgenia Tsybulskaya [8] 		RUS
+9	Marie-Lou Roy [11] 			CAN
+
+Intermediate Doubles Net
+
+1	Theodore Fritsch [1] 	USA	Mikko Tapaninaho 	FIN
+2	Timo Aarnio [3] 	FIN	Jussi Lahtinen 	        FIN
+3	Samu Ahola [4] 	        FIN	Riku Kosonen 	        FIN
+4	Tim Heun [2] 	        GER	Michael Lamberjohann 	GER
+
+Intermediate Singles Net
+
+1	Mikko Tapaninaho [2] 	        FIN
+2	Theodore Fritsch [1] 	        USA
+3	David Castillo Tibocha [8] 	COL
+4	Magnus Hellberg [9] 	        SWE
+5	Jussi Lahtinen [4] 	        FIN
+5	Samu Ahola [6] 	                FIN
+5	Timo Aarnio [7] 	        FIN
+5	Riku Kosonen [9] 	        FIN
+
+Masters Singles Net
+
+1 Tuan Vu
+2 Hakan Helberg
+3 Alex Bartsch
+4 Magnus Helberg
+
+
+FOOTBAG FREESTYLE RESULTS
+
+Open Singles Routines
+
+1 Jan Weber CZE
+2 Anssi Sundberg FIN
+3 Milan Benda CZE
+4 Aleksi Airinen FIN
+5 Va�ek Klouda CZE
+6 Damian Gielnicki POL
+7 Bartek Bubula POL
+8 Mikko Lepist� FIN
+9 Evan Gatesman USA
+9 Felix Zenger FIN
+9 Tuukka Antikainen FIN
+9 Christopher Schillem GER
+13 Tuomas Riisalo FIN
+13 Rene R�hr GER
+13 Jakob Wagner GER
+13 Rafał Kaleta POL
+17 Toni P��kk�nen FIN
+17 Mathias Blau DEN
+17 Brian Sherrill USA
+17 Artem Zabolotniy RUS
+21 Matthias Schmidt GER
+21 Jindra Smola CZE
+21 Santeri Karvinen FIN
+21 Alexander Trenner AUT
+25 Michał Ostrowski POL
+25 Paul Cronjaeger GER
+25 Michał Biarda POL
+25 Jakub Grabarczyk (POL
+25 Tomasz Ostrowski POL
+25 Lauri Airinen FIN
+31 Nis Petersen DEN
+31 Alex Dworetzky USA
+31 Wiktor Dębski POL
+31 Evgeni Kichigin RUS
+31 Pavel Motorov RUS
+36 Evgeniy Kuharenko RUS
+36 Andrey Djakonov RUS
+36 Paweł Rozek POL
+36 Dante Diotallevi CAN
+36 Arkadiusz Stanek POL
+
+
+Open Circle Contest
+
+1 Milan Benda CZE
+2 Anssi Sundberg FIN
+3 Damian Gielnicki POL
+4 Evan Gatesman USA
+5 Toni P��kk�nen FIN
+5 Bartek Bubula POL
+5 Aleksi Airinen FIN
+5 Olaf Piwowar POL
+9 Rene R�hr GER
+9 Tuomas Riisalo FIN
+9 Felix Zenger FIN
+9 Rafał Kaleta POL
+13 Tuukka Antikainen FIN
+13 Jakub Grabarczyk POL
+13 Lauri Airinen FIN
+16 Mathieu Giard-Montpetit CAN
+16 Christopher Schillem GER
+16 Brian Sherrill USA
+16 Mikko Lepist� FIN
+16 Matthias Schmidt GER
+16 Andrey Djakonov RUS
+16 Santeri Karvinen FIN
+16 Wiktor Dębski POL
+16 Artem Zabolotniy RUS
+16 Jay Boychuk CAN
+26 Paul Cronjaeger GER
+26 David Castillo Tibocha COL
+26 Ilya Sernov RUS
+26 Arkadiusz Stanek POL
+26 Dante Diotallevi CAN
+26 Michał Biarda POL
+26 Alexander Semichev RUS
+26 Evgeniy Kuharenko RUS
+26 Alexander Trenner AUT
+26 Evgeni Kichigin RUS
+36 Alex Dworetzky USA
+36 Nis Petersen DEN
+36 Pawel Rozek POL
+36 Matt Bailey UK
+36 Samu Ahola FIN
+36 Michal Ostrowski POL
+36 Pavel Motorov RUS
+
+Open Shred:30
+
+1 Jan Weber CZE
+2 Milan Benda CZE
+3 Aleksi Airinen FIN
+4 Felix Zenger FIN
+5 Rene R�hr GER
+6 Tuukka Antikainen FIN
+7 Tuomas Riisalo FIN
+8 Evan Gatesman USA
+9 Damian Gielnicki POL
+9 Olaf Piwowar POL
+11 Jakub Grabarczyk POL
+12 Lauri Airinen FIN
+13 Mathias Blau DEN
+14 Alexander Trenner AUT
+15 Santeri Karvinen FIN
+16 Anssi Sundberg FIN
+17 Jindra Smola CZE
+18 Arkadiusz Stanek POL
+19 Mikko Lepist� FIN
+20 Jakob Wagner GER
+21 David Casillo Tibocha COL
+22 Pavel Motorov RUS
+23 Andrey Djakonov RUS
+24 Brian Sherrill USA
+25 Nis Petersen DEN
+26 Christopher Schillem GER
+27 Pawel Rozek POL
+28 Alexander Semichev RUS
+
+Open Request Contest
+
+1 Milan Benda CZE
+2 Va�ek Klouda CZE
+3 Anssi Sundberg FIN
+4 Aleksi Airinen FIN
+4 Jan Weber CZE
+6 Tuukka Antikainen FIN
+6 Evan Gatesman USA
+6 Felix Zenger FIN
+9 Lauri Airinen FIN
+9 Dante Diotallevi CAN
+9 Michał Ostrowski POL
+9 Olaf Piwowar POL
+9 Jindra Smola CZE
+9 Jakob Wagner GER
+15 Bartek Bubula POL
+15 Damian Gielnicki POL
+15 Toni P��kk�nen FIN
+18 Pavel Motorov RUS
+18 Tuomas Riisalo FIN
+20 David Castillo Tibocha COL
+20 Rafał Kaleta POL
+20 Santeri Karvinen FIN
+20 Rene R�hr GER
+20 Matthias Schmidt GER
+20 Arkadiusz Stanek POL
+26 Andrey Djakonov RUS
+26 Pawel Rozek POL
+28 Matthew Bailey UK
+28 Mathieu Giard-Montpetit CAN
+30 Paul Cronjaeger GER
+30 S�bastien Duchesne CAN
+30 Jakub Grabarczyk POL
+30 Evgeniy Kuharenko RUS
+34 Sylwia Kocyk POL
+34 Nadin Koshkina RUS
+34 Tanja Salakka FIN
+34 Ilya Sernov RUS
+38 Brian Sherrill USA
+38 Dorota Wojtasiuk POL
+
+Open Sick 3-Trick Contest
+
+1 Milan Benda CZE
+2 Jan Weber CZE
+3 Anssi Sundberg FIN
+4 Olaf Piwowar POL
+5 Tuomas Riisalo FIN
+6 Pavel Motorov RUS
+7 Samu Ahola FIN
+8 Aleksi Airinen FIN
+9 Michal Biarda POL
+9 Rafał Kaleta POL
+11 Bartek Bubula POL
+12 Damian Gielnicki POL
+13 Brian Sherrill USA
+14 Tuukka Antikainen FIN
+15 Jakub Grabarczyk POL
+16 Alexander Trenner AUT
+17 Andrey Djakonov RUS
+18 Alexander Semichev RUS
+19 Alex Dworetzky USA
+
+Women's Singles Routines
+
+1 Jana Sassakova CZE
+2 Tanja Salakka FIN
+3 Hanna Mickiewicz POL
+4 Nadin Koshkina RUS
+5 Malgorzata Oledzka POL
+6 Dorota Wojtasiuk POL
+7 Gosia Dębska POL
+7 Sylwia Kocyk POL
+9 Caroline Birch AUS
+
+Women's Circle Contest
+
+1 Hanna Mickiewicz POL
+2 Jana Sassakova CZE
+3 Silwia Kocyk POL
+4 Tanja Salakka FIN
+5 Nadin Koshkina RUS
+6 Malgorzata Oledzka POL
+7 Yana Budyukina RUS
+7 Caroline Birch AUS
+7 Dorota Wojtasiuk POL
+
+Women's Shred:30
+
+1 Tanja Salakka FIN
+2 Hanna Mickiewicz POL
+3 Nadin Koshkina RUS
+4 Dorota Wojtasiuk POL
+5 Malgorzata Oledzka POL
+6 Yana Buduykina RUS
+7 Caroline Birch AUS
+
+Open Doubles Routines
+
+1 Tomas Tucek CZE & Martin Sl�dek CZE
+2 Michał Ostrowski POL & Tomasz Ostrowski POL
+3 Wiktor Dębski POL & Gosia Dębska POL
+4 Rafał Kaleta POL & Wojciech Jamski POL
+
+Open Mixed Doubles Routines
+
+1 Wiktor Dębski POL & Gosia Dębska POL
+2 Tomasz Ostrowski POL & Malgorzata Oledzka POL
+3 Jakub Grabaczyk POL & Dorota Wojtasiuk POL
+
+Intermediate Singles Routines
+
+1 Ilya Sernov RUS
+2 Vladislav Molyako RUS
+3 Robin P�chel GER
+4 Juhani Karila FIN
+5 Theodore Fritsch USA
+
+Intermediate Shred:30
+
+1 Ilya Sernov RUS
+2 Robin P�chel GER
+3 Juhani Karila FIN
+4 Vladislav Molyako RUS
+
+Intermediate Request Contest
+
+1 Roy Klein IL
+2 Ilya Sernov RUS
+3 Michael Lamberjohann GER
+4 Vladislav Molyako RUS
+4 Robin P�chel GER
+6 Caroline Birch AUS
+
+
+2-SQUARE
+
+Open 2-Square
+
+1 Wiktor Debski POL
+2 Steve Goldberg USA
+3 Michal Biarda POL
+4 Mathieu Giard-Montpetit CAN
+5 Tuukka Antikainen FIN
+5 Alex Dworetzsky USA
+5 Pawel Rozek POL
+5 Justin Eichenlaub GER
+9 Brian Sherrill USA
+9 Evan Gatesman USA
+9 Milan Benda CZE
+12 Roy Klein IL
+12 Damian Gielnicki POL
+12 Sebastien Maillet FRA
+12 Fjodor Abubov RUS
+12 Timo Vorne FIN
+12 David Castillo Tibocha COL
+12 Marcin Staron POL
+12 Rafal Kaleta POL
+20 Tim Heun GER
+20 Arkadiusz Stanek POL
+20 Caroline Birch AUS
+20 Michael Lamberjohann GER
+20 Guillaume Degat FRA

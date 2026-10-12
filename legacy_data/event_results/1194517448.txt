@@ -1,0 +1,389 @@
+# event_id: 1194517448
+# 2008 2008 IFPA WORLD FOOTBAG CHAMPIONSHIPS
+# Source: mirror "Manually Entered Results" section (final standings only)
+
+NET
+
+Open Singles Net
+
+1	Emmanuel Bouchard
+2	Jean-Francois Lemieux
+3	Matti Pohjola
+4	John Leys
+5	Florian Goetze
+6	Tuomas Karki
+7	Andreas Wolff
+8	Oskari Forsten
+9	Jani Markkanen
+10	Luc Legault
+11	Ales Pelko
+12	Philippe Lessard
+13	Jaakko Inkinen
+14	Greg Lima
+15	Gilles Demers
+16	Chris Loew
+17	Thomas Foerster
+18	Janne Uusitalo
+19	Francois Pelletier
+20	Jeremy Mirken
+21	Antonio Fritsch
+22	Yves Kreil
+23	Juha-Matti Rytilathi
+24	Eric Wulff
+25	Karim Daouk
+26	Yassin Khateeb
+27	Jaka Stare
+28	Jesse Ruotsalainen
+29	Sebastien Duchesne
+30	Iisak Liukko
+31	Miquel Clemente
+32	Hannes Daniel
+33	Grischa Tellenbach
+34	Sam Maleki
+35	Amaya Straeten
+36	Markus Portenkirchner
+37	Mouss Kabbal
+38	Grega Morel
+39	Ville Laakso
+40	Hakan Hellberg
+41	Tuan Vu
+42	Lino Landau
+43	Evgeni Shiryaev
+44	Sebastien Maillet
+45	Yannik Rockel
+46	Manuel Kruse
+47	Sasha Smirnov
+48	Nicolas De Zeeuw
+49	Justin Eichenlaub
+50	Tammo Rockel
+51	Ludovic Lacaze
+52	Milan Ardalic
+53	Corto Barthelemy
+54	Sakarias Liukko
+55	Henrik Martikainen
+56	Rosen Kyrta
+57	Mikko Poikonen
+58	Marc Brunet
+59	Oxana Prikhodko
+60	Jonas Thull
+61	Tuukka Antikainen
+62	Michael Stefanelli
+63	Justin Sexton
+64	Pavel Hejra
+65	Magnus Hellberg
+66	Illka Malin
+67	Arkady Lobankov
+68	Andreas Kaefer
+69	Helena Schlichting
+70	Hristo Marev
+71	Piia Tantarimaki
+72	Dimitar Dimitrov
+
+Open Doubles Net
+
+1	Emmanuel Bouchard / PT Lovern
+2	Jean-Francois Lemieux / Gilles Demers
+3	Matti Pohjola / Oskari Forsten
+4	Patti Schrickel / Florian Goetze
+5	Jani Markkanen / Jaakko Inkinen
+6	Luc Legault / Francois Pelletier
+7	Tuomas Karki / Jesse Ruotsalainen
+8	John Leys / Eric Wulff
+9	Ales Pelko / Jaka Stare
+10	Thomas Foerster / Yassin Khateeb
+11	Antonio Fritsch / Yves Kreil
+12	Andreas Wolff / Ulli Haase
+13	Greg Lima / Philippe Lessard
+14	Chris Loew / Hannes Daniel
+15	Juha-Matti Rytilathi / Janne Uusitalo
+16	Jeremy Mirken / Tuan Vu
+17	Karim Daouk / Sebastien Duchesne
+18	Iisak Liukko / Henrik Martikainen
+19	Miquel Clemente / Ludovic Lacaze
+20	Mikko Poikonen / Sakarias Liukko
+21	Justin Eichenlaub / Amaya Straeten
+22	Ville Laakso / Tuukka Antikainen
+23	Sasha Smirnov / Evgeni Shiryaev
+24	Markus Portenkirchner / Pierre-Jacques Daigle
+25	Lino Landau / Marc Brunet
+26	Grischa Tellenbach / Nicolas De Zeeuw
+27	Mouss Kabbal / Sebastien Maillet
+28	Hakan Hellberg / Magnus Hellberg
+29	Sam Maleki / Manuel Kruse
+30	Yannik Rockel / Tammo Rockel
+31	Jonas Thull / Andreas Kaefer
+32	Julia Tikhomirova / Arkady Lobankov
+33	Milan Ardalic / Grega Morel
+34	Hristo Marev / Rosen Kyrta
+35	Corto Barthelemy / Illka Malin
+36	Michael Stefanelli / Steve Goldberg
+37	Irena Marc / Lena Mlakar
+38	Pavel Hejra / Carlos Marquez
+39	Oxana Prikhodko / Piia Tantarimaki
+
+Open Women's Doubles Net
+
+1	Oxana Prikhodko / Julia Tikhomirova
+2	Irena Marc / Lena Mlakar
+3	Lisa Uebele / Kerstin Anhuth
+4	Piia Tantarimaki / Ninni Liukko
+5	Helena Schlichting / Johanna Nigisch
+6	Sarah Kessel / Katharina Probst
+
+Open Women's Singles Net
+
+1	Oxana Prikhodko
+2	Julia Tikhomirova
+3	Piia Tantarimaki
+4	Irena Marc
+5	Lisa Uebele
+6	Ninni Liukko
+7	Lena Mlakar
+8	Kerstin Anhuth
+9	Helena Schlichting
+10	Sarah Kessel
+
+Open Mixed Doubles Net
+
+1	Lisa Uebele / Andreas Wolff
+2	Irena Marc / Ales Pelko
+3	Ninni Liukko / Florian Goetze
+4	Matti Pohjola / Julia Tikhomirova
+5	Lena Mlakar / Jaka Stare
+6	Oxana Prikhodko / Sasha Smirnov
+7	Kerstin Anhuth / Hannes Daniel
+8	Piia Tantarimaki / Oskari Forsten
+9	Helena Schlichting / Miquel Clemente
+10	Johanna Nigisch / Greg Lima
+11	Sarah Kessel / Tammo Rockel
+12	Katharina Probst / Karim Daouk
+13	Paloma Mayo / Sergio Garcia
+14	Liza Tikhomirova / Francois Pelletier
+
+Master's Doubles Net
+
+1	Tuan Vu / Nicolas De Zeeuw
+2	Sam Maleki / Ted Fritsch
+3	Pierre-Jacques Daigle / Jack Lentz
+4	Hakan Hellberg / Magnus Hellberg
+5	(scratched) Michael Stefanelli / Steve Goldberg
+
+Master's Singles Net
+
+1	Tuan Vu
+2	Hakan Hellberg
+3	Ted Fritsch
+4	Michael Stefanelli
+5	Magnus Hellberg
+6	Nicolas De Zeeuw
+7	Pierre-Jacques Daigle
+
+Intermediate Doubles Net
+
+1	Jack Lentz / Ted Fritsch
+2	Peter Brocka / Petr Stejskal
+3	Alain Custovic / Julien Appolonio
+4	Robin Puechel / Janis Thal
+5	Alexander Skocki / Michal Rog
+5	Charles Dupuy / Max Kerkhoff
+7	Jussi Lathinen / Timo Aarnio
+7	Lauri Airinen / Tuomas Riisalo
+7	Christoph Larndorfer / Alex Trenner
+
+Intermediate Singles Net
+
+1	Alain Custovic
+2	Ted Fritsch
+3	Jack Lentz
+4	Robin Puechel
+5	Michal Rog
+5	Alexander Skocki
+5	Janis Thal
+
+FREESTYLE
+
+Open Singles Freestyle
+
+1	Damian Gielnicki
+2	Vaclav Klouda
+3	Sergey Kozlov
+4	Jan Weber
+5	Serge Kaldany
+6	Philip Morrison
+7	Arek Dudzinski
+8	Milan Benda
+9	Gordon Bevier
+9	Bartek Bubula
+9	Jakob Wagner
+9	Tomasz Ostrowski
+13	Olaf Piwowar
+13	Toni Paakkonen
+13	Mikko Lepisto
+13	Takumi Ozawa
+17	Jay Boychuk
+17	Michal Biarda
+17	Andrew Grant
+17	Ken Somolinos
+21	Alexander Trenner
+21	Anssi Sundberg
+21	Tuukka Antikainen
+25	Daniel Spacil
+25	Alex Michelewski
+25	David Sandrik
+25	Gregor Sipek
+25	Ben Roscoe
+25	Mathieu Gauthier
+25	Jakub Grabarczyk
+25	Krzysztof Sobotka
+33	Wojciech Ignaczak
+33	Rafal Kaleta
+33	Justin Dale
+33	Tuomas Riisalo
+33	Michal Ostrowski
+33	Christoph Larndorfer
+33	Michal Minar
+33	Max Kerkhoff
+41	Evgeniy Kuharenko
+41	Pawel Rytelewski
+41	Jan Struz
+41	David Rieger
+41	Abram Santana
+41	Tomas Solc
+41	Pawel Fra,czek
+41	Patrik Herczik
+49	Slava Sidorin
+49	Fjodor Tihhomirov
+49	Pete Holoien
+49	Petr Stejskal
+49	Matej Sokol
+49	Andrew Bosher
+49	Robin Puechel
+49	Pavel Baron
+
+Open Women's Singles Freestyle
+
+1	Tina Aeberli
+2	Lise Thygesen
+3	Oxana Prikhodko
+4	Verena Lenneis
+5	Karolina Modrzejewska
+6	Caroline Bourguoin
+7	Taylor Chaintreuil
+8	Paloma Mayo
+9	Lena Scheiwiller
+9	Gosia Nycz
+11	Fine Schwengbeck
+11	Johanna Nigisch
+13	Sylwia Kocyk
+13	Anne Thygesen
+15	Caroline Birch
+
+Intermediate Singles Freestyle
+
+1	Christopher Schillem
+2	Krystof Maler
+3	Julien Apollonio
+4	Petr Heralecky
+5	Alex Dworetzky
+6	Pavel Motorov
+7	Viktor Kratochvil
+8	Pawel Cisek
+9	Jindra Smola
+9	Jeff Mudd
+9	Karel Hak
+9	Matjaz Boric
+13	Tomas Danek
+13	Christoph Alexander
+13	Eric Chang
+13	Nis Petersen
+17	Simon Kittlaus
+17	Janis Thal
+17	Mike Brassel
+17	Alain Custovic
+21	Arek Hutnik
+21	Theodore Fritsch
+
+Open Mixed Doubles Freestyle
+
+1	Gosia Nycz/Wiktor Debski
+2	Karolina Modrzejewska/Kamil Wysocki
+3	Agata Piesiewicz/Szymon Kalwak
+4	Dorota Wojtaszuk/Jakub Grabarczyk
+
+Open Doubles Freestyle
+
+1	Vaclav Klouda / Jan Weber
+2	Tomas Tucek / Martin Sladek
+3	Jakub Grabarczyk / Damian Gielnicki
+4	Wiktor Debski / Gozia Nycz
+5	Michal Ostrowski / Tomasz Ostrowski
+6	Jan Struz / Pavel Cerveny
+7	Andreas Hoffmann / Dominik Knoll
+
+Open Circle Contest (unofficial)
+
+1	Serge Kaldany
+2	Sergey Kozlov
+3	Arek Dudzinski
+4	Philip Morrison
+
+Open Women's Circle Contest (unofficial)
+
+1	Tina Aeberli
+2	Verena Lenneis
+3	Lise Thygesen
+
+Open Short Technical Program (unofficial)
+
+1	Jakob Wagner
+2	Olaf Piwowar
+3	Sergey Kozlov
+
+Open Shred:30
+
+1	Tuomas Riisalo	248.00
+2	Andrew Grant	218.71
+3	Daniel Spacil	210.00
+4	Olaf Piwowar	209.85
+5	Sergey Kozlow	197.86
+6	Yves Kreil	196.10
+7	Aleksi Airinen	193.14
+7	Arkadiusz Dudzinski	193.14
+9	Anssi Sundberg	190.83
+10	Jakob Wagner	189.65
+11	Michal Biarda	175.46
+12	Pawel Rytelewski	171.73
+13	Takumi Ozawa	168.13
+14	Mikko Lepisto	162.53
+15	Max Kerkhoff	162.50
+16	Serge Kaldany	161.00
+17	Milan Benda	160.61
+18	Santeri Karvinen	141.10
+19	Krzysztof Sobotka	140.57
+20	Wojciech Ignaczak	131.19
+21	Samu Ahola	129.80
+22	Pete Holoien	122.14
+23	Alexander Trenner	112.00
+24	Matej Sokol	89.19
+25	Tomasz Ostrowski	87.00
+26	Pavel Motorov	82.50
+27	Evgeniy Kuharenko	77.14
+28	Eric Chang	50.89
+
+Open Women's Shred:30
+
+1	Tina Aeberli
+2	Lise Thygesen
+3	Karolina Modrzejewska
+
+Open Request Contest (unofficial)
+
+1	Arek Dudzinski
+2	Damian Gielnicky
+3	Vasek Klouda
+
+Open Sick 3-Trick Contest
+
+1	Olaf Piwowar
+2	Damian Gielnicky
+3	Arek Dudzinski

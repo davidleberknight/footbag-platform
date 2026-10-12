@@ -121,9 +121,10 @@ export interface PublicEventDisciplineRow {
   discipline_id: string;
   event_id: string;
   name: string;
-  discipline_category: string;
+  discipline_category: string | null;
   team_type: string;
   sort_order: number;
+  is_aggregate_standing: number;
 }
 
 export interface PublicEventResultRow {
@@ -135,6 +136,7 @@ export interface PublicEventResultRow {
   discipline_category: string | null;
   team_type: string | null;
   discipline_sort_order: number | null;
+  discipline_is_aggregate_standing: number | null;
   placement: number;
   score_text: string | null;
   participant_row_id: string;
@@ -406,7 +408,8 @@ export const publicEvents = {
       ed.name,
       ed.discipline_category,
       ed.team_type,
-      ed.sort_order
+      ed.sort_order,
+      ed.is_aggregate_standing
     FROM events AS e
     INNER JOIN event_disciplines AS ed
       ON ed.event_id = e.id
@@ -429,6 +432,7 @@ export const publicEvents = {
       ed.discipline_category,
       ed.team_type,
       ed.sort_order AS discipline_sort_order,
+      ed.is_aggregate_standing AS discipline_is_aggregate_standing,
       ere.placement,
       ere.score_text,
       erp.id AS participant_row_id,
@@ -609,7 +613,8 @@ export const publicPlayers = {
     LIMIT 1
   `); },
 
-  /** Career stats by discipline category for a person. */
+  /** Career stats by discipline category for a person. An aggregate standing is a
+   *  ranking over contests, not a contest, so it counts toward no sport. */
   get listCareerStatsByCategory() { return db.prepare(`
     SELECT
       ed.discipline_category AS category,
@@ -621,6 +626,7 @@ export const publicPlayers = {
     JOIN event_result_entries ere ON ere.id = erp.result_entry_id
     JOIN event_disciplines ed ON ed.id = ere.discipline_id
     WHERE erp.historical_person_id = ?
+      AND ed.is_aggregate_standing = 0
     GROUP BY ed.discipline_category
     ORDER BY appearances DESC
   `); },
@@ -651,6 +657,7 @@ export const publicPlayers = {
       AND m_partner.deleted_at IS NULL
     WHERE erp_me.historical_person_id = ?
       AND ed.team_type = 'doubles'
+      AND ed.is_aggregate_standing = 0
       AND hp_partner.person_name != 'Unknown'
     GROUP BY hp_partner.person_id, ed.discipline_category, m_partner.slug
     ORDER BY appearances DESC, wins DESC
@@ -3449,7 +3456,7 @@ export interface FreestylePartnershipRow {
 
 export const freestylePartnerships = {
   /** Top freestyle doubles partnerships by appearances.
-   *  Excludes trick/shred/circle contests and Unknown placeholders. */
+   *  Excludes aggregate standings, trick/shred/circle contests and Unknown placeholders. */
   get listTopPartnerships() { return db.prepare(`
     SELECT
       CASE WHEN pa.person_id < pb.person_id THEN pa.person_id ELSE pb.person_id END AS person_id_a,
@@ -3480,6 +3487,7 @@ export const freestylePartnerships = {
       AND mb.deleted_at IS NULL
     WHERE ed.discipline_category = 'freestyle'
       AND ed.team_type = 'doubles'
+      AND ed.is_aggregate_standing = 0
       AND LOWER(ed.name) NOT LIKE '%sick%'
       AND LOWER(ed.name) NOT LIKE '%big trick%'
       AND LOWER(ed.name) NOT LIKE '%huge%'

@@ -1,0 +1,19 @@
+# New South Wales Footbag Championships 2002
+# Source: mirror/www.footbag.org/events/show/1035817350/index.html
+# Recovered 2026-03-09 — "Sic 3" division name does not match DIVISION_KEYWORD "sick".
+# Stage2 merged Sic 3 entries into "Freestyle singles" bucket, deduplicating
+# Lynton Stephens (p1) and Brendan Erskine (p2) who appear in both. Stage2
+# captured 6/8 (5 from Freestyle + 1 new from Sic3). All 8 recovered here.
+# event_id: 1035817350
+
+Freestyle Singles
+1. Lynton Stephens
+2. Brendan Erskine
+3. Doug
+4. Jeremy O'Wheel
+5. Ian Pritchard
+
+Sick 3
+1. Lynton Stephens
+2. Brendan Erskine
+3. Ben Elynn

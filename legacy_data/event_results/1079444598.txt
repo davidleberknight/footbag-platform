@@ -1,0 +1,64 @@
+# German Footbag Open 2004
+# Source: mirror/www.footbag.org/events/show/1079444598/index.html
+# Recovered 2026-03-09 — division headers lacked colons, causing stage2 attribution failures.
+# Stage2 only captured 30/39 placements. Override restores all 10 divisions.
+# event_id: 1079444598
+
+Intermediate Singles Net
+1. Ulli Haase
+2. Michael Müller
+3. Lisa Uebele
+4. DJ Fuji
+
+Intermediate Doubles Net
+1. Cornelius Abel & Michael Müller
+2. Marcelus & Christian
+3. Lisa Uebele & Henning Lindner
+
+Open Singles Net
+1. Andreas Wolff
+2. Florian Goetze
+3. Patrick Schrickel
+4. Hannes Daniel
+
+Open Doubles Net
+1. Andreas Wolff & Henning Goetzke
+2. Patrick Schrickel & Philip Nierstheimer
+3. Hannes Daniel & Chris Löw
+4. Eurik Lindner & Markus Kaspzac
+
+Golf
+1. Stefan Siegert
+2. Chris Löw
+3. Team Töte
+4. Team Magic
+
+Shred
+1. Honza Weber
+2. Dexter
+3. Matthias Schmidt
+4. Stefan Siegert
+
+Sick 3
+1. Honza Weber
+2. Matthias Schmidt
+3. Jakob
+4. Max Kerkhoff
+
+Intermediate Freestyle
+1. Sebastian Jakobi
+2. David Kaufmann
+3. Tim Heun
+4. Roy
+
+Women Freestyle
+1. Lise Thygesen
+2. Anne Busch
+3. Lisa Uebele
+4. Milli Rumpf
+
+Open Men Freestyle
+1. Honza Weber
+2. Paul Cronjaeger
+3. Matthias Lino Schmist
+4. Jan Struz

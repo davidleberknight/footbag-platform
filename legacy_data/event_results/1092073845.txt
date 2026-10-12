@@ -1,0 +1,72 @@
+# Czech Footbag Championships 2004
+# Source: mirror/www.footbag.org/events/show/1092073845/index.html
+# Recovered 2026-03-09 — two parser failures:
+#   - "Open Freestyle" appears twice (abbreviated seeding + full finals); stage2 merged
+#     both into one division (16 rows → deduped to 8 unique) — correct result but
+#     only the second (full) listing is used here.
+#   - "Big 1" (sick trick contest, 15 entries) not detected: "big" not a DIVISION_KEYWORD.
+#     Renamed to "Open Sick Trick". Stage2 captured 45/53. All 53 recovered here.
+# Czech "a" doubles separator replaced with " & ". "+" doubles separator also used.
+# Names: encoding corruption in mirror (?=ž/š/á/č). Canonical spellings used.
+# "Honza Huleja" in Doubles = Jan Huleja from Singles (Honza is Czech diminutive for Jan).
+# event_id: 1092073845
+
+Open Freestyle
+1. Vašek Klouda
+2. Honza Weber
+3. Aleš Zelinka
+4. Dexter Struž
+5. Pavel Červený
+6. Michal Daněk
+7. Martin Sládek
+8. Karel Prokeš
+
+Intermediate Freestyle
+1. Lukáš Blašek
+2. Karel Hudeček
+2. Marek Šandrik
+3. David Šandrik
+4. Adam Kulhánek
+5. Matyáš Mach
+
+Doubles Freestyle
+1. Vašek Klouda & Honza Weber
+2. Dexter Struž & Moglum Polák
+3. TMS Tyrpekl & Pavel Červený
+
+Shred 30
+1. Vašek Klouda
+2. Honza Weber
+3. Aleš Zelinka
+
+Sick 3
+1. Vašek Klouda
+2. Honza Weber
+3. Aleš Zelinka
+
+Open Sick Trick
+1. Vašek Klouda
+2. Honza Weber
+3. Aleš Zelinka
+4. Fanda Hájek
+5. Petr Stejskal
+6. Joso Palencár
+7. Michal Daněk
+8. Martin Sládek
+9. Rado Čarnaj
+10. Pavel Červený
+11. Karel Hudeček
+12. Lukáš Blašek
+13. Adam Kulhánek
+14. Matyáš Mach
+15. Standa Zeman
+
+Singles Net
+1. Pavel Hejra
+2. Martin Huleja
+3. Jan Huleja
+
+Doubles Net
+1. Pavel Hejra & Marek Šandrik
+2. Martin Huleja & Honza Huleja
+3. Dexter Struž & Moglum Polák

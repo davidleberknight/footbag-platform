@@ -27,7 +27,6 @@ event_key,legacy_event_id,year,event_name,event_slug,start_date,end_date,city,re
 1984_worlds_oregon_city,1984_worlds_oregon_city,1984,1984 World Footbag Championships (IFAB),world_footbag_championships_1984_ifab,,,Oregon City,Oregon,United States,WFA,worlds,completed,,mirror
 1985_holiday,1985_1985_holiday_classic,1985,1985 Holiday Classic,1985_holiday_classic,,,,,,WFA,freestyle,completed,,mirror
 1985_national,1985_1985_wfa_national,1985,1985 WFA National Championships,1985_wfa_national_championships,,,,,,WFA,mixed,completed,,mirror
-1985_worlds_golden,1985_worlds_golden,1985,6th Annual World Footbag Championships,1985_world_footbag_championships,,,Golden,Colorado,United States,WFA,worlds,completed,,mirror
 1985_eastregion_long_branch,1043096425,1985,East Coast Championships - 3rd Annual - 1985,east_coast_championships_3rd_annual_1985,1985-09-14,1985-09-15,Long Branch,New Jersey,United States,WFA,mixed,completed,,mirror
 1985_floodbag_finals,1985_floodbag_finals,1985,Floodbag Finals,floodbag_finals,,,,,,WFA,net,completed,,mirror
 1985_footbagjam,1985_greatest_lakes_footbag,1985,Greatest Lakes Footbag Open,greatest_lakes_footbag_open,,,,,,WFA,net,completed,,mirror
@@ -35,6 +34,7 @@ event_key,legacy_event_id,year,event_name,event_slug,start_date,end_date,city,re
 1985_mountainregion,1985_wfa_rocky_mountain,1985,Cabin Fever Classic,wfa_rocky_mountain_regionals,,,,,,WFA,freestyle,completed,,mirror
 1985_western_national_chicago,1985_western_national_indoor,1985,Oak Park - Chicago Open,western_national_indoor_footbag_freestyle_championship,,,Chicago,Illinois,United States,WFA,net,completed,,mirror
 1985_western_states_portland,1985_western_states_footbag_portland,1985,Western States Footbag Championships 1985,western_states_footbag_championships_1985,,,Portland,Oregon,United States,WFA,freestyle,completed,,mirror
+1985_worlds_golden,1985_worlds,1985,6th Annual World Footbag Championships,1985_world_footbag_championships,,,Golden,Colorado,United States,WFA,worlds,completed,,mirror
 1986_worlds_golden,1986_worlds_golden,1986,7th Annual World Footbag Championships,1986_world_footbag_championships,,,Golden,Colorado,United States,WFA,worlds,completed,,mirror
 1986_eastregion_long_branch,1057126024,1986,East Coast Footbag Championships - 4th Annual - 1986,east_coast_footbag_championships_4th_annual_1986,1986-09-30,1986-09-30,Long Branch,New Jersey,United States,WFA,mixed,completed,,mirror
 1986_sunshine_state,1986_sunshine_state_open_florida,1986,Sunshine State Open 1986,sunshine_state_open_1986,,,Florida,,United States,WFA,net,completed,,mirror

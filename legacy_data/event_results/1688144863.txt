@@ -1,0 +1,34 @@
+# 41st Annual East Coast Footbag Championships 2023
+# Source: mirror/www.footbag.org/events/show/1688144863/index.html
+# Recovered 2026-03-09 — "5 (tie)-" format not matched by placement regex;
+# stage2 captured 17/19 (missing both tied 5th place battle entries).
+# Location annotations stripped from player names. All 19 recovered here.
+# event_id: 1688144863
+
+Open Singles Net
+1. Dan Greer
+2. Esteban Restrepo
+3. Tony Ritz
+4. Mark Hunsberger
+5. Greg "Nice" Neumann
+6. Jim Hankins
+
+Open Doubles Net
+1. Dan Greer & Mark Hunsberger
+2. Tony Ritz & Esteban Restrepo
+3. Jim Hankins & Greg "Nice" Neumann
+
+Open Freestyle Head To Head Battle
+1. Mathieu Gauthier
+2. Dave "Boatz" Beyers
+3. Peter Bowler
+4. Matthew Kemmer
+5. Ben Barrows
+5. Tom Jenkins
+
+Open Freestyle Routines
+1. Mathieu Gauthier
+2. Ben Kelman
+3. Ben Barrows
+4. Drew Martin
+

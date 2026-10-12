@@ -1,0 +1,52 @@
+# California State Footbag Championships 1997
+# Santa Rosa, California — July 5-6, 1997
+# Source: footbag.org mirror (event 859923755)
+# Tabular RESULTS/SEED/PARTNERS format manually normalized to standard pipeline format.
+# "Supreme Exhaulted Ruler of the Court" overall net ranking omitted (meta-ranking, not a division).
+
+Open Singles Freestyle
+1. Tuan Vu
+2. Sam Conlon
+3. Steve Goldberg
+4. John Leys
+
+Intermediate Singles Freestyle
+1. Aaron de Glanville
+2. Jeff Gran
+3. James Deans
+
+Open Doubles Net
+1. Brent Welch & Chris Ott
+2. Brent Stewart & Mike McCarthy
+3. Jimmy Caveney & Lisa McDaniel
+4. Hung Chang & David Butcher
+5. Bill Langbehn & John Leys
+6. Radhy Esposito & Jimmy Evans
+7. J.J. Jones & Steve Campbell
+8. Jody Welch & Tuan Vu
+9. Tim Tucker & Wayne Foresman
+10. Steve Goldberg & Jason Davis
+11. Kerry Chun & Ben Lindahl
+12. Greg Durrett & Greg Landis
+
+Mixed Doubles Net
+1. Lonya Julin & David Butcher
+2. Dea Evans & Radhy Esposito
+3. Jimmy Evans & Debbie Fisher
+4. Gina Meyer & J.J. Jones
+5. Anne Miller & Greg Durrett
+
+Intermediate Doubles
+1. Ben Hutchinson & Ben Little
+2. Kern McNutt & Edwin Veltman
+3. Craig McNair & Sage Woodmansee
+3. Chris Young & Aaron de Glanville
+5. Craig Lewis & Eric Duggan
+5. Lonya Julin & Randy Pace
+7. Dea Evans & Mike Scheele
+8. Rob Sorenson & Brian Jones
+
+Novice Doubles
+1. Marc Weber & Bob Silva
+2. Doug Toth & Chris Cleaver
+3. Sunil Jani & Fred Husted

@@ -1,0 +1,192 @@
+# event_id: 1297811412
+# 2011 11th Annual Polish Footbag Championships 2011
+# Source: mirror "Manually Entered Results" section (final standings only)
+
+OPEN SINGLES NET:
+1. Wiktor Debski 
+2. Piotr Baltrukiewicz 
+3. Damian Budzik
+4. Wojciech Jamski 
+5. Slawomir Brzezinski 
+6. Rafal Andryka 
+7. Michal Klimczak 
+8. Maciej Samborowski 
+9. Michal Rog 
+10. Wojciech Ignaczak 
+11. Radoslaw Grabarczyk 
+12. Piotr Koscielny 
+13. Przemyslaw Brzezinski 
+
+OPEN DOUBLES NET:
+1. Damian Budzik/Piotr Baltrukiewicz 
+2. Wojciech Jamski/Piotr Koscielny 
+3. Wojciech Ignaczak/Rafal Andryka 
+4. Wiktor Debski / Maciej Samborowski 
+5. Slawomir Brzezinski / Przemyslaw Brzezinski 
+6. Michal Rog / Michal Klimczak 
+7. Gosia Debska / Radoslaw Grabarczyk
+
+
+
+OPEN SINGLES FREESTYLE:
+1. Damian Gielnicki
+2. Arkadiusz Dudzinski
+3. Marcin Bujko
+4. Rafal Kaleta
+5. Krzysztof Sobotka
+6. Mariusz Wilk
+7. Michal Biarda
+8. Tomasz Ostrowski
+9. Arkadiusz Stanek
+9. Michal Ostrowski
+9. Wiktor Debski
+9. Maciej Niczyporuk
+13. Pawel Nowak
+13. Pawel Scierski
+13. Pawel Rozek
+13. Pawel Cisek
+
+WOMEN'S SINGLES FREESTYLE:
+1. Hanna Mickiewicz
+2. Malgorzata Oledzka
+3. Sylwia Kocyk
+4. Dorota Wojtasiuk
+5. Malgorzata Debska
+6. Kinga Gwozdz
+
+OPEN DOUBLES FREESTYLE:
+1. Malgorzata Oledzka/Tomasz Ostrowski 
+2. Malgorzata Debska/Wiktor Debski 
+3. Dorota Wojtasiuk/Jakub Grabarczyk 
+4. Rafal Kaleta/Wojciech Jamski
+5. Sylwia Kocyk/Kinga Gwozdz
+
+INTERMEDIATE SINGLES FREESTYLE:
+1. Dawid Michalowicz
+2. Konrad Chlebny 
+3. Filip Wojcik
+4. Patryk Tenderenda
+5. Jakub Mosciszewski
+
+MOST RIPPIN' RUN:
+1. Damian Gielnicki
+2. Arkadiusz Dudzinski 
+3. Olaf Piwowar
+4. Rene Ruhr
+5. Krzystof Sobotka
+5. Maciej Niczyporuk
+5. Przemyslaw Pietrzycki
+5. Michal Jalowiecki
+9. Mchal Biarda
+9. Pawel Rozek
+9. Pawel Scierski
+9. Arkadiusz Stanek
+9. Rafal Kaleta
+9. Mariusz Wilk
+
+
+SHRED 30:
+1. Damian Gielnicki (258)
+2. Olaf Piwowar (232) 
+3. Arkadiusz Dudzinski (222,3)
+4. Marcin Bujko (202,8)
+5. Rene Ruhr (191,7)
+6. Rafal Kaleta	(172,4)
+7. Pawel Rozek	(163,4)
+8. Arkadiusz Stanek (150,8)
+9. Pawel Nowak (150,7)
+10. Krzysztof Sobotka (148,6)
+11. Mariusz Wilk (138,7)
+12. Przemek Pietrzycki (138,4)
+13. Damian Budzik (129)
+14. Pawel Scierski (96,2)
+15. Sylwia Kocyk (83,3)
+16. Malgorzata Oledzka (76,6)
+17. Cisek Pawel (75,2)
+
+OPEN CIRCLE CONTEST:
+1. Damian Gielnicki
+2. Arkadiusz Dudzinski 
+3. Olaf Piwowar
+4. Marcin Bujko
+5. Rene Ruhr
+5. Rafal Kaleta
+5. Maciej Niczyporuk
+5. Mariusz Wilk
+9. Pawel Nowak
+9. Michal Biarda
+9. Krzysztof Sobotka
+9. Pawel Scierski
+13. Przemek Pietrzycki
+13. Pawel Rozek
+13. Arkadiusz Stanek
+16. Sylwia Kocyk
+16. Malgorzata Oledzka
+16. Michal Jalowiecki
+
+SICK 3:
+1. Arkadiusz Dudzinski
+2. Maciej Niczyporuk 
+3. Damian Gielnicki 
+4. Pawel Scierski
+5. Rene Ruhr
+6. Michal Biarda
+7. Sylwia Kocyk
+8. Pawel Cisek
+
+REQUEST CONTEST:
+1. Damian Gielnicki 
+2. Pawel Rozek 
+3. Krzysztof Sobotka 
+4. Arkadiusz Dudzinski
+5. Maciej Niczyporuk
+5. Olaf Piwowar
+5. Rafal Kaleta
+8. Mariusz Wilk
+8. Michal Ostrowski
+8. Rene Ruhr
+11. Pawel Scierski
+12. Michal Biarda
+13. Przemyslaw Pietrzycki
+13. Pawel Cisek
+13. Sylwia Kocyk
+13. Arkadiusz Stanek
+13. Konrad Chlebny
+13. Filip Wojcik
+19. Michal Jalowiecki
+19. Patryk Tenderenda
+
+2 SQUARES:
+1. Szymon Kalwak
+2. Michal Biarda
+3. Arkadiusz Dudzinski
+4. Krzysztof Sobotka
+5. Rafal Kaleta
+5. Pawel Rozek
+5. Przemyslaw Pietrzycki
+5. Michal Rog
+9. Michal Jalowiecki
+9. Tomasz Ostrowski
+9. Maciej Niczyporuk
+9. Pawel Nowak
+9. Konrad Chlebny
+9. Sylwia Kocyk
+9. Damian Gielnicki
+9. Pawel Scierski
+
+
+
+OPEN FOOTBAG GOLF:
+1. Michal Ostrowski 
+2. Michal Klimczak 
+3. Przemyslaw Pietrzycki 
+4. Arkadiusz Dudzinski
+5. Michal Rog
+6. Pawel Scierski
+7. Rafal Kaleta
+8. Dawid Michalowicz
+9. Arkadiusz Stanek
+10. Filip Wojcik
+11. Sylwia Kocyk
+12. Kinga Gwozdz
+13. Jakub Mosciszewski

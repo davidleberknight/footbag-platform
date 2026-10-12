@@ -1,0 +1,19 @@
+# 14th Bembel Cup 2024 - a jam with friends
+# Source: mirror/www.footbag.org/events/show/1706536250/index.html
+# Fix: source uses tab-separated two-column format; parser concatenated names as singles.
+# Actual division: Open Doubles Net (confirmed by mirror pre block "Open Double Net")
+# event_id: 1706536250
+
+Open Doubles Net
+1. Wiktor Debski & Yves Kreil
+2. Yassin Khateeb & Chris Löw
+3. Pawel Rozek & Florian Götze
+4. Karim Daouk & Grischa Tellenbach
+5. Andi Wolff & Eurik Lindner
+6. Andreas Beimel & Frenzel Eduardo Martinez
+7. Audrey Tumelin & Stuff Nold
+8. Boris Ollivier & Marco Trentmann
+9. Jacob Kunde & Marc Gebauer
+10. Noah Haunhorst & Anton Kunde
+11. Lena Mlakar Jereb & Wlady Pachexo
+12. Alex Bartsch & Max Gerhardt

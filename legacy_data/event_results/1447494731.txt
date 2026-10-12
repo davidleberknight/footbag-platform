@@ -1,0 +1,21 @@
+# Lake Erie Footbag Tournament 2016
+# Source: mirror/www.footbag.org/events/show/1447494731/index.html
+# Recovered 2026-03-09 — "2ndPlace:" (no space) not matched by ordinal parser;
+# stage2 captured 8/9 (missing p2 singles). Doubles split-line format (each
+# partner on separate line) also not supported; this file combines them.
+# Last, First → First Last; IFPA numbers and division labels stripped.
+# event_id: 1447494731
+
+Open Singles Net
+1. Daniel Greer
+2. Anthony Ritz
+3. Jim Hogan
+4. Robert McCloskey
+5. Steve Richardson
+6. Dan Johnson
+
+Open Doubles Net
+1. Daniel Greer & Rob McCloskey
+2. Anthony Ritz & Steve Richardson
+3. Jim Hogan & Dan Johnson
+

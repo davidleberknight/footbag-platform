@@ -1,0 +1,133 @@
+# event_id: 1485863923
+# 2017 17th Annual Polish Footbag Championships
+# Source: mirror "Manually Entered Results" section (final standings only)
+
+Open Singles Net:
+1. Wojtek Jamski
+2. Damian Budzik
+3. Wiktor D�bski
+4. Pawe� Ro�ek
+5. Micha� Klimczak
+6. Micha� R�g
+7. Maciej Samborowski
+8. Marcin Staro�
+9. Jakub Grabarczyk
+10. Maciej Pietrzycki
+11. �ukasz Domin
+
+Open Doubles Net:
+1. Wiktor D�bski / Wojtek Jamski
+2. Jakub Grabarczyk / Pawe� Ro�ek
+3. Damian Budzik / Marcin Staro�
+4. Micha� Klimczak / Micha� R�g
+5. Maciej Samborowski / Gosia D�bska
+6. Maciej Pietrzycki / �ukasz Domin
+
+Open Singles Routines:
+1. Jakub Mo�ciszewski
+2. Damian Gielnicki
+3. Arkadiusz Stanek
+4. Marcin Bujko
+5. Pawe� Nowak
+6. Rafa� Kaleta
+7. Mariusz Wilk
+8. Jakub Worek
+9. Wiktor D�bski
+
+Women Singles Routines:
+1. Dorota Wojtasiuk
+
+Circle Contest:
+1. Jakub Mo�ciszewski
+2. Damian Gielnicki
+3. Marcin Bujko
+4. Mariusz Wilk
+4. Pawe� Nowak
+4. Maciek Niczyporuk
+5. Rafa� Kaleta
+5. Jakub Worek
+5. Arkadiusz Stanek
+5. Przemek Pietrzycki
+6. Jakub Grabarczyk
+
+Open Battle:
+1. Arkadiusz Stanek
+2. Mariusz Wilk
+3. Jakub Mo�ciszewski
+4. Rafa� Kaleta
+5. Jakub Worek
+5. Maciek Niczyporuk
+5. Przemek Pietrzycki
+6. Dorota Wojtasiuk
+
+Sick 3:
+1. Jakub Mo�ciszewski (phoenix>bedwetter>pixie paradon | phasing ss 
+dlo>phoenix>foodprocessor)
+2. Arkadiusz Stanek (foodprocessor>mobius>mulet)
+3. Damian Gielnicki (spinning pdx dlo>dimwalk swirl>marius)
+4. Maciek Niczyporuk (janiwalker>bedwetter>pixie whirling swirl)
+5. Pawe� Nowak (atomotion>blurry whirl>spinning motion)
+6. Przemek Pietrzycki (phoenix>pdx torque>ps whirl)
+7. Jakub Worek (backside bedwetter>paradon>barfly)
+8. Mariusz Wilk (alpine blurry whirl>spinning clipper>blender)
+9. Wiktor D�bski (ripwalk>clipper>clipper | ripped warrior>ripwalk>far osis 
+| blurry whirl>ripwalk>ps whirl)
+
+Big 1:
+1. Rafa� Kaleta (blurry torque | pdx chainsaw massacre)
+2. Jakub Mo�ciszewski (phasing ss dlo)
+3. Maciek Niczyporuk (nemesis | clownface | stepping butterfly symposium 
+twirl)
+4. Arkadiusz Stanek (gyro baroque)
+5. Pawe� Nowak (symposium atomic motion)
+6. Mariusz Wilk (montage | alpine foodprocessor)
+7. Przemek Pietrzycki (mulet | nuclear pdx whirl)
+8. Wojtek Jamski (spender)
+
+Shred 30:
+1. Jakub Mo�ciszewski (200,5)
+2. Damian Gielnicki (198,9)
+3. Arkadiusz Stanek (195,3)
+4. Maciek Niczyporuk (152,9)
+5. Mariusz Wilk (148,8)
+6. Pawe� Nowak (142,5)
+
+Request Contest:
+1. Damian Gielnicki
+2. Mariusz Wilk
+3. Jakub Mo�ciszewski
+4. Arkadiusz Stanek
+5. Wiktor D�bski
+6. Jakub Woras
+7. Rafa� Kaleta
+7. Maciek Niczyporuk
+8. Przemek Pietrzycki
+9. Pawe� Nowak
+9. Wojtek Jamski
+9. Dorota Wojtasiuk
+
+2 square:
+1. Rafa� Kaleta
+2. Micha� R�g
+3. Pawe� Ro�ek
+4. Marcin Staro�
+5. Damian Budzik
+5. Przemek Pietrzycki
+6. Arkadiusz Stanek
+6. Maciej Niczyporuk
+6. Maciej Pietrzycki
+7. Jakub Mo�ciszewski
+7. �ukasz Domin
+
+Footbag Golf:
+1. Damian Budzik (19)
+2. Przemek Pietrzycki (22)
+3. Rafa� Kaleta (23)
+4. Maciek Pietrzycki (24)
+5. Micha� R�g (25)
+5. Maciek Niczyporuk (25)
+5. Micha� Klimczak (25)
+6. Pawe� Ro�ek (26)
+7. Jakub Mo�ciszewski (27)
+8. Jakub Worek (29)
+9. �ukasz Domin (31)

@@ -1,0 +1,62 @@
+# Colorado Shred Symposium 4 (2003)
+# Source: mirror/www.footbag.org/events/show/1036298726/index.html
+# Recovered 2026-03-09 — ordinal+paren format ("1st) Name: City - score") not matched
+# by stage2 placement regex. Division headers after Women's Shred :30 not detected.
+# Stage2 only captured 35 placements (5 Intermediate + 30 misattributed).
+# BIG 3 uses Round 2 (finals) results. Most Rippin' Run 5th-8th are all place 5.
+# Fixed 2026-03-09: "Open Big 3" and "Open Most Rippin' Run" prefixes added so
+# stage2 _has_division_keyword() matches on "open". All 41 placements recovered.
+# event_id: 1036298726
+
+Intermediate Shred 30
+1. Ricky Moran
+2. Juan Sanchez
+3. Mike Lopez
+4. Shannon Anderson
+5. Dylan Johnson
+
+Women's Shred 30
+1. Jane Jones
+2. Melissa Schneider
+3. Sunny Freeman-Genz
+
+Open Shred 30
+1. Lon Smith
+2. Jim Penske
+3. Allan Haggett
+4. Greg Nelson
+5. Sunil Jani
+6. Peter Irish
+7. Scott Davidson
+8. Daryl Genz
+9. Rick Reese
+10. Justin Dale
+
+Open Big 3
+1. Lon Smith
+2. Jim Penske
+3. Sunil Jani
+4. Daryl Genz
+5. Chad Devlahovich
+6. Peter Irish
+
+Sick Trick
+1. Jim Penske
+2. Red Husted
+3. Kenny Shults
+4. Tuan Vu
+5. Jeremy Benton
+5. Chad Devlahovich
+5. Greg Nelson
+5. Peter Irish
+5. Ben Schmaltz
+
+Open Most Rippin' Run
+1. Peter Irish
+2. Lon Smith
+3. Allan Haggett
+4. Rick Reese
+5. Greg Nelson
+5. Alex Zerbe
+5. Daryl Genz
+5. Jim Penske

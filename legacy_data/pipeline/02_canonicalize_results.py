@@ -240,15 +240,6 @@ JUNK_EVENTS_TO_EXCLUDE: set[str] = _load_set_from_csv(
     REPO_ROOT / "overrides" / "junk_events.csv"
 )
 
-# Event name overrides for placeholder/template names
-# Decision: 2026-02 - Some events have template names that need human correction
-# Managed in: overrides/event_name_overrides.csv
-EVENT_NAME_OVERRIDES: dict[str, str] = _load_dict_from_csv(
-    REPO_ROOT / "overrides" / "event_name_overrides.csv",
-    key_col="event_id",
-    value_col="event_name",
-)
-
 # Location overrides for broken source events (inferred from event names)
 # Decision: 2026-02 - These locations were inferred from event names for events
 # where the original HTML had SQL errors and no location data was available.
@@ -288,6 +279,37 @@ EVENT_TYPE_OVERRIDES: dict[str, str] = _load_dict_from_csv(
 RESULTS_FILE_OVERRIDES: dict[str, dict] = _load_results_file_overrides(
     REPO_ROOT / "overrides" / "results_file_overrides.csv"
 )
+
+
+def apply_results_file_override(event_id, results_raw: str,
+                                overrides: dict[str, dict] | None = None,
+                                root: Path | None = None) -> str:
+    """Return results_raw with the event's results-file override applied.
+
+    A missing target is an error, never a skip: each row in the override list is
+    a hand correction to an event's results, so a build that silently ignored a
+    missing file would publish the uncorrected results while looking corrected.
+    """
+    overrides = RESULTS_FILE_OVERRIDES if overrides is None else overrides
+    root = REPO_ROOT if root is None else root
+    override = overrides.get(str(event_id))
+    if override is None:
+        return results_raw
+    # Paths in the override list start "legacy_data/"; root already points there.
+    rel = override["file"]
+    if rel.startswith("legacy_data/"):
+        rel = rel[len("legacy_data/"):]
+    path = root / rel
+    if not path.exists():
+        raise FileNotFoundError(
+            f"results correction file missing for event {event_id}: {path}\n"
+            f"  It is named by overrides/results_file_overrides.csv. These files are "
+            f"curated input, not generated: restore the file, or remove its row from "
+            f"the override list if the correction is ruled obsolete. Then rerun "
+            f"./run_pipeline.sh canonical_only (or full).")
+    text = path.read_text(encoding="utf-8")
+    clean = "\n".join(l for l in text.splitlines() if not l.startswith("#"))
+    return clean if override.get("replace") else clean + "\n" + results_raw
 
 # Managed in: overrides/event_parsing_rules.csv
 EVENT_PARSING_RULES: dict[str, dict] = _load_event_parsing_rules(
@@ -2821,6 +2843,9 @@ _RE_PLACEMENT_CONTINUATION = re.compile(
     r"(^|\s)\d+\s*[\.,)]\s*&\s*\d+\s*[\.,)]"    # "4. & 5." or "5.&6."
 )
 
+# The curated adapter's mark on a club's standing (CLUB_STANDING_MARK there).
+_RE_CLUB_STANDING = re.compile(r"\s*\[club standing\]", re.IGNORECASE)
+
 def is_continuation_or_junk_result_line(s: str) -> bool:
     t = (s or "").strip()
     if not t:
@@ -2896,7 +2921,8 @@ def looks_like_person_name(s: str) -> bool:
     return True
 
 
-def parse_results_text(results_text: str, event_id: str, event_type: str = None) -> list[dict]:
+def parse_results_text(results_text: str, event_id: str, event_type: str = None,
+                       trusted_headings: bool = False) -> list[dict]:
     """
     Parse results text into structured placements.
     Returns list of placement dicts with confidence scoring.
@@ -2905,6 +2931,10 @@ def parse_results_text(results_text: str, event_id: str, event_type: str = None)
         results_text: Raw results text to parse
         event_id: Event identifier
         event_type: Event type for context (net, freestyle, etc.) - used to disambiguate divisions
+        trusted_headings: True when every line not starting with a digit is a division
+            heading, as in a curated source that names each division in its own column.
+            The heading guesswork is then skipped, so an unusual heading such as
+            "Overall" cannot be refused and its placements folded into the division above.
     """
     placements = []
     division_raw = "Unknown"
@@ -3019,6 +3049,35 @@ def parse_results_text(results_text: str, event_id: str, event_type: str = None)
         # Examples: "9.-12. Wiktor Debski", "13.-16. Jindrich Smola", "17.-20. Alexander Trenner"
         # Pattern: <start>.-<end>. <player> where start is the lower place number
         line = re.sub(r'^(\s*\d{1,3})\.-\d{1,3}\.', r'\1.', line)
+
+        if trusted_headings and not line[0].isdigit():
+            division_raw = line.rstrip(":").strip()
+            pending_division = None
+            pending_place = None
+            continue
+
+        # A curated club standing names a club, not players: keep the whole name as
+        # one competitor, never read as a heading, split on its "/", or refused by
+        # the person-name test. The marker stays in entry_raw for the export to read.
+        club_line = place_re.match(line) if trusted_headings else None
+        if club_line and _RE_CLUB_STANDING.search(line):
+            entry_raw = normalize_whitespace(club_line.group(2))
+            club = _RE_CLUB_STANDING.sub("", entry_raw)
+            club = normalize_whitespace(re.sub(r"\s+-\s*[\d,]+\s*$", "", club))
+            division_canon = canonicalize_division(normalize_whitespace(division_raw))
+            placements.append({
+                "division_raw": normalize_whitespace(division_raw),
+                "division_canon": division_canon,
+                "division_category": categorize_division(division_canon, event_type),
+                "place": int(club_line.group(1)),
+                "competitor_type": "club",
+                "player1_name": club,
+                "player2_name": "",
+                "entry_raw": entry_raw,
+                "parse_confidence": "high",
+                "notes": "",
+            })
+            continue
 
         # Detect seeding vs results sections (skip seeding data)
         line_lower = line.lower()
@@ -4186,29 +4245,17 @@ def canonicalize_records(
             elif "golf" in name_lower:
                 event_type_hint = "golf"
 
+        # A curated block holds only headings and placement lines; a correction file
+        # merged into it is free text again, so its headings are not trusted.
+        trusted_headings = (rec.get("source_layer") == "curated"
+                            and str(event_id) not in RESULTS_FILE_OVERRIDES)
+
         # Apply results file overrides (e.g. recovered external results not in mirror)
-        if str(event_id) in RESULTS_FILE_OVERRIDES:
-            _override = RESULTS_FILE_OVERRIDES[str(event_id)]
-            # Strip leading "legacy_data/" — REPO_ROOT already points there.
-            _override_file = _override["file"]
-            if _override_file.startswith("legacy_data/"):
-                _override_file = _override_file[len("legacy_data/"):]
-            _override_path = REPO_ROOT / _override_file
-            if _override_path.exists():
-                _override_text = _override_path.read_text(encoding="utf-8")
-                # Strip comment lines (# prefix)
-                _override_lines = [l for l in _override_text.splitlines()
-                                   if not l.startswith("#")]
-                _override_clean = "\n".join(_override_lines)
-                if _override.get("replace"):
-                    results_raw = _override_clean
-                else:
-                    results_raw = _override_clean + "\n" + results_raw
-            else:
-                pass  # Override file removed — fix incorporated upstream
+        results_raw = apply_results_file_override(event_id, results_raw)
 
         # Parse placements WITH event_type context for better division categorization
-        placements, rejected_division_headers = parse_results_text(results_raw, event_id, event_type_hint)
+        placements, rejected_division_headers = parse_results_text(
+            results_raw, event_id, event_type_hint, trusted_headings=trusted_headings)
 
         # Infer final event_type (now that we have placements)
         event_type_for_div = event_type_hint or infer_event_type(event_name, results_raw, placements)
@@ -4257,10 +4304,7 @@ def canonicalize_records(
         if (location or "").strip().lower() == "nan":
             location = ""
 
-        # Get event name and apply override if available
         event_name = rec.get("event_name_raw", "")
-        if str(event_id) in EVENT_NAME_OVERRIDES:
-            event_name = EVENT_NAME_OVERRIDES[str(event_id)]
 
         # Infer event_type from name and placement categories
         event_type = rec.get("event_type_raw", "")

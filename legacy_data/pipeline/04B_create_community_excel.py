@@ -52,7 +52,6 @@ REPO      = Path(__file__).resolve().parent.parent
 OUT_DIR   = REPO / "out"
 INPUT_DIR = REPO / "inputs"
 XLSX      = REPO / "Footbag_Results_Community.xlsx"
-KNOWN_ISSUES_CSV = REPO / "overrides" / "known_issues.csv"
 
 
 # ── Date sorting ──────────────────────────────────────────────────────────────
@@ -1596,22 +1595,6 @@ def build_consecutives_records(wb: Workbook, records: list[dict]):
     ws.freeze_panes = "A3"
 
 
-# ── Known issues ──────────────────────────────────────────────────────────────
-
-def load_known_issues() -> dict[str, dict]:
-    """Return dict event_id → {severity, note} from overrides/known_issues.csv."""
-    result = {}
-    if not KNOWN_ISSUES_CSV.exists():
-        return result
-    with open(KNOWN_ISSUES_CSV, newline="", encoding="utf-8") as fh:
-        for row in csv.DictReader(fh):
-            result[row["event_id"]] = {
-                "severity": row.get("severity", "minor"),
-                "note":     row["note"],
-            }
-    return result
-
-
 def load_quarantine_events() -> set:
     """Return set of event_ids from inputs/review_quarantine_events.csv."""
     path = INPUT_DIR / "review_quarantine_events.csv"
@@ -1626,13 +1609,10 @@ def load_quarantine_events() -> set:
     return result
 
 
-def compute_data_status(eid: str, event_placements: dict,
-                        known_issues: dict, quarantine_set: set) -> str:
+def compute_data_status(eid: str, event_placements: dict, quarantine_set: set) -> str:
     """Return data_status string for one event.
 
-    Priority:  QUARANTINED > METADATA_ONLY > SOURCE_PARTIAL > KNOWN_ISSUE > OK
-    SOURCE_PARTIAL: known_issue severity moderate or severe (incomplete source data).
-    KNOWN_ISSUE:    known_issue severity minor (parsing / display limitation).
+    Priority:  QUARANTINED > METADATA_ONLY > OK
     """
     if eid in quarantine_set:
         return "QUARANTINED"
@@ -1640,11 +1620,6 @@ def compute_data_status(eid: str, event_placements: dict,
     n_d = len(ep)
     if n_d == 0:
         return "METADATA_ONLY"
-    issue = known_issues.get(eid)
-    if issue:
-        if issue["severity"] in ("moderate", "severe"):
-            return "SOURCE_PARTIAL"
-        return "KNOWN_ISSUE"
     return "OK"
 
 
@@ -1666,18 +1641,12 @@ FILL_INDEX_QUARANTINED = _fill("FFCDD2")   # soft red    — quarantined events
 FILL_INDEX_DEFAULT     = _fill("FFFFFF")   # white       — all other statuses
 
 # Status label styles for year sheets
-FILL_STATUS_WARN  = _fill("FFF9C4")   # yellow — SOURCE_PARTIAL / KNOWN_ISSUE
 FILL_STATUS_INFO  = _fill("E3F2FD")   # blue   — METADATA_ONLY
 FILL_STATUS_QUAR  = _fill("FFCDD2")   # red    — QUARANTINED
-FONT_STATUS_WARN  = Font(bold=True, size=8, color="996600")
 FONT_STATUS_INFO  = Font(bold=True, size=8, color="1565C0")
 FONT_STATUS_QUAR  = Font(bold=True, size=8, color="CC0000")
 
 _STATUS_LABELS = {
-    "SOURCE_PARTIAL": ("⚠ PARTIAL RESULTS",  "Source published only top placements",
-                       FONT_STATUS_WARN, FILL_STATUS_WARN),
-    "KNOWN_ISSUE":    ("⚠ DATA ISSUE",        "Known mirror parsing limitation",
-                       FONT_STATUS_WARN, FILL_STATUS_WARN),
     "METADATA_ONLY":  ("ℹ METADATA ONLY",     "Results were never published",
                        FONT_STATUS_INFO, FILL_STATUS_INFO),
     "QUARANTINED":    ("⛔ QUARANTINED",       "Results excluded due to ambiguous structure",
@@ -1690,7 +1659,6 @@ _STATUS_LABELS = {
 def build_index_real(wb: Workbook, events: dict, event_placements: dict,
                      event_col_map: dict, insert_at: int,
                      event_coverage: dict = None,
-                     known_issues: dict = None,
                      quarantine_set: set = None,
                      data_status_map: dict = None):
     """Build the Index sheet with hyperlinks and insert at the correct position.
@@ -1719,7 +1687,6 @@ def build_index_real(wb: Workbook, events: dict, event_placements: dict,
     )
 
     _quarantine_set  = quarantine_set  or set()
-    _known_issues    = known_issues    or {}
     _event_coverage  = event_coverage  or {}
     _data_status_map = data_status_map or {}
 
@@ -1733,13 +1700,10 @@ def build_index_real(wb: Workbook, events: dict, event_placements: dict,
         cov = compute_results_coverage_str(eid, ds, _event_coverage, event_placements)
 
         # Build notes text
-        issue = _known_issues.get(eid)
         if ds == "QUARANTINED":
             notes = "Excluded — ambiguous structure prevents deterministic parsing"
         elif ds == "METADATA_ONLY":
             notes = "No competitive results available"
-        elif issue:
-            notes = issue["note"]
         else:
             notes = ""
 
@@ -2396,12 +2360,11 @@ def main():
     print("Building event placements…")
     event_placements = build_event_placements(pf, s2_events)
     event_coverage   = compute_event_coverage(pf)
-    known_issues     = load_known_issues()
     quarantine_set   = load_quarantine_events()
 
     # Compute data_status for every event (used in Index + year sheets)
     data_status_map: dict = {
-        eid: compute_data_status(eid, event_placements, known_issues, quarantine_set)
+        eid: compute_data_status(eid, event_placements, quarantine_set)
         for eid in s2_events
     }
 
@@ -2457,7 +2420,7 @@ def main():
     wb.remove(idx_placeholder)
     build_index_real(wb, s2_events, event_placements, all_event_col_map,
                      insert_at=3, event_coverage=event_coverage,
-                     known_issues=known_issues, quarantine_set=quarantine_set,
+                     quarantine_set=quarantine_set,
                      data_status_map=data_status_map)
 
     # ── Lost Archives appendix (quarantined events) ───────────────────────────
@@ -2483,7 +2446,7 @@ def main():
         vf.write("# Index Status Validation\n\n")
         vf.write(f"Total events: {len(s2_events)}\n\n")
         vf.write("## Counts by data_status\n\n")
-        for status in ("OK", "KNOWN_ISSUE", "SOURCE_PARTIAL", "METADATA_ONLY", "QUARANTINED"):
+        for status in ("OK", "METADATA_ONLY", "QUARANTINED"):
             vf.write(f"- {status}: {status_counts.get(status, 0)}\n")
         vf.write("\n## Counts by results_coverage\n\n")
         for cov in ("complete", "mostly_complete", "partial", "sparse", "none", "quarantined"):

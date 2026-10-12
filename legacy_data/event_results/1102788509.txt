@@ -1,0 +1,30 @@
+# 3rd Annual Sunshred Footbag Open (LIVE) 2005
+# Source: mirror/www.footbag.org/events/show/1102788509/index.html
+# Recovered 2026-03-09 — trick combo annotations with ">" caused p1 and p2 of
+# "Rewind Combo" to be dropped; stage2 captured 12/14 (missing 2).
+# Renamed "Rewind Combo" → "Open Freestyle Combo" for keyword detection.
+# Trick combo annotations stripped.
+# event_id: 1102788509
+
+Open Freestyle
+1. Vasek Klouda
+2. Jan Struz
+3. Felix Zenger
+4. Ali Dastrandj
+
+Sick 3
+1. Vasek Klouda
+2. Felix Zenger
+3. Dexter
+4. Budas Balint
+
+Open Shred 30
+1. Vasek Klouda
+2. Dexter
+3. Felix Zenger
+
+Open Freestyle Combo
+1. Vasek Klouda
+2. Felix Zenger
+3. lurko
+

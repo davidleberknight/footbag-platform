@@ -1,0 +1,83 @@
+# Zocha Jam 2006 — Source HTML had "Interdmediate" (typo for Intermediate) and
+# "Most Rippin Run" which were not recognized as division headers, causing their
+# results to be merged into Women Freestyle and Sick3 respectively.
+# Fix: corrected "Interdmediate" → "Intermediate Freestyle", preserved Most Rippin Run,
+# stripped pkt-score annotations from Shred30 entries.
+Open Freestyle
+1. Vasek Klouda
+2. Arek Dudzinski
+3. Damian Gielnicki
+4. Kamil Wysocki
+5. Marcin Bujko
+6. Szymon Kalwak
+6. Michal Ostrowski
+6. Pavel Cerveny
+9. Pawel Rytelewski
+10. Pawel Rozek
+11. Bartosz Bubula
+12. Wojciech Ignaczak
+13. Maciej Bujko
+14. Rafal Kaleta
+15. Jan Struz
+16. Pawel Ulewicz
+16. Daniel Cuze
+18. Piotr Czaja
+19. Bartek Rzasa
+20. Jakub Worek
+
+Doubles Freestyle
+1. Arek Dudzinski & Kamil Wysocki
+2. Gosia Nycz & Wiktor Debski
+3. Jan Struz & Pavel Cerveny
+4. Sylwia Kocyk & Bartosz Bubula
+
+Women Freestyle
+1. Karolina Modrzejewska
+2. Gosia Nycz
+3. Sylwia Kocyk
+
+Intermediate Freestyle
+1. Piotr Kurt
+2. Kacper Kudyniuk
+3. Michal Miszkiel
+
+Shred30
+1. Vasek Klouda
+2. Szymon Kalwak
+3. Kamil Wysocki
+
+Sick3
+1. Vasek Klouda
+2. Damian Gielnicki
+3. Kierpca
+
+Most Rippin Run
+1. Vasek Klouda
+2. Damian Gielnicki
+3. Wiktor Debski
+
+Open Golf
+1. Michal Ostrowski
+2. Pavel Cerveny
+3. Michal Rog
+
+Circle Contest
+1. Szymon Kalwak
+2. Marcin Bujko
+3. Damian Gielnicki
+
+Open Singles Net
+1. Pavel Hejra
+2. Jan Struz
+3. Antoni Szczeniowski
+4. Piotr Koscielny
+5. Lukasz Osinski
+6. Michal Rog
+7. Pavel Cerveny
+8. Piotr Abramowicz
+
+Open Doubles Net
+1. Pavel Hejra & Jan Struz
+2. Piotr Koscielny & Michal Rog
+3. Antoni Szczeniowski & Lukasz Osinski
+4. Pavel Cerveny & Vasek Klouda

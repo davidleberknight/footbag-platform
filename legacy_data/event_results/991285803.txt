@@ -1,0 +1,55 @@
+# Montreal International Footbag Net Championships 2001
+# Montreal, Quebec, Canada
+# Source: footbag.org mirror — unlabeled section after Open Singles p19 (Benoit Guillemette
+# p1, Ted Fritch p2) is Intermediate Singles. Confirmed by Open Doubles comment:
+# "Benoit Guillemette- Ted Fritch (the only intermediate registered team)".
+# Old-format team rows + spurious player rows cleaned up; open doubles parenthetical
+# notes stripped. Fixed 2026-03-18.
+
+Open Singles
+1. Emmanuel Bouchard
+2. Yves Archambault
+3. Martin Graton
+4. David Butcher
+5. Rob Adams
+6. John Leys
+7. Jean-Francois Lemieux
+8. Patrick Asswad
+9. Jon Hayduk
+10. Stephane Comeau
+11. Marilyn Demuy
+12. Chris Siebert
+13. Benjamin Rochon
+13. Pat Keehan
+15. Renaud Fanoni
+16. Philippe Lessard
+17. Philippe Larose
+18. Eric Cote
+19. Jean-Philippe Rochefort
+19. Alexandre Belanger
+19. Natasha Mercure
+
+Intermediate Singles
+1. Benoit Guillemette
+2. Ted Fritch
+
+Novice Singles
+1. Mathieu Vaillancourt
+2. Remi
+3. Katia Dignard
+
+Open Doubles
+1. Emmanuel Bouchard & Patrick Asswad
+2. Yves Archambault & Alexis Deschenes
+3. John Hayduk & Andy Ronalds
+4. Martin Cote & Martin Graton
+5. David Butcher & John Leys
+6. Jean-Francois Lemieux & Benjamin Rochon
+7. Robert Lavigne & Rob Adams
+8. Pat Keehan & Chris Siebert
+9. Renaud Fanoni & Philippe Larose
+10. Marilyn Demuy & Maude Landreville
+11. Benoit Guillemette & Ted Fritch
+12. Philippe Lessard & Alexandre Belanger
+13. Stephane Comeau & Natasha Mercure
+14. Katia Dignard & Mathieu Vaillancourt

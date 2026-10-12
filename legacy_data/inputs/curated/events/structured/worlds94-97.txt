@@ -67,8 +67,8 @@ event_name,year,location,division,place,player_name,score,notes
 1994 WFA World Championships,1994,,Women's Golf,1,Julie Symons,,
 1994 WFA World Championships,1994,,Women's Golf,2,Becca English-Ross,,
 1994 WFA World Championships,1994,,Women's Golf,3,Lisa McDaniel,,
-1995 WFA World Championships,1995,,Men's Overall,1,Allan Petersen,,
-1995 WFA World Championships,1995,,Women's Overall,1,Tricia George,,
+1995 WFA World Championships,1995,,Men's Overall,1,Allan Petersen,947,
+1995 WFA World Championships,1995,,Women's Overall,1,Tricia George,990,
 1995 WFA World Championships,1995,,Open Sgls Net,1,Randy Mulder,,
 1995 WFA World Championships,1995,,Open Sgls Net,2,Danny Borsky,,
 1995 WFA World Championships,1995,,Open Sgls Net,3,Alf Marcussen,,
@@ -109,30 +109,197 @@ event_name,year,location,division,place,player_name,score,notes
 1995 WFA World Championships,1995,,Women's Team Freestyle,2,Lisa McDaniel,,doubles
 1995 WFA World Championships,1995,,Women's Team Freestyle,3,Becca English-Ross,,doubles
 1995 WFA World Championships,1995,,Women's Team Freestyle,3,Tricia George,,doubles
-1995 WFA World Championships,1995,,Open Sgls 5-minute Consecutive,1,Kenny Shults,,
-1995 WFA World Championships,1995,,Open Sgls 5-minute Consecutive,2,Sean Flynn,,
-1995 WFA World Championships,1995,,Open Sgls 5-minute Consecutive,3,Andy Linder,,
-1995 WFA World Championships,1995,,Open Dbls Distance 1-pass Consecutive,1,Allan Petersen,,doubles
-1995 WFA World Championships,1995,,Open Dbls Distance 1-pass Consecutive,1,Remi Kristensen,,doubles
-1995 WFA World Championships,1995,,Open Dbls Distance 1-pass Consecutive,2,Davie Piper,,doubles
-1995 WFA World Championships,1995,,Open Dbls Distance 1-pass Consecutive,2,Yves Archambault,,doubles
-1995 WFA World Championships,1995,,Open Dbls Distance 1-pass Consecutive,3,Bruce Guettich,,doubles
-1995 WFA World Championships,1995,,Open Dbls Distance 1-pass Consecutive,3,Peter Shunny,,doubles
-1995 WFA World Championships,1995,,Women's Sgls 5-minute Consecutive,1,Tricia George,,
-1995 WFA World Championships,1995,,Women's Sgls 5-minute Consecutive,2,Sam Conlon,,
-1995 WFA World Championships,1995,,Women's Sgls 5-minute Consecutive,3,Jody Welch,,
-1995 WFA World Championships,1995,,Women's Dbls Distance 1-pass Consecutive,1,Jody Welch,,doubles
-1995 WFA World Championships,1995,,Women's Dbls Distance 1-pass Consecutive,1,Tricia George,,doubles
-1995 WFA World Championships,1995,,Women's Dbls Distance 1-pass Consecutive,2,Julie Symons,,doubles
-1995 WFA World Championships,1995,,Women's Dbls Distance 1-pass Consecutive,2,Lisa McDaniel,,doubles
-1995 WFA World Championships,1995,,Women's Dbls Distance 1-pass Consecutive,3,Sam Conlon,,doubles
-1995 WFA World Championships,1995,,Women's Dbls Distance 1-pass Consecutive,3,Lisa Monti,,doubles
-1995 WFA World Championships,1995,,Open Golf,1,Davie Piper,,
-1995 WFA World Championships,1995,,Open Golf,2,Steve Smith,,
-1995 WFA World Championships,1995,,Open Golf,3,Allan Petersen,,
-1995 WFA World Championships,1995,,Women's Golf,1,Julie Symons,,
-1995 WFA World Championships,1995,,Women's Golf,2,Tricia George,,
-1995 WFA World Championships,1995,,Women's Golf,3,Heather Muggleton,,
+1995 WFA World Championships,1995,,Open Dbls Distance 1-pass Consecutive,1,Allan Petersen,355,doubles
+1995 WFA World Championships,1995,,Open Dbls Distance 1-pass Consecutive,1,Remi Kristensen,355,doubles
+1995 WFA World Championships,1995,,Open Dbls Distance 1-pass Consecutive,2,Davie Piper,176,doubles
+1995 WFA World Championships,1995,,Open Dbls Distance 1-pass Consecutive,2,Yves Archambault,176,doubles
+1995 WFA World Championships,1995,,Open Dbls Distance 1-pass Consecutive,3,Bruce Guettich,165,doubles
+1995 WFA World Championships,1995,,Open Dbls Distance 1-pass Consecutive,3,Peter Shunny,165,doubles
+1995 WFA World Championships,1995,,Women's Sgls 5-minute Consecutive,1,Tricia George,761,
+1995 WFA World Championships,1995,,Women's Sgls 5-minute Consecutive,2,Sam Conlon,760,
+1995 WFA World Championships,1995,,Women's Sgls 5-minute Consecutive,3,Jody Welch,678,
+1995 WFA World Championships,1995,,Women's Dbls Distance 1-pass Consecutive,1,Jody Welch,81,doubles
+1995 WFA World Championships,1995,,Women's Dbls Distance 1-pass Consecutive,1,Tricia George,81,doubles
+1995 WFA World Championships,1995,,Women's Dbls Distance 1-pass Consecutive,2,Julie Symons,79,doubles
+1995 WFA World Championships,1995,,Women's Dbls Distance 1-pass Consecutive,2,Lisa McDaniel,79,doubles
+1995 WFA World Championships,1995,,Women's Dbls Distance 1-pass Consecutive,3,Sam Conlon,12,doubles
+1995 WFA World Championships,1995,,Women's Dbls Distance 1-pass Consecutive,3,Lisa Monti,12,doubles
+1995 WFA World Championships,1995,,Open Golf,1,Davie Piper,173,3 round total 58 57 58
+1995 WFA World Championships,1995,,Open Golf,2,Steve Smith,178,3 round total 63 58 57
+1995 WFA World Championships,1995,,Open Golf,3,Allan Petersen,179,3 round total 62 60 57
+1995 WFA World Championships,1995,,Women's Golf,1,Julie Symons,198,3 round total 70 65 63
+1995 WFA World Championships,1995,,Women's Golf,2,Tricia George,199,3 round total 71 65 63
+1995 WFA World Championships,1995,,Women's Golf,3,Heather Muggleton,217,3 round total 72 78 67
+1995 WFA World Championships,1995,,Open Sgls 5-minute Consecutive,1,Sean Flynn,799,source Footbag World Vol. 12 No. 2 p.30-31; replaces Kenny Shults/Sean Flynn/Andy Linder podium (James ruling)
+1995 WFA World Championships,1995,,Open Sgls 5-minute Consecutive,2,Derrick Fogle,794,source Footbag World Vol. 12 No. 2 p.30-31; replaces Kenny Shults/Sean Flynn/Andy Linder podium (James ruling)
+1995 WFA World Championships,1995,,Open Sgls 5-minute Consecutive,3,Eric M. Wulff,778,source Footbag World Vol. 12 No. 2 p.30-31; replaces Kenny Shults/Sean Flynn/Andy Linder podium (James ruling)
+1995 WFA World Championships,1995,,Open Sgls 5-minute Consecutive,4,Jay Wininger,,source Footbag World Vol. 12 No. 2 p.30-31; replaces Kenny Shults/Sean Flynn/Andy Linder podium (James ruling)
+1995 WFA World Championships,1995,,Women's Sgls 5-minute Consecutive,4,Julie Symons,581,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Open Dbls Distance 1-pass Consecutive,4,Eric M. Wulff,158,doubles; source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Open Dbls Distance 1-pass Consecutive,4,Scott Cleere,158,doubles; source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Women's Dbls Distance 1-pass Consecutive,4,Kelly Kelley,11,doubles; source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Women's Dbls Distance 1-pass Consecutive,4,Tina Lewis,11,doubles; source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Open Dbls Net,4,Sebastian Verdy,,doubles; source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Open Dbls Net,4,Danny Borsky,,doubles; source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Women's Dbls Net,4,Becca English-Ross,,doubles; source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Women's Dbls Net,4,Lisa Monti,,doubles; source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Intermediate Doubles Footbag Net,1,Paul Lovern,,doubles; source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Intermediate Doubles Footbag Net,1,Mark Voightmann,,doubles; source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Intermediate Doubles Footbag Net,2,Doug Gannon,,doubles; source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Intermediate Doubles Footbag Net,2,David Butcher,,doubles; source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Intermediate Doubles Footbag Net,3,Michael McCarthy,,doubles; source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Intermediate Doubles Footbag Net,3,Randy Dix,,doubles; source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Intermediate Doubles Footbag Net,4,Dylan Cole,,doubles; source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Intermediate Doubles Footbag Net,4,Eric Cole,,doubles; source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Mixed Dbls Net,4,Chris Routh,,doubles; source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Mixed Dbls Net,4,Tricia George,,doubles; source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Open Sgls Freestyle,4,Rippin' Rick Reese,,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Women's Sgls Freestyle,4,Lisa McDaniel,,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Intermediate Singles Footbag Freestyle,1,Dave Wedertz,,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Intermediate Singles Footbag Freestyle,2,Tu Vu,,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Intermediate Singles Footbag Freestyle,3,Chris Bond,,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Intermediate Singles Footbag Freestyle,4,Rex Stoler,,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Open Team Freestyle,3,Rippin' Rick Reese,,doubles; source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Open Team Freestyle,3,Kenny Shults,,doubles; source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Open Team Freestyle,4,Rich Cook,,doubles; source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Open Team Freestyle,4,Scott Milne,,doubles; source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Mixed Team Footbag Freestyle Demonstration Round,1,Greg Nelson,,doubles; source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Mixed Team Footbag Freestyle Demonstration Round,1,Lisa McDaniel,,doubles; source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Mixed Team Footbag Freestyle Demonstration Round,2,Etienne Constable,,doubles; source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Mixed Team Footbag Freestyle Demonstration Round,2,Constance Reed,,doubles; source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Mixed Team Footbag Freestyle Demonstration Round,3,Jeffrey Johnson,,doubles; source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Mixed Team Footbag Freestyle Demonstration Round,3,Tricia George,,doubles; source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Mixed Team Footbag Freestyle Demonstration Round,4,Scott Davidson,,doubles; source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Mixed Team Footbag Freestyle Demonstration Round,4,Valeria Davidson,,doubles; source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Open Sgls Net,4,Kenny Shults,,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Women's Sgls Net,4,Tricia George,,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Intermediate Singles Footbag Net,1,Curt Rund,,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Intermediate Singles Footbag Net,2,Dan Botkin,,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Intermediate Singles Footbag Net,3,Kerry Chun,,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Intermediate Singles Footbag Net,4,Dylan Cole,,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Intermediate Women's Singles Footbag Net,1,Ann Lasken,,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Intermediate Women's Singles Footbag Net,2,Jane Jones,,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Intermediate Women's Singles Footbag Net,3,Dea Evans,,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Intermediate Women's Singles Footbag Net,4,Darlene House,,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Open Golf,4,Alf Marcussen,181,3 round total 63 62 56; source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Women's Golf,4,Becca English-Ross,218,3 round total 76 72 70; source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Intermediate Footbag Golf,1,Radhy Esposito,215,3 round total 71 73 71; source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Intermediate Footbag Golf,2,Greg Potts,224,3 round total 78 76 70; source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Intermediate Footbag Golf,3,Simon Hearsey,225,3 round total 78 74 73; source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Intermediate Footbag Golf,4,Wally Victory,230,3 round total 77 79 74; source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Women's Overall,2,Julie Symons,985,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Women's Overall,3,Lisa McDaniel,974,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Women's Overall,4,Becca English-Ross,870,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Women's Overall,5,Lisa Monti,755,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Women's Overall,5,Valeria Davidson,755,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Women's Overall,7,Tina Lewis,674,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Women's Overall,8,Kelly Kelley,665,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Women's Overall,9,Jody Welch,598,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Women's Overall,10,Sam Conlon,395,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Women's Overall,11,Carol Wedemeyer,299,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Women's Overall,12,Heather Muggleton,290,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Women's Overall,13,Constance Constable,196,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Women's Overall,14,Anne Miller,192,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Women's Overall,15,Dea Evans,188,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Women's Overall,15,Lisa Waccolz,188,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Women's Overall,17,Emily Verdy,186,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Women's Overall,18,Wendy Curran,94,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,2,Eric M. Wulff,943,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,3,Remi Kristensen,938,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,4,Scott Milne,927,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,5,Peter Shunny,917,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,6,Bruce Guettich,899,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,7,Scott Cleere,891,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,8,Rich Cook,874,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,9,Tuan Vu,853,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,10,R. Vincent Bradley,850,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,11,Jay Wininger,848,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,12,Steve Baker,833,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,13,Jeffrey Johnson,830,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,14,Brent Welch,736,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,15,Derrick Fogle,684,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,16,Jimmy Evans,657,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,17,Rippin' Rick Reese,647,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,18,Davie Piper,645,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,19,Roger Stimson,635,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,20,Sean Flynn,629,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,21,Steve Smith,627,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,21,J. Patrick Kelly,627,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,23,Bill Langbehn,611,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,24,Kenny Shults,587,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,25,Alf Marcussen,585,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,26,Yossarian Kelley,553,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,27,David Bernard,524,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,28,Chris Ott,511,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,29,Rob Adams,489,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,30,Yves Archambault,486,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,31,Steve Dusablon,482,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,32,Greg Nelson,460,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,33,Emmanuel Bouchard,457,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,34,Jim Caveney,445,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,35,Etienne Constable,444,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,35,Andrew Morgan,444,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,37,Noah Dubreuil,440,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,38,Jake Leong,439,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,39,Steven Campbell,391,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,40,Andrew Ronald,367,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,41,James Harley,316,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,42,Randy Mulder,300,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,43,Peter Irish,298,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,44,Danny Borsky,293,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,45,Josh Casey,283,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,46,Martin Cote,282,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,47,Sebastien Verdy,279,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,48,Chris Routh,268,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,49,Daryl Genz,264,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,50,"Eric ""Bart"" Bartholoman",259,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,51,Steve Kremer,254,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,52,Bob Nicholson,252,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,53,Paul Lovern,243,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,54,Mark Voightmann,241,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,54,Jesse Whitworth,241,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,55,Larry Doyle,240,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,55,Byron Proshold,240,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,55,Crass Eddicott,240,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,55,Simon Hearsey,240,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,60,Ollie Clampet,236,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,61,Matt Churney,235,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,62,Lance Levy,216,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,63,Steven L. Goldberg,190,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,63,Edmund Larnacchia,190,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,65,Brent Stewart,176,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,65,Patrick Keehan,176,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,65,Dennis Ross,176,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,65,Ahren Gehrman,176,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,65,Tu Vu,176,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,70,Michael Grueter,174,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,71,Scott Durfee,169,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,72,Jim Curtis,164,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,73,John Mulyk,158,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,74,Scott Davidson,96,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,75,Tim Kelly,95,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,76,Reed Gray,91,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,77,Edwin Veltman,85,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Men's Overall,78,Chris Bond,82,source Footbag World Vol. 12 No. 2 p.30-31
+1995 WFA World Championships,1995,,Overall Club Standings,1,Alpha Schwa Omega/MFA,7420,club standing; source Footbag World Vol. 12 No. 2
+1995 WFA World Championships,1995,,Overall Club Standings,2,Wash Park,6788,club standing; source Footbag World Vol. 12 No. 2
+1995 WFA World Championships,1995,,Overall Club Standings,3,POOF,5250,club standing; source Footbag World Vol. 12 No. 2
+1995 WFA World Championships,1995,,Overall Club Standings,4,Kitsilano Kickers,3584,club standing; source Footbag World Vol. 12 No. 2
+1995 WFA World Championships,1995,,Overall Club Standings,5,Quebec Footbag Ass.,2131,club standing; source Footbag World Vol. 12 No. 2
+1995 WFA World Championships,1995,,Overall Club Standings,6,Sound Footwork,2084,club standing; source Footbag World Vol. 12 No. 2
+1995 WFA World Championships,1995,,Overall Club Standings,7,OOPS,1577,club standing; source Footbag World Vol. 12 No. 2
+1995 WFA World Championships,1995,,Overall Club Standings,8,FAKE,1479,club standing; source Footbag World Vol. 12 No. 2
+1995 WFA World Championships,1995,,Overall Club Standings,9,Virginia Shaolin Foot Clan,1438,club standing; source Footbag World Vol. 12 No. 2
+1995 WFA World Championships,1995,,Overall Club Standings,10,Texas Footbag League,1339,club standing; source Footbag World Vol. 12 No. 2
+1995 WFA World Championships,1995,,Overall Club Standings,11,FEAT,1329,club standing; source Footbag World Vol. 12 No. 2
+1995 WFA World Championships,1995,,Overall Club Standings,12,EFA,943,club standing; source Footbag World Vol. 12 No. 2
+1995 WFA World Championships,1995,,Overall Club Standings,13,PA Coalition of Kickers,833,club standing; source Footbag World Vol. 12 No. 2
+1995 WFA World Championships,1995,,Overall Club Standings,14,Utah Footbag Club,822,club standing; source Footbag World Vol. 12 No. 2
+1995 WFA World Championships,1995,,Overall Club Standings,15,Albany Footbag Club,711,club standing; source Footbag World Vol. 12 No. 2
+1995 WFA World Championships,1995,,Overall Club Standings,16,Footbag Peace Initiative,647,club standing; source Footbag World Vol. 12 No. 2
+1995 WFA World Championships,1995,,Overall Club Standings,17,World Net Alliance,316,club standing; source Footbag World Vol. 12 No. 2
+1995 WFA World Championships,1995,,Overall Club Standings,18,Big Add Posse,298,club standing; source Footbag World Vol. 12 No. 2
+1995 WFA World Championships,1995,,Overall Club Standings,19,Aerial Zone,290,club standing; source Footbag World Vol. 12 No. 2
 1996 WFA World Championships,1996,,Men's Overall,1,Allan Petersen,,
 1996 WFA World Championships,1996,,Women's Overall,1,Becca English-Ross,,
 1996 WFA World Championships,1996,,Open Sgls Net,1,Sebastien Verdy,,

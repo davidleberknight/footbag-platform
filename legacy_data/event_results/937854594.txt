@@ -1,0 +1,28 @@
+# Turku Tournee 1999
+# Source: footbag.org mirror "Manually Entered Results" section
+# Proper division separation for Intermediate and Pro divisions
+# replace=true
+
+Intermediate Singles Net
+1. Oskari Forstén
+2. Jaakko Lindström
+3. Tapio Karhunen
+4. Jarno Terho
+
+Intermediate Doubles Net
+1. Jarno Terho & Matti Pohjola
+2. Oskari Forstén & Jyri Ryypö
+3. Tomi Helomaa & Jaakko Lindström
+4. Tapio Karhunen & Mikko Salonen
+
+Pro Singles Net
+1. Tuomas Kärki
+2. Jukka Peltola
+3. Jani Markkanen
+4. Justin Sexton
+
+Pro Doubles Net
+1. Jesse Fryckman & Tuomas Kärki
+2. Justin Sexton & Jukka Peltola
+3. Jani Markkanen & Aleksi Öhman
+4. Olli Savolainen & Jesse Ruotsalainen

@@ -1,0 +1,78 @@
+# 5th Annual Colorado Shred Symposium (2004)
+# Source: mirror/www.footbag.org/events/show/1070954568/index.html
+# Recovered 2026-03-09 — sub-division headers (Big 3, Sick Trick, Most Rippin' Run)
+# without colons not detected by stage2. pending_division mechanism captured "Big 3"
+# as a player name. Stage2 got 40/56 placements.
+# "?" encoding artifact on line 106 skipped (unrecoverable). "Sunny" = Sunny Freeman Genz.
+# event_id: 1070954568
+
+Open Big 3
+1. Ryan Mulroney
+2. Jim Penske
+3. Justin Dale
+
+Open Sick Trick
+1. Sunil Jani
+2. Ricky Moran
+3. Justin Dale
+4. Peter Irish
+5. Sebastian Duchesne
+
+Open Most Rippin' Run
+1. Jim Penske
+2. Daryl Genz
+3. Ryan Mulroney
+4. Peter Irish
+
+Open Shred 30
+1. Ryan Mulroney
+2. Peter Irish
+3. Sunil Jani
+4. Daryl Genz
+5. Justin Dale
+6. Jim Penske
+7. Sebastian Duchesne
+8. Jon Schneider
+9. Ricky Moran
+10. Tuan Vu
+11. Brett Campbell
+12. Paul Toews
+13. Josh Benham
+14. Windsen Pan
+15. Brian Fournier
+16. Andrew Weglarz
+
+Intermediate Big 3
+1. Jon Bean
+2. Sean Thompson
+3. Evan Lovely
+4. Dan Reed
+5. Lee Byrd
+6. Kev McGrogan
+7. Dylan Johnson
+
+Intermediate Sick Trick
+1. Jon Bean
+2. Sean Thompson
+3. Jeremiah Bechard
+4. Dan Reed
+5. Sunny Freeman Genz
+6. Kev McGrogan
+7. Lee Byrd
+8. Dylan Johnson
+9. Evan Lovely
+
+Intermediate Shred 30
+1. Sean Thompson
+2. Evan Lovely
+3. Sunny Freeman Genz
+4. Jeremiah Bechard
+5. Jon Bean
+6. Shannon Anderson
+7. Dan Reed
+8. Lee Byrd
+9. Kev McGrogan
+10. Dylan Johnson
+
+Intermediate Most Rippin' Run
+1. Jeremiah Bechard
