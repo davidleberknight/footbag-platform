@@ -384,21 +384,6 @@ run_csv_only_canonical_bootstrap_and_qc() {
     echo ""
 }
 
-# Count data rows in the club seed, 0 when it is absent. Parsed as CSV rather
-# than counted as lines because a club description can carry embedded newlines,
-# which makes a line count read far higher than the number of clubs.
-_clubs_seed_row_count() {
-    python - <<'PY'
-import csv, pathlib
-p = pathlib.Path("seed/clubs.csv")
-if not p.exists():
-    print(0)
-else:
-    with p.open(newline="", encoding="utf-8") as f:
-        print(max(0, sum(1 for _ in csv.reader(f)) - 1))
-PY
-}
-
 # =============================================================================
 # PHASE B — Mirror extraction (clubs + club_members seed CSVs)
 #
@@ -406,50 +391,18 @@ PY
 #   seed/clubs.csv         (consumed by load_clubs_seed.py + Phase D)
 #   seed/club_members.csv  (consumed by load_club_members_seed.py + Phase D)
 #
-# Both extract scripts are idempotent: they skip when the output CSV is
-# newer than the source mirror HTML. Safe to re-run on every pipeline
-# invocation.
+# The club list is the mirror's club pages with the curated corrections
+# applied; the legacy dump supplies no clubs, because a club the live site no
+# longer served was deleted in effect. Both extract scripts regenerate their
+# output on every run from the mirror and the curated inputs alone, never from
+# the existing seed, so the same inputs always give the same seed.
 # =============================================================================
 run_phase_b_mirror_extract() {
     echo ""
     echo "╔══════════════════════════════════════════════════════╗"
     echo "║  PHASE B: MIRROR EXTRACTION                          ║"
     echo "╚══════════════════════════════════════════════════════╝"
-    # The club seed must never come out of this phase smaller than it went in.
-    # The check spans both steps below rather than living inside either one,
-    # because neither produces a comparable number on its own: the extractor
-    # sees only the clubs the legacy site still serves as active, and the
-    # overlay adds back the approved clubs it no longer serves. Only the pair's
-    # combined output is comparable to the committed seed, so the count is taken
-    # before the first step and tested after the last.
-    local clubs_before clubs_after
-    clubs_before="$(_clubs_seed_row_count)"
-
     python scripts/extract_clubs.py
-    # Reconcile the mirror-extracted seed against the authoritative approved-club
-    # universe from the legacy clubs dump: preserve the mirror-enriched rows,
-    # add the approved clubs the mirror never captured, and drop any seeded key
-    # the dump no longer approves. Runs before URL verification so the added
-    # clubs' URLs are verified, and before the classifier so it sees the full
-    # universe. A clean no-op when the machine-local dump is absent.
-    python scripts/overlay_clubs_from_dump.py
-
-    clubs_after="$(_clubs_seed_row_count)"
-    if (( clubs_after < clubs_before )) && [[ "${ALLOW_CLUB_SEED_SHRINK:-0}" != "1" ]]; then
-        echo "" >&2
-        echo "ERROR: the club seed shrank across mirror extraction: ${clubs_before} rows before, ${clubs_after} after." >&2
-        echo "       seed/clubs.csv has NOT been left in a good state and the run is stopping here." >&2
-        echo "" >&2
-        echo "       The usual cause is that the approved-club dump was unavailable, which makes" >&2
-        echo "       scripts/overlay_clubs_from_dump.py a no-op and leaves only the clubs the mirror" >&2
-        echo "       still serves as active. That dump is machine-local, reached through the" >&2
-        echo "       footbag_legacy_repo symlink; confirm it resolves and holds the clubs module." >&2
-        echo "       The other cause is a genuinely depleted clubs/show mirror." >&2
-        echo "" >&2
-        echo "       Re-run ./run_pipeline.sh once the dump or the mirror is in place. If the" >&2
-        echo "       reduction is real and intended, re-run with ALLOW_CLUB_SEED_SHRINK=1." >&2
-        exit 1
-    fi
     python scripts/extract_club_members.py
     python scripts/extract_member_usernames.py
     # Stamp URL safety verdicts for club URLs at data-prep time, so the deployed
@@ -503,19 +456,19 @@ run_phase_b_mirror_extract() {
 #   junk; Phase G loads that classification into the DB; Phase H
 #   (06_cutover_pre_populated_clubs.py) is the SOLE creator of live
 #   `clubs` rows at cutover, and only for the pre_populate-class
-#   candidates (~59 of 311). Onboarding_visible / dormant / junk
+#   candidates. Onboarding_visible / dormant / junk
 #   candidates remain in `legacy_club_candidates` (staging) until
 #   promoted via the onboarding wizard or admin.
 #
 #   Bulk-loading every seed/clubs.csv row into `clubs` here would defeat
-#   that gating: Phase H's INSERT OR IGNORE would no-op against all 311
-#   pre-existing rows and the production DB would carry 252 non-eligible
+#   that gating: Phase H's INSERT OR IGNORE would no-op against every
+#   pre-existing row and the production DB would carry the non-eligible
 #   clubs that shouldn't be live yet.
 #
 #   The dev workflow (scripts/reset-local-db.sh) continues
 #   to call load_clubs_seed.py directly for local-browse convenience.
-#   Dev DBs intentionally carry all 311 mirror clubs; production cutover
-#   DBs carry only the 59 pre_populate clubs. The divergence is
+#   Dev DBs intentionally carry every seeded club; production cutover
+#   DBs carry only the pre_populate clubs. The divergence is
 #   intentional and documented.
 # =============================================================================
 run_phase_clubs_seed_load() {

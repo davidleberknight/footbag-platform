@@ -30,8 +30,8 @@ from typing import Callable, Iterable
 FINGERPRINT_VERSION = "v1"
 APPROVE = "approve_same_person"
 DO_NOT_MERGE = "do_not_merge"
-# An explicit same-human merge of accounts Stage A did NOT group (one or both lack a
-# full DOB, so no name+full-DOB group exists). Human-adjudicated; keyed by the
+# An explicit same-human merge of accounts Stage A did NOT group (for example one
+# lacks a full DOB, so no Stage A group exists). Human-adjudicated; keyed by the
 # account set and a fingerprint of its raw facts. It never invents or copies a
 # missing DOB -- the survivor keeps its own raw values and unions the losers'.
 MERGE_ACCOUNTS = "merge_accounts"
@@ -42,6 +42,11 @@ DO_NOT_MERGE_REASON = "adjudicated_distinct_person"
 # The expected_disposition a merge_accounts override records: it asserts the
 # accounts are NOT already a Stage A group (else the standard approve path applies).
 MERGE_ACCOUNTS_EXPECTED = "ungrouped:no_stage_a_group"
+# The expected_disposition of a merge_accounts override that takes in one or more
+# whole Stage A groups together with accounts Stage A did not group: the ruled set
+# replaces those groups, so their automatic decision no longer stands on its own.
+# A group only partly inside the set is never absorbed; that is refused.
+MERGE_ACCOUNTS_ABSORBS = "absorbs:stage_a_group"
 
 OVERRIDE_FIELDS = ("decision", "account_ids", "expected_disposition", "fingerprint", "note")
 
@@ -125,13 +130,21 @@ def validate_merge_account_overrides(
     present_ids: set[str],
     grouped_ids: set[str],
     fingerprint_of: Callable[[frozenset[str]], str],
+    group_of: "dict[str, frozenset[str]] | None" = None,
 ) -> list[frozenset[str]]:
     """Validate merge_accounts overrides fail-closed; return the validated account
     sets in stable order. Raises OverrideError (the caller aborts) on: a duplicate
     override, an account missing or held out of the reconcilable set, an account
-    already in a Stage A name+DOB group, a stale expected disposition, or a stale
-    fingerprint. Builds nothing and mutates nothing."""
+    in a Stage A group the set does not wholly contain, a stale expected
+    disposition, or a stale fingerprint. Builds nothing and mutates nothing.
+
+    `group_of` maps each grouped account to its whole Stage A group. An override
+    whose set contains every account of a group, plus at least one account Stage A
+    did not group, absorbs that group and records MERGE_ACCOUNTS_ABSORBS; one that
+    names only ungrouped accounts records MERGE_ACCOUNTS_EXPECTED. A set that is
+    exactly one live group is the approve path's, never this one's."""
     merge_overrides = [o for o in overrides if o.decision == MERGE_ACCOUNTS]
+    group_of = group_of or {}
     seen: set[frozenset[str]] = set()
     validated: list[frozenset[str]] = []
     for o in merge_overrides:
@@ -145,14 +158,19 @@ def validate_merge_account_overrides(
                 f"merge_accounts {sorted(o.account_ids)}: accounts missing or "
                 f"collision-excluded: {missing}")
         already = sorted(i for i in o.account_ids if i in grouped_ids)
-        if already:
+        partial = sorted(i for i in already
+                         if not group_of.get(i) or not group_of[i] <= o.account_ids)
+        if partial or (already and len(already) == len(o.account_ids)):
             raise OverrideError(
                 f"merge_accounts {sorted(o.account_ids)}: already in a Stage A "
-                f"name+DOB group: {already} (use approve_same_person instead)")
-        if o.expected_disposition != MERGE_ACCOUNTS_EXPECTED:
+                f"group: {partial or already} (name every account of the group "
+                f"together with the accounts it did not group, or use "
+                f"approve_same_person for a group on its own)")
+        expected = MERGE_ACCOUNTS_ABSORBS if already else MERGE_ACCOUNTS_EXPECTED
+        if o.expected_disposition != expected:
             raise OverrideError(
                 f"merge_accounts {sorted(o.account_ids)}: stale disposition "
-                f"{o.expected_disposition!r} (expected {MERGE_ACCOUNTS_EXPECTED!r})")
+                f"{o.expected_disposition!r} (expected {expected!r})")
         if fingerprint_of(o.account_ids) != o.fingerprint:
             raise OverrideError(
                 f"merge_accounts {sorted(o.account_ids)}: stale fingerprint")

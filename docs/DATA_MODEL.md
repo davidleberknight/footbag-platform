@@ -384,7 +384,7 @@ At least one of `recipient_email`, `recipient_member_id`, or `mailing_list_id` m
 The sender worker scrubs `outbox_emails.body_text` (sets it to `NULL`) on every successful delivery, so no message body is retained in the outbox after send. This blanket scrub is load-bearing for voting confirmation emails, whose `body_text` carries a plaintext receipt token; the ballot row's `receipt_token_hash` is retained. See APP-019.
 
 #### Email archives
-`email_archives` stores a record of bulk sends (mailing list blasts, event participant emails, announcements). `CHECK` constraints enforce that mailing-list sends reference a list and event-participant sends reference an event.
+`email_archives` stores a record of bulk sends (mailing list blasts, event participant emails, announcements). `CHECK` constraints enforce that mailing-list sends reference a list and event-participant sends reference an event. Every row is retained indefinitely as the record of what the platform sent in IFPA's name; a row names no recipient, so erasure has nothing in it to reach beyond clearing `sender_member_id`.
 
 For a group-backed list these rows are not only a send log: they are the group's discussion, read on the group page per `M_Read_Group_Discussion`. `email_archives.parent_archive_id`, a nullable self-reference, carries the threading: a row with no parent opens a thread and a reply names the message it answers. Only sends to a group-backed list may set it, and a parent must belong to the same list, which the service enforces. The rows are retained indefinitely and are never edited or deleted, so a correction to a group message is a further message rather than a rewrite; account erasure clears `sender_member_id` and leaves the message standing.
 

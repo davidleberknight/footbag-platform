@@ -351,3 +351,53 @@ describe('gate_staging_realdata_invariants', () => {
     expect(calls().some((c) => c.startsWith('ssh ')), 'the host was contacted').toBe(false);
   });
 });
+
+describe('gate_realdata_invariants against a local load', () => {
+  // A root whose two shell check scripts pass, so the verdict turns only on the
+  // honours check and the member-data audits, run through a stub interpreter
+  // that answers each with the exit status the case sets.
+  let localRoot: string;
+  let stubPython: string;
+
+  beforeAll(() => {
+    localRoot = path.join(tmp, 'local-root');
+    fs.mkdirSync(path.join(localRoot, 'scripts'), { recursive: true });
+    for (const s of ['validate-legacy-import-gates.sh', 'validate-realdata-ri.sh']) {
+      writeExecutable(path.join(localRoot, 'scripts', s), ['#!/usr/bin/env bash', `echo "PASS ${s}"`]);
+    }
+    stubPython = path.join(binDir, 'stub-python');
+    writeExecutable(stubPython, [
+      '#!/usr/bin/env bash',
+      'case "$1" in',
+      '  *validate_legacy_honors.py) echo "honours stub ran"; exit "${STUB_HONOURS_RC:-0}" ;;',
+      '  *audit_member_data.py) echo "audits stub ran"; exit "${STUB_AUDIT_RC:-0}" ;;',
+      'esac',
+      'exit 2',
+    ]);
+  });
+
+  const gate = (python: string): string =>
+    `pipeline_python() { ${python}; }; cd ${JSON.stringify(localRoot)}; gate_realdata_invariants`;
+
+  // Defect caught: the honours flags or the audited member-data results are not
+  // judged on the machine holding the load, so a wrong honour or a moved figure
+  // reaches a deploy with the real-data row green.
+  it('runs the honours check and the member-data audits, and fails when either fails', () => {
+    const ok = runWith(gate(`echo ${stubPython}`), authoritativeDb);
+    expect(ok.status, ok.stdout + ok.stderr).toBe(0);
+    expect(ok.stdout).toContain('honours stub ran');
+    expect(ok.stdout).toContain('audits stub ran');
+    for (const failing of ['STUB_HONOURS_RC', 'STUB_AUDIT_RC']) {
+      const res = runWith(gate(`echo ${stubPython}`), authoritativeDb, undefined, { [failing]: '1' });
+      expect(res.status, `${failing}: ${res.stdout}`).toBe(1);
+    }
+  });
+
+  // Defect caught: a machine missing the pipeline environment reports the row
+  // green having judged neither check.
+  it('fails, naming how to build it, when the pipeline environment is missing', () => {
+    const res = runWith(gate('return 1'), authoritativeDb);
+    expect(res.status).toBe(1);
+    expect(res.stdout).toContain('bash legacy_data/run_pipeline.sh venv');
+  });
+});

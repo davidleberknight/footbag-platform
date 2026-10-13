@@ -15,7 +15,9 @@ moved, and a value that still carries a destroyed character is refused, because
 naming an encoding cannot bring back a byte that is already gone.
 
 The names themselves are not written down here. These tests use synthetic values
-and the curated file's own shape; the delivered inventory is asserted by count.
+and the curated file's own shape. What the delivered data actually yields is
+checked where that data lives, by the member-data audits the real-data row of
+the test runner runs.
 """
 from __future__ import annotations
 
@@ -37,7 +39,6 @@ ex = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(ex)
 
 OVERRIDES = _ROOT / "legacy_data" / "overrides" / "member_name_encodings.csv"
-PROBLEMS = _MDS / "out" / "legacy_members_encoding_problems.csv"
 
 # The audited partition of the delivered inventory. Members and values are
 # different counts and both are pinned, because the recoverable groups hold more
@@ -269,43 +270,3 @@ def test_clean_unicode_columns_are_untouched_by_an_override():
     value, how = ex._resolve_pair("Jan Kowalski", "Jan Kowalski", "cp1250")
     assert value == "Jan Kowalski"
     assert how != ex.SELECTED_CURATED
-
-
-# ── the five stay unresolved, deliberately ───────────────────────────────────
-
-@pytest.mark.skipif(not PROBLEMS.exists(),
-                    reason="the delivered extract is operator-supplied and absent here")
-def test_the_delivered_inventory_is_the_destroyed_residue():
-    # The audit reads the curated codepages, so a member the curator ruled on
-    # leaves this file. What a delivered extract still lists is the destroyed
-    # residue: names that lost a byte before the dump was taken, which naming an
-    # encoding cannot bring back. The audited totals above are the partition
-    # this file is the remainder of, not its expected length.
-    with PROBLEMS.open(newline="", encoding="utf-8") as fh:
-        rows = list(csv.DictReader(fh))
-    assert len(rows) == DESTROYED_VALUES
-    assert len({r["legacy_member_id"] for r in rows}) == DESTROYED_MEMBERS
-
-
-@pytest.mark.skipif(not PROBLEMS.exists(),
-                    reason="the delivered extract is operator-supplied and absent here")
-def test_every_destroyed_member_is_in_the_inventory_and_out_of_the_override():
-    with PROBLEMS.open(newline="", encoding="utf-8") as fh:
-        rows = list(csv.DictReader(fh))
-    inventory = {r["legacy_member_id"] for r in rows}
-    assert DESTROYED_IDS <= inventory
-    # Their route is the admin help request, which exists precisely because a
-    # member whose stored surname cannot match needs a human rather than a
-    # failed self-serve match. Leaving them here is what routes them.
-    assert DESTROYED_IDS & {r["legacy_member_id"] for r in _curated()} == set()
-
-
-@pytest.mark.skipif(not PROBLEMS.exists(),
-                    reason="the delivered extract is operator-supplied and absent here")
-def test_every_destroyed_value_still_carries_its_lost_character():
-    with PROBLEMS.open(newline="", encoding="utf-8") as fh:
-        rows = [r for r in csv.DictReader(fh)
-                if r["legacy_member_id"] in DESTROYED_IDS]
-    assert len(rows) == DESTROYED_VALUES
-    for r in rows:
-        assert "?" in r["stored_plain_column"], r["legacy_member_id"]

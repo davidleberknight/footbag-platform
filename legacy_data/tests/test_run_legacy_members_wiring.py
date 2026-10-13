@@ -109,6 +109,19 @@ def test_honors_backfill_reruns_after_stage_b_over_the_proposed_links() -> None:
     assert i_qc < i_honors_rerun
 
 
+def test_the_loaded_honours_flags_are_judged_after_the_links_and_fail_the_run() -> None:
+    # Judged before the links are written, the flags and the person links describe
+    # different states and disagree on every honoree a proposal links; judged as a
+    # warning, a wrong flag reaches the deploy. So the check reads the database
+    # after the link apply, and a mismatch exits non-zero whatever flags are passed.
+    i_link_apply = TEXT.index('apply_reconciled_links.py')
+    i_check = TEXT.index('validate_legacy_honors.py" --flags-from-db')
+    assert i_link_apply < i_check
+    after = TEXT[i_check:TEXT.index("fi", i_check)]
+    assert "exit 1" in after
+    assert TEXT.count("validate_legacy_honors.py") == 1
+
+
 def test_dry_run_short_circuits_before_the_honors_rerun() -> None:
     # The --all-data build previews with --load --dry-run, which must exit before
     # the post-Stage-B honors re-run.
@@ -117,21 +130,30 @@ def test_dry_run_short_circuits_before_the_honors_rerun() -> None:
     assert i_dry_exit < i_honors_rerun
 
 
-# The automatic merge fuses accounts sharing an exact name and a full birth date.
-# Human rulings both add merges that rule cannot see and forbid merges it would
-# otherwise make, so a production load that runs without them merges people ruled
-# to be distinct and leaves one of them holding an account nobody can claim.
+# The automatic merge fuses accounts it groups as one person. Human rulings both
+# add merges that rule cannot see and forbid merges it would otherwise make, so a
+# production load that runs without them merges people ruled to be distinct and
+# leaves one of them holding an account nobody can claim.
+
+def _stage_b_ruled_call() -> str:
+    start = TEXT.index('reconcile_legacy_members.py" --stage-b-survivor-view')
+    return TEXT[start:TEXT.index("else", start)]
+
 
 def test_final_merge_applies_the_recorded_account_rulings() -> None:
     merge_call = TEXT[TEXT.index('reconcile_legacy_members.py" --final-merge'):]
     merge_call = merge_call[:merge_call.index("LOAD_CSV=")]
     assert '--overrides "${ADJ_STAGE_A}"' in merge_call
     assert '--entitlement-dispositions "${ADJ_ENTITLEMENTS}"' in merge_call
-    # The Stage B half of the same adjudication. A ruling the call never passes is
-    # a ruling that does not apply: the withheld link is proposed anyway and the
-    # reviewed groups stay in the undecided pile, neither of which raises an error.
-    assert '--link-holds "${ADJ_LINK_HOLDS}"' in merge_call
-    assert '--review-resolutions "${ADJ_REVIEW_RESOLUTIONS}"' in merge_call
+    # The Stage B half of the same adjudication rules on Stage B's proposals, so
+    # it goes to the call that makes them. A ruling the call never applies is a
+    # ruling that does not apply: the withheld link is proposed and written anyway,
+    # and the reviewed groups stay in the undecided pile, neither raising an error.
+    stage_b = _stage_b_ruled_call()
+    assert '--link-holds "${ADJ_LINK_HOLDS}"' in stage_b
+    assert '--review-resolutions "${ADJ_REVIEW_RESOLUTIONS}"' in stage_b
+    assert '--link-holds' not in merge_call
+    assert '--review-resolutions' not in merge_call
     # All four paths are built once, where the readiness check reads them, so the
     # check and the call cannot disagree about which files a run actually applied.
     assert 'ADJ_STAGE_A="${PRIVATE_OVERRIDES}/stage_a_adjudication.csv"' in TEXT
@@ -147,11 +169,10 @@ def test_completeness_is_required_on_the_production_load_alone() -> None:
     # The flag refuses unless every membership-only provisional person carries a
     # proposed link or a recorded disposition. That is the right bar for the load
     # that cannot be redone, and too strict for a dev or CI run on a partial dump.
-    merge_call = TEXT[TEXT.index('reconcile_legacy_members.py" --final-merge'):]
-    merge_call = merge_call[:merge_call.index("LOAD_CSV=")]
-    assert '"${COMPLETE_ARGS[@]+"${COMPLETE_ARGS[@]}"}"' in merge_call
-    i_merge = TEXT.index('reconcile_legacy_members.py" --final-merge')
-    setup = TEXT[:i_merge]
+    stage_b = _stage_b_ruled_call()
+    assert '"${COMPLETE_ARGS[@]+"${COMPLETE_ARGS[@]}"}"' in stage_b
+    i_call = TEXT.index('reconcile_legacy_members.py" --stage-b-survivor-view')
+    setup = TEXT[:i_call]
     i_args = setup.rindex("COMPLETE_ARGS=()")
     guard = setup[i_args:]
     assert 'if [[ "${PRODUCTION_LOAD}" -eq 1 ]]' in guard
@@ -187,13 +208,17 @@ def test_the_rulings_are_applied_whenever_they_are_present() -> None:
     assert 'ADJUDICATIONS_READY=1' in TEXT
     assert TEXT.index('if [[ "${ADJUDICATIONS_READY}" -eq 1 ]]') < \
         TEXT.index('reconcile_legacy_members.py" --final-merge')
-    # The rulings reach the final merge and nothing earlier: Stage B proposes links
-    # mechanically and the quality gate reads its output, so handing either the
-    # rulings would make the gate judge a result already adjudicated.
-    stage_b_call = TEXT[TEXT.index('reconcile_legacy_members.py" --stage-b'):
-                        TEXT.index('reconcile_legacy_members.py" --qc-gate')]
-    assert "--overrides" not in stage_b_call
-    assert "ADJ_STAGE_A" not in stage_b_call
+    # With the rulings present, Stage B reads the account universe after the ruled
+    # merges and applies its own rulings; without them it runs mechanically, so an
+    # ordinary load needs nothing private. Both calls run before the quality gate,
+    # which then judges the links the apply step will actually write.
+    i_ruled = TEXT.index('reconcile_legacy_members.py" --stage-b-survivor-view')
+    i_plain = TEXT.index('reconcile_legacy_members.py" --stage-b --csv')
+    i_gate = TEXT.index('reconcile_legacy_members.py" --qc-gate')
+    guard = TEXT.rindex('if [[ "${ADJUDICATIONS_READY}" -eq 1 ]]', 0, i_ruled)
+    assert guard < i_ruled < i_plain < i_gate
+    assert '--overrides "${ADJ_STAGE_A}"' in _stage_b_ruled_call()
+    assert "ADJ_" not in TEXT[i_plain:i_gate]
 
 
 def test_the_board_roster_is_resolved_and_passed_by_the_runner() -> None:

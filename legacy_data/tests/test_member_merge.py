@@ -56,6 +56,9 @@ CREATE TABLE legacy_person_club_affiliations (
 CREATE UNIQUE INDEX ux_affil ON legacy_person_club_affiliations(
   legacy_member_id, legacy_club_candidate_id, inferred_role)
   WHERE legacy_member_id IS NOT NULL;
+CREATE UNIQUE INDEX ux_affil_by_person ON legacy_person_club_affiliations(
+  historical_person_id, legacy_club_candidate_id, inferred_role)
+  WHERE historical_person_id IS NOT NULL;
 CREATE TABLE club_bootstrap_leaders (
   id TEXT PRIMARY KEY,
   club_id TEXT NOT NULL,
@@ -235,13 +238,73 @@ def test_affiliation_exact_duplicate_is_deduped():
     assert _one(cur, "SELECT COUNT(*) FROM legacy_person_club_affiliations WHERE id='lose'") == 0
 
 
-def test_affiliation_nonexact_collision_aborts():
+def _affil(cur, id_, lmid, **over):
+    row = dict(legacy_club_candidate_id="c1", inferred_role="member",
+               confidence_score=0.7, resolution_status="pending",
+               resolved_club_id=None, display_name="Sam Lee", notes=None,
+               historical_person_id=None)
+    row.update(over)
+    _ins(cur, "legacy_person_club_affiliations", id=id_, legacy_member_id=lmid, **row)
+
+
+def _affil_row(cur, id_):
+    return cur.execute(
+        "SELECT * FROM legacy_person_club_affiliations WHERE id = ?", (id_,)).fetchone()
+
+
+def test_one_person_listed_twice_on_a_roster_folds_taking_the_loser_person_link():
+    # The account merge has ruled both accounts one person, and the roster listed
+    # them twice under two spellings. Aborting here stopped the whole member load;
+    # dropping the loser row instead would lose the only historical-person link.
     conn = _db(); cur = conn.cursor()
     _seed_survivor(cur, "100")
-    _ins(cur, "legacy_person_club_affiliations", id="surv", legacy_member_id="100",
-         legacy_club_candidate_id="c1", inferred_role="member", confidence_score=0.7)
-    _ins(cur, "legacy_person_club_affiliations", id="lose", legacy_member_id="200",
-         legacy_club_candidate_id="c1", inferred_role="member", confidence_score=0.2)
+    _affil(cur, "surv", "100", display_name="Tom Lee", confidence_score=0.7)
+    _affil(cur, "lose", "200", display_name="Thomas Lee", confidence_score=0.9,
+           historical_person_id="pL")
+
+    stats = mm.apply_member_merge(cur, {"200": "100"})
+
+    kept = _affil_row(cur, "surv")
+    assert kept["historical_person_id"] == "pL"
+    assert kept["display_name"] == "Tom Lee"
+    assert _affil_row(cur, "lose") is None
+    s = stats["remap"]["legacy_person_club_affiliations"]
+    assert s["folded"] == 1
+    assert s["dropped_names"] == [{"survivor": "100", "loser": "200", "club_candidate": "c1",
+                                   "kept": "Tom Lee", "dropped": "Thomas Lee"}]
+
+
+def test_a_fold_keeps_the_higher_confidence_and_the_survivor_person_link():
+    # Keeping the lower score would downgrade a match the build had already made.
+    conn = _db(); cur = conn.cursor()
+    _seed_survivor(cur, "100")
+    _affil(cur, "surv", "100", confidence_score=0.6, historical_person_id="pS")
+    _affil(cur, "lose", "200", confidence_score=0.9, display_name="Sam  Lee")
+
+    mm.apply_member_merge(cur, {"200": "100"})
+
+    kept = _affil_row(cur, "surv")
+    assert kept["confidence_score"] == 0.9
+    assert kept["historical_person_id"] == "pS"
+
+
+def test_affiliations_disagreeing_on_notes_still_abort():
+    # A note is human-written evidence; folding would silently drop one of them.
+    conn = _db(); cur = conn.cursor()
+    _seed_survivor(cur, "100")
+    _affil(cur, "surv", "100", notes="founder")
+    _affil(cur, "lose", "200", notes="left in 2004")
+    with pytest.raises(mm.MergeAbort):
+        mm.apply_member_merge(cur, {"200": "100"})
+
+
+def test_affiliations_carrying_two_different_persons_still_abort():
+    # Two different person links means the roster rows are two people, whatever
+    # the account merge concluded; folding would fuse them.
+    conn = _db(); cur = conn.cursor()
+    _seed_survivor(cur, "100")
+    _affil(cur, "surv", "100", historical_person_id="pS")
+    _affil(cur, "lose", "200", historical_person_id="pL")
     with pytest.raises(mm.MergeAbort):
         mm.apply_member_merge(cur, {"200": "100"})
 

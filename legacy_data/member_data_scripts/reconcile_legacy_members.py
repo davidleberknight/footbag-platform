@@ -9,7 +9,9 @@ never writes to the database.
 
 Stages:
   * Stage A -- intra-dump duplicate accounts (implemented). Groups member_valid=1
-    accounts by one review signal: same normalized name + full date of birth.
+    accounts by one review signal: same surname and full date of birth, that date
+    not a placeholder, with first names that agree exactly or as a curated
+    nickname pair and compatible middle names.
     Shared-user-id accounts are not grouped here: every account in a user-id
     collision group is held out of the reconcilable universe entirely (see below)
     and listed with its partners in the excluded-accounts CSV. Shared-email
@@ -21,7 +23,10 @@ Stages:
     a link only when the evidence resolves to exactly one historical person AND
     exactly one dump account: a verified id crosswalk (the person already names a
     valid account), or a unique normalized name borne by a single account that
-    carries a full date of birth or an email. historical_persons carry no date of
+    carries a real full date of birth or an email, or, for a person no account
+    matches by exact name, a single account whose name agrees under the claim
+    step's name rule with the person's name or a verified alias, held by no other
+    person, and corroborated the same way. historical_persons carry no date of
     birth or email, so when SEVERAL accounts share the matched name there is
     nothing to corroborate against -- a DOB or email on one of them is a
     completeness signal, not identity evidence, and the whole group goes to the
@@ -72,6 +77,7 @@ from pathlib import Path
 # importable when this script is run directly or loaded by path.
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from pipeline.identity.alias_resolver import normalize_name  # noqa: E402
+from pipeline.identity import name_match  # noqa: E402
 
 # The shared-email resolver is the single authority for shared-email ownership,
 # called identically by the member loader and this reconciler.
@@ -233,35 +239,105 @@ class DuplicateGroup:
     group_id: str = field(default="")
 
 
-def build_stage_a_groups(rows: list[dict[str, str]]) -> list[DuplicateGroup]:
-    """Group reconcilable accounts that share a normalized name + full date of
-    birth -- the strongest same-person duplicate-account signal in the dump.
+# The review reason for a set of accounts that share a surname and a birth date
+# and are linked by compatible names, but not every pair of which is compatible:
+# "Chris" with "Christopher", and "Christopher" with "Christina", never makes
+# "Chris" and "Christina" one person, so the set is never merged on its own.
+NAMES_NOT_ALL_COMPATIBLE = "names_not_all_compatible"
+
+
+def _middles_compatible(a: list[str], b: list[str]) -> bool:
+    """Middle names never block a merge when one side has none; otherwise each
+    pair must agree, one being an initial or a prefix of the other."""
+    if not a or not b:
+        return True
+    if len(a) != len(b):
+        return False
+    return all(x.startswith(y) or y.startswith(x) for x, y in zip(a, b))
+
+
+def _same_person_names(a: list[str], b: list[str],
+                       nicknames: dict[str, frozenset[str]]) -> bool:
+    """Two folded names, already known to share a surname and a birth date, are
+    one person's when their first names agree exactly or as a curated nickname
+    pair and their middle names are compatible. Different first names that are
+    not a pair (siblings, twins) never are."""
+    return (name_match.first_names_agree(a[0], b[0], nicknames)
+            and _middles_compatible(a[1:-1], b[1:-1]))
+
+
+def build_stage_a_groups(rows: list[dict[str, str]],
+                         nicknames: dict[str, frozenset[str]] | None = None
+                         ) -> list[DuplicateGroup]:
+    """Group reconcilable accounts that are one person by surname, birth date and
+    a compatible name -- the strongest same-person duplicate-account signal in
+    the dump.
+
+    Accounts share a bucket when their folded surnames and full birth dates are
+    identical and the birth date is not a placeholder (before 1930, 1 January, or
+    within the last five years), which corroborates nothing. Inside a bucket two
+    accounts are compatible when their first names agree exactly or as a curated
+    nickname pair and their middle names are compatible. A connected set of
+    compatible accounts is a group; when every pair in it is compatible it is
+    recommended as one person, and otherwise it goes to review with
+    NAMES_NOT_ALL_COMPATIBLE. A group whose accounts all carry one normalized name
+    keeps the name-and-date match key, so a ruling recorded against it stays
+    valid; a group reached through a nickname or a middle name is keyed on its
+    surname and date.
 
     Runs over the reconcilable universe (member_valid=1 minus the email / user-id
-    collision accounts the loader drops); shared-email accounts are held out to
-    the collision-excluded review CSV instead. Returns only clusters of more than
-    one account, each carrying a stable id. Pure and deterministic: it reads
-    nothing, writes nothing, and merges nothing.
+    collision accounts the loader drops). Returns only clusters of more than one
+    account, each carrying a stable id. Pure and deterministic: it reads only the
+    curated nickname pairs when none are passed, writes nothing, and merges
+    nothing.
     """
+    if nicknames is None:
+        nicknames = name_match.load_nicknames()
     valid, _ = reconcilable_rows(rows)
     groups: list[DuplicateGroup] = []
 
-    by_name_dob: dict[tuple[str, str], list[dict[str, str]]] = defaultdict(list)
+    buckets: dict[tuple[str, str], list[tuple[dict[str, str], list[str]]]] = defaultdict(list)
     for r in valid:
-        nm = normalize_name(r.get("real_name") or "")
+        words = name_match.fold_name_words(r.get("real_name") or "")
         dob = _full_dob(r)
-        if nm and dob:
-            by_name_dob[(nm, dob)].append(r)
-    for (nm, dob), accts in sorted(by_name_dob.items()):
-        if len(accts) > 1:
+        if len(words) < 2 or name_match.is_placeholder_birth_date(dob):
+            continue
+        buckets[(words[-1], dob)].append((r, words))
+
+    for (surname, dob), members in sorted(buckets.items()):
+        if len(members) < 2:
+            continue
+        members.sort(key=lambda m: m[0].get("legacy_member_id") or "")
+        n = len(members)
+        compatible = [[i != j and _same_person_names(members[i][1], members[j][1], nicknames)
+                       for j in range(n)] for i in range(n)]
+        seen: set[int] = set()
+        for start in range(n):
+            if start in seen:
+                continue
+            component, frontier = {start}, [start]
+            while frontier:
+                i = frontier.pop()
+                for j in range(n):
+                    if compatible[i][j] and j not in component:
+                        component.add(j)
+                        frontier.append(j)
+            seen |= component
+            if len(component) < 2:
+                continue
+            accts = [members[i][0] for i in sorted(component)]
+            names = {normalize_name(a.get("real_name") or "") for a in accts}
+            clique = all(compatible[i][j] for i in component for j in component if i != j)
             groups.append(DuplicateGroup(
                 signal="name_dob",
-                match_key=f"{nm}|{dob}",
-                same_person_recommended=True,
-                exclusion_reason="",
-                accounts=sorted(accts, key=lambda r: r.get("legacy_member_id") or ""),
+                match_key=(f"{next(iter(names))}|{dob}" if len(names) == 1
+                           else f"surname:{surname}|{dob}"),
+                same_person_recommended=clique,
+                exclusion_reason="" if clique else NAMES_NOT_ALL_COMPATIBLE,
+                accounts=accts,
             ))
 
+    groups.sort(key=lambda g: (g.match_key, g.accounts[0].get("legacy_member_id") or ""))
     for i, g in enumerate(groups, start=1):
         g.group_id = f"A{i:04d}"
     return groups
@@ -362,10 +438,12 @@ def run_stage_a(csv_path: Path, out_path: Path, excluded_out: Path,
 # Stage A auto-merge -- collapse a clean name+full-DOB group to one survivor
 # ---------------------------------------------------------------------------
 #
-# Ruling: at the final production load, accounts sharing an exact normalized name
-# and an exact full date of birth are one person and are auto-merged into a single
-# claimable record; only the residue where other fields actively contradict goes
-# to human review. This runs on the reconcilable universe (member_valid=1 minus
+# Ruling: at the final production load, accounts that Stage A groups as one person
+# (one surname, one full non-placeholder date of birth, first names that agree
+# exactly or as a curated nickname pair, compatible middle names) are auto-merged
+# into a single claimable record; only the residue where other fields actively
+# contradict, or where not every pair of names is compatible, goes to human
+# review. This runs on the reconcilable universe (member_valid=1 minus
 # the shared-email / shared-user-id collision cohort, held out by construction),
 # so a collision-cohort account can never enter a merge group.
 #
@@ -509,6 +587,12 @@ def evaluate_merge_group(group: DuplicateGroup,
 
     ids = [(a.get("legacy_member_id") or "").strip() for a in accounts]
 
+    # Safety block: the grouping itself found a pair of names in the group that
+    # are not one person's, so nothing merges until a human rules on it.
+    if (group.exclusion_reason == NAMES_NOT_ALL_COMPATIBLE
+            and NAMES_NOT_ALL_COMPATIBLE not in ignore_blocks):
+        return review(NAMES_NOT_ALL_COMPATIBLE)
+
     # Safety block: any account already carries claim state in the database.
     if "claim_state" not in ignore_blocks and any(i in claimed_ids for i in ids):
         return review("claim_state")
@@ -595,22 +679,31 @@ def _apply_account_merge_overrides(rows: list[dict[str, str]],
                                    decisions: list,
                                    merge_overrides: list,
                                    links_by_account: dict[str, str] | None,
-                                   claimed_ids: set[str] | None) -> list:
-    """Turn validated merge_accounts overrides into extra merge decisions over
-    accounts Stage A did not group. Read-only and deterministic: it builds the
-    survivor row via the ordinary union (no DOB is invented or copied) and fails
-    closed on any stale or malformed override before building anything."""
+                                   claimed_ids: set[str] | None) -> tuple[list, list]:
+    """Turn validated merge_accounts overrides into merge decisions over accounts
+    Stage A did not group, together with any whole Stage A group a ruling absorbs.
+    Returns (decisions without the absorbed groups, the new merge decisions).
+    Read-only and deterministic: it builds the survivor row via the ordinary union
+    (no DOB is invented or copied) and fails closed on any stale or malformed
+    override before building anything."""
     import stage_a_overrides
     kept, _ = reconcilable_rows(rows)
     by_id = {(r.get("legacy_member_id") or "").strip(): r for r in kept}
-    grouped_ids: set[str] = set()
+    group_of: dict[str, frozenset[str]] = {}
     for d in decisions:
-        for a in d.accounts:
-            grouped_ids.add((a.get("legacy_member_id") or "").strip())
+        ids = frozenset((a.get("legacy_member_id") or "").strip() for a in d.accounts)
+        for i in ids:
+            group_of[i] = ids
 
     validated = stage_a_overrides.validate_merge_account_overrides(
-        merge_overrides, present_ids=set(by_id), grouped_ids=grouped_ids,
-        fingerprint_of=lambda ids: _account_set_fingerprint_for(by_id, ids))
+        merge_overrides, present_ids=set(by_id), grouped_ids=set(group_of),
+        fingerprint_of=lambda ids: _account_set_fingerprint_for(by_id, ids),
+        group_of=group_of)
+
+    absorbed = [ids for ids in validated if any(i in group_of for i in ids)]
+    remaining = [d for d in decisions
+                 if not any(frozenset((a.get("legacy_member_id") or "").strip()
+                                      for a in d.accounts) <= ids for ids in absorbed)]
 
     extra: list = []
     for n, ids in enumerate(sorted(validated, key=lambda s: sorted(s)), start=1):
@@ -622,7 +715,7 @@ def _apply_account_merge_overrides(rows: list[dict[str, str]],
                            accounts=accts, group_id=f"M{n:04d}")
         extra.append(evaluate_merge_group(g, links_by_account, claimed_ids,
                                           ignore_blocks=_ALL_MERGE_BLOCKS))
-    return extra
+    return remaining, extra
 
 
 def _privileged_merge_summaries(rows: list[dict[str, str]], merges: list) -> list[dict]:
@@ -677,6 +770,7 @@ def plan_auto_merges(rows: list[dict[str, str]],
     groups = build_stage_a_groups(rows)
     decisions = [evaluate_merge_group(g, links_by_account, claimed_ids)
                  for g in groups]
+    rulings_applied = 0
     if overrides:
         import stage_a_overrides
         group_overrides = [o for o in overrides
@@ -691,9 +785,22 @@ def plan_auto_merges(rows: list[dict[str, str]],
                 reevaluate=lambda g, ign: evaluate_merge_group(
                     g, links_by_account, claimed_ids, ignore_blocks=ign),
             )
+            # apply_overrides changes one decision per ruling or raises.
+            rulings_applied += len(group_overrides)
         if merge_overrides:
-            decisions = decisions + _apply_account_merge_overrides(
+            remaining, extra = _apply_account_merge_overrides(
                 rows, decisions, merge_overrides, links_by_account, claimed_ids)
+            # A group with a ruling of its own cannot also be absorbed by a
+            # merge ruling: the two would decide one set of accounts twice.
+            ruled_groups = {o.account_ids for o in group_overrides}
+            for d in decisions:
+                ids = frozenset((a.get("legacy_member_id") or "").strip() for a in d.accounts)
+                if d not in remaining and ids in ruled_groups:
+                    raise stage_a_overrides.OverrideError(
+                        f"group {sorted(ids)} carries its own ruling and is also "
+                        f"absorbed by a merge_accounts ruling; keep one of the two")
+            decisions = remaining + extra
+            rulings_applied += len(extra)
     merges = [d for d in decisions if d.action == "merge"]
     reviews = [d for d in decisions if d.action == "review"]
 
@@ -712,7 +819,38 @@ def plan_auto_merges(rows: list[dict[str, str]],
         "reason_counts": Counter(d.reason for d in reviews),
         "loser_count": sum(len(d.loser_ids) for d in merges),
         "entitlement_audit": entitlement_audit,
+        "rulings_applied": rulings_applied,
     }
+
+
+class RulingsCountError(Exception):
+    """The rulings applied differ from the rulings the file holds."""
+
+
+def ruling_rows_in_file(overrides_path: Path | None) -> int:
+    """The data rows the rulings file holds, counted by a plain CSV reader so a
+    row the dictionary reader would pass over silently, a blank line among them,
+    is still counted. Zero when no file is given or it is absent."""
+    if overrides_path is None or not Path(overrides_path).exists():
+        return 0
+    with Path(overrides_path).open(encoding="utf-8", newline="") as f:
+        rows = list(csv.reader(f))
+    return max(0, len(rows) - 1)
+
+
+def assert_every_ruling_applied(plan: dict[str, object], overrides_path: Path | None) -> int:
+    """Refuse unless every row of the rulings file was applied as a ruling. A
+    ruling dropped on the way in, by a stray blank line or a row the reader did
+    not see, would otherwise leave two people fused or one person split with
+    nothing said. Returns the count."""
+    expected = ruling_rows_in_file(overrides_path)
+    applied = int(plan.get("rulings_applied") or 0)  # type: ignore[arg-type]
+    if applied != expected:
+        raise RulingsCountError(
+            f"{applied} account ruling(s) applied but {overrides_path} holds "
+            f"{expected} row(s). Remove blank or partial lines from the file, or "
+            f"restore the rows it is missing, and re-run.")
+    return applied
 
 
 def load_links_by_account(proposed_links_csv: Path) -> dict[str, str]:
@@ -813,9 +951,15 @@ def dry_run_auto_merge(csv_path: Path, proposed_links_csv: Path,
     dispositions = load_entitlement_dispositions(entitlement_dispositions_path)
     plan = plan_auto_merges(rows, links_by_account=links, overrides=overrides,
                             entitlement_dispositions=dispositions)
+    try:
+        applied = assert_every_ruling_applied(plan, overrides_path)
+    except RulingsCountError as e:
+        print(f"error: {e}", file=sys.stderr)
+        return 2
     merges, reviews = plan["merges"], plan["reviews"]
     kept, excluded = reconcilable_rows(rows)
     print("auto-merge dry run (read-only; no accounts merged)")
+    print(f"  account rulings applied:   {applied} of {applied} rows")
     print(f"  reconcilable universe:     {len(kept)} accounts "
           f"({len(excluded)} held out in the collision cohort)")
     print(f"  name+full-DOB groups:      {len(merges) + len(reviews)}")
@@ -918,6 +1062,11 @@ def run_final_merge(csv_path: Path, links_csv: Path, db_path: Path | None,
     plan = plan_auto_merges(rows, links_by_account=links, claimed_ids=claimed,
                             overrides=overrides,
                             entitlement_dispositions=dispositions)
+    try:
+        applied = assert_every_ruling_applied(plan, overrides_path)
+    except RulingsCountError as e:
+        print(f"error: {e} Refusing to write merge artifacts.", file=sys.stderr)
+        return 2
 
     ms = write_merged_members_csv(csv_path, plan, merged_out)
     n_map = write_merge_map_csv(plan["merges"], map_out)  # type: ignore[arg-type]
@@ -930,6 +1079,7 @@ def run_final_merge(csv_path: Path, links_csv: Path, db_path: Path | None,
     n_review = write_stage_a_review_csv(review_groups, review_out)
 
     print("final-load auto-merge artifacts written")
+    print(f"  account rulings applied: {applied} of {applied} rows")
     print(f"  merged member CSV:  {merged_out}  "
           f"({ms['written']} rows; {ms['losers_removed']} losers collapsed)")
     print(f"  merge map:          {map_out}  ({n_map} loser rows)")
@@ -1011,6 +1161,14 @@ def profile(csv_path: Path) -> int:
 #      name matches exactly one full-DOB account.
 #   3. unique normalized name + email -- same, corroborated by a present email
 #      when no full DOB is available.
+#   4. variant name -- for a person no account matches by exact name, the one
+#      account whose name agrees with the person's name or a verified alias under
+#      the claim step's rule (first name exact or a nickname pair, a shared
+#      surname word), with no other person agreeing with that account, and
+#      corroborated by a full DOB or an email as above.
+#
+# A placeholder date of birth (before 1930, 1 January, or within the last five
+# years) corroborates nothing in any of these.
 #
 # Anything that is not a single unambiguous candidate goes to the review CSV and
 # is never proposed. No historical person is ever created, and nothing is written
@@ -1061,16 +1219,49 @@ def _link_review_rows(reason: str, name: str, hps: list[dict[str, str]],
     return rows
 
 
+def _corroborating_dob(acct: dict[str, str]) -> str:
+    """The account's full date of birth when it can corroborate anything: a
+    placeholder date (before 1930, 1 January, or within the last five years)
+    corroborates nothing."""
+    dob = _full_dob(acct)
+    return "" if name_match.is_placeholder_birth_date(dob) else dob
+
+
+DEFAULT_PERSON_ALIASES_CSV = Path(__file__).resolve().parents[1] / "overrides" / "person_aliases.csv"
+
+
+def load_verified_aliases(path: Path | None = None) -> dict[str, tuple[str, ...]]:
+    """person_id -> the verified alias names the curators recorded for that
+    person. Only rows whose status is exactly "verified" count, the rule the
+    name-variant builder also applies."""
+    path = Path(path) if path is not None else DEFAULT_PERSON_ALIASES_CSV
+    out: dict[str, list[str]] = defaultdict(list)
+    if not path.exists():
+        return {}
+    with path.open(encoding="utf-8", newline="") as f:
+        for r in csv.DictReader(f):
+            if (r.get("status") or "").strip() != "verified":
+                continue
+            pid = (r.get("person_id") or "").strip()
+            alias = (r.get("alias") or "").strip()
+            if pid and alias:
+                out[pid].append(alias)
+    return {pid: tuple(names) for pid, names in out.items()}
+
+
 def build_stage_b(
-    accounts: list[dict[str, str]], hps: list[dict[str, str]]
+    accounts: list[dict[str, str]], hps: list[dict[str, str]],
+    nicknames: dict[str, frozenset[str]] | None = None,
+    aliases_by_person: dict[str, tuple[str, ...]] | None = None,
 ) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
     """Propose dump-account -> historical_person links by the approved precedence.
 
-    Returns (proposed_links, review_rows). Pure and deterministic: it creates no
-    historical persons, auto-links nothing ambiguous, and writes nothing. The
-    account universe excludes the email / user-id collision accounts the member
-    loader drops, so a proposal never references an account the load will not
-    import.
+    Returns (proposed_links, review_rows). Pure and deterministic over its
+    inputs: it creates no historical persons, auto-links nothing ambiguous, and
+    writes nothing. The curated nickname pairs and verified aliases are read from
+    their committed files when not passed. The account universe excludes the
+    email / user-id collision accounts the member loader drops, so a proposal
+    never references an account the load will not import.
     """
     valid, _ = reconcilable_rows(accounts)
     acct_by_id: dict[str, dict[str, str]] = {}
@@ -1123,15 +1314,117 @@ def build_stage_b(
             review.extend(_link_review_rows("multiple_accounts_same_name", name, [hp], acct_list))
             continue
         acct = acct_list[0]
-        if _full_dob(acct):
+        if _corroborating_dob(acct):
             proposed.append(_proposed_link_row(hp, acct, "name_dob"))
             continue
         if _norm_email(acct.get("legacy_email")):
             proposed.append(_proposed_link_row(hp, acct, "name_email"))
             continue
-        # A name match with neither a full DOB nor an email is too weak to
+        # A name match with neither a real full DOB nor an email is too weak to
         # propose: leave it for a human.
         review.extend(_link_review_rows("name_only_no_dob_or_email", name, [hp], acct_list))
+
+    # Variant names: a person no account matches by exact name is matched by the
+    # claim step's rule instead, so a middle name, a maiden name, a nickname pair
+    # or a verified alias does not leave a real link unmade. The same safeguards
+    # hold, counted over every person and account rather than only the unlinked
+    # ones: exactly one candidate account for the person, exactly one person for
+    # that account, and a real DOB or an email on the account.
+    if nicknames is None:
+        nicknames = name_match.load_nicknames()
+    if aliases_by_person is None:
+        aliases_by_person = load_verified_aliases()
+    taken_ids = consumed_ids | {r["legacy_member_id"] for r in proposed} \
+        | {r["legacy_member_id"] for r in review}
+    variant_proposed: list[dict[str, str]] = []
+    variant_review: list[dict[str, str]] = []
+
+    def person_names(hp: dict[str, str]) -> list[str]:
+        pid = (hp.get("person_id") or "").strip()
+        return [hp.get("person_name") or "", *aliases_by_person.get(pid, ())]
+
+    def agrees(hp: dict[str, str], acct: dict[str, str]) -> bool:
+        return any(name_match.names_agree(n, acct.get("real_name"), nicknames)
+                   for n in person_names(hp))
+
+    # Two names can only agree through a shared surname word, so each side is
+    # indexed by its possible surnames and only those pairs are compared.
+    def surname_words(name: str | None) -> set[str]:
+        return {w for w in name_match.name_match_parts(name).later
+                if w not in name_match.SURNAME_PARTICLES}
+
+    acct_index: dict[str, list[dict[str, str]]] = defaultdict(list)
+    for a in valid:
+        for w in surname_words(a.get("real_name")):
+            acct_index[w].append(a)
+    person_index: dict[str, list[dict[str, str]]] = defaultdict(list)
+    for p in hps:
+        for w in set().union(*(surname_words(n) for n in person_names(p))):
+            person_index[w].append(p)
+
+    def candidates(words: set[str], index: dict[str, list[dict[str, str]]]) -> list:
+        seen: dict[int, dict[str, str]] = {}
+        for w in words:
+            for item in index.get(w, ()):
+                seen[id(item)] = item
+        return list(seen.values())
+
+    exact_matched = {name for name in by_name_hp if by_name_acct.get(name)}
+    for hp in sorted(unlinked_hps, key=lambda h: h.get("person_id") or ""):
+        name = normalize_name(hp.get("person_name") or "")
+        if not name or name in exact_matched:
+            continue
+        hp_words = set().union(*(surname_words(n) for n in person_names(hp)))
+        cands = sorted((a for a in candidates(hp_words, acct_index) if agrees(hp, a)),
+                       key=lambda a: a.get("legacy_member_id") or "")
+        if not cands:
+            continue
+        # An account an earlier tier already linked or set aside is never
+        # offered again, and a person who also reaches one of those is not
+        # unambiguous: review rows list only the accounts still open, so an
+        # account is never both proposed and under review.
+        open_cands = [a for a in cands
+                      if (a.get("legacy_member_id") or "").strip() not in taken_ids]
+        if len(cands) > 1:
+            variant_review.extend(_link_review_rows(
+                "multiple_accounts_variant_name", name, [hp], open_cands))
+            continue
+        if not open_cands:
+            continue
+        acct = cands[0]
+        rivals = [p for p in candidates(surname_words(acct.get("real_name")), person_index)
+                  if p is not hp and agrees(p, acct)]
+        if rivals:
+            variant_review.extend(_link_review_rows(
+                "variant_name_account_contested", name, [hp], cands))
+            continue
+        if _corroborating_dob(acct):
+            variant_proposed.append(_proposed_link_row(hp, acct, "name_variant_dob"))
+        elif _norm_email(acct.get("legacy_email")):
+            variant_proposed.append(_proposed_link_row(hp, acct, "name_variant_email"))
+        else:
+            variant_review.extend(_link_review_rows(
+                "variant_name_no_dob_or_email", name, [hp], cands))
+
+    # A variant proposal whose account another person's review row also names is
+    # contested after all: it joins the review instead of being proposed.
+    reviewed_ids = {r["legacy_member_id"] for r in variant_review}
+    for row in variant_proposed:
+        if row["legacy_member_id"] in reviewed_ids:
+            variant_review.append({
+                "review_group": "", "reason": "variant_name_account_contested",
+                "normalized_name": normalize_name(row["person_name"]),
+                "hp_count": "1", "candidate_count": "1",
+                "historical_person_id": row["historical_person_id"],
+                "person_name": row["person_name"],
+                "legacy_member_id": row["legacy_member_id"],
+                "real_name": row["real_name"],
+                "account_birth_date": row["account_birth_date"],
+                "account_email": row["account_email"],
+            })
+        else:
+            proposed.append(row)
+    review.extend(variant_review)
 
     proposed.sort(key=lambda r: (r["historical_person_id"], r["legacy_member_id"]))
     review.sort(key=lambda r: (r["normalized_name"], r["reason"],
@@ -1526,6 +1819,8 @@ def stage_b_link_historical_persons(
         "verified_id_links": sum(1 for r in proposed if r["match_signal"] == "verified_id"),
         "name_dob_links": sum(1 for r in proposed if r["match_signal"] == "name_dob"),
         "name_email_links": sum(1 for r in proposed if r["match_signal"] == "name_email"),
+        "name_variant_links": sum(1 for r in proposed
+                                  if r["match_signal"].startswith("name_variant")),
         "review_rows": len(review),
         "review_groups": len({r["review_group"] for r in review}),
         "person_dispositions": len(person_disposition_audit),
@@ -1622,7 +1917,8 @@ def run_stage_b(csv_path: Path, db_path: Path | None,
     print(f"historical_persons: {s['hp_total']}")
     print(f"proposed links: {s['proposed_total']}  "
           f"(verified id: {s['verified_id_links']}, name+DOB: {s['name_dob_links']}, "
-          f"name+email: {s['name_email_links']})")
+          f"name+email: {s['name_email_links']}, "
+          f"variant name: {s['name_variant_links']})")
     print(f"review rows: {s['review_rows']}  (groups: {s['review_groups']})")
     print(f"historical persons linked to a missing account: {s['hp_linked_to_missing_account']}")
     print(f"proposed CSV: {proposed_out}")
@@ -1832,6 +2128,15 @@ def main() -> None:
         sys.exit(dry_run_auto_merge(args.csv, args.proposed_out, args.overrides,
                                     args.entitlement_dispositions))
     if args.final_merge:
+        # The person-link holds and review resolutions rule on Stage B's proposals
+        # and are applied by the Stage B run. Accepting them here would let a
+        # caller believe they took effect on a run that never reads them.
+        if args.link_holds or args.review_resolutions or args.require_complete_dispositions:
+            print("error: --final-merge does not apply --link-holds, "
+                  "--review-resolutions or --require-complete-dispositions; pass them "
+                  "to the Stage B run (--stage-b-survivor-view) that makes the "
+                  "proposals they rule on.", file=sys.stderr)
+            sys.exit(2)
         sys.exit(run_final_merge(args.csv, args.proposed_out, args.db,
                                  args.merged_out, args.merge_map_out, args.out,
                                  args.overrides, args.entitlement_dispositions))

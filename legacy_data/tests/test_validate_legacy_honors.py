@@ -64,6 +64,69 @@ def test_orphan_flag_is_anomaly(tmp_path):
     assert any("is_hof flag(s) with no roster trace" in a for a in s["anomalies"])
 
 
+# ── the database mode: the flags as loaded into legacy_members ──────────────
+
+def _loaded(db, rows):
+    con = sqlite3.connect(db)
+    con.execute("CREATE TABLE legacy_members (legacy_member_id TEXT, is_hof INTEGER, is_bap INTEGER)")
+    con.executemany("INSERT INTO legacy_members VALUES (?,?,?)", rows)
+    con.commit(); con.close()
+
+
+CLEAN_LOADED = [("100", 1, 1), ("200", 0, 1), ("300", 0, 0), ("401", 0, 0)]
+
+
+def _run_db_mode(tmp_path, rows, hof_extra=""):
+    import subprocess
+    import sys
+    members, db, hof, bap = _fixtures(tmp_path, CLEAN)
+    if hof_extra:
+        hof.write_text(hof.read_text(encoding="utf-8") + hof_extra, encoding="utf-8")
+    _loaded(db, rows)
+    return subprocess.run(
+        [sys.executable, str(_SCRIPT), "--flags-from-db", "--db", str(db),
+         "--hof-csv", str(hof), "--bap-csv", str(bap)],
+        capture_output=True, text=True, timeout=60)
+
+
+def test_db_mode_passes_when_the_loaded_flags_trace_to_the_rosters(tmp_path):
+    r = _run_db_mode(tmp_path, CLEAN_LOADED)
+    assert r.returncode == 0, r.stdout + r.stderr
+    assert "is_hof 1, is_bap 2" in r.stdout
+
+
+def test_db_mode_fails_on_a_loaded_flag_with_no_roster_trace(tmp_path):
+    # A Hall of Fame flag on an account no honoree resolves to would grant the
+    # honour's tier at claim to someone who never earned it.
+    r = _run_db_mode(tmp_path, [("100", 1, 1), ("200", 0, 1), ("300", 0, 0), ("401", 1, 0)])
+    assert r.returncode == 1
+    assert "is_hof flag with no roster trace: 1" in r.stdout
+
+
+def test_db_mode_fails_when_a_roster_expected_flag_is_missing(tmp_path):
+    # An honoree whose account lost its flag in the load is never granted the tier.
+    r = _run_db_mode(tmp_path, [("100", 1, 1), ("200", 0, 0), ("300", 0, 0), ("401", 0, 0)])
+    assert r.returncode == 1
+    assert "roster-expected is_bap flag missing: 1" in r.stdout
+
+
+def test_db_mode_fails_when_a_hall_of_fame_person_is_absent(tmp_path):
+    # A roster row pointing at a person the database does not hold is an honoree
+    # the site cannot show or grant.
+    r = _run_db_mode(tmp_path, CLEAN_LOADED, "Lost Honoree,2002,p_missing\n")
+    assert r.returncode == 1
+    assert "hof person absent from historical_persons: 1" in r.stdout
+
+
+def test_db_mode_output_carries_no_member_id_or_name(tmp_path):
+    # Its output reaches test logs, so the findings are counted, never listed.
+    r = _run_db_mode(tmp_path, [("100", 1, 1), ("200", 0, 0), ("300", 0, 0), ("401", 1, 0)],
+                     "Lost Honoree,2002,p_missing\n")
+    assert r.returncode == 1
+    for leaked in ("401", "200", "p_missing", "Lost Honoree"):
+        assert leaked not in r.stdout + r.stderr, leaked
+
+
 def test_worklist_csv_written(tmp_path):
     members, db, hof, bap = _fixtures(tmp_path, CLEAN)
     out = tmp_path / "worklist.csv"

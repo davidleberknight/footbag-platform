@@ -373,8 +373,8 @@ standalone use after a mirror refresh.
 
 | Script | Output | Rerun behavior |
 |--------|--------|----------------|
-| `legacy_data/scripts/extract_clubs.py` | `seed/clubs.csv` | skips if output CSV is newer than this script |
-| `legacy_data/scripts/extract_club_members.py` | `seed/club_members.csv` | skips if output CSV is newer than this script |
+| `legacy_data/scripts/extract_clubs.py` | `seed/clubs.csv` | regenerates on every run |
+| `legacy_data/scripts/extract_club_members.py` | `seed/club_members.csv` | regenerates on every run |
 | `legacy_data/scripts/extract_hof_mirror.py` | `out/hof/hof_year_pages.csv`, `out/hof/hof_group_roster.csv` | skips if both outputs are newer than this script |
 
 ### Level 7b, Hall of Fame sources and merge
@@ -435,7 +435,10 @@ untouched `footbag_legacy_repo_original_data` copy of the first delivery, parses
 every dump through `legacy_data/scripts/strict_dump_parser.py`, refuses only what
 makes a delivery unreadable or unsafe to write, and reports everything else the
 delivery changes. Output goes to the private checkout's `legacy-export/`,
-owner-only, with `REFRESH_MANIFEST.tsv`. A new module, table or column is held
+owner-only, with `REFRESH_MANIFEST.tsv` and a findings report (`REFRESH_REPORT.md`
+and `REFRESH_REPORT_DETAIL.tsv`, written by `legacy_data/scripts/refresh_report.py`)
+comparing every table with the last accepted delivery, the CSVs committed at the
+private checkout's HEAD. A new module, table or column is held
 until a maintainer accepts it with `--accept-new`. The script's header is the
 authoritative list of what is refused and what is reported.
 
@@ -556,21 +559,13 @@ The mirror-driven `--soup-to-nuts` path regenerates committed
 
 Two conclusions from validating the delivered legacy data that nothing else records.
 
-**The authoritative club universe.** The delivered dump carries it: the `clubs` table's 597
-`Approved=1` rows, of 602 total, with location lat/lon and `ClubPlaysNet` / `ClubPlaysFreestyle`.
-The overlay reconciles `legacy_data/seed/clubs.csv` to exactly those 597 approved keys: the 312
-mirror-enriched rows already present are preserved verbatim, the 285 approved dump-only clubs are
-added, and any key the dump does not mark `Approved=1` is dropped. Deletion on the legacy site was
-soft, the `clubs.Approved` flag set false and never a row delete, so dormant and deleted clubs
-persist in the table as unapproved rows and the seed holds only the 597 approved keys. A dump-only
-approved club carries no authoritative contact field, so it resolves its contact through the
-classifier's substitute-contact predicate. The `clubcontacts` table (1,400 member-to-club links
-carrying `ContactPriority`, joining `ClubContactID` to `members.MemberID` and `ContactClubID` to
-`ClubID`) is corroboration only. That authority is over existence, not over values: the approval
-flag is the deletion signal the mirror structurally cannot carry, since a deleted club has no page
-left to crawl, while every field on an already-seeded row stays as curated. Cross-validating
-`ContactPriority` against the confidence-scored leadership inference in
-`legacy_data/seed/club_members.csv` (~2,400 associations) remains a separate future quality pass.
+**The club universe.** The club list is the clubs whose page the legacy site still served, as
+captured by the mirror, with the curated corrections in `overrides/club_text_corrections.csv`
+applied. The dump's `clubs` table supplies none: a club the live site had stopped serving,
+unapproved or with a lapsed re-validation, was deleted in effect, and the dump's club data is too
+unreliable to restore it. The refresh still captures the `clubs` and `clubcontacts` tables as
+private record. Cross-validating `clubcontacts.ContactPriority` against the confidence-scored
+leadership inference in `legacy_data/seed/club_members.csv` remains a separate future quality pass.
 
 **No ban state exists to carry over.** The delivered data carries no ban field: no banned, blocked,
 suspended, or inactive column anywhere in the dump, re-confirmed against the final export at load.

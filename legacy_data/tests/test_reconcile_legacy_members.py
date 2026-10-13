@@ -160,7 +160,7 @@ def test_reconciliation_does_not_propose_a_link_to_a_held_out_account() -> None:
     # because it is excluded it is never proposed -- so the link write can never
     # reference an account the loader will not import.
     accounts = [
-        row("40", real_name="Held Out", birth_date="1990-01-01",
+        row("40", real_name="Held Out", birth_date="1990-03-14",
             legacy_email="h1@x.com", legacy_user_id="dupe"),
         row("41", real_name="Other Name", birth_date="1991-02-02",
             legacy_email="h2@x.com", legacy_user_id="dupe"),
@@ -179,7 +179,7 @@ def test_reconciliation_does_not_propose_a_link_to_a_held_out_account() -> None:
 
 def test_non_conflicting_accounts_still_propose_normally() -> None:
     accounts = [
-        row("50", real_name="Uno One", birth_date="1970-01-01", legacy_email="u1@x.com"),
+        row("50", real_name="Uno One", birth_date="1970-04-20", legacy_email="u1@x.com"),
         row("51", real_name="Dos Two", birth_date="", legacy_email="u2@x.com"),
     ]
     hps = [hp("hp_uno", "Uno One"), hp("hp_dos", "Dos Two")]
@@ -216,7 +216,7 @@ def test_only_member_valid_rows_are_analyzed() -> None:
 
 def test_no_duplicates_yields_no_groups() -> None:
     groups = rec.build_stage_a_groups([
-        row("60", real_name="Uno One", birth_date="1970-01-01", legacy_email="u1@x.com"),
+        row("60", real_name="Uno One", birth_date="1970-04-20", legacy_email="u1@x.com"),
         row("61", real_name="Dos Two", birth_date="1971-02-02", legacy_email="u2@x.com"),
     ])
     assert groups == []
@@ -409,7 +409,7 @@ def test_verified_id_crosswalk_wins_over_name_signals() -> None:
     # Account 5 would name-match the unlinked shadow person, but its id is already
     # verified against another person; the verified link wins and consumes the
     # account, so the shadow person gets no proposal.
-    accounts = [row("5", real_name="John Smith", birth_date="1990-01-01", legacy_email="js@x.com")]
+    accounts = [row("5", real_name="John Smith", birth_date="1990-03-14", legacy_email="js@x.com")]
     hps = [
         hp("hp_verified", "John Smith", legacy_member_id="5"),
         hp("hp_shadow", "John Smith"),
@@ -534,7 +534,7 @@ def test_only_member_valid_rows_link() -> None:
 def test_stage_b_ordering_is_deterministic_regardless_of_input_order() -> None:
     accounts = [
         row("6", real_name="Anne Roy", birth_date="1985-02-02", legacy_email="ar@x.com"),
-        row("5", real_name="John Smith", birth_date="1990-01-01", legacy_email="js@x.com"),
+        row("5", real_name="John Smith", birth_date="1990-03-14", legacy_email="js@x.com"),
         row("8", real_name="Cara Fox", birth_date="1970-03-03", legacy_email="c1@x.com"),
         row("9", real_name="Cara Fox", birth_date="1971-04-04", legacy_email="c2@x.com"),
     ]
@@ -555,8 +555,8 @@ def test_stage_b_ordering_is_deterministic_regardless_of_input_order() -> None:
 def test_stage_a_and_stage_b_are_independent() -> None:
     # Stage A grouping still functions with Stage B present in the module.
     a_groups = rec.build_stage_a_groups([
-        row("40", real_name="Eve Ash", birth_date="1991-01-01", legacy_email="e1@x.com"),
-        row("41", real_name="Eve Ash", birth_date="1991-01-01", legacy_email="e2@x.com"),
+        row("40", real_name="Eve Ash", birth_date="1991-06-02", legacy_email="e1@x.com"),
+        row("41", real_name="Eve Ash", birth_date="1991-06-02", legacy_email="e2@x.com"),
     ])
     assert [g.signal for g in a_groups] == ["name_dob"]
     assert a_groups[0].same_person_recommended is True
@@ -585,7 +585,7 @@ def test_stage_b_writes_both_csvs_read_only_on_the_database(tmp_path: Path) -> N
         w = csv.DictWriter(f, fieldnames=fields, lineterminator="\n")
         w.writeheader()
         for r in [
-            row("5", real_name="John Smith", birth_date="1990-01-01", legacy_email="js@x.com"),
+            row("5", real_name="John Smith", birth_date="1990-03-14", legacy_email="js@x.com"),
             row("6", real_name="Anne Roy", birth_date="1985-02-02", legacy_email="ar@x.com"),
             row("8", real_name="Cara Fox", birth_date="1970-03-03", legacy_email="c1@x.com"),
             row("9", real_name="Cara Fox", birth_date="1971-04-04", legacy_email="c2@x.com"),
@@ -735,3 +735,187 @@ def test_auto_merge_map_artifact_is_deterministic(tmp_path) -> None:
     body = [r for r in csv.DictReader(first.splitlines())]
     assert [r["group_id"] for r in body] == sorted(r["group_id"] for r in body)
     assert {r["loser_legacy_member_id"] for r in body} == {"200", "400"}
+
+
+# --- the widened duplicate-account rule --------------------------------------
+#
+# Accounts are one person when they share a surname and a real full date of
+# birth and their names are compatible: first names equal or a curated nickname
+# pair, middle names absent on one side or one an initial or prefix of the other.
+
+NICKNAMES = {"chris": frozenset({"christopher"}), "christopher": frozenset({"chris"}),
+             "jindra": frozenset({"jindrich"}), "jindrich": frozenset({"jindra"})}
+DOB = "1984-07-19"
+
+
+def _grouped(rows: list[dict[str, str]]) -> list[list[str]]:
+    return [ids(g) for g in rec.build_stage_a_groups(rows, nicknames=NICKNAMES)]
+
+
+def test_a_nickname_pair_groups_two_accounts_of_one_person() -> None:
+    # A miss leaves one person with two accounts, and the standing on the one
+    # they do not claim becomes unreachable.
+    rows = [row("1", real_name="Chris Lane", birth_date=DOB),
+            row("2", real_name="Christopher Lane", birth_date=DOB)]
+    groups = rec.build_stage_a_groups(rows, nicknames=NICKNAMES)
+    assert [ids(g) for g in groups] == [["1", "2"]]
+    assert groups[0].match_key == f"surname:lane|{DOB}"
+    assert groups[0].same_person_recommended is True
+
+
+def test_a_middle_initial_or_a_missing_middle_name_still_groups() -> None:
+    rows = [row("1", real_name="Ann M. Hale", birth_date=DOB),
+            row("2", real_name="Ann Marie Hale", birth_date=DOB),
+            row("3", real_name="Ann Hale", birth_date=DOB)]
+    assert _grouped(rows) == [["1", "2", "3"]]
+
+
+def test_different_middle_names_never_group() -> None:
+    # Two people who share a first name, surname and birthday but not a middle
+    # name are not merged into one account.
+    rows = [row("1", real_name="Ann Marie Hale", birth_date=DOB),
+            row("2", real_name="Ann Louise Hale", birth_date=DOB)]
+    assert _grouped(rows) == []
+
+
+def test_siblings_with_different_first_names_never_group() -> None:
+    # Twins share a surname and a birth date; fusing them hands one twin's
+    # account to the other.
+    rows = [row("1", real_name="Mark Vance", birth_date=DOB),
+            row("2", real_name="Mary Vance", birth_date=DOB)]
+    assert _grouped(rows) == []
+
+
+def test_a_placeholder_birth_date_never_groups() -> None:
+    # The legacy form's default dates are shared by strangers; grouping on one
+    # merges unrelated people.
+    for placeholder in ("1984-01-01", "1925-07-19"):
+        rows = [row("1", real_name="Ann Hale", birth_date=placeholder),
+                row("2", real_name="Ann Hale", birth_date=placeholder)]
+        assert _grouped(rows) == [], placeholder
+
+
+def test_a_set_not_every_pair_of_which_is_compatible_goes_to_review() -> None:
+    # Ann M. Hale is compatible with both, but Ann Marie and Ann Margaret are two
+    # different middle names, so the set must not merge on its own.
+    rows = [row("1", real_name="Ann M. Hale", birth_date=DOB),
+            row("2", real_name="Ann Marie Hale", birth_date=DOB),
+            row("3", real_name="Ann Margaret Hale", birth_date=DOB)]
+    groups = rec.build_stage_a_groups(rows, nicknames=NICKNAMES)
+    assert [ids(g) for g in groups] == [["1", "2", "3"]]
+    assert groups[0].exclusion_reason == rec.NAMES_NOT_ALL_COMPATIBLE
+    d = rec.evaluate_merge_group(groups[0])
+    assert (d.action, d.reason) == ("review", rec.NAMES_NOT_ALL_COMPATIBLE)
+
+
+def test_an_exact_name_group_keeps_its_name_and_date_key() -> None:
+    # Recorded rulings fingerprint the match key; a key that changed for a group
+    # whose accounts did not would make every existing ruling fail.
+    rows = [row("1", real_name="Ann Hale", birth_date=DOB),
+            row("2", real_name="Ann Hale", birth_date=DOB)]
+    groups = rec.build_stage_a_groups(rows, nicknames=NICKNAMES)
+    assert groups[0].match_key == f"ann hale|{DOB}"
+
+
+# --- the widened record-to-account linking ------------------------------------
+
+def _link(accounts, persons, aliases=None):
+    return rec.build_stage_b(accounts, persons, nicknames=NICKNAMES,
+                             aliases_by_person=aliases or {})
+
+
+def test_a_record_links_to_the_account_carrying_a_middle_or_maiden_name() -> None:
+    # A miss leaves the record unlinked, so the member's claim never reaches their
+    # competition history through their old account.
+    accounts = [row("7", real_name="Lisa McDaniel Jones", birth_date=DOB)]
+    proposed, review = _link(accounts, [hp("hp_lisa", "Lisa McDaniel")])
+    assert signals(proposed) == {"hp_lisa": "name_variant_dob"}
+    assert review == []
+
+
+def test_a_verified_alias_reaches_the_account_its_record_name_cannot() -> None:
+    accounts = [row("8", real_name="Jindra Smola", birth_date=DOB)]
+    persons = [hp("hp_smola", "Jindrich Smola")]
+    proposed, _ = rec.build_stage_b(accounts, persons, nicknames={},
+                                    aliases_by_person={"hp_smola": ("Jindra Smola",)})
+    assert signals(proposed) == {"hp_smola": "name_variant_dob"}
+
+
+def test_a_quoted_nickname_does_not_stop_the_link() -> None:
+    accounts = [row("9", real_name='Chris "Gator" Routh', birth_date=DOB)]
+    proposed, _ = _link(accounts, [hp("hp_routh", "Chris Routh")])
+    assert signals(proposed) == {"hp_routh": "name_variant_dob"}
+
+
+def test_two_candidate_accounts_go_to_review_and_link_neither() -> None:
+    # Picking one of two would link a record to the wrong person's account.
+    accounts = [row("10", real_name="Ann Marie Hale", birth_date=DOB),
+                row("11", real_name="Ann Louise Hale", birth_date="1979-03-03")]
+    proposed, review = _link(accounts, [hp("hp_ann", "Ann Hale")])
+    assert proposed == []
+    assert {(r["reason"], r["legacy_member_id"]) for r in review} == {
+        ("multiple_accounts_variant_name", "10"), ("multiple_accounts_variant_name", "11")}
+
+
+def test_an_account_two_records_agree_with_links_neither() -> None:
+    # The probable-duplicate case: two records of one person beside one account.
+    accounts = [row("12", real_name="Nicholas Laroche", birth_date=DOB)]
+    persons = [hp("hp_a", "Nicholas J. Laroche"), hp("hp_b", "Nicholas P. Laroche")]
+    proposed, review = _link(accounts, persons)
+    assert proposed == []
+    assert {r["reason"] for r in review} == {"variant_name_account_contested"}
+
+
+def test_an_account_an_exact_link_already_took_is_never_offered_again() -> None:
+    # The quality gate refuses an account that is both proposed and under review,
+    # which would stop the whole load.
+    accounts = [row("13", real_name="Ann Hale", birth_date=DOB),
+                row("14", real_name="Ann Marie Hale", birth_date="1979-03-03")]
+    persons = [hp("hp_exact", "Ann Hale"), hp("hp_variant", "Ann L. Hale")]
+    proposed, review = _link(accounts, persons)
+    assert signals(proposed)["hp_exact"] == "name_dob"
+    proposed_ids = {r["legacy_member_id"] for r in proposed}
+    assert proposed_ids.isdisjoint({r["legacy_member_id"] for r in review})
+
+
+def test_a_placeholder_birth_date_does_not_corroborate_a_link() -> None:
+    # A default date is not evidence; with no email either, the pair goes to a
+    # human instead of being linked.
+    accounts = [row("15", real_name="Lisa McDaniel Jones", birth_date="1984-01-01",
+                    legacy_email=""),
+                row("16", real_name="Ann Hale", birth_date="1984-01-01", legacy_email="")]
+    proposed, review = _link(accounts, [hp("hp_lisa", "Lisa McDaniel"),
+                                        hp("hp_ann", "Ann Hale")])
+    assert proposed == []
+    assert {r["reason"] for r in review} == {"variant_name_no_dob_or_email",
+                                             "name_only_no_dob_or_email"}
+
+
+# --- every ruling in the file is applied ---------------------------------------
+
+def test_a_rulings_file_with_a_stray_row_is_refused(tmp_path) -> None:
+    # A ruling the reader passes over is a merge or a split nobody sees go missing.
+    rulings = tmp_path / "rulings.csv"
+    rulings.write_text("decision,account_ids,expected_disposition,fingerprint,note\n\n",
+                       encoding="utf-8")
+    with pytest.raises(rec.RulingsCountError, match="0 account ruling"):
+        rec.assert_every_ruling_applied({"rulings_applied": 0}, rulings)
+    rulings.write_text("decision,account_ids,expected_disposition,fingerprint,note\n",
+                       encoding="utf-8")
+    assert rec.assert_every_ruling_applied({"rulings_applied": 0}, rulings) == 0
+
+
+def test_the_final_merge_refuses_the_rulings_it_does_not_apply(tmp_path) -> None:
+    # The person-link holds once reached only the final merge, which never read
+    # them, so a held link was written anyway with nothing said. Passing them
+    # there now stops the run instead.
+    import subprocess
+    script = REPO_ROOT / "legacy_data" / "member_data_scripts" / "reconcile_legacy_members.py"
+    for flag in (["--link-holds", str(tmp_path / "h.csv")],
+                 ["--review-resolutions", str(tmp_path / "r.csv")],
+                 ["--require-complete-dispositions"]):
+        r = subprocess.run([sys.executable, str(script), "--final-merge",
+                            "--csv", str(tmp_path / "absent.csv"), *flag],
+                           capture_output=True, text=True, timeout=60)
+        assert r.returncode == 2, flag
+        assert "does not apply" in r.stderr, flag

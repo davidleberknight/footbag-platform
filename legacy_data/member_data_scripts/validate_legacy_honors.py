@@ -12,6 +12,12 @@ grant at claim. Reuses the `extract_legacy_honors` resolution, then:
     export traces back to a roster honoree (no flag without provenance), and
     every hof.csv person_id exists in historical_persons.
 
+Two sources for the flags being checked. The member load checks the export CSV
+before it loads it. The database mode (--flags-from-db) checks the flags as
+loaded into legacy_members, so the real-data test row and the deploy can judge
+the database they are about to rely on; it prints counts only, never a member id
+or name, because its output reaches test logs.
+
 Validates the captured-roster derivation only (no network). A live diff against
 footbaghalloffame.net / bigaddposse.com to catch roster staleness is a separate,
 opt-in step.
@@ -21,6 +27,7 @@ from __future__ import annotations
 import argparse
 import csv
 import importlib.util
+import sqlite3
 import sys
 from pathlib import Path
 
@@ -30,11 +37,31 @@ elh = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(elh)
 
 
-def run(members_csv: Path, db: Path, hof_csv: Path, bap_csv: Path, worklist_out: Path | None):
+def flags_from_csv(members_csv: Path) -> tuple[set[str], set[str]]:
+    with members_csv.open(encoding="utf-8", newline="") as fh:
+        rows = list(csv.DictReader(fh))
+    return ({r["legacy_member_id"].strip() for r in rows if r.get("is_hof", "").strip() == "1"},
+            {r["legacy_member_id"].strip() for r in rows if r.get("is_bap", "").strip() == "1"})
+
+
+def flags_from_db(db: Path) -> tuple[set[str], set[str]]:
+    con = sqlite3.connect(f"file:{db}?mode=ro", uri=True)
+    try:
+        hof = {r[0] for r in con.execute("SELECT legacy_member_id FROM legacy_members WHERE is_hof = 1")}
+        bap = {r[0] for r in con.execute("SELECT legacy_member_id FROM legacy_members WHERE is_bap = 1")}
+    finally:
+        con.close()
+    return hof, bap
+
+
+def run(members_csv: Path | None, db: Path, hof_csv: Path, bap_csv: Path,
+        worklist_out: Path | None, flags: tuple[set[str], set[str]] | None = None):
     name2pids, pid2legacy, variant2canon = elh._person_indexes(db)
 
     worklist: list[dict] = []        # honor, name, status, detail
     anomalies: list[str] = []        # hard errors -> non-zero exit
+    # The same findings counted by kind, for output that must carry no id or name.
+    anomaly_counts: dict[str, int] = {}
 
     # ---- HoF: per-honoree status from the curated person_id ----
     hof_expected: set[str] = set()
@@ -47,6 +74,8 @@ def run(members_csv: Path, db: Path, hof_csv: Path, bap_csv: Path, worklist_out:
                                  "status": "unresolved", "detail": "no person_id in hof.csv"})
             elif pid not in pid2legacy:
                 anomalies.append(f"hof person_id {pid} ({name}) not in historical_persons")
+                anomaly_counts["hof person absent from historical_persons"] = \
+                    anomaly_counts.get("hof person absent from historical_persons", 0) + 1
                 worklist.append({"honor": "hof", "name": name,
                                  "status": "anomaly", "detail": f"person_id {pid} absent from persons"})
             elif not pid2legacy[pid]:
@@ -77,19 +106,18 @@ def run(members_csv: Path, db: Path, hof_csv: Path, bap_csv: Path, worklist_out:
                                      "status": "no_legacy_account", "detail": "matched person has no legacy_member_id"})
 
     # ---- reverse / integrity: flags in the export must trace to a roster ----
-    with members_csv.open(encoding="utf-8", newline="") as fh:
-        rows = list(csv.DictReader(fh))
-    actual_hof = {r["legacy_member_id"].strip() for r in rows if r.get("is_hof", "").strip() == "1"}
-    actual_bap = {r["legacy_member_id"].strip() for r in rows if r.get("is_bap", "").strip() == "1"}
+    actual_hof, actual_bap = flags if flags is not None else flags_from_csv(members_csv)
 
     for label, actual, expected in (("is_hof", actual_hof, hof_expected),
                                     ("is_bap", actual_bap, bap_expected)):
         orphan = sorted(actual - expected)
         if orphan:
             anomalies.append(f"{len(orphan)} {label} flag(s) with no roster trace (e.g. {orphan[:5]})")
+            anomaly_counts[f"{label} flag with no roster trace"] = len(orphan)
         drift = sorted(expected - actual)
         if drift:
             anomalies.append(f"{len(drift)} roster-expected {label} flag(s) missing from export (e.g. {drift[:5]})")
+            anomaly_counts[f"roster-expected {label} flag missing"] = len(drift)
 
     if worklist_out:
         worklist_out.parent.mkdir(parents=True, exist_ok=True)
@@ -100,14 +128,17 @@ def run(members_csv: Path, db: Path, hof_csv: Path, bap_csv: Path, worklist_out:
 
     return {
         "hof_flagged": len(actual_hof), "bap_flagged": len(actual_bap),
-        "worklist": worklist, "anomalies": anomalies,
+        "worklist": worklist, "anomalies": anomalies, "anomaly_counts": anomaly_counts,
     }
 
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__)
-    ap.add_argument("--members-csv", required=True, type=Path,
-                    help="the honors-filled members export CSV")
+    src = ap.add_mutually_exclusive_group(required=True)
+    src.add_argument("--members-csv", type=Path,
+                     help="the honors-filled members export CSV")
+    src.add_argument("--flags-from-db", action="store_true",
+                     help="check the flags as loaded into legacy_members in --db; counts only")
     ap.add_argument("--db", required=True, type=Path)
     ap.add_argument("--hof-csv", type=Path, default=Path("legacy_data/inputs/hof.csv"))
     ap.add_argument("--bap-csv", type=Path, default=Path("legacy_data/inputs/bap_data_updated.csv"))
@@ -115,8 +146,18 @@ def main() -> None:
                     help="write the per-honoree curation worklist CSV here")
     args = ap.parse_args()
     for p in (args.members_csv, args.db, args.hof_csv, args.bap_csv):
-        if not p.is_file():
+        if p is not None and not p.is_file():
             raise SystemExit(f"error: not found: {p}")
+
+    if args.flags_from_db:
+        s = run(None, args.db, args.hof_csv, args.bap_csv, None, flags_from_db(args.db))
+        print(f"honours flags as loaded: is_hof {s['hof_flagged']}, is_bap {s['bap_flagged']}")
+        for kind, n in sorted(s["anomaly_counts"].items()):
+            print(f"  FAIL {kind}: {n}")
+        n_anom = sum(s["anomaly_counts"].values())
+        print("PASS honours flags trace to the rosters" if not n_anom
+              else f"FAIL honours flags: {n_anom} mismatch(es)")
+        sys.exit(1 if n_anom else 0)
 
     s = run(args.members_csv, args.db, args.hof_csv, args.bap_csv, args.worklist_out)
     from collections import Counter

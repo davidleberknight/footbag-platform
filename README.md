@@ -88,7 +88,7 @@ This repository doubles as a worked example of a production Claude Code harness:
 ## Project Documentation
 
 - [docs/CLAUDE_CODE_GUIDE.md](docs/CLAUDE_CODE_GUIDE.md): AI coding instructions as rules, procedures as skills, question-asking scheme, guardrails, and token-use efficiency / context-window management harness.
-- [docs/DATA_GOVERNANCE.md](docs/DATA_GOVERNANCE.md): privacy boundaries, sensitivity tiers, and data-handling rules (members, historical persons, search, exports, erasure).
+- [docs/DATA_GOVERNANCE.md](docs/DATA_GOVERNANCE.md): GDPR compliance, privacy boundaries, sensitivity tiers, and data-handling rules (members, historical persons, search, exports, erasure).
 - [docs/DATA_MODEL.md](docs/DATA_MODEL.md): data model and schema semantics.
 - [docs/DESIGN_DECISIONS.md](docs/DESIGN_DECISIONS.md): architectural decisions and rationale.
 - [docs/DEV_ONBOARDING.md](docs/DEV_ONBOARDING.md): developer setup and onboarding, but not contributing (refer to private GitHub repo).

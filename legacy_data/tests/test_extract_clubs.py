@@ -133,3 +133,49 @@ def test_surrounding_text_survives_removal():
     out = scrub(text)
     assert "Contact Pat" in out and "today" in out
     assert "@" not in out and not any(ch.isdigit() for ch in out)
+
+
+# ─── image addresses left by the crawler ─────────────────────────────────────
+
+drop_images = _load()._drop_image_addresses
+
+
+def test_a_logo_address_is_dropped_from_a_description():
+    # A reader of the club page would otherwise see a bare image address as the
+    # first words of the club's welcome text.
+    assert drop_images("(http://www.footbag.at/fbv_logo.gif) SHOUT-OUTS") == "SHOUT-OUTS"
+    assert drop_images("Erie Website (http://a.example/img/header.PNG) Footbag") == \
+        "Erie Website Footbag"
+    assert drop_images("Welcome (https://x.example/logo.jpg?v=2).") == "Welcome."
+
+
+def test_a_link_address_is_kept():
+    # A followable link is information; dropping it would lose the club's map.
+    text = "View Larger Map (http://maps.example/ms?msid=1) and play"
+    assert drop_images(text) == text
+
+
+@pytest.mark.parametrize("empty", ["", None])
+def test_no_description_stays_empty(empty):
+    assert drop_images(empty) == empty
+
+
+# ─── one-line fields ─────────────────────────────────────────────────────────
+
+
+def test_doubled_spaces_in_name_and_place_collapse_and_description_keeps_its_own(tmp_path):
+    # A club typed "Marathon  Footbag Club" would otherwise list and sort apart
+    # from the same name typed once, and a region with a doubled space would not
+    # group with its neighbours.
+    page = tmp_path / "index.html"
+    page.write_text(
+        '<h1 class="clubsShowName">Marathon  Footbag  Club</h1>'
+        '<div class="clubsLocationHeader">Caracas,  Distrito  Capital, Venezuela</div>'
+        '<div id="ClubsWelcome">Welcome!  We meet weekly.</div>',
+        encoding="utf-8")
+    row = _load().extract_club(page, "123")
+    assert row["name"] == "Marathon Footbag Club"
+    assert row["city"] == "Caracas"
+    assert row["region"] == "Distrito Capital"
+    assert row["country"] == "Venezuela"
+    assert row["description"] == "Welcome!  We meet weekly."

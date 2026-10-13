@@ -1,33 +1,34 @@
 # Footbag Website Modernization Project -- Data Governance
 
-**Authority:** Canonical policy for member-data visibility, public historical records, search and anti-enumeration, exports, logging hygiene, and derived statistics. Rationale lives in `docs/DESIGN_DECISIONS.md`; the two must not contradict.
+**Authority:** The single internal statement of how the platform complies with GDPR, and canonical policy for member-data visibility, public historical records, search and anti-enumeration, exports, logging hygiene, and derived statistics. Rationale lives in `docs/DESIGN_DECISIONS.md`; behaviour lives in `docs/USER_STORIES.md`; the two must not contradict this file. The member-facing summary is the public Privacy page.
 
 **Scope:** All contributors, maintainers, and AI agents working on this codebase.
-
-**What belongs here:** short, declarative rules about data visibility, privacy boundaries, and data handling. Not behavior specs or flows (USER_STORIES), not rationale (DESIGN_DECISIONS), not implementation state (the maintainers' private tracker). If a line needs more than two sentences, it is probably a story.
 
 ---
 
 ## 1. Core principles
 
 1. **Privacy is security.** Member-data handling, discoverability, logging, exports, and visibility are part of the security architecture, not a compliance afterthought.
-2. **Public historical records are legitimate and required.** Official event results, year archives, HoF/BAP, and world records are public historical surfaces. Suppressing them is not a privacy win.
-3. **Historical discoverability is not current-member discovery.** The fact that a person appears in historical results does not make them publicly searchable or contactable as a current member.
-4. **Imported historical people are public historical identities, not public member accounts.** The link between a `historical_person` record and a `member` account does not escalate the historical identity into a searchable or contactable current-member profile.
-5. **Searchability and visibility must be explicit and scoped.** Current-member search is authenticated only, anti-enumeration, and non-directory.
-6. **Contact information is never a public default.** No contact field is publicly visible without an explicit, documented decision.
-7. **Derived stats are governed outputs.** Incomplete datasets require caveats or suppression. Official records outrank aggregates.
-8. **No auth-bypass toggles.** Env vars must not gate route-level authorization behavior.
+2. **Public historical records are legitimate and required.** Official event results, year archives, Hall of Fame and Big Add Posse honors, and world records are public. Suppressing them is not a privacy win.
+3. **Historical discoverability is not current-member discovery.** Appearing in historical results does not make a person publicly searchable or contactable, and linking a historical person to a member account does not turn the historical identity into a public member profile.
+4. **Visibility is explicit and minimal.** Every field has a classified audience, scoped to the minimum the use case needs; no contact field is public.
+5. **Derived stats are governed outputs.** Incomplete datasets require caveats or suppression. Official records outrank aggregates.
 
 ---
 
-## 2. Authentication and authorization boundary
+## 2. GDPR compliance
 
-- Anonymous routes serve only surfaces classified public in §3 and the canonical design docs (home, public events/results, year archives, world records, limited historical-person, HoF/BAP, and club pages).
-- Anonymous surfaces expose approved non-PII fields only. No contact information, addresses, emails, or phone numbers.
-- A public page may carry an authenticated enhancement only where that boundary is documented (e.g. the club page: public shell, member-visible roster and contact).
-- Member-only content requires a genuine session-path authorization check.
-- Deceased members cannot authenticate regardless of credentials; the member lookup backing login excludes rows flagged deceased (it matches only `is_deceased = 0` rows), so a deceased account never reaches a credential match.
+IFPA applies GDPR and UK GDPR to every member regardless of location.
+
+- **Lawful basis.** Account, membership, event and payment data are processed to perform the membership agreement; financial records are kept to meet legal obligations; official competition results are published in IFPA's legitimate interest in the sport's historical record; optional profile visibility and announcement mail rest on the member's own opt-in.
+- **Purposes.** Running memberships, events, payments, clubs and member communications, and preserving the sport's official record. Data is not used for advertising, analytics or profiling, and member addresses are never shared or sold.
+- **Processors.** Amazon Web Services hosts the platform, its storage and backups, and sends its email; Stripe processes payments, and card details never reach the platform; Cloudflare runs the human-verification check on sign-in and registration pages. Production member data stays in AWS and is never copied to a workstation.
+- **Access and portability.** A member downloads all their personal data from their own account tools (`M_Download_Data`); that self-export is the answer to an access request.
+- **Rectification.** A member corrects their own profile; a field they cannot change themselves (a display name, a profile URL, a membership tier) is corrected by an administrator on request, with a reason and an audit row.
+- **Erasure.** A member deletes their account from their own tools; after the grace period their personal data is purged and the historical record survives without them (see Legacy archive and imported historical identities). Erasure that fails on any persistent surface is a launch-blocker.
+- **Retention.** Each kind of data has a recorded retention period, set in the design decisions' retention policy.
+- **Breach.** A suspected exposure of member personal data is reported at once to the IFPA Secretary, the CTO and the Board, who decide on notification. Affected members, and where the law requires it the relevant regulator, are notified within the legal deadline (for EU and UK members, the regulator within 72 hours of IFPA becoming aware).
+- **Contact.** Requests the account tools do not handle go to `admin@footbag.org`.
 
 ---
 
@@ -41,204 +42,66 @@
 | 4 | Internal/admin only | Full member history, audit workflows, broad exports, identity resolution | Yes: admin |
 | 5 | Archived member-only legacy | Old footbag.org archive | Yes: logged-in member |
 
-Anything not in this taxonomy defaults to Sensitivity 4 (internal/admin only) until explicitly classified.
+Anything not in this taxonomy defaults to Sensitivity 4 until explicitly classified.
 
-**Demographic fields**: `birth_date` is private (Sensitivity 4: owner and admin only); it never appears on public surfaces, in member search, or in any cross-member listing, and is a private matching anchor that corroborates a legacy-identity claim and disambiguates tied same-name candidates (never surfaced to the counterparty and never altering the anti-enumeration response). It only ever helps a member: an identical date corroborates a match, and is one of the two pieces of evidence (with an email address) that can make an old account from the legacy member data self-claimable; a date that does not match simply fails to corroborate, so it never counts against the member, lowers a match, or raises work for an administrator. A member may change it at most a few times during onboarding, so it cannot be used to probe old accounts. `gender` is owner-and-admin by default and is used for gender-gated event-category eligibility; additionally a member may opt in (the `show_gender` flag) to make it member-visible (Sensitivity 2), in which case it is shown to authenticated members on the member profile, in member search, and on club rosters. An opted-in gender is never shown to an unauthenticated visitor, and only `male` / `female` render (an `undisclosed` value publishes nothing).
-
-**Contact fields** (`login_email`, `phone`, `whatsapp`) default to not-visible. A member opts in per field, and an opted-in contact field is shown to authenticated members only (Sensitivity 2), never on public surfaces. The exception is an operational contact role: holding a club co-leader or event organizer role exposes that member's contact email to authenticated members (the role is the consent, and the email cannot be hidden while the role is held). A role-holder's WhatsApp stays opt-in like any member's.
-
-**Payment records and donation comments**: a payment row and everything on it — amount, currency, status, provider references, and the tier or event it settles — is internal (Sensitivity 4: admin only), with one addition that is not an exception to it: a member sees their own payment history on their own payment page, which is owner access to their own record rather than a widening of the admin classification. No payment detail of one member is ever visible to another, and no payment surface appears to an unauthenticated visitor.
-
-The donation comment is the part that needs stating rather than inferring. It is the member's own words, written to accompany a gift, and it reaches three surfaces: the admin payment detail view, the reconciliation workflow where it gives a discrepancy its context, and the member's own history. It is **read-only on every administrative surface** — an administrator may read it to understand a payment and may never edit it, because editing a member's words and leaving them attributed to that member is a misrepresentation rather than a correction. It is **never published**: it appears on no public page, in no acknowledgement, and in no donor listing. Publishing donor messages, even with consent, would be a different classification and a different feature, and it is ruled here so nobody builds it by inference from a comment already sitting in the database.
-
-The two are retained on different terms. The payment row is retained and anonymized past its compliance window; what is stripped there is the member link and the provider references, so the financial record survives the person leaving it. The comment is retained permanently and no erasure path clears it. It is the gift's own meaning rather than correspondence: the field invites a dedication, and clearing "in memory of" when the donor is later erased destroys the memorial the donor asked for. Erasure therefore severs the person from the record instead of removing the words, which is the treatment group discussion and the broadcast archive already receive. This is the one member-authored free-text field that is not purgeable, and it is ruled here because every other one is. Permanence widens no audience: the comment stays admin-only and is never published. It has one home and one column name whether the gift is one-time or recurring, and the payment descriptor is a neutral label rather than a second copy of it.
-
-The fund labels a donation comment may carry, such as the Hall of Fame or Big Add Posse funds, are **information to IFPA and not an obligation binding under the bylaws**. They are a statement of what the donor cares about, not a donor restriction, so they create no restricted net asset, no obligation to spend within them, and no balance the platform is expected to track. This is ruled here because the opposite reading is the natural one: a fund name sitting beside money looks like a designation, and a later reader finding one could otherwise infer an obligation the organization never accepted.
-
-**Direct administrator messages**: the subject and body an administrator writes to a member, and the note the member writes back, are owner-and-admin private (Sensitivity 4). All are read in the application and never travel by email, which is what lets the channel carry a date of birth; the member is nudged by a content-free message to their verified login address, and that message carries no link. All are held in purgeable columns and cleared on account erasure and on the deceased contact scrub.
-
-**Member club insight notes**: the free text a member writes in the onboarding wizard's club step about a club, or about clubs in their area, is internal (Sensitivity 4: admin only). It renders on the admin cleanup queue and on no public or member-facing surface, and its author is named only there, matching the rule that signal authorship never leaves an admin surface. The text is purgeable and is cleared on account erasure and on the deceased contact scrub; the row itself is kept so the club evidence trail stays intact.
-
-<< V2 SCOPE >> Ships with native groups in v2. **Group discussion**: the messages a group's members compose on its group page, and their thread structure, are role-scoped to that group (Sensitivity 3: current members of that group, plus admin). They are not member-visible at large, and a signed-in member who does not belong to the group sees that a discussion exists and none of its content. The IFPA Board's discussion is the case this exists for: it carries the board's own deliberation on rules and governance, which is internal until the board publishes an outcome, and publishing happens through vote results and news rather than by opening the archive. Every message is also delivered by email to the group's roster at send time, so a copy leaves the platform in each recipient's mailbox and is not recallable. Group discussion is retained indefinitely by decision, and never edited or deleted: a correction to a group message is a further message, which is what makes it trustworthy as a governance record. Account erasure clears the sender identity on the member's messages and leaves the messages themselves standing, because a deliberation with a participant's contributions removed is no longer the record of what was decided; that is the same treatment the per-send broadcast record already receives.
-
-<< V2 SCOPE >> Ships with native groups in v2. **Group rosters**: a group's roster splits in two. Display name, office, and term dates are authenticated member lookup (Sensitivity 2): who sits on the IFPA Board and in what office is a published governance fact, and the legacy site published it. Whether a seat votes, how it was filled (elected or appointed), and the election or bylaw provision behind it are role-scoped to the group (Sensitivity 3: current members of that group, plus admin). Member contact fields on a roster follow the member's own visibility setting exactly as they do everywhere else, and are never widened by membership of a group.
-
-**Media attribution and curated provenance**: Media galleries and tag gallery pages are public (visitor-accessible). Provenance tags are system-applied and unforgeable: every member upload carries `#by_<member_slug>` and every curator upload carries `#curated`; the system applies them at upload time and rejects them when supplied in input. A member upload is publicly attributed by the uploader's display name, which links to that member's public per-uploader gallery (the `#by_<slug>` browse view); the uploader's contact fields and member profile remain member-only (Sensitivity 2). A curated item is attributed to the curated collection (the `#curated` view). Avatars are excluded from every gallery, browse, and tag-suggestion query.
+- **Birth date** is the most sensitive member field: owner and admin only, never on any public, search or cross-member surface. **Gender** is owner and admin by default; the member may opt in to show it to signed-in members.
+- **Contact fields** (login email, phone, WhatsApp) are hidden by default; a member opts in per field, and an opted-in field is shown to signed-in members only. Holding a club co-leader or event organizer role shows that member's email to signed-in members.
+- **Payment records** are admin only; a member sees their own payment history. Donation comments are admin-only and never published (`M_Donate`).
 
 ---
 
 ## 4. Public historical record policy
 
-The following surfaces are approved public historical records:
-
-- **Official event results**: results from sanctioned events, imported from legacy data or entered by organizers.
-- **Year archives**: event and result listings by year.
-- **Hall of Fame (HoF)**: permanent honor; publicly discoverable.
-- **Big Add Posse (BAP)**: permanent honor; publicly discoverable.
-- **World records**: official record tables/pages. Not inferred from incomplete aggregates.
-- **Minimal historical-person pages**: name, country, official honors, official result/event links, world-record inclusion where applicable. No contact fields. Not a current-member profile.
-
-HoF and BAP honors are preserved even through PII purge or deceased flows. The honor record outlives the personal data.
+Approved public historical records: official event results, year archives, Hall of Fame, Big Add Posse, official world-record tables, and minimal historical-person pages (name, country, official honors, result and event links, world-record inclusion; no contact fields; not a member profile). Hall of Fame and Big Add Posse honors outlive a member's personal data: purge and the deceased flow preserve them.
 
 ---
 
 ## 5. Derived statistics, data completeness, and caveats
 
-A public or member-visible derived stat is justified only when:
-
-- it is genuinely useful and interesting to footbag historians or clearly valuable to the community's official record, **and**
-- either (a) the underlying source scope is sufficiently complete for the claim being made, or (b) the UI clearly presents scope, missing-data, and interpretation caveats.
-
-Where those conditions are not met, prefer raw official results, honors, and record listings over aggregate summaries.
-
-**Approved by default:**
-
-| Stat type | Status |
-|-----------|--------|
-| Official event placements | Approved: primary source |
-| Year archive / event listing | Approved: primary source |
-| HoF/BAP membership | Approved: official honor |
-| World-record tables (official) | Approved: official record |
-| Country representation in events | Approved: clearly scoped |
-
-**Requires explicit caveat or suppression:**
-
-| Stat type | Condition |
-|-----------|-----------|
-| Career win total from partial import | Rejected unless caveated with coverage dates |
-| "All-time" aggregate from partial data | Rejected unless caveated with coverage dates |
-| Any ranking covering less than the full competitive era | Rejected unless caveat names the gap explicitly |
-
-**Test question:** "Would a footbag historian cite this stat in an article without needing to add a methodological footnote?" If no: caveat clearly or suppress.
+A public or member-visible derived stat is justified only when it is genuinely useful to the community's record and either its source data is complete enough for the claim or the page states the scope and the gap. Otherwise prefer raw official results, honors and record listings. Test: "Would a footbag historian cite this stat without needing a methodological footnote?" If not, caveat clearly or suppress.
 
 ---
 
-## 6. Search, discoverability, anti-enumeration, and scraping resistance
+## 6. Search, discoverability, and anti-enumeration
 
-**Current-member search** is:
-
-- authenticated only,
-- deliberately narrowing (prefix-oriented, minimum prefix length),
-- capped for broad queries with a "refine your query" message rather than full pagination,
-- not a browse-all directory,
-- not suitable for bulk extraction,
-- rate-limited, and
-- never public.
-
-The `searchable` flag on a member record means **eligible for authenticated current-member lookup only**. It does not mean publicly discoverable, publicly contactable, or visible on historical-person pages.
-
-A pending account is not a member. From registration until every onboarding task is answered, the account holds a session but no member authorization: it has no profile page for any viewer, does not appear in member search, and reaches only what an anonymous visitor reaches. Its absence is indistinguishable from an unknown account, so a pending registration is never enumerable.
-
-**Public historical-person pages** are not search surfaces. They are read-only record pages reachable by direct link or from event result pages.
-
-Public routes must not expose any endpoint that allows enumeration of current members.
+Current-member search is authenticated only, deliberately narrowing (prefix-oriented with a minimum length), capped for broad queries, rate-limited, never a browse-all directory, and never public. The `searchable` flag means eligible for that authenticated lookup only. A pending registration has no member authorization, no profile, and no search presence, and is indistinguishable from an unknown account. Historical-person pages are record pages reached by link, not search surfaces. No public route allows enumeration of current members.
 
 ---
 
-## 7. Rosters, participant lists, organizer/contact surfaces, and exports
+## 7. Rosters and exports
 
-- Club rosters: visible to logged-in members only; role-scoped for leader/admin operational use.
-- Event participant lists: official published results are public; operational participant-management lists are organizer-role-scoped only.
-- Organizer and club-leader contact information: never public. A club co-leader's or event organizer's own contact email is visible to logged-in members; holding the role is the consent, and the email cannot be hidden while the role is held. The role-holder's WhatsApp shows to logged-in members only when they opt in. A club is reachable through its co-leaders and an event through its organizers; there is no separate club-level contact field. Operational contact surfaces (organizer dashboards, admin tooling) are role-scoped and logged.
-- Exports: member data exports are role-scoped (Sensitivity 3/4 only) or individual self-export (member downloads their own data per GDPR/data-subject-access-request flow).
-- Official IFPA Roster: visible on screen to Tier 2 and above (Sensitivity 3), which is the access the IFPA membership rules grant for official IFPA event and organizer purposes. Not public, and served for reading inside the platform only: it is never exported, never bulk-downloaded, and never used to build an address list, by anyone including an administrator. A member's sign-in address shows on it under that member's own email-visibility opt-in, exactly as it does on their profile. Every view is audit-logged by viewer.
-
-- << V2 SCOPE >> Ships with native groups in v2. Group rosters: a roster for this section's purposes. Never exported, never bulk-downloaded, and never used to build an address list. The group's own mailing list resolves its recipients from the roster at send time and exposes no address to a sender, which is the only mechanised use of it.
-
-No contact field (email, phone, social handle) is visible on any public page or in any public API response.
+Club rosters and event participant lists beyond official results are member-only or role-scoped. The Official IFPA Roster is on-screen only to Tier 2 and above, never exported or bulk-downloaded, and every view is audit-logged. Bulk member exports are role-scoped (Sensitivity 3 or 4); a member's own export is self-service.
 
 ---
 
 ## 8. Logging and observability hygiene
 
-- Logs must not contain raw email addresses, tokens, passwords, or other sensitive PII.
-- The same prohibition extends explicitly to infrastructure-level secrets: `SESSION_SECRET`, AWS access key IDs and secret access keys, raw JWT cookie values, account-token raw strings (only their SHA-256 hashes ever land in storage), and any signing-key material. KMS key ARNs are not secrets but should not be logged at request scope.
-- Member-search queries may be logged for abuse monitoring but must be anonymized or pseudonymized before persistence.
-- Audit records for sensitive visibility checks (member-search, export, admin data access) must be kept as privacy-safe structured events.
-- Public route access logs do not require special hygiene beyond standard web server practice.
+- Logs never contain raw email addresses, tokens, passwords, or other sensitive personal data.
+- The same applies to infrastructure secrets: the session secret, AWS keys, raw session cookie values, raw account tokens (only their hashes are stored), and signing-key material. KMS key ARNs are not secrets but are not logged at request scope.
+- Member-search queries may be logged for abuse monitoring only once pseudonymized.
+- Audit records for sensitive access (member search, export, admin data access) are privacy-safe structured events.
 
 ---
 
 ## 9. Legacy archive and imported historical identities
 
-**Legacy archive** (`legacy_data/legacy_mirror/mirror_footbag_org/`) remains member-only because it contains private legacy member information (email addresses, personal details from the old mirror). It must not be made public.
-
-**Imported historical results** are separate: official event results and minimal person records migrated to the live database are public historical record surfaces (Sensitivity 1). The archive itself is not.
-
-**Imported `historical_persons` records:**
-
-- are identity placeholders for official result attribution, not activated member accounts,
-- do not automatically become searchable current members,
-- do not automatically populate current-member profile fields,
-- imported aggregate/stat fields (`event_count`, `placement_count`, freestyle metrics, etc.) are migration-era metadata, not automatic public biography content and not authoritative public statistics without explicit approval and caveats.
-
-**Identity linking:** a claimed historical identity is not a separate public surface; linking never exposes more than the member profile already shows. URL dispatch and redirect mechanics live in DESIGN_DECISIONS.
-
-**Data subject erasure:**
-
-- Member account erasure is supported; it clears the account's identifying personal data and severs the account-to-historical-record link.
-- The historical record itself remains public, with attribution name and honors.
-- Two erasure paths exist and must not be collapsed. A soft-deleted account, after `member_cleanup_grace_days`, undergoes full PII purge: credentials, contact, identity links, declared anchors, and the outbound messages addressed to them are cleared while HoF/BAP display is preserved. A member flagged deceased, after `deceased_cleanup_grace_days`, undergoes a contact scrub: credentials, contact fields, private address lines (street address and postal code), demographics (gender and birth date), declared anchors, and the outbound messages addressed to them are cleared while identity, locale, honors, and identity links are preserved. Clearing an outbound message nulls its recipient address and rendered body and replaces its subject, which cannot be null and which several templates render the member's own name into. Each path appends an `erasure_log` row.
-- Audit-log retention follows §8; erasure does not delete audit history.
-- The per-send broadcast archive records what the platform sent in IFPA's name: subject, body, sender, timestamp, and a recipient count. It names no recipient, so an erasure request has nothing in it to reach, and the record is retained indefinitely as the account of IFPA's own communications. The sender's member id is cleared when that member is erased, which is the same treatment financial and audit records receive: the record survives, the person is severed. The per-recipient copies of a delivered message, which do carry an address and a rendered body, are cleared on erasure and are in any case deleted once they age past the outbound-copy retention period.
-- Erasure that fails on any persistent surface (account PII, search and derived indices, backup re-application) is a launch-blocker.
-
-**Raw legacy dumps:**
-
-- The webmaster's private dump repository stays private, gains no collaborators without the webmaster's approval, and no raw dump is ever committed to the public repository or pasted into issues, logs, tests, or screenshots.
-- The platform receives only a sanitized export that excludes all password material by contract: any password of any form, plus any hash, salt, iteration count, or recovery answers; the operator schema-checks each export and aborts the load if any password-bearing column is present. The raw export carries live credential material, so it is especially sensitive and is handled under the raw-dump rules below (never committed to the public repository, logged, or pasted into issues or tests).
-- Passwords are never imported, stored, logged, or used.
-
-**Private operations repository.** The working member roster, non-regenerable operator seeds, and other private or archival project datasets live in the maintainers' private operations repository, indexed by DATA_INVENTORY.md (private GitHub repo) — the single record of what each private dataset is and where its canonical copy lives. The public repository never holds member personal data.
-
-**Invalid legacy rows.** Legacy member rows the source marks invalid (`MemberValid = 0`) and other mechanically-obvious garbage are excluded from `legacy_members` by default, so their PII never enters the platform. The only exception is a row pulled back by linkage to a published result, an honor, or a documented admin-recovery need. The filter and its counted-exclusions report live with the loader in `legacy_data/member_data_scripts/`. Exclusions are counted and validated, never silent.
-
-**Sealed legacy email archive.** The legacy IFPA group-message corpus (private and public discussion intermixed, including privately cast committee votes) is sealed, encrypted, and retained privately under IFPA custody; it is never imported, processed, or exposed, and privately cast votes are permanently non-publishable. Custody, key handling, and release are governed by DESIGN_DECISIONS §6.5a.
-
-**Group-scoped documents.** Documents the legacy site scoped to a group's own membership — every private group's files, and committee-scoped files in public groups — are excluded from the member-visible archive and held privately under IFPA custody, together with the captured pages that exposed their names and descriptions; the member-gated archive never widens a group-scoped audience.
-
-**Addresses used as content names.** Members named photo-gallery sets with their own e-mail address, and with their club's web address, and the legacy site built the set's URL and its displayed title out of whatever was typed. Neither is published: the capture is stored under a stand-in name derived from the original, and the address is replaced in the page text, so the set keeps its photographs while the address appears in neither the path nor the page. Both kinds are treated alike. An e-mail address is the member's own contact detail and the page already names whose gallery it is, so the address identifies nothing a reader needs; a club's web address is not private, but a lapsed domain can be re-registered by anyone, and the archive does not carry a path or a link that points at whatever now answers there.
-
-**IFPA governance authority over IFPA-owned legacy records.** IFPA-owned legacy records (group messages, committee votes, elections, and the official rulebook) are IFPA governance data. Their disposition, release, redaction, or destruction is the IFPA secretary's decision, never operator or maintainer discretion. The legacy-site webmaster may be operational custodian and is the authoritative source of facts about these records, but holding the files does not confer authority to release or destroy them.
-
-**Legacy consent and visibility flags are metadata, never active consent.** The legacy member record carries a mailing opt-in pair (`MemberAnnounceOptIn` and `MemberEmailOptIn`) and five per-field visibility flags (`MemberPublish`, `MemberPublishEmail`, `MemberPublishAddress`, `MemberPublishCity`, `MemberPublishPhone`). None of them is imported as active consent, and no `members` column is added for any of them. They are recorded as legacy metadata only. Members set their subscription preferences fresh after claiming, and this platform's privacy defaults and member-set visibility govern what is shown; an unclaimed legacy record is never an active mail recipient.
-
-The consequence is worth stating plainly: IFPA has no platform channel to an unclaimed legacy member, because this platform may not mail them. Nothing is lost by that, because the claim path carries no deadline and the domain does not change, so a member returning to footbag.org at any later date finds the site and can still link their record.
-
-### 9.1 Disposition of the legacy data domains
-
-The delivered legacy dump carries domains beyond what this platform imports. Each has a recorded disposition, and none is built without a scope decision. This table is the source of record for those dispositions.
-
-| Domain | Dump rows | Disposition |
-|---|---|---|
-| Gallery / media | 16,768 images, 1,955 sets | Out of scope: served from `archive.footbag.org` (archive readiness in GO_LIVE_PLAN.md, private GitHub repo); not migrated |
-| Freestyle tricks (`moves`) | 303 moves, 431 hints, 97 journals, plus `move_tip_votes` (footbag, incl. net moves) | The trick metadata is not imported: the new platform's freestyle dictionary is already more complete and is the authoritative source, so the legacy `moves` rows are abandoned. The member hints are the exception and were recovered, loading as trick tips (`moves_journal` is per-member private if ever reconsidered) |
-| IFPA governance | elections 187, issues 332, votes 10,497, payments 209 | The IFPA secretary's decision, never operator or maintainer discretion: the election, issue, and privately-cast vote tables hold privately cast votes and carry their own recorded retention disposition, held privately; the payments table is not read for tier derivation; the committee and board tables are delivered as a separate module dump, and the migration reads neither, because board standing is set by an administrator after cutover |
-| Rankings | 12,672, plus 14 sets | No rankings surface scoped; decide whether it is a future feature |
-| News | 17,682 | Archive-only: the rendered pages are preserved in the mirror, 17,779 of them against 17,682 rows, and the rows are not imported. The platform's own news feed is separate work rather than a migration of these rows |
-| Rules (`rulebook3`) | 1,619 | IFPA rules already live in the IFPA governing documents; likely archive-only |
-| Polls | 11, plus 4,899 answers | Likely drop |
-| Localization | ~561 across four tables | Legacy i18n; likely drop |
-| FAQ (`faq`/`faqsections`) | 38 entries, 7 sections | Archive-or-drop; check first for any sanctioning or membership-tier policy references |
-| Event calendar (`calendar`) | 1,723 rows, 1,434 approved and not deleted, 1985-2026 | Not imported: the curated event history is more complete and is the authoritative source, so the legacy calendar is abandoned. The table carries a password column that is stripped wherever the data is handled |
-| Group documents (`ifpa_group_files`) | 351 file records | File metadata only, no file contents; the private-group and committee-scoped subsets are excluded from the member-visible archive and held in private IFPA custody |
-| Signup / address-validation queue (`actions`) | 1,323 rows (1,233 join requests, 90 address validations) | Not imported: a transient work queue carrying no date column and an empty data column. Its only content found nowhere else is up to 21 older or alternate email addresses, and every named person it references already has an address recorded against their legacy account. A former address becomes a claim anchor only when the member declares it themselves, so loading these would attach matching keys to people who never offered them and gain nothing |
+- **Legacy archive.** The mirror of the old site is member-only, because its pages carry old member contact details.
+- **Imported historical persons** are placeholders for result attribution, not member accounts: they are not searchable, do not populate member profiles, and their imported aggregate fields are not public statistics without approval and caveats.
+- **Erasure and the record.** Erasing an account clears its personal data and severs its link to the historical record, which stays public with its attribution name and honors.
+- **Raw legacy dumps** are never committed to the public repository or pasted into issues, logs, tests or screenshots; password material is never imported, stored, logged or used. Raw legacy data and its extracts live in the maintainers' private repository and on maintainer machines. The public repository never holds member personal data.
+- **Sealed legacy email archive.** The legacy group-message corpus is sealed and held privately under IFPA custody, never imported or exposed; privately cast votes are never publishable.
+- **Legacy consent flags** (mailing opt-ins and per-field publish flags) are never imported as active consent; members set their preferences fresh after claiming.
+- **IFPA authority.** The disposition, release, redaction or destruction of IFPA-owned legacy records is the IFPA secretary's decision, never a maintainer's.
 
 ---
 
-## 10. Contributor and AI-agent implementation rules
+## 10. Contributor and AI-agent rules
 
-Any work touching members, historical persons, search, rosters, contact fields, exports, stats, or auth boundaries loads this file first and applies the §3 taxonomy to every surfaced field.
+Any work touching members, historical persons, search, rosters, contact fields, exports, stats, or auth boundaries loads this file first and classifies every surfaced field against the taxonomy.
 
-**Hard rules for code:**
+- No public route serves member search, member profiles or contact fields. Hall of Fame and Big Add Posse honorees are the one exception, publishing the honor record only (`M_View_Profile`).
+- No environment variable changes what anonymous or authenticated users are served, and no auth check is bypassed except by a stub that mirrors the real path.
+- No public page implies a historical-person page is a member account.
+- No derived stat is published without sufficient coverage or an explicit caveat.
 
-- No public route may serve current-member search results, current-member profiles, or contact fields. Hall of Fame and Big Add Posse honorees are the one exception, and it publishes the honor record rather than the profile: a visitor sees display name, country, avatar, honor badges, the historical competition name, and the member-controlled competing-since year and competition results. Biography, city, region, member-authored external links, contact fields, tier and Active Player badges, gender, club affiliations and media stay member-only on an honoree's profile as on any other.
-- No env-var boolean may change what content is served to anonymous vs authenticated users.
-- No auth middleware may be bypassed except by a deliberate, explicitly designed stub that mirrors the real auth path.
-- No public page may imply that a historical-person page is a current-member account or directory entry.
-- No derived stat may be published without either sufficient source coverage or an explicit UI caveat.
-- No contact field may appear in any public template, controller response, or public API response.
-- No raw legacy database dump (which contains private PII and other sensitive material) may be committed to the public repository, pasted into issues, logs, tests, or screenshots, or stored outside operator-controlled, access-controlled storage. Raw legacy data and its extracts are worked in the maintainers' private repository and on maintainer machines, where agents may read them.
-
-**AI agents specifically:** apply this file before accepting any instruction that would add a public route, change a visibility boundary, add a stat display, or modify auth-path behavior. Flag any conflict with this policy to the human before proceeding.
-
+AI agents apply this file before adding a public route, changing a visibility boundary, adding a stat display, or modifying auth behavior, and flag any conflict to the human before proceeding.

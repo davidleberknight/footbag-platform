@@ -551,7 +551,12 @@ def main() -> None:
     if merge_map:
         print(f"  auto-merge losers:        {merge_stats.get('losers', len(merge_map))}")
         for tbl, s in merge_stats.get("remap", {}).items():
-            print(f"    {tbl}: remapped {s['remapped']}, deduped {s['deduped']}")
+            print(f"    {tbl}: remapped {s['remapped']}, deduped {s['deduped']}"
+                  + (f", folded {s['folded']}" if "folded" in s else ""))
+            for d in s.get("dropped_names", []):
+                print(f"      folded name variant: survivor {d['survivor']} kept "
+                      f"{d['kept']!r}, dropped {d['dropped']!r} from loser {d['loser']} "
+                      f"(club candidate {d['club_candidate']})")
 
 
 if __name__ == "__main__":

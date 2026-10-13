@@ -9,13 +9,10 @@ seed extractors:
     every existing caller is unaffected;
   - --out-dir writes the CSV beneath the requested directory and nowhere else,
     leaving the committed seed file untouched down to its timestamp;
-  - the freshness skip still applies without --force, and --force always defeats
-    it;
-  - a redirected run that skips exits non-zero, because it wrote no file where
-    the caller asked and must never be read as a successful regeneration;
+  - every run regenerates, even over an existing output newer than the script;
   - an unusable output destination fails non-zero with a message naming the
     problem;
-  - two forced runs over identical input produce byte-identical output.
+  - two runs over identical input produce byte-identical output.
 
 Both extractors are driven through their real command line against a synthetic
 mirror in a temporary directory. Nothing here needs the real mirror, the legacy
@@ -120,66 +117,30 @@ def test_redirected_run_leaves_the_checkout_seed_file_untouched(tmp_path, spec):
 
     script = build_sandbox(tmp_path, spec["script"], spec["helpers"],
                            spec.get("club_seed", False))
-    result = run(script, "--out-dir", str(tmp_path / "diagnostic"), "--force")
+    result = run(script, "--out-dir", str(tmp_path / "diagnostic"))
 
     assert result.returncode == 0, result.stderr
     assert _fingerprint(committed) == before
 
 
 @pytest.mark.parametrize("spec", EXTRACTORS)
-def test_existing_newer_output_is_skipped_without_force(tmp_path, spec):
+def test_existing_output_newer_than_the_script_is_still_regenerated(tmp_path, spec):
+    # A seed that looks fresh is no reason to keep it: a skipped run would leave
+    # whatever the last run wrote, so the seed would stop following the mirror
+    # and the curated corrections the moment the script is older than its output.
     script = build_sandbox(tmp_path, spec["script"], spec["helpers"],
                            spec.get("club_seed", False))
     target = default_seed_csv(script, spec["filename"])
     make_newer_than_script(target, script)
+    redirected = tmp_path / "diagnostic"
+    make_newer_than_script(redirected / spec["filename"], script)
 
-    result = run(script)
-
-    assert result.returncode == 0, result.stderr
-    assert "SKIPPED, generated nothing" in result.stdout
-    assert target.read_text(encoding="utf-8") == "STALE\n"
-
-
-@pytest.mark.parametrize("spec", EXTRACTORS)
-def test_existing_newer_output_is_regenerated_with_force(tmp_path, spec):
-    script = build_sandbox(tmp_path, spec["script"], spec["helpers"],
-                           spec.get("club_seed", False))
-    target = default_seed_csv(script, spec["filename"])
-    make_newer_than_script(target, script)
-
-    result = run(script, "--force")
-
-    assert result.returncode == 0, result.stderr
-    assert "GENERATED" in result.stdout
-    assert target.read_text(encoding="utf-8") != "STALE\n"
-    _assert_real_output(target, spec)
-
-
-@pytest.mark.parametrize("spec", EXTRACTORS)
-def test_redirected_skip_exits_nonzero_and_says_nothing_was_written(tmp_path, spec):
-    script = build_sandbox(tmp_path, spec["script"], spec["helpers"],
-                           spec.get("club_seed", False))
-    out_dir = tmp_path / "diagnostic"
-    out_dir.mkdir()
-    make_newer_than_script(out_dir / spec["filename"], script)
-
-    result = run(script, "--out-dir", str(out_dir))
-
-    assert result.returncode == 3
-    assert "SKIPPED, generated nothing" in result.stdout
-    assert "--force" in result.stderr
-
-
-@pytest.mark.parametrize("spec", EXTRACTORS)
-def test_force_alone_does_not_choose_an_output_directory(tmp_path, spec):
-    script = build_sandbox(tmp_path, spec["script"], spec["helpers"],
-                           spec.get("club_seed", False))
-
-    result = run(script, "--force")
-
-    assert result.returncode == 0, result.stderr
-    assert default_seed_csv(script, spec["filename"]).exists()
-    assert "redirected" not in result.stdout
+    for args, landed in (((), target),
+                         (("--out-dir", str(redirected)), redirected / spec["filename"])):
+        result = run(script, *args)
+        assert result.returncode == 0, result.stderr
+        assert landed.read_text(encoding="utf-8") != "STALE\n", args
+        _assert_real_output(landed, spec)
 
 
 @pytest.mark.parametrize("spec", EXTRACTORS)
@@ -240,14 +201,14 @@ def test_target_path_occupied_by_a_directory_fails_with_an_actionable_message(tm
 
 
 @pytest.mark.parametrize("spec", EXTRACTORS)
-def test_repeated_forced_runs_over_identical_input_are_byte_identical(tmp_path, spec):
+def test_repeated_runs_over_identical_input_are_byte_identical(tmp_path, spec):
     script = build_sandbox(tmp_path, spec["script"], spec["helpers"],
                            spec.get("club_seed", False))
     first = tmp_path / "run-one"
     second = tmp_path / "run-two"
 
-    assert run(script, "--out-dir", str(first), "--force").returncode == 0
-    assert run(script, "--out-dir", str(second), "--force").returncode == 0
+    assert run(script, "--out-dir", str(first)).returncode == 0
+    assert run(script, "--out-dir", str(second)).returncode == 0
 
     left = first / spec["filename"]
     right = second / spec["filename"]

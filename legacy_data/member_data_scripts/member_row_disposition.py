@@ -52,6 +52,10 @@ EXPORT_DEFECT_SUSPECTED = "export_defect_suspected_recheck_next_delivery"
 # so it needs a reason of its own: reading it as a curated identity or a suspected
 # export defect would both invite someone to go looking for the missing account.
 SYSTEM_FIXTURE_BY_DESIGN = "system_fixture_absent_from_the_export_by_design"
+# The rows the platform seeds for itself. Each is public, required data and absent
+# from every export by construction, so its absence is decided by our own code
+# rather than by anyone reviewing a delivery: it needs no recorded decision.
+SYSTEM_FIXTURE_IDS = frozenset({"STUB_FOOTBAG_HACKY"})
 SUPERSEDED_BY_CLEARED_LINK = "superseded_the_dependent_person_link_is_cleared_too"
 UNDECIDED_PENDING_REVIEW = "undecided_pending_review"
 
@@ -191,11 +195,14 @@ def assert_every_uncovered_row_dispositioned(uncovered: list[dict],
 
     Reporting without this is a number somebody reads. The ruling is that an
     uncovered row does not halt the cutover load, and it does not: this runs in the
-    pre-cutover checks, not in the loader.
+    pre-cutover checks, not in the loader. A system fixture row is covered by
+    design and needs no decision, so with no other uncovered row an empty set of
+    dispositions passes.
     """
     have = {d.legacy_member_id for d in dispositions}
     missing = sorted(u["legacy_member_id"] for u in uncovered
-                     if u["legacy_member_id"] not in have)
+                     if u["legacy_member_id"] not in have
+                     and u["legacy_member_id"] not in SYSTEM_FIXTURE_IDS)
     if missing:
         raise MemberRowDispositionError(
             f"{len(missing)} uncovered legacy_members row(s) carry no recorded "

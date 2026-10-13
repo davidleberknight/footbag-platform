@@ -207,11 +207,10 @@ def main() -> int:
         print(f"  {rel}  {f['key']}  {f['field']}  [{f['kind']}]  {f['value']!r}  {f['detail']}")
     print()
     print("Fix at the producer, never by hand-editing the seed. For the club seed")
-    print("that is scripts/overlay_clubs_from_dump.py; a row whose damage no general")
-    print("rule can repair gets an entry in overrides/club_text_corrections.csv with")
-    print("its reason. Clear the affected rows before re-running the producer, since")
-    print("it preserves rows already present in the seed verbatim. For the")
-    print("club-member seed the producer is scripts/extract_club_members.py.")
+    print("that is scripts/extract_clubs.py; a row whose damage no general rule can")
+    print("repair gets an entry in overrides/club_text_corrections.csv with its")
+    print("reason, then re-run the producer. For the club-member seed the producer")
+    print("is scripts/extract_club_members.py.")
     return 1
 
 

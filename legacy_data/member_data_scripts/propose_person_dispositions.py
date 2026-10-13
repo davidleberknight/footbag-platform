@@ -75,6 +75,9 @@ def main() -> int:
         cohort_person_ids=rlm.membership_provisional_person_ids(hps))
 
     by_id = {(hp.get("person_id") or ""): hp for hp in hps}
+    review_accounts: dict[str, set[str]] = {}
+    for r in review:
+        review_accounts.setdefault(r["historical_person_id"], set()).add(r["legacy_member_id"])
     linked_by_account = {(hp.get("legacy_member_id") or "").strip(): hp for hp in hps
                          if (hp.get("legacy_member_id") or "").strip()}
     by_fold: dict[str, list[dict]] = {}
@@ -121,15 +124,24 @@ def main() -> int:
             })
             continue
 
+        candidates = sorted(review_accounts.get(pid, ()))
+        note = ("No valid account in the delivered member population bears this "
+                "name. The person is retained as an archival record and holds no "
+                "site account.")
+        if candidates:
+            # A variant of the name reaches accounts, just not one unambiguously,
+            # so "no account bears this name" would be false. The draft says so,
+            # and the maintainer rules on the candidates before keeping the row.
+            note = (f"REVIEW BEFORE KEEPING: accounts {', '.join(candidates)} bear a "
+                    f"variant of this name and none resolved uniquely. Keep this row "
+                    f"only if none of them is this person.")
         rows.append({
             "decision": plh.NO_ACCOUNT,
             "survivor_account_ids": "",
             "candidate_person_id": pid,
             "reason": plh.NO_VALID_ACCOUNT_IN_MEMBER_POPULATION,
             "fingerprint": d["fingerprint_for"](""),
-            "note": "No valid account in the delivered member population bears this "
-                    "name. The person is retained as an archival record and holds no "
-                    "site account.",
+            "note": note,
             plh.DUPLICATE_TARGET_FIELD: "",
         })
 

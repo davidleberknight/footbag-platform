@@ -7,11 +7,6 @@ A control is not a real character. It reaches the seed looking like text and
 renders as nothing, and four descriptions in the published club seed carry one
 today.
 
-Cleaning at this boundary is also what keeps the two seed producers agreeing.
-The dump-side producer already cleans the same fields, so a value cleaned on one
-side only would depend on which producer ran last, and a mirror re-walk would
-re-import the damage the other side had repaired.
-
 Run from repo root:
     python -m pytest legacy_data/tests/test_extract_clubs_cp1252.py -v
 """
@@ -139,14 +134,3 @@ def test_a_real_unicode_character_is_not_disturbed(tmp_path):
                   description="Gramy w żonglerkę.")
     assert row["name"] == "Kołobrzeg Footbag"
     assert row["description"] == "Gramy w żonglerkę."
-
-
-# ── the two producers agree ──────────────────────────────────────────────────
-
-def test_the_mirror_and_dump_producers_clean_a_damaged_value_identically(tmp_path):
-    # The reason this belongs at the boundary rather than in each consumer: a
-    # value cleaned on one side only depends on which producer ran last, and a
-    # mirror re-walk would re-import what the other side had repaired.
-    overlay = _load("overlay_clubs_from_dump")
-    damaged = "One of Canada\x92s most consistent clubs."
-    assert extract(tmp_path, description=damaged)["description"] == overlay._clean(damaged)

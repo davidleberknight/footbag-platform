@@ -1746,7 +1746,23 @@ gate_realdata_invariants() {
   else
     ri_out=$(FOOTBAG_DB_PATH="${db}" bash scripts/validate-realdata-ri.sh 2>&1) || ri_rc=$?
     out="$(printf '%s\n── referential integrity ──\n%s' "${out}" "${ri_out}")"
-    (( g_rc == 0 && ri_rc == 0 )) || rc=1
+    # The honours flags as loaded, and the audited results for the member data
+    # in hand. Both read data only a maintainer holds, which is why they run
+    # here rather than in the pytest suite, and both print counts only.
+    local py h_out h_rc=0 a_out a_rc=0
+    if py="$(pipeline_python)"; then
+      h_out=$(PYTHONPYCACHEPREFIX="${LOG_DIR}/pytest-pycache" "$py" \
+        legacy_data/member_data_scripts/validate_legacy_honors.py --flags-from-db --db "${db}" 2>&1) || h_rc=$?
+      a_out=$(PYTHONPYCACHEPREFIX="${LOG_DIR}/pytest-pycache" "$py" \
+        legacy_data/member_data_scripts/audit_member_data.py --db "${db}" 2>&1) || a_rc=$?
+    else
+      h_out="FAIL: the legacy pipeline environment is missing. Build it with: bash legacy_data/run_pipeline.sh venv"
+      h_rc=1
+      a_out="FAIL: not run, for the same reason"
+      a_rc=1
+    fi
+    out="$(printf '%s\n── honours flags ──\n%s\n── member-data audits ──\n%s' "${out}" "${h_out}" "${a_out}")"
+    (( g_rc == 0 && ri_rc == 0 && h_rc == 0 && a_rc == 0 )) || rc=1
   fi
   realdata_invariants_verdict "$out" "$rc" "$mirror_only" \
     "the local legacy_members are entirely mirror-derived; load the authoritative member data, or leave this check to --staging, which reads staging's copy."

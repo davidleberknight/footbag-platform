@@ -28,7 +28,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS_DIR = REPO_ROOT / "legacy_data" / "scripts"
-COPIED = ("refresh_legacy_repo_data.py", "strict_dump_parser.py",
+COPIED = ("refresh_legacy_repo_data.py", "refresh_report.py", "strict_dump_parser.py",
           "extract_legacy_dump.py", "extract_legacy_estate.py")
 MEMBERS = "members/backups/latest.sql"
 GALLERY = "gallery/backups/latest.sql"
@@ -531,6 +531,175 @@ def test_a_link_inside_copied_material_is_refused(checkout):
     os.symlink("../../members", checkout.live / "ifpa" / "data" / "keys")
     commit_all(checkout.live, "copied tree gains a link")
     assert_refused(checkout.run(), checkout.out, "ifpa/data/keys is a symbolic link inside copied material")
+
+
+RICH_COLUMNS = ("MemberID", "MemberValid", "MemberFirstName", "MemberLastName", "MemberEmail",
+                "MemberBirthYear", "MemberBirthMonth", "MemberBirthDay", "MemberIFPATier",
+                "MemberModified", "MemberPassword")
+ADMINS = "members/admin/backups/latest.sql"
+COMMITTEES = "groups/backups/committees.sql.gz"
+# MemberModified is Unix time; the dump completed on 2026-05-29.
+BEFORE_DUMP = "1700000000"
+RICH_ROWS = {
+    1: ("1", "Annwyl", "Leeward", "ann@example.org", "1980", "1", "2", "2", BEFORE_DUMP),
+    2: ("1", "Boaz", "Ngata", "bo@example.org", "1990", "3", "4", "0", BEFORE_DUMP),
+    3: ("0", "Cyan", "Oxley", "cy@example.org", "1970", "5", "6", "0", BEFORE_DUMP),
+    5: ("1", "Dior", "Pollux", "di@example.org", "1985", "7", "8", "0", BEFORE_DUMP),
+}
+
+
+def sql(value: str) -> str:
+    return "'" + value.replace("\\", "\\\\").replace("'", "\\'") + "'"
+
+
+def rich_members_dump(rows: dict) -> str:
+    columns = "".join(f"  `{c}` varchar(80) DEFAULT NULL,\n" for c in RICH_COLUMNS[1:])
+    values = ",".join("(" + ",".join([str(k), *map(sql, v), "'pw-secret'"]) + ")"
+                      for k, v in sorted(rows.items()))
+    return ("-- MySQL dump 10.16\n/*!40101 SET NAMES utf8 */;\n"
+            "CREATE TABLE `members` (\n  `MemberID` int(11) NOT NULL,\n" + columns +
+            "  PRIMARY KEY (`MemberID`)\n) ENGINE=MyISAM;\n"
+            f"INSERT INTO `members` VALUES {values};\n"
+            "-- Dump completed on 2026-05-29 15:46:52\n")
+
+
+def admins_dump(rows: str) -> str:
+    return ("-- MySQL dump 10.16\n/*!40101 SET NAMES utf8 */;\n"
+            "CREATE TABLE `admins` (\n  `AdminID` int(11) NOT NULL DEFAULT '0',\n"
+            "  `AdminValid` int(11) NOT NULL DEFAULT '0',\n"
+            "  KEY `idx_admins` (`AdminID`)\n) ENGINE=MyISAM;\n"
+            f"INSERT INTO `admins` VALUES {rows};\n"
+            "-- Dump completed on 2026-05-29 15:46:52\n")
+
+
+def committee_dump(rows: str) -> bytes:
+    return gzip.compress((
+        "-- MySQL dump 10.16\n/*!40101 SET NAMES utf8 */;\n"
+        "CREATE TABLE `ifpa_committee_members` (\n"
+        "  `CommitteeID` int(11) NOT NULL DEFAULT '0',\n"
+        "  `CommitteeMemberID` int(11) NOT NULL DEFAULT '0',\n"
+        "  `CommitteeMemberPriority` int(11) NOT NULL DEFAULT '50',\n"
+        "  `CommitteeMemberTitle` varchar(255) DEFAULT '',\n"
+        "  `CommitteeMemberVoting` int(11) NOT NULL DEFAULT '1'\n) ENGINE=MyISAM;\n"
+        f"INSERT INTO `ifpa_committee_members` VALUES {rows};\n"
+        "-- Dump completed on 2026-05-29 15:46:52\n").encode())
+
+
+def first_delivery(checkout, members: dict = RICH_ROWS) -> None:
+    """Replace the first delivery, in both clones, with the richer member,
+    admin and board dumps the findings report reads."""
+    write(checkout.original, MEMBERS, rich_members_dump(members))
+    write(checkout.original, ADMINS, admins_dump("(1,1)"))
+    (checkout.original / COMMITTEES).parent.mkdir(parents=True, exist_ok=True)
+    (checkout.original / COMMITTEES).write_bytes(committee_dump("(1,2,10,'Secretary',1)"))
+    commit_all(checkout.original, "first delivery with members, admins and board")
+    shutil.rmtree(checkout.live)
+    shutil.copytree(checkout.original, checkout.live, symlinks=True)
+
+
+def flags(checkout) -> set[tuple[str, str]]:
+    detail = (checkout.out / "REFRESH_REPORT_DETAIL.tsv").read_text(encoding="utf-8")
+    return {(line.split("\t")[2], line.split("\t")[3][len("flag: "):])
+            for line in detail.splitlines() if "\tflag: " in line}
+
+
+def changed(row: int, **fields) -> dict:
+    rows = dict(RICH_ROWS)
+    values = list(rows[row])
+    for name, value in fields.items():
+        values[RICH_COLUMNS.index(name) - 1] = value
+    rows[row] = tuple(values)
+    return rows
+
+
+def added(row: int, values: tuple) -> dict:
+    return {**RICH_ROWS, row: values}
+
+
+@pytest.mark.parametrize("delivered, key, kind", [
+    (changed(2, MemberFirstName="Zed"), "2", "identity changed at an existing id"),
+    (changed(1, MemberEmail="new@example.org"), "1",
+     "email changed on an account with a tier or admin flag"),
+    (changed(2, MemberEmail="ann@example.org"), "2", "email newly shared with another account"),
+    (changed(2, MemberIFPATier="2"), "2", "tier changed"),
+    (changed(3, MemberValid="1"), "3", "validity changed"),
+    (changed(2, MemberModified="1900000000"), "2", "modified after the dump completed"),
+    (added(6, ("1", "Boaz", "Ngata", "other@example.org", "1990", "3", "4", "0", BEFORE_DUMP)), "6",
+     "new account copies an existing name and birth date"),
+    (added(4, ("1", "Ed", "Fu", "ed@example.org", "1975", "9", "9", "0", BEFORE_DUMP)), "4",
+     "new id below the previous highest"),
+    ({k: v for k, v in RICH_ROWS.items() if k != 3}, "3", "account removed"),
+    (changed(2, MemberFirstName="B" + chr(0x202E) + "o"), "2", "direction-override character"),
+    (changed(2, MemberFirstName="<script>x"), "2", "active markup"),
+    (changed(2, MemberFirstName="=cmd()"), "2", "leading formula character"),
+])
+def test_the_findings_report_flags_each_suspicious_member_change(checkout, delivered, key, kind):
+    # Each is the shape of a webmaster-side change that would reach a live
+    # account if accepted unseen: identity reuse, account takeover, privilege
+    # or tier inflation, fabricated or deleted rows, and text that acts on a reader.
+    first_delivery(checkout)
+    checkout.deliver(MEMBERS, rich_members_dump(delivered))
+    result = checkout.run()
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert (key, kind) in flags(checkout)
+    assert f"{kind}: 1" in result.stdout
+
+
+def test_an_unchanged_delivery_raises_no_flag(checkout):
+    # A report that flags honest data trains the reviewer to skip it.
+    first_delivery(checkout)
+    result = checkout.run()
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert flags(checkout) == set()
+    assert "Flags for review: 0" in (checkout.out / "REFRESH_REPORT.md").read_text()
+
+
+def test_an_added_admin_row_is_flagged(checkout):
+    first_delivery(checkout)
+    checkout.deliver(ADMINS, admins_dump("(1,1),(5,1)"))
+    assert checkout.run().returncode == 0
+    assert any(kind == "admin row added" for _, kind in flags(checkout))
+
+
+def test_the_board_roster_passes_the_cto_check_only_when_it_carries_the_cto(checkout):
+    first_delivery(checkout)
+    assert checkout.run().returncode == 0
+    report = (checkout.out / "REFRESH_REPORT.md").read_text()
+    assert "carries the CTO record: FAIL" in report
+    (checkout.live / COMMITTEES).write_bytes(
+        committee_dump("(1,2,10,'Secretary',1),(1,11985,20,'CTO',0)"))
+    commit_all(checkout.live, "board roster now current")
+    assert checkout.run().returncode == 0
+    report = (checkout.out / "REFRESH_REPORT.md").read_text()
+    assert "carries the CTO record: PASS" in report
+    assert "| 11985 | CTO | no |" in report
+
+
+def test_the_report_compares_with_the_committed_delivery_and_a_rerun_repeats_it(checkout):
+    # The baseline is what the maintainer last accepted, so running again
+    # before committing must not report the delivery as already seen.
+    first_delivery(checkout)
+    assert checkout.run().returncode == 0
+    git(checkout.out, "init", "-q")
+    commit_all(checkout.out, "accepted delivery")
+    checkout.deliver(MEMBERS, rich_members_dump(changed(2, MemberIFPATier="2")))
+    assert checkout.run().returncode == 0
+    report = (checkout.out / "REFRESH_REPORT.md").read_text()
+    assert "| members | members | last accepted delivery |" in report
+    first = (checkout.out / "REFRESH_REPORT_DETAIL.tsv").read_bytes()
+    assert ("2", "tier changed") in flags(checkout)
+    assert checkout.run().returncode == 0
+    assert (checkout.out / "REFRESH_REPORT_DETAIL.tsv").read_bytes() == first
+
+
+def test_the_report_names_rows_by_key_and_never_writes_a_name_or_email(checkout):
+    first_delivery(checkout)
+    checkout.deliver(MEMBERS, rich_members_dump(changed(2, MemberEmail="ann@example.org")))
+    assert checkout.run().returncode == 0
+    for name in ("REFRESH_REPORT.md", "REFRESH_REPORT_DETAIL.tsv"):
+        text = (checkout.out / name).read_text()
+        for leaked in ("example.org", "Boaz", "Ngata", "Annwyl", "pw-secret"):
+            assert leaked not in text, (name, leaked)
 
 
 def test_missing_original_copy_is_named(checkout):

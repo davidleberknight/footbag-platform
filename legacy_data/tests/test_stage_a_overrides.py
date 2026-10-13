@@ -421,6 +421,42 @@ def test_merge_accounts_already_grouped_fails_closed():
         rec.plan_auto_merges(rows, overrides=[_merge_override(rows, {"100", "200"})])
 
 
+def _grouped_pair_and_stray():
+    # 100 and 200 form an automatic group; 300 is the same person with no DOB.
+    return [_acct("100", "Sam Rivera", "1990-04-02"),
+            _acct("200", "Sam Rivera", "1990-04-02"),
+            _acct("300", "Sam Rivera", "")]
+
+
+def test_merge_accounts_absorbs_a_whole_group_with_an_ungrouped_account():
+    # One person, three accounts, two of which the rule already groups: without
+    # absorption the ruling is refused, and the third account's standing stays
+    # out of reach of whoever claims the merged two.
+    rows = _grouped_pair_and_stray()
+    o = _merge_override(rows, {"100", "200", "300"}, expected=ov.MERGE_ACCOUNTS_ABSORBS)
+    plan = rec.plan_auto_merges(rows, overrides=[o])
+    assert [(d.survivor_id, d.loser_ids) for d in plan["merges"]] == [("100", ["200", "300"])]
+    assert plan["reviews"] == []
+    assert plan["rulings_applied"] == 1
+
+
+def test_merge_accounts_absorbing_a_group_records_that_it_does():
+    # A row written as though nothing were grouped describes a different fact,
+    # so it is stale and refused rather than quietly absorbing a group.
+    rows = _grouped_pair_and_stray()
+    with pytest.raises(ov.OverrideError, match="stale disposition"):
+        rec.plan_auto_merges(rows, overrides=[_merge_override(rows, {"100", "200", "300"})])
+
+
+def test_merge_accounts_naming_part_of_a_group_fails_closed():
+    # Splitting an automatic group between a ruling and the rule would merge 200
+    # into one survivor and leave 100 to the automatic decision.
+    rows = _grouped_pair_and_stray()
+    o = _merge_override(rows, {"200", "300"}, expected=ov.MERGE_ACCOUNTS_ABSORBS)
+    with pytest.raises(ov.OverrideError, match="already in a Stage A"):
+        rec.plan_auto_merges(rows, overrides=[o])
+
+
 def test_merge_accounts_stale_disposition_fails_closed():
     rows = _ungrouped_pair()
     with pytest.raises(ov.OverrideError, match="stale disposition"):

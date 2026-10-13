@@ -2,8 +2,8 @@
 """Extract club data from legacy mirror into legacy_data/seed/clubs.csv.
 
 Walks all clubs/show/*/index.html pages under the mirror, parses club fields,
-and writes a CSV. Idempotent: skips if the output CSV already exists and is
-newer than this script, which --force overrides. --out-dir sends the CSV
+applies the curated club text corrections, and writes a CSV. Every run
+regenerates the CSV from those two inputs alone. --out-dir sends the CSV
 somewhere other than the committed seed directory, which is what a run
 comparing fresh output against the committed copy needs.
 
@@ -37,10 +37,8 @@ from extractor_output import (  # noqa: E402
     EXIT_INVALID_OUTPUT,
     OutputDestinationError,
     add_output_arguments,
-    decide_regeneration,
     prepare_output_target,
     resolve_output_dir,
-    skip_exit_code,
 )
 
 MIRROR_ROOT = Path(__file__).parent.parent.parent / "footbag_legacy_mirror" / "www.footbag.org"
@@ -71,6 +69,26 @@ _URL_RE = re.compile(r"https?://\S+")
 # the description scrubber needs to recognise digits sitting inside a URL.
 _CLUB_URL_PARENTHESISED_RE = re.compile(r"\((https?://[^\s()<>]+)\)")
 _CLUB_URL_BARE_RE = re.compile(r"https?://[^\s()<>]+")
+# The same neutralized form left by an image in the welcome block, a logo or a
+# header banner: the crawler keeps the image's address in parentheses. An image
+# address is not prose and points at nothing a reader can follow, so it is
+# dropped from the description, together with one space beside it. Link
+# addresses stay, because a reader can follow them.
+_IMAGE_ADDRESS_RE = re.compile(
+    r" ?\(https?://[^\s()<>]+\.(?:png|jpe?g|gif|webp|svg|bmp)(?:\?[^\s()<>]*)?\) ?",
+    re.IGNORECASE)
+
+
+def _drop_image_addresses(text):
+    """Remove each parenthesised image address from a description, keeping a
+    single space where it sat between two words."""
+    def _sub(match):
+        whole = match.group(0)
+        return " " if whole.startswith(" ") and whole.endswith(" ") else ""
+    if not text:
+        return text
+    dropped = _IMAGE_ADDRESS_RE.sub(_sub, text)
+    return dropped.strip() if dropped != text else text
 
 
 def _scrub_description_pii(text):
@@ -141,6 +159,14 @@ def parse_location(text):
     return city, region, country
 
 
+def _single_line(text):
+    """Collapse every whitespace run in a one-line field to a single space. A club
+    name or place typed with a doubled space renders and sorts as a different
+    string from the same name typed once, and no such field means anything by the
+    extra space. Descriptions keep their spacing, because there it can be layout."""
+    return " ".join(text.split()) if text else text
+
+
 def extract_club(html_path, legacy_club_key):
     with open(html_path, encoding="utf-8", errors="replace") as f:
         soup = BeautifulSoup(f, "html.parser")
@@ -157,16 +183,16 @@ def extract_club(html_path, legacy_club_key):
     name_tag = soup.select_one("h1.clubsShowName")
     if not name_tag:
         return None
-    name = clean_club_text(name_tag.get_text(strip=True))
+    name = _single_line(clean_club_text(name_tag.get_text(strip=True)))
     if not name:
         return None
 
     location_tag = soup.select_one("div.clubsLocationHeader")
     location_text = location_tag.get_text(strip=True) if location_tag else ""
     city, region, country = parse_location(location_text) if location_text else ("", "", "")
-    city = blank_location_placeholder(city)
-    region = blank_location_placeholder(region)
-    country = clean_club_text(country)
+    city = _single_line(blank_location_placeholder(city))
+    region = _single_line(blank_location_placeholder(region))
+    country = _single_line(clean_club_text(country))
 
     if not country:
         return None
@@ -240,8 +266,8 @@ def extract_club(html_path, legacy_club_key):
     description = ""
     welcome_div = soup.select_one("div#ClubsWelcome")
     if welcome_div:
-        description = _scrub_description_pii(
-            clean_club_text(welcome_div.get_text(separator=" ", strip=True)))
+        description = _scrub_description_pii(_drop_image_addresses(
+            clean_club_text(welcome_div.get_text(separator=" ", strip=True))))
 
     # CMS timestamps from div#MainModified
     # Format: "Created Sun Jan 15 10:16:52 2012; last update Sun Jan 15 10:16:52 2012."
@@ -290,18 +316,6 @@ def main():
     if redirected:
         print(f"Output redirected to {output_csv}")
 
-    generate, reason = decide_regeneration(output_csv, __file__, args.force)
-    if not generate:
-        print(f"SKIPPED, generated nothing: {reason}. ({output_csv})")
-        if redirected:
-            print(
-                "ERROR: a redirected run that skips writes no file at the "
-                "requested location, so its result cannot stand in for a "
-                "regenerated one. Pass --force.",
-                file=sys.stderr,
-            )
-        sys.exit(skip_exit_code(redirected))
-
     rows = []
     skipped = 0
 
@@ -309,10 +323,7 @@ def main():
     # region typed through the wrong codepage, a postal abbreviation where the
     # region's name belongs, and a website field holding prose that the legacy form
     # turned into a link. This extractor copies faithfully, so the curator's
-    # corrections are applied here, on the way out. Applying them only in the
-    # dump-reconciliation step left the repair depending on a machine-local input
-    # that is optional by design, so a re-extract on a checkout without the dump
-    # silently restored every one of those values.
+    # corrections are applied here, on the way out, so every extract carries them.
     corrections = load_club_text_corrections()
     corrected_rows = 0
 
@@ -331,23 +342,18 @@ def main():
                 corrected_rows += 1
             rows.append(row)
 
-    # The don't-shrink-the-seed invariant is enforced across the whole of the
-    # mirror-extraction phase, not here. This extractor can only see the clubs
-    # the legacy site still serves as active; every club whose contact stopped
-    # checking in renders as a defunct-listing page that carries no record to
-    # extract, and an id that was never valid renders as a not-found page. The
-    # dump overlay that runs immediately after restores the approved clubs the
-    # mirror no longer serves, and only its output is comparable to the
-    # committed seed. Comparing this intermediate count against that seed
-    # rejected every healthy run, because a mirror alone has never reproduced a
-    # dump-enriched seed and is not supposed to.
+    # The seed holds only the clubs the legacy site still served as active. A
+    # club whose contact stopped checking in renders as a defunct-listing page
+    # carrying no record, and an id that was never valid renders as a not-found
+    # page; both are skipped, because a club the live site no longer served was
+    # deleted in effect.
     with open(output_csv, "w", newline="", encoding="utf-8") as f:
         writer = csv.DictWriter(f, fieldnames=FIELDNAMES, lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
 
     print(
-        f"GENERATED ({reason}): wrote {len(rows)} clubs to {output_csv} "
+        f"GENERATED: wrote {len(rows)} clubs to {output_csv} "
         f"({skipped} skipped, {corrected_rows} repaired from curated corrections)."
     )
 

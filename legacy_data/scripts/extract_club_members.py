@@ -2,8 +2,8 @@
 """Extract club member data from legacy mirror into legacy_data/seed/club_members.csv.
 
 Walks all clubs/show/*/showmembers/index.html pages under the mirror, parses
-member rows, and writes a CSV. Idempotent: skips if the output CSV is newer
-than this script, which --force overrides. --out-dir sends the CSV somewhere
+member rows, and writes a CSV. Every run regenerates the CSV from the mirror
+and the club seed. --out-dir sends the CSV somewhere
 other than the committed seed directory, which is what a run comparing fresh
 output against the committed copy needs.
 
@@ -29,10 +29,8 @@ from extractor_output import (  # noqa: E402
     EXIT_INVALID_OUTPUT,
     OutputDestinationError,
     add_output_arguments,
-    decide_regeneration,
     prepare_output_target,
     resolve_output_dir,
-    skip_exit_code,
 )
 
 MIRROR_ROOT = Path(__file__).parent.parent.parent / "footbag_legacy_mirror" / "www.footbag.org"
@@ -51,14 +49,12 @@ PROFILE_RE = re.compile(r"/members/profile/(\d+)/")
 def approved_club_keys(clubs_csv: Path) -> set[str]:
     """The club universe this seed is allowed to name.
 
-    The club seed is reconciled against the dump's approved ClubID set by
-    overlay_clubs_from_dump.py, which drops any key the dump no longer approves.
-    This walk of the mirror has no such reconciliation of its own: the capture
-    still holds a showmembers page for a club that was unapproved afterwards, and
-    without this the roster would be written for a club the seed does not
-    contain. Reading the reconciled seed rather than the dump keeps one producer
-    deciding the universe, so the two cannot drift into disagreeing about which
-    clubs exist.
+    The club seed holds only the clubs whose page the legacy site still served
+    as active. The capture can still hold a showmembers page for a club whose
+    own page is gone, and without this the roster would be written for a club
+    the seed does not contain. Reading the club seed keeps one producer deciding
+    the universe, so the two cannot drift into disagreeing about which clubs
+    exist.
 
     Refuses an absent or empty file rather than treating it as an empty universe.
     Filtering against nothing would silently write an empty member seed, and a
@@ -66,12 +62,10 @@ def approved_club_keys(clubs_csv: Path) -> set[str]:
     """
     if not clubs_csv.is_file():
         raise SystemExit(
-            f"ERROR: club seed not found at {clubs_csv}. It is the approved club "
-            f"universe this extractor filters against, produced by "
-            f"scripts/extract_clubs.py and reconciled by "
-            f"scripts/overlay_clubs_from_dump.py, both of which run before this "
-            f"step in ./run_pipeline.sh. Run those first, or name another copy "
-            f"with --clubs-csv.")
+            f"ERROR: club seed not found at {clubs_csv}. It is the club universe "
+            f"this extractor filters against, produced by scripts/extract_clubs.py, "
+            f"which runs before this step in ./run_pipeline.sh. Run it first, or "
+            f"name another copy with --clubs-csv.")
     with clubs_csv.open(newline="", encoding="utf-8") as handle:
         keys = {(row.get("legacy_club_key") or "").strip()
                 for row in csv.DictReader(handle)}
@@ -150,18 +144,6 @@ def main():
     if redirected:
         print(f"Output redirected to {output_csv}")
 
-    generate, reason = decide_regeneration(output_csv, __file__, args.force)
-    if not generate:
-        print(f"SKIPPED, generated nothing: {reason}. ({output_csv})")
-        if redirected:
-            print(
-                "ERROR: a redirected run that skips writes no file at the "
-                "requested location, so its result cannot stand in for a "
-                "regenerated one. Pass --force.",
-                file=sys.stderr,
-            )
-        sys.exit(skip_exit_code(redirected))
-
     approved = approved_club_keys(args.clubs_csv)
 
     all_rows = []
@@ -196,7 +178,7 @@ def main():
         writer.writerows(all_rows)
 
     print(
-        f"GENERATED ({reason}): wrote {len(all_rows)} member rows from "
+        f"GENERATED: wrote {len(all_rows)} member rows from "
         f"{clubs_processed} clubs to {output_csv} "
         f"({clubs_skipped} club dirs had no showmembers page)."
     )

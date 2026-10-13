@@ -25,8 +25,10 @@ upstream only, QC before done) and this file does not restate them.
   member data, not a global ranking: the results lanes are split by era, so a cross-source collision
   there is an error to fix rather than a disagreement to adjudicate.
 - **Where no curated decision exists, the dump decides whether a row exists**, and supplies the values for rows that
-  exist nowhere else. Legacy deletion was soft (the approval flag set false, the row kept), so a
-  deleted club has no page left to crawl and the dump is the only source that knows it existed.
+  exist nowhere else. Legacy deletion was soft (the approval flag set false, the row kept), so the
+  dump is the only source that knows a deleted row existed. Clubs are the exception: the club list
+  is the mirror's club pages with the curated corrections applied, and the dump supplies no clubs,
+  because a club the live site no longer served was deleted in effect.
 - **A correction belongs upstream, never in a regenerated artifact.** No stage of
   any pipeline mode writes into the curated or overrides trees. Those files are
   changed by hand or by the dedicated curation tools, never by a run.

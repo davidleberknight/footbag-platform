@@ -1,18 +1,18 @@
 // Redirected club production chain, end to end into a scratch directory.
 //
 // Each producer has been proved isolated on its own. This proves they compose:
-// that the four real command-line entry points hand their output to each other
+// that the three real command-line entry points hand their output to each other
 // through one scratch seed directory, and that the committed legacy_data/seed/
 // tree is not touched at any point.
 //
-// Stages 1 to 3 run as real subprocesses. Stage 4 runs through the verifier's
+// Stages 1 and 2 run as real subprocesses. Stage 3 runs through the verifier's
 // real argument parsing, prerequisite checks, cache reading, verdict
 // computation, serialisation, staging and publication, with the validator and
 // the clock injected so no network call and no environment contract is involved.
 // Nothing is mocked and no stage is bypassed.
 //
-// The mirror and the legacy dump are entirely synthetic. The production mirror,
-// the production dump, the database and the network are never reached.
+// The mirror is entirely synthetic. The production mirror, the legacy dump, the
+// database and the network are never reached.
 import { describe, it, expect, afterEach, beforeAll } from 'vitest';
 import path from 'node:path';
 import os from 'node:os';
@@ -36,23 +36,20 @@ import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const SCRIPTS = path.join(REPO_ROOT, 'legacy_data', 'scripts');
-const MEMBER_SCRIPTS = path.join(REPO_ROOT, 'legacy_data', 'member_data_scripts');
 
 const FIXED_NOW = '2026-03-04T05:06:07.000Z';
 
-// Survives the overlay because the dump approves it.
+// A club whose page the legacy site still served: it reaches every stage.
 const KEPT_KEY = '2001';
 const KEPT_URL = 'https://example.org/riverside-mirror';
-// Dropped by the overlay because the dump does not approve it.
-const DOOMED_KEY = '2002';
-const DOOMED_URL = 'https://example.org/doomed';
-// Added by the overlay; absent from the mirror entirely, so its presence
-// downstream can only come from stage 2.
-const DUMP_ONLY_KEY = '3003';
-const DUMP_ONLY_URL = 'https://example.org/dump-only';
-
 const MEMBER_NAME = 'Ada Lovelace';
 const MEMBER_ID = '77001';
+// A club the site no longer served: the capture holds its roster but no club
+// page, so it is not in the club seed and its roster must not reach the member
+// seed either.
+const GONE_KEY = '2002';
+const GONE_MEMBER_NAME = 'Grace Hopper';
+const GONE_MEMBER_ID = '77002';
 
 const roots: string[] = [];
 
@@ -195,42 +192,20 @@ function clubPage(name: string, url: string): string {
 `;
 }
 
-const MEMBERS_PAGE = `<html><body>
+function membersPage(name: string, id: string): string {
+  return `<html><body>
 <table class="membersSearchResultsTable">
-<tr><td class="memberName">${MEMBER_NAME}</td>
-    <td class="memberAlias"><a href="/members/profile/${MEMBER_ID}/">ada</a></td></tr>
+<tr><td class="memberName">${name}</td>
+    <td class="memberAlias"><a href="/members/profile/${id}/">alias</a></td></tr>
 </table>
 </body></html>
 `;
-
-// A minimal clubs mysqldump: the CREATE TABLE gives the column order, the INSERT
-// gives the approved universe. 2001 is approved (overlap, preserved), 3003 is
-// approved but absent from the mirror (addition), 2002 is absent from the dump
-// entirely (dropped).
-const DUMP_SQL = `-- synthetic clubs dump
-CREATE TABLE \`clubs\` (
-  \`ClubID\` int(11) NOT NULL,
-  \`Name\` varchar(255) DEFAULT NULL,
-  \`ClubNameUnicode\` varchar(255) DEFAULT NULL,
-  \`City\` varchar(255) DEFAULT NULL,
-  \`State\` varchar(255) DEFAULT NULL,
-  \`Country\` varchar(255) DEFAULT NULL,
-  \`URL\` varchar(255) DEFAULT NULL,
-  \`TagLine\` varchar(255) DEFAULT NULL,
-  \`Welcome\` text,
-  \`Created\` int(11) DEFAULT NULL,
-  \`Modified\` int(11) DEFAULT NULL,
-  \`Approved\` tinyint(1) DEFAULT NULL,
-  PRIMARY KEY (\`ClubID\`)
-);
-INSERT INTO \`clubs\` VALUES (${KEPT_KEY},'Riverside Footbag Club','','Springfield','Illinois','United States','${KEPT_URL}','','',1326622612,1326709073,1),(${DUMP_ONLY_KEY},'Dump Only Club','','Wellington','Wellington','New Zealand','${DUMP_ONLY_URL}','','',1326622612,1326709073,1);
-`;
+}
 
 interface Chain {
   root: string;
   scriptsDir: string;
   scratchSeed: string;
-  dumpPath: string;
   clubsCsv: string;
   membersCsv: string;
   verdictsCsv: string;
@@ -245,36 +220,28 @@ function makeChain(): Chain {
   for (const name of [
     'extract_clubs.py',
     'extract_club_members.py',
-    'overlay_clubs_from_dump.py',
     'club_curation.py',
     'extractor_output.py',
   ]) {
     copyFileSync(path.join(SCRIPTS, name), path.join(scriptsDir, name));
   }
-  const memberScripts = path.join(root, 'legacy_data', 'member_data_scripts');
-  mkdirSync(memberScripts, { recursive: true });
-  copyFileSync(
-    path.join(MEMBER_SCRIPTS, '_dump_parser.py'),
-    path.join(memberScripts, '_dump_parser.py'),
-  );
 
   const clubs = path.join(root, 'footbag_legacy_mirror', 'www.footbag.org', 'clubs');
-  for (const [key, url, name] of [
-    [KEPT_KEY, KEPT_URL, 'Riverside Footbag Club'],
-    [DOOMED_KEY, DOOMED_URL, 'Doomed Club'],
+  const keptShow = path.join(clubs, 'show', KEPT_KEY);
+  mkdirSync(keptShow, { recursive: true });
+  writeFileSync(path.join(keptShow, 'index.html'), clubPage('Riverside Footbag Club', KEPT_URL));
+  // The club the site no longer served has a show directory with no club page.
+  mkdirSync(path.join(clubs, 'show', GONE_KEY), { recursive: true });
+  for (const [key, name, id] of [
+    [KEPT_KEY, MEMBER_NAME, MEMBER_ID],
+    [GONE_KEY, GONE_MEMBER_NAME, GONE_MEMBER_ID],
   ] as const) {
-    const show = path.join(clubs, 'show', key);
-    mkdirSync(show, { recursive: true });
-    writeFileSync(path.join(show, 'index.html'), clubPage(name, url));
+    const roster = path.join(clubs, `ClubID_${key}`, 'showmembers');
+    mkdirSync(roster, { recursive: true });
+    writeFileSync(path.join(roster, 'index.html'), membersPage(name, id));
   }
-  const members = path.join(clubs, `ClubID_${KEPT_KEY}`, 'showmembers');
-  mkdirSync(members, { recursive: true });
-  writeFileSync(path.join(members, 'index.html'), MEMBERS_PAGE);
 
-  const dumpPath = path.join(root, 'clubs-dump.sql');
-  writeFileSync(dumpPath, DUMP_SQL);
-
-  // One scratch seed directory for all four generated outputs, deliberately not
+  // One scratch seed directory for all three generated outputs, deliberately not
   // shaped like the repository layout.
   const scratchSeed = path.join(root, 'scratch-seed');
   mkdirSync(scratchSeed, { recursive: true });
@@ -283,7 +250,6 @@ function makeChain(): Chain {
     root,
     scriptsDir,
     scratchSeed,
-    dumpPath,
     clubsCsv: path.join(scratchSeed, 'clubs.csv'),
     membersCsv: path.join(scratchSeed, 'club_members.csv'),
     verdictsCsv: path.join(scratchSeed, 'clubs_url_verdicts.csv'),
@@ -330,7 +296,7 @@ interface ChainRun {
   verifierExit: number | null;
   /** clubs.csv as each stage left it, so intermediate state can be asserted. */
   snapshots: Record<string, string>;
-  /** Whether stage 4 ever reached for the real validator factory. */
+  /** Whether stage 3 ever reached for the real validator factory. */
   validatorBuilt: boolean;
 }
 
@@ -356,21 +322,15 @@ async function runChain(
     return result.status === 0;
   };
 
-  if (!stage('extract_clubs', 'extract_clubs.py', ['--out-dir', chain.scratchSeed, '--force'])) {
+  if (!stage('extract_clubs', 'extract_clubs.py', ['--out-dir', chain.scratchSeed])) {
     return out;
   }
-  if (!stage('overlay', 'overlay_clubs_from_dump.py',
-             ['--seed', chain.clubsCsv, '--dump', chain.dumpPath])) {
-    return out;
-  }
-  // The member extractor filters its rows to the clubs the reconciled seed
-  // contains, so it is pointed at the clubs.csv this chain has just produced
-  // rather than the committed one. Both sides of the chain then describe one
-  // club universe, which is the property the whole redirected run exists to
-  // check.
+  // The member extractor filters its rows to the clubs the club seed contains,
+  // so it is pointed at the clubs.csv this chain has just produced rather than
+  // the committed one. Both sides of the chain then describe one club universe,
+  // which is the property the whole redirected run exists to check.
   if (!stage('extract_club_members', 'extract_club_members.py',
-             ['--out-dir', chain.scratchSeed, '--force',
-              '--clubs-csv', chain.clubsCsv])) {
+             ['--out-dir', chain.scratchSeed, '--clubs-csv', chain.clubsCsv])) {
     return out;
   }
 
@@ -408,36 +368,23 @@ function scratchLeftovers(dir: string): string[] {
 // ── the chain ────────────────────────────────────────────────────────────────
 
 describe('redirected club production chain', () => {
-  it('runs all four stages into one scratch directory and touches no committed path', async () => {
+  it('runs all three stages into one scratch directory and touches no committed path', async () => {
     const before = committedState();
     const chain = makeChain();
 
     const result = await runChain(chain);
 
-    // Stage 1: generated, not skipped.
+    // Stage 1: the club seed holds the served club and not the one whose page
+    // is gone.
     expect(result.results.extract_clubs!.status, result.results.extract_clubs!.stderr).toBe(0);
     expect(result.results.extract_clubs!.stdout).toContain('GENERATED');
-    expect(result.results.extract_clubs!.stdout).not.toContain('SKIPPED');
-    const afterExtract = result.snapshots.extract_clubs!;
-    expect(afterExtract).toContain(KEPT_KEY);
-    expect(afterExtract).toContain(KEPT_URL);
-    expect(afterExtract).toContain(DOOMED_KEY);
-    expect(afterExtract).not.toContain(DUMP_ONLY_KEY);
+    const clubsCsv = result.snapshots.extract_clubs!;
+    expect(clubsCsv).toContain(KEPT_KEY);
+    expect(clubsCsv).toContain(KEPT_URL);
+    expect(clubsCsv).not.toContain(GONE_KEY);
 
-    // Stage 2: the overlay actually reconciled, and changed the row set.
-    const overlayOut = result.results.overlay!.stdout;
-    expect(result.results.overlay!.status, result.results.overlay!.stderr).toBe(0);
-    expect(overlayOut).toContain('Authoritative club reconciliation:');
-    expect(overlayOut).not.toContain('skipped');
-    expect(overlayOut).toContain('dump-only additions:     1');
-    expect(overlayOut).toContain('stale seeded keys dropped: 1');
-    const afterOverlay = result.snapshots.overlay!;
-    expect(afterOverlay).toContain(DUMP_ONLY_KEY);
-    expect(afterOverlay).toContain(DUMP_ONLY_URL);
-    expect(afterOverlay).not.toContain(DOOMED_KEY);
-    expect(afterOverlay).not.toBe(afterExtract);
-
-    // Stage 3: members generated for the surviving club.
+    // Stage 2: the served club's roster is kept, and the gone club's roster is
+    // left out because the club seed does not hold its club.
     expect(
       result.results.extract_club_members!.status,
       result.results.extract_club_members!.stderr,
@@ -447,21 +394,21 @@ describe('redirected club production chain', () => {
     expect(members).toContain(KEPT_KEY);
     expect(members).toContain(MEMBER_NAME);
     expect(members).toContain(MEMBER_ID);
+    expect(members).not.toContain(GONE_KEY);
+    expect(members).not.toContain(GONE_MEMBER_NAME);
+    expect(members).not.toContain(GONE_MEMBER_ID);
 
-    // Stage 4: consumed the post-overlay file, not the pre-overlay one.
+    // Stage 3: verified the URLs of the seed the chain produced.
     expect(result.verifierExit).toBe(EXIT_OK);
     // The injected transport handled every lookup; the real validator, and with
     // it any environment or network dependency, was never constructed.
     expect(result.validatorBuilt).toBe(false);
-    expect(result.validated.sort()).toEqual([DUMP_ONLY_URL, KEPT_URL].sort());
-    expect(result.validated).not.toContain(DOOMED_URL);
+    expect(result.validated).toEqual([KEPT_URL]);
     const verdicts = readFileSync(chain.verdictsCsv, 'utf8');
-    expect(verdicts).toContain(DUMP_ONLY_URL);
     expect(verdicts).toContain(KEPT_URL);
-    expect(verdicts).not.toContain(DOOMED_URL);
     expect(verdicts).toContain(FIXED_NOW);
 
-    // All four outputs landed in the one scratch directory and nowhere else.
+    // All three outputs landed in the one scratch directory and nowhere else.
     expect(readdirSync(chain.scratchSeed).sort())
       .toEqual(['club_members.csv', 'clubs.csv', 'clubs_url_verdicts.csv']);
     expect(scratchLeftovers(chain.scratchSeed)).toEqual([]);
@@ -492,12 +439,11 @@ describe('redirected club production chain', () => {
 // ── failure sequencing ───────────────────────────────────────────────────────
 
 describe('redirected club chain: failure sequencing', () => {
-  it('fails the chain when a redirected extractor skips instead of regenerating', async () => {
+  it('regenerates over an existing output newer than the extractor', async () => {
     const before = committedState();
     const chain = makeChain();
-    // A pre-existing output newer than the script is exactly what the freshness
-    // guard skips on. Without --force the redirected run must exit 3 rather than
-    // report a clean pass, and the chain must not treat that as regeneration.
+    // An output that looks fresh must still be replaced, or the seed would stop
+    // following the mirror once the script is older than its output.
     writeFileSync(chain.clubsCsv, 'STALE\n');
     const future = Date.now() / 1000 + 10_000;
     const touched = spawnSync(
@@ -511,15 +457,16 @@ describe('redirected club chain: failure sequencing', () => {
     );
     expect(touched.status, touched.stderr).toBe(0);
 
-    const skipped = python(
+    const regenerated = python(
       path.join(chain.scriptsDir, 'extract_clubs.py'),
       ['--out-dir', chain.scratchSeed],
       chain.root,
     );
 
-    expect(skipped.status, skipped.stderr).toBe(3);
-    expect(skipped.stdout).toContain('SKIPPED, generated nothing');
-    expect(readFileSync(chain.clubsCsv, 'utf8')).toBe('STALE\n');
+    expect(regenerated.status, regenerated.stderr).toBe(0);
+    const written = readFileSync(chain.clubsCsv, 'utf8');
+    expect(written).not.toBe('STALE\n');
+    expect(written).toContain(KEPT_KEY);
     expectCommittedUnchanged(before, committedState());
   });
 
@@ -542,56 +489,13 @@ describe('redirected club chain: failure sequencing', () => {
     expectCommittedUnchanged(before, committedState());
   });
 
-  it('does not run later stages when the overlay fails', async () => {
-    const before = committedState();
-    const chain = makeChain();
-    // A dump that parses to zero approved clubs makes the overlay fail closed.
-    writeFileSync(
-      chain.dumpPath,
-      DUMP_SQL.replace(/INSERT INTO `clubs` VALUES [^\n]*\n/, 'INSERT INTO `clubs` VALUES (9,\'x\',\'\',\'\',\'\',\'\',\'\',\'\',\'\',0,0,0);\n'),
-    );
-
-    const result = await runChain(chain);
-
-    expect(result.results.extract_clubs!.status, result.results.extract_clubs!.stderr).toBe(0);
-    expect(result.results.overlay!.status, result.results.overlay!.stdout).not.toBe(0);
-    expect(result.invoked).toEqual(['extract_clubs', 'overlay']);
-    expect(result.verifierExit).toBeNull();
-    expect(existsSync(chain.membersCsv)).toBe(false);
-    expect(existsSync(chain.verdictsCsv)).toBe(false);
-    expectCommittedUnchanged(before, committedState());
-  });
-
-  it('fails the chain mechanically when the overlay dump is missing', async () => {
-    // The overlay used to report an unavailable dump as a clean no-op at exit 0,
-    // so a chain could only catch it by reading stdout. It now exits 3, which the
-    // chain observes as a status rather than a string.
-    const before = committedState();
-    const chain = makeChain();
-    rmSync(chain.dumpPath);
-
-    const result = await runChain(chain);
-
-    expect(result.results.extract_clubs!.status, result.results.extract_clubs!.stderr).toBe(0);
-    expect(result.results.overlay!.status, result.results.overlay!.stderr).toBe(3);
-    expect(result.invoked).toEqual(['extract_clubs', 'overlay']);
-    expect(result.verifierExit).toBeNull();
-    expect(result.results.overlay!.stdout).not.toContain('Authoritative club reconciliation:');
-    expect(existsSync(chain.membersCsv)).toBe(false);
-    expect(existsSync(chain.verdictsCsv)).toBe(false);
-    // The seed the extractor produced is left exactly as stage 1 wrote it.
-    expect(result.snapshots.overlay!).toBe(result.snapshots.extract_clubs!);
-    expect(scratchLeftovers(chain.scratchSeed)).toEqual([]);
-    expectCommittedUnchanged(before, committedState());
-  });
-
-  it('does not run stage 4 when stage 3 fails', async () => {
+  it('does not run stage 3 when stage 2 fails', async () => {
     const before = committedState();
     const chain = makeChain();
     let result: ChainRun;
     try {
       // The scratch directory becomes read-only just before the member
-      // extractor, so stage 3 fails for real while stages 1 and 2 succeed.
+      // extractor, so stage 2 fails for real while stage 1 succeeds.
       result = await runChain(chain, {
         beforeStage: (name) => {
           if (name === 'extract_club_members') chmodSync(chain.scratchSeed, 0o500);
@@ -602,13 +506,12 @@ describe('redirected club chain: failure sequencing', () => {
     }
 
     expect(result.results.extract_clubs!.status, result.results.extract_clubs!.stderr).toBe(0);
-    expect(result.results.overlay!.status, result.results.overlay!.stderr).toBe(0);
     expect(
       result.results.extract_club_members!.status,
       result.results.extract_club_members!.stdout,
     ).not.toBe(0);
     // The invocation ledger is the proof, not the absence of a file.
-    expect(result.invoked).toEqual(['extract_clubs', 'overlay', 'extract_club_members']);
+    expect(result.invoked).toEqual(['extract_clubs', 'extract_club_members']);
     expect(result.verifierExit).toBeNull();
     expect(existsSync(chain.membersCsv)).toBe(false);
     expect(existsSync(chain.verdictsCsv)).toBe(false);

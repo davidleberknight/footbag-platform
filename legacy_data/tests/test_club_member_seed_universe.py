@@ -4,15 +4,11 @@ test_club_member_seed_universe.py
 
 The club-member seed names only clubs the club seed contains.
 
-The club seed is reconciled against the dump's approved ClubID set, and any key
-the dump no longer approves is dropped from it. The member seed is a walk of the
-mirror, which has no such reconciliation: the capture still serves a showmembers
-page for a club that was unapproved afterwards, so without a filter the roster is
-written for a club the seed does not contain.
-
-That stayed invisible while the committed member seed happened to be clean. A
-fuller crawl brought four such rosters in, and the two producers then disagreed
-about which clubs exist.
+The club seed holds only the clubs whose own page the legacy site still served.
+The member seed is a separate walk of the mirror, and the capture can still serve
+a showmembers page for a club whose own page is gone, so without a filter the
+roster is written for a club the seed does not contain and the two producers
+disagree about which clubs exist.
 
 Two things are asserted here and they fail differently. Over the committed
 artifact, because that is what ships and a producer nobody re-ran gives the same
@@ -106,7 +102,7 @@ def _run(monkeypatch, tmp_path: Path, mirror_clubs: dict[str, str],
     out_dir = tmp_path / "out"
     monkeypatch.setattr(
         "sys.argv",
-        ["extract_club_members.py", "--force", "--out-dir", str(out_dir),
+        ["extract_club_members.py", "--out-dir", str(out_dir),
          "--clubs-csv", str(_clubs_csv(tmp_path, approved))])
     mod.main()
     written = out_dir / "club_members.csv"

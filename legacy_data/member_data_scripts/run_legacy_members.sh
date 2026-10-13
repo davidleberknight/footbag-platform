@@ -38,7 +38,6 @@
 #                      staging / /srv/footbag by the underlying writers. Without
 #                      it, --load writes nothing.
 #   --dry-run          validate + preview and stop cleanly (no write attempted).
-#   --strict-honors    honor validation becomes a hard gate (final production load).
 #   --db PATH          target database (default: $FOOTBAG_DB_PATH or database/footbag.db).
 set -euo pipefail
 
@@ -59,14 +58,13 @@ MERGE_MAP_CSV="${OUT_DIR}/stage_a_merged_accounts.csv"
 
 usage() {
   cat >&2 <<'USAGE'
-Usage: run_legacy_members.sh [--extract] [--load | --from-csv PATH] [--apply] [--dry-run] [--strict-honors] [--db PATH]
+Usage: run_legacy_members.sh [--extract] [--load | --from-csv PATH] [--apply] [--dry-run] [--db PATH]
 
   --extract          Extract the legacy dump into the git-ignored intermediate CSV (maintainer-only; needs the dump + a built DB).
   --load             Validate + preview, run reconciliation (Stage A, Stage B, QC gate, honors re-run), then stop before applying (read-only).
   --from-csv PATH    Use an out-of-band CSV copy (implies --load; no dump needed).
   --apply            With --load, perform the real writes after the gate passes (reconciled members, then proposed links). Refused on production/staging.
   --dry-run          Validate + preview and stop cleanly (no write attempted).
-  --strict-honors    Make honor validation a hard gate.
   --db PATH          Target database (default: $FOOTBAG_DB_PATH or database/footbag.db).
 
 There is ONE load path. What it does is decided by its inputs, not by a mode
@@ -109,7 +107,6 @@ DO_EXTRACT=0
 DO_LOAD=0
 DO_APPLY=0
 DRY_RUN=0
-STRICT_HONORS=0
 CSV=""
 DB="${FOOTBAG_DB_PATH:-database/footbag.db}"
 
@@ -120,7 +117,6 @@ while [[ $# -gt 0 ]]; do
     --from-csv)      DO_LOAD=1; CSV="${2:-}"; shift 2 ;;
     --apply)         DO_APPLY=1; shift ;;
     --dry-run)       DRY_RUN=1; shift ;;
-    --strict-honors) STRICT_HONORS=1; shift ;;
     # The mode flag this replaced is refused rather than ignored: a script or a
     # note that still passes it must be corrected, not silently downgraded to a
     # development load.
@@ -373,16 +369,6 @@ NOBOARDCSV
   echo "==> validate export (hard gate)"
   "${PY}" "${MDS}/validate_legacy_export.py" --csv "${CSV}" --db "${DB}"
 
-  echo "==> validate honors (advisory)"
-  if "${PY}" "${MDS}/validate_legacy_honors.py" --members-csv "${CSV}" --db "${DB}"; then
-    :
-  elif [[ "${STRICT_HONORS}" -eq 1 ]]; then
-    echo "run_legacy_members --load: honor validation failed and --strict-honors is set; aborting." >&2
-    exit 1
-  else
-    echo "WARNING: honor validation reported issues; continuing (advisory until the honor worklist resolves). Use --strict-honors for the final production load." >&2
-  fi
-
   echo "==> load: dry-run preview (writes nothing)"
   "${PY}" "${MDS}/load_legacy_export.py" --export "${CSV}" --db "${DB}"
 
@@ -401,8 +387,31 @@ NOBOARDCSV
   echo "==> reconcile: Stage A duplicate-account review"
   "${PY}" "${MDS}/reconcile_legacy_members.py" --stage-a --csv "${CSV}"
 
+  # Completeness is asserted on the production load alone: it refuses unless every
+  # membership-only provisional person carries a proposed link or a recorded
+  # disposition, which is the right bar for the load that cannot be redone and too
+  # strict for a dev or CI run against a partial dump.
+  COMPLETE_ARGS=()
+  if [[ "${PRODUCTION_LOAD}" -eq 1 ]]; then
+    COMPLETE_ARGS=(--require-complete-dispositions)
+  fi
+
+  # The person-link holds and the review-group resolutions are rulings about
+  # Stage B's own proposals, so they apply here, where the proposals are made:
+  # a held link never reaches the proposed-links CSV the apply step writes from.
+  # With the rulings present, Stage B also reads the account universe after the
+  # ruled Stage A merges, so a merged pair presents as one account.
   echo "==> reconcile: Stage B historical-person link proposals"
-  "${PY}" "${MDS}/reconcile_legacy_members.py" --stage-b --csv "${CSV}" --db "${DB}"
+  if [[ "${ADJUDICATIONS_READY}" -eq 1 ]]; then
+    "${PY}" "${MDS}/reconcile_legacy_members.py" --stage-b-survivor-view \
+      --csv "${CSV}" --db "${DB}" \
+      --overrides "${ADJ_STAGE_A}" \
+      --link-holds "${ADJ_LINK_HOLDS}" \
+      --review-resolutions "${ADJ_REVIEW_RESOLUTIONS}" \
+      "${COMPLETE_ARGS[@]+"${COMPLETE_ARGS[@]}"}"
+  else
+    "${PY}" "${MDS}/reconcile_legacy_members.py" --stage-b --csv "${CSV}" --db "${DB}"
+  fi
 
   echo "==> reconcile: QC gate"
   if ! "${PY}" "${MDS}/reconcile_legacy_members.py" --qc-gate; then
@@ -433,39 +442,28 @@ BLOCKED
     --members-csv "${CSV}" --db "${DB}" \
     --proposed-links "${PROPOSED_LINKS_CSV}" --out "${RECONCILED_CSV}"
 
-  # Final-load only: build the exact-name + full-DOB auto-merge artifacts (the
+  # Final-load only: build the duplicate-account auto-merge artifacts (the
   # merged member CSV with survivors consolidated, the loser->survivor map, and
   # the review CSV holding the contradiction groups). The loader applies the map
   # in its transaction. Ordinary dev/CI loads skip this and load RECONCILED_CSV
   # unchanged.
   LOAD_CSV="${RECONCILED_CSV}"
   if [[ "${ADJUDICATIONS_READY}" -eq 1 ]]; then
-    # The automatic merge fuses accounts sharing an exact name and a full birth
-    # date. A human reviewed that cohort and recorded rulings that both add
+    # The automatic merge fuses accounts sharing a surname, a full birth date and
+    # a compatible first and middle name. A human reviewed that cohort and recorded rulings that both add
     # merges the rule cannot see and forbid merges the rule would otherwise
     # make, so a load must have them in front of it: without them a pair ruled to
     # be two different people is fused, and the person whose row collapses can
     # never claim it. The rulings hold real account identities, so they live
     # outside this repository and the operator supplies their location, the same
     # way the dump location is supplied.
-    echo "==> account rulings: build the exact-name + full-DOB auto-merge artifacts"
-    # Completeness is asserted on the production load alone: it refuses unless every
-    # membership-only provisional person carries a proposed link or a recorded
-    # disposition, which is the right bar for the load that cannot be redone and too
-    # strict for a dev or CI run against a partial dump.
-    COMPLETE_ARGS=()
-    if [[ "${PRODUCTION_LOAD}" -eq 1 ]]; then
-      COMPLETE_ARGS=(--require-complete-dispositions)
-    fi
+    echo "==> account rulings: build the duplicate-account auto-merge artifacts"
     "${PY}" "${MDS}/reconcile_legacy_members.py" --final-merge \
       --csv "${RECONCILED_CSV}" --db "${DB}" \
       --proposed-out "${PROPOSED_LINKS_CSV}" \
       --merged-out "${MERGED_CSV}" --merge-map-out "${MERGE_MAP_CSV}" \
       --overrides "${ADJ_STAGE_A}" \
-      --entitlement-dispositions "${ADJ_ENTITLEMENTS}" \
-      --link-holds "${ADJ_LINK_HOLDS}" \
-      --review-resolutions "${ADJ_REVIEW_RESOLUTIONS}" \
-      "${COMPLETE_ARGS[@]+"${COMPLETE_ARGS[@]}"}"
+      --entitlement-dispositions "${ADJ_ENTITLEMENTS}"
     LOAD_CSV="${MERGED_CSV}"
   fi
 
@@ -517,6 +515,19 @@ BLOCKED
     --audit-out "${OUT_DIR}/apply_links_audit.csv" \
     --rollback-out "${OUT_DIR}/apply_links_rollback.sql" --apply \
     "${LINK_MAP_ARGS[@]+"${LINK_MAP_ARGS[@]}"}"
+
+  # The honours flags are judged on the database as loaded, after the backfill
+  # carried them to the newly linked accounts and the links are written: only
+  # then do the flags and the person links describe the same state. A mismatch
+  # fails the run, so a build carrying a wrong flag never reaches a deploy.
+  echo "==> verify: honours flags as loaded trace to the rosters"
+  if ! "${PY}" "${MDS}/validate_legacy_honors.py" --flags-from-db --db "${DB}"; then
+    echo "run_legacy_members --load --apply: the loaded honours flags do not match the rosters." >&2
+    echo "  The rows are written; the rollback SQL below restores the pre-apply state." >&2
+    echo "    1. links:   ${OUT_DIR}/apply_links_rollback.sql" >&2
+    echo "    2. members: ${OUT_DIR}/apply_members_rollback.sql" >&2
+    exit 1
+  fi
 
   echo ""
   echo "run_legacy_members --load --apply: complete. Wrote the reconciled member"

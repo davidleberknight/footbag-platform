@@ -28,7 +28,7 @@ Every test, every helper, every staging script, every Playwright artifact treats
 - These values are supplied to scripts and test helpers via standard input or an approved secret manager. They are never passed as command-line arguments, never echoed to stdout, never logged, never serialized into snapshots, screenshots, traces, videos, Playwright HTML reports, storage state files, or any committed artifact.
 - The existing `scripts/install-cwagent-staging.sh` stdin pattern is the reference model. Any new staging or test helper that needs a password must follow it.
 - Real member PII does not appear in committed test fixtures, factories, seed data, snapshots, screenshots, traces, or any other committed artifact. Synthetic data only. Where operator-controlled access to real legacy data is genuinely required for migration validation (per the pipeline validation gates in §8.9), the data is minimized, held in the maintainers' private repository and never in this one, access-controlled, and redacted in output.
-- `docs/DATA_GOVERNANCE.md` §9 (Logging and observability hygiene) governs what may and may not appear in application logs; the same prohibition extends to test output, CI logs, and artifact uploads. Test output is treated as potentially public.
+- The logging and observability hygiene rules in `docs/DATA_GOVERNANCE.md` govern what may and may not appear in application logs; the same prohibition extends to test output, CI logs, and artifact uploads. Test output is treated as potentially public.
 
 ### 2.2 logger.error is the operator-alert signal
 
@@ -91,7 +91,7 @@ A surface (a user story success criterion, a route, a service method, or a featu
 
 - *Catastrophic:* PII at rest or in transit, secrets, signing material, raw legacy member data.
 - *High:* member contact fields, member-only profile data, role-scoped operational rosters, audit logs.
-- *Medium:* public historical record data, official event results, HoF and BAP entries, world records (per `docs/DATA_GOVERNANCE.md` §5).
+- *Medium:* public historical record data, official event results, HoF and BAP entries, world records (per the public historical record policy in `docs/DATA_GOVERNANCE.md`).
 - *Low:* static content, public legal or marketing copy.
 
 **Reversibility.** If the surface fails or is exploited, can the damage be undone?
@@ -111,7 +111,7 @@ The surface's severity is the highest criterion result. A surface that is "Mediu
 
 ### 3.3 Mapping to the DATA_GOVERNANCE.md member-data taxonomy
 
-The member-data visibility taxonomy in `docs/DATA_GOVERNANCE.md` §4 maps onto the risk classification:
+The member-data visibility taxonomy in `docs/DATA_GOVERNANCE.md` maps onto the risk classification:
 
 - *Sensitivity 1 (public official historical record):* Medium risk baseline. Errors embarrass and can corrupt the public record but do not leak current-member PII. Higher when the surface displays data derived from current members.
 - *Sensitivity 2 (authenticated current-member lookup):* High risk. Anti-enumeration, PII leak via search results, and scraping resistance are all in scope.
@@ -598,7 +598,7 @@ Two data-integrity concerns sit beside the loader's row-count regression. *Idemp
 
 Migration tests in dev and continuous integration use synthetic legacy records that model edge cases without exposing real personal data, and every committed fixture stays synthetic. Real-data validation runs on the staging real-data test ground (§7.8): the full loaded dataset exercises identity matching, claims, and rendering there. Raw legacy PII is never committed as a test fixture, never appears in a snapshot, screenshot, trace, log, or CI artifact, and never travels downward from staging into the repo or the shared pipeline.
 
-Two data tiers run the suite. The committed synthetic fixtures cover the great majority of it: `npm test`, the `db-load-smoke` loader gate, and routine route, service, and e2e tests run on them with no real data. A small subset needs real, maintainer-only member data — the membership roster, held in the maintainers' private repository (names and membership status only, no contact data), and, for the legacy-import validation class, the vetted legacy member CSVs in the same repository, which do carry contact data. Two real-data rows of `./run_all_tests.sh` are such tests: the real-claim crawl (§5.10) builds a claimed account for a real record and checks it renders, and the read-only invariant gate runs whole-population reconciliation and referential-integrity checks over the loaded data, emitting counts and pass/fail only — never names or emails. Both run against the local authoritative member load when this machine holds it; without the load, or without what a row reads from it, each row reports "not required" and never holds the run back, and `--with-persona-crawl` / `--with-realdata-invariants` add them to `--quick`. `./run_all_tests.sh --staging` runs the same invariants read-only against staging's copy (§11.7); the crawl never leaves this machine. A tester who must run a real-data test obtains access to the maintainers' private repository from the project maintainer; the data stays minimized and access-controlled, and never lands in a committed fixture, snapshot, trace, or CI artifact.
+Two data tiers run the suite. The committed synthetic fixtures cover the great majority of it: `npm test`, the `db-load-smoke` loader gate, and routine route, service, and e2e tests run on them with no real data. A small subset needs real, maintainer-only member data — the membership roster, held in the maintainers' private repository (names and membership status only, no contact data), and, for the legacy-import validation class, the vetted legacy member CSVs in the same repository, which do carry contact data. Two real-data rows of `./run_all_tests.sh` are such tests: the real-claim crawl (§5.10) builds a claimed account for a real record and checks it renders, and the read-only invariant gate runs whole-population reconciliation and referential-integrity checks over the loaded data, then checks that every loaded honours flag traces to the rosters and that the delivered member data still yields its audited figures, emitting counts and pass/fail only — never names or emails. Both run against the local authoritative member load when this machine holds it; without the load, or without what a row reads from it, each row reports "not required" and never holds the run back, and `--with-persona-crawl` / `--with-realdata-invariants` add them to `--quick`. `./run_all_tests.sh --staging` runs the same invariants read-only against staging's copy (§11.7); the crawl never leaves this machine. A tester who must run a real-data test obtains access to the maintainers' private repository from the project maintainer; the data stays minimized and access-controlled, and never lands in a committed fixture, snapshot, trace, or CI artifact.
 
 ### 8.6 Migration tests verify the intent, not the loader
 
@@ -835,7 +835,7 @@ Secret literals (the persona password, any test-only signing key, any test-only 
 
 ### 10.6 Logging and audit hygiene applies to tests
 
-`docs/DATA_GOVERNANCE.md` §9 (Logging and observability hygiene) prohibits raw email addresses, tokens, passwords, raw JWT cookie values, account-token raw strings, session secrets, AWS access keys, KMS material, and signing keys from application logs. The same prohibition applies to test output, CI logs, and test artifact uploads. Test output is treated as potentially public.
+The logging and observability hygiene rules in `docs/DATA_GOVERNANCE.md` prohibit raw email addresses, tokens, passwords, raw JWT cookie values, account-token raw strings, session secrets, AWS access keys, KMS material, and signing keys from application logs. The same prohibition applies to test output, CI logs, and test artifact uploads. Test output is treated as potentially public.
 
 ### 10.7 No real PII in fixtures, snapshots, or seed files
 

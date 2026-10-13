@@ -34,10 +34,15 @@ Reference classes (enumerated from database/schema.sql):
   made the post-merge verification refuse a merge that had otherwise succeeded.
 
 Uniqueness conflicts are resolved explicitly: a pipeline row that, after
-remapping, exactly duplicates an existing survivor row is deleted (deduplicated);
-a collision that is not an exact duplicate, or a historical-person link that would
-fuse two different canonical persons, is a relationship that cannot be merged
-losslessly and aborts the whole transaction.
+remapping, exactly duplicates an existing survivor row is deleted (deduplicated).
+A club affiliation that collides with the survivor's for the same club candidate
+and role, differing only in the roster's spelling of the name, the match
+confidence, or a person link one side lacks, is one person listed twice on one
+roster: it is folded into the survivor's row (person link from whichever carries
+one, the higher confidence, the survivor's name), and the dropped name variant is
+reported. Any other collision that is not an exact duplicate, or a
+historical-person link that would fuse two different canonical persons, is a
+relationship that cannot be merged losslessly and aborts the whole transaction.
 """
 from __future__ import annotations
 
@@ -153,14 +158,60 @@ _BOOTSTRAP_FACT_COLS = ("club_id", "role", "imported_member_id",
                         "claim_confirmed_at", "notes")
 
 
+def _fold_affiliation(cur: sqlite3.Cursor, loser_row: sqlite3.Row,
+                      surv_row: sqlite3.Row) -> str | None:
+    """Fold a loser's club affiliation into the survivor's row for the same club
+    candidate and role, when the two differ only in what one person listed twice
+    on one roster would differ in: the roster's spelling of the name, the
+    confidence of the match, and whether a historical person was attached. The
+    account merge has already ruled the two accounts one person, so the two rows
+    are one membership fact. The survivor's row is kept with the person link from
+    whichever row carries one and the higher confidence; the loser row is deleted.
+    Returns the loser's display name when it differs from the survivor's, so the
+    caller can report the variant the fold dropped, or None. Raises MergeAbort
+    when the rows disagree on anything else: two different person links, a
+    different resolution or resolved club, or different notes."""
+    for col in ("resolution_status", "resolved_club_id", "notes"):
+        if loser_row[col] != surv_row[col]:
+            raise MergeAbort(
+                f"legacy_person_club_affiliations: loser {loser_row['legacy_member_id']} "
+                f"and survivor {surv_row['legacy_member_id']} disagree on {col} for club "
+                f"candidate {surv_row['legacy_club_candidate_id']}; cannot merge "
+                f"losslessly. Route the group to review.")
+    loser_hp, surv_hp = loser_row["historical_person_id"], surv_row["historical_person_id"]
+    if loser_hp and surv_hp and loser_hp != surv_hp:
+        raise MergeAbort(
+            f"legacy_person_club_affiliations: loser {loser_row['legacy_member_id']} "
+            f"and survivor {surv_row['legacy_member_id']} carry different historical "
+            f"persons for club candidate {surv_row['legacy_club_candidate_id']}; "
+            f"merging would fuse two people. Route the group to review.")
+    confidences = [c for c in (loser_row["confidence_score"], surv_row["confidence_score"])
+                   if c is not None]
+    # Delete first: the table is also unique on (historical_person_id, club
+    # candidate, role), so moving the loser's person link onto the survivor row
+    # while the loser row still holds it would collide with that row.
+    cur.execute("DELETE FROM legacy_person_club_affiliations WHERE id = ?",
+                (loser_row["id"],))
+    cur.execute(
+        "UPDATE legacy_person_club_affiliations SET historical_person_id = ?, "
+        "confidence_score = ? WHERE id = ?",
+        (surv_hp or loser_hp, max(confidences) if confidences else None, surv_row["id"]))
+    if loser_row["display_name"] != surv_row["display_name"]:
+        return loser_row["display_name"]
+    return None
+
+
 def _remap_or_dedupe(cur: sqlite3.Cursor, table: str, key_cols: tuple[str, ...],
                      fact_cols: tuple[str, ...],
-                     loser_to_survivor: dict[str, str]) -> dict[str, int]:
+                     loser_to_survivor: dict[str, str],
+                     fold_affiliations: bool = False) -> dict:
     """Remap legacy_member_id loser->survivor in a pipeline table whose unique
     key includes legacy_member_id. On a post-remap collision with an existing
     survivor row: delete the loser row when it is an exact duplicate of the
-    survivor's fact, otherwise abort (not losslessly mergeable)."""
-    remapped = deduped = 0
+    survivor's fact; for club affiliations, fold it into the survivor's row where
+    _fold_affiliation allows; otherwise abort (not losslessly mergeable)."""
+    remapped = deduped = folded = 0
+    dropped_names: list[dict[str, str]] = []
     for loser, survivor in loser_to_survivor.items():
         rows = cur.execute(
             f"SELECT * FROM {table} WHERE legacy_member_id = ?", (loser,)
@@ -184,12 +235,24 @@ def _remap_or_dedupe(cur: sqlite3.Cursor, table: str, key_cols: tuple[str, ...],
             if loser_fact == surv_fact:
                 cur.execute(f"DELETE FROM {table} WHERE id = ?", (row["id"],))
                 deduped += 1
+            elif fold_affiliations:
+                variant = _fold_affiliation(cur, row, clash)
+                folded += 1
+                if variant is not None:
+                    dropped_names.append({
+                        "survivor": survivor, "loser": loser,
+                        "club_candidate": clash["legacy_club_candidate_id"],
+                        "kept": clash["display_name"], "dropped": variant})
             else:
                 raise MergeAbort(
                     f"{table}: remapping loser {loser} onto survivor {survivor} "
                     f"collides on {key_cols} with a row that is not an exact "
                     f"duplicate; cannot merge losslessly. Route the group to review.")
-    return {"remapped": remapped, "deduped": deduped}
+    stats: dict = {"remapped": remapped, "deduped": deduped}
+    if fold_affiliations:
+        stats["folded"] = folded
+        stats["dropped_names"] = dropped_names
+    return stats
 
 
 def remap_pipeline_references(cur: sqlite3.Cursor,
@@ -228,7 +291,7 @@ def remap_pipeline_references(cur: sqlite3.Cursor,
         stats["legacy_person_club_affiliations"] = _remap_or_dedupe(
             cur, "legacy_person_club_affiliations",
             ("legacy_member_id", "legacy_club_candidate_id", "inferred_role"),
-            _AFFIL_FACT_COLS, loser_to_survivor)
+            _AFFIL_FACT_COLS, loser_to_survivor, fold_affiliations=True)
 
     if _table_exists(cur, "club_bootstrap_leaders"):
         stats["club_bootstrap_leaders"] = _remap_or_dedupe(

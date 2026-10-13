@@ -192,6 +192,36 @@ def test_no_uncovered_rows_is_vacuously_complete():
     mrd.assert_every_uncovered_row_dispositioned([], [])
 
 
+# The platform's own seeded account is absent from every export by design. If it
+# needed a recorded ruling, a gate run with no disposition file would fail on a
+# row nobody has anything to decide about.
+FIXTURE = "STUB_FOOTBAG_HACKY"
+
+
+def test_the_system_fixture_alone_passes_with_no_disposition_file(tmp_path):
+    fixture = _uncovered(mid=FIXTURE, rule="not_in_export", deps=("person_x",))
+    mrd.assert_every_uncovered_row_dispositioned(
+        [fixture], mrd.load_dispositions(tmp_path / "absent.csv"))
+
+
+def test_any_other_uncovered_row_still_blocks_with_no_disposition_file(tmp_path):
+    fixture = _uncovered(mid=FIXTURE, rule="not_in_export", deps=("person_x",))
+    other = _uncovered(mid="200")
+    with pytest.raises(mrd.MemberRowDispositionError, match=r"1 uncovered .*\['200'\]"):
+        mrd.assert_every_uncovered_row_dispositioned(
+            [fixture, other], mrd.load_dispositions(tmp_path / "absent.csv"))
+
+
+def test_another_uncovered_row_passes_once_its_decision_is_recorded(tmp_path):
+    fixture = _uncovered(mid=FIXTURE, rule="not_in_export", deps=("person_x",))
+    other = _uncovered(mid="200")
+    p = tmp_path / "d.csv"
+    _write(p, [[mrd.KEEP, "200", mrd.CURATED_IDENTITY_VOUCHES, other["fingerprint"], "n"]])
+    holds = mrd.load_dispositions(p)
+    mrd.apply_dispositions([fixture, other], holds)
+    mrd.assert_every_uncovered_row_dispositioned([fixture, other], holds)
+
+
 # --- loader guards ----------------------------------------------------------
 
 def _write(path, rows):

@@ -52,7 +52,9 @@ Output: one directory per module under the export (default: the private
 checkout's legacy-export), each with its CSVs, a manifest of checksums and a
 README; the copied file trees; and REFRESH_MANIFEST.tsv recording both clones'
 commits and every source file's checksum, dialect, end-of-dump dates and format
-counts beside the original's. Every file ends owner-only. Nothing is committed:
+counts beside the original's; and the findings report (see refresh_report.py),
+which compares every table with the last accepted delivery and flags the
+changes a person should look at. Every file ends owner-only. Nothing is committed:
 the maintainer reviews the diff in the private repository, where git is the
 undo.
 
@@ -76,6 +78,7 @@ from pathlib import Path
 from urllib.parse import unquote, urlparse
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import refresh_report  # noqa: E402
 import strict_dump_parser as sp  # noqa: E402
 from extract_legacy_dump import (  # noqa: E402
     is_credential_column, prune_stale, write_manifest)
@@ -423,6 +426,12 @@ def copied_entries(commit: Commit) -> dict[str, list[tuple[str, str, str]]]:
     return by_dir
 
 
+def kept_columns(table: sp.Table) -> tuple[list[str], list[int]]:
+    """The columns a CSV carries, and their indexes: every one but credentials."""
+    keep = [i for i, c in enumerate(table.columns) if not is_withheld(c)]
+    return [table.columns[i] for i in keep], keep
+
+
 def write_tables(out_dir: Path, sources: list[Source]) -> list[dict]:
     out_dir.mkdir(parents=True, exist_ok=True)
     written = []
@@ -430,7 +439,7 @@ def write_tables(out_dir: Path, sources: list[Source]) -> list[dict]:
         for table in source.dump.tables.values():
             if not table.rows:
                 continue
-            keep = [i for i, c in enumerate(table.columns) if not is_withheld(c)]
+            keep = kept_columns(table)[1]
             dropped = [c for c in table.columns if is_withheld(c)]
             target = out_dir / f'{table.name}.csv'
             with open(target, 'w', encoding='utf-8', newline='') as fh:
@@ -562,6 +571,9 @@ def main() -> int:
         return 1
     print(f'Delivery checks passed: original {original_commit.head[:12]}, '
           f'live {live_commit.head[:12]}.')
+    # Read before anything is written, so the comparison is with the last
+    # accepted delivery rather than with this run's own output.
+    baselines = refresh_report.load_baselines(export, live, original, kept_columns)
 
     os.umask(0o077)
     export.mkdir(parents=True, exist_ok=True)
@@ -595,6 +607,11 @@ def main() -> int:
         print(f'\nReported for review ({len(report)}):')
         for line in report:
             print(f'  REPORT: {line}')
+    summary = refresh_report.write_report(export, baselines, live, kept_columns,
+                                          live_commit.head, original_commit.head, report)
+    print('\nFindings (REFRESH_REPORT.md, REFRESH_REPORT_DETAIL.tsv): ' + summary[0])
+    for line in summary[1:]:
+        print(line)
 
     make_owner_only(export)
     open_paths = owner_only_violations(export)

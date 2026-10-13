@@ -85,9 +85,12 @@ The Goldberg member-account data family lives here:
 - `reconcile_legacy_members.py` groups duplicate accounts and proposes
   account-to-person links into git-ignored review CSVs for human adjudication;
   it never merges accounts and never writes the database. When the recorded
-  rulings are present, its final merge consumes them (fingerprinted, failing
-  closed on drift) and refuses to build artifacts while no row carries the
-  board flag or an active Tier 1 annual, so an OR-merge cannot drop a grant.
+  rulings are present, Stage B applies the person-link holds and review
+  resolutions to its proposals and the final merge applies the account
+  rulings, all fingerprinted and failing closed on drift, and every ruling row
+  must be applied; the final merge also refuses to build artifacts while no row
+  carries the board flag or an active Tier 1 annual, so an OR-merge cannot drop
+  a grant.
 - `snapshot_legacy_members.py` captures the pre-load state of every row the
   member load could touch, as an audit CSV plus rollback SQL, so an applied
   load can be fully reverted.
@@ -100,6 +103,15 @@ The Goldberg member-account data family lives here:
 - `extract_legacy_honors.py` / `validate_legacy_honors.py` /
   `report_legacy_member_honors.py` / `diff_live_honor_rosters.py` derive,
   validate, report, and drift-check the Hall-of-Fame and Big-Add-Posse honor flags.
+  `validate_legacy_honors.py --flags-from-db` judges the flags as loaded; the
+  runner calls it after the links are applied and fails the load on any mismatch,
+  and the real-data test row runs it too.
+- `audit_member_data.py` checks that the delivered member data still yields its
+  audited figures (export size, the uncovered-row ruling, name-encoding repairs,
+  the membership-only cohort), reading the private `legacy-export/members/members.csv`
+  and the private rulings; counts and PASS/FAIL only. Run by the real-data test row.
+  An uncovered row with no recorded decision fails it; the platform's own Footbag
+  Hacky account is covered by design and needs none.
 - `crosscheck_member_profile_ids.py` reconciles the dump member-id namespace
   against the mirror profile-URL ids.
 - The two read-only reports (`crosscheck_member_profile_ids.py`,

@@ -11,8 +11,7 @@ What is pinned:
 
   - a field that is exactly the marker, in any case or padding, becomes blank;
   - a real place keeps its value, including one that merely contains the word;
-  - both seed producers apply the rule, so a marker cleared by one producer does
-    not return when the other runs.
+  - the club seed producer applies the rule to every extracted club page.
 
 Run from repo root:
     python -m pytest legacy_data/tests/test_club_location_placeholder.py -v
@@ -79,7 +78,7 @@ def test_marker_rule_runs_after_the_shared_text_clean():
     assert blank_location_placeholder("&#110;&#111;&#110;&#101;") == ""
 
 
-# ─── both producers apply it ─────────────────────────────────────────────────
+# ─── the producer applies it ─────────────────────────────────────────────────
 
 def test_mirror_extractor_clears_the_marker_from_a_club_page(tmp_path):
     mod = _load("extract_clubs")
@@ -90,17 +89,6 @@ def test_mirror_extractor_clears_the_marker_from_a_club_page(tmp_path):
         encoding="utf-8",
     )
     row = mod.extract_club(page, "1021482230")
-    assert row["region"] == ""
-    assert row["city"] == "Tokyo"
-    assert row["country"] == "Japan"
-
-
-def test_dump_overlay_clears_the_marker_from_a_dump_record():
-    mod = _load("overlay_clubs_from_dump")
-    row = mod.dump_row_to_seed_row(
-        {"ClubID": "1021482230", "Name": "tossLife", "City": "Tokyo",
-         "State": "none", "Country": "Japan", "URL": "", "Created": "0", "Modified": "0"}
-    )
     assert row["region"] == ""
     assert row["city"] == "Tokyo"
     assert row["country"] == "Japan"

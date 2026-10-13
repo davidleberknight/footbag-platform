@@ -147,7 +147,7 @@ def default_seed_csv(script: Path, filename: str) -> Path:
 
 
 def make_newer_than_script(csv_path: Path, script: Path, body: str = "STALE\n") -> None:
-    """Plant an existing output that the freshness skip must treat as current."""
+    """Plant an existing output newer than the script, which a run must replace."""
     csv_path.parent.mkdir(parents=True, exist_ok=True)
     csv_path.write_text(body, encoding="utf-8")
     future = script.stat().st_mtime + 10_000

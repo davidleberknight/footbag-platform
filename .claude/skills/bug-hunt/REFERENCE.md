@@ -162,12 +162,12 @@ Any swallow on a security-critical notification is a finding. The pattern is: a 
 
 These are the service-JSDoc / DATA_GOVERNANCE / USER_STORIES non-negotiables. A violation is a real bug even when the code "works":
 
-- **Deceased login**: login must reject any member with `is_deceased = 1` *before* the credential check (DATA_GOVERNANCE §2 auth boundary). A credential check that runs first, or a path that lets a deceased member authenticate, is catastrophic.
+- **Deceased login**: login must reject any member with `is_deceased = 1` *before* the credential check (the deceased-member story: login is disabled for deceased accounts). A credential check that runs first, or a path that lets a deceased member authenticate, is catastrophic.
 - **Active-player no-shorten**: an older event / vouch / club-join must never shorten an existing later expiry; idempotency via the `ux_active_player_grants_*` unique constraints.
 - **Ballot non-anonymity**: `ballots.voter_member_id` is stored in plaintext by design; a path that strips it is a finding.
 - **Work-queue admin-alert coupling**: every `work_queue_items` INSERT must enqueue an `admin-alerts` notification carrying task type + entity id only (no PII).
 - **Event hard-delete guard**: events with published result rows must never be deleted; the guard fires on every delete path.
-- **PII purge atomicity**: `purgeAccountPII` runs in one transaction; no partial purge; honors/historical attribution survive per DATA_GOVERNANCE §10.
+- **PII purge atomicity**: `purgeAccountPII` runs in one transaction; no partial purge; honors/historical attribution survive per the erasure rules in DATA_GOVERNANCE (Legacy archive and imported historical identities).
 
 #### 4.4.21 User-story success-criteria mismatch
 
@@ -563,7 +563,7 @@ Committed-test rule violations only. Coverage *gaps* (a surface that lacks a tes
 
 - `.skip`, `.todo`, or `xit` in committed test code (quarantine has its own tagged process).
 - Status-only assertions where a body assertion is required. A body assertion here names the defect it catches: seeded data rendered, a draft or private row withheld, a branch taken, or the route serving the wrong template. A pin on static copy is not a fix (see Cross-cutting observations below).
-- **Real or real-looking PII** in fixtures, snapshots, seed data, or any test/data string value — real footbag-community-figure names, real maintainer names (team members), and real emails. Use clearly-synthetic names; preserve only the variant relationship a scenario exercises (diacritic, long/short, surname-split). Per the `DATA_GOVERNANCE` synthetic-only rule. Reproduction: cross-reference person-name string literals against real community / maintainer identities; high-signal fields are `creator:`, `person_name:`, `real_name:`, `display_name:`, and the name-variant fixtures in `tests/fixtures/` + `src/content/`.
+- **Real or real-looking PII** in fixtures, snapshots, seed data, or any test/data string value — real footbag-community-figure names, real maintainer names (team members), and real emails. Use clearly-synthetic names; preserve only the variant relationship a scenario exercises (diacritic, long/short, surname-split). Per the no-real-PII rule in the testing strategy doc. Reproduction: cross-reference person-name string literals against real community / maintainer identities; high-signal fields are `creator:`, `person_name:`, `real_name:`, `display_name:`, and the name-variant fixtures in `tests/fixtures/` + `src/content/`.
 - A test constructing a writable path from `process.cwd()` / project root instead of `os.tmpdir()` with the `footbag-test-` prefix.
 - A `logger.error()` produced by a test without an `expectLoggedError(pattern)` opt-in.
 - Mocking the DB or framework internals (Express, Handlebars, JWT, argon2) instead of using the real SQLite test DB and stub adapters.
