@@ -1,16 +1,17 @@
 #!/usr/bin/env bash
-# run_legacy_members.sh — extract the legacy footbag.org member data into a
-# git-ignored intermediate CSV, and validate/preview loading it into the DB.
+# run_legacy_members.sh — validate, reconcile and load the published legacy member
+# CSV into the DB.
 #
-# The legacy database dump lives only on maintainer machines, reached read-only
-# through the git-ignored repo-root `footbag.org` symlink or the
-# FOOTBAG_LEGACY_REPO override, so extraction is maintainer-only. Extraction
-# writes a PII-bearing intermediate CSV under the git-ignored out/ directory,
-# which is the shareable artifact: a developer without the dump loads a copy
-# handed to them out of band via --from-csv.
+# The member data arrives as one file: the published member CSV the publish step
+# writes into the maintainers' private checkout
+# (footbag_private_repo/legacy-publish/legacy_members.csv), built from the vetted
+# legacy-site CSVs and committed there. This script never reads the legacy
+# repository or a dump. It joins the honours through the built database into a
+# git-ignored working copy under out/, because honours resolve through the
+# person layer, which exists only once the database is built.
 #
 # Writing the member data into the database is guarded behind an explicit --apply
-# flag. The source dump is dirty (many people hold several accounts; emails are
+# flag. The source data is dirty (many people hold several accounts; emails are
 # shared across accounts), so --load first runs the identity reconciliation (the
 # Stage A duplicate-account review, the Stage B historical-person link proposals)
 # and a pre-apply QC gate, then re-runs the honors backfill over the proposals.
@@ -19,17 +20,9 @@
 # the proposed links -- each write refuses production/staging and is individually
 # reversible. A gate failure aborts before any write.
 #
-# This script does NOT modify the underlying per-step scripts
-# (extract_legacy_members.py, load_legacy_export.py, validate_*.py, ...): they
-# continue to work exactly as before when run directly.
-#
-# Stages (composable):
-#   --extract          dump -> out/legacy_members_final.csv. Needs the dump and a
-#                      built database carrying historical_persons.
+# Stage:
 #   --load             validate + preview, run Stage A / Stage B / the QC gate /
 #                      the honors re-run, then stop before applying (read-only).
-#   --from-csv PATH    use PATH as the intermediate CSV (implies --load; for an
-#                      out-of-band copy, no dump needed).
 #
 # Modifiers:
 #   --apply            with --load, perform the real writes after the gate passes:
@@ -50,7 +43,9 @@ PY="${HERE}/../footbag_venv/bin/python"
 
 MDS="legacy_data/member_data_scripts"
 OUT_DIR="${MDS}/out"
-DEFAULT_CSV="${OUT_DIR}/legacy_members_final.csv"
+PUBLISHED_CSV="${REPO_ROOT}/footbag_private_repo/legacy-publish/legacy_members.csv"
+# The published CSV with the honours joined in: the CSV every later stage reads.
+CSV="${OUT_DIR}/legacy_members_final.csv"
 PROPOSED_LINKS_CSV="${OUT_DIR}/stage_b_proposed_links.csv"
 RECONCILED_CSV="${OUT_DIR}/legacy_members_reconciled.csv"
 MERGED_CSV="${OUT_DIR}/legacy_members_merged.csv"
@@ -58,72 +53,60 @@ MERGE_MAP_CSV="${OUT_DIR}/stage_a_merged_accounts.csv"
 
 usage() {
   cat >&2 <<'USAGE'
-Usage: run_legacy_members.sh [--extract] [--load | --from-csv PATH] [--apply] [--dry-run] [--db PATH]
+Usage: run_legacy_members.sh --load [--apply] [--dry-run] [--db PATH]
 
-  --extract          Extract the legacy dump into the git-ignored intermediate CSV (maintainer-only; needs the dump + a built DB).
   --load             Validate + preview, run reconciliation (Stage A, Stage B, QC gate, honors re-run), then stop before applying (read-only).
-  --from-csv PATH    Use an out-of-band CSV copy (implies --load; no dump needed).
   --apply            With --load, perform the real writes after the gate passes (reconciled members, then proposed links). Refused on production/staging.
   --dry-run          Validate + preview and stop cleanly (no write attempted).
   --db PATH          Target database (default: $FOOTBAG_DB_PATH or database/footbag.db).
 
-There is ONE load path. What it does is decided by its inputs, not by a mode
-flag, and every run prints which of them it had. The inputs holding real account
-identities live in the maintainers' private checkout, at a location this script
-resolves itself: no path is ever typed and nothing has to be exported.
+There is ONE load path, and every input it reads lives in the maintainers'
+private checkout, reached through the git-ignored repo-root footbag_private_repo
+symlink, at locations this script resolves itself: no path is ever typed and
+nothing has to be exported.
 
-  private_data/stage_a_overrides/    In the private checkout, reached through the
-                                     git-ignored repo-root footbag_private_repo symlink.
-                                     Holds stage_a_adjudication.csv and
-                                     entitlement_dispositions.csv, the recorded human
-                                     rulings about which accounts are the same person,
-                                     and board_at_cutover.csv, the directors sitting at
-                                     cutover, one row per director with the legacy member
-                                     id and the paid tier underneath the seat. Present:
-                                     the rulings are applied, duplicate accounts collapse
-                                     through the merge map, and the rostered rows carry
-                                     the board flag. Absent: none of that happens, and
-                                     the run says so.
-  FOOTBAG_CUTOVER_DATE               Optional. The moment annual memberships are measured
-                                     against, defaulting to today, which is the honest
-                                     answer for a load happening today. Pin it only to
-                                     reproduce a particular moment.
-  DEPLOY_TARGET=footbag-production   Marks this as a production load: the rulings and the
-                                     roster become mandatory and the run refuses without
-                                     them. Nothing else changes, and how old a dump is
-                                     worth loading stays the operator's call -- an extract
-                                     run prints the dump's date and age so a stale one is
-                                     visible. A load reading an intermediate CSV has no
-                                     dump in front of it and prints no age.
-
-A developer or CI machine has no private checkout, so it has neither the rulings
-nor the roster, and it loads anyway; that is the supported case. A production
-database can only be built the complete way, and a human supplies nothing at all:
-the files arrive with the checkout, so they are present or they are not.
+  legacy-publish/legacy_members.csv  The published member CSV, required. The publish
+                                     step builds it from the vetted legacy-site CSVs
+                                     and fixes the cutover date and the board flag in
+                                     it, so neither is an input here.
+  private_data/stage_a_overrides/    The recorded human rulings about which accounts
+                                     are the same person (stage_a_adjudication.csv,
+                                     entitlement_dispositions.csv, person_link_holds.csv,
+                                     review_resolutions.csv). Present: the rulings are
+                                     applied and duplicate accounts collapse through the
+                                     merge map. Absent: duplicates merge on the
+                                     mechanical rule alone, and the run says so.
+  DEPLOY_TARGET=footbag-production   Marks this as a production load: the rulings become
+                                     mandatory and the run refuses without them.
 USAGE
 }
 
-DO_EXTRACT=0
 DO_LOAD=0
 DO_APPLY=0
 DRY_RUN=0
-CSV=""
 DB="${FOOTBAG_DB_PATH:-database/footbag.db}"
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --extract)       DO_EXTRACT=1; shift ;;
     --load)          DO_LOAD=1; shift ;;
-    --from-csv)      DO_LOAD=1; CSV="${2:-}"; shift 2 ;;
     --apply)         DO_APPLY=1; shift ;;
     --dry-run)       DRY_RUN=1; shift ;;
-    # The mode flag this replaced is refused rather than ignored: a script or a
-    # note that still passes it must be corrected, not silently downgraded to a
-    # development load.
+    # Flags this script no longer has are refused rather than ignored: a script or
+    # a note that still passes one must be corrected, not silently given a
+    # different load.
+    --extract)
+      echo "run_legacy_members: --extract no longer exists. The member data is the published member CSV," >&2
+      echo "  written by legacy_data/scripts/publish_legacy_repo_data.py from the vetted legacy-site CSVs;" >&2
+      echo "  nothing here reads the legacy repository. Run --load. Run --help." >&2
+      exit 2 ;;
+    --from-csv)
+      echo "run_legacy_members: --from-csv no longer exists. --load reads only the published member CSV" >&2
+      echo "  in the private checkout, so every load is built from the same vetted data. Run --help." >&2
+      exit 2 ;;
     --final-export)
       echo "run_legacy_members: --final-export no longer exists. The load has one path and reads its" >&2
-      echo "  inputs instead: the recorded rulings and the board roster are resolved from the private" >&2
-      echo "  checkout, and DEPLOY_TARGET=footbag-production makes them mandatory. Run --help." >&2
+      echo "  inputs instead: the recorded rulings are resolved from the private checkout, and" >&2
+      echo "  DEPLOY_TARGET=footbag-production makes them mandatory. Run --help." >&2
       exit 2 ;;
     --db)            DB="${2:-}"; shift 2 ;;
     -h|--help)       usage; exit 0 ;;
@@ -131,13 +114,11 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ "${DO_EXTRACT}" -eq 0 && "${DO_LOAD}" -eq 0 ]]; then
-  echo "run_legacy_members: choose --extract and/or --load (or --from-csv PATH)." >&2
+if [[ "${DO_LOAD}" -eq 0 ]]; then
+  echo "run_legacy_members: choose --load." >&2
   usage
   exit 2
 fi
-
-[[ -n "${CSV}" ]] || CSV="${DEFAULT_CSV}"
 
 db_has_historical_persons() {
   sqlite3 -readonly "${DB}" "SELECT 1 FROM historical_persons LIMIT 1;" >/dev/null 2>&1
@@ -150,19 +131,15 @@ db_has_historical_persons() {
 # looks identical either way -- is how a development-shaped database reaches
 # production unnoticed.
 #
-# Two inputs decide it. The recorded account rulings, which live outside this
-# repository because they hold real account identities, and the cutover date,
-# which is what the annual-membership derivation compares expiry dates against.
-# A machine without the rulings (a fresh clone, CI, a developer) still loads;
-# it just says so. A production build without them refuses.
-# Where the recorded decisions live. All three files sit together in the private
+# One input decides it: the recorded account rulings, which live outside this
+# repository because they hold real account identities. A machine without them
+# still loads; it just says so. A production build without them refuses.
+# Where the recorded decisions live. The files sit together in the private
 # checkout, reached through the git-ignored repo-root symlink that five other
 # scripts in this subtree already use to find private material, so this run
 # resolves them the same way. No variable names the location, because an operator
-# command never carries a path: a production load used to refuse for want of an
-# exported variable, which put the one input that cannot be rebuilt from the dump
-# behind something a human had to remember. Every guard below is unchanged. What
-# changed is that they now have somewhere to look.
+# command never carries a path: an input behind an exported variable is an input
+# a human has to remember.
 PRIVATE_OVERRIDES="${REPO_ROOT}/footbag_private_repo/private_data/stage_a_overrides"
 
 ADJ_STAGE_A="${PRIVATE_OVERRIDES}/stage_a_adjudication.csv"
@@ -179,21 +156,6 @@ if [[ -s "${ADJ_STAGE_A}" && -s "${ADJ_ENTITLEMENTS}" \
       && -s "${ADJ_LINK_HOLDS}" && -s "${ADJ_REVIEW_RESOLUTIONS}" ]]; then
   ADJUDICATIONS_READY=1
 fi
-# The directors sitting at cutover. Nothing in the dump records who they are, so
-# the roster sits beside the rulings, and it is resolved here and handed to the
-# extractor as an argument rather than left to the extractor's own environment
-# lookup: an input that only takes effect when a variable happens to be exported
-# is an input nobody can see was missing.
-BOARD_ROSTER="${PRIVATE_OVERRIDES}/board_at_cutover.csv"
-BOARD_ROSTER_READY=0
-if [[ -s "${BOARD_ROSTER}" ]]; then
-  BOARD_ROSTER_READY=1
-fi
-# The moment annual memberships are measured against. It defaults to now, which
-# is the honest answer for a load happening now, so the derivation can never
-# silently flag nobody for want of a date somebody forgot to set. Pin it only to
-# reproduce a particular moment.
-CUTOVER_DATE="${FOOTBAG_CUTOVER_DATE:-$(date -u +%F)}"
 PRODUCTION_LOAD=0
 if [[ "${DEPLOY_TARGET:-}" == "footbag-production" ]]; then
   PRODUCTION_LOAD=1
@@ -220,151 +182,44 @@ NOPROD
   exit 1
 fi
 
-# Only at extraction: the flag is written into the intermediate CSV there, so a
-# production --from-csv run reads a roster decision that was already made.
-if [[ "${PRODUCTION_LOAD}" -eq 1 && "${DO_EXTRACT}" -eq 1 && "${BOARD_ROSTER_READY}" -eq 0 ]]; then
-  cat >&2 <<NOBOARD
-
-run_legacy_members: REFUSING a production extract. The board roster is missing.
-
-  Looked for a non-empty CSV listing the directors sitting at cutover in:
-    ${BOARD_ROSTER}
-
-  It arrives with the maintainers' private checkout, reached through the git-ignored
-  repo-root footbag_private_repo symlink. Create that symlink and re-run.
-
-  Nothing in the legacy dump records who sits on the board, so without this file no
-  row carries the board flag and every sitting director loads as an ordinary member.
-  That produces a database that looks entirely normal and is wrong about the people
-  most visible in it. Nothing was written.
-NOBOARD
-  exit 1
-fi
-
-# Rulings without a roster is a dead end, and it used to be found the expensive
-# way. Supplying the rulings turns on the final merge, and that merge refuses to
-# build its artifacts while no row carries the board flag -- so the run walked
-# every stage and the quality gate first and then aborted from inside the merge,
-# naming a column rather than the missing file. Caught here instead, before
-# anything runs.
-if [[ "${ADJUDICATIONS_READY}" -eq 1 && "${DO_EXTRACT}" -eq 1 && "${BOARD_ROSTER_READY}" -eq 0 ]]; then
-  cat >&2 <<NOBOARDADJ
-
-run_legacy_members: REFUSING. The account rulings are present and the board roster is not.
-
-  The rulings resolved, so the private checkout is reachable; the roster did not.
-  Looked in:
-    ${BOARD_ROSTER}
-
-  It belongs beside the rulings in the footbag_private_repo checkout.
-
-  The rulings turn on the final merge, and that merge will not build its artifacts
-  while no row carries the board flag, because an OR-merge could otherwise drop a
-  board grant. Without the roster no row ever carries it, so this run would fail
-  at the merge after every earlier stage had already done its work. Nothing was
-  written.
-NOBOARDADJ
-  exit 1
-fi
-
 echo "==> member intake: $([[ "${PRODUCTION_LOAD}" -eq 1 ]] && echo 'PRODUCTION load' || echo 'development load')"
 echo "    account rulings: $([[ "${ADJUDICATIONS_READY}" -eq 1 ]] && echo "applied from ${PRIVATE_OVERRIDES}" || echo "NOT APPLIED (nothing readable at ${PRIVATE_OVERRIDES}; duplicate accounts merge on the mechanical rule alone)")"
-if [[ "${DO_EXTRACT}" -eq 1 ]]; then
-  echo "    board roster:    $([[ "${BOARD_ROSTER_READY}" -eq 1 ]] && echo "applied from ${BOARD_ROSTER}" || echo "NOT APPLIED (nothing readable at ${BOARD_ROSTER}; no row carries the board flag)")"
-  echo "    measured at:     ${CUTOVER_DATE}$([[ -n "${FOOTBAG_CUTOVER_DATE:-}" ]] && echo ' (pinned)' || echo ' (today)')"
-else
-  # The date is consumed at extraction, so it is already baked into the CSV this
-  # run reads. Saying otherwise here would invite someone to set it and expect
-  # this run to change.
-  echo "    cutover date:    (set at extraction; this run reads what the intermediate CSV already carries)"
-fi
-
-if [[ "${DO_EXTRACT}" -eq 1 ]]; then
-  ROOT="$("${PY}" -c 'import sys; sys.path.insert(0, "legacy_data/member_data_scripts"); from _dump_parser import resolve_dump_root; r = resolve_dump_root(); print(r or "")')"
-  if [[ -z "${ROOT}" ]]; then
-    echo "run_legacy_members --extract: no legacy dump present (set FOOTBAG_LEGACY_REPO or create the repo-root footbag_legacy_repo symlink)." >&2
-    echo "  The dump lives only on maintainer machines; a developer without it loads a shared CSV via --from-csv instead." >&2
-    exit 1
-  fi
-  MEMBERS_SQL="${ROOT}/members/backups/latest.sql"
-  ADMINS_SQL="${ROOT}/members/admin/backups/latest.sql"
-  if [[ ! -f "${MEMBERS_SQL}" ]]; then
-    echo "run_legacy_members --extract: the members dump is missing:" >&2
-    echo "  MISSING: ${MEMBERS_SQL}" >&2
-    echo "  The per-app backup SQL files are supplied by the webmaster's private footbag.org repository." >&2
-    exit 1
-  fi
-  if ! db_has_historical_persons; then
-    echo "run_legacy_members --extract: the is_hof/is_bap backfill needs a built database with historical_persons at ${DB}." >&2
-    echo "  Run scripts/reset-local-db.sh first, then re-run --extract." >&2
-    exit 1
-  fi
-
-  mkdir -p "${OUT_DIR}"
-  MEMBERS_CSV="${OUT_DIR}/legacy_members_extract.csv"
-  WITH_ADMINS_CSV="${OUT_DIR}/legacy_members_with_admins.csv"
-
-  echo "==> extract: members from the dump"
-  BOARD_ARGS=()
-  if [[ "${BOARD_ROSTER_READY}" -eq 1 ]]; then
-    BOARD_ARGS=(--board-roster "${BOARD_ROSTER}")
-  fi
-  "${PY}" "${MDS}/extract_legacy_members.py" --members-sql "${MEMBERS_SQL}" --out "${MEMBERS_CSV}" \
-    --cutover-date "${CUTOVER_DATE}" "${BOARD_ARGS[@]+"${BOARD_ARGS[@]}"}"
-
-  echo "==> extract: fill legacy_is_admin"
-  if [[ -f "${ADMINS_SQL}" ]]; then
-    "${PY}" "${MDS}/extract_legacy_admins.py" --members-csv "${MEMBERS_CSV}" --admins-sql "${ADMINS_SQL}" --out "${WITH_ADMINS_CSV}"
-  else
-    echo "  admins dump absent (${ADMINS_SQL}); carrying forward with legacy_is_admin unset." >&2
-    cp "${MEMBERS_CSV}" "${WITH_ADMINS_CSV}"
-  fi
-
-  echo "==> extract: backfill is_hof / is_bap through the person layer"
-  "${PY}" "${MDS}/extract_legacy_honors.py" --members-csv "${WITH_ADMINS_CSV}" --db "${DB}" --out "${DEFAULT_CSV}"
-  echo "    wrote ${DEFAULT_CSV}"
-fi
 
 if [[ "${DO_LOAD}" -eq 1 ]]; then
-  if [[ ! -f "${CSV}" ]]; then
-    echo "run_legacy_members --load: intermediate CSV absent (${CSV}); nothing to load." >&2
-    echo "  Produce it with --extract (needs the dump), or point at an out-of-band copy with --from-csv PATH." >&2
-    exit 0
+  if [[ ! -s "${PUBLISHED_CSV}" ]]; then
+    cat >&2 <<NOPUBLISHED
+
+run_legacy_members --load: REFUSING. The published member CSV is missing.
+
+  MISSING: ${PUBLISHED_CSV}
+
+  It is committed in the maintainers' private checkout, reached through the
+  git-ignored repo-root footbag_private_repo symlink, and is written by
+    legacy_data/scripts/publish_legacy_repo_data.py --cutover-date YYYY-MM-DD
+  from the vetted legacy-site CSVs. Without it there is no member data to load.
+  Nothing was written.
+NOPUBLISHED
+    exit 1
   fi
   if ! db_has_historical_persons; then
     echo "run_legacy_members --load: needs a built database with historical_persons at ${DB}. Run scripts/reset-local-db.sh first." >&2
     exit 1
   fi
+  # The cutover date and the board flag were fixed at publish and are part of the
+  # published CSV, so nothing in this run can change them.
+  echo "    member data:     ${PUBLISHED_CSV} (cutover date and board flag fixed at publish)"
 
-  # The board flag was decided at extraction and is baked into this CSV, so the
-  # roster variable says nothing about the load in front of us. Read the answer
-  # off the file instead, and report it the way an extract run reports its input.
+  mkdir -p "${OUT_DIR}"
+  echo "==> intake: backfill is_hof / is_bap through the person layer"
+  "${PY}" "${MDS}/extract_legacy_honors.py" --members-csv "${PUBLISHED_CSV}" --db "${DB}" --out "${CSV}"
+  echo "    wrote ${CSV}"
+
   CSV_BOARD_ROWS="$("${PY}" -c 'import csv, sys
 with open(sys.argv[1], newline="", encoding="utf-8") as fh:
     rows = csv.DictReader(fh)
     print(sum(1 for row in rows
               if (row.get("legacy_was_board_at_cutover") or "0").strip() not in ("", "0")))' "${CSV}")"
-  echo "    board roster:    $([[ "${CSV_BOARD_ROWS}" -gt 0 ]] && echo "${CSV_BOARD_ROWS} row(s) carry the board flag" || echo 'NOT APPLIED (no row in this CSV carries the board flag)')"
-
-  # Same dead end as the extract-side refusal, reached by the other door: a CSV
-  # extracted without a roster, loaded on a machine that has the rulings.
-  if [[ "${ADJUDICATIONS_READY}" -eq 1 && "${CSV_BOARD_ROWS}" -eq 0 ]]; then
-    cat >&2 <<NOBOARDCSV
-
-run_legacy_members --load: REFUSING. The account rulings are present and this CSV carries no board row.
-
-  MISSING: a board flag on every row of ${CSV}
-
-  The flag is written into the CSV at extraction, so it cannot be added now: re-run
-  with --extract, which resolves the roster from the private checkout itself, or load
-  a CSV that was extracted with it. This CSV predates that roster.
-
-  The rulings turn on the final merge, and that merge will not build its artifacts
-  while no row carries the board flag. Refusing now rather than after every earlier
-  stage has run. Nothing was written.
-NOBOARDCSV
-    exit 1
-  fi
+  echo "    board flag:      $([[ "${CSV_BOARD_ROWS}" -gt 0 ]] && echo "${CSV_BOARD_ROWS} row(s) carry it" || echo 'no row carries it (the delivery'"'"'s board roster is not current; administrators seat the directors after cutover)')"
 
   echo "==> validate export (hard gate)"
   "${PY}" "${MDS}/validate_legacy_export.py" --csv "${CSV}" --db "${DB}"
@@ -377,7 +232,7 @@ NOBOARDCSV
     exit 0
   fi
 
-  # Pre-apply identity reconciliation. The dump is dirty (people hold several
+  # Pre-apply identity reconciliation. The legacy data is dirty (people hold several
   # accounts; emails are shared), so build the review and proposal artifacts and
   # run the QC gate over them before any write. Stage A groups duplicate accounts
   # for review; Stage B proposes historical-person links and sets the ambiguous
@@ -390,7 +245,7 @@ NOBOARDCSV
   # Completeness is asserted on the production load alone: it refuses unless every
   # membership-only provisional person carries a proposed link or a recorded
   # disposition, which is the right bar for the load that cannot be redone and too
-  # strict for a dev or CI run against a partial dump.
+  # strict for a dev or CI run against partial data.
   COMPLETE_ARGS=()
   if [[ "${PRODUCTION_LOAD}" -eq 1 ]]; then
     COMPLETE_ARGS=(--require-complete-dispositions)
@@ -430,7 +285,7 @@ BLOCKED
     exit 1
   fi
 
-  # Honors backfill, re-run over the proposed links. The extract-time honors pass
+  # Honors backfill, re-run over the proposed links. The intake honors pass
   # only saw the accounts already linked in the database, so an honoree linked to
   # an account by a Stage B proposal was missed. Re-running with those proposals
   # overlaid produces the reconciled member CSV the later apply will load, with
@@ -455,8 +310,7 @@ BLOCKED
     # make, so a load must have them in front of it: without them a pair ruled to
     # be two different people is fused, and the person whose row collapses can
     # never claim it. The rulings hold real account identities, so they live
-    # outside this repository and the operator supplies their location, the same
-    # way the dump location is supplied.
+    # in the private checkout.
     echo "==> account rulings: build the duplicate-account auto-merge artifacts"
     "${PY}" "${MDS}/reconcile_legacy_members.py" --final-merge \
       --csv "${RECONCILED_CSV}" --db "${DB}" \
@@ -523,6 +377,18 @@ BLOCKED
   echo "==> verify: honours flags as loaded trace to the rosters"
   if ! "${PY}" "${MDS}/validate_legacy_honors.py" --flags-from-db --db "${DB}"; then
     echo "run_legacy_members --load --apply: the loaded honours flags do not match the rosters." >&2
+    echo "  The rows are written; the rollback SQL below restores the pre-apply state." >&2
+    echo "    1. links:   ${OUT_DIR}/apply_links_rollback.sql" >&2
+    echo "    2. members: ${OUT_DIR}/apply_members_rollback.sql" >&2
+    exit 1
+  fi
+
+  # The member-data audits judge the same loaded state against the figures
+  # audited for this delivery and the recorded rulings. No finding is a warning:
+  # a build that fails one never reaches a deploy.
+  echo "==> verify: member-data audits on the loaded database"
+  if ! "${PY}" "${MDS}/audit_member_data.py" --db "${DB}"; then
+    echo "run_legacy_members --load --apply: a member-data audit failed on the loaded database." >&2
     echo "  The rows are written; the rollback SQL below restores the pre-apply state." >&2
     echo "    1. links:   ${OUT_DIR}/apply_links_rollback.sql" >&2
     echo "    2. members: ${OUT_DIR}/apply_members_rollback.sql" >&2

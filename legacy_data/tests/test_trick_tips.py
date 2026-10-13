@@ -76,25 +76,50 @@ def count(db: Path, where: str = "", params: tuple = ()) -> int:
 
 # --- extraction ---------------------------------------------------------------
 
-def _write_legacy_sql(path: Path) -> Path:
-    # Mirage (freestyle, default move_type 'f'): hints 1&2 duplicate, 3 empty,
-    # 4 distinct, 1 carries HTML. Side Axe (net, move_type 'n' at index 16).
-    path.write_text(
-        "INSERT INTO `moves` VALUES (60,0,'Mirage');\n"
-        "INSERT INTO `moves` VALUES (299,0,'Side Axe',0,0,0,0,0,0,0,0,0,0,0,0,0,'n');\n"
-        "INSERT INTO `movehints` VALUES "
-        "(1,60,12338,'tt','First tip <p>with HTML</p> and<br>a break.',941471587,941471587,0),"
-        "(2,60,12338,'tt','First tip <p>with HTML</p> and<br>a break.',941471600,941471600,0),"
-        "(3,60,12338,'tt','   ',941471700,941471700,0),"
-        "(4,60,12338,'tt','Second distinct tip.',941471800,941471800,0),"
-        "(5,299,12338,'tt','Net spike tip.',941472000,941472000,0);\n",
-        encoding="utf-8",
-    )
-    return path
+MOVE_COLUMNS = ["MoveID", "OldMoveID", "Name", "Modifier", "NickName", "Pronunciation",
+                "Family", "AddCount", "BOA", "Notation", "Description", "IsFundamental",
+                "Video", "Priority", "Modified", "Created", "MoveType", "MoveRecord",
+                "MoveRecordHolderID", "MoveRecordHolderName"]
+HINT_COLUMNS = ["HintID", "MoveID", "MemberID", "HintTitle", "HintText", "HintCreated",
+                "HintModified", "HintPriority"]
+
+
+def _write_export(folder: Path, moves: list[tuple[str, str, str]],
+                  hints: list[tuple]) -> Path:
+    """A legacy export moves2 folder. `moves` is (MoveID, Name, MoveType);
+    `hints` is (HintID, MoveID, HintText, HintCreated)."""
+    import csv
+    folder.mkdir(parents=True, exist_ok=True)
+    with (folder / "moves.csv").open("w", newline="", encoding="utf-8") as fh:
+        w = csv.DictWriter(fh, fieldnames=MOVE_COLUMNS, lineterminator="\n")
+        w.writeheader()
+        for move_id, name, move_type in moves:
+            w.writerow({"MoveID": move_id, "Name": name, "MoveType": move_type})
+    with (folder / "movehints.csv").open("w", newline="", encoding="utf-8") as fh:
+        w = csv.DictWriter(fh, fieldnames=HINT_COLUMNS, lineterminator="\n")
+        w.writeheader()
+        for hint_id, move_id, text, created in hints:
+            w.writerow({"HintID": hint_id, "MoveID": move_id, "MemberID": "12338",
+                        "HintTitle": "tt", "HintText": text, "HintCreated": created,
+                        "HintModified": created, "HintPriority": "0"})
+    return folder
+
+
+def _write_legacy_export(folder: Path) -> Path:
+    # Mirage (freestyle, no MoveType so the 'f' default): hints 1&2 duplicate,
+    # 3 empty, 4 distinct, 1 carries HTML. Side Axe is net ('n').
+    html_tip = "First tip <p>with HTML</p> and<br>a break."
+    return _write_export(folder, [("60", "Mirage", ""), ("299", "Side Axe", "n")], [
+        ("1", "60", html_tip, "941471587"),
+        ("2", "60", html_tip, "941471600"),
+        ("3", "60", "   ", "941471700"),
+        ("4", "60", "Second distinct tip.", "941471800"),
+        ("5", "299", "Net spike tip.", "941472000"),
+    ])
 
 
 def test_extraction_drops_empty_dedupes_sanitizes_and_carries_move_type(tmp_path: Path) -> None:
-    src = _write_legacy_sql(tmp_path / "legacy.sql")
+    src = _write_legacy_export(tmp_path / "moves2")
     out = tmp_path / "tips.ndjson"
     r = run([str(EXTRACT), "--source", str(src), "--out", str(out)])
     assert r.returncode == 0, r.stderr
@@ -110,6 +135,16 @@ def test_extraction_drops_empty_dedupes_sanitizes_and_carries_move_type(tmp_path
     assert all("tt" not in x.values() for x in got)                  # HintTitle discarded
 
 
+def test_extraction_without_the_export_names_the_refresh(tmp_path: Path) -> None:
+    # An operator without the export must be told which script writes it, and no
+    # empty artifact may be left to read as "the legacy site had no tips".
+    out = tmp_path / "tips.ndjson"
+    r = run([str(EXTRACT), "--source", str(tmp_path / "absent"), "--out", str(out)])
+    assert r.returncode != 0
+    assert "refresh_legacy_repo_data.py" in r.stderr
+    assert not out.exists()
+
+
 _EMAIL_PATTERN = r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"
 
 
@@ -117,14 +152,10 @@ def test_extraction_redacts_email_addresses(tmp_path: Path) -> None:
     # Tip text flows verbatim into a committed public artifact and onward to the
     # public trick page; no contact address may survive extraction. Covers both a
     # plain address and an entity-encoded one (redaction runs after unescape).
-    src = tmp_path / "legacy.sql"
-    src.write_text(
-        "INSERT INTO `moves` VALUES (60,0,'Mirage');\n"
-        "INSERT INTO `movehints` VALUES "
-        "(1,60,12338,'tt','Nice tip. for comments: someone@example.test thanks',941471587,941471587,0),"
-        "(2,60,12338,'tt','Entity form: someone&#64;example.test bye',941471600,941471600,0);\n",
-        encoding="utf-8",
-    )
+    src = _write_export(tmp_path / "moves2", [("60", "Mirage", "f")], [
+        ("1", "60", "Nice tip. for comments: someone@example.test thanks", "941471587"),
+        ("2", "60", "Entity form: someone&#64;example.test bye", "941471600"),
+    ])
     out = tmp_path / "tips.ndjson"
     r = run([str(EXTRACT), "--source", str(src), "--out", str(out)])
     assert r.returncode == 0, r.stderr
@@ -326,13 +357,9 @@ def test_extraction_corrects_stale_spinning_clipper_move_name(tmp_path: Path) ->
     # Legacy `moves.Name` for move 209 is a stale "Clipper"; the move is Spinning
     # Clipper. Extraction applies the curated correction so the emitted tip carries
     # the real trick name.
-    src = tmp_path / "legacy.sql"
-    src.write_text(
-        "INSERT INTO `moves` VALUES (209,0,'Clipper');\n"
-        "INSERT INTO `movehints` VALUES "
-        "(42,209,12338,'tt','Begin your spin with your head.',943602004,943602004,0);\n",
-        encoding="utf-8",
-    )
+    src = _write_export(tmp_path / "moves2", [("209", "Clipper", "f")], [
+        ("42", "209", "Begin your spin with your head.", "943602004"),
+    ])
     out = tmp_path / "tips.ndjson"
     r = run([str(EXTRACT), "--source", str(src), "--out", str(out)])
     assert r.returncode == 0, r.stderr

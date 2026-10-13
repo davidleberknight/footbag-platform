@@ -26,14 +26,14 @@
 #   - A page template is followed to the routes that render it (its render
 #     call, the handler around that call, the route registered with the
 #     handler), and every suite requesting one of those paths is selected:
-#     route suites reach a page by its URL, rarely by its file name. Those
-#     suites count toward the budget but are reported as required, never as
-#     candidates to trim.
+#     route suites reach a page by its URL, rarely by its file name.
 #   - High-fan-out modules (the database layer, the schema, the app, routes,
 #     middleware, env config, the shared factories and test database) reach most
 #     of the suite and grep to hundreds of false hits on names like `db` and
-#     `env`. They get their own suite plus the three app-wide sweeps as a canary,
-#     and a note that the full gate is needed at the end of the session.
+#     `env`. They get their own suite and the suites naming their repository
+#     path (the schema parity checks name `database/schema.sql`), plus the three
+#     app-wide sweeps as a canary, and a note that the full gate is needed at
+#     the end of the session.
 #   - Browser specs and the legacy pytest files are targeted too, as CHECK
 #     lines: a changed spec runs itself, a page object the specs naming it, a
 #     page template the specs named for it, a legacy Python module the pytest
@@ -44,8 +44,11 @@
 # WHAT IT REFUSES TO DO.
 #
 #   - Runs no test and changes nothing; it only prints.
-#   - Never widens to the whole suite. A set over the budget is printed with a
-#     note to re-target, and a module with no tests found says so.
+#   - Never widens to the whole suite. A high-fan-out module gets its canary
+#     sweeps and a full-gate note instead, and a module with no tests found
+#     says so.
+#   - Never trims the set. Every suite a change reaches is printed, however
+#     many: dropping one is the false green this selection exists to prevent.
 #
 # Usage:
 #   bash scripts/test-targets.sh [path ...]
@@ -58,7 +61,6 @@
 
 set -euo pipefail
 
-BUDGET=25
 CANARY=(
   tests/integration/route-wiring.crawl.test.ts
   tests/integration/authorization-matrix.test.ts
@@ -88,7 +90,6 @@ else
 fi
 
 TESTS=()
-PAGE_TESTS=()
 SPECS=()
 PYTESTS=()
 CHECKS=()
@@ -266,8 +267,7 @@ route_suites() {
   grep -rlE --include='*.test.ts' -- "$re" tests/unit tests/integration 2>/dev/null || true
 }
 
-# A page template's suites: those requesting a route that renders it. Each is
-# recorded as a page suite so the budget can say it is required coverage.
+# A page template's suites: those requesting a route that renders it.
 page_suites() {
   local p="$1" route f found=1
   while IFS= read -r route; do
@@ -275,7 +275,6 @@ page_suites() {
     while IFS= read -r f; do
       [ -n "$f" ] || continue
       add_test "$f"
-      PAGE_TESTS+=("$f")
       found=0
     done < <(route_suites "$route")
   done < <(template_routes "$p" | sort -u)
@@ -286,6 +285,9 @@ high_fan_out() {
   local p="$1" stem
   stem="$(basename "${p%.*}")"
   collect named_like "${stem}.test.ts" || true
+  # The repository path is specific where the bare name is not: it reaches the
+  # suites that read or guard this file without every suite that imports it.
+  collect naming "$p" || true
   for f in "${CANARY[@]}"; do add_test "$f"; done
   note "$p is high fan-out; the full gate is needed at session end"
 }
@@ -297,6 +299,18 @@ map_path() {
 
   base="$(basename "$p")"
   stem="${base%.*}"
+
+  # Documents first: a README or CLAUDE.md inside a high-fan-out directory is
+  # still a document, not code the whole suite depends on.
+  case "$p" in
+    .claude/*|CLAUDE.md|*/CLAUDE.md)
+      add_check "bash scripts/ci/assert_claude_harness.sh"
+      add_check "bash scripts/ci/test_hooks.sh"
+      return ;;
+    docs/*|*.md)
+      note "$p: verify by re-reading"
+      return ;;
+  esac
 
   case "$p" in
     src/db/*|database/*|src/app.ts|src/routes/*|src/middleware/*|src/config/env.ts|\
@@ -318,13 +332,6 @@ map_path() {
   esac
 
   case "$p" in
-    .claude/*|CLAUDE.md|*/CLAUDE.md)
-      add_check "bash scripts/ci/assert_claude_harness.sh"
-      add_check "bash scripts/ci/test_hooks.sh"
-      return ;;
-    docs/*|*.md)
-      note "$p: verify by re-reading"
-      return ;;
     curated/*)
       add_check "bash scripts/ci/assert_generated_content_current.sh"
       return ;;
@@ -346,7 +353,16 @@ map_path() {
       collect naming "$base" || true
       case "$base" in
         test_*.py) add_pytest "$p" ;;
-        *.py) collect_pytests pytests_naming "$stem" || true ;;
+        # A pipeline shell script is driven by the pytest files that name it,
+        # as a module is by those importing it.
+        *.py|*.sh) collect_pytests pytests_naming "$stem" || true ;;
+      esac
+      # The conventions gate scans the legacy shell tools for credential
+      # handling and the legacy test suites for committed skips.
+      case "$p" in
+        legacy_data/scripts/*.sh|legacy_data/tools/*.sh|\
+        legacy_data/tests/*.py|legacy_data/legacy_mirror/tests/*.py)
+          add_check "bash scripts/ci/assert_conventions.sh" ;;
       esac
       note "$p: the whole Python suites and database guards run only in the full gate"
       return ;;
@@ -364,7 +380,14 @@ map_path() {
     scripts/lib/*.sh)
       add_check "bash scripts/ci/assert_conventions.sh"
       collect naming "$base" || true
-      mapfile -t users < <(grep -rlF --include='*.sh' -- "lib/$base" scripts 2>/dev/null | grep -v "^$p\$" || true)
+      # The runner, the deploy entry point and the pipeline driver source the
+      # shared libraries from outside scripts/ too. The legacy tree is searched
+      # two levels deep only: below that sits the site mirror.
+      mapfile -t users < <(
+        { grep -rlF --include='*.sh' -- "lib/$base" scripts 2>/dev/null
+          grep -lF -- "lib/$base" ./*.sh legacy_data/*.sh legacy_data/*/*.sh 2>/dev/null
+        } | sed 's#^\./##' | grep -v "^$p\$" || true
+      )
       if [ "${#users[@]}" -gt 10 ]; then
         note "$p is sourced by ${#users[@]} scripts (high fan-out); the full gate is needed at session end"
       else
@@ -407,6 +430,8 @@ map_path() {
             note "$p: no route found that renders it; suites chosen by file name only"
             if [ "$named" -eq 0 ]; then no_tests "$p"; fi
           fi ;;
+        # A stylesheet: the asset, header and policy suites name it by file.
+        *) collect naming "$base" || true ;;
       esac
       for g in "${CONFORMANCE_GLOBS[@]}"; do
         collect find tests/unit -maxdepth 1 -name "$g" -type f || true
@@ -417,10 +442,14 @@ map_path() {
         *.hbs) collect_specs find tests/e2e -maxdepth 1 -name "*${stem}*.spec.ts" -type f || true ;;
       esac
       return ;;
+    src/public/*)
+      # A browser script or static asset is reached by the suites naming its
+      # file; route suites request it by URL, which carries the same name.
+      collect naming "$base" || no_tests "$p"
+      return ;;
     src/services/*.ts)
       add_check "npm run build"; add_check "npm run typecheck:tests"
       domain="$(kebab "${stem%Service}")"
-      collect naming "$stem" || true
       local before="${#TESTS[@]}"
       collect naming "$stem" || true
       [ -n "$domain" ] && { collect domain_suites "$domain" '*.test.ts' src/services || true; }
@@ -455,21 +484,6 @@ done
 if [ "${#TESTS[@]}" -gt 0 ]; then
   mapfile -t TESTS < <(printf '%s\n' "${TESTS[@]}" | sort -u)
   echo "VITEST: npx vitest run --reporter=dot ${TESTS[*]}"
-  # Suites a changed page's routes require are counted, and the count is
-  # reported, but they are never offered for trimming: dropping one is the
-  # false green this selection exists to prevent. The re-target advice covers
-  # only the rest.
-  page_count=0
-  if [ "${#PAGE_TESTS[@]}" -gt 0 ]; then
-    page_count="$(printf '%s\n' "${PAGE_TESTS[@]}" | sort -u | wc -l)"
-  fi
-  other_count=$(( ${#TESTS[@]} - page_count ))
-  if [ "${#TESTS[@]}" -gt "$BUDGET" ] && [ "$page_count" -gt 0 ]; then
-    note "over budget (${#TESTS[@]} files, budget $BUDGET): page route requires $page_count suites; full route coverage retained"
-  fi
-  if [ "$other_count" -gt "$BUDGET" ]; then
-    note "over budget ($other_count files, budget $BUDGET); re-target to the suites of the changed behaviour"
-  fi
 fi
 if [ "${#SPECS[@]}" -gt 0 ]; then
   mapfile -t SPECS < <(printf '%s\n' "${SPECS[@]}" | sort -u)

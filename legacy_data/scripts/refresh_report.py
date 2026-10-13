@@ -3,15 +3,17 @@
 The refresh refuses only what it cannot read or write safely; everything else a
 delivery changes is accepted as delivered. This module says what those changes
 are, so the maintainer reviews a delivery before anything downstream reads it.
-The webmaster is outside our control, so the changes worth a person's attention
-are flagged by name: an account row removed, an account whose identity changed under the same id, an
+A delivery is presumed an honest update; the changes an honest update would not
+make are flagged by name: an account row removed, an account whose identity changed under the same id, an
 email moved onto an account carrying a tier or an admin flag, an email newly
-shared between accounts, a tier or validity change, a row modified after the
-dump says it finished, a new account copying an existing account's name and
-birth date (the shape of a duplicate-merge hijack), a new id below the previous
+shared between accounts, a tier code or validity change, lifetime standing
+gained or lost, an expiry moved earlier, a row modified after the dump says it
+finished, a new account copying an existing account's name and real birth
+date (the shape of a duplicate-merge hijack), a new id below the previous
 highest, any change to the admin table, and text that could act on a reader
 (control, direction-override or zero-width characters, active markup, or a
-spreadsheet formula).
+spreadsheet formula). Renewals, an expiry moving later, are what an honest
+delivery carries every time, so they are counted rather than flagged.
 
 Every table is compared with the last accepted delivery: the CSV committed at
 HEAD in the repository that holds the export. That is what the maintainer last
@@ -47,8 +49,9 @@ IDENTITY_COLUMNS = ('MemberFirstName', 'MemberFirstNameUnicode', 'MemberLastName
                     'MemberLastNameUnicode', 'MemberBirthYear', 'MemberBirthMonth',
                     'MemberBirthDay')
 EMAIL_COLUMNS = ('MemberEmail', 'MemberEmail2', 'MemberEmail3')
-TIER_COLUMNS = ('MemberIFPATier', 'MemberIFPAExpiration', 'MemberIFPAExpiration2')
-MATCH_COLUMNS = ('MemberFirstName', 'MemberLastName', 'MemberBirthYear',
+EXPIRATION_COLUMNS = ('MemberIFPAExpiration', 'MemberIFPAExpiration2')
+LIFETIME = '-1'
+MATCH_COLUMNS =('MemberFirstName', 'MemberLastName', 'MemberBirthYear',
                  'MemberBirthMonth', 'MemberBirthDay')
 
 # Built from code points so the source itself carries no invisible character.
@@ -158,8 +161,26 @@ def _content_flags(row: dict, columns) -> list[tuple[str, str]]:
     return found
 
 
-def _tiered(row: dict | None) -> bool:
-    return bool(row) and (row.get('MemberIFPATier') or '0') not in ('', '0')
+def _expiry(row: dict, column: str) -> int:
+    """A Unix time, -1 for lifetime, 0 for none; anything unparseable is none."""
+    try:
+        return int((row.get(column) or '').strip())
+    except ValueError:
+        return 0
+
+
+def _tiered(row: dict | None, dump_time: int | None) -> bool:
+    """Standing as the member build reads it: the legacy tier code is largely
+    abandoned, so standing is Tier 2 ever held, Tier 1 lifetime, or a Tier 1
+    annual still live when the dump was taken (any annual, without a dump date)."""
+    if not row:
+        return False
+    if (row.get('MemberIFPATier') or '0') not in ('', '0'):
+        return True
+    tier1 = _expiry(row, 'MemberIFPAExpiration')
+    if _expiry(row, 'MemberIFPAExpiration2') != 0 or tier1 == -1:
+        return True
+    return tier1 > 0 and (dump_time is None or tier1 > dump_time)
 
 
 def _emails(rows: list[dict]) -> dict[str, set[str]]:
@@ -173,27 +194,40 @@ def _emails(rows: list[dict]) -> dict[str, set[str]]:
 
 
 def _member_flags(before_cols, before_rows, after_cols, after_rows, added, removed, changed,
-                  admin_ids: set[str], footer: str | None) -> list[tuple[str, str, str]]:
+                  admin_ids: set[str], footer: str | None
+                  ) -> tuple[list[tuple[str, str, str]], int]:
+    """The member flags, and how many accounts renewed (an expiry moved later),
+    which an honest delivery carries routinely and so is counted, not flagged."""
+    # MemberModified and the expirations are Unix times; the footer is the
+    # server's local time, so a day's grace covers any time zone.
+    dump_time = limit = None
+    if footer:
+        dump_time = int(datetime.strptime(footer, '%Y-%m-%d %H:%M:%S')
+                        .replace(tzinfo=timezone.utc).timestamp())
+        limit = dump_time + 86400
     # Legacy deletion was soft, so an honest delivery never drops an account row.
     flags = [(key, 'account removed', '') for key, _, _, _ in removed]
+    renewed = set()
     for key, old, new, cols in changed:
         if any(c in IDENTITY_COLUMNS for c in cols):
             flags.append((key, 'identity changed at an existing id',
                           ','.join(c for c in cols if c in IDENTITY_COLUMNS)))
         if any(c in EMAIL_COLUMNS for c in cols) and (
-                _tiered(old) or _tiered(new) or key in admin_ids):
+                _tiered(old, dump_time) or _tiered(new, dump_time) or key in admin_ids):
             flags.append((key, 'email changed on an account with a tier or admin flag',
                           ','.join(c for c in cols if c in EMAIL_COLUMNS)))
-        if any(c in TIER_COLUMNS for c in cols):
-            flags.append((key, 'tier changed', ','.join(c for c in cols if c in TIER_COLUMNS)))
+        if 'MemberIFPATier' in cols:
+            flags.append((key, 'tier changed', 'MemberIFPATier'))
+        for col in (c for c in EXPIRATION_COLUMNS if c in cols):
+            was, now = _expiry(old, col), _expiry(new, col)
+            if (was == -1) != (now == -1):
+                flags.append((key, 'lifetime standing gained or lost', col))
+            elif now < was:
+                flags.append((key, 'expiry moved earlier', col))
+            else:
+                renewed.add(key)
         if 'MemberValid' in cols:
             flags.append((key, 'validity changed', 'MemberValid'))
-    # MemberModified is a Unix time; the footer is the server's local time, so
-    # a day's grace covers any time zone.
-    limit = None
-    if footer:
-        limit = int(datetime.strptime(footer, '%Y-%m-%d %H:%M:%S')
-                    .replace(tzinfo=timezone.utc).timestamp()) + 86400
     for key, _, new, _ in added + changed:
         modified = (new.get('MemberModified') or '').strip()
         if limit is not None and modified.isdigit() and int(modified) > limit:
@@ -210,7 +244,13 @@ def _member_flags(before_cols, before_rows, after_cols, after_rows, added, remov
 
     def identity(r):
         return tuple((r.get(c) or '').strip().lower() for c in MATCH_COLUMNS)
-    existing = {identity(r) for r in before if (r.get('MemberLastName') or '').strip()}
+
+    # A third of accounts carry no birth date, and a shared common name alone
+    # is not the shape of a hijack, so only a real birth date can match.
+    def dated(r):
+        return (r.get('MemberBirthYear') or '').strip() not in ('', '0')
+    existing = {identity(r) for r in before
+                if (r.get('MemberLastName') or '').strip() and dated(r)}
     ids = [int(r['MemberID']) for r in before if (r.get('MemberID') or '').isdigit()]
     highest = max(ids) if ids else None
     for key, _, new, _ in added:
@@ -218,7 +258,7 @@ def _member_flags(before_cols, before_rows, after_cols, after_rows, added, remov
             flags.append((key, 'new account copies an existing name and birth date', ''))
         if highest is not None and key.isdigit() and int(key) < highest:
             flags.append((key, 'new id below the previous highest', 'MemberID'))
-    return flags
+    return flags, len(renewed)
 
 
 def write_report(export: Path, baselines: dict, live: dict, kept,
@@ -236,7 +276,7 @@ def write_report(export: Path, baselines: dict, live: dict, kept,
                 row = dict(zip(cols, ('' if r[i] is None else r[i] for i in idx)))
                 if row.get('AdminValid') == '1':
                     admin_ids.add(row.get('AdminID', ''))
-    changed_tables = 0
+    changed_tables = renewals = 0
     for (module, name) in sorted(set(baselines) | set(tables)):
         source, b_cols, b_rows, orig = baselines.get((module, name),
                                                      ('none (new table)', [], [], '-'))
@@ -264,8 +304,9 @@ def write_report(export: Path, baselines: dict, live: dict, kept,
                 for key, _, _, cols in items:
                     flags.append((module, name, key, kind, ','.join(cols)))
         if name == 'members' and module == 'members':
-            for key, kind, cols in _member_flags(b_cols, b_rows, a_cols, a_rows, added,
-                                                 removed, changed, admin_ids, footer):
+            member_flags, renewals = _member_flags(b_cols, b_rows, a_cols, a_rows, added,
+                                                   removed, changed, admin_ids, footer)
+            for key, kind, cols in member_flags:
                 flags.append((module, name, key, kind, cols))
         changed_tables += bool(added or removed or changed)
         table_lines.append(f'| {module} | {name} | {source} | {orig} | {len(b_rows)} | '
@@ -293,6 +334,7 @@ def write_report(export: Path, baselines: dict, live: dict, kept,
              '', f'- Delivery commit: `{live_head}`', f'- Original copy commit: `{original_head}`',
              f'- Tables with changes: {changed_tables} of {len(table_lines)}',
              f'- Flags for review: {len(flags)}',
+             f'- Membership renewals (an expiry moved later, not flagged): {renewals}',
              f'- Board of Directors roster carries the CTO record: '
              f'{"PASS" if cto else "FAIL (not current; set board standing by hand after cutover)"}',
              '', '## Flags for review', '']

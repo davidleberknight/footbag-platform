@@ -4,11 +4,13 @@
  * Owns:
  *   - Club lifecycle: create (with standard hashtag reservation), edit,
  *     activate/deactivate, archive
- *   - The one write onto a club's own content and its hashtag, whoever performs
- *     it: a co-leader editing the club they lead, and an administrator
- *     correcting a club its leaders cannot or will not put right. The authority
- *     is an argument, not a second implementation, so the field rules cannot
- *     drift between the two doors onto the same act.
+ *   - The one write onto a club's own content, whoever performs it: a co-leader
+ *     editing the club they lead, and an administrator correcting a club its
+ *     leaders cannot or will not put right. The authority is an argument, not a
+ *     second implementation, so the field rules cannot drift between the two
+ *     doors onto the same act.
+ *   - The club's hashtag move, which only an administrator makes: the hashtag
+ *     is the club's permanent handle and its address, so no co-leader moves it.
  *   - Candidate promotion: a legacy club candidate becomes a live clubs row
  *     (admin override or wizard confirmation; ClubCleanupService and
  *     MemberOnboardingService delegate here)
@@ -2324,15 +2326,17 @@ export class ClubService {
       slug = slugifyForTag(city);
     }
     if (!slug) {
-      fieldErrors.slug = 'Could not derive a slug from the city name. Enter one manually.';
+      fieldErrors.slug = 'We could not make a hashtag from the city name. Please enter one.';
     } else if (slug.length < 2) {
-      fieldErrors.slug = 'Slug must be at least 2 characters.';
-    } else if (!/^[a-z0-9][a-z0-9_]*[a-z0-9]$/.test(slug)) {
-      fieldErrors.slug = 'Slug must start and end with a letter or digit.';
-    } else if (/__/.test(slug)) {
-      fieldErrors.slug = 'Slug must not contain consecutive underscores.';
+      fieldErrors.slug = 'The hashtag needs at least 2 characters after #club_.';
     } else if (!/^[a-z0-9_]+$/.test(slug)) {
-      fieldErrors.slug = 'Slug may only contain lowercase letters, digits, and underscores.';
+      // Checked before the start-and-end rule, which would otherwise answer a
+      // hyphen or a space with a message about the first and last characters.
+      fieldErrors.slug = 'The hashtag may only contain lowercase letters, digits and underscores.';
+    } else if (!/^[a-z0-9][a-z0-9_]*[a-z0-9]$/.test(slug)) {
+      fieldErrors.slug = 'The hashtag must start and end with a letter or digit.';
+    } else if (/__/.test(slug)) {
+      fieldErrors.slug = 'The hashtag cannot contain two underscores in a row.';
     }
 
     if (Object.keys(fieldErrors).length > 0) {
@@ -2342,7 +2346,7 @@ export class ClubService {
     const tagNormalized = `#club_${slug}`;
     if (tagNormalized.length > 100) {
       throw new ValidationError('Please fix the errors below.', {
-        fieldErrors: { slug: 'Slug is too long. The full hashtag must be 100 characters or fewer.' },
+        fieldErrors: { slug: 'The hashtag is too long. Including #club_, it must be 100 characters or fewer.' },
       });
     }
 
@@ -3288,40 +3292,26 @@ export class ClubService {
   /**
    * Move the club's hashtag, which is also the address its public page sits at.
    *
-   * A co-leader moves their own club's hashtag; an administrator corrects one
-   * that is wrong, naming a reason. One tag row is renamed in place, so every
-   * media item already carrying the hashtag follows it rather than being left
-   * pointing at a tag nobody uses.
+   * The hashtag is the club's permanent handle, so only an administrator moves
+   * it, correcting one that is wrong and naming a reason. One tag row is renamed
+   * in place, so every media item already carrying the hashtag follows it
+   * rather than being left pointing at a tag nobody uses.
    *
    * The old address dies at that moment and nothing redirects from it, which is
    * why the administrator's door previews first: a link already shared to the
    * old address stops working, and that is worth seeing before it happens
    * rather than after.
-   *
-   * A club nobody can find is told apart from a club the actor does not lead,
-   * because an administrator reaching a club by id needs the difference and a
-   * co-leader must not have it: collapsing the two is what keeps the member
-   * path from answering whether a club id exists.
    */
   updateClubHashtag(
     clubId: string,
     newSlug: string,
-    actor: ClubWriteActor,
+    actor: Extract<ClubWriteActor, { kind: 'administrator' }>,
     opts: { preview?: boolean } = {},
   ):
     | { branch: 'updated'; newClubKey: string; oldTag: string; newTag: string }
-    | { branch: 'not_leader' }
     | { branch: 'not_found' }
     | { branch: 'tag_conflict' }
     | { branch: 'invalid_format' } {
-    if (actor.kind === 'leader') {
-      const leadership = clubLeaders.memberInClubLeadership.get(clubId, actor.memberId) as
-        | { id: string; role: 'leader' | 'co-leader' } | undefined;
-      if (!leadership) {
-        return { branch: 'not_leader' };
-      }
-    }
-
     const normalized = slugifyForTag(newSlug);
     if (!normalized || normalized.length < 2) {
       return { branch: 'invalid_format' };
@@ -3334,7 +3324,7 @@ export class ClubService {
     const club = clubs.findByIdWithHashtag.get(clubId) as
       | { club_id: string; name: string; hashtag_tag_id: string; tag_normalized: string }
       | undefined;
-    if (!club) return actor.kind === 'leader' ? { branch: 'not_leader' } : { branch: 'not_found' };
+    if (!club) return { branch: 'not_found' };
 
     if (existing && existing.id !== club.hashtag_tag_id) {
       return { branch: 'tag_conflict' };
@@ -3358,36 +3348,24 @@ export class ClubService {
         tagNormalized, tagDisplay, now, actorMemberId, club.hashtag_tag_id,
       );
 
-      appendAuditEntry(actor.kind === 'administrator'
-        ? {
-          actionType: 'club.hashtag_corrected',
-          category: 'club_lifecycle',
-          actorType: 'admin',
-          actorMemberId,
-          entityType: 'club',
-          entityId: clubId,
-          reasonText: actor.reason,
-          metadata: { old_tag: club.tag_normalized, new_tag: tagNormalized },
-        }
-        : {
-          actionType: 'club.hashtag_updated',
-          category: 'club_lifecycle',
-          actorType: 'member',
-          actorMemberId,
-          entityType: 'club',
-          entityId: clubId,
-          metadata: { old_tag: club.tag_normalized, new_tag: tagNormalized },
-        });
+      appendAuditEntry({
+        actionType: 'club.hashtag_corrected',
+        category: 'club_lifecycle',
+        actorType: 'admin',
+        actorMemberId,
+        entityType: 'club',
+        entityId: clubId,
+        reasonText: actor.reason,
+        metadata: { old_tag: club.tag_normalized, new_tag: tagNormalized },
+      });
     });
 
-    if (actor.kind === 'administrator') {
-      this.notifyLeadersOfCorrection(
-        clubId,
-        club.name,
-        describeClubChanges([{ field: 'hashtag', before: club.tag_normalized, after: tagNormalized }]),
-        actor.reason,
-      );
-    }
+    this.notifyLeadersOfCorrection(
+      clubId,
+      club.name,
+      describeClubChanges([{ field: 'hashtag', before: club.tag_normalized, after: tagNormalized }]),
+      actor.reason,
+    );
 
     return moved;
   }

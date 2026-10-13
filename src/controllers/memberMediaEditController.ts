@@ -1,7 +1,7 @@
 /**
  * Member-owned per-item media edit and delete. Owner-only surface for
  * /members/:memberKey/media/:mediaId/edit (GET form, POST save) and
- * /members/:memberKey/media/:mediaId/delete (POST, permanent).
+ * /members/:memberKey/media/:mediaId/delete (GET confirm page, POST permanent).
  *
  * Authz mirrors memberGalleryController / memberMediaUploadController:
  *   - requireAuth redirects unauthenticated requests to /login.
@@ -12,7 +12,7 @@
  *     scoped to the requesting member's id; a non-owned id returns
  *     null / NotFoundError, also rendered as 404.
  *
- * Tier gating: the GET form and both POSTs are gated by
+ * Tier gating: both GET pages and both POSTs are gated by
  * `requireTier1Benefits()`. Losing the benefits costs the member nothing they
  * own: the item itself, its caption and its tags stay readable on the item's
  * own page, and only the form that would refuse the save goes away. The
@@ -165,6 +165,28 @@ export const memberMediaEditController = {
         return;
       }
       logger.error('member media edit POST error', { error: err instanceof Error ? err.message : String(err) });
+      next(err);
+    }
+  },
+
+  /** GET /members/:memberKey/media/:mediaId/delete — confirm page naming the
+   * item before the permanent delete below. */
+  getDeleteConfirm(req: Request, res: Response, next: NextFunction): void {
+    if (!isOwnMemberRoute(req) || req.params.mediaId === 'upload') {
+      renderNotFound(res);
+      return;
+    }
+    try {
+      const page = buildSvc().getMemberMediaDeleteConfirmPage(
+        req.params.memberKey, req.params.mediaId, req.user!.userId, req.user!.slug,
+      );
+      if (!page) {
+        renderNotFound(res);
+        return;
+      }
+      res.render('members/media/delete-confirm', page);
+    } catch (err) {
+      logger.error('member media delete confirm GET error', { error: err instanceof Error ? err.message : String(err) });
       next(err);
     }
   },

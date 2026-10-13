@@ -33,8 +33,8 @@ BASE = mirror_script.BASE_URL
 def env(tmp_path, monkeypatch):
     monkeypatch.setattr(mirror_script, 'MIRROR_DIR', str(tmp_path / 'mirror'))
     monkeypatch.setattr(mirror_script, 'SEEDS_DIR', str(tmp_path / 'seeds'))
-    # The events area asks the frozen legacy database which events the calendar
-    # was willing to show. Whether this machine has that database attached is not
+    # The events area asks the published approved-event list which events the
+    # calendar was willing to show. Whether this machine has that list is not
     # allowed to change any result here, so the answer is always supplied; a test
     # that wants events listed says which ids the calendar carried.
     monkeypatch.setattr(mirror_script, '_calendar_listed_event_ids', lambda: None)
@@ -486,9 +486,20 @@ def test_an_event_the_calendar_never_listed_is_withheld(env, monkeypatch):
     assert 'Withheld Open' not in page
 
 
+def test_the_calendar_answer_is_the_published_approved_event_list(tmp_path, monkeypatch):
+    # The crawler must read approval from the list published from the vetted
+    # export; reading nothing, or reading the wrong thing, either drops every
+    # event from the directory or lists the ones the calendar withheld.
+    listed = tmp_path / 'approved_event_ids.txt'
+    monkeypatch.setattr(mirror_script, 'APPROVED_EVENT_IDS', listed)
+    assert mirror_script._calendar_listed_event_ids() is None
+    listed.write_text('77\n857\n\n', encoding='utf-8')
+    assert mirror_script._calendar_listed_event_ids() == {'77', '857'}
+
+
 def test_events_are_skipped_when_the_calendar_cannot_be_consulted(env):
-    # Without the frozen legacy database an approved event cannot be told from a
-    # withheld one, and a finding aid guesses at neither.
+    # Without the published approved-event list an approved event cannot be told
+    # from a withheld one, and a finding aid guesses at neither.
     _seed(env, 'events.txt', [BASE + '/events/show/11'])
     _capture(BASE + '/events/show/11', 'footbag.org: Some Open')
 

@@ -52,7 +52,7 @@ def test_load_reads_files_and_directories_and_tolerates_blanks(tmp_path):
 def test_load_missing_path_warns_and_continues(tmp_path, caplog):
     got = mirror_script.load_seed_urls([str(tmp_path / 'absent')])
     assert got == []
-    assert 'build_archive_seed_lists.py' in caplog.text
+    assert 'publish_legacy_repo_data.py' in caplog.text
 
 
 def test_seeds_enqueue_at_depth_zero_with_dedup(state):

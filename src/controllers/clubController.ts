@@ -177,7 +177,7 @@ export const clubController = {
           });
           return;
         case 'tag_conflict':
-          renderForm(422, `The hashtag ${result.tagNormalized} is already taken. Try a different slug.`);
+          renderForm(422, `The hashtag ${result.tagNormalized} is already taken. Try adding something that sets your club apart, such as a neighbourhood or part of the club name.`);
           return;
       }
     } catch (err) {
@@ -362,35 +362,6 @@ export const clubController = {
         writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload('ok', 'Club reactivated.'));
       }
       res.redirect(303, `/members/${encodeURIComponent(req.user!.slug)}`);
-    } catch (err) {
-      handleControllerError(err, res, next, 'clubs controller');
-    }
-  },
-
-  postUpdateHashtag(req: Request, res: Response, next: NextFunction): void {
-    const clubKey = req.params.key;
-    const newSlug = String(req.body.newSlug ?? '');
-    try {
-      const clubId = clubService.resolveClubIdByKey(clubKey);
-      const result = clubService.updateClubHashtag(
-        clubId, newSlug, { kind: 'leader', memberId: req.user!.userId },
-      );
-      if (result.branch === 'not_leader' || result.branch === 'not_found') {
-        renderNotFound(res);
-        return;
-      }
-      if (result.branch === 'invalid_format') {
-        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload('no', 'Invalid hashtag format.'));
-        res.redirect(303, `/clubs/${encodeURIComponent(clubKey)}`);
-        return;
-      }
-      if (result.branch === 'tag_conflict') {
-        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload('no', 'That hashtag is already taken.'));
-        res.redirect(303, `/clubs/${encodeURIComponent(clubKey)}`);
-        return;
-      }
-      // The hashtag is the club's URL key, so success must land on the NEW slug.
-      res.redirect(303, `/clubs/${encodeURIComponent(result.newClubKey)}`);
     } catch (err) {
       handleControllerError(err, res, next, 'clubs controller');
     }

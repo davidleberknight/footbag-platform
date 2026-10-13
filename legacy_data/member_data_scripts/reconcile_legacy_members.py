@@ -411,7 +411,7 @@ def run_stage_a(csv_path: Path, out_path: Path, excluded_out: Path,
     if not csv_path.exists():
         print(
             f"error: intermediate CSV not found at {csv_path}.\n"
-            "  Produce it first with: run_legacy_members.sh --extract  (needs the dump).",
+            "  Produce it first with: run_legacy_members.sh --load  (reads the published member CSV).",
             file=sys.stderr,
         )
         return 1
@@ -474,8 +474,6 @@ def run_stage_a(csv_path: Path, out_path: Path, excluded_out: Path,
 #   legacy_tier1_annual_active_at_cutover,
 #   legacy_was_board_at_cutover   grant-relevant flags, OR-merged (1 if any account
 #                                 has it) so no entitlement evidence is lost
-#   legacy_board_underlying_paid_tier  first non-empty value among the board
-#                                 accounts when was-board resolved to 1, else ""
 # There is no member-modification timestamp in the extract, so the "latest
 # modification" consolidation has no field to apply to here.
 #
@@ -636,17 +634,6 @@ def evaluate_merge_group(group: DuplicateGroup,
     row["ifpa_join_date"] = join_dates[0] if join_dates else ""
     for f in _ENTITLEMENT_FLAGS:
         row[f] = "1" if any(_flag_on(a.get(f)) for a in accounts) else (survivor.get(f) or "")
-    if _flag_on(row.get("legacy_was_board_at_cutover")):
-        board_underlying = next(
-            ((a.get("legacy_board_underlying_paid_tier") or "").strip()
-             for a in accounts
-             if _flag_on(a.get("legacy_was_board_at_cutover"))
-             and (a.get("legacy_board_underlying_paid_tier") or "").strip()),
-            (survivor.get("legacy_board_underlying_paid_tier") or ""))
-        row["legacy_board_underlying_paid_tier"] = board_underlying
-    else:
-        row["legacy_board_underlying_paid_tier"] = \
-            survivor.get("legacy_board_underlying_paid_tier") or ""
 
     loser_ids = sorted(((l.get("legacy_member_id") or "").strip() for l in losers),
                        key=lambda m: (int(m) if m.isdigit() else 1 << 62, m))
@@ -894,10 +881,11 @@ def write_merge_map_csv(merges: list[MergeDecision], out_path: Path) -> int:
 
 
 # Entitlement flags whose loss would silently drop a grant. The final merge is
-# refused when either is unpopulated / unavailable in the source, so a board or
-# tier-1 grant on a duplicate account cannot be OR-merged out of existence.
-_POPULATION_REQUIRED = ("legacy_tier1_annual_active_at_cutover",
-                        "legacy_was_board_at_cutover")
+# refused when one is unpopulated / unavailable in the source, so a tier-1 grant
+# on a duplicate account cannot be OR-merged out of existence. The board flag is
+# not here: a delivery whose board roster is not current sets it on no row by
+# design, so an empty board column is a valid source.
+_POPULATION_REQUIRED = ("legacy_tier1_annual_active_at_cutover",)
 
 
 def entitlement_population_status(rows: list[dict[str, str]]) -> dict[str, bool]:
@@ -941,7 +929,7 @@ def dry_run_auto_merge(csv_path: Path, proposed_links_csv: Path,
     merges and reviews, with per-reason counts. Writes nothing, merges nothing."""
     if not csv_path.exists():
         print(f"error: intermediate CSV not found at {csv_path}.\n"
-              "  Produce it first with: run_legacy_members.sh --extract  (needs the dump).",
+              "  Produce it first with: run_legacy_members.sh --load  (reads the published member CSV).",
               file=sys.stderr)
         return 1
     with csv_path.open(encoding="utf-8", newline="") as f:
@@ -1036,7 +1024,7 @@ def run_final_merge(csv_path: Path, links_csv: Path, db_path: Path | None,
     the contradiction groups. Read-only on the database; writes only out/ CSVs."""
     if not csv_path.exists():
         print(f"error: intermediate CSV not found at {csv_path}.\n"
-              "  Produce it first with: run_legacy_members.sh --extract  (needs the dump).",
+              "  Produce it first with: run_legacy_members.sh --load  (reads the published member CSV).",
               file=sys.stderr)
         return 1
     with csv_path.open(encoding="utf-8", newline="") as f:
@@ -1044,7 +1032,7 @@ def run_final_merge(csv_path: Path, links_csv: Path, db_path: Path | None,
 
     # Fail closed: refuse the final merge when a grant-bearing entitlement column
     # is unpopulated / unavailable in the source, so an OR-merge cannot silently
-    # drop a board or tier-1 grant that the export simply failed to capture.
+    # drop a tier-1 grant that the export simply failed to capture.
     pop = entitlement_population_status(rows)
     if not all(pop.values()):
         missing = [c for c, ok in pop.items() if not ok]
@@ -1101,7 +1089,7 @@ def profile(csv_path: Path) -> int:
     if not csv_path.exists():
         print(
             f"error: intermediate CSV not found at {csv_path}.\n"
-            "  Produce it first with: run_legacy_members.sh --extract  (needs the dump).",
+            "  Produce it first with: run_legacy_members.sh --load  (reads the published member CSV).",
             file=sys.stderr,
         )
         return 1
@@ -1849,7 +1837,7 @@ def run_stage_b(csv_path: Path, db_path: Path | None,
     if not csv_path.exists():
         print(
             f"error: intermediate CSV not found at {csv_path}.\n"
-            "  Produce it first with: run_legacy_members.sh --extract  (needs the dump).",
+            "  Produce it first with: run_legacy_members.sh --load  (reads the published member CSV).",
             file=sys.stderr,
         )
         return 1

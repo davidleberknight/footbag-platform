@@ -439,6 +439,10 @@ describe('the hashtag is the club address, so moving it is its own act', () => {
 
   it('moves the address, takes the public page with it, and tells the co-leaders', async () => {
     const reason = 'The city was misspelled in the address too.';
+    const tagStamp = () => conn.prepare(
+      'SELECT t.updated_by, t.version FROM clubs c JOIN tags t ON t.id = c.hashtag_tag_id WHERE c.id = ?',
+    ).get(CLUB_ID) as { updated_by: string; version: number };
+    const stampBefore = tagStamp();
     const res = await request(createApp())
       .post(`/admin/clubs/${CLUB_ID}/hashtag/confirm`)
       .set('Cookie', adminCookie())
@@ -447,6 +451,11 @@ describe('the hashtag is the club address, so moving it is its own act', () => {
 
     expect(res.status).toBe(303);
     expect(clubTag()).toBe('#club_auckland_footbag');
+    // The renamed tag row names the administrator who moved it; without the
+    // stamp it keeps naming whoever last changed something else about it.
+    const stampAfter = tagStamp();
+    expect(stampAfter.updated_by).toBe(ADMIN_ID);
+    expect(stampAfter.version).toBe(stampBefore.version + 1);
 
     const audit = auditRows('club.hashtag_corrected');
     expect(audit).toHaveLength(1);

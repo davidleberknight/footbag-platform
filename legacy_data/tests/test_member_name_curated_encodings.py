@@ -29,13 +29,11 @@ from pathlib import Path
 import pytest
 
 _ROOT = Path(__file__).resolve().parents[2]
-_MDS = _ROOT / "legacy_data" / "member_data_scripts"
-if str(_MDS) not in sys.path:
-    sys.path.insert(0, str(_MDS))
 
 _spec = importlib.util.spec_from_file_location(
-    "extract_legacy_members", _MDS / "extract_legacy_members.py")
+    "publish_legacy_repo_data", _ROOT / "legacy_data" / "scripts" / "publish_legacy_repo_data.py")
 ex = importlib.util.module_from_spec(_spec)
+sys.modules["publish_legacy_repo_data"] = ex
 _spec.loader.exec_module(ex)
 
 OVERRIDES = _ROOT / "legacy_data" / "overrides" / "member_name_encodings.csv"

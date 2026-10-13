@@ -593,6 +593,130 @@ describe('applyAutoLinkRevertGrantInTx', () => {
   });
 });
 
+// A director on the current legacy board roster at cutover inherits board
+// standing and Tier 3 at claim, through the same write an administrator's board
+// grant uses, and the claim's bases set the tier the standing reverts to.
+describe('applyLegacyClaimBoardGrantInTx', () => {
+  const NO_STANDING = {
+    hasHof: false, hasBap: false, everPaidTier2: false,
+    everPaidTier1Lifetime: false, tier1AnnualActive: false,
+  };
+
+  function boardFlag(memberId: string): number {
+    const dbh = new BetterSqlite3(dbPath, { readonly: true });
+    const row = dbh.prepare('SELECT is_board FROM members WHERE id = ?').get(memberId) as
+      { is_board: number };
+    dbh.close();
+    return row.is_board;
+  }
+
+  function governanceAudits(memberId: string): Array<{
+    actor_type: string; actor_member_id: string; reason_text: string | null; metadata_json: string;
+  }> {
+    const dbh = new BetterSqlite3(dbPath, { readonly: true });
+    const rows = dbh.prepare(
+      `SELECT actor_type, actor_member_id, reason_text, metadata_json FROM audit_entries
+        WHERE entity_id = ? AND action_type = 'tier.governance_set'`,
+    ).all(memberId) as Array<{
+      actor_type: string; actor_member_id: string; reason_text: string | null; metadata_json: string;
+    }>;
+    dbh.close();
+    return rows;
+  }
+
+  it('a director with no other standing becomes Tier 3 reverting to Tier 1, and Active Player ends', () => {
+    // A Tier 0 entrant is never given Tier 0 to revert to, and keeping Active
+    // Player alongside Tier 3 would let a lapsed record show a current status.
+    const id = freshMember();
+    seedActivePlayer(id);
+    mts.applyLegacyClaimGrantInTx(id, id, NO_STANDING, {});
+
+    const result = mts.applyLegacyClaimBoardGrantInTx({ type: 'member', id }, id, { source: 'legacy_claim' });
+
+    expect(result).toEqual({ status: 'granted', underlying: 'tier1' });
+    expect(mts.getTierStatus(id)).toEqual({ tier_status: 'tier3', underlying_tier_status: 'tier1' });
+    expect(boardFlag(id)).toBe(1);
+    expect(tierGrants(id).map((r) => r.reason_code)).toEqual([
+      'legacy.claim_tier_grant', 'legacy.claim_board_grant',
+    ]);
+    expect(tierGrants(id).at(-1)).toMatchObject({
+      change_type: 'governance_set', old_tier_status: 'tier0', new_tier_status: 'tier3',
+      new_underlying_tier_status: 'tier1', actor_member_id: id,
+    });
+    expect(tierGrants(id).at(-1)!.reason_text).toBeTruthy();
+    expect(apGrants(id).find((r) => r.change_type === 'end')).toMatchObject({
+      reason_code: 'tier3_grant_ended_active_player',
+    });
+  });
+
+  it('a director whose claim granted Tier 2 reverts to Tier 2', () => {
+    // Reverting a Hall of Fame director to Tier 1 when the seat ends would take
+    // away the Tier 2 their honor carries.
+    const id = freshMember();
+    mts.applyLegacyClaimGrantInTx(id, id, { ...NO_STANDING, hasHof: true }, {});
+
+    expect(mts.applyLegacyClaimBoardGrantInTx({ type: 'member', id }, id, {}))
+      .toEqual({ status: 'granted', underlying: 'tier2' });
+    expect(mts.getTierStatus(id)).toEqual({ tier_status: 'tier3', underlying_tier_status: 'tier2' });
+  });
+
+  it('the grant is audited as a governance change by whoever made the claim, with a reason', () => {
+    // An administrator applying a vetted link is the actor on every row that
+    // link writes; a governance write with no reason cannot be reviewed later.
+    const id = freshMember();
+    mts.applyLegacyClaimGrantInTx(ADMIN_ID, id, NO_STANDING, {});
+    mts.applyLegacyClaimBoardGrantInTx({ type: 'admin', id: ADMIN_ID }, id, { source: 'legacy_claim' });
+
+    const audits = governanceAudits(id);
+    expect(audits).toHaveLength(1);
+    expect(audits[0]).toMatchObject({ actor_type: 'admin', actor_member_id: ADMIN_ID });
+    expect(audits[0].reason_text).toBeTruthy();
+    expect(JSON.parse(audits[0].metadata_json)).toMatchObject({
+      source: 'legacy_claim', from: 'tier0', new_underlying: 'tier1',
+    });
+  });
+
+  it('a member already at Tier 3 keeps their standing and nothing is written', () => {
+    // A second governance row would overwrite the underlying tier an
+    // administrator's grant recorded.
+    const id = freshMember();
+    mts.applyPurchaseGrant(id, id, freshPayment(id, 'tier2'), 'tier2');
+    mts.setGovernanceTier3(ADMIN_ID, id);
+    const before = tierGrants(id).length;
+
+    expect(mts.applyLegacyClaimBoardGrantInTx({ type: 'member', id }, id, {}))
+      .toEqual({ status: 'noop', reason: 'already_tier3' });
+    expect(tierGrants(id)).toHaveLength(before);
+    expect(mts.getTierStatus(id)).toEqual({ tier_status: 'tier3', underlying_tier_status: 'tier2' });
+    expect(governanceAudits(id)).toHaveLength(1);
+  });
+
+  it('reverting the claim takes back the board standing it conferred', () => {
+    // A disputed claim would otherwise leave an impostor seated on the board
+    // with Tier 3 after every other effect of the claim was undone.
+    const id = freshMember();
+    mts.applyLegacyClaimGrantInTx(id, id, NO_STANDING, {});
+    mts.applyLegacyClaimBoardGrantInTx({ type: 'member', id }, id, {});
+
+    mts.applyAutoLinkRevertGrantInTx(id, id, {});
+
+    expect(mts.getTierStatus(id)).toEqual({ tier_status: 'tier0', underlying_tier_status: null });
+    expect(boardFlag(id)).toBe(0);
+  });
+
+  it('reverting a claim leaves board standing an administrator conferred', () => {
+    // The revert undoes the claim, not the board's own decision to seat someone.
+    const id = freshMember();
+    mts.applyLegacyClaimGrantInTx(id, id, { ...NO_STANDING, hasHof: true }, {});
+    mts.setGovernanceTier3(ADMIN_ID, id);
+
+    mts.applyAutoLinkRevertGrantInTx(id, id, {});
+
+    expect(mts.getTierStatus(id).tier_status).toBe('tier3');
+    expect(boardFlag(id)).toBe(1);
+  });
+});
+
 describe('applyLegacyClaimGrantInTx tier floor guard', () => {
   it('a second lower-basis claim does not lower a tier an earlier claim conferred', () => {
     const id = freshMember();

@@ -254,6 +254,21 @@ def test_output_is_byte_deterministic():
         assert a.read() == b.read()
 
 
+def test_a_path_resolving_outside_the_site_tree_is_refused():
+    # A gallery row naming a parent directory, plain or URL-encoded, or a link
+    # out of the tree, would have the regenerator write a file anywhere the
+    # operator's account can.
+    tmp = _scratch()
+    assert gen.mirror_path(tmp, f"{BASE}/../../../outside.jpg") is None
+    assert gen.mirror_path(tmp, f"{BASE}/%2e%2e/%2e%2e/%2e%2e/outside.jpg") is None
+    site = os.path.join(tmp, "www.footbag.org")
+    os.makedirs(site, exist_ok=True)
+    os.symlink(tempfile.gettempdir(), os.path.join(site, "escape"))
+    assert gen.mirror_path(tmp, "/escape/outside.jpg") is None
+    assert gen.mirror_path(tmp, f"{BASE}/1/inside.jpg") == os.path.join(
+        site, "media", "1", "inside.jpg")
+
+
 def test_repeated_run_is_a_no_op():
     tmp = _scratch()
     f = f"{BASE}/1/idem.jpg"

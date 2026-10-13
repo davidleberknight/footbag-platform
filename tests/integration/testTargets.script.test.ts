@@ -77,7 +77,15 @@ describe('test-targets.sh — operator scripts', () => {
   it('defers a library most scripts source to the full gate instead of listing them all', () => {
     const r = run(['scripts/lib/aws-profile.sh']);
     expect(r.notes.join('\n')).toMatch(/aws-profile\.sh is sourced by \d+ scripts \(high fan-out\)/);
-    expect(r.tests.length).toBeLessThanOrEqual(25);
+    const notNaming = r.tests.filter((f) => !readFileSync(join(process.cwd(), f), 'utf8').includes('aws-profile.sh'));
+    expect(notNaming, 'companion tests of the sourcing scripts listed').toEqual([]);
+  });
+
+  it('reaches a library through a repository-root script that sources it', () => {
+    // run_all_tests.sh sources the verdict banner from outside scripts/, and
+    // its mode tests are what prove the banner still reads right there.
+    const r = run(['scripts/lib/verdict-banner.sh']);
+    expect(r.tests).toContain('tests/integration/runnerModes.script.test.ts');
   });
 });
 
@@ -96,15 +104,46 @@ describe('test-targets.sh — application source', () => {
 
   it('gives a high-fan-out module its canary sweeps and the full-gate note, not grep hits', () => {
     const r = run(['src/db/db.ts']);
-    expect([...r.tests].sort()).toEqual(CANARY);
+    for (const f of CANARY) expect(r.tests, f).toContain(f);
+    // Every other selection names the module by its path; a grep on the bare
+    // name `db` would pull in most of the suite.
+    const unrelated = r.tests
+      .filter((f) => !CANARY.includes(f))
+      .filter((f) => !readFileSync(join(process.cwd(), f), 'utf8').includes('src/db/db.ts'));
+    expect(unrelated).toEqual([]);
     expect(r.notes).toContain('src/db/db.ts is high fan-out; the full gate is needed at session end');
+  });
+
+  it('reaches the suites guarding a high-fan-out file by its path', () => {
+    // The schema's own parity checks name it by path and by no other word.
+    const r = run(['database/schema.sql']);
+    expect(r.tests).toContain('tests/integration/schemaMigrations.parity.test.ts');
+    expect(r.tests).toContain('tests/integration/schemaBaseline.script.test.ts');
+  });
+
+  it('treats a document inside a high-fan-out directory as a document', () => {
+    const r = run(['database/README.md']);
+    expect(r.tests).toEqual([]);
+    expect(r.checks).toEqual([]);
+    expect(r.notes).toEqual(['database/README.md: verify by re-reading']);
   });
 
   it('maps a page template to the suite named for it and the template conformance checks', () => {
     const r = run(['src/views/freestyle/add-analysis.hbs']);
     expect(r.tests).toContain('tests/integration/freestyle.add-analysis.routes.test.ts');
     expect(r.tests).toContain('tests/unit/template-no-nested-forms.test.ts');
-    expect(r.tests.length).toBeLessThanOrEqual(25);
+  });
+
+  it('maps the stylesheet to the suites naming it as well as the template checks', () => {
+    const r = run(['src/public/css/style.css']);
+    expect(r.tests).toContain('tests/integration/asset-caching.routes.test.ts');
+    expect(r.tests).toContain('tests/unit/template-class-vocabulary.test.ts');
+  });
+
+  it('maps a browser script to the suite naming it rather than reporting it untested', () => {
+    const r = run(['src/public/js/video-facade.js']);
+    expect(r.tests).toContain('tests/unit/videoFacade.test.ts');
+    expect(r.notes).toEqual([]);
   });
 });
 
@@ -150,10 +189,9 @@ describe('test-targets.sh — a page template reaches the suites requesting its 
     expect(missing, 'suites naming concepts.hbs left out').toEqual([]);
   });
 
-  it('reports the page suites as required coverage, never as candidates to trim', () => {
-    const note = concepts.notes.find((n) => n.startsWith('over budget')) ?? '';
-    expect(note).toMatch(/page route requires \d+ suites; full route coverage retained/);
-    expect(concepts.notes.join('\n')).not.toContain('re-target');
+  it('prints the page suites as the set to run, with no advice to trim it', () => {
+    expect(concepts.tests.length).toBeGreaterThan(25);
+    expect(concepts.notes.filter((n) => /budget|re-target|trim/.test(n))).toEqual([]);
   });
 
   it('follows a parameterized route by its fixed prefix', () => {
@@ -204,12 +242,14 @@ describe('test-targets.sh — non-test checks and limits', () => {
     expect(r.notes).toEqual(['no tests found for nowhere/unmapped.txt; name its suites by hand']);
   });
 
-  it('flags a set over the budget instead of quietly running it', () => {
-    const files = listFiles('tests/unit', /\.test\.ts$/).slice(0, 26).map((f) => `tests/unit/${f}`);
-    expect(files).toHaveLength(26);
+  it('prints every suite a large change reaches, with no advice to re-target', () => {
+    // A selection cut down to a fixed size leaves suites out, and a change
+    // verified on the remainder is reported green while the dropped ones fail.
+    const files = listFiles('tests/unit', /\.test\.ts$/).slice(0, 40).map((f) => `tests/unit/${f}`);
+    expect(files).toHaveLength(40);
     const r = run(files);
-    expect(r.tests).toHaveLength(26);
-    expect(r.notes.join('\n')).toContain('over budget (26 files, budget 25)');
+    expect([...r.tests].sort()).toEqual([...files].sort());
+    expect(r.notes).toEqual([]);
   });
 });
 
@@ -239,6 +279,16 @@ describe('test-targets.sh — browser specs and legacy pytest files', () => {
     // without it a NOTE naming the file. Either way it is not silently dropped.
     const r = run(['legacy_data/member_data_scripts/member_merge.py']);
     expect([...r.checks, ...r.notes].join('\n')).toContain('legacy_data/tests/test_member_merge.py');
+  });
+
+  it('reaches the pytest file naming a changed pipeline shell script', () => {
+    const r = run(['legacy_data/member_data_scripts/run_legacy_members.sh']);
+    expect([...r.checks, ...r.notes].join('\n')).toContain('legacy_data/tests/test_run_legacy_members_wiring.py');
+  });
+
+  it('gives a legacy test file the conventions gate, which refuses committed skips there', () => {
+    const r = run(['legacy_data/tests/test_member_merge.py']);
+    expect(r.checks).toContain('bash scripts/ci/assert_conventions.sh');
   });
 });
 

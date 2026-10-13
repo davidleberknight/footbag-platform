@@ -2,12 +2,17 @@
 """Derive the IFPA vote tallies from the ballot rows, and reconcile the three
 records of the same numbers.
 
+Retired: publish_legacy_repo_data.py derives the same tallies from the vetted
+export's ifpa tables and writes them into the private checkout's legacy-publish,
+so nothing but the legacy refresh reads the legacy repository. Kept as the record
+of how the first tallies were made; nothing runs it.
+
 Three sources claim to say how each legacy IFPA vote came out, and they do not
 agree. The ballot table is the evidence: one row per member per issue. The
 application also stored its own running totals in ten `IssueTally` columns on
-each issue, and Julie's authenticated capture of the live site holds a third set,
-745 rows of already-aggregated per-option counts. Only the ballots can settle a
-disagreement, and only while they are still in hand.
+each issue, and the IFPA secretary's authenticated capture of the live site
+holds a third set, 745 rows of already-aggregated per-option counts. Only the
+ballots can settle a disagreement, and only while they are still in hand.
 
 This reads the ballots once, in memory, and writes aggregates. No ballot-level
 row is written anywhere by this script: no member id reaches any output file,
@@ -52,7 +57,8 @@ OUT_NAME = 'derived-vote-tallies'
 
 DUMP = 'ifpa/backups/latest.sql'
 # The capture's per-option counts, the independent third record. Not produced by
-# any dump: Julie read them off the rendered result pages while the site was up.
+# any dump: the IFPA secretary read them off the rendered result pages while the
+# site was up.
 CAPTURE = 'private_data/vote_result_options.csv'
 
 NO_ANSWER = '(no numbered answer)'

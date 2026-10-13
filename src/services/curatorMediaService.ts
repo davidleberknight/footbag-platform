@@ -5,8 +5,8 @@
  *   - Admin upload, edit, delete, and list of curator photos and videos on behalf
  *     of the system member account
  *   - Member-self media lifecycle: photo upload, video URL submission,
- *     per-item edit, and permanent delete (owner-scoped row loads;
- *     auto-applied `#by_<slug>` uploader marker)
+ *     per-item edit, and permanent delete behind a confirm page (owner-scoped
+ *     row loads; auto-applied `#by_<slug>` uploader marker)
  *   - Magic-byte and format validation
  *   - ffmpeg curator transcode pipeline
  *   - Storage key construction matching the curator-seed layout
@@ -18,7 +18,8 @@
  *     this file return a typed `PageViewModel`, so a controller parses the
  *     request, chooses the status code, and renders what it is handed. The
  *     hrefs a page displays are composed there, and a controller never augments
- *     what a builder returned
+ *     what a builder returned. The member delete confirm page is the one
+ *     builder on the service object itself, because it reads the item row
  *
  * Does not own:
  *   - Public gallery/browse page shaping (MediaGalleryService) or the
@@ -3010,6 +3011,43 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       };
     },
 
+    // Confirm step before a member deletes one of their own items. The delete
+    // is permanent, so the page names what goes before the member commits.
+    // Null for an item the member does not own and for an avatar, which the
+    // delete itself refuses, so the confirm page never offers a delete that
+    // would then 404.
+    getMemberMediaDeleteConfirmPage(
+      memberKey: string,
+      mediaId: string,
+      ownerMemberId: string,
+      ownerSlug: string,
+    ): PageViewModel<MemberMediaDeleteConfirmContent> | null {
+      const row = runSqliteRead('getMemberMediaItemById', () =>
+        media.getMemberMediaItemById.get(mediaId, ownerMemberId),
+      ) as MediaItemRow | undefined;
+      if (!row || row.is_avatar === 1) return null;
+      // The uploader marker is applied by the platform, not chosen by the
+      // member, so it is not listed among the tags they are about to lose.
+      const uploaderTag = `#by_${ownerSlug.toLowerCase()}`;
+      const tags = queryCuratorMediaTags([mediaId])
+        .map((p) => p.tag_display)
+        .filter((t) => t.toLowerCase() !== uploaderTag);
+      const itemHref = `/members/${memberKey}/media/${mediaId}`;
+      return {
+        seo: { title: 'Delete Media Item' },
+        page: { sectionKey: 'members', pageKey: 'member_media_delete_confirm', title: 'Delete Media Item' },
+        content: {
+          summary: [
+            { label: 'Type', value: row.media_type === 'video' ? 'Video' : 'Photo' },
+            { label: 'Caption', value: row.caption && row.caption.trim() !== '' ? row.caption : 'No caption' },
+            { label: 'Tags', value: tags.length > 0 ? tags.join(' ') : 'No tags' },
+          ],
+          deleteHref: `${itemHref}/delete`,
+          cancelHref: `${itemHref}/edit`,
+        },
+      };
+    },
+
     // Member-self edit. Mirrors the validation surface of editMedia but
     // skips the FH-curator sidecar branches entirely (member uploads are
     // photos only; no URL-ref sidecars). Owner-scoped: the row load is
@@ -4291,9 +4329,15 @@ export interface MemberMediaEditFormValues {
   externalUrl: string;
 }
 
+export interface MemberMediaDeleteConfirmContent {
+  summary: { label: string; value: string }[];
+  deleteHref: string;
+  cancelHref: string;
+}
+
 export interface MemberMediaEditContent {
   formAction: string;
-  deleteAction: string;
+  deleteConfirmHref: string;
   cancelHref: string;
   errorMessage: string | null;
   formValues: MemberMediaEditFormValues;
@@ -4346,7 +4390,7 @@ export function getMemberMediaEditPage(
     page: { sectionKey: 'members', pageKey: 'member_media_edit', title: 'Edit Media' },
     content: {
       formAction: `/members/${memberKey}/media/${mediaId}/edit`,
-      deleteAction: `/members/${memberKey}/media/${mediaId}/delete`,
+      deleteConfirmHref: `/members/${memberKey}/media/${mediaId}/delete`,
       cancelHref: `/members/${memberKey}/galleries`,
       errorMessage: opts.errorMessage ?? null,
       formValues,

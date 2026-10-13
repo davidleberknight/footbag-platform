@@ -60,7 +60,6 @@ publicRouter.post('/clubs/:key/invite',         requireMember, clubController.po
 publicRouter.post('/clubs/:key/step-down',      requireMember, clubController.postStepDown);
 publicRouter.post('/clubs/:key/mark-inactive',  requireMember, clubController.postMarkInactive);
 publicRouter.post('/clubs/:key/reactivate',     requireMember, clubController.postReactivate);
-publicRouter.post('/clubs/:key/hashtag',        requireMember, clubController.postUpdateHashtag);
 publicRouter.post('/clubs/:key/content/edit',    requireMember, clubController.postContentEdit);
 publicRouter.get('/tags/suggest',       tagSuggestController.suggest);
 // The hashtag index moved onto the browse landing; this path redirects there.
@@ -278,6 +277,7 @@ publicRouter.post('/members/:memberKey/media/upload', requireMember, requireTier
 // wins on POST; controller also defends with an `:mediaId === 'upload'` 404.
 publicRouter.get('/members/:memberKey/media/:mediaId/edit',  requireMember, requireTier1Benefits('media'), memberMediaEditController.getEdit);
 publicRouter.post('/members/:memberKey/media/:mediaId/edit', requireMember, requireTier1Benefits('media'), memberMediaEditController.postUpdate);
+publicRouter.get('/members/:memberKey/media/:mediaId/delete',  requireMember, requireTier1Benefits('media'), memberMediaEditController.getDeleteConfirm);
 publicRouter.post('/members/:memberKey/media/:mediaId/delete', requireMember, requireTier1Benefits('media'), memberMediaEditController.postDelete);
 
 // The catch-all for this prefix, so it decides what every unrecognized

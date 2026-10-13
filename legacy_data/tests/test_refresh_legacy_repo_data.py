@@ -29,7 +29,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS_DIR = REPO_ROOT / "legacy_data" / "scripts"
 COPIED = ("refresh_legacy_repo_data.py", "refresh_report.py", "strict_dump_parser.py",
-          "extract_legacy_dump.py", "extract_legacy_estate.py")
+          "refresh_support.py")
 MEMBERS = "members/backups/latest.sql"
 GALLERY = "gallery/backups/latest.sql"
 
@@ -260,7 +260,7 @@ def test_an_acceptance_that_names_nothing_new_is_refused(checkout):
 
 
 @pytest.mark.parametrize("column", ["UserPIN", "Pwd", "LoginPass", "OtpSeed", "AuthKeyHex",
-                                    "PasswordDigest", "Md5Sum", "CryptValue"])
+                                    "PasswordDigest", "Md5Sum", "CryptValue", "ActionKey"])
 def test_a_credential_column_is_withheld_from_the_csv(checkout, column):
     checkout.deliver(MEMBERS, members_dump("(1,'Ann','cred-value','pw-a')",
                                            extra_column=f"  `{column}` varchar(40) DEFAULT NULL,\n"))
@@ -453,6 +453,52 @@ def test_an_out_directory_inside_the_legacy_clone_is_refused(checkout):
     assert not (checkout.live / "export").exists()
 
 
+def test_an_out_directory_inside_the_original_copy_is_refused(checkout):
+    result = subprocess.run(
+        [sys.executable, "-I", str(checkout.root / "legacy_data/scripts/refresh_legacy_repo_data.py"),
+         "--out", str(checkout.original / "export")], capture_output=True, text=True, timeout=120)
+    assert result.returncode == 1
+    assert "is inside footbag_legacy_repo_original_data, which is read-only input" in result.stderr
+    assert not (checkout.original / "export").exists()
+
+
+def test_a_dump_delivered_as_a_link_is_refused(checkout):
+    # The link stays inside the clone, so only the dump reader can refuse it.
+    write(checkout.live, "members/backups/elsewhere.sql", members_dump())
+    (checkout.live / MEMBERS).unlink()
+    os.symlink("elsewhere.sql", checkout.live / MEMBERS)
+    commit_all(checkout.live, "dump replaced by a link")
+    assert_refused(checkout.run(), checkout.out, f"{MEMBERS} is a symbolic link, not a dump")
+
+
+def test_the_refresh_never_rewrites_a_clone_index(checkout):
+    # The clones are read-only input; a stat-stale index is what a plain
+    # status refreshes and writes back.
+    index = checkout.live / ".git" / "index"
+    before = index.read_bytes()
+    os.utime(checkout.live / MEMBERS, (1, 1))
+    assert checkout.run().returncode == 0
+    assert index.read_bytes() == before
+
+
+def test_a_failure_after_the_first_write_says_the_export_is_partial(checkout):
+    # A run that stops part way must not leave an export, or an old report,
+    # that reads as a finished delivery.
+    write(checkout.live, "ifpa/data/1.description", "A statement.\n")
+    commit_all(checkout.live, "governance prose delivered")
+    (checkout.out / "governance-prose" / "1.description").mkdir(parents=True)
+    stale = ("REFRESH_REPORT.md", "REFRESH_REPORT_DETAIL.tsv", "REFRESH_MANIFEST.tsv")
+    for name in stale:
+        (checkout.out / name).write_text("from an earlier run\n")
+    result = checkout.run()
+    assert result.returncode == 1
+    assert "The export is partially written" in result.stderr
+    assert f"git -C {checkout.out} checkout -- ." in result.stderr
+    assert f"git -C {checkout.out} clean -fd ." in result.stderr
+    for name in stale:
+        assert not (checkout.out / name).exists(), name
+
+
 def test_an_out_directory_in_the_public_checkout_is_refused(checkout):
     target = checkout.root / "legacy_data" / "export"
     result = subprocess.run(
@@ -535,16 +581,20 @@ def test_a_link_inside_copied_material_is_refused(checkout):
 
 RICH_COLUMNS = ("MemberID", "MemberValid", "MemberFirstName", "MemberLastName", "MemberEmail",
                 "MemberBirthYear", "MemberBirthMonth", "MemberBirthDay", "MemberIFPATier",
-                "MemberModified", "MemberPassword")
+                "MemberModified", "MemberIFPAExpiration", "MemberIFPAExpiration2",
+                "MemberPassword")
 ADMINS = "members/admin/backups/latest.sql"
 COMMITTEES = "groups/backups/committees.sql.gz"
-# MemberModified is Unix time; the dump completed on 2026-05-29.
+# MemberModified and the expirations are Unix time; the dump completed on
+# 2026-05-29, between these two.
 BEFORE_DUMP = "1700000000"
+AFTER_DUMP = "1900000000"
 RICH_ROWS = {
-    1: ("1", "Annwyl", "Leeward", "ann@example.org", "1980", "1", "2", "2", BEFORE_DUMP),
-    2: ("1", "Boaz", "Ngata", "bo@example.org", "1990", "3", "4", "0", BEFORE_DUMP),
-    3: ("0", "Cyan", "Oxley", "cy@example.org", "1970", "5", "6", "0", BEFORE_DUMP),
-    5: ("1", "Dior", "Pollux", "di@example.org", "1985", "7", "8", "0", BEFORE_DUMP),
+    1: ("1", "Annwyl", "Leeward", "ann@example.org", "1980", "1", "2", "2", BEFORE_DUMP,
+        BEFORE_DUMP, "0"),
+    2: ("1", "Boaz", "Ngata", "bo@example.org", "1990", "3", "4", "0", BEFORE_DUMP, "0", "0"),
+    3: ("0", "Cyan", "Oxley", "cy@example.org", "1970", "5", "6", "0", BEFORE_DUMP, "0", "0"),
+    5: ("1", "Dior", "Pollux", "di@example.org", "1985", "7", "8", "0", BEFORE_DUMP, "0", "0"),
 }
 
 
@@ -624,14 +674,29 @@ def added(row: int, values: tuple) -> dict:
     (changed(2, MemberIFPATier="2"), "2", "tier changed"),
     (changed(3, MemberValid="1"), "3", "validity changed"),
     (changed(2, MemberModified="1900000000"), "2", "modified after the dump completed"),
-    (added(6, ("1", "Boaz", "Ngata", "other@example.org", "1990", "3", "4", "0", BEFORE_DUMP)), "6",
-     "new account copies an existing name and birth date"),
-    (added(4, ("1", "Ed", "Fu", "ed@example.org", "1975", "9", "9", "0", BEFORE_DUMP)), "4",
-     "new id below the previous highest"),
+    (added(6, ("1", "Boaz", "Ngata", "other@example.org", "1990", "3", "4", "0", BEFORE_DUMP,
+               "0", "0")), "6", "new account copies an existing name and birth date"),
+    (added(4, ("1", "Ed", "Fu", "ed@example.org", "1975", "9", "9", "0", BEFORE_DUMP, "0", "0")),
+     "4", "new id below the previous highest"),
     ({k: v for k, v in RICH_ROWS.items() if k != 3}, "3", "account removed"),
     (changed(2, MemberFirstName="B" + chr(0x202E) + "o"), "2", "direction-override character"),
+    (changed(2, MemberFirstName="B\x07o"), "2", "control character"),
+    (changed(2, MemberFirstName="B" + chr(0x200B) + "o"), "2", "zero-width character"),
     (changed(2, MemberFirstName="<script>x"), "2", "active markup"),
     (changed(2, MemberFirstName="=cmd()"), "2", "leading formula character"),
+    (added(6, ("1", "<script>x", "Fu", "f@example.org", "1975", "9", "9", "0", BEFORE_DUMP,
+               "0", "0")), "6", "active markup"),
+    (changed(2, MemberModified="yesterday"), "2", "modification time is not a timestamp"),
+    # Standing lives in the expirations, not the tier code, so a paid account
+    # with tier code 0 is still one whose e-mail must not move unseen.
+    (changed(2, MemberIFPAExpiration="-1", MemberEmail="new@example.org"), "2",
+     "email changed on an account with a tier or admin flag"),
+    (changed(2, MemberIFPAExpiration2=BEFORE_DUMP, MemberEmail="new@example.org"), "2",
+     "email changed on an account with a tier or admin flag"),
+    (changed(2, MemberIFPAExpiration=AFTER_DUMP, MemberEmail="new@example.org"), "2",
+     "email changed on an account with a tier or admin flag"),
+    (changed(2, MemberIFPAExpiration="-1"), "2", "lifetime standing gained or lost"),
+    (changed(1, MemberIFPAExpiration="1600000000"), "1", "expiry moved earlier"),
 ])
 def test_the_findings_report_flags_each_suspicious_member_change(checkout, delivered, key, kind):
     # Each is the shape of a webmaster-side change that would reach a live
@@ -654,11 +719,94 @@ def test_an_unchanged_delivery_raises_no_flag(checkout):
     assert "Flags for review: 0" in (checkout.out / "REFRESH_REPORT.md").read_text()
 
 
+def test_a_renewal_is_counted_and_not_flagged(checkout):
+    # Members renew all the time; flagging each renewal would bury the flags
+    # that matter, so an expiry moving later is a count in the report.
+    first_delivery(checkout)
+    checkout.deliver(MEMBERS, rich_members_dump(changed(1, MemberIFPAExpiration=AFTER_DUMP)))
+    result = checkout.run()
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert flags(checkout) == set()
+    assert "Membership renewals (an expiry moved later, not flagged): 1" in (
+        checkout.out / "REFRESH_REPORT.md").read_text()
+
+
+def test_a_lifetime_account_losing_its_lifetime_standing_is_flagged(checkout):
+    first_delivery(checkout, changed(2, MemberIFPAExpiration="-1"))
+    checkout.deliver(MEMBERS, rich_members_dump(changed(2, MemberIFPAExpiration=AFTER_DUMP)))
+    assert checkout.run().returncode == 0
+    assert ("2", "lifetime standing gained or lost") in flags(checkout)
+
+
+def test_an_email_change_on_an_annual_that_lapsed_before_the_dump_is_not_flagged(checkout):
+    # A lapsed annual is no standing at the dump, so its e-mail is ordinary churn.
+    lapsed = changed(2, MemberIFPAExpiration=BEFORE_DUMP)
+    first_delivery(checkout, lapsed)
+    lapsed[2] = (*lapsed[2][:3], "new@example.org", *lapsed[2][4:])
+    checkout.deliver(MEMBERS, rich_members_dump(lapsed))
+    assert checkout.run().returncode == 0
+    assert flags(checkout) == set()
+
+
+def test_a_new_account_sharing_only_a_name_and_a_blank_birth_date_is_not_flagged(checkout):
+    # A third of real accounts carry no birth date, so an honest sign-up with
+    # a common name would otherwise read as a duplicate-merge hijack.
+    blank = ("1", "Boaz", "Ngata", "bo@example.org", "0", "0", "0", "0", BEFORE_DUMP, "0", "0")
+    first_delivery(checkout, {**RICH_ROWS, 2: blank})
+    checkout.deliver(MEMBERS, rich_members_dump(
+        {**RICH_ROWS, 2: blank, 6: (*blank[:3], "other@example.org", *blank[4:])}))
+    assert checkout.run().returncode == 0
+    assert flags(checkout) == set()
+
+
 def test_an_added_admin_row_is_flagged(checkout):
     first_delivery(checkout)
     checkout.deliver(ADMINS, admins_dump("(1,1),(5,1)"))
     assert checkout.run().returncode == 0
     assert any(kind == "admin row added" for _, kind in flags(checkout))
+
+
+def test_a_removed_admin_row_is_flagged(checkout):
+    first_delivery(checkout)
+    checkout.deliver(ADMINS, admins_dump("(1,0)"))
+    assert checkout.run().returncode == 0
+    assert any(kind == "admin row removed" for _, kind in flags(checkout))
+
+
+def test_an_email_change_on_an_untiered_admin_is_flagged(checkout):
+    first_delivery(checkout)
+    write(checkout.live, ADMINS, admins_dump("(1,1),(2,1)"))
+    checkout.deliver(MEMBERS, rich_members_dump(changed(2, MemberEmail="new@example.org")))
+    assert checkout.run().returncode == 0
+    assert ("2", "email changed on an account with a tier or admin flag") in flags(checkout)
+
+
+def test_tracked_files_outside_the_captured_set_are_reported(checkout):
+    # A dump delivered somewhere the refresh does not read would otherwise
+    # never be seen; other files are counted by folder, not listed.
+    write(checkout.original, "ifpa/ifpa_issues.mysql", "-- an older issues dump\n")
+    commit_all(checkout.original, "first delivery carried a stray dump")
+    shutil.rmtree(checkout.live)
+    shutil.copytree(checkout.original, checkout.live, symlinks=True)
+    write(checkout.live, "faq/faq.sql", "-- an older faq dump\n")
+    write(checkout.live, "ifpa/ifpa_issues.mysql", "-- the stray dump, edited\n")
+    write(checkout.live, "members/index.php", "<?php\n")
+    write(checkout.live, "notes.txt", "x\n")
+    write(checkout.live, "ifpa/data/1.description", "A statement.\n")
+    write(checkout.live, MEMBERS, members_dump("(1,'Ann','pw-a'),(2,'Bo','pw-b'),(3,'Cy','pw-c')"))
+    commit_all(checkout.live, "files beyond the module dumps")
+    result = checkout.run()
+    assert_reported(result, "faq/faq.sql: a tracked dump-like file added outside the captured set")
+    assert_reported(result, "ifpa/ifpa_issues.mysql: a tracked dump-like file changed outside "
+                            "the captured set")
+    assert_reported(result, "members: 1 other tracked file(s) added or changed outside the "
+                            "captured set")
+    assert_reported(result, "(top level): 1 other tracked file(s) added or changed outside the "
+                            "captured set")
+    # The converted dump and the copied tree are captured, so neither is named.
+    outside = "".join(line for line in result.stdout.splitlines()
+                      if "outside the captured set" in line)
+    assert MEMBERS not in outside and "ifpa/data" not in outside
 
 
 def test_the_board_roster_passes_the_cto_check_only_when_it_carries_the_cto(checkout):

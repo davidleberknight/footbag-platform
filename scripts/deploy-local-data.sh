@@ -48,20 +48,28 @@ Modes (exactly one required):
                   Use --from-csv if you need phase C/D/E/F/G populated.
 
   --all-data      The --from-csv build (no mirror) PLUS the legacy member-data
-                  intake: extract the footbag.org dump into the git-ignored
-                  intermediate CSV, then validate and preview the member load
-                  (--load --dry-run). By default no member data is applied; a
-                  notice says so and the run still succeeds. With
-                  --apply-members the intake instead runs the full load
-                  (--load --apply): identity reconciliation, QC gate, rollback
-                  snapshot, then the reconciled member rows and
-                  historical-person links are written to the local DB. Local
-                  maintainer machines only — the writers refuse
+                  intake from the published member CSV in the private checkout:
+                  validate and preview the member load (--load --dry-run). By
+                  default no member data is applied; a notice says so and the
+                  run still succeeds. With --apply-members the intake instead
+                  runs the full load (--load --apply): identity reconciliation,
+                  QC gate, rollback snapshot, then the reconciled member rows
+                  and historical-person links are written to the local DB.
+                  Local maintainer machines only — the writers refuse
                   production/staging targets.
-                  Requires: the gitignored membership roster
-                            (legacy_data/membership/inputs/membership_input_normalized.csv)
-                            AND either the footbag.org dump or a prior
-                            intermediate CSV.
+                  Requires: the private checkout, its published member CSV
+                            (footbag_private_repo/legacy-publish/legacy_members.csv)
+                            and the gitignored membership roster
+                            (legacy_data/membership/inputs/membership_input_normalized.csv).
+
+  --soup-to-nuts, --from-csv and --all-data each refuse before touching the
+  database when the maintainers' private checkout or one of their inputs is
+  missing. Without the checkout, ./run_dev.sh --reset builds a development
+  database and bash deploy_to_aws.sh --public-data rebuilds staging from the
+  committed inputs alone.
+
+  Run this through ./run_dev.sh or deploy_to_aws.sh, the two entry points; a
+  direct invocation is refused.
 
   --help, -h      Show this message.
 
@@ -132,6 +140,17 @@ if [[ -z "$MODE" ]]; then
   exit 1
 fi
 
+# The two entry points, ./run_dev.sh and the AWS deploy orchestrator, set this
+# marker. It routes people to them rather than guarding anything: each entry
+# point adds what a bare run of this script would leave out (the persona seed and
+# media for a developer, the deploy's own checks for a host).
+if [[ "${FOOTBAG_DATA_BUILD_ENTRY:-}" != "run_dev" && "${FOOTBAG_DATA_BUILD_ENTRY:-}" != "deploy" ]]; then
+  echo "ERROR: deploy-local-data.sh is not run directly." >&2
+  echo "       Rebuild a local database with ./run_dev.sh (--reset, --from-csv, --soup-to-nuts" >&2
+  echo "       or --all-data), or deploy one with bash deploy_to_aws.sh." >&2
+  exit 1
+fi
+
 # --apply-members writes real member data, which only the --all-data intake
 # carries; anywhere else it is almost certainly a mistake, so fail loud.
 if [[ "$APPLY_MEMBERS" == "yes" && "$MODE" != "--all-data" ]]; then
@@ -168,8 +187,35 @@ run_or_print() {
   "$@"
 }
 
+# Every data rebuild but the development reset and the public-inputs staging
+# rebuild reads the maintainers' private checkout, and a build without it is wrong
+# in ways nothing afterwards reports. Checked before the first destructive step,
+# so a missing input never costs the database it would have replaced.
+#   $@  the inputs this mode reads beyond the checkout, as repo-relative paths
+require_private_inputs() {
+  local missing=()
+  [[ -d "${REPO_ROOT}/footbag_private_repo" ]] || missing+=("footbag_private_repo (the maintainers' private checkout)")
+  local p
+  for p in "$@"; do
+    [[ -s "${REPO_ROOT}/${p}" ]] || missing+=("$p")
+  done
+  if [[ ${#missing[@]} -gt 0 ]]; then
+    echo "ERROR: ${MODE} needs inputs this machine does not have. Nothing was changed." >&2
+    for m in "${missing[@]}"; do echo "  MISSING: $m" >&2; done
+    echo "" >&2
+    echo "Without the private checkout:" >&2
+    echo "  ./run_dev.sh --reset                       builds a development database" >&2
+    echo "  bash deploy_to_aws.sh --public-data        rebuilds staging from the committed inputs" >&2
+    exit 1
+  fi
+}
+
+ROSTER_INPUT="legacy_data/membership/inputs/membership_input_normalized.csv"
+PUBLISHED_MEMBERS_INPUT="footbag_private_repo/legacy-publish/legacy_members.csv"
+
 run_soup_to_nuts() {
   echo "==> deploy-local-data: --soup-to-nuts"
+  require_private_inputs "$ROSTER_INPUT"
   local mirror_dir="${REPO_ROOT}/footbag_legacy_mirror"
   if [[ ! -d "$mirror_dir" ]]; then
     echo "ERROR: mirror not found at ${mirror_dir}" >&2
@@ -199,6 +245,7 @@ run_soup_to_nuts() {
 
 run_from_csv() {
   echo "==> deploy-local-data: --from-csv"
+  require_private_inputs "$ROSTER_INPUT"
   local missing=()
   local ci="${REPO_ROOT}/legacy_data/event_results/canonical_input"
 
@@ -249,36 +296,15 @@ run_db_only() {
 
 run_all_data() {
   echo "==> deploy-local-data: --all-data"
-
-  # Preflight A: the gitignored IFPA membership roster (real member data,
-  # operator handoff) that the enrichment build requires.
-  local roster="${REPO_ROOT}/legacy_data/membership/inputs/membership_input_normalized.csv"
-  if [[ ! -f "$roster" ]]; then
-    echo "ERROR: membership roster not found at ${roster}" >&2
-    echo "       This is the gitignored IFPA membership roster (real member data);" >&2
-    echo "       obtain it from the maintainer. --from-csv / --db-only build without it." >&2
-    exit 1
-  fi
-
-  # Preflight B: a legacy member-data source -- either the footbag.org dump (to
-  # extract) or a prior intermediate CSV (to validate/preview).
+  require_private_inputs "$ROSTER_INPUT" "$PUBLISHED_MEMBERS_INPUT"
   local py="${REPO_ROOT}/legacy_data/footbag_venv/bin/python"
   [[ -x "$py" ]] || py="python3"
-  local dump_root
-  dump_root="$("$py" -c 'import sys; sys.path.insert(0, "legacy_data/member_data_scripts"); from _dump_parser import resolve_dump_root; r = resolve_dump_root(); print(r or "")' 2>/dev/null || true)"
-  local intermediate="${REPO_ROOT}/legacy_data/member_data_scripts/out/legacy_members_final.csv"
-  if [[ -z "$dump_root" && ! -f "$intermediate" ]]; then
-    echo "ERROR: no legacy member-data source." >&2
-    echo "       Need either the footbag.org dump (repo-root footbag_legacy_repo symlink or FOOTBAG_LEGACY_REPO)" >&2
-    echo "       or a prior intermediate CSV at ${intermediate}." >&2
-    exit 1
-  fi
 
   # The enrichment build, identical to --from-csv (no mirror). This builds the
-  # database (historical_persons included) that the member extract reads.
+  # database (historical_persons included) that the member intake reads.
   run_from_csv
 
-  # The legacy member intake. Extraction needs the dump. The identity
+  # The legacy member intake, from the published member CSV. The identity
   # reconciliation (Stage A duplicate-account review, Stage B historical-person
   # link proposals, the QC gate, and the honors backfill over those proposals)
   # runs inside the runner's --load path. Without --apply-members this build
@@ -288,12 +314,6 @@ run_all_data() {
   # writers refuse production/staging targets, so a real apply can only land on
   # a local database.
   local runner="${REPO_ROOT}/legacy_data/member_data_scripts/run_legacy_members.sh"
-  if [[ -n "$dump_root" ]]; then
-    echo "==> member intake: extract dump -> intermediate CSV"
-    run_or_print bash "$runner" --extract
-  else
-    echo "==> member intake: no dump; using the existing intermediate CSV"
-  fi
   if [[ "$APPLY_MEMBERS" == "yes" ]]; then
     echo "==> member intake: reconcile + apply (writes member data to the local DB)"
     run_or_print bash "$runner" --load --apply

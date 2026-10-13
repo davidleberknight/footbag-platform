@@ -21,9 +21,11 @@ import { createTestSessionJwt } from '../fixtures/factories';
 const OWNER_SLUG = 'don_route_owner';
 const OTHER_SLUG = 'don_route_other';
 const CONCURRENT_SLUG = 'don_route_concurrent';
+const BAP_SLUG = 'don_route_bap';
 const OWNER = `member_persona_${OWNER_SLUG}`;
 const OTHER = `member_persona_${OTHER_SLUG}`;
 const CONCURRENT = `member_persona_${CONCURRENT_SLUG}`;
+const BAP_ONLY = `member_persona_${BAP_SLUG}`;
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
@@ -55,11 +57,25 @@ beforeAll(async () => {
     testingUsage: 'Donation route fixture.',
     coverageNotes: ['donation routes owner for the simultaneous-cancel check'],
   });
+  seedPersona(db, {
+    slug: BAP_SLUG,
+    displayName: 'Route Big Add Posse',
+    tier: 'tier1',
+    honors: { bap: true },
+    testingUsage: 'Donation route fixture.',
+    coverageNotes: ['donation routes member holding only the Big Add Posse honor'],
+  });
   db.close();
   createApp = await importApp();
 });
 
 afterAll(() => cleanupTestDb(dbPath));
+
+/** The prefilled value of the donation note field, so an assertion reads the
+ *  field itself rather than any text elsewhere on the page. */
+function noteValue(html: string): string | undefined {
+  return /<input[^>]*\bid="note"[^>]*\bvalue="([^"]*)"/s.exec(html)?.[1];
+}
 
 /** Opens a recurring donation for a member and returns the Stripe subscription
  *  id the cancel route addresses. */
@@ -89,15 +105,21 @@ describe('GET /donate', () => {
     expect(res.text).toContain('name="customAmount"');
   });
 
-  it('prefills the honor fund note for a member holding an honor', async () => {
+  it('prefills the Hall of Fame fund note for a Hall of Fame member', async () => {
     const res = await plainRequest(createApp()).get('/donate').set('Cookie', cookie(OWNER));
-    expect(res.text).toContain('HoF Fund');
+    expect(res.status).toBe(200);
+    expect(noteValue(res.text)).toBe('HoF Fund');
   });
 
-  it('leaves the note empty for a member holding no honor', async () => {
-    const res = await plainRequest(createApp()).get('/donate').set('Cookie', cookie(OTHER));
-    expect(res.text).not.toContain('HoF Fund');
-    expect(res.text).not.toContain('BAP Fund');
+  // IFPA has no Big Add Posse fund, so prefilling one would designate the gift
+  // to a fund that does not exist; a member with no honor gets no prefill either.
+  it('leaves the note empty for a Big Add Posse member and for a member holding no honor', async () => {
+    const bap = await plainRequest(createApp()).get('/donate').set('Cookie', cookie(BAP_ONLY));
+    expect(bap.status).toBe(200);
+    expect(noteValue(bap.text)).toBe('');
+    const none = await plainRequest(createApp()).get('/donate').set('Cookie', cookie(OTHER));
+    expect(none.status).toBe(200);
+    expect(noteValue(none.text)).toBe('');
   });
 
   it('is marked do-not-index, being a signed-in action page rather than public content', async () => {

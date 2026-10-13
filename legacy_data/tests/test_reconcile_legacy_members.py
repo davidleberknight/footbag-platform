@@ -673,6 +673,31 @@ def test_auto_merge_preserves_entitlements_by_or() -> None:
     assert d.survivor_row["ifpa_join_date"] == "2008-01-01"   # earliest join date
 
 
+def test_auto_merge_keeps_a_directors_board_flag_whichever_account_carries_it() -> None:
+    # A director whose seat sits on the account that merges away would otherwise
+    # claim the survivor as an ordinary member and never receive board standing.
+    rows = [_dupe("100", legacy_was_board_at_cutover="0"),
+            _dupe("200", legacy_was_board_at_cutover="1")]
+    d = rec.evaluate_merge_group(_one_group(rows))
+    assert d.action == "merge" and d.survivor_id == "100"
+    assert d.survivor_row["legacy_was_board_at_cutover"] == "1"
+
+
+def test_a_delivery_with_no_board_row_passes_the_population_guard() -> None:
+    # A delivery whose board roster is not current carries the board flag on no
+    # row by design. Treating that as a capture failure refused the final merge
+    # for every such delivery, so no load with recorded rulings could run.
+    rows = [_dupe("100", legacy_tier1_annual_active_at_cutover="1",
+                  legacy_was_board_at_cutover="0"),
+            _dupe("200", legacy_tier1_annual_active_at_cutover="0",
+                  legacy_was_board_at_cutover="0")]
+    assert all(rec.entitlement_population_status(rows).values())
+    # The annual-active column stays guarded: an export that never captured it
+    # would let a duplicate merge drop a member's Tier 1 standing unnoticed.
+    unpopulated = [_dupe("100", legacy_tier1_annual_active_at_cutover="0")]
+    assert not all(rec.entitlement_population_status(unpopulated).values())
+
+
 def test_auto_merge_country_conflict_routes_to_review() -> None:
     rows = [_dupe("100", country="United States"), _dupe("200", country="Australia")]
     d = rec.evaluate_merge_group(_one_group(rows))

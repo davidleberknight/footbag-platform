@@ -1,5 +1,8 @@
 """Tests for extract_legacy_admins.py.
 
+Pins the retired admin extractor's contract, kept while the script is kept.
+Publish now sets the admin flag, and its own tests pin it.
+
 Verifies legacy_is_admin is set from the admins dump (AdminValid=1 only),
 that AdminRealm does not promote, that a second table in the same dump
 (`bounces`) is ignored, and that admin ids without a member row are counted

@@ -2,7 +2,9 @@
 test_extract_legacy_estate.py
 =============================
 
-Pins the legacy estate extractor's output contract:
+Pins the retired legacy estate extractor's output contract, kept while the
+script is kept. The refresh owns the export now, and its own tests pin the same
+owner-only and credential guarantees. Pinned here:
 
   - every file it leaves in the export is owner-only (600, directories 700),
     even when the operator's shell would create world-readable files, and files
@@ -38,7 +40,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS_DIR = REPO_ROOT / "legacy_data" / "scripts"
 SCRIPT = "extract_legacy_estate.py"
-HELPER = "extract_legacy_dump.py"
+HELPERS = ("extract_legacy_dump.py", "refresh_support.py")
 
 MEMBERS_DUMP = """SET NAMES utf8;
 CREATE TABLE `members` (
@@ -61,7 +63,7 @@ def build_checkout(tmp_path: Path) -> Path:
     root = tmp_path / "checkout"
     scripts = root / "legacy_data" / "scripts"
     scripts.mkdir(parents=True)
-    for name in (SCRIPT, HELPER):
+    for name in (SCRIPT, *HELPERS):
         shutil.copy2(SCRIPTS_DIR / name, scripts / name)
 
     legacy = root / "footbag_legacy_repo"

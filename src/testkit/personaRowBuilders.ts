@@ -323,6 +323,8 @@ export interface LegacyMemberOverrides {
   // 0, the state of a row the derivation has not marked.
   legacy_ever_paid_tier2?: 0 | 1;
   legacy_ever_paid_tier1_lifetime?: 0 | 1;
+  // A director on the current legacy board roster at cutover; defaults to 0.
+  legacy_was_board_at_cutover?: 0 | 1;
   import_source?: string | null;
   claimed_by_member_id?: string | null;
   claimed_at?: string | null;
@@ -348,9 +350,10 @@ export function insertLegacyMember(db: BetterSqlite3.Database, o: LegacyMemberOv
       ifpa_join_date, first_competition_year,
       is_hof, is_bap, legacy_is_admin,
       legacy_ever_paid_tier2, legacy_ever_paid_tier1_lifetime,
+      legacy_was_board_at_cutover,
       import_source, imported_at,
       version
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
     ON CONFLICT(legacy_member_id) DO UPDATE SET
       legacy_user_id = excluded.legacy_user_id,
       legacy_email = excluded.legacy_email,
@@ -373,6 +376,7 @@ export function insertLegacyMember(db: BetterSqlite3.Database, o: LegacyMemberOv
       legacy_is_admin = excluded.legacy_is_admin,
       legacy_ever_paid_tier2 = excluded.legacy_ever_paid_tier2,
       legacy_ever_paid_tier1_lifetime = excluded.legacy_ever_paid_tier1_lifetime,
+      legacy_was_board_at_cutover = excluded.legacy_was_board_at_cutover,
       import_source = excluded.import_source,
       imported_at = excluded.imported_at
   `).run(
@@ -401,6 +405,7 @@ export function insertLegacyMember(db: BetterSqlite3.Database, o: LegacyMemberOv
     o.legacy_is_admin ?? 0,
     o.legacy_ever_paid_tier2 ?? 0,
     o.legacy_ever_paid_tier1_lifetime ?? 0,
+    o.legacy_was_board_at_cutover ?? 0,
     o.import_source ?? 'test',
     TS,
   );

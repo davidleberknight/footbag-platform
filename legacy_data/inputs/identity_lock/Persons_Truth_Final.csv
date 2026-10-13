@@ -277,8 +277,7 @@ a641144e-cf11-5c59-af79-bd273b52f495,Antoni Szczeniowski,aa425939-2936-5aed-9e54
 40b82d9d-3d08-5ee8-b30e-44f229f64531,Antonio B,,Antonio B,,,,patch_v53:unresolved_canonical_participant,Antonio B,,,,b,antonio b,
 34055beb-ed72-59a5-9b38-c5ffbac4d70e,Antonio Fritsch,2f3ce2f0-46fd-595d-bb71-728782f684ce | 45007582-7706-54cd-a9e4-75a885dd93b7 | 4a366721-0776-556d-a988-daaecd195086 | 4b0bcd44-6316-5597-b0b7-0db425d0405a | 776ed9c8-103c-542d-a07a-f92633076207 | 7f5f77db-847e-518f-a2ed-b1094634b384 | 8d2951c2-fb32-57ec-a7c4-ce0f139ac24f | a8f3defa-5518-5266-9ceb-e31799c06050 | b46e3331-2137-545f-8900-e031141dc0d5 | cf74141b-174b-55d5-8249-6043685523fc,Antonio Fritsch,,,,overrides+data,Antonio Fritsch,,Antonio Fritch | Antonio Fritcsh,,fritsch,,58917.0
 08b78778-8895-59d3-88fe-181e80367ca9,Antonio Galica,e0179a7d-e81b-5fee-98fa-27a670e9d61b,Antonio Galica,,,,overrides+data,Antonio Galica,,,,galica,,
-da631353-0d65-5a29-9572-37f115385c15,Antonio Linero Castro,166744a8-12f8-52ee-bc11-3df219b39cad | a6a4fd73-3351-56e2-b2b2-593c57d0f396 | a8c176e9-d348-564f-85ce-480b2426ffc2,Antonio Linero Castro,,,,overrides+data,Antonio Linero Castro,,Antonio Linero,,castro,,
-d5438c2d-a43e-5124-a46a-6f0944785f00,Antonio Lineros,00d78d20-ce8e-5b0b-bbe1-b537c33903ed,ANTONIO LINEROS,,,,overrides+data,Antonio Lineros,,,,lineros,,
+da631353-0d65-5a29-9572-37f115385c15,Antonio Linero Castro,00d78d20-ce8e-5b0b-bbe1-b537c33903ed | 166744a8-12f8-52ee-bc11-3df219b39cad | a6a4fd73-3351-56e2-b2b2-593c57d0f396 | a8c176e9-d348-564f-85ce-480b2426ffc2,Antonio Linero Castro | Antonio Lineros,,,,overrides+data,Antonio Linero Castro,,Antonio Linero | Antonio Lineros,,castro,,
 f5204064-f32c-562e-9cfe-9820060fc8e3,Antony Arnaud,3e21fe57-ee8d-5bce-a6e4-80c290ee9337 | f41497fb-b204-556d-a3c5-2aa71bb8e87c,Antony Arnaud,,,,overrides+data,Antony Arnaud,,,,arnaud,,82445.0
 0a3aba7b-cb04-58bd-9f0f-7af3337b8bb4,Antony Corbière,b885c2b5-de12-539c-b686-91e5226e5c25,Antony Corbière,,,,overrides+data,Antony Corbière,,,,corbière,,
 71c0c497-abc6-5d00-893a-65dc2dbeee3a,Antti Ahola,e29c24a9-8692-5b0a-b1b5-9c39bebf3f80,Antti Ahola,,,,overrides+data,Antti Ahola,,,,ahola,,
@@ -2648,7 +2647,6 @@ e7f08a8a-b913-555d-bd73-081a2b1b53b9,Michael Sauren,4a40ba8f-440b-558f-a775-ebb2
 07edbb69-b541-5eaf-8365-641a1dc0aa98,Michael Sternkopf,,Michael Sternkopf,,,Added for QC07 referential integrity (no merges). | 2026-02-25: requested removal: QC07 coverage_closure placeholder row,data_only,Michael Sternkopf,coverage_closure,,COVERAGE_CLOSURE,sternkopf,,
 4032a9ca-a2fa-5cb0-b27f-6343a3c4fae7,Michael Stillhard,aa504740-7bdb-5bc5-9a80-ecfc54e064b8,Michael Stillhard,,,,overrides+data,Michael Stillhard,,,,stillhard,,
 3d449b78-0500-5713-a77d-97efddfca9b0,Michael Weidner,6d00dacf-cc7f-586b-b5a2-2d55655e9edd,Michael Weidner,,,,overrides+data,Michael Weidner,,,,weidner,,
-b29f908f-e5f4-505d-a86b-7dc178a164b5,Michael Wilson,b29f908f-e5f4-505d-a86b-7dc178a164b5,Michael Wilson,,,,NEW_PERSON_v29,,,,,,,
 865e3bc7-6fe0-5050-957d-b970c2c9854c,Michael Wiwchard,2ed0efa4-3d43-53bc-adbb-e925edc537f2,Michael Wiwchard,,,,overrides+data,Michael Wiwchard,,,,wiwchard,,12149.0
 daa5c304-1d81-5faf-b3c8-deeb2aff5077,Michal Benda,295580e0-f4c0-547e-8426-151b08b75610,Michal Benda,,,,overrides+data,Michal Benda,,,,benda,,
 437d9bc1-f872-5687-9191-689dccedb6d0,Michal Biarda,5c5b60cf-15e2-54bd-a72f-73a0c1676a0f | 741f34cc-5328-5e34-8a05-c30f2aa5c7e2,Michal Biarda,,,,overrides+data,Michal Biarda,,,,biarda,,66538.0
@@ -2731,7 +2729,7 @@ cd833478-a31f-5610-8f45-2344401a861b,Mike Stoler,1f088fe7-a8cc-56eb-b4a6-aea3ab9
 89ff2e20-dbee-5110-bcf4-f4708867d303,Mike Voightmann,209f7513-3a7e-5e9e-b4fa-90078e30a3ed | 4bd2632b-57a2-5e22-9da4-3d0fe9ec0901 | 67367196-c641-55ad-84f3-1d7f718f9766 | 8c766704-a4da-5772-9998-e586787ff589 | a820cf62-f693-5ff7-9340-87c60beedfbb,Mike Voightmann,,,,overrides+data,Mike Voightmann,,mike voightman,,voightmann,,
 eab43b28-18c8-554f-9a77-1cf91d2ee159,Mike Walsh,3a08d8b5-fc5c-5070-ba07-d50a623d1819,Mike Walsh,,,,overrides+data,Mike Walsh,,,,walsh,,
 8353cc49-f669-5f4f-a4d0-81b06f434670,Mike Williams,92fe478a-fd74-5784-afde-15db3ac1196c,mike williams,,,,overrides+data,Mike Williams,,,,williams,,
-06eb1264-0514-5ba6-80f4-a26ab9c0cec7,Mike Wilson,1c5a40b2-ff01-555c-b47d-266fd7774255,Mike Wilson,,,,overrides+data,Mike Wilson,,Mike Wilson ---,,wilson,,
+06eb1264-0514-5ba6-80f4-a26ab9c0cec7,Mike Wilson,1c5a40b2-ff01-555c-b47d-266fd7774255,Michael Wilson | Mike Wilson,,,,overrides+data,Mike Wilson,,Michael Wilson | Mike Wilson ---,,wilson,,
 2512e987-358f-54c5-a8d3-57e452a6897a,Mikel Maletxeberria,ccd723a1-faac-57ca-9892-3e9c801d3d5b | dfb1412c-13df-5c41-a697-01f310823011,Mikel Maletxeberria,,,,overrides+data,Mikel Maletxeberria,,,,maletxeberria,,
 6e41799e-c842-5a70-a707-33b6a88f5076,Mikel Oroz,09df8de3-71c6-5628-b326-18bd3dc3c8a1,Mikel Oroz,,,,overrides+data,Mikel Oroz,,,,oroz,,
 3ee7578c-2a04-5787-903a-a371ecd27d39,Mikel Torde,048251b9-7212-58ed-bcac-3151bc9571ea,Mikel Torde,,,,overrides+data,Mikel Torde,,,,torde,,

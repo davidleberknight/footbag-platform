@@ -1806,6 +1806,11 @@ CREATE UNIQUE INDEX ux_recon_outstanding_dedup ON reconciliation_issues(
 --   admin.override               Admin manual change (correction, exceptional remediation)
 --   admin.correction             Admin correction of a prior data error
 --   legacy.claim_tier_grant      Legacy migration claim resolved to a tier assignment
+--   legacy.claim_board_grant     Legacy migration claim by a director on the current
+--                                board roster at cutover: Tier 3 governance assigned
+--   legacy.auto_link_reported_incorrect
+--                                The member reported a legacy claim's link as wrong:
+--                                the tier and board standing it conferred are reverted
 --
 -- UPDATE and DELETE are blocked by triggers.
 
@@ -4484,6 +4489,10 @@ CREATE TABLE legacy_members (
   legacy_ever_paid_tier2 INTEGER NOT NULL DEFAULT 0 CHECK (legacy_ever_paid_tier2 IN (0,1)),
   legacy_ever_paid_tier1_lifetime INTEGER NOT NULL DEFAULT 0 CHECK (legacy_ever_paid_tier1_lifetime IN (0,1)),
   legacy_tier1_annual_active_at_cutover INTEGER NOT NULL DEFAULT 0 CHECK (legacy_tier1_annual_active_at_cutover IN (0,1)),
+  -- A director sitting on the legacy Board of Directors roster at cutover, set
+  -- only when that roster is current (it carries the CTO seat). The claim reads it
+  -- to grant board standing and Tier 3.
+  legacy_was_board_at_cutover INTEGER NOT NULL DEFAULT 0 CHECK (legacy_was_board_at_cutover IN (0,1)),
 
   -- Import audit
   import_source TEXT,                 -- 'mirror' | 'legacy_site_data' | 'system_fixture' (platform-seeded stub) | null pre-integration

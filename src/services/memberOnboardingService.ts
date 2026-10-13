@@ -1784,8 +1784,9 @@ function claimHistoricalPersonAndCompleteTask(
 ): void {
   // Reached only while onboarding is still incomplete: the claim route closes
   // the moment it finishes, and sends a member to the administrator request form
-  // instead. No router gate guarantees the personal-details prerequisite, so
-  // this check is what holds it rather than a restatement of something upstream.
+  // instead. The claim controller sends a member who has not finished personal
+  // details back to that step before calling here, so this throw is an
+  // internal invariant check, not a user-facing outcome.
   if (legacyClaimPrerequisiteUnmet(memberId)) {
     throw new Error('personal_details must be complete before a historical-person claim');
   }

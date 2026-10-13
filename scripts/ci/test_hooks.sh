@@ -475,12 +475,13 @@ expect_script $'#!/usr/bin/env bash\nset $(aws s3 ls)\nsource scripts/lib/aws-is
 
 H=guard-readonly-bash.sh
 
-# Writes hidden behind read-only command heads must ask.
-expect "$H" 'echo x > notes.txt' ask
-expect "$H" 'printf "%s" x >> notes.txt' ask
-expect "$H" 'awk "{print}" a.txt > b.txt' ask
-expect "$H" 'jq . a.json > b.json' ask
-expect "$H" 'cat a.txt >> b.txt' ask
+# Writes hidden behind read-only command heads must gate; a redirect into the working
+# tree is denied outright.
+expect "$H" 'echo x > notes.txt' deny
+expect "$H" 'printf "%s" x >> notes.txt' deny
+expect "$H" 'awk "{print}" a.txt > b.txt' deny
+expect "$H" 'jq . a.json > b.json' deny
+expect "$H" 'cat a.txt >> b.txt' deny
 expect "$H" 'find . -name "*.bak" -delete' ask
 expect "$H" 'sort -o out.txt in.txt' ask
 # A dangerous-flag token belonging to a DIFFERENT command than the guarded head -- past a
@@ -519,19 +520,36 @@ expect "$H" 'grep foo src > "$SCR/list.txt"' deny
 expect "$H" 'grep foo src > $SCR/list.txt' deny
 expect "$H" 'grep foo src >> "$OUT"' deny
 
+# A redirect into the working tree is denied: files here change through the Edit and
+# Write tools, where the change is shown as a diff. That holds for an append, a heredoc
+# fed to cat, and an absolute path under the project; a path leaving the tree still asks.
+expect "$H" 'cat >> tests/x.test.ts <<'"'"'EOF'"'"'
+const a = 1;
+EOF' deny
+expect "$H" "grep foo src > $(pwd)/notes.txt" deny
+expect "$H" 'grep foo src > ../outside.txt' ask
+expect "$H" 'grep foo src > ~/outside.txt' ask
+expect "$H" 'grep foo src > /var/tmp/outside.txt' ask
+# A > glued to text is not a redirect, so read-only commands never meet that deny: an
+# arrow in a heredoc printed to stdout keeps today's ask (arithmetic is pinned below).
+expect "$H" 'cat <<EOF
+a => b
+EOF' ask
+
 # A write redirect must gate no matter which command head precedes it, because a static allow
 # rule for that head (egrep, fgrep, date, pgrep, a read-only git subcommand) would otherwise
 # auto-approve the write; the guard must not depend on a head list. Spacing after > is irrelevant.
-expect "$H" 'egrep foo x > out.txt' ask
-expect "$H" 'fgrep foo x > out.txt' ask
-expect "$H" 'date > stamp.txt' ask
-expect "$H" 'pgrep node > pids.txt' ask
-expect "$H" 'git log > history.txt' ask
-expect "$H" 'git show HEAD > commit.txt' ask
-expect "$H" 'cat a.txt >out.txt' ask
-# A real-file write alongside a /dev/null redirect still asks (the exempt target does not
+# Each of these writes into the working tree, so it is denied rather than asked.
+expect "$H" 'egrep foo x > out.txt' deny
+expect "$H" 'fgrep foo x > out.txt' deny
+expect "$H" 'date > stamp.txt' deny
+expect "$H" 'pgrep node > pids.txt' deny
+expect "$H" 'git log > history.txt' deny
+expect "$H" 'git show HEAD > commit.txt' deny
+expect "$H" 'cat a.txt >out.txt' deny
+# A real-file write alongside a /dev/null redirect still gates (the exempt target does not
 # excuse the real one); fd duplications and a bare /dev/null write are not writes to gate.
-expect "$H" 'cat a.txt > out.txt 2>/dev/null' ask
+expect "$H" 'cat a.txt > out.txt 2>/dev/null' deny
 expect "$H" 'grep foo bar.txt >/dev/null' defer
 expect "$H" 'grep foo bar.txt 2>&1' defer
 expect "$H" 'ls -l >&2' defer
@@ -541,7 +559,7 @@ expect "$H" "grep -rn '=>' src" defer
 expect "$H" "grep -rn '->' src" defer
 expect "$H" "git log --grep='a>b'" defer
 expect "$H" 'grep -rn "=>" src' defer
-expect "$H" "grep -rn '=>' src > out.txt" ask
+expect "$H" "grep -rn '=>' src > out.txt" deny
 # A quoted string spanning lines (an inline SQL <> comparison, a node -e script with
 # arrow functions) is argument text, not a redirect; a real redirect elsewhere in a
 # multiline command still asks.
@@ -550,15 +568,15 @@ expect "$H" 'sqlite3 -readonly db.sqlite "SELECT
 expect "$H" 'node -e "
 fetch(u).then(r=>r.text()).then(t=>console.log(t))"' defer
 expect "$H" 'grep foo f
-sort x > out.txt' ask
+sort x > out.txt' deny
 # A $-bearing quoted argument ("$DB") kept next to the double-quoted inline SQL must not
 # desync quote pairing and expose the SQL's <> (or a bare < / >) as a phantom redirect: a
 # read-only query still defers. A real redirect after them still asks, and a redirect hidden
 # in a command substitution still asks (the $-region is left intact, so its > survives).
 expect "$H" 'sqlite3 -readonly "$DB" "SELECT a FROM t WHERE x<>2"' defer
 expect "$H" 'sqlite3 -readonly "$DB" "SELECT a FROM t WHERE c<3 AND d>1"' defer
-expect "$H" 'sqlite3 -readonly "$DB" "SELECT 1" > out.txt' ask
-expect "$H" 'echo "$(date > f.txt)"' ask
+expect "$H" 'sqlite3 -readonly "$DB" "SELECT 1" > out.txt' deny
+expect "$H" 'echo "$(date > f.txt)"' deny
 # A benign > (arrow, comparison) sharing ONE quoted region with a parameter expansion is
 # still inert: the shell parses redirections before expanding a variable, so a value can
 # never introduce one. A plain $x / ${n} / $HOME in the region must NOT force the arrow to
@@ -571,7 +589,7 @@ expect "$H" 'echo "$user wrote a->b"' defer
 # hidden redirect must be caught); a real redirect after a substitution, a backtick, and
 # arithmetic all keep asking as the conservative, safe direction.
 expect "$H" 'echo "a -> $(date)"' ask
-expect "$H" 'echo "$(cat f)" > realfile.txt' ask
+expect "$H" 'echo "$(cat f)" > realfile.txt' deny
 expect "$H" 'echo "a -> `date`"' ask
 expect "$H" 'echo "$((3>2))"' ask
 

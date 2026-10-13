@@ -175,6 +175,8 @@ def test_the_cutover_build_skips_the_bulk_loader_even_when_the_environment_asks(
     # with the permissive value exported, which is the case the old code served.
     env = dict(os.environ)
     env["CLUBS_SEED"] = "yes"
+    # The script runs only from an entry point; this stands in for ./run_dev.sh.
+    env["FOOTBAG_DATA_BUILD_ENTRY"] = "run_dev"
     result = subprocess.run(
         ["bash", str(DEPLOY), "--all-data", "--dry-run"],
         capture_output=True, text=True, cwd=str(REPO_ROOT), env=env)

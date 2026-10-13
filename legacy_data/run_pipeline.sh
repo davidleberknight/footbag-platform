@@ -280,7 +280,7 @@ run_preflight_enrichment_only() {
         echo "      membership roster (real member data), curated from the IFPA membership" >&2
         echo "      export. It is gitignored and never committed, and cannot be regenerated" >&2
         echo "      from the mirror or the dump; obtain it from the operator." >&2
-        echo "  To build without membership/club enrichment, run the default ./run_dev.sh." >&2
+        echo "  To build without membership/club enrichment, run ./run_dev.sh --reset." >&2
         exit 1
     fi
 
@@ -342,7 +342,7 @@ run_preflight_csv_only() {
         echo "      membership roster (real member data), curated from the IFPA membership" >&2
         echo "      export. It is gitignored and never committed, and cannot be regenerated" >&2
         echo "      from the mirror or the dump; obtain it from the operator." >&2
-        echo "  To build without membership/club enrichment, run the default ./run_dev.sh." >&2
+        echo "  To build without membership/club enrichment, run ./run_dev.sh --reset." >&2
         exit 1
     fi
 
@@ -640,7 +640,11 @@ run_phase_c() {
 #           membership/out/, event_results/canonical_input/persons.csv
 # Produces: clubs/out/
 # =============================================================================
+# $1  optional: the member CSV the leader signals read their paid-tier context
+#     from. Only the csv_only build passes it, as the published member CSV; the
+#     mirror rebuild reads no member data, so its signals carry no tier context.
 run_phase_d() {
+    local member_tiers_csv="${1:-}"
     echo ""
     echo "╔══════════════════════════════════════════════════════╗"
     echo "║  PHASE D: CLUBS PIPELINE                             ║"
@@ -658,7 +662,11 @@ run_phase_d() {
     # affiliations builder needs no second pass.
     python clubs/scripts/02_build_legacy_club_candidates.py
     python clubs/scripts/04_build_club_bootstrap_leaders.py
-    python clubs/scripts/04a_compute_bootstrap_leader_signals.py
+    if [[ -n "$member_tiers_csv" ]]; then
+        python clubs/scripts/04a_compute_bootstrap_leader_signals.py --member-tiers-csv "$member_tiers_csv"
+    else
+        python clubs/scripts/04a_compute_bootstrap_leader_signals.py
+    fi
     python clubs/scripts/05_build_club_only_persons.py
     echo ""
 }
@@ -896,7 +904,7 @@ case "$MODE" in
         run_db_load_canonical
         run_phase_clubs_seed_load
         run_phase_c
-        run_phase_d
+        run_phase_d "${REPO_ROOT}/footbag_private_repo/legacy-publish/legacy_members.csv"
         run_phase_e
         run_phase_f
         run_phase_g
@@ -904,7 +912,7 @@ case "$MODE" in
         run_phase_v
         echo ""
         echo "╔══════════════════════════════════════════════════════╗"
-        echo "║  CSV-ONLY PIPELINE DONE                              ║"
+        echo "║  CSV-ONLY PIPELINE DONE                            ║"
         echo "╚══════════════════════════════════════════════════════╝"
         ;;
 

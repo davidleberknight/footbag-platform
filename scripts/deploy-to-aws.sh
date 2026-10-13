@@ -727,6 +727,8 @@ fi
 # developer's own database. Step 2 sets it again for its own direct invocation,
 # which this path skips.
 export FOOTBAG_DB_FOR_DEPLOY=1
+# deploy-local-data.sh runs only from an entry point, and this deploy is one of them.
+export FOOTBAG_DATA_BUILD_ENTRY=deploy
 
 if [[ "$SOUP_TO_NUTS" == "yes" ]]; then
   echo "==> Step 1 (local DB rebuild): scripts/deploy-local-data.sh --soup-to-nuts"

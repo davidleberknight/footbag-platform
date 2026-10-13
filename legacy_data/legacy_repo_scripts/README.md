@@ -53,9 +53,11 @@ reports/     ingest/seal audit JSONs                        (GITIGNORED except .
 
 ## Status
 
-**Step 0 — scaffolding only.** `seal.py` and `ingest.py` are skeletons; their
-mutating / extraction steps raise `NotImplementedError` on purpose, so running them
-today cannot cause an irreversible change. No ingestion has been run.
+**Retired.** The legacy refresh (`legacy_data/scripts/refresh_legacy_repo_data.py`)
+is the only reader of the legacy repository, and everything downstream reads the
+vetted export it writes into the private checkout. This layer is kept as a record
+and nothing runs it; `seal.py` and `ingest.py` remain skeletons whose mutating and
+extraction steps raise `NotImplementedError`.
 
 ## Dependencies
 

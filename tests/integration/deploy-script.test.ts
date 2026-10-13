@@ -355,12 +355,11 @@ describe('deploy_to_aws.sh wrapper', () => {
   });
 
   it('refuses a rebuild without the maintainers private checkout', () => {
-    // The member intake reads the recorded account rulings and the board roster
-    // from that checkout. A build without them is a different database that looks
-    // identical afterwards: accounts a human ruled to be two people are fused and
-    // one of them becomes unclaimable, and every sitting director loads as an
-    // ordinary member. Neither failure raises an error of its own, so the deploy
-    // refuses rather than quietly producing the lesser build.
+    // The member intake reads the published member CSV and the recorded account
+    // rulings from that checkout. A build without the rulings is a different
+    // database that looks identical afterwards: accounts a human ruled to be two
+    // people are fused and one of them becomes unclaimable, and no error is raised,
+    // so the deploy refuses rather than quietly producing the lesser build.
     const tmpRoot = scaffoldWrapperRoot(false);
     try {
       const r = run('bash', ['deploy_to_aws.sh', '--all-data', '--target', 'production'], {
@@ -560,19 +559,35 @@ describe('deploy --public-data rebuilds staging from public inputs only', () => 
 // --all-data deploy (the full migration load).
 
 describe('scripts/deploy-local-data.sh member-intake dispatch', () => {
+  // The script runs only from an entry point; this stands in for ./run_dev.sh.
+  const ENTRY = { FOOTBAG_DATA_BUILD_ENTRY: 'run_dev' };
+
   // Minimal repo scaffold so --all-data passes its preflights and reaches the
-  // member-intake dispatch under --dry-run: the gitignored membership roster,
-  // a prior intermediate member CSV (so no dump is needed), and the committed
+  // member-intake dispatch under --dry-run: the private checkout carrying the
+  // published member CSV, the gitignored membership roster, and the committed
   // canonical_input CSVs the embedded --from-csv build checks for. --dry-run
   // makes every run_or_print step print instead of execute, so the assertion
-  // reads which runner invocation WOULD run.
-  function scaffoldAllDataRoot(): string {
+  // reads which runner invocation WOULD run. A stub reset-local-db.sh records
+  // whether the database would have been deleted.
+  function scaffoldAllDataRoot(
+    opts: { privateCheckout?: boolean; publishedCsv?: boolean } = {},
+  ): string {
+    const { privateCheckout = true, publishedCsv = true } = opts;
     const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-deploy-local-'));
     fs.mkdirSync(path.join(tmpRoot, 'scripts'), { recursive: true });
     fs.copyFileSync(
       path.join(REPO_ROOT, 'scripts/deploy-local-data.sh'),
       path.join(tmpRoot, 'scripts/deploy-local-data.sh'),
     );
+    fs.writeFileSync(
+      path.join(tmpRoot, 'scripts/reset-local-db.sh'),
+      'touch "$(dirname "$0")/../SLATE_RAN"\n',
+    );
+    if (privateCheckout) {
+      const publish = path.join(tmpRoot, 'footbag_private_repo/legacy-publish');
+      fs.mkdirSync(publish, { recursive: true });
+      if (publishedCsv) fs.writeFileSync(path.join(publish, 'legacy_members.csv'), 'header\n');
+    }
     const ci = path.join(tmpRoot, 'legacy_data/event_results/canonical_input');
     fs.mkdirSync(ci, { recursive: true });
     for (const f of [
@@ -587,9 +602,7 @@ describe('scripts/deploy-local-data.sh member-intake dispatch', () => {
     const membership = path.join(tmpRoot, 'legacy_data/membership/inputs');
     fs.mkdirSync(membership, { recursive: true });
     fs.writeFileSync(path.join(membership, 'membership_input_normalized.csv'), 'header\n');
-    const mds = path.join(tmpRoot, 'legacy_data/member_data_scripts/out');
-    fs.mkdirSync(mds, { recursive: true });
-    fs.writeFileSync(path.join(mds, 'legacy_members_final.csv'), 'header\n');
+    fs.mkdirSync(path.join(tmpRoot, 'footbag_legacy_mirror'), { recursive: true });
     return tmpRoot;
   }
 
@@ -598,6 +611,7 @@ describe('scripts/deploy-local-data.sh member-intake dispatch', () => {
     try {
       const r = run('bash', ['scripts/deploy-local-data.sh', '--all-data', '--dry-run'], {
         cwd: tmpRoot,
+        env: ENTRY,
       });
       expect(r.status).toBe(0);
       const combined = (r.stderr ?? '') + (r.stdout ?? '');
@@ -615,7 +629,7 @@ describe('scripts/deploy-local-data.sh member-intake dispatch', () => {
       const r = run(
         'bash',
         ['scripts/deploy-local-data.sh', '--all-data', '--apply-members', '--dry-run'],
-        { cwd: tmpRoot },
+        { cwd: tmpRoot, env: ENTRY },
       );
       expect(r.status).toBe(0);
       const combined = (r.stderr ?? '') + (r.stdout ?? '');
@@ -627,7 +641,9 @@ describe('scripts/deploy-local-data.sh member-intake dispatch', () => {
   });
 
   it('--apply-members outside --all-data exits 1 (no other mode carries the member intake)', () => {
-    const r = run('bash', ['scripts/deploy-local-data.sh', '--from-csv', '--apply-members'], {});
+    const r = run('bash', ['scripts/deploy-local-data.sh', '--from-csv', '--apply-members'], {
+      env: ENTRY,
+    });
     expect(r.status).toBe(1);
     const combined = (r.stderr ?? '') + (r.stdout ?? '');
     expect(combined).toMatch(/--apply-members is only meaningful with --all-data/);
@@ -639,7 +655,7 @@ describe('scripts/deploy-local-data.sh member-intake dispatch', () => {
       const r = run(
         'bash',
         ['scripts/deploy-local-data.sh', '--all-data', '--cutover-clubs', '--dry-run'],
-        { cwd: tmpRoot },
+        { cwd: tmpRoot, env: ENTRY },
       );
       expect(r.status).toBe(0);
       const combined = (r.stderr ?? '') + (r.stdout ?? '');
@@ -661,7 +677,7 @@ describe('scripts/deploy-local-data.sh member-intake dispatch', () => {
       const r = run('bash', ['scripts/deploy-local-data.sh', '--all-data', '--dry-run'], {
         cwd: tmpRoot,
         // The permissive value the loader used to obey, exported by the caller.
-        env: { CLUBS_SEED: 'yes' },
+        env: { ...ENTRY, CLUBS_SEED: 'yes' },
       });
       expect(r.status).toBe(0);
       const combined = (r.stderr ?? '') + (r.stdout ?? '');
@@ -672,7 +688,9 @@ describe('scripts/deploy-local-data.sh member-intake dispatch', () => {
   });
 
   it('--cutover-clubs outside --all-data exits 1 (the cutover build is the --all-data path)', () => {
-    const r = run('bash', ['scripts/deploy-local-data.sh', '--from-csv', '--cutover-clubs'], {});
+    const r = run('bash', ['scripts/deploy-local-data.sh', '--from-csv', '--cutover-clubs'], {
+      env: ENTRY,
+    });
     expect(r.status).toBe(1);
     const combined = (r.stderr ?? '') + (r.stdout ?? '');
     expect(combined).toMatch(/--cutover-clubs is only meaningful with --all-data/);
@@ -706,6 +724,79 @@ describe('scripts/deploy-local-data.sh member-intake dispatch', () => {
   it('run_dev.sh --all-data passes --apply-members to deploy-local-data.sh (static guard)', () => {
     const content = fs.readFileSync(path.join(REPO_ROOT, 'run_dev.sh'), 'utf8');
     expect(content).toMatch(/deploy-local-data\.sh --all-data --apply-members/);
+  });
+
+  // A direct run skips what each entry point adds around the build, so it is
+  // refused, and refused before anything touches the database.
+  it('a direct invocation is refused before any step runs, naming the entry points', () => {
+    const tmpRoot = scaffoldAllDataRoot();
+    try {
+      const r = run('bash', ['scripts/deploy-local-data.sh', '--all-data'], {
+        cwd: tmpRoot,
+        env: { FOOTBAG_DATA_BUILD_ENTRY: '' },
+      });
+      expect(r.status).toBe(1);
+      expect(r.stderr).toMatch(/not run directly/);
+      expect(r.stderr).toMatch(/\.\/run_dev\.sh/);
+      expect(r.stderr).toMatch(/deploy_to_aws\.sh/);
+      expect(fs.existsSync(path.join(tmpRoot, 'SLATE_RAN'))).toBe(false);
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  // Every entry point must set the marker, or every rebuild through it is refused.
+  it('both entry points set the marker before they call deploy-local-data.sh', () => {
+    for (const [file, value] of [
+      ['run_dev.sh', 'run_dev'],
+      ['scripts/deploy-to-aws.sh', 'deploy'],
+    ] as const) {
+      const content = fs.readFileSync(path.join(REPO_ROOT, file), 'utf8');
+      const marker = content.indexOf(`export FOOTBAG_DATA_BUILD_ENTRY=${value}`);
+      expect(marker, file).toBeGreaterThan(-1);
+      const firstCall = content.search(/^\s*(run_step )?bash \S*deploy-local-data\.sh/m);
+      expect(firstCall, file).toBeGreaterThan(marker);
+    }
+  });
+
+  // A build without the private checkout is wrong in ways nothing afterwards
+  // reports, so each mode that reads it refuses before the slate step deletes the
+  // database it would have replaced.
+  it.each(['--all-data', '--from-csv', '--soup-to-nuts'])(
+    '%s without the private checkout refuses before the database is touched',
+    (mode) => {
+      const tmpRoot = scaffoldAllDataRoot({ privateCheckout: false });
+      try {
+        const r = run('bash', ['scripts/deploy-local-data.sh', mode], {
+          cwd: tmpRoot,
+          env: ENTRY,
+        });
+        expect(r.status).toBe(1);
+        expect(r.stderr).toMatch(/MISSING: footbag_private_repo/);
+        expect(r.stderr).toMatch(/\.\/run_dev\.sh --reset/);
+        expect(r.stderr).toMatch(/deploy_to_aws\.sh --public-data/);
+        expect(fs.existsSync(path.join(tmpRoot, 'SLATE_RAN'))).toBe(false);
+      } finally {
+        fs.rmSync(tmpRoot, { recursive: true, force: true });
+      }
+    },
+  );
+
+  it('--all-data without the published member CSV refuses before the database is touched', () => {
+    const tmpRoot = scaffoldAllDataRoot({ publishedCsv: false });
+    try {
+      const r = run('bash', ['scripts/deploy-local-data.sh', '--all-data'], {
+        cwd: tmpRoot,
+        env: ENTRY,
+      });
+      expect(r.status).toBe(1);
+      expect(r.stderr).toMatch(
+        /MISSING: footbag_private_repo\/legacy-publish\/legacy_members\.csv/,
+      );
+      expect(fs.existsSync(path.join(tmpRoot, 'SLATE_RAN'))).toBe(false);
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
   });
 });
 
@@ -1848,7 +1939,10 @@ describe('schema-drift guards can actually fire, and gate only what they should'
     const branch = gate.slice(0, gate.indexOf('exit 1'));
     expect(branch).not.toMatch(/reset-local-db\.sh/);
     expect(branch).toMatch(/deploy_to_aws\.sh --from-csv/);
-    expect(branch).toMatch(/deploy-local-data\.sh --from-csv/);
+    // The local rebuild goes through the entry point; the orchestrator it calls
+    // refuses a direct run.
+    expect(branch).toMatch(/\.\/run_dev\.sh --from-csv/);
+    expect(branch).not.toMatch(/deploy-local-data\.sh/);
   });
 
   it('the host drift check reads the database through the container, not the host', () => {

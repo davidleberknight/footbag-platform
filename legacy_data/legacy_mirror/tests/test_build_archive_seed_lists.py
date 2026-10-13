@@ -1,4 +1,8 @@
-"""Verification for the archive seed-list generator (build_archive_seed_lists.py).
+"""Verification for the retired archive seed-list generator (build_archive_seed_lists.py).
+
+Kept while the script is kept. The publish step writes the seed lists now, and
+its own tests pin each class's form, filter and order and the set of classes
+seeded.
 
 The generator turns the frozen per-app MySQL dumps into per-class seed-URL lists
 for the archive crawl. Two things break silently and are pinned here: the

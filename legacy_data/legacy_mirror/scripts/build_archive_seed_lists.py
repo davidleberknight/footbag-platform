@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """Emit deterministic seed-URL lists for the footbag.org archive crawl.
 
+Retired: legacy_data/scripts/publish_legacy_repo_data.py writes all seven seed
+lists from the vetted legacy export, so the mirror program reads nothing of the
+legacy repository. Kept as the record of how the first lists were made; nothing
+runs it.
+
 The archive crawler discovers pages by following links outward from a few index
 pages. Whole content classes are unreachable that way because the site's own
 index queries hide them. The clubs directory is the clearest case: it lists only

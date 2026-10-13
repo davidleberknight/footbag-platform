@@ -8238,6 +8238,7 @@ export interface LegacyMemberRow {
   legacy_ever_paid_tier2: number;
   legacy_ever_paid_tier1_lifetime: number;
   legacy_tier1_annual_active_at_cutover: number;
+  legacy_was_board_at_cutover: number;
   import_source: string | null;
   imported_at: string;
   version: number;
@@ -8298,6 +8299,7 @@ export const legacyMembers = {
       ifpa_join_date, first_competition_year,
       is_hof, is_bap, legacy_is_admin,
       legacy_ever_paid_tier2, legacy_ever_paid_tier1_lifetime, legacy_tier1_annual_active_at_cutover,
+      legacy_was_board_at_cutover,
       claimed_by_member_id, claimed_at
     FROM legacy_members
     WHERE legacy_member_id = ?
@@ -8951,16 +8953,17 @@ export const memberTier = {
     LIMIT 1
   `); },
 
-  // Latest grant excluding the legacy-claim marker, used by the auto-link
-  // revert to restore the tier the member would hold without the legacy claim.
-  // member_tier_current is last-write-wins, so the revert writes a fresh row
-  // carrying this tier; a member whose only tier came from the legacy claim has
-  // no such row and falls back to tier0.
+  // Latest grant excluding the legacy claim's own rows (its tier grant and, for a
+  // director, its board grant), used by the auto-link revert to restore the tier
+  // the member would hold without the legacy claim. member_tier_current is
+  // last-write-wins, so the revert writes a fresh row carrying this tier; a
+  // member whose only tier came from the legacy claim has no such row and falls
+  // back to tier0.
   get getLatestNonLegacyClaimGrant() { return db.prepare(`
     SELECT new_tier_status, new_underlying_tier_status
     FROM member_tier_grants
     WHERE member_id = ?
-      AND reason_code != 'legacy.claim_tier_grant'
+      AND reason_code NOT IN ('legacy.claim_tier_grant', 'legacy.claim_board_grant')
     ORDER BY created_at DESC, id DESC
     LIMIT 1
   `); },
@@ -10789,7 +10792,7 @@ export const memberExport = {
 // recurring donation establishes.
 export const memberBilling = {
   get findDonorProfile() { return db.prepare(`
-    SELECT id, slug, login_email, real_name, is_hof, is_bap, stripe_customer_id
+    SELECT id, slug, login_email, real_name, is_hof, stripe_customer_id
     FROM members_active
     WHERE id = ?
       AND is_deceased = 0

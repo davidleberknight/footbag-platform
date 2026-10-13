@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """Extract legacy footbag.org `moves` metadata into a committed artifact.
 
+Retired: its output is frozen migration data, and nothing but the legacy refresh
+reads the legacy repository. Kept as the record of how the artifact was made;
+nothing runs it.
+
 One-time provenance/preservation tool (sibling to the Member Tips extractor).
-Reads the legacy moves2 SQL dump from the Steve Goldberg clone (outside this
+Reads the legacy moves2 SQL dump from the legacy webmaster's clone (outside this
 repo) and emits a clean NDJSON snapshot of the `moves` table under
 freestyle/inputs/ so the recoverable freestyle metadata is no longer
 clone-dependent. NOT part of the rebuild; rerun explicitly when the source

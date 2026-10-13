@@ -72,13 +72,9 @@
     </div>
   </form>
 
-  {{!-- Separate form: nesting it inside the edit form would orphan the
-        edit form's controls (HTML closes the outer form at the first
-        closing form tag). Deletion is permanent with cascading tag
-        removal. --}}
-  <form method="POST" action="{{content.deleteAction}}" class="inline-form" data-confirm="Delete this item permanently? Its tags are removed with it. This cannot be undone.">
-    <button type="submit" class="btn btn-outline btn-sm">Delete This Item</button>
-  </form>
+  {{!-- A link, not a form: deletion is permanent with cascading tag removal,
+        so it goes through a confirm page that works without JavaScript. --}}
+  <a href="{{content.deleteConfirmHref}}" class="btn btn-outline btn-sm">Delete This Item</a>
 </div>
 <script src="{{{asset 'js/tag-chips.js'}}}" defer></script>
 {{#if content.tagSuggestions}}

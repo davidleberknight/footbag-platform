@@ -14,6 +14,9 @@ This directory contains the identity resolution tables consumed by the canonical
 
 These are the files referenced by `run_pipeline.sh` and other pipeline consumers. Do not modify them by hand.
 
+When a person has changed their surname, the record carries the current name, and the name their
+results were published under is kept as an alias, so both find the same person.
+
 ## Patch toolchain and version trail
 
 `Persons_Truth_Final.csv` and `Placements_ByPerson.csv` are mutated in place by the patch scripts under `legacy_data/tools/patch_pt_*.py` and `legacy_data/tools/patch_placements_*.py`. Each patch lands as its own commit; `git log` is the version trail.

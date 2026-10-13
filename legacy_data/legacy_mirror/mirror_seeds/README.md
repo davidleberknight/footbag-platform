@@ -1,8 +1,11 @@
 # Archive crawl seed lists
 
 Plain seed-URL lists for the footbag.org archive crawl, one file per content
-class, generated from the frozen per-app MySQL dumps by
-`legacy_data/legacy_mirror/scripts/build_archive_seed_lists.py`.
+class. `clubs.txt`, `events.txt`, `faq.txt`, `gallery.txt`, `members.txt`,
+`moves.txt` and `rules.txt` are written by
+`legacy_data/scripts/publish_legacy_repo_data.py` from the vetted legacy export;
+the `vhost_*.txt` lists by `legacy_data/legacy_mirror/scripts/build_vhost_seed_lists.py`
+from the WordPress vhost; `groups.txt` is maintained by hand.
 
 The archive crawler finds pages by following links out from a few index pages.
 Some content is linked from no index page, so link-following never reaches it.
@@ -13,12 +16,13 @@ straight to the crawler.
 ## Regenerate
 
 ```
-legacy_data/footbag_venv/bin/python legacy_data/legacy_mirror/scripts/build_archive_seed_lists.py
+legacy_data/footbag_venv/bin/python legacy_data/scripts/publish_legacy_repo_data.py --cutover-date YYYY-MM-DD
 ```
 
-Reads the dumps through the `footbag_legacy_repo` symlink at the repo root; it
-never contacts the live site. `--dry-run` prints per-class counts without
-writing.
+Publish reads only the vetted export in the private checkout and never contacts
+the live site; its report counts each list. The retired
+`build_archive_seed_lists.py` stays as the record of how each class was first
+derived.
 
 ## Content classes
 

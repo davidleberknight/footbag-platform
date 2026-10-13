@@ -1056,7 +1056,7 @@ Rules:
 
    - `members` = authenticated accounts on this platform. Identified by `members.id`; addressable by `members.slug`. Hold credentials, tier, profile fields, optional avatar, mailing-list subscriptions.
 
-   - `legacy_members` = imported archival records of old footbag.org user accounts (from the mirror and the forthcoming legacy data dump). Identified by `legacy_members.legacy_member_id` (the old-site account id). Read-only after import; never deleted; hold no live credentials. Persist as the permanent audit record of a legacy account even after a current member claims it.
+   - `legacy_members` = imported archival records of old footbag.org user accounts (from the mirror and the legacy data dump). Identified by `legacy_members.legacy_member_id` (the old-site account id). Read-only after import; never deleted; hold no live credentials. Persist as the permanent audit record of a legacy account even after a current member claims it.
 
    - `historical_persons` = archival records of past participants sourced from event data and (future) mirror club-roster extraction. Identified by `historical_persons.person_id`. Read-only; never deleted; hold no credentials. Contact information, if present, is admin-surface only and never publicly rendered.
 
@@ -1139,7 +1139,7 @@ Hashtag-driven coupling extends to freestyle tricks, sets, operators, families, 
 
 A freestyle concept's hashtag form is decided by the *role* it plays, not by its row type. A trick takes the bare token: its slug, its hashtag body (the text after `#`), and its detail-page URL segment are one identical lowercase underscore token. A non-trick concept (a set, an operator or modifier, a trick family) takes a fixed role prefix over that same body, so the bare-token namespace is reserved for trick-role media. A concept that is genuinely both a performed trick and a set carries both forms, and membership in that dual-role set is a curator decision, never derived from a row's stored type. The concrete forms are specified in `V_View_Trick_Reference_Videos`, and the redirect of a modifier or operator to its own page in `V_View_Trick_Detail`.
 
-Person hashtags reuse the member slug. Records have no separate hashtag namespace; record-attributed media is reachable through its parent trick's gallery. No foreign key exists from `media_items` to domain tables; domain coupling is purely tag-based. `tags.standard_type` remains scoped to events and clubs.
+A person is credited by a player hashtag, `#player_{person_slug}`, which names an existing historical-person record and never creates one; the uploader hashtag `#by_{member_slug}` is system-applied and names who uploaded. Records have no separate hashtag namespace; record-attributed media is reachable through its parent trick's gallery. No foreign key exists from `media_items` to domain tables; domain coupling is purely tag-based. `tags.standard_type` remains scoped to events and clubs.
 
 Alias hashtags for tricks canonicalize to the parent trick's slug at write time on every curator path (admin UI, seeder, migration script); `tags` and `media_tags` therefore carry canonical slugs only, and `freestyle_trick_aliases` is the single source of truth for the alias-to-canonical mapping.
 

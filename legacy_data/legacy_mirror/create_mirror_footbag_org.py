@@ -129,7 +129,6 @@ import hashlib
 import argparse
 import html
 import fnmatch
-import importlib.util
 import json
 from collections import Counter
 from urllib.parse import urljoin, urlparse, urlsplit, urlunparse, unquote, parse_qs, unquote_plus, urlencode, quote
@@ -1629,7 +1628,7 @@ DESTRUCTIVE_ROUTES = frozenset({
 })
 
 # Editor / confirm / moderation / admin VIEWS enumerated from the legacy PHP app
-# source (footbag_legacy_repo), keyed by section/action like DESTRUCTIVE_ROUTES.
+# source, keyed by section/action like DESTRUCTIVE_ROUTES.
 # Distinct purpose: these are a CAPTURE prohibition, not only mutation safety. A
 # member-crawler must never fetch them because they expose admin/editor content
 # the member-only archive excludes, and several mutate on a plain GET (e.g.
@@ -6302,27 +6301,22 @@ def _linked_targets(www_root, exclude):
     return linked
 
 
-_SEED_BUILDER = SCRIPT_DIR / 'scripts' / 'build_archive_seed_lists.py'
+APPROVED_EVENT_IDS = SCRIPT_DIR / 'approved_event_ids.txt'
 _EVENT_SEED_ID_RE = re.compile(r'^/events/show/(\d+)/?$')
 
 
 def _calendar_listed_event_ids():
     """Event ids the legacy calendar was willing to show, or None when unknown.
 
-    Asked of the seed builder rather than read here, because that is where the
-    frozen dump's table shape is already understood and two readers of the same
-    columns eventually disagree about which one carries approval.
+    Read from the list publish_legacy_repo_data.py writes from the vetted legacy
+    export, one id per line. Approval survives only in that export, so without
+    the list an approved event cannot be told from a withheld one and the answer
+    is None rather than a guess.
     """
-    if not _SEED_BUILDER.is_file():
+    if not APPROVED_EVENT_IDS.is_file():
         return None
-    spec = importlib.util.spec_from_file_location(
-        'archive_seed_builder', str(_SEED_BUILDER))
-    module = importlib.util.module_from_spec(spec)
-    try:
-        spec.loader.exec_module(module)
-        return module.approved_event_ids()
-    except (OSError, SystemExit, AttributeError):
-        return None
+    return {line.strip() for line in APPROVED_EVENT_IDS.read_text(encoding='utf-8').splitlines()
+            if line.strip()}
 
 
 def _withheld_seed_urls(slug, urls):
@@ -6339,8 +6333,9 @@ def _withheld_seed_urls(slug, urls):
     # that decision for every reader the archive admits.
     listed = _calendar_listed_event_ids()
     if listed is None:
-        return set(urls), ('the legacy clone is not attached, so approved and '
-                           'withheld events cannot be told apart')
+        return set(urls), ('approved_event_ids.txt is absent (run '
+                           'legacy_data/scripts/publish_legacy_repo_data.py), so approved '
+                           'and withheld events cannot be told apart')
     withheld = set()
     for url in urls:
         m = _EVENT_SEED_ID_RE.match(urlparse(url).path)
@@ -8939,7 +8934,7 @@ def load_seed_urls(paths):
     # Read seed URLs from the given files, or from every .txt inside a given
     # directory. Lines are absolute URLs, one per line; blanks and '#' comment
     # lines are tolerated. A missing path is a one-line actionable warning, not
-    # a crash: the seed lists come from build_archive_seed_lists.py and a clone
+    # a crash: the seed lists come from publish_legacy_repo_data.py and a clone
     # without them can still run a plain link-following crawl.
     files = []
     for p in paths:
@@ -8951,7 +8946,7 @@ def load_seed_urls(paths):
         else:
             logging.warning(
                 f"Seed path not found: {p} (generate seed lists with "
-                f"legacy_data/legacy_mirror/scripts/build_archive_seed_lists.py)")
+                f"legacy_data/scripts/publish_legacy_repo_data.py)")
     urls = []
     for f in files:
         count = 0

@@ -397,13 +397,93 @@ describe('member per-item media delete route', () => {
     expect(rowExists(avatarId)).toBe(true);
   });
 
-  it('the edit page renders the delete form with a confirm guard', async () => {
+  it('the edit page links Delete This Item to the confirm page instead of posting the delete', async () => {
     const mediaId = insertOwnerMedia('owner-delete-form.jpg');
     const res = await request(createApp())
       .get(`/members/${OWNER_SLUG}/media/${mediaId}/edit`)
       .set('Cookie', cookieFor(OWNER_ID));
     expect(res.status).toBe(200);
-    expect(res.text).toContain(`action="/members/${OWNER_SLUG}/media/${mediaId}/delete"`);
-    expect(res.text).toContain('data-confirm=');
+    // A form posting here would delete on one click wherever JavaScript is off.
+    expect(res.text).toContain(`href="/members/${OWNER_SLUG}/media/${mediaId}/delete"`);
+    expect(res.text).not.toContain(`action="/members/${OWNER_SLUG}/media/${mediaId}/delete"`);
+  });
+});
+
+describe('member per-item media delete confirm page', () => {
+  function rowExists(mediaId: string): boolean {
+    const db = new BetterSqlite3(dbPath);
+    try {
+      return db.prepare('SELECT 1 FROM media_items WHERE id = ?').get(mediaId) !== undefined;
+    } finally { db.close(); }
+  }
+
+  it('shows the owner the item and the consequence, deletes nothing, and posts only from its own button', async () => {
+    const mediaId = insertOwnerMedia('owner-confirm.jpg', 'Sunset hackey session');
+    const db = new BetterSqlite3(dbPath);
+    db.pragma('foreign_keys = ON');
+    try {
+      attachMediaTag(db, mediaId, insertTag(db, { tag_normalized: '#mme_confirm_tag', tag_display: '#mme_confirm_tag' }));
+      // Another case in this file may already have created the uploader tag.
+      const existing = db.prepare('SELECT id FROM tags WHERE tag_normalized = ?').get(`#by_${OWNER_SLUG}`) as
+        | { id: string } | undefined;
+      attachMediaTag(db, mediaId, existing?.id
+        ?? insertTag(db, { tag_normalized: `#by_${OWNER_SLUG}`, tag_display: `#by_${OWNER_SLUG}` }));
+    } finally { db.close(); }
+
+    const deleteAction = `/members/${OWNER_SLUG}/media/${mediaId}/delete`;
+    const res = await request(createApp())
+      .get(deleteAction)
+      .set('Cookie', cookieFor(OWNER_ID));
+
+    expect(res.status).toBe(200);
+    // The member must see which item goes before committing to a permanent loss.
+    expect(res.text).toContain('Sunset hackey session');
+    expect(res.text).toContain('#mme_confirm_tag');
+    // The platform's own uploader marker is not one of the member's tags.
+    expect(res.text).not.toContain(`#by_${OWNER_SLUG}`);
+    expect(res.text).toContain('This cannot be undone.');
+    // Exactly one form posts the delete, and Cancel returns to the edit page.
+    expect(res.text.split(`action="${deleteAction}"`)).toHaveLength(2);
+    expect(res.text).toContain(`href="/members/${OWNER_SLUG}/media/${mediaId}/edit"`);
+    // Viewing the confirm page is not the delete.
+    expect(rowExists(mediaId)).toBe(true);
+  });
+
+  it("404s another member's item, another member's path, an unknown id, an avatar and the upload segment", async () => {
+    const otherMediaId = insertOtherMedia('other-confirm.jpg');
+    const ownMediaId = insertOwnerMedia('owner-confirm-other-path.jpg');
+    const db = new BetterSqlite3(dbPath);
+    db.pragma('foreign_keys = ON');
+    // One avatar per member, and the owner's is taken by another case here.
+    const avatarId = insertMediaItem(db, { uploader_member_id: OTHER_ID, is_avatar: 1, source_filename: 'other-avatar-confirm.jpg', caption: null });
+    db.close();
+
+    const cases: Array<[string, string]> = [
+      [`/members/${OWNER_SLUG}/media/${otherMediaId}/delete`, OWNER_ID],
+      [`/members/${OWNER_SLUG}/media/${ownMediaId}/delete`, OTHER_ID],
+      [`/members/${OWNER_SLUG}/media/no-such-item/delete`, OWNER_ID],
+      [`/members/${OTHER_SLUG}/media/${avatarId}/delete`, OTHER_ID],
+      [`/members/${OWNER_SLUG}/media/upload/delete`, OWNER_ID],
+    ];
+    for (const [url, as] of cases) {
+      const res = await request(createApp()).get(url).set('Cookie', cookieFor(as));
+      expect(res.status, `${as} -> ${url}`).toBe(404);
+    }
+  });
+
+  it('refuses a tier-0 owner (403) and sends an unauthenticated visitor to log in', async () => {
+    const db = new BetterSqlite3(dbPath);
+    db.pragma('foreign_keys = ON');
+    const tier0MediaId = insertMediaItem(db, { uploader_member_id: TIER0_ID, source_filename: 'tier0-confirm.jpg', caption: null });
+    db.close();
+    const tier0 = await request(createApp())
+      .get(`/members/${TIER0_SLUG}/media/${tier0MediaId}/delete`)
+      .set('Cookie', cookieFor(TIER0_ID));
+    expect(tier0.status).toBe(403);
+
+    const mediaId = insertOwnerMedia('owner-confirm-anon.jpg');
+    const anon = await request(createApp()).get(`/members/${OWNER_SLUG}/media/${mediaId}/delete`);
+    expect(anon.status).toBe(302);
+    expect(anon.headers.location).toMatch(/\/login/);
   });
 });

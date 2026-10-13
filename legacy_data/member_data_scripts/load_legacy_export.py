@@ -117,6 +117,14 @@ FIELD_ALIASES: dict[str, list[str]] = {
     "legacy_ever_paid_tier2":                ["legacy_ever_paid_tier2"],
     "legacy_ever_paid_tier1_lifetime":       ["legacy_ever_paid_tier1_lifetime"],
     "legacy_tier1_annual_active_at_cutover": ["legacy_tier1_annual_active_at_cutover"],
+    # Non-required: a director on the current legacy board roster at cutover. The
+    # published member CSV always carries it; the claim reads it to grant board
+    # standing.
+    "legacy_was_board_at_cutover": ["legacy_was_board_at_cutover"],
+    # The published CSV carries the board seat's underlying tier as an empty
+    # column, because the claim derives that tier from the same bases as every
+    # claim grant. Mapped so it is read and ignored rather than reported unmapped.
+    "legacy_board_underlying_paid_tier": ["legacy_board_underlying_paid_tier"],
     # Non-required: the raw source record-modification timestamp that decides
     # shared-email ownership. Newer extracts emit "legacy_member_modified"; older
     # exports lack the column entirely, and a shared-email group with no complete
@@ -406,7 +414,7 @@ def main() -> None:
             first_competition_year),
           is_hof = ?, is_bap = ?, legacy_is_admin = ?,
           legacy_ever_paid_tier2 = ?, legacy_ever_paid_tier1_lifetime = ?,
-          legacy_tier1_annual_active_at_cutover = ?,
+          legacy_tier1_annual_active_at_cutover = ?, legacy_was_board_at_cutover = ?,
           import_source = 'legacy_site_data', imported_at = ?, version = version + 1
         WHERE legacy_member_id = ?
     """
@@ -418,10 +426,11 @@ def main() -> None:
           street_address, postal_code, ifpa_join_date, first_competition_year,
           is_hof, is_bap, legacy_is_admin,
           legacy_ever_paid_tier2, legacy_ever_paid_tier1_lifetime,
-          legacy_tier1_annual_active_at_cutover, import_source, imported_at
+          legacy_tier1_annual_active_at_cutover, legacy_was_board_at_cutover,
+          import_source, imported_at
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
           (SELECT first_year FROM historical_persons WHERE legacy_member_id = ?),
-          ?, ?, ?, ?, ?, ?, 'legacy_site_data', ?)
+          ?, ?, ?, ?, ?, ?, ?, 'legacy_site_data', ?)
     """
 
     merge_map: dict[str, str] = {}
@@ -480,6 +489,7 @@ def main() -> None:
             truthy(field(row, "legacy_ever_paid_tier2")),
             truthy(field(row, "legacy_ever_paid_tier1_lifetime")),
             truthy(field(row, "legacy_tier1_annual_active_at_cutover")),
+            truthy(field(row, "legacy_was_board_at_cutover")),
             ts,
         )
         if existing:

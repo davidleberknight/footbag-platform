@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Fill `legacy_is_admin` on the members export CSV from the legacy admins dump.
 
+Retired: publish_legacy_repo_data.py sets the admin flag from the vetted
+legacy-site CSVs, and the member load reads its published member CSV. Kept as
+the record of how earlier member extracts were made; nothing runs it.
+
 Reads the canonical members CSV (emitted by `extract_legacy_members.py`) and the
 legacy `admins` table mysqldump, and rewrites the CSV with `legacy_is_admin` set
 to 1 for every account whose admin row has `AdminValid = 1` (keyed

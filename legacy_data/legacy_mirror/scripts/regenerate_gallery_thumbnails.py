@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Regenerate missing gallery thumbnails in the footbag.org archive mirror.
 
+Retired: the thumbnail repair is no longer part of the final mirror, and the
+mirror program reads nothing of the legacy repository. Kept as the record of the
+legacy sizing model; nothing runs it.
+
 The legacy gallery stored, per image, a full-size file and a matching thumbnail
 (the `images.ImageLocalFile` / `images.ImageLocalThumbnail` pair in the gallery
 database). Some thumbnails never downloaded during the crawl even though their
@@ -164,11 +168,19 @@ def parse_images_table(dump_text):
 
 
 def mirror_path(mirror_root, url_or_path):
-    """Map a gallery URL (or path) to its local file under www.footbag.org/."""
+    """Map a gallery URL (or path) to its local file under www.footbag.org/, or
+    None when the path would resolve outside that tree. The paths come from
+    legacy data and this tool writes where they point, so a parent-directory
+    segment, encoded or not, or a symbolic link out of the tree is refused."""
     if not url_or_path:
         return None
     path = urlparse(url_or_path).path or url_or_path
-    return os.path.join(mirror_root, "www.footbag.org", unquote(path).lstrip("/"))
+    site = os.path.join(mirror_root, "www.footbag.org")
+    local = os.path.join(site, unquote(path).lstrip("/"))
+    root = os.path.realpath(site)
+    if not os.path.realpath(local).startswith(root + os.sep):
+        return None
+    return local
 
 
 def _db_dims(row):

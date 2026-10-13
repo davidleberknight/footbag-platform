@@ -11,9 +11,10 @@ ID spaces agreeing. This compares, read-only:
 
 and reports the gaps: profile-URL IDs with no member account (a link that would
 break), and account-link IDs with no member row (a result attribution pointing at
-nothing). `legacy_members` is currently mirror-seeded from these same profile URLs,
-so today A largely derives from B and high overlap is expected; the check is the
-reusable harness that becomes decisive when A is the real dump's MemberID column.
+nothing). After a member load, A holds the legacy MemberID column from the published
+member CSV over the mirror pre-seed, so a gap is a real disagreement between the two
+ID spaces; on a database with no member load, A is the pre-seed derived from B and
+high overlap says nothing.
 
 Writes no database rows. All values are opaque numeric IDs; no names or personal
 fields are emitted. Output is written under legacy_data/reports/, which is not

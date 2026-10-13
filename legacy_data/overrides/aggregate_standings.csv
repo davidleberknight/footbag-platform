@@ -36,6 +36,9 @@ event_key,discipline_key,scope,confidence,evidence
 1998_worlds_montreal,womens_individual_overall,cross_sport,inferred,mirror event 876591529 OVERALL RANKINGS section after net freestyle and consecutive divisions
 1999_montana_invitational,open_overall,cross_sport,verified,mirror event 931840905: 5-4-3-2-1 points over golf freestyle singles net doubles net and consecutives (recomputed)
 1999_montana_invitational,novice_overall,cross_sport,inferred,mirror event 931840905: novice placers span golf net freestyle and consecutives
+2002_de_france_de,unknown,cross_sport,verified,mirror event 1030830356 heading Overall Champions; the event ran net and freestyle contests
+2003_footbagjam_copenhagen,unknown,cross_sport,verified,mirror event 1052775366 heading Best ranged Danish players; an overall for the best all-around player (Dave)
+2008_texas_statewide,unknown,cross_sport,verified,mirror event 1216849705 Iron Man competition: consecutives stalls ATW net serve golf putts net set and spike; an overall (Dave)
 2004_umaine_hacky_sack,open_overall,cross_sport,provisional,"scope not established: combines Shred Endurance Elimination Shred 30 and Sick 3; Endurance is undefined in the source, so cross-sport holds only if it is a kick count"
 2004_umaine_hacky_sack,intermediate_overall,cross_sport,provisional,"scope not established: combines Shred Endurance Elimination Shred 30 and Sick 3; Endurance is undefined in the source, so cross-sport holds only if it is a kick count"
 2016_austrian,freestyle_overall,freestyle,verified,mirror event 1473932659 heading Overall Austria (Battle + Circle)

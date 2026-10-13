@@ -244,7 +244,8 @@ import { appendAuditEntry } from './auditService';
 import { recordOperationalError } from './operationalErrors';
 import { liftOwnAddressSuppression, recoverBouncedAddressInTx } from './emailSubscriptionService';
 import {
-  applyAutoLinkRevertGrantInTx, applyLegacyClaimGrantInTx, hasHonorGrant,
+  applyAutoLinkRevertGrantInTx, applyLegacyClaimBoardGrantInTx, applyLegacyClaimGrantInTx,
+  hasHonorGrant,
 } from './membershipTieringService';
 import { createHash } from 'crypto';
 import { logger } from '../config/logger';
@@ -2092,6 +2093,14 @@ function claimLegacyAccountInTxInner(
     legacy_user_id:   row.legacy_user_id,
     transitive_hp_id: hp?.person_id ?? null,
   });
+  // A director on the current legacy board roster at cutover inherits board
+  // standing and Tier 3; the tier just granted is the one it reverts to.
+  if (row.legacy_was_board_at_cutover) {
+    applyLegacyClaimBoardGrantInTx(actor, requestingMemberId, {
+      source:           'legacy_claim',
+      legacy_member_id: row.legacy_member_id,
+    });
+  }
 
   // Audit-trail for the legacy claim merge. Symmetric with the
   // claim.historical_person entry written by claimHistoricalPerson — both
@@ -2536,6 +2545,7 @@ function claimHistoricalPersonInTxInner(
   let everPaidTier2 = false;
   let everPaidTier1Lifetime = false;
   let tier1AnnualActive = false;
+  let wasBoardAtCutover = false;
 
   // Birth-date evidence, mirroring the legacy-account claim path: when this
   // historical record resolves through to a legacy account carrying a birth
@@ -2561,6 +2571,7 @@ function claimHistoricalPersonInTxInner(
       everPaidTier2 = Boolean(lm.legacy_ever_paid_tier2);
       everPaidTier1Lifetime = Boolean(lm.legacy_ever_paid_tier1_lifetime);
       tier1AnnualActive = Boolean(lm.legacy_tier1_annual_active_at_cutover);
+      wasBoardAtCutover = Boolean(lm.legacy_was_board_at_cutover);
       dobComparison = member.birth_date && lm.birth_date
         ? compareBirthDates(member.birth_date, lm.birth_date)
         : member.birth_date
@@ -2673,6 +2684,14 @@ function claimHistoricalPersonInTxInner(
       transitive_legacy_id: hp.legacy_member_id ?? null,
     },
   );
+  // Claiming the record claims its linked legacy account, board standing included.
+  if (wasBoardAtCutover) {
+    applyLegacyClaimBoardGrantInTx(actor, requestingMemberId, {
+      source:               'direct_hp_claim',
+      person_id:            hp.person_id,
+      transitive_legacy_id: hp.legacy_member_id,
+    });
+  }
 
   appendAuditEntry({
     actionType:    'claim.historical_person',

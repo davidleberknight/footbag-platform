@@ -73,6 +73,63 @@ def test_a_format_with_no_text_extraction_never_matches():
     assert not fgf.looks_like_member_roster(ROSTER_TXT, 'ifpa/groups/x/roster.pdf')
 
 
+def test_an_earlier_capture_is_consulted_only_when_one_is_named(tmp_path, monkeypatch):
+    # Without a named capture the lookup must fall through to fetching from the
+    # site, not consult a path that exists only on one maintainer's machine; with
+    # one, a file it holds is found there.
+    monkeypatch.setattr(fgf, 'ARCHIVE', tmp_path / 'archive')
+    monkeypatch.setattr(fgf, 'CUSTODY', tmp_path / 'custody')
+    rel = 'ifpa/groups/x/minutes.txt'
+    previous = tmp_path / 'previous'
+    (previous / rel).parent.mkdir(parents=True)
+    (previous / rel).write_bytes(MINUTES_TXT)
+    monkeypatch.setattr(fgf, 'PREVIOUS', None)
+    assert fgf.held(rel) is None
+    monkeypatch.setattr(fgf, 'PREVIOUS', previous)
+    assert fgf.held(rel) == 'previous capture'
+
+
+INVENTORY_HEADER = ('FileID,FileVisible,FileGroupID,FileLocation,FileScope,'
+                    'CommitteeName,CommitteePublic\n')
+
+
+def test_routing_follows_scope_committee_visibility_and_the_exclusion_list(tmp_path,
+                                                                          monkeypatch):
+    # Any of the three tests marking a file private must send it to custody; a
+    # public committee's unscoped file, or one whose committee is unknown, is
+    # member-visible. A row with no location cannot be fetched and is skipped.
+    inventory = tmp_path / 'GROUP_FILES_INVENTORY.csv'
+    inventory.write_text(
+        INVENTORY_HEADER
+        + '1,1,12,/ifpa/groups/open/scoped.pdf,2,Open Group,1\n'
+        + '2,1,5,/ifpa/groups/secret/a.txt,0,Secret Group,0\n'
+        + '3,1,12,/ifpa/groups/open/public.pdf,0,Open Group,1\n'
+        + '4,1,44,/ifpa/groups/gone/b.txt,0,,\n'
+        + '5,1,12,/ifpa/groups/open/listed.pdf,0,Open Group,1\n'
+        + '6,1,12,,0,Open Group,1\n', encoding='utf-8')
+    monkeypatch.setattr(fgf, 'INVENTORY', inventory)
+    rows = fgf.inventory()
+    groups = fgf.committees(rows)
+    exclusions = {'ifpa/groups/open/listed.pdf'}
+    verdicts = {r['FileID']: fgf.is_private(r['FileLocation'].lstrip('/'), r, groups, exclusions)
+                for r in rows}
+    assert verdicts == {'1': True, '2': True, '3': False, '4': False, '5': True}
+    assert '[Secret Group]' in fgf.note_for(rows[1], groups)
+    assert '[unknown committee]' in fgf.note_for(rows[3], groups)
+
+
+def test_a_missing_inventory_names_the_publish_step(tmp_path, monkeypatch):
+    # Without the inventory there is nothing to route on; the operator must be
+    # told which script writes it rather than handed a stack trace.
+    monkeypatch.setattr(fgf, 'INVENTORY', tmp_path / 'absent.csv')
+    try:
+        fgf.inventory()
+    except SystemExit as exc:
+        assert 'publish_legacy_repo_data.py' in str(exc)
+    else:
+        raise AssertionError('a missing inventory was read as empty')
+
+
 def test_the_real_recovered_files_from_this_session_still_match():
     custody_root = fgf.CUSTODY / 'www.footbag.org'
     ga = custody_root / 'ifpa' / 'groups' / 'SOUF' / 'ga member.txt'

@@ -3,6 +3,11 @@
 ingest.py — extract allowlisted tables from a sealed raw dump into
 provenance-stamped NDJSON, with a payload-free audit report.
 
+RETIRED: dormant. The legacy refresh (legacy_data/scripts/
+refresh_legacy_repo_data.py) is the only reader of the legacy repository, and
+everything downstream reads the vetted export it writes. Kept as a record;
+nothing runs it.
+
 ENGINE: a minimal, pure-Python mysqldump parser. Chosen for simple,
 non-sensitive, single-table dumps (the news slice): no Docker, no server, and it
 reads the dump bytes directly so charset handling is fully controlled. Robust

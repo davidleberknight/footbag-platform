@@ -36,11 +36,10 @@ import requests
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 CRAWLER = REPO_ROOT / 'legacy_data/legacy_mirror/create_mirror_footbag_org.py'
-INVENTORY = REPO_ROOT / 'footbag_private_repo/legacy-export/groups/ifpa_group_files.csv'
-COMMITTEES = REPO_ROOT / 'footbag_private_repo/legacy-export/groups/ifpa_committees.csv'
 CUSTODY = REPO_ROOT / 'footbag_private_repo/private-custody/ifpa-group-files'
 ARCHIVE = REPO_ROOT / 'legacy_data/legacy_mirror/mirror_footbag_org/www.footbag.org'
-PREVIOUS = Path('/home/footbag/GITHUB/mirror_footbag_org.OLD/www.footbag.org')
+# An earlier capture's www.footbag.org tree, named with --previous; none by default.
+PREVIOUS = None
 
 _spec = importlib.util.spec_from_file_location('crawler', str(CRAWLER))
 crawler = importlib.util.module_from_spec(_spec)
@@ -52,11 +51,19 @@ DELAY = crawler.DELAY_SECONDS
 
 
 EXCLUSIONS = CUSTODY / 'CRAWL_EXCLUSIONS.txt'
+# Every group file with its location, scope and committee visibility. Written by
+# legacy_data/scripts/publish_legacy_repo_data.py beside the exclusion list, so
+# this program reads nothing of the legacy export itself.
+INVENTORY = CUSTODY / 'GROUP_FILES_INVENTORY.csv'
 
 
-def committees():
-    with COMMITTEES.open(encoding='utf-8', errors='replace') as fh:
-        return {row['CommitteeID']: row for row in csv.DictReader(fh)}
+def committees(rows):
+    """Each committee the inventory names, by id, with its name and public flag.
+    A file whose committee the export did not hold carries empty committee
+    columns and contributes nothing here."""
+    return {row['FileGroupID']: {'CommitteeName': row['CommitteeName'],
+                                 'CommitteePublic': row['CommitteePublic']}
+            for row in rows if row['CommitteePublic']}
 
 
 def excluded_paths():
@@ -136,6 +143,10 @@ def looks_like_member_roster(body, rel):
 
 
 def inventory():
+    if not INVENTORY.is_file():
+        raise SystemExit(f'{INVENTORY} is missing. Run '
+                         'legacy_data/scripts/publish_legacy_repo_data.py to write it, '
+                         'then re-run.')
     with INVENTORY.open(encoding='utf-8', errors='replace') as fh:
         return [row for row in csv.DictReader(fh) if (row['FileLocation'] or '').strip()]
 
@@ -162,7 +173,7 @@ def held(rel):
         return 'archive'
     if (CUSTODY / 'www.footbag.org' / rel).is_file():
         return 'custody'
-    if (PREVIOUS / rel).is_file():
+    if PREVIOUS is not None and (PREVIOUS / rel).is_file():
         return 'previous capture'
     return None
 
@@ -225,11 +236,21 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--dry-run', action='store_true',
                         help='report what would be recovered and write nothing')
+    parser.add_argument('--previous', type=Path, metavar='DIR',
+                        help="an earlier capture's www.footbag.org tree; a file it holds "
+                             'is taken from there when the live site cannot serve it')
     args = parser.parse_args()
+    global PREVIOUS
+    if args.previous is not None:
+        if not args.previous.is_dir():
+            parser.error(f'--previous {args.previous} is not a directory')
+        PREVIOUS = args.previous
+    else:
+        print('No --previous capture named; files are taken from the live site only.')
 
-    groups = committees()
-    exclusions = excluded_paths()
     rows = inventory()
+    groups = committees(rows)
+    exclusions = excluded_paths()
     session = requests.Session()
     session.headers['User-Agent'] = crawler.USER_AGENT
 

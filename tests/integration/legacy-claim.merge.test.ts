@@ -71,6 +71,7 @@ interface ScenarioOpts {
   legacyEverPaidTier2?: 0 | 1;
   legacyEverPaidTier1Lifetime?: 0 | 1;
   legacyTier1AnnualActive?: 0 | 1;
+  legacyWasBoardAtCutover?: 0 | 1;
   hpCountry?: string | null;
   hpHofMember?: 0 | 1;
   hpBapMember?: 0 | 1;
@@ -117,7 +118,8 @@ function setupScenario(opts: ScenarioOpts): ScenarioFixture {
     SET country = ?, is_hof = ?, is_bap = ?,
         legacy_ever_paid_tier2 = ?,
         legacy_ever_paid_tier1_lifetime = ?,
-        legacy_tier1_annual_active_at_cutover = ?
+        legacy_tier1_annual_active_at_cutover = ?,
+        legacy_was_board_at_cutover = ?
     WHERE legacy_member_id = ?
   `).run(
     opts.legacyCountry === undefined ? null : opts.legacyCountry,
@@ -126,6 +128,7 @@ function setupScenario(opts: ScenarioOpts): ScenarioFixture {
     opts.legacyEverPaidTier2 ?? 0,
     opts.legacyEverPaidTier1Lifetime ?? 0,
     opts.legacyTier1AnnualActive ?? 0,
+    opts.legacyWasBoardAtCutover ?? 0,
     legacyId,
   );
   db.close();
@@ -580,5 +583,66 @@ describe('claimLegacyAccount — admin authority is never inherited', () => {
     svc.claimLegacyAccount(memberId, legacyId);
 
     expect(memberRow(memberId).is_admin).toBe(0);
+  });
+});
+
+// ─── Board standing inherited at claim ───────────────────────────────────────
+//
+// A director on the current legacy board roster at cutover inherits board
+// standing and Tier 3 when claiming, on either claim path, in the claim's own
+// transaction; a revert of the claim takes that standing back.
+
+describe('claim — board standing inherited by a director', () => {
+  function boardState(memberId: string): { isBoard: number; reasons: string[] } {
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const m = db.prepare('SELECT is_board FROM members WHERE id = ?').get(memberId) as { is_board: number };
+    const reasons = (db.prepare(
+      `SELECT reason_code FROM member_tier_grants WHERE member_id = ? ORDER BY created_at, id`,
+    ).all(memberId) as Array<{ reason_code: string }>).map((r) => r.reason_code);
+    db.close();
+    return { isBoard: m.is_board, reasons };
+  }
+
+  it('claiming a director\'s legacy account seats the member with Tier 3 over the claim\'s tier', () => {
+    // Without this every sitting director claims as an ordinary member, and the
+    // board shows no one until an administrator seats each one by hand.
+    const { memberId, legacyId } = setupScenario({ legacyWasBoardAtCutover: 1, legacyEverPaidTier2: 1 });
+    svc.claimLegacyAccount(memberId, legacyId);
+
+    expect(boardState(memberId)).toEqual({
+      isBoard: 1, reasons: ['legacy.claim_tier_grant', 'legacy.claim_board_grant'],
+    });
+  });
+
+  it('claiming an ordinary account writes no board standing', () => {
+    // A board grant on every claim would seat the whole membership.
+    const { memberId, legacyId } = setupScenario({ legacyWasBoardAtCutover: 0, legacyEverPaidTier2: 1 });
+    svc.claimLegacyAccount(memberId, legacyId);
+
+    expect(boardState(memberId)).toEqual({ isBoard: 0, reasons: ['legacy.claim_tier_grant'] });
+  });
+
+  it('claiming a director\'s competition record seats them through its linked account', () => {
+    // A director who reaches their history through the record rather than the
+    // account would otherwise lose the standing the account carries.
+    const { memberId, hpId } = setupScenario({ legacyWasBoardAtCutover: 1 });
+    svc.claimHistoricalPerson(memberId, hpId);
+
+    expect(boardState(memberId)).toEqual({
+      isBoard: 1, reasons: ['legacy.claim_tier_grant', 'legacy.claim_board_grant'],
+    });
+  });
+
+  it('reverting a director\'s claim clears the board standing it conferred', () => {
+    // An impostor whose claim is disputed must not stay seated on the board.
+    const { memberId, legacyId } = setupScenario({ legacyWasBoardAtCutover: 1 });
+    svc.claimLegacyAccount(memberId, legacyId);
+
+    const result = svc.revertAutoLink(memberId, 'audit-board-claim', {
+      actorType: 'member', actorMemberId: memberId,
+    });
+
+    expect(result.status).toBe('reverted');
+    expect(boardState(memberId).isBoard).toBe(0);
   });
 });

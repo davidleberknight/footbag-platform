@@ -21,7 +21,9 @@ test_reconcile_legacy_members.py):
     passing gate stops cleanly without writing;
   * the reconciliation runs inside the --load block;
   * the production load applies the recorded account rulings and refuses without
-    them, while an ordinary load never depends on them.
+    them, while an ordinary load never depends on them;
+  * the member data is the published member CSV alone: no dump, no roster, no
+    cutover date, and a missing CSV refuses rather than passing as an empty load.
 """
 from pathlib import Path
 
@@ -98,9 +100,9 @@ def test_reconciliation_runs_inside_the_load_block() -> None:
 
 
 def test_honors_backfill_reruns_after_stage_b_over_the_proposed_links() -> None:
-    # The honors backfill runs at extract time (no proposals) and again in --load
-    # after Stage B, overlaying the proposed links so accounts linked by a
-    # proposal receive their honor flags.
+    # The honors backfill runs at intake (no proposals) and again after Stage B,
+    # overlaying the proposed links so accounts linked by a proposal receive their
+    # honor flags.
     assert TEXT.count("extract_legacy_honors.py") >= 2
     i_stage_b = TEXT.index('reconcile_legacy_members.py" --stage-b')
     i_qc = TEXT.index('reconcile_legacy_members.py" --qc-gate')
@@ -120,6 +122,17 @@ def test_the_loaded_honours_flags_are_judged_after_the_links_and_fail_the_run() 
     after = TEXT[i_check:TEXT.index("fi", i_check)]
     assert "exit 1" in after
     assert TEXT.count("validate_legacy_honors.py") == 1
+
+
+def test_the_member_data_audits_judge_the_loaded_database_and_fail_the_run() -> None:
+    # Run before the links are written, the audits would judge a state the build
+    # does not ship; run as a warning, a failing build reaches the deploy.
+    i_check = TEXT.index('validate_legacy_honors.py" --flags-from-db')
+    i_audit = TEXT.index('if ! "${PY}" "${MDS}/audit_member_data.py" --db "${DB}"; then')
+    assert i_check < i_audit
+    after = TEXT[i_audit:TEXT.index("fi", i_audit)]
+    assert "exit 1" in after
+    assert TEXT.count("audit_member_data.py") == 1
 
 
 def test_dry_run_short_circuits_before_the_honors_rerun() -> None:
@@ -192,12 +205,8 @@ def test_production_load_refuses_when_its_inputs_are_absent() -> None:
     # The rulings are the only input a production load insists on, and the refusal
     # names the symlink that delivers them rather than a variable to export: on a
     # maintainer machine they are already there, so the only machine that can still
-    # refuse is one without the private checkout. The measurement date defaults to
-    # today, so it is not a thing anyone can forget to set, and how old a dump is
-    # worth loading stays the operator's call rather than a gate.
+    # refuse is one without the private checkout.
     assert "footbag_private_repo" in guard
-    assert 'CUTOVER_DATE="${FOOTBAG_CUTOVER_DATE:-$(date -u +%F)}"' in TEXT
-    assert "max-dump-age" not in TEXT
 
 
 def test_the_rulings_are_applied_whenever_they_are_present() -> None:
@@ -221,78 +230,56 @@ def test_the_rulings_are_applied_whenever_they_are_present() -> None:
     assert "ADJ_" not in TEXT[i_plain:i_gate]
 
 
-def test_the_board_roster_is_resolved_and_passed_by_the_runner() -> None:
-    # Nothing in the dump records who sits on the board, so the roster is an
-    # operator-supplied input like the rulings. It must be resolved and reported
-    # by the runner and handed to the extractor as an argument: relying on the
-    # extractor's own environment lookup makes it an input that takes effect only
-    # when a variable happens to be exported, and whose absence nothing reports.
-    assert 'BOARD_ROSTER="${PRIVATE_OVERRIDES}/board_at_cutover.csv"' in TEXT
-    assert "BOARD_ROSTER_READY=1" in TEXT
-    extract_call = TEXT[TEXT.index("extract_legacy_members.py"):]
-    extract_call = extract_call[:extract_call.index("extract_legacy_admins.py")]
-    assert "--board-roster" in extract_call
-    assert "board roster:" in TEXT          # every extract run says whether it had one
+def test_the_load_reads_the_published_member_csv_and_nothing_from_the_legacy_repository() -> None:
+    # One script reads the legacy repository, the refresh. A load that reached for
+    # the dump would build members from data nobody vetted, and one that read a
+    # leftover working copy would load a previous run's members.
+    assert ('PUBLISHED_CSV="${REPO_ROOT}/footbag_private_repo/legacy-publish/'
+            'legacy_members.csv"') in TEXT
+    intake = TEXT[TEXT.index("==> intake: backfill is_hof / is_bap"):]
+    intake = intake[:intake.index("\n\n")]
+    assert '--members-csv "${PUBLISHED_CSV}"' in intake
+    assert '--out "${CSV}"' in intake
+    for needle in ("footbag_legacy_repo", "FOOTBAG_LEGACY_REPO", "_dump_parser",
+                   "latest.sql", "extract_legacy_members.py", "extract_legacy_admins.py"):
+        assert needle not in TEXT, needle
 
 
-def test_production_extract_refuses_without_the_board_roster() -> None:
-    # A director loaded without the flag is an ordinary member, and the database
-    # that results looks entirely normal, so this refuses rather than degrading.
-    # Only at extraction, because that is where the flag is written into the CSV.
-    i_guard = TEXT.index('"${BOARD_ROSTER_READY}" -eq 0')
-    guard = TEXT[i_guard:TEXT.index("==> member intake:")]
-    assert "REFUSING a production extract" in guard
-    assert "footbag_private_repo" in guard
+def test_a_missing_published_csv_refuses_before_anything_runs() -> None:
+    # A load that exits 0 with nothing to load passes the deploy as a success and
+    # ships a database with no members in it.
+    i_guard = TEXT.index('if [[ ! -s "${PUBLISHED_CSV}" ]]')
+    guard = TEXT[i_guard:TEXT.index("db_has_historical_persons; then", i_guard)]
+    assert "REFUSING" in guard
+    assert "publish_legacy_repo_data.py" in guard
     assert "exit 1" in guard
-    assert '"${DO_EXTRACT}" -eq 1' in TEXT[i_guard - 200:i_guard]
+    assert "exit 0" not in guard
+    assert i_guard < TEXT.index("==> intake: backfill is_hof / is_bap")
+    assert i_guard < TEXT.index("==> validate export (hard gate)")
 
 
-def test_rulings_without_a_roster_are_refused_before_any_stage_runs() -> None:
-    # Supplying the rulings turns on the final merge, and that merge will not
-    # build its artifacts while no row carries the board flag. Left to itself the
-    # run walks every stage and the quality gate first and then aborts from inside
-    # the merge, naming a column instead of the file nobody set. Both doors into
-    # that dead end refuse ahead of any work: the extract that would bake a
-    # roster-less CSV, and the load handed one that was.
-    i_extract_guard = TEXT.index(
-        'if [[ "${ADJUDICATIONS_READY}" -eq 1 && "${DO_EXTRACT}" -eq 1 '
-        '&& "${BOARD_ROSTER_READY}" -eq 0 ]]')
-    assert i_extract_guard < TEXT.index("==> extract: members from the dump")
-    extract_guard = TEXT[i_extract_guard:TEXT.index("==> member intake:")]
-    assert "footbag_private_repo" in extract_guard
-    assert "exit 1" in extract_guard
-
-    i_csv_guard = TEXT.index('if [[ "${ADJUDICATIONS_READY}" -eq 1 && "${CSV_BOARD_ROWS}" -eq 0 ]]')
-    assert i_csv_guard < TEXT.index("==> validate export (hard gate)")
-    csv_guard = TEXT[i_csv_guard:TEXT.index("==> validate export (hard gate)")]
-    assert "REFUSING" in csv_guard
-    assert "exit 1" in csv_guard
-
-
-def test_a_load_reports_the_board_flag_from_the_csv_it_is_about_to_load() -> None:
-    # The flag was decided at extraction and is baked into the CSV, so the roster
-    # variable says nothing about a load. Reporting it from the variable would
-    # tell an operator their roster took effect on a run that never read it.
+def test_the_board_flag_and_cutover_date_come_only_from_the_published_csv() -> None:
+    # Both are fixed at publish. A roster file or a date resolved here could
+    # disagree with the CSV and give the claim a board flag or an annual standing
+    # the published record does not carry.
+    for needle in ("board_at_cutover.csv", "BOARD_ROSTER", "--board-roster",
+                   "CUTOVER_DATE", "FOOTBAG_CUTOVER_DATE"):
+        assert needle not in TEXT, needle
+    # The board count is reported from the CSV being loaded, and refuses nothing:
+    # a delivery whose roster is not current carries no board row by design.
     i_report = TEXT.index("CSV_BOARD_ROWS=")
-    assert i_report < TEXT.index("==> validate export (hard gate)")
-    assert "legacy_was_board_at_cutover" in TEXT[i_report:i_report + 600]
-    assert "board roster:" in TEXT[i_report:i_report + 900]
+    report = TEXT[i_report:TEXT.index("==> validate export (hard gate)")]
+    assert "legacy_was_board_at_cutover" in report
+    assert "exit" not in report
 
 
-def test_the_retired_mode_flag_is_refused_rather_than_ignored() -> None:
-    # A script or a note that still passes it must be corrected, not silently
-    # downgraded to a development load.
-    assert "--final-export no longer exists" in TEXT
-
-
-def test_the_help_promises_the_dump_age_only_where_a_dump_is_read() -> None:
-    # Only an extract has a dump in front of it. A promise that every run prints
-    # the dump's date and age reads as a staleness safeguard on a load that has
-    # no way to look, which is exactly the reassurance nothing gates on timing.
-    usage = TEXT[TEXT.index("DEPLOY_TARGET=footbag-production"):TEXT.index("\nUSAGE")]
-    assert "an extract\n" in usage
-    assert "prints no age" in usage
-    assert "every run" not in usage
+def test_removed_flags_are_refused_rather_than_ignored() -> None:
+    # A script or a note that still passes one must be corrected, not silently
+    # given a different load.
+    for flag in ("--extract", "--from-csv", "--final-export"):
+        assert f"{flag} no longer exists" in TEXT, flag
+        start = TEXT.index(f"{flag})")
+        assert "exit 2" in TEXT[start:start + 600], flag
 
 
 def test_the_private_inputs_resolve_themselves_and_no_variable_names_a_path() -> None:
@@ -321,8 +308,7 @@ def test_the_refusals_name_the_symlink_rather_than_a_variable_to_export() -> Non
     # only machine that can still refuse is one without the private checkout, and
     # what that machine needs is the symlink, which is what the message should say.
     for marker in ("REFUSING a production load",
-                   "REFUSING a production extract",
-                   "REFUSING. The account rulings are present and the board roster is not."):
+                   "REFUSING. The published member CSV is missing."):
         start = TEXT.index(marker)
         message = TEXT[start:start + 900]
         assert "footbag_private_repo" in message, marker

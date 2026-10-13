@@ -39,7 +39,7 @@ DEFAULT_AUDIT_CSV = Path("legacy_data/member_data_scripts/out/apply_members_audi
 DEFAULT_ROLLBACK_SQL = Path("legacy_data/member_data_scripts/out/apply_members_rollback.sql")
 
 # Exactly the columns load_legacy_export.py's UPDATE writes -- restoring these
-# reverts the load, including the three tier-status columns the loader derives
+# reverts the load, including the tier-status and board columns the loader derives
 # (a rollback that skipped them would leave post-apply tier evidence sitting on
 # pre-apply profile data). The claim columns (claimed_by_member_id, claimed_at)
 # are not in this set, so the rollback leaves claim state untouched.
@@ -50,7 +50,7 @@ RESTORE_COLUMNS = [
     "postal_code", "ifpa_join_date", "first_competition_year",
     "is_hof", "is_bap", "legacy_is_admin",
     "legacy_ever_paid_tier2", "legacy_ever_paid_tier1_lifetime",
-    "legacy_tier1_annual_active_at_cutover",
+    "legacy_tier1_annual_active_at_cutover", "legacy_was_board_at_cutover",
     "import_source", "imported_at", "version",
 ]
 

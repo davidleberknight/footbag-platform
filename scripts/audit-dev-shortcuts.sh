@@ -3,10 +3,11 @@
 #
 # Runs the prefix-queries that detect rows persisted by the permanent
 # dev/staging-only mechanisms (the register-allowlist admin bootstrap and the
-# test-data persona harness). Both are excluded from the production image, so
-# their marker rows must never appear in a production database; a non-zero count
-# means dev/staging data leaked into prod. Exits non-zero if any count > 0;
-# suitable for use as a CI gate.
+# test-data persona harness: its grants and audit rows, its member and legacy
+# account rows, and their addresses) and the developer-only fast outbox poll.
+# None of them belongs in a production database; a non-zero count means
+# dev/staging data leaked into prod. Exits non-zero if any count > 0; a
+# production deploy that ships a database runs it on the file it ships.
 #
 # (The `dev-shortcuts/*` created_by marker namespace it queries is a stable
 # historical identifier, kept unchanged so existing rows and tests keep matching.)
@@ -61,7 +62,25 @@ c5=$(run_count "reason_code dev_persona_seed" \
 c6=$(run_count "action_type testkit.persona_seed/switch" \
   "SELECT COUNT(*) FROM audit_entries WHERE action_type IN ('testkit.persona_seed','testkit.persona_switch');")
 
-total=$((c1 + c2 + c4 + c5 + c6))
+# The persona harness's own rows. The system member that owns the curated
+# content is permanent production data and never matches: it is excluded by its
+# flag, and its legacy account row is stamped as the system fixture, not 'test'.
+c7=$(run_count "members.id member_persona_*" \
+  "SELECT COUNT(*) FROM members WHERE id LIKE 'member\\_persona\\_%' ESCAPE '\\' AND is_system = 0;")
+
+c8=$(run_count "members.login_email personas.test" \
+  "SELECT COUNT(*) FROM members WHERE lower(login_email) LIKE '%@personas.test' AND is_system = 0;")
+
+c9=$(run_count "legacy_members email personas.test" \
+  "SELECT COUNT(*) FROM legacy_members WHERE lower(legacy_email) LIKE '%@personas.test' OR lower(legacy_email2) LIKE '%@personas.test' OR lower(legacy_email3) LIKE '%@personas.test';")
+
+c10=$(run_count "legacy_members import_source test" \
+  "SELECT COUNT(*) FROM legacy_members WHERE import_source = 'test';")
+
+c11=$(run_count "system_config cfg_dev_outbox_poll" \
+  "SELECT COUNT(*) FROM system_config WHERE id = 'cfg_dev_outbox_poll';")
+
+total=$((c1 + c2 + c4 + c5 + c6 + c7 + c8 + c9 + c10 + c11))
 
 echo
 if [[ "${total}" -eq 0 ]]; then

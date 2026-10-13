@@ -223,6 +223,10 @@ else:
 #                               are analyzed per-placement and reduced to one winner
 #                               each; requires 100% resolution confidence and no
 #                               duplicate person_ids before it will apply
+# An optional new_category sets the sport family on a rename or retag, for a
+# contest whose source heading names no family the parser can recognise (a
+# "king of the court" net format, a 2-square side game). It must be one of the
+# four families; an aggregate standing is set in aggregate_standings.csv instead.
 # Only rows with active='1' are applied.  Inactive rows are logged but skipped.
 _VALID_FIX_TYPES  = {
     "rename_discipline",
@@ -231,6 +235,7 @@ _VALID_FIX_TYPES  = {
     "reshape_doubles_to_singles",   # structural repair: doubles-shaped → true singles
 }
 _VALID_TEAM_TYPES = {"singles", "doubles"}
+_VALID_CATEGORIES = {"net", "freestyle", "golf", "sideline"}
 discipline_fixes: list[dict] = []
 if DISCIPLINE_FIXES.exists():
     _seen_disc_fix_keys: set[tuple[str, str]] = set()
@@ -269,10 +274,19 @@ if DISCIPLINE_FIXES.exists():
                                  f"(got '{new_tt}')")
             if ft == "reshape_doubles_to_singles" and not new_tt:
                 new_tt = "singles"  # default
+            new_cat = (row.get("new_category") or "").strip()
+            if new_cat and new_cat not in _VALID_CATEGORIES:
+                raise SystemExit(f"canonical_discipline_fixes.csv line {lineno}: "
+                                 f"invalid new_category '{new_cat}' — must be one of "
+                                 f"{sorted(_VALID_CATEGORIES)}")
+            if new_cat and ft == "reshape_doubles_to_singles":
+                raise SystemExit(f"canonical_discipline_fixes.csv line {lineno}: "
+                                 f"new_category applies to rename or retag fixes only")
             discipline_fixes.append({**row,
                                       "event_key": ek, "discipline_key": dk,
                                       "fix_type": ft, "active": act,
-                                      "new_name": new_name, "new_team_type": new_tt})
+                                      "new_name": new_name, "new_team_type": new_tt,
+                                      "new_category": new_cat})
     active_count   = sum(1 for r in discipline_fixes if r["active"] == "1")
     inactive_count = len(discipline_fixes) - active_count
     print(f"  Discipline fixes: {len(discipline_fixes)} total  "
@@ -612,6 +626,7 @@ for fix in discipline_fixes:
     orig_tt   = fix.get("original_team_type", "").strip()
     new_name  = fix["new_name"]
     new_tt    = fix["new_team_type"]
+    new_cat   = fix["new_category"]
 
     if not active:
         print(f"  SKIP (inactive)  ({ek}, {dk})  fix_type={ft}")
@@ -647,12 +662,17 @@ for fix in discipline_fixes:
             disc["discipline_name"] = new_name
         if ft in {"retag_team_type", "rename_and_retag"}:
             disc["team_type"] = new_tt
+        old_cat = disc.get("discipline_category", "")
+        if new_cat:
+            disc["discipline_category"] = new_cat
 
         print(f"  APPLIED  ({ek}, {dk})  fix_type={ft}")
         if ft in {"rename_discipline", "rename_and_retag"}:
             print(f"    name:      '{old_name}' → '{new_name}'")
         if ft in {"retag_team_type", "rename_and_retag"}:
             print(f"    team_type: '{old_tt}' → '{new_tt}'")
+        if new_cat:
+            print(f"    category:  '{old_cat}' → '{new_cat}'")
 
         # Remove ghost partner rows for doubles→singles retag.
         if doubles_to_singles:
@@ -2497,6 +2517,14 @@ _ALL_EXPLICIT_TOKENS = _EXPLICIT_NONNET_TOKENS | _EXPLICIT_NET_TOKENS
 # Sentinel/placeholder names that must never be upgraded
 _FIX9_SKIP_SENTINELS = frozenset(["unknown", ""])
 
+# A name the curated discipline-fix list set is a human reading of the source
+# page, so it is final: guessing "Net" onto it would overrule that reading (an
+# overall standing named only by its source heading is not a net contest).
+_FIX9_CURATED_NAMES = frozenset(
+    (f["event_key"], f["discipline_key"]) for f in discipline_fixes
+    if f["active"] == "1" and f["fix_type"] in {"rename_discipline", "rename_and_retag"}
+)
+
 
 def _has_nonnet_explicit(name: str) -> bool:
     low = name.lower()
@@ -2530,6 +2558,8 @@ for d in disciplines:
     name = d["discipline_name"]
     if name.strip().lower() in _FIX9_SKIP_SENTINELS:
         continue  # sentinel/placeholder — never upgrade
+    if (ek, d["discipline_key"]) in _FIX9_CURATED_NAMES:
+        continue  # curated name — final
     if _has_any_explicit(name):
         continue  # already has explicit token — leave as-is
     # Bare label in a multi-category event → upgrade to Net

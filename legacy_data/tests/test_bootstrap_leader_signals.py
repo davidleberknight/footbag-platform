@@ -451,6 +451,29 @@ def test_load_member_tiers_absent_is_graceful(tmp_path):
     assert tiers == {} and available is False
 
 
+def test_load_member_tiers_with_no_source_named_is_graceful():
+    # The mirror rebuild names no member file at all; the signal must degrade, not
+    # reach for whatever an earlier run left on disk.
+    tiers, available = mod.load_member_tiers(None)
+    assert tiers == {} and available is False
+
+
+def test_only_the_csv_build_gives_the_leader_signals_member_tiers():
+    # The csv_only build reads the published member CSV, so its tier context is
+    # this delivery's. The mirror rebuild reads no member data. Before this, both
+    # read the member load's own output, which on a fresh build was the previous
+    # run's members or nothing at all.
+    text = (Path(__file__).resolve().parents[1] / "run_pipeline.sh").read_text()
+    csv_only = text[text.index("    csv_only)"):]
+    csv_only = csv_only[:csv_only.index(";;")]
+    full = text[text.index("    full)"):]
+    full = full[:full.index(";;")]
+    assert ('run_phase_d "${REPO_ROOT}/footbag_private_repo/legacy-publish/'
+            'legacy_members.csv"') in csv_only
+    assert "run_phase_d\n" in full
+    assert "legacy_members_final.csv" not in text
+
+
 def test_load_member_tiers_reads_flags(tmp_path):
     p = tmp_path / "m.csv"
     p.write_text(_TIER_HEADER + "100,1,0,0\n", encoding="utf-8")

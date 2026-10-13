@@ -53,16 +53,21 @@ the step that needs it, and never block unrelated work.
   before regenerating canonical output (see the stale-mirror trap below).
 - **The legacy footbag.org database dump**, reached read-only through the repo-root
   `footbag_legacy_repo` symlink. The complete per-module export from the live site, spanning far
-  more than members and results. Extractors only read it; never write to it. Which modules have
-  arrived is tracked in the maintainers' private tracker.
+  more than members and results. The legacy refresh is the one program that reads it, writing
+  vetted per-table CSVs into the private checkout for everything downstream. Agents may read raw
+  legacy data on a maintainer machine to investigate, but nothing read from it goes into an issue,
+  a log, a test or a committed file. An experiment runs on a scratch clone only: the legacy
+  repository and its dumps are never changed. Which modules have arrived is tracked in the
+  maintainers' private tracker.
 
-The member load reads two further recorded human decisions held in the maintainers' private
-checkout, reached through the same repo-root symlink convention: rulings about which duplicate
-accounts are the same person, and the roster of directors sitting at cutover. A machine without
-them loads anyway and says so; a production load refuses without the rulings, and a production
-extract refuses without the roster as well. Supplying the rulings without the roster is a dead end
-the run refuses before doing any work. The member-data runner's own help is authoritative for where
-they live and what each one changes.
+The member load reads only the maintainers' private checkout, reached through the repo-root
+`footbag_private_repo` symlink. It reads the published member CSV, which the legacy publish writes
+from the refresh's vetted CSVs with the cutover date and the board flag fixed in it, and the
+recorded rulings about which duplicate accounts are the same person. Unlike the two inputs above,
+the checkout is required by the builds that read it: `--all-data` fails fast without it, before
+touching the database, and the load refuses without the published CSV. A machine with the CSV but
+without the rulings loads anyway and says so; a production load refuses without them. The
+member-data runner's own help is authoritative for where they live and what each one changes.
 
 ## Runbook routing
 

@@ -452,6 +452,32 @@ def test_tier_status_columns_load_on_insert_and_update(tmp_path: Path) -> None:
     assert inserted["legacy_tier1_annual_active_at_cutover"] == 1
 
 
+def test_the_board_flag_loads_on_insert_and_update(tmp_path: Path) -> None:
+    # The claim reads this column to grant a sitting director board standing and
+    # Tier 3; a loader that dropped it would seat every director as an ordinary
+    # member. The empty underlying-tier column the published CSV carries is read
+    # and ignored, never reported as an unknown column.
+    db = make_db(tmp_path)
+    seed_mirror_row(db, "900")
+    headers = EXPORT_HEADERS + ["legacy_was_board_at_cutover",
+                                "legacy_board_underlying_paid_tier"]
+    export = write_export(
+        tmp_path,
+        [export_row("900", legacy_was_board_at_cutover="1"),
+         export_row("901", legacy_was_board_at_cutover="1"),
+         export_row("902", legacy_was_board_at_cutover="0")],
+        headers=headers,
+    )
+    result = run_loader(db, export)
+    assert result.returncode == 0, result.stderr
+    assert "legacy_board_underlying_paid_tier" not in result.stdout
+
+    flags = {r["legacy_member_id"]: r["legacy_was_board_at_cutover"] for r in query(
+        db, "SELECT legacy_member_id, legacy_was_board_at_cutover FROM legacy_members "
+            "WHERE legacy_member_id IN ('900', '901', '902')")}
+    assert flags == {"900": 1, "901": 1, "902": 0}
+
+
 def test_export_without_tier_columns_aborts_as_a_stale_artifact(tmp_path: Path) -> None:
     # The extractor always emits the three tier-status columns, so an export
     # without them predates tier derivation; loading it would silently zero

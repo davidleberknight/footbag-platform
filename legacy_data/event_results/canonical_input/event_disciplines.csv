@@ -630,7 +630,6 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 1997_montreal,open_doubles_net,Open Doubles Net,net,doubles,5,complete,,0
 1997_montreal,open_singles_freestyle,Open Singles Freestyle,freestyle,singles,6,complete,,0
 1997_montreal,open_singles_net,Open Singles Net,net,singles,7,complete,,0
-1997_montreal,unknown,Unknown,unknown,doubles,8,unresolved,,0
 1997_montreal,womens_singles_net,Women's Singles Net,net,singles,9,complete,,0
 1997_new_york_explosion,intermediate_freestyle,Intermediate Freestyle,freestyle,singles,1,complete,,0
 1997_new_york_explosion,novice_freestyle,Novice Freestyle,freestyle,singles,2,complete,,0
@@ -697,7 +696,6 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 1997_westregion,open_golf,Open Golf,golf,singles,9,complete,,0
 1997_westregion,open_singles_freestyle,Open Singles Freestyle,freestyle,singles,10,complete,,0
 1997_westregion,open_singles_net,Open Singles Net,net,singles,11,complete,,0
-1997_westregion,unknown,Unknown,unknown,doubles,12,complete,,0
 1997_westregion,womens_doubles_net,Women's Doubles Net,net,doubles,13,complete,,0
 1997_westregion,womens_singles_freestyle,Women's Singles Freestyle,freestyle,singles,14,complete,,0
 1997_westregion,womens_singles_net,Women's Singles Net,net,singles,15,complete,,0
@@ -808,7 +806,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 1998_southern_california,mixed_doubles_net,Mixed Doubles Net,net,doubles,3,complete,,0
 1998_southern_california,open_doubles_net,Open Doubles Net,net,doubles,4,unresolved,,0
 1998_southern_california,open_singles_freestyle,Open Singles Freestyle,freestyle,singles,5,complete,,0
-1998_southern_california,unknown,Unknown,unknown,singles,6,complete,,0
+1998_southern_california,unknown,Supreme Exhalted Ruler of the Court,net,singles,6,complete,,0
 1998_fighting_illini,amateur_doubles_net,Amateur Doubles Net,net,doubles,1,complete,,0
 1998_fighting_illini,amateur_freestyle,Amateur Freestyle,freestyle,singles,2,complete,,0
 1998_fighting_illini,amateur_singles_net,Amateur Singles Net,net,singles,3,complete,,0
@@ -1121,7 +1119,6 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2000_new_zealand,net_open_womens_doubles,Net Open Women's Doubles,net,doubles,12,partial,,0
 2000_new_zealand,womens_open_singles_net,Women's Open Singles Net,net,singles,13,complete,,0
 2000_new_zealand,net_under_13_doubles,Net Under 13 Doubles,net,doubles,14,partial,,0
-2000_new_zealand,unknown,Unknown,unknown,singles,15,unresolved,,0
 2000_quebec_city,novice_singles,Novice Singles,net,singles,1,complete,,0
 2000_quebec_city,open_doubles_net,Open Doubles Net,net,doubles,2,mostly_complete,,0
 2000_quebec_city,open_singles,Open Singles,net,singles,3,partial,,0
@@ -1396,7 +1393,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2002_de_france_de,open_women_single_freestyle,Open Women Single Freestyle,freestyle,singles,6,complete,,0
 2002_de_france_de,sick_3_at_3am_in_the_bar,Sick 3 At 3Am In The Bar,freestyle,singles,7,complete,,0
 2002_de_france_de,team_freestyle,Team Freestyle,freestyle,doubles,8,complete,,0
-2002_de_france_de,unknown,Unknown,unknown,singles,9,mostly_complete,,0
+2002_de_france_de,unknown,Overall Champions,,singles,9,mostly_complete,,1
 2002_cinco_de_mayo,intermediate_net,Intermediate Net,net,singles,1,complete,,0
 2002_cinco_de_mayo,novice_net,Novice Net,net,singles,2,unresolved,,0
 2002_cinco_de_mayo,shred_30,Shred 30,freestyle,singles,3,complete,,0
@@ -1550,7 +1547,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2003_footbagjam_copenhagen,open_double_net,Open Double Net,net,doubles,3,unresolved,,0
 2003_footbagjam_copenhagen,open_freestyle,Open Freestyle,freestyle,singles,4,complete,,0
 2003_footbagjam_copenhagen,open_single_net,Open Single Net,net,singles,5,complete,,0
-2003_footbagjam_copenhagen,unknown,Unknown,unknown,singles,6,complete,,0
+2003_footbagjam_copenhagen,unknown,Best ranged Danish players,,singles,6,complete,,1
 2003_footbagjam_copenhagen,womens_freestyle,Women's Freestyle,freestyle,singles,7,complete,,0
 2003_eurochamp_frankfurt,intermediate_doubles_net,Intermediate Doubles Net,net,doubles,1,complete,,0
 2003_eurochamp_frankfurt,intermediate_singles_freestyle_33_player,Intermediate Singles Freestyle 33 Player,freestyle,singles,2,partial,,0
@@ -2442,7 +2439,6 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2008_funtastik_summer,pro_freestyle_single,Pro Freestyle- Single,freestyle,singles,6,complete,,0
 2008_funtastik_summer,pro_golf,Pro Golf,golf,singles,7,complete,,0
 2008_funtastik_summer,pro_single_net,Pro Single Net,net,singles,8,complete,,0
-2008_funtastik_summer,unknown,Unknown,unknown,singles,9,unresolved,,0
 2008_greater_rochester_area,circle,Circle,freestyle,singles,1,complete,,0
 2008_greater_rochester_area,routines,Routines,freestyle,singles,2,complete,,0
 2008_greater_rochester_area,sick_1,Sick 1,freestyle,singles,3,complete,,0
@@ -2482,7 +2478,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2008_texas_statewide,golf,Golf,golf,singles,4,complete,,0
 2008_texas_statewide,net_doubles,Net Doubles,net,doubles,5,complete,,0
 2008_texas_statewide,net_singles,Net Singles,net,singles,6,complete,,0
-2008_texas_statewide,unknown,Unknown,unknown,singles,7,complete,,0
+2008_texas_statewide,unknown,Iron Man competition,,singles,7,complete,,1
 2008_hackrifice,intermediate_routine,Intermediate Routine,freestyle,singles,1,complete,,0
 2008_hackrifice,open_routines,Open Routines,freestyle,singles,2,complete,,0
 2008_green_chaos,advance_doubles,Advance Doubles -,net,doubles,1,complete,,0
@@ -2551,7 +2547,6 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2009_eurochamp_strzelin,open_singles_freestyle,Open Singles Freestyle,freestyle,singles,12,partial,,0
 2009_eurochamp_strzelin,open_singles_golf,Open Singles Golf,golf,singles,13,complete,,0
 2009_eurochamp_strzelin,open_singles_net,Open Singles Net,net,singles,14,complete,,0
-2009_eurochamp_strzelin,unknown,Unknown,unknown,doubles,15,unresolved,,0
 2009_eurochamp_strzelin,womens_doubles_net,Women's Doubles Net,net,singles,16,complete,,0
 2009_eurochamp_strzelin,womens_singles_freestyle,Women's Singles Freestyle,freestyle,singles,17,complete,,0
 2009_eurochamp_strzelin,womens_singles_net,Women's Singles Net,net,singles,18,complete,,0
@@ -3444,7 +3439,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2014_polish,shred_30,Shred 30,freestyle,singles,14,complete,,0
 2014_polish,sick_3,Sick 3,freestyle,doubles,15,complete,,0
 2014_polish,single_net,Single Net,net,singles,16,complete,,0
-2014_polish,unknown,Unknown,unknown,singles,17,complete,,0
+2014_polish,unknown,Open 2-Square,sideline,singles,17,complete,,0
 2014_polish,women_freestyle,Women Freestyle,freestyle,singles,18,complete,,0
 2014_anniversary_rnh_rnh,open_doubles_net,Open Doubles Net,net,doubles,1,complete,,0
 2014_anniversary_rnh_rnh,open_mixed_doubles_net,Open Mixed Doubles Net,net,doubles,2,complete,,0
@@ -3473,7 +3468,6 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2014_eastregion,open_doubles_net,Open Doubles Net,net,doubles,5,complete,,0
 2014_eastregion,open_routines,Open Routines,freestyle,singles,6,complete,,0
 2014_eastregion,open_singles_net,Open Singles Net,net,singles,7,complete,,0
-2014_eastregion,unknown,Unknown,unknown,singles,8,complete,,0
 2014_worlds_paris,intermediate_singles_routines,Intermediate Singles Routines,freestyle,singles,1,complete,,0
 2014_worlds_paris,master_doubles_net,Master Doubles Net,net,doubles,2,complete,,0
 2014_worlds_paris,master_singles_net,Master Singles Net,net,singles,3,complete,,0
@@ -3565,7 +3559,6 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2015_eastregion,open_freestyle_routines,Open Freestyle Routines,freestyle,singles,5,mostly_complete,,0
 2015_eastregion,open_mixed_doubles_net,Open Mixed Doubles Net,net,doubles,6,complete,,0
 2015_eastregion,open_singles_net,Open Singles Net,net,singles,7,complete,,0
-2015_eastregion,unknown,Unknown,unknown,singles,8,unresolved,,0
 2015_worlds_copenhagen,intermediate_sick_trick,Intermediate Sick Trick,freestyle,singles,1,unresolved,,0
 2015_worlds_copenhagen,intermediate_singles_routines,Intermediate Singles Routines,freestyle,singles,2,complete,,0
 2015_worlds_copenhagen,master_doubles_net,Master Doubles Net,net,doubles,3,complete,,0
@@ -3961,11 +3954,10 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2019_lakeerie,sick_1,Sick 1,freestyle,singles,8,complete,,0
 2019_lakeerie,sick_3,Sick 3,freestyle,singles,9,complete,,0
 2019_lakeerie,singles_net,Singles Net,net,singles,10,complete,,0
-2019_medejam_de,open_doubles_net,Open Doubles Net,net,doubles,1,complete,,0
-2019_medejam_de,sick_3,Sick 3,freestyle,singles,2,complete,,0
-2019_medejam_de,smog_pixie_doble_leg_over_smear_pixie_ss_barfly_net,Smog (Pixie Doble Leg Over) / Smear / Pixie Ss Barfly Net,net,singles,3,complete,,0
-2019_medejam_de,smudge_eggbeater_doble_leg_over_net,Smudge /Eggbeater/Doble Leg Over Net,net,singles,4,complete,,0
-2019_medejam_de,unknown,Unknown,unknown,singles,5,complete,,0
+2019_medejam_de,open_singles_net,Open Singles Net,net,singles,1,complete,,0
+2019_medejam_de,open_doubles_net,Open Doubles Net,net,doubles,2,complete,,0
+2019_medejam_de,freestyle_big_one,Freestyle Big One,freestyle,singles,3,complete,,0
+2019_medejam_de,sick_3,Sick 3,freestyle,singles,4,complete,,0
 2019_mud_belt_memphis,open_doubles_net,Open Doubles Net,net,doubles,1,complete,,0
 2019_mud_belt_memphis,open_singles_net,Open Singles Net,net,singles,2,complete,,0
 2019_de_france,open_doubles_net,Open Doubles Net,net,doubles,1,complete,,0

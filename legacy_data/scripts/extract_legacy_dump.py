@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """Turn a legacy `mysqldump` file into one CSV per table, dropping credentials.
 
+Retired: superseded by refresh_legacy_repo_data.py, which reads every delivery
+with the strict parser and is the only reader of the legacy repository. Kept as
+the record of how the first export was made; nothing runs it.
+
 The legacy estate arrives as per-module dumps that nobody can read without
 parsing SQL by hand, and it lives only on a host that is being switched off.
 This converts a dump into ordinary CSVs so the data survives somewhere we
@@ -37,31 +41,13 @@ from __future__ import annotations
 import argparse
 import csv
 import gzip
-import hashlib
 import re
 import sys
 from pathlib import Path
 
-# Dropped from every table: anything whose column name says it holds a secret.
-# The legacy site stores passwords in plaintext, and not only for members — the
-# clubs and events modules each carry their own edit password, which a list of
-# member-prefixed names missed entirely. Matching on the word rather than on
-# known names is what makes a table nobody has looked at yet safe by default,
-# which is the property that matters when the webmaster delivers a new module.
-#
-# Erring towards dropping too much is deliberate. A column dropped by mistake is
-# named in the manifest and comes back by re-running with one more argument; a
-# credential kept by mistake is in a file that has now held it.
-CREDENTIAL_WORDS = ('password', 'passwd', 'session', 'cookie', 'secret',
-                    'salt', 'token', 'apikey', 'hash', 'credential')
-
-
-def is_credential_column(name: str) -> bool:
-    # Separators are stripped first, so `api_key` and `ApiKey` are the same name
-    # to this check and neither depends on which convention a table happened to
-    # use.
-    squashed = ''.join(c for c in name.lower() if c.isalnum())
-    return any(word in squashed for word in CREDENTIAL_WORDS)
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from refresh_support import (  # noqa: E402
+    is_credential_column, prune_stale, write_manifest)
 
 _CREATE_RE = re.compile(
     r'CREATE TABLE\s+`?(?P<name>[A-Za-z0-9_]+)`?\s*\((?P<body>.*?)\n\)',
@@ -206,32 +192,6 @@ def extract(dump_path: Path, out_dir: Path, extra_drops: set[str]) -> list[dict]
         print(f'  {table:32} {len(rows):7} rows{note}')
 
     return written
-
-
-def prune_stale(out_dir: Path, written: list[dict]) -> None:
-    """Remove CSVs no longer produced. A table the webmaster has since dropped
-    would otherwise leave its file behind, looking as current as the rest of the
-    directory. Called once per output directory, after every dump that feeds it,
-    because two dumps can share one directory."""
-    produced = {w['path'].name for w in written}
-    for stale in sorted(out_dir.glob('*.csv')):
-        if stale.name not in produced:
-            stale.unlink()
-            print(f'  {stale.name:32} removed (no longer in the dump)')
-
-
-def write_manifest(out_dir: Path, written: list[dict], source: Path) -> None:
-    lines = ['file\tsha256\tbytes\trows\tdropped_columns']
-    for w in sorted(written, key=lambda x: x['table']):
-        data = w['path'].read_bytes()
-        lines.append('\t'.join([
-            w['path'].name,
-            hashlib.sha256(data).hexdigest(),
-            str(len(data)),
-            str(w['rows']),
-            ','.join(w['dropped']) or '-',
-        ]))
-    (out_dir / 'MANIFEST.tsv').write_text('\n'.join(lines) + '\n', encoding='utf-8')
 
 
 def write_readme(out_dir: Path, written: list[dict], sources: list[Path]) -> None:

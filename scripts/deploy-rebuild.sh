@@ -298,7 +298,7 @@ ssh "${SSH_OPTS[@]}" "$REMOTE" "echo '    SSH OK'" </dev/null
 # check is green, and CI runs the same tests the local run does; a staging
 # deploy is preceded by the developer's own ./run_all_tests.sh. The tests never
 # touched the database this deploy builds either; the checks on that file are
-# further below.
+# further below, and on a production ship they include every data-quality check.
 
 if [[ "$SKIP_DB_REBUILD" != "yes" ]]; then
   echo "==> Rebuilding local database from scratch..."
@@ -352,9 +352,9 @@ unset _dev_only_rows
 # The shipped database carries whatever the build produced, member intake
 # included: --all-data applies the real member rows as part of the full migration
 # load. A destructive production database replace runs only under the wrapper's
-# typed confirmation (deploy_to_aws.sh), which is the deliberate control over any
-# member-carrying production load; there is no separate member-row ship refusal
-# here.
+# typed confirmation (deploy_to_aws.sh), and a production ship also refuses a
+# database with no member load or failing any data-quality check, judged below
+# once the last seed has written the file.
 
 # Curator seed: build the curated media set fresh from /curated/**/*.meta.json
 # sidecars into an ephemeral, curated-only build dir, and refresh media_items
@@ -397,6 +397,16 @@ _venv="${REPO_ROOT}/scripts/.venv"
 source "${REPO_ROOT}/scripts/lib/seeder-env.sh"
 seeder_env_ensure "$REPO_ROOT" || exit 1
 "${_venv}/bin/python3" "${REPO_ROOT}/scripts/seed_email_templates.py" --db "${LOCAL_DB}"
+
+# Production ships only a database that passes every data-quality check and
+# carries no development residue, judged here because nothing after this point
+# writes the file and nothing before it has reached the host. Staging is held to
+# none of it.
+if [[ "$REMOTE" == "footbag-production" ]]; then
+  # shellcheck source=lib/shipped-db-checks.sh
+  source "${REPO_ROOT}/scripts/lib/shipped-db-checks.sh"
+  shipped_db_checks "$REPO_ROOT" "$LOCAL_DB" || exit 1
+fi
 
 echo "==> Preparing remote upload directory..."
 ssh "${SSH_OPTS[@]}" "$REMOTE" \

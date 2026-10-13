@@ -178,6 +178,17 @@ describe('GET /clubs/create', () => {
     expect(res.text).not.toContain('requires IFPA Membership');
     expect(res.text).toContain('href="/clubs"');
   });
+
+  it('tells the member the hashtag is the club address and cannot be changed later', async () => {
+    const res = await request(createApp())
+      .get('/clubs/create')
+      .set('Cookie', authCookie(HAPPY_ID));
+    expect(res.status).toBe(200);
+    // No member path moves a hashtag after creation, so a creator who is not
+    // told so learns it only when a typo is already permanent.
+    expect(res.text).toContain('cannot be changed after the club is created');
+    expect(res.text).toContain('the address of its page');
+  });
 });
 
 describe('POST /clubs/create', () => {
@@ -312,6 +323,19 @@ describe('POST /clubs/create', () => {
     expect(res.text).toContain('fix the errors');
   });
 
+  it('names the disallowed character, not the first and last characters, for a hyphenated hashtag', async () => {
+    const res = await request(createApp())
+      .post('/clubs/create')
+      .set('Cookie', authCookie(VALID_ERR_ID))
+      .set('Content-Type', 'application/x-www-form-urlencoded')
+      .send(formData({ slug: 'san-francisco' }));
+    expect(res.status).toBe(422);
+    // Both ends are letters, so a member told to fix the first and last
+    // characters is sent looking for a problem that is not there.
+    expect(res.text).toContain('may only contain lowercase letters, digits and underscores');
+    expect(res.text).not.toContain('must start and end with a letter or digit');
+  });
+
   it('returns 422 when slug has consecutive underscores', async () => {
     const app = createApp();
     const res = await request(app)
@@ -320,7 +344,7 @@ describe('POST /clubs/create', () => {
       .set('Content-Type', 'application/x-www-form-urlencoded')
       .send(formData({ slug: 'bad__slug' }));
     expect(res.status).toBe(422);
-    expect(res.text).toContain('consecutive underscores');
+    expect(res.text).toContain('two underscores in a row');
   });
 
   it('returns 422 when member is already a club leader', async () => {
@@ -367,7 +391,10 @@ describe('POST /clubs/create', () => {
       .set('Content-Type', 'application/x-www-form-urlencoded')
       .send(formData({ name: 'Tag Collision Club', country: 'TagLand', slug: 'taken_slug' }));
     expect(res.status).toBe(422);
-    expect(res.text).toContain('already taken');
+    expect(res.text).toContain('#club_taken_slug is already taken');
+    // A bare refusal leaves the member guessing; the story asks for a
+    // suggestion to add something that tells the clubs apart.
+    expect(res.text).toContain('sets your club apart');
   });
 
   it('derives slug from city when slug field is empty, and capitalizes an all-lowercase city', async () => {

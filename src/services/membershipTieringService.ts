@@ -5,7 +5,8 @@
  *   - Membership-tier ledger writes (`member_tier_grants`)
  *   - HoF/BAP Tier 2 grants, the badge and induction-year columns they set, and
  *     the correction that takes a grant made in error back
- *   - Tier 3 governance set/remove, and the board badge that goes with it
+ *   - Tier 3 governance set/remove, and the board badge that goes with it,
+ *     whether an administrator confers it or a director's legacy claim inherits it
  *   - Admin tier corrections
  *   - Admin-role grant and revoke (story A_Manage_Admin_Role)
  *   - The administrator-loss recruitment alert: the revoke-time raise and the
@@ -64,6 +65,13 @@
  *     bases are evaluated together, so a lower later source never discards a
  *     higher tier an earlier claimed source conferred (a floor guard mirroring
  *     the purchase grant). A marker row is still written for every claim.
+ *   - A claim of a director's legacy account (the board flag set on the current
+ *     roster at cutover) writes a second row in the same transaction: a
+ *     `governance_set` to Tier 3 with reason `legacy.claim_board_grant`, through
+ *     the same write an administrator's board grant uses, so the reversion tier,
+ *     the Active Player ending and the badge follow the same rules. The distinct
+ *     reason code is what lets a revert of the claim take that standing back
+ *     without touching standing an administrator conferred.
  *   - Admin-role grant establishes Tier 2 rather than requiring it: in one
  *     transaction it sets `is_admin=1`, writes a `member_tier_grants` row when
  *     the target holds less than Tier 2 (a Tier 2 or Tier 3 target keeps its
@@ -164,7 +172,10 @@ export interface TierStatus {
   underlying_tier_status: UnderlyingTier | null;
 }
 
-/** Legacy standings a claim grants from. Board / Tier 3 is a separate concern. */
+/**
+ * Legacy standings a claim grants from. A director's board standing is granted
+ * separately, by `applyLegacyClaimBoardGrantInTx`, on top of the tier these set.
+ */
 export interface LegacyClaimStandings {
   hasHof: boolean;
   hasBap: boolean;
@@ -1147,7 +1158,9 @@ export function removeHonorGrant(
  *   - bought Tier 1 Lifetime, or Tier 1 Annual active at cutover → `tier1`
  *   - none of these → `tier0`
  * An account with only honors grants on honors alone, one outcome of the same
- * mapping. Board / Tier 3 is a separate concern and is not granted here.
+ * mapping. A director's board standing and Tier 3 are granted afterwards, in
+ * the same transaction, by `applyLegacyClaimBoardGrantInTx`; the tier this
+ * writes is the one that standing reverts to.
  *
  * A claim never lowers the member's tier. When a member claims more than one
  * source (e.g. a paid legacy account and, separately, their own competition
@@ -1231,6 +1244,11 @@ export function applyLegacyClaimGrantInTx(
  * claim is gone, so a revert generally falls back to `tier0` unless the
  * member already held a non-legacy upgrade (paid tier1, governance, etc.).
  *
+ * Board standing the claim conferred (a `legacy.claim_board_grant` row that no
+ * administrator's governance row has superseded) is reverted with it: the row is
+ * skipped when choosing the tier to restore, the board badge is cleared, and the
+ * audit row records `board_cleared`. Standing an administrator set stays.
+ *
  * A sitting administrator never ends below Tier 2: when the restored tier is
  * lower, the role's Tier 2 grant follows in the same transaction (reason code
  * `admin.role_tier2_invariant`) and the audit row records it as
@@ -1261,6 +1279,16 @@ export function applyAutoLinkRevertGrantInTx(
   const preservedTier: MemberTier = prior?.new_tier_status ?? 'tier0';
   const preservedUnderlying: UnderlyingTier | null = prior?.new_underlying_tier_status ?? null;
 
+  // Board standing the reverted claim conferred goes with it. Standing an
+  // administrator set since is a later governance_set row and is left alone, as
+  // is a seat an administrator has already removed.
+  const lastGovernanceSet = memberTier.getLatestGovernanceSet.get(memberId) as
+    | { reason_code: string }
+    | undefined;
+  const clearClaimBoard =
+    current.tier_status === 'tier3'
+    && lastGovernanceSet?.reason_code === 'legacy.claim_board_grant';
+
   insertGrant({
     actorId:          actorMemberId,
     memberId,
@@ -1274,6 +1302,10 @@ export function applyAutoLinkRevertGrantInTx(
     relatedPaymentId: null,
     now,
   });
+
+  if (clearClaimBoard) {
+    memberTier.setBoardFlag.run(0, now, actorMemberId, memberId);
+  }
 
   // An administrator's Tier 2 may have come only from the reverted claim: the
   // admin grant writes no Tier 2 row for a member already holding it.
@@ -1290,6 +1322,7 @@ export function applyAutoLinkRevertGrantInTx(
       ...metadata,
       from: current.tier_status,
       to:   preservedTier,
+      ...(clearClaimBoard ? { board_cleared: true } : {}),
       ...(adminKeptAtTier2 ? { admin_tier2_invariant_to: 'tier2' } : {}),
     },
   });
@@ -1315,53 +1348,125 @@ export function setGovernanceTier3(
 ): { ok: true } {
   const reason = validateReasonText(reasonText?.trim() || null);
   return transaction(() => {
-    const now = new Date().toISOString();
     const current = getCurrent(memberId);
-
     if (current.tier_status === 'tier3') {
       throw new ConflictError(`member ${memberId} is already Tier 3`);
     }
-
-    const newUnderlying: UnderlyingTier =
-      current.tier_status === 'tier2' ? 'tier2' : 'tier1';
-
-    // End AP first (see comment in applyPurchaseGrant).
-    if (current.tier_status === 'tier0') {
-      endOnTier3Grant(actorId, memberId, now);
-    }
-
-    insertGrant({
+    setGovernanceTier3InTx({
       actorId,
+      actorType:  'admin',
       memberId,
-      changeType: 'governance_set',
-      oldTier: current.tier_status,
-      newTier: 'tier3',
-      oldUnderlying: null,
-      newUnderlying,
+      current,
       reasonCode: 'governance.tier3_set',
       reasonText: reason,
-      relatedPaymentId: null,
-      now,
+      metadata:   {},
     });
-
-    // The board badge every surface reads, set with the tier it belongs to.
-    memberTier.setBoardFlag.run(1, now, actorId, memberId);
-
-    audit({
-      actionType: 'tier.governance_set',
-      category: 'governance_change',
-      actorType: 'admin',
-      actorId,
-      memberId,
-      reasonText: reason,
-      metadata: {
-        from: current.tier_status,
-        new_underlying: newUnderlying,
-      },
-    });
-
     return { ok: true as const };
   });
+}
+
+/**
+ * The board-standing write both paths share: the administrator's grant and a
+ * director's legacy claim. Writes the `governance_set` row, ends Active Player
+ * for a Tier 0 entrant, sets the board badge and audits, all in the caller's
+ * transaction. The caller has already established the member is below Tier 3.
+ */
+function setGovernanceTier3InTx(args: {
+  actorId: string;
+  actorType: AuditActorType;
+  memberId: string;
+  current: TierStatus;
+  reasonCode: 'governance.tier3_set' | 'legacy.claim_board_grant';
+  reasonText: string | null;
+  metadata: Record<string, unknown>;
+}): UnderlyingTier {
+  const { actorId, memberId, current } = args;
+  const now = new Date().toISOString();
+
+  const newUnderlying: UnderlyingTier =
+    current.tier_status === 'tier2' ? 'tier2' : 'tier1';
+
+  // End AP first (see comment in applyPurchaseGrant).
+  if (current.tier_status === 'tier0') {
+    endOnTier3Grant(actorId, memberId, now);
+  }
+
+  insertGrant({
+    actorId,
+    memberId,
+    changeType: 'governance_set',
+    oldTier: current.tier_status,
+    newTier: 'tier3',
+    oldUnderlying: null,
+    newUnderlying,
+    reasonCode: args.reasonCode,
+    reasonText: args.reasonText,
+    relatedPaymentId: null,
+    now,
+  });
+
+  // The board badge every surface reads, set with the tier it belongs to.
+  memberTier.setBoardFlag.run(1, now, actorId, memberId);
+
+  audit({
+    actionType: 'tier.governance_set',
+    category: 'governance_change',
+    actorType: args.actorType,
+    actorId,
+    memberId,
+    reasonText: args.reasonText,
+    metadata: {
+      ...args.metadata,
+      from: current.tier_status,
+      new_underlying: newUnderlying,
+    },
+  });
+
+  return newUnderlying;
+}
+
+export type LegacyClaimBoardGrantResult =
+  | { status: 'granted'; underlying: UnderlyingTier }
+  | { status: 'noop'; reason: 'already_tier3' };
+
+// The reason a claim-inherited board grant carries on its ledger and audit rows,
+// so neither governance-significant write is left without one.
+const LEGACY_CLAIM_BOARD_REASON =
+  'Director on the legacy Board of Directors roster at cutover, inherited at claim';
+
+/**
+ * Grant board standing and Tier 3 to a member claiming the legacy account of a
+ * director on the current legacy board roster at cutover (story
+ * M_Claim_Legacy_Account, through the board path of A_Grant_HoF_BAP_Board_Status).
+ *
+ * Runs after `applyLegacyClaimGrantInTx` in the same claim transaction, so the
+ * tier the claim's bases granted is the tier the board flag reverts to: Tier 2
+ * stays Tier 2, anything lower becomes Tier 1, and a Tier 0 entrant's Active
+ * Player status ends, exactly as for an administrator's grant. The row carries
+ * its own reason code, `legacy.claim_board_grant`, so a revert of the claim can
+ * tell the standing the claim conferred from one an administrator set.
+ *
+ * A member already at Tier 3 already holds the standing, so nothing is written.
+ */
+export function applyLegacyClaimBoardGrantInTx(
+  actor: { type: 'member' | 'admin'; id: string },
+  memberId: string,
+  metadata: Record<string, unknown>,
+): LegacyClaimBoardGrantResult {
+  const current = getCurrent(memberId);
+  if (current.tier_status === 'tier3') {
+    return { status: 'noop', reason: 'already_tier3' };
+  }
+  const underlying = setGovernanceTier3InTx({
+    actorId:    actor.id,
+    actorType:  actor.type,
+    memberId,
+    current,
+    reasonCode: 'legacy.claim_board_grant',
+    reasonText: LEGACY_CLAIM_BOARD_REASON,
+    metadata,
+  });
+  return { status: 'granted', underlying };
 }
 
 /**

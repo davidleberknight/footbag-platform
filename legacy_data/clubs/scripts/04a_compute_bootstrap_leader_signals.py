@@ -32,9 +32,10 @@ Signal taxonomy (matches the schema CHECK constraint):
     - tier_signal      leader's legacy account held any paid membership (ever-paid
                        Tier 2, ever-paid Tier 1 Lifetime, or Tier 1 Annual active
                        at cutover), joined by mirror_member_id against the
-                       extractor's legacy_members_final.csv. The file is
-                       dump-dependent and not produced by run_pipeline.sh; when it
-                       is absent the signal degrades to is_present=0 with
+                       published member CSV named by --member-tiers-csv. The
+                       csv_only build passes it from the private checkout; the
+                       mirror rebuild reads no member data and passes none. With
+                       no file the signal degrades to is_present=0 with
                        member_tier_data_available=false and one run-level warning
                        (it is context-only and never gates classification). A
                        file that is present but malformed / duplicate-keyed fails
@@ -61,11 +62,10 @@ DEFAULT_AFFILIATIONS_CSV  = DEFAULT_OUT_DIR / "legacy_person_club_affiliations.c
 DEFAULT_PERSONS_CSV       = DEFAULT_OUT_DIR / "persons_enriched_for_clubs.csv"
 DEFAULT_CLUB_MEMBERS_CSV  = REPO_ROOT / "legacy_data" / "seed" / "club_members.csv"
 DEFAULT_EVENTS_CSV        = REPO_ROOT / "legacy_data" / "out" / "canonical" / "events.csv"
-# The extractor output carrying the per-account paid-tier flags. Dump-dependent
-# and not produced by run_pipeline.sh, so the tier signal degrades gracefully
-# when it is absent (see load_member_tiers / compute_tier_signal).
-DEFAULT_MEMBER_TIERS_CSV  = (
-    REPO_ROOT / "legacy_data" / "member_data_scripts" / "out" / "legacy_members_final.csv")
+# No default tier source: the member CSV carrying the per-account paid-tier flags
+# is named by the caller, so a run never picks up a file some earlier run left
+# behind. Without one the tier signal degrades gracefully (see load_member_tiers /
+# compute_tier_signal).
 DEFAULT_OUT_CSV           = DEFAULT_OUT_DIR / "club_bootstrap_leader_signals.csv"
 
 # The three paid-tier flags read from the member export, in payload order.
@@ -205,16 +205,16 @@ def _parse_tier_flag(value, mid: str, column: str, path: Path) -> bool:
     )
 
 
-def load_member_tiers(path: Path) -> tuple[dict[str, dict[str, bool]], bool]:
+def load_member_tiers(path: Path | None) -> tuple[dict[str, dict[str, bool]], bool]:
     """Map legacy_member_id -> {payload_key: bool} for the three paid-tier flags,
     plus a boolean saying whether the source file was available.
 
-    The file is dump-dependent and not produced by run_pipeline.sh. Its ABSENCE
-    is the only graceful case: it returns ({}, False) so the tier signal degrades
-    to a benign is_present=0. A file that IS present but has an invalid schema, a
-    malformed flag value, or a duplicate legacy_member_id fails loudly -- graceful
-    degradation never masks a corrupt source."""
-    if not path.exists():
+    No path, or a path with no file behind it, is the only graceful case: it
+    returns ({}, False) so the tier signal degrades to a benign is_present=0. A
+    file that IS present but has an invalid schema, a malformed flag value, or a
+    duplicate legacy_member_id fails loudly -- graceful degradation never masks a
+    corrupt source."""
+    if path is None or not path.exists():
         return {}, False
     with path.open(newline="", encoding="utf-8") as f:
         reader = csv.DictReader(f)
@@ -466,7 +466,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--persons-csv",      type=Path, default=DEFAULT_PERSONS_CSV)
     ap.add_argument("--club-members-csv", type=Path, default=DEFAULT_CLUB_MEMBERS_CSV)
     ap.add_argument("--events-csv",       type=Path, default=DEFAULT_EVENTS_CSV)
-    ap.add_argument("--member-tiers-csv", type=Path, default=DEFAULT_MEMBER_TIERS_CSV)
+    ap.add_argument("--member-tiers-csv", type=Path, default=None)
     ap.add_argument("--out-csv",          type=Path, default=DEFAULT_OUT_CSV)
     args = ap.parse_args(argv)
 
@@ -572,9 +572,10 @@ def main(argv: list[str] | None = None) -> int:
     if missing_persons:
         print(f"  WARN: missing person rows for {len(missing_persons)} leader person_ids")
     if not tier_data_available:
-        print(f"  WARN: member tier source absent ({args.member_tiers_csv}); tier_signal "
-              "is_present=0 (member_tier_data_available=false) for every leader. Produce it "
-              "with run_legacy_members.sh --extract (needs the dump) for real tier values.")
+        print(f"  WARN: member tier source absent ({args.member_tiers_csv or 'none named'}); "
+              "tier_signal is_present=0 (member_tier_data_available=false) for every leader. "
+              "The csv_only build names the published member CSV, written by "
+              "legacy_data/scripts/publish_legacy_repo_data.py, for real tier values.")
     else:
         print(f"  tier source:               {args.member_tiers_csv} "
               f"({len(tier_by_member_id):,} accounts)")

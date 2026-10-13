@@ -220,7 +220,10 @@ describe('startDonation: amount and note handling', () => {
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
-  it('defaults a blank note to the honor fund, preferring Hall of Fame when a member holds both', async () => {
+  // A Big Add Posse member's blank note stays empty: IFPA has no Big Add Posse
+  // fund, so a default naming one would record a gift as designated to a fund
+  // that does not exist.
+  it('defaults a blank note to the Hall of Fame fund for a Hall of Fame member and to nothing otherwise', async () => {
     const paymentService = await svc();
     await paymentService.startDonation(M_HOF, 1000, '   ', false, '/x');
     await paymentService.startDonation(M_BAP, 1000, null, false, '/x');
@@ -236,7 +239,7 @@ describe('startDonation: amount and note handling', () => {
           'SELECT donation_note FROM payments WHERE member_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1',
         ).get(id) as { donation_note: string | null }).donation_note;
       expect(note(M_HOF)).toBe('HoF Fund');
-      expect(note(M_BAP)).toBe('BAP Fund');
+      expect(note(M_BAP)).toBeNull();
       expect(note(M_BOTH)).toBe('HoF Fund');
       expect(note(M_PLAIN)).toBeNull();
     } finally {

@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """Extract the legacy-site `members` dump into the canonical loader-input CSV.
 
+Retired: the member load reads the published member CSV, which
+publish_legacy_repo_data.py builds from the vetted legacy-site CSVs the refresh
+writes, and the refresh is the only reader of the legacy repository. Kept as the
+record of how earlier member extracts were made; nothing runs it.
+
 Parses a MariaDB mysqldump of the `members` table and emits the credential-free
 CSV that `legacy_data/member_data_scripts/load_legacy_export.py` consumes. The dump uses
 positional extended INSERTs (`INSERT INTO members VALUES (...),(...)` with no
@@ -26,48 +31,24 @@ from __future__ import annotations
 
 import argparse
 import csv
-import os
 import re
 import sys
 from datetime import date, datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from _dump_parser import parse_create_columns, parse_value_tuples  # noqa: E402
+# The record transforms live with the publish step, which applies them to the
+# vetted export; this extractor applies the same ones to a dump.
+from publish_legacy_repo_data import (  # noqa: E402
+    OUTPUT_FIELDS, SELECTED_COMPANION, SELECTED_CURATED, SELECTED_LEFT,
+    SELECTED_REVERSED, SELECTED_UNDAMAGED, SELECTED_UNICODE, _val,
+    audit_record_encoding, load_member_name_encodings, map_record,
+    tier_coverage_violation)
 
 # Never mapped, retained, logged, emitted, or written.
 CREDENTIAL_COLUMNS = {"MemberPassword", "MemberSession"}
-
-# Output CSV header order. Most columns map by name into the legacy-member
-# importer; the two board-at-cutover columns are emitted ahead of their importer
-# and schema landing, so the importer reports and ignores them until then.
-OUTPUT_FIELDS = [
-    "legacy_member_id", "member_valid", "legacy_user_id",
-    "legacy_email", "legacy_email2", "legacy_email3",
-    "real_name", "display_name", "city", "region", "country",
-    "bio", "birth_date", "street_address", "postal_code", "ifpa_join_date",
-    "is_hof", "is_bap", "legacy_is_admin",
-    "legacy_ever_paid_tier2", "legacy_ever_paid_tier1_lifetime",
-    "legacy_tier1_annual_active_at_cutover",
-    "legacy_was_board_at_cutover", "legacy_board_underlying_paid_tier",
-    "legacy_member_modified",
-]
-
-# Tier standing lives in the two expiration columns, and nowhere else.
-#
-#   MemberIFPAExpiration   Tier 1: -1 is lifetime, a real epoch is an annual
-#                          expiry, 0 is no Tier 1 standing ever.
-#   MemberIFPAExpiration2  Tier 2, same encoding.
-#
-# These are what the legacy site's own tier function reads, and the derivations
-# below read only them. The stored `MemberIFPATier` code is deliberately NOT
-# read: the site abandoned it in a one-time 2007 conversion, no live code path
-# writes it, and the site overwrites the stored value with the computed one
-# before displaying it. Deriving from it silently produced Tier 0 for members
-# holding live standing, because everyone who first paid after 2007 still
-# carries the pre-conversion code. `legacy_member_tier` below ports the site's
-# function so the quality check can prove the derivations agree with it.
-LIFETIME_EXPIRATION = "-1"
 
 # Board / Tier 3 standing is not derived from legacy data. No legacy tier value
 # encodes governance status, so the flag comes from one curated file naming the
@@ -93,380 +74,6 @@ def iter_member_rows(sql: str, columns: list[str]):
         for values in parse_value_tuples(sql[m.end():]):
             rec = dict(zip(columns, values))
             yield {c: rec.get(c) for c in keep}   # credential keys excluded
-
-
-def _val(rec: dict, col: str) -> str:
-    v = rec.get(col)
-    return "" if v is None else str(v).strip()
-
-
-# A literal question mark sitting immediately after a non-ASCII character. The
-# legacy system wrote it in place of a character it could not represent, before
-# the dump was taken, so what it stood for is not in this source at all.
-_DESTROYED_BYTE = re.compile(r"[^\x00-\x7f]\?")
-
-
-def _undouble(s: str) -> str | None:
-    """Return `s` with one layer of mis-decoding undone, or None if there is none.
-
-    A value is double-encoded when its own characters all fit in Latin-1 AND
-    those bytes are themselves valid UTF-8 AND decoding them changes the value.
-    All three must hold, which is what makes this evidence rather than a guess:
-    a name with two genuinely adjacent accents encodes to Latin-1 happily, but
-    its bytes are not valid UTF-8, so it is left alone. A value corrupted through
-    some other codepage fails the same way and is likewise left alone.
-    """
-    try:
-        raw = s.encode("latin-1")
-    except UnicodeEncodeError:
-        return None
-    try:
-        decoded = raw.decode("utf-8")
-    except UnicodeDecodeError:
-        return None
-    return decoded if decoded != s else None
-
-
-def _corresponds(damaged: str, companion: str) -> bool:
-    """Is `damaged` the same name as `companion`, with some characters destroyed?
-
-    Put the companion through the same mis-decode that produced the damaged
-    value, and the two must then agree character for character except where the
-    damaged side carries a question mark. That is the correspondence proof: every
-    surviving character has to line up, so a companion holding a different
-    spelling, a longer name, or another person entirely cannot qualify merely
-    because the preferred value is broken.
-
-    Nothing is reconstructed from this. The proof only licenses using the
-    companion's own text verbatim.
-    """
-    expected = companion.encode("utf-8").decode("latin-1")
-    if len(expected) != len(damaged):
-        return False
-    substituted = False
-    for want, got in zip(expected, damaged):
-        if got == want:
-            continue
-        if got == "?":
-            # A character the legacy system could not represent, standing in for
-            # exactly the one the companion still has.
-            substituted = True
-            continue
-        return False
-    return substituted
-
-
-# How a field's value was arrived at. Counted per extraction so a run reports
-# what it repaired and what it could not, rather than a single success number.
-SELECTED_UNICODE   = "unicode column as delivered"
-SELECTED_COMPANION = "companion column, unicode column double-encoded"
-SELECTED_REVERSED  = "double-encoding reversed, no clean companion"
-SELECTED_UNDAMAGED = "companion column, unicode column positively damaged"
-SELECTED_LEFT      = "left as delivered, not recoverable here"
-SELECTED_CURATED   = "companion column, decoded through the curated codepage"
-
-# The curated record of which codepage a member's name was written in.
-MEMBER_NAME_ENCODINGS_CSV = (
-    Path(__file__).resolve().parent.parent / "overrides" / "member_name_encodings.csv")
-
-# The encodings a curator may name. A closed set on purpose: the point of this
-# file is that a human decided, so an unrecognised value is a mistake to surface
-# rather than something to attempt.
-ALLOWED_CODEPAGES = frozenset({"cp1250", "cp1251", "iso8859-5"})
-
-
-# Which stored column each curated field token names.
-CURATED_FIELD_COLUMNS = {
-    "given": "MemberFirstName",
-    "middle": "MemberMiddleName",
-    "surname": "MemberLastName",
-}
-
-
-def load_member_name_encodings(
-    path: Path = MEMBER_NAME_ENCODINGS_CSV,
-) -> dict[str, tuple[str, frozenset[str]]]:
-    """Curated member id -> (codepage, the columns it applies to).
-
-    The columns matter as much as the codepage. A member can have one name
-    written in a codepage nobody recorded while another is already correct, and
-    re-reading the correct one would damage it: a Czech surname holding a letter
-    that exists in both codepages decodes cleanly to the wrong letter, so it comes
-    out looking repaired and is wrong. The curator names the affected fields and
-    nothing else is touched.
-
-    An unknown codepage or field token is rejected loudly. A typo that silently
-    did nothing would leave a name corrupt while the file claimed it was handled,
-    which is the failure this record exists to prevent.
-    """
-    if not path.exists():
-        return {}
-    out: dict[str, tuple[str, frozenset[str]]] = {}
-    with path.open(newline="", encoding="utf-8") as fh:
-        for row in csv.DictReader(fh):
-            mid = (row.get("legacy_member_id") or "").strip()
-            cp = (row.get("codepage") or "").strip()
-            if not mid:
-                continue
-            if cp not in ALLOWED_CODEPAGES:
-                raise SystemExit(
-                    f"member_name_encodings.csv: member {mid} names codepage {cp!r}, "
-                    f"which is not one of {sorted(ALLOWED_CODEPAGES)}")
-            tokens = [t.strip() for t in (row.get("fields") or "").split("+") if t.strip()]
-            unknown = [t for t in tokens if t not in CURATED_FIELD_COLUMNS]
-            if not tokens or unknown:
-                raise SystemExit(
-                    f"member_name_encodings.csv: member {mid} names field(s) "
-                    f"{unknown or '(none)'}, expected some of "
-                    f"{sorted(CURATED_FIELD_COLUMNS)}")
-            out[mid] = (cp, frozenset(CURATED_FIELD_COLUMNS[t] for t in tokens))
-    return out
-
-
-def decode_through_codepage(text: str, codepage: str) -> str | None:
-    """The text re-read in the codepage it was written in, or None.
-
-    The stored value is text that was decoded as Western European from bytes that
-    were never Western European. Encoding it straight back recovers those bytes
-    exactly, and decoding them with the named codepage is what the legacy system
-    should have done. Both halves are exact: no character is inferred, replaced or
-    moved, and there is no scoring or preference anywhere in it.
-
-    None whenever the round trip cannot be made, and None when a destroyed
-    character survives it: naming an encoding cannot bring back a byte that is
-    already gone, and a value that still carries one is not repaired.
-    """
-    if not text:
-        return None
-    try:
-        out = text.encode("cp1252").decode(codepage)
-    except (UnicodeEncodeError, UnicodeDecodeError, LookupError):
-        return None
-    if not out or out == text:
-        return None
-    if "?" in out or "�" in out:
-        return None
-    return out
-
-
-def _resolve_pair(base_val: str, uni_val: str,
-                  codepage: str | None = None) -> tuple[str, str]:
-    """Choose between a field's two stored spellings, and say why.
-
-    A curated codepage, when one is recorded for this member, is consulted first
-    and only for the plain column. That column is intact for those members; it was
-    simply written in an encoding nobody recorded, so every rule below reads it as
-    Western European and sees unrelated letters. Decoding it as the curator named
-    is exact, and it is skipped the moment it fails or leaves a destroyed
-    character, so an override can only ever produce a clean name or stand aside.
-
-    The dump keeps most non-ASCII fields twice, and the Unicode column is the
-    better source for ordinary rows, so it stays the default. On some rows that
-    column holds a value that was decoded once too often before the dump was
-    taken, and there the plain column is the one the legacy system got right.
-    Preferring it recovers the real spelling without transforming any bytes.
-
-    Reversal is the fallback for a row where neither column is clean. It is
-    applied only when it is lossless: a value whose reversal still carries a
-    question mark stands where a byte was destroyed inside the legacy system,
-    and no rule here can know what it was, so the value is passed through as
-    delivered and counted as such.
-    """
-    if codepage and base_val:
-        curated = decode_through_codepage(base_val, codepage)
-        if curated is not None:
-            return curated, SELECTED_CURATED
-
-    chosen = uni_val if uni_val else base_val
-    if not chosen:
-        return "", SELECTED_UNICODE
-
-    reversed_ = _undouble(chosen)
-    if reversed_ is None:
-        # Not double-encoded, so there is nothing to reverse. It may still be
-        # damaged: a question mark straight after a non-ASCII character is where
-        # the legacy system dropped a character it could not represent. When the
-        # other column survived that, and proves to be the same name, it is the
-        # spelling to use.
-        if _DESTROYED_BYTE.search(chosen) and base_val and base_val is not chosen \
-                and not _DESTROYED_BYTE.search(base_val) \
-                and _undouble(base_val) is None \
-                and _corresponds(chosen, base_val):
-            return base_val, SELECTED_UNDAMAGED
-        return chosen, SELECTED_UNICODE
-
-    # The legacy system already stored the right spelling in the other column.
-    # Requiring the two to agree is what makes this a confirmation rather than a
-    # swap: a companion that says something else is a disagreement to report,
-    # not to silently resolve.
-    if base_val and _undouble(base_val) is None and base_val == reversed_:
-        return base_val, SELECTED_COMPANION
-
-    # A reversal is applied even when the value carries a character the legacy
-    # system destroyed. Undoing the double-encoding does not touch that: the
-    # question mark is ASCII, and an ASCII byte survives a UTF-8 decode as
-    # itself, so it comes through in place and nothing is put back where it
-    # stands. Repairing what can be repaired beats shipping a name that is wrong
-    # twice over, and the value is still reported as unresolved either way.
-    #
-    # The count check states that guarantee rather than assuming it, so a later
-    # change to the decode that consumed or produced a question mark would fall
-    # out here instead of quietly rewriting names.
-    if reversed_.count("?") == chosen.count("?"):
-        return reversed_, SELECTED_REVERSED
-
-    return chosen, SELECTED_LEFT
-
-
-def _prefer_unicode(rec: dict, base: str, uni: str,
-                    codepage: str | None = None) -> str:
-    value, _ = _resolve_pair(_val(rec, base), _val(rec, uni), codepage)
-    return value
-
-
-def _epoch_to_date(rec: dict, col: str) -> str:
-    raw = _val(rec, col)
-    if not raw or raw in ("0", "-1"):
-        return ""
-    try:
-        secs = int(raw)
-    except ValueError:
-        return ""
-    if secs <= 0:
-        return ""
-    return datetime.fromtimestamp(secs, tz=timezone.utc).strftime("%Y-%m-%d")
-
-
-def _birth_date(rec: dict) -> str:
-    def num(col):
-        raw = _val(rec, col)
-        try:
-            return int(raw)
-        except ValueError:
-            return 0
-    y, mo, d = num("MemberBirthYear"), num("MemberBirthMonth"), num("MemberBirthDay")
-    if y > 0 and 1 <= mo <= 12 and 1 <= d <= 31:
-        return f"{y:04d}-{mo:02d}-{d:02d}"
-    return ""
-
-
-def _street(rec: dict) -> str:
-    parts = [_val(rec, "MemberAddress1"), _val(rec, "MemberAddress2")]
-    return ", ".join(p for p in parts if p)
-
-
-def _expiration(raw: str) -> int:
-    """A raw expiration column as an integer: -1 lifetime, 0 none, else an
-    epoch. Anything unparseable reads as 0, no standing."""
-    try:
-        return int((raw or "").strip())
-    except ValueError:
-        return 0
-
-
-def derive_ever_paid_tier2(expiration2_raw: str) -> str:
-    """'1' when the member has ever held Tier 2 standing: any non-zero Tier 2
-    expiration, lifetime or annual, expired or not. This is a history
-    predicate, so a lapsed Tier 2 member still carries it."""
-    return "1" if _expiration(expiration2_raw) != 0 else "0"
-
-
-def derive_ever_paid_tier1_lifetime(expiration_raw: str) -> str:
-    """'1' when the member holds the Tier 1 lifetime sentinel (-1). Also a
-    history predicate: lifetime standing does not lapse."""
-    return "1" if (expiration_raw or "").strip() == LIFETIME_EXPIRATION else "0"
-
-
-def derive_tier1_annual_active_at_cutover(
-    expiration_raw: str, cutover_epoch: int | None,
-) -> str:
-    """'1' when the member holds a Tier 1 annual expiration (a real epoch, not
-    the -1 lifetime sentinel and not 0/none) still unexpired at the cutover
-    moment. Without a cutover date the derivation is inert and no row is
-    flagged (nothing is guessed); a lapsed annual carries no flag and the
-    member claims on honors alone."""
-    if cutover_epoch is None:
-        return "0"
-    exp = _expiration(expiration_raw)
-    if exp <= 0:
-        return "0"
-    return "1" if exp > cutover_epoch else "0"
-
-
-def legacy_member_tier(expiration_raw: str, expiration2_raw: str,
-                       now_epoch: int) -> int:
-    """The legacy site's own tier computation, ported branch for branch from
-    its member library, over the two expiration columns at a given moment.
-    Used only by the quality check: the derived flags are history predicates
-    and this is current standing, so the two are compared for coverage rather
-    than equality."""
-    exp1 = _expiration(expiration_raw)
-    exp2 = _expiration(expiration2_raw)
-    if exp2 == -1:
-        return 2                                  # lifetime Tier 2
-    if exp1 == -1:
-        return 2 if exp2 > now_epoch else 1       # annual Tier 2 still valid, else lifetime Tier 1
-    if exp1 > now_epoch:
-        return 1                                  # annual Tier 1 still valid
-    return 0                                      # no membership at all
-
-
-NAME_PAIRS = [
-    ("MemberFirstName", "MemberFirstNameUnicode"),
-    ("MemberMiddleName", "MemberMiddleNameUnicode"),
-    ("MemberLastName", "MemberLastNameUnicode"),
-]
-OTHER_PAIRS = [
-    ("MemberCity", "MemberCityUnicode"),
-    ("MemberState", "MemberStateUnicode"),
-    ("MemberCountry", "MemberCountryUnicode"),
-]
-
-def audit_record_encoding(rec: dict, codepage: str | None = None,
-                          fields: frozenset[str] = frozenset()) -> dict:
-    """Report how each stored-twice field of one row resolved, and what is wrong
-    with the ones that did not.
-
-    Separate from map_record so that counting cannot drift from the mapping: the
-    same _resolve_pair decides both, and this only describes the outcome. The
-    curated codepage is passed through for that reason: an audit that did not see
-    it would keep reporting a member as unrepaired after the curator had ruled.
-    """
-    outcomes: dict[str, str] = {}
-    problems: list[dict] = []
-    for base, uni in NAME_PAIRS + OTHER_PAIRS:
-        base_val, uni_val = _val(rec, base), _val(rec, uni)
-        # The ruling covers named fields on named members. A location column, or
-        # a name column the curator did not list, must resolve here exactly as it
-        # does in the mapping.
-        cp = codepage if base in fields else None
-        value, how = _resolve_pair(base_val, uni_val, cp)
-        outcomes[base] = how
-        if not value or value.isascii():
-            continue
-        # Corruption this pass deliberately does not touch. Named by the evidence
-        # for it, never by a guess at which codepage produced it.
-        # The reason says what is still wrong with the value; `resolution` says
-        # how far this pass got. Keeping them apart matters, because a value can
-        # be repaired as far as the evidence allows and still be listed here.
-        if how == SELECTED_LEFT:
-            reason = "reversal would not have preserved a destroyed character"
-        elif _DESTROYED_BYTE.search(value):
-            reason = "a destroyed character remains; this source cannot say what it was"
-        elif base_val and uni_val and base_val != uni_val \
-                and _undouble(base_val) is not None:
-            reason = "columns disagree: the plain column is double-encoded"
-        else:
-            continue
-        problems.append({
-            "legacy_member_id": _val(rec, "MemberID"),
-            "column": base,
-            "reason": reason,
-            "resolution": how,
-            "stored_unicode_column": uni_val,
-            "stored_plain_column": base_val,
-        })
-    return {"outcomes": outcomes, "problems": problems}
 
 
 # The tier a governance standing sits on top of. Closed set, matching the
@@ -571,64 +178,6 @@ def validate_board_roster(roster: dict[str, str], declared_fingerprint: str,
         )
 
 
-def map_record(rec: dict, cutover_epoch: int | None = None,
-               name_encodings: dict[str, tuple[str, frozenset[str]]] | None = None,
-               board_roster: dict[str, str] | None = None) -> dict:
-    """Map a members row to the canonical loader-input fields."""
-    # Only the name columns consult the curated codepage. A member's city or
-    # country carrying the same damage is a different question and is not what
-    # was ruled on, and the surname is what gates their claim.
-    codepage, fields = (name_encodings or {}).get(_val(rec, "MemberID"), (None, frozenset()))
-
-    def cp_for(column: str) -> str | None:
-        return codepage if column in fields else None
-
-    first = _prefer_unicode(rec, "MemberFirstName", "MemberFirstNameUnicode",
-                            cp_for("MemberFirstName"))
-    middle = _prefer_unicode(rec, "MemberMiddleName", "MemberMiddleNameUnicode",
-                             cp_for("MemberMiddleName"))
-    last = _prefer_unicode(rec, "MemberLastName", "MemberLastNameUnicode",
-                           cp_for("MemberLastName"))
-    real_name = " ".join(p for p in (first, middle, last) if p)
-    alias = _val(rec, "MemberAlias")
-    expiration = _val(rec, "MemberIFPAExpiration")
-    expiration2 = _val(rec, "MemberIFPAExpiration2")
-    return {
-        "legacy_member_id": _val(rec, "MemberID"),
-        "member_valid":     _val(rec, "MemberValid"),
-        "legacy_user_id":   alias,
-        "legacy_email":     _val(rec, "MemberEmail"),
-        "legacy_email2":    _val(rec, "MemberEmail2"),
-        "legacy_email3":    _val(rec, "MemberEmail3"),
-        "real_name":        real_name,
-        "display_name":     alias,
-        "city":             _prefer_unicode(rec, "MemberCity", "MemberCityUnicode"),
-        "region":           _prefer_unicode(rec, "MemberState", "MemberStateUnicode"),
-        "country":          _prefer_unicode(rec, "MemberCountry", "MemberCountryUnicode"),
-        "bio":              _val(rec, "MemberComment"),
-        "birth_date":       _birth_date(rec),
-        "street_address":   _street(rec),
-        "postal_code":      _val(rec, "MemberZIP"),
-        "ifpa_join_date":   _epoch_to_date(rec, "MemberIFPAJoined"),
-        # Relational / enrichment fields are filled by later phases.
-        "is_hof":           "",
-        "is_bap":           "",
-        "legacy_is_admin":  "",
-        "legacy_ever_paid_tier2":            derive_ever_paid_tier2(expiration2),
-        "legacy_ever_paid_tier1_lifetime":   derive_ever_paid_tier1_lifetime(expiration),
-        "legacy_tier1_annual_active_at_cutover":
-            derive_tier1_annual_active_at_cutover(expiration, cutover_epoch),
-        "legacy_was_board_at_cutover":
-            "1" if _val(rec, "MemberID") in (board_roster or {}) else "0",
-        "legacy_board_underlying_paid_tier":
-            (board_roster or {}).get(_val(rec, "MemberID"), ""),
-        # Raw source record-modification timestamp, carried through untouched so
-        # the shared-email resolver can parse and validate it centrally. The
-        # extraction layer transports the evidence; it does not decide ownership.
-        "legacy_member_modified":            _val(rec, "MemberModified"),
-    }
-
-
 def parse_cutover_date(cutover_date: str | None) -> int | None:
     """A YYYY-MM-DD cutover date becomes the start-of-day UTC epoch that annual
     expirations are compared against; None keeps the annual derivation inert."""
@@ -659,28 +208,6 @@ def _dump_generation_date(members_sql: Path, sql: str) -> tuple[date, str, str]:
         members_sql.stat().st_mtime, tz=timezone.utc).date()
     return (mtime_date, "file mtime (FALLBACK: no dump-completion trailer)",
             f"mtime {mtime_date.isoformat()}")
-
-
-def tier_coverage_violation(rec: dict, mapped: dict, cutover_epoch: int) -> str | None:
-    """The quality check behind the tier flags: whatever standing the legacy
-    site's own tier function computes for this row at the cutover moment must
-    be covered by a flag the claim-time grant can read. Tier 2 standing needs
-    the Tier 2 flag; Tier 1 standing needs the lifetime or the annual-active
-    flag. Returns a description of the failure, or None when covered.
-
-    Coverage, not equality: two of the three flags are history predicates and
-    the computed standing is current, so a lapsed Tier 2 member computes as
-    Tier 1 while correctly carrying the Tier 2 history flag. Requiring equality
-    would reject exactly the rows the design intends to grant on.
-    """
-    tier = legacy_member_tier(_val(rec, "MemberIFPAExpiration"),
-                              _val(rec, "MemberIFPAExpiration2"), cutover_epoch)
-    if tier == 2 and mapped["legacy_ever_paid_tier2"] != "1":
-        return "computes as Tier 2 but carries no ever-held-Tier-2 flag"
-    if tier == 1 and mapped["legacy_ever_paid_tier1_lifetime"] != "1" \
-            and mapped["legacy_tier1_annual_active_at_cutover"] != "1":
-        return "computes as Tier 1 but carries neither Tier 1 flag"
-    return None
 
 
 def extract(members_sql: Path, out_csv: Path, cutover_date: str | None = None,
@@ -835,12 +362,10 @@ def main() -> None:
                     help="path to the members mysqldump (members/backups/latest.sql)")
     ap.add_argument("--out", required=True, type=Path,
                     help="output canonical CSV path")
-    ap.add_argument("--cutover-date", default=os.environ.get("FOOTBAG_CUTOVER_DATE") or None,
+    ap.add_argument("--cutover-date", required=True,
                     help="the moment (YYYY-MM-DD) Tier-1 annual expirations are measured "
-                         "against; defaults to the FOOTBAG_CUTOVER_DATE env var. The "
-                         "runner supplies the day it runs unless that variable pins an "
-                         "earlier moment. Without it the annual-active derivation is "
-                         "inert and flags no row.")
+                         "against. Required: a run without it would flag no row as "
+                         "annual-active and look complete.")
     # No environment fallback, deliberately. The runner resolves this path, says
     # on every run whether it had one, and refuses a production extract without
     # it; a fallback here would let a direct invocation pick up a roster nobody
@@ -883,7 +408,7 @@ def main() -> None:
     print(f"  ever-paid Tier 2:       {tf['legacy_ever_paid_tier2']}")
     print(f"  Tier 1 lifetime:        {tf['legacy_ever_paid_tier1_lifetime']}")
     annual_note = "" if stats["cutover_epoch"] is not None else \
-        "  (derivation inert: no --cutover-date / FOOTBAG_CUTOVER_DATE)"
+        "  (derivation inert: no --cutover-date)"
     print(f"  Tier 1 annual active:   {tf['legacy_tier1_annual_active_at_cutover']}{annual_note}")
     board_note = "" if stats["board_roster_rows"] else \
         "  (no roster: the dump carries no board data, so the final merge will refuse)"

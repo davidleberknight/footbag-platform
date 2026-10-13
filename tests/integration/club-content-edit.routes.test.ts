@@ -284,17 +284,18 @@ describe('the edit form itself', () => {
 
 describe('club action notice', () => {
   it('the outcome of a club action renders on the club page and is consumed once', async () => {
-    const { clubKey, leaderId } = seedClubWithLeader();
+    const { clubKey, leaderId, name } = seedClubWithLeader();
 
-    // A refused hashtag change is the shortest route to an action outcome that
-    // lands back on the club page; the contract under test is that the club
-    // page displays what the action left for it, whatever the action was.
+    // A co-leader's content edit is an action outcome that lands back on the
+    // club page; the contract under test is that the club page displays what
+    // the action left for it, whatever the action was.
     const acted = await request(createApp())
-      .post(`/clubs/${clubKey}/hashtag`)
+      .post(`/clubs/${clubKey}/content/edit`)
       .set('Cookie', cookieFor(leaderId))
       .type('form')
-      .send({ newSlug: 'x' });
+      .send(fullForm(name, { description: 'A notice-carrying edit.' }));
     expect(acted.status).toBe(303);
+    expect(acted.headers.location).toBe(`/clubs/${clubKey}`);
 
     const carried = (acted.headers['set-cookie'] as unknown as string[])
       .map((c) => c.split(';')[0])
@@ -302,7 +303,7 @@ describe('club action notice', () => {
 
     const shown = await request(createApp()).get(`/clubs/${clubKey}`).set('Cookie', carried);
     expect(shown.status).toBe(200);
-    expect(shown.text).toContain('Invalid hashtag format.');
+    expect(shown.text).toContain('Club updated.');
 
     // The clear rides on the response that displayed it, so a reload of the
     // same URL must not repeat an outcome that belonged to the earlier request.
@@ -311,27 +312,6 @@ describe('club action notice', () => {
 
     const reloaded = await request(createApp()).get(`/clubs/${clubKey}`);
     expect(reloaded.status).toBe(200);
-    expect(reloaded.text).not.toContain('Invalid hashtag format.');
-  });
-});
-
-describe('hashtag update', () => {
-  it('a successful hashtag change redirects to the NEW club key (the hashtag is the URL key, so the old slug is dead)', async () => {
-    const { clubKey, leaderId } = seedClubWithLeader();
-    const newSlug = `renamed_${_n}`;
-
-    const res = await request(createApp())
-      .post(`/clubs/${clubKey}/hashtag`)
-      .set('Cookie', cookieFor(leaderId))
-      .type('form')
-      .send({ newSlug });
-    expect(res.status).toBe(303);
-    expect(res.headers.location).toBe(`/clubs/club_${newSlug}`);
-
-    // The redirect target resolves; the pre-change slug no longer does.
-    const landed = await request(createApp()).get(`/clubs/club_${newSlug}`);
-    expect(landed.status).toBe(200);
-    const stale = await request(createApp()).get(`/clubs/${clubKey}`);
-    expect(stale.status).toBe(404);
+    expect(reloaded.text).not.toContain('Club updated.');
   });
 });

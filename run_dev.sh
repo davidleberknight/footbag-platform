@@ -123,15 +123,16 @@ aliases, source links and modifier links attached to them:
                    the footbag_legacy_mirror repo-root symlink wired.
                    Calls scripts/deploy-local-data.sh --soup-to-nuts.
   --all-data       DESTRUCTIVE. The --from-csv build PLUS the legacy member-data intake:
-                   extract the footbag.org dump into the git-ignored intermediate
-                   CSV, run the identity reconciliation, and APPLY the member
+                   read the published member CSV from the maintainers' private
+                   checkout, run the identity reconciliation, and APPLY the member
                    load to the local DB (real member rows and historical-person
                    links, with a rollback snapshot). This is the local path for
                    exercising onboarding matching and legacy claims against real
                    data. The AWS deploy path (deploy-to-aws.sh --all-data) applies
                    the same intake and ships it to whichever target it deploys.
-                   Requires the gitignored membership roster AND either the
-                   footbag.org dump or a prior intermediate CSV. Seeds personas by
+                   Requires the private checkout (footbag_private_repo) with its
+                   membership roster and published member CSV, and refuses before
+                   touching the database without them. Seeds personas by
                    default (opt out with --no-personas).
                    Calls scripts/deploy-local-data.sh --all-data --apply-members.
 
@@ -295,6 +296,8 @@ fi
 # Default (no flag): no DB work. Bootstrap with --reset only if the DB file
 # is missing entirely. Explicit --reset / --from-csv / --soup-to-nuts always
 # rebuild.
+# deploy-local-data.sh runs only from an entry point, and this is one of them.
+export FOOTBAG_DATA_BUILD_ENTRY=run_dev
 if (( SOUP_TO_NUTS == 1 )); then
   echo "→ Soup-to-nuts rebuild from legacy mirror..."
   bash scripts/deploy-local-data.sh --soup-to-nuts

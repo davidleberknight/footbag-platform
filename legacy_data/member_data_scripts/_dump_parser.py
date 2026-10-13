@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """Shared mysqldump parsing and dump-root resolution for the legacy-site dump.
 
+Retired with the member extractors that used it: the refresh reads every
+delivery with strict_dump_parser.py and is the only reader of the legacy
+repository. Kept while those retired extractors are kept; nothing current
+imports it.
+
 The legacy footbag.org export is a set of per-app MariaDB mysqldump files
 (`<app>/backups/latest.sql`) using positional extended INSERTs
 (`INSERT INTO <table> VALUES (...),(...)` with no column list), so values map

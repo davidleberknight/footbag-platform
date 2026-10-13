@@ -2,8 +2,8 @@
 """Emit seed-URL lists for the WordPress vhost (sites.footbag.org) sites.
 
 The vhost's WordPress database lives on the vhost machine and is not part of
-the per-app dump set, so these seeds cannot be dump-derived like the ones from
-build_archive_seed_lists.py. WordPress's own REST API enumerates every page and
+the per-app dump set, so these seeds cannot be derived from the legacy export
+like the ones publish_legacy_repo_data.py writes. WordPress's own REST API enumerates every page and
 post URL instead: ``/wp-json/wp/v2/pages?per_page=100&_fields=link`` (and the
 same for ``posts``), paginated via the ``X-WP-TotalPages`` response header.
 wp-json itself is never archived (the crawler refuses it as non-content); it is

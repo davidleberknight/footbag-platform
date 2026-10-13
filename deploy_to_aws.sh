@@ -149,11 +149,11 @@ if (( HAS_MODE == 0 )); then
 fi
 
 # The maintainers' private checkout is a prerequisite for a deploy that rebuilds
-# the database, not an optional convenience. It carries the recorded human
-# decisions the member intake applies, and a build without them is a different
-# database that looks identical afterwards: duplicate accounts a human ruled to be
-# two people get fused, and the directors sitting at cutover load as ordinary
-# members. Neither failure raises an error of its own, so a rebuild refuses rather
+# the database, not an optional convenience. It carries the published member data
+# and the recorded human decisions the member intake applies, and a build without
+# them is a different database that looks identical afterwards: duplicate accounts
+# a human ruled to be two people get fused. That failure raises no error of its
+# own, so a rebuild refuses rather
 # than degrading, and it refuses here, ahead of the production gate, so a missing
 # symlink never costs a typed confirmation or a typed password.
 #
@@ -169,8 +169,8 @@ if (( DATA_REBUILD == 1 )) && [[ ! -d "$PRIVATE_CHECKOUT" ]]; then
   echo "Recommendation: clone the private operations repo beside this one and wire it with" >&2
   echo "  bash scripts/setup_private_repo.sh --private-repo <path to that clone>" >&2
   echo "  then re-run. A deploy requires it: the member intake" >&2
-  echo "  reads the recorded account rulings and the board roster from it, and a database built" >&2
-  echo "  without them is wrong in ways nothing afterwards reports." >&2
+  echo "  reads the published member data and the recorded account rulings from it, and a" >&2
+  echo "  database built without them is wrong in ways nothing afterwards reports." >&2
   echo "  Without the checkout, a staging rebuild from the public inputs alone is" >&2
   echo "  bash deploy_to_aws.sh --public-data" >&2
   exit 1
@@ -439,12 +439,11 @@ fi
 # the alias name; an unconfigured alias makes the deploy fail mid-flight with
 # 'Could not resolve hostname'. Catch it here.
 # Exported, not merely assigned. The legacy member load two scripts down reads
-# DEPLOY_TARGET to decide whether the recorded account rulings and the board
-# roster are mandatory, and it reaches that decision only if the value is in the
-# environment. It is today, because an operator has to set it for the SSH alias
-# to resolve at all -- but that is inheritance from the invocation rather than
-# anything this script guarantees, and the failure mode if it ever stops holding
-# is a development-shaped member load onto production that raises no error.
+# DEPLOY_TARGET to tell a production load from any other: on production it
+# refuses without the recorded account rulings and requires every
+# membership-only person to carry a proposed link or a recorded disposition. It
+# sees the value only through the environment, and a load that cannot see it
+# runs as a development load onto production without raising any error.
 export DEPLOY_TARGET="${DEPLOY_TARGET:-footbag-staging}"
 # Avoid `awk ... exit` here: when awk exits before consuming all of ssh -G's
 # output, the upstream `ssh -G` receives SIGPIPE and `set -o pipefail` then
@@ -638,7 +637,7 @@ if (( MODE_REUSE == 1 )) \
       echo "  a separate reset step first." >&2
       echo "" >&2
       echo "  To rebuild locally without deploying:" >&2
-      echo "    bash scripts/deploy-local-data.sh --from-csv" >&2
+      echo "    ./run_dev.sh --from-csv" >&2
       echo "" >&2
       echo "  Or set FOOTBAG_SKIP_SCHEMA_DRIFT_CHECK=1 to ship this file anyway." >&2
       exit 1

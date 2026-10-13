@@ -3,8 +3,8 @@
 
 This is the one program that reads the legacy webmaster's repository. Everything
 downstream reads the CSVs it writes, so whatever this script accepts is what the
-member load, the clubs merge and the crawl believe. The delivery comes from a
-party outside our control, so the script treats it as untrusted. It reads every
+member load, the clubs merge and the crawl believe. The delivery is presumed an
+honest update and is verified rather than trusted. It reads every
 file from the delivered commit, never from the working tree, compares that
 commit against an untouched copy of the first delivery, and refuses only what
 would make the delivery unreadable or unsafe to write. Everything else a
@@ -41,9 +41,12 @@ Refused, with the reason and nothing written:
 
 Reported, and written as delivered: a dump the original carried that is now
 missing, a table that disappeared or emptied, a column that disappeared, copied
-material the delivery dropped (pruned from the export), and growth in a dump's
+material the delivery dropped (pruned from the export), growth in a dump's
 raw control characters, invalid UTF-8 lines or end-of-dump footers against the
-original. The previous CSVs survive in the private repository's history.
+original, and tracked files the delivery added or changed that are neither
+converted nor copied. The previous CSVs survive in the private repository's
+history. A run that fails once writing has begun says the export is partial and
+prints the git commands that restore the last accepted delivery.
 
 Credential columns are omitted as rows are written, so a stored password never
 reaches a file.
@@ -80,11 +83,10 @@ from urllib.parse import unquote, urlparse
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import refresh_report  # noqa: E402
 import strict_dump_parser as sp  # noqa: E402
-from extract_legacy_dump import (  # noqa: E402
-    is_credential_column, prune_stale, write_manifest)
-from extract_legacy_estate import (  # noqa: E402
-    FILE_TREES, OWN_FILES, make_owner_only, owner_only_violations,
-    write_copy_manifest, write_scrape_only)
+from refresh_support import (  # noqa: E402
+    FILE_TREES, OWN_FILES, is_credential_column, make_owner_only,
+    owner_only_violations, prune_stale, write_copy_manifest, write_manifest,
+    write_scrape_only)
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 LIVE = REPO_ROOT / 'footbag_legacy_repo'
@@ -133,9 +135,11 @@ LFS_POINTER = b'version https://git-lfs.github.com/spec/'
 # Credential names beyond the shared extractor's list. The short ones are
 # matched as whole words of the column name, because as substrings they hit
 # ordinary columns (a "pin" inside "Shipping"); the long ones cannot, so they
-# are matched anywhere in the name.
+# are matched anywhere in the name. The actions module's key is the token its
+# confirmation e-mail carries, so it unlocks a pending action like a password.
 CREDENTIAL_WORDS = {'pwd', 'pass', 'pw', 'pin', 'otp', 'totp'}
-CREDENTIAL_SUBSTRINGS = ('nonce', 'digest', 'crypt', 'md5', 'authkey', 'privatekey')
+CREDENTIAL_SUBSTRINGS = ('nonce', 'digest', 'crypt', 'md5', 'authkey', 'privatekey',
+                         'actionkey')
 _WORD_RE = re.compile(r'[A-Z]+(?=[A-Z][a-z])|[A-Z]?[a-z]+|[A-Z]+|\d+')
 
 
@@ -161,8 +165,13 @@ def is_withheld(column: str) -> bool:
     return bool(words & CREDENTIAL_WORDS) or any(t in squashed for t in CREDENTIAL_SUBSTRINGS)
 
 
+# Plain git may refresh and write back a clone's index while reading it; the
+# clones are read-only input, so every call forgoes that.
+GIT = ('git', '--no-optional-locks')
+
+
 def git(repo: Path, *args: str) -> str:
-    done = subprocess.run(['git', '-C', str(repo), *args], capture_output=True,
+    done = subprocess.run([*GIT, '-C', str(repo), *args], capture_output=True,
                           text=True, check=False)
     if done.returncode != 0:
         raise Refused(f'git {" ".join(args)} failed in {repo.name}: '
@@ -174,11 +183,11 @@ def is_ancestor(repo: Path, older: str, newer: str) -> bool:
     """Exit 0 means an ancestor and 1 means not; anything else is git failing,
     which must not read as either answer. An older commit the repository does
     not hold at all is not its ancestor: that is what a rewrite leaves."""
-    present = subprocess.run(['git', '-C', str(repo), 'cat-file', '-e', f'{older}^{{commit}}'],
+    present = subprocess.run([*GIT, '-C', str(repo), 'cat-file', '-e', f'{older}^{{commit}}'],
                              capture_output=True, check=False)
     if present.returncode != 0:
         return False
-    done = subprocess.run(['git', '-C', str(repo), 'merge-base', '--is-ancestor',
+    done = subprocess.run([*GIT, '-C', str(repo), 'merge-base', '--is-ancestor',
                            older, newer], capture_output=True, text=True, check=False)
     if done.returncode == 0:
         return True
@@ -191,7 +200,7 @@ def is_ancestor(repo: Path, older: str, newer: str) -> bool:
 def tracked_objects(repo: Path, commit: str) -> dict[str, tuple[str, str]]:
     """Each path's mode and object id at the commit, read from git itself so a
     path with unusual characters is never quoted or mangled."""
-    done = subprocess.run(['git', '-C', str(repo), 'ls-tree', '-r', '-z', commit],
+    done = subprocess.run([*GIT, '-C', str(repo), 'ls-tree', '-r', '-z', commit],
                           capture_output=True, check=False)
     if done.returncode != 0:
         raise Refused(f'git ls-tree failed in {repo.name}: '
@@ -206,7 +215,7 @@ def tracked_objects(repo: Path, commit: str) -> dict[str, tuple[str, str]]:
 
 
 def blob(repo: Path, obj: str) -> bytes:
-    done = subprocess.run(['git', '-C', str(repo), 'cat-file', 'blob', obj],
+    done = subprocess.run([*GIT, '-C', str(repo), 'cat-file', 'blob', obj],
                           capture_output=True, check=False)
     if done.returncode != 0:
         raise Refused(f'git cat-file failed in {repo.name} for {obj}')
@@ -426,6 +435,32 @@ def copied_entries(commit: Commit) -> dict[str, list[tuple[str, str, str]]]:
     return by_dir
 
 
+_DUMP_LIKE = re.compile(r'sql|dump', re.IGNORECASE)
+
+
+def report_uncaptured(live: Commit, original: Commit, report: list[str]) -> None:
+    """Tracked files the delivery added or changed that the refresh neither
+    converts nor copies. A dump arriving under a name the refresh does not read
+    would otherwise never be seen, so each dump-like file is named; the rest,
+    mostly site code, are counted by top-level folder."""
+    captured = {rel for rel, _, _ in MODULES}
+    trees = [rel for rel, _, _ in FILE_TREES]
+    others: Counter = Counter()
+    for path, entry in sorted(live.objects.items()):
+        if original.objects.get(path) == entry or path in captured:
+            continue
+        if any(path == t or path.startswith(t + '/') for t in trees):
+            continue
+        if _DUMP_LIKE.search(path.rsplit('/', 1)[-1]):
+            verb = 'changed' if path in original.objects else 'added'
+            report.append(f'{path}: a tracked dump-like file {verb} outside the captured set')
+        else:
+            others[path.split('/', 1)[0] if '/' in path else '(top level)'] += 1
+    for folder, n in sorted(others.items()):
+        report.append(f'{folder}: {n} other tracked file(s) added or changed outside the '
+                      'captured set')
+
+
 def kept_columns(table: sp.Table) -> tuple[list[str], list[int]]:
     """The columns a CSV carries, and their indexes: every one but credentials."""
     keep = [i for i, c in enumerate(table.columns) if not is_withheld(c)]
@@ -565,6 +600,7 @@ def main() -> int:
         check_output_names(live)
         check_gallery_paths(live)
         copied = copied_entries(live_commit)
+        report_uncaptured(live_commit, original_commit, report)
     except Refused as err:
         print(f'REFUSED: {err}', file=sys.stderr)
         print('Nothing was written.', file=sys.stderr)
@@ -576,7 +612,25 @@ def main() -> int:
     baselines = refresh_report.load_baselines(export, live, original, kept_columns)
 
     os.umask(0o077)
+    try:
+        return write_export(export, live, original, live_commit, original_commit,
+                            copied, baselines, report)
+    except BaseException:
+        # Whatever stopped the run, the export now mixes this delivery with the
+        # last one, and the report that would describe it was cleared first.
+        print(f'\nThe export is partially written and must not be used. Restore the '
+              f'last accepted delivery with:\n  git -C {export} checkout -- .\n'
+              f'  git -C {export} clean -fd .', file=sys.stderr)
+        raise
+
+
+def write_export(export: Path, live: dict[str, Source], original: dict[str, Source],
+                 live_commit: Commit, original_commit: Commit,
+                 copied: dict[str, list[tuple[str, str, str]]], baselines: dict,
+                 report: list[str]) -> int:
     export.mkdir(parents=True, exist_ok=True)
+    for name in ('REFRESH_REPORT.md', 'REFRESH_REPORT_DETAIL.tsv', 'REFRESH_MANIFEST.tsv'):
+        (export / name).unlink(missing_ok=True)
     by_dir: dict[str, list[Source]] = {}
     for source in live.values():
         by_dir.setdefault(source.out_name, []).append(source)

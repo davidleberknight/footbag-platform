@@ -301,7 +301,10 @@ function contentHiddenFields(
  * administrator: nothing reads it, and a preview that named a real actor would
  * look like a write that had already happened.
  */
-function administrator(memberId: string, reason: string): ClubWriteActor {
+function administrator(
+  memberId: string,
+  reason: string,
+): Extract<ClubWriteActor, { kind: 'administrator' }> {
   return { kind: 'administrator', memberId, reason };
 }
 

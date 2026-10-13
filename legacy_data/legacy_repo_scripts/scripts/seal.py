@@ -2,6 +2,11 @@
 """
 seal.py — Step 1: make an IMMUTABLE raw copy of one app's mysqldump.
 
+RETIRED: dormant. The legacy refresh (legacy_data/scripts/
+refresh_legacy_repo_data.py) is the only reader of the legacy repository, and
+everything downstream reads the vetted export it writes. Kept as a record;
+nothing runs it.
+
 WHAT THIS DOES:
   1. Copies sources.yaml[app].dump_path -> raw/<app>/latest.sql verbatim.
   2. Generates a sha256 sidecar (raw/<app>/latest.sql.sha256) over the copy.

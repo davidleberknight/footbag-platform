@@ -146,7 +146,8 @@ fi
 # gated. Spacing does not matter: `>out` leaks exactly as `> out` would. Newlines are
 # flattened first: the stripping below is line-based, and a quoted string spanning lines
 # (an inline SQL query with a <> comparison, a node -e script with arrow functions) would
-# otherwise leave its literal > unstripped and raise a false ask.
+# otherwise leave its literal > unstripped and raise a false ask. A remaining redirect into
+# the working tree is denied rather than asked (below).
 RSCAN="$(printf '%s' "$COMMAND" | tr '\n' ' ' | sed -E 's#[0-9]*>&[0-9-]+##g; s#&>>?[[:space:]]*/dev/null##g; s#[0-9]*>>?[[:space:]]*/dev/null##g')"
 case "$COMMAND" in
   *..*) : ;;
@@ -186,6 +187,40 @@ if printf '%s' "$RSCAN" | grep -q '>'; then
         hookEventName: "PreToolUse",
         permissionDecision: "deny",
         permissionDecisionReason: "HARD BLOCK: do not write a redirect target as a shell variable. The guard cannot prove where \"$VAR/file\" lands, so the session-scratchpad exemption cannot apply. Spell the path literally: the scratchpad path for scratch output, or the real path if you mean to write it."
+      }
+    }'
+    exit 0
+  fi
+  # A redirect that writes into the working tree is denied, not asked. Files here
+  # are edited through the Edit and Write tools, which show the change as a diff;
+  # an ask can be approved without anyone reading the write, and an auto-approving
+  # session approves it unseen. A relative target lands in the repository, because
+  # the working directory is the repo root (a leading cd is denied); an absolute
+  # target lands there when it sits at or under the project directory. Only an
+  # unambiguous redirect is denied: the operator stands at the start or after
+  # whitespace (with an optional fd digit), and the target reads as a path. A `>`
+  # glued to text (an arrow in a heredoc body, `3>2` in arithmetic) is not read as
+  # one, so a read-only command never meets this deny. A target that cannot be read
+  # as a literal path (a substitution) or that leaves the tree (`..`, `~`, an
+  # absolute path elsewhere) keeps the ask below, so a deliberate write outside the
+  # repository stays the human's call.
+  PROJ="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
+  IN_TREE=0
+  while IFS= read -r tgt; do
+    tgt="${tgt#\"}"; tgt="${tgt%\"}"; tgt="${tgt#\'}"; tgt="${tgt%\'}"
+    case "$tgt" in
+      *..*|'~'*|'') : ;;
+      "$PROJ"|"$PROJ"/*) IN_TREE=1 ;;
+      /*) : ;;
+      *[A-Za-z_./]*) case "$tgt" in [A-Za-z0-9._-]*) IN_TREE=1 ;; esac ;;
+    esac
+  done < <(printf '%s' "$RSCAN" | grep -oE '(^|[[:space:]])[0-9]?>>?[[:space:]]*[^[:space:];&|<>()]+' | sed -E 's/^[[:space:]]*[0-9]?>>?[[:space:]]*//')
+  if [ "$IN_TREE" -eq 1 ]; then
+    jq -n '{
+      hookSpecificOutput: {
+        hookEventName: "PreToolUse",
+        permissionDecision: "deny",
+        permissionDecisionReason: "HARD BLOCK: do not write a file in the repository with a shell redirect (>, >>, a heredoc into cat). Use the Edit or Write tool, which shows the change as a diff. Scratch output belongs in the session scratchpad, which stays exempt."
       }
     }'
     exit 0

@@ -582,7 +582,6 @@ const DONATION_MIN_CENTS = 100;
 const DONATION_MAX_CENTS = 2_000_000;
 
 const HOF_DEFAULT_DONATION_NOTE = 'HoF Fund';
-const BAP_DEFAULT_DONATION_NOTE = 'BAP Fund';
 
 // Suggested gift amounts offered on the donations page. A custom amount is
 // always available alongside them, so this list is a convenience, not a menu of
@@ -677,7 +676,6 @@ interface DonorProfile {
   loginEmail: string | null;
   realName: string | null;
   isHof: boolean;
-  isBap: boolean;
   stripeCustomerId: string | null;
 }
 
@@ -688,7 +686,6 @@ function lookupDonorProfile(memberId: string): DonorProfile {
         login_email: string | null;
         real_name: string | null;
         is_hof: number;
-        is_bap: number;
         stripe_customer_id: string | null;
       }
     | undefined;
@@ -698,7 +695,6 @@ function lookupDonorProfile(memberId: string): DonorProfile {
     loginEmail: row.login_email,
     realName: row.real_name,
     isHof: row.is_hof === 1,
-    isBap: row.is_bap === 1,
     stripeCustomerId: row.stripe_customer_id,
   };
 }
@@ -719,11 +715,11 @@ function normalizeDonationNote(raw: unknown): string | null {
   return trimmed;
 }
 
-// A donor who leaves the note blank gets their honor's fund by default. A member
-// holding both honors gets the Hall of Fame fund.
+// A Hall of Fame member who leaves the note blank designates the gift to the
+// Hall of Fame fund, which is restricted to it. IFPA has no other named fund,
+// so every other donor's note stays empty.
 function defaultDonationNote(profile: DonorProfile): string | null {
   if (profile.isHof) return HOF_DEFAULT_DONATION_NOTE;
-  if (profile.isBap) return BAP_DEFAULT_DONATION_NOTE;
   return null;
 }
 

@@ -37,10 +37,10 @@ other input a full run reads is committed — the curated inputs under
 `inputs/curated/`, the `overrides/`, the latest identity-lock snapshots, and the
 `seed/` CSVs — so for the pipeline itself the mirror and the roster are the only
 two you must supply. The member load is the separate track with more: it reads
-the legacy database dump (the `footbag_legacy_repo` repo-root symlink) and, on a
-production build, the recorded-human-decision CSVs from the maintainers' private
-checkout — see the private-inputs rows in the register below and the member-data
-scripts' own README.
+the published member CSV and the recorded-human-decision CSVs from the
+maintainers' private checkout (the `footbag_private_repo` repo-root symlink),
+never the legacy database dump — see the legacy refresh and publish below, the
+private-inputs rows in the register, and the member-data scripts' own README.
 
 Run from `legacy_data/`. You need only Python at the version in the repository's
 `.python-version`: on every run the pipeline reuses a venv only if it works
@@ -118,18 +118,19 @@ not script inputs, and are never committed. The final, useful results are
 committed as the curated, seed, and identity inputs below.
 
 **Two kinds of script input are never committed: the membership roster below, and the member
-load's five recorded-human-decision CSVs, which live together in the maintainers' private
+load's four recorded-human-decision CSVs, which live together in the maintainers' private
 checkout at `private_data/stage_a_overrides/`, reached through the git-ignored repo-root
 `footbag_private_repo` symlink. No environment variable names that location and no operator
 command carries a path: a run resolves it and reports what it found there.** Every other CSV a
-script reads is committed.
+script reads is committed, apart from the vetted legacy-export CSVs the legacy refresh writes
+into the same private checkout and the published member CSV the legacy publish writes from them.
 
 | CSV (path / glob) | Git | Read by | What it is |
 |---|---|---|---|
 | `membership/inputs/membership_input_normalized.csv` | **gitignored** | `membership/scripts/01_build_membership_enrichment.py` (phase C) | IFPA member roster (names and membership status, no contact data); lives in the maintainers' private repository; not regenerable |
 | `stage_a_adjudication.csv`, `entitlement_dispositions.csv` (in `private_data/stage_a_overrides/`) | **private checkout, never committed here** | `member_data_scripts/run_legacy_members.sh` (which resolves them by canonical path and passes them to the reconciler's final merge) | recorded human rulings about which duplicate legacy accounts are the same person, and the entitlement disposition per merged set; fingerprinted, failing closed against an extract they were not adjudicated on |
-| `board_at_cutover.csv` (same private directory) | **private checkout, never committed here** | `member_data_scripts/extract_legacy_members.py`, resolved and passed by the runner | the directors sitting at cutover, each with the paid tier underneath the seat; validated and fingerprinted against the dump it is applied to, same fail-closed contract as the rulings |
-| `person_link_holds.csv`, `review_resolutions.csv` (same private directory) | **private checkout, never committed here** | accepted by the reconciler; not passed by the runner today (whether the production load applies them is an open ruling in the maintainers' private tracker) | recorded holds on historical-person links, and review-outcome rulings |
+| `legacy-publish/legacy_members.csv` (private checkout) | **private checkout, never committed here** | `member_data_scripts/run_legacy_members.sh` | the published member CSV, written by `scripts/publish_legacy_repo_data.py`: tier flags measured at the cutover date, repaired names, the admin flag, and the board flag, set only when the delivery's Board of Directors roster carries the CTO record |
+| `person_link_holds.csv`, `review_resolutions.csv` (same private directory) | **private checkout, never committed here** | `member_data_scripts/run_legacy_members.sh`, which passes them to the reconciler's Stage B so a held link never reaches the proposed links | recorded holds on historical-person links, and review-outcome rulings |
 | `event_results/canonical_input/*.csv` (5 files) | committed | `reset-local-db.sh`, `run_pipeline.sh` canonical loaders | real committed competitor event data (event results and historical persons, `legacy_email` empty); the maintainer regenerates it from the mirror |
 | `seed/clubs.csv`, `seed/club_members.csv`, `seed/clubs_url_verdicts.csv` | committed | `load_clubs_seed.py`, `load_club_members_seed.py` | mirror-derived club seed (names and locations) |
 | `inputs/name_variants.csv` | committed | `load_name_variants_seed.py` | name-variant pairs (generated; only HIGH rows load) |
@@ -148,15 +149,16 @@ clone; the `reset-local-db.sh` fallback stages the synthetic fixtures only if it
 is somehow absent. The committed seed and name-variant loaders also error on a
 missing or malformed file rather than crashing opaquely.
 
-The member load's private inputs degrade by design rather than by accident. A
-machine without them loads anyway and every run says which it had. A production
-load (`deploy_to_aws.sh --target production`) refuses without the rulings, and a
-production extract additionally refuses without the board roster, because the
-roster only takes effect where the flag is written into the intermediate CSV.
-Two dead ends refuse before any stage runs rather than failing late from inside
-the merge: an extract with the rulings present and no roster, and a load handed
-a CSV no roster ever touched while the rulings are present. The runner's own
-`--help` is authoritative for the variable names and what each changes.
+The member load's private inputs degrade by design rather than by accident. The
+published member CSV is required: `run_legacy_members.sh --load` refuses without
+it, and an `--all-data` build refuses before any destructive step when the
+private checkout is missing. The recorded rulings are optional on a development
+machine, where duplicate accounts then merge on the mechanical rule alone and the
+run says so. A production load (`deploy_to_aws.sh --target production`) refuses
+without them, and also requires every membership-only person to carry a proposed
+link or a recorded disposition. The cutover date and the board flag are fixed at
+publish, so the load takes neither as an input. The runner's own `--help` is
+authoritative for what each input changes.
 
 ---
 
@@ -244,9 +246,10 @@ Modes (see `scripts/deploy-local-data.sh --help` for full detail):
 - `--db-only` delegates to `scripts/reset-local-db.sh` (fastest, skips
   phase C/D/E/F/G; see `reset-local-db.sh` warning below)
 - `--all-data` is `--from-csv` plus the legacy member intake: it invokes
-  `legacy_data/member_data_scripts/run_legacy_members.sh` (extract when the
-  dump is present, then validate + preview; a real apply is opt-in via
-  `--apply-members`). The rebuild path for a database that must carry member
+  `legacy_data/member_data_scripts/run_legacy_members.sh` on the published
+  member CSV (validate + preview; a real apply is opt-in via
+  `--apply-members`), and refuses before any destructive step without the
+  private checkout. The rebuild path for a database that must carry member
   data, which `--from-csv` leaves empty
 - `--dry-run` prints what each mode would run
 
@@ -312,6 +315,11 @@ Detects duplicate persons caused by alias drift. See
 
 #### `legacy_data/pipeline/qc/check_name_variants.py`
 Structural QC for `inputs/name_variants.csv`. Runs inside `run_qc.py`.
+
+#### `legacy_data/pipeline/qc/check_seed_text_hygiene.py`
+Encoding-damage and leftover-markup check for the committed club seed CSVs
+(`seed/clubs.csv`, `seed/club_members.csv`) only. Runs inside `run_qc.py` as a
+hard gate.
 
 #### `legacy_data/event_results/scripts/26_qc_hof_coverage.py`
 Hall of Fame coverage. Every honoree carrying a person id must exist in
@@ -439,20 +447,43 @@ owner-only, with `REFRESH_MANIFEST.tsv` and a findings report (`REFRESH_REPORT.m
 and `REFRESH_REPORT_DETAIL.tsv`, written by `legacy_data/scripts/refresh_report.py`)
 comparing every table with the last accepted delivery, the CSVs committed at the
 private checkout's HEAD. A new module, table or column is held
-until a maintainer accepts it with `--accept-new`. The script's header is the
-authoritative list of what is refused and what is reported.
+until a maintainer accepts it with `--accept-new`. `--out` writes the export to
+another directory; it refuses a target inside either legacy clone, or inside this
+public checkout, because member data belongs in the private checkout. The
+script's header is the authoritative list of what is refused and what is
+reported.
+
+### The legacy publish
+
+`legacy_data/scripts/publish_legacy_repo_data.py` reads only the vetted CSVs the
+refresh wrote, plus the curated member name-encoding record and the IFPA
+secretary's capture of the live vote results, and writes what the member load, the
+crawl and the group-file recovery read: the finished member CSV, its
+encoding-problems file, the derived IFPA vote tallies with their reconciliation, and
+a publish report in the private checkout's `legacy-publish/`; the crawler's
+exclusion list and the group-file inventory in its private custody folder; and the
+crawl seed lists and
+`approved_event_ids.txt` under `legacy_data/legacy_mirror/`. The cutover date is a
+required argument (`--cutover-date YYYY-MM-DD`), never the run day. The board flag
+is set only when the delivery's Board of Directors roster carries the CTO record,
+because only then is that roster the sitting board. To check a publish against the
+files already on disk, compare bytes: quoted bio fields carry `\r\n`, and a
+text-mode read turns it into `\n` and reports a difference that is not there. The
+script's header is the authoritative list of what it writes and what it refuses.
 
 ### The member-data scripts
 
 `legacy_data/member_data_scripts/` is the legacy member load: one path with no
-modes, entered through `run_legacy_members.sh` (`--extract` from the dump,
-`--load` / `--from-csv` through the Stage A/B reconciliation and the QC gate,
-`--apply` to write, read-only otherwise). What a run does is decided by what is
-on the machine — the dump, and on a production build the private
-recorded-human-decision inputs in the register above — and every run prints what
-it found. The scripts' own `README.md` in that directory is the catalog for the
-family (extractor, admin and honors backfills, reconciler, loader, link
-applier, snapshot and reports); it is deliberately not repeated here.
+modes, entered through `run_legacy_members.sh --load`, which reads the published
+member CSV and runs the Stage A/B reconciliation and the QC gate, writing only
+with `--apply`. The honours backfill stays a load-time step, because honours join
+through the person layer of the built database. The Stage B proposed links and
+the Stage A merge map are produced and consumed within one `--load` run under the
+git-ignored `out/`, and are never committed. What a run does with the private
+recorded-human-decision inputs in the register above is decided by what is on the
+machine, and every run prints what it found. The scripts' own `README.md` in that
+directory is the catalog for the family (honors backfill, reconciler, loader,
+link applier, snapshot and reports); it is deliberately not repeated here.
 
 ### Not catalogued
 

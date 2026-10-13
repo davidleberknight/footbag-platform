@@ -2,6 +2,9 @@
 test_dump_parser.py
 ===================
 
+Pins the retired dump parser, kept while it is kept; the refresh reads every
+delivery with the strict parser, whose own tests pin it.
+
 Unit tests for the shared dump-root resolver
 (legacy_data/member_data_scripts/_dump_parser.py):
 
