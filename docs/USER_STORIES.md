@@ -492,6 +492,7 @@ Success Criteria:
 - Initial educational pages (trick tutorials, rules, equipment guides, etc.) are static content.
 - Developers provide initial content as static files for the website.
 - Rules pages are served from the IFPA-governed `ifpa/rules/` content, which IFPA authors and maintains; the published pages are the IFPA rules, and no separate ratification notice is required.
+- The sanctioning guidelines page (`/ifpa/sanctioning-guidelines`) offers the IFPA logo for download at print quality, for sanctioned events to use in their publicity.
 - The equipment page (`/equipment`) is the site's own practical guidance on footbags, shoes, and setting up each game's court or targets, a sibling of the rules rather than part of them. Official equipment requirements live only in the rules: where the equipment page states an official figure, it states it as the rule does and links to the rule section that governs it. Vendors and brands are named for information only, not as an IFPA endorsement; a vendor's name links to its site.
 - Rules and Equipment are sibling top-level sections in the site navigation.
 - Members can create their own tutorial galleries freely using photo and video upload features with descriptive captions, hashtags, and named galleries (suggest hashtag tutorial among others). Visitors can view this content too.
@@ -2241,8 +2242,10 @@ Success Criteria:
 - A discipline is the structured record defined in `M_Create_Event`: its category, its game, its
   entry size, its gender eligibility and its class, with the display name generated from those
   parts. The vocabulary is singles or doubles for entry size, open, women's or mixed for gender,
-  and novice, intermediate, open (also called pro) or masters for class, so mixed doubles is the
+  and novice, intermediate, open or masters for class, so mixed doubles is the
   doubles entry size with mixed gender. Gender is enforced at entry; class is self-selection.
+  Amateur is never a class, and no event offers an Amateur discipline: Amateur is the entrant's
+  own choice in a discipline that offers prize money (see `M_Register_For_Event`).
   The older names in the historical record are superseded aliases for these, stay exactly as they
   were run, and carry the structured parts where those can be inferred confidently. An event
   carries as many disciplines as it contests, and a competitor may enter more than one.
