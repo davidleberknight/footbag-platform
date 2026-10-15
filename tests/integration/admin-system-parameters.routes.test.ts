@@ -21,6 +21,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import request from '../fixtures/supertestWithOrigin';
+import { flashCookieOf, flashValueOf } from '../fixtures/flashCookie';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, createTestSessionJwt } from '../fixtures/factories';
@@ -224,7 +225,14 @@ describe('POST /admin/system-parameters', () => {
       .send(saveBody({ outbox_max_retry_attempts: '7', reason: 'Provider throttling us more than usual.' }));
 
     expect(res.status).toBe(303);
-    expect(res.headers.location).toBe('/admin/system-parameters?saved=parameters');
+    expect(res.headers.location).toBe('/admin/system-parameters');
+    expect(flashValueOf(res)).toBe('admin_saved:parameters');
+
+    // The administrator lands on the page and is told the change took.
+    const page = await request(createApp())
+      .get(res.headers.location)
+      .set('Cookie', `${admin()}; ${flashCookieOf(res)}`);
+    expect(page.text).toMatch(/class="form-success-banner" role="status">Saved\./);
 
     const after = configRows('outbox_max_retry_attempts');
     expect(after.length).toBe(before.length + 1);
@@ -368,7 +376,20 @@ describe('POST /admin/system-parameters/pricing', () => {
       });
 
     expect(res.status).toBe(303);
-    expect(res.headers.location).toBe('/admin/system-parameters?saved=price');
+    expect(res.headers.location).toBe('/admin/system-parameters');
+    expect(flashValueOf(res)).toBe('admin_saved:price');
+
+    const page = await request(createApp())
+      .get(res.headers.location)
+      .set('Cookie', `${admin()}; ${flashCookieOf(res)}`);
+    expect(page.text).toMatch(/class="form-success-banner" role="status">Scheduled\./);
+
+    // Without the cookie, as from a typed or shared address, nothing is claimed.
+    const bare = await request(createApp())
+      .get('/admin/system-parameters?saved=price')
+      .set('Cookie', admin());
+    expect(bare.status).toBe(200);
+    expect(bare.text).not.toContain('form-success-banner');
 
     const after = configRows('tier1_price_cents');
     expect(after.length).toBe(before + 1);

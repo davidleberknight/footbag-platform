@@ -2,9 +2,9 @@
  * RulesService -- public IFPA rules pages (read-only).
  *
  * Serves (all public):
- *   - GET /rules: rules index; rule pages grouped by discipline ordered sideline, net, golf,
+ *   - GET /rules: rules index; rule pages grouped by category ordered sideline, net, golf,
  *     freestyle, each group with a one-sentence intro, closing with a link to the equipment page.
- *   - GET /rules/:disciplineSlug/:ruleSlug: rule detail; unknown discipline or slug throws
+ *   - GET /rules/:categorySlug/:ruleSlug: rule detail; unknown category or slug throws
  *     NotFoundError (renders 404).
  *
  * Rendering contract:
@@ -26,8 +26,8 @@ import { PageViewModel } from '../types/page';
 import { NotFoundError } from './serviceErrors';
 import {
   getRulePage,
-  listGroupedByDiscipline,
-  RuleDisciplineGroup,
+  listGroupedByCategory,
+  RuleCategoryGroup,
   ParsedRulePage,
 } from '../lib/rulesLoader';
 
@@ -40,7 +40,7 @@ interface RulesIndexLink {
 }
 
 interface RulesIndexGroup {
-  discipline: string;
+  category: string;
   label: string;
   intro: string | null;
   links: RulesIndexLink[];
@@ -55,7 +55,7 @@ interface RulesDetailContent {
   page: ParsedRulePage;
 }
 
-// Keyed by discipline, matching the frontmatter `discipline` of each rules file.
+// Keyed by category, matching the frontmatter `category` of each rules file.
 const GROUP_INTROS: Record<string, string> = {
   sideline: 'Rules for 2-Square and 4-Square.',
   net: 'Rules for singles and doubles net play.',
@@ -63,7 +63,7 @@ const GROUP_INTROS: Record<string, string> = {
   freestyle: 'Rules for freestyle competition, where players are judged on difficulty, variety and execution.',
 };
 
-// Keyed by `discipline/slug`, the same key as the rule page URL.
+// Keyed by `category/slug`, the same key as the rule page URL.
 const PAGE_INTROS: Record<string, string> = {
   'net/footbag-net':
     'Footbag net is a court game played either one-on-one or two-on-two (singles or doubles) over a 5 ft. net.',
@@ -81,13 +81,13 @@ function ruleDisplayTitle(page: Pick<ParsedRulePage, 'title'>): string {
   return `${page.title} Rules`;
 }
 
-function shapeIndexGroup(group: RuleDisciplineGroup): RulesIndexGroup {
+function shapeIndexGroup(group: RuleCategoryGroup): RulesIndexGroup {
   return {
-    discipline: group.discipline,
+    category: group.category,
     label: group.label,
-    intro: GROUP_INTROS[group.discipline] ?? null,
+    intro: GROUP_INTROS[group.category] ?? null,
     links: group.pages.map((p) => ({
-      href: `/rules/${p.discipline}/${p.slug}`,
+      href: `/rules/${p.category}/${p.slug}`,
       label: ruleDisplayTitle(p),
       shortTitle: ruleDisplayTitle(p),
       authority: p.authority,
@@ -99,14 +99,14 @@ function shapeIndexGroup(group: RuleDisciplineGroup): RulesIndexGroup {
 export const rulesService = {
   /** GET /rules */
   getRulesIndexPage(): PageViewModel<RulesIndexContent> {
-    const groups = listGroupedByDiscipline().map(shapeIndexGroup);
+    const groups = listGroupedByCategory().map(shapeIndexGroup);
     return {
       seo: { title: 'Footbag Rules', fullTitle: 'Footbag Rules' },
       page: {
         sectionKey: 'rules',
         pageKey: 'rules_index',
         title: 'Footbag Rules',
-        intro: 'Official IFPA rules for each footbag discipline.',
+        intro: 'Official IFPA rules for each footbag sport.',
       },
       content: {
         groups,
@@ -119,14 +119,14 @@ export const rulesService = {
     };
   },
 
-  /** GET /rules/:disciplineSlug/:ruleSlug */
-  getRulePage(disciplineSlug: string, ruleSlug: string): PageViewModel<RulesDetailContent> {
-    const page = getRulePage(disciplineSlug, ruleSlug);
+  /** GET /rules/:categorySlug/:ruleSlug */
+  getRulePage(categorySlug: string, ruleSlug: string): PageViewModel<RulesDetailContent> {
+    const page = getRulePage(categorySlug, ruleSlug);
     if (!page) {
-      throw new NotFoundError(`Rule page not found: ${disciplineSlug}/${ruleSlug}`);
+      throw new NotFoundError(`Rule page not found: ${categorySlug}/${ruleSlug}`);
     }
     const displayTitle = ruleDisplayTitle(page);
-    const intro = PAGE_INTROS[`${page.discipline}/${page.slug}`];
+    const intro = PAGE_INTROS[`${page.category}/${page.slug}`];
     return {
       seo: {
         title: displayTitle,
@@ -134,7 +134,7 @@ export const rulesService = {
       },
       page: {
         sectionKey: 'rules',
-        pageKey: `rules_${page.discipline}_${page.slug}`,
+        pageKey: `rules_${page.category}_${page.slug}`,
         title: displayTitle,
         ...(intro ? { intro } : {}),
       },

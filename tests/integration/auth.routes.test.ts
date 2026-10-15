@@ -201,6 +201,20 @@ describe('POST /login — returnTo open-redirect defenses (isSafePath)', () => {
     expect(res.headers.location).toBe(SAFE_DEFAULT);
   });
 
+  it('rejects a returnTo carrying a tab or line break and falls back to the safe default', async () => {
+    // A browser strips these while parsing a URL, so '/<TAB>/evil.com' reads
+    // as the off-site '//evil.com' wherever the value is rendered as a link.
+    for (const returnTo of ['/\t/evil.com', '/\n/evil.com']) {
+      const res = await request(app)
+        .post('/login')
+        .type('form')
+        .send({ email: 'footbag', password: FOOTBAG_PASSWORD, returnTo });
+
+      expect(res.status, JSON.stringify(returnTo)).toBe(303);
+      expect(res.headers.location, JSON.stringify(returnTo)).toBe(SAFE_DEFAULT);
+    }
+  });
+
   it('honors a clean same-origin path returnTo', async () => {
     const res = await request(app)
       .post('/login')

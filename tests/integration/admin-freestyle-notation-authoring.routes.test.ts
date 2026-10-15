@@ -15,6 +15,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
+import { flashCookieOf } from '../fixtures/flashCookie';
 import BetterSqlite3 from 'better-sqlite3';
 
 import {
@@ -181,6 +182,15 @@ describe('saving a draft', () => {
     expect(row.notation_provenance_note).toBe('Copied from the source in its own register.');
     expect(row.notation_authored_by).toBe(ADMIN_ID);
     expect(row.notation_authored_at).toMatch(/^\d{4}-\d{2}-\d{2}T.*Z$/);
+
+    // The curator lands back on the form and is told the draft was kept.
+    const page = await get(res.headers.location as string, `${admin()}; ${flashCookieOf(res)}`);
+    expect(page.status).toBe(200);
+    expect(page.text).toMatch(/class="form-success-banner" role="status">Saved\./);
+
+    const bare = await get(`/admin/freestyle/notation-backlog/${CANDIDATES[0]}/author?saved=1`, admin());
+    expect(bare.status).toBe(200);
+    expect(bare.text).not.toContain('form-success-banner');
   });
 
   it('leaves the ruling itself alone: authoring a movement is not re-ruling a name', async () => {

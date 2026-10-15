@@ -13,7 +13,7 @@ import {
   PasswordResetContent,
 } from '../services/identityAccessService';
 import { RateLimitedError, ServiceUnavailableError, ValidationError } from '../services/serviceErrors';
-import { renderServiceUnavailable } from '../lib/controllerErrors';
+import { renderServiceUnavailable, setRetryAfter } from '../lib/controllerErrors';
 import { simulatedEmailService, type SimulatedEmailPreview } from '../services/simulatedEmailService';
 import { PageViewModel } from '../types/page';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
@@ -263,7 +263,11 @@ async function postVerify(req: Request, res: Response, next: NextFunction): Prom
       res.status(400).render('auth/verify-result', {
         seo: { title: 'Verification', noindex: true },
         page: { sectionKey: '', pageKey: 'verify_result', title: 'Verification' },
-        content: { ok: false },
+        content: {
+          ok: false,
+          turnstileSiteKey: config.turnstileSiteKey,
+          captchaStubbed: config.captchaAdapter === 'stub',
+        },
       } satisfies PageViewModel<VerifyResultContent>);
       return;
     }
@@ -283,6 +287,7 @@ async function postVerify(req: Request, res: Response, next: NextFunction): Prom
         error: jwtErr instanceof Error ? jwtErr.message : String(jwtErr),
       });
       setNoStore(res);
+      setRetryAfter(res);
       res.status(503).render('auth/verify-result', {
         seo: { title: 'Verification', noindex: true },
         page: { sectionKey: '', pageKey: 'verify_result', title: 'Verification' },
@@ -494,6 +499,7 @@ async function postPasswordReset(req: Request, res: Response, next: NextFunction
         error: jwtErr instanceof Error ? jwtErr.message : String(jwtErr),
       });
       setNoStore(res);
+      setRetryAfter(res);
       res.status(503).render('auth/password-reset', {
         seo: { title: 'Set a New Password', noindex: true },
         page: { sectionKey: '', pageKey: 'password_reset', title: 'Set a New Password' },

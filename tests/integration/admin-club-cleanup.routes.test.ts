@@ -303,11 +303,23 @@ describe('queue filter and sort query params', () => {
   });
 
   it('region filter matches region or country case-insensitively', async () => {
-    const match = await request(createApp())
-      .get('/admin/club-cleanup?region=usa')
+    // The club stores the canonical "United States"; an admin who types any
+    // common spelling of it must still find the club, not an empty queue.
+    for (const spelling of ['usa', 'US', 'u.s.', 'united states']) {
+      const match = await request(createApp())
+        .get(`/admin/club-cleanup?region=${encodeURIComponent(spelling)}`)
+        .set('Cookie', adminCookie());
+      expect(match.status, spelling).toBe(200);
+      expect(match.text, spelling).toContain('Stale Provisional Club');
+    }
+
+    // A country spelling resolves only against the club's country: "CA" names
+    // Canada, so it must not pull in a US club.
+    const otherCountry = await request(createApp())
+      .get('/admin/club-cleanup?region=CA')
       .set('Cookie', adminCookie());
-    expect(match.status).toBe(200);
-    expect(match.text).toContain('Stale Provisional Club');
+    expect(otherCountry.status).toBe(200);
+    expect(otherCountry.text).not.toContain('Stale Provisional Club');
 
     const noMatch = await request(createApp())
       .get('/admin/club-cleanup?region=nowhere')

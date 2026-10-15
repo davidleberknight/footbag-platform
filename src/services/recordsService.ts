@@ -21,7 +21,7 @@ import { runSqliteRead } from './sqliteRetry';
 import { PageViewModel } from '../types/page';
 
 export interface ConsecutiveRecordViewModel {
-  division:   string;
+  discipline: string;
   player_1:   string | null;
   player_2:   string | null;
   score:      number | null;
@@ -57,7 +57,7 @@ function shapeRow(r: ConsecutiveKicksRow): ConsecutiveRecordViewModel {
   const noteText = r.note ?? '';
   const isWorldRecord = noteText.includes('World Record') && !noteText.includes('Former');
   return {
-    division:       r.division,
+    discipline:     r.discipline,
     player_1:       r.player_1,
     player_2:       r.player_2,
     score:          r.score,

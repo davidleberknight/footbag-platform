@@ -136,13 +136,30 @@ export function renderRateLimited(
   ]);
 }
 
+/** Seconds a caller should wait before retrying after a transient 503. */
+const SERVICE_UNAVAILABLE_RETRY_AFTER_SECONDS = 30;
+
+/**
+ * Mark a 503 response with the retry hint. For a controller that renders its
+ * own page at 503 (a form re-render, an outcome page) rather than the generic
+ * service-unavailable page, which sets it itself.
+ */
+export function setRetryAfter(res: Response): void {
+  res.setHeader('Retry-After', String(SERVICE_UNAVAILABLE_RETRY_AFTER_SECONDS));
+}
+
 /**
  * Render the service-unavailable page directly. Used by controllers that catch
  * an image-worker / external-adapter failure and need to surface a truthful 503
  * rather than delegate to the generic 500 error middleware, which cannot
  * distinguish a dependency outage from an unexpected exception.
+ *
+ * A 503 reports a transient outage (database contention, a dependency down),
+ * so it tells the caller when to try again; a 500 is an unexpected fault, where
+ * a retry promises nothing, so it carries no hint.
  */
 export function renderServiceUnavailable(res: Response, statusCode: 500 | 503 = 503): void {
+  if (statusCode === 503) setRetryAfter(res);
   renderErrorPage(res, statusCode, 'Service Unavailable', [
     'The site is temporarily unavailable. Please try again in a moment.',
   ]);

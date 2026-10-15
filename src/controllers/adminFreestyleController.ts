@@ -19,6 +19,19 @@ import {
 } from '../services/consecutiveKicksCurationService';
 import { NotFoundError, ValidationError } from '../services/serviceErrors';
 import { renderNotFound } from '../lib/controllerErrors';
+import { FLASH_KIND, takeFlash, writeFlash } from '../lib/flashCookie';
+
+/** Redirect to an edit page after a save, carrying the confirmation in the
+ *  one-shot flash keyed to that page's own path. */
+function redirectSaved(req: Request, res: Response, editPath: string): void {
+  writeFlash(res, req, FLASH_KIND.ADMIN_SAVED, editPath);
+  res.redirect(303, editPath);
+}
+
+/** Whether this edit page is the one a save just landed on. */
+function savedHere(req: Request, res: Response, editPath: string): boolean {
+  return takeFlash(req, res, FLASH_KIND.ADMIN_SAVED) === editPath;
+}
 
 export const adminFreestyleController = {
   /** GET /admin/freestyle/notation-backlog */
@@ -43,8 +56,9 @@ export const adminFreestyleController = {
   /** GET /admin/freestyle/notation-backlog/:candidateId/author */
   notationAuthorForm(req: Request, res: Response, next: NextFunction): void {
     try {
-      const vm = freestyleCurationService.getNotationAuthoringPage(req.params['candidateId'] ?? '', {
-        saved: req.query.saved === '1',
+      const candidateId = req.params['candidateId'] ?? '';
+      const vm = freestyleCurationService.getNotationAuthoringPage(candidateId, {
+        saved: savedHere(req, res, `/admin/freestyle/notation-backlog/${candidateId}/author`),
       });
       if (!vm) {
         renderNotFound(res);
@@ -68,7 +82,7 @@ export const adminFreestyleController = {
     };
     try {
       freestyleCurationService.saveAuthoredNotation(candidateId, submitted, req.user!.userId);
-      res.redirect(303, `/admin/freestyle/notation-backlog/${candidateId}/author?saved=1`);
+      redirectSaved(req, res, `/admin/freestyle/notation-backlog/${candidateId}/author`);
     } catch (err) {
       // A validation failure re-renders the form with what was submitted and the
       // per-field messages, the same shape the trick edit uses.
@@ -163,12 +177,13 @@ export const adminFreestyleController = {
   },
 
   // Edit page for one trick: the editable scalar fields plus the read-only
-  // attached aliases, sources, and modifier links. `?saved=1` (set by the
-  // post-save redirect) shows the saved indicator.
+  // attached aliases, sources, and modifier links. A save just made here shows
+  // the saved indicator.
   edit(req: Request, res: Response, next: NextFunction): void {
     try {
-      const vm = freestyleCurationService.getTrickEditPage(String(req.params.slug), {
-        saved: req.query.saved === '1',
+      const slug = String(req.params.slug);
+      const vm = freestyleCurationService.getTrickEditPage(slug, {
+        saved: savedHere(req, res, `/admin/freestyle/tricks/${slug}/edit`),
       });
       if (!vm) {
         renderNotFound(res);
@@ -208,7 +223,7 @@ export const adminFreestyleController = {
 
     try {
       freestyleCurationService.updateTrickScalars(slug, input, req.user!.userId);
-      res.redirect(303, `/admin/freestyle/tricks/${slug}/edit?saved=1`);
+      redirectSaved(req, res, `/admin/freestyle/tricks/${slug}/edit`);
     } catch (err) {
       if (err instanceof ValidationError) {
         const vm = freestyleCurationService.getTrickEditPage(slug, {
@@ -447,12 +462,13 @@ export const adminFreestyleController = {
     }
   },
 
-  // Edit page for one record; `?saved=1` (set by the post-save redirect) shows the
-  // saved indicator. An unknown record id is a 404.
+  // Edit page for one record; a save just made here shows the saved indicator.
+  // An unknown record id is a 404.
   recordEdit(req: Request, res: Response, next: NextFunction): void {
     try {
-      const vm = freestyleRecordCurationService.getRecordEditPage(String(req.params.id), {
-        saved: req.query.saved === '1',
+      const id = String(req.params.id);
+      const vm = freestyleRecordCurationService.getRecordEditPage(id, {
+        saved: savedHere(req, res, `/admin/freestyle/records/${id}/edit`),
       });
       if (!vm) {
         renderNotFound(res);
@@ -473,7 +489,7 @@ export const adminFreestyleController = {
 
     try {
       freestyleRecordCurationService.updateRecord(id, input, req.user!.userId);
-      res.redirect(303, `/admin/freestyle/records/${id}/edit?saved=1`);
+      redirectSaved(req, res, `/admin/freestyle/records/${id}/edit`);
     } catch (err) {
       if (err instanceof ValidationError) {
         const vm = freestyleRecordCurationService.getRecordEditPage(id, {
@@ -511,7 +527,7 @@ export const adminFreestyleController = {
     const input = recordInputFromBody(req.body);
     try {
       const id = freestyleRecordCurationService.createRecord(input, req.user!.userId);
-      res.redirect(303, `/admin/freestyle/records/${id}/edit?saved=1`);
+      redirectSaved(req, res, `/admin/freestyle/records/${id}/edit`);
     } catch (err) {
       if (err instanceof ValidationError) {
         res.status(422).render('admin/freestyle-record-edit', freestyleRecordCurationService.getRecordNewPage({
@@ -524,7 +540,7 @@ export const adminFreestyleController = {
     }
   },
 
-  // Browse consecutive-kicks records, grouped by section and division.
+  // Browse consecutive-kicks records, grouped by section and discipline.
   consecutiveIndex(_req: Request, res: Response, next: NextFunction): void {
     try {
       res.render('admin/consecutive-records', consecutiveKicksCurationService.getBrowsePage());
@@ -533,12 +549,13 @@ export const adminFreestyleController = {
     }
   },
 
-  // Edit page for one consecutive-kicks row; `?saved=1` shows the saved indicator.
-  // An unknown id is a 404.
+  // Edit page for one consecutive-kicks row; a save just made here shows the
+  // saved indicator. An unknown id is a 404.
   consecutiveEdit(req: Request, res: Response, next: NextFunction): void {
     try {
-      const vm = consecutiveKicksCurationService.getEditPage(String(req.params.id), {
-        saved: req.query.saved === '1',
+      const id = String(req.params.id);
+      const vm = consecutiveKicksCurationService.getEditPage(id, {
+        saved: savedHere(req, res, `/admin/freestyle/consecutive-records/${id}/edit`),
       });
       if (!vm) {
         renderNotFound(res);
@@ -559,7 +576,7 @@ export const adminFreestyleController = {
 
     try {
       consecutiveKicksCurationService.updateRow(id, input, req.user!.userId);
-      res.redirect(303, `/admin/freestyle/consecutive-records/${id}/edit?saved=1`);
+      redirectSaved(req, res, `/admin/freestyle/consecutive-records/${id}/edit`);
     } catch (err) {
       if (err instanceof ValidationError) {
         const vm = consecutiveKicksCurationService.getEditPage(id, {
@@ -597,7 +614,7 @@ export const adminFreestyleController = {
     const input = consecutiveInputFromBody(req.body);
     try {
       const id = consecutiveKicksCurationService.createRow(input, req.user!.userId);
-      res.redirect(303, `/admin/freestyle/consecutive-records/${id}/edit?saved=1`);
+      redirectSaved(req, res, `/admin/freestyle/consecutive-records/${id}/edit`);
     } catch (err) {
       if (err instanceof ValidationError) {
         res.status(422).render('admin/consecutive-record-edit', consecutiveKicksCurationService.getNewPage({
@@ -797,7 +814,7 @@ function consecutiveInputFromBody(body: Record<string, unknown>): ConsecutiveSca
     sortOrder:  str(body.sortOrder),
     section:    str(body.section),
     subsection: str(body.subsection),
-    division:   str(body.division),
+    discipline: str(body.discipline),
     year:       str(body.year),
     rank:       str(body.rank),
     player1:    str(body.player1),

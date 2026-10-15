@@ -8,7 +8,7 @@
 <div class="wrapper">
   <section>
     {{#if content.saved}}
-    <p class="form-success-banner" role="status">Saved. The next send of this email uses the new wording.</p>
+    {{> outcome-notice text="Saved. The next send of this email uses the new wording." tone='ok'}}
     {{/if}}
     {{#if content.hasErrors}}
     <div class="form-error-banner" role="alert">

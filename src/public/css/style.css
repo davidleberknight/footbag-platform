@@ -1841,7 +1841,7 @@ section.home-media { padding-top: 0; }
 .media-tag-chip--creator       { background: var(--warn-tint); color: var(--warn-text); }
 .media-tag-chip--content-type  { background: var(--success-tint); color: var(--success-text); }
 .media-tag-chip--event         { background: var(--pink-soft); color: var(--pink-deep); }
-.media-tag-chip--discipline    { background: var(--slate-200); color: var(--slate-600); }
+.media-tag-chip--sport         { background: var(--slate-200); color: var(--slate-600); }
 .media-tag-chip--quality       { background: var(--warn-tint); color: var(--warn-deep); }
 
 /* Reference Media subsections (Tutorials / Demos split) */
@@ -1856,7 +1856,7 @@ section.home-media { padding-top: 0; }
   color: var(--text);
 }
 
-/* ── Coming-soon discipline cards ──────────────────────────── */
+/* ── Coming-soon sport cards ──────────────────────────── */
 .card-coming-soon {
   background: var(--gray-50);
   border-style: dashed;

@@ -43,6 +43,8 @@ const SUMMARIES: Record<string, string> = {
     'Governance bylaws of the IFPA, including the Board of Directors, elections, meetings, and decision-making procedures.',
   articles:
     'Articles of Incorporation filed with the State of California establishing the IFPA as a nonprofit corporation.',
+  'sanctioning-guidelines':
+    'What IFPA sanctioning gives an event, who can apply, and what every organizer agrees to before and after the event.',
 };
 
 export const ifpaService = {
@@ -75,7 +77,7 @@ export const ifpaService = {
       throw new NotFoundError(`IFPA doc not found: ${docSlug}`);
     }
     return {
-      seo: { title: doc.title, fullTitle: doc.title },
+      seo: { title: doc.title, fullTitle: doc.title, description: SUMMARIES[doc.slug] },
       page: {
         sectionKey: 'ifpa',
         pageKey: `ifpa_${doc.slug}`,

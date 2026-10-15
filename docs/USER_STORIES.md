@@ -721,7 +721,7 @@ Success Criteria:
 
 Access: Any visitor can use the learning and orientation surfaces without logging in.
 
-Story: As a visitor new to freestyle, I can start from the freestyle landing page and follow the learning and orientation surfaces so that I find my way into the discipline before I can read notation.
+Story: As a visitor new to freestyle, I can start from the freestyle landing page and follow the learning and orientation surfaces so that I find my way into the sport before I can read notation.
 
 Success Criteria:
 
@@ -1263,7 +1263,8 @@ Success Criteria:
 - Registration includes a required selection of registration type: Competitor or Attendee/Supporter (if the organizer has enabled both; otherwise the single available type is implied).
 - If Competitor: member selects one or more organizer-defined event disciplines.
 - If a selected discipline is doubles/team: member provides partner/team information (member-select when possible; otherwise free-text).
-- A discipline's gender eligibility is enforced at registration from the discipline's own gender part. A women's discipline requires every member on the entry to have declared female. A mixed discipline requires one member with gender Male and one with gender Female. An open discipline admits anyone, and is where men and women both play. A member whose gender is "Prefer not to say" (stored as undisclosed) enters open disciplines; recording a gender in their profile at any time unlocks the women's and mixed draws. Gender validation applies only between two member profiles. For a free-text (non-member) partner, the registrant attests and the organizer verifies eligibility at check-in. A discipline's class is self-selection, and the platform records the class the competitor entered.
+- A discipline's gender eligibility is enforced at registration from the discipline's own gender part. A women's discipline requires every member on the entry to have declared female. A mixed discipline requires one member with gender Male and one with gender Female. An open discipline admits anyone, and is where men and women both play. A member whose gender is "Prefer not to say" (stored as undisclosed) enters open disciplines; recording a gender in their profile at any time unlocks the women's and mixed draws. Gender validation applies only between two member profiles. For a free-text (non-member) partner, the registrant attests and the organizer verifies eligibility at check-in. Class is self-selected: the competitor chooses the discipline whose class fits them, and the entry records that discipline.
+- In a discipline that offers prize money, the competitor chooses whether to enter as an Amateur. An Amateur takes no prize money and earns the same placing and ranking points as any other entrant. The choice appears on the registration confirmation and on the organizer's participant list, and is carried into the results so the organizer knows who is eligible for prize money; the organizer pays prize money outside the platform.
 - When a member selects a gender-gated discipline while their stored gender is `undisclosed`, the registration surface warns them that the gendered draw requires a declared gender and points them to set it in their profile; the member may still register for Open disciplines.
 - If Attendee/Supporter: no disciplines are required; optional fields may be collected if configured by organizer (e.g., t-shirt size, donation amount).
 - Confirmation email includes registration type and selected disciplines and/or partners (if any).
@@ -1369,7 +1370,7 @@ Story: As a member, I can make a one-time or recurring annual donation to suppor
 Success Criteria:
 
 - From my member account, I can open a donations page that clearly shows suggested donation amounts, an optional custom amount field, and whether this donation is one-time or recurring annual before I proceed to payment.
-- I can enter an optional short comment or note with my donation (for example: In memory of…). This comment is stored as part of the structured payment record. It is admin-only and never published: it appears on no public page, in no acknowledgement, and in no donor listing. It is retained permanently and no erasure path clears it, because it is the gift's own meaning (often a dedication), so erasure severs the donor from the record rather than removing the words; it is the one member-authored free-text field that is not purgeable.
+- I can enter an optional short comment or note with my donation (for example: In memory of…). This comment is stored as part of the structured payment record. It is admin-only and never published: it appears on no public page, in no acknowledgement, and in no donor listing. The one reader beyond administrators is the IFPA Treasurer, whose periodic reconciliation summary lists each commented donation (`A_Reconcile_Payments`) so that a donor's stated purpose is seen by the officer who handles the money. It is retained permanently and no erasure path clears it, because it is the gift's own meaning (often a dedication), so erasure severs the donor from the record rather than removing the words; it is the one member-authored free-text field that is not purgeable.
 - Every member starts with an empty comment, a Hall of Fame or Big Add Posse member included: the donations page prefills no fund or designation. A comment naming a purpose is the donor's own words, recorded like any other comment.
 - One-time donations use Stripe Checkout so that card details never touch IFPA servers. The payment record stores Stripe payment_intent_id, amount, currency, and status.
 - Recurring annual donations use Stripe Subscriptions via Stripe Checkout (with the subscription mode parameter). The system creates or reuses a Stripe Customer object for the member (storing the resulting stripeCustomerId on the member record) and creates a Stripe Subscription billed yearly. The platform stores the Stripe subscription_id and the associated stripeCustomerId in the donation record. The platform does not manage the billing schedule itself; Stripe owns the renewal cycle and retry logic.
@@ -1740,6 +1741,7 @@ Success Criteria:
 - System sends to configured announce list address (default [announce@footbag.org](mailto:announce@footbag.org)).  
 - Rate limiting to prevent abuse (admin-configurable).  
 - All sends audit-logged (actor ID, subject, timestamp).
+- An organizer of a sanctioned event can mark the announcement as that event's after-event summary, choosing from the sanctioned events they organize. A summary sent within 20 days of the event's last day meets that sanctioning obligation (`EO_Request_Sanction`); the event's work item and "sanctioning requirements not met" badge clear only when the results are uploaded as well.
 
 ## 3.10 Group Membership
 
@@ -1898,8 +1900,8 @@ Members with Tier 1 benefits can create basic/local events; Tier 2 or Tier 3 req
 Valid event statuses and their transitions:
 
 - `draft`; initial state on creation.
-- `pending_approval`; sanction request submitted for admin review (from `draft`). Charging any fee requires sanctioning, so every paid event is a sanctioned event and one approval decides both.
-- `reg_open`; visible and open for registration. Free events transition `draft → reg_open` on creation. Sanctioned events, which includes every event that charges a fee, transition `pending_approval → reg_open` on admin approval. A rejected request returns to `draft` (`pending_approval → draft`), where the organizer can revise it and resubmit.
+- `pending_approval`; sanction request submitted for admin review (from `draft`). Taking any fee through footbag.org requires sanctioning, so every event that takes fees on the platform is a sanctioned event and one approval decides both. Fees an organizer collects in person, outside the platform, need no sanction.
+- `reg_open`; visible and open for registration. Free events transition `draft → reg_open` on creation. Sanctioned events, which includes every event that takes fees through footbag.org, transition `pending_approval → reg_open` on admin approval. A rejected request returns to `draft` (`pending_approval → draft`), where the organizer can revise it and resubmit.
 - `closed`; registration deadline passed or organiser manually closed registration (from `reg_open`).
 - `completed`; event has concluded and results may be posted (from `closed`). The `completed` state is terminal. Events with published results cannot be canceled, deleted, or transitioned to any other status.
 - `canceled`; event canceled at any point before `completed`; registrants are notified. The `canceled` state is terminal; canceled events cannot be re-opened or completed. A canceled event never surfaces publicly: no event detail page, no year-archive listing, and no result rows on any public results view (historical-person and player pages included), regardless of how result rows came to exist.
@@ -1920,11 +1922,13 @@ Success Criteria:
 
 Event creation form includes: title, description, start date, end date, location (city, state or province (optional), country), registration deadline, competitor registration fee (optional, requires Tier 2 or Tier 3 and admin approval to set up), participant (spectator) fee (optional), t-shirt size (optional).
 
-The organizer then adds the disciplines the event contests. A discipline is a structured record: it names its game, its entry size (singles or doubles), its gender eligibility (open, women's, or mixed), and its class (novice, intermediate, open, or masters). The display name, for example "Women's Singles Net" or "Intermediate Doubles Net", is generated from those parts. Mixed is the doubles entry size with mixed gender, so a mixed doubles discipline is the pairing of those two parts.
+The organizer then adds the disciplines the event contests. A discipline is a structured record: it names its game, its entry size (singles or doubles), its gender eligibility (open, women's, or mixed), and its class (novice, intermediate, open, or masters). The display name, for example "Women's Singles Net" or "Intermediate Doubles Net", is generated from those parts. Mixed is the doubles entry size with mixed gender, so a mixed doubles discipline is the pairing of those two parts. IFPA texts call the gender and class parts of a discipline its division.
+
+For each discipline the organizer states whether it offers prize money. A discipline that offers prize money lets players enter as an Amateur (see `M_Register_For_Event`).
 
 The game comes from a maintained list per category (net, freestyle, golf, sideline), and each game declares which entry sizes, genders and classes apply to it, so the form offers doubles for routines and singles for a thirty-second shred. The lists are reference data seeded into the database and maintained without a software release; IFPA ratifies their contents through the published competition rules. Where an event runs a game the lists do not yet carry, the organizer supplies the game name directly and still chooses the entry size, gender and class from the standard parts, so the discipline stays legible while its game is new.
 
-Social kicking, also called free-flow or cooperative kicking, and circle kicking are recreational forms of the sport rather than competitive formats, so the game lists carry the contested formats only.
+Social kicking, also called free-flow or cooperative kicking, and circle kicking are recreational forms of the sport rather than competitive games, so the game lists carry the contested games only.
 
 - Members with Tier 1 benefits can create basic/local events without fees.
 - Tier 2 or Tier 3 members can request sanctioned events and configure paid registration (subject to admin approval). Payment configuration (if enabled): competitor registration fee, (optional) spectator fee.
@@ -1933,7 +1937,7 @@ Social kicking, also called free-flow or cooperative kicking, and circle kicking
 - Organizer sees clear error messages for validation failures with hints about what to fix.
 - Member gains Event Organizer status for this event (only).
 - An Event Organizer may organize more than one event at a time.
-- For free events, event status changes to `reg_open`, Email sent to all event organizers to confirm. Event will appear in Upcoming Events list. For sanctioned events, which includes every event that charges a fee, these actions wait for Admin approval. The news item this emits ships with the news feed in v2.
+- For free events, event status changes to `reg_open`, Email sent to all event organizers to confirm. Event will appear in Upcoming Events list. For sanctioned events, which includes every event that takes fees through footbag.org, these actions wait for Admin approval. The news item this emits ships with the news feed in v2.
 
 ### EO_Request_Sanction
 
@@ -1947,8 +1951,18 @@ Success Criteria:
 - Sanctioning is requested and decided entirely in the platform. The organizer submits no application by email, and the request reaches the administrator as a work-queue item rather than as correspondence.
 - A World Footbag Championships whose host bid the IFPA Board has granted is sanctioned by that grant and makes no request: an administrator records the sanction on the event, citing the Board's decision. Worlds host bids are taken and decided outside the platform, on a form IFPA maintains that the site links to.
 - Submitting the request emails the IFPA Sanctioning Director directly, carrying the event details and the organizer's details, so the officeholder can take it up with the organizer before the decision is made. The Sanctioning Director also holds an administrator account and sees the request in the admin work queue like any other administrator; the direct email is required in addition, because a queue entry alone does not reach the officeholder. It is addressed to the officeholder's own address, because the apex sanctioning alias carries inbound correspondence and forwards it onward, and platform mail keeps its bounce and complaint signal by going direct. It is sent through the platform's own mail path so it is templated, logged and bounce-tracked like every other platform mail.
-- The request form carries the organizer's sanctioning attestation, which the organizer must affirm to submit: that the event will abide by IFPA's guidelines for sanctioned events, that it will use IFPA-approved formats and judging systems or disclose where it deviates, and that any alternative judging system will be communicated to all players in advance of competition.
-- The sanction request records which organizer submitted it. The obligations it carries, including uploading results within 20 days, belong to the event: any organizer of the event can meet them, and every organizer sees the work item and the "sanctioning requirements not met" badge.
+- The request form carries the organizer's sanctioning attestation, which the organizer must affirm to submit: that the event will abide by IFPA's guidelines for sanctioned events, that it will use the competition formats and judging systems in the Official Rules of Footbag Sports or state on the request where it differs, that any alternative judging system will be communicated to all players before competition begins, and that the organizer will meet the after-event requirements. The attestation links to the published sanctioning guidelines (`/ifpa/sanctioning-guidelines`), and the form carries a free-text field where the organizer states where the event differs from the official formats and judging systems.
+- The request form asks, and the reviewing administrator sees every answer:
+  - Prize money: yes or no; if yes, the total amount and its currency, and which of the event's disciplines offer prize money.
+  - What the entry fee includes (short text, optional).
+  - Whether the event is held for the first time, annually, or occasionally; if annually, the years it has been held.
+  - Expected number of players.
+  - Expected number of spectators (optional).
+  - Permits in place: yes, no, or not needed.
+  - Insurance in place: yes, no, or not needed.
+- A sanctioned event must offer a Women's division and an Intermediate division: at least one discipline whose gender is women's and at least one whose class is intermediate. When either is missing, the request form warns the organizer before submission, naming what is missing; the organizer may still submit, and the administrator decides.
+- Every discipline that offers prize money must let players enter as an Amateur: an Amateur takes no prize money and earns the same placing and ranking points as any other entrant. The organizer cannot mark a discipline as offering prize money without that option, which the platform provides automatically.
+- The sanction request records which organizer submitted it. The obligations it carries belong to the event: any organizer of the event can meet them, and every organizer sees the work item and the "sanctioning requirements not met" badge. Within 20 days of the event's last day the organizers must (1) upload the complete results for every discipline (`EO_Upload_Results`), and (2) send a brief summary of the event, a paragraph or two on its highlights, to the IFPA announce list through the Send Announcement form, marked as this event's summary (`M_Send_Announce_Email`). The badge shows from day 21 until both are done.
 - The Tier 2 or Tier 3 requirement is checked when the request is submitted and when it is approved. Once approved, the sanction belongs to the event; it is not withdrawn if the submitting organizer later leaves or their tier lapses.
 - The request form carries a fee justification when the organizer has configured registration fees.
 - Organizer receives email confirmation that request is pending.
@@ -2165,8 +2179,9 @@ Success Criteria:
 - Results publication emits a news feed item, which ships with the news feed in v2; in v1 results publish on the event page directly.
 - Only organizers can upload results.
 - Results upload audit-logged, including the committed upload's row count and the count accepted without a registration match.
-- For a sanctioned event, uploading its results in the platform within 20 days of the event's end date is a sanctioning requirement, one deadline for every sport.
-- A sanctioned event whose results are not uploaded within those 20 days shows a "sanctioning requirements not met" badge, on its event page and on the organizer's results-upload surface for that event where the organizer acts on it; the badge clears once results are uploaded.
+- An entrant who entered a prize-money discipline as an Amateur is marked as Amateur in that discipline's results; the mark changes neither the placing nor the ranking points.
+- For a sanctioned event, uploading complete results for every discipline in the platform within 20 days of the event's last day is a sanctioning requirement, one deadline for every sport. Sending the event summary to the announce list within the same 20 days is the other (`EO_Request_Sanction`).
+- A sanctioned event that has not met both requirements within those 20 days shows a "sanctioning requirements not met" badge, on its event page and on the organizer's results-upload surface for that event where the organizer acts on it; the badge clears once the results are uploaded and the summary is sent.
 - Results can be uploaded for any event (sanctioned status does not affect results posting).
 Impact:
 
@@ -2193,14 +2208,14 @@ Success Criteria:
 - Organizer can play any attached file directly in the browser via short-lived signed URLs; playback is HTML5 audio with standard controls (play, pause, seek, volume).
 - Organizer can download any attached file for offline use during the event.
 - Files persist indefinitely on the member's S3 library (see `M_Upload_Routine_Music`); organizer access is gated by the attachment row remaining present and the organizer being assigned to the event.
-- If a competitor deletes a library file that was attached to a past or current registration, the corresponding entry in this list shows a tombstone "Deleted by competitor" with no playback or download. The attachment metadata (event, category, competitor identity, label) is preserved for audit and historical reference.
+- If a competitor deletes a library file that was attached to a past or current registration, the corresponding entry in this list shows a tombstone "Deleted by competitor" with no playback or download. The attachment metadata (event, discipline, competitor identity, label) is preserved for audit and historical reference.
 
 ## 4.6 Tournament Operations
 
 << V3 SCOPE >> Native tournament-day operations are version-three scope, to be complete in time
 for Worlds 2027. These stories are design intent for that build and are not part of the v1 launch.
 They cover net, which runs on seeded pools and elimination draws, and freestyle, which runs on
-pools judged by a panel; golf scoring is a third format that the same machinery accommodates.
+pools judged by a panel; golf scoring is a third category that the same machinery accommodates.
 
 Until this build lands, IFPA net championships run on an external tournament product under an
 IFPA organization account, and their draws, match scores and cross-event player history live
@@ -2717,9 +2732,11 @@ Story: As an admin, I can approve or reject an event's sanction request, and wit
 
 Success Criteria:
 
-- Review event details, the organizer's sanctioning attestation, and any fee structure in the approval queue.
+- Review event details, the organizer's sanctioning attestation, the organizer's statement of where the event differs from the official formats and judging systems, every answer to the request-form questions (`EO_Request_Sanction`), and any fee structure in the approval queue.
+- See the event's disciplines, each with its game, entry size, gender, class, and whether it offers prize money.
+- Review checklist: a sanctioned event must offer a Women's division and an Intermediate division, meaning at least one discipline whose gender is women's and at least one whose class is intermediate. A request missing either is flagged in the queue; the administrator decides, and a rejection names what is missing.
 - Approve or reject with reason.
-- On approval: event status changes to `reg_open`, payment configuration enabled where the organizer configured fees, Email sent to all event organizers to confirm. Event will appear in Upcoming Events list. The news item this emits ships with the news feed in v2.
+- On approval: event status changes to `reg_open`, payment configuration enabled where the organizer configured fees, Email sent to all event organizers to confirm. The approval email links to the published sanctioning guidelines (`/ifpa/sanctioning-guidelines`), states that the event may now use the IFPA logo in its publicity, and points to the logo download on that page. Event will appear in Upcoming Events list. The news item this emits ships with the news feed in v2.
 - On rejection: event status returns to `draft`, Outbox sends organizer notification with reason, and the organizer can revise and resubmit.
 - Payment approval is event-specific configuration, not persistent eventOrganizer permission (which is separate).
 - All approval actions logged.
@@ -2746,7 +2763,7 @@ Success Criteria:
 - For donation payments, the admin can see the member’s donation comment as a read-only field when viewing payment details, so that reconciliation and investigations can take the comment into account without allowing admins to edit it.
 - A nightly worker (or equivalent scheduled job) performs reconciliation against Stripe (or the payment provider) and records mismatches (for example missing webhooks, amount discrepancies, status mismatches, or unexpected duplicates).
 - The Reconciliation Issues view includes a status filter with options: Outstanding (default) / Resolved / All. Resolved reconciliation issues show: admin who resolved the issue, resolution timestamp, resolution note explaining action taken. This allows multiple administrators to see what reconciliation issues have already been handled and by whom.
-- A periodic summary is sent at the configured cadence (default: every 30 days, keyed by `reconciliation_summary_interval_days`) to the IFPA treasurer contact address (`ifpa-treasurer@footbag.org`, from the canonical address list in the design decisions), carrying outstanding discrepancies oldest first and the ones resolved during the period, each naming who resolved it and when, and stating which provider mode the last pass compared and how many local rows of the other mode it set aside. It is sent every cadence whether or not anything is outstanding: the reader answerable for the money has no scheduled-job health surface, so for them silence and a job that died months ago look identical, and the nil report is what tells them the check still runs. It is written for a non-technical reader, with amounts carrying their currency and plain descriptions rather than issue-type codes. The recipient is a fixed platform address with no application write path; who reads that mailbox is an IFPA decision recorded outside the platform.
+- A periodic summary is sent at the configured cadence (default: every 30 days, keyed by `reconciliation_summary_interval_days`) to the IFPA treasurer contact address (`ifpa-treasurer@footbag.org`, from the canonical address list in the design decisions), carrying outstanding discrepancies oldest first and the ones resolved during the period, each naming who resolved it and when, and stating which provider mode the last pass compared and how many local rows of the other mode it set aside. It also lists every donation completed during the period that carries a donor comment, with its date, amount and currency, the donor's name, and the comment, so that any purpose a donor named reaches the Treasurer. It is sent every cadence whether or not anything is outstanding: the reader answerable for the money has no scheduled-job health surface, so for them silence and a job that died months ago look identical, and the nil report is what tells them the check still runs. It is written for a non-technical reader, with amounts carrying their currency and plain descriptions rather than issue-type codes. The recipient is a fixed platform address with no application write path; who reads that mailbox is an IFPA decision recorded outside the platform.
 - There is an admin-only Financial Reports view, open to every administrator. Every daily reconciliation run leaves a report, retained with the run: the window and provider mode it compared, how many local rows of the other mode it set aside, what each pass found, the issues it raised, the issues resolved since the previous run and by whom, and gross totals by category and currency counting live rows only. The view lists the reports newest first and an administrator opens any one of them; the newest is what the site shows as the current state of the money, refreshed by the next run. The view also shows when the emailed digest last went out, when the next is due, and the address it goes to. The email is a copy of the newest report at the cadence; nothing depends on it being read, because the same report is on the site the morning after every run. The view is read-only and offers no state-changing control.
 - The All Payments view, the Financial Reports view and the Stripe dashboard state that processing fees, payouts and net proceeds are read at the payment provider, which is the book of record for money movement; the platform's figures are gross, dated by charge, and are not expected to match a bank deposit.
 
@@ -2973,7 +2990,7 @@ Success Criteria:
 - An administrator can search the old accounts nobody has claimed, by name, account id, username, or an exact email address, because approving a request asks for an account id and no other admin surface can produce one. Only unclaimed accounts are listed; an account someone holds is reached from that member's record. An email address is matched whole rather than by fragment, so the search cannot be used to read through the archived addresses.
 - Approval shows the member and the record it is about to bind, naming both, and applies only on confirmation. Every refusal the apply step would make is made at that step instead, with the request left open: an unknown identifier, a record another member already holds, a member who already holds a record of that kind, a linked record flagged deceased, and a record tied to an old account that a different member holds or that differs from the member's own.
 - Approval never auto-promotes legacy `is_admin` metadata to a live admin role.
-- The legacy banned flag is recorded as audit metadata only and does not gate admin approval; any disciplinary state on the new platform is handled by the new platform's discipline mechanisms.
+- The legacy banned flag is recorded as audit metadata only and does not gate admin approval; any action against a member on the new platform is taken through the new platform's content moderation and administrator controls.
 - Dispute reverts (member confirmed a wrong card or impersonator-confirmed claim): admin can revert a previously-confirmed claim, clearing the back-link columns and revoking the tier grant. The admin names the disputed record — a `legacy_members` account or a `historical_persons` record — and the platform reverts whichever member currently holds it; the member to revert is never supplied directly. The record is bounded as well: a dispute records the conflicting records the platform detected when it was filed, together with who held each of them, and the revert refuses any record outside that set and any record that has since changed hands. A revert therefore reaches only the member the dispute was actually filed against, and a second dispute naming the same record cannot strip a holder an admin has since vetted onto it. Upholding a dispute clears the disputed record itself whatever its provenance, along with the rest of that member's claimed identity links and the tier grant they conferred. An admin cannot resolve a dispute they raised themselves. Where no member holds the record, the revert reports that there is nothing to revert and the queue item stays open. The revert is audit-logged with the identifier of the original claim audit row that took the disputed record, chosen by that record rather than by recency, since a member who claimed an account and a record separately holds two. A deceased flag the member's own deceased marking cascaded onto the disputed record is cleared with the link, because the record was never theirs; a flag set on the record independently stays.
 
 ### A_Periodic_Club_Cleanup
@@ -3304,15 +3321,15 @@ Story: As an admin, I can add, edit, and remove a consecutive-kicks record row a
 
 Success Criteria, Listing:
 
-- Admin can list the rows grouped by section and division and open one to edit.
+- Admin can list the rows grouped by section and discipline and open one to edit.
 
 Success Criteria, Row fields:
 
-- Editable fields are the section, subsection, division, year, rank, both player names, the score, the note, the event date, the event name, the location, and the display position.
+- Editable fields are the section, subsection, discipline, year, rank, both player names, the score, the note, the event date, the event name, the location, and the display position.
 
 Success Criteria, Validation (enforced at the write; a save that fails any check is rejected with a clear message and the submitted values preserved):
 
-- The section, subsection, and division are non-empty.
+- The section, subsection, and discipline are non-empty.
 - The score and the rank are each empty or a whole number.
 - The display position is a unique whole number.
 

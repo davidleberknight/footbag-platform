@@ -1007,11 +1007,11 @@ def test_consecutive_records_loader_idempotent(tmp_path: Path) -> None:
     db = make_db(tmp_path)
     src = write_csv(
         tmp_path / "consecutives.csv",
-        ["section", "subsection", "sort_order", "category", "division", "year",
+        ["section", "subsection", "sort_order", "category", "discipline", "year",
          "rank", "person_or_team", "partner", "score", "note", "event_date",
          "event_name", "location"],
         [{"section": "Singles", "subsection": "Open", "sort_order": "1",
-          "category": "consecutive", "division": "open", "year": "2010",
+          "category": "consecutive", "discipline": "open", "year": "2010",
           "rank": "1", "person_or_team": "Idem Player", "partner": "",
           "score": "100", "note": "", "event_date": "2010-01-01",
           "event_name": "Idem Open", "location": "Town"}],

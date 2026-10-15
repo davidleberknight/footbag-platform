@@ -302,7 +302,6 @@ export interface SystemParametersContent {
   formAction: string;
   priceFormAction: string;
   savedMessage: string;
-  hasSavedMessage: boolean;
   errorList: string[];
   hasErrors: boolean;
   fieldErrors: Record<string, string>;
@@ -513,7 +512,6 @@ export const adminSystemParametersService = {
           formAction: PAGE_HREF,
           priceFormAction: PRICE_HREF,
           savedMessage,
-          hasSavedMessage: savedMessage.length > 0,
           errorList,
           hasErrors: errorList.length > 0,
           fieldErrors,

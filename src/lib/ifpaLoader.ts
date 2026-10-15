@@ -15,6 +15,7 @@ const DOC_FILES: { file: string; slug: string; title: string }[] = [
   { file: 'IFPAMembershipStructure_2026.md', slug: 'membership-structure', title: 'IFPA Membership Rules' },
   { file: 'BYLAWS.md',                       slug: 'bylaws',               title: 'IFPA Bylaws' },
   { file: 'ArticlesOfIncorporation.md',      slug: 'articles',             title: 'Articles of Incorporation' },
+  { file: 'SanctioningGuidelines.md',        slug: 'sanctioning-guidelines', title: 'Requirements and Guidelines for IFPA Event Sanctioning' },
 ];
 
 function slugifyHeading(text: string): string {

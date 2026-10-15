@@ -19,6 +19,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
+import { flashCookieOf, flashValueOf } from '../fixtures/flashCookie';
 import BetterSqlite3 from 'better-sqlite3';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
@@ -209,7 +210,13 @@ describe('sending to a list', () => {
       .send({ subject: 'Spring news', bodyText: 'The season opens.', sendToken: tokenFrom(form.text) });
 
     expect(res.status).toBe(303);
-    expect(res.headers.location).toBe('/admin/mailing-lists/send-list?notice=sent');
+    expect(res.headers.location).toBe('/admin/mailing-lists/send-list');
+    expect(flashValueOf(res)).toBe('mailing_list_result:sent');
+
+    // The administrator lands on the list and is told the send was queued.
+    const page = await request(createApp())
+      .get(res.headers.location).set('Cookie', `${adminCookie()}; ${flashCookieOf(res)}`);
+    expect(page.text).toMatch(/class="form-success-banner" role="status">Message queued for the list\./);
 
     // The bounced subscriber is left out: the audience resolver applies the
     // deliverability filter, and the composer never enumerates anyone itself.
@@ -274,7 +281,8 @@ describe('sending to a list', () => {
       .set('Cookie', adminCookie()).type('form').send(body);
 
     expect(second.headers.location).toBe(first.headers.location);
-    expect(second.headers.location).toBe('/admin/mailing-lists/twice-list?notice=sent');
+    expect(second.headers.location).toBe('/admin/mailing-lists/twice-list');
+    expect(flashValueOf(second)).toBe('mailing_list_result:sent');
     expect(outboxRows()).toHaveLength(2);
     expect(archiveRows()).toHaveLength(1);
     expect(sendAuditCount('twice-list')).toBe(1);
@@ -312,7 +320,8 @@ describe('sending to a list', () => {
       .type('form')
       .send({ subject: 'Into the void', bodyText: 'Body', sendToken: tokenFrom(form.text) });
 
-    expect(res.headers.location).toBe('/admin/mailing-lists/empty-send?notice=no_recipients');
+    expect(res.headers.location).toBe('/admin/mailing-lists/empty-send');
+    expect(flashValueOf(res)).toBe('mailing_list_result:no_recipients');
     expect(outboxRows()).toHaveLength(0);
     expect(archiveRows()).toHaveLength(0);
     expect(sendAuditCount('empty-send')).toBe(0);

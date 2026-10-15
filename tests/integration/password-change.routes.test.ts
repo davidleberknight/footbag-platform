@@ -345,6 +345,7 @@ describe('POST /members/:slug/edit/password — session reissue failure', () => 
     // recovery. It must not send the member to password reset, which would be
     // advice to recover from a lockout that did not happen.
     expect(res.status).toBe(503);
+    expect(res.headers['retry-after']).toBe('30');
     expect(res.text).toContain('your password was not changed');
     expect(res.text).toContain('still signed in');
     expect(res.text).not.toContain('Forgot password');
@@ -466,6 +467,7 @@ describe('POST /members/:slug/edit/password — confirmation-email enqueue failu
     // Honest message: the password did not change, so there is nothing to
     // recover from and no reason to send the member to password reset.
     expect(res.status).toBe(503);
+    expect(res.headers['retry-after']).toBe('30');
     expect(res.text).toContain('your password was not changed');
     expect(res.text).toContain('still signed in');
     expect(res.text).not.toContain('Forgot password');

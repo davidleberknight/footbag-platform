@@ -44,6 +44,23 @@ const NAV_SECTIONS: ReadonlyArray<{ href: string; section: string; label: string
 ];
 
 /**
+ * The 4xx status the framework attached to an error it raised while reading
+ * the request, or null for anything else. Only two shapes qualify: a
+ * body-parser error, which marks itself `expose` because it describes the
+ * client's request, and the router's URIError for a broken percent-escape.
+ * Any other error carrying a 4xx status (a payment or mail provider refusing
+ * a call this server made, say) is a server fault and keeps its 500 and alarm.
+ */
+function clientErrorStatus(err: unknown): number | null {
+  if (typeof err !== 'object' || err === null) return null;
+  const { status, expose } = err as { status?: unknown; expose?: unknown };
+  if (typeof status !== 'number' || !Number.isInteger(status) || status < 400 || status > 499) {
+    return null;
+  }
+  return expose === true || err instanceof URIError ? status : null;
+}
+
+/**
  * Factory that returns a configured Express application without
  * binding to a port. Keeping this as a factory (not a module singleton)
  * lets integration tests call createApp() directly without an HTTP server.
@@ -491,7 +508,7 @@ export function createApp(): express.Express {
   // Controllers `next(err)` on errors they don't recognize. Service-layer
   // ForbiddenError (e.g. defense-in-depth tier check in curatorMediaService)
   // maps to a 403 render; everything else falls through to the 500 handler.
-  app.use((err: unknown, _req: express.Request, res: express.Response, next: express.NextFunction) => {
+  app.use((err: unknown, req: express.Request, res: express.Response, next: express.NextFunction) => {
     if (err instanceof ForbiddenError) {
       renderForbidden(res);
       return;
@@ -504,17 +521,25 @@ export function createApp(): express.Express {
       res.status(429).type('text/plain').send(err.message);
       return;
     }
-    // Body-parser rejects an oversized request body with a PayloadTooLargeError
-    // (type 'entity.too.large', status 413). That is a client-input condition,
-    // not a server fault, so return the canonical 413 here rather than letting
-    // it fall through to the catch-all 500 (which would also emit a spurious
-    // unhandled-error alarm line).
-    if (
-      typeof err === 'object' && err !== null &&
-      ((err as { type?: unknown }).type === 'entity.too.large' ||
-        (err as { status?: unknown }).status === 413)
-    ) {
-      res.status(413).type('text/plain').send('Request entity too large');
+    // The framework tags a request it cannot parse with the client status it
+    // deserves: body-parser answers 400 for a malformed body, 413 for an
+    // oversized one and 415 for an unreadable encoding, and the router answers
+    // 400 for a broken percent-escape in a path parameter. Each is the
+    // client's fault, so return that status here rather than letting it fall
+    // through to the catch-all 500, whose error-level line pages the operator
+    // and which anyone on the internet could trigger at will.
+    const clientStatus = clientErrorStatus(err);
+    if (clientStatus !== null) {
+      logger.debug('unparseable request', {
+        method: req.method,
+        url: redactTokenPaths(req.url),
+        status: clientStatus,
+      });
+      if (clientStatus === 413) {
+        res.status(413).type('text/plain').send('Request entity too large');
+      } else {
+        res.status(clientStatus).type('text/plain').send('Bad request');
+      }
       return;
     }
     next(err);

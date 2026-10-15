@@ -16,6 +16,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
+import { flashCookieOf, flashValueOf } from '../fixtures/flashCookie';
 import BetterSqlite3 from 'better-sqlite3';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
@@ -150,13 +151,21 @@ describe('creating a list through the surface', () => {
       .send({ name: 'Regional News', description: 'Regional updates', isMemberManageable: '1' });
 
     expect(res.status).toBe(303);
-    expect(res.headers.location).toBe('/admin/mailing-lists/regional-news?notice=created');
+    expect(res.headers.location).toBe('/admin/mailing-lists/regional-news');
     expect(listRow('regional-news')!.name).toBe('Regional News');
 
     const detail = await request(createApp())
+      .get(res.headers.location)
+      .set('Cookie', `${adminCookie()}; ${flashCookieOf(res)}`);
+    expect(detail.text).toContain('List created');
+
+    // The outcome comes only from the one-shot cookie: the same address typed
+    // or shared without it shows no banner.
+    const bare = await request(createApp())
       .get('/admin/mailing-lists/regional-news?notice=created')
       .set('Cookie', adminCookie());
-    expect(detail.text).toContain('List created');
+    expect(bare.status).toBe(200);
+    expect(bare.text).not.toContain('List created');
   });
 
   it('a repeated identical create by the same admin reports the first create: 303 to the same page', async () => {
@@ -312,7 +321,8 @@ describe('editing a list through the surface', () => {
       .send({ name: 'Save List', description: 'Now described', isMemberManageable: '1' });
 
     expect(res.status).toBe(303);
-    expect(res.headers.location).toBe('/admin/mailing-lists/save-list?notice=saved');
+    expect(res.headers.location).toBe('/admin/mailing-lists/save-list');
+    expect(flashValueOf(res)).toBe('mailing_list_result:saved');
     expect(listRow('save-list')!.description).toBe('Now described');
   });
 
@@ -353,12 +363,12 @@ describe('archiving a list through the surface', () => {
       .send({});
 
     expect(res.status).toBe(303);
-    expect(res.headers.location).toBe('/admin/mailing-lists/archive-me?notice=archived');
+    expect(res.headers.location).toBe('/admin/mailing-lists/archive-me');
     expect(listRow('archive-me')!.status).toBe('archived');
 
     const detail = await request(createApp())
-      .get('/admin/mailing-lists/archive-me?notice=archived')
-      .set('Cookie', adminCookie());
+      .get(res.headers.location)
+      .set('Cookie', `${adminCookie()}; ${flashCookieOf(res)}`);
     expect(detail.text).toMatch(/List archived/);
   });
 
@@ -371,11 +381,11 @@ describe('archiving a list through the surface', () => {
       .type('form')
       .send({});
 
-    expect(res.headers.location).toBe('/admin/mailing-lists/already-gone?notice=already_archived');
+    expect(res.headers.location).toBe('/admin/mailing-lists/already-gone');
 
     const detail = await request(createApp())
-      .get('/admin/mailing-lists/already-gone?notice=already_archived')
-      .set('Cookie', adminCookie());
+      .get(res.headers.location)
+      .set('Cookie', `${adminCookie()}; ${flashCookieOf(res)}`);
     expect(detail.text).toMatch(/already archived/);
   });
 
@@ -403,7 +413,8 @@ describe('changing one member\'s subscription through the surface', () => {
       .send({ memberId: MEMBER_ID, status: 'subscribed', reason: 'Mailbox is working again' });
 
     expect(res.status).toBe(303);
-    expect(res.headers.location).toBe('/admin/mailing-lists/adjust-list?notice=adjusted');
+    expect(res.headers.location).toBe('/admin/mailing-lists/adjust-list');
+    expect(flashValueOf(res)).toBe('mailing_list_result:adjusted');
     expect(subscriptionStatus('adjust-list', MEMBER_ID)).toBe('subscribed');
   });
 
@@ -433,11 +444,11 @@ describe('changing one member\'s subscription through the surface', () => {
       .type('form')
       .send({ memberId: MEMBER_ID, status: 'subscribed', reason: 'Nothing to move' });
 
-    expect(res.headers.location).toBe('/admin/mailing-lists/empty-list?notice=unchanged');
+    expect(res.headers.location).toBe('/admin/mailing-lists/empty-list');
 
     const detail = await request(createApp())
-      .get('/admin/mailing-lists/empty-list?notice=unchanged')
-      .set('Cookie', adminCookie());
+      .get(res.headers.location)
+      .set('Cookie', `${adminCookie()}; ${flashCookieOf(res)}`);
     expect(detail.text).toMatch(/Nothing changed/);
   });
 

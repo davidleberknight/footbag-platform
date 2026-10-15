@@ -101,6 +101,24 @@ describe('GET /payments/success', () => {
     const res = await request(createApp()).get(`/payments/success?session_id=${OWNER_SESSION}`).set('Cookie', cookie(OWNER_ID));
     expect(res.status).toBe(200);
   });
+  it('a returnTo carrying a tab never becomes the Continue link, which would open an outside site', async () => {
+    const res = await request(createApp())
+      .get(`/payments/success?session_id=${OWNER_SESSION}&returnTo=%2F%09%2Fevil.com`)
+      .set('Cookie', cookie(OWNER_ID));
+    expect(res.status).toBe(200);
+    const hrefs = [...res.text.matchAll(/href="([^"]*)"/g)].map((m) => m[1]);
+    expect(hrefs.filter((h) => /evil\.com/.test(h))).toEqual([]);
+    expect(hrefs).toContain(`/members/${OWNER}`);
+  });
+
+  it('a clean same-origin returnTo becomes the Continue link', async () => {
+    const res = await request(createApp())
+      .get(`/payments/success?session_id=${OWNER_SESSION}&returnTo=%2Fclubs`)
+      .set('Cookie', cookie(OWNER_ID));
+    expect(res.status).toBe(200);
+    expect(res.text).toMatch(/<a href="\/clubs" class="btn btn-primary">/);
+  });
+
   it('404s an unknown session id', async () => {
     const res = await request(createApp()).get('/payments/success?session_id=cs_nope').set('Cookie', cookie(OWNER_ID));
     expect(res.status).toBe(404);

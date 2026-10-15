@@ -37,7 +37,7 @@ beforeAll(async () => {
     sort_order: 402,
     section:    'Official World Records',
     subsection: 'Current Official World Records',
-    division:   'Open Singles',
+    discipline: 'Open Singles',
     player_1:   'Ted Martin',
     player_2:   null,
     score:      63326,
@@ -52,7 +52,7 @@ beforeAll(async () => {
     sort_order: 406,
     section:    'Official World Records',
     subsection: 'Current Official World Records',
-    division:   'Open Doubles',
+    discipline: 'Open Doubles',
     player_1:   'Gary Lautt',
     player_2:   'Tricia George',
     score:      132011,
@@ -67,7 +67,7 @@ beforeAll(async () => {
     sort_order: 101,
     section:    'Highest Official Scores',
     subsection: 'Singles Consecutive 20000+ Club',
-    division:   'Open Singles',
+    discipline: 'Open Singles',
     rank:       1,
     player_1:   'Ted Martin',
     player_2:   null,
@@ -80,7 +80,7 @@ beforeAll(async () => {
     sort_order: 105,
     section:    'Highest Official Scores',
     subsection: 'Singles Consecutive 20000+ Club',
-    division:   "Women's Singles",
+    discipline: "Women's Singles",
     rank:       5,
     player_1:   'Constance Constable',
     player_2:   null,
@@ -93,7 +93,7 @@ beforeAll(async () => {
     sort_order: 518,
     section:    'World Record Progression',
     subsection: 'Open Singles Consecutive',
-    division:   'Open Singles',
+    discipline: 'Open Singles',
     year:       '1997',
     player_1:   'Ted Martin',
     player_2:   null,
@@ -105,7 +105,7 @@ beforeAll(async () => {
     sort_order: 1307,
     section:    'Milestone Firsts',
     subsection: 'Singles milestone first',
-    division:   'Open Singles',
+    discipline: 'Open Singles',
     player_1:   'Ted Martin',
     player_2:   null,
     score:      40000,
@@ -132,6 +132,14 @@ describe('GET /records', () => {
     expect(res.text).toContain('Gary Lautt');
     expect(res.text).toContain('Tricia George');
     expect(res.text).toContain('132,011');
+  });
+
+  // The world-records table has no note column, so this cell can only come from
+  // the row's discipline; a blank cell means the stored discipline never reached
+  // the view.
+  it('shows each world record row with its discipline', async () => {
+    const res = await page('/records');
+    expect(res.text).toContain('<td>Open Doubles</td>');
   });
 
   it('renders a multi-day event date as a human-readable range, not the raw value', async () => {
@@ -192,6 +200,8 @@ describe('GET /records', () => {
     try {
       const res = await request(createApp()).get('/records');
       expect(res.status).toBe(503);
+      // Contention clears on its own, so the response tells a caller when to retry.
+      expect(res.headers['retry-after']).toBe('30');
     } finally {
       spy.mockRestore();
     }

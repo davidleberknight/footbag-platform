@@ -817,7 +817,7 @@ export interface ConsecutiveKicksRecordOverrides {
   sort_order?: number;
   section?: string;
   subsection?: string;
-  division?: string;
+  discipline?: string;
   year?: string | null;
   rank?: number | null;
   player_1?: string | null;
@@ -842,7 +842,7 @@ export function insertConsecutiveKicksRecord(
   const sort_order = o.sort_order ?? ++_sortOrderCounter;
   db.prepare(`
     INSERT INTO consecutive_kicks_records
-      (id, sort_order, section, subsection, division, year, rank,
+      (id, sort_order, section, subsection, discipline, year, rank,
        player_1, player_2, score, note, event_date, event_name, location,
        created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -851,7 +851,7 @@ export function insertConsecutiveKicksRecord(
     sort_order,
     o.section    ?? 'Official World Records',
     o.subsection ?? 'Current Official World Records',
-    o.division   ?? 'Open Singles',
+    o.discipline ?? 'Open Singles',
     o.year       ?? null,
     o.rank       ?? null,
     o.player_1   ?? 'Test Player',

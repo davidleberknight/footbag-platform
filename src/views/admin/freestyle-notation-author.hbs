@@ -12,7 +12,7 @@
 <div class="wrapper">
 
   {{#if content.saved}}
-  <p class="form-success-banner" role="status">Saved. The draft is listed under authored drafts until its trick is published.</p>
+  {{> outcome-notice text="Saved. The draft is listed under authored drafts until its trick is published." tone='ok'}}
   {{/if}}
 
   {{#if content.hasErrors}}

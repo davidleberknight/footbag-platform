@@ -144,6 +144,38 @@ describe('Oversized payloads', () => {
   });
 });
 
+// ── Unparseable requests ──────────────────────────────────────────────────────
+//
+// A request the framework cannot parse is the client's fault, answered with
+// the parser's own 4xx. Falling through to the catch-all instead would answer
+// 500 and write an error-level log line, which pages the operator; anyone on
+// the internet can send such a request, so that is an alarm flood. The global
+// logger.error spy fails each case if the error line comes back.
+
+describe('Unparseable requests', () => {
+  it('malformed JSON body answers 400, not the 500 page', async () => {
+    const res = await request(createApp())
+      .post('/login')
+      .set('Content-Type', 'application/json')
+      .send('{bad');
+    expect(res.status).toBe(400);
+  });
+
+  it('a body in an encoding the parser cannot read answers 415', async () => {
+    const res = await request(createApp())
+      .post('/login')
+      .set('Content-Type', 'application/json')
+      .set('Content-Encoding', 'x-unknown')
+      .send('{}');
+    expect(res.status).toBe(415);
+  });
+
+  it('a broken percent-escape in a route parameter answers 400', async () => {
+    const res = await request(createApp()).get('/members/%E0%A4%A');
+    expect(res.status).toBe(400);
+  });
+});
+
 // ── Unicode mischief ──────────────────────────────────────────────────────────
 
 describe('Unicode adversarial input', () => {

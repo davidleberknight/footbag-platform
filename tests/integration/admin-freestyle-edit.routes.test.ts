@@ -16,6 +16,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import request from '../fixtures/supertestWithOrigin';
+import { flashCookieOf } from '../fixtures/flashCookie';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import {
@@ -805,7 +806,7 @@ describe('POST /admin/freestyle/tricks/:slug/edit — successful save', () => {
   it('persists the scalar change, writes one audit row, stamps updated_at, and redirects with a saved indicator', async () => {
     const res = await post('/admin/freestyle/tricks/save_ok/edit', admin(), validBody({ canonicalName: 'Save Ok', reviewStatus: 'curated' }));
     expect(res.status).toBe(303);
-    expect(res.headers.location).toBe('/admin/freestyle/tricks/save_ok/edit?saved=1');
+    expect(res.headers.location).toBe('/admin/freestyle/tricks/save_ok/edit');
 
     const row = trickRow('save_ok');
     expect(row.canonical_name).toBe('Save Ok');
@@ -818,11 +819,21 @@ describe('POST /admin/freestyle/tricks/:slug/edit — successful save', () => {
     expect(audits[0].metadata_json).toContain('review_status');
   });
 
-  it('shows the saved banner and the new value on the follow-up GET', async () => {
-    const res = await get('/admin/freestyle/tricks/save_ok/edit?saved=1', admin());
+  it('shows the saved banner and the new value on the follow-up GET, and only with the save cookie', async () => {
+    const save = await post('/admin/freestyle/tricks/save_ok/edit', admin(), validBody({ canonicalName: 'Save Ok', reviewStatus: 'curated' }));
+    const res = await get(save.headers.location as string, `${admin()}; ${flashCookieOf(save)}`);
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Saved.');
+    expect(res.text).toMatch(/class="form-success-banner" role="status">Saved\./);
     expect(res.text).toContain('Save Ok');
+
+    const bare = await get('/admin/freestyle/tricks/save_ok/edit?saved=1', admin());
+    expect(bare.status).toBe(200);
+    expect(bare.text).not.toContain('form-success-banner');
+
+    // Opening a different trick with the cookie still set claims nothing there.
+    const other = await get('/admin/freestyle/tricks/blurry_whirl/edit', `${admin()}; ${flashCookieOf(save)}`);
+    expect(other.status).toBe(200);
+    expect(other.text).not.toContain('form-success-banner');
   });
 });
 

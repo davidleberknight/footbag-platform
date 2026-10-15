@@ -672,6 +672,7 @@ describe('POST /password/reset/:token — session reissue failure', () => {
       .send({ newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD });
 
     expect(res.status).toBe(503);
+    expect(res.headers['retry-after']).toBe('30');
     expect(res.text).toContain('Your password was reset');
     expect(res.text).toContain('could not sign you in');
     expect(res.text).toContain('login page');

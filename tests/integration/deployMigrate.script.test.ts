@@ -869,7 +869,7 @@ describe('admin-authored content across a data-preserving deploy, on the real sc
       id: 'record-1', display_name: 'Record Holder', trick_name: 'Blender', adds_count: 4,
       confidence: 'verified', video_timecode: '1:06',
     });
-    insertConsecutiveKicksRecord(db, { id: 'ck-1', sort_order: 7, division: 'Open Singles' });
+    insertConsecutiveKicksRecord(db, { id: 'ck-1', sort_order: 7, discipline: 'Open Singles' });
   }
 
   function seedRulings(db: BetterSqlite3.Database): void {
@@ -975,8 +975,8 @@ describe('admin-authored content across a data-preserving deploy, on the real sc
     expect(readDb((db) => db.prepare(
       "SELECT display_name, adds_count, confidence, video_timecode FROM freestyle_records WHERE id = 'record-1'",
     ).get())).toEqual({ display_name: 'Record Holder', adds_count: 4, confidence: 'verified', video_timecode: '1:06' });
-    expect(readDb((db) => db.prepare("SELECT sort_order, division FROM consecutive_kicks_records WHERE id = 'ck-1'").get()))
-      .toEqual({ sort_order: 7, division: 'Open Singles' });
+    expect(readDb((db) => db.prepare("SELECT sort_order, discipline FROM consecutive_kicks_records WHERE id = 'ck-1'").get()))
+      .toEqual({ sort_order: 7, discipline: 'Open Singles' });
   });
 
   it('keeps emerging-vocabulary rulings in order, and every symbolic-grammar row', () => {

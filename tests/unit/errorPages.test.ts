@@ -24,7 +24,8 @@ import {
 function makeRes(locals: Record<string, unknown> = {}) {
   const render = vi.fn();
   const status = vi.fn().mockReturnValue({ render });
-  return { res: { status, locals } as unknown as Response, status, render };
+  const setHeader = vi.fn();
+  return { res: { status, setHeader, locals } as unknown as Response, status, render, setHeader };
 }
 
 /** Template name, then the view-model the helper handed it. */
@@ -66,6 +67,20 @@ describe('every error helper renders the one error template', () => {
       expect(rendered(render).content.actions).toEqual([{ label: 'Go to Home', href: '/' }]);
     });
   }
+});
+
+describe('the service-unavailable page says when to retry', () => {
+  it('a 503 carries Retry-After, because the outage it reports is transient', () => {
+    const { res, setHeader } = makeRes();
+    renderServiceUnavailable(res);
+    expect(setHeader).toHaveBeenCalledWith('Retry-After', '30');
+  });
+
+  it('a 500 carries none, because retrying an unexpected fault promises nothing', () => {
+    const { res, setHeader } = makeRes();
+    renderServiceUnavailable(res, 500);
+    expect(setHeader).not.toHaveBeenCalled();
+  });
 });
 
 describe('an authorization refusal picks its control from the caller session', () => {

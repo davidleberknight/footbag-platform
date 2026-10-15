@@ -71,6 +71,21 @@ export const FLASH_KIND = {
   // it after the condition cleared, changed nothing and must not be told they
   // did.
   ALARM_ALREADY_SETTLED: 'alarm_already_settled',
+  // A member's subscription change or address recovery on their email
+  // preferences. The payload is the outcome code the subscription service turns
+  // back into a sentence and tone.
+  EMAIL_PREFERENCE_RESULT: 'email_preference_result',
+  // A member's community announcement. The payload is the outcome code the
+  // broadcast service turns back into a sentence and tone.
+  ANNOUNCE_RESULT: 'announce_result',
+  // An administrator's change to a mailing list, or a broadcast sent to one.
+  // The payload is the outcome code the mailing-list page turns back into a
+  // sentence and tone.
+  MAILING_LIST_RESULT: 'mailing_list_result',
+  // An administrator's save on an edit page. The payload names what was saved,
+  // so the confirmation shows only on the page that saved it, never on another
+  // admin page opened within the cookie's lifetime.
+  ADMIN_SAVED: 'admin_saved',
   // Stub-only: carries the just-registered recipient email across the
   // register/resend POST->303->GET so the simulated-email dev card can scope
   // to that recipient and never show another pending user's verify token.
@@ -114,6 +129,18 @@ export function readFlash(
   if (!FLASH_KIND_VALUES.has(kind)) return null;
   const payload = colonIdx === -1 ? null : raw.slice(colonIdx + 1);
   return { kind: kind as FlashKind, payload };
+}
+
+/**
+ * Consume the flash if it is of `kind`: clear it and return its payload (an
+ * empty string when it carried none). A flash of any other kind is left for
+ * the page it belongs to, and the result is null.
+ */
+export function takeFlash(req: Request, res: Response, kind: FlashKind): string | null {
+  const flash = readFlash(req);
+  if (flash?.kind !== kind) return null;
+  clearFlash(res, req);
+  return flash.payload ?? '';
 }
 
 export function clearFlash(res: Response, req: Request): void {

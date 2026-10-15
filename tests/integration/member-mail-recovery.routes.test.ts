@@ -23,6 +23,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
+import { flashValueOf } from '../fixtures/flashCookie';
 import BetterSqlite3 from 'better-sqlite3';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
@@ -171,7 +172,8 @@ describe('a bounced member resuming mail to the same address', () => {
     const res = await recover(m);
 
     expect(res.status).toBe(303);
-    expect(res.headers.location).toBe(`/members/${m.slug}/email-preferences?notice=recovery_sent`);
+    expect(res.headers.location).toBe(`/members/${m.slug}/email-preferences`);
+    expect(flashValueOf(res)).toBe('email_preference_result:recovery_sent');
     // Without the lift the provider drops the link, so the member could never prove anything.
     expect(stub().liftedAddresses).toEqual([m.email]);
     const mails = verifyMailsTo(m.email);
@@ -284,7 +286,8 @@ describe('a member who reported spam turning a list back on', () => {
     const res = await turnOn(m, 'newsletter');
 
     expect(res.status).toBe(303);
-    expect(res.headers.location).toBe(`/members/${m.slug}/email-preferences?notice=subscribed`);
+    expect(res.headers.location).toBe(`/members/${m.slug}/email-preferences`);
+    expect(flashValueOf(res)).toBe('email_preference_result:subscribed');
     expect(stub().liftedAddresses).toEqual([m.email]);
     expect(emailStatusOf(m.id)).toBe('ok');
     expect(listStatusOf(m.id, 'newsletter')).toBe('subscribed');
@@ -301,7 +304,8 @@ describe('a member who reported spam turning a list back on', () => {
     const res = await turnOn(m, 'newsletter');
 
     // An "already set, nothing changed" notice would hide that mail just resumed.
-    expect(res.headers.location).toBe(`/members/${m.slug}/email-preferences?notice=subscribed`);
+    expect(res.headers.location).toBe(`/members/${m.slug}/email-preferences`);
+    expect(flashValueOf(res)).toBe('email_preference_result:subscribed');
     expect(emailStatusOf(m.id)).toBe('ok');
     expect(auditCount('email.complaint_withdrawn', m.id)).toBe(1);
   });
@@ -342,7 +346,8 @@ describe('what the recovery request refuses', () => {
     const res = await recover(m);
 
     expect(res.status).toBe(303);
-    expect(res.headers.location).toBe(`/members/${m.slug}/email-preferences?notice=recovery_unneeded`);
+    expect(res.headers.location).toBe(`/members/${m.slug}/email-preferences`);
+    expect(flashValueOf(res)).toBe('email_preference_result:recovery_unneeded');
     expect(stub().liftedAddresses).toEqual([]);
     expect(verifyMailsTo(m.email)).toHaveLength(0);
   });

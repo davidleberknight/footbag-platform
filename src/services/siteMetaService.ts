@@ -30,7 +30,7 @@
 import { config } from '../config/env';
 import { publicEvents, clubs, netTeams, freestyleTricks, media, publicPlayers } from '../db/db';
 import { freestyleService } from './freestyleService';
-import { listGroupedByDiscipline } from '../lib/rulesLoader';
+import { listGroupedByCategory } from '../lib/rulesLoader';
 import { getIfpaDocs } from '../lib/ifpaLoader';
 
 // Public hub and static-content pages with no per-row enumeration. Listed in
@@ -166,10 +166,10 @@ function collectPublicPaths(): string[] {
     paths.add(`/media/${row.id}`);
   }
 
-  // Rules: every rule detail page across all disciplines.
-  for (const group of listGroupedByDiscipline()) {
+  // Rules: every rule detail page across all categories.
+  for (const group of listGroupedByCategory()) {
     for (const p of group.pages) {
-      paths.add(`/rules/${p.discipline}/${p.slug}`);
+      paths.add(`/rules/${p.category}/${p.slug}`);
     }
   }
 
@@ -219,7 +219,7 @@ export const siteMetaService = {
       `- [Freestyle](${b}/freestyle): the freestyle trick dictionary, families, and notation.`,
       `- [Freestyle records](${b}/freestyle/records): documented consecutive-completion trick records.`,
       `- [Net](${b}/net): footbag net competition, teams, and events.`,
-      `- [Rules](${b}/rules): official IFPA rules for each footbag discipline.`,
+      `- [Rules](${b}/rules): official IFPA rules for each footbag sport.`,
       `- [Equipment](${b}/equipment): footbags, shoes, and how to set up each game's court or targets.`,
       `- [Hall of Fame](${b}/hof): inducted members of the footbag Hall of Fame.`,
       `- [Big Add Posse](${b}/bap): the Big Add Posse freestyle honor roll.`,

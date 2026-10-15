@@ -23,6 +23,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
+import { flashCookieOf, flashValueOf } from '../fixtures/flashCookie';
 import BetterSqlite3 from 'better-sqlite3';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
@@ -239,7 +240,18 @@ describe('sending an announcement', () => {
       .send({ subject: 'Worlds is open', bodyText: 'Registration opens Monday.', sendToken: token });
 
     expect(res.status).toBe(303);
-    expect(res.headers.location).toBe(`${ANNOUNCE}?notice=sent`);
+    expect(res.headers.location).toBe(ANNOUNCE);
+    expect(flashValueOf(res)).toBe('announce_result:sent');
+
+    // The organizer lands on the form and is told the message is on its way.
+    const page = await request(createApp()).get(ANNOUNCE)
+      .set('Cookie', `${organizerCookie()}; ${flashCookieOf(res)}`);
+    expect(page.text).toMatch(/class="form-success-banner" role="status">Queued\./);
+
+    // The same address typed or shared without the cookie claims nothing.
+    const bare = await request(createApp()).get(`${ANNOUNCE}?notice=sent`).set('Cookie', organizerCookie());
+    expect(bare.status).toBe(200);
+    expect(bare.text).not.toContain('Queued.');
 
     const rows = outboxRows();
     expect(rows).toHaveLength(2);
@@ -316,7 +328,8 @@ describe('sending an announcement', () => {
     const second = await request(createApp())
       .post(ANNOUNCE).set('Cookie', organizerCookie()).type('form').send(body);
 
-    expect(first.headers.location).toBe(`${ANNOUNCE}?notice=sent`);
+    expect(first.headers.location).toBe(ANNOUNCE);
+    expect(flashValueOf(first)).toBe('announce_result:sent');
     expect(second.headers.location).toBe(first.headers.location);
     expect(outboxRows()).toHaveLength(2);
     expect(archiveRows()).toHaveLength(1);
@@ -366,7 +379,8 @@ describe('sending an announcement', () => {
       .post(ANNOUNCE).set('Cookie', organizerCookie()).type('form')
       .send({ subject: 'Into the void', bodyText: 'Body', sendToken: await formToken() });
 
-    expect(res.headers.location).toBe(`${ANNOUNCE}?notice=no_recipients`);
+    expect(res.headers.location).toBe(ANNOUNCE);
+    expect(flashValueOf(res)).toBe('announce_result:no_recipients');
     expect(outboxRows()).toHaveLength(0);
     expect(archiveRows()).toHaveLength(0);
   });
@@ -416,14 +430,14 @@ describe('the daily limit', () => {
 
       const repeatA = await post('Announcement A', tokenA);
       expect(repeatA.status).toBe(303);
-      expect(repeatA.headers.location).toBe(`${ANNOUNCE}?notice=sent`);
+      expect(flashValueOf(repeatA)).toBe('announce_result:sent');
       expect(outboxRows()).toHaveLength(outboxAfterA);
       expect(announceAuditCount()).toBe(auditAfterA);
 
       // The last slot is still free for a genuinely new announcement.
       const sendB = await post('Announcement B', await formToken());
       expect(sendB.status).toBe(303);
-      expect(sendB.headers.location).toBe(`${ANNOUNCE}?notice=sent`);
+      expect(flashValueOf(sendB)).toBe('announce_result:sent');
 
       // B took the last slot, so the allowance is enforced as before.
       expect((await post('Announcement C', await formToken())).status).toBe(429);
@@ -450,7 +464,7 @@ describe('the daily limit', () => {
       }
       const repeat = await post(`Send ${PER_DAY - 1}`, lastToken);
       expect(repeat.status).toBe(303);
-      expect(repeat.headers.location).toBe(`${ANNOUNCE}?notice=sent`);
+      expect(flashValueOf(repeat)).toBe('announce_result:sent');
     } finally {
       rl.resetRateLimitForTests();
     }

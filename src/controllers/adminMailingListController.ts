@@ -11,6 +11,7 @@ import type { NextFunction, Request, Response } from 'express';
 import { mailingListService, type MailingListInput } from '../services/mailingListService';
 import { ConflictError, NotFoundError, ValidationError } from '../services/serviceErrors';
 import { renderNotFound } from '../lib/controllerErrors';
+import { FLASH_KIND, takeFlash, writeFlash } from '../lib/flashCookie';
 
 function listInputFromBody(body: Record<string, unknown>): MailingListInput {
   return {
@@ -22,8 +23,11 @@ function listInputFromBody(body: Record<string, unknown>): MailingListInput {
   };
 }
 
-function noticeFrom(req: Request): string | undefined {
-  return typeof req.query.notice === 'string' ? req.query.notice : undefined;
+/** Carry the outcome code to the list's page in the one-shot flash, which the
+ *  page turns back into a sentence and tone. */
+function redirectToList(req: Request, res: Response, slug: string, notice: string): void {
+  writeFlash(res, req, FLASH_KIND.MAILING_LIST_RESULT, notice);
+  res.redirect(303, `/admin/mailing-lists/${slug}`);
 }
 
 export const adminMailingListController = {
@@ -47,7 +51,7 @@ export const adminMailingListController = {
     const input = listInputFromBody(req.body as Record<string, unknown>);
     try {
       const slug = mailingListService.createList(input, req.user!.userId);
-      res.redirect(303, `/admin/mailing-lists/${slug}?notice=created`);
+      redirectToList(req, res, slug, 'created');
     } catch (err) {
       if (err instanceof ValidationError || err instanceof ConflictError) {
         const fieldErrors = err instanceof ValidationError && err.fieldErrors
@@ -66,7 +70,7 @@ export const adminMailingListController = {
   detail(req: Request, res: Response, next: NextFunction): void {
     try {
       const vm = mailingListService.getMailingListDetailPage(String(req.params.slug), {
-        notice: noticeFrom(req),
+        notice: takeFlash(req, res, FLASH_KIND.MAILING_LIST_RESULT) ?? undefined,
       });
       if (!vm) {
         renderNotFound(res);
@@ -96,7 +100,7 @@ export const adminMailingListController = {
     const input = listInputFromBody(req.body as Record<string, unknown>);
     try {
       mailingListService.updateList(slug, input, req.user!.userId);
-      res.redirect(303, `/admin/mailing-lists/${slug}?notice=saved`);
+      redirectToList(req, res, slug, 'saved');
     } catch (err) {
       if (err instanceof ValidationError || err instanceof ConflictError) {
         const fieldErrors = err instanceof ValidationError && err.fieldErrors
@@ -122,8 +126,7 @@ export const adminMailingListController = {
     const slug = String(req.params.slug);
     try {
       const outcome = mailingListService.archiveList(slug, req.user!.userId);
-      const notice = outcome.status === 'archived' ? 'archived' : outcome.reason;
-      res.redirect(303, `/admin/mailing-lists/${slug}?notice=${notice}`);
+      redirectToList(req, res, slug, outcome.status === 'archived' ? 'archived' : outcome.reason);
     } catch (err) {
       if (err instanceof NotFoundError) {
         renderNotFound(res);
@@ -144,8 +147,7 @@ export const adminMailingListController = {
       const outcome = mailingListService.adjustSubscription(
         slug, memberId, status, reason, req.user!.userId,
       );
-      const notice = outcome.status === 'adjusted' ? 'adjusted' : outcome.reason;
-      res.redirect(303, `/admin/mailing-lists/${slug}?notice=${notice}`);
+      redirectToList(req, res, slug, outcome.status === 'adjusted' ? 'adjusted' : outcome.reason);
     } catch (err) {
       if (err instanceof ValidationError) {
         const vm = mailingListService.getMailingListDetailPage(slug, {

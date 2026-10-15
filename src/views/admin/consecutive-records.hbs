@@ -1,7 +1,7 @@
 <div class="hero hero-sm">
   <div>
     <h1>{{page.title}}</h1>
-    <p class="hero-subtitle">Browse the consecutive-kicks records, grouped by section and division. {{content.totalCount}} row(s).</p>
+    <p class="hero-subtitle">Browse the consecutive-kicks records, grouped by section and discipline. {{content.totalCount}} row(s).</p>
   </div>
 </div>
 
@@ -12,9 +12,9 @@
     {{#if content.hasRows}}
       {{#each content.sections}}
         <h2 class="section-heading">{{this.section}}</h2>
-        {{#each this.divisions}}
-          <h3>{{this.division}}</h3>
-          <div class="records-table-wrap" tabindex="0" role="region" aria-label="{{this.division}}">
+        {{#each this.disciplines}}
+          <h3>{{this.discipline}}</h3>
+          <div class="records-table-wrap" tabindex="0" role="region" aria-label="{{this.discipline}}">
           <table class="data-table">
             <thead>
               <tr><th>Pos</th><th>Players</th><th>Score</th><th></th></tr>

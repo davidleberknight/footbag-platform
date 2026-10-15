@@ -2,9 +2,9 @@ import fs from 'fs';
 import path from 'path';
 import { marked } from 'marked';
 
-export interface RulesDisciplineFrontmatter {
-  discipline: string;
-  disciplineLabel: string;
+export interface RulesCategoryFrontmatter {
+  category: string;
+  categoryLabel: string;
   authority: string;
   effective: string | null;
   parentHref: string;
@@ -12,8 +12,8 @@ export interface RulesDisciplineFrontmatter {
 }
 
 export interface ParsedRulePage {
-  discipline: string;
-  disciplineLabel: string;
+  category: string;
+  categoryLabel: string;
   slug: string;
   title: string;
   authority: string;
@@ -93,8 +93,8 @@ function buildCache(): Map<string, ParsedRulePage> {
     if (!file.endsWith('.md')) continue;
     const raw = fs.readFileSync(path.join(RULES_DIR, file), 'utf8');
     const { fm, body } = parseFrontmatter(raw);
-    const discipline = fm['discipline'] ?? path.basename(file, '.md');
-    const disciplineLabel = fm['disciplineLabel'] ?? discipline;
+    const category = fm['category'] ?? path.basename(file, '.md');
+    const categoryLabel = fm['categoryLabel'] ?? category;
     const authority = fm['authority'] ?? '';
     const effective = fm['effective'] ?? null;
     const parentHref = fm['parentHref'] ?? '/rules';
@@ -104,9 +104,9 @@ function buildCache(): Map<string, ParsedRulePage> {
       const slug = slugifyHeading(headingText);
       const rawHtml = marked.parse(segment, { async: false }) as string;
       const html = addAnchorIds(rawHtml);
-      map.set(`${discipline}/${slug}`, {
-        discipline,
-        disciplineLabel,
+      map.set(`${category}/${slug}`, {
+        category,
+        categoryLabel,
         slug,
         title: headingText,
         authority,
@@ -130,32 +130,32 @@ export function listRulePages(): ParsedRulePage[] {
   return [...loadRulePages().values()];
 }
 
-export function getRulePage(discipline: string, slug: string): ParsedRulePage | undefined {
-  return loadRulePages().get(`${discipline}/${slug}`);
+export function getRulePage(category: string, slug: string): ParsedRulePage | undefined {
+  return loadRulePages().get(`${category}/${slug}`);
 }
 
-export interface RuleDisciplineGroup {
-  discipline: string;
+export interface RuleCategoryGroup {
+  category: string;
   label: string;
   pages: ParsedRulePage[];
 }
 
-const DISCIPLINE_ORDER = ['sideline', 'net', 'golf', 'freestyle'];
+const CATEGORY_ORDER = ['sideline', 'net', 'golf', 'freestyle'];
 
-export function listGroupedByDiscipline(): RuleDisciplineGroup[] {
-  const byDiscipline = new Map<string, ParsedRulePage[]>();
+export function listGroupedByCategory(): RuleCategoryGroup[] {
+  const byCategory = new Map<string, ParsedRulePage[]>();
   for (const page of listRulePages()) {
-    const arr = byDiscipline.get(page.discipline) ?? [];
+    const arr = byCategory.get(page.category) ?? [];
     arr.push(page);
-    byDiscipline.set(page.discipline, arr);
+    byCategory.set(page.category, arr);
   }
-  return DISCIPLINE_ORDER
-    .filter((d) => byDiscipline.has(d))
-    .map((discipline) => {
-      const pages = byDiscipline.get(discipline)!;
+  return CATEGORY_ORDER
+    .filter((d) => byCategory.has(d))
+    .map((category) => {
+      const pages = byCategory.get(category)!;
       return {
-        discipline,
-        label: pages[0]!.disciplineLabel,
+        category,
+        label: pages[0]!.categoryLabel,
         pages,
       };
     });

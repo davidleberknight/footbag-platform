@@ -331,6 +331,92 @@ describe('test-targets.sh — a schema change reaches the tests naming its table
   });
 });
 
+describe('test-targets.sh — a test-data builder change reaches the suites calling it', () => {
+  // A changed builder default reaches every suite building rows with it, in
+  // files named for neither the builder file nor the suite's domain; only the
+  // builder's name ties them together.
+  const repo = createScratchDir('test-targets-builders');
+  const builders = 'src/testkit/rowBuilders.ts';
+  const base = [
+    "import { x } from './x';",
+    '',
+    'function sharedDefault(): string {',
+    "  return 'United States';",
+    '}',
+    '',
+    'export function insertClub(o: { country?: string } = {}): string {',
+    "  return o.country ?? 'USA';",
+    '}',
+    '',
+    'export function insertEvent(): string {',
+    '  return sharedDefault();',
+    '}',
+    '',
+  ].join('\n');
+  const git = (...a: string[]) =>
+    spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', ...a], {
+      cwd: repo,
+      encoding: 'utf8',
+      ...SPAWN_GUARD,
+    });
+  const targets = (content: string) => {
+    writeFileSync(join(repo, builders), content);
+    return run([builders], join(repo, 'scripts/test-targets.sh'), repo);
+  };
+  const fullGate = `${builders} is high fan-out; the full gate is needed at session end`;
+
+  beforeAll(() => {
+    for (const d of ['scripts', 'src/testkit', 'tests/integration']) mkdirSync(join(repo, d), { recursive: true });
+    copyFileSync(SCRIPT, join(repo, 'scripts/test-targets.sh'));
+    writeFileSync(join(repo, builders), base);
+    writeFileSync(join(repo, 'tests/integration/admin-queue.routes.test.ts'), 'insertClub();\n');
+    writeFileSync(join(repo, 'tests/integration/events.routes.test.ts'), 'insertEvent();\n');
+    expect(git('init', '-q').status).toBe(0);
+    expect(git('add', '.').status).toBe(0);
+    expect(git('commit', '-qm', 'base').status).toBe(0);
+  });
+  afterAll(() => removeScratch(repo));
+
+  it('selects the suites calling a changed builder, not those calling an untouched one, and needs no full gate', () => {
+    const r = targets(base.replace("o.country ?? 'USA'", "o.country ?? 'United States'"));
+    expect(r.status).toBe(0);
+    expect(r.tests).toContain('tests/integration/admin-queue.routes.test.ts');
+    expect(r.tests).not.toContain('tests/integration/events.routes.test.ts');
+    expect(r.notes).not.toContain(fullGate);
+  });
+
+  // Each case below also changes a builder, so the suites calling it are
+  // selected and only the unowned line decides that the full gate is needed.
+  const builderChanged = base.replace("o.country ?? 'USA'", "o.country ?? 'United States'");
+
+  it('defers to the full gate when the change also sits in a helper no exported builder owns', () => {
+    // The helper feeds insertEvent here, but in general its callers cannot be
+    // named from the diff, so the full gate is the only complete check.
+    const r = targets(builderChanged.replace("  return 'United States';", "  return 'Canada';"));
+    expect(r.tests).toContain('tests/integration/admin-queue.routes.test.ts');
+    expect(r.notes).toContain(fullGate);
+  });
+
+  it('defers to the full gate when the change also touches an import, which belongs to no builder', () => {
+    const r = targets(builderChanged.replace("import { x } from './x';", "import { y } from './y';"));
+    expect(r.notes).toContain(fullGate);
+  });
+
+  it('reaches the suites still calling a builder the change removes', () => {
+    const removed = base.replace(
+      "export function insertEvent(): string {\n  return sharedDefault();\n}\n",
+      '',
+    );
+    const r = targets(removed);
+    expect(r.tests).toContain('tests/integration/events.routes.test.ts');
+  });
+
+  it('defers to the full gate when the file has no change to read', () => {
+    const r = targets(base);
+    expect(r.notes).toContain(fullGate);
+  });
+});
+
 describe('test-targets.sh — reading the working tree', () => {
   const repo = createScratchDir('test-targets-repo');
   afterAll(() => removeScratch(repo));

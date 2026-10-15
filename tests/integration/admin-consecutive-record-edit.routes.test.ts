@@ -3,7 +3,7 @@
  * GET/POST /admin/freestyle/consecutive-records/:id/edit.
  *
  * An admin-only surface to browse consecutive-kicks records grouped by section and
- * division, and edit one row keyed on its stable surrogate id. A save updates the
+ * discipline, and edit one row keyed on its stable surrogate id. A save updates the
  * row and appends one audit entry in one transaction; validation failures re-render
  * with submitted values; the display position must be a unique positive whole
  * number; the pre-go-live persona guard refuses a seeded-persona admin. There is no
@@ -14,6 +14,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import request from '../fixtures/supertestWithOrigin';
+import { flashCookieOf, flashValueOf } from '../fixtures/flashCookie';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, insertConsecutiveKicksRecord, createTestSessionJwt } from '../fixtures/factories';
@@ -40,7 +41,7 @@ function bodyFor(sortOrder: string, overrides: Record<string, string> = {}): Rec
     sortOrder,
     section:    'Highest Official Scores',
     subsection: 'Singles 20K+',
-    division:   'Open Singles',
+    discipline:   'Open Singles',
     year:       '2020',
     rank:       '1',
     player1:    'A Player',
@@ -61,19 +62,19 @@ beforeAll(async () => {
   insertMember(db, { id: PERSONA_ADMIN_ID, slug: 'ck_persona', display_name: 'CK Persona', login_email: 'ck-persona@example.com', is_admin: 1 });
   insertMember(db, { id: ADMIN2_ID, slug: 'ck_admin_two', display_name: 'CK Admin Two', login_email: 'ck-admin2@example.com', is_admin: 1 });
 
-  // Rows across sections/divisions for the grouped browse.
-  insertConsecutiveKicksRecord(db, { id: 'ck_wr', sort_order: 401, section: 'Official World Records', subsection: 'Current', division: 'Open Singles', player_1: 'WR Holder', score: 50000 });
-  insertConsecutiveKicksRecord(db, { id: 'ck_prog', sort_order: 501, section: 'World Record Progression', subsection: 'History', division: 'Women Singles', player_1: 'Prog Player', score: 40000 });
+  // Rows across sections/disciplines for the grouped browse.
+  insertConsecutiveKicksRecord(db, { id: 'ck_wr', sort_order: 401, section: 'Official World Records', subsection: 'Current', discipline: 'Open Singles', player_1: 'WR Holder', score: 50000 });
+  insertConsecutiveKicksRecord(db, { id: 'ck_prog', sort_order: 501, section: 'World Record Progression', subsection: 'History', discipline: 'Women Singles', player_1: 'Prog Player', score: 40000 });
   // The row the successful-save test mutates.
-  insertConsecutiveKicksRecord(db, { id: 'ck_save', sort_order: 101, section: 'Highest Official Scores', subsection: 'Singles 20K+', division: 'Open Singles', player_1: 'Save Player', score: 30000 });
+  insertConsecutiveKicksRecord(db, { id: 'ck_save', sort_order: 101, section: 'Highest Official Scores', subsection: 'Singles 20K+', discipline: 'Open Singles', player_1: 'Save Player', score: 30000 });
   // The row the validation-failure tests target; never successfully saved.
-  insertConsecutiveKicksRecord(db, { id: 'ck_guard', sort_order: 102, section: 'Highest Official Scores', subsection: 'Singles 20K+', division: 'Open Singles', player_1: 'Guard Player', score: 25000 });
+  insertConsecutiveKicksRecord(db, { id: 'ck_guard', sort_order: 102, section: 'Highest Official Scores', subsection: 'Singles 20K+', discipline: 'Open Singles', player_1: 'Guard Player', score: 25000 });
   // Holds display position 999, so editing another row to 999 collides.
-  insertConsecutiveKicksRecord(db, { id: 'ck_other', sort_order: 999, section: 'Highest Official Scores', subsection: 'Singles 20K+', division: 'Open Singles', player_1: 'Other Player', score: 20000 });
+  insertConsecutiveKicksRecord(db, { id: 'ck_other', sort_order: 999, section: 'Highest Official Scores', subsection: 'Singles 20K+', discipline: 'Open Singles', player_1: 'Other Player', score: 20000 });
   // The row the delete test removes.
-  insertConsecutiveKicksRecord(db, { id: 'ck_del', sort_order: 888, section: 'Milestone Firsts', subsection: 'Firsts', division: 'Open Singles', player_1: 'Delete Player', score: 15000 });
+  insertConsecutiveKicksRecord(db, { id: 'ck_del', sort_order: 888, section: 'Milestone Firsts', subsection: 'Firsts', discipline: 'Open Singles', player_1: 'Delete Player', score: 15000 });
   // The row the confirm-step tests show; never deleted.
-  insertConsecutiveKicksRecord(db, { id: 'ck_confirm', sort_order: 777, section: 'Milestone Firsts', subsection: 'Firsts', division: 'Women Singles', player_1: 'Confirm Player', score: 12000 });
+  insertConsecutiveKicksRecord(db, { id: 'ck_confirm', sort_order: 777, section: 'Milestone Firsts', subsection: 'Firsts', discipline: 'Women Singles', player_1: 'Confirm Player', score: 12000 });
 
   createApp = await importApp();
 });
@@ -111,13 +112,13 @@ function ckExists(id: string): boolean {
 }
 
 describe('GET /admin/freestyle/consecutive-records — admin gate + grouped browse', () => {
-  it('renders 200 for an admin, grouped by section and division', async () => {
+  it('renders 200 for an admin, grouped by section and discipline', async () => {
     const res = await get('/admin/freestyle/consecutive-records', admin());
     expect(res.status).toBe(200);
     expect(res.text).toContain('Official World Records');
     expect(res.text).toContain('World Record Progression');
     expect(res.text).toContain('Highest Official Scores');
-    expect(res.text).toContain('Women Singles');   // division heading
+    expect(res.text).toContain('Women Singles');   // discipline heading
     expect(res.text).toContain('WR Holder');        // a row's players
   });
 
@@ -153,7 +154,8 @@ describe('POST /admin/freestyle/consecutive-records/:id/edit — successful save
     const res = await post('/admin/freestyle/consecutive-records/ck_save/edit', admin(),
       bodyFor('101', { player1: 'Save Player Edited', score: '31000' }));
     expect(res.status).toBe(303);
-    expect(res.headers.location).toBe('/admin/freestyle/consecutive-records/ck_save/edit?saved=1');
+    expect(res.headers.location).toBe('/admin/freestyle/consecutive-records/ck_save/edit');
+    expect(flashValueOf(res)).toBe('admin_saved:/admin/freestyle/consecutive-records/ck_save/edit');
 
     const row = ckRow('ck_save');
     expect(row.player_1).toBe('Save Player Edited');
@@ -167,15 +169,21 @@ describe('POST /admin/freestyle/consecutive-records/:id/edit — successful save
     expect(audits[0].metadata_json).toContain('score');
   });
 
-  it('shows the saved banner on the follow-up GET', async () => {
-    const res = await get('/admin/freestyle/consecutive-records/ck_save/edit?saved=1', admin());
+  it('shows the saved banner on the follow-up GET, and only with the save cookie', async () => {
+    const save = await post('/admin/freestyle/consecutive-records/ck_save/edit', admin(),
+      bodyFor('101', { player1: 'Save Player Edited', score: '31000' }));
+    const res = await get(save.headers.location as string, `${admin()}; ${flashCookieOf(save)}`);
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Saved.');
+    expect(res.text).toMatch(/class="form-success-banner" role="status">Saved\./);
+
+    const bare = await get('/admin/freestyle/consecutive-records/ck_save/edit?saved=1', admin());
+    expect(bare.status).toBe(200);
+    expect(bare.text).not.toContain('form-success-banner');
   });
 });
 
 describe('POST /admin/freestyle/consecutive-records/:id/edit — validation', () => {
-  it('rejects an empty section, subsection, or division', async () => {
+  it('rejects an empty section, subsection, or discipline', async () => {
     const res = await post('/admin/freestyle/consecutive-records/ck_guard/edit', admin(), bodyFor('102', { section: '' }));
     expect(res.status).toBe(422);
     expect(res.text).toContain('Section is required.');
@@ -239,12 +247,12 @@ describe('consecutive-kicks records — add new', () => {
 
   it('creates a new row, writes one created audit row, and redirects to its edit page', async () => {
     const res = await post('/admin/freestyle/consecutive-records', admin(),
-      bodyFor('250', { section: 'Milestone Firsts', division: 'Open Doubles', player1: 'New Player' }));
+      bodyFor('250', { section: 'Milestone Firsts', discipline: 'Open Doubles', player1: 'New Player' }));
     expect(res.status).toBe(303);
     const loc = res.headers.location as string;
-    expect(loc).toMatch(/^\/admin\/freestyle\/consecutive-records\/[0-9a-f-]{36}\/edit\?saved=1$/);
+    expect(loc).toMatch(/^\/admin\/freestyle\/consecutive-records\/[0-9a-f-]{36}\/edit$/);
 
-    const newId = loc.replace('/admin/freestyle/consecutive-records/', '').replace('/edit?saved=1', '');
+    const newId = loc.replace('/admin/freestyle/consecutive-records/', '').replace('/edit', '');
     const row = ckRow(newId);
     expect(row.sort_order).toBe(250);
     expect(row.player_1).toBe('New Player');
@@ -256,20 +264,20 @@ describe('consecutive-kicks records — add new', () => {
 
   it('a repeated identical create by the same admin reports the first create: 303 to the same row, no second row', async () => {
     // Defect caught: a re-posted create shows "already used by another row" for the row this admin just made.
-    const body = bodyFor('251', { section: 'Milestone Firsts', division: 'Open Doubles', player1: 'Repeat Player' });
+    const body = bodyFor('251', { section: 'Milestone Firsts', discipline: 'Open Doubles', player1: 'Repeat Player' });
     const first = await post('/admin/freestyle/consecutive-records', admin(), body);
     expect(first.status).toBe(303);
     const repeat = await post('/admin/freestyle/consecutive-records', admin(), body);
     expect(repeat.status).toBe(303);
     expect(repeat.headers.location).toBe(first.headers.location);
     const newId = (first.headers.location as string)
-      .replace('/admin/freestyle/consecutive-records/', '').replace('/edit?saved=1', '');
+      .replace('/admin/freestyle/consecutive-records/', '').replace('/edit', '');
     expect(ckAuditByAction(newId, 'freestyle.consecutive_record.created')).toHaveLength(1);
   });
 
   it("another admin's identical create at a position this admin filled is refused at 422, not reported as theirs", async () => {
     // Defect caught: a second admin is sent to a row they did not create as if they had.
-    const body = bodyFor('252', { section: 'Milestone Firsts', division: 'Open Doubles', player1: 'Shared Player' });
+    const body = bodyFor('252', { section: 'Milestone Firsts', discipline: 'Open Doubles', player1: 'Shared Player' });
     expect((await post('/admin/freestyle/consecutive-records', admin(), body)).status).toBe(303);
     const other = await post('/admin/freestyle/consecutive-records', admin2(), body);
     expect(other.status).toBe(422);
@@ -278,7 +286,7 @@ describe('consecutive-kicks records — add new', () => {
 
   it('the same admin re-posting with any field changed is refused at 422: the first row stands', async () => {
     // Defect caught: a second tab with a different score is told it was saved while the first row stands.
-    const body = bodyFor('253', { section: 'Milestone Firsts', division: 'Open Doubles', player1: 'Edit Player' });
+    const body = bodyFor('253', { section: 'Milestone Firsts', discipline: 'Open Doubles', player1: 'Edit Player' });
     expect((await post('/admin/freestyle/consecutive-records', admin(), body)).status).toBe(303);
     const changed = await post('/admin/freestyle/consecutive-records', admin(), { ...body, score: '31000' });
     expect(changed.status).toBe(422);
@@ -318,7 +326,7 @@ describe('GET /admin/freestyle/consecutive-records/:id/delete — confirm step',
     expect(res.status).toBe(200);
     // The admin reads a consequence before the final button, not an empty box.
     expect(res.text).toMatch(/<p class="notice notice-warn" role="alert">[^<]{20,}<\/p>/);
-    // The row named is the seeded one: its players, division and score.
+    // The row named is the seeded one: its players, discipline and score.
     expect(res.text).toContain('Confirm Player');
     expect(res.text).toContain('Women Singles');
     expect(res.text).toContain('<dd>12000</dd>');

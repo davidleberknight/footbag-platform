@@ -167,7 +167,7 @@ publicRouter.get('/net/teams/:teamId',    netController.teamDetail);
 publicRouter.get('/sideline',              sidelineController.landing);
 
 publicRouter.get('/rules',                                          rulesController.index);
-publicRouter.get('/rules/:disciplineSlug/:ruleSlug',                rulesController.detail);
+publicRouter.get('/rules/:categorySlug/:ruleSlug',                  rulesController.detail);
 
 publicRouter.get('/ifpa',           ifpaController.index);
 // IMPORTANT: /ifpa/roster MUST be registered before /ifpa/:docSlug. Express

@@ -116,7 +116,7 @@ import { emailService } from './emailService';
 import { logger } from '../config/logger';
 import { PageViewModel } from '../types/page';
 import type { OutcomeNoticeView } from '../lib/outcomeNotice';
-import { subdivisionsForCountry } from './countryUtils';
+import { canonicalCountryName, subdivisionsForCountry } from './countryUtils';
 
 // ---------------------------------------------------------------------------
 // Club evidence
@@ -1226,12 +1226,19 @@ function normalizeFilter(filter: CleanupQueueFilter | undefined): {
   return { category, region, sort };
 }
 
-function matchesRegion(region: string | null, ...fields: Array<string | null>): boolean {
+function matchesRegion(region: string | null, clubRegion: string | null, clubCountry: string | null): boolean {
   if (!region) return true;
   const needle = region.toLowerCase();
   // Region matches the geographic columns loosely: admins think "Quebec" or
   // "Canada" interchangeably, and many legacy rows carry only a country.
-  return fields.some((f) => f != null && f.toLowerCase() === needle);
+  if (clubRegion != null && clubRegion.toLowerCase() === needle) return true;
+  if (clubCountry == null) return false;
+  if (clubCountry.toLowerCase() === needle) return true;
+  // A country is stored under one canonical name but typed many ways ("USA",
+  // "US", "U.S."), so the country side compares canonical names. The region
+  // side does not: a region "CA" must not match a search for "Canada".
+  const needleCountry = canonicalCountryName(region);
+  return needleCountry !== null && canonicalCountryName(clubCountry) === needleCountry;
 }
 
 function compareNullableStrings(a: string | null, b: string | null): number {

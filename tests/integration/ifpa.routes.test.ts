@@ -17,15 +17,17 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /ifpa — IFPA governance hub', () => {
-  it('renders all three governance doc cards with hrefs', async () => {
+  it('renders every governance doc card with hrefs', async () => {
     const res = await page('/ifpa');
     expect(res.status).toBe(200);
     expect(res.text).toContain('IFPA Membership Rules');
     expect(res.text).toContain('IFPA Bylaws');
     expect(res.text).toContain('Articles of Incorporation');
+    expect(res.text).toContain('Requirements and Guidelines for IFPA Event Sanctioning');
     expect(res.text).toContain('href="/ifpa/membership-structure"');
     expect(res.text).toContain('href="/ifpa/bylaws"');
     expect(res.text).toContain('href="/ifpa/articles"');
+    expect(res.text).toContain('href="/ifpa/sanctioning-guidelines"');
   });
 
   it('highlights the IFPA nav entry as active', async () => {
@@ -69,6 +71,31 @@ describe('GET /ifpa/articles', () => {
     const res = await page('/ifpa/articles');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Articles of Incorporation');
+  });
+});
+
+describe('GET /ifpa/sanctioning-guidelines', () => {
+  // Every organizer requesting sanctioning attests to these guidelines; without
+  // this page they would be agreeing to terms they cannot read.
+  it('renders the guidelines an organizer attests to, with the after-event deadline', async () => {
+    const res = await page('/ifpa/sanctioning-guidelines');
+    expect(res.status).toBe(200);
+    expect(res.text.match(/<h1[\s>]/g)?.length).toBe(1);
+    const article = res.text.match(/<article class="markdown-body">[\s\S]*?<\/article>/)?.[0] ?? '';
+    expect(article).toContain('What you agree to.');
+    expect(article).toContain('Within 20 days of the event&#39;s last day');
+    expect(article).toContain('sanctioning@footbag.org');
+  });
+});
+
+describe('governance document pages carry a search description', () => {
+  // Without one, a search result shows whatever text the engine scrapes from the
+  // document body, which for the bylaws is a run of capitalised article headings.
+  it('renders a non-empty meta description on every governance document', async () => {
+    for (const path of ['/ifpa/membership-structure', '/ifpa/bylaws', '/ifpa/articles', '/ifpa/sanctioning-guidelines']) {
+      const res = await page(path);
+      expect(res.text, path).toMatch(/<meta name="description" content="[^"]{20,}" \/>/);
+    }
   });
 });
 

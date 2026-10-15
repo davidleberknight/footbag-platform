@@ -14,12 +14,12 @@ export const rulesController = {
     }
   },
 
-  /** GET /rules/:disciplineSlug/:ruleSlug */
+  /** GET /rules/:categorySlug/:ruleSlug */
   detail(req: Request, res: Response, next: NextFunction): void {
     try {
-      const disciplineSlug = req.params['disciplineSlug'] ?? '';
+      const categorySlug = req.params['categorySlug'] ?? '';
       const ruleSlug = req.params['ruleSlug'] ?? '';
-      const vm = rulesService.getRulePage(disciplineSlug, ruleSlug);
+      const vm = rulesService.getRulePage(categorySlug, ruleSlug);
       res.render('rules/detail', vm);
     } catch (err) {
       if (err instanceof NotFoundError) {

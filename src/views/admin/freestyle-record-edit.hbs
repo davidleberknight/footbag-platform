@@ -13,7 +13,7 @@
 <div class="wrapper">
   <section>
     {{#if content.saved}}
-    <p class="form-success-banner" role="status">Saved.</p>
+    {{> outcome-notice text="Saved." tone='ok'}}
     {{/if}}
     {{#if content.hasErrors}}
     <div class="form-error-banner" role="alert">

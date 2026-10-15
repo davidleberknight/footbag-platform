@@ -3,7 +3,7 @@ import {
   loadRulePages,
   listRulePages,
   getRulePage,
-  listGroupedByDiscipline,
+  listGroupedByCategory,
   _resetRulesCache,
 } from '../../src/lib/rulesLoader';
 
@@ -12,15 +12,15 @@ describe('rules MD loader', () => {
     _resetRulesCache();
   });
 
-  it('discovers the sideline discipline file in ifpa/rules/', () => {
-    const groups = listGroupedByDiscipline();
-    const sideline = groups.find((g) => g.discipline === 'sideline');
+  it('discovers the sideline category file in ifpa/rules/', () => {
+    const groups = listGroupedByCategory();
+    const sideline = groups.find((g) => g.category === 'sideline');
     expect(sideline).toBeDefined();
     expect(sideline!.label).toBe('Sideline');
   });
 
   it('splits the sideline file into one rule page per H1', () => {
-    const all = listRulePages().filter((p) => p.discipline === 'sideline');
+    const all = listRulePages().filter((p) => p.category === 'sideline');
     const slugs = all.map((p) => p.slug);
     expect(slugs).toContain('2-square');
     expect(slugs).toContain('4-square');
@@ -43,8 +43,8 @@ describe('rules MD loader', () => {
     expect(page!.bodyHtml).toContain('TOO MUCH VOTING IS NO FUN!');
   });
 
-  it('attaches discipline-level metadata to every rule page', () => {
-    for (const page of listRulePages().filter((p) => p.discipline === 'sideline')) {
+  it('attaches category-level metadata to every rule page', () => {
+    for (const page of listRulePages().filter((p) => p.category === 'sideline')) {
       expect(page.authority).toBe('IFPA');
       expect(page.effective).toBe('2020');
       expect(page.parentHref).toBe('/sideline');
@@ -52,9 +52,9 @@ describe('rules MD loader', () => {
     }
   });
 
-  it('returns undefined for an unknown discipline or slug', () => {
+  it('returns undefined for an unknown category or slug', () => {
     expect(getRulePage('sideline', 'no-such-rule')).toBeUndefined();
-    expect(getRulePage('not-a-discipline', '2-square')).toBeUndefined();
+    expect(getRulePage('not-a-category', '2-square')).toBeUndefined();
   });
 
   it('caches: a second call returns the same Map instance until reset', () => {

@@ -124,7 +124,7 @@ describe('GET /rules/golf/footbag-golf', () => {
 });
 
 describe('GET /rules with golf added', () => {
-  it('lists the Footbag Golf discipline group', async () => {
+  it('lists the Footbag Golf category group', async () => {
     const res = await page('/rules');
     expect(res.text).toContain('Footbag Golf');
     expect(res.text).toContain('/rules/golf/footbag-golf');
@@ -208,13 +208,26 @@ describe('rule page titles and orientation', () => {
     }
   });
 
-  it('introduces every discipline group on the index', async () => {
+  it('introduces every category group on the index', async () => {
     const res = await page('/rules');
     const groups = [...res.text.matchAll(/<section class="content-section rules-group" id="([^"]+)">([\s\S]*?)<\/section>/g)];
     expect(groups.length).toBeGreaterThan(0);
     for (const [, id, body] of groups) {
       // A bare heading over a link list says nothing about what the group covers.
       expect(body, id).toMatch(/<\/h2><\/div>\s*<p>[^<]+<\/p>/);
+    }
+  });
+
+  it('anchors each index group on the category its rule links open under', async () => {
+    const res = await page('/rules');
+    const groups = [...res.text.matchAll(/<section class="content-section rules-group" id="([^"]*)">([\s\S]*?)<\/section>/g)];
+    expect(groups.length).toBeGreaterThan(0);
+    for (const [, id, body] of groups) {
+      // A group anchor that drifts from the URL segment breaks a bookmarked
+      // "/rules#net" style link even though every rule page still opens.
+      const hrefs = [...body.matchAll(/<a href="(\/rules\/[^"]+)">/g)].map((m) => m[1]!);
+      expect(hrefs.length, `group "${id}"`).toBeGreaterThan(0);
+      for (const href of hrefs) expect(href, `group "${id}"`).toMatch(new RegExp(`^/rules/${id}/[^/]+$`));
     }
   });
 
@@ -252,8 +265,8 @@ describe('GET /rules/freestyle/footbag-freestyle', () => {
   });
 });
 
-describe('GET /rules with all four disciplines', () => {
-  it('lists every discipline group on the index', async () => {
+describe('GET /rules with all four categories', () => {
+  it('lists every category group on the index', async () => {
     const res = await page('/rules');
     expect(res.text).toContain('Sideline');
     expect(res.text).toContain('Footbag Net');
@@ -264,8 +277,8 @@ describe('GET /rules with all four disciplines', () => {
   });
 });
 
-describe('GET /rules/:disciplineSlug/:ruleSlug 404 handling', () => {
-  it('returns 404 for unknown discipline slug', async () => {
+describe('GET /rules/:categorySlug/:ruleSlug 404 handling', () => {
+  it('returns 404 for unknown category slug', async () => {
     const res = await page('/rules/unknown/2-square');
     expect(res.status).toBe(404);
   });

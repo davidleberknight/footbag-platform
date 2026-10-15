@@ -1,6 +1,6 @@
 ---
-discipline: net
-disciplineLabel: Footbag Net
+category: net
+categoryLabel: Footbag Net
 authority: IFPA Article III
 parentHref: /net
 parentLabel: Footbag Net

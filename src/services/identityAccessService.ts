@@ -354,6 +354,10 @@ export interface VerifyResultContent {
   /** The link was already used to verify this account: a repeat, reported as
    *  the first outcome with a sign-in prompt rather than as an error. */
   alreadyVerified?: boolean;
+  /** The resend form on an invalid link carries the human-verification
+   *  challenge, which the resend route requires. */
+  turnstileSiteKey?: string | null;
+  captchaStubbed?: boolean;
 }
 
 /** The page an emailed verify link opens. It carries the token into a form and

@@ -4849,7 +4849,7 @@ CREATE INDEX idx_freestyle_records_type_confidence
 -- WFA-sanctioned consecutive kicks records. Covers four sections:
 --   Official World Records   — 12 current WFA world records with event details
 --   Highest Official Scores  — elite ranked lists (20000+ clubs, timed top-10)
---   World Record Progression — full progression history per division
+--   World Record Progression — full progression history per discipline
 --   Milestone Firsts         — first player to reach milestone kick counts
 --
 -- id is the stable surrogate primary key, so an admin edit path and its audit
@@ -4864,7 +4864,7 @@ CREATE TABLE consecutive_kicks_records (
   sort_order  INTEGER NOT NULL UNIQUE,   -- display position (mutable); formerly the primary key
   section     TEXT NOT NULL,    -- Highest Official Scores | Official World Records | World Record Progression | Milestone Firsts
   subsection  TEXT NOT NULL,
-  division    TEXT NOT NULL,    -- Open Singles | Women's Singles | Open Doubles | Women's Doubles | etc.
+  discipline  TEXT NOT NULL,    -- Open Singles | Women's Singles | Open Doubles | Women's Doubles | etc.
   year        TEXT,             -- year of record (progression rows only)
   rank        INTEGER,          -- rank within subsection (ranked-list rows only)
   player_1    TEXT,

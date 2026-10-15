@@ -1,4 +1,4 @@
-{{! /rules — index of all rule pages, grouped by discipline }}
+{{! /rules — index of all rule pages, grouped by category }}
 
 <div class="hero hero-sm">
   <div>
@@ -10,7 +10,7 @@
 <div class="wrapper rules-index">
 
   {{#each content.groups}}
-  <section class="content-section rules-group" id="{{discipline}}">
+  <section class="content-section rules-group" id="{{category}}">
     <div class="section-heading"><h2>{{label}}</h2></div>
     {{#if intro}}<p>{{intro}}</p>{{/if}}
     <ul class="rules-link-list">

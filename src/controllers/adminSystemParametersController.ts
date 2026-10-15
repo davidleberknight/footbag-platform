@@ -14,6 +14,7 @@ import {
 } from '../services/adminSystemParametersService';
 import { ConflictError, ValidationError } from '../services/serviceErrors';
 import { handleControllerError } from '../lib/controllerErrors';
+import { FLASH_KIND, takeFlash, writeFlash } from '../lib/flashCookie';
 
 const VIEW = 'admin/system-parameters/index';
 
@@ -45,7 +46,7 @@ function priceInputFromBody(body: Record<string, unknown>): PriceScheduleInput {
 export const adminSystemParametersController = {
   index(req: Request, res: Response, next: NextFunction): void {
     try {
-      const saved = req.query.saved;
+      const saved = takeFlash(req, res, FLASH_KIND.ADMIN_SAVED);
       res.render(
         VIEW,
         adminSystemParametersService.getSystemParametersPage({
@@ -64,7 +65,8 @@ export const adminSystemParametersController = {
 
     try {
       adminSystemParametersService.updateParameters({ values, reason }, req.user!.userId);
-      res.redirect(303, '/admin/system-parameters?saved=parameters');
+      writeFlash(res, req, FLASH_KIND.ADMIN_SAVED, 'parameters');
+      res.redirect(303, '/admin/system-parameters');
     } catch (err) {
       if (err instanceof ValidationError || err instanceof ConflictError) {
         const fieldErrors =
@@ -88,7 +90,8 @@ export const adminSystemParametersController = {
 
     try {
       adminSystemParametersService.schedulePrice(input, req.user!.userId);
-      res.redirect(303, '/admin/system-parameters?saved=price');
+      writeFlash(res, req, FLASH_KIND.ADMIN_SAVED, 'price');
+      res.redirect(303, '/admin/system-parameters');
     } catch (err) {
       if (err instanceof ValidationError || err instanceof ConflictError) {
         const priceFieldErrors =

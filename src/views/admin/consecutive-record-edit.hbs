@@ -13,7 +13,7 @@
 <div class="wrapper">
   <section>
     {{#if content.saved}}
-    <p class="form-success-banner" role="status">Saved.</p>
+    {{> outcome-notice text="Saved." tone='ok'}}
     {{/if}}
     {{#if content.hasErrors}}
     <div class="form-error-banner" role="alert">
@@ -36,8 +36,8 @@
           <input type="text" id="consecutive-subsection" name="subsection" value="{{content.fields.subsection}}" />
         </div>
         <div class="form-field">
-          <label for="consecutive-division">Division</label>
-          <input type="text" id="consecutive-division" name="division" value="{{content.fields.division}}" />
+          <label for="consecutive-discipline">Discipline</label>
+          <input type="text" id="consecutive-discipline" name="discipline" value="{{content.fields.discipline}}" />
         </div>
         <div class="form-field">
           <label for="consecutive-year">Year</label>

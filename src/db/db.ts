@@ -613,7 +613,7 @@ export const publicPlayers = {
     LIMIT 1
   `); },
 
-  /** Career stats by discipline category for a person. An aggregate standing is a
+  /** Career stats by category for a person. An aggregate standing is a
    *  ranking over contests, not a contest, so it counts toward no sport. */
   get listCareerStatsByCategory() { return db.prepare(`
     SELECT
@@ -3617,7 +3617,7 @@ export interface ConsecutiveKicksRow {
   sort_order: number;
   section: string;
   subsection: string;
-  division: string;
+  discipline: string;
   year: string | null;
   rank: number | null;
   player_1: string | null;
@@ -3631,7 +3631,7 @@ export interface ConsecutiveKicksRow {
 
 export const consecutiveKicksRecords = {
   get listWorldRecords() { return db.prepare(`
-    SELECT sort_order, section, subsection, division, year, rank,
+    SELECT sort_order, section, subsection, discipline, year, rank,
            player_1, player_2, score, note, event_date, event_name, location
     FROM consecutive_kicks_records
     WHERE section = 'Official World Records'
@@ -3639,7 +3639,7 @@ export const consecutiveKicksRecords = {
   `); },
 
   get listHighestScores() { return db.prepare(`
-    SELECT sort_order, section, subsection, division, year, rank,
+    SELECT sort_order, section, subsection, discipline, year, rank,
            player_1, player_2, score, note, event_date, event_name, location
     FROM consecutive_kicks_records
     WHERE section = 'Highest Official Scores'
@@ -3647,7 +3647,7 @@ export const consecutiveKicksRecords = {
   `); },
 
   get listProgression() { return db.prepare(`
-    SELECT sort_order, section, subsection, division, year, rank,
+    SELECT sort_order, section, subsection, discipline, year, rank,
            player_1, player_2, score, note, event_date, event_name, location
     FROM consecutive_kicks_records
     WHERE section = 'World Record Progression'
@@ -3655,7 +3655,7 @@ export const consecutiveKicksRecords = {
   `); },
 
   get listMilestones() { return db.prepare(`
-    SELECT sort_order, section, subsection, division, year, rank,
+    SELECT sort_order, section, subsection, discipline, year, rank,
            player_1, player_2, score, note, event_date, event_name, location
     FROM consecutive_kicks_records
     WHERE section = 'Milestone Firsts'
@@ -3670,9 +3670,9 @@ export const consecutiveKicksRecords = {
   `); },
 
   // Admin curation browse: every row with its stable id and display position,
-  // ordered so the service can group by section and then division.
+  // ordered so the service can group by section and then discipline.
   get listAllForCuration() { return db.prepare(`
-    SELECT id, sort_order, section, subsection, division, year, rank,
+    SELECT id, sort_order, section, subsection, discipline, year, rank,
            player_1, player_2, score, note, event_date, event_name, location
     FROM consecutive_kicks_records
     ORDER BY section ASC, sort_order ASC
@@ -3680,7 +3680,7 @@ export const consecutiveKicksRecords = {
 
   // Admin curation edit page: the editable fields of one row, keyed on the stable id.
   get getForCurationById() { return db.prepare(`
-    SELECT id, sort_order, section, subsection, division, year, rank,
+    SELECT id, sort_order, section, subsection, discipline, year, rank,
            player_1, player_2, score, note, event_date, event_name, location
     FROM consecutive_kicks_records
     WHERE id = ?
@@ -3697,7 +3697,7 @@ export const consecutiveKicksRecords = {
   // the identity key and stays fixed). Stamps updated_at.
   get updateForCuration() { return db.prepare(`
     UPDATE consecutive_kicks_records
-    SET sort_order = ?, section = ?, subsection = ?, division = ?, year = ?,
+    SET sort_order = ?, section = ?, subsection = ?, discipline = ?, year = ?,
         rank = ?, player_1 = ?, player_2 = ?, score = ?, note = ?,
         event_date = ?, event_name = ?, location = ?,
         updated_at = strftime('%Y-%m-%dT%H:%M:%fZ','now')
@@ -3708,7 +3708,7 @@ export const consecutiveKicksRecords = {
   // validates the same fields as an edit; created_at and updated_at are stamped.
   get insertForCuration() { return db.prepare(`
     INSERT INTO consecutive_kicks_records
-      (id, sort_order, section, subsection, division, year, rank,
+      (id, sort_order, section, subsection, discipline, year, rank,
        player_1, player_2, score, note, event_date, event_name, location,
        created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,

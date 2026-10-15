@@ -16,7 +16,7 @@
       <table class="records-table consecutive-wr-table">
         <thead>
           <tr>
-            <th>Division</th>
+            <th>Discipline</th>
             <th>Holder(s)</th>
             <th class="col-num">Kicks</th>
             <th>Event</th>
@@ -27,7 +27,7 @@
         <tbody>
           {{#each content.worldRecords}}
           <tr>
-            <td>{{division}}</td>
+            <td>{{discipline}}</td>
             <td class="col-holder">
               {{player_1}}{{#if player_2}} &amp; {{player_2}}{{/if}}
             </td>
@@ -54,7 +54,7 @@
           <tr>
             <th class="col-rank">#</th>
             <th>Player(s)</th>
-            <th>Division</th>
+            <th>Discipline</th>
             <th class="col-num">Kicks</th>
             <th>Note</th>
           </tr>
@@ -66,7 +66,7 @@
             <td class="col-holder">
               {{player_1}}{{#if player_2}} &amp; {{player_2}}{{/if}}
             </td>
-            <td>{{division}}</td>
+            <td>{{discipline}}</td>
             <td class="col-num">{{scoreFormatted}}</td>
             <td class="col-note">{{#if note}}{{note}}{{else}}&mdash;{{/if}}</td>
           </tr>
@@ -122,7 +122,7 @@
         <thead>
           <tr>
             <th>Player(s)</th>
-            <th>Division</th>
+            <th>Discipline</th>
             <th class="col-num">Milestone</th>
             <th>Note</th>
           </tr>
@@ -133,7 +133,7 @@
             <td class="col-holder">
               {{player_1}}{{#if player_2}} &amp; {{player_2}}{{/if}}
             </td>
-            <td>{{division}}</td>
+            <td>{{discipline}}</td>
             <td class="col-num">{{#if score}}{{scoreFormatted}}{{else}}&mdash;{{/if}}</td>
             <td class="col-note">{{#if note}}{{note}}{{else}}&mdash;{{/if}}</td>
           </tr>

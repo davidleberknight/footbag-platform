@@ -134,6 +134,23 @@ describe('captcha gate on verify-email resend', () => {
   });
 });
 
+describe('captcha widget on the invalid verify-link page', () => {
+  // The page offers a resend form, and the resend route refuses a submit
+  // without a challenge token. Without the widget the form fails its first
+  // submit in production, where the challenge is live, and sends nothing.
+  it('the resend form carries the challenge field', async () => {
+    const res = await request(createApp())
+      .post('/verify')
+      .type('form')
+      .send({ token: 'no-such-verify-token' });
+
+    expect(res.status).toBe(400);
+    const form = res.text.match(/<form method="POST" action="\/verify\/resend"[\s\S]*?<\/form>/)?.[0];
+    expect(form).toBeDefined();
+    expect(form).toContain('You are human');
+  });
+});
+
 describe('captcha widget on the password-reset request form', () => {
   it('renders the stub "You are human" card in the stub environment', async () => {
     const res = await request(createApp()).get('/password/forgot');

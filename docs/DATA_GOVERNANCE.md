@@ -46,7 +46,7 @@ Anything not in this taxonomy defaults to Sensitivity 4 until explicitly classif
 
 - **Birth date** is the most sensitive member field: owner and admin only, never on any public, search or cross-member surface. **Gender** is owner and admin by default; the member may opt in to show it to signed-in members.
 - **Contact fields** (login email, phone, WhatsApp) are hidden by default; a member opts in per field, and an opted-in field is shown to signed-in members only. Holding a club co-leader or event organizer role shows that member's email to signed-in members.
-- **Payment records** are admin only; a member sees their own payment history. Donation comments are admin-only and never published (`M_Donate`).
+- **Payment records** are admin only; a member sees their own payment history. Donation comments are admin-only and never published, except that the IFPA Treasurer's reconciliation summary carries each period's commented donations so a donor's stated purpose can be honored (`M_Donate`).
 
 ---
 

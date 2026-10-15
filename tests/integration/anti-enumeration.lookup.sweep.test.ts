@@ -174,7 +174,7 @@ const CLASSIFIED: Record<string, Classification> = {
   'GET /freestyle/tricks/:add(\\d+)': { exempt: PUBLIC_RECORD },
   'GET /freestyle/tricks/:slug': { exempt: PUBLIC_RECORD },
   'GET /net/teams/:teamId': { exempt: PUBLIC_RECORD },
-  'GET /rules/:disciplineSlug/:ruleSlug': { exempt: PUBLIC_RECORD },
+  'GET /rules/:categorySlug/:ruleSlug': { exempt: PUBLIC_RECORD },
   'GET /ifpa/:docSlug': { exempt: PUBLIC_RECORD },
   'GET /events/year/:year': { exempt: PUBLIC_RECORD },
   'GET /history/:personId': { exempt: PUBLIC_RECORD },

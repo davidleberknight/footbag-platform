@@ -15,6 +15,7 @@ import { broadcastService, type ComposeInput } from '../services/broadcastServic
 import { NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { renderNotFound } from '../lib/controllerErrors';
 import { isOwnMemberRoute } from '../lib/routeOwnership';
+import { FLASH_KIND, takeFlash, writeFlash } from '../lib/flashCookie';
 
 function composeInputFromBody(body: Record<string, unknown>): ComposeInput {
   return {
@@ -32,7 +33,7 @@ export const memberAnnounceController = {
       return;
     }
     try {
-      const notice = typeof req.query.notice === 'string' ? req.query.notice : undefined;
+      const notice = takeFlash(req, res, FLASH_KIND.ANNOUNCE_RESULT) ?? undefined;
       const vm = broadcastService.getAnnouncePage(String(req.params.memberKey), { notice });
       if (!vm) {
         renderNotFound(res);
@@ -59,7 +60,8 @@ export const memberAnnounceController = {
       // already made under it was their own submit: the repeat reports that
       // send's outcome rather than an informational no-op.
       const notice = outcome.status === 'sent' || outcome.reason === 'already_sent' ? 'sent' : outcome.reason;
-      res.redirect(303, `/members/${memberKey}/announce?notice=${notice}`);
+      writeFlash(res, req, FLASH_KIND.ANNOUNCE_RESULT, notice);
+      res.redirect(303, `/members/${memberKey}/announce`);
     } catch (err) {
       if (err instanceof RateLimitedError) {
         res.set('Retry-After', String(err.retryAfterSeconds));

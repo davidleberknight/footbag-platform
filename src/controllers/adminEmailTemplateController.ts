@@ -8,6 +8,7 @@ import type { NextFunction, Request, Response } from 'express';
 import { emailTemplateAdminService, type EmailTemplateEditInput } from '../services/emailTemplateAdminService';
 import { NotFoundError, ValidationError } from '../services/serviceErrors';
 import { renderNotFound } from '../lib/controllerErrors';
+import { FLASH_KIND, takeFlash, writeFlash } from '../lib/flashCookie';
 
 function editInputFromBody(body: Record<string, unknown>): EmailTemplateEditInput {
   return {
@@ -29,8 +30,9 @@ export const adminEmailTemplateController = {
 
   edit(req: Request, res: Response, next: NextFunction): void {
     try {
-      const vm = emailTemplateAdminService.getTemplateEditPage(String(req.params.key), {
-        saved: req.query.saved === '1',
+      const key = String(req.params.key);
+      const vm = emailTemplateAdminService.getTemplateEditPage(key, {
+        saved: takeFlash(req, res, FLASH_KIND.ADMIN_SAVED) === `email_template:${key}`,
       });
       if (!vm) {
         renderNotFound(res);
@@ -48,7 +50,8 @@ export const adminEmailTemplateController = {
 
     try {
       emailTemplateAdminService.updateTemplate(key, input, req.user!.userId);
-      res.redirect(303, `/admin/email-templates/${key}/edit?saved=1`);
+      writeFlash(res, req, FLASH_KIND.ADMIN_SAVED, `email_template:${key}`);
+      res.redirect(303, `/admin/email-templates/${key}/edit`);
     } catch (err) {
       if (err instanceof ValidationError) {
         const vm = emailTemplateAdminService.getTemplateEditPage(key, {

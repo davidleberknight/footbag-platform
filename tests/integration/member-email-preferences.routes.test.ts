@@ -21,6 +21,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
+import { flashCookieOf, flashValueOf } from '../fixtures/flashCookie';
 import BetterSqlite3 from 'better-sqlite3';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
@@ -223,12 +224,25 @@ describe('changing a choice', () => {
       .send({ slug: 'newsletter', subscribe: '1' });
 
     expect(res.status).toBe(303);
-    expect(res.headers.location).toBe(`${PREFS}?notice=subscribed`);
+    expect(res.headers.location).toBe(PREFS);
+    expect(flashValueOf(res)).toBe('email_preference_result:subscribed');
     expect(statusOf('newsletter', MEMBER_ID)).toBe('subscribed');
     expect(auditCountFor('newsletter')).toBe(1);
 
-    const page = await request(createApp()).get(res.headers.location).set('Cookie', memberCookie());
+    const page = await request(createApp()).get(res.headers.location)
+      .set('Cookie', `${memberCookie()}; ${flashCookieOf(res)}`);
     expect(page.text).toMatch(/Turned on/);
+    // The page that shows the outcome spends it, so a reload says nothing.
+    const cleared = ([] as string[]).concat(page.get('Set-Cookie') ?? []);
+    expect(cleared.some((c) => c.startsWith('footbag_flash=;'))).toBe(true);
+  });
+
+  // Defect caught: an outcome read from the address bar lets anyone send a
+  // member a link that shows a success banner for a change they never made.
+  it('an outcome typed into the address shows no banner', async () => {
+    const page = await request(createApp()).get(`${PREFS}?notice=subscribed`).set('Cookie', memberCookie());
+    expect(page.status).toBe(200);
+    expect(page.text).not.toMatch(/Turned on/);
   });
 
   it('withdraws, says so, and records it', async () => {
@@ -240,7 +254,8 @@ describe('changing a choice', () => {
       .post(PREFS).set('Cookie', memberCookie()).type('form')
       .send({ slug: 'technical-updates', subscribe: '0' });
 
-    expect(res.headers.location).toBe(`${PREFS}?notice=unsubscribed`);
+    expect(res.headers.location).toBe(PREFS);
+    expect(flashValueOf(res)).toBe('email_preference_result:unsubscribed');
     expect(statusOf('technical-updates', MEMBER_ID)).toBe('unsubscribed');
     expect(auditCountFor('technical-updates')).toBe(1);
   });
@@ -254,10 +269,11 @@ describe('changing a choice', () => {
       .send({ slug: 'ep-repeat-list', subscribe: '1' });
 
     const first = await send();
-    expect(first.headers.location).toBe(`${PREFS}?notice=subscribed`);
+    expect(flashValueOf(first)).toBe('email_preference_result:subscribed');
     const repeat = await send();
     expect(repeat.status).toBe(303);
-    expect(repeat.headers.location).toBe(`${PREFS}?notice=subscribed`);
+    expect(repeat.headers.location).toBe(PREFS);
+    expect(flashValueOf(repeat)).toBe('email_preference_result:subscribed');
     expect(auditCountFor('ep-repeat-list')).toBe(1);
   });
 
@@ -270,7 +286,7 @@ describe('changing a choice', () => {
       .post(PREFS).set('Cookie', memberCookie()).type('form')
       .send({ slug: 'event-notifications', subscribe: '0' });
 
-    expect(res.headers.location).toBe(`${PREFS}?notice=unchanged`);
+    expect(flashValueOf(res)).toBe('email_preference_result:unchanged');
     expect(auditCountFor('event-notifications')).toBe(0);
   });
 
@@ -279,7 +295,7 @@ describe('changing a choice', () => {
       .post(PREFS).set('Cookie', memberCookie()).type('form')
       .send({ slug: 'board-announcements', subscribe: '0' });
 
-    expect(res.headers.location).toBe(`${PREFS}?notice=unchanged`);
+    expect(flashValueOf(res)).toBe('email_preference_result:unchanged');
     expect(statusOf('board-announcements', MEMBER_ID)).toBeUndefined();
     expect(auditCountFor('board-announcements')).toBe(0);
   });

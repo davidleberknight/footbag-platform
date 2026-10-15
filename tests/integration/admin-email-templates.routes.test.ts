@@ -16,6 +16,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import request from '../fixtures/supertestWithOrigin';
+import { flashCookieOf } from '../fixtures/flashCookie';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, createTestSessionJwt } from '../fixtures/factories';
@@ -126,7 +127,24 @@ describe('POST /admin/email-templates/:key/edit', () => {
       .type('form')
       .send(validBody());
     expect(res.status).toBe(303);
-    expect(res.headers.location).toBe('/admin/email-templates/club_coleader_invite/edit?saved=1');
+    expect(res.headers.location).toBe('/admin/email-templates/club_coleader_invite/edit');
+
+    // The confirmation shows on this template's page and on no other.
+    const cookie = `${admin()}; ${flashCookieOf(res)}`;
+    const own = await request(createApp()).get(res.headers.location).set('Cookie', cookie);
+    expect(own.text).toMatch(/class="form-success-banner" role="status">Saved\./);
+    const other = await request(createApp()).get('/admin/email-templates/account_verify/edit').set('Cookie', cookie);
+    expect(other.status).toBe(200);
+    expect(other.text).not.toContain('form-success-banner');
+    // Another admin page that reads the same kind of confirmation ignores it.
+    const params = await request(createApp()).get('/admin/system-parameters').set('Cookie', cookie);
+    expect(params.status).toBe(200);
+    expect(params.text).not.toContain('form-success-banner');
+    // The page's own address typed without the cookie claims nothing.
+    const bare = await request(createApp())
+      .get('/admin/email-templates/club_coleader_invite/edit?saved=1').set('Cookie', admin());
+    expect(bare.status).toBe(200);
+    expect(bare.text).not.toContain('form-success-banner');
 
     const after = templateRow('club_coleader_invite');
     expect(after.subject_template).toBe('Co-lead {clubName}?');

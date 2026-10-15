@@ -48,7 +48,7 @@ export function applyFindingExemptions(
 // (with any query), so a new page without one is still caught.
 const NO_DESCRIPTION_PAGES = [
   '', 'bap', 'clubs', 'clubs/usa', 'clubs/club_crawlville', 'events', 'freestyle/media', 'hof',
-  'ifpa', 'ifpa/articles', 'ifpa/bylaws', 'ifpa/membership-structure', 'login', 'media',
+  'ifpa', 'login', 'media',
   'media/browse', 'media/member-galleries', 'media/gallery_[a-z0-9_]+', 'members/canary_shown',
   'net', 'password/forgot', 'records', 'register', 'rules', 'rules/[a-z]+/[a-z0-9-]+', 'sideline',
   'media/item/[A-Za-z0-9_]+', 'media/gallery_[a-z0-9_]+/[A-Za-z0-9_]+',

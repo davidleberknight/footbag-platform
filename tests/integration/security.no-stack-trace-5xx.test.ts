@@ -58,4 +58,19 @@ describe('5xx responses -- no stack-trace or path disclosure', () => {
     expect(res.text).not.toContain('node_modules');
     expect(res.text).not.toMatch(/\n\s+at\s+/); // V8 stack frame: "    at fn (...)"
   });
+
+  it('a provider error carrying a 4xx status is still a server fault: 500 and the alarm line', async () => {
+    // A payment or mail provider refusing a call this server made reports its
+    // own 4xx on the error object. Answering the visitor with that 400 would
+    // blame them for our fault and silence the operator alarm.
+    expectLoggedError('unexpected error in clubs controller');
+    expectLoggedError('unhandled error');
+
+    vi.spyOn(clubService, 'getPublicClubsIndexPage').mockImplementation(() => {
+      throw Object.assign(new Error('provider refused the call'), { status: 400, statusCode: 400 });
+    });
+
+    const res = await request(createApp()).get('/clubs');
+    expect(res.status).toBe(500);
+  });
 });

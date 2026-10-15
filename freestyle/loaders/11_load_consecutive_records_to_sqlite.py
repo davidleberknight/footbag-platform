@@ -72,7 +72,7 @@ def load_records(db_path: str, source_csv: str = SOURCE_CSV) -> None:
         # in the source now surfaces as a UNIQUE error rather than silently replacing.
         con.execute("""
             INSERT INTO consecutive_kicks_records
-              (id, sort_order, section, subsection, division, year, rank,
+              (id, sort_order, section, subsection, discipline, year, rank,
                player_1, player_2, score, note, event_date, event_name, location,
                created_at, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
@@ -83,7 +83,7 @@ def load_records(db_path: str, source_csv: str = SOURCE_CSV) -> None:
             sort_order,
             row['section'].strip(),
             row['subsection'].strip(),
-            row['division'].strip(),
+            row['discipline'].strip(),
             year,
             rank,
             row['person_or_team'].strip() or None,

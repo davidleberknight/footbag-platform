@@ -119,11 +119,11 @@ export async function seedCrawlFixture(env: CrawlEnv): Promise<CrawlFixture> {
   });
   insertConsecutiveKicksRecord(db, {
     id: 'crawl_ck_wr', sort_order: 401, section: 'Official World Records',
-    subsection: 'Current', division: 'Open Singles', player_1: 'Crawl Kicker', score: 50000,
+    subsection: 'Current', discipline: 'Open Singles', player_1: 'Crawl Kicker', score: 50000,
   });
   insertConsecutiveKicksRecord(db, {
     id: 'crawl_ck_ms', sort_order: 1301, section: 'Milestone Firsts',
-    subsection: 'Firsts', division: 'Open Singles', player_1: 'Crawl Kicker', score: 10000,
+    subsection: 'Firsts', discipline: 'Open Singles', player_1: 'Crawl Kicker', score: 10000,
   });
 
   // The catalog galleries the freestyle landing links statically, owned by a

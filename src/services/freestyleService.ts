@@ -322,14 +322,14 @@ function labelForType(recordType: string): string {
 // metadata. Goal: pedagogical readability via repeated exposure.
 const MEDIA_TAG_SUPPRESS = new Set(['#trick', '#unavailable_embed']);
 const MEDIA_TAG_KIND_ORDER: MediaTagDisplay['kind'][] = [
-  'trick', 'source', 'creator', 'content-type', 'event', 'discipline', 'quality',
+  'trick', 'source', 'creator', 'content-type', 'event', 'sport', 'quality',
 ];
 const MEDIA_TAG_KNOWN_SOURCES = new Set([
   '#passback_records', '#tricks_of_the_trade', '#shred_global',
   '#anz_trikz', '#footbag_finland', '#footbag_hof_archive',
 ]);
 const MEDIA_TAG_KNOWN_CONTENT_TYPES = new Set(['#tutorial', '#demo', '#record']);
-const MEDIA_TAG_KNOWN_DISCIPLINES = new Set(['#freestyle', '#net', '#chinlone']);
+const MEDIA_TAG_KNOWN_SPORTS = new Set(['#freestyle', '#net', '#chinlone']);
 const MEDIA_TAG_KNOWN_QUALITY = new Set(['#curated']);
 
 function classifyMediaTag(tag: string): MediaTagDisplay['kind'] {
@@ -337,7 +337,7 @@ function classifyMediaTag(tag: string): MediaTagDisplay['kind'] {
   if (tag.startsWith('#event_')) return 'event';
   if (MEDIA_TAG_KNOWN_SOURCES.has(tag))       return 'source';
   if (MEDIA_TAG_KNOWN_CONTENT_TYPES.has(tag)) return 'content-type';
-  if (MEDIA_TAG_KNOWN_DISCIPLINES.has(tag))   return 'discipline';
+  if (MEDIA_TAG_KNOWN_SPORTS.has(tag))        return 'sport';
   if (MEDIA_TAG_KNOWN_QUALITY.has(tag))       return 'quality';
   // Anything else with `#`-prefix and a kebab-case body is treated as a
   // trick-slug tag. This matches the rendered DB inventory (~80 trick slugs).
@@ -346,7 +346,7 @@ function classifyMediaTag(tag: string): MediaTagDisplay['kind'] {
 
 export function shapeMediaTagsForBrowse(
   rawTags: readonly string[],
-  opts: { surfaceContext?: 'freestyle-only' | 'cross-discipline' } = {},
+  opts: { surfaceContext?: 'freestyle-only' | 'cross-sport' } = {},
 ): MediaTagDisplay[] {
   const surfaceContext = opts.surfaceContext ?? 'freestyle-only';
   const seen = new Set<string>();
@@ -572,7 +572,7 @@ export interface FreestyleFeaturedItem {
 // Built by shapeMediaTagsForBrowse from raw `#`-prefixed tag strings.
 export interface MediaTagDisplay {
   display: string;   // verbatim including '#' prefix (e.g., "#torque")
-  kind:    'trick' | 'source' | 'creator' | 'content-type' | 'event' | 'quality' | 'discipline';
+  kind:    'trick' | 'source' | 'creator' | 'content-type' | 'event' | 'quality' | 'sport';
 }
 
 // "Freestyle by the Numbers" landing band: summary cards, each a different

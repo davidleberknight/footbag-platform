@@ -3,7 +3,7 @@
  *
  * Owns:
  *   - The admin browse of consecutive_kicks_records, grouped by section and then
- *     division, with a link to edit each row.
+ *     discipline, with a link to edit each row.
  *   - The admin edit surface for one row: rendering its editable fields and saving
  *     edits, keyed on the row's stable surrogate id (not its mutable display
  *     position).
@@ -13,7 +13,7 @@
  *   - The public records pages (RecordsService is public, read-only).
  *
  * Write discipline: updateRow validates the submitted fields (section, subsection,
- * and division required; score and rank each empty or a whole number; the display
+ * and discipline required; score and rank each empty or a whole number; the display
  * position a unique positive whole number, checked against the other rows before
  * the write with the column's UNIQUE constraint as the backstop). The update and
  * its one audit entry commit together in a single transaction; the id is not
@@ -49,13 +49,13 @@ export interface ConsecutiveBrowseRow {
   score: string;
   editHref: string;
 }
-export interface ConsecutiveDivisionGroup {
-  division: string;
+export interface ConsecutiveDisciplineGroup {
+  discipline: string;
   rows: ConsecutiveBrowseRow[];
 }
 export interface ConsecutiveSectionGroup {
   section: string;
-  divisions: ConsecutiveDivisionGroup[];
+  disciplines: ConsecutiveDisciplineGroup[];
 }
 export interface ConsecutiveBrowseContent {
   sections: ConsecutiveSectionGroup[];
@@ -67,7 +67,7 @@ export interface ConsecutiveEditFields {
   sortOrder: string;
   section: string;
   subsection: string;
-  division: string;
+  discipline: string;
   year: string;
   rank: string;
   player1: string;
@@ -105,7 +105,7 @@ export interface ConsecutiveScalarInput {
   sortOrder?: string;
   section?: string;
   subsection?: string;
-  division?: string;
+  discipline?: string;
   year?: string;
   rank?: string;
   player1?: string;
@@ -129,7 +129,7 @@ interface ConsecutiveCurationDbRow {
   sort_order: number;
   section: string;
   subsection: string;
-  division: string;
+  discipline: string;
   year: string | null;
   rank: number | null;
   player_1: string | null;
@@ -164,23 +164,23 @@ export const consecutiveKicksCurationService = {
   getBrowsePage(): PageViewModel<ConsecutiveBrowseContent> {
     const rows = consecutiveKicksRecords.listAllForCuration.all() as ConsecutiveCurationDbRow[];
 
-    // Group by section, then by division, preserving the sort_order ordering the
+    // Group by section, then by discipline, preserving the sort_order ordering the
     // query already applied.
     const sections: ConsecutiveSectionGroup[] = [];
     const sectionIndex = new Map<string, ConsecutiveSectionGroup>();
     for (const r of rows) {
       let section = sectionIndex.get(r.section);
       if (!section) {
-        section = { section: r.section, divisions: [] };
+        section = { section: r.section, disciplines: [] };
         sectionIndex.set(r.section, section);
         sections.push(section);
       }
-      let division = section.divisions.find((d) => d.division === r.division);
-      if (!division) {
-        division = { division: r.division, rows: [] };
-        section.divisions.push(division);
+      let discipline = section.disciplines.find((d) => d.discipline === r.discipline);
+      if (!discipline) {
+        discipline = { discipline: r.discipline, rows: [] };
+        section.disciplines.push(discipline);
       }
-      division.rows.push({
+      discipline.rows.push({
         id:        r.id,
         sortOrder: r.sort_order,
         players:   joinPlayers(r.player_1, r.player_2),
@@ -208,7 +208,7 @@ export const consecutiveKicksCurationService = {
       sortOrder:  sub ? (sub.sortOrder ?? '') : String(row.sort_order),
       section:    sub ? (sub.section ?? '') : row.section,
       subsection: sub ? (sub.subsection ?? '') : row.subsection,
-      division:   sub ? (sub.division ?? '') : row.division,
+      discipline:   sub ? (sub.discipline ?? '') : row.discipline,
       year:       sub ? (sub.year ?? '') : (row.year ?? ''),
       rank:       sub ? (sub.rank ?? '') : numOrEmpty(row.rank),
       player1:    sub ? (sub.player1 ?? '') : (row.player_1 ?? ''),
@@ -250,7 +250,7 @@ export const consecutiveKicksCurationService = {
 
     const players = [row.player_1, row.player_2].filter((p): p is string => !!p).join(' and ');
     const summary = [
-      { label: 'Division', value: row.division },
+      { label: 'Discipline', value: row.discipline },
       { label: 'Year',     value: row.year ?? '' },
       { label: 'Players',  value: players },
       { label: 'Score',    value: numOrEmpty(row.score) },
@@ -277,7 +277,7 @@ export const consecutiveKicksCurationService = {
       sortOrder:  sub?.sortOrder ?? '',
       section:    sub?.section ?? '',
       subsection: sub?.subsection ?? '',
-      division:   sub?.division ?? '',
+      discipline:   sub?.discipline ?? '',
       year:       sub?.year ?? '',
       rank:       sub?.rank ?? '',
       player1:    sub?.player1 ?? '',
@@ -325,7 +325,7 @@ export const consecutiveKicksCurationService = {
     mark(v.sortOrder !== current.sort_order, 'sort_order');
     mark(v.section !== current.section, 'section');
     mark(v.subsection !== current.subsection, 'subsection');
-    mark(v.division !== current.division, 'division');
+    mark(v.discipline !== current.discipline, 'discipline');
     mark(v.year !== (current.year ?? null), 'year');
     mark(v.rank !== (current.rank ?? null), 'rank');
     mark(v.player1 !== (current.player_1 ?? null), 'player_1');
@@ -338,7 +338,7 @@ export const consecutiveKicksCurationService = {
 
     transaction(() => {
       consecutiveKicksRecords.updateForCuration.run(
-        v.sortOrder, v.section, v.subsection, v.division, v.year, v.rank,
+        v.sortOrder, v.section, v.subsection, v.discipline, v.year, v.rank,
         v.player1, v.player2, v.score, v.note, v.eventDate, v.eventName, v.location, id,
       );
       appendAuditEntry({
@@ -368,7 +368,7 @@ export const consecutiveKicksCurationService = {
     try {
       transaction(() => {
         consecutiveKicksRecords.insertForCuration.run(
-          id, v.sortOrder, v.section, v.subsection, v.division, v.year, v.rank,
+          id, v.sortOrder, v.section, v.subsection, v.discipline, v.year, v.rank,
           v.player1, v.player2, v.score, v.note, v.eventDate, v.eventName, v.location,
         );
         appendAuditEntry({
@@ -378,7 +378,7 @@ export const consecutiveKicksCurationService = {
           actorMemberId,
           entityType:    'freestyle_consecutive_record',
           entityId:      id,
-          metadata:      { sortOrder: v.sortOrder, section: v.section, division: v.division },
+          metadata:      { sortOrder: v.sortOrder, section: v.section, discipline: v.discipline },
         });
       });
     } catch (err) {
@@ -394,7 +394,7 @@ export const consecutiveKicksCurationService = {
   },
 
   // Hard delete one row by its stable id, then append one audit entry, in a single
-  // transaction. The audit metadata carries the row's section, division, and
+  // transaction. The audit metadata carries the row's section, discipline, and
   // display position so the removal is recoverable. Throws NotFoundError for an
   // unknown id.
   deleteRow(id: string, actorMemberId: string): void {
@@ -414,7 +414,7 @@ export const consecutiveKicksCurationService = {
         metadata:      {
           sortOrder: current.sort_order,
           section:   current.section,
-          division:  current.division,
+          discipline:  current.discipline,
           player1:   current.player_1,
           score:     current.score,
         },
@@ -451,7 +451,7 @@ function ownIdenticalCreatedRowId(
     throw err;
   }
   const row = consecutiveKicksRecords.getForCurationById.get(holder.id) as {
-    sort_order: number; section: string; subsection: string; division: string;
+    sort_order: number; section: string; subsection: string; discipline: string;
     year: string | null; rank: number | null; player_1: string | null; player_2: string | null;
     score: number | null; note: string | null; event_date: string | null;
     event_name: string | null; location: string | null;
@@ -459,7 +459,7 @@ function ownIdenticalCreatedRowId(
   const identical = row.sort_order === v.sortOrder
     && row.section === v.section
     && row.subsection === v.subsection
-    && row.division === v.division
+    && row.discipline === v.discipline
     && row.year === v.year
     && row.rank === v.rank
     && row.player_1 === v.player1
@@ -476,7 +476,7 @@ interface ValidatedConsecutive {
   sortOrder: number;
   section: string;
   subsection: string;
-  division: string;
+  discipline: string;
   year: string | null;
   rank: number | null;
   player1: string | null;
@@ -499,8 +499,8 @@ function validateConsecutiveInput(input: ConsecutiveScalarInput, selfId: string)
   if (!section) fieldErrors.section = 'Section is required.';
   const subsection = (input.subsection ?? '').trim();
   if (!subsection) fieldErrors.subsection = 'Subsection is required.';
-  const division = (input.division ?? '').trim();
-  if (!division) fieldErrors.division = 'Division is required.';
+  const discipline = (input.discipline ?? '').trim();
+  if (!discipline) fieldErrors.discipline = 'Discipline is required.';
 
   const sortRaw = (input.sortOrder ?? '').trim();
   let sortOrder = 0;
@@ -525,7 +525,7 @@ function validateConsecutiveInput(input: ConsecutiveScalarInput, selfId: string)
     sortOrder,
     section,
     subsection,
-    division,
+    discipline,
     year:      emptyToNull(input.year),
     rank,
     player1:   emptyToNull(input.player1),

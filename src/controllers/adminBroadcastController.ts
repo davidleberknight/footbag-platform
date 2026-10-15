@@ -11,6 +11,7 @@ import type { NextFunction, Request, Response } from 'express';
 import { broadcastService, type ComposeInput } from '../services/broadcastService';
 import { NotFoundError, ValidationError } from '../services/serviceErrors';
 import { renderNotFound } from '../lib/controllerErrors';
+import { FLASH_KIND, writeFlash } from '../lib/flashCookie';
 
 function composeInputFromBody(body: Record<string, unknown>): ComposeInput {
   return {
@@ -43,7 +44,8 @@ export const adminBroadcastController = {
       // A repeat of a send already made under this form reports that send's
       // success, as the member announce does, rather than a no-op note.
       const notice = outcome.status === 'sent' || outcome.reason === 'already_sent' ? 'sent' : outcome.reason;
-      res.redirect(303, `/admin/mailing-lists/${slug}?notice=${notice}`);
+      writeFlash(res, req, FLASH_KIND.MAILING_LIST_RESULT, notice);
+      res.redirect(303, `/admin/mailing-lists/${slug}`);
     } catch (err) {
       if (err instanceof ValidationError) {
         const vm = broadcastService.getComposePage(slug, {

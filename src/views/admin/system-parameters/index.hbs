@@ -6,9 +6,7 @@
 </div>
 
 <div class="wrapper">
-  {{#if content.hasSavedMessage}}
-  <p class="form-success-banner" role="status">{{content.savedMessage}}</p>
-  {{/if}}
+  {{> outcome-notice text=content.savedMessage tone='ok'}}
 
   <section>
     <div class="section-heading"><h2>Membership and Pricing</h2></div>

@@ -1,6 +1,6 @@
 ---
-discipline: sideline
-disciplineLabel: Sideline
+category: sideline
+categoryLabel: Sideline
 authority: IFPA
 effective: 2020
 parentHref: /sideline

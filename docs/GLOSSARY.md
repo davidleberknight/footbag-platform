@@ -24,6 +24,8 @@
 
 **CAA (Certification Authority Authorization)**: A DNS record naming which certificate authorities may issue certificates for a domain. Footbag.org publishes one at the apex permitting only the authority its own certificates come from, plus an explicit refusal of wildcards. It constrains *which* authority may issue, not *who* may prove control to that authority, so it works as one half of a pair with IFPA holding the five system addresses an authority accepts as proof. An authority reads the record set at the closest node in the name tree, so a delegated child publishing its own overrides the parent's for that branch.
 
+**Category**: The sport family a discipline belongs to: net, freestyle, golf or sideline. Sideline holds the square games (2-Square, 4-Square, 5-Square) and consecutives, both timed consecutives competition and the consecutive-kicks world records. IFPA's 2010 rules listed consecutive as a category of its own. The rulebook files record their category in a `category` field.
+
 **CDN (Content Delivery Network)**: A geographically distributed network of servers that cache and deliver content from locations close to users. CloudFront serves Footbag.org content worldwide, reducing latency and offloading traffic from the origin server.
 
 **CLI (Command Line Interface)**: Text-based interface for interacting with software through typed commands. Developers and administrators use CLI tools to manage Footbag.org infrastructure, run deployments, and execute maintenance tasks.
@@ -59,6 +61,10 @@
 **Dead Letter**: Final status for an outbox email entry that has exhausted all retry attempts without successful delivery. Footbag.org moves failed outbox entries to dead-letter status after maximum retries, triggering an alert for admin review so no email is silently lost.
 
 **Dev-and-tester**: The only kind of named identity, not a level of seniority: a contributor who develops locally and, when their work needs the deployed staging environment, reaches it through a staging host account and an AWS identity of their own. They hold no `footbag-operator` key, no shared `footbag` host password, no credential vault access and no production access, and they act on staging only through the switch `scripts/as-dev-tester.sh --account <name>`; a command run without it has no identity and is refused. An administrator may also be onboarded as one, through the same path as anybody else.
+
+**Discipline**: One contested unit at an event: a game, an entry size (singles or doubles), a gender eligibility (open, women's or mixed) and a class (novice, intermediate, open or masters), shown by a generated name such as "Women's Singles Net". Entries, draws, results and records belong to a discipline. Text that classifies the sport uses this word only in this sense, and calls net, freestyle, golf and sideline categories; in running prose the word may keep its everyday sense of a practice or a self-imposed rule.
+
+**Division**: IFPA's term for a player bracket by class or gender, such as the Women's division, the Intermediate division, or Women's Intermediate. A division is part of a discipline, not a discipline: offering a Women's division means offering at least one discipline whose gender is women's.
 
 **DKIM (DomainKeys Identified Mail)**: Email authentication method verifying sender identity using cryptographic signatures. Footbag.org has two signers and configures a key for each: AWS SES for the platform's own outbound, and Google Workspace for mail sent from a hosted role mailbox. Both improve deliverability and prevent spoofing, and a message signed by neither rests on the sender policy alone.
 

@@ -13,7 +13,7 @@ import { ConflictError, RateLimitedError, ServiceUnavailableError, ValidationErr
 import { paymentService } from '../services/paymentService';
 import { PageViewModel } from '../types/page';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
-import { renderInvalidRequest, renderNotFound, renderRateLimited, renderServiceUnavailable } from '../lib/controllerErrors';
+import { renderInvalidRequest, renderNotFound, renderRateLimited, renderServiceUnavailable, setRetryAfter } from '../lib/controllerErrors';
 import { isOwnMemberRoute } from '../lib/routeOwnership';
 
 interface MemberPasswordEditContent {
@@ -496,6 +496,7 @@ export const memberController = {
         // A dependency the change depends on (session signing, the notification
         // outbox) was unavailable, so nothing was committed. The member is still
         // signed in on their old password and can simply try again.
+        setRetryAfter(res);
         renderForm({
           error:
             'We could not complete the password change, so your password was not changed and you are still signed in. Please try again in a moment.',

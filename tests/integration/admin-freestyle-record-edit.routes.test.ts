@@ -14,6 +14,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import request from '../fixtures/supertestWithOrigin';
+import { flashCookieOf } from '../fixtures/flashCookie';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, insertFreestyleRecord, insertHistoricalPerson, createTestSessionJwt } from '../fixtures/factories';
@@ -225,7 +226,7 @@ describe('POST /admin/freestyle/records/:id/edit — successful save', () => {
     const res = await post('/admin/freestyle/records/rec_save_ok/edit', admin(),
       validBody({ trickName: 'Save Trick Edited', confidence: 'verified' }));
     expect(res.status).toBe(303);
-    expect(res.headers.location).toBe('/admin/freestyle/records/rec_save_ok/edit?saved=1');
+    expect(res.headers.location).toBe('/admin/freestyle/records/rec_save_ok/edit');
 
     const row = recordRow('rec_save_ok');
     expect(row.trick_name).toBe('Save Trick Edited');
@@ -239,10 +240,16 @@ describe('POST /admin/freestyle/records/:id/edit — successful save', () => {
     expect(audits[0].metadata_json).toContain('confidence');
   });
 
-  it('shows the saved banner on the follow-up GET', async () => {
-    const res = await get('/admin/freestyle/records/rec_save_ok/edit?saved=1', admin());
+  it('shows the saved banner on the follow-up GET, and only with the save cookie', async () => {
+    const save = await post('/admin/freestyle/records/rec_save_ok/edit', admin(),
+      validBody({ trickName: 'Save Trick Edited', confidence: 'verified' }));
+    const res = await get(save.headers.location as string, `${admin()}; ${flashCookieOf(save)}`);
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Saved.');
+    expect(res.text).toMatch(/class="form-success-banner" role="status">Saved\./);
+
+    const bare = await get('/admin/freestyle/records/rec_save_ok/edit?saved=1', admin());
+    expect(bare.status).toBe(200);
+    expect(bare.text).not.toContain('form-success-banner');
   });
 
   it('accepts a valid linked person id and clears the display name', async () => {
@@ -341,9 +348,9 @@ describe('freestyle records — add new', () => {
       validBody({ displayName: 'Brand New Holder', trickName: 'Brand New Trick', valueNumeric: '77' }));
     expect(res.status).toBe(303);
     const loc = res.headers.location as string;
-    expect(loc).toMatch(/^\/admin\/freestyle\/records\/[0-9a-f-]{36}\/edit\?saved=1$/);
+    expect(loc).toMatch(/^\/admin\/freestyle\/records\/[0-9a-f-]{36}\/edit$/);
 
-    const newId = loc.replace('/admin/freestyle/records/', '').replace('/edit?saved=1', '');
+    const newId = loc.replace('/admin/freestyle/records/', '').replace('/edit', '');
     const row = recordRow(newId);
     expect(row.display_name).toBe('Brand New Holder');
     expect(row.trick_name).toBe('Brand New Trick');

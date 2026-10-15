@@ -419,6 +419,7 @@ describe('POST /verify — session reissue failure', () => {
     const res = await pressVerify(app, token);
 
     expect(res.status).toBe(503);
+    expect(res.headers['retry-after']).toBe('30');
     expect(res.text).toContain('email is verified');
     expect(res.text).toContain('could not sign you in');
     expect(res.text).toContain('Sign In');

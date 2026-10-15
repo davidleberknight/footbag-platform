@@ -7,6 +7,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
+import requestWithOrigin from '../fixtures/supertestWithOrigin';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 
 const { dbPath } = setTestEnv('3213');
@@ -59,5 +60,21 @@ describe('GET /register — production hides development-only copy', () => {
     const res = await request(createApp()).get('/register');
     expect(res.text).not.toContain('Developer stub');
     expect(res.text).not.toContain('is bypassed');
+  });
+});
+
+describe('POST /verify with a dead link — production', () => {
+  // The resend route requires a live challenge token here, so a resend form
+  // without the widget and its script fails its first submit and sends nothing.
+  it('the resend form carries the live challenge widget, and the page loads its script', async () => {
+    const res = await requestWithOrigin(createApp())
+      .post('/verify')
+      .type('form')
+      .send({ token: 'no-such-verify-token' });
+
+    expect(res.status).toBe(400);
+    const form = res.text.match(/<form method="POST" action="\/verify\/resend"[\s\S]*?<\/form>/)?.[0];
+    expect(form).toContain('class="cf-turnstile" data-sitekey="1x00000000000000000000AA"');
+    expect(res.text).toContain('src="https://challenges.cloudflare.com/turnstile/v0/api.js"');
   });
 });

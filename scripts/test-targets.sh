@@ -33,7 +33,12 @@
 #     `env`. They get their own suite and the suites naming their repository
 #     path (the schema parity checks name `database/schema.sql`), plus the three
 #     app-wide sweeps as a canary, and a note that the full gate is needed at
-#     the end of the session.
+#     the end of the session. The shared test-data builders are decided by
+#     what changed: a working-tree change inside an exported builder reaches
+#     every suite calling that builder by name, so a changed default is caught
+#     before commit; a change no exported builder owns (an internal helper,
+#     module-level state, an import), or a file with no diff to read, still
+#     defers to the full gate.
 #   - Browser specs and the legacy pytest files are targeted too, as CHECK
 #     lines: a changed spec runs itself, a page object the specs naming it, a
 #     page template the specs named for it, a legacy Python module the pytest
@@ -289,7 +294,62 @@ high_fan_out() {
   # suites that read or guard this file without every suite that imports it.
   collect naming "$p" || true
   for f in "${CANARY[@]}"; do add_test "$f"; done
+  case "$p" in
+    src/testkit/*|tests/fixtures/factories.ts) test_data_builders "$p" && return 0 ;;
+  esac
   note "$p is high fan-out; the full gate is needed at session end"
+}
+
+# The exported names a working-tree change to $1 touches, one per line, or `-`
+# for a changed line no exported declaration owns. A line belongs to the
+# nearest top-level declaration above it; a declaration added or removed by the
+# change is named from the diff itself, so a deleted or renamed builder still
+# reaches the suites calling its old name. Prints nothing with no diff to read.
+exports_changed() {
+  local p="$1" d hunk start count line i owner
+  local decl_lines=() decl_names=()
+  local decl_re='^(export )?(declare )?(async )?(function|interface|type|const|let|class|enum) '
+  [ -f "$p" ] || return 0
+  while IFS= read -r d; do
+    decl_lines+=("${d%%:*}")
+    case "${d#*:}" in
+      export\ *) decl_names+=("$(printf '%s' "${d#*:}" | sed -E "s/${decl_re}([A-Za-z0-9_\$]+).*/\5/")") ;;
+      *) decl_names+=("-") ;;
+    esac
+  done < <(grep -nE "$decl_re" "$p" || true)
+  git diff -U0 HEAD -- "$p" 2>/dev/null \
+    | grep -E "^[-+]export (declare )?(async )?(function|interface|type|const|let|class|enum) " \
+    | sed -E 's/^[-+]export (declare )?(async )?(function|interface|type|const|let|class|enum) ([A-Za-z0-9_$]+).*/\4/' || true
+  while IFS= read -r hunk; do
+    start="${hunk%%,*}"
+    count=1
+    case "$hunk" in *,*) count="${hunk#*,}" ;; esac
+    # A deletion-only hunk names the line just above the gap.
+    [ "$count" -eq 0 ] && count=1
+    for ((line = start; line < start + count; line++)); do
+      owner="-"
+      for ((i = 0; i < ${#decl_lines[@]}; i++)); do
+        [ "${decl_lines[i]}" -le "$line" ] || break
+        owner="${decl_names[i]}"
+      done
+      printf '%s\n' "$owner"
+    done
+  done < <(git diff -U0 HEAD -- "$p" 2>/dev/null | sed -nE 's/^@@ -[0-9,]+ \+([0-9]+(,[0-9]+)?) @@.*/\1/p')
+}
+
+# Selects the suites calling each exported builder a change to the test-data
+# file $1 touches. Succeeds only when every changed line belongs to one: then
+# those suites are everything the change can reach, and the full gate is not
+# needed for it.
+test_data_builders() {
+  local p="$1" name pinned=() unpinned=0
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    if [ "$name" = "-" ]; then unpinned=1; else pinned+=("$name"); fi
+  done < <(exports_changed "$p" | sort -u)
+  for name in "${pinned[@]+"${pinned[@]}"}"; do collect naming "$name" || true; done
+  [ "${#pinned[@]}" -gt 0 ] && [ "$unpinned" -eq 0 ] || return 1
+  note "$p: only exported builders changed (${pinned[*]}); the suites calling them are selected"
 }
 
 no_tests() { note "no tests found for $1; name its suites by hand"; }

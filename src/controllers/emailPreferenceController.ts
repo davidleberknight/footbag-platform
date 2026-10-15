@@ -25,6 +25,7 @@ import { identityAccessService } from '../services/identityAccessService';
 import { NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { handleControllerError, renderNotFound } from '../lib/controllerErrors';
 import { isOwnMemberRoute } from '../lib/routeOwnership';
+import { FLASH_KIND, takeFlash, writeFlash } from '../lib/flashCookie';
 
 /** The unsubscribe address carries its token in the query string, so neither
  *  a browser nor a shared proxy may keep the page. */
@@ -77,7 +78,7 @@ export const emailPreferenceController = {
     }
     try {
       const memberKey = String(req.params.memberKey);
-      const notice = typeof req.query.notice === 'string' ? req.query.notice : undefined;
+      const notice = takeFlash(req, res, FLASH_KIND.EMAIL_PREFERENCE_RESULT) ?? undefined;
       res.render(
         'members/email-preferences',
         emailSubscriptionService.getSubscriptionsPage(memberKey, req.user!.userId, { notice }),
@@ -101,7 +102,8 @@ export const emailPreferenceController = {
     try {
       const outcome = await emailSubscriptionService.setOwnSubscription(req.user!.userId, slug, subscribe);
       const notice = outcome.status === 'noop' ? outcome.reason : outcome.status;
-      res.redirect(303, `/members/${memberKey}/email-preferences?notice=${notice}`);
+      writeFlash(res, req, FLASH_KIND.EMAIL_PREFERENCE_RESULT, notice);
+      res.redirect(303, `/members/${memberKey}/email-preferences`);
     } catch (err) {
       if (err instanceof NotFoundError) {
         renderNotFound(res);
@@ -134,7 +136,8 @@ export const emailPreferenceController = {
     try {
       const outcome = await identityAccessService.requestAddressRecovery(memberId);
       const notice = outcome.status === 'sent' ? 'recovery_sent' : 'recovery_unneeded';
-      res.redirect(303, `/members/${memberKey}/email-preferences?notice=${notice}`);
+      writeFlash(res, req, FLASH_KIND.EMAIL_PREFERENCE_RESULT, notice);
+      res.redirect(303, `/members/${memberKey}/email-preferences`);
     } catch (err) {
       if (err instanceof ValidationError || err instanceof RateLimitedError) {
         if (err instanceof RateLimitedError && err.retryAfterSeconds !== undefined) {

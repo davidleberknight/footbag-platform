@@ -20,10 +20,10 @@ describe('shapeMediaTagsForBrowse — suppression policy', () => {
     expect(out.map(t => t.display)).toEqual(['#whirl']);
   });
 
-  it('keeps #freestyle on cross-discipline surfaces', () => {
+  it('keeps #freestyle on cross-sport surfaces', () => {
     const out = shapeMediaTagsForBrowse(
       ['#freestyle', '#whirl'],
-      { surfaceContext: 'cross-discipline' },
+      { surfaceContext: 'cross-sport' },
     );
     expect(out.map(t => t.display)).toContain('#freestyle');
   });
@@ -66,12 +66,12 @@ describe('shapeMediaTagsForBrowse — kind classification', () => {
     expect(shapeMediaTagsForBrowse(['#curated'])[0].kind).toBe('quality');
   });
 
-  it('classifies discipline tags on cross-discipline surfaces', () => {
+  it('classifies sport tags on cross-sport surfaces', () => {
     const out = shapeMediaTagsForBrowse(
       ['#net'],
-      { surfaceContext: 'cross-discipline' },
+      { surfaceContext: 'cross-sport' },
     );
-    expect(out[0].kind).toBe('discipline');
+    expect(out[0].kind).toBe('sport');
   });
 
   it('defaults unknown `#*` tags to trick (catch-all)', () => {
@@ -91,7 +91,7 @@ describe('shapeMediaTagsForBrowse — kind precedence ordering', () => {
         '#event_2026_san_marino',    // event
         '#tutorial',                 // content-type
       ],
-      { surfaceContext: 'cross-discipline' },
+      { surfaceContext: 'cross-sport' },
     );
     expect(out.map(t => t.kind)).toEqual([
       'trick', 'source', 'creator', 'content-type', 'event', 'quality',
