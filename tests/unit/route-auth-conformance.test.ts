@@ -52,6 +52,9 @@ const PENDING_SURFACE_MEMBER_ONLY = new Map<string, string>();
 const UNGUARDED_BY_DESIGN = new Set([
   '/login',
   '/register',
+  // The verify link's button: a pre-session flow, authenticated by the
+  // single-use token it posts.
+  '/verify',
   '/verify/resend',
   '/password/forgot',
   '/password/reset/:token',

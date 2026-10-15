@@ -139,6 +139,29 @@ function seedJob(adminId: string, state: 'pending_upload' | 'pending_transcode' 
   return id;
 }
 
+// An upload the browser started for admin A and never finished, whose upload
+// window has already closed.
+function seedExpiredUpload(): string {
+  const { id } = createMediaJobService().createPendingUploadJob({
+    kind: 'curator_video',
+    adminMemberId: ADMIN_A,
+    sourceVideoKey: 'pending/job-expired/source.mp4',
+    sourcePosterKey: 'pending/job-expired/source-poster.jpg',
+    caption: null,
+    tags: '',
+    sourceFilename: 'never-finished.mp4',
+    expiresAtIso: '2024-01-01T00:00:00.000Z',
+  });
+  return id;
+}
+
+function readJobRow(id: string): Record<string, unknown> {
+  const db = new BetterSqlite3(dbPath, { readonly: true });
+  const row = db.prepare('SELECT * FROM media_jobs WHERE id = ?').get(id) as Record<string, unknown>;
+  db.close();
+  return row;
+}
+
 // ── POST /ipc/job-events ────────────────────────────────────────────────────
 
 describe('POST /ipc/job-events', () => {
@@ -247,21 +270,12 @@ describe('GET /admin/curator/upload/jobs/:jobId', () => {
 
   it('tells the admin an unfinished upload expired, instead of that it is still uploading', async () => {
     // The browser was closed part way through. Nothing pushes an event for
-    // that, so the row would otherwise claim the upload is still in progress
-    // for as long as it exists; the read reconciles it and the page says what
-    // actually happened.
+    // that, so the page derives the expiry from the upload window and says
+    // what actually happened, while the stored row stays exactly as it was:
+    // reading a page changes no stored state.
     const app = createApp();
-    const svc = createMediaJobService();
-    const { id } = svc.createPendingUploadJob({
-      kind: 'curator_video',
-      adminMemberId: ADMIN_A,
-      sourceVideoKey: 'pending/job-expired/source.mp4',
-      sourcePosterKey: 'pending/job-expired/source-poster.jpg',
-      caption: null,
-      tags: '',
-      sourceFilename: 'never-finished.mp4',
-      expiresAtIso: '2024-01-01T00:00:00.000Z',
-    });
+    const id = seedExpiredUpload();
+    const before = readJobRow(id);
 
     const res = await request(app)
       .get(`/admin/curator/upload/jobs/${id}`)
@@ -270,6 +284,8 @@ describe('GET /admin/curator/upload/jobs/:jobId', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('The upload session expired before finalizing');
     expect(res.text).not.toContain('Waiting for the browser to finish uploading');
+    expect(readJobRow(id)).toEqual(before);
+    expect(before.state).toBe('pending_upload');
   });
 
   it('shows succeeded message and link when state=succeeded', async () => {
@@ -421,6 +437,27 @@ describe('GET /admin/curator/upload/jobs/:jobId/events (SSE)', () => {
     } finally {
       await new Promise<void>((r) => server.close(() => r()));
     }
+  });
+
+  it('opens an expired upload with an abandoned state, so the page stops waiting, and writes nothing', async () => {
+    // The browser's script closes the stream on a terminal state; reporting
+    // the stored pending state instead would leave the page waiting forever.
+    const app = createApp();
+    const jobId = seedExpiredUpload();
+    const before = readJobRow(jobId);
+    const server = app.listen(0);
+    try {
+      await new Promise<void>((r) => server.once('listening', () => r()));
+      const port = (server.address() as AddressInfo).port;
+
+      const stream = await openSseStream(port, `/admin/curator/upload/jobs/${jobId}/events`, adminACookie());
+      const first = await stream.readNextEvent();
+      expect(first).toContain('"state":"abandoned"');
+      stream.destroy();
+    } finally {
+      await new Promise<void>((r) => server.close(() => r()));
+    }
+    expect(readJobRow(jobId)).toEqual(before);
   });
 
   it('does not deliver events for other jobs', async () => {

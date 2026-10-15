@@ -3,7 +3,7 @@ import { paymentService, RecoverableWebhookError } from '../services/paymentServ
 import { WebhookSignatureError } from '../adapters/stripeWebhook';
 import { config } from '../config/env';
 import { logger } from '../config/logger';
-import { ValidationError, NotFoundError, RateLimitedError } from '../services/serviceErrors';
+import { ValidationError, NotFoundError, RateLimitedError, ConflictError } from '../services/serviceErrors';
 import { handleControllerError, renderNotFound, renderRateLimited } from '../lib/controllerErrors';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
 import { isSafePath } from '../lib/safePath';
@@ -195,11 +195,9 @@ export const paymentController = {
         renderNotFound(res);
         return;
       }
-      // Arriving here says the member is not paying, which the provider has no
-      // way to know. Closing the session frees the pending row that would
-      // otherwise block their next attempt. Best-effort inside the service, so
-      // it cannot fail this render.
-      await paymentService.releaseAbandonedCheckout(payment);
+      // A read: the page changes nothing at the provider or here. The checkout
+      // stays open until its own short expiry, and the member's next purchase
+      // attempt for the same tier goes back to it.
       const continueHref = safeReturnTo(req.query.returnTo, `/members/${user.slug}`);
       res.render(
         'payments/cancel',
@@ -355,7 +353,9 @@ export const paymentController = {
       );
       res.redirect(303, result.redirectUrl);
     } catch (err) {
-      if (err instanceof ValidationError) {
+      // ConflictError is a gift paid at the provider whose confirmation has not
+      // arrived yet: an ordinary state the donor is told about on the form.
+      if (err instanceof ValidationError || err instanceof ConflictError) {
         res.status(422).render(
           'payments/donate',
           paymentService.getDonatePage(user.userId, { returnTo, formError: err.message }),

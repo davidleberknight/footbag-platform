@@ -184,20 +184,20 @@ export interface PaymentAdapter {
   constructWebhookEvent(rawBody: string | Buffer, signature: string): StripeWebhookEvent;
   cancelSubscriptionAtPeriodEnd(stripeSubscriptionId: string): Promise<void>;
   /**
-   * Closes an unfinished checkout session at the provider.
-   *
-   * Called when the buyer comes back from the payment page without paying. The
-   * session would otherwise stay open until its own expiry, holding the local
-   * row pending, and for a membership that row is what stops the member from
-   * starting another purchase. Expiring it makes the provider send the expiry
-   * event, which is what actually resolves the row; nothing here writes to the
-   * database.
-   *
-   * Best-effort by contract: a session the provider has already expired, or
-   * already completed, is not an error the caller can act on, and the buyer is
-   * looking at a page that has nothing to do with it.
+   * The address of a checkout session the buyer can still complete, or null
+   * once it has expired or been completed. A repeated purchase submit sends the
+   * buyer back to the checkout their first submit opened, rather than opening a
+   * second one at the provider. Reads only.
    */
-  expireCheckoutSession(sessionId: string): Promise<void>;
+  openCheckoutUrl(sessionId: string): Promise<string | null>;
+  /**
+   * Close a checkout session the buyer has walked away from, and report
+   * whether the provider now holds it expired: true when this call expired it
+   * or it had already expired, false when it was completed (the buyer paid).
+   * The provider's reply is the confirmation, so a caller may act on true
+   * without waiting for the expiry webhook, which then finds nothing to do.
+   */
+  closeCheckoutSession(sessionId: string): Promise<boolean>;
   /**
    * The mode of the credential this process currently holds, taken from the
    * key's own prefix rather than from configuration: 'live', 'test', or
@@ -354,6 +354,9 @@ export interface StubPaymentAdapter extends PaymentAdapter {
   readonly sessions: ReadonlyMap<string, StubSessionRecord>;
   setNextOutcome(outcome: StubOutcome): void;
   overrideSessionOutcome(sessionId: string, outcome: StubOutcome): void;
+  /** Whether the session was closed or expired, so the simulated checkout page
+   *  refuses it as the provider's hosted page does. */
+  isSessionClosed(sessionId: string): boolean;
   /** The mode `loadedCredentialMode()` reports; test mode unless a test says
    *  otherwise. `clear()` restores test mode. */
   setLoadedCredentialModeForTests(mode: 'live' | 'test' | 'unknown'): void;
@@ -377,8 +380,6 @@ export interface StubPaymentAdapter extends PaymentAdapter {
   removeLedgerInvoice(id: string): void;
   setLedgerRefund(summary: StripeRefundSummary): void;
   removeLedgerRefund(id: string): void;
-  /** Every session the cancel path asked the provider to close, in order. */
-  expiredCheckoutSessionsForTests(): string[];
   buildSignedStubWebhookEvent(
     sessionId: string,
     opts?: StubCheckoutEventOpts,
@@ -858,7 +859,11 @@ export function createStubPaymentAdapter(): StubPaymentAdapter {
   const ledgerSubscriptions = new Map<string, StripeSubscriptionSummary>();
   const ledgerInvoices = new Map<string, StripeInvoiceSummary>();
   const ledgerRefunds = new Map<string, StripeRefundSummary>();
-  const expiredCheckoutSessions: string[] = [];
+  // Sessions a buyer walked away from and the caller closed, or that expired.
+  const closedSessions = new Set<string>();
+  // Sessions the buyer paid. The provider holds them complete from that moment,
+  // whether or not its webhook has been delivered yet.
+  const completedSessions = new Set<string>();
   let nextOutcome: StubOutcome = 'success';
   let reportedMode: 'live' | 'test' | 'unknown' = 'test';
 
@@ -1003,7 +1008,8 @@ export function createStubPaymentAdapter(): StubPaymentAdapter {
       ledgerSubscriptions.clear();
       ledgerInvoices.clear();
       ledgerRefunds.clear();
-      expiredCheckoutSessions.length = 0;
+      closedSessions.clear();
+      completedSessions.clear();
       nextOutcome = 'success';
       reportedMode = 'test';
     },
@@ -1072,6 +1078,13 @@ export function createStubPaymentAdapter(): StubPaymentAdapter {
       const created = Math.floor(Date.now() / 1000);
       const event = buildStubEventObject(session, eventId, created, opts);
       reflectEventIntoLedger(event);
+      // The event is what the provider sends once the session has ended, so
+      // building it ends the session at the simulated provider, before (and
+      // whether or not) the webhook is delivered: paid on success, expired on
+      // a walk-away. A declined payment leaves the session open, as it does at
+      // the provider, so the buyer can try another card.
+      if (session.outcome === 'success') completedSessions.add(sessionId);
+      if (session.outcome === 'cancel') closedSessions.add(sessionId);
       const rawBody = JSON.stringify(event);
       const signature = signStripeWebhook(rawBody, stubSecret);
       return { rawBody, signature };
@@ -1119,17 +1132,23 @@ export function createStubPaymentAdapter(): StubPaymentAdapter {
       // Stub no-op. The real implementation will set
       // subscription.cancel_at_period_end = true on the Stripe Subscription.
     },
-    async expireCheckoutSession(sessionId) {
-      // The simulation already synthesises checkout.session.expired through its
-      // own cancel outcome, which is the event this call exists to make the
-      // provider send, so there is no second session state to close here. The
-      // call is recorded rather than dropped: whether the cancel page reaches
-      // the provider at all is the thing worth asserting, and a silent no-op
-      // would let that wiring be removed with every test still passing.
-      expiredCheckoutSessions.push(sessionId);
+    isSessionClosed(sessionId) {
+      return closedSessions.has(sessionId);
     },
-    expiredCheckoutSessionsForTests() {
-      return [...expiredCheckoutSessions];
+    async openCheckoutUrl(sessionId) {
+      // Mirrors the provider: only a session neither paid nor closed can still
+      // be completed.
+      return sessions.has(sessionId) && !closedSessions.has(sessionId) && !completedSessions.has(sessionId)
+        ? `/payments/checkout/${sessionId}`
+        : null;
+    },
+    async closeCheckoutSession(sessionId) {
+      // Mirrors the provider: a paid session stands and reports not expired,
+      // as does one the simulation never held; any other session is closed
+      // here, and closing one already closed reports it closed.
+      if (!sessions.has(sessionId) || completedSessions.has(sessionId)) return false;
+      closedSessions.add(sessionId);
+      return true;
     },
   };
 }
@@ -1227,6 +1246,8 @@ const TODO_PLACEHOLDER_PREFIX = 'TODO-';
 interface StripeCheckoutSessionLike {
   id: string;
   url: string | null;
+  /** 'open' while the buyer can still complete it; 'complete' or 'expired' after. */
+  status?: string | null;
   payment_intent?: string | { id: string } | null;
   /** The provider's own live/test flag, recorded on the payment row so an
    *  administrator can tell a rehearsal from real money. */
@@ -1335,6 +1356,7 @@ export interface StripeClientLike {
         params: StripeCheckoutSessionCreateParams,
         options?: StripeRequestOptions,
       ): Promise<StripeCheckoutSessionLike>;
+      retrieve(id: string): Promise<StripeCheckoutSessionLike>;
       expire(id: string): Promise<StripeCheckoutSessionLike>;
     };
   };
@@ -1636,9 +1658,21 @@ export function createLivePaymentAdapter(deps: LivePaymentAdapterDeps = {}): Pay
       });
     },
 
-    async expireCheckoutSession(sessionId) {
+    async openCheckoutUrl(sessionId) {
       return withClient(async (stripe) => {
-        await stripe.checkout.sessions.expire(sessionId);
+        const session = await stripe.checkout.sessions.retrieve(sessionId);
+        return session.status === 'open' && session.url ? session.url : null;
+      });
+    },
+
+    async closeCheckoutSession(sessionId) {
+      return withClient(async (stripe) => {
+        const session = await stripe.checkout.sessions.retrieve(sessionId);
+        // Only an open session can be expired; one already expired is closed
+        // already, and one completed was paid for and must stand.
+        if (session.status !== 'open') return session.status === 'expired';
+        const expired = await stripe.checkout.sessions.expire(sessionId);
+        return expired.status === 'expired';
       });
     },
 

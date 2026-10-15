@@ -156,7 +156,7 @@ describe('audit_entries — password change', () => {
         newPassword: NEW_PASSWORD,
         confirmPassword: NEW_PASSWORD,
       });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(303);
 
     const rows = readAudits({ action_type: 'auth.password_change' });
     expect(rows.length).toBe(before + 1);

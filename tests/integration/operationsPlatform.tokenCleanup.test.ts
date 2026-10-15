@@ -86,19 +86,18 @@ describe('what the sweep deletes', () => {
     expect(remainingIds()).toEqual([]);
   });
 
-  it('covers every token type, not only the two the job was first written for', async () => {
-    insertToken({ id: 'tok_a_export', tokenType: 'data_export', issuedAt: daysAgo(40), expiresAt: daysAgo(30) });
+  it('covers every token type', async () => {
     insertToken({ id: 'tok_b_verify', tokenType: 'email_verify', issuedAt: daysAgo(40), expiresAt: daysAgo(30) });
     insertToken({ id: 'tok_c_reset', tokenType: 'password_reset', issuedAt: daysAgo(40), expiresAt: daysAgo(30) });
     const result = await operationsPlatformService.runExpiredTokenCleanup();
-    expect(result.deleted).toBe(3);
+    expect(result.deleted).toBe(2);
     expect(remainingIds()).toEqual([]);
   });
 });
 
 describe('what the sweep keeps', () => {
   it('keeps a token that is still usable', async () => {
-    insertToken({ id: 'tok_live', tokenType: 'data_export', issuedAt: daysAgo(1), expiresAt: daysAhead(2) });
+    insertToken({ id: 'tok_live', tokenType: 'email_verify', issuedAt: daysAgo(1), expiresAt: daysAhead(2) });
     const result = await operationsPlatformService.runExpiredTokenCleanup();
     expect(result.deleted).toBe(0);
     expect(remainingIds()).toEqual(['tok_live']);
@@ -122,8 +121,8 @@ describe('what the sweep keeps', () => {
 describe('what the sweep reports', () => {
   it('reports the age of the oldest row it left behind', async () => {
     insertToken({ id: 'tok_gone', tokenType: 'email_verify', issuedAt: daysAgo(90), expiresAt: daysAgo(60) });
-    insertToken({ id: 'tok_kept_old', tokenType: 'data_export', issuedAt: daysAgo(20), expiresAt: daysAhead(30) });
-    insertToken({ id: 'tok_kept_new', tokenType: 'data_export', issuedAt: daysAgo(1), expiresAt: daysAhead(30) });
+    insertToken({ id: 'tok_kept_old', tokenType: 'email_verify', issuedAt: daysAgo(20), expiresAt: daysAhead(30) });
+    insertToken({ id: 'tok_kept_new', tokenType: 'email_verify', issuedAt: daysAgo(1), expiresAt: daysAhead(30) });
 
     const result = await operationsPlatformService.runExpiredTokenCleanup();
     expect(result.deleted).toBe(1);

@@ -343,76 +343,45 @@ describe('findDispatchablePendingTranscode', () => {
   });
 });
 
-describe('markAbandoned', () => {
-  it('marks a row still waiting on the browser as abandoned', () => {
-    const svc = createMediaJobService();
-    const { id } = svc.createPendingUploadJob(makeInput());
-    svc.markAbandoned(id);
-    expect(readRow(id)?.state).toBe('abandoned');
-  });
-
-  it('is a no-op on rows past pending_upload', () => {
-    const svc = createMediaJobService();
-    const { id } = svc.createPendingUploadJob(makeInput());
-    svc.markPendingTranscode(id, adminId);
-    svc.markAbandoned(id);
-    const row = readRow(id);
-    expect(row?.state).toBe('pending_transcode');
-  });
-});
-
 /**
- * The status read reconciles one thing the state machine cannot learn any
- * other way from an event: an upload the browser never finished. The grants it
- * was signed for stop opening at the recorded moment, so no further bytes and
- * no finalize can follow, and the row would otherwise say it is still
- * uploading for as long as it exists.
+ * An upload the browser never finished reads as abandoned once its window has
+ * closed: the grants it was signed for stop opening at the recorded moment, so
+ * no further bytes and no finalize can follow. The state is derived, never
+ * written, so reading it changes nothing.
  */
-describe('getJobStatusForAdmin', () => {
-  it('reconciles a row whose upload window has closed to abandoned', () => {
-    const svc = createMediaJobService();
-    const { id } = svc.createPendingUploadJob(makeInput({ expiresAtIso: '2024-01-01T00:00:00.000Z' }));
+describe('isAbandonedUpload', () => {
+  let isAbandonedUpload: typeof import('../../src/services/mediaJobService').isAbandonedUpload;
+  const NOW = '2026-06-01T12:00:00.000Z';
 
-    const job = svc.getJobStatusForAdmin(id, adminId);
-    expect(job?.state).toBe('abandoned');
-    // Reconciled on the row itself, not only in what this call returned.
-    expect(readRow(id)?.state).toBe('abandoned');
+  beforeAll(async () => {
+    isAbandonedUpload = (await import('../../src/services/mediaJobService')).isAbandonedUpload;
   });
 
-  it('leaves a row whose window is still open alone', () => {
-    const svc = createMediaJobService();
-    const { id } = svc.createPendingUploadJob(makeInput({ expiresAtIso: '2099-01-01T00:00:00.000Z' }));
-
-    expect(svc.getJobStatusForAdmin(id, adminId)?.state).toBe('pending_upload');
-    expect(readRow(id)?.state).toBe('pending_upload');
+  it('reads a pending upload past its window as abandoned, and one still inside it as not', () => {
+    expect(isAbandonedUpload({ state: 'pending_upload', expires_at: '2026-06-01T11:59:59.999Z' }, NOW)).toBe(true);
+    expect(isAbandonedUpload({ state: 'pending_upload', expires_at: '2026-06-01T12:00:00.001Z' }, NOW)).toBe(false);
   });
 
-  it('never reconciles a row that is past waiting on the browser', () => {
-    const svc = createMediaJobService();
-    const { id } = svc.createPendingUploadJob(makeInput({ expiresAtIso: '2024-01-01T00:00:00.000Z' }));
-    svc.markPendingTranscode(id, adminId);
-
-    expect(svc.getJobStatusForAdmin(id, adminId)?.state).toBe('pending_transcode');
-    expect(readRow(id)?.state).toBe('pending_transcode');
+  it('treats the closing instant itself as closed', () => {
+    expect(isAbandonedUpload({ state: 'pending_upload', expires_at: NOW }, NOW)).toBe(true);
   });
 
-  it('keeps the owner scoping of the plain read: another admin sees nothing', () => {
-    const svc = createMediaJobService();
-    const { id } = svc.createPendingUploadJob(makeInput({ expiresAtIso: '2024-01-01T00:00:00.000Z' }));
-
-    expect(svc.getJobStatusForAdmin(id, 'member-someone-else')).toBeNull();
-    // And the row another admin could not see was not reconciled on their behalf.
-    expect(readRow(id)?.state).toBe('pending_upload');
+  it('never reads a job past waiting on the browser as abandoned, even with an old window', () => {
+    for (const state of ['pending_transcode', 'processing', 'succeeded', 'failed'] as const) {
+      expect(isAbandonedUpload({ state, expires_at: '2024-01-01T00:00:00.000Z' }, NOW), state).toBe(false);
+    }
+    expect(isAbandonedUpload({ state: 'pending_transcode', expires_at: null }, NOW)).toBe(false);
   });
 
-  it('leaves the finalize path reading the unreconciled row, so a late finish still completes', () => {
+  it('leaves the stored row untouched, so a late finish still completes', () => {
     // An upload that finished just before its window closed has bytes in
-    // storage and a legitimate finalize to make. The plain read finalize uses
-    // must not reconcile the row out from under it.
+    // storage and a legitimate finalize to make; reading the job must not
+    // move the row out from under it.
     const svc = createMediaJobService();
     const { id } = svc.createPendingUploadJob(makeInput({ expiresAtIso: '2024-01-01T00:00:00.000Z' }));
 
-    expect(svc.getJobForAdmin(id, adminId)?.state).toBe('pending_upload');
+    const job = svc.getJobForAdmin(id, adminId);
+    expect(job && isAbandonedUpload(job, new Date().toISOString())).toBe(true);
     expect(readRow(id)?.state).toBe('pending_upload');
     svc.markPendingTranscode(id, adminId);
     expect(readRow(id)?.state).toBe('pending_transcode');

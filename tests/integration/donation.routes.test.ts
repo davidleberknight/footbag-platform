@@ -16,7 +16,7 @@ import request from '../fixtures/supertestWithOrigin';
 import plainRequest from 'supertest';
 import BetterSqlite3 from 'better-sqlite3';
 import { seedPersona } from '../../src/testkit/personaFactory';
-import { createTestSessionJwt } from '../fixtures/factories';
+import { createTestSessionJwt, insertSystemConfig } from '../fixtures/factories';
 
 const OWNER_SLUG = 'don_route_owner';
 const OTHER_SLUG = 'don_route_other';
@@ -26,6 +26,12 @@ const OWNER = `member_persona_${OWNER_SLUG}`;
 const OTHER = `member_persona_${OTHER_SLUG}`;
 const CONCURRENT = `member_persona_${CONCURRENT_SLUG}`;
 const BAP_ONLY = `member_persona_${BAP_SLUG}`;
+const REPEAT_SLUG = 'don_route_repeat';
+const REPEAT_REC_SLUG = 'don_route_repeat_rec';
+const RL_SLUG = 'don_route_rl';
+const REPEAT = `member_persona_${REPEAT_SLUG}`;
+const REPEAT_REC = `member_persona_${REPEAT_REC_SLUG}`;
+const RL = `member_persona_${RL_SLUG}`;
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
@@ -41,7 +47,7 @@ beforeAll(async () => {
     tier: 'tier1',
     honors: { hof: true },
     testingUsage: 'Donation route fixture.',
-    coverageNotes: ['donation routes owner, holds an honor so the note prefills'],
+    coverageNotes: ['donation routes owner, holds an honor, which prefills nothing'],
   });
   seedPersona(db, {
     slug: OTHER_SLUG,
@@ -65,6 +71,19 @@ beforeAll(async () => {
     testingUsage: 'Donation route fixture.',
     coverageNotes: ['donation routes member holding only the Big Add Posse honor'],
   });
+  for (const [slug, note] of [
+    [REPEAT_SLUG, 'one-time gift submitted twice'],
+    [REPEAT_REC_SLUG, 'recurring gift submitted twice'],
+    [RL_SLUG, 'repeated gifts against the hourly attempt limit'],
+  ] as const) {
+    seedPersona(db, {
+      slug,
+      displayName: `Route ${slug}`,
+      tier: 'tier1',
+      testingUsage: 'Donation route fixture.',
+      coverageNotes: [`donation routes member for a ${note}`],
+    });
+  }
   db.close();
   createApp = await importApp();
 });
@@ -105,21 +124,19 @@ describe('GET /donate', () => {
     expect(res.text).toContain('name="customAmount"');
   });
 
-  it('prefills the Hall of Fame fund note for a Hall of Fame member', async () => {
-    const res = await plainRequest(createApp()).get('/donate').set('Cookie', cookie(OWNER));
-    expect(res.status).toBe(200);
-    expect(noteValue(res.text)).toBe('HoF Fund');
-  });
-
-  // IFPA has no Big Add Posse fund, so prefilling one would designate the gift
-  // to a fund that does not exist; a member with no honor gets no prefill either.
-  it('leaves the note empty for a Big Add Posse member and for a member holding no honor', async () => {
+  // Every donation is a gift to IFPA, so the note starts empty whatever honor
+  // the member holds: a prefilled fund would designate a gift the donor never
+  // designated.
+  it('starts the note empty for every member, Hall of Fame and Big Add Posse members included', async () => {
+    const hof = await plainRequest(createApp()).get('/donate').set('Cookie', cookie(OWNER));
+    expect(hof.status).toBe(200);
+    expect(noteValue(hof.text) ?? '').toBe('');
     const bap = await plainRequest(createApp()).get('/donate').set('Cookie', cookie(BAP_ONLY));
     expect(bap.status).toBe(200);
-    expect(noteValue(bap.text)).toBe('');
+    expect(noteValue(bap.text) ?? '').toBe('');
     const none = await plainRequest(createApp()).get('/donate').set('Cookie', cookie(OTHER));
     expect(none.status).toBe(200);
-    expect(noteValue(none.text)).toBe('');
+    expect(noteValue(none.text) ?? '').toBe('');
   });
 
   it('is marked do-not-index, being a signed-in action page rather than public content', async () => {
@@ -192,6 +209,141 @@ describe('POST /donate', () => {
       .type('form')
       .send({ amountChoice: '2500', recurring: 'no' });
     expect(res.status).toBe(302);
+  });
+});
+
+/** What a donation attempt writes for one member: unresolved one-time rows,
+ *  unresolved recurring rows, checkout-started audit rows, and outbox rows. */
+function donationFootprint(memberId: string): {
+  pendingPayments: number; incompleteSubscriptions: number; audits: number; outbox: number;
+} {
+  const db = new BetterSqlite3(dbPath, { readonly: true });
+  try {
+    const n = (sql: string): number => (db.prepare(sql).get(memberId) as { c: number }).c;
+    return {
+      pendingPayments: n(
+        `SELECT COUNT(*) AS c FROM payments
+          WHERE member_id = ? AND payment_type = 'donation' AND status = 'pending'`,
+      ),
+      incompleteSubscriptions: n(
+        `SELECT COUNT(*) AS c FROM recurring_donation_subscriptions
+          WHERE member_id = ? AND status = 'incomplete'`,
+      ),
+      audits: n(
+        `SELECT COUNT(*) AS c FROM audit_entries
+          WHERE action_type = 'payment.donation_checkout_started' AND actor_member_id = ?`,
+      ),
+      outbox: n(`SELECT COUNT(*) AS c FROM outbox_emails WHERE recipient_member_id = ?`),
+    };
+  } finally {
+    db.close();
+  }
+}
+
+describe('a donation submitted twice', () => {
+  const donate = (memberId: string, body: Record<string, string>) => request(createApp())
+    .post('/donate')
+    .set('Cookie', cookie(memberId))
+    .type('form')
+    .send(body);
+
+  // Defect caught: a double-click on Donate opens a second checkout at the
+  // provider, leaving two pending gifts a donor could both pay, or records the
+  // attempt twice.
+  it('a one-time gift repeated returns to the checkout the first opened and writes nothing', async () => {
+    const body = { amountChoice: '2500', recurring: 'no', note: 'For the youth fund' };
+    const first = await donate(REPEAT, body);
+    expect(first.status).toBe(303);
+    expect(first.headers.location).toMatch(/\/payments\/checkout\//);
+    const afterFirst = donationFootprint(REPEAT);
+    expect(afterFirst.pendingPayments).toBe(1);
+
+    const second = await donate(REPEAT, body);
+    expect(second.status).toBe(303);
+    expect(second.headers.location).toBe(first.headers.location);
+    expect(donationFootprint(REPEAT)).toEqual(afterFirst);
+  });
+
+  // Defect caught: a repeated recurring signup opens a second yearly
+  // subscription checkout, so a donor who completes both is billed twice a
+  // year.
+  it('a recurring gift repeated returns to the checkout the first opened and writes nothing', async () => {
+    const body = { amountChoice: '5000', recurring: 'yes', note: 'Yearly support' };
+    const first = await donate(REPEAT_REC, body);
+    expect(first.status).toBe(303);
+    const afterFirst = donationFootprint(REPEAT_REC);
+    expect(afterFirst.incompleteSubscriptions).toBe(1);
+
+    const second = await donate(REPEAT_REC, body);
+    expect(second.status).toBe(303);
+    expect(second.headers.location).toBe(first.headers.location);
+    expect(donationFootprint(REPEAT_REC)).toEqual(afterFirst);
+  });
+
+  // Defect caught: a donor who changes the amount after backing out is sent
+  // to the old checkout for the old amount instead of a new one.
+  it('a different amount, or a different note, opens a new checkout', async () => {
+    for (const recurring of ['no', 'yes']) {
+      const base = { amountChoice: '2500', recurring, note: `For the youth fund ${recurring}` };
+      const first = await donate(REPEAT, base);
+      const otherAmount = await donate(REPEAT, { ...base, amountChoice: '10000' });
+      const otherNote = await donate(REPEAT, { ...base, note: `For the worlds fund ${recurring}` });
+      expect(otherAmount.status).toBe(303);
+      expect(otherNote.status).toBe(303);
+      const locations = new Set([first, otherAmount, otherNote].map((r) => r.headers.location));
+      expect(locations.size, `recurring=${recurring}`).toBe(3);
+    }
+  });
+
+  // Defect caught: a donor whose first checkout has closed at the provider is
+  // sent back to a dead checkout page instead of a fresh one.
+  it('opens a new checkout once the first has closed at the provider', async () => {
+    const mod = await import('../../src/adapters/paymentAdapter');
+    mod.getPaymentAdapter();
+    const stub = mod.getStubPaymentAdapterForTests()!;
+    // The provider reports these sessions closed (expired or completed).
+    const closed = new Set<string>();
+    mod.setPaymentAdapterForTests({
+      ...stub,
+      async openCheckoutUrl(sessionId: string) {
+        return closed.has(sessionId) ? null : stub.openCheckoutUrl(sessionId);
+      },
+    });
+    try {
+      for (const recurring of ['no', 'yes']) {
+        const body = { amountChoice: '7500', recurring, note: `closed-session ${recurring}` };
+        const first = await donate(REPEAT, body);
+        expect(first.status).toBe(303);
+        closed.add(String(first.headers.location).split('/').pop()!);
+        const before = donationFootprint(REPEAT);
+
+        const second = await donate(REPEAT, body);
+        expect(second.status).toBe(303);
+        expect(second.headers.location, `recurring=${recurring}`).not.toBe(first.headers.location);
+        expect(donationFootprint(REPEAT).audits).toBe(before.audits + 1);
+      }
+    } finally {
+      mod.resetPaymentAdapterForTests();
+    }
+  });
+
+  // Defect caught: a gift paid at the provider whose confirmation has not
+  // arrived, submitted again, either opens a second checkout or fails with a
+  // server error, instead of telling the donor it is still being confirmed.
+  it('a gift resubmitted after paying, before its confirmation, is told it is still confirming', async () => {
+    const mod = await import('../../src/adapters/paymentAdapter');
+    mod.getPaymentAdapter();
+    const stub = mod.getStubPaymentAdapterForTests()!;
+    const body = { amountChoice: '2500', recurring: 'no', note: 'paid, not yet confirmed' };
+    const first = await donate(REPEAT, body);
+    expect(first.status).toBe(303);
+    stub.buildSignedStubWebhookEvent(String(first.headers.location).split('/').pop()!);
+    const before = donationFootprint(REPEAT);
+
+    const second = await donate(REPEAT, body);
+    expect(second.status).toBe(422);
+    expect(second.text).toContain('We are still confirming your last donation checkout. Please try again in a few minutes.');
+    expect(donationFootprint(REPEAT)).toEqual(before);
   });
 });
 
@@ -488,5 +640,53 @@ describe('GET /members/:memberKey/payments with recurring donations', () => {
       .set('Cookie', cookie(OWNER));
     expect(res.text).toContain('Cancellation requested');
     expect(res.text).not.toContain(`/recurring-donations/${stripeSubscriptionId}/cancel`);
+  });
+});
+
+// Kept last: this block lowers donation_rate_limit_per_hour through
+// system_config, a latest-effective value that would otherwise throttle the
+// donation posts of every describe after it.
+describe('a repeated donation and the hourly attempt limit', () => {
+  // Defect caught: a double-click spends one of the donor's checkout attempts,
+  // so a donor who double-clicked is refused a later genuine gift, or a donor
+  // at the limit who re-posts is refused a checkout that is already open.
+  it('a repeat spends no attempt, one-time or recurring', async () => {
+    const seedDb = new BetterSqlite3(dbPath);
+    insertSystemConfig(seedDb, { config_key: 'donation_rate_limit_per_hour', value_json: '2' });
+    seedDb.close();
+    const rl = await import('../../src/services/rateLimitService');
+    rl.resetRateLimitForTests();
+    try {
+      const donate = (body: Record<string, string>) => request(createApp())
+        .post('/donate')
+        .set('Cookie', cookie(RL))
+        .type('form')
+        .send(body);
+      const oneTime = { amountChoice: '2500', recurring: 'no', note: 'limit one-time' };
+      const yearly = { amountChoice: '2500', recurring: 'yes', note: 'limit yearly' };
+
+      const first = await donate(oneTime);
+      expect(first.status).toBe(303);
+      expect((await donate(oneTime)).headers.location).toBe(first.headers.location);
+
+      // The second and last attempt is still free after the repeat above.
+      const firstYearly = await donate(yearly);
+      expect(firstYearly.status).toBe(303);
+
+      // At the limit, repeats of either still return to their open checkout.
+      const repeatYearly = await donate(yearly);
+      expect(repeatYearly.status).toBe(303);
+      expect(repeatYearly.headers.location).toBe(firstYearly.headers.location);
+      const repeatOneTime = await donate(oneTime);
+      expect(repeatOneTime.status).toBe(303);
+      expect(repeatOneTime.headers.location).toBe(first.headers.location);
+
+      // A genuinely new gift is held to the limit.
+      const fresh = await donate({ ...oneTime, amountChoice: '10000' });
+      expect(fresh.status).toBe(429);
+      expect(fresh.headers['retry-after']).toBeDefined();
+    } finally {
+      rl.resetRateLimitForTests();
+    }
   });
 });

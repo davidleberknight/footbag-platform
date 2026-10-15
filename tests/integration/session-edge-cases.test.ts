@@ -269,7 +269,7 @@ describe('session edge cases — authz role is derived from DB, not JWT claims',
         newPassword: NEW_PASSWORD,
         confirmPassword: NEW_PASSWORD,
       });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(303);
     const reissued = extractSessionCookie(res);
     const payload = decodeJwtPayload(reissued);
     expect(payload.role).toBe('member');
@@ -300,7 +300,7 @@ describe('session edge cases — authz role is derived from DB, not JWT claims',
         newPassword: NEW_PASSWORD,
         confirmPassword: NEW_PASSWORD,
       });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(303);
     const reissued = extractSessionCookie(res);
     const payload = decodeJwtPayload(reissued);
     expect(payload.role).toBe('admin');

@@ -59,6 +59,7 @@ Before touching any file, state:
 - which user story acceptance criteria are being satisfied
 - touched files: service, db.ts statement groups, serviceErrors.ts, tests
 - any data invariants that must be preserved (transactions, soft-delete, audit trail)
+- for a state-changing method on a path the submitted-twice rule covers: how a repeat is recognised (the already-holds check returning `own_repeat` or `already_held`), and that a repeat spends no audit row, outbox row or rate-limit slot
 - risks and edge cases
 - verification plan
 

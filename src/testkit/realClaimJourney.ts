@@ -153,7 +153,8 @@ export async function buildRealClaimJourney(legacyMemberId: string): Promise<Bui
     realName, '127.0.0.1',
   );
 
-  // 2. Recover the verify link from the stub-SES outbox (drains it first).
+  // 2. Recover the verify link from the stub-SES outbox, draining it first.
+  await simulatedEmailService.drainCapturedMail();
   const preview = await simulatedEmailService.getEmailPreview({
     urlPathPrefix: '/verify',
     recipientEmail: email,

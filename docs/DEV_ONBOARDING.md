@@ -34,6 +34,7 @@ This guide helps contributors understand how the platform is structured and get 
   - [1.10 Run the test suite](#110-run-the-test-suite)
   - [1.10A Optional: load the full operator dataset](#110a-optional-load-the-full-operator-dataset)
   - [1.10B Set up your developer tooling](#110b-set-up-your-developer-tooling-after-your-first-green-run)
+  - [1.10C GitHub account setup](#110c-github-account-setup)
   - [1.11 Optional: exercise Safe Browsing in dev](#111-optional-exercise-safe-browsing-in-dev)
   - [1.12 Optional deterministic checks](#112-optional-deterministic-checks)
   - [1.13 Docker parity check](#113-docker-parity-check)
@@ -517,6 +518,19 @@ Always start `claude` from the repository root (`~/GIT/footbag-platform`), not a
 
 For how the harness fits together — what loads when, where rules, skills, hooks, and permissions live, and how to change any of it safely — see `docs/CLAUDE_CODE_GUIDE.md`.
 
+### 1.10C GitHub account setup
+
+Collaborator access is granted by hand by the maintainer. Set up your GitHub
+account before it arrives; none of this helps once a laptop is lost:
+
+- Two-factor authentication with an authenticator app that backs up to the
+  cloud, not text messages.
+- Recovery codes kept in a password manager, not in a file on your laptop.
+- An SSH key registered with GitHub now, separate from the staging-only key.
+- Any personal access token fine-grained, limited to this project's
+  repositories, and set to expire.
+- If you use the GitHub CLI, sign it in with `gh auth login`.
+
 ### 1.11 Optional: exercise Safe Browsing in dev
 
 Default dev behavior: stub `SafeBrowsingAdapter` with the canonical Google
@@ -641,36 +655,21 @@ Several conveniences exist to reduce friction during local manual testing. They 
 | Tool | Type | Allowed envs | What it does |
 |---|---|---|---|
 | `FOOTBAG_DEV_INITIAL_ADMIN_EMAILS` | env var | development AND staging | Email allowlist matched at registration; matching registrants get `is_admin=1` plus a Tier 2 grant plus audit rows in one transaction. The deploy pipeline parses the operator-local allowlist in the private operations checkout into this env var; that same file is the dev source. Production refused at boot and at deploy time. |
-| `GET /dev/switch?as=<slug>` | dev route | development and staging | Issues a real session cookie for a seeded persona via the production JWT primitive, so you act as any persona without a login chain. Audit-marked `testkit.persona_switch`. |
 | `./scripts/manage-test-personas.sh --seed-test-personas` (or `./run_dev.sh --seed-test-personas`) | operator script | development AND staging | Seeds the canonical persona catalog. The rebuild modes that seed personas (`--from-csv`, `--all-data`, `--soup-to-nuts`) run this too, so a rebuilt database carries the catalog, including its two admin personas, without the dev-admin allowlist being involved. Tier grants marked `dev_persona_seed.tier_grant`. Production blocked by the testkit import guard and the production image strip. |
 | `./scripts/manage-test-personas.sh --refresh-test-personas --apply` (or the default refresh on `./run_dev.sh` and a code-only staging deploy) | operator script | development AND staging | Rebuilds every persona from its current spec, deleting persona-owned rows first. The only path that makes an existing database match a changed catalog; reports and writes nothing without `--apply`, and leaves a database with no personas untouched. Production blocked by the same import guard and image strip, and refused for any deploy target but staging. |
 
 Production carries none of these tools. A member who needs a legacy identity linked after onboarding files the identity-link request from their profile, and an administrator applies the link (the `A_Review_Member_Link_Help_Requests` user story).
 
-##### Switch between personas in the browser (/dev/personas)
+##### Acting as a persona in the browser
 
-Removes login friction during local manual testing of tier-gated and member-only flows. Seed the persona catalog once, then open `/dev/personas` to browse every loadable persona and click its Switch link to act as that persona without a login chain (or, if you already know the slug, hit `/dev/switch?as=<slug>` directly):
-
-`./run_dev.sh` sets `FOOTBAG_ENV=development` itself, so nothing needs exporting first:
-
-```bash
-./run_dev.sh --seed-test-personas
-# then in a browser:
-#   http://localhost:3000/dev/personas             (the persona catalog: browse and click Switch)
-#   http://localhost:3000/dev/switch?as=t0_fresh   (direct by slug: tier0)
-#   http://localhost:3000/dev/switch?as=admin_t2   (direct by slug: admin)
-```
-
-The `/dev` router mounts under `FOOTBAG_ENV ∈ {development, staging}`, so the switch surface exists in development and staging but never in production. It issues a real session cookie via the same primitive the production login path uses (`createSessionJwt`), verified by the same auth middleware, then redirects to `/`. The canonical persona catalog lives in `src/testkit/canonicalPersonas.ts`.
-
-For the full tester workflow built on this harness (purchase flow from a fresh persona, the stub-checkout decline button, onboarding/legacy/clubs walk-throughs, and the captured-email card on dev and staging), see the tester runbook in `docs/TESTING.md` §16.
+To act as any seeded persona in the browser without a login chain, use the persona harness described in the tester runbook in `docs/TESTING.md` (Tester runbook: using the persona harness).
 
 A stub `legacy_members` row with no email and no date of birth (for example before the legacy data dump is loaded) offers nothing to corroborate a self-serve claim, so the onboarding wizard's `legacy_claim` task shows it without a claim control; an administrator links it through the identity-link request after onboarding.
 
 
 ### 1.15 Filing a bug
 
-Defects are filed in the maintainers' private tracker (GitHub Issues on the private operations repository) using its Bug template: state observed versus expected behavior with the exact route or surface, reference members by record id and structural description (never name plus contact data), and never paste secret values. A contributor without access to that tracker reports the same information to the maintainer instead, per `CONTRIBUTING.md`'s "Reporting a problem or proposing work", and the maintainer files it. Security vulnerabilities go through GitHub's private vulnerability reporting on this public repository (see `SECURITY.md`), never a regular issue.
+Developers and testers file defects in the private dev-tester repository, where a maintainer triages each report: state observed versus expected behavior with the exact route or surface, reference members by record id and structural description (never name plus contact data), and never paste secret values. A contributor without access to that repository reports the same information to the maintainer instead, per `CONTRIBUTING.md`'s "Reporting a problem or proposing work", and the maintainer files it. Security vulnerabilities go through GitHub's private vulnerability reporting on this public repository (see `SECURITY.md`), never a regular issue.
 
 Per `docs/TESTING.md` §9.6, every closed bug lands with a regression test at the cheapest appropriate layer. A bug without a regression test is not closed.
 
@@ -928,7 +927,7 @@ Important file-level responsibilities:
 
 ## 3. AWS deployment and operations
 
-Local development, the test suite, and the architecture orientation above need no AWS access. Staging access is granted by a maintainer to fully vetted volunteers only, as a dev-and-tester. A dev-and-tester needs nothing beyond this public repository: no access to the maintainers' private operations repository and no checkout of it. The rest of AWS operations belongs to the maintainers and is documented in that private repository.
+Local development, the test suite, and the architecture orientation above need no AWS access. Staging access is granted by a maintainer to fully vetted volunteers only, as a dev-and-tester. A dev-and-tester needs nothing beyond this public repository, the private dev-tester repository and the team Discord server: no access to the maintainers' private operations repository and no checkout of it. The rest of AWS operations belongs to the maintainers and is documented in that private repository.
 
 ### 3.1 Staging as a dev-and-tester
 
@@ -969,7 +968,7 @@ A dev-and-tester has their own host account on staging and their own IAM user, w
 - Every deploy first checks that the environment's infrastructure matches the Terraform in the tree being shipped, and refuses if it does not. That check needs the maintainers' private values file, so on your machine a staging deploy prints `NOTICE: infrastructure check not run` and carries on; a maintainer's next deploy makes the check. If your change edits staging's Terraform, it has to be applied by a maintainer before staging can run it.
 - A schema change reaches staging with `./deploy_to_aws.sh --public-data`, through the wrapper. It rebuilds staging's database from the committed public inputs alone and replaces it. Staging then lacks the real legacy members, the roster-based enrichment, the account rulings and board flags, and every other member row it held, until a maintainer's full rebuild restores them. The run says so before it starts and as the last thing it prints, and it is refused for production.
 
-**Leaving.** Offboarding disables your host account, retires your AWS identity and its key, and removes your address from the staging allow-list. Your clone of this repository is untouched, and repository access is granted and withdrawn separately. Offboarding runs on the maintainer's machine and changes nothing on yours: your keys stay where they are, and every credential the onboarding gave you stops working. To come back, make a fresh pair, retiring the one your acceptance recorded, and join again from step 1 with the new key; `--replace-key` acts on the staging pair at `~/.ssh/id_ed25519_<your_account>` alone, never your other keys:
+**Leaving.** Offboarding disables your host account, retires your AWS identity and its key, and removes your address from the staging allow-list. Your clone of this repository is untouched, and GitHub and Discord access are granted and withdrawn separately, by hand, by the maintainer. Offboarding runs on the maintainer's machine and changes nothing on yours: your keys stay where they are, and every credential the onboarding gave you stops working. To come back, make a fresh pair, retiring the one your acceptance recorded, and join again from step 1 with the new key; `--replace-key` acts on the staging pair at `~/.ssh/id_ed25519_<your_account>` alone, never your other keys:
 
 ```bash
 bash scripts/setup-dev-workstation.sh --aws \

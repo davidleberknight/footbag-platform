@@ -10,7 +10,7 @@
  *   - list redacts a member's sign-in address to their own visibility choice
  *   - getOfficialRosterPage shapes the whole-roster summary figures, the
  *     searched and tier-filtered member rows, the filter controls, and paging
- *   - every call writes a category='roster_access' audit entry
+ *   - reading the roster writes nothing, not even an audit row
  *
  * The roster is never exported: the IFPA governing documents grant access and
  * say nothing about taking a copy, so there is no CSV and no download.
@@ -141,21 +141,16 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-function rosterAuditCount(actionType: string): number {
+function auditRowCount(): number {
   const db = new BetterSqlite3(dbPath, { readonly: true });
-  const row = db
-    .prepare(
-      `SELECT COUNT(*) AS n FROM audit_entries
-       WHERE category = 'roster_access' AND action_type = ?`,
-    )
-    .get(actionType) as { n: number };
+  const row = db.prepare('SELECT COUNT(*) AS n FROM audit_entries').get() as { n: number };
   db.close();
   return row.n;
 }
 
 describe('list', () => {
   it('returns all roster rows ordered by display_name (CASE NOCASE)', () => {
-    const rows = ors.list(ADMIN_ID);
+    const rows = ors.list();
     const ids = rows.map((r) => r.member_id);
     // Roster cohort: m-t1, m-t2, m-t3, m-t0-ap, m-t2-bap (5 rows)
     expect(ids.sort()).toEqual(
@@ -164,44 +159,44 @@ describe('list', () => {
   });
 
   it('excludes deceased members (view: is_deceased = 0)', () => {
-    const rows = ors.list(ADMIN_ID);
+    const rows = ors.list();
     expect(rows.find((r) => r.member_id === 'm-t1-deceased')).toBeUndefined();
   });
 
   it('excludes Tier 0 members without current Active Player', () => {
-    const rows = ors.list(ADMIN_ID);
+    const rows = ors.list();
     expect(rows.find((r) => r.member_id === 'm-t0-only')).toBeUndefined();
     expect(rows.find((r) => r.member_id === 'm-t0-expired')).toBeUndefined();
   });
 
   it('tier filter narrows to the requested tiers', () => {
-    const rows = ors.list(ADMIN_ID, { tier: ['tier2'] });
+    const rows = ors.list({ tier: ['tier2'] });
     const ids = rows.map((r) => r.member_id).sort();
     expect(ids).toEqual(['m-t2', 'm-t2-bap']);
   });
 
   it('multi-tier filter accepts an array', () => {
-    const rows = ors.list(ADMIN_ID, { tier: ['tier1', 'tier3'] });
+    const rows = ors.list({ tier: ['tier1', 'tier3'] });
     const ids = rows.map((r) => r.member_id).sort();
     expect(ids).toEqual(['m-t1', 'm-t3']);
   });
 
   it('rejects an invalid tier value', () => {
     expect(() =>
-      ors.list(ADMIN_ID, { tier: ['tierX' as unknown as 'tier1'] }),
+      ors.list({ tier: ['tierX' as unknown as 'tier1'] }),
     ).toThrow(/invalid tier/);
   });
 
-  it('writes an audit entry with category=roster_access and row_count metadata', () => {
-    const before = rosterAuditCount('roster.list');
-    ors.list(ADMIN_ID);
-    expect(rosterAuditCount('roster.list')).toBe(before + 1);
+  it('writes no audit row', () => {
+    const before = auditRowCount();
+    ors.list();
+    expect(auditRowCount()).toBe(before);
   });
 });
 
 describe('summary', () => {
   it('returns the dashboard breakdown shape', () => {
-    const s = ors.summary(ADMIN_ID);
+    const s = ors.summary();
     expect(s.total).toBe(5);
     expect(s.byTier).toEqual({
       tier0_active_player: 1,
@@ -217,34 +212,34 @@ describe('summary', () => {
   });
 
   it('totalRegistered includes Tier 0 members without Active Player', () => {
-    const s = ors.summary(ADMIN_ID);
+    const s = ors.summary();
     // Seed: ADMIN + 5 roster + 3 excluded (t0_only, t0_expired, t1_deceased)
     // = 9 total active members.
     expect(s.totalRegistered).toBe(9);
     expect(s.totalRegistered).toBeGreaterThan(s.total);
   });
 
-  it('writes a roster.summary audit entry', () => {
-    const before = rosterAuditCount('roster.summary');
-    ors.summary(ADMIN_ID);
-    expect(rosterAuditCount('roster.summary')).toBe(before + 1);
+  it('writes no audit row', () => {
+    const before = auditRowCount();
+    ors.summary();
+    expect(auditRowCount()).toBe(before);
   });
 });
 
 describe('list email redaction', () => {
   it('carries the sign-in address for a member who opted in', () => {
-    const alice = ors.list(ADMIN_ID).find((r) => r.member_id === 'm-t1');
+    const alice = ors.list().find((r) => r.member_id === 'm-t1');
     expect(alice?.email).toBe('alice@example.com');
   });
 
   it('returns null instead of the address for a member who did not opt in', () => {
-    const bob = ors.list(ADMIN_ID).find((r) => r.member_id === 'm-t2');
+    const bob = ors.list().find((r) => r.member_id === 'm-t2');
     expect(bob).toBeDefined();
     expect(bob?.email).toBeNull();
   });
 
   it('never returns the raw login_email or the visibility flag to callers', () => {
-    const row = ors.list(ADMIN_ID)[0];
+    const row = ors.list()[0];
     expect(row).not.toHaveProperty('login_email');
     expect(row).not.toHaveProperty('email_visibility');
   });
@@ -252,21 +247,21 @@ describe('list email redaction', () => {
 
 describe('getOfficialRosterPage', () => {
   it('shapes the page envelope for the IFPA section and keeps it out of search engines', () => {
-    const vm = ors.getOfficialRosterPage(ADMIN_ID);
+    const vm = ors.getOfficialRosterPage();
     expect(vm.page.sectionKey).toBe('ifpa');
     expect(vm.page.pageKey).toBe('ifpa_roster');
     expect(vm.seo.noindex).toBe(true);
   });
 
   it('reports the roster total and the registered-account comparison count', () => {
-    const vm = ors.getOfficialRosterPage(ADMIN_ID);
+    const vm = ors.getOfficialRosterPage();
     const total = vm.content.summaryRows.find((r) => r.label === 'Total on Roster');
     expect(total?.value).toBe('5');
     expect(vm.content.totalRegistered).toBe(9);
   });
 
   it('leaves the summary figures whole-roster while a filter narrows only the list', () => {
-    const vm = ors.getOfficialRosterPage(ADMIN_ID, { tier: ['tier3'] });
+    const vm = ors.getOfficialRosterPage({ tier: ['tier3'] });
     const total = vm.content.summaryRows.find((r) => r.label === 'Total on Roster');
     expect(total?.value).toBe('5');
     expect(vm.content.members).toHaveLength(1);
@@ -274,7 +269,7 @@ describe('getOfficialRosterPage', () => {
   });
 
   it('lists every roster member ordered by display name', () => {
-    const vm = ors.getOfficialRosterPage(ADMIN_ID);
+    const vm = ors.getOfficialRosterPage();
     expect(vm.content.members.map((m) => m.displayName)).toEqual([
       'Alice Tier1', 'Bob Tier2', 'Carol Tier3', 'Dan Active', 'Eve Big Add',
     ]);
@@ -282,13 +277,13 @@ describe('getOfficialRosterPage', () => {
   });
 
   it('links a member to their profile by slug, not by member id', () => {
-    const vm = ors.getOfficialRosterPage(ADMIN_ID);
+    const vm = ors.getOfficialRosterPage();
     const alice = vm.content.members.find((m) => m.displayName === 'Alice Tier1');
     expect(alice?.profileHref).toBe('/members/t1');
   });
 
   it('shows an opted-in address and marks a withheld one as not shared', () => {
-    const vm = ors.getOfficialRosterPage(ADMIN_ID);
+    const vm = ors.getOfficialRosterPage();
     const alice = vm.content.members.find((m) => m.memberId === 'm-t1');
     const bob = vm.content.members.find((m) => m.memberId === 'm-t2');
     expect(alice?.hasEmail).toBe(true);
@@ -298,27 +293,27 @@ describe('getOfficialRosterPage', () => {
   });
 
   it('labels the honours a member holds', () => {
-    const vm = ors.getOfficialRosterPage(ADMIN_ID);
+    const vm = ors.getOfficialRosterPage();
     const carol = vm.content.members.find((m) => m.memberId === 'm-t3');
     expect(carol?.honorLabels).toEqual(['Hall of Fame', 'IFPA Board']);
   });
 
   it('narrows to a single tier when the tier filter is set', () => {
-    const vm = ors.getOfficialRosterPage(ADMIN_ID, { tier: ['tier2'] });
+    const vm = ors.getOfficialRosterPage({ tier: ['tier2'] });
     expect(vm.content.members.map((m) => m.memberId)).toEqual(['m-t2', 'm-t2-bap']);
     expect(vm.content.isFiltered).toBe(true);
     expect(vm.content.tierOptions.find((o) => o.value === 'tier2')?.isActive).toBe(true);
   });
 
   it('narrows by search term, matching part of a display name case-insensitively', () => {
-    const vm = ors.getOfficialRosterPage(ADMIN_ID, { q: 'carol' });
+    const vm = ors.getOfficialRosterPage({ q: 'carol' });
     expect(vm.content.members.map((m) => m.memberId)).toEqual(['m-t3']);
     expect(vm.content.hasSearch).toBe(true);
     expect(vm.content.matchCount).toBe(1);
   });
 
   it('reports an empty result rather than failing when nothing matches', () => {
-    const vm = ors.getOfficialRosterPage(ADMIN_ID, { q: 'nobody-by-this-name' });
+    const vm = ors.getOfficialRosterPage({ q: 'nobody-by-this-name' });
     expect(vm.content.members).toEqual([]);
     expect(vm.content.hasMembers).toBe(false);
     expect(vm.content.emptyStateText).toMatch(/No roster member matches/);
@@ -326,12 +321,12 @@ describe('getOfficialRosterPage', () => {
 
   it('rejects an unknown tier value rather than silently ignoring it', () => {
     expect(() =>
-      ors.getOfficialRosterPage(ADMIN_ID, { tier: ['tier9' as unknown as 'tier1'] }),
+      ors.getOfficialRosterPage({ tier: ['tier9' as unknown as 'tier1'] }),
     ).toThrow(/invalid tier filter value/);
   });
 
   it('keeps everything on one page while the roster fits, and offers no pager', () => {
-    const vm = ors.getOfficialRosterPage(ADMIN_ID);
+    const vm = ors.getOfficialRosterPage();
     expect(vm.content.pageCount).toBe(1);
     expect(vm.content.hasPaging).toBe(false);
     expect(vm.content.previousHref).toBeNull();
@@ -340,23 +335,21 @@ describe('getOfficialRosterPage', () => {
   });
 
   it('clamps a page number past the end back onto the last page', () => {
-    const vm = ors.getOfficialRosterPage(ADMIN_ID, { page: 99 });
+    const vm = ors.getOfficialRosterPage({ page: 99 });
     expect(vm.content.page).toBe(1);
     expect(vm.content.members).toHaveLength(5);
   });
 
   it('carries the search term into each tier filter link so the two compose', () => {
-    const vm = ors.getOfficialRosterPage(ADMIN_ID, { q: 'tier' });
+    const vm = ors.getOfficialRosterPage({ q: 'tier' });
     const tier2 = vm.content.tierOptions.find((o) => o.value === 'tier2');
     expect(tier2?.href).toBe('/ifpa/roster?tier=tier2&q=tier');
   });
 
-  it('audits the page view under roster_access', () => {
-    const beforeList = rosterAuditCount('roster.list');
-    const beforeSummary = rosterAuditCount('roster.summary');
-    ors.getOfficialRosterPage(ADMIN_ID);
-    expect(rosterAuditCount('roster.list')).toBe(beforeList + 1);
-    expect(rosterAuditCount('roster.summary')).toBe(beforeSummary + 1);
+  it('viewing the page writes no audit row', () => {
+    const before = auditRowCount();
+    ors.getOfficialRosterPage();
+    expect(auditRowCount()).toBe(before);
   });
 
   it('exposes no export, download, or file-producing method', () => {
@@ -368,17 +361,17 @@ describe('getOfficialRosterPage', () => {
 
 describe('roster page controls keep the reader oriented', () => {
   it('carries the chosen tier back into the search form so searching keeps it', () => {
-    const vm = ors.getOfficialRosterPage(ADMIN_ID, { tier: ['tier2'] });
+    const vm = ors.getOfficialRosterPage({ tier: ['tier2'] });
     expect(vm.content.activeTier).toBe('tier2');
   });
 
   it('leaves the carried tier empty when no tier is chosen', () => {
-    const vm = ors.getOfficialRosterPage(ADMIN_ID);
+    const vm = ors.getOfficialRosterPage();
     expect(vm.content.activeTier).toBe('');
   });
 
   it('offers an all-tiers option that widens the tier filter and keeps the search term', () => {
-    const vm = ors.getOfficialRosterPage(ADMIN_ID, { tier: ['tier2'], q: 'bob' });
+    const vm = ors.getOfficialRosterPage({ tier: ['tier2'], q: 'bob' });
     const all = vm.content.tierOptions.find((o) => o.label === 'All Tiers');
     expect(all).toBeDefined();
     expect(all?.href).toBe('/ifpa/roster?q=bob');
@@ -386,31 +379,31 @@ describe('roster page controls keep the reader oriented', () => {
   });
 
   it('marks all-tiers as the active option when no tier is chosen', () => {
-    const vm = ors.getOfficialRosterPage(ADMIN_ID);
+    const vm = ors.getOfficialRosterPage();
     const all = vm.content.tierOptions.find((o) => o.label === 'All Tiers');
     expect(all?.isActive).toBe(true);
   });
 
   it('says nothing about a range when there is no result to range over', () => {
-    const vm = ors.getOfficialRosterPage(ADMIN_ID, { q: 'nobody-by-this-name' });
+    const vm = ors.getOfficialRosterPage({ q: 'nobody-by-this-name' });
     expect(vm.content.rangeLabel).toBe('');
   });
 
   it('offers a way back to the IFPA section', () => {
-    const vm = ors.getOfficialRosterPage(ADMIN_ID);
+    const vm = ors.getOfficialRosterPage();
     expect(vm.content.backHref).toBe('/ifpa');
     expect(vm.content.backLabel).toBe('Back to IFPA Documents');
   });
 
   it('states a standing for a member holding no honours rather than leaving it blank', () => {
-    const vm = ors.getOfficialRosterPage(ADMIN_ID);
+    const vm = ors.getOfficialRosterPage();
     const alice = vm.content.members.find((m) => m.memberId === 'm-t1');
     expect(alice?.hasHonors).toBe(false);
     expect(alice?.noHonorsLabel).toBe('None');
   });
 
   it('writes the Active Player expiry in the site date format, not a raw timestamp', () => {
-    const vm = ors.getOfficialRosterPage(ADMIN_ID);
+    const vm = ors.getOfficialRosterPage();
     const dan = vm.content.members.find((m) => m.memberId === 'm-t0-ap');
     expect(dan?.activePlayerLabel).toBe('Active Player through 1 Jan 2099');
   });

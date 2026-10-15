@@ -46,6 +46,7 @@ export const FLASH_KIND = {
   // wording lives with the profile that shows it rather than in a cookie.
   VOUCH_RESULT: 'vouch_result',
   PROFILE_UPDATED: 'profile_updated',
+  PASSWORD_CHANGED: 'password_changed',
   RECURRING_DONATION_CANCELED: 'recurring_donation_canceled',
   RECONCILIATION_RESOLVED: 'reconciliation_resolved',
   // An administrator's correction on a member record. The payload is the
@@ -60,6 +61,11 @@ export const FLASH_KIND = {
   // code the admin tag service turns back into a sentence, so the wording lives
   // with the surface rather than in a cookie.
   TAG_RETIRED: 'tag_retired',
+  // An administrator's role grant or revoke, or honor grant, that found the
+  // change already made by another act. The payload is the sentence and its
+  // tone, so the list page reports that nothing was changed.
+  ADMIN_ROLE_OUTCOME: 'admin_role_outcome',
+  HONOR_GRANT_OUTCOME: 'honor_grant_outcome',
   ALARM_ACKNOWLEDGED: 'alarm_acknowledged',
   // A second administrator submitting the same acknowledgment, or one submitting
   // it after the condition cleared, changed nothing and must not be told they

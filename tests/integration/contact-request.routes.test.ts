@@ -333,6 +333,79 @@ describe('POST /members/:slug/contact-admin', () => {
     db.close();
   });
 
+  // Defect caught: a double-click or back-button re-post opens a second copy of
+  // the same request for an administrator to work, records it twice, or shows
+  // the member an error for a request that went through.
+  it('the same request submitted twice opens one queue item and one audit row, with the same redirect and flash', async () => {
+    const app = createApp();
+    const snap = new BetterSqlite3(dbPath, { readonly: true });
+    const beforeAudit = snapshotIds(snap, contactAudit(OWNER_ID));
+    snap.close();
+    const send = () => request(app)
+      .post(`/members/${OWNER_SLUG}/contact-admin`)
+      .set('Cookie', ownerCookie())
+      .type('form')
+      .send({ category: 'display_name_correction', message: 'Please fix my surname, it is Smyth.' });
+    const flashOf = (res: { get(h: string): string[] | undefined }): string | undefined =>
+      (res.get('Set-Cookie') ?? []).find((c) => c.startsWith('footbag_flash='))?.split(';')[0];
+
+    const first = await send();
+    const second = await send();
+    expect(first.status).toBe(303);
+    expect(second.status).toBe(303);
+    expect(second.headers.location).toBe(first.headers.location);
+    expect(flashOf(first)).toBeDefined();
+    expect(flashOf(second)).toBe(flashOf(first));
+
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const items = db.prepare(`SELECT id FROM work_queue_items WHERE entity_id = ?`).all(OWNER_ID);
+    const added = snapshotIds(db, contactAudit(OWNER_ID));
+    const outbox = db.prepare(`SELECT COUNT(*) AS n FROM outbox_emails`).get() as { n: number };
+    db.close();
+    expect(items).toHaveLength(1);
+    expect([...added].filter((id) => !beforeAudit.has(id))).toHaveLength(1);
+    expect(outbox.n).toBe(0);
+  });
+
+  // Defect caught: a repeated submit is counted against the three-open cap, so
+  // a member who double-clicked is refused their next real request, or a
+  // member at the cap who re-posts their last request is told they have too
+  // many open.
+  it('a repeat takes no slot under the open-request cap, while different words are a new request', async () => {
+    const app = createApp();
+    const send = (message: string) => request(app)
+      .post(`/members/${OWNER_SLUG}/contact-admin`)
+      .set('Cookie', ownerCookie())
+      .type('form')
+      .send({ category: 'other', message });
+    const openCount = (): number => {
+      const db = new BetterSqlite3(dbPath, { readonly: true });
+      const row = db.prepare(
+        `SELECT COUNT(*) AS n FROM work_queue_items WHERE entity_id = ? AND status = 'open'`,
+      ).get(OWNER_ID) as { n: number };
+      db.close();
+      return row.n;
+    };
+
+    expect((await send('first matter')).status).toBe(303);
+    expect((await send('second matter')).status).toBe(303);
+    expect((await send('second matter')).status).toBe(303);
+    expect(openCount()).toBe(2);
+
+    // Different words are a new request, and the repeat above left the third
+    // slot free for it.
+    expect((await send('third matter')).status).toBe(303);
+    expect(openCount()).toBe(3);
+
+    // At the cap, re-posting the last request still reports its first outcome.
+    const repeatAtCap = await send('third matter');
+    expect(repeatAtCap.status).toBe(303);
+    expect(repeatAtCap.headers.location).toBe(`/members/${OWNER_SLUG}/contact-admin`);
+    expect(openCount()).toBe(3);
+
+    expect((await send('fourth matter')).status).toBe(429);
+  });
+
   it('a routine contact request opens a queue row and sends no per-event admin email', async () => {
     // A member contact request is a routine task type: it is read on the
     // dashboard and rolled into the admin digest, never emailed per event to

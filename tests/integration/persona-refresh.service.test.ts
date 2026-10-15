@@ -185,8 +185,8 @@ describe('refreshAllPersonas', () => {
       activity_signal: 'active',
     });
 
-    // Auth and identity flows: reset token, declared anchor, a data-export
-    // token, and a notification email.
+    // Auth and identity flows: reset token, declared anchor, a verify token,
+    // and a notification email.
     insertAccountToken(db, T1, {
       id: 'tok-persona-1', token_type: 'password_reset', token_hash: 'hash-1',
       issued_at: TS, expires_at: TS,
@@ -197,7 +197,7 @@ describe('refreshAllPersonas', () => {
     });
     insertAccountToken(db, T1, {
       id: 'tok-persona-2',
-      token_type: 'data_export', token_hash: 'hash-2',
+      token_type: 'email_verify', token_hash: 'hash-2',
       issued_at: TS, expires_at: TS,
     });
     insertOutboxEmail(db, { id: 'out-persona-1', recipient_member_id: T1, subject: 'Welcome' });

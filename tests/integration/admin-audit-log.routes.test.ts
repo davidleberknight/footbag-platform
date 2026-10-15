@@ -4,7 +4,6 @@ import BetterSqlite3 from 'better-sqlite3';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, insertAuditEntry, createTestSessionJwt } from '../fixtures/factories';
-import { rowPin, theOnlyRow } from '../fixtures/rowPinning';
 
 const { dbPath } = setTestEnv('3134');
 
@@ -106,22 +105,12 @@ describe('GET /admin/audit-log', () => {
     expect(res.text).not.toContain('auth.login');        // OTHER excluded
   });
 
-  it('writes an audit-of-audit row (audit.viewed, actor admin) on each view', async () => {
+  it('viewing the log writes nothing to it', async () => {
     const app = createApp();
     const res = await request(app).get(`/admin/audit-log?member=${MEMBER_ID}`).set('Cookie', adminCookie());
     expect(res.status).toBe(200);
-    // The per-case cleanup empties the ledger, so one view writes one row and
-    // the action type identifies it. Asserting that rather than taking the
-    // newest means a second write is named instead of silently chosen between.
-    const row = withDb((db) => theOnlyRow<Record<string, unknown>>(
-      db,
-      rowPin('audit_entries', `action_type = 'audit.viewed'`),
-    ));
-    expect(row).toBeDefined();
-    expect(row!.actor_type).toBe('admin');
-    expect(row!.actor_member_id).toBe(ADMIN_ID);
-    expect(row!.entity_id).toBe(MEMBER_ID);
-    expect(row!.category).toBe('audit');
+    const count = withDb((db) => db.prepare('SELECT COUNT(*) AS c FROM audit_entries').get() as { c: number });
+    expect(count.c).toBe(0);
   });
 
   // A batch write stamps several entries inside the same millisecond, so rows
@@ -148,18 +137,6 @@ describe('GET /admin/audit-log', () => {
     expect(idC).toBeGreaterThan(-1);
     expect(idC).toBeLessThan(idB);
     expect(idB).toBeLessThan(idA);
-  });
-
-  it('excludes its own audit.viewed rows from the default browse, includes them on request', async () => {
-    const app = createApp();
-    // First view writes one audit.viewed row.
-    await request(app).get('/admin/audit-log').set('Cookie', adminCookie());
-    // Default browse excludes audit-access events.
-    const def = await request(app).get('/admin/audit-log').set('Cookie', adminCookie());
-    expect(def.text).not.toContain('audit.viewed');
-    // Opt-in surfaces them.
-    const inc = await request(app).get('/admin/audit-log?includeAccess=1').set('Cookie', adminCookie());
-    expect(inc.text).toContain('audit.viewed');
   });
 
   it('escapes HTML in reason text (no stored XSS)', async () => {
@@ -268,19 +245,13 @@ describe('GET /admin/audit-log/export', () => {
     expect(res.body.some((r: { action_type: string }) => r.action_type === 'tier.purchase_grant')).toBe(true);
   });
 
-  it('writes an audit.exported row recording the export', async () => {
+  it('exporting the log writes nothing to it', async () => {
     withDb((db) => insertAuditEntry(db, { actor_type: 'member', actor_member_id: MEMBER_ID, action_type: 'auth.login', entity_type: 'member', entity_id: MEMBER_ID, category: 'auth' }));
     const app = createApp();
-    await request(app).get(`/admin/audit-log/export?format=csv&member=${MEMBER_ID}`).set('Cookie', adminCookie());
-    const row = withDb((db) => theOnlyRow<Record<string, unknown>>(
-      db,
-      rowPin('audit_entries', `action_type = 'audit.exported'`),
-    ));
-    expect(row).toBeDefined();
-    expect(row!.actor_type).toBe('admin');
-    expect(row!.actor_member_id).toBe(ADMIN_ID);
-    expect(row!.entity_id).toBe(MEMBER_ID);
-    expect(String(row!.metadata_json)).toContain('"format":"csv"');
+    const res = await request(app).get(`/admin/audit-log/export?format=csv&member=${MEMBER_ID}`).set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    const count = withDb((db) => db.prepare('SELECT COUNT(*) AS c FROM audit_entries').get() as { c: number });
+    expect(count.c).toBe(1);
   });
 
   it('CSV quotes a cell containing commas, quotes, and newlines (RFC 4180)', async () => {
@@ -383,15 +354,14 @@ describe('GET /admin/audit-log/summary', () => {
     expect(res.text).not.toContain('July 2026');
   });
 
-  it('records the read as an audit access, like the list does', async () => {
+  it('reading the summary writes nothing, like the list', async () => {
     seedTwoMonths();
+    const before = withDb((db) => db.prepare('SELECT COUNT(*) AS c FROM audit_entries').get() as { c: number });
 
     await request(createApp()).get('/admin/audit-log/summary').set('Cookie', adminCookie());
 
-    const viewed = withDb((db) => db
-      .prepare("SELECT COUNT(*) AS c FROM audit_entries WHERE action_type = 'audit.viewed'")
-      .get() as { c: number });
-    expect(viewed.c).toBe(1);
+    const after = withDb((db) => db.prepare('SELECT COUNT(*) AS c FROM audit_entries').get() as { c: number });
+    expect(after.c).toBe(before.c);
   });
 
   it('says so plainly when the period holds nothing', async () => {

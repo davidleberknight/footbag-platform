@@ -17,7 +17,6 @@ function parseQuery(req: Request): AuditLogQuery {
     fromDate: str(req.query.from),
     toDate: str(req.query.to),
     selfActionOnly: req.query.self === '1',
-    includeAuditAccess: req.query.includeAccess === '1',
     page: Number.isFinite(pageRaw) && pageRaw > 0 ? pageRaw : 1,
   };
 }
@@ -28,7 +27,6 @@ export const adminAuditLogController = {
     try {
       const query = parseQuery(req);
       const vm = auditLogService.getAuditLogPage(query);
-      auditLogService.recordAuditLogView(req.user!.userId, query);
       res.render('admin/audit-log/index', vm);
     } catch (err) {
       handleControllerError(err, res, next, 'admin audit-log controller');
@@ -40,9 +38,6 @@ export const adminAuditLogController = {
     try {
       const query = parseQuery(req);
       const vm = auditLogService.getAuditLogSummaryPage(query);
-      // Reading the summary is reading the audit log, so it is recorded the
-      // same way the list is.
-      auditLogService.recordAuditLogView(req.user!.userId, query);
       res.render('admin/audit-log/summary', vm);
     } catch (err) {
       handleControllerError(err, res, next, 'admin audit-log summary');
@@ -55,7 +50,6 @@ export const adminAuditLogController = {
       const format = req.query.format === 'json' ? 'json' : 'csv';
       const query = parseQuery(req);
       const out = auditLogService.getAuditLogExportBody(query, format);
-      auditLogService.recordAuditLogExport(req.user!.userId, query, format, out.count);
       res.setHeader('Content-Type', `${out.contentType}; charset=utf-8`);
       res.setHeader('Content-Disposition', `attachment; filename="${out.filename}"`);
       res.send(out.body);

@@ -40,8 +40,9 @@
  * Invariants preserved:
  *   - An answered row carries an outcome and an answered timestamp; an
  *     unanswered row carries neither (enforced by a table CHECK).
- *   - Answering is guarded on the current status, so a resubmitted answer is
- *     refused rather than overwriting the first.
+ *   - Answering is guarded on the current status, so a resubmitted answer never
+ *     overwrites the first. The same answer submitted again reports the first
+ *     outcome; one that differs in any field is refused, never reported saved.
  *
  * Transaction discipline:
  *   - The row write and its audit entry commit together. The email enqueue is an
@@ -66,7 +67,7 @@ import { memberService, birthMonthOptions, SelectOption } from './memberService'
 import { memberOnboardingService } from './memberOnboardingService';
 import { NotFoundError, ValidationError } from './serviceErrors';
 import { PageViewModel } from '../types/page';
-import { BirthDateParts } from '../lib/birthDate';
+import { BirthDateParts, assembleBirthDate, splitBirthDateParts } from '../lib/birthDate';
 import {
   navigateTo,
   urgentAction,
@@ -185,6 +186,14 @@ function newMessageId(): string {
 
 function normalizeText(val: unknown): string {
   return typeof val === 'string' ? val.trim() : '';
+}
+
+/** Whether the entered parts name the stored date, however they were padded.
+ *  Parts that do not make a date are refused as they would be on a first
+ *  answer. */
+function sameBirthDate(stored: BirthDateParts, entered: BirthDateParts): boolean {
+  const asEntered = splitBirthDateParts(assembleBirthDate(entered));
+  return asEntered.day === stored.day && asEntered.month === stored.month && asEntered.year === stored.year;
 }
 
 export const memberMessageService = {
@@ -358,7 +367,7 @@ export const memberMessageService = {
     dateAnswer: string;
     birth?: BirthDateParts;
     note: unknown;
-  }): { status: 'answered'; outcome: 'acknowledged' | 'confirmed' | 'corrected' } {
+  }): { status: 'answered' | 'own_repeat'; outcome: 'acknowledged' | 'confirmed' | 'corrected' } {
     const note = normalizeText(input.note);
     if (note.length > MAX_ANSWER_NOTE) {
       throw new ValidationError(`Note must be ${MAX_ANSWER_NOTE} characters or fewer.`);
@@ -367,7 +376,17 @@ export const memberMessageService = {
     const row = memberMessages.findUnansweredForMember.get(input.messageId, input.memberId) as
       | { id: string; expected_answer_kind: string; work_queue_item_id: string }
       | undefined;
-    if (!row) throw new NotFoundError(`No question waiting: ${input.messageId}`);
+    // A question only its recipient can answer, already answered, may be that
+    // member's own answer submitted again. Anyone else's question stays not
+    // found.
+    const answered = row ? undefined : memberMessages.findAnsweredForMember.get(input.messageId, input.memberId) as
+      | {
+        id: string; expected_answer_kind: string; note_text: string | null;
+        outcome: 'acknowledged' | 'confirmed' | 'corrected';
+      }
+      | undefined;
+    if (!row && !answered) throw new NotFoundError(`No question waiting: ${input.messageId}`);
+    const expectedKind = (row ?? answered)!.expected_answer_kind;
 
     const hasTypedDate = Boolean(
       input.birth && (input.birth.day || input.birth.month || input.birth.year),
@@ -375,7 +394,7 @@ export const memberMessageService = {
     let outcome: 'acknowledged' | 'confirmed' | 'corrected' = 'acknowledged';
     let correction: BirthDateParts | null = null;
 
-    if (row.expected_answer_kind === 'confirm_birth_date') {
+    if (expectedKind === 'confirm_birth_date') {
       if (input.dateAnswer !== 'confirm' && input.dateAnswer !== 'correct') {
         throw new ValidationError(
           'Choose whether the date on your account is correct, or give the right one.',
@@ -401,6 +420,24 @@ export const memberMessageService = {
       }
     }
 
+    if (answered) {
+      // The answer submitted again, field for field, reports the first
+      // outcome and changes nothing. One that differs (another note, another
+      // date, the other choice) is not a repeat, and is refused rather than
+      // reported as saved: the first answer stands. A correction matches when
+      // the date it gives is the one now on file, which is where the first
+      // answer put it, or where it already was if that answer was a re-entry.
+      const sameNote = (note || null) === answered.note_text;
+      const sameAnswer = correction
+        ? answered.outcome !== 'acknowledged'
+          && sameBirthDate(memberService.getBirthDateParts(input.memberId), correction)
+        : answered.outcome === outcome;
+      if (sameNote && sameAnswer) return { status: 'own_repeat', outcome: answered.outcome };
+      throw new ValidationError('You have already answered this question, so this new answer was not saved.');
+    }
+    // Narrowed for the write below: with no answered row, the waiting one exists.
+    const waiting = row!;
+
     const now = new Date().toISOString();
     transaction(() => {
       // Inside the transaction so the date, the note back to the review item and
@@ -423,7 +460,7 @@ export const memberMessageService = {
       // returns to the working queue by itself. A park has no clock, so without
       // this the one thing that can genuinely un-stick the matter would arrive
       // and leave the item sitting in the parked listing unread.
-      workQueue.unparkItem.run(now, input.memberId, row.work_queue_item_id);
+      workQueue.unparkItem.run(now, input.memberId, waiting.work_queue_item_id);
       appendAuditEntry({
         actionType:    'member_message.answered',
         category:      'support',
@@ -434,7 +471,7 @@ export const memberMessageService = {
         reasonText:    null,
         metadata: {
           member_message_id:    input.messageId,
-          expected_answer_kind: row.expected_answer_kind,
+          expected_answer_kind: waiting.expected_answer_kind,
           outcome,
           note_length:          note.length,
         },

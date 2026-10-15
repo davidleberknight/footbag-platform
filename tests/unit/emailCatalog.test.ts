@@ -51,9 +51,6 @@ const CATALOG: CatalogEntry[] = [
   { template: 'account_deletion_requested', services: ['accountDeletionService'], samples: [
     { params: { memberName: 'A Member', graceDays: 90 }, variant: 'account_deletion_requested' },
   ] },
-  { template: 'data_export_ready', services: ['memberDataExportService'], samples: [
-    { params: { memberName: 'A Member', downloadUrl: 'https://x/members/a/download/t', ttlHours: 72 }, variant: 'data_export_ready' },
-  ] },
   // Admin-alerts fan-out, sent from the single work-queue enqueue path.
   { template: 'admin_loss_recruitment', services: ['workQueueService'], samples: [
     { params: { entityId: 'e', queueUrl: 'https://x/admin/work-queue' }, variant: 'admin_loss_recruitment' },

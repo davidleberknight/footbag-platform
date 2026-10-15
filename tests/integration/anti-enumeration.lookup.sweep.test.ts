@@ -128,13 +128,6 @@ const CLASSIFIED: Record<string, Classification> = {
       ])(),
     ],
   },
-  // A probe with an invalid token on both sides is refused before the member
-  // key is read, so it could never tell the two apart. The token, not the key in
-  // the path, decides whose data is served; a probe with a valid single-use
-  // token on each side is what would test that, and it is not written yet.
-  'GET /members/:memberKey/download/:token': {
-    exempt: 'the member key in the path is never read: the single-use token alone decides the response',
-  },
   'GET /events/:eventKey': {
     probes: () => (['anonymous', 'member'] as Viewer[]).flatMap((viewer) =>
       [hidden.draftEvent, hidden.canceledEvent].map((key) => ({

@@ -172,3 +172,65 @@ describe('POST /email/unsubscribe', () => {
     expect(statusOf(LIST, MEMBER_ID)).toBe('complained');
   });
 });
+
+describe('GET /email/unsubscribe — the page a client without one-click opens', () => {
+  it('shows one button that posts the address, and changes nothing itself', async () => {
+    const token = mintUnsubscribeToken(MEMBER_ID, { kind: 'list', slug: LIST });
+    const before = unsubscribeAuditRows().length;
+
+    const res = await request(createApp()).get(`/email/unsubscribe?t=${encodeURIComponent(token)}`);
+
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Press the button below to stop receiving this mailing list.');
+    // The template escapes the address's `=`, so match its parts.
+    expect(res.text).toContain('action="/email/unsubscribe?t');
+    expect(res.text).toContain(encodeURIComponent(token));
+    expect(res.text).toContain('>Unsubscribe</button>');
+    expect(res.headers['cache-control']).toContain('no-store');
+    expect(statusOf(LIST, MEMBER_ID)).toBe('subscribed');
+    expect(unsubscribeAuditRows()).toHaveLength(before);
+  });
+
+  it('the button withdraws the subscription and answers with a page, the same on a repeat', async () => {
+    const token = mintUnsubscribeToken(MEMBER_ID, { kind: 'list', slug: LIST });
+    const url = `/email/unsubscribe?t=${encodeURIComponent(token)}`;
+    const press = () => request(createApp())
+      .post(url)
+      .type('form')
+      .send({ confirm: '1' });
+
+    const first = await press();
+    expect(first.status).toBe(200);
+    expect(first.text).toContain('You are unsubscribed from this mailing list.');
+    expect(statusOf(LIST, MEMBER_ID)).toBe('unsubscribed');
+    const audits = unsubscribeAuditRows().length;
+
+    const second = await press();
+    expect(second.status).toBe(200);
+    expect(second.text).toContain('You are unsubscribed from this mailing list.');
+    expect(unsubscribeAuditRows()).toHaveLength(audits);
+  });
+
+  // Defect caught: a mangled or tampered link changes nothing, yet the person
+  // pressing the button is told they are off the list and keeps receiving it.
+  // A rejected token is one whose signature fails, which says nothing about any
+  // address or member, so the honest answer reveals nothing either.
+  it('a rejected link says nothing was changed, never that the reader is unsubscribed', async () => {
+    const token = mintUnsubscribeToken(MEMBER_ID, { kind: 'list', slug: LIST });
+    const [payload, signature] = token.split('.');
+    const tampered = `${payload}.${signature.slice(0, -2)}xx`;
+    for (const t of ['not-a-token', tampered]) {
+      const res = await request(createApp())
+        .post(`/email/unsubscribe?t=${encodeURIComponent(t)}`)
+        .type('form')
+        .send({ confirm: '1' });
+      expect(res.status, t).toBe(200);
+      expect(res.text, t).toContain('This unsubscribe link did not work, so nothing was changed.');
+      expect(res.text, t).not.toContain('You are unsubscribed from this mailing list.');
+      // Shown as a refusal, never in the success treatment.
+      expect(res.text, t).toContain('form-error-banner');
+      expect(res.text, t).not.toContain('form-success-banner');
+    }
+    expect(statusOf(LIST, MEMBER_ID)).toBe('subscribed');
+  });
+});

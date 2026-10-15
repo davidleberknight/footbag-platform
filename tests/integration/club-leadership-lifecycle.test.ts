@@ -263,6 +263,37 @@ describe('join/leave notification emails', () => {
     expect(leaderMail[0].idempotency_key).toBe(`club-join:${result.affiliationId}:v1:leader:${leaderId}`);
   });
 
+  // Defect caught: a member's own repeated join answers "You are already a member"
+  // in the informational tone, telling them nothing happened when their join did.
+  it("a member's own repeated join reports the first join again and sends and records nothing more", () => {
+    const clubId = seedClub('active');
+    const leaderId = seedLeader(clubId);
+    const memberId = seedMember();
+
+    const first = clubSvc.joinClub(memberId, clubId);
+    expect(first.branch).toBe('joined_primary');
+    const joinAudits = (): number => (db.prepare(
+      `SELECT COUNT(*) AS n FROM audit_entries WHERE action_type = 'club.member_joined' AND entity_id = ?`,
+    ).get(first.affiliationId) as { n: number }).n;
+    const auditsAfterFirst = joinAudits();
+
+    const repeat = clubSvc.joinClub(memberId, clubId);
+    expect(repeat.branch).toBe('joined_primary');
+    expect(repeat.affiliationId).toBe(first.affiliationId);
+    expect(joinAudits()).toBe(auditsAfterFirst);
+    expect(outboxFor(memberId)).toHaveLength(1);
+    expect(outboxFor(leaderId)).toHaveLength(1);
+  });
+
+  it('a membership that came some other way is reported as already held, not as a join', () => {
+    const clubId = seedClub('active');
+    const memberId = seedMember();
+    insertMemberClubAffiliation(db, memberId, clubId, { is_primary: 1, source: 'legacy_claim' });
+
+    expect(clubSvc.joinClub(memberId, clubId).branch).toBe('already_member');
+    expect(outboxFor(memberId)).toHaveLength(0);
+  });
+
   it('leaving enqueues a notification to the leaving member and the current leaders, and a later re-join produces fresh notifications', () => {
     const clubId = seedClub('active');
     const leaderId = seedLeader(clubId);

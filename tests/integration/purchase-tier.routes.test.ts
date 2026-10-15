@@ -86,10 +86,38 @@ describe('POST /members/:memberKey/purchase-tier (stub adapter)', () => {
     expect(res.status).toBe(422);
   });
 
-  it('returns 422 with the conflict message when a membership purchase is already pending', async () => {
-    // The one-pending-membership-per-member unique index rejects the second
-    // insert; that is an ordinary user state (double-click, second tab) and
-    // must render as a 422 conflict, not fall through to the 500 handler.
+  it('a repeat submit for the same tier returns to the checkout the first opened, and opens nothing new', async () => {
+    // A double click, a second tab or the cancel page's try-again: the member
+    // lands on the same checkout, with no second provider session, pending row
+    // or audit row.
+    const app = createApp();
+    const submit = () => request(app)
+      .post(`/members/${MEMBER_SLUG}/purchase-tier`)
+      .set('Cookie', memberCookie())
+      .send({ tier: 'tier1', returnTo: `/members/${MEMBER_SLUG}` });
+    const counts = () => {
+      const db = new BetterSqlite3(dbPath, { readonly: true });
+      const pending = (db.prepare("SELECT COUNT(*) AS n FROM payments WHERE member_id = ? AND status = 'pending'").get(MEMBER_ID) as { n: number }).n;
+      const started = (db.prepare("SELECT COUNT(*) AS n FROM audit_entries WHERE action_type = 'payment.checkout_started' AND actor_member_id = ?").get(MEMBER_ID) as { n: number }).n;
+      db.close();
+      return { pending, started };
+    };
+
+    const first = await submit();
+    expect(first.status).toBe(303);
+    const before = counts();
+
+    const second = await submit();
+    expect(second.status).toBe(303);
+    expect(second.headers.location).toBe(first.headers.location);
+    expect(counts()).toEqual(before);
+    expect(before.pending).toBe(1);
+  });
+
+  // Defect caught: a member who walked away from one checkout and chose a
+  // different tier is refused for as long as the abandoned checkout stays open
+  // at the provider, told to cancel a purchase they already left.
+  it('a different tier while a checkout is open releases it and goes to a checkout of its own', async () => {
     const app = createApp();
     const first = await request(app)
       .post(`/members/${MEMBER_SLUG}/purchase-tier`)
@@ -97,12 +125,20 @@ describe('POST /members/:memberKey/purchase-tier (stub adapter)', () => {
       .send({ tier: 'tier1', returnTo: `/members/${MEMBER_SLUG}` });
     expect(first.status).toBe(303);
 
-    const second = await request(app)
+    const other = await request(app)
       .post(`/members/${MEMBER_SLUG}/purchase-tier`)
       .set('Cookie', memberCookie())
-      .send({ tier: 'tier1', returnTo: `/members/${MEMBER_SLUG}` });
-    expect(second.status).toBe(422);
-    expect(second.text).toContain('already in progress');
+      .send({ tier: 'tier2', returnTo: `/members/${MEMBER_SLUG}` });
+    expect(other.status).toBe(303);
+    expect(other.headers.location).not.toBe(first.headers.location);
+
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const rows = db.prepare(
+      "SELECT status, purchased_tier_status FROM payments WHERE member_id = ? AND payment_type = 'membership' ORDER BY created_at, id",
+    ).all(MEMBER_ID) as Array<{ status: string; purchased_tier_status: string }>;
+    db.close();
+    // ordering-is-the-contract: the released checkout came first.
+    expect(rows.map((r) => `${r.purchased_tier_status}:${r.status}`)).toEqual(['tier1:canceled', 'tier2:pending']);
   });
 
   it('persists the stripe ids on the pending row with no NULL window', async () => {
@@ -361,11 +397,22 @@ describe('POST /members/:memberKey/purchase-tier — rate limit', () => {
         .send({ tier: 'tier1', returnTo: `/members/${RL_SLUG}` });
       expect(first.status).toBe(303);
 
-      const second = await request(app)
+      // A same-tier repeat spends no slot: with the first purchase holding one
+      // of two, the different-tier purchase after it must still be allowed.
+      const repeat = await request(app)
         .post(`/members/${RL_SLUG}/purchase-tier`)
         .set('Cookie', memberCookie(RL_ID))
         .send({ tier: 'tier1', returnTo: `/members/${RL_SLUG}` });
-      expect(second.status).toBe(422);
+      expect(repeat.status).toBe(303);
+      expect(repeat.headers.location).toBe(first.headers.location);
+
+      // The attempts that count are ones for a different tier, which open a
+      // provider session each time.
+      const second = await request(app)
+        .post(`/members/${RL_SLUG}/purchase-tier`)
+        .set('Cookie', memberCookie(RL_ID))
+        .send({ tier: 'tier2', returnTo: `/members/${RL_SLUG}` });
+      expect(second.status).toBe(303);
 
       const blocked = await request(app)
         .post(`/members/${RL_SLUG}/purchase-tier`)

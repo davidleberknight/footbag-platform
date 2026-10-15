@@ -282,6 +282,90 @@ describe('the edit form itself', () => {
   });
 });
 
+describe('a club save submitted twice', () => {
+  /** What a save could write: the club row's version, the club's content
+   *  audit rows, and the outbox. */
+  function saveState(clubId: string): { version: number; contentAudits: number; outbox: number } {
+    return {
+      version: (db.prepare('SELECT version FROM clubs WHERE id = ?').get(clubId) as { version: number }).version,
+      contentAudits: (db.prepare(
+        `SELECT COUNT(*) AS n FROM audit_entries
+          WHERE entity_type = 'club' AND entity_id = ?
+            AND action_type IN ('club.content_edited', 'club.content_corrected')`,
+      ).get(clubId) as { n: number }).n,
+      outbox: (db.prepare('SELECT COUNT(*) AS n FROM outbox_emails').get() as { n: number }).n,
+    };
+  }
+
+  function save(clubKey: string, memberId: string, form: Record<string, string>) {
+    return request(createApp())
+      .post(`/clubs/${clubKey}/content/edit`)
+      .set('Cookie', cookieFor(memberId))
+      .type('form')
+      .send(form);
+  }
+
+  /** The club page the save redirected to, opened with the flash it set. */
+  async function landedOn(memberId: string, res: { headers: Record<string, unknown> }): Promise<string> {
+    const flash = ((res.headers['set-cookie'] as unknown as string[] | undefined) ?? [])
+      .find((c) => c.startsWith('footbag_flash='))?.split(';')[0];
+    expect(flash, 'the save left no outcome for the club page to show').toBeDefined();
+    const shown = await request(createApp())
+      .get(res.headers.location as string)
+      .set('Cookie', [cookieFor(memberId), flash].join('; '));
+    expect(shown.status).toBe(200);
+    return shown.text;
+  }
+
+  // Defect caught: a co-leader who double-clicks Save, or re-posts it from the
+  // back button, is shown an error for a save that went through, or the
+  // repeat bumps the row and writes a second audit row for no change.
+  it('the editing co-leader\'s repeat writes nothing and repeats the first success', async () => {
+    const { clubId, clubKey, leaderId, name } = seedClubWithLeader();
+    const form = fullForm(name, { description: 'Saved once.' });
+
+    const first = await save(clubKey, leaderId, form);
+    expect(first.status).toBe(303);
+    const afterFirst = saveState(clubId);
+    expect(afterFirst.contentAudits).toBe(1);
+
+    const second = await save(clubKey, leaderId, form);
+    expect(second.status).toBe(303);
+    expect(second.headers.location).toBe(first.headers.location);
+    expect(saveState(clubId)).toEqual(afterFirst);
+    expect(clubRow(clubId).description).toBe('Saved once.');
+
+    const page = await landedOn(leaderId, second);
+    expect(page).toContain('<div class="form-success-banner" role="status">Club updated.</div>');
+    expect(page).not.toContain('form-error-banner');
+  });
+
+  // Defect caught: a second co-leader saving the details another co-leader
+  // just set is told they updated the club, or is refused, when their save
+  // changed nothing.
+  it('another co-leader\'s unchanged save after the first co-leader\'s edit reads as nothing to update', async () => {
+    const { clubId, clubKey, leaderId, name } = seedClubWithLeader();
+    const otherId = `ccl-other-${_n}`;
+    insertMember(db, { id: otherId, slug: `ccl_other_${_n}`, login_email: `${otherId}@example.com` });
+    insertClubLeader(db, { id: `ccl-cl-other-${_n}`, club_id: clubId, member_id: otherId });
+    const form = fullForm(name, { description: 'Set by the first co-leader.' });
+
+    const first = await save(clubKey, leaderId, form);
+    expect(first.status).toBe(303);
+    const afterFirst = saveState(clubId);
+
+    const second = await save(clubKey, otherId, form);
+    expect(second.status).toBe(303);
+    expect(second.headers.location).toBe(first.headers.location);
+    expect(saveState(clubId)).toEqual(afterFirst);
+
+    const page = await landedOn(otherId, second);
+    expect(page).toContain('<p class="form-notice" role="status">Nothing to update.</p>');
+    expect(page).not.toContain('form-success-banner');
+    expect(page).not.toContain('form-error-banner');
+  });
+});
+
 describe('club action notice', () => {
   it('the outcome of a club action renders on the club page and is consumed once', async () => {
     const { clubKey, leaderId, name } = seedClubWithLeader();

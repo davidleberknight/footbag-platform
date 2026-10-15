@@ -4,6 +4,7 @@ import { getJwtSigningAdapter } from '../adapters/jwtSigningAdapter';
 import { createSessionJwt } from '../services/jwtService';
 import { issueSessionCookie } from '../lib/sessionCookie';
 import { memberOnboardingService } from '../services/memberOnboardingService';
+import { isSafePath } from '../lib/safePath';
 
 /**
  * The `__Host-` prefix is enforced by the browser rather than by the server: a
@@ -161,9 +162,61 @@ export function authMiddleware() {
   };
 }
 
+interface RouterLayer {
+  regexp: RegExp & { fast_slash?: boolean };
+  route?: { methods?: Record<string, boolean> };
+  handle?: { stack?: RouterLayer[] };
+}
+
+/**
+ * Whether the app answers a GET at this path. Walks the mounted routers' own
+ * layer tables, matching with each layer's pattern without running it, so no
+ * layer's per-request state is touched.
+ */
+function servesGet(stack: RouterLayer[], path: string): boolean {
+  for (const layer of stack) {
+    const matched = layer.regexp.fast_slash ? '' : layer.regexp.exec(path)?.[0];
+    if (matched === undefined) continue;
+    if (layer.route) {
+      if (layer.route.methods?.get) return true;
+      continue;
+    }
+    const inner = layer.handle?.stack;
+    if (inner && servesGet(inner, path.slice(matched.length) || '/')) return true;
+  }
+  return false;
+}
+
+/**
+ * Where to send a visitor back to once they have signed in. A GET returns to
+ * itself. A form post cannot: after sign-in the browser asks for the address
+ * with a GET, and a post-only address answers that with not-found. It returns
+ * instead to the page the form was on, taken from the Referer, so the member
+ * lands back on the form. A Referer naming an address no GET serves (a
+ * confirmation page a post rendered), or no usable Referer, leaves nowhere
+ * safe to return to, and sign-in lands on the member's own page.
+ */
+function loginRedirectFor(req: Request): string {
+  if (req.method === 'GET' || req.method === 'HEAD') {
+    return `/login?returnTo=${encodeURIComponent(req.originalUrl)}`;
+  }
+  const referer = req.get('Referer');
+  if (referer) {
+    try {
+      const parsed = new URL(referer);
+      const back = `${parsed.pathname}${parsed.search}`;
+      const routes = (req.app as unknown as { _router?: { stack?: RouterLayer[] } })._router?.stack ?? [];
+      if (isSafePath(back) && servesGet(routes, parsed.pathname)) {
+        return `/login?returnTo=${encodeURIComponent(back)}`;
+      }
+    } catch { /* ignore a malformed Referer */ }
+  }
+  return '/login';
+}
+
 export function requireAuth(req: Request, res: Response, next: NextFunction): void {
   if (!req.isAuthenticated) {
-    res.redirect(`/login?returnTo=${encodeURIComponent(req.originalUrl)}`);
+    res.redirect(loginRedirectFor(req));
     return;
   }
   next();
@@ -180,7 +233,7 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
  */
 export function requireMember(req: Request, res: Response, next: NextFunction): void {
   if (!req.isAuthenticated) {
-    res.redirect(`/login?returnTo=${encodeURIComponent(req.originalUrl)}`);
+    res.redirect(loginRedirectFor(req));
     return;
   }
   if (!req.isMember) {
@@ -204,7 +257,7 @@ export function requireMember(req: Request, res: Response, next: NextFunction): 
  */
 export function requireWizardOpen(req: Request, res: Response, next: NextFunction): void {
   if (!req.isAuthenticated) {
-    res.redirect(`/login?returnTo=${encodeURIComponent(req.originalUrl)}`);
+    res.redirect(loginRedirectFor(req));
     return;
   }
   if (req.isMember) {

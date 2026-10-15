@@ -61,7 +61,7 @@ import { randomUUID } from 'crypto';
 
 import { account, mailingListSubscriptions, sesFeedback, transaction } from '../db/db';
 import { readUnsubscribeToken } from '../lib/unsubscribeToken';
-import { appendAuditEntry } from './auditService';
+import { appendAuditEntry, findOwnLatestAudit } from './auditService';
 import { getCommunicationService } from './communicationService';
 import { recordOperationalError } from './operationalErrors';
 import { ServiceUnavailableError, ValidationError } from './serviceErrors';
@@ -208,6 +208,18 @@ export function recoverBouncedAddressInTx(memberId: string, nowIso: string): voi
   });
 }
 
+/** The page the unsubscribe address opens, and the page its button lands on. */
+export interface UnsubscribeContent {
+  /** True once the button was pressed: the outcome page. */
+  done: boolean;
+  /** On the outcome page, what happened and its tone: withdrawn, or the link
+   *  refused with nothing changed. */
+  outcomeText?: string;
+  outcomeTone?: OutcomeTone;
+  /** Where the button posts; null on the outcome page. */
+  actionHref: string | null;
+}
+
 export type UnsubscribeOutcome =
   /** The token was valid and the subscription is now withdrawn, or already was. */
   | { status: 'done' }
@@ -215,6 +227,28 @@ export type UnsubscribeOutcome =
   | { status: 'rejected' };
 
 export const emailSubscriptionService = {
+  /**
+   * The page a person sees after pressing the unsubscribe button. A refused
+   * link says nothing changed, or the reader would believe they had left a list
+   * they still receive. A refusal means only that the link's signature failed,
+   * which reveals nothing about any address or member.
+   */
+  getUnsubscribeOutcomePage(outcome: UnsubscribeOutcome): PageViewModel<UnsubscribeContent> {
+    const refused = outcome.status === 'rejected';
+    return {
+      seo: { title: 'Unsubscribe', noindex: true },
+      page: { sectionKey: '', pageKey: 'email_unsubscribe', title: 'Unsubscribe' },
+      content: {
+        done: true,
+        actionHref: null,
+        outcomeText: refused
+          ? 'This unsubscribe link did not work, so nothing was changed. Sign in and open Email Preferences on your profile to unsubscribe.'
+          : 'You are unsubscribed from this mailing list.',
+        outcomeTone: refused ? 'no' : 'ok',
+      },
+    };
+  },
+
   /** Withdraws the one subscription a signed unsubscribe token names. */
   unsubscribeByToken(token: string): UnsubscribeOutcome {
     const read = readUnsubscribeToken(token);
@@ -409,9 +443,25 @@ export const emailSubscriptionService = {
     });
 
     // Withdrawing a spam report resumes mail even where the list row itself
-    // already read as on, so it is reported as the change it is.
-    return changed > 0 || complaintWithdrawn
+    // already read as on, so it is reported as the change it is. A setting that
+    // already held is this member's own repeat when their own latest choice on
+    // the list is this one: it reports that choice again rather than "nothing
+    // changed", since the member did make the change.
+    return changed > 0 || complaintWithdrawn || ownLatestChoiceIs(memberId, slug, subscribe)
       ? { status: subscribe ? 'subscribed' : 'unsubscribed' }
       : { status: 'noop', reason: 'unchanged' };
   },
 };
+
+/**
+ * Whether this member's own latest subscribe or withdraw on a list is the one
+ * now asked for. The audit rows name the list rather than the member, so the
+ * member's own rows are read and the later of the two decides.
+ */
+function ownLatestChoiceIs(memberId: string, slug: string, subscribe: boolean): boolean {
+  const on = findOwnLatestAudit(memberId, 'mailing_list.subscribed', 'mailing_list', slug);
+  const off = findOwnLatestAudit(memberId, 'mailing_list.unsubscribed', 'mailing_list', slug);
+  const latest = !on ? off : !off ? on : (on.occurred_at >= off.occurred_at ? on : off);
+  if (!latest) return false;
+  return subscribe ? latest === on : latest === off;
+}

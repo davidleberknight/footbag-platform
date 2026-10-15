@@ -118,17 +118,20 @@ afterAll(() => {
 // ── POST /members/:memberKey/avatar ────────────────────────────────────────────
 
 describe('POST /members/:memberKey/avatar -- file upload', () => {
-  it('unauthenticated -> 302 to /login with returnTo', async () => {
+  it('unauthenticated -> 302 to /login returning to the edit page the upload came from', async () => {
     const app = createApp();
     const validJpeg = await sharp({
       create: { width: 256, height: 256, channels: 3, background: { r: 255, g: 0, b: 0 } },
     }).jpeg().toBuffer();
 
+    // The upload address answers only a post, so sign-in returns to the page
+    // that holds the form rather than to an address that would 404.
     const res = await request(app)
       .post(`/members/${OWN_SLUG}/avatar`)
+      .set('Referer', `http://127.0.0.1/members/${OWN_SLUG}/edit`)
       .attach('avatar', validJpeg, 'test.jpg');
     expect(res.status).toBe(302);
-    expect(res.headers.location).toBe(`/login?returnTo=%2Fmembers%2F${OWN_SLUG}%2Favatar`);
+    expect(res.headers.location).toBe(`/login?returnTo=%2Fmembers%2F${OWN_SLUG}%2Fedit`);
   });
 
   it('valid JPEG upload -> 303 redirect to profile', async () => {

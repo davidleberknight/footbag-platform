@@ -12,7 +12,7 @@
  *   - applyExpiry: writes an `expire` row exactly once per crossing
  *   - getStatus: returns shape from member_active_player_current
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
 import {
@@ -26,6 +26,7 @@ import {
   insertSystemConfig,
 } from '../fixtures/factories';
 import { renderSidecarTemplate } from '../fixtures/testDb';
+import { isoDaysFromNow } from '../fixtures/clock';
 
 const { dbPath } = setTestEnv('3092');
 
@@ -795,5 +796,58 @@ describe('applyExpiry', () => {
     const id = freshMember();
     const result = aps.applyExpiry(id);
     expect(result).toEqual({ ok: true, expired: false });
+  });
+});
+
+describe('member_active_player_current — a wall clock stepping backward between two writes', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  // Defect caught: the host clock steps back a second or two (a hypervisor
+  // time sync, an NTP correction) between an administrator granting a standing
+  // and taking it back, the take-back row is stamped earlier than the grant,
+  // and the member keeps an Active Player standing the administrator removed.
+  it('a correction written after the clock stepped back is the standing the member holds', () => {
+    const id = freshMember();
+    vi.useFakeTimers({ toFake: ['Date'] });
+    // Anchored to now, because the status view compares the expiry with
+    // SQLite's own clock, which fake timers cannot move.
+    aps.correctExpiry(ACTOR_ID, id, isoDaysFromNow(100), 'granted in error, first pass');
+    expect(aps.getStatus(id).is_active_player).toBe(1);
+
+    vi.setSystemTime(Date.now() - 2000);
+    expect(aps.correctExpiry(ACTOR_ID, id, null, 'standing taken back')).toEqual({
+      status: 'corrected', expiresAt: null,
+    });
+
+    expect(aps.getStatus(id)).toMatchObject({
+      is_active_player: 0,
+      active_player_expires_at: null,
+      latest_active_player_reason_code: 'admin_correction',
+    });
+  });
+
+  // Defect caught: the newest row was written by another process (the worker's
+  // daily run, or this one before a restart) whose ids sort above any this
+  // process mints, and its stamp is ahead of this clock. A new row stamped equal
+  // to it ties, the id breaks the tie the wrong way, and the correction is lost.
+  it('a correction is the standing even when the earlier row carries a later stamp and a higher id', () => {
+    const id = freshMember();
+    const db = new BetterSqlite3(dbPath);
+    insertActivePlayerGrant(db, {
+      id: 'apg_ffffffffffffffffffffffffffffffff',
+      created_at: new Date(Date.now() + 2000).toISOString(),
+      member_id: id,
+      change_type: 'grant',
+      new_active_player_expires_at: isoDaysFromNow(100),
+      reason_code: 'admin_correction',
+    });
+    db.close();
+    expect(aps.getStatus(id).is_active_player).toBe(1);
+
+    aps.correctExpiry(ACTOR_ID, id, null, 'standing taken back');
+
+    expect(aps.getStatus(id)).toMatchObject({ is_active_player: 0, active_player_expires_at: null });
   });
 });

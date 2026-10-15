@@ -48,6 +48,7 @@ Current implementation status and accepted temporary deviations are tracked in t
   - [2.10 Member Name Model](#210-member-name-model)
   - [2.11 Competition History Fields](#211-competition-history-fields)
   - [2.12 Groups, and the Board's Record](#212-groups-and-the-boards-record)
+  - [2.13 Administrator Correction of Member-generated Data](#213-administrator-correction-of-member-generated-data)
 - [3. Security, Authentication, and Sessions](#3-security-authentication-and-sessions)
   - [3.1 Password Hashing](#31-password-hashing)
   - [3.2 JWT sessions](#32-jwt-sessions)
@@ -78,6 +79,10 @@ Current implementation status and accepted temporary deviations are tracked in t
   - [4.9 One Public Rendering Standard](#49-one-public-rendering-standard)
   - [4.10 Search-engine and Crawler Readiness](#410-search-engine-and-crawler-readiness)
   - [4.11 Static-Asset Fingerprinting](#411-static-asset-fingerprinting)
+  - [4.12 Bounded Type-Size Ramp](#412-bounded-type-size-ramp)
+  - [4.13 Reading Measure](#413-reading-measure)
+  - [4.14 Link and Disclosure Affordances](#414-link-and-disclosure-affordances)
+  - [4.15 Callout and Box Policy](#415-callout-and-box-policy)
 - [5. Back-End Services and Patterns](#5-back-end-services-and-patterns)
   - [5.1 Node.js with TypeScript](#51-nodejs-with-typescript)
   - [5.2 Express-based HTTP Controllers](#52-express-based-http-controllers)
@@ -89,6 +94,8 @@ Current implementation status and accepted temporary deviations are tracked in t
   - [5.8 Arming Switches](#58-arming-switches)
   - [5.9 Member Action Sources](#59-member-action-sources)
   - [5.10 Admin Work-Queue Task Types](#510-admin-work-queue-task-types)
+  - [5.11 Every GET Is Read-only](#511-every-get-is-read-only)
+  - [5.12 Every State-changing Action Is Safe to Submit Twice](#512-every-state-changing-action-is-safe-to-submit-twice)
 - [6. External Services and Integrations](#6-external-services-and-integrations)
   - [6.1 Stripe Payments](#61-stripe-payments)
   - [6.2 CloudFront CDN](#62-cloudfront-cdn)
@@ -101,6 +108,9 @@ Current implementation status and accepted temporary deviations are tracked in t
   - [6.8 Image Processing](#68-image-processing)
   - [6.9 Voting](#69-voting)
   - [6.10 Stripe webhook signing secret environment scope](#610-stripe-webhook-signing-secret-environment-scope)
+  - [6.11 How the `footbag.org` Namespace Is Served](#611-how-the-footbagorg-namespace-is-served)
+  - [6.12 Legacy Independence at Go-Live](#612-legacy-independence-at-go-live)
+  - [6.13 The Closed `footbag.org` Namespace](#613-the-closed-footbagorg-namespace)
 - [7. DevOps](#7-devops)
   - [7.1 Dev/Prod Parity](#71-devprod-parity)
   - [7.2 AWS Lightsail and Credentials](#72-aws-lightsail-and-credentials)
@@ -109,6 +119,8 @@ Current implementation status and accepted temporary deviations are tracked in t
   - [7.5 Local Development](#75-local-development)
   - [7.6 Health Endpoints](#76-health-endpoints)
   - [7.7 Environment Naming Convention](#77-environment-naming-convention)
+  - [7.8 Security Patching](#78-security-patching)
+  - [7.9 Production Release Gate](#79-production-release-gate)
 - [8. Logging, Monitoring & Abuse Prevention](#8-logging-monitoring--abuse-prevention)
   - [8.1 Structured Logging](#81-structured-logging)
   - [8.2 Monitoring and Alerting](#82-monitoring-and-alerting)
@@ -669,8 +681,8 @@ historical-person link, club affiliations and leadership, onboarding-
 wizard progress, payment history, mailing-list subscriptions, audit
 trail) from a single structured spec; and a maintainer-curated canonical
 catalog of named personas with coverage annotations. Two browser-facing affordances support
-manual use: a route that issues a session cookie for any persona, and
-a listing view of all loaded personas with one-click switching. The
+manual use: a POST route that issues a session cookie for any persona, and
+a listing view of all loaded personas whose buttons post to it. The
 harness is permanent test infrastructure: it is active in development
 and staging, excluded from the production image at build time, never
 enabled at runtime in production, and never source-deleted at cutover.
@@ -704,7 +716,7 @@ Rationale:
   set with coverage notes that document which testing dimensions each
   persona exercises.
 - Two browser affordances (switch route plus listing view) cover both
-  expert use (direct URL with persona slug) and discovery use (paid
+  expert use (a POST naming the persona slug, as scripts and tests send) and discovery use (paid
   testers who do not read code browse the listing to find personas).
 - Browser cookie issuance uses the same JWT primitive as the production
   login path (§3.2), not a parallel auth-bypass mechanism. The harness
@@ -924,7 +936,7 @@ Statement Naming Convention: Names follow consistent pattern for discoverability
 
 Parameter Binding: All queries use positional parameters (?) rather than named parameters for simplicity and consistency. Parameters are bound using better-sqlite3's automatic parameter binding: .get(param1, param2) for single row, .all(param1, param2) for multiple rows, .run(param1, param2) for modifications. Array parameters are spread: .all(...arrayOfParams). This follows SQLite best practices for SQL injection prevention and performance.
 
-Error Handling: better-sqlite3 throws SqliteError with code property matching SQLite extended result codes. Services catch specific error codes and handle appropriately: SQLITE_CONSTRAINT_UNIQUE indicates duplicate key (map to 409 Conflict), SQLITE_CONSTRAINT_FOREIGNKEY indicates referential integrity violation (map to 400 Bad Request or handle as business logic error), SQLITE_BUSY indicates timeout waiting for lock (mapped to a temporary-unavailable service error and rendered as 503; the project adds no second application-level retry loop), SQLITE_FULL indicates disk full (map to 507 Insufficient Storage), SQLITE_IOERR indicates I/O error (critical alert). Services never catch and ignore database errors. Unhandled errors propagate to controller layer where they are logged and mapped to 500 Internal Server Error.
+Error Handling: better-sqlite3 throws SqliteError with code property matching SQLite extended result codes. Services catch specific error codes and handle appropriately: SQLITE_CONSTRAINT_UNIQUE indicates duplicate key (a backstop: a repeated submit is caught earlier by the already-holds check of Every State-changing Action Is Safe to Submit Twice; any other duplicate maps to 409 Conflict), SQLITE_CONSTRAINT_FOREIGNKEY indicates referential integrity violation (map to 400 Bad Request or handle as business logic error), SQLITE_BUSY indicates timeout waiting for lock (mapped to a temporary-unavailable service error and rendered as 503; the project adds no second application-level retry loop), SQLITE_FULL indicates disk full (map to 507 Insufficient Storage), SQLITE_IOERR indicates I/O error (critical alert). Services never catch and ignore database errors. Unhandled errors propagate to controller layer where they are logged and mapped to 500 Internal Server Error.
 
 Transaction Semantics: Transaction helper uses IMMEDIATE transaction mode (BEGIN IMMEDIATE) to acquire write lock immediately, preventing SQLITE_BUSY errors during transaction execution. Transactions do not span async operations - all database operations within transaction execute synchronously. better-sqlite3 does not support async functions in transactions because transaction would commit before async operations complete. Services structure transactions to batch all database operations, then perform async operations (email, S3 upload) after transaction commits. Transaction timeout is 30 seconds (enforced at application level), after which transaction is rolled back and error thrown.
 
@@ -1125,7 +1137,7 @@ Impact:
 
 - Audit log display surfaces must render the 'reason' field (and any free-form admin-authored text) with Handlebars default escaping. Raw HTML rendering (triple-stache, SafeString, or client-side innerHTML) of admin-authored audit content is forbidden.
 
-- Reading or exporting the audit log is itself audited, so access to the log is accountable; the admin viewer, its filters and its export are specified in `A_View_Audit_Logs`. Beyond routine debugging and fact-finding, the viewer serves security review: threat-hunting over privileged actions, insider and anomaly detection (an admin acting on their own or a targeted member's record), and incident-response timeline reconstruction.
+- The admin viewer, its filters and its export are specified in `A_View_Audit_Logs`; reading or exporting the log records nothing (Every GET Is Read-only). Beyond routine debugging and fact-finding, the viewer serves security review: threat-hunting over privileged actions, insider and anomaly detection (an admin acting on their own or a targeted member's record), and incident-response timeline reconstruction.
 
 - Integrity rests on the application-level append-only triggers and the WORM-protected off-host backups above; cryptographic per-row hash chaining, which would additionally detect direct-database tampering, is a compatible strengthening of this model.
 
@@ -1572,7 +1584,7 @@ Rationale (cookie integrity):
 Requirements:
 
 - Every cookie the application issues carries `SameSite=Lax`. There is no `SameSite=Strict` or `SameSite=None` cookie in the application's surface.
-- GET handlers are strictly side-effect-free. Mutations use POST or another non-safe method; a state change over GET is a defect.
+- GET handlers change no stored state, as Every GET Is Read-only specifies. Mutations use POST or another non-safe method; a state change over GET is a defect.
 - Every state-changing browser request (POST, PUT, PATCH, DELETE) must carry an `Origin` header matching the canonical `PUBLIC_BASE_URL` origin exactly. A mismatched `Origin` is rejected with 403 by `requireOriginPin`. A missing `Origin` falls back to `Referer` validation against the same origin; a request missing both is rejected with 403. The fallback exists for legitimate user-agent configurations that strip `Origin` but not `Referer`.
 - JSON-only routes (webhooks; explicitly-designated JSON-only progressive-enhancement endpoints) additionally enforce `Content-Type: application/json`. This blocks a cross-site HTML form that smuggles JSON via `enctype="text/plain"`, which would otherwise bypass the same-origin check that browsers apply to non-simple Content-Types.
 - Server-to-server endpoints that legitimately omit `Origin` (intra-cluster `/ipc/*` shared-secret routes; future webhook routes with their own HMAC authentication) are explicitly exempt from the Origin check. Each exempt route documents its own authentication scheme; the exemption is per-route, not per-prefix.
@@ -1867,7 +1879,7 @@ Export: because the raw token is never persisted, the GDPR data export cannot in
 
 Decision:
 
-Email verification tokens, password reset tokens, and personal data export download-link tokens are cryptographically random, single-use tokens, not JWTs. Tokens are generated with crypto.randomBytes(32) providing 256 bits of cryptographic randomness, encoded for URLs, and hashed before storage using SHA-256 so that the database never stores a usable raw token. This prevents account takeover if the database is compromised.
+Email verification tokens and password reset tokens are cryptographically random, single-use tokens, not JWTs. Tokens are generated with crypto.randomBytes(32) providing 256 bits of cryptographic randomness, encoded for URLs, and hashed before storage using SHA-256 so that the database never stores a usable raw token. This prevents account takeover if the database is compromised.
 
 Semantics:
 
@@ -1875,7 +1887,7 @@ Semantics:
 
 - Password reset token TTL: one hour.
 
-- Tokens are single-use: on successful consumption, the token record is marked consumed (timestamp) and cannot be reused.
+- Tokens are single-use: on successful consumption, the token record is marked consumed (timestamp) and cannot be reused. Only a POST consumes a token; an emailed link opens a page whose button posts it (Every GET Is Read-only).
 
 - Multiple outstanding tokens are allowed, but consumption invalidates only the consumed token; rate limiting prevents spam.
 
@@ -1883,15 +1895,15 @@ Semantics:
 
 - Rate limiting is in-process only; state is not persisted and resets on restart (acceptable for single-instance deployment).
 
-Storage format: Store token_hash, member_id, token_type (email_verify, password_reset, data_export), created_at, expires_at, used_at (nullable). Index on token_hash (unique) and on expires_at for cleanup.
+Storage format: Store token_hash, member_id, token_type (email_verify, password_reset), created_at, expires_at, used_at (nullable). Index on token_hash (unique) and on expires_at for cleanup.
 
-Validation: A presented token is hashed and compared to stored hashes; validation requires used_at IS NULL and now \< expires_at. If hashes match and token is not expired or consumed, verification succeeds. Otherwise, verification fails with a generic error message that does not reveal whether the token was invalid, expired, or already used.
+Validation: A presented token is hashed and compared to stored hashes; validation requires used_at IS NULL and now \< expires_at. If hashes match and token is not expired or consumed, verification succeeds. Otherwise, verification fails with a generic error message that does not reveal whether the token was invalid, expired, or already used. A consumed token whose use already did its job is the one exception: it shows the success page and starts no session (Every State-changing Action Is Safe to Submit Twice; for a password reset, only for a submit carrying the password the link set), which tells nothing to anyone who does not already hold the token.
 
 Cleanup: A background cleanup job runs daily to delete expired or consumed token rows (tokens older than 7 days).
 
 Requirements:
 
-- URL-path redaction in request logs covers every token-bearing route (email-verify, password-reset, data-export, and any future token-in-path additions). The redactor is a single helper module, and any new token-in-path route registers its pattern with the helper so logs cannot leak a usable token via path emission.
+- URL-path redaction in request logs covers every token-bearing route (email-verify, password-reset, and any future token-in-path additions). The redactor is a single helper module, and any new token-in-path route registers its pattern with the helper so logs cannot leak a usable token via path emission.
 
 Impact: Token generation/validation logic is centralized in the `identityAccessService` helper to avoid copy/paste drift across flows (verification, reset, onboarding).
 
@@ -2841,18 +2853,18 @@ Authorization Middleware Pattern:
 
 Authorization runs as a chain of middleware functions after `authMiddleware` (§3.2) populates `req.user`. The chain on a protected route is:
 
-1. `requireAuth` (`src/middleware/auth.ts`) checks `req.isAuthenticated`. If false on an HTML route, the middleware returns a 302 redirect to `/login?returnTo=<originalUrl>` so the browser user sees a login form rather than an opaque status code. A JSON API route returns 401 from the same gate.
+1. `requireAuth` (`src/middleware/auth.ts`) checks `req.isAuthenticated`. If false on an HTML route, the middleware returns a 302 redirect to `/login?returnTo=<originalUrl>` so the browser user sees a login form rather than an opaque status code. A form post cannot be returned to, because after login the browser requests the address with a GET; an unauthenticated POST therefore returns to the page the form was on, taken from a same-site `Referer`, and with none, or one naming the post address itself, to the plain login page. A JSON API route returns 401 from the same gate.
 2. `requireMember` (`src/middleware/auth.ts`) checks `req.isMember`, the membership authorization level that sits above authentication; an account is pending, holding a session but no member authorization, until its onboarding tasks are completed (`M_Complete_Onboarding_Wizard`). An unauthenticated request takes the same 302-to-login as `requireAuth`; a pending request is redirected 303 to the registrant's next outstanding wizard task. Every member-capability route carries this guard; bare `requireAuth` remains only on the wizard's own routes and the historical-record claim routes, because claiming is part of finishing onboarding. `req.isMember` is derived from the task rows on every request rather than carried in the session, so membership takes effect the moment the completing transition lands, with no re-login.
 3. Tier middleware (e.g. `requireTier1Benefits`) checks `req.user`'s tier value, which the auth middleware sourced from the DB row on the current request. Insufficient tier returns 403 with a rendered tier-upsell page on an HTML route, or a JSON error on an API route.
 4. Admin middleware (e.g. `requireAdmin`) checks `req.user.role`, derived from `members.is_admin`. Non-admin returns 403.
 
 Defense in depth: every state-changing service method re-asserts the same authorization predicate against the DB row. A request that bypassed the middleware (a test-seam misuse, a future middleware regression) is still rejected at the service layer with the same outcome.
 
-The `/login?returnTo=...` redirect from the authentication gate (`requireAuth`, and the unauthenticated branch of `requireMember`) is the one site that emits 302 by design. It is exempted from the explicit-303 rule below because it is a framework-level auth gate rather than a per-route response, and because the redirect applies uniformly to every method (GET, POST, PUT, PATCH, DELETE); the post-login flow returns the user to the originally-requested URL via the `returnTo` parameter, validated through `isSafePath`.
+The `/login?returnTo=...` redirect from the authentication gate (`requireAuth`, and the unauthenticated branch of `requireMember`) is the one site that emits 302 by design. It is exempted from the explicit-303 rule below because it is a framework-level auth gate rather than a per-route response, and because the redirect applies uniformly to every method; the post-login flow returns the user to the originally-requested page (for a GET, the URL itself; for a form post, the form's page) via the `returnTo` parameter, validated through `isSafePath`.
 
 HTTP Response Convention:
 
-State-changing POST handlers follow Post-Redirect-Get: on success, the handler issues an explicit `303 See Other` to the GET URL that owns the resulting state. Inline validation failures re-render the same form at 422 with submitted values preserved. Rate-limit responses re-render at 429 with a `Retry-After` header. Resource-not-found and anti-enumeration responses use 404. Authenticated-but-not-permitted responses use 403. Parser-level failures (malformed token, JSON-API field validation) use 400. Permanent URL canonicalization uses 301. The framework's implicit 302 default does not reach the wire: every redirect site sets its status explicitly, and the only 302 emitted anywhere is the auth-gate redirect described above.
+State-changing POST handlers follow Post-Redirect-Get: on success, the handler issues an explicit `303 See Other` to the GET URL that owns the resulting state. A repeated submit the server recognises takes the same 303 and message as the first (Every State-changing Action Is Safe to Submit Twice). Inline validation failures re-render the same form at 422 with submitted values preserved. Rate-limit responses re-render at 429 with a `Retry-After` header. Resource-not-found and anti-enumeration responses use 404. Authenticated-but-not-permitted responses use 403. Parser-level failures (malformed token, JSON-API field validation) use 400. Permanent URL canonicalization uses 301. The framework's implicit 302 default does not reach the wire: every redirect site sets its status explicitly, and the only 302 emitted anywhere is the auth-gate redirect described above.
 
 | Code | Use |
 |------|-----|
@@ -2899,11 +2911,15 @@ State-changing service methods return a discriminated union. The canonical arms 
 |---------------------|---------------|----------------------------------------------------------------------------------------------------|
 | `advance`           | 303 to next   | `nextUrl: string` (next-task or success URL)                                                       |
 | `retry_same`        | 303 to same   | optional `flash` payload (typed `FLASH_KIND`)                                                      |
+| `own_repeat`        | 303 to next   | the same `nextUrl` and success message as the first submit's `advance`                                |
+| `already_held`      | 303 to same   | informational `flash` payload: the state already held from another act                              |
 | `validation_error`  | 422 re-render | `message: string`, typed-per-method `formState` carrying every field the template needs to re-render |
 | `rate_limited`      | 429 re-render | `retryAfterSeconds: number`                                                                        |
 | `conflict`          | 422 or 409    | `message: string`, optional typed `formState`                                                      |
 | `not_found`         | 404           | (empty, or `reason: string` for log-only diagnostics)                                              |
 | `forbidden`         | 403           | (empty, or `reason: string` for log-only diagnostics)                                              |
+
+A repeat the method recognises returns `own_repeat` or `already_held`, never `conflict`.
 
 `validation_error.formState` is typed per method, never `unknown`. The controller renders the error response without a second service call; the service is the single source of the form-state payload.
 
@@ -2921,7 +2937,7 @@ The signed flash cookie sidesteps all of that. It is HMAC-signed with `SESSION_S
 
 Rationale for bounded redirect targets:
 
-A redirect URL chosen from user-controlled input (a form field, a URL fragment, the `Referer` header) is an open-redirect primitive. An attacker hands the victim a link that begins on the trusted `footbag.org` domain and silently lands the victim on an attacker-controlled page; the victim's trust in the originating domain transfers across the redirect into a phishing or credential-harvesting flow. To prevent this, every redirect target the application emits is either a fixed server-owned path (for example, `/admin/curator/media` after a curator action) or a path the controller has explicitly validated through `isSafePath` (relative same-site path; rejects schemes, `//` prefix, backslashes). The two surfaces that consume external input pass through `isSafePath` before redirecting: the auth-gate `/login?returnTo=...` and the post-logout `Referer` branch. No other controller constructs a redirect target from unvalidated input.
+A redirect URL chosen from user-controlled input (a form field, a URL fragment, the `Referer` header) is an open-redirect primitive. An attacker hands the victim a link that begins on the trusted `footbag.org` domain and silently lands the victim on an attacker-controlled page; the victim's trust in the originating domain transfers across the redirect into a phishing or credential-harvesting flow. To prevent this, every redirect target the application emits is either a fixed server-owned path (for example, `/admin/curator/media` after a curator action) or a path the controller has explicitly validated through `isSafePath` (relative same-site path; rejects schemes, `//` prefix, backslashes). The surfaces that consume external input pass through `isSafePath` before redirecting: the auth-gate `/login?returnTo=...` (including the form page it takes from a posted form's `Referer`) and the post-logout `Referer` branch. No other controller constructs a redirect target from unvalidated input.
 
 Alternatives considered:
 
@@ -3053,7 +3069,7 @@ Impact:
 
 - Bounce and complaint notifications update MailingListSubscription records (status, bounce/complaint fields) and any global member email status as needed, and the projection in Member.subscriptions is updated accordingly so future sends skip problematic addresses. One-to-one mail honors the same fact at the outbox enqueue: a best-effort send whose target address is a member's current notification mailbox with a non-ok email status is suppressed, so a bounced or complained mailbox never receives routine mail again. Strict security sends (password reset, verification, account-change confirmations) bypass the suppression gate: they are member-initiated, rare, and refusing them would either strand the member or let an anti-enumeration surface answer differently for a bounced address. SES bounce and complaint notifications are published to an SNS topic and read from an SQS queue that the background worker polls; the platform exposes no endpoint for them. The read is authorized by the host's runtime IAM role, so the feed carries no shared secret and nothing about it reaches a proxy log. The worker rejects any message whose publishing topic is not the one configured for the feed, which is what remains worth asserting once the transport itself is authenticated: it establishes that the message belongs to this feed rather than to another subscription onto the same queue. A message the platform fails to record is left on the queue and delivered again; the queue's own dead-letter policy is what stops one the platform can never handle from blocking the rest, and the dead-letter queue is alarmed, because a notification sitting there is one that never reached the member's record. A queue rather than a pushed endpoint because an undelivered push is discarded once its retry window closes, and the notification most worth having is the one that arrived while the platform was down.
 
-- Bounce state transitions: hard bounces (SES permanent-failure type) mark the member's address `bounced` and pause every list the member was subscribed to, so nothing but strict mail is sent to it. Soft bounces (SES transient-failure type) are ignored: they self-heal, and the provider's own account-level suppression list already stops sending to an address that keeps failing, so the platform keeps no per-address soft-bounce count. Complaints mark the address and pause all lists immediately, except a `not-spam` feedback type, which reports the opposite and is ignored. Neither mark is permanent, and neither shuts off the account. The way back is always the member's own act on their own address: a bounced member asks to resume mail from their email-preferences screen and opens a verification link sent to the same address, which clears the bounce and turns back on the lists it paused; a member who reported spam turns a mailing back on, which withdraws the report and resumes that list alone, every other paused list waiting for its own choice. The provider's account-level suppression list drops every send to a listed address, strict mail included, so each of these acts first takes that one address off the provider's list through the runtime role's single lift permission; a provider failure there changes nothing on the platform side. The `suppressed` state is reserved for an explicit administrator block, written by neither the feedback path nor any member action and lifted by no member action.
+- Bounce state transitions: hard bounces (SES permanent-failure type) mark the member's address `bounced` and pause every list the member was subscribed to, so nothing but strict mail is sent to it. Soft bounces (SES transient-failure type) are ignored: they self-heal, and the provider's own account-level suppression list already stops sending to an address that keeps failing, so the platform keeps no per-address soft-bounce count. Complaints mark the address and pause all lists immediately, except a `not-spam` feedback type, which reports the opposite and is ignored. Neither mark is permanent, and neither shuts off the account. The way back is always the member's own act on their own address: a bounced member asks to resume mail from their email-preferences screen and opens a verification link sent to the same address and confirms on the page it opens, which clears the bounce and turns back on the lists it paused; a member who reported spam turns a mailing back on, which withdraws the report and resumes that list alone, every other paused list waiting for its own choice. The provider's account-level suppression list drops every send to a listed address, strict mail included, so each of these acts first takes that one address off the provider's list through the runtime role's single lift permission; a provider failure there changes nothing on the platform side. The `suppressed` state is reserved for an explicit administrator block, written by neither the feedback path nor any member action and lifted by no member action.
 
 - Bounce and complaint idempotency: inbound SNS messages carry a `messageId`; the feed handler claims processed `messageId` values in a `ses_events` table with `messageId` as primary key, inside the same transaction as the status write. A redelivery leaves the record exactly as it stands. This is not an optimisation: the queue promises at-least-once delivery, so the same notification arriving twice is ordinary rather than exceptional. Parallel to the `stripe_events` idempotency in §6.1. The same row records the provider's identifier for the original message and the outbox row it resolved to, which is what lets a bounce name the send that produced it; resolving to nothing is ordinary, because the per-recipient outbox copy ages out on the outbox retention window while the notification record keeps the identifier after it.
 
@@ -3066,9 +3082,9 @@ Impact:
 
 - Email records are inserted into the outbox table within the same transaction as the business operation that triggers the email. This guarantees that if the transaction commits, the email is queued; if the transaction rolls back, neither the event nor the email record exists.
 
-- Outbox body scrub (APP-019): security-sensitive emails (account verification, password reset, data-export download links, voting receipt tokens) carry single-use tokens in the body text. After successful send, the worker MUST set `outbox_emails.body_text = NULL` so the raw token does not persist in the live DB or in DB backups beyond the moment of delivery. The schema column is nullable specifically to support this scrub. Subject lines never contain tokens by design, so they are preserved.
+- Outbox body scrub (APP-019): security-sensitive emails (account verification, password reset, voting receipt tokens) carry single-use tokens in the body text. After successful send, the worker MUST set `outbox_emails.body_text = NULL` so the raw token does not persist in the live DB or in DB backups beyond the moment of delivery. The schema column is nullable specifically to support this scrub. Subject lines never contain tokens by design, so they are preserved.
 
-- Link policy (anti-phishing): notification emails carry no clickable links in their body. They name the action and give precise log-in-and-navigate instructions, so members are never trained to click links arriving in mail. A body link appears only in an email-verification flow, where the link itself is the proof of mailbox control (account verification, password reset, data-export download, and claim or mailbox-link tokens). The one-click unsubscribe URL is not a body link: it lives in the `List-Unsubscribe` headers, which the mail client renders as its own control, so the reader is never taught to click a link in the message. Relationship and nudge emails such as co-leader invitations and the admin contact-members prompt route the recipient to the standing on-site affordance by instruction, never by embedded link.
+- Link policy (anti-phishing): notification emails carry no clickable links in their body. They name the action and give precise log-in-and-navigate instructions, so members are never trained to click links arriving in mail. A body link appears only in an email-verification flow, where the link itself is the proof of mailbox control (account verification and password reset); the link opens a page whose button performs the action (Every GET Is Read-only). The one-click unsubscribe URL is not a body link: it lives in the `List-Unsubscribe` headers, which the mail client renders as its own control, so the reader is never taught to click a link in the message. Relationship and nudge emails such as co-leader invitations and the admin contact-members prompt route the recipient to the standing on-site affordance by instruction, never by embedded link.
 
 ## 5.5 Canonical Email Addresses
 
@@ -3324,7 +3340,7 @@ Requirements:
 
 - A dark payment side carries its own generated stub webhook signing secret, as staging does, so the committed stub constant never signs a reachable endpoint.
 
-- The simulated-email card follows the stub adapter, so a dark production renders it. Host-page-less notifications while dark are read from the outbox table directly: the production image strips the dev testkit, so the catch-all dev outbox viewer exists only below production.
+- The simulated-email card follows the stub adapter, so a dark production renders it. A dark production drains its outbox into the stub exactly as staging does, so a sent row keeps its recipient, subject and status but not its body, which every send clears. A notification with no host page is therefore seen while dark only as that outbox row: the production image strips the dev testkit, so the catch-all dev outbox viewer exists only below production.
 
 Trade-offs:
 
@@ -3420,6 +3436,68 @@ Requirements:
 
 - Adding a task type is one entry in the table and needs no template change.
 
+## 5.11 Every GET Is Read-only
+
+Decision:
+
+A GET or HEAD request changes no stored state. It inserts, updates or deletes no row, spends no single-use token, enqueues no email, calls no provider to change anything, and starts no session. Reading a page records nothing about the read. Work that would otherwise run when a page is read runs in the state-changing request that causes it, or behind an explicit button that posts. An email link that must spend a token opens a page whose single button posts the token, and only that POST spends it.
+
+Rationale:
+
+- Requests the member never made arrive as GETs. Mail link scanners, common in corporate and Microsoft mailboxes, open every link in a message before the member does; browsers prefetch links; crawlers follow them; a reopened tab or a history entry replays them. A GET that writes lets any of these change data or spend a link meant for the member.
+- HTTP defines GET as a safe method: the client neither requests nor is responsible for any change. The CSRF defence (CSRF Protection via SameSite Cookies and Origin Pinning) rests on the same discipline, because a cross-site image or link can trigger only a GET, and the Origin pin guards only state-changing methods.
+- Reads are not recorded. A record of who viewed the audit log, the Official IFPA Roster or a member-search result serves no reader, alarm or report, and the IFPA governing documents ask for none, while keeping one would put a write on the most-read pages. Member search is protected by its rate limit, and a rate-limit hit is an application-log warning.
+- A near-absolute rule is mechanically checkable: a test can assert that the database is unchanged around every GET, with one exemption, the testkit routes, which never run in production.
+
+Requirements:
+
+- No GET handler, and no service method it calls, writes to the database, spends a token, enqueues an outbox row, or calls a provider to change state. Renewing the visitor's own session cookie near expiry, clearing the one-shot flash cookie, and in-memory rate-limit counters change no stored state and are allowed.
+- No GET writes an audit row; `audit_entries` records changes only.
+- The email-verification link, which also clears a bounce, opens a landing page whose single button posts the token. The landing page changes nothing and reveals nothing about the token. Password reset has the same shape: the link opens the form, and the form's POST spends the token.
+- State that depends on time or on other rows is derived when read, never written by the read. A pending upload job past its `expires_at` reads as abandoned. The onboarding checklist rows are created in the email-verification transaction, and each task completes in the transaction of the act that settles it. The payment cancel page only reads; the next purchase POST reuses or releases the member's open checkout.
+- Work an administrator triggers is a button: the club-cleanup rules are applied by an "Apply the rules" POST on the cleanup queue, recorded with that administrator as the actor.
+- The personal data export is an owner-only `GET /members/:memberKey/download` that builds the export and returns it in the same response, with no token, link or email.
+- Exemption: the development and staging testkit routes that issue a session or build an account (`/dev/switch`, `/dev/login`, `/dev/build-claim`) are GETs taking `?as=`, so the persona listing and every test client reach them as plain links. They are never mounted in production and are stripped from its image.
+- An in-process crawl reads SQLite's change counter on the application's connection around every GET it issues and fails on any change. A route-table check fails for any GET route the crawl does not reach and that has no no-write test of its own.
+
+Trade-offs:
+
+- An emailed verification link costs one extra click on the landing page's button. Accepted: the click is what makes the link safe from scanners.
+- Nobody can later say which organizer viewed the roster or which administrator read the audit log. Accepted: no one reviews such records, and the IFPA governing documents ask for none.
+- Club-cleanup demotions take effect when an administrator applies them, not when the queue is opened, so an unapplied queue shows demotions still pending.
+- On staging, which serves the testkit on the public internet, a link scanner or a cross-site link can mint a persona session or build an account through the exempt routes. Accepted: they never reach production.
+
+## 5.12 Every State-changing Action Is Safe to Submit Twice
+
+Decision:
+
+Every state-changing request is safe to submit twice. The shared submit guard and Post-Redirect-Get stop the everyday repeats: the guard disables a form's buttons after the first press, and a 303 to a GET means a refresh never re-sends a form. Beyond that, the server recognises a repeat and reports the first outcome, with no error and no repeated side effect, wherever a repeat reaches it without the user deliberately sending the form again, and wherever a repeat would do harm: an email link, which mail scanners and clients open more than once; a checkout or payment start; and an outward send such as an announcement or broadcast. Everywhere else, a member's own account, identity, club and preference changes included, the submit guard and Post-Redirect-Get are the protection, and a deliberate re-post may show an error, provided no email, charge, grant or account is repeated. Each service method on the covered paths checks, inside its transaction and before acting, whether the state its action would create already holds, and reports that instead of acting again. Administrators are trusted power users: a deliberate re-post of an administrator button (pressing Back and clicking again, or a second tab) may show an error or record a harmless duplicate entry, provided no email, charge, grant or account is repeated.
+
+Rationale:
+
+- Post-Redirect-Get (Express-based HTTP Controllers) stops a browser refresh from re-posting, but not a second tab, a back-button re-post, a network retry or a re-opened link. Those repeats reach the server however carefully the page is built.
+- A member who submits twice did nothing wrong. An error on the repeat tells them their action failed when it succeeded, and a repeated side effect (a second email, a second checkout, a second grant) is a real defect.
+- Checking for the result rather than for the request needs no new table and no hidden key on every form: the action's own natural identity and the actor's own audit row already answer whether it happened.
+- The client-side submit guard, which disables a form's buttons after the first press, removes most double clicks but cannot be the guarantee where it matters: the site works without JavaScript, and the back button, a second tab and an email link bypass it.
+- Administrators work deliberately on a small, trusted surface. Teaching every administrator button to recognise a deliberate re-post costs code and tests across dozens of actions for a difference in a message's tone, so it is not required.
+- The same reasoning holds for a member's own changes. The harm worth preventing is a repeated email, charge, grant or account, and the covered paths are where those happen; recognising a deliberate re-post on every other member action costs code and tests for a difference in a message's tone.
+
+Requirements:
+
+- A state-changing service method on a path this decision covers runs in this order: validate, check whether the result already holds, rate limit, act. It returns one of four results: it happened; this actor's own act already happened; the state already held from another act; or a refusal.
+- The controller maps the result through one shared helper to a 303 and a flash message. The actor's own repeat shows the same success message as the first submit; a state that already held from another act takes the informational tone; a refusal takes the refusal tone.
+- This actor's own act is proven by their own audit row for it, and only while that act is the one standing: when another actor has since reversed or redone it, the repeat is not this actor's own. An act that writes no audit row of its own is proven by the record it leaves (a work-queue item's parked-by or resolved-by column). A repeat reports what the first submit actually left, read from the record of it, never re-derived from current state. A repeated delete or close of something that was never this actor's stays a plain 404, so a repeat leaks nothing about records the actor cannot see.
+- A create matches on its natural identity (the same owner, name and content), so a repeated create returns the row the first one made.
+- Audit rows, outbox rows and rate-limit slots are spent only when something changed. An outbox idempotency key is deterministic for the act, never carrying a timestamp. Registration, password-reset requests and verify-resend requests keep counting every request against their rate limits, as anti-enumeration requires.
+- A spent email-link token whose use already did its job shows a success page and starts no session ("Your email is verified. Log in to continue." / "Your password has been reset. Log in with your new password."). For a password reset that is a submit carrying the password the link set; any other submit on a spent reset link gets the generic invalid page. An unknown or expired token keeps the generic invalid page.
+- On register the captcha is checked first. A repeat carrying a spent captcha token gets the normal re-challenge, and once it passes, the repeat is recognised and reports the first outcome. On password reset the repeat is recognised before the captcha, because a re-post carries the captcha token its first submit spent. That check compares a submitted password with the stored one, so it counts against a rate limit before it runs and gives the attempt back only for a repeat; a spent link is never a free way to test guesses.
+- A sweep over the live route table fails for any state-changing route on a covered path (an email link, a checkout or payment start, an outward send) with neither a submitted-twice test nor a named exemption. Each test asserts the same redirect and message as the first submit and unchanged counts of domain rows, audit rows, outbox rows and rate-limit slots. The named exemptions, each with its reason, are: the bootstrap claim, whose repeat gets the invalid page by design; a repeated account delete, whose session is gone so the repeat is a login redirect; a password change re-posted with the pre-change session cookie, because session revocation must hold; and the staging smoke check's password-reset request and persona sign-in and the staging load check's sign-in, which are designed probes of the deployed host.
+
+Trade-offs:
+
+- Every state-changing method on a covered path carries an explicit already-holds check, which is more code than relying on a unique constraint and an error. Accepted: the constraint stays as the backstop, and the check is what turns a repeat into the right message.
+- Telling the actor's own repeat apart from another person's act relies on the audit trail, or on a record of who acted that the action leaves; an action that writes neither can only report "already held", never "you already did this".
+
 # 6. External Services and Integrations
 
 ## 6.1 Stripe Payments
@@ -3442,7 +3520,7 @@ Rationale:
 
 The platform uses two distinct Stripe payment models:
 
-- One-time payments (membership dues, event registrations, one-time donations): Implemented via Stripe Checkout in payment mode. State transitions are keyed by payment_intent_id. Checkout offers card-backed payment methods only, pinned in the request rather than left to the Stripe Dashboard: fulfilment is keyed to the payment intent's settlement event, so a method that settles days after the buyer completes the checkout has no representable outcome here and would leave the payment pending indefinitely with reconciliation agreeing, since both sides read the same unsettled status. Accepting delayed-settlement methods is a later decision that would require fulfilling on the checkout-session events instead. Checkout sessions are also created with an explicit expiry of an hour or two rather than Stripe's day-long default, and the cancel page expires the session at Stripe outright, because an unresolved membership checkout blocks the member's next purchase attempt until it resolves. The enforced state machine is: pending → succeeded on payment_intent.succeeded; pending → canceled on checkout.session.expired; succeeded → refunded on charge.refunded. A declined attempt does not move the record: while the checkout session is open the buyer may present another card, so payment_intent.payment_failed records the attempt on the transition ledger and leaves the payment pending. Recording the decline as terminal would make the success that follows it unapplicable under the monotonic machine, charging a member who never receives what they paid for. A refund the provider then cannot return to the card, or reverses (refund.failed, or refund.updated carrying a failed or canceled status), cannot move the row back: it is recorded on the payment's money history and raised as an administrator work item, and the money is returned another way at the provider.
+- One-time payments (membership dues, event registrations, one-time donations): Implemented via Stripe Checkout in payment mode. State transitions are keyed by payment_intent_id. Checkout offers card-backed payment methods only, pinned in the request rather than left to the Stripe Dashboard: fulfilment is keyed to the payment intent's settlement event, so a method that settles days after the buyer completes the checkout has no representable outcome here and would leave the payment pending indefinitely with reconciliation agreeing, since both sides read the same unsettled status. Accepting delayed-settlement methods is a later decision that would require fulfilling on the checkout-session events instead. Checkout sessions are also created with an explicit expiry of an hour or two rather than Stripe's day-long default, and the member's next purchase attempt for the same tier returns to their open checkout, while any other purchase releases it: the platform asks the provider to expire the old session and, on the provider's confirmation that it expired, closes the pending row exactly as the checkout.session.expired webhook would, so the webhook that follows finds nothing to do; a session the provider reports completed was paid for and stands. The cancel page only reads (Every GET Is Read-only), because the buyer may never reach it and nothing important may depend on it. The enforced state machine is: pending → succeeded on payment_intent.succeeded; pending → canceled on checkout.session.expired; succeeded → refunded on charge.refunded. A declined attempt does not move the record: while the checkout session is open the buyer may present another card, so payment_intent.payment_failed records the attempt on the transition ledger and leaves the payment pending. Recording the decline as terminal would make the success that follows it unapplicable under the monotonic machine, charging a member who never receives what they paid for. A refund the provider then cannot return to the card, or reverses (refund.failed, or refund.updated carrying a failed or canceled status), cannot move the row back: it is recorded on the payment's money history and raised as an administrator work item, and the money is returned another way at the provider.
 
 - Recurring annual donations: Implemented via Stripe Subscriptions. The platform creates or reuses a Stripe Customer object for each member (stripeCustomerId stored on the member record) and creates a yearly Stripe Subscription via Stripe Checkout in subscription mode. The platform does not manage the billing schedule or retries. Stripe owns the annual renewal cycle, dunning configuration, and retry logic. Local state transitions are driven entirely by incoming webhooks: active on customer.subscription.created; amount and lifecycle changes mirrored on customer.subscription.updated; a new payment record created on invoice.paid or invoice.payment_succeeded, whichever arrives first for a settlement (the provider raises both, and only invoice.paid reports an invoice marked paid out of band), the second booking nothing; local status set to past_due on invoice.payment_failed; local status set to canceled on customer.subscription.deleted. A subscription already recorded as canceled absorbs no further update, because applying one would leave the row carrying a cancellation time while claiming to be live. The Stripe Billing dunning schedule (number of retries, intervals) is configured by a System Administrator in the Stripe Dashboard and is not replicated in application configuration. The end-of-dunning action is not similarly free. Stripe offers three outcomes once retries are exhausted — cancel the subscription, mark it unpaid, or leave it past due — and only cancellation emits customer.subscription.deleted, which is the sole event that moves a local subscription to its terminal state. Under either other outcome the provider stops attempting payment while the local row stays past_due indefinitely: the member's action-dashboard item, which tells them the provider will try again, never clears, and reconciliation raises nothing because both unpaid and past_due map to local past_due and the two sides therefore agree. The Dashboard must be configured to cancel. The subscription linkage on an invoice is read from the invoice's parent subscription details, not from a top-level field, and the Stripe API version is pinned explicitly in the payment adapter with the webhook endpoint's version kept equal to it; payload shapes are version-specific and an unpinned SDK can reshape them under working code.
 
@@ -3454,7 +3532,7 @@ Payment recurrence is derived from Stripe subscription linkage, not duplicated o
 
 - The webhook endpoint subscribes to exactly the event types the dispatcher handles, and that set is declared in the payment service beside the handlers themselves, so the subscription and the handling cannot drift apart. Operator procedure reads the set from there rather than from prose. An endpoint missing a subscribed type fails silently: nothing errors and the event simply never arrives.
 
-- A donation designated to the Hall of Fame fund is restricted to that fund: IFPA spends it on the Hall of Fame and on nothing else. The designation travels with the gift as the donor's comment, so it is recorded with the payment and is permanent like the comment itself. The platform records the designation; accounting for the fund's balance is IFPA's, done from the payment records.
+- Every donation is a gift to IFPA. The platform designates no gift to a fund, prefills nothing in the donor's comment, and keeps no fund balance. A comment may name a purpose the donor cares about; it is recorded with the payment and is permanent like any comment, and whether and how IFPA honors that earmark is IFPA's accounting, done from the payment records.
 
 - Stripe webhook idempotency is enforced by tracking processed event IDs in a stripe_events table with event_id as primary key. When webhooks arrive, the handler first checks if the event_id already exists. If found, the handler returns 200 immediately without reprocessing, preventing duplicate tier upgrades, duplicate payment records, and duplicate refund processing. For one-time payments: in one DB transaction, claim the event_id in stripe_events (INSERT OR IGNORE) and load/update the local payment by payment_intent_id under a monotonic state machine; a claim finding the id already present is a no-op duplicate. The claim shares the mutation's transaction, so a processing failure rolls it back and Stripe's redelivery re-runs cleanly. A signature failure returns 400 with no state; a recoverable processing failure returns 400 so Stripe retries; processed, duplicate, and unhandled-type events return 200. Record last_stripe_event_created to ignore older events. Subscription and invoice events follow the same claim-inside-the-transaction rule: in one DB transaction, claim the event_id, load and update the local donation subscription record by stripeSubscriptionId, and process the event type, so a processing failure rolls the claim back and Stripe's redelivery re-runs cleanly.
 
@@ -3659,7 +3737,7 @@ The two sources share the same identity key (`legacy_member_id`) and converge vi
 
 **Club leader bootstrap classification.** The wizard's bootstrap leadership confirmation classifies each `(member, club)` candidate via combination gates over five structural signals (`listed_contact`, `affiliation`, `hosting`, `roster`, `mirror_text`). Three modifier signals (`tier_signal`, `recent_activity`, `geographic_alignment`) display alongside structural signals in member-facing and admin surfaces but do not change classification. On user confirmation or correction, the bootstrap row promotes to a live `club_leaders` row regardless of classification strength and regardless of registrant tier; the classification (strong, weak, none) is recorded in audit metadata for post-cutover analytics. Decline transitions the bootstrap row to `'rejected'`. Claim eligibility is independent of club status; a successful claim returns an inactive or archived club to `'active'`, audit-logged as a revival. Rules are encoded in service code, not stored as data; revisions follow observed false-positive data.
 
-**Legacy-data cleanup.** Club-roster reads include unconfirmed `'pending'` legacy affiliations alongside confirmed members. Clubs outside the bootstrap-eligible cohort carry no `club_bootstrap_leaders` rows, so their mirror-inferred `leader` / `co-leader` / `contact` affiliations are read as provisional leaders, deduplicated by person id against any bootstrap rows and cleared once a real member claims leadership; the legacy dump and mirror are the only leadership data for those clubs. How both are labelled and shown is specified in `M_View_Club`. Cleanup of that residue is admin-driven, not a background process: when an admin opens the `A_Periodic_Club_Cleanup` queue, the `crowdsource_club_viability`, `leaderless_active_club`, and `stale_provisional_leader` rules are evaluated on demand; the club rules demote what they settle and surface one-click recommendations for the rest; unconfirmed residue is retired by an explicit per-club de-list (`legacy_person_club_affiliations` 'pending' to 'former_only'), also cascaded when a club is demoted or archived. A `'pending'` row also drains when its member confirms or declines it in the onboarding wizard. Duplicate club candidates are merged before cutover by a curator-confirmed directive in the pipeline (the kept candidate absorbs the duplicate's roster and affiliations, recording source keys), not by automatic clustering or a platform-side process. Rationale: the migration-window `pending` backlog is made honest by labeling rather than hidden, and is retired only alongside the club it belongs to or by an explicit admin de-list; bounded admin effort comes from one-click per-club actions guided by an advisory age signal, not an unattended worker; and the handful of true duplicate clubs are reconciled by a deterministic curator merge that unions rosters rather than dropping data. Admin remains the sole decision authority for every judgment case (mistaken linkage, junk override, force-keep requests). Club content is edited directly by co-leaders with no review queue; activity signals are collected only in the onboarding wizard, counted one vote per member, and the cleanup queue names negative voters to the admin while authorship never renders publicly.
+**Legacy-data cleanup.** Club-roster reads include unconfirmed `'pending'` legacy affiliations alongside confirmed members. Clubs outside the bootstrap-eligible cohort carry no `club_bootstrap_leaders` rows, so their mirror-inferred `leader` / `co-leader` / `contact` affiliations are read as provisional leaders, deduplicated by person id against any bootstrap rows and cleared once a real member claims leadership; the legacy dump and mirror are the only leadership data for those clubs. How both are labelled and shown is specified in `M_View_Club`. Cleanup of that residue is admin-driven, not a background process: the `A_Periodic_Club_Cleanup` queue shows what the `crowdsource_club_viability`, `leaderless_active_club`, and `stale_provisional_leader` rules would settle, and an admin applies them with its "Apply the rules" button; the club rules demote what they settle and surface one-click recommendations for the rest; unconfirmed residue is retired by an explicit per-club de-list (`legacy_person_club_affiliations` 'pending' to 'former_only'), also cascaded when a club is demoted or archived. A `'pending'` row also drains when its member confirms or declines it in the onboarding wizard. Duplicate club candidates are merged before cutover by a curator-confirmed directive in the pipeline (the kept candidate absorbs the duplicate's roster and affiliations, recording source keys), not by automatic clustering or a platform-side process. Rationale: the migration-window `pending` backlog is made honest by labeling rather than hidden, and is retired only alongside the club it belongs to or by an explicit admin de-list; bounded admin effort comes from one-click per-club actions guided by an advisory age signal, not an unattended worker; and the handful of true duplicate clubs are reconciled by a deterministic curator merge that unions rosters rather than dropping data. Admin remains the sole decision authority for every judgment case (mistaken linkage, junk override, force-keep requests). Club content is edited directly by co-leaders with no review queue; activity signals are collected only in the onboarding wizard, counted one vote per member, and the cleanup queue names negative voters to the admin while authorship never renders publicly.
 
 Rationale:
 
@@ -3901,7 +3979,7 @@ The status page subscribes to SSE on /admin/curator/upload/jobs/<id>/events. The
 
 State machine for media_jobs:
 
-- pending_upload: row created at /sign; expires_at set so abandoned uploads (browser closed before /finalize) reconcile to abandoned.
+- pending_upload: row created at /sign; expires_at set so an upload abandoned before /finalize (browser closed) reads as abandoned once it passes.
 
 - pending_transcode: bytes confirmed in S3 by /finalize; job dispatched to worker.
 
@@ -3911,9 +3989,9 @@ State machine for media_jobs:
 
 - failed: terminal after the configured max attempts; admin re-uploads to retry.
 
-- abandoned: pending_upload row past its TTL.
+- abandoned (derived, never stored): a pending_upload row past its TTL.
 
-The only sweep is the worker's expired-lease scan for orphaned processing rows, run once at boot and repeated on a slow reap cycle; matched rows reset to pending_transcode for re-dispatch. The recurring pass exists because a lease can outlive the process that held it: a row claimed shortly before a restart still holds a live lease when the boot scan runs, is correctly left alone there, and its lease then expires with no further boot coming. Only expired leases are ever reclaimed, so a live claim is never touched whatever process topology is running. Every other transition is driven by an HTTP push event, with one exception that needs no sweep because it always has a reader: a pending_upload row past its TTL is reconciled to abandoned when the admin status surface reads it, which is the only surface that has any use for the distinction.
+The only sweep is the worker's expired-lease scan for orphaned processing rows, run once at boot and repeated on a slow reap cycle; matched rows reset to pending_transcode for re-dispatch. The recurring pass exists because a lease can outlive the process that held it: a row claimed shortly before a restart still holds a live lease when the boot scan runs, is correctly left alone there, and its lease then expires with no further boot coming. Only expired leases are ever reclaimed, so a live claim is never touched whatever process topology is running. Every other transition is driven by an HTTP push event. A pending_upload row past its TTL needs no transition at all: the admin status surface, the only one with any use for the distinction, reads it as abandoned.
 
 The worker-side transcode is streaming end to end: the image container downloads the source to a disk temp file in bounded chunks under a running byte cap, runs ffmpeg file-to-file, and uploads the result from disk with an explicit Content-Length, so no video bytes are ever held whole in memory and peak memory is the encoder's working set regardless of file size. Before any encode starts, the worker compares the host's available memory against a configured admission floor and answers busy (503 with Retry-After) when the host is too low; the dispatcher treats that as pressure, waiting the advised interval and re-attempting a bounded number of times without consuming the job's retry budget. The job lease is validated at boot to exceed a full transcode attempt plus the maximum busy wait, so an expired lease remains proof that its holder is gone.
 
@@ -4272,7 +4350,7 @@ An administrator who has also been onboarded as a dev-and-tester can therefore c
 
 A dev-and-tester is onboarded in one run by a `footbag-operator` holder, and the run is the same whoever is onboarded: a holder onboarding themselves runs it at their own keyboard and accepts on the same machine, exactly as anybody else does on theirs. That run creates their named host account and their named IAM user, puts their address on the staging allow-list, and seals what they need to the SSH public key they sent: the host account's one-time password, their access key, the account's role ARNs, and the staging host's pinned keys, which their job role is denied the call to read. It is sealed with `age`, a small open-source tool that encrypts a file to an SSH public key so that only the matching private key opens it, so nothing readable is left on any disk or in transit. The run places the sealed file in the newcomer's own home on the staging host, readable by their account alone, and nobody carries it. The encryption the estate already runs does not fit this job: AWS KMS needs an AWS identity the newcomer does not yet hold, the vault holds no personal credential and gives a dev-and-tester no access, and ballot encryption is internal to the application. The one-time password is not expired, because it is replaced by script rather than at an interactive first login: the newcomer runs one command on their own machine that fetches the file from their own host account, proves it was issued in this project's AWS account to their named IAM user before trusting anything in it, writes and proves their own profiles, pins the host, writes their SSH configuration, replaces the one-time password with one they choose, proving sudo with it, and removes the host copy. The one input it takes beyond their account name is the staging host's address, which the onboarding run prints in the command it hands over and which carries no trust, because the proven delivery must name the same address. No secret is read aloud, mailed or pasted, and no key of theirs is placed on the shared account. A lost private key is not patched: the account is offboarded and re-onboarded under the same name with a fresh key pair, and the re-onboarding refuses any key the account was retired with.
 
-Offboarding a dev-and-tester ends every access that could do harm, and nothing more. One run retires their host account, together with any delivery left unaccepted in it, their AWS identity, the job-role sessions they already hold, their address on the SSH allow-list and their collaborator access to both repositories, each proved ended by the step that ends it. Their sessions end through a deny the run writes onto the job role, limited to sessions issued before the offboarding that carry their name, so nobody else's session is cut. A staging runtime session they chained before the offboarding carries no name to refuse it by, and ends within the hour AWS allows a chained session. What they keep is what anybody has: the public code to run, and pull requests from a fork. Their own machine is not cleaned, because every credential on it is dead. No named identity has a vault entry: who holds access is read live from the host, IAM and each dev-and-tester's own address parameter, and the onboarding card in the maintainers' private tracker records who approved it, so no hand-kept copy of live state exists to drift.
+Offboarding a dev-and-tester ends every access that could do harm, and nothing more. One run retires their host account, together with any delivery left unaccepted in it, their AWS identity, the job-role sessions they already hold, and their address on the SSH allow-list, each proved ended by the step that ends it. The maintainer withdraws their GitHub and Discord access by hand, separately. Their sessions end through a deny the run writes onto the job role, limited to sessions issued before the offboarding that carry their name, so nobody else's session is cut. A staging runtime session they chained before the offboarding carries no name to refuse it by, and ends within the hour AWS allows a chained session. What they keep is what anybody has: the public code to run, and pull requests from a fork. Their own machine is not cleaned, because every credential on it is dead. No named identity has a vault entry: who holds access is read live from the host, IAM and each dev-and-tester's own address parameter, and the onboarding card in the maintainers' private tracker records who approved it, so no hand-kept copy of live state exists to drift.
 
 The runtime role's trust policy may also list a non-host AWS principal (the IAM user `footbag-operator` on both environments, and on staging the `FootbagDevTester` role) so a workstation holding either can chain into the runtime role for read-only health probes such as the staging readiness smoke test. The chained AssumeRole derives short-lived credentials and inherits only the runtime role's narrowly scoped permissions. No second factor is used on the chained AssumeRole, which keeps unattended smoke runs possible; the bound is the runtime role's own narrow scope, which on staging reaches only staging resources.
 
@@ -4398,9 +4476,9 @@ Rationale:
 Requirements:
 
 - Every GitHub Actions workflow declares a top-level `permissions: { contents: read }` and elevates per-job only where required (e.g. `security-events: write` for the CodeQL job). Default-write tokens are not used.
-- GitHub Actions are pinned by commit SHA (`actions/checkout@<sha>`), not by floating tag or major version. SHA bumps land via reviewed PRs; no action runs at a mutable reference. CI runners are named by release (`ubuntu-24.04`), never `*-latest`, which moves to a new operating system on the provider's schedule.
-- The `main` branch is protected with required reviews, required CI checks, and a force-push prohibition. Secret scanning and push protection are enabled at the repo level.
-- Each project MCP server package is an exactly pinned devDependency governed by the lockfile, and `.mcp.json` runs it from `node_modules/.bin`, never through `@latest` or an `npx` fetch. A version bump is a reviewed PR, not a transparent upstream change.
+- GitHub Actions are pinned by commit SHA (`actions/checkout@<sha>`), not by floating tag or major version. SHA bumps are approved by the maintainer, ideally through a pull request; no action runs at a mutable reference. CI runners are named by release (`ubuntu-24.04`), never `*-latest`, which moves to a new operating system on the provider's schedule.
+- The `main` branch is protected against force-pushes and deletion. Pull requests are recommended but not required. Secret scanning and push protection are enabled at the repo level.
+- Each project MCP server package is an exactly pinned devDependency governed by the lockfile, and `.mcp.json` runs it from `node_modules/.bin`, never through `@latest` or an `npx` fetch. A version bump is approved by the maintainer, ideally through a pull request, not a transparent upstream change.
 - Every dependency, devDependency and override in `package.json` is pinned to an exact version (no `^` or `~`), enforced by the version-pin convention gate (`scripts/ci/check_version_pins.sh`). The lockfile is the canonical source for transitive versions, and installs read it with `npm ci`. A version in `package.json`, an override among them, is changed only by `scripts/pin-npm-package.sh`, which moves that one package in the lockfile and refuses any other change to it.
 - The Node and Python runtimes are pinned exactly in `.nvmrc` and `.python-version`. CI, the local runners and the workstation setup script all read those two files, so no second copy of either version exists to drift.
 - Python packages are hash-pinned: each `requirements.in` names the direct dependencies and compiles to a `requirements.txt` pinning every package in the closure with its file hashes, installed with `--require-hashes`. The compiled files are regenerated only by `scripts/lock-python-deps.sh`. The requirement files and the lock script serve only the pre-go-live data-load Python and are deleted with it; the pinned runtime stays for the developer and CI tooling.
@@ -4652,7 +4730,7 @@ Impact:
 
 - Troubleshooting relies on CloudWatch Insights queries.
 
-- Logs MUST redact tokens, JWTs, cookies, Stripe secrets, webhook signatures, AWS access key IDs and secret access keys, the value of `SESSION_SECRET`, raw JWT cookie values, and any §3.8 single-use account-security token (email verify, password reset, data export) regardless of whether the token appears in URL path, query string, or request body; use allowlist logging; never log raw email or full message subjects. KMS key ARNs are not secrets but should not be logged at request scope.
+- Logs MUST redact tokens, JWTs, cookies, Stripe secrets, webhook signatures, AWS access key IDs and secret access keys, the value of `SESSION_SECRET`, raw JWT cookie values, and any §3.8 single-use account-security token (email verify, password reset) regardless of whether the token appears in URL path, query string, or request body; use allowlist logging; never log raw email or full message subjects. KMS key ARNs are not secrets but should not be logged at request scope.
 
 Requirements:
 
@@ -4713,7 +4791,7 @@ Rationale:
 Requirements:
 
 - Authenticated member-search endpoints enforce a search-specific rate limit (per-IP and per-member quotas) stricter than the baseline anonymous/authenticated limits, defending against scraping the member base at the legitimate-traffic threshold without exceeding it.
-- Every member-search query writes an immutable, privacy-safe audit log entry (actor member id, query hash, result count, timestamp; no IP, no raw query string). Abusive search patterns are detectable post-hoc and a privacy-impacting search surface remains accountable.
+- A member-search rate-limit hit writes an application-log warning naming the actor member id, never the query; abusive search patterns show in the logs without any read being recorded (Every GET Is Read-only).
 
 Trade-offs:
 
@@ -5000,7 +5078,7 @@ All steady-state AWS infrastructure is defined in Terraform configuration files 
 Rationale:
 
 - Reproducible environments: Dev, staging, production created identically from code (eliminates "works in staging but not production" issues).
-- Infrastructure changes reviewed via pull requests with visual diff of planned changes (terraform plan output).
+- Infrastructure changes are approved by the maintainer after reviewing the planned changes (terraform plan output), ideally through a pull request.
 - Disaster recovery through code: complete AWS-side rebuild possible from Terraform state. Host-side state recovers separately.
 - Eliminates tribal knowledge; infrastructure documented as executable code with comments explaining rationale.
 - Supports long-term volunteer maintainability (new admins can understand infrastructure by reading .tf files).

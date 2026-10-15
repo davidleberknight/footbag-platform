@@ -45,7 +45,7 @@ import {
   type MailingListRow,
   type MailingListWithCountsRow,
 } from '../db/db';
-import { appendAuditEntry } from './auditService';
+import { appendAuditEntry, findOwnLatestAudit } from './auditService';
 import { ConflictError, NotFoundError, ValidationError } from './serviceErrors';
 import type { PageViewModel } from '../types/page';
 import type { OutcomeTone } from '../lib/outcomeNotice';
@@ -119,6 +119,42 @@ export type SubscriptionAdjustmentOutcome =
 function isUniqueViolation(err: unknown): boolean {
   const code = (err as { code?: string } | null)?.code;
   return code === 'SQLITE_CONSTRAINT_UNIQUE' || code === 'SQLITE_CONSTRAINT_PRIMARYKEY';
+}
+
+/** True when the list already stored is this actor's own create with the same
+ *  values in every field the create writes. A same-named list with any other
+ *  value is not a repeat and stays a conflict. */
+function isOwnIdenticalCreate(
+  actorMemberId: string,
+  slug: string,
+  fields: {
+    name: string;
+    description: string;
+    isMemberManageable: number;
+    fromIdentity: string | null;
+    subjectPrefix: string;
+  },
+): boolean {
+  const row = mailingLists.getBySlug.get(slug) as
+    | {
+        name: string;
+        description: string;
+        is_member_manageable: number;
+        from_identity: string | null;
+        subject_prefix: string;
+        status: string;
+      }
+    | undefined;
+  // An archived list is not the one the create made live, so a re-post does not
+  // report it created.
+  if (!row || row.status !== 'active') return false;
+  const identical = row.name === fields.name
+    && row.description === fields.description
+    && row.is_member_manageable === fields.isMemberManageable
+    && (row.from_identity ?? null) === fields.fromIdentity
+    && row.subject_prefix === fields.subjectPrefix;
+  return identical
+    && findOwnLatestAudit(actorMemberId, 'mailing_list.created', 'mailing_list', slug) !== null;
 }
 
 /**
@@ -538,6 +574,9 @@ export const mailingListService = {
     if (Object.keys(fields.errors).length) {
       throw new ValidationError('Some fields need attention.', { fieldErrors: fields.errors });
     }
+    // This actor's own create, with every submitted field the same as the stored
+    // list, is a repeat: it reports the first create's success and writes nothing.
+    if (isOwnIdenticalCreate(actorMemberId, slug, fields)) return slug;
 
     const now = new Date().toISOString();
     try {

@@ -197,8 +197,8 @@ function readClubCapHitFlash(
 }
 
 // The cap notice has to reach the member wherever the answer leaves them. When
-// the capped club was the last card, the task completes on the very next GET
-// and the club page never renders again, so the completion page shows the
+// the capped club was the last card, that answer completed the task and the
+// club page may never render again, so the completion page shows the
 // notice instead; without that, the member is never told their Yes was recorded
 // as a former membership. Wording is service-shaped; this only reads the flash
 // cookie and supplies the request-derived href.
@@ -390,7 +390,6 @@ export const memberOnboardingController = {
         return;
       }
       const memberId = req.user!.userId;
-      memberOnboardingService.startTaskList(memberId);
 
       // Personal-details-before-matching gate: a task that depends on the
       // required personal fields (legacy_claim, club_affiliations) does not
@@ -403,31 +402,14 @@ export const memberOnboardingController = {
         return;
       }
 
-      // Reconcile task state with underlying reality before render. If the
-      // underlying state shows the task is already done or moot, transition
-      // it now and 303 to the next pending task (or /complete). Keeps the
-      // wizard from rendering a search page for an already-linked account
-      // or a "no clubs to confirm" empty state for a member who can never
-      // have cards.
       // A cap-hit answer must be read beside the step that produced it. When the
-      // capped club was the member's last card, this GET is where the task
-      // completes, so without holding the render here the club page never draws
-      // again and the explanation surfaces a step later with no card in sight.
-      // The club cards and the no-club exit are spent by then, so the page shows
-      // the notice and a way onward. The completion page keeps the notice for
-      // the case where there is genuinely no further club render.
+      // capped club was the member's last card, that answer also completed the
+      // task, so without holding the render here the completed step would
+      // redirect onward and the explanation would surface a step later with no
+      // card in sight. The club cards and the no-club exit are spent by then, so
+      // the page shows the notice and a way onward. The completion page keeps
+      // the notice for the case where there is genuinely no further club render.
       const capAcknowledgement = taskType === 'club_affiliations' && clubCapHitFlashPending(req);
-
-      let transitioned = false;
-      if (taskType === 'legacy_claim') {
-        transitioned = memberOnboardingService.ensureLegacyClaimReflectsState(memberId);
-      } else if (taskType === 'club_affiliations') {
-        transitioned = memberOnboardingService.ensureClubAffiliationsReflectsState(memberId);
-      }
-      if (transitioned && !capAcknowledgement) {
-        res.redirect(303, nextPendingHref(memberId));
-        return;
-      }
       if (capAcknowledgement && memberOnboardingService.getTaskState(memberId, taskType) === 'completed') {
         renderClubAffiliationsCard(req, res, { continueHref: nextPendingHref(memberId) });
         return;
@@ -472,11 +454,6 @@ export const memberOnboardingController = {
   getComplete(req: Request, res: Response, next: NextFunction): void {
     try {
       const memberId = req.user!.userId;
-      // Materialize the task rows first, mirroring getTask: a member who reaches
-      // this page with zero task rows has an empty outstanding set that would
-      // otherwise read as "all done" and render a false completion page while the
-      // gate still blocks every capability route.
-      memberOnboardingService.startTaskList(memberId);
       // Render only when the membership predicate itself passes; anything less
       // routes the member to the first task still unanswered. Outstanding means
       // not completed, the same definition the gate and the widget use, so this

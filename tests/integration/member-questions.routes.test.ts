@@ -593,18 +593,82 @@ describe('the member reads and answers', () => {
     expect(res.text).toContain('Your answer has been sent');
   });
 
-  it('cannot be answered twice', async () => {
+  // Defect caught: a member who double-clicks, or re-posts from the back
+  // button, is shown an error for an answer that went through, or the repeat
+  // overwrites the first answer, re-records it, or mails the admin again.
+  it('an answer submitted twice reports the first outcome and records nothing again', async () => {
     const itemId = seedItem();
     await ask(itemId);
     const messageId = messageRow()!.id as string;
-    const send = (): Test => request(createApp())
+    const send = (note: string, birthDay = '2'): Test => request(createApp())
       .post(`/members/${MEMBER_SLUG}/questions/${messageId}/answer`)
       .set('Cookie', memberCookie())
       .type('form')
-      .send({ dateAnswer: 'confirm', note: 'first' });
-    expect((await send()).status).toBe(303);
-    expect((await send()).status).toBe(404);
-    expect(messageRow()!.note_text).toBe('first');
+      .send({ dateAnswer: 'correct', birthDay, birthMonth: '7', birthYear: '1980', note });
+    const flashOf = (res: { get(h: string): string[] | undefined }): string | undefined =>
+      (res.get('Set-Cookie') ?? []).find((c) => c.startsWith('footbag_flash='))?.split(';')[0];
+    const answerAudits = (): number => {
+      const conn = readDb();
+      try {
+        return (conn.prepare(
+          `SELECT COUNT(*) AS n FROM audit_entries
+            WHERE action_type = 'member_message.answered'
+              AND json_extract(metadata_json, '$.member_message_id') = ?`,
+        ).get(messageId) as { n: number }).n;
+      } finally {
+        conn.close();
+      }
+    };
+
+    const first = await send('first');
+    expect(first.status).toBe(303);
+    const firstAnsweredAt = messageRow()!.answered_at;
+    const outboxAfterFirst = outboxRows().length;
+
+    const second = await send('first');
+    expect(second.status).toBe(303);
+    expect(second.headers.location).toBe(first.headers.location);
+    expect(flashOf(second)).toBeDefined();
+    expect(flashOf(second)).toBe(flashOf(first));
+
+    const row = messageRow()!;
+    expect(row.note_text).toBe('first');
+    expect(row.outcome).toBe('corrected');
+    expect(row.answered_at).toBe(firstAnsweredAt);
+    expect(answerAudits()).toBe(1);
+    expect(outboxRows()).toHaveLength(outboxAfterFirst);
+  });
+
+  // Defect caught: an answered question resubmitted with a changed note or a
+  // different date is reported as saved while the first answer silently
+  // stands, so the member believes the administrator has their correction.
+  it('a changed answer to an answered question is refused, and the first answer stands', async () => {
+    const itemId = seedItem();
+    await ask(itemId);
+    const messageId = messageRow()!.id as string;
+    const send = (body: Record<string, string>): Test => request(createApp())
+      .post(`/members/${MEMBER_SLUG}/questions/${messageId}/answer`)
+      .set('Cookie', memberCookie())
+      .type('form')
+      .send(body);
+    const firstBody = { dateAnswer: 'correct', birthDay: '2', birthMonth: '7', birthYear: '1980', note: 'first' };
+    expect((await send(firstBody)).status).toBe(303);
+    const answered = messageRow()!;
+
+    for (const changed of [
+      { ...firstBody, note: 'second thoughts' },
+      { ...firstBody, birthDay: '3' },
+      { dateAnswer: 'confirm', note: 'first' },
+    ]) {
+      const res = await send(changed);
+      expect(res.status, JSON.stringify(changed)).toBe(422);
+      expect(res.text).toContain('You have already answered this question, so this new answer was not saved.');
+    }
+    expect(messageRow()).toEqual(answered);
+    const conn = readDb();
+    const member = conn.prepare('SELECT birth_date FROM members WHERE id = ?').get(MEMBER_ID) as { birth_date: string };
+    conn.close();
+    expect(member.birth_date).toBe('1980-07-02');
   });
 
   it('cannot be answered by another member', async () => {

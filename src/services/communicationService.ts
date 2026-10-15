@@ -88,10 +88,10 @@
  *   - Operator bulk switch (bulk_send_paused) stops the bulk stream only, so a
  *     send can be called off without holding back anybody's password reset.
  *     Both switches are read here and written only by operator script.
- *   - A production host not holding the live sender refuses to drain at all.
- *     The stub reports every send as delivered, so draining would mark queued
- *     mail sent and clear its body; holding it is what makes disarming email
- *     recoverable.
+ *   - A host holding the stub sender drains into it exactly as staging does,
+ *     production while email is dark included: each row is marked sent and its
+ *     body cleared, and the message is never delivered later. Stopping mail
+ *     while keeping it for later is the pause flag's job, not disarming's.
  *   - A delivered row keeps the identifier the provider returned for the send,
  *     stamped by the same statement that marks it sent. It is what a later
  *     bounce or complaint is matched against, and it is written on the success
@@ -263,13 +263,6 @@ export interface ProcessBatchResult {
    * attempted and no retry could succeed.
    */
   suppressed: number;
-  /**
-   * The drain declined to run because this production host holds the stub
-   * sender. Distinct from `paused`, which is the administrator's own switch:
-   * this one is a consequence of how the host is armed, and the queue is being
-   * held rather than emptied.
-   */
-  sendingDark: boolean;
   /**
    * Bulk mail was withheld this pass because bounce or complaint feedback is
    * at or above threshold. Transactional mail is unaffected and still drained: the
@@ -867,7 +860,6 @@ export function createCommunicationService(
         manualReview: 0,
         suppressed: 0,
         paused: false,
-        sendingDark: false,
         bulkHalted: false,
         bulkPaused: false,
       };
@@ -875,18 +867,6 @@ export function createCommunicationService(
       const paused = readIntConfig('email_outbox_paused', 0) === 1;
       if (paused) {
         result.paused = true;
-        return result;
-      }
-
-      // A production host holding the stub sender must not drain. The stub
-      // reports every send as delivered, so draining would mark each queued
-      // message sent and clear its body: the queue would empty, nothing would
-      // arrive, and there would be nothing left to send again. Holding the rows
-      // is what makes disarming email recoverable, and it is the difference
-      // between a stop and a silent discard. Development and staging drain into
-      // the stub on purpose, which is how their captured mail is read back.
-      if (config.footbagEnv === 'production' && config.sesAdapter !== 'live') {
-        result.sendingDark = true;
         return result;
       }
 
@@ -984,8 +964,8 @@ export function createCommunicationService(
         // now rather than as it read when the message was written. A bounce or
         // complaint arriving between the two is the whole point: without this
         // the enqueue-time check leaves a window in which a dead mailbox still
-        // receives routine mail, and on a queue held through a pause or a dark
-        // production that window is as long as the hold.
+        // receives routine mail, and on a queue held through a pause that window
+        // is as long as the hold.
         if (!row.bypasses_suppression && row.recipient_email) {
           const mailbox = account.emailStatusByNormalizedLoginEmail.get(
             row.recipient_email.toLowerCase().trim(),

@@ -55,7 +55,10 @@ export const memberAnnounceController = {
 
     try {
       const outcome = broadcastService.sendAnnouncement(input, req.user!.userId);
-      const notice = outcome.status === 'sent' ? 'sent' : outcome.reason;
+      // The send token is minted with the form this member was shown, so a send
+      // already made under it was their own submit: the repeat reports that
+      // send's outcome rather than an informational no-op.
+      const notice = outcome.status === 'sent' || outcome.reason === 'already_sent' ? 'sent' : outcome.reason;
       res.redirect(303, `/members/${memberKey}/announce?notice=${notice}`);
     } catch (err) {
       if (err instanceof RateLimitedError) {

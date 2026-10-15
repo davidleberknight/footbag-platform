@@ -70,11 +70,12 @@ function getTierGrants(memberId: string) {
   ).all(memberId) as Array<Record<string, unknown>>;
 }
 
-function getTaskState(memberId: string, taskType: string): string | null {
+// A missing row reads as pending, as the wizard itself reads it.
+function getTaskState(memberId: string, taskType: string): string {
   const row = db.prepare(
     'SELECT state FROM member_onboarding_tasks WHERE member_id = ? AND task_type = ?',
   ).get(memberId, taskType) as { state: string } | undefined;
-  return row?.state ?? null;
+  return row?.state ?? 'pending';
 }
 
 function countAuditEntries(memberId: string, actionType: string): number {
@@ -99,7 +100,6 @@ describe('direct HP claim: surname match succeeds', () => {
       country: 'US',
       first_year: 2003,
     });
-    svc.startTaskList(memberId);
 
     const res = await request(createApp())
       .post(`/history/${personId}/claim/confirm`)

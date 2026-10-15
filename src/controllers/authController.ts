@@ -7,6 +7,7 @@ import {
   RegisterContent,
   CheckEmailContent,
   VerifyResultContent,
+  VerifyLandingContent,
   PasswordForgotContent,
   PasswordForgotSentContent,
   PasswordResetContent,
@@ -164,6 +165,8 @@ async function postRegister(req: Request, res: Response, next: NextFunction): Pr
     if (config.sesAdapter === 'stub') {
       writeFlash(res, req, FLASH_KIND.VERIFY_EMAIL_PENDING, (email ?? '').toLowerCase().trim());
     }
+    // The check-email page only reads the card, so the drain happens here.
+    await simulatedEmailService.drainCapturedMail();
     res.redirect(303, '/register/check-email');
   } catch (err) {
     if (err instanceof ValidationError) {
@@ -224,14 +227,39 @@ async function getCheckEmail(req: Request, res: Response, next: NextFunction): P
   }
 }
 
-async function getVerify(req: Request, res: Response, next: NextFunction): Promise<void> {
-  const token = req.params.token ?? '';
+/** GET /verify/:token
+ *  The emailed link opens a page with one button and changes nothing. Mail
+ *  scanners and link prefetchers open links before the member does, so only the
+ *  button's POST may spend the token. The page reveals nothing about whether the
+ *  token is valid. */
+function getVerify(req: Request, res: Response): void {
+  // The token is in the URL, so a shared proxy must not cache this render
+  // against the token-bearing address.
+  setNoStore(res);
+  res.render('auth/verify-landing', {
+    seo: { title: 'Verify Your Email', noindex: true },
+    page: { sectionKey: '', pageKey: 'verify_landing', title: 'Verify Your Email' },
+    content: { token: req.params.token ?? '' },
+  } satisfies PageViewModel<VerifyLandingContent>);
+}
+
+/** POST /verify */
+async function postVerify(req: Request, res: Response, next: NextFunction): Promise<void> {
+  const token = typeof req.body.token === 'string' ? req.body.token : '';
   try {
     const result = await identityAccessService.verifyEmailByToken(token);
     if (!result) {
-      // The token is in the URL, so a shared proxy must not cache this
-      // render against the token-bearing address.
       setNoStore(res);
+      // A link that already verified this account is a repeat: report the
+      // first outcome and prompt sign-in, starting no session.
+      if (identityAccessService.wasVerifiedByToken(token)) {
+        res.render('auth/verify-result', {
+          seo: { title: 'Verification', noindex: true },
+          page: { sectionKey: '', pageKey: 'verify_result', title: 'Verification' },
+          content: { ok: true, alreadyVerified: true },
+        } satisfies PageViewModel<VerifyResultContent>);
+        return;
+      }
       res.status(400).render('auth/verify-result', {
         seo: { title: 'Verification', noindex: true },
         page: { sectionKey: '', pageKey: 'verify_result', title: 'Verification' },
@@ -263,7 +291,6 @@ async function getVerify(req: Request, res: Response, next: NextFunction): Promi
       return;
     }
     issueSessionCookie(res, cookieValue, req);
-    memberOnboardingService.startTaskList(result.memberId);
     // Land on the first outstanding task in the wizard sequence rather than a
     // fixed step, so the personal-details-first order governs where a verified
     // member starts.
@@ -293,13 +320,14 @@ async function postVerifyResend(req: Request, res: Response, next: NextFunction)
   // anti-enumeration.
   try {
     await identityAccessService.resendVerifyEmail(email ?? '');
-    // On a dev or staging host (stub adapter) the resend card shows the resent
-    // verification link scoped to the address the visitor just submitted, so a
-    // tester finishes the flow on the page itself. Scoping to that one recipient
-    // keeps one pending user's card from ever surfacing another user's verify
-    // token. In production the service returns null and no card renders, so the
-    // response is byte-identical whether or not the account exists
-    // (anti-enumeration).
+    // On a host holding the stub sender (dev, staging, and production while email
+    // is dark) the resend card shows the resent verification link scoped to the
+    // address the visitor just submitted, so a tester finishes the flow on the
+    // page itself. Scoping to that one recipient keeps one pending user's card
+    // from ever surfacing another user's verify token. Once email is live the
+    // service returns null and no card renders, so the response is
+    // byte-identical whether or not the account exists (anti-enumeration).
+    await simulatedEmailService.drainCapturedMail();
     const emailPreview =
       (await simulatedEmailService.getEmailPreview({
         urlPathPrefix: '/verify/',
@@ -367,11 +395,13 @@ async function postPasswordForgot(req: Request, res: Response, next: NextFunctio
       return;
     }
     await identityAccessService.requestPasswordReset(email ?? '');
-    // On a dev or staging host (stub adapter) the sent page shows the reset link
-    // scoped to the address the visitor just submitted, so a tester completes the
-    // reset on the page itself. In production the service returns null and no card
-    // renders, so the response is identical whether or not an account exists
-    // (anti-enumeration) and no reset token is ever exposed to a live visitor.
+    // On a host holding the stub sender (dev, staging, and production while email
+    // is dark) the sent page shows the reset link scoped to the address the
+    // visitor just submitted, so a tester completes the reset on the page itself.
+    // Once email is live the service returns null and no card renders, so the
+    // response is identical whether or not an account exists (anti-enumeration)
+    // and no reset token is ever exposed to a visitor.
+    await simulatedEmailService.drainCapturedMail();
     const emailPreview =
       (await simulatedEmailService.getEmailPreview({
         urlPathPrefix: '/password/reset/',
@@ -407,6 +437,28 @@ async function postPasswordReset(req: Request, res: Response, next: NextFunction
     newPassword?: string; confirmPassword?: string;
   };
   const token = req.params.token;
+
+  const renderAlreadyReset = (): void => {
+    setNoStore(res);
+    res.render('auth/password-reset', {
+      seo: { title: 'Set a New Password', noindex: true },
+      page: { sectionKey: '', pageKey: 'password_reset', title: 'Set a New Password' },
+      content: { token: undefined, alreadyReset: true },
+    } satisfies PageViewModel<PasswordResetContent>);
+  };
+
+  // A link that already reset the password to the one submitted is a repeat (a
+  // double submit, a back-button re-post): report the first outcome and prompt
+  // sign-in, starting no session. A different password is not a repeat and goes
+  // on to meet the spent link's invalid-link answer. Checked before the captcha,
+  // because a captcha token is good for one check and the repeat carries the one
+  // its first submit spent. It tells only the link's holder that the link was
+  // used, and does nothing.
+  const firstCheck = await identityAccessService.recognisesResetRepeat(token, String(newPassword ?? ''));
+  if (firstCheck === 'repeat') {
+    renderAlreadyReset();
+    return;
+  }
 
   const captcha = await identityAccessService.verifyHumanChallenge(String(req.body['cf-turnstile-response'] ?? ''), req.ip);
   if (!captcha) {
@@ -458,6 +510,14 @@ async function postPasswordReset(req: Request, res: Response, next: NextFunction
     // Redirect to the member's own profile to match the login and verify flows.
     res.redirect(303, `/members/${encodeURIComponent(result.slug)}`);
   } catch (err) {
+    // A submit overlapping its own twin found the link unspent above, then met
+    // it used once the twin consumed it; that is the same repeat. Only that case
+    // checks again, so a guess on an already-spent link is counted once.
+    if (err instanceof ValidationError && firstCheck === 'link_unspent'
+      && await identityAccessService.recognisesResetRepeat(token, String(newPassword ?? '')) === 'repeat') {
+      renderAlreadyReset();
+      return;
+    }
     if (err instanceof ValidationError) {
       setNoStore(res);
       res.status(422).render('auth/password-reset', {
@@ -478,6 +538,7 @@ export const authController = {
   postRegister,
   getCheckEmail,
   getVerify,
+  postVerify,
   postVerifyResend,
   getPasswordForgot,
   postPasswordForgot,

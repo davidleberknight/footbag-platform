@@ -54,6 +54,20 @@ function corrections(): Array<{ reason_text: string; metadata_json: string }> {
   ).all(TARGET_ID)) as Array<{ reason_text: string; metadata_json: string }>;
 }
 
+function correctionAuditIds(): string[] {
+  return db((conn) => (conn.prepare(
+    "SELECT id FROM audit_entries WHERE action_type = 'member.profile_corrected' AND entity_id = ?",
+  ).all(TARGET_ID) as Array<{ id: string }>).map((r) => r.id));
+}
+
+/** The outbox key of every correction notice sent to the target. */
+function correctionNotices(): string[] {
+  return db((conn) => (conn.prepare(
+    "SELECT idempotency_key FROM outbox_emails"
+    + " WHERE recipient_member_id = ? AND template_key = 'member_record_corrected'",
+  ).all(TARGET_ID) as Array<{ idempotency_key: string }>).map((r) => r.idempotency_key));
+}
+
 /** The whole profile, as the form posts it, with one field overridden. */
 function submission(over: Record<string, string> = {}): Record<string, string> {
   return {
@@ -228,6 +242,16 @@ describe('the correction writes the values and records them', () => {
     expect(mail?.body_text).not.toContain('+64 21 555 0100');
   });
 
+  // Defect caught: the notice's key carries the send time, so a retried send
+  // of the same correction mails the member twice instead of collapsing.
+  it('keys the notice on the correction it reports, never on a clock', () => {
+    const notices = correctionNotices();
+    const auditIds = correctionAuditIds();
+    expect(notices).toHaveLength(1);
+    expect(auditIds).toHaveLength(1);
+    expect(notices[0]).toBe(`member-record-corrected:${TARGET_ID}:${auditIds[0]}`);
+  });
+
   it('leaves the biography exactly as the member wrote it', () => {
     expect(targetRow().bio).toBe('My own words about me.');
   });
@@ -240,6 +264,27 @@ describe('the correction writes the values and records them', () => {
       .send(submission({ city: 'Wellington', phone: '+64 21 555 0100', searchable: '0' }));
     expect(res.status).toBe(303);
     expect(corrections()).toHaveLength(1);
+    expect(correctionNotices()).toHaveLength(1);
+  });
+
+  // Defect caught: a key that names only the member collapses a genuinely new
+  // correction onto the first, so the member is never told about it.
+  it('sends a fresh notice for a second, different correction', async () => {
+    const res = await request(createApp())
+      .post(`/admin/members/${TARGET_ID}/profile/confirm`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send(submission({
+        city: 'Christchurch', phone: '+64 21 555 0100', searchable: '0',
+        reason: 'Member moved and asked us to update the city.',
+      }));
+    expect(res.status).toBe(303);
+
+    const auditIds = correctionAuditIds();
+    expect(auditIds).toHaveLength(2);
+    expect(correctionNotices().sort()).toEqual(
+      auditIds.map((id) => `member-record-corrected:${TARGET_ID}:${id}`).sort(),
+    );
   });
 });
 

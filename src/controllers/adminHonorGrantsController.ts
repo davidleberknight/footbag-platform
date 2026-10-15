@@ -2,10 +2,13 @@ import { Request, Response, NextFunction } from 'express';
 import { adminHonorGrantService } from '../services/adminHonorGrantService';
 import { ConflictError, NotFoundError, ValidationError } from '../services/serviceErrors';
 import { handleControllerError } from '../lib/controllerErrors';
+import { FLASH_KIND, readFlash, clearFlash } from '../lib/flashCookie';
+import { outcomeNotice, type OutcomeNoticeView } from '../lib/outcomeNotice';
+import { redirectWithOutcome } from '../lib/actionOutcome';
 
 // Re-render the form with an inline error; the status follows the error class.
 // ValidationError -> 422 (unknown member, invalid honor). ConflictError -> 409
-// (the member already holds that honor; the guard wrote nothing).
+// (the honor comes from a claimed historical record; the guard wrote nothing).
 function renderError(
   res: Response,
   err: NotFoundError | ValidationError | ConflictError,
@@ -21,7 +24,13 @@ export const adminHonorGrantsController = {
   /** GET /admin/honor-grants */
   index(req: Request, res: Response, next: NextFunction): void {
     try {
-      res.render('admin/honor-grants/index', adminHonorGrantService.getHonorGrantsPage());
+      const flash = readFlash(req);
+      let outcome: OutcomeNoticeView | null = null;
+      if (flash?.kind === FLASH_KIND.HONOR_GRANT_OUTCOME) {
+        outcome = outcomeNotice(flash.payload);
+        clearFlash(res, req);
+      }
+      res.render('admin/honor-grants/index', adminHonorGrantService.getHonorGrantsPage({ outcome }));
     } catch (err) {
       handleControllerError(err, res, next, 'admin honor grants controller');
     }
@@ -48,12 +57,23 @@ export const adminHonorGrantsController = {
   /** POST /admin/honor-grants/grant/confirm -- commit the grant after confirmation. */
   grantConfirm(req: Request, res: Response, next: NextFunction): void {
     try {
-      adminHonorGrantService.grantHonor(
+      const outcome = adminHonorGrantService.grantHonor(
         req.user!.userId,
         String(req.body.member_key ?? ''),
         String(req.body.honor ?? ''),
         String(req.body.induction_year ?? ''),
       );
+      // The first submit and this admin's own repeat return to the list as they
+      // always have; an honor another act left in place says so.
+      if (outcome.notice) {
+        redirectWithOutcome(req, res, {
+          flash: FLASH_KIND.HONOR_GRANT_OUTCOME,
+          to: '/admin/honor-grants',
+          ending: outcome.ending,
+          text: outcome.notice,
+        });
+        return;
+      }
       res.redirect(303, '/admin/honor-grants');
     } catch (err) {
       if (err instanceof NotFoundError || err instanceof ValidationError || err instanceof ConflictError) {

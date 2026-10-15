@@ -58,6 +58,7 @@ import {
   insertSystemConfig,
   insertFreeformTag,
   attachMediaTag,
+  insertMemberGallery,
 } from '../fixtures/factories';
 import { rowPin, theOnlyRow } from '../fixtures/rowPinning';
 
@@ -419,11 +420,44 @@ describe('POST /members/:memberKey/galleries', () => {
     expect(res.text).toContain('150 characters');
   });
 
-  it('maps duplicate-name (UNIQUE owner+name) to 422 with conflict message', async () => {
-    await createGalleryViaApi('Same Name');
-    const res = await createGalleryViaApi('Same Name');
+  // A different gallery under a name the owner already uses is refused; only
+  // the identical submit is a repeat (covered with the submitted-twice cases).
+  it('refuses a second gallery under the same name with different criteria (422, first kept)', async () => {
+    await createGalleryViaApi('Same Name', '#tag1');
+    const res = await createGalleryViaApi('Same Name', '#tag2');
     expect(res.status).toBe(422);
     expect(res.text).toContain('already exists for this owner');
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    try {
+      const n = db.prepare('SELECT COUNT(*) AS n FROM member_galleries WHERE name = ?').get('Same Name') as { n: number };
+      expect(n.n).toBe(1);
+    } finally { db.close(); }
+  });
+
+  // Defect caught: re-sending the create form with the same name and criteria
+  // but a new description is reported as saved while the new description is
+  // silently dropped.
+  it('refuses the same name and criteria with a changed description (422, first kept)', async () => {
+    const post = (description: string) => request(createApp())
+      .post(`/members/${OWNER_SLUG}/galleries`)
+      .set('Cookie', ownerCookie())
+      .type('form')
+      .send({
+        name: 'Described Once', description, sortOrder: 'upload_desc',
+        criteriaTags: '#described', excludeTags: '',
+      });
+    expect((await post('The first description')).status).toBe(303);
+    const changed = await post('A second description');
+    expect(changed.status).toBe(422);
+    expect(changed.text).toContain('already exists for this owner');
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    try {
+      const rows = db.prepare('SELECT description FROM member_galleries WHERE name = ?')
+        .all('Described Once') as Array<{ description: string }>;
+      expect(rows).toEqual([{ description: 'The first description' }]);
+    } finally { db.close(); }
+    // The unchanged form is still the repeat it was.
+    expect((await post('The first description')).status).toBe(303);
   });
 
   it('ignores a forged ownerMemberId in the body — owner is taken from the session', async () => {
@@ -856,6 +890,41 @@ describe('POST /members/:memberKey/galleries/:id/edit', () => {
       expect(rows).toHaveLength(0);
     } finally { db.close(); }
   });
+
+  // The owner hears once per moderation: a re-posted moderation sends nothing
+  // more, and each notice is keyed to its own moderation record so a retried
+  // send of one act collapses to one message while a second, separate
+  // moderation of the same gallery is a second message.
+  it('sends the owner one notice per moderation, keyed to that moderation', async () => {
+    await createGalleryViaApi('Moderated Twice');
+    const id = findGalleryIdByName('Moderated Twice')!;
+    const moderate = (sortOrder: string, reason: string) => request(createApp())
+      .post(`/admin/curator/galleries/${id}/edit`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({
+        name: 'Moderated Twice', description: 'desc', sortOrder,
+        criteriaTags: '#tag1', excludeTags: '', reason,
+      });
+
+    expect((await moderate('upload_asc', 'First intervention.')).status).toBe(303);
+    expect((await moderate('upload_asc', 'First intervention.')).status, 'the re-posted moderation').toBe(303);
+    expect((await moderate('upload_desc', 'Second intervention.')).status).toBe(303);
+
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    try {
+      const audits = db.prepare(
+        "SELECT id FROM audit_entries WHERE action_type = 'media.member_gallery_moderated' AND entity_id = ?",
+      ).all(id) as Array<{ id: string }>;
+      expect(audits).toHaveLength(2);
+      const keys = (db.prepare(
+        "SELECT idempotency_key FROM outbox_emails WHERE template_key = 'gallery_moderated_member'"
+        + ' AND recipient_member_id = ? AND idempotency_key LIKE ?',
+      ).all(OWNER_ID, `gallery-moderated:${id}:%`) as Array<{ idempotency_key: string }>)
+        .map((r) => r.idempotency_key).sort();
+      expect(keys).toEqual(audits.map((a) => `gallery-moderated:${id}:${a.id}`).sort());
+    } finally { db.close(); }
+  });
 });
 
 // ── POST /members/:memberKey/galleries/:id/delete ──────────────────────────
@@ -893,6 +962,22 @@ describe('POST /members/:memberKey/galleries/:id/delete', () => {
       .send({ confirmed: '1' });
     expect(res.status).toBe(404);
     expect(findGalleryIdByName('Survivor')).toBe(id);
+  });
+
+  // Defect caught: an administrator posting a curated gallery's id to the
+  // delete action under their own member profile hard-deletes the curated
+  // gallery, a write that belongs to the curator surface alone.
+  it('an administrator cannot delete a curated gallery through their own member route (404; row preserved)', async () => {
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    const curatedId = insertMemberGallery(db, { id: 'gallery_curated_keep', owner_member_id: SYSTEM_ID, name: 'Curated Keep' });
+    db.close();
+    const res = await request(createApp())
+      .post(`/members/${ADMIN_SLUG}/galleries/${curatedId}/delete`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ confirmed: '1' });
+    expect(res.status).toBe(404);
+    expect(findGalleryIdByName('Curated Keep')).toBe(curatedId);
   });
 
   it('redirects unauthenticated', async () => {
@@ -1162,6 +1247,201 @@ describe('POST /members/:memberKey/galleries — rate limit', () => {
     } finally {
       rlMod.resetRateLimitForTests();
     }
+  });
+});
+
+// A double click, a back-button re-post or a second tab sends the same create
+// or delete again. The repeat reports the first outcome (same redirect, same
+// banner), writes no second row or audit entry, and spends no gallery-write
+// slot. The limit is tuned to two so a spent slot shows as a refusal.
+describe('POST /members/:memberKey/galleries — submitted twice', () => {
+  function flashOf(res: TestResponse): string | undefined {
+    const cookies = ([] as string[]).concat(res.headers['set-cookie'] ?? []);
+    return cookies.find((c) => c.startsWith('footbag_flash='))?.split(';')[0];
+  }
+
+  function auditCount(actionType: string, entityId: string): number {
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    try {
+      return (db.prepare(
+        'SELECT COUNT(*) AS n FROM audit_entries WHERE action_type = ? AND entity_id = ?',
+      ).get(actionType, entityId) as { n: number }).n;
+    } finally { db.close(); }
+  }
+
+  function deleteViaApi(slug: string, cookie: string, id: string): Promise<TestResponse> {
+    return request(createApp())
+      .post(`/members/${slug}/galleries/${id}/delete`)
+      .set('Cookie', cookie)
+      .type('form')
+      .send({ confirmed: '1' });
+  }
+
+  beforeAll(() => {
+    const tuneDb = new BetterSqlite3(TEST_DB_PATH);
+    // Its own effective instant, so it cannot collide with the rate-limit
+    // cases' rows for the same key; all carry the same limit.
+    insertSystemConfig(tuneDb, {
+      config_key: 'gallery_write_rate_limit_per_hour',
+      value_json: '2',
+      effective_start_at: '2026-01-03T00:00:00.000Z',
+    });
+    tuneDb.close();
+  });
+
+  beforeEach(async () => {
+    const rlMod = await import('../../src/services/rateLimitService');
+    rlMod.resetRateLimitForTests();
+  });
+
+  afterAll(async () => {
+    const rlMod = await import('../../src/services/rateLimitService');
+    rlMod.resetRateLimitForTests();
+  });
+
+  it('a repeated create answers like the first and spends no slot', async () => {
+    const first = await createGalleryViaApi('Twice Created', '#twice');
+    expect(first.status).toBe(303);
+    const id = findGalleryIdByName('Twice Created')!;
+
+    const second = await createGalleryViaApi('Twice Created', '#twice');
+    expect(second.status, 'a repeated create is not an error').toBe(303);
+    expect(second.headers.location).toBe(first.headers.location);
+    expect(flashOf(first)).toContain('media_saved%3Acreate');
+    expect(flashOf(second)).toBe(flashOf(first));
+
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    try {
+      const n = db.prepare('SELECT COUNT(*) AS n FROM member_galleries WHERE owner_member_id = ?').get(OWNER_ID) as { n: number };
+      expect(n.n).toBe(1);
+    } finally { db.close(); }
+    expect(auditCount('media.member_gallery_created', id)).toBe(1);
+
+    // One slot spent so far, so the second of two still lands; the third
+    // create proves the limit of two is the one in force.
+    expect((await createGalleryViaApi('After The Repeat', '#twice')).status).toBe(303);
+    expect((await createGalleryViaApi('Past The Limit', '#twice')).status).toBe(429);
+  });
+
+  it('a repeated delete answers like the first, writes one audit row and spends no slot', async () => {
+    // Create and delete spend both slots, so a repeat that counted would be
+    // refused.
+    expect((await createGalleryViaApi('Twice Deleted', '#twicedel')).status).toBe(303);
+    const id = findGalleryIdByName('Twice Deleted')!;
+
+    const first = await deleteViaApi(OWNER_SLUG, ownerCookie(), id);
+    expect(first.status).toBe(303);
+    const second = await deleteViaApi(OWNER_SLUG, ownerCookie(), id);
+    expect(second.status, 'a repeated delete is not an error').toBe(303);
+    expect(second.headers.location).toBe(first.headers.location);
+    expect(flashOf(first)).toContain('media_saved%3Adelete');
+    expect(flashOf(second)).toBe(flashOf(first));
+    expect(auditCount('media.member_gallery_deleted', id)).toBe(1);
+  });
+
+  // A same-name create that turns out to be a different gallery is a real
+  // attempt, so it is counted like any create even though it is refused.
+  it('a same-name create with different criteria spends a slot', async () => {
+    expect((await createGalleryViaApi('Counted Name', '#one')).status).toBe(303);
+    expect((await createGalleryViaApi('Counted Name', '#two')).status).toBe(422);
+    expect((await createGalleryViaApi('Refused For Limit', '#one')).status).toBe(429);
+  });
+
+  // Defect caught: the repeat of the create that used the last slot is refused
+  // as rate-limited, so a member's double click on their last allowed create
+  // reports an error for a gallery that was made. Recognising the repeat reads
+  // only what the member stored, so answering it past a closed bucket gives
+  // nothing away; a create that is not a repeat is still refused.
+  it('a repeat of the create that filled the bucket still answers like the first', async () => {
+    expect((await createGalleryViaApi('Closed First', '#closed')).status).toBe(303);
+    const last = await createGalleryViaApi('Closed Second', '#closed');
+    expect(last.status).toBe(303);
+    const repeat = await createGalleryViaApi('Closed Second', '#closed');
+    expect(repeat.status).toBe(303);
+    expect(flashOf(repeat)).toBe(flashOf(last));
+    const fresh = await createGalleryViaApi('Closed Third', '#closed');
+    expect(fresh.status).toBe(429);
+    expect(fresh.headers['retry-after']).toBeDefined();
+  });
+
+  // Defect caught: an edit submitted twice rewrites the unchanged values
+  // again, writes a second audit row and spends a second slot, so a double
+  // click on the last allowed edit is refused as rate-limited.
+  it('an edit submitted twice answers like the first, writes one audit row and spends no slot', async () => {
+    expect((await createGalleryViaApi('Edited Twice', '#edittwice')).status).toBe(303);
+    const id = findGalleryIdByName('Edited Twice')!;
+    const edit = () => request(createApp())
+      .post(`/members/${OWNER_SLUG}/galleries/${id}/edit`)
+      .set('Cookie', ownerCookie())
+      .type('form')
+      .send({ name: 'Edited Twice', description: 'changed once', sortOrder: 'upload_desc', criteriaTags: '#edittwice', excludeTags: '' });
+
+    // The create and this edit spend both slots, so a repeat that counted
+    // would be refused.
+    const first = await edit();
+    expect(first.status).toBe(303);
+    const second = await edit();
+    expect(second.status, 'a repeated edit is not an error').toBe(303);
+    expect(second.headers.location).toBe(first.headers.location);
+    expect(flashOf(second)).toBe(flashOf(first));
+    expect(auditCount('media.member_gallery_updated', id)).toBe(1);
+  });
+
+  // Defect caught: an administrator creating a gallery of their own on their
+  // member page is treated as an administrator acting on someone else's, so
+  // their double click is refused as "already exists" instead of answered.
+  it("an administrator's repeated create on their own member page answers like the first", async () => {
+    const create = () => request(createApp())
+      .post(`/members/${ADMIN_SLUG}/galleries`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ name: 'Admin Own Twice', description: 'desc', sortOrder: 'upload_desc', criteriaTags: '#adminown', excludeTags: '' });
+    const first = await create();
+    expect(first.status).toBe(303);
+    const second = await create();
+    expect(second.status).toBe(303);
+    expect(flashOf(second)).toBe(flashOf(first));
+    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    try {
+      const n = db.prepare('SELECT COUNT(*) AS n FROM member_galleries WHERE owner_member_id = ? AND name = ?')
+        .get(ADMIN_ID, 'Admin Own Twice') as { n: number };
+      expect(n.n).toBe(1);
+    } finally { db.close(); }
+  });
+
+  // A delete the member may not make changes nothing, so it spends no slot.
+  it("a refused delete of another member's live gallery spends no slot", async () => {
+    const created = await request(createApp())
+      .post(`/members/${OTHER_SLUG}/galleries`)
+      .set('Cookie', otherCookie())
+      .type('form')
+      .send({ name: 'Not Yours', description: '', sortOrder: 'upload_desc', criteriaTags: '#notyours', excludeTags: '' });
+    expect(created.status).toBe(303);
+    const theirs = findGalleryIdByName('Not Yours')!;
+    for (let i = 0; i < 2; i++) {
+      expect((await deleteViaApi(OWNER_SLUG, ownerCookie(), theirs)).status, `refused attempt ${i + 1}`).toBe(404);
+    }
+    expect((await createGalleryViaApi('Mine To Delete', '#mine')).status).toBe(303);
+    const mine = findGalleryIdByName('Mine To Delete')!;
+    expect((await deleteViaApi(OWNER_SLUG, ownerCookie(), mine)).status).toBe(303);
+    expect(findGalleryIdByName('Not Yours')).toBe(theirs);
+  });
+
+  it("a delete of another member's already-deleted gallery is a plain 404", async () => {
+    // The other member's own gallery, created and deleted by them; its id is
+    // derivable from their slug and the name, so it must not read as known.
+    const created = await request(createApp())
+      .post(`/members/${OTHER_SLUG}/galleries`)
+      .set('Cookie', otherCookie())
+      .type('form')
+      .send({ name: 'Gone Elsewhere', description: '', sortOrder: 'upload_desc', criteriaTags: '#gone', excludeTags: '' });
+    expect(created.status).toBe(303);
+    const id = findGalleryIdByName('Gone Elsewhere')!;
+    expect((await deleteViaApi(OTHER_SLUG, otherCookie(), id)).status).toBe(303);
+
+    const probe = await deleteViaApi(OWNER_SLUG, ownerCookie(), id);
+    expect(probe.status).toBe(404);
+    expect(flashOf(probe)).toBeUndefined();
   });
 });
 

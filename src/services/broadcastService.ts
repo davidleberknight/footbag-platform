@@ -29,7 +29,10 @@
  *     recorded nowhere is a message the platform cannot account for.
  *   - Every send carries an idempotency key minted with the compose form, so a
  *     resubmitted form collapses onto the send it already made rather than
- *     mailing the audience twice.
+ *     mailing the audience twice. The key also carries a fingerprint of the
+ *     sender, subject and body, so a form resubmitted with any of them changed
+ *     is not taken for that send: it is refused, inside the send's
+ *     transaction, rather than reported sent while nothing went out.
  *   - An archived list accepts no further sends, and a group-backed list is
  *     refused here rather than allowed to fail deep in the audience resolver.
  *   - Bodies are plain text. The subject stored on the archive row is the
@@ -41,11 +44,12 @@
  *
  * Side effects: outbox enqueue, audit_entries append.
  */
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 
 import {
   emailArchives,
   mailingLists,
+  outbox,
   transaction,
   type EmailArchiveRow,
   type MailingListRow,
@@ -70,6 +74,61 @@ const ARCHIVE_PAGE_SIZE = 100;
 export const ANNOUNCE_LIST_SLUG = 'announce';
 
 const DAY_IN_MINUTES = 24 * 60;
+
+const ALREADY_SENT_CHANGED =
+  'This announcement was already sent, so your changes were not sent. To send another announcement, open the compose page again.';
+
+/** A submitted compose form, checked and trimmed. */
+interface ValidCompose {
+  subject: string;
+  bodyText: string;
+  sendToken: string;
+}
+
+function validateCompose(input: ComposeInput): ValidCompose {
+  const subject = (input.subject ?? '').trim();
+  const bodyText = (input.bodyText ?? '').replace(/\r\n/g, '\n').trim();
+  const sendToken = (input.sendToken ?? '').trim();
+
+  const errors: Record<string, string> = {};
+  if (!subject) errors.subject = 'Subject: required.';
+  else if (subject.length > SUBJECT_MAX) errors.subject = `Subject: at most ${SUBJECT_MAX} characters.`;
+  if (!bodyText) errors.bodyText = 'Message: required.';
+  else if (bodyText.length > BODY_MAX) errors.bodyText = `Message: at most ${BODY_MAX} characters.`;
+  if (!sendToken) {
+    // Without it the send has no idempotency key, and a re-submitted form
+    // would mail the whole list a second time.
+    errors.bodyText = 'This form has expired. Open the compose page again and resend.';
+  }
+  if (Object.keys(errors).length) {
+    throw new ValidationError('Some fields need attention.', { fieldErrors: errors });
+  }
+  return { subject, bodyText, sendToken };
+}
+
+/**
+ * What a send under this form's token already did: nothing, the same send
+ * (this sender, this subject, this body), or a different one. The outbox rows
+ * are keyed by token and by a fingerprint of the three, because a row's body
+ * is cleared once it is delivered and cannot be compared afterwards.
+ */
+function priorSendUnder(compose: ValidCompose, actorMemberId: string): 'none' | 'same' | 'changed' {
+  const key = sendKey(compose, actorMemberId);
+  const tokenKey = `broadcast:${compose.sendToken}`;
+  if (outbox.findAnyInKeyRange.get(`${key}:`, `${key};`)) return 'same';
+  if (outbox.findAnyInKeyRange.get(`${tokenKey}:`, `${tokenKey};`)) return 'changed';
+  return 'none';
+}
+
+/** The idempotency key a send under this form carries; the enqueue path adds
+ *  the recipient. */
+function sendKey(compose: ValidCompose, actorMemberId: string): string {
+  const fingerprint = createHash('sha256')
+    .update(JSON.stringify([actorMemberId, compose.subject, compose.bodyText]))
+    .digest('hex')
+    .slice(0, 16);
+  return `broadcast:${compose.sendToken}:${fingerprint}`;
+}
 
 export interface ComposeInput {
   subject?: string;
@@ -120,7 +179,7 @@ export interface ComposeContent {
  */
 const COMPOSE_NOTICES: Record<string, [OutcomeTone, string]> = {
   sent:          ['ok',   'Queued. It goes out in paced batches over the next little while.'],
-  already_sent:  ['info', 'That message was already sent. Nothing went out a second time.'],
+  already_sent:  ['ok',   'Queued. It goes out in paced batches over the next little while.'],
   no_recipients: ['no',   'Nothing was sent: nobody on this list has a deliverable address right now.'],
 };
 
@@ -264,23 +323,8 @@ export const broadcastService = {
   ): SendOutcome {
     const list = sendableList(slug);
 
-    const subject = (input.subject ?? '').trim();
-    const bodyText = (input.bodyText ?? '').replace(/\r\n/g, '\n').trim();
-    const sendToken = (input.sendToken ?? '').trim();
-
-    const errors: Record<string, string> = {};
-    if (!subject) errors.subject = 'Subject: required.';
-    else if (subject.length > SUBJECT_MAX) errors.subject = `Subject: at most ${SUBJECT_MAX} characters.`;
-    if (!bodyText) errors.bodyText = 'Message: required.';
-    else if (bodyText.length > BODY_MAX) errors.bodyText = `Message: at most ${BODY_MAX} characters.`;
-    if (!sendToken) {
-      // Without it the send has no idempotency key, and a re-submitted form
-      // would mail the whole list a second time.
-      errors.bodyText = 'This form has expired. Open the compose page again and resend.';
-    }
-    if (Object.keys(errors).length) {
-      throw new ValidationError('Some fields need attention.', { fieldErrors: errors });
-    }
+    const compose = validateCompose(input);
+    const { subject, bodyText } = compose;
 
     const sentSubject = applyPrefix(list.subject_prefix, subject);
     const archiveId = `bcast_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
@@ -293,11 +337,21 @@ export const broadcastService = {
     // inside the transaction: a send that lands with no archive row is a
     // message the platform cannot account for afterwards.
     transaction(() => {
+      // Checked inside the transaction, so two overlapping submits of one form
+      // cannot both pass it: the same send under this form reports it was
+      // sent, and a changed one is refused rather than reported sent.
+      const prior = priorSendUnder(compose, actorMemberId);
+      if (prior === 'same') {
+        outcome = { status: 'noop', reason: 'already_sent' };
+        return;
+      }
+      if (prior === 'changed') throw new ValidationError(ALREADY_SENT_CHANGED);
+
       const enqueued = communication.enqueue({
         audience: { kind: 'list', slug: list.slug },
         subject: sentSubject,
         bodyText,
-        idempotencyKey: `broadcast:${sendToken}`,
+        idempotencyKey: sendKey(compose, actorMemberId),
         fromIdentity: list.from_identity ?? undefined,
       });
 
@@ -380,6 +434,14 @@ export const broadcastService = {
    * audience is everyone who subscribed.
    */
   sendAnnouncement(input: ComposeInput, actorMemberId: string): SendOutcome {
+    // Validated, then recognised, then counted. The same form submitted twice
+    // carries the same send token, and the first submit already queued its
+    // messages under it: recognised before the daily allowance, so the repeat
+    // spends none of it. The form resubmitted with its subject or body changed
+    // is refused, not reported sent.
+    const prior = priorSendUnder(validateCompose(input), actorMemberId);
+    if (prior === 'same') return { status: 'noop', reason: 'already_sent' };
+    if (prior === 'changed') throw new ValidationError(ALREADY_SENT_CHANGED);
     const perDay = readIntConfig('announce_send_rate_limit_per_day', 2);
     const rl = rateLimitHit(`announce-send:${actorMemberId}`, perDay, DAY_IN_MINUTES);
     if (!rl.allowed) {

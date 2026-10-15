@@ -17,7 +17,7 @@ import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/
 const { dbPath } = setTestEnv('4031');
 process.env.PAYMENT_ADAPTER = 'stub';
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { insertMember } from '../fixtures/factories';
 
@@ -39,12 +39,15 @@ const M_LATE_ON_ENDED = 'don-late-on-ended';
 const M_UPDATE_ON_ENDED = 'don-update-on-ended';
 const M_DESCRIPTOR = 'don-descriptor';
 const M_RENEWAL_REFUND = 'don-renewal-refund';
+const M_REPEAT = 'don-repeat';
+const M_REPEAT_PEER = 'don-repeat-peer';
 const ALL_MEMBERS = [
   M_PLAIN, M_HOF, M_BAP, M_BOTH, M_OTHER,
   M_FAIL_AGAIN, M_UPDATE_AGAIN, M_SIGNUP,
   M_PROMOTE, M_LEDGER, M_EXPIRE, M_EXPIRE_AGAIN,
   M_OUT_OF_ORDER_SUCCESS, M_RENEWAL_CURRENCY,
-  M_LATE_ON_ENDED, M_UPDATE_ON_ENDED, M_DESCRIPTOR, M_RENEWAL_REFUND,
+  M_LATE_ON_ENDED, M_UPDATE_ON_ENDED, M_DESCRIPTOR, M_RENEWAL_REFUND, M_REPEAT,
+  M_REPEAT_PEER,
 ];
 
 beforeAll(async () => {
@@ -68,6 +71,16 @@ afterAll(() => cleanupTestDb(dbPath));
 beforeEach(async () => {
   const { resetPaymentAdapterForTests } = await import('../../src/adapters/paymentAdapter');
   resetPaymentAdapterForTests();
+  // The reset provider no longer holds the checkouts earlier cases opened, so
+  // their still-open gifts would read as possibly paid and refuse the same
+  // gift here. They go with the provider state they belonged to.
+  const db = openDb();
+  try {
+    db.prepare("DELETE FROM recurring_donation_subscriptions WHERE status = 'incomplete'").run();
+    db.prepare("DELETE FROM payments WHERE payment_type = 'donation' AND status = 'pending'").run();
+  } finally {
+    db.close();
+  }
 });
 
 function openDb(): BetterSqlite3.Database {
@@ -220,10 +233,10 @@ describe('startDonation: amount and note handling', () => {
     ).rejects.toBeInstanceOf(ValidationError);
   });
 
-  // A Big Add Posse member's blank note stays empty: IFPA has no Big Add Posse
-  // fund, so a default naming one would record a gift as designated to a fund
-  // that does not exist.
-  it('defaults a blank note to the Hall of Fame fund for a Hall of Fame member and to nothing otherwise', async () => {
+  // Every donation is a gift to IFPA, so a blank note stays empty whatever
+  // honor the donor holds: a default naming a fund would record a designation
+  // the donor never made.
+  it('leaves a blank note empty for every donor, a Hall of Fame member included', async () => {
     const paymentService = await svc();
     await paymentService.startDonation(M_HOF, 1000, '   ', false, '/x');
     await paymentService.startDonation(M_BAP, 1000, null, false, '/x');
@@ -238,16 +251,16 @@ describe('startDonation: amount and note handling', () => {
         (db.prepare(
           'SELECT donation_note FROM payments WHERE member_id = ? ORDER BY created_at DESC, rowid DESC LIMIT 1',
         ).get(id) as { donation_note: string | null }).donation_note;
-      expect(note(M_HOF)).toBe('HoF Fund');
+      expect(note(M_HOF)).toBeNull();
       expect(note(M_BAP)).toBeNull();
-      expect(note(M_BOTH)).toBe('HoF Fund');
+      expect(note(M_BOTH)).toBeNull();
       expect(note(M_PLAIN)).toBeNull();
     } finally {
       db.close();
     }
   });
 
-  it('keeps a member-supplied note in preference to the honor default', async () => {
+  it('stores a member-supplied note, trimmed', async () => {
     const paymentService = await svc();
     const started = await paymentService.startDonation(M_HOF, 1000, '  In memory of a friend  ', false, '/x');
     const db = openDb();
@@ -389,6 +402,100 @@ describe('startDonation: a recurring gift is recorded from the moment checkout o
       'SELECT COUNT(*) AS c FROM recurring_donation_subscriptions WHERE id = ?',
       started.reference,
     )).toBe(1);
+  });
+});
+
+describe('startDonation: the same gift started twice', () => {
+  // Defect caught: a repeated start opens a second provider session and a
+  // second unresolved row, so the donor holds two checkouts for one gift.
+  it('returns the first checkout, reference and session for a repeat, one-time or recurring', async () => {
+    const paymentService = await svc();
+    await stubAdapter();
+    for (const recurring of [false, true]) {
+      const note = `repeat ${recurring ? 'yearly' : 'once'}`;
+      const first = await paymentService.startDonation(M_REPEAT, 3000, note, recurring, '/x');
+      const repeat = await paymentService.startDonation(M_REPEAT, 3000, note, recurring, '/x');
+      expect(repeat, `recurring=${recurring}`).toEqual(first);
+    }
+    expect(countRows(
+      `SELECT COUNT(*) AS c FROM payments
+        WHERE member_id = ? AND payment_type = 'donation' AND status = 'pending'`,
+      M_REPEAT,
+    )).toBe(1);
+    expect(countRows(
+      `SELECT COUNT(*) AS c FROM recurring_donation_subscriptions
+        WHERE member_id = ? AND status = 'incomplete'`,
+      M_REPEAT,
+    )).toBe(1);
+  });
+
+  // Defect caught: a donor whose checkout expired at the provider is sent
+  // back to a session that can no longer take payment.
+  it('opens a new checkout when the provider no longer holds the first one open', async () => {
+    const paymentService = await svc();
+    const stub = await stubAdapter();
+    const { setPaymentAdapterForTests } = await import('../../src/adapters/paymentAdapter');
+    // The provider reports these sessions closed (expired or completed); the
+    // beforeEach reset puts the plain stub back.
+    const closed = new Set<string>();
+    setPaymentAdapterForTests({
+      ...stub,
+      async openCheckoutUrl(sessionId: string) {
+        return closed.has(sessionId) ? null : stub.openCheckoutUrl(sessionId);
+      },
+    });
+    // Only the Date clock is frozen, and stepped between the two checkouts, so
+    // the newer row is newer by its stamp rather than by a millisecond tie
+    // that a random row id would then decide.
+    vi.useFakeTimers({ toFake: ['Date'], now: Date.parse('2026-03-01T12:00:00.000Z') });
+    try {
+      for (const recurring of [false, true]) {
+        const note = `closed ${recurring ? 'yearly' : 'once'}`;
+        const first = await paymentService.startDonation(M_REPEAT, 4000, note, recurring, '/x');
+        closed.add(first.sessionId);
+        vi.advanceTimersByTime(60_000);
+        const next = await paymentService.startDonation(M_REPEAT, 4000, note, recurring, '/x');
+        expect(next.sessionId, `recurring=${recurring}`).not.toBe(first.sessionId);
+        expect(next.reference, `recurring=${recurring}`).not.toBe(first.reference);
+        // The closed row is still on file beside the open one; a repeat now
+        // returns to the newer, open checkout rather than starting a third.
+        const again = await paymentService.startDonation(M_REPEAT, 4000, note, recurring, '/x');
+        expect(again, `recurring=${recurring}`).toEqual(next);
+      }
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // Defect caught: the lookup that recognises a repeat matches too widely, so
+  // a donor is sent to another member's checkout, to a gift that has already
+  // settled, or to a checkout of the other kind (yearly for one-time, or the
+  // reverse) for the same amount and note.
+  it('treats only the same member, the same kind of gift and an unresolved one as a repeat', async () => {
+    const paymentService = await svc();
+    const stub = await stubAdapter();
+    const note = 'scope of a repeat';
+
+    const once = await paymentService.startDonation(M_REPEAT, 5500, note, false, '/x');
+    const yearly = await paymentService.startDonation(M_REPEAT, 5500, note, true, '/x');
+    expect(yearly.sessionId).not.toBe(once.sessionId);
+    expect(yearly.reference).not.toBe(once.reference);
+
+    const peerOnce = await paymentService.startDonation(M_REPEAT_PEER, 5500, note, false, '/x');
+    const peerYearly = await paymentService.startDonation(M_REPEAT_PEER, 5500, note, true, '/x');
+    expect([peerOnce.sessionId, peerYearly.sessionId]).not.toContain(once.sessionId);
+    expect([peerOnce.sessionId, peerYearly.sessionId]).not.toContain(yearly.sessionId);
+
+    // Both gifts resolve at the provider; the stub still knows both sessions,
+    // so only the local status says they are no longer waiting on the donor.
+    for (const started of [once, yearly]) {
+      const evt = stub.buildSignedStubWebhookEvent(started.sessionId);
+      expect(paymentService.handleWebhook(evt.rawBody, evt.signature)).toEqual({ outcome: 'processed' });
+    }
+    const onceAgain = await paymentService.startDonation(M_REPEAT, 5500, note, false, '/x');
+    const yearlyAgain = await paymentService.startDonation(M_REPEAT, 5500, note, true, '/x');
+    expect(onceAgain.sessionId).not.toBe(once.sessionId);
+    expect(yearlyAgain.sessionId).not.toBe(yearly.sessionId);
   });
 });
 

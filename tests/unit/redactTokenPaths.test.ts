@@ -109,5 +109,15 @@ describe('redactTokenPaths', () => {
       expect(redactTokenPaths('/events?keyword=worlds'))
         .toBe('/events?keyword=worlds');
     });
+
+    // Defect caught: an error while serving an unsubscribe link writes the
+    // link's signed token to the error log, where anyone reading the logs can
+    // replay it to change that member's mail preferences.
+    it('redacts the token an unsubscribe link carries, and only that parameter', () => {
+      expect(redactTokenPaths('/email/unsubscribe?t=signed.token.value'))
+        .toBe('/email/unsubscribe?t=[redacted]');
+      expect(redactTokenPaths('/events?type=net&tab=results'))
+        .toBe('/events?type=net&tab=results');
+    });
   });
 });

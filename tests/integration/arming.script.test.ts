@@ -410,17 +410,20 @@ describe('arming.sh — the email switch', () => {
     expect(readFileSync(tfvars, 'utf-8')).toMatch(/email_send_armed\s+= "dark"/);
   });
 
-  it('states that disarming email holds the queue rather than pausing it', () => {
+  it('states that disarming email discards queued mail rather than pausing it', () => {
     // The direction that discards mail had no precondition at all and printed
     // "no provider-side precondition", which is true about the provider and
-    // silent about the platform: a dark production holds every queued message.
+    // silent about the platform: a dark production drains every queued message
+    // into the stub, and none of it is delivered later. An operator told the
+    // queue is held would disarm expecting the mail to go out on re-arming.
     const res = dryRun(
       ['--target', 'production', '--switch', 'email', '--state', 'dark'],
       EMAIL_TFVARS,
     );
     expect(res.exitCode).toBe(0);
     expect(res.stdout).not.toMatch(/no provider-side precondition/);
-    expect(res.stdout).toMatch(/queued/);
+    expect(res.stdout).not.toMatch(/holds the outbox/);
+    expect(res.stdout).toMatch(/queued mail[\s\S]*never delivered later/);
   });
 
   it('names the reversible lever, so a pause is not taken as a disarm', () => {

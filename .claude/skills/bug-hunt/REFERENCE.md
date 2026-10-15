@@ -206,7 +206,7 @@ The membership-payment surface is in scope even when live Stripe checkout is stu
 - Verify webhook handlers authenticate provider signatures in live mode and reject unsigned/spoofed events.
 - Verify duplicate webhooks are idempotent and cannot double-grant, double-email, or corrupt the ledger.
 - Verify amount/currency/tier mapping is server-derived, not client-controlled.
-- Verify success/cancel pages are display-only and do not mutate membership state.
+- Verify success/cancel pages are display-only: they change no stored state and expire nothing at Stripe.
 - Verify payment event logging avoids card/payment secrets and unnecessary customer PII.
 
 #### 4.4.25 Email, notification, and outbox abuse
@@ -306,7 +306,7 @@ Resource limits are security controls.
 
 Token bugs often hide in "happy path works" code.
 
-- Verify all tokens have purpose, audience/scope, expiry, single-use or replay-safe semantics, and redacted logging.
+- Verify all tokens have purpose, audience/scope, expiry, single-use or replay-safe semantics (consumed only by a POST, never by opening the link; a replay of a token that already did its job reports the first outcome), and redacted logging.
 - Verify token validation checks current user state: password version, email verification state, account deletion/tombstone, deceased status, claim status, tier status where relevant.
 - Verify clock comparisons are ISO-safe and timezone-safe.
 - Verify token-bearing routes do not redirect to URLs that leak the token in `Referer`.
@@ -522,7 +522,7 @@ Templates are logic-light: the service hands them a fully-shaped view-model; tem
 
 - A public-page method not returning `Promise<PageViewModel<T>>` (or `| null` for privacy-gated reads), or not named `get<Page>Page()`; a service returning a bare `{ content: ... }` envelope.
 - A service duplicating business logic owned by another service: reading `member_tier_current` directly instead of `MembershipTieringService.getTierStatus()`; reading `member_active_player_current` instead of `ActivePlayerService.getStatus()`; running member search outside `MemberService.searchMembers()`.
-- A bare `throw new Error(...)` in normal control flow (reserved for internal invariant assertions only), or a `ServiceError` subclass that maps to the wrong HTTP status (e.g. a conflict thrown as `ValidationError` so it 422s where it should 409/conflict-render).
+- A bare `throw new Error(...)` in normal control flow (reserved for internal invariant assertions only), or a `ServiceError` subclass that maps to the wrong HTTP status (e.g. a conflict thrown as `ValidationError` so it 422s where it should 409/conflict-render, or a repeat of an action that already landed surfacing as any error instead of the first outcome).
 - A boolean (or thrown error) return where the contract is a discriminated union (`{ status: '...' }`).
 - A hardcoded operational value (tier price, token TTL, rate-limit bucket, grace period) instead of `readIntConfig(key, fallback)` / a `system_config_current` read.
 - A service shape mismatch: a factory `createXService(deps)` with no injected dependencies (should be a singleton), or a singleton holding mutable state (should be a factory).

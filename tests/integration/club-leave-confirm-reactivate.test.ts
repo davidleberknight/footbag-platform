@@ -359,6 +359,84 @@ describe('club routes: leave confirmation and reactivate', () => {
     expect(affiliationIsCurrent(memberId, clubId)).toBe(0);
   });
 
+  /** What a leave could write: the member's affiliation row, their leave audit
+   *  rows, and the outbox. */
+  function leaveState(memberId: string, clubId: string): Record<string, unknown> {
+    return {
+      affiliation: db.prepare(
+        'SELECT is_current, is_primary, version FROM member_club_affiliations WHERE member_id = ? AND club_id = ?',
+      ).get(memberId, clubId) ?? null,
+      leftAudits: (db.prepare(
+        `SELECT COUNT(*) AS n FROM audit_entries WHERE action_type = 'club.member_left' AND actor_member_id = ?`,
+      ).get(memberId) as { n: number }).n,
+      outbox: (db.prepare('SELECT COUNT(*) AS n FROM outbox_emails').get() as { n: number }).n,
+    };
+  }
+
+  function leave(memberId: string, clubKey: string) {
+    return request(createApp())
+      .post(`/clubs/${clubKey}/leave`)
+      .set('Cookie', cookieFor(memberId))
+      .type('form')
+      .send({ confirmed: '1' });
+  }
+
+  /** The profile the leave redirected to, opened with the flash it set. */
+  async function landedOn(memberId: string, res: { headers: Record<string, unknown> }): Promise<string> {
+    const flash = ((res.headers['set-cookie'] as unknown as string[] | undefined) ?? [])
+      .find((c) => c.startsWith('footbag_flash='))?.split(';')[0];
+    expect(flash, 'the leave left no outcome for the profile to show').toBeDefined();
+    const shown = await request(createApp())
+      .get(res.headers.location as string)
+      .set('Cookie', [cookieFor(memberId), flash].join('; '));
+    expect(shown.status).toBe(200);
+    return shown.text;
+  }
+
+  // Defect caught: a member who confirms a leave twice (double click, back
+  // button, second tab) is told they are not a member of the club they just
+  // left, or the repeat writes a second leave.
+  it('POST /clubs/:key/leave submitted twice repeats the first success and writes nothing', async () => {
+    const memberId = seedMember();
+    const tagId = insertTag(db, { standard_type: 'club', tag_normalized: '#club_leave_twice' });
+    const clubId = insertClub(db, { name: 'Leave Twice Club', hashtag_tag_id: tagId });
+    insertMemberClubAffiliation(db, memberId, clubId, { is_primary: 1 });
+
+    const first = await leave(memberId, 'club_leave_twice');
+    expect(first.status).toBe(303);
+    expect(affiliationIsCurrent(memberId, clubId)).toBe(0);
+    const afterFirst = leaveState(memberId, clubId);
+    expect(afterFirst.leftAudits).toBe(1);
+
+    const second = await leave(memberId, 'club_leave_twice');
+    expect(second.status).toBe(303);
+    expect(second.headers.location).toBe(first.headers.location);
+    expect(leaveState(memberId, clubId)).toEqual(afterFirst);
+
+    const page = await landedOn(memberId, second);
+    expect(page).toContain('<div class="form-success-banner" role="status">Left club.</div>');
+    expect(page).not.toContain('You are not a member of this club.');
+  });
+
+  // Defect caught: a member who never belonged to the club is told they left
+  // it, or is shown a refusal for a state that already holds.
+  it('POST /clubs/:key/leave by a member who never joined reads as informational and writes nothing', async () => {
+    const memberId = seedMember();
+    const tagId = insertTag(db, { standard_type: 'club', tag_normalized: '#club_leave_never_joined' });
+    const clubId = insertClub(db, { name: 'Never Joined Club', hashtag_tag_id: tagId });
+    const before = leaveState(memberId, clubId);
+
+    const res = await leave(memberId, 'club_leave_never_joined');
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe(`/members/${memberId.replace(/-/g, '_')}`);
+    expect(leaveState(memberId, clubId)).toEqual(before);
+
+    const page = await landedOn(memberId, res);
+    expect(page).toContain('<p class="form-notice" role="status">You are not a member of this club.</p>');
+    expect(page).not.toContain('form-success-banner');
+    expect(page).not.toContain('form-error-banner');
+  });
+
   it('POST /clubs/:key/reactivate as a co-leader reactivates the club', async () => {
     const memberId = seedMember();
     const tagId = insertTag(db, { standard_type: 'club', tag_normalized: '#club_reactivate_route' });

@@ -599,9 +599,8 @@ JS
 
 cmd_account_tokens() {
   # Recent account_tokens for a member (or all if no arg). Surfaces token
-  # state (used vs unused vs expired) for the password reset, email verify,
-  # and data export flows. Useful for "the user says their link doesn't
-  # work" investigations.
+  # state (used vs unused vs expired) for the password reset and email verify
+  # flows. Useful for "the user says their link doesn't work" investigations.
   local member="${1:-}"
   banner "account_tokens${member:+ for $member}"
   compose exec -T -e MEMBER="$member" web node <<'JS'

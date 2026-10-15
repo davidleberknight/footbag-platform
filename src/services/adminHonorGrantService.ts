@@ -21,6 +21,18 @@ import {
 } from './membershipTieringService';
 import { ValidationError } from './serviceErrors';
 import { PageViewModel } from '../types/page';
+import type { ActionEnding } from '../lib/actionOutcome';
+import type { OutcomeNoticeView } from '../lib/outcomeNotice';
+
+/** How a committed honor grant ended. The first submit and this admin's own
+ *  repeat redirect silently; an honor another act left in place carries the
+ *  informational sentence the page shows. */
+export interface HonorGrantOutcome {
+  ending: Exclude<ActionEnding, 'refused'>;
+  notice: string | null;
+}
+
+const ALREADY_HELD_NOTICE = 'This member already holds that honor, so nothing was changed.';
 
 type Honor = 'hof' | 'bap';
 
@@ -155,7 +167,9 @@ function confirmEnvelope(
 
 export const adminHonorGrantService = {
   /** The honor-grant form plus the recent-grants accountability list. */
-  getHonorGrantsPage(opts: { errorMessage?: string } = {}): PageViewModel<HonorGrantsContent> {
+  getHonorGrantsPage(
+    opts: { errorMessage?: string; outcome?: OutcomeNoticeView | null } = {},
+  ): PageViewModel<HonorGrantsContent> {
     const rows = memberTier.listRecentHonorGrants.all(RECENT_LIMIT) as Array<{
       occurred_at: string;
       action_type: string;
@@ -175,7 +189,13 @@ export const adminHonorGrantService = {
     }));
     return {
       seo: { title: 'Grant an Honor Tier', noindex: true },
-      page: { sectionKey: '', pageKey: 'admin_honor_grants', title: 'Grant an Honor Tier' },
+      page: {
+        sectionKey: '',
+        pageKey: 'admin_honor_grants',
+        title: 'Grant an Honor Tier',
+        notice: opts.outcome?.text,
+        noticeTone: opts.outcome?.tone,
+      },
       content: {
         errorMessage: opts.errorMessage,
         recent,
@@ -222,13 +242,21 @@ export const adminHonorGrantService = {
 
   /**
    * Commit: re-resolve and re-validate, then delegate. applyHonorGrant re-checks
-   * the duplicate guard inside its transaction and throws ConflictError on a
-   * repeat of the same honor, so nothing is written on that path.
+   * the duplicate guard inside its transaction and writes nothing for an honor
+   * the member already holds: this admin's own repeat ends as the first submit
+   * did, and an honor another act left in place carries the informational
+   * sentence the page shows.
    */
-  grantHonor(actorId: string, memberKey: string, honorRaw: string, inductionYearRaw = ''): void {
+  grantHonor(
+    actorId: string,
+    memberKey: string,
+    honorRaw: string,
+    inductionYearRaw = '',
+  ): HonorGrantOutcome {
     const honor = normalizeHonor(honorRaw);
     const member = resolveMember(memberKey);
-    applyHonorGrant(actorId, member.id, honor, readInductionYear(inductionYearRaw));
+    const { status } = applyHonorGrant(actorId, member.id, honor, readInductionYear(inductionYearRaw));
+    return { ending: status, notice: status === 'already_held' ? ALREADY_HELD_NOTICE : null };
   },
 
   /**

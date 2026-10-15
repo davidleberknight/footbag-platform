@@ -86,7 +86,7 @@ function cookie(): string {
 
 describe('roster paging across a page boundary', () => {
   it('fills the first page and offers a way forward but not back', () => {
-    const vm = ors.getOfficialRosterPage(ADMIN_ID);
+    const vm = ors.getOfficialRosterPage();
     expect(vm.content.matchCount).toBe(ROSTER_TOTAL);
     expect(vm.content.members).toHaveLength(PAGE_SIZE);
     expect(vm.content.pageCount).toBe(2);
@@ -98,7 +98,7 @@ describe('roster paging across a page boundary', () => {
   });
 
   it('carries the remainder on the last page and offers a way back but not forward', () => {
-    const vm = ors.getOfficialRosterPage(ADMIN_ID, { page: 2 });
+    const vm = ors.getOfficialRosterPage({ page: 2 });
     expect(vm.content.page).toBe(2);
     expect(vm.content.members).toHaveLength(ROSTER_TOTAL - PAGE_SIZE);
     expect(vm.content.previousHref).toBe('/ifpa/roster');
@@ -109,8 +109,8 @@ describe('roster paging across a page boundary', () => {
   });
 
   it('shows every roster member exactly once across the pages, with none lost at the seam', () => {
-    const first = ors.getOfficialRosterPage(ADMIN_ID).content.members;
-    const second = ors.getOfficialRosterPage(ADMIN_ID, { page: 2 }).content.members;
+    const first = ors.getOfficialRosterPage().content.members;
+    const second = ors.getOfficialRosterPage({ page: 2 }).content.members;
     const walked = [...first, ...second].map((m) => m.displayName);
     expect(walked).toHaveLength(ROSTER_TOTAL);
     expect(new Set(walked).size).toBe(ROSTER_TOTAL);
@@ -121,14 +121,14 @@ describe('roster paging across a page boundary', () => {
   });
 
   it('keeps the tier filter on the page link, so paging a filtered roster stays filtered', () => {
-    const vm = ors.getOfficialRosterPage(ADMIN_ID, { tier: ['tier1'] });
+    const vm = ors.getOfficialRosterPage({ tier: ['tier1'] });
     expect(vm.content.matchCount).toBe(TIER1_COUNT);
     expect(vm.content.pageCount).toBe(2);
     expect(vm.content.nextHref).toBe('/ifpa/roster?tier=tier1&page=2');
   });
 
   it('keeps the search term on the page link, so paging a search stays searched', () => {
-    const vm = ors.getOfficialRosterPage(ADMIN_ID, { q: 'Pager' });
+    const vm = ors.getOfficialRosterPage({ q: 'Pager' });
     expect(vm.content.matchCount).toBe(TIER1_COUNT);
     expect(vm.content.nextHref).toBe('/ifpa/roster?q=Pager&page=2');
   });

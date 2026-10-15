@@ -1771,10 +1771,11 @@ describe('adapter-parity: PaymentAdapter (Stub vs. Live interface)', () => {
       listCalls: { endpoint: string; params: import('../../src/adapters/paymentAdapter').StripeListParams }[];
       intentPageIndex: number;
       sessionOptions: (import('../../src/adapters/paymentAdapter').StripeRequestOptions | undefined)[];
+      retrievedSessions: string[];
       expiredSessions: string[];
     } = {
       sessions: [], subscriptionUpdates: [], listCalls: [], intentPageIndex: 0,
-      sessionOptions: [], expiredSessions: [],
+      sessionOptions: [], retrievedSessions: [], expiredSessions: [],
     };
     const client: import('../../src/adapters/paymentAdapter').StripeClientLike = {
       checkout: {
@@ -1789,9 +1790,23 @@ describe('adapter-parity: PaymentAdapter (Stub vs. Live interface)', () => {
               livemode: false,
             };
           },
+          async retrieve(id) {
+            captured.retrievedSessions.push(id);
+            if (id === 'cs_open_1' || id === 'cs_race_1') {
+              return { id, url: `https://checkout.stripe.example/${id}`, status: 'open', payment_intent: null, livemode: false };
+            }
+            if (id === 'cs_paid_1') {
+              return { id, url: null, status: 'complete', payment_intent: 'pi_paid_1', livemode: false };
+            }
+            return { id, url: null, status: 'expired', payment_intent: null, livemode: false };
+          },
           async expire(id) {
             captured.expiredSessions.push(id);
-            return { id, url: null, payment_intent: null, livemode: false };
+            // The buyer finished paying between the read and the expire.
+            if (id === 'cs_race_1') {
+              return { id, url: null, status: 'complete', payment_intent: 'pi_race_1', livemode: false };
+            }
+            return { id, url: null, status: 'expired', payment_intent: null, livemode: false };
           },
         },
       },
@@ -2327,10 +2342,42 @@ describe('adapter-parity: PaymentAdapter (Stub vs. Live interface)', () => {
     ]);
   });
 
-  it('live expireCheckoutSession closes the session at the provider', async () => {
-    const { adapter, captured } = makeLive();
-    await adapter.expireCheckoutSession('cs_abandoned_1');
-    expect(captured.expiredSessions).toEqual(['cs_abandoned_1']);
+  it('openCheckoutUrl returns the address of a checkout the buyer can still complete, and null once it is not', async () => {
+    const { adapter: live, captured } = makeLive();
+    expect(await live.openCheckoutUrl('cs_open_1')).toBe('https://checkout.stripe.example/cs_open_1');
+    expect(await live.openCheckoutUrl('cs_expired_1')).toBeNull();
+    expect(captured.retrievedSessions).toEqual(['cs_open_1', 'cs_expired_1']);
+
+    // The stub answers with the same shape: an address for a session it opened,
+    // null for one it never did.
+    const stub = createStubPaymentAdapter();
+    const opened = await stub.createCheckoutSession(ONE_TIME_OPTS);
+    const stubUrl = await stub.openCheckoutUrl(opened.sessionId);
+    expect(typeof stubUrl).toBe('string');
+    expect(stubUrl).toBe(opened.redirectUrl);
+    expect(await stub.openCheckoutUrl('cs_never_opened')).toBeNull();
+  });
+
+  // Defect caught: an abandoned checkout is reported closed while the provider
+  // still holds it open, so a second session can be paid alongside it; or a
+  // checkout the buyer paid for is expired and reported closed, so the payment
+  // it settles can no longer be applied.
+  it('closeCheckoutSession expires an open session, reports an expired one closed, and leaves a paid one', async () => {
+    const { adapter: live, captured } = makeLive();
+    expect(await live.closeCheckoutSession('cs_open_1')).toBe(true);
+    expect(await live.closeCheckoutSession('cs_expired_1')).toBe(true);
+    expect(await live.closeCheckoutSession('cs_paid_1')).toBe(false);
+    // Open when read, paid by the time the expire landed: not closed.
+    expect(await live.closeCheckoutSession('cs_race_1')).toBe(false);
+    expect(captured.expiredSessions).toEqual(['cs_open_1', 'cs_race_1']);
+
+    // The stub answers with the same shape: a session it opened closes, and
+    // the address it served is gone afterwards; one it never opened does not.
+    const stub = createStubPaymentAdapter();
+    const opened = await stub.createCheckoutSession(ONE_TIME_OPTS);
+    expect(await stub.closeCheckoutSession(opened.sessionId)).toBe(true);
+    expect(await stub.openCheckoutUrl(opened.sessionId)).toBeNull();
+    expect(await stub.closeCheckoutSession('cs_never_opened')).toBe(false);
   });
 
   it('both checkout modes pin the payment methods, so the provider dashboard cannot widen them', async () => {
@@ -2444,6 +2491,7 @@ describe('adapter-parity: PaymentAdapter (Stub vs. Live interface)', () => {
             }
             return client.checkout.sessions.create(params, options);
           },
+          retrieve: (id) => client.checkout.sessions.retrieve(id),
           expire: (id) => client.checkout.sessions.expire(id),
         },
       },

@@ -31,6 +31,9 @@ const VOUCHER_TIER1_TARGET = 'mv-voucher-t1target';
 const VOUCHER_MASS = 'mv-voucher-mass';
 const VOUCHER_RATE = 'mv-voucher-rate';
 const VOUCHER_T3 = 'mv-voucher-t3';
+const VOUCHER_REPEAT = 'mv-voucher-repeat';
+const VOUCHER_SECOND = 'mv-voucher-second';
+const TARGET_REPEAT = 'mv-target-repeat';
 const VIEWER_T1 = 'mv-viewer-t1';
 const VIEWER_T0 = 'mv-viewer-t0';
 const ADMIN_T0 = 'mv-admin-t0';
@@ -123,6 +126,7 @@ beforeAll(async () => {
   // would make each test's verdict depend on the order the others ran in.
   for (const id of [
     VOUCHER_T2, VOUCHER_NO_SHORTEN, VOUCHER_TIER1_TARGET, VOUCHER_MASS, VOUCHER_RATE,
+    VOUCHER_REPEAT, VOUCHER_SECOND,
   ]) {
     createMemberAtTier(db, { id, slug: SLUG(id), tier: 'tier2' });
   }
@@ -147,6 +151,7 @@ beforeAll(async () => {
   createMemberAtTier(db, { id: TARGET_TIER1, slug: SLUG(TARGET_TIER1), tier: 'tier1' });
   insertMember(db, { id: TARGET_HOF, slug: SLUG(TARGET_HOF), is_hof: 1 });
   insertMember(db, { id: TARGET_MASS, slug: SLUG(TARGET_MASS) });
+  insertMember(db, { id: TARGET_REPEAT, slug: SLUG(TARGET_REPEAT), display_name: 'Repeat Target' });
   // Deliberately left mid-wizard: an account with no profile for any viewer.
   insertMember(db, { id: TARGET_PENDING, slug: SLUG(TARGET_PENDING), onboarding: 'none' });
 
@@ -361,6 +366,72 @@ describe('POST /members/:memberKey/vouch', () => {
     // wearing the green banner that means the standing moved.
     expect(followUp.text).toContain('class="form-notice" role="status"');
     expect(followUp.text).not.toContain('form-success-banner');
+  });
+
+  it('a second submit of the same vouch reports the first outcome and repeats nothing', async () => {
+    const app = createApp();
+    const vouch = (voucher: string) => request(app)
+      .post(`/members/${SLUG(TARGET_REPEAT)}/vouch`)
+      .set('Cookie', cookieFor(voucher))
+      .send({});
+
+    const first = await vouch(VOUCHER_REPEAT);
+    expect(first.status).toBe(303);
+    const counts = () => ({
+      grants: grantRows(TARGET_REPEAT).length,
+      vouches: vouchCount(TARGET_REPEAT),
+      mail: outboxCount(TARGET_REPEAT),
+      audit: (() => {
+        const db = openDb();
+        const n = (db.prepare('SELECT COUNT(*) AS n FROM audit_entries WHERE entity_id = ?').get(TARGET_REPEAT) as { n: number }).n;
+        db.close();
+        return n;
+      })(),
+      voucherSlots: (() => {
+        const db = openDb();
+        const n = (db.prepare('SELECT COUNT(*) AS n FROM active_player_vouches WHERE voucher_member_id = ?').get(VOUCHER_REPEAT) as { n: number }).n;
+        db.close();
+        return n;
+      })(),
+    });
+    const before = counts();
+
+    const second = await vouch(VOUCHER_REPEAT);
+    expect(second.status).toBe(303);
+    expect(second.headers.location).toBe(`/members/${SLUG(TARGET_REPEAT)}`);
+    // No second vouch, grant, email or audit row, and no rate-limit slot spent.
+    expect(counts()).toEqual(before);
+
+    const followUp = await request(app)
+      .get(`/members/${SLUG(TARGET_REPEAT)}`)
+      .set('Cookie', [cookieFor(VOUCHER_REPEAT), flashCookieIn(second)].join('; '));
+    // The voucher's own repeat reads as their first vouch did: green, recorded.
+    expect(followUp.text).toContain('Vouch recorded. Repeat Target has Active Player status until');
+    expect(followUp.text).toContain('class="form-success-banner" role="status"');
+  });
+
+  it('another voucher on the same day finds the standing already held: no change, nothing written', async () => {
+    const app = createApp();
+    // The first voucher's vouch stands today (a fresh grant, or this case's
+    // own repeat of the previous case's).
+    await request(app)
+      .post(`/members/${SLUG(TARGET_REPEAT)}/vouch`)
+      .set('Cookie', cookieFor(VOUCHER_REPEAT))
+      .send({});
+    const before = { grants: grantRows(TARGET_REPEAT).length, vouches: vouchCount(TARGET_REPEAT) };
+
+    const res = await request(app)
+      .post(`/members/${SLUG(TARGET_REPEAT)}/vouch`)
+      .set('Cookie', cookieFor(VOUCHER_SECOND))
+      .send({});
+    expect(res.status).toBe(303);
+    expect({ grants: grantRows(TARGET_REPEAT).length, vouches: vouchCount(TARGET_REPEAT) }).toEqual(before);
+
+    const followUp = await request(app)
+      .get(`/members/${SLUG(TARGET_REPEAT)}`)
+      .set('Cookie', [cookieFor(VOUCHER_SECOND), flashCookieIn(res)].join('; '));
+    expect(followUp.text).toContain('No change needed. Repeat Target already has Active Player status until');
+    expect(followUp.text).toContain('class="form-notice" role="status"');
   });
 
   it('reports the story no-op wording for a member above Tier 0', async () => {

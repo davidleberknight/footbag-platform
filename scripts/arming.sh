@@ -599,8 +599,8 @@ if (( DRY_RUN )); then
       ;;
     outbox-drained)
       echo "  1. Confirm what happens to mail already queued. Disarming is not a"
-      echo "     pause: a dark production holds the outbox rather than draining it,"
-      echo "     so queued mail waits, undelivered, until email is armed again."
+      echo "     pause: a dark production drains queued mail into the stub sender,"
+      echo "     where it is marked sent and never delivered later."
       echo "     To stop mail and then continue, the reversible lever is"
       echo "     scripts/outbound-mail-pause.sh, which needs no deploy."
       ;;
@@ -874,11 +874,10 @@ fi
 if (( FROM_STEP <= 1 )) && [[ "$PRECONDITION" == "outbox-drained" ]]; then
   echo "-- step 1: what happens to mail already queued --"
   echo ""
-  echo "Disarming email is not a pause. A dark production holds the outbox: the"
-  echo "worker stops draining, and every queued message waits, undelivered, until"
-  echo "email is armed again. Anyone mid-registration waits with it, because their"
-  echo "verification mail is in that queue and the on-screen link comes back only"
-  echo "on the next deploy."
+  echo "Disarming email is not a pause. A dark production drains the outbox into"
+  echo "the stub sender, exactly like staging: every queued message, and every one"
+  echo "queued after, is marked sent, shown on the simulated-email card, and never"
+  echo "delivered later, not even when email is armed again."
   echo ""
   echo "If the intent is to stop mail and then continue, the reversible lever is"
   echo "  scripts/outbound-mail-pause.sh --target $TARGET --pause --reason '...'"

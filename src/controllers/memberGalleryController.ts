@@ -158,7 +158,6 @@ export const memberGalleryController = {
     try {
       const memberKey = req.params.memberKey;
       const actorMemberId = req.user!.userId;
-      const actorIsAdmin = req.user!.role === 'admin';
       const name = String(req.body?.name ?? '');
       const description = String(req.body?.description ?? '');
       const sortOrderRaw = String(req.body?.sortOrder ?? '');
@@ -170,10 +169,12 @@ export const memberGalleryController = {
       try {
         // ownerMemberId is taken from the authenticated session, NOT the
         // request body. A forged owner id in the form is ignored: a
-        // member can only create galleries owned by themselves.
+        // member can only create galleries owned by themselves. On their own
+        // member page an administrator creates as the member they are, as
+        // delete does, so their repeated create is recognised like anyone's.
         await svc.createGallery({
           actorMemberId,
-          actorIsAdmin,
+          actorIsAdmin: false,
           ownerMemberId: actorMemberId,
           ownerSlug: req.user!.slug,
           updates: { name, description, sortOrder: sortOrderRaw, criteriaTags, excludeTags, externalLinks },
@@ -355,14 +356,14 @@ export const memberGalleryController = {
       const memberKey = req.params.memberKey;
       const galleryId = req.params.id;
       const actorMemberId = req.user!.userId;
-      const actorIsAdmin = req.user!.role === 'admin';
       const svc = buildSvc();
       try {
-        // Same pre-check as postUpdate so a wrong-owner attempt sees 404
-        // rather than the service-layer ValidationError that would
-        // otherwise surface here.
-        svc.getGalleryForEdit(galleryId, actorMemberId);
-        await svc.deleteGallery({ actorMemberId, actorIsAdmin, galleryId });
+        // This is the member's own gallery route, so an administrator using it
+        // acts as a member: only a gallery they own resolves, and a curated
+        // gallery is deleted from the curator surface, never from here. A
+        // wrong-owner attempt and a refused delete both answer 404 below; a
+        // repeat of the member's own delete reports the same outcome.
+        await svc.deleteGallery({ actorMemberId, actorIsAdmin: false, galleryId });
         writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, 'delete');
         res.redirect(303, listHref(memberKey));
         return;
@@ -532,9 +533,11 @@ async function executeMultipartCreate(args: {
   }
 
   try {
+    // On their own member page an administrator creates as the member they
+    // are, as delete does, so their repeated create is recognised like anyone's.
     await svc.createGallery({
       actorMemberId,
-      actorIsAdmin,
+      actorIsAdmin: false,
       ownerMemberId: actorMemberId,
       ownerSlug: slug,
       updates: { name, description, sortOrder: sortOrderRaw, criteriaTags, excludeTags, externalLinks },

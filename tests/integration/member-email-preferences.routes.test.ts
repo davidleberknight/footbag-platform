@@ -245,6 +245,22 @@ describe('changing a choice', () => {
     expect(auditCountFor('technical-updates')).toBe(1);
   });
 
+  // Defect caught: a member's own repeated toggle says "That was already how it
+  // was set, so nothing changed", telling them their change did not happen.
+  it("a member's own repeated choice reports the first change again and records it once", async () => {
+    withDb((db) => insertMailingList(db, { slug: 'ep-repeat-list', name: 'Repeat List' }));
+    const send = () => request(createApp())
+      .post(PREFS).set('Cookie', memberCookie()).type('form')
+      .send({ slug: 'ep-repeat-list', subscribe: '1' });
+
+    const first = await send();
+    expect(first.headers.location).toBe(`${PREFS}?notice=subscribed`);
+    const repeat = await send();
+    expect(repeat.status).toBe(303);
+    expect(repeat.headers.location).toBe(`${PREFS}?notice=subscribed`);
+    expect(auditCountFor('ep-repeat-list')).toBe(1);
+  });
+
   it('records nothing when the choice was already set that way', async () => {
     withDb((db) => insertMailingListSubscription(db, {
       member_id: MEMBER_ID, list_slug: 'event-notifications', status: 'unsubscribed',

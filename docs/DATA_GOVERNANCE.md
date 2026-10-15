@@ -70,7 +70,7 @@ Current-member search is authenticated only, deliberately narrowing (prefix-orie
 
 ## 7. Rosters and exports
 
-Club rosters and event participant lists beyond official results are member-only or role-scoped. The Official IFPA Roster is on-screen only to Tier 2 and above, never exported or bulk-downloaded, and every view is audit-logged. Bulk member exports are role-scoped (Sensitivity 3 or 4); a member's own export is self-service.
+Club rosters and event participant lists beyond official results are member-only or role-scoped. The Official IFPA Roster is on-screen only to Tier 2 and above, never exported or bulk-downloaded. Bulk member exports are role-scoped (Sensitivity 3 or 4); a member's own export is self-service.
 
 ---
 
@@ -79,7 +79,6 @@ Club rosters and event participant lists beyond official results are member-only
 - Logs never contain raw email addresses, tokens, passwords, or other sensitive personal data.
 - The same applies to infrastructure secrets: the session secret, AWS keys, raw session cookie values, raw account tokens (only their hashes are stored), and signing-key material. KMS key ARNs are not secrets but are not logged at request scope.
 - Member-search queries may be logged for abuse monitoring only once pseudonymized.
-- Audit records for sensitive access (member search, export, admin data access) are privacy-safe structured events.
 
 ---
 

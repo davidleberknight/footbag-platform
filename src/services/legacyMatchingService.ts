@@ -39,6 +39,12 @@
  *     linked to it. An account carrying neither (built from the site mirror)
  *     and a record with no account are claimable on the name and the surname
  *     rule.
+ *   - A candidate whose surname differs from the member's needs a former
+ *     surname, and the claim step offers to record the one it carries, only
+ *     when something other than a declared old address reaches it. A declared
+ *     address is never proven, so a differing-surname candidate it alone
+ *     reaches is hidden: showing it would hand over the surname that satisfies
+ *     the rule. Declaring that surname makes it an ordinary candidate.
  *   - The audit evidence block carries ids, keys, signals and outcomes only:
  *     never a name, a date of birth or a raw address. Addresses appear as
  *     login-or-anchor references plus a keyed hash.
@@ -509,6 +515,11 @@ function confidence(sig: readonly Signal[], agreement: Candidate['nameAgreement'
 
 // ── R15 to R23: status ──────────────────────────────────────────────────────
 
+/** Every hit is an email hit through an old address the member declared. */
+function reachedOnlyByDeclaredAddress(hits: readonly KeyHit[]): boolean {
+  return hits.length > 0 && hits.every((h) => h.key === 'email' && h.address.kind === 'old');
+}
+
 /** R15 to R23. The first applicable row wins. */
 function statusFor(
   evidence: MemberEvidence,
@@ -536,7 +547,17 @@ function statusFor(
     return { status: 'hidden', refusal: 'incompatible_with_held', heldBy: null };
   }
   if (unit.accountId && canBeCorroborated(unit.account) && !isCorroborated) return { status: 'needs_admin', refusal: 'uncorroborated', heldBy: null };
-  if (!surnameOk) return { status: 'needs_former_surname', refusal: 'surname_mismatch', heldBy: null };
+  if (!surnameOk) {
+    // A declared old address is never proven, so a candidate it alone reaches
+    // must not be shown with a differing surname: the card would hand over the
+    // very surname that satisfies the rule, and its one-step surname claim
+    // would let anyone who knows an old address take the account. Declaring
+    // that surname brings it back as an ordinary claimable candidate.
+    if (reachedOnlyByDeclaredAddress(unit.hits)) {
+      return { status: 'hidden', refusal: 'surname_mismatch', heldBy: null };
+    }
+    return { status: 'needs_former_surname', refusal: 'surname_mismatch', heldBy: null };
+  }
   return { status: 'claimable', refusal: null, heldBy: null };
 }
 

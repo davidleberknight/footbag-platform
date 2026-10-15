@@ -3,6 +3,9 @@
  *
  * Owns:
  *   - Registration, email verification, credential check, password change/reset
+ *   - Creating the member's onboarding checklist rows, pending, inside the
+ *     transaction that verifies the email, so no wizard page has to create them
+ *     (MemberOnboardingService owns everything those rows do afterwards)
  *   - Re-verifying a bounced address on its member's request: the verification
  *     link that proves the address works, and the call, inside the
  *     token-consume transaction, that clears the bounce (EmailSubscriptionService
@@ -23,7 +26,9 @@
  *         the member reports success and writes nothing.
  *       - The claim under a surname the member used before: the surname is
  *         recorded as a declared former surname and the candidate claimed, in
- *         one transaction.
+ *         one transaction. Only a candidate the matching offers this for
+ *         qualifies, which a declared old address alone never reaches, and the
+ *         re-match inside the transaction refuses any other target.
  *       - The record of a refused claim (after its rollback) and of a
  *         non-claiming answer, each with its evidence.
  *   - The claim step's view-model: the cards built from the matching's shown
@@ -32,8 +37,10 @@
  *     its confirmation page, which opens only where the matching makes the
  *     record claimable)
  *   - Declared identity anchors (former surnames / old emails): rate-limited,
- *     add-only, audited declaration. An old email address is a matching key
- *     only; the platform never mails it.
+ *     add-only, audited declaration. Input is validated and an anchor already
+ *     on file recognised before a rate-limit slot is taken. A former surname
+ *     is held to the family-name length cap. An old email address is a
+ *     matching key only; the platform never mails it.
  *   - Date of birth is a matching key collected in the personal_details task
  *     (not declared here). An identical, non-placeholder date corroborates an
  *     old account; a date that does not match simply fails to corroborate and
@@ -177,7 +184,17 @@
  *     the same transaction, so a password that changed with nobody told is
  *     always visible. The bump is
  *     conditioned on the password_version that was read, so a concurrent change
- *     is refused rather than applied over an unknown state.
+ *     is refused rather than applied over an unknown state, unless it is the
+ *     member's own change submitted twice. A re-post of the member's own change
+ *     within the rate-limit window, carrying the password now stored, is
+ *     reported as done and writes and sends nothing. Its attempt is counted
+ *     before the submitted password is tested and given back once it proves a
+ *     repeat, so a parallel burst is counted before any guess is judged and it
+ *     is never a free guess. One that overlapped the change and lost the version
+ *     race to it is reported the same way and returns the session it signed.
+ *   - A password-reset or verify-resend request repeated while the last
+ *     token's email is seconds old issues nothing more; the bucket still
+ *     counts every request.
  *   - In-tx variants (claimLegacyAccountInTx, claimHistoricalPersonInTx) accept a
  *     caller-owned transaction so the wizard orchestrator can merge the claim and the
  *     member_onboarding_tasks row transition inside one transaction.
@@ -187,6 +204,8 @@
  *   matching; written only by a claim revert clearing a deceased flag that the
  *   member's own deceased marking cascaded onto the record),
  *   account_tokens,
+ *   member_onboarding_tasks (the checklist rows inserted at verification, and
+ *   personal_details reopened by a claim revert),
  *   audit_entries, outbox_emails,
  *   member_declared_anchors (add-only; deleted wholesale on PII purge by
  *   MemberService), work_queue_items (link help requests: insert + resolve).
@@ -226,7 +245,7 @@ import { transaction, auditEntries } from '../db/db';
 import { accountTokenService } from './accountTokenService';
 import { emailService } from './emailService';
 import { workQueueService } from './workQueueService';
-import { hit as rateLimitHit } from './rateLimitService';
+import { hit as rateLimitHit, refund as rateLimitRefund } from './rateLimitService';
 import { readIntConfig } from './configReader';
 import { config } from '../config/env';
 import { getCaptchaAdapter } from '../adapters/captchaAdapter';
@@ -240,7 +259,7 @@ import { ConflictError, NotFoundError, RateLimitedError, ServiceUnavailableError
 import { createSessionJwt } from './jwtService';
 import { compareBirthDates, type RecordedBirthDateComparison } from '../lib/birthDate';
 import { isUniqueConstraintError } from './sqliteRetry';
-import { appendAuditEntry } from './auditService';
+import { appendAuditEntry, findOwnLatestAudit } from './auditService';
 import { recordOperationalError } from './operationalErrors';
 import { liftOwnAddressSuppression, recoverBouncedAddressInTx } from './emailSubscriptionService';
 import {
@@ -332,6 +351,15 @@ export interface CheckEmailContent {
 export interface VerifyResultContent {
   ok: boolean;
   signInPrompt?: boolean;
+  /** The link was already used to verify this account: a repeat, reported as
+   *  the first outcome with a sign-in prompt rather than as an error. */
+  alreadyVerified?: boolean;
+}
+
+/** The page an emailed verify link opens. It carries the token into a form and
+ *  changes nothing; only the form's POST spends the token. */
+export interface VerifyLandingContent {
+  token: string;
 }
 
 export interface PasswordForgotContent {
@@ -344,8 +372,9 @@ export interface PasswordForgotSentContent {
   email?: string;
   /**
    * Simulated-email card for the post-submit sent state. Populated only when
-   * SES_ADAPTER=stub (dev and staging); null in production, where no card
-   * renders and no reset token is ever exposed to a live visitor. Mirrors the
+   * SES_ADAPTER=stub (dev, staging, and production while email is dark); null
+   * once email is live, where no card renders and no reset token is ever
+   * exposed to a visitor. Mirrors the
    * pattern on /register/check-email so a tester completes the reset on the
    * page.
    */
@@ -355,6 +384,9 @@ export interface PasswordForgotSentContent {
 export interface PasswordResetContent {
   token: string | undefined;
   error?: string;
+  /** The link already reset the password: a repeat, reported as the first
+   *  outcome with a sign-in prompt rather than as an error. */
+  alreadyReset?: boolean;
   turnstileSiteKey?: string | null;
   captchaStubbed?: boolean;
 }
@@ -375,18 +407,18 @@ export interface ClaimFormContent {
   lowConfidenceBanner?: boolean;
   /**
    * Simulated-email card for the post-submit sent state. Populated only
-   * when SES_ADAPTER=stub (dev and staging);
-   * null in production. Mirrors the pattern in /register/check-email so
+   * when SES_ADAPTER=stub (dev, staging, and production while email is dark);
+   * null once email is live. Mirrors the pattern in /register/check-email so
    * developers can complete the claim flow without leaving the page.
    */
   emailPreview?: SimulatedEmailPreview;
   /**
-   * Dev-only operator note shown above the simulated-email card on the sent
+   * Operator note shown above the simulated-email card on the sent
    * state when no email was actually enqueued (anti-enumeration silent paths:
    * no_match, target_rate_limited). Lets the operator distinguish a real
    * enqueue from a silent no-op without leaking the reason in the public
-   * banner. Always undefined in production (the simulated-email card itself
-   * does not render in production).
+   * banner. Always undefined once email is live (the simulated-email card
+   * itself does not render then).
    */
   outcomeNote?: string;
 }
@@ -551,6 +583,13 @@ function getDummyArgonHash(): Promise<string> {
   }
   return _dummyHashPromise;
 }
+
+// How recently a password-reset or verify-resend token must have been issued
+// for a further request to count as the same request submitted twice. Long
+// enough to cover a double click, a back-button re-post or a second tab; short
+// enough that a member whose email never arrived can ask again a minute later.
+// The rate-limit bucket still counts every request, as anti-enumeration needs.
+const REPEAT_REQUEST_SECONDS = 60;
 
 // Anti-enumeration timing equaliser for the single-use-token email flows
 // (password-reset request, verify-email resend). The exists branch generates a
@@ -917,24 +956,44 @@ function validateSlug(
  * enqueue so an outbox outage fails the same way the new-account verify enqueue
  * does (503 on both branches), never a status difference that leaks existence.
  */
-function enqueueAccountExistsNotice(existing: { id: string; login_email: string }, now: string): void {
+function enqueueAccountExistsNotice(existing: { id: string; login_email: string }): void {
   const baseUrl = config.publicBaseUrl.replace(/\/+$/, '');
-  emailService.send({
-    template: 'account_exists_notice',
-    params: { loginUrl: `${baseUrl}/login`, resetUrl: `${baseUrl}/password/forgot` },
-    recipientEmail: existing.login_email,
-    recipientMemberId: existing.id,
-    idempotencyKey: `account_exists_notice:${existing.id}:${now}`,
-    strict: true,
+  // One notice per attempt, keyed on the attempt's own audit row. Both land
+  // together or not at all, so a refused strict enqueue leaves no row claiming
+  // a notice that never went.
+  transaction(() => {
+    const auditId = appendAuditEntry({
+      actionType: 'auth.register_duplicate_email',
+      category: 'auth',
+      actorType: 'system',
+      actorMemberId: null,
+      entityType: 'member',
+      entityId: existing.id,
+    });
+    emailService.send({
+      template: 'account_exists_notice',
+      params: { loginUrl: `${baseUrl}/login`, resetUrl: `${baseUrl}/password/forgot` },
+      recipientEmail: existing.login_email,
+      recipientMemberId: existing.id,
+      idempotencyKey: `account_exists_notice:${existing.id}:${auditId}`,
+      strict: true,
+    });
   });
-  appendAuditEntry({
-    actionType: 'auth.register_duplicate_email',
-    category: 'auth',
-    actorType: 'system',
-    actorMemberId: null,
-    entityType: 'member',
-    entityId: existing.id,
-  });
+}
+
+/**
+ * An unverified account whose verify email was queued seconds ago is the same
+ * registration submitted again (a double click, a back-button re-post, two
+ * submits racing): the first submit already sent the one email it needed, so
+ * the repeat reports the same outcome and sends nothing. A first email that
+ * never reached the outbox does not count, and neither does one older than the
+ * repeat window, so a member whose email never arrived can try again. The
+ * response is identical either way and the argon2 cost is paid before this is
+ * asked, so the difference is not observable to the submitter.
+ */
+function isRegistrationRepeat(account: { id: string; email_verified_at: string | null }): boolean {
+  return account.email_verified_at === null
+    && accountTokenService.hasFreshQueuedToken(account.id, 'email_verify', 'verify:', REPEAT_REQUEST_SECONDS);
 }
 
 async function registerMember(
@@ -1028,10 +1087,10 @@ async function registerMember(
   const now = new Date().toISOString();
 
   const existingAccount = registration.findForDuplicateNotice.get(normalizedEmail) as
-    | { id: string; login_email: string }
+    | { id: string; login_email: string; email_verified_at: string | null }
     | undefined;
   if (existingAccount) {
-    enqueueAccountExistsNotice(existingAccount, now);
+    if (!isRegistrationRepeat(existingAccount)) enqueueAccountExistsNotice(existingAccount);
     return { status: 'registered' };
   }
 
@@ -1074,9 +1133,9 @@ async function registerMember(
         // between the pre-check and the insert. Same enumeration-safe outcome:
         // notify the real address out of band, return the identical response.
         const raced = registration.findForDuplicateNotice.get(normalizedEmail) as
-          | { id: string; login_email: string }
+          | { id: string; login_email: string; email_verified_at: string | null }
           | undefined;
-        if (raced) enqueueAccountExistsNotice(raced, now);
+        if (raced && !isRegistrationRepeat(raced)) enqueueAccountExistsNotice(raced);
         return { status: 'registered' };
       }
       if (msg.includes('slug')) {
@@ -1210,6 +1269,11 @@ async function issueAndEnqueueVerifyEmail(memberId: string, recipientEmail: stri
  * session inputs the controller needs to issue a JWT. Matching against the old
  * records happens in the wizard's claim step and nowhere else. Returns null if
  * the token is invalid, expired, or already used.
+ *
+ * The onboarding checklist rows are created here, pending, in the same
+ * transaction, because opening a wizard page must write nothing and this is the
+ * act that starts onboarding. They land even when issuing the session fails
+ * afterwards, and a second outstanding link adds none.
  */
 async function verifyEmailByToken(rawToken: string): Promise<VerifyEmailResult | null> {
   // Consume and mark-verified commit together: a crash between the two would
@@ -1239,6 +1303,13 @@ async function verifyEmailByToken(rawToken: string): Promise<VerifyEmailResult |
     // Opening a link sent to the address proves it receives mail, so a bounce
     // on it clears here, in the same transaction that spends the proof.
     recoverBouncedAddressInTx(c.memberId, now);
+    const by = 'onboarding_service';
+    const taskId = () => `mot_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
+    memberOnboarding.insertTaskListIfMissing.run(
+      taskId(), now, by, now, by, c.memberId,
+      taskId(), now, by, now, by, c.memberId,
+      taskId(), now, by, now, by, c.memberId,
+    );
     return c;
   });
   if (!consumed) return null;
@@ -1254,6 +1325,54 @@ async function verifyEmailByToken(rawToken: string): Promise<VerifyEmailResult |
     passwordVersion: row.password_version,
     isAdmin: row.is_admin,
   };
+}
+
+/**
+ * Whether a verify link that no longer verifies already did its job: it was
+ * spent, and the account it belonged to is verified. A repeat press of the
+ * button, or a link reopened later, then reports the first outcome instead of
+ * the invalid page. Starts no session and writes nothing; the caller shows a
+ * sign-in prompt, so holding a spent link grants nothing.
+ */
+function wasVerifiedByToken(rawToken: string): boolean {
+  const spent = accountTokenService.findSpentToken(rawToken, 'email_verify');
+  if (!spent) return false;
+  return auth.findMemberForSession.get(spent.memberId) !== undefined;
+}
+
+/**
+ * Whether a submit on a reset link that no longer resets is a repeat of the
+ * submit that spent it: the link is spent and the submitted new password is the
+ * one now set. A repeat then reports the first outcome with a sign-in prompt,
+ * starting no session and writing nothing. A different password is not a repeat
+ * and meets the invalid-link answer, so the page never claims a password it did
+ * not set.
+ *
+ * Comparing a submitted secret with the stored hash would make a spent link a
+ * free way to guess the current password, so the attempt is counted before the
+ * comparison runs and given back only when it proves a repeat, the same
+ * discipline as a re-posted password change. A closed bucket is not a repeat.
+ */
+async function recognisesResetRepeat(
+  rawToken: string,
+  newPassword: string,
+): Promise<'repeat' | 'not_repeat' | 'link_unspent'> {
+  const spent = accountTokenService.findSpentToken(rawToken, 'password_reset');
+  if (!spent) return 'link_unspent';
+  if (!newPassword) return 'not_repeat';
+  const bucketKey = `pwreset-repeat:${spent.memberId}`;
+  const rl = rateLimitHit(
+    bucketKey,
+    readIntConfig('password_change_rate_limit_max_attempts', 10),
+    readIntConfig('password_change_rate_limit_window_minutes', 15),
+  );
+  if (!rl.allowed) return 'not_repeat';
+  const row = auth.findMemberForPasswordChange.get(spent.memberId) as
+    | { password_hash: string }
+    | undefined;
+  if (!row?.password_hash || !(await argon2.verify(row.password_hash, newPassword))) return 'not_repeat';
+  rateLimitRefund(bucketKey);
+  return 'repeat';
 }
 
 /**
@@ -1472,9 +1591,10 @@ async function resendVerifyEmail(email: string): Promise<void> {
   const row = auth.findUnverifiedMemberByEmail.get(normalized) as
     | { id: string }
     | undefined;
-  if (!row) {
-    // Reach the same token-generation work the exists branch performs, so the
-    // response time does not leak whether an unverified member matches.
+  // No match, or the same request submitted twice within seconds (its verify
+  // email is already on its way): either way nothing is issued, and the same
+  // token-generation work runs so the response time does not leak which.
+  if (!row || accountTokenService.hasFreshQueuedToken(row.id, 'email_verify', 'verify:', REPEAT_REQUEST_SECONDS)) {
     burnTokenIssuanceTiming();
     return;
   }
@@ -1774,10 +1894,16 @@ const ADMIN_STATUS_LABELS: Record<string, string> = {
   no_account_name:        'The old account carries no real name.',
   declined:               'The member said this is not them.',
   incompatible_with_held: 'The member already holds a different account or record.',
+  // Reached only through a hidden status whose refusal reason has no label of
+  // its own: the declared-address, differing-surname case.
+  hidden:                 'Hidden from the member: only an old address they declared reaches it, and the surname differs.',
 };
 
 function adminStatusLabel(c: Candidate): string {
-  const label = ADMIN_STATUS_LABELS[c.refusal ?? c.status] ?? c.status;
+  // The refusal reason is the more specific label; a reason with none of its
+  // own falls back to the status, so the administrator never reads a code.
+  const label = (c.refusal ? ADMIN_STATUS_LABELS[c.refusal] : undefined)
+    ?? ADMIN_STATUS_LABELS[c.status] ?? c.status;
   if (c.refusal !== 'held_by_other' || !c.heldBy) return label;
   // A held record is shown as a conflict naming its holder, never as something
   // to approve: the administrator must see who already has it.
@@ -2200,7 +2326,9 @@ function claimCandidateInTx(memberId: string, target: ClaimTarget): ClaimCandida
 /**
  * "This is me, I used the surname X": record the surname the candidate carries
  * as a declared former surname and claim, inside the caller's transaction. The
- * candidate must be one the step showed with that offer; the anchor goes in
+ * candidate must be one the step showed with that offer, which a declared old
+ * address alone never earns (the re-match hides such a candidate, so a crafted
+ * post naming it is refused like any stale target); the anchor goes in
  * first and the claim re-checks against the evidence it now includes, so a
  * candidate that still would not be claimable is refused and, the caller's
  * transaction rolling back, the anchor goes with it.
@@ -2747,6 +2875,7 @@ function claimHistoricalPerson(
 }
 
 export interface PasswordChangeResult {
+  status: 'changed';
   memberId: string;
   newPasswordVersion: number;
   /**
@@ -2762,16 +2891,14 @@ async function changePassword(
   oldPassword: string,
   newPassword: string,
   confirmPassword: string,
-): Promise<PasswordChangeResult> {
+): Promise<PasswordChangeResult | { status: 'own_repeat'; sessionJwt?: string }> {
   const maxAttempts = readIntConfig('password_change_rate_limit_max_attempts', 10);
   const windowMinutes = readIntConfig('password_change_rate_limit_window_minutes', 15);
-  const rl = rateLimitHit(`pwchange:${memberId}`, maxAttempts, windowMinutes);
-  if (!rl.allowed) {
-    throw new RateLimitedError(
-      'Too many password-change attempts. Please try again later.',
-      rl.retryAfterSeconds,
-    );
-  }
+  const bucketKey = `pwchange:${memberId}`;
+  const tooMany = (retryAfterSeconds?: number): RateLimitedError => new RateLimitedError(
+    'Too many password-change attempts. Please try again later.',
+    retryAfterSeconds,
+  );
 
   if (!newPassword || newPassword.length < MIN_PASSWORD_LENGTH) {
     throw new ValidationError(`Password must be at least ${MIN_PASSWORD_LENGTH} characters.`);
@@ -2789,6 +2916,33 @@ async function changePassword(
   const row = auth.findMemberForPasswordChange.get(memberId) as
     | { id: string; password_hash: string; password_version: number }
     | undefined;
+
+  // A re-post of a change that already landed (the back button, a second tab)
+  // carries a current password the change has just replaced, so it would be
+  // refused as incorrect. It is recognised instead: this member changed their
+  // password within the rate-limit window and the submitted new password is
+  // the one now stored. Nothing is written or sent, and the attempt is given
+  // back. The test runs a submitted secret against the stored hash, so the
+  // attempt is counted before it runs and returned only once it proves a
+  // repeat: a burst of parallel guesses is counted before any of them is
+  // judged, and a closed bucket refuses the repeat too, so recognition can
+  // never become a free way to guess the new password.
+  const rl = rateLimitHit(bucketKey, maxAttempts, windowMinutes);
+  if (!rl.allowed) throw tooMany(rl.retryAfterSeconds);
+  const recognisesOwnChange = async (hash: string | undefined): Promise<boolean> => {
+    const ownChange = findOwnLatestAudit(memberId, 'auth.password_change', 'member', memberId);
+    return Boolean(
+      hash
+      && ownChange
+      && Date.parse(ownChange.occurred_at) >= Date.now() - windowMinutes * 60_000
+      && await argon2.verify(hash, newPassword),
+    );
+  };
+  if (await recognisesOwnChange(row?.password_hash)) {
+    rateLimitRefund(bucketKey);
+    return { status: 'own_repeat' };
+  }
+
   if (!row || !row.password_hash) {
     throw new ValidationError('Current password is incorrect.');
   }
@@ -2912,12 +3066,24 @@ async function changePassword(
   });
 
   if (!committed) {
+    // An overlapping submit of this same change read the row before the other
+    // committed, so it lost the version race to its own twin rather than to
+    // another session. That is recognised as the repeat it is, and it carries
+    // the session it signed, which is valid for exactly the version the twin
+    // committed: whichever response the browser keeps leaves it signed in.
+    const current = auth.findMemberForPasswordChange.get(memberId) as
+      | { password_hash: string; password_version: number }
+      | undefined;
+    if (current?.password_version === newPasswordVersion && await recognisesOwnChange(current.password_hash)) {
+      rateLimitRefund(bucketKey);
+      return { status: 'own_repeat', sessionJwt };
+    }
     throw new ConflictError(
       'Your password was changed from another session. Please sign in again and retry.',
     );
   }
 
-  return { memberId, newPasswordVersion, sessionJwt };
+  return { status: 'changed', memberId, newPasswordVersion, sessionJwt };
 }
 
 // ── Password reset ───────────────────────────────────────────────────────────
@@ -2936,9 +3102,10 @@ async function requestPasswordReset(email: string): Promise<PasswordResetRequest
     return { responseSent: true };
   }
   const row = auth.findMemberByEmail.get(normalized) as MemberAuthRow | undefined;
-  if (!row) {
-    // Reach the same token-generation work the exists branch performs, so the
-    // response time does not leak whether an account matches.
+  // No match, or the same request submitted twice within seconds (its reset
+  // email is already on its way): either way nothing is issued, and the same
+  // token-generation work runs so the response time does not leak which.
+  if (!row || accountTokenService.hasFreshQueuedToken(row.id, 'password_reset', 'pwreset:', REPEAT_REQUEST_SECONDS)) {
     burnTokenIssuanceTiming();
     return { responseSent: true };
   }
@@ -3601,18 +3768,39 @@ function anchorChangeRateLimit(memberId: string): void {
   }
 }
 
+/** The form a declared anchor is stored and compared in. */
+function storedAnchorValue(anchorType: 'former_surname' | 'old_email', anchorValue: string): string {
+  return anchorType === 'old_email' ? anchorValue.trim().toLowerCase() : anchorValue.trim();
+}
+
 function declareAnchor(
   memberId: string,
   anchorType: string,
   anchorValue: string,
 ): void {
-  anchorChangeRateLimit(memberId);
+  // Input is checked and an anchor already on file recognised before a
+  // rate-limit slot is taken, so a refused submit, a double submit or a re-add
+  // spends none.
   if (anchorType !== 'former_surname' && anchorType !== 'old_email') {
     throw new ValidationError('Choose whether you are adding a former surname or an old email address.');
   }
-  if (!anchorValue.trim()) {
+  const value = storedAnchorValue(anchorType, anchorValue);
+  if (!value) {
     throw new ValidationError('Enter a value to add.');
   }
+  // A former surname is a family name, held to the same length.
+  if (anchorType === 'former_surname' && value.length > MAX_NAME_PART) {
+    throw new ValidationError(`Family name must be ${MAX_NAME_PART} characters or fewer.`);
+  }
+  // An old email is a matching key only, never mailed, but one that is not an
+  // address could never match and would be listed back to the member as if it might.
+  if (anchorType === 'old_email' && !/^[^\s@]+@[^\s@.]+\.[^\s@]+$/.test(value)) {
+    throw new ValidationError('Enter a complete email address, such as name@example.com.');
+  }
+  const onFile = (declaredAnchors.listByMember.all(memberId) as Array<{ anchor_type: string; anchor_value: string }>)
+    .some((a) => a.anchor_type === anchorType && a.anchor_value === value);
+  if (onFile) return;
+  anchorChangeRateLimit(memberId);
   try {
     transaction(() => declareAnchorInTx(memberId, anchorType as 'former_surname' | 'old_email', anchorValue));
   } catch (err: unknown) {
@@ -3632,7 +3820,7 @@ function declareAnchor(
  * former surname or an old address is personal data the ledger must not hold.
  */
 function declareAnchorInTx(memberId: string, anchorType: 'former_surname' | 'old_email', anchorValue: string): string {
-  const value = anchorType === 'old_email' ? anchorValue.trim().toLowerCase() : anchorValue.trim();
+  const value = storedAnchorValue(anchorType, anchorValue);
   const id = `mda_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
   declaredAnchors.insert.run(id, memberId, memberId, memberId, anchorType, value);
   appendAuditEntry({
@@ -4388,6 +4576,7 @@ function correctMemberNames(
   if (changedFields.length === 0) return { status: 'unchanged' as const };
 
   const now = new Date().toISOString();
+  let correctionAuditId = '';
   transaction(() => {
     account.updateMemberNames.run(
       names.familyName || null,
@@ -4399,7 +4588,7 @@ function correctMemberNames(
       actorId,
       memberId,
     );
-    appendAuditEntry({
+    correctionAuditId = appendAuditEntry({
       actionType:    'member.name_corrected',
       category:      'profile_change',
       actorType:     'admin',
@@ -4413,7 +4602,7 @@ function correctMemberNames(
   // After the commit, and without the values: the recorded name is what a
   // member is identified by, so a correction to it is the case where the
   // address on file is most likely to be wrong too.
-  notifyRecordCorrected(memberId, names.displayName, 'the name on your account', reason);
+  notifyRecordCorrected(memberId, names.displayName, 'the name on your account', reason, correctionAuditId);
   return { status: 'corrected' as const, changedFields };
 }
 
@@ -4432,13 +4621,15 @@ function correctMemberNames(
  * exactly what was wrong.
  */
 function notifyRecordCorrected(
-  memberId: string, displayName: string, whatChanged: string, reason: string,
+  memberId: string, displayName: string, whatChanged: string, reason: string, correctionAuditId: string,
 ): void {
+  // Keyed on the correction's audit row, so each correction sends once however
+  // often the send is attempted.
   emailService.sendToMember({
     template: 'member_record_corrected',
     params:   { memberName: displayName, whatChanged, note: reason },
     memberId,
-    idempotencyKey: `member-record-corrected:${memberId}:${new Date().toISOString()}`,
+    idempotencyKey: `member-record-corrected:${memberId}:${correctionAuditId}`,
   });
 }
 
@@ -4566,7 +4757,7 @@ function correctMemberSlug(
         mediaTagsMoved = account.refreshMediaTagDisplay.run(renamed, now, actorId, tag.id).changes;
       }
 
-      appendAuditEntry({
+      const correctionAuditId = appendAuditEntry({
         actionType:    'member.slug_corrected',
         category:      'profile_change',
         actorType:     'admin',
@@ -4589,6 +4780,7 @@ function correctMemberSlug(
         memberId, row.display_name,
         'your profile address, so links you have already shared to the old one no longer work',
         reason,
+        correctionAuditId,
       );
       return { status: 'corrected' as const, before, after: slug, mediaTagsMoved };
     });
@@ -4613,4 +4805,4 @@ async function verifyHumanChallenge(token: string, remoteIp?: string): Promise<b
   return (await getCaptchaAdapter().verify(token, remoteIp)).ok;
 }
 
-export const identityAccessService = { verifyHumanChallenge, attemptLogin, registerMember, lookupLegacyAccount, claimLegacyAccount, lookupHistoricalPersonForClaim, claimHistoricalPerson, claimHistoricalPersonInTx, claimCandidateInTx, claimWithFormerSurnameInTx, recordClaimRefused, recordClaimStepAnswered, changePassword, verifyEmailByToken, resendVerifyEmail, requestAddressRecovery, requestPasswordReset, completePasswordReset, getLinkHistoryViewForWizard, revertAutoLink, revertClaimForDispute, listClaimedLegacyIdentities, declareAnchor, listDeclaredAnchors, submitLinkHelpRequest, approveLinkHelpRequest, rejectLinkHelpRequest, enforceHistoricalPersonClaimLimit, getClaimEvidenceForMember, getLinkCandidatesForAdmin, previewLinkHelpApproval, previewMemberNames, correctMemberNames, previewMemberSlug, correctMemberSlug };
+export const identityAccessService = { verifyHumanChallenge, attemptLogin, registerMember, lookupLegacyAccount, claimLegacyAccount, lookupHistoricalPersonForClaim, claimHistoricalPerson, claimHistoricalPersonInTx, claimCandidateInTx, claimWithFormerSurnameInTx, recordClaimRefused, recordClaimStepAnswered, changePassword, verifyEmailByToken, wasVerifiedByToken, resendVerifyEmail, requestAddressRecovery, requestPasswordReset, completePasswordReset, recognisesResetRepeat, getLinkHistoryViewForWizard, revertAutoLink, revertClaimForDispute, listClaimedLegacyIdentities, declareAnchor, listDeclaredAnchors, submitLinkHelpRequest, approveLinkHelpRequest, rejectLinkHelpRequest, enforceHistoricalPersonClaimLimit, getClaimEvidenceForMember, getLinkCandidatesForAdmin, previewLinkHelpApproval, previewMemberNames, correctMemberNames, previewMemberSlug, correctMemberSlug };

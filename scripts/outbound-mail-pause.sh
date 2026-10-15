@@ -21,17 +21,15 @@
 # WHY THIS AND NOT DISARMING.
 #
 # Disarming email (scripts/arming.sh --target <env> --switch email --state dark) is NOT a
-# pause, but not for the reason this comment used to give. It claimed the stub
-# would report every queued message as delivered and clear its body, emptying
-# the queue with nothing left to resend. That hazard is real below production
-# and is exactly why the drain refuses to run at all on a production host that
-# holds the stub: a dark production HOLDS the outbox rather than emptying it.
+# pause. A dark production runs the stub sender exactly like staging, so the
+# drain keeps going: every queued message is reported delivered, marked sent and
+# its body cleared, and none of it is delivered once email is armed again. A
+# pause keeps the queue intact and sends it when lifted.
 #
-# What makes disarming the wrong reach for "stop, then continue" is simpler.
-# It is a values-file edit, an apply and a full deploy, so it takes minutes
-# rather than seconds, and coming back costs the same again. This script is one
-# command and reverses with one. Disarm only to take the provider integration
-# itself out of the picture.
+# Disarming is also slow: a values-file edit, an apply and a full deploy, so it
+# takes minutes rather than seconds, and coming back costs the same again. This
+# script is one command and reverses with one. Disarm only to take the provider
+# integration itself out of the picture.
 #
 # WHY A SCRIPT AND NOT A BUTTON.
 #

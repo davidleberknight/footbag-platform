@@ -80,3 +80,80 @@ describe('identityAccessService.verifyEmailByToken atomicity', () => {
     expect(tokenUsedAt(tokenRowId)).not.toBeNull();
   });
 });
+
+function taskRows(memberId: string): Array<{ task_type: string; state: string }> {
+  const db = new BetterSqlite3(dbPath, { readonly: true });
+  const rows = db.prepare(
+    'SELECT task_type, state FROM member_onboarding_tasks WHERE member_id = ? ORDER BY task_type',
+  ).all(memberId) as Array<{ task_type: string; state: string }>;
+  db.close();
+  return rows;
+}
+
+const PENDING_CHECKLIST = [
+  { task_type: 'club_affiliations', state: 'pending' },
+  { task_type: 'legacy_claim',      state: 'pending' },
+  { task_type: 'personal_details',  state: 'pending' },
+];
+
+describe('the onboarding checklist is created by verifying the email', () => {
+  // Defect caught: no wizard page may create the rows, so a verification that
+  // left them out would leave the member's progress unrecorded, and one that
+  // committed them apart from the verification could leave a verified member
+  // with no checklist or a checklist on an unverified account.
+  it('a verification creates the three pending rows and no wizard.start audit row', async () => {
+    const id = 'verify-checklist-1';
+    const db = new BetterSqlite3(dbPath);
+    insertMember(db, { id, slug: 'verify_checklist_1', login_email: 'verify-checklist-1@example.com', email_verified_at: null, onboarding: 'none' });
+    db.close();
+    const { rawToken } = tokens.issueToken({ memberId: id, tokenType: 'email_verify', ttlHours: 1 });
+
+    expect(await svc.verifyEmailByToken(rawToken)).not.toBeNull();
+    expect(taskRows(id)).toEqual(PENDING_CHECKLIST);
+    const ro = new BetterSqlite3(dbPath, { readonly: true });
+    const starts = (ro.prepare(
+      "SELECT COUNT(*) AS c FROM audit_entries WHERE actor_member_id = ? AND action_type = 'wizard.start'",
+    ).get(id) as { c: number }).c;
+    ro.close();
+    expect(starts).toBe(0);
+  });
+
+  it('a failed checklist insert rolls back the whole verification, so the link still works', async () => {
+    const id = 'verify-checklist-2';
+    const db = new BetterSqlite3(dbPath);
+    insertMember(db, { id, slug: 'verify_checklist_2', login_email: 'verify-checklist-2@example.com', email_verified_at: null, onboarding: 'none' });
+    db.close();
+    const { rawToken, tokenRowId } = tokens.issueToken({ memberId: id, tokenType: 'email_verify', ttlHours: 1 });
+
+    const spy = vi.spyOn(dbMod.memberOnboarding, 'insertTaskListIfMissing', 'get').mockReturnValue({
+      run: () => { throw new Error('forced checklist failure'); },
+    } as never);
+    await expect(svc.verifyEmailByToken(rawToken)).rejects.toThrow('forced checklist failure');
+    spy.mockRestore();
+    expect(tokenUsedAt(tokenRowId)).toBeNull();
+    expect(memberVerifiedAt(id)).toBeNull();
+    expect(taskRows(id)).toEqual([]);
+
+    expect(await svc.verifyEmailByToken(rawToken)).not.toBeNull();
+    expect(taskRows(id)).toEqual(PENDING_CHECKLIST);
+  });
+
+  it('a second outstanding link adds no rows and leaves an answered step answered', async () => {
+    const id = 'verify-checklist-3';
+    const db = new BetterSqlite3(dbPath);
+    insertMember(db, { id, slug: 'verify_checklist_3', login_email: 'verify-checklist-3@example.com', email_verified_at: null, onboarding: 'none' });
+    db.close();
+    const first = tokens.issueToken({ memberId: id, tokenType: 'email_verify', ttlHours: 1 });
+    const second = tokens.issueToken({ memberId: id, tokenType: 'email_verify', ttlHours: 1 });
+
+    expect(await svc.verifyEmailByToken(first.rawToken)).not.toBeNull();
+    const onboarding = (await import('../../src/services/memberOnboardingService')).memberOnboardingService;
+    onboarding.completeTask(id, 'personal_details');
+    expect(await svc.verifyEmailByToken(second.rawToken)).not.toBeNull();
+    expect(taskRows(id)).toEqual([
+      { task_type: 'club_affiliations', state: 'pending' },
+      { task_type: 'legacy_claim',      state: 'pending' },
+      { task_type: 'personal_details',  state: 'completed' },
+    ]);
+  });
+});

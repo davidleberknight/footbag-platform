@@ -1,0 +1,21 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    {{#if content.done}}
+      {{> outcome-notice text=content.outcomeText tone=content.outcomeTone}}
+    {{else}}
+      <p>Press the button below to stop receiving this mailing list.</p>
+      <form method="POST" action="{{content.actionHref}}" class="form-block">
+        <input type="hidden" name="confirm" value="1" />
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary">Unsubscribe</button>
+        </div>
+      </form>
+    {{/if}}
+  </section>
+</div>

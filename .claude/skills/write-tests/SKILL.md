@@ -53,6 +53,7 @@ The case floor is the edge-case and adversarial lists in the rule; read them now
 
 - Privacy: purged members excluded, honours-gated public profiles, no PII to unauthorised viewers.
 - A form-bearing page: the primary form is not nested and its submit control posts to the intended handler. A nested `<form>` orphans the submit button and is invisible to a handler-only POST test.
+- A state-changing route outside the administrator surface: a submitted-twice case asserting the same redirect and message and unchanged domain, audit, outbox and rate-limit counts, unless the route carries a named exemption. An own-repeat case gets a sibling proving another actor's act is not treated as this actor's repeat.
 
 For the high-risk areas (auth and session, member privacy, payments, identity claim, erasure), also walk the risk classification and STRIDE vocabulary in `docs/TESTING.md`.
 

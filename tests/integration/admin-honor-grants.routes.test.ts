@@ -30,11 +30,22 @@ const CONC_T0 = 'hg_conc_t0';
 const T3_MEMBER = 'hg_t3';
 const PREVIEW_T2 = 'hg_preview_t2';
 const PREVIEW_DUP = 'hg_preview_dup';
+const OTHER_T0 = 'hg_other_t0';
+const YEAR_T0 = 'hg_year_t0';
+const ADMIN2_ID = 'hg_admin_002';
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 function adminCookie(): string {
   return `__Host-footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID, role: 'admin' })}`;
+}
+function admin2Cookie(): string {
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: ADMIN2_ID, role: 'admin' })}`;
+}
+// The outcome rides a flash cookie across the redirect; the follow-up GET carries
+// it the way a browser would.
+function flashOf(res: { get(h: string): string[] | undefined }): string | undefined {
+  return (res.get('Set-Cookie') ?? []).find((c) => c.startsWith('footbag_flash='))?.split(';')[0];
 }
 function memberCookie(): string {
   return `__Host-footbag_session=${createTestSessionJwt({ memberId: NONADMIN_ID })}`;
@@ -50,6 +61,9 @@ beforeAll(async () => {
   t0(DUP_T0, 'Dana Up');
   t0(CONC_T0, 'Connie Current');
   t0(PREVIEW_DUP, 'Pree View');
+  t0(OTHER_T0, 'Otto Ther');
+  t0(YEAR_T0, 'Yara Year');
+  insertMember(db, { id: ADMIN2_ID, slug: 'hg_admin_two', display_name: 'Ben Admin', real_name: 'Ben Admin', login_email: 'hg-admin2@example.com', is_admin: 1 });
   createMemberAtTier(db, { id: BAP_T2, slug: BAP_T2, tier: 'tier2', memberOverrides: { display_name: 'Bap Two', real_name: 'Bap Two', login_email: 'hg-bap-t2@example.com' } });
   createMemberAtTier(db, { id: PREVIEW_T2, slug: PREVIEW_T2, tier: 'tier2', memberOverrides: { display_name: 'Percy Two', real_name: 'Percy Two', login_email: 'hg-preview-t2@example.com' } });
   createMemberAtTier(db, { id: T3_MEMBER, slug: T3_MEMBER, tier: 'tier3', underlying_tier_status: 'tier1', memberOverrides: { display_name: 'Trey Three', real_name: 'Trey Three', login_email: 'hg-t3@example.com' } });
@@ -179,17 +193,49 @@ describe('POST /admin/honor-grants/grant/confirm (commit)', () => {
     expect(readTier(T3_MEMBER)).toBe('tier3');
     expect(countAudit('tier.bap_grant', T3_MEMBER)).toBe(1);
   });
-  it('duplicate same-honor grant → 409, no second ledger row, audit row, or email', async () => {
+  it('a repeated same-honor grant by the same admin reports the first grant: 303, no second ledger row, audit row, or email', async () => {
+    // Defect caught: a re-posted grant shows a conflict error for an honour that was granted.
     expect((await grant(adminCookie(), DUP_T0, 'hof')).status).toBe(303);
     const dup = await grant(adminCookie(), DUP_T0, 'hof');
-    expect(dup.status).toBe(409);
+    expect(dup.status).toBe(303);
     expect(countHonorLedger(DUP_T0, 'honor.hof_tier2_grant')).toBe(1);
     expect(countAudit('tier.hof_grant', DUP_T0)).toBe(1);
     expect(countOutboxFor(DUP_T0)).toBe(1);   // only the first grant's email; the duplicate sent none
   });
+  it('a grant of an honor another admin already granted says nothing was changed, in the informational tone, and writes nothing', async () => {
+    // Defect caught: an admin acting on a stale page sees an error, or a success
+    // they did not cause, for an honor a colleague already granted.
+    expect((await grant(admin2Cookie(), OTHER_T0, 'hof')).status).toBe(303);
+    const res = await grant(adminCookie(), OTHER_T0, 'hof');
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/admin/honor-grants');
+    const page = await request(createApp())
+      .get('/admin/honor-grants')
+      .set('Cookie', `${adminCookie()}; ${flashOf(res)!}`);
+    expect(page.text).toMatch(/class="form-notice"[^>]*>This member already holds that honor/);
+    expect(countHonorLedger(OTHER_T0, 'honor.hof_tier2_grant')).toBe(1);
+    expect(countAudit('tier.hof_grant', OTHER_T0)).toBe(1);
+    expect(countOutboxFor(OTHER_T0)).toBe(1);
+  });
+  it('a re-post with a different induction year is not a repeat: the first year stands and the notice says nothing was changed', async () => {
+    // Defect caught: a second tab with another year reports success while the badge keeps the first year.
+    const withYear = (cookie: string, year: string) => request(createApp())
+      .post('/admin/honor-grants/grant/confirm').set('Cookie', cookie).type('form')
+      .send({ member_key: YEAR_T0, honor: 'bap', induction_year: year });
+    const first = await withYear(adminCookie(), '2010');
+    expect(first.status).toBe(303);
+    expect(flashOf(first)).toBeUndefined();
+    const sameYear = await withYear(adminCookie(), '2010');
+    expect(sameYear.status).toBe(303);
+    expect(flashOf(sameYear)).toBeUndefined();   // the same submit again: the first outcome, silently
+    const otherYear = await withYear(adminCookie(), '2011');
+    expect(otherYear.status).toBe(303);
+    expect(flashOf(otherYear)).toBeDefined();    // not a repeat: the informational notice
+    expect(countAudit('tier.bap_grant', YEAR_T0)).toBe(1);
+  });
   it('concurrent double-submit grants exactly once', async () => {
     const [a, b] = await Promise.all([grant(adminCookie(), CONC_T0, 'hof'), grant(adminCookie(), CONC_T0, 'hof')]);
-    expect([a.status, b.status].sort()).toEqual([303, 409]);
+    expect([a.status, b.status]).toEqual([303, 303]);
     expect(countHonorLedger(CONC_T0, 'honor.hof_tier2_grant')).toBe(1);
     expect(countAudit('tier.hof_grant', CONC_T0)).toBe(1);
     expect(countOutboxFor(CONC_T0)).toBe(1);

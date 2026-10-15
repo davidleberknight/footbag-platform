@@ -62,10 +62,53 @@ function adminCookie(): string {
   return `__Host-footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID, role: 'admin' })}`;
 }
 
-async function makeJpeg(): Promise<Buffer> {
+async function makeJpeg(background = { r: 200, g: 80, b: 80 }): Promise<Buffer> {
   return sharp({
-    create: { width: 256, height: 256, channels: 3, background: { r: 200, g: 80, b: 80 } },
+    create: { width: 256, height: 256, channels: 3, background },
   }).jpeg().toBuffer();
+}
+
+// Calls the suite's video-URL verifier stub has answered, so a case can show
+// the platform was or was not asked again.
+let videoVerifierCalls = 0;
+
+function ownerPhotoRows(sourceFilename: string): Array<{ id: string }> {
+  const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+  try {
+    return db.prepare(
+      `SELECT id FROM media_items WHERE uploader_member_id = ? AND media_type = 'photo' AND source_filename = ?`,
+    ).all(OWNER_ID, sourceFilename) as Array<{ id: string }>;
+  } finally { db.close(); }
+}
+
+function ownerVideoRows(videoId: string): Array<{ id: string }> {
+  const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+  try {
+    return db.prepare(
+      `SELECT id FROM media_items WHERE uploader_member_id = ? AND media_type = 'video' AND video_id = ?`,
+    ).all(OWNER_ID, videoId) as Array<{ id: string }>;
+  } finally { db.close(); }
+}
+
+function auditCountFor(actionType: string, entityId: string): number {
+  const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+  try {
+    return (db.prepare(
+      'SELECT COUNT(*) AS n FROM audit_entries WHERE action_type = ? AND entity_id = ?',
+    ).get(actionType, entityId) as { n: number }).n;
+  } finally { db.close(); }
+}
+
+// Every object the local storage adapter holds, so a case can show nothing
+// was stored again.
+function storedFileCount(): number {
+  return fs.readdirSync(TEST_MEDIA_DIR, { recursive: true, withFileTypes: true })
+    .filter((e) => e.isFile()).length;
+}
+
+function flashOf(res: { headers: Record<string, unknown> }): string | undefined {
+  return ([] as string[]).concat((res.headers['set-cookie'] as string[] | undefined) ?? [])
+    .find((c) => c.startsWith('footbag_flash='))?.split(';')[0];
 }
 
 beforeAll(async () => {
@@ -127,6 +170,7 @@ beforeAll(async () => {
   // a fake oEmbed body for known-good URLs and an error for the bad ones.
   const svcMod = await import('../../src/services/curatorMediaService');
   svcMod.setVideoUrlVerifierForTests(async (url, platform) => {
+    videoVerifierCalls += 1;
     if (url.includes('private') || url.includes('removed')) {
       return { ok: false, status: 404 };
     }
@@ -450,24 +494,62 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
     expect(res.status).toBe(404);
   });
 
-  it('re-uploading a file with the same name -> 422 with clean message', async () => {
+  // A different photo under a name the member already uploaded would silently
+  // shadow the first, so it is refused with the name; the same photo again is a
+  // repeat and is covered with the submitted-twice cases.
+  it('uploading a different photo under an already-used file name -> 422 naming it, first kept', async () => {
     const app = createApp();
-    const jpeg = await makeJpeg();
     const first = await request(app)
       .post(`/members/${OWNER_SLUG}/media/upload`)
       .set('Cookie', ownerCookie())
       .field('mediaType', 'photo')
-      .attach('photoFile', jpeg, 'duplicate.jpg');
+      .attach('photoFile', await makeJpeg(), 'duplicate.jpg');
     expect(first.status).toBe(303);
 
     const second = await request(app)
       .post(`/members/${OWNER_SLUG}/media/upload`)
       .set('Cookie', ownerCookie())
       .field('mediaType', 'photo')
-      .attach('photoFile', jpeg, 'duplicate.jpg');
+      .attach('photoFile', await makeJpeg({ r: 10, g: 200, b: 10 }), 'duplicate.jpg');
     expect(second.status).toBe(422);
     expect(second.text).toContain('already uploaded');
     expect(second.text).toContain('duplicate.jpg');
+    expect(ownerPhotoRows('duplicate.jpg')).toHaveLength(1);
+  });
+
+  // Defect caught: re-sending the same file with a new caption or new tags is
+  // reported as uploaded while the change is silently dropped, so the member
+  // believes their caption or tags were saved.
+  it('the same photo under the same name with a changed caption or tags -> 422, first kept unchanged', async () => {
+    const app = createApp();
+    const jpeg = await makeJpeg({ r: 30, g: 30, b: 200 });
+    const upload = (caption: string, tags: string) => request(app)
+      .post(`/members/${OWNER_SLUG}/media/upload`)
+      .set('Cookie', ownerCookie())
+      .field('mediaType', 'photo')
+      .field('caption', caption)
+      .field('tags', tags)
+      .attach('photoFile', jpeg, 'recaptioned.jpg');
+
+    expect((await upload('First caption', '#first')).status).toBe(303);
+    const rows = ownerPhotoRows('recaptioned.jpg');
+    expect(rows).toHaveLength(1);
+
+    const changedCaption = await upload('A different caption', '#first');
+    expect(changedCaption.status).toBe(422);
+    expect(changedCaption.text).toContain('recaptioned.jpg');
+
+    const changedTags = await upload('First caption', '#second');
+    expect(changedTags.status).toBe(422);
+
+    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    const caption = (db.prepare('SELECT caption FROM media_items WHERE id = ?').get(rows[0]!.id) as { caption: string }).caption;
+    db.close();
+    expect(ownerPhotoRows('recaptioned.jpg')).toHaveLength(1);
+    expect(caption).toBe('First caption');
+
+    // The unchanged form is still the repeat it was.
+    expect((await upload('First caption', '#first')).status).toBe(303);
   });
 
   it('11th photo upload in the hour -> 429 with Retry-After', async () => {
@@ -537,6 +619,60 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
         config_key: 'photo_upload_rate_limit_per_hour',
         value_json: '10',
         created_at: '2026-05-16T00:00:01.000Z',
+        reason_text: 'Test restore',
+      });
+      restoreDb.close();
+    }
+  });
+
+  // A double click or back-button re-post sends the same file under the same
+  // name again. The repeat reports the first outcome and writes, stores and
+  // counts nothing.
+  it('uploading the same photo twice -> second answers like the first; one row, one audit row, nothing stored again, no slot spent', async () => {
+    // The limit is tuned to two so a spent slot shows as a refusal. The rows
+    // carry instants after the tuning case above, which must run first, so
+    // these are the current ones while this case runs.
+    const tuneDb = new BetterSqlite3(TEST_DB_PATH);
+    insertSystemConfig(tuneDb, {
+      config_key: 'photo_upload_rate_limit_per_hour',
+      value_json: '2',
+      created_at: '2026-05-17T00:00:00.000Z',
+    });
+    tuneDb.close();
+    try {
+      const app = createApp();
+      const jpeg = await makeJpeg();
+      const upload = (bytes: Buffer, name: string) => request(app)
+        .post(`/members/${OWNER_SLUG}/media/upload`)
+        .set('Cookie', ownerCookie())
+        .field('mediaType', 'photo')
+        .attach('photoFile', bytes, name);
+
+      const first = await upload(jpeg, 'twice.jpg');
+      expect(first.status).toBe(303);
+      const storedAfterFirst = storedFileCount();
+
+      const second = await upload(jpeg, 'twice.jpg');
+      expect(second.status, 'a repeated upload is not an error').toBe(303);
+      expect(second.headers.location).toBe(first.headers.location);
+      expect(flashOf(first)).toContain('media_saved%3Aupload');
+      expect(flashOf(second)).toBe(flashOf(first));
+
+      const rows = ownerPhotoRows('twice.jpg');
+      expect(rows).toHaveLength(1);
+      expect(auditCountFor('media.member_uploaded', rows[0]!.id)).toBe(1);
+      expect(storedFileCount()).toBe(storedAfterFirst);
+
+      // One slot spent so far, so the second of two still lands; the next
+      // proves the limit of two is the one in force.
+      expect((await upload(jpeg, 'after-twice.jpg')).status).toBe(303);
+      expect((await upload(jpeg, 'past-limit.jpg')).status).toBe(429);
+    } finally {
+      const restoreDb = new BetterSqlite3(TEST_DB_PATH);
+      insertSystemConfig(restoreDb, {
+        config_key: 'photo_upload_rate_limit_per_hour',
+        value_json: '10',
+        created_at: '2026-05-17T00:00:01.000Z',
         reason_text: 'Test restore',
       });
       restoreDb.close();
@@ -739,6 +875,131 @@ describe('POST /members/:memberKey/media/upload (video)', () => {
       });
       restoreDb.close();
     }
+  });
+
+  // The same video URL submitted twice is the item the first submit made: the
+  // repeat reports the first outcome, writes nothing, does not ask the
+  // platform again and counts no submission.
+  it('submitting the same video twice -> second answers like the first; one row, one audit row, verifier asked once, no slot spent', async () => {
+    // The limit is tuned to two so a spent slot shows as a refusal. The rows
+    // carry instants after the tuning case above, which must run first, so
+    // these are the current ones while this case runs.
+    const tuneDb = new BetterSqlite3(TEST_DB_PATH);
+    insertSystemConfig(tuneDb, {
+      config_key: 'video_submission_rate_limit_per_hour',
+      value_json: '2',
+      created_at: '2026-05-17T00:00:00.000Z',
+    });
+    tuneDb.close();
+    try {
+      const app = createApp();
+      const submit = (videoId: string) => request(app)
+        .post(`/members/${OWNER_SLUG}/media/upload`)
+        .set('Cookie', ownerCookie())
+        .field('mediaType', 'video')
+        .field('videoPlatform', 'youtube')
+        .field('videoUrl', `https://www.youtube.com/watch?v=${videoId}`);
+
+      const callsBefore = videoVerifierCalls;
+      const first = await submit('twicevidxxx');
+      expect(first.status).toBe(303);
+      const second = await submit('twicevidxxx');
+      expect(second.status, 'a repeated submission is not an error').toBe(303);
+      expect(second.headers.location).toBe(first.headers.location);
+      expect(flashOf(first)).toContain('media_saved%3Aupload');
+      expect(flashOf(second)).toBe(flashOf(first));
+      expect(videoVerifierCalls - callsBefore).toBe(1);
+
+      const rows = ownerVideoRows('twicevidxxx');
+      expect(rows).toHaveLength(1);
+      expect(auditCountFor('media.member_uploaded', rows[0]!.id)).toBe(1);
+
+      // One slot spent so far, so the second of two still lands; the next
+      // proves the limit of two is the one in force.
+      expect((await submit('aftertwicex')).status).toBe(303);
+      expect((await submit('pastlimitxx')).status).toBe(429);
+    } finally {
+      const restoreDb = new BetterSqlite3(TEST_DB_PATH);
+      insertSystemConfig(restoreDb, {
+        config_key: 'video_submission_rate_limit_per_hour',
+        value_json: '5',
+        created_at: '2026-05-17T00:00:01.000Z',
+        reason_text: 'Test restore',
+      });
+      restoreDb.close();
+    }
+  });
+});
+
+// ── The same submission twice, overlapping, or carrying a link ─────────────
+
+describe('a member upload or gallery create submitted twice', () => {
+  async function service() {
+    const mod = await import('../../src/services/curatorMediaService');
+    return mod.getDefaultCuratorMediaService();
+  }
+
+  function ownerGalleryRows(name: string): Array<{ id: string }> {
+    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    try {
+      return db.prepare(
+        'SELECT id FROM member_galleries WHERE owner_member_id = ? AND name = ?',
+      ).all(OWNER_ID, name) as Array<{ id: string }>;
+    } finally { db.close(); }
+  }
+
+  // Defect caught: recognising a repeat that carries a link runs the full
+  // outbound link check (lookup, safe-browsing and reachability) before any
+  // throttle, so a repeat costs a network round trip, and fails outright
+  // whenever that check does.
+  it('a repeat carrying a link is recognised without checking the link again', async () => {
+    const app = createApp();
+    const submit = () => request(app)
+      .post(`/members/${OWNER_SLUG}/media/upload`)
+      .set('Cookie', ownerCookie())
+      .field('mediaType', 'video')
+      .field('videoPlatform', 'youtube')
+      .field('videoUrl', 'https://www.youtube.com/watch?v=linkrepeatx')
+      // Written as a member types it; stored in its normalised form.
+      .field('externalUrl', 'https://Example.org/clip');
+
+    const first = await submit();
+    expect(first.status).toBe(303);
+    const sb = await import('../../src/adapters/safeBrowsingAdapter');
+    const stub = sb.getSafeBrowsingAdapter() as ReturnType<typeof sb.createStubSafeBrowsingAdapter>;
+    stub.failNext(new Error('safe-browsing unreachable'));
+    try {
+      const second = await submit();
+      expect(second.status).toBe(303);
+      expect(flashOf(second)).toBe(flashOf(first));
+      expect(ownerVideoRows('linkrepeatx')).toHaveLength(1);
+    } finally {
+      sb.resetSafeBrowsingAdapterForTests();
+    }
+  });
+
+  // Defect caught: the two submits of a double click both look for the first
+  // one's item before either has written it, so a video is added twice, a photo
+  // is refused as "already uploaded", and a gallery as "already exists".
+  it('overlapping double submits of a video, a photo and a gallery each end at one item', async () => {
+    const svc = await service();
+    const video = { memberId: OWNER_ID, slug: OWNER_SLUG, videoPlatform: 'youtube' as const,
+      videoUrl: 'https://www.youtube.com/watch?v=overlapvidx', caption: null, tags: [] };
+    const [v1, v2] = await Promise.all([svc.submitVideoForMember(video), svc.submitVideoForMember(video)]);
+    expect(v2.mediaId).toBe(v1.mediaId);
+    expect(ownerVideoRows('overlapvidx')).toHaveLength(1);
+
+    const photo = { memberId: OWNER_ID, slug: OWNER_SLUG, photoBuffer: await makeJpeg(),
+      sourceFilename: 'overlap.jpg', caption: null, tags: [] };
+    const [p1, p2] = await Promise.all([svc.uploadPhotoForMember(photo), svc.uploadPhotoForMember(photo)]);
+    expect(p2.mediaId).toBe(p1.mediaId);
+    expect(ownerPhotoRows('overlap.jpg')).toHaveLength(1);
+
+    const gallery = { actorMemberId: OWNER_ID, actorIsAdmin: false, ownerMemberId: OWNER_ID, ownerSlug: OWNER_SLUG,
+      updates: { name: 'Overlap Gallery', description: '', sortOrder: 'upload_desc', criteriaTags: ['#overlap'], excludeTags: [] } };
+    const [g1, g2] = await Promise.all([svc.createGallery(gallery), svc.createGallery(gallery)]);
+    expect(g2.id).toBe(g1.id);
+    expect(ownerGalleryRows('Overlap Gallery')).toHaveLength(1);
   });
 });
 

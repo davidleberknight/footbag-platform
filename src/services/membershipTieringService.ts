@@ -30,6 +30,13 @@
  * Required patterns:
  *   - Append-only ledger. UPDATE/DELETE blocked by DB triggers.
  *   - `getTierStatus` derives from `member_tier_current` (the authoritative view).
+ *   - Every ledger row goes through the one insert helper, which stamps
+ *     `created_at` strictly later than the member's newest existing row, read in
+ *     the same write transaction. The view takes the latest-stamped row as the
+ *     current tier, so a wall clock stepping backward between two writes must
+ *     not make the newer row read as older, and no tie is left for an id to
+ *     break, since ids rise only within one process. Other columns written alongside (the badge's
+ *     `updated_at`, the audit row) keep the true time.
  *   - Lifetime tier semantics: tier0/tier1/tier2/tier3 never expire, never decrement
  *     on refund. Tier 3 is governance-conferred and carries an underlying tier
  *     (tier1 or tier2) the member returns to when governance ends.
@@ -45,10 +52,11 @@
  *     `governance_removed` requires non-null `old_underlying_tier_status`.
  *   - HoF/BAP grant on a Tier 3 member writes `governance_set` updating
  *     `new_underlying_tier_status = tier2`; otherwise writes a plain Tier 2 grant.
- *   - At most one honor grant per member per honor: a repeat of the same honor
- *     throws `ConflictError` inside the grant transaction before any write, so no
- *     ledger row, audit row, or congrats email is produced. HoF and BAP are
- *     independent; a member may hold one of each.
+ *   - At most one honor grant per member per honor: a grant of an honor the
+ *     member already holds writes nothing inside the grant transaction (no ledger
+ *     row, audit row, or congrats email) and returns `own_repeat` when this
+ *     actor's grant with the same induction year is the one standing, otherwise
+ *     `already_held`. HoF and BAP are independent; a member may hold one of each.
  *   - "Holds this honor" is decided by the ledger, not by a single row: a grant
  *     counts unless a later removal row withdraws it. The ledger is append-only,
  *     so a grant made in error stays visible as history and the honor can be
@@ -129,7 +137,7 @@ import {
   type MemberTierCurrentRow,
   type MemberTierGrantLatestRow,
 } from '../db/db';
-import { appendAuditEntry, type AuditActorType } from './auditService';
+import { appendAuditEntry, findStandingOwnAct, type AuditActorType } from './auditService';
 import { emailService } from './emailService';
 import { ConflictError, NotFoundError, ValidationError } from './serviceErrors';
 import { endOnTier3Grant, endOnTierUpgrade } from './activePlayerService';
@@ -137,6 +145,7 @@ import { workQueueService, ADMIN_LOSS_TASK_TYPE } from './workQueueService';
 import { readIntConfig } from './configReader';
 import { recordOperationalError } from './operationalErrors';
 import { uuidv7Hex } from './uuidv7';
+import { laterStamp } from '../lib/ledgerStamp';
 
 const REASON_TEXT_MAX_LENGTH = 4000;
 
@@ -233,11 +242,28 @@ interface InsertGrantArgs {
   now: string;
 }
 
+// The stamp a new ledger row carries: the later of `now` and the member's newest
+// existing stamp. member_tier_current takes the row with the latest created_at
+// as the member's tier, and the host clock can step backward between two writes
+// (a hypervisor time sync, an NTP correction, a resumed VM). A row stamped
+// before the one it follows would read as older, leaving the superseded tier in
+// force. A row that would not be later is stamped one millisecond after the
+// newest, never equal to it: ids rise only within one process, so a tie broken
+// by id can still go the wrong way between the web process and the worker, or
+// across a restart. Read inside the caller's write transaction, so no row lands
+// between this read and the insert.
+function ledgerStamp(memberId: string, now: string): string {
+  const latest = memberTier.getLatestCreatedAt.get(memberId) as
+    | { created_at: string }
+    | undefined;
+  return laterStamp(latest?.created_at, now);
+}
+
 function insertGrant(args: InsertGrantArgs): string {
   const id = newGrantId();
   memberTier.insertGrant.run(
     id,
-    args.now,
+    ledgerStamp(args.memberId, args.now),
     args.memberId,
     args.actorId,
     args.changeType,
@@ -605,11 +631,30 @@ export function assertGrantAdminRoleAllowed(
   return { trimmedReason, tierStatus: current.tier_status };
 }
 
+/**
+ * Whether the role a grant would give already holds: this actor's own grant is
+ * the one standing (`own_repeat`), or another act left the member an
+ * administrator (`already_held`). Null when the member is not an administrator.
+ */
+function adminGrantAlreadyHolds(
+  adminMemberId: string,
+  targetMemberId: string,
+): 'own_repeat' | 'already_held' | null {
+  const roleRow = adminRole.getIsAdmin.get(targetMemberId) as { is_admin: number } | undefined;
+  if (roleRow?.is_admin !== 1) return null;
+  return findStandingOwnAct(
+    adminMemberId, 'admin.role_granted', 'admin.role_revoked', 'member', targetMemberId,
+  ) ? 'own_repeat' : 'already_held';
+}
+
 export function grantAdminRole(
   adminMemberId: string,
   targetMemberId: string,
   reason: string,
-): { ok: true } {
+): { status: 'advance' | 'own_repeat' | 'already_held' } {
+  requireAdminRoleReason(reason);
+  const held = adminGrantAlreadyHolds(adminMemberId, targetMemberId);
+  if (held) return { status: held };
   const { trimmedReason } = assertGrantAdminRoleAllowed(targetMemberId, reason);
 
   const now = new Date().toISOString();
@@ -645,7 +690,7 @@ export function grantAdminRole(
     idempotencyKey: `admin_role_grant:${eventId}`,
   });
 
-  return { ok: true };
+  return { status: 'advance' };
 }
 
 /**
@@ -812,19 +857,44 @@ export function runAdminLossSweep(): { examined: number; raised: number; failed:
 }
 
 /**
+ * Whether the removal a revoke would make already holds: this actor's own revoke
+ * is the one standing (`own_repeat`), or another act left the member without the
+ * role (`already_held`). Null when the member is an administrator, or unknown
+ * (the revoke's own checks then refuse it).
+ */
+function adminRevokeAlreadyHolds(
+  adminMemberId: string,
+  targetMemberId: string,
+): 'own_repeat' | 'already_held' | null {
+  const roleRow = adminRole.getIsAdmin.get(targetMemberId) as { is_admin: number } | undefined;
+  if (!roleRow || roleRow.is_admin === 1) return null;
+  return findStandingOwnAct(
+    adminMemberId, 'admin.role_revoked', 'admin.role_granted', 'member', targetMemberId,
+  ) ? 'own_repeat' : 'already_held';
+}
+
+/**
  * Revoke the platform admin role from a member (story A_Manage_Admin_Role). An
  * admin cannot revoke their own role, so at least one admin always remains. In
  * one transaction this sets `is_admin=0`, appends an admin-actor audit row with
  * the mandatory reason, unsubscribes the member from admin-alerts only, leaving
  * their other list subscriptions untouched, and raises the administrator-loss
  * recruitment alert so the shrinking admin team is prompted to recruit. The
- * affected-member email enqueues after commit.
+ * affected-member email enqueues after commit. A repeat finds the role already
+ * gone and reports `own_repeat` when this actor's revoke is the one standing,
+ * `already_held` when another act removed it; neither writes anything.
  */
 export function revokeAdminRole(
   adminMemberId: string,
   targetMemberId: string,
   reason: string,
-): { ok: true } {
+): { status: 'advance' | 'own_repeat' | 'already_held' } {
+  requireAdminRoleReason(reason);
+  if (targetMemberId === adminMemberId) {
+    throw new ValidationError('You cannot revoke your own admin role.');
+  }
+  const held = adminRevokeAlreadyHolds(adminMemberId, targetMemberId);
+  if (held) return { status: held };
   const { trimmedReason } = assertRevokeAdminRoleAllowed(adminMemberId, targetMemberId, reason);
 
   const now = new Date().toISOString();
@@ -851,7 +921,7 @@ export function revokeAdminRole(
     idempotencyKey: `admin_role_revoke:${eventId}`,
   });
 
-  return { ok: true };
+  return { status: 'advance' };
 }
 
 const HONOR_REASON_CODE: Record<'hof' | 'bap', string> = {
@@ -919,10 +989,12 @@ export function hasHonorGrant(memberId: string, honor: 'hof' | 'bap'): boolean {
  * - Current Tier 3: writes a governance_set row preserving Tier 3 with
  *   new_underlying_tier_status='tier2' so that future governance removal
  *   reverts to Tier 2 instead of the prior underlying tier.
- * - Duplicate guard: a member holds at most one grant per honor. A repeat of the
- *   SAME honor throws ConflictError inside the transaction before any write, so no
- *   ledger row, audit row, or congrats email is produced (HoF and BAP stay
- *   independent). hasHonorGrant exposes the same check for a pre-commit preview.
+ * - Duplicate guard: a member holds at most one grant per honor. A grant of an
+ *   honor already held writes nothing inside the transaction (no ledger row,
+ *   audit row, or congrats email) and returns `own_repeat` when this actor's
+ *   grant with the same induction year stands, otherwise `already_held` (HoF and
+ *   BAP stay independent). hasHonorGrant exposes the same check for a pre-commit
+ *   preview.
  */
 /**
  * The reason an honour grant carries. It is formulaic by nature: the honour was
@@ -960,17 +1032,28 @@ export function applyHonorGrant(
   memberId: string,
   honor: 'hof' | 'bap',
   rawInductionYear: number | null = null,
-): { ok: true } {
+): { status: 'advance' | 'own_repeat' | 'already_held' } {
   const reasonCode = HONOR_REASON_CODE[honor];
   const inductionYear = validateInductionYear(rawInductionYear);
   const reasonText = honorReasonText(honor, inductionYear);
 
   const result = transaction(() => {
     if (holdsHonorNow(memberId, honor)) {
-      throw new ConflictError(
-        `This member already holds a ${honor.toUpperCase()} honor grant; ` +
-        `a second ${honor.toUpperCase()} grant is not written.`,
+      // The honour already holds, so nothing is written. It is this actor's own
+      // repeat only when their grant is the one standing and it carried the same
+      // induction year; any other grant, or a different year, left a state this
+      // submit did not make.
+      const standing = findStandingOwnAct(
+        actorId,
+        honor === 'hof' ? 'tier.hof_grant' : 'tier.bap_grant',
+        honor === 'hof' ? 'tier.hof_grant_removed' : 'tier.bap_grant_removed',
+        'member',
+        memberId,
       );
+      const grantedYear = standing
+        ? (JSON.parse(standing.metadata_json) as { induction_year?: number | null }).induction_year ?? null
+        : undefined;
+      return { status: grantedYear === inductionYear ? 'own_repeat' as const : 'already_held' as const };
     }
     // The badge without a grant row means the honour came from a claimed
     // historical record. There is nothing to grant, and granting anyway would
@@ -1048,11 +1131,16 @@ export function applyHonorGrant(
       },
     });
 
-    return { grantId: newGrantRowId, staysTier3: current.tier_status === 'tier3' };
+    return {
+      status: 'advance' as const,
+      grantId: newGrantRowId,
+      staysTier3: current.tier_status === 'tier3',
+    };
   });
 
+  if (result.status !== 'advance') return { status: result.status };
   enqueueHonorCongrats(memberId, honor, result.staysTier3, result.grantId);
-  return { ok: true as const };
+  return { status: 'advance' };
 }
 
 export type RemoveHonorGrantResult =

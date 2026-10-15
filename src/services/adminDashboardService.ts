@@ -28,9 +28,8 @@
  *     words against the neutral treatment; there is no success colour in this
  *     design system and a green badge announcing that nothing happened teaches
  *     the reader to skip the block.
- *   - The roster is a link here, never a figure. Its summary read is audited
- *     as a roster access, and an admin opening their home page has not looked
- *     at the roster.
+ *   - The roster is a link here, never a figure: an admin opening their home
+ *     page has not asked to look at the roster.
  *
  * Persistence: reads nothing directly. Composes the badge reads the club
  * cleanup, admin work-queue, payment reconciliation and system-health services

@@ -355,9 +355,9 @@ describe('a pending account has no profile page and is not searchable', () => {
 
 describe('wizard complete page — no false completion on zero task rows', () => {
   it('a member with zero task rows is routed to an outstanding task, not shown the complete page', async () => {
-    // With no task rows materialized, the outstanding set is empty and would read
-    // as "all done" — a false completion page while the gate still blocks every
-    // capability route. The complete handler must materialize the task list first.
+    // With no task rows, reading only the stored rows would find nothing
+    // outstanding and show a false completion page while the gate still blocks
+    // every capability route. A missing row reads as pending instead.
     const memberId = insertPendingMember('complete_zero_rows');
     const res = await request(createApp())
       .get('/register/wizard/complete')

@@ -133,6 +133,8 @@ import {
   PublicClubRow,
   MemberCountRow,
   account,
+  auditEntries,
+  outbox,
   clubs,
   clubBootstrapLeaders,
   clubInsightNotes,
@@ -156,7 +158,7 @@ import { ConflictError, NotFoundError, ValidationError } from './serviceErrors';
 import { validateExternalUrl } from '../lib/externalUrlValidator';
 import { normalizeLineEndings } from '../lib/multilineText';
 import type { OutcomeNoticeView } from '../lib/outcomeNotice';
-import { appendAuditEntry } from './auditService';
+import { appendAuditEntry, findOwnLatestAudit, findStandingOwnAct } from './auditService';
 import { applyClubJoinInTx as applyActivePlayerClubJoinInTx, getStatus as getActivePlayerStatus } from './activePlayerService';
 import { getTierStatus, tierBadgeShort } from './membershipTieringService';
 import { runSqliteRead } from './sqliteRetry';
@@ -298,6 +300,7 @@ export interface ClubNearMatch {
 
 type CreateClubResult =
   | { branch: 'created'; clubId: string; clubKey: string }
+  | { branch: 'own_repeat'; clubKey: string }
   | { branch: 'already_leader'; existingClubName: string }
   | { branch: 'affiliation_cap' }
   | { branch: 'exact_name_exists'; existingClubName: string; existingClubKey: string }
@@ -1646,7 +1649,16 @@ export class ClubService {
    *
    * All writes happen in a single transaction so a partial failure rolls back.
    */
-  claimLeadership(
+  claimLeadership(bootstrapLeaderId: string, actorMemberId: string): ReturnType<ClubService['claimLeadershipInTx']> {
+    return transaction(() => this.claimLeadershipInTx(bootstrapLeaderId, actorMemberId));
+  }
+
+  /**
+   * The same claim inside the caller's transaction, so the wizard commits the
+   * card's answer and the step's completion together. The transaction helper
+   * does not nest, so the two entry points are separated.
+   */
+  claimLeadershipInTx(
     bootstrapLeaderId: string,
     actorMemberId: string,
   ): {
@@ -1685,145 +1697,138 @@ export class ClubService {
     let supersededMembershipRows = 0;
     let capHit = false;
 
-    try {
-      transaction(() => {
-        const updated = clubBootstrapLeaders.setStatusClaimed.run(
-          actorMemberId,
-          'onboarding_service',
-          bootstrapLeaderId,
-        );
-        if (updated.changes === 0) {
-          throw new ConflictError(
-            `Bootstrap leader candidate status changed concurrently: ${bootstrapLeaderId}`,
-          );
-        }
-
-        // Idempotency: member already co-leads this club? Preserve existing row.
-        const existing = clubLeaders.memberInClubLeadership.get(clubId, actorMemberId) as
-          | { id: string; role: 'co-leader' }
-          | undefined;
-        if (existing) {
-          branch = 'idempotent';
-          actualRole = existing.role;
-          clubLeaderId = existing.id;
-        } else {
-          // App-level 5-co-leader cap. Best-effort under better-sqlite3's
-          // serialized writes; not schema-enforced. Two concurrent claims
-          // could theoretically push count to 6, but BetterSqlite3 serializes
-          // write transactions per process, so the race window only opens
-          // across multiple processes/replicas.
-          const cap = (clubLeaders.countByClubId.get(clubId) as { c: number }).c;
-          if (cap >= 5) {
-            branch = 'affiliated_only';
-            actualRole = null;
-          } else {
-            clubLeaderId = `cl_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
-            try {
-              clubLeaders.insertClubLeader.run(
-                clubLeaderId, now, 'onboarding_service', now, 'onboarding_service',
-                clubId, actorMemberId, 'co-leader', now,
-              );
-              actualRole = 'co-leader';
-              branch = 'promoted_co_leader';
-            } catch (err) {
-              // A member co-leads at most one club (ux_one_club_leader_per_member).
-              // A member already co-leading another club cannot co-lead this one;
-              // they still become a club affiliate below.
-              if (!isUniqueViolation(err)) throw err;
-              clubLeaderId = null;
-              actualRole = null;
-              branch = 'affiliated_only';
-            }
-          }
-        }
-
-        // Affiliation insert is independent of leadership outcome: members who
-        // don't get a leadership row still become club members.
-        // Two-current-club cap (max 2 is_current=1 rows per member).
-        // First current club is primary; second is secondary.
-        const currentCount = (memberClubAffiliations.countCurrentByMemberId.get(actorMemberId) as { c: number }).c;
-        if (currentCount >= 2) {
-          // At the cap the claim still stands as leadership: the bootstrap row
-          // is claimed and the co-leader row is written above. Only the club
-          // membership is refused, and the caller has to tell the member that,
-          // rather than reporting a club they are not in.
-          affiliationId = null;
-          capHit = true;
-        } else {
-          const isPrimary = currentCount === 0 ? 1 : 0;
-          affiliationId = `mca_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
-          try {
-            memberClubAffiliations.insertAffiliation.run(
-              affiliationId, now, 'onboarding_service', now, 'onboarding_service',
-              actorMemberId, clubId, isPrimary, 'legacy_claim',
-            );
-          } catch (err) {
-            if (!isUniqueViolation(err)) throw err;
-            // UNIQUE(member_id, club_id) is lifelong, so this fires for two
-            // different rows. One the member currently holds, which happens
-            // when two legacy candidates map to the same club: nothing to do,
-            // they are already in it. One they previously left, or an admin
-            // ended for them: that row has to come back, or the claim reports
-            // a membership the member does not hold. The statement's own
-            // is_current = 0 guard is what tells the two apart, so the live
-            // row is never touched and its primary flag is never recomputed.
-            const revived = memberClubAffiliations.reactivate.run(
-              isPrimary, now, 'onboarding_service', actorMemberId, clubId,
-            ).changes;
-            const existing = revived > 0
-              ? memberClubAffiliations.findCurrentByMemberAndClub.get(actorMemberId, clubId) as
-                { id: string } | undefined
-              : undefined;
-            affiliationId = existing?.id ?? null;
-          }
-        }
-
-        // Revival: a successful leadership claim makes it a live club no
-        // matter how it was retired. Inactive and archived clubs return to
-        // 'active' in the same transaction, so the new leader's club is
-        // immediately visible in listings.
-        const club = clubs.findById.get(clubId) as
-          | { club_id: string; status: string }
-          | undefined;
-        if (club && club.status !== 'active') {
-          clubs.updateStatus.run('active', now, 'onboarding_service', clubId);
-          appendAuditEntry({
-            actionType:    'club.revived_by_leadership_claim',
-            category:      'club_lifecycle',
-            actorType:     'member',
-            actorMemberId,
-            entityType:    'club',
-            entityId:      clubId,
-            metadata:      { prior_status: club.status, bootstrap_leader_id: bootstrapLeaderId },
-          });
-        }
-
-        if (affiliationId) {
-          // The one-time club-join Active Player grant co-commits with the
-          // bootstrap leadership claim in this same transaction.
-          applyActivePlayerClubJoinInTx(actorMemberId, actorMemberId, affiliationId);
-        }
-
-        // One club, one question: a confirmed leadership claim answers the
-        // member's relationship to this club, so any still-pending membership
-        // suggestion about the same club is superseded in the same
-        // transaction rather than surfacing as a duplicate wizard card.
-        const anchors = account.findLegacyAndHpIdsById.get(actorMemberId) as
-          | { legacy_member_id: string | null; historical_person_id: string | null }
-          | undefined;
-        const superseded = legacyPersonClubAffiliations.supersedePendingForClubAndAnchors.run(
-          clubId,
-          'onboarding_service',
-          anchors?.legacy_member_id ?? null, anchors?.legacy_member_id ?? null,
-          anchors?.historical_person_id ?? null, anchors?.historical_person_id ?? null,
-          clubId,
-        );
-        supersededMembershipRows = superseded.changes;
-      });
-    } catch (err) {
-      if (err instanceof ConflictError) throw err;
-      throw err;
+    const updated = clubBootstrapLeaders.setStatusClaimed.run(
+      actorMemberId,
+      'onboarding_service',
+      bootstrapLeaderId,
+    );
+    if (updated.changes === 0) {
+      throw new ConflictError(
+        `Bootstrap leader candidate status changed concurrently: ${bootstrapLeaderId}`,
+      );
     }
+
+    // Idempotency: member already co-leads this club? Preserve existing row.
+    const existing = clubLeaders.memberInClubLeadership.get(clubId, actorMemberId) as
+      | { id: string; role: 'co-leader' }
+      | undefined;
+    if (existing) {
+      branch = 'idempotent';
+      actualRole = existing.role;
+      clubLeaderId = existing.id;
+    } else {
+      // App-level 5-co-leader cap. Best-effort under better-sqlite3's
+      // serialized writes; not schema-enforced. Two concurrent claims
+      // could theoretically push count to 6, but BetterSqlite3 serializes
+      // write transactions per process, so the race window only opens
+      // across multiple processes/replicas.
+      const cap = (clubLeaders.countByClubId.get(clubId) as { c: number }).c;
+      if (cap >= 5) {
+        branch = 'affiliated_only';
+        actualRole = null;
+      } else {
+        clubLeaderId = `cl_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
+        try {
+          clubLeaders.insertClubLeader.run(
+            clubLeaderId, now, 'onboarding_service', now, 'onboarding_service',
+            clubId, actorMemberId, 'co-leader', now,
+          );
+          actualRole = 'co-leader';
+          branch = 'promoted_co_leader';
+        } catch (err) {
+          // A member co-leads at most one club (ux_one_club_leader_per_member).
+          // A member already co-leading another club cannot co-lead this one;
+          // they still become a club affiliate below.
+          if (!isUniqueViolation(err)) throw err;
+          clubLeaderId = null;
+          actualRole = null;
+          branch = 'affiliated_only';
+        }
+      }
+    }
+
+    // Affiliation insert is independent of leadership outcome: members who
+    // don't get a leadership row still become club members.
+    // Two-current-club cap (max 2 is_current=1 rows per member).
+    // First current club is primary; second is secondary.
+    const currentCount = (memberClubAffiliations.countCurrentByMemberId.get(actorMemberId) as { c: number }).c;
+    if (currentCount >= 2) {
+      // At the cap the claim still stands as leadership: the bootstrap row
+      // is claimed and the co-leader row is written above. Only the club
+      // membership is refused, and the caller has to tell the member that,
+      // rather than reporting a club they are not in.
+      affiliationId = null;
+      capHit = true;
+    } else {
+      const isPrimary = currentCount === 0 ? 1 : 0;
+      affiliationId = `mca_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
+      try {
+        memberClubAffiliations.insertAffiliation.run(
+          affiliationId, now, 'onboarding_service', now, 'onboarding_service',
+          actorMemberId, clubId, isPrimary, 'legacy_claim',
+        );
+      } catch (err) {
+        if (!isUniqueViolation(err)) throw err;
+        // UNIQUE(member_id, club_id) is lifelong, so this fires for two
+        // different rows. One the member currently holds, which happens
+        // when two legacy candidates map to the same club: nothing to do,
+        // they are already in it. One they previously left, or an admin
+        // ended for them: that row has to come back, or the claim reports
+        // a membership the member does not hold. The statement's own
+        // is_current = 0 guard is what tells the two apart, so the live
+        // row is never touched and its primary flag is never recomputed.
+        const revived = memberClubAffiliations.reactivate.run(
+          isPrimary, now, 'onboarding_service', actorMemberId, clubId,
+        ).changes;
+        const existing = revived > 0
+          ? memberClubAffiliations.findCurrentByMemberAndClub.get(actorMemberId, clubId) as
+            { id: string } | undefined
+          : undefined;
+        affiliationId = existing?.id ?? null;
+      }
+    }
+
+    // Revival: a successful leadership claim makes it a live club no
+    // matter how it was retired. Inactive and archived clubs return to
+    // 'active' in the same transaction, so the new leader's club is
+    // immediately visible in listings.
+    const club = clubs.findById.get(clubId) as
+      | { club_id: string; status: string }
+      | undefined;
+    if (club && club.status !== 'active') {
+      clubs.updateStatus.run('active', now, 'onboarding_service', clubId);
+      appendAuditEntry({
+        actionType:    'club.revived_by_leadership_claim',
+        category:      'club_lifecycle',
+        actorType:     'member',
+        actorMemberId,
+        entityType:    'club',
+        entityId:      clubId,
+        metadata:      { prior_status: club.status, bootstrap_leader_id: bootstrapLeaderId },
+      });
+    }
+
+    if (affiliationId) {
+      // The one-time club-join Active Player grant co-commits with the
+      // bootstrap leadership claim in this same transaction.
+      applyActivePlayerClubJoinInTx(actorMemberId, actorMemberId, affiliationId);
+    }
+
+    // One club, one question: a confirmed leadership claim answers the
+    // member's relationship to this club, so any still-pending membership
+    // suggestion about the same club is superseded in the same
+    // transaction rather than surfacing as a duplicate wizard card.
+    const anchors = account.findLegacyAndHpIdsById.get(actorMemberId) as
+      | { legacy_member_id: string | null; historical_person_id: string | null }
+      | undefined;
+    const superseded = legacyPersonClubAffiliations.supersedePendingForClubAndAnchors.run(
+      clubId,
+      'onboarding_service',
+      anchors?.legacy_member_id ?? null, anchors?.legacy_member_id ?? null,
+      anchors?.historical_person_id ?? null, anchors?.historical_person_id ?? null,
+      clubId,
+    );
+    supersededMembershipRows = superseded.changes;
 
     return {
       branch, clubId, clubLeaderId, affiliationId, actualRole, supersededMembershipRows, capHit,
@@ -1866,8 +1871,23 @@ export class ClubService {
    * layer (count-before-write), matching the 5-leader cap pattern in
    * claimLeadership. The UNIQUE(member_id, club_id) index catches
    * idempotent re-inserts of the same member-club pair.
+   *
+   * All writes happen in a single transaction so a partial failure rolls back.
    */
   confirmAffiliation(
+    affiliationRowId: string,
+    actorMemberId: string,
+    userDecision: 'confirm' | 'correct' | 'decline',
+  ): ReturnType<ClubService['confirmAffiliationInTx']> {
+    return transaction(() => this.confirmAffiliationInTx(affiliationRowId, actorMemberId, userDecision));
+  }
+
+  /**
+   * The same answer inside the caller's transaction, so the wizard commits the
+   * card's answer and the step's completion together. The transaction helper
+   * does not nest, so the two entry points are separated.
+   */
+  confirmAffiliationInTx(
     affiliationRowId: string,
     actorMemberId: string,
     userDecision: 'confirm' | 'correct' | 'decline',
@@ -1942,103 +1962,89 @@ export class ClubService {
     // insert member_club_affiliations atomically. The two-current-club cap is
     // checked before the transition; a capped confirm records the Yes as
     // former membership so the card resolves and never blocks onboarding.
-    let newAffiliationId: string | null = null;
-    let capHit = false;
     const now = new Date().toISOString();
-    try {
-      transaction(() => {
-        // Two-current-club cap (max 2 is_current=1 rows per member). At the
-        // cap, the member's Yes is still a true answer about the past: the
-        // row resolves 'former_only' (no member_club_affiliations insert), so
-        // the historical membership is kept and the member who wants this
-        // club current swaps affiliations from the clubs pages later.
-        const currentCount = (memberClubAffiliations.countCurrentByMemberId.get(actorMemberId) as { c: number }).c;
-        if (currentCount >= 2) {
-          legacyPersonClubAffiliations.setResolutionStatusFormerOnly.run(
-            resolvedClubId,
-            'onboarding_service',
-            affiliationRowId,
-          );
-          capHit = true;
-          return;
-        }
-
-        const updated = legacyPersonClubAffiliations.setResolutionStatusConfirmed.run(
-          resolvedClubId,
-          'onboarding_service',
-          affiliationRowId,
-        );
-        if (updated.changes === 0) {
-          throw new ConflictError(
-            `Legacy affiliation status changed concurrently: ${affiliationRowId}`,
-          );
-        }
-        // First current club is primary; second is secondary.
-        const isPrimary = currentCount === 0 ? 1 : 0;
-        newAffiliationId = `mca_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
-        try {
-          memberClubAffiliations.insertAffiliation.run(
-            newAffiliationId, now, 'onboarding_service', now, 'onboarding_service',
-            actorMemberId, resolvedClubId, isPrimary, 'legacy_claim',
-          );
-        } catch (err) {
-          if (!isUniqueViolation(err)) throw err;
-          // UNIQUE(member_id, club_id) is lifelong, so this fires both for a
-          // club the member currently holds (two legacy candidates resolving
-          // to one club) and for one they previously left or an admin ended.
-          // The first needs nothing; the second has to be brought back, or the
-          // card reports a membership the member does not hold. The reactivate
-          // statement only matches an is_current = 0 row, which is what keeps
-          // the live case untouched and its primary flag intact.
-          const revived = memberClubAffiliations.reactivate.run(
-            isPrimary, now, 'onboarding_service', actorMemberId, resolvedClubId,
-          ).changes;
-          const existing = revived > 0
-            ? memberClubAffiliations.findCurrentByMemberAndClub.get(actorMemberId, resolvedClubId) as
-              { id: string } | undefined
-            : undefined;
-          newAffiliationId = existing?.id ?? null;
-        }
-
-        // Revival: a confirmed current affiliation returns an inactive club
-        // to 'active' (demote is reversible by interest). Archived clubs
-        // revive only via a leadership claim.
-        if (newAffiliationId) {
-          const club = clubs.findById.get(resolvedClubId) as
-            | { club_id: string; status: string }
-            | undefined;
-          if (club && club.status === 'inactive') {
-            clubs.updateStatus.run('active', now, 'onboarding_service', resolvedClubId);
-            appendAuditEntry({
-              actionType:    'club.revived_by_affiliation',
-              category:      'club_lifecycle',
-              actorType:     'member',
-              actorMemberId,
-              entityType:    'club',
-              entityId:      resolvedClubId,
-              metadata:      { prior_status: 'inactive', affiliation_id: newAffiliationId },
-            });
-          }
-        }
-
-        if (newAffiliationId) {
-          // The one-time club-join Active Player grant co-commits with the
-          // affiliation in this same transaction (atomic; no post-commit gap).
-          applyActivePlayerClubJoinInTx(actorMemberId, actorMemberId, newAffiliationId);
-        }
-      });
-    } catch (err) {
-      if (err instanceof ConflictError) throw err;
-      throw err;
-    }
-
-    if (capHit) {
+    // Two-current-club cap (max 2 is_current=1 rows per member). At the
+    // cap, the member's Yes is still a true answer about the past: the
+    // row resolves 'former_only' (no member_club_affiliations insert), so
+    // the historical membership is kept and the member who wants this
+    // club current swaps affiliations from the clubs pages later.
+    const currentCount = (memberClubAffiliations.countCurrentByMemberId.get(actorMemberId) as { c: number }).c;
+    if (currentCount >= 2) {
+      legacyPersonClubAffiliations.setResolutionStatusFormerOnly.run(
+        resolvedClubId,
+        'onboarding_service',
+        affiliationRowId,
+      );
       return {
         branch:           'cap_hit',
         affiliationRowId,
         resolvedClubId,
         newAffiliationId: null,
       };
+    }
+
+    const updated = legacyPersonClubAffiliations.setResolutionStatusConfirmed.run(
+      resolvedClubId,
+      'onboarding_service',
+      affiliationRowId,
+    );
+    if (updated.changes === 0) {
+      throw new ConflictError(
+        `Legacy affiliation status changed concurrently: ${affiliationRowId}`,
+      );
+    }
+    // First current club is primary; second is secondary.
+    const isPrimary = currentCount === 0 ? 1 : 0;
+    let newAffiliationId: string | null = `mca_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
+    try {
+      memberClubAffiliations.insertAffiliation.run(
+        newAffiliationId, now, 'onboarding_service', now, 'onboarding_service',
+        actorMemberId, resolvedClubId, isPrimary, 'legacy_claim',
+      );
+    } catch (err) {
+      if (!isUniqueViolation(err)) throw err;
+      // UNIQUE(member_id, club_id) is lifelong, so this fires both for a
+      // club the member currently holds (two legacy candidates resolving
+      // to one club) and for one they previously left or an admin ended.
+      // The first needs nothing; the second has to be brought back, or the
+      // card reports a membership the member does not hold. The reactivate
+      // statement only matches an is_current = 0 row, which is what keeps
+      // the live case untouched and its primary flag intact.
+      const revived = memberClubAffiliations.reactivate.run(
+        isPrimary, now, 'onboarding_service', actorMemberId, resolvedClubId,
+      ).changes;
+      const existing = revived > 0
+        ? memberClubAffiliations.findCurrentByMemberAndClub.get(actorMemberId, resolvedClubId) as
+          { id: string } | undefined
+        : undefined;
+      newAffiliationId = existing?.id ?? null;
+    }
+
+    // Revival: a confirmed current affiliation returns an inactive club
+    // to 'active' (demote is reversible by interest). Archived clubs
+    // revive only via a leadership claim.
+    if (newAffiliationId) {
+      const club = clubs.findById.get(resolvedClubId) as
+        | { club_id: string; status: string }
+        | undefined;
+      if (club && club.status === 'inactive') {
+        clubs.updateStatus.run('active', now, 'onboarding_service', resolvedClubId);
+        appendAuditEntry({
+          actionType:    'club.revived_by_affiliation',
+          category:      'club_lifecycle',
+          actorType:     'member',
+          actorMemberId,
+          entityType:    'club',
+          entityId:      resolvedClubId,
+          metadata:      { prior_status: 'inactive', affiliation_id: newAffiliationId },
+        });
+      }
+    }
+
+    if (newAffiliationId) {
+      // The one-time club-join Active Player grant co-commits with the
+      // affiliation in this same transaction (atomic; no post-commit gap).
+      applyActivePlayerClubJoinInTx(actorMemberId, actorMemberId, newAffiliationId);
     }
 
     return {
@@ -2350,6 +2356,31 @@ export class ClubService {
       });
     }
 
+    // A repeated submit finds the club its first submit made: every field the
+    // form carries as stored, led by this actor, and created by them. It
+    // reports that club rather than the one-club-to-lead refusal the first
+    // submit now triggers. A submission that changed any field is not a
+    // repeat, so it meets that refusal instead of a success it did not get.
+    const sameClub = clubs.findByNameAndCountry.get(name, country) as
+      | {
+          club_id: string; name: string; country: string; club_key: string;
+          description: string | null; city: string; region: string | null;
+        }
+      | undefined;
+    if (
+      sameClub
+      && sameClub.name === name
+      && sameClub.country === country
+      && (sameClub.description ?? '') === description
+      && sameClub.city === city
+      && sameClub.region === storedRegion
+      && sameClub.club_key === `club_${slug}`
+      && clubLeaders.memberInClubLeadership.get(sameClub.club_id, actorMemberId)
+      && findOwnLatestAudit(actorMemberId, 'club.created', 'club', sameClub.club_id)
+    ) {
+      return { branch: 'own_repeat', clubKey: sameClub.club_key };
+    }
+
     // A member co-leads at most one club; the creator becomes the new club's
     // first co-leader, so a member who already co-leads elsewhere cannot create.
     const clubNameRow = clubLeaders.leaderClubNameForMember.get(actorMemberId) as { club_name: string } | undefined;
@@ -2362,10 +2393,8 @@ export class ClubService {
       return { branch: 'affiliation_cap' };
     }
 
-    const dupRow = clubs.findByNameAndCountry.get(name, country) as
-      | { club_id: string; name: string; country: string; club_key: string } | undefined;
-    if (dupRow) {
-      return { branch: 'exact_name_exists', existingClubName: dupRow.name, existingClubKey: dupRow.club_key };
+    if (sameClub) {
+      return { branch: 'exact_name_exists', existingClubName: sameClub.name, existingClubKey: sameClub.club_key };
     }
 
     // Near-match warning: same-country live clubs whose normalized name
@@ -2460,6 +2489,19 @@ export class ClubService {
     const existing = memberClubAffiliations.findCurrentByMemberAndClub.get(actorMemberId, clubId) as
       | { id: string; is_primary: number } | undefined;
     if (existing) {
+      // This member's own join is the one standing: their repeat reports that
+      // join, in the slot the affiliation now holds, and writes nothing. An
+      // affiliation that came some other way (onboarding, a claim) is already
+      // held, which the page says without claiming a join.
+      const ownJoin = findStandingOwnAct(
+        actorMemberId, 'club.member_joined', 'club.member_left', 'member_club_affiliation', existing.id,
+      );
+      if (ownJoin) {
+        return {
+          branch: existing.is_primary === 1 ? 'joined_primary' : 'joined_secondary',
+          affiliationId: existing.id,
+        };
+      }
       return { branch: 'already_member', affiliationId: null };
     }
 
@@ -2563,11 +2605,19 @@ export class ClubService {
     opts: { confirmed?: boolean } = {},
   ):
     | { branch: 'left' }
+    | { branch: 'own_repeat' }
     | { branch: 'not_member' }
     | { branch: 'needs_confirmation'; clubName: string; isSoleCoLeader: boolean } {
     const existing = memberClubAffiliations.findCurrentByMemberAndClub.get(actorMemberId, clubId) as
       | { id: string; is_primary: number; version: number } | undefined;
     if (!existing) {
+      // A left affiliation keeps its row, so a repeated leave is traced to the
+      // member's own departure from it; anything else is simply not a member.
+      const former = memberClubAffiliations.findAnyByMemberAndClub.get(actorMemberId, clubId) as
+        | { id: string } | undefined;
+      if (former && findOwnLatestAudit(actorMemberId, 'club.member_left', 'member_club_affiliation', former.id)) {
+        return { branch: 'own_repeat' };
+      }
       return { branch: 'not_member' };
     }
 
@@ -2659,20 +2709,34 @@ export class ClubService {
     return { branch: 'left' };
   }
 
+  /**
+   * Make the named club the member's primary. The form names its target, so a
+   * second submit asks for the state the first one made: a target that is
+   * already primary changes nothing, and reports the member's own earlier swap
+   * when there was one.
+   */
   swapPrimaryAffiliation(
     actorMemberId: string,
+    targetClubKey: string,
   ): {
-    branch: 'swapped' | 'not_enough_clubs';
+    branch: 'swapped' | 'own_repeat' | 'already_held' | 'not_member' | 'not_enough_clubs';
   } {
     const current = memberClubAffiliations.listCurrentWithClubName.all(actorMemberId) as
-      Array<{ id: string; club_id: string; club_name: string; is_primary: number }>;
+      Array<{ id: string; club_id: string; club_key: string; club_name: string; is_primary: number }>;
     if (current.length < 2) {
       return { branch: 'not_enough_clubs' };
     }
 
-    const incoming = current.find((c) => !c.is_primary);
+    const incoming = current.find((c) => c.club_key === targetClubKey);
     if (!incoming) {
-      return { branch: 'not_enough_clubs' };
+      return { branch: 'not_member' };
+    }
+    if (incoming.is_primary) {
+      const own = findOwnLatestAudit(actorMemberId, 'club.primary_swapped', 'member', actorMemberId);
+      const ownTarget = own
+        ? (JSON.parse(own.metadata_json) as { new_primary_club_id?: string }).new_primary_club_id
+        : undefined;
+      return { branch: ownTarget === incoming.club_id ? 'own_repeat' : 'already_held' };
     }
 
     const now = new Date().toISOString();
@@ -2702,6 +2766,26 @@ export class ClubService {
   }
 
   /**
+   * A co-leader's save of their own club's details, reported as one of the
+   * endings a repeated submit can have. A save that changes nothing is
+   * usually the co-leader's own save submitted twice: when the club's latest
+   * content write is theirs it repeats the first success; otherwise the
+   * details already read as submitted and it says nothing needed updating.
+   */
+  async editClubContentAsLeader(
+    clubId: string,
+    input: Parameters<ClubService['editClubContent']>[1],
+    memberId: string,
+  ): Promise<'advance' | 'own_repeat' | 'already_held'> {
+    const changed = await this.editClubContent(clubId, input, { kind: 'leader', memberId });
+    if (changed.length > 0) return 'advance';
+    const latest = auditEntries.findLatestForEntity.get(
+      'club', clubId, 'club.content_edited', 'club.content_corrected',
+    ) as { actor_member_id: string | null } | undefined;
+    return latest?.actor_member_id === memberId ? 'own_repeat' : 'already_held';
+  }
+
+  /**
    * A club's own information is written here, whoever writes it.
    *
    * A club leader or co-leader (an authoritative editor) edits their own club
@@ -2716,13 +2800,12 @@ export class ClubService {
    * the live row; a failed verification changes nothing and surfaces the
    * validator's error.
    *
-   * The actors differ in four ways and no others. The leadership check binds a
-   * co-leader alone. A co-leader's submission that would move nothing is a
-   * mistake worth naming, so it is refused, while an administrator's is a
-   * preview that found nothing to change and comes back empty. An
-   * administrator's write records the reason and says 'admin' in the ledger.
-   * And an administrator's write tells the club's co-leaders what changed,
-   * because a correction is a past event on a record they are responsible for.
+   * The actors differ in three ways and no others. The leadership check binds a
+   * co-leader alone. An administrator's write records the reason and says
+   * 'admin' in the ledger. And an administrator's write tells the club's
+   * co-leaders what changed, because a correction is a past event on a record
+   * they are responsible for. A submission that would move nothing writes
+   * nothing and comes back empty for either actor.
    *
    * With `preview` set every rule runs and nothing is written, which is what
    * lets an administrator's confirmation screen show the same before and after
@@ -2855,13 +2938,10 @@ export class ClubService {
       note('external_url', club.external_url, normalizedUrl);
     }
 
-    // A co-leader who submits the form unchanged has made a mistake worth
-    // naming. An administrator who does is looking at a preview that found
-    // nothing to correct, which is an answer rather than a failure, so that
-    // door comes back empty and the surface says so.
-    if (changed.length === 0 && actor.kind === 'leader') {
-      throw new ValidationError('Nothing to update.');
-    }
+    // A submission that changes nothing writes nothing and comes back empty.
+    // For a co-leader that is usually their own save submitted twice, which
+    // `editClubContentAsLeader` reports; for an administrator it is a preview
+    // that found nothing to correct, and the surface says so.
     if (opts.preview || changed.length === 0) return changed;
 
     const actorMemberId = actor.memberId;
@@ -2870,6 +2950,7 @@ export class ClubService {
     );
     const urlMoved = changed.some((c) => c.field === 'external_url');
     const now = new Date().toISOString();
+    let auditId = '';
     transaction(() => {
       clubContent.updateClubProfile.run(
         name ?? club.name,
@@ -2891,7 +2972,7 @@ export class ClubService {
       // separates them is authority: an administrator acting on somebody else's
       // club says so in the ledger and says why, and a correction with no
       // reason on it cannot be reviewed afterwards.
-      appendAuditEntry(actor.kind === 'administrator'
+      auditId = appendAuditEntry(actor.kind === 'administrator'
         ? {
           actionType:    'club.content_corrected',
           category:      'club',
@@ -2924,6 +3005,7 @@ export class ClubService {
         club.name,
         describeClubChanges(changed),
         actor.reason,
+        auditId,
       );
     }
     return changed;
@@ -2937,18 +3019,21 @@ export class ClubService {
    * flat equal set with no first among them, so there is no co-leader the
    * others could be expected to hear it from. A club with none is a tolerated
    * state, and then there is simply nobody to tell.
+   *
+   * The message is keyed on the correction's audit row, so each correction
+   * sends once per co-leader however often the send is attempted.
    */
   private notifyLeadersOfCorrection(
     clubId: string,
     clubName: string,
     whatChanged: string,
     reason: string,
+    correctionAuditId: string,
   ): void {
     const leaders = clubLeaders.listCurrentLeadersForClubPage.all(clubId) as Array<{
       member_id: string;
       display_name: string;
     }>;
-    const sentAt = new Date().toISOString();
     leaders.forEach((leader) => {
       emailService.sendToMember({
         template: 'club_record_corrected',
@@ -2959,7 +3044,7 @@ export class ClubService {
           note: reason,
         },
         memberId: leader.member_id,
-        idempotencyKey: `club-record-corrected:${clubId}:${leader.member_id}:${sentAt}`,
+        idempotencyKey: `club-record-corrected:${clubId}:${leader.member_id}:${correctionAuditId}`,
       });
     });
   }
@@ -3086,7 +3171,10 @@ export class ClubService {
     actorMemberId: string,
     clubId: string,
     inviteeKey: string,
-  ): { branch: 'sent' | 'not_leader' | 'member_not_found' | 'not_member' | 'already_coleader' | 'no_email' } {
+  ): {
+    branch: 'sent' | 'own_repeat' | 'already_invited' | 'not_leader' | 'member_not_found' | 'not_member'
+      | 'already_coleader' | 'no_email';
+  } {
     const leadership = clubLeaders.memberInClubLeadership.get(clubId, actorMemberId) as
       | { id: string } | undefined;
     if (!leadership) {
@@ -3130,6 +3218,17 @@ export class ClubService {
     const actor = account.findContactInfoById.get(actorMemberId) as
       | { display_name: string } | undefined;
 
+    // One invitation per member per club: the key carries no time, so an
+    // invitation already queued is the result a repeat asked for. Nothing is
+    // sent or recorded again; the inviter's own earlier invitation repeats its
+    // message, and another co-leader's reads as already done.
+    const idempotencyKey = `club-coleader-invite:${clubId}:${invitee.id}`;
+    if (outbox.findByIdempotencyKey.get(idempotencyKey)) {
+      const own = findOwnLatestAudit(actorMemberId, 'club.coleader_invited', 'member', invitee.id);
+      const ownClub = own ? (JSON.parse(own.metadata_json) as { club_id?: string }).club_id : undefined;
+      return { branch: ownClub === clubId ? 'own_repeat' : 'already_invited' };
+    }
+
     try {
       emailService.send({
         template: 'club_coleader_invite',
@@ -3140,7 +3239,7 @@ export class ClubService {
         },
         recipientEmail: contact.login_email,
         recipientMemberId: invitee.id,
-        idempotencyKey: `club-coleader-invite:${clubId}:${invitee.id}`,
+        idempotencyKey,
       });
     } catch (err) {
       logger.warn('club co-leader invite enqueue failed', {
@@ -3174,11 +3273,17 @@ export class ClubService {
     opts: { confirmed?: boolean } = {},
   ):
     | { branch: 'stepped_down' }
+    | { branch: 'own_repeat' }
     | { branch: 'not_leader' }
     | { branch: 'needs_confirmation'; clubName: string; isSoleCoLeader: boolean } {
     const leadership = clubLeaders.memberInClubLeadership.get(clubId, actorMemberId) as
       | { id: string; role: 'co-leader' } | undefined;
     if (!leadership) {
+      // The seat row goes with the act, so a repeated step-down is traced to
+      // the member's own audit row naming this club.
+      if (auditEntries.findLatestOwnForClub.get(actorMemberId, 'club.coleader_stepped_down', clubId)) {
+        return { branch: 'own_repeat' };
+      }
       return { branch: 'not_leader' };
     }
 
@@ -3343,12 +3448,13 @@ export class ClubService {
     const actorMemberId = actor.memberId;
     const now = new Date().toISOString();
 
+    let auditId = '';
     transaction(() => {
       mediaTags.updateTagDisplay.run(
         tagNormalized, tagDisplay, now, actorMemberId, club.hashtag_tag_id,
       );
 
-      appendAuditEntry({
+      auditId = appendAuditEntry({
         actionType: 'club.hashtag_corrected',
         category: 'club_lifecycle',
         actorType: 'admin',
@@ -3365,6 +3471,7 @@ export class ClubService {
       club.name,
       describeClubChanges([{ field: 'hashtag', before: club.tag_normalized, after: tagNormalized }]),
       actor.reason,
+      auditId,
     );
 
     return moved;

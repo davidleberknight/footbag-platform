@@ -1,8 +1,10 @@
 /**
  * Integration tests for email verification at registration.
  *
- * Exercises the full verify flow: registration enqueues a verify email,
- * GET /verify/:token consumes the token and logs the member in, resend is
+ * Exercises the full verify flow: registration enqueues a verify email, the
+ * emailed GET /verify/:token opens a page that changes nothing, its button's
+ * POST /verify consumes the token and logs the member in, a repeat of that POST
+ * reports the first outcome without a session, resend is
  * rate-limited, and unverified members cannot log in and do not appear in
  * authenticated member search.
  */
@@ -37,24 +39,45 @@ beforeEach(() => {
   stub?.clear();
 });
 
-// Every case here registers under its own address, so the address identifies the
-// mail outright and no ordering is needed. Asserting that rather than taking the
-// newest means a case that ever sends two mails to one address is named as such
-// instead of quietly handing back whichever row won a timestamp tie.
+// The registration request drains its mail through the stub sender, so the
+// verify link is read from what the stub captured. Every case registers under
+// its own address, so the address identifies the mail outright and no ordering
+// is needed; a case that ever sends two mails to one address is named as such
+// instead of quietly handing back whichever one came last.
 function tokenFromOutbox(email: string): string {
-  const db = new BetterSqlite3(dbPath, { readonly: true });
-  let row: { body_text: string };
-  try {
-    row = theOnlyRow<{ body_text: string }>(
-      db,
-      rowPin('outbox_emails', 'recipient_email = ?', [email]),
-    );
-  } finally {
-    db.close();
-  }
-  const match = row.body_text.match(/\/verify\/([A-Za-z0-9_-]+)/);
+  const sent = (sesMod.getStubSesAdapterForTests()?.sentMessages ?? []).filter((m) => m.to === email);
+  if (sent.length !== 1) throw new Error(`expected one mail to ${email}, found ${sent.length}`);
+  const match = sent[0].bodyText.match(/\/verify\/([A-Za-z0-9_-]+)/);
   if (!match) throw new Error(`no verify link in body for ${email}`);
   return match[1];
+}
+
+/** The landing page's one button: the POST that spends the token. */
+function pressVerify(app: ReturnType<typeof createApp>, token: string) {
+  return request(app).post('/verify').type('form').send({ token });
+}
+
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+/**
+ * Moves a faked clock just past the minute within which a further verify-email
+ * request is the same request submitted twice, so the next one is judged as a
+ * new request. The resend rate-limit window is an hour, so this never empties
+ * it. Call `vi.useFakeTimers({ toFake: ['Date'] })` first.
+ */
+function stepPastRepeatWindow(): void {
+  vi.setSystemTime(Date.now() + 61_000);
+}
+
+function countOutboxTo(email: string): number {
+  const db = new BetterSqlite3(dbPath, { readonly: true });
+  const row = db.prepare(
+    `SELECT COUNT(*) AS n FROM outbox_emails WHERE recipient_email = ?`,
+  ).get(email) as { n: number };
+  db.close();
+  return row.n;
 }
 
 describe('POST /register → check-email + outbox enqueue', () => {
@@ -72,13 +95,15 @@ describe('POST /register → check-email + outbox enqueue', () => {
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/check-email');
 
+    // The request drained its mail through the stub sender, so the row is sent
+    // and the link is in what the stub captured.
     const db = new BetterSqlite3(dbPath, { readonly: true });
     const row = db.prepare(
-      `SELECT recipient_email, body_text, status FROM outbox_emails WHERE recipient_email = ?`,
-    ).get('verify-one@example.com') as { recipient_email: string; body_text: string; status: string };
+      `SELECT recipient_email, status FROM outbox_emails WHERE recipient_email = ?`,
+    ).get('verify-one@example.com') as { recipient_email: string; status: string };
     db.close();
-    expect(row.status).toBe('pending');
-    expect(row.body_text).toMatch(/\/verify\/[A-Za-z0-9_-]+/);
+    expect(row.status).toBe('sent');
+    expect(tokenFromOutbox('verify-one@example.com')).toMatch(/^[A-Za-z0-9_-]+$/);
 
     // Unverified DB state: email_verified_at IS NULL, not in members_searchable.
     const db2 = new BetterSqlite3(dbPath, { readonly: true });
@@ -93,7 +118,7 @@ describe('POST /register → check-email + outbox enqueue', () => {
     expect(searchable.n).toBe(0);
   });
 
-  it('duplicate registration enqueues an account-exists notice, not a second verification email', async () => {
+  it('a repeat registration while the first verify email is still live sends nothing more', async () => {
     const app = createApp();
     await request(app).post('/register').type('form').send({
       givenNames: 'Dup', familyName: 'One',
@@ -101,34 +126,109 @@ describe('POST /register → check-email + outbox enqueue', () => {
       password: 'verifypass!1',
       confirmPassword: 'verifypass!1',
     });
-    // Re-register same email — same RealName rules (must differ from existing slug).
-    await request(app).post('/register').type('form').send({
-      givenNames: 'Dup', familyName: 'Two',
+    const auditCount = () => {
+      const ro = new BetterSqlite3(dbPath, { readonly: true });
+      const n = (ro.prepare('SELECT COUNT(*) AS n FROM audit_entries').get() as { n: number }).n;
+      ro.close();
+      return n;
+    };
+    const auditBefore = auditCount();
+
+    // The same form submitted again, as a double click or back-button re-post.
+    const repeat = await request(app).post('/register').type('form').send({
+      givenNames: 'Dup', familyName: 'One',
       email: 'verify-dup@example.com',
+      password: 'verifypass!1',
+      confirmPassword: 'verifypass!1',
+    });
+    // The first outcome, unchanged: the same redirect to check-email.
+    expect(repeat.status).toBe(303);
+    expect(repeat.headers.location).toBe('/register/check-email');
+
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const rows = db.prepare(
+      `SELECT template_key FROM outbox_emails WHERE recipient_email = ?`,
+    ).all('verify-dup@example.com') as Array<{ template_key: string }>;
+    const members = db.prepare(
+      `SELECT COUNT(*) AS n FROM members WHERE login_email_normalized = ?`,
+    ).get('verify-dup@example.com') as { n: number };
+    db.close();
+    // The first registration's one verification email is the only mail; the
+    // repeat sent neither a second link nor an account-exists notice, made no
+    // second account, and wrote no audit row.
+    expect(rows.map((r) => r.template_key)).toEqual(['account_verify']);
+    expect(members.n).toBe(1);
+    expect(auditCount()).toBe(auditBefore);
+  });
+
+  it('registering an address whose account is already verified still sends the account-exists notice', async () => {
+    const app = createApp();
+    await request(app).post('/register').type('form').send({
+      givenNames: 'Dup', familyName: 'Verified',
+      email: 'verify-dup-verified@example.com',
+      password: 'verifypass!1',
+      confirmPassword: 'verifypass!1',
+    });
+    await pressVerify(app, tokenFromOutbox('verify-dup-verified@example.com'));
+
+    await request(app).post('/register').type('form').send({
+      givenNames: 'Dup', familyName: 'Verified',
+      email: 'verify-dup-verified@example.com',
       password: 'anotherpass!2',
       confirmPassword: 'anotherpass!2',
     });
     const db = new BetterSqlite3(dbPath, { readonly: true });
     const rows = db.prepare(
       `SELECT template_key FROM outbox_emails WHERE recipient_email = ?`,
-    ).all('verify-dup@example.com') as Array<{ template_key: string }>;
+    ).all('verify-dup-verified@example.com') as Array<{ template_key: string }>;
     db.close();
-    // The first registration enqueued one verification email; the duplicate
-    // enqueued an out-of-band account-exists notice (not a second verify link),
-    // so the address owner is helped without revealing anything to the submitter.
-    //
-    // Sorted here rather than ordered by enqueue time. Both rows stamp
-    // created_at to the millisecond and the password hash between them is the
-    // cheap test one, so the two registrations can land inside the same
-    // millisecond, and the tie then breaks either way. Which
-    // mail was enqueued first is not the claim; which two mails exist is. This
-    // case passed alone and failed in the full run while it asserted the order.
-    const templates = rows.map((r) => r.template_key).sort();
-    expect(templates).toEqual(['account_exists_notice', 'account_verify']);
+    // Sorted: both rows can stamp the same millisecond, so enqueue order is not the claim.
+    expect(rows.map((r) => r.template_key).sort()).toEqual(['account_exists_notice', 'account_verify']);
   });
 });
 
-describe('GET /verify/:token', () => {
+describe('GET /verify/:token — the emailed link opens a page that changes nothing', () => {
+  it('renders the one-button page carrying the token, spends nothing, and is not cacheable', async () => {
+    const app = createApp();
+    await request(app).post('/register').type('form').send({
+      givenNames: 'Verify', familyName: 'Landing',
+      email: 'verify-landing@example.com',
+      password: 'verifypass!1',
+      confirmPassword: 'verifypass!1',
+    });
+    const token = tokenFromOutbox('verify-landing@example.com');
+
+    // Opened twice, as a mail scanner and then the member would.
+    await request(app).get(`/verify/${token}`);
+    const res = await request(app).get(`/verify/${token}`);
+
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Press the button below to confirm your email address.');
+    expect(res.text).toContain('action="/verify"');
+    expect(res.text).toContain(`value="${token}"`);
+    expect(res.text).toContain('Verify My Email');
+    expect(res.headers['cache-control']).toContain('no-store');
+    expect(res.get('Set-Cookie')?.some((c) => c.startsWith('__Host-footbag_session=')) ?? false).toBe(false);
+
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const m = db.prepare(
+      `SELECT email_verified_at FROM members WHERE login_email_normalized = ?`,
+    ).get('verify-landing@example.com') as { email_verified_at: string | null };
+    db.close();
+    expect(m.email_verified_at).toBeNull();
+
+    // The token is still unspent, so the button works afterwards.
+    expect((await pressVerify(app, token)).status).toBe(303);
+  });
+
+  it('an unknown token opens the same page: the link reveals nothing about the token', async () => {
+    const res = await request(createApp()).get('/verify/bogus-token-landing');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Verify My Email');
+  });
+});
+
+describe('POST /verify', () => {
   it('consumes valid token → sets email_verified_at, issues session cookie, redirects to the wizard', async () => {
     const app = createApp();
     await request(app).post('/register').type('form').send({
@@ -138,7 +238,7 @@ describe('GET /verify/:token', () => {
       confirmPassword: 'verifypass!1',
     });
     const token = tokenFromOutbox('verify-good@example.com');
-    const res = await request(app).get(`/verify/${token}`);
+    const res = await pressVerify(app, token);
     expect(res.status).toBe(303);
     // Post-verify landing is the first outstanding onboarding task.
     expect(res.headers.location).toBe('/register/wizard/personal_details');
@@ -181,7 +281,7 @@ describe('GET /verify/:token', () => {
     ).run(new Date().toISOString(), 'verify-already@example.com');
     seed.close();
 
-    const res = await request(app).get(`/verify/${token}`);
+    const res = await pressVerify(app, token);
 
     // The link still signs the member in, so it is a session issuance and has
     // to be recorded as one. Gating the audit row on the row-changing UPDATE
@@ -206,7 +306,7 @@ describe('GET /verify/:token', () => {
     expect(JSON.parse(rows[0].metadata_json).alreadyVerified).toBe(true);
   });
 
-  it('second consume of the same token → 400 with generic error', async () => {
+  it('a second press of the same link reports the first outcome: verified, sign in, no session, nothing written', async () => {
     const app = createApp();
     await request(app).post('/register').type('form').send({
       givenNames: 'Verify', familyName: 'Twice',
@@ -215,30 +315,44 @@ describe('GET /verify/:token', () => {
       confirmPassword: 'verifypass!1',
     });
     const token = tokenFromOutbox('verify-twice@example.com');
-    const first = await request(app).get(`/verify/${token}`);
+    const first = await pressVerify(app, token);
     expect(first.status).toBe(303);
-    const second = await request(app).get(`/verify/${token}`);
-    expect(second.status).toBe(400);
-    expect(second.text).toContain('invalid, expired, or already used');
+
+    const counts = () => {
+      const db = new BetterSqlite3(dbPath, { readonly: true });
+      const audit = (db.prepare('SELECT COUNT(*) AS n FROM audit_entries').get() as { n: number }).n;
+      const outbox = (db.prepare('SELECT COUNT(*) AS n FROM outbox_emails').get() as { n: number }).n;
+      db.close();
+      return { audit, outbox };
+    };
+    const before = counts();
+
+    const second = await pressVerify(app, token);
+    expect(second.status).toBe(200);
+    expect(second.text).toContain('Your email is verified. Log in to continue.');
+    expect(second.text).toContain('href="/login"');
+    expect(second.text).not.toContain('invalid, expired, or already used');
+    expect(second.get('Set-Cookie')?.some((c) => c.startsWith('__Host-footbag_session=')) ?? false).toBe(false);
+    expect(second.headers['cache-control']).toContain('no-store');
+    expect(counts()).toEqual(before);
   });
 
-  it('unknown token → 400 with identical error', async () => {
-    const app = createApp();
-    const res = await request(app).get('/verify/bogus-token-xxx');
+  it('unknown token → 400 with the generic error', async () => {
+    const res = await pressVerify(createApp(), 'bogus-token-xxx');
+    expect(res.status).toBe(400);
+    expect(res.text).toContain('invalid, expired, or already used');
+    expect(res.headers['cache-control']).toContain('no-store');
+  });
+
+  it('a missing token → 400 with the generic error', async () => {
+    const res = await request(createApp()).post('/verify').type('form').send({});
     expect(res.status).toBe(400);
     expect(res.text).toContain('invalid, expired, or already used');
   });
-
-  it('the invalid-token error render is not cacheable (token-bearing URL)', async () => {
-    const app = createApp();
-    const res = await request(app).get('/verify/bogus-token-yyy');
-    expect(res.status).toBe(400);
-    expect(res.headers['cache-control']).toContain('no-store');
-  });
 });
 
-describe('GET /verify/:token — 500 handler redacts the raw token from logs', () => {
-  it('an unhandled service error on a token-bearing GET logs the URL with the token redacted', async () => {
+describe('POST /verify — the token never reaches a log line', () => {
+  it('an unhandled service error logs the URL, which carries no token', async () => {
     const identityAccessMod = await import('../../src/services/identityAccessService');
     const logMod = await import('../../src/config/logger');
 
@@ -254,22 +368,20 @@ describe('GET /verify/:token — 500 handler redacts the raw token from logs', (
 
     try {
       const app = createApp();
-      const res = await request(app).get('/verify/SECRET_RAW_TOKEN_xyz123');
+      const res = await pressVerify(app, 'SECRET_RAW_TOKEN_xyz123');
 
       expect(res.status).toBe(500);
 
       const unhandled = errorSpy.mock.calls.find((args) => args[0] === 'unhandled error');
       expect(unhandled).toBeDefined();
-      const payload = unhandled![1] as { url: string };
-      expect(payload.url).toBe('/verify/[redacted]');
-      expect(payload.url).not.toContain('SECRET_RAW_TOKEN_xyz123');
+      expect(JSON.stringify(unhandled)).not.toContain('SECRET_RAW_TOKEN_xyz123');
     } finally {
       verifySpy.mockRestore();
     }
   });
 });
 
-describe('GET /verify/:token — session reissue failure', () => {
+describe('POST /verify — session reissue failure', () => {
   // eslint-disable-next-line @typescript-eslint/consistent-type-imports
   let adapterMod: typeof import('../../src/adapters/jwtSigningAdapter');
   let realAdapter: import('../../src/adapters/jwtSigningAdapter').JwtSigningAdapter;
@@ -304,7 +416,7 @@ describe('GET /verify/:token — session reissue failure', () => {
       verifyJwt: (t) => realAdapter.verifyJwt(t),
     });
 
-    const res = await request(app).get(`/verify/${token}`);
+    const res = await pressVerify(app, token);
 
     expect(res.status).toBe(503);
     expect(res.text).toContain('email is verified');
@@ -322,15 +434,21 @@ describe('GET /verify/:token — session reissue failure', () => {
     // failed signing.
     const db = new BetterSqlite3(dbPath, { readonly: true });
     const m = db.prepare(
-      `SELECT email_verified_at FROM members WHERE login_email_normalized = ?`,
-    ).get('verify-kmsfail@example.com') as { email_verified_at: string | null };
+      `SELECT id, email_verified_at FROM members WHERE login_email_normalized = ?`,
+    ).get('verify-kmsfail@example.com') as { id: string; email_verified_at: string | null };
+    // The onboarding checklist commits with the verification, so a member who
+    // signs in afterwards finds it there although this request issued no session.
+    const tasks = (db.prepare(
+      `SELECT COUNT(*) AS c FROM member_onboarding_tasks WHERE member_id = ? AND state = 'pending'`,
+    ).get(m.id) as { c: number }).c;
     db.close();
     expect(m.email_verified_at).not.toBeNull();
+    expect(tasks).toBe(3);
 
-    // Replay of the consumed token yields the standard "invalid / already used" branch.
-    const replay = await request(app).get(`/verify/${token}`);
-    expect(replay.status).toBe(400);
-    expect(replay.text).toContain('invalid, expired, or already used');
+    // A replay of the consumed token reports the first outcome: verified, sign in.
+    const replay = await pressVerify(app, token);
+    expect(replay.status).toBe(200);
+    expect(replay.text).toContain('Your email is verified. Log in to continue.');
 
     // Simulate KMS recovery: the registration password still works at /login.
     adapterMod.resetJwtSigningAdapterForTests();
@@ -364,6 +482,7 @@ describe('Unverified login is rejected', () => {
 describe('POST /verify/resend', () => {
   it('issues a new verify email for an unverified member and rate-limits after 3 per hour', async () => {
     const app = createApp();
+    vi.useFakeTimers({ toFake: ['Date'] });
     await request(app).post('/register').type('form').send({
       givenNames: 'Resend', familyName: 'Tester',
       email: 'resend@example.com',
@@ -371,31 +490,53 @@ describe('POST /verify/resend', () => {
       confirmPassword: 'verifypass!1',
     });
     // First outbox row is the registration email.
+    expect(countOutboxTo('resend@example.com')).toBe(1);
+    // Each resend a minute after the last, so none is a repeat and each mails.
     for (let i = 0; i < 3; i++) {
+      stepPastRepeatWindow();
       const r = await request(app).post('/verify/resend').type('form').send({ email: 'resend@example.com' });
       expect(r.status).toBe(200);
+      expect(countOutboxTo('resend@example.com')).toBe(2 + i);
     }
     // After 3 allowed resends the bucket is at its limit; the 4th doesn't enqueue.
-    const before = (() => {
-      const db = new BetterSqlite3(dbPath, { readonly: true });
-      const count = db.prepare(
-        `SELECT COUNT(*) AS n FROM outbox_emails WHERE recipient_email = ?`,
-      ).get('resend@example.com') as { n: number };
-      db.close();
-      return count.n;
-    })();
+    stepPastRepeatWindow();
     const blocked = await request(app).post('/verify/resend').type('form').send({ email: 'resend@example.com' });
     // Identical response (200 check-email) either way — anti-enumeration.
     expect(blocked.status).toBe(200);
-    const after = (() => {
-      const db = new BetterSqlite3(dbPath, { readonly: true });
-      const count = db.prepare(
-        `SELECT COUNT(*) AS n FROM outbox_emails WHERE recipient_email = ?`,
-      ).get('resend@example.com') as { n: number };
-      db.close();
-      return count.n;
-    })();
-    expect(after).toBe(before);
+    expect(countOutboxTo('resend@example.com')).toBe(4);
+  });
+
+  // Defect caught: a double click or re-post of the resend form mails a second
+  // verify link, or the repeat stops counting against the bucket and so
+  // becomes a free probe of which addresses await verification.
+  it('a resend repeated within seconds mails once, yet every request counts against the bucket', async () => {
+    const app = createApp();
+    const email = 'resend-twice@example.com';
+    vi.useFakeTimers({ toFake: ['Date'] });
+    await request(app).post('/register').type('form').send({
+      givenNames: 'Resend', familyName: 'Twice',
+      email,
+      password: 'verifypass!1',
+      confirmPassword: 'verifypass!1',
+    });
+    stepPastRepeatWindow();
+    // Twenty seconds apart, so the last repeat lands forty seconds after the
+    // first resend: still the same request, not a new one.
+    for (let i = 0; i < 3; i++) {
+      const r = await request(app).post('/verify/resend').type('form').send({ email });
+      expect(r.status).toBe(200);
+      expect(r.text).toContain('new verification link has been sent');
+      vi.setSystemTime(Date.now() + 20_000);
+    }
+    // The registration email plus one resend.
+    expect(countOutboxTo(email)).toBe(2);
+
+    // Past the repeat window a resend would mail again, but the three above
+    // filled the bucket, so this one is refused all the same.
+    stepPastRepeatWindow();
+    const fourth = await request(app).post('/verify/resend').type('form').send({ email });
+    expect(fourth.status).toBe(200);
+    expect(countOutboxTo(email)).toBe(2);
   });
 
   it('renders identical check-email page when the email does not match any member', async () => {
@@ -443,6 +584,7 @@ describe('POST /verify/resend', () => {
     try {
       const TUNE_EMAIL = 'verify-resend-tunable@example.com';
       const app = createApp();
+      vi.useFakeTimers({ toFake: ['Date'] });
       // Register a fresh unverified member; the registration creates the first
       // outbox row. The per-email bucket for /verify/resend is unused.
       await request(app).post('/register').type('form').send({
@@ -451,32 +593,21 @@ describe('POST /verify/resend', () => {
         password: 'verifypass!1',
         confirmPassword: 'verifypass!1',
       });
-      // 2 resends are allowed under the configured cap.
+      // 2 resends are allowed under the configured cap. Each comes a minute
+      // after the last, so none is a repeat and each one mails.
       for (let i = 0; i < 2; i++) {
+        stepPastRepeatWindow();
         const r = await request(app).post('/verify/resend').type('form').send({ email: TUNE_EMAIL });
         expect(r.status).toBe(200);
       }
+      const before = countOutboxTo(TUNE_EMAIL);
+      expect(before).toBe(3);
       // Bucket is at 2 (= configured limit); the 3rd resend is blocked
       // (anti-enumeration: response is still 200, but no new outbox row).
-      const before = (() => {
-        const db = new BetterSqlite3(dbPath, { readonly: true });
-        const count = db.prepare(
-          `SELECT COUNT(*) AS n FROM outbox_emails WHERE recipient_email = ?`,
-        ).get(TUNE_EMAIL) as { n: number };
-        db.close();
-        return count.n;
-      })();
+      stepPastRepeatWindow();
       const blocked = await request(app).post('/verify/resend').type('form').send({ email: TUNE_EMAIL });
       expect(blocked.status).toBe(200);
-      const after = (() => {
-        const db = new BetterSqlite3(dbPath, { readonly: true });
-        const count = db.prepare(
-          `SELECT COUNT(*) AS n FROM outbox_emails WHERE recipient_email = ?`,
-        ).get(TUNE_EMAIL) as { n: number };
-        db.close();
-        return count.n;
-      })();
-      expect(after).toBe(before);
+      expect(countOutboxTo(TUNE_EMAIL)).toBe(before);
     } finally {
       // Restore the platform default so later tests see 3/attempt.
       const restoreDb = new BetterSqlite3(dbPath);
@@ -517,6 +648,7 @@ describe('POST /verify/resend — verify-email enqueue failure', () => {
     // comms is still healthy; otherwise the registration itself 503s.
     const app = createApp();
     const targetEmail = 'resend-enqueue-fail@example.com';
+    vi.useFakeTimers({ toFake: ['Date'] });
     const registerRes = await request(app).post('/register').type('form').send({
       givenNames: 'Resend', familyName: 'Fail',
       email: targetEmail,
@@ -524,6 +656,9 @@ describe('POST /verify/resend — verify-email enqueue failure', () => {
       confirmPassword: 'verifypass!1',
     });
     expect(registerRes.status).toBe(303);
+    // A resend within a minute of the registration email is the same request
+    // again and issues nothing, so the resend under test comes later.
+    stepPastRepeatWindow();
 
     // Now break the enqueue path and exercise the resend flow.
     commsMod.setCommunicationServiceForTests({
@@ -533,7 +668,7 @@ describe('POST /verify/resend — verify-email enqueue failure', () => {
       liftAddressSuppression: async () => {},
       processSendQueue: async () => ({
         claimed: 0, sent: 0, failed: 0, deadLettered: 0, manualReview: 0, paused: false,
-        suppressed: 0, sendingDark: false, bulkHalted: false, bulkPaused: false,
+        suppressed: 0, bulkHalted: false, bulkPaused: false,
       }),
     });
 
@@ -559,6 +694,42 @@ describe('POST /verify/resend — verify-email enqueue failure', () => {
     expect(auditRow).toBeDefined();
   });
 
+  // Defect caught: a registration whose verification email never reached the
+  // outbox leaves a live token behind, and the member's immediate retry is
+  // taken for a double submit, so nothing at all is sent to them for a day.
+  it('a registration retried after its verification email failed to queue still sends', async () => {
+    expectLoggedError('audit: auth.register_notification_failed');
+    const { ServiceUnavailableError } = await import('../../src/services/serviceErrors');
+    const app = createApp();
+    const targetEmail = 'register-retry-after-fail@example.com';
+    const form = {
+      givenNames: 'Retry', familyName: 'Sender', email: targetEmail,
+      password: 'verifypass!1', confirmPassword: 'verifypass!1',
+    };
+
+    commsMod.setCommunicationServiceForTests({
+      enqueue: () => {
+        throw new ServiceUnavailableError('synthetic enqueue failure for registration');
+      },
+      liftAddressSuppression: async () => {},
+      processSendQueue: async () => ({
+        claimed: 0, sent: 0, failed: 0, deadLettered: 0, manualReview: 0, paused: false,
+        suppressed: 0, bulkHalted: false, bulkPaused: false,
+      }),
+    });
+    await request(app).post('/register').type('form').send(form);
+    commsMod.resetCommunicationServiceForTests();
+
+    const retry = await request(app).post('/register').type('form').send(form);
+    expect(retry.status).toBe(303);
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const queued = db.prepare(
+      `SELECT COUNT(*) AS n FROM outbox_emails WHERE recipient_email = ?`,
+    ).get(targetEmail) as { n: number };
+    db.close();
+    expect(queued.n).toBe(1);
+  });
+
   it('issueToken throws (token-store failure) → 200 + audit row (token-issue path is audited, not silently swallowed)', async () => {
     expectLoggedError('audit: auth.register_notification_failed');
     const { ServiceUnavailableError } = await import('../../src/services/serviceErrors');
@@ -568,6 +739,7 @@ describe('POST /verify/resend — verify-email enqueue failure', () => {
     // (registration itself would 503 otherwise).
     const app = createApp();
     const targetEmail = 'resend-token-fail@example.com';
+    vi.useFakeTimers({ toFake: ['Date'] });
     const registerRes = await request(app).post('/register').type('form').send({
       givenNames: 'Resend', familyName: 'Token Fail',
       email: targetEmail,
@@ -575,6 +747,9 @@ describe('POST /verify/resend — verify-email enqueue failure', () => {
       confirmPassword: 'verifypass!1',
     });
     expect(registerRes.status).toBe(303);
+    // A resend within a minute of the registration email is the same request
+    // again and issues nothing, so the resend under test comes later.
+    stepPastRepeatWindow();
 
     // Break token issuance — the DB write that runs *before* the enqueue. A regression
     // here would swallow it silently (200, no audit) because resendVerifyEmail catches
@@ -665,16 +840,14 @@ describe('email_verify token TTL honors system_config', () => {
           [email],
         ),
       );
-      const body = theOnlyRow<{ body_text: string }>(
-        rdb,
-        rowPin('outbox_emails', 'recipient_email = ?', [email]),
-      );
       rdb.close();
+      const sent = (sesMod.getStubSesAdapterForTests()?.sentMessages ?? []).filter((m) => m.to === email);
+      expect(sent).toHaveLength(1);
 
       const diffHours =
         (new Date(tok.expires_at).getTime() - new Date(tok.issued_at).getTime()) / 3_600_000;
       expect(Math.round(diffHours)).toBe(48);
-      expect(body.body_text).toContain('expires in 48 hours');
+      expect(sent[0].bodyText).toContain('expires in 48 hours');
     } finally {
       // system_config is append-only (DELETE is trigger-blocked), so restore the
       // 24h default by appending a later-effective override.

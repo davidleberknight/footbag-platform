@@ -669,6 +669,40 @@ describe('POST /admin/curator/galleries/:id/delete', () => {
     expect(list.text).not.toContain('gallery_delete_target');
   });
 
+  it('a repeated delete by the same admin reports the first delete: 303 to the same list, no 404', async () => {
+    // Defect caught: a re-posted delete shows "not found" for a gallery this admin just deleted.
+    const app = createApp();
+    await request(app)
+      .post('/admin/curator/galleries')
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({
+        idSlug: 'repeat_delete_target',
+        name: 'Repeat Delete Target',
+        description: '',
+        sortOrder: 'upload_desc',
+        criteriaTags: '#freestyle',
+        excludeTags: '',
+      });
+    const send = () => request(app)
+      .post('/admin/curator/galleries/gallery_repeat_delete_target/delete')
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ confirmed: '1' });
+    const first = await send();
+    expect(first.status).toBe(303);
+    const repeat = await send();
+    expect(repeat.status).toBe(303);
+    expect(repeat.headers.location).toBe('/admin/curator/galleries');
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    const deletes = (db.prepare(
+      `SELECT COUNT(*) AS n FROM audit_entries
+        WHERE entity_id = ? AND action_type = 'media.curated_gallery_deleted'`,
+    ).get('gallery_repeat_delete_target') as { n: number }).n;
+    db.close();
+    expect(deletes).toBe(1);
+  });
+
   it('returns 404 for an unknown gallery id', async () => {
     const res = await request(createApp())
       .post('/admin/curator/galleries/gallery_does_not_exist/delete')

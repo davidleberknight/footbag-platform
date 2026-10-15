@@ -1,6 +1,7 @@
 {{! Simulated email card. Rendered on email-gated pages when the service
     returns a non-null view-model. One mode: dev (the captured stub messages),
-    used on dev and staging. Production renders nothing because the service
+    used wherever the stub sender runs: dev, staging, and production while
+    email is dark. Once email is live it renders nothing, because the service
     returns null.
 
     One block per message rather than a six-column table: a captured message is

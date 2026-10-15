@@ -1,9 +1,8 @@
 /**
  * Admin audit-log viewer service.
  *
- * Owns: the read-and-shape surface for the admin audit-log page and its
- * periodic summary over `audit_entries`, and the audit-of-audit write that
- * records each admin's access to either. The summary takes the same filters as
+ * Owns: the read-and-shape surface for the admin audit-log page, its
+ * periodic summary and its export over `audit_entries`. The summary takes the same filters as
  * the list, so it is the filtered view aggregated rather than a second question
  * with a scope of its own. Does not own: writing domain audit rows (that is
  * each owning service via `appendAuditEntry`), or any mutation of
@@ -14,10 +13,8 @@
  * secrets and raw PII at write time (sensitive lookups are hashed; members are
  * referenced by id), so the viewer needs no read-time redaction.
  *
- * Side effects: every view and export appends one privacy-safe audit row
- * (`audit.viewed` / `audit.exported`, category `audit`) naming the admin and
- * the filter target, so access to the audit log is itself auditable. Those
- * access rows are excluded from the default browse to avoid self-noise.
+ * Side effects: none. Every method is a read; reading or exporting the log
+ * records nothing, because a GET changes no stored state.
  */
 import {
   queryAuditLog,
@@ -27,7 +24,6 @@ import {
   type AuditLogFilters,
   type AuditLogQueryRow,
 } from '../db/db';
-import { appendAuditEntry } from './auditService';
 import { runSqliteRead } from './sqliteRetry';
 import type { PageViewModel } from '../types/page';
 
@@ -43,7 +39,6 @@ export interface AuditLogQuery {
   fromDate?: string | null;
   toDate?: string | null;
   selfActionOnly?: boolean;
-  includeAuditAccess?: boolean;
   page?: number;
 }
 
@@ -77,7 +72,6 @@ export interface AuditLogContent {
     fromDate: string;
     toDate: string;
     selfActionOnly: boolean;
-    includeAuditAccess: boolean;
   };
   categoryOptions: string[];
   actorTypeOptions: string[];
@@ -131,7 +125,6 @@ function normalize(q: AuditLogQuery): { filters: AuditLogFilters; page: number }
       fromDate: q.fromDate || null,
       toDate: expandToDate(q.toDate),
       selfActionOnly: Boolean(q.selfActionOnly),
-      includeAuditAccess: Boolean(q.includeAuditAccess),
     },
   };
 }
@@ -145,7 +138,6 @@ function filterParams(q: AuditLogQuery): URLSearchParams {
   if (q.fromDate) p.set('from', q.fromDate);
   if (q.toDate) p.set('to', q.toDate);
   if (q.selfActionOnly) p.set('self', '1');
-  if (q.includeAuditAccess) p.set('includeAccess', '1');
   return p;
 }
 
@@ -294,7 +286,6 @@ export const auditLogService = {
           fromDate: q.fromDate ?? '',
           toDate: q.toDate ?? '',
           selfActionOnly: Boolean(q.selfActionOnly),
-          includeAuditAccess: Boolean(q.includeAuditAccess),
         },
         categoryOptions: listAuditLogCategories(),
         actorTypeOptions: [...ACTOR_TYPES],
@@ -401,59 +392,5 @@ export const auditLogService = {
       body: lines.join('\n'),
       count: rows.length,
     };
-  },
-
-  /** Append the audit-of-audit row recording a bulk export of the audit log. */
-  recordAuditLogExport(adminMemberId: string, q: AuditLogQuery, format: string, count: number): void {
-    const { filters } = normalize(q);
-    appendAuditEntry({
-      actorType: 'admin',
-      actorMemberId: adminMemberId,
-      actionType: 'audit.exported',
-      entityType: filters.memberId ? 'member' : 'audit_log',
-      entityId: filters.memberId ?? 'audit_log',
-      category: 'audit',
-      reasonText: null,
-      metadata: {
-        format,
-        count,
-        // Whether the export carried everything the filters matched. An incident
-        // handoff that quietly lost its oldest rows would otherwise read, later,
-        // as the complete set.
-        matching: countAuditLog(filters),
-        member: filters.memberId ?? null,
-        action_type: filters.actionType ?? null,
-        category: filters.category ?? null,
-        actor_type: filters.actorType ?? null,
-        from: filters.fromDate ?? null,
-        to: filters.toDate ?? null,
-      },
-    });
-  },
-
-  /**
-   * Append the audit-of-audit row recording that an admin read the audit log.
-   * Metadata carries only the filter shape (ids and codes), never member PII.
-   */
-  recordAuditLogView(adminMemberId: string, q: AuditLogQuery): void {
-    const { filters } = normalize(q);
-    appendAuditEntry({
-      actorType: 'admin',
-      actorMemberId: adminMemberId,
-      actionType: 'audit.viewed',
-      entityType: filters.memberId ? 'member' : 'audit_log',
-      entityId: filters.memberId ?? 'audit_log',
-      category: 'audit',
-      reasonText: null,
-      metadata: {
-        member: filters.memberId ?? null,
-        action_type: filters.actionType ?? null,
-        category: filters.category ?? null,
-        actor_type: filters.actorType ?? null,
-        from: filters.fromDate ?? null,
-        to: filters.toDate ?? null,
-        self_action_only: Boolean(filters.selfActionOnly),
-      },
-    });
   },
 };

@@ -40,7 +40,9 @@ export const adminBroadcastController = {
 
     try {
       const outcome = broadcastService.sendToList(slug, input, req.user!.userId);
-      const notice = outcome.status === 'sent' ? 'sent' : outcome.reason;
+      // A repeat of a send already made under this form reports that send's
+      // success, as the member announce does, rather than a no-op note.
+      const notice = outcome.status === 'sent' || outcome.reason === 'already_sent' ? 'sent' : outcome.reason;
       res.redirect(303, `/admin/mailing-lists/${slug}?notice=${notice}`);
     } catch (err) {
       if (err instanceof ValidationError) {

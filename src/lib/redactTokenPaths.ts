@@ -11,12 +11,13 @@
  *      persistence). Operators retain the path and parameter names; the
  *      values are redacted.
  *
- * The current set is `q` (member-search query) and `key` (the signed token a
- * one-click unsubscribe carries). Add a new param here (with a regression
- * test) when a new free-text or secret-bearing query-string input lands on any
- * route.
+ * The current set is `q` (member-search query), `key` (a webhook's shared
+ * secret) and `t` (the signed token an unsubscribe link carries, which mail
+ * scanners and browsers open as a GET). Add a new param here (with a
+ * regression test) when a new free-text or secret-bearing query-string input
+ * lands on any route.
  */
-const PII_QUERY_PARAMS = ['q', 'key'] as const;
+const PII_QUERY_PARAMS = ['q', 'key', 't'] as const;
 
 export function redactTokenPaths(url: string): string {
   let out = url

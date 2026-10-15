@@ -29,6 +29,7 @@ import {
 const { dbPath } = setTestEnv('3093');
 
 const ADMIN_ID    = 'aml_admin_001';
+const ADMIN2_ID   = 'aml_admin_002';
 const MEMBER_ID   = 'aml_member_001';
 
 /** The lists the schema seeds, which these tests neither create nor remove. */
@@ -41,6 +42,9 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 
 function adminCookie(): string {
   return `__Host-footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID, role: 'admin' })}`;
+}
+function admin2Cookie(): string {
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: ADMIN2_ID, role: 'admin' })}`;
 }
 function memberCookie(): string {
   return `__Host-footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID })}`;
@@ -73,6 +77,7 @@ function subscriptionStatus(slug: string, memberId: string): string | undefined 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
   insertMember(db, { id: ADMIN_ID,  slug: 'aml_admin',  login_email: 'aml-admin@example.com', is_admin: 1 });
+  insertMember(db, { id: ADMIN2_ID, slug: 'aml_admin_two', login_email: 'aml-admin2@example.com', is_admin: 1 });
   insertMember(db, { id: MEMBER_ID, slug: 'aml_member', login_email: 'aml-member@example.com' });
   db.close();
   createApp = await importApp();
@@ -152,6 +157,68 @@ describe('creating a list through the surface', () => {
       .get('/admin/mailing-lists/regional-news?notice=created')
       .set('Cookie', adminCookie());
     expect(detail.text).toContain('List created');
+  });
+
+  it('a repeated identical create by the same admin reports the first create: 303 to the same page', async () => {
+    // Defect caught: a re-posted create shows "already exists" for a list this admin just made.
+    const send = () => request(createApp())
+      .post('/admin/mailing-lists/new')
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ name: 'Repeat Create', description: 'Same every time', isMemberManageable: '1' });
+
+    const first = await send();
+    expect(first.status).toBe(303);
+    const repeat = await send();
+    expect(repeat.status).toBe(303);
+    expect(repeat.headers.location).toBe(first.headers.location);
+    expect(listRow('repeat-create')!.name).toBe('Repeat Create');
+  });
+
+  it("another admin's identical create of a list this admin made is refused at 422, not reported as theirs", async () => {
+    // Defect caught: a second admin is told they created a list they did not.
+    const send = (cookie: string) => request(createApp())
+      .post('/admin/mailing-lists/new')
+      .set('Cookie', cookie)
+      .type('form')
+      .send({ name: 'Shared Create', description: 'Same values' });
+    expect((await send(adminCookie())).status).toBe(303);
+    expect((await send(admin2Cookie())).status).toBe(422);
+  });
+
+  it('a re-post of a create whose list has since been archived is refused at 422, not reported created', async () => {
+    // Defect caught: a back-button re-post says "List created" for a list no longer live.
+    const send = () => request(createApp())
+      .post('/admin/mailing-lists/new')
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ name: 'Archived Create', description: 'Same values' });
+    expect((await send()).status).toBe(303);
+    const archived = await request(createApp())
+      .post('/admin/mailing-lists/archived-create/archive')
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({});
+    expect(archived.status).toBe(303);
+    expect(listRow('archived-create')!.status).toBe('archived');
+    expect((await send()).status).toBe(422);
+  });
+
+  it('a create whose fields differ from the list already stored stays refused: 422', async () => {
+    const first = await request(createApp())
+      .post('/admin/mailing-lists/new')
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ name: 'Changed Fields', description: 'First version' });
+    expect(first.status).toBe(303);
+
+    const changed = await request(createApp())
+      .post('/admin/mailing-lists/new')
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ name: 'Changed Fields', description: 'Second version' });
+    expect(changed.status).toBe(422);
+    expect(listRow('changed-fields')!.description).toBe('First version');
   });
 
   it('re-renders the form with the submitted values when the name is missing', async () => {

@@ -333,6 +333,9 @@ export interface MediaItemOverrides {
   width_px?: number;
   height_px?: number;
   source_filename?: string | null;
+  // Hash of the uploaded bytes, which a member photo upload stores and a
+  // repeated upload is matched on.
+  source_sha256?: string | null;
   caption?: string | null;
   // Upload instant. Browse and gallery reads order on it, so a suite that
   // pins an order sets it per item rather than letting every row share one
@@ -354,8 +357,8 @@ export function insertMediaItem(db: BetterSqlite3.Database, o: MediaItemOverride
       id, created_at, created_by, updated_at, updated_by, version,
       uploader_member_id, media_type, is_avatar, caption, uploaded_at,
       s3_key_thumb, s3_key_display, width_px, height_px, source_filename, mime_type,
-      moderation_status
-    ) VALUES (?, ?, 'test', ?, 'test', 1, ?, 'photo', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      moderation_status, source_sha256
+    ) VALUES (?, ?, 'test', ?, 'test', 1, ?, 'photo', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id, TS, TS,
     o.uploader_member_id,
@@ -369,6 +372,7 @@ export function insertMediaItem(db: BetterSqlite3.Database, o: MediaItemOverride
     o.source_filename ?? null,
     'image/jpeg',
     o.moderation_status ?? 'active',
+    o.source_sha256 ?? null,
   );
   attachMediaTags(db, id, o.tags ?? []);
   // The production upload points the member at their avatar as part of the same
@@ -1462,7 +1466,7 @@ export interface RegistrationOverrides {
 // demand: one spent a month ago, one that expired unused, one still valid.
 export interface AccountTokenOverrides {
   id?: string;
-  token_type?: 'email_verify' | 'password_reset' | 'data_export';
+  token_type?: 'email_verify' | 'password_reset';
   issued_at?: string;
   expires_at?: string;
   used_at?: string | null;
@@ -1813,7 +1817,7 @@ export interface MediaJobOverrides {
   id?: string;
   admin_member_id: string;
   kind?: 'curator_video';
-  state?: 'pending_upload' | 'pending_transcode' | 'processing' | 'succeeded' | 'failed' | 'abandoned';
+  state?: 'pending_upload' | 'pending_transcode' | 'processing' | 'succeeded' | 'failed';
   created_at?: string;
   created_by?: string;
 }

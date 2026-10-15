@@ -149,9 +149,9 @@ async function activePlayerExpiryLoop(): Promise<void> {
         error: err instanceof Error ? err.message : String(err),
       });
     }
-    // Spent and expired account tokens age out on the same daily tick. The
-    // member data export made this overdue: every request leaves a row, so
-    // without the sweep the table only grows.
+    // Spent and expired account tokens age out on the same daily tick: every
+    // verification and reset request leaves a row, so without the sweep the
+    // table only grows.
     try {
       await operationsPlatformService.runExpiredTokenCleanup();
     } catch (err) {

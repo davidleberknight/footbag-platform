@@ -4,6 +4,7 @@ import { ValidationError } from '../services/serviceErrors';
 import { handleControllerError, renderNotFound } from '../lib/controllerErrors';
 import { writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
 import { FLASH_KIND } from '../lib/flashCookie';
+import { redirectWithOutcome, type ActionEnding } from '../lib/actionOutcome';
 import {
   outcomeNotice,
   outcomePayload,
@@ -77,7 +78,7 @@ export const clubController = {
     try {
       const clubId = clubService.resolveClubIdByKey(req.params.key);
       const str = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
-      await clubService.editClubContent(
+      const ending = await clubService.editClubContentAsLeader(
         clubId,
         {
           name:        str(req.body.name),
@@ -87,10 +88,14 @@ export const clubController = {
           country:     str(req.body.country),
           externalUrl: str(req.body.external_url),
         },
-        { kind: 'leader', memberId: req.user!.userId },
+        req.user!.userId,
       );
-      writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload('ok', 'Club updated.'));
-      res.redirect(303, `/clubs/${encodeURIComponent(req.params.key)}`);
+      redirectWithOutcome(req, res, {
+        flash: FLASH_KIND.CLUB_ACTION,
+        to: `/clubs/${encodeURIComponent(req.params.key)}`,
+        ending,
+        text: ending === 'already_held' ? 'Nothing to update.' : 'Club updated.',
+      });
     } catch (err) {
       if (err instanceof ValidationError) {
         // Re-render the club page carrying what was typed, so one bad field
@@ -156,6 +161,7 @@ export const clubController = {
 
       switch (result.branch) {
         case 'created':
+        case 'own_repeat':
           writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload('ok', 'Club created.'));
           res.redirect(303, `/clubs/${encodeURIComponent(result.clubKey)}`);
           return;
@@ -227,12 +233,20 @@ export const clubController = {
         return;
       }
 
-      if (result.branch === 'not_member') {
-        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload('no', 'You are not a member of this club.'));
-      } else {
-        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload('ok', 'Left club.'));
-      }
-      res.redirect(303, `/members/${encodeURIComponent(req.user!.slug)}`);
+      // Not being in the club is the state a leave asks for, so it reads as
+      // informational rather than refused.
+      const endings: Record<typeof result.branch, [ActionEnding, string]> = {
+        left:       ['advance',      'Left club.'],
+        own_repeat: ['own_repeat',   'Left club.'],
+        not_member: ['already_held', 'You are not a member of this club.'],
+      };
+      const [ending, text] = endings[result.branch];
+      redirectWithOutcome(req, res, {
+        flash: FLASH_KIND.CLUB_ACTION,
+        to: `/members/${encodeURIComponent(req.user!.slug)}`,
+        ending,
+        text,
+      });
     } catch (err) {
       handleControllerError(err, res, next, 'clubs controller');
     }
@@ -240,14 +254,23 @@ export const clubController = {
 
   postSwapPrimary(req: Request, res: Response, next: NextFunction): void {
     try {
-      const result = clubService.swapPrimaryAffiliation(req.user!.userId);
+      const targetClubKey = typeof req.body?.club_key === 'string' ? req.body.club_key : '';
+      const result = clubService.swapPrimaryAffiliation(req.user!.userId, targetClubKey);
 
-      if (result.branch === 'not_enough_clubs') {
-        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload('no', 'You need two clubs to swap primary.'));
-      } else {
-        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload('ok', 'Primary club swapped.'));
-      }
-      res.redirect(303, `/members/${encodeURIComponent(req.user!.slug)}`);
+      const endings: Record<typeof result.branch, [ActionEnding, string]> = {
+        swapped:          ['advance',      'Primary club swapped.'],
+        own_repeat:       ['own_repeat',   'Primary club swapped.'],
+        already_held:     ['already_held', 'This is already your primary club.'],
+        not_member:       ['refused',      'You are not a member of this club.'],
+        not_enough_clubs: ['refused',      'You need two clubs to swap primary.'],
+      };
+      const [ending, text] = endings[result.branch];
+      redirectWithOutcome(req, res, {
+        flash: FLASH_KIND.CLUB_ACTION,
+        to: `/members/${encodeURIComponent(req.user!.slug)}`,
+        ending,
+        text,
+      });
     } catch (err) {
       handleControllerError(err, res, next, 'clubs controller');
     }
@@ -273,12 +296,18 @@ export const clubController = {
         return;
       }
 
-      if (result.branch === 'not_leader') {
-        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload('no', 'You are not a co-leader of this club.'));
-      } else {
-        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload('ok', 'Stepped down from co-leading this club.'));
-      }
-      res.redirect(303, `/members/${encodeURIComponent(req.user!.slug)}`);
+      const endings: Record<typeof result.branch, [ActionEnding, string]> = {
+        stepped_down: ['advance',      'Stepped down from co-leading this club.'],
+        own_repeat:   ['own_repeat',   'Stepped down from co-leading this club.'],
+        not_leader:   ['already_held', 'You are not a co-leader of this club.'],
+      };
+      const [ending, text] = endings[result.branch];
+      redirectWithOutcome(req, res, {
+        flash: FLASH_KIND.CLUB_ACTION,
+        to: `/members/${encodeURIComponent(req.user!.slug)}`,
+        ending,
+        text,
+      });
     } catch (err) {
       handleControllerError(err, res, next, 'clubs controller');
     }
@@ -317,6 +346,8 @@ export const clubController = {
 
       const messages: Record<string, [OutcomeTone, string]> = {
         sent:             ['ok',   'Invitation recorded. It goes to that member by email.'],
+        own_repeat:       ['ok',   'Invitation recorded. It goes to that member by email.'],
+        already_invited:  ['info', 'That member has already been invited to co-lead this club.'],
         not_leader:       ['no',   'Only a co-leader can invite members to co-lead.'],
         member_not_found: ['no',   'No member found with that id or username.'],
         not_member:       ['no',   'That member must join the club before they can be invited to co-lead.'],

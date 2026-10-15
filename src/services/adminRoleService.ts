@@ -27,6 +27,8 @@ import {
 } from './membershipTieringService';
 import { ValidationError } from './serviceErrors';
 import { PageViewModel } from '../types/page';
+import type { ActionEnding } from '../lib/actionOutcome';
+import type { OutcomeNoticeView } from '../lib/outcomeNotice';
 
 function tierLabel(tierStatus: string): string {
   if (tierStatus === 'tier3') return 'Tier 3';
@@ -46,9 +48,19 @@ export interface AdminRoleViewModel {
 
 export interface AdminRolesContent {
   admins: AdminRoleViewModel[];
-  notice: string | null;
   errorMessage: string | null;
 }
+
+/** How a committed grant or revoke ended. The first submit and this admin's own
+ *  repeat redirect silently; a change another act already made carries the
+ *  informational sentence the list page shows. */
+export interface AdminRoleChangeOutcome {
+  ending: Exclude<ActionEnding, 'refused'>;
+  notice: string | null;
+}
+
+const ALREADY_GRANTED_NOTICE = 'That member is already an administrator, so nothing was changed.';
+const ALREADY_REVOKED_NOTICE = 'That member is no longer an administrator, so nothing was changed.';
 
 /** The grant/revoke confirmation step's view-model: it names the member and the
  *  change, carries the inputs forward as hidden fields, and points its form at
@@ -72,7 +84,7 @@ export const adminRoleService = {
    *  row so the template hides its revoke control. */
   getAdminRolesPage(
     viewerMemberId: string,
-    opts: { notice?: string; errorMessage?: string } = {},
+    opts: { outcome?: OutcomeNoticeView | null; errorMessage?: string } = {},
   ): PageViewModel<AdminRolesContent> {
     const admins = (account.listAdminsForDisplay.all() as Array<{
       id: string;
@@ -87,10 +99,15 @@ export const adminRoleService = {
     }));
     return {
       seo: { title: 'Admin Roles' },
-      page: { sectionKey: '', pageKey: 'admin_admin_roles', title: 'Admin Roles' },
+      page: {
+        sectionKey: '',
+        pageKey: 'admin_admin_roles',
+        title: 'Admin Roles',
+        notice: opts.outcome?.text,
+        noticeTone: opts.outcome?.tone,
+      },
       content: {
         admins,
-        notice: opts.notice ?? null,
         errorMessage: opts.errorMessage ?? null,
       },
     };
@@ -99,17 +116,19 @@ export const adminRoleService = {
   /** Resolve the grant form's member key, then delegate the grant. A key that
    *  matches no active member is a fixable input error (the admin can re-enter
    *  it), so it re-renders the form with a message rather than 404ing. */
-  grantByKey(adminMemberId: string, memberKey: string, reason: string): void {
+  grantByKey(adminMemberId: string, memberKey: string, reason: string): AdminRoleChangeOutcome {
     const member = account.findActiveMemberByKey.get(memberKey.trim(), memberKey.trim()) as
       | { id: string; display_name: string; slug: string }
       | undefined;
     if (!member) throw new ValidationError('No active member with that id or slug.');
-    grantAdminRole(adminMemberId, member.id, reason);
+    const { status } = grantAdminRole(adminMemberId, member.id, reason);
+    return { ending: status, notice: status === 'already_held' ? ALREADY_GRANTED_NOTICE : null };
   },
 
   /** Delegate the revoke for an admin row addressed by member id. */
-  revoke(adminMemberId: string, targetMemberId: string, reason: string): void {
-    revokeAdminRole(adminMemberId, targetMemberId, reason);
+  revoke(adminMemberId: string, targetMemberId: string, reason: string): AdminRoleChangeOutcome {
+    const { status } = revokeAdminRole(adminMemberId, targetMemberId, reason);
+    return { ending: status, notice: status === 'already_held' ? ALREADY_REVOKED_NOTICE : null };
   },
 
   /** Resolve and validate a grant the same way grantByKey would, but write

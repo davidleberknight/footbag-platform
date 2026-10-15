@@ -77,6 +77,19 @@ function noticesTo(memberId: string): Array<{ template_key: string; body_text: s
   ).all(memberId) as Array<{ template_key: string; body_text: string }>;
 }
 
+function noticeKeysTo(memberId: string): string[] {
+  return (conn.prepare(
+    "SELECT idempotency_key FROM outbox_emails"
+    + " WHERE recipient_member_id = ? AND template_key = 'club_record_corrected'",
+  ).all(memberId) as Array<{ idempotency_key: string }>).map((r) => r.idempotency_key);
+}
+
+function auditIds(actionType: string, clubId = CLUB_ID): string[] {
+  return (conn.prepare(
+    'SELECT id FROM audit_entries WHERE action_type = ? AND entity_id = ?',
+  ).all(actionType, clubId) as Array<{ id: string }>).map((r) => r.id);
+}
+
 /** The whole club form, as the record posts it, with fields overridden. */
 function submission(over: Record<string, string> = {}): Record<string, string> {
   return {
@@ -476,6 +489,25 @@ describe('the hashtag is the club address, so moving it is its own act', () => {
     const aboutTheHashtag = noticesTo(LEADER_ID).filter((n) => n.body_text.includes('hashtag'));
     expect(aboutTheHashtag).toHaveLength(1);
     expect(aboutTheHashtag[0]!.body_text).toContain(reason);
+  });
+});
+
+describe('each correction notice is keyed on the correction it reports', () => {
+  // Defect caught: a notice keyed on the send time mails a co-leader twice when
+  // the same correction's send is retried, while a key naming only the club and
+  // leader collapses a second correction onto the first so it is never told.
+  it('every co-leader holds one notice per correction, keyed on its audit row', () => {
+    const corrections = [
+      ...auditIds('club.content_corrected'),
+      ...auditIds('club.hashtag_corrected'),
+    ];
+    // Three details corrections and one hashtag move were confirmed above.
+    expect(corrections).toHaveLength(4);
+    for (const leader of [LEADER_ID, COLEAD_ID]) {
+      expect(noticeKeysTo(leader).sort(), leader).toEqual(
+        corrections.map((id) => `club-record-corrected:${CLUB_ID}:${leader}:${id}`).sort(),
+      );
+    }
   });
 });
 

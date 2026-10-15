@@ -41,9 +41,9 @@
  *     historical row carries neither, because a membership tier belongs to a live
  *     account. It enforces a per-IP and
  *     per-member rate limit (config keys member_search_rate_limit_max_per_ip /
- *     _per_member / _window_minutes) and writes an immutable, privacy-safe audit
- *     row per query carrying the actor member id, a one-way query hash, and the
- *     result count, never the caller IP or the raw query text.
+ *     _per_member / _window_minutes). A search is a read and records nothing; a
+ *     rate-limit hit logs a warning naming the actor member id, never the caller
+ *     IP or the query text.
  *   - PII purge runs in one transaction; callable only by OperationsPlatformService.
  *   - Every erasure writes an erasure_log row in the same transaction. The
  *     ledger, not personal_data_purged_at, decides which erasure shapes a row
@@ -129,7 +129,8 @@
  *   name index, so search spans both live members and imported historical identities).
  *
  * Side effects:
- *   - audit_entries append (profile/PII mutations and member-search queries)
+ *   - audit_entries append (profile/PII mutations)
+ *   - a warning log line when member search is rate limited
  *   - outbox_emails enqueue: the notice telling a member an administrator
  *     corrected their profile, sent after the commit and carrying what changed
  *     and why but never the values
@@ -138,7 +139,8 @@
  * `createAvatarService(deps)` in `avatarService.ts` (uses MediaStorageAdapter).
  * The profile Media section is delegated to `mediaService.getMemberProfileMedia`.
  */
-import { randomUUID, createHash } from 'crypto';
+import { randomUUID } from 'crypto';
+import { logger } from '../config/logger';
 import { account, publicPlayers, memberClubAffiliations, memberLinks, clubLeaders, clubs as clubsDb, clubInsightNotes, declaredAnchors, emailArchives, erasureLog, legacyMembers, mailingListSubscriptions, memberPurge, memberMessages, mediaFlags, outbox, recurringDonationSubscriptions, workQueue, transaction, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow } from '../db/db';
 import { validateExternalUrl } from '../lib/externalUrlValidator';
 import {
@@ -193,22 +195,6 @@ function auditProfileUpdate(memberId: string, fields: readonly string[]): void {
     entityType: 'member',
     entityId: memberId,
     metadata: { fields: [...fields] },
-  });
-}
-
-// Records the privacy-safe audit row for every executed member search: the
-// actor, a one-way hash of the query, and the result count. The raw query text
-// and the caller IP are deliberately excluded so the trail can prove a search
-// happened and detect scraping without re-exposing what a member searched for.
-function auditMemberSearch(actorMemberId: string, queryHash: string, resultCount: number): void {
-  appendAuditEntry({
-    actionType: 'member.search',
-    category: 'member_search',
-    actorType: 'member',
-    actorMemberId,
-    entityType: 'member_search',
-    entityId: queryHash,
-    metadata: { resultCount },
   });
 }
 
@@ -356,6 +342,7 @@ export interface MyClubsView {
   browseClubsHref: string;
   createClubHref: string | null;
   swapPrimaryHref: string | null;
+  swapPrimaryClubKey: string | null;
   createTierNotice: TierBenefitNotice | null;
   nearbySuggestions: NearbyClubSuggestion[];
 }
@@ -475,13 +462,6 @@ export interface AccountDeletionContent {
   isAdministrator: boolean;
   adminRolesHref: string;
   errorMessage: string | null;
-}
-
-/** The page a member lands on after asking for a copy of their data. */
-export interface DataExportRequestedContent {
-  loginEmail: string;
-  ttlHours: number;
-  profileHref: string;
 }
 
 /** The page a member lands on once the deletion has gone through. */
@@ -1209,6 +1189,14 @@ function scrubDeceasedMemberPII(memberId: string): ScrubDeceasedMemberPIIResult 
   });
 }
 
+/** The onboarding personal-details answer, as posted. */
+export interface PersonalDetailsInput {
+  city?: unknown; region?: unknown; country?: unknown;
+  birthDay?: unknown; birthMonth?: unknown; birthYear?: unknown;
+  gender?: unknown; yearValue?: unknown;
+  showCompetitiveResults?: unknown;
+}
+
 export const memberService = {
   purgeAccountPII,
   scrubDeceasedMemberPII,
@@ -1429,6 +1417,10 @@ export const memberService = {
     const result = applyVouch(voucherMemberId, row.id, null);
     if (result.status === 'granted') return 'granted';
     if (result.status === 'extended') return 'extended';
+    // The voucher's own repeat reads as their first vouch did; a standing that
+    // already held from someone else's act reads as no change needed.
+    if (result.status === 'own_repeat') return result.first;
+    if (result.status === 'already_held') return 'no_change';
     // The two no-op reasons that mean the target is not Tier 0 read the same to
     // the voucher: the one the pre-transaction check caught, and the one a tier
     // upgrade landing mid-vouch caught inside it.
@@ -1487,26 +1479,6 @@ export const memberService = {
       seo:  { title: 'Account Deleted', noindex: true },
       page: { sectionKey: 'members', pageKey: 'member_delete_account_done', title: 'Account Deleted' },
       content: { graceDays, homeHref: '/' },
-    };
-  },
-
-  /** Shown after a member asks for their data. It says where the file went,
-   *  because the link goes to their mailbox rather than to this browser, and a
-   *  page that simply returned them to their profile would leave them waiting
-   *  for a download that is never going to start here. */
-  getDataExportRequestedPage(slug: string): PageViewModel<DataExportRequestedContent> {
-    const row = fetchMemberBySlug(slug);
-    return {
-      seo:  { title: 'Data Export Requested', noindex: true },
-      page: { sectionKey: 'members', pageKey: 'member_data_export_requested', title: 'Data Export Requested' },
-      navigation: {
-        contextLinks: [{ label: 'Back to Profile', href: `/members/${slug}` }],
-      },
-      content: {
-        loginEmail: row.login_email,
-        ttlHours:   readIntConfig('data_export_link_expiry_hours', 72),
-        profileHref: `/members/${slug}`,
-      },
     };
   },
 
@@ -1590,21 +1562,31 @@ export const memberService = {
     opts: { preview?: boolean } = {},
   ): Promise<ProfileFieldChange[]> {
     const row = fetchMemberBySlug(slug);
-    // Per-member edit throttle; admins are exempt. Hit before validation so
-    // invalid submissions count against the bucket too. An administrator
-    // correcting somebody else's record is not throttled either: the throttle
-    // exists to bound one member's own editing, and the correction is already
-    // bounded by being an administrator act that writes a reason.
-    if (actor.kind === 'self' && row.is_admin !== 1) {
+    // Per-member edit throttle; admins are exempt. An administrator correcting
+    // somebody else's record is not throttled either: the throttle exists to
+    // bound one member's own editing, and the correction is already bounded by
+    // being an administrator act that writes a reason.
+    //
+    // A save that changes nothing (most often the same form submitted twice)
+    // spends no slot and reports the first save's success, even for a member
+    // who is out of edits. The slot is taken only once the save is known to
+    // move something, or before the network check of a link the member
+    // changed, which is the costly step the throttle bounds.
+    const throttled = actor.kind === 'self' && row.is_admin !== 1;
+    const bucketKey = `profile-edit:${row.id}`;
+    let slotTaken = false;
+    const takeSlot = (): void => {
+      if (!throttled || slotTaken) return;
       const max = readIntConfig('profile_edit_rate_limit_per_hour', 20);
-      const rl = rateLimitHit(`profile-edit:${row.id}`, max, 60);
+      const rl = rateLimitHit(bucketKey, max, 60);
       if (!rl.allowed) {
         throw new RateLimitedError(
           `Too many profile edits. Try again in ${rl.retryAfterSeconds} seconds.`,
           rl.retryAfterSeconds,
         );
       }
-    }
+      slotTaken = true;
+    };
     // A member's own words are not rewritable by anybody else, so an
     // administrator's correction carries the stored bio through untouched
     // rather than accepting one. Clearing it is its own act with its own
@@ -1692,11 +1674,22 @@ export const memberService = {
     // exactly as city and country are treated above.
     const birthDate = assembleBirthDate(birthParts);
 
-    // Validate links (network I/O) before the transaction; the write is sync.
-    const validatedLinks = await validateMemberLinks(input.links);
-
     // Compared before the write, while the stored values are still readable.
     const priorLinks = buildMemberLinksView(row.id);
+
+    // Links the submission carries exactly as stored were verified when they
+    // were saved, so they are not fetched again. Changed links are verified
+    // (network I/O) before the transaction; the write is sync.
+    const submittedLinks = presentMemberLinks(input.links);
+    const linksAsStored = submittedLinks.length === priorLinks.length
+      && submittedLinks.every((l, i) => l.label === priorLinks[i].label && l.url === priorLinks[i].url);
+    let validatedLinks: MemberLinkView[];
+    if (linksAsStored) {
+      validatedLinks = priorLinks;
+    } else {
+      takeSlot();
+      validatedLinks = await validateMemberLinks(input.links);
+    }
     const writeValues: ProfileWriteValues = {
       bio, city: location.city, region: location.region, country: location.country,
       phone, whatsapp, birthDate,
@@ -1707,9 +1700,13 @@ export const memberService = {
     };
     const changes = profileFieldChanges(row, priorLinks, writeValues);
     const changedFields = changes.map((c) => c.field);
-    if (opts.preview) return changes;
+    // A save that moves nothing writes nothing: no version bump, no rewritten
+    // links, no audit row and, for a member, no throttle slot.
+    if (opts.preview || changes.length === 0) return changes;
+    takeSlot();
 
     const now = new Date().toISOString();
+    let correctionAuditId = '';
     transaction(() => {
       account.updateMemberProfile.run(
         bio,
@@ -1760,7 +1757,7 @@ export const memberService = {
         // A correction that moves nothing writes nothing, rather than recording
         // a change that did not happen. An administrator re-confirming the
         // values already on file is not an event.
-        appendAuditEntry({
+        correctionAuditId = appendAuditEntry({
           actionType:    'member.profile_corrected',
           category:      'profile_change',
           actorType:     'admin',
@@ -1782,7 +1779,7 @@ export const memberService = {
     // record, which is what the notification rule sends by mail: the dashboard
     // carries obligations the platform is waiting on, and this is not one.
     if (actor.kind === 'administrator' && changes.length > 0) {
-      notifyRecordCorrected(row, describeProfileChanges(changedFields), actor.reason);
+      notifyRecordCorrected(row, describeProfileChanges(changedFields), actor.reason, correctionAuditId);
     }
     return changes;
   },
@@ -1898,12 +1895,17 @@ export const memberService = {
     };
   },
 
-  setPersonalDetails(memberId: string, input: {
-    city?: unknown; region?: unknown; country?: unknown;
-    birthDay?: unknown; birthMonth?: unknown; birthYear?: unknown;
-    gender?: unknown; yearValue?: unknown;
-    showCompetitiveResults?: unknown;
-  }): void {
+  setPersonalDetails(memberId: string, input: PersonalDetailsInput): void {
+    transaction(() => this.setPersonalDetailsInTx(memberId, input));
+  },
+
+  /**
+   * The same write for a caller that already holds a transaction, so the
+   * onboarding step's save and its completion commit together. The
+   * transaction helper does not nest, so the two entry points are separated
+   * rather than one calling the other. Validation throws before any write.
+   */
+  setPersonalDetailsInTx(memberId: string, input: PersonalDetailsInput): void {
     const city = normalizeText(input.city) || null;
     const region = normalizeText(input.region) || null;
     const country = normalizeText(input.country) || null;
@@ -1913,10 +1915,10 @@ export const memberService = {
       year:  normalizeText(input.birthYear),
     };
     const hasAnyDobPart = Boolean(dobParts.day || dobParts.month || dobParts.year);
-    // The wizard is the primary collection point for gender, so a blank or
-    // unrecognized submission stores 'undisclosed' rather than leaving the
-    // value untouched: the member who skips the choice is treated as not
-    // declaring, which keeps them eligible only for Open event categories.
+    // The wizard is the primary collection point for gender, so a blank
+    // submission stores 'undisclosed' rather than leaving the value untouched:
+    // the member who skips the choice is treated as not declaring, which keeps
+    // them eligible only for Open event categories.
     const postedGender = normalizeText(input.gender).toLowerCase();
     const genderValue = postedGender === 'male' || postedGender === 'female' ? postedGender : 'undisclosed';
 
@@ -1963,21 +1965,19 @@ export const memberService = {
         : 0;
 
     const now = new Date().toISOString();
-    transaction(() => {
-      account.updateMemberPersonalDetails.run(
-        location.city, location.region, location.country, birthDate, genderValue,
-        firstCompetitionYear, showFirstCompetitionYear,
-        now, memberId,
-      );
-      if (hasShowCompetitiveResults) {
-        account.updateMemberShowCompetitiveResults.run(showCompetitiveResults, now, memberId);
-      }
-      auditProfileUpdate(memberId, [
-        'city', 'region', 'country', 'birthDate', 'gender',
-        'firstCompetitionYear', 'showFirstCompetitionYear',
-        ...(hasShowCompetitiveResults ? ['showCompetitiveResults'] : []),
-      ]);
-    });
+    account.updateMemberPersonalDetails.run(
+      location.city, location.region, location.country, birthDate, genderValue,
+      firstCompetitionYear, showFirstCompetitionYear,
+      now, memberId,
+    );
+    if (hasShowCompetitiveResults) {
+      account.updateMemberShowCompetitiveResults.run(showCompetitiveResults, now, memberId);
+    }
+    auditProfileUpdate(memberId, [
+      'city', 'region', 'country', 'birthDate', 'gender',
+      'firstCompetitionYear', 'showFirstCompetitionYear',
+      ...(hasShowCompetitiveResults ? ['showCompetitiveResults'] : []),
+    ]);
   },
 
   searchMembers(query: string, ctx: { actorMemberId: string; ip: string }): MemberSearchResult {
@@ -1986,7 +1986,6 @@ export const memberService = {
       return { query: trimmed, results: [], hasMore: false, tooShort: trimmed.length > 0, rateLimited: false };
     }
     const normalized = trimmed.toLowerCase();
-    const queryHash = createHash('sha256').update(normalized).digest('hex');
 
     // Per-IP and per-member quotas defend the member base against scraping
     // at the legitimate-traffic threshold; member search is held stricter than
@@ -1999,14 +1998,12 @@ export const memberService = {
       ? rateLimitHit(`member-search:${ctx.actorMemberId}`, readIntConfig('member_search_rate_limit_max_per_member', 30), windowMinutes)
       : ipRl;
     if (!ipRl.allowed || !memberRl.allowed) {
-      appendAuditEntry({
-        actionType: 'member.search_rate_limited',
-        category: 'member_search',
-        actorType: 'member',
+      // Warn level, because production logs only warnings and above and this
+      // line is how scraping attempts show. It names the member, never the
+      // query or the IP.
+      logger.warn('member search rate limited', {
         actorMemberId: ctx.actorMemberId,
-        entityType: 'member_search',
-        entityId: queryHash,
-        metadata: { scope: ipRl.allowed ? 'member' : 'ip' },
+        scope: ipRl.allowed ? 'member' : 'ip',
       });
       return { query: trimmed, results: [], hasMore: false, tooShort: false, rateLimited: true };
     }
@@ -2072,7 +2069,6 @@ export const memberService = {
 
     const hasMore = merged.length > SEARCH_LIMIT;
     const results = hasMore ? merged.slice(0, SEARCH_LIMIT) : merged;
-    auditMemberSearch(ctx.actorMemberId, queryHash, results.length);
     return { query: trimmed, results, hasMore, tooShort: false, rateLimited: false };
   },
 
@@ -2385,6 +2381,9 @@ function buildMyClubsView(memberId: string, slug: string): MyClubsView {
     browseClubsHref: '/clubs',
     createClubHref: canCreateClubBenefits && !coLeadsAnyClub ? '/clubs/create' : null,
     swapPrimaryHref: rows.length === 2 ? '/clubs/swap-primary' : null,
+    // The form names the club it makes primary, so a second submit of the same
+    // page asks for the state the first one made rather than swapping back.
+    swapPrimaryClubKey: rows.length === 2 ? rows.find((r) => r.is_primary !== 1)?.club_key ?? null : null,
     // A member ineligible to create a club (a lapsed-AP Tier 0 member) reads
     // what the benefit is and how to earn it, instead of the create path being
     // hidden with nothing said. Having a club already is no reason to withhold
@@ -2488,14 +2487,20 @@ function describeProfileChanges(fields: string[]): string {
  * Best-effort and after the commit: a delivery problem must never unwind a
  * correction that has already been made. The values themselves are not sent,
  * only what changed and why, because the address on file may be exactly what
- * was wrong.
+ * was wrong. Keyed on the correction's audit row, so each correction sends
+ * once however often the send is attempted.
  */
-function notifyRecordCorrected(row: { id: string; display_name: string }, whatChanged: string, reason: string): void {
+function notifyRecordCorrected(
+  row: { id: string; display_name: string },
+  whatChanged: string,
+  reason: string,
+  correctionAuditId: string,
+): void {
   emailService.sendToMember({
     template: 'member_record_corrected',
     params:   { memberName: row.display_name, whatChanged, note: reason },
     memberId: row.id,
-    idempotencyKey: `member-record-corrected:${row.id}:${new Date().toISOString()}`,
+    idempotencyKey: `member-record-corrected:${row.id}:${correctionAuditId}`,
   });
 }
 
@@ -2608,6 +2613,15 @@ function buildMemberLinkSlots(memberId: string): MemberLinkView[] {
   return slots;
 }
 
+/** The submitted link rows the member filled in, trimmed, blank rows dropped. */
+function presentMemberLinks(
+  pairs: Array<{ label: string; url: string }>,
+): Array<{ label: string; url: string }> {
+  return pairs
+    .map((p) => ({ label: normalizeText(p.label), url: normalizeText(p.url) }))
+    .filter((p) => p.label !== '' || p.url !== '');
+}
+
 // Validate submitted label/URL pairs before publication. Blank pairs drop out;
 // a pair with only one side filled is a user error; each surviving URL runs
 // through the shared external-URL validator (scheme allowlist, SSRF guard,
@@ -2616,9 +2630,7 @@ function buildMemberLinkSlots(memberId: string): MemberLinkView[] {
 async function validateMemberLinks(
   pairs: Array<{ label: string; url: string }>,
 ): Promise<MemberLinkView[]> {
-  const present = pairs
-    .map((p) => ({ label: normalizeText(p.label), url: normalizeText(p.url) }))
-    .filter((p) => p.label !== '' || p.url !== '');
+  const present = presentMemberLinks(pairs);
 
   if (present.length > MAX_MEMBER_LINKS) {
     throw new ValidationError(`You can add at most ${MAX_MEMBER_LINKS} links.`);

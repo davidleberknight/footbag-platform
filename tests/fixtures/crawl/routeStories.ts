@@ -104,8 +104,7 @@ export const ROUTE_STORIES: Readonly<Record<string, RouteStory>> = {
   'POST /members/:memberKey/edit': { stories: ['M_Edit_Profile'] },
   'GET /members/:memberKey/edit/password': { stories: ['M_Change_Password'] },
   'POST /members/:memberKey/edit/password': { stories: ['M_Change_Password'] },
-  'POST /members/:memberKey/download': { stories: ['M_Download_Data'] },
-  'GET /members/:memberKey/download/:token': { stories: ['M_Download_Data'] },
+  'GET /members/:memberKey/download': { stories: ['M_Download_Data'] },
   'GET /members/:memberKey/delete': { stories: ['M_Delete_Account'] },
   'POST /members/:memberKey/delete': { stories: ['M_Delete_Account'] },
   'POST /members/:memberKey/avatar': { stories: ['M_Edit_Profile'] },
@@ -145,6 +144,7 @@ export const ROUTE_STORIES: Readonly<Record<string, RouteStory>> = {
   'POST /register': { stories: ['V_Register_Account'] },
   'GET /register/check-email': { stories: ['V_Register_Account', 'M_Verify_Email'] },
   'GET /verify/:token': { stories: ['M_Verify_Email'] },
+  'POST /verify': { stories: ['M_Verify_Email'] },
   'POST /verify/resend': { stories: ['M_Verify_Email'] },
   'POST /register/wizard/personal_details/submit': { stories: ['M_Complete_Onboarding_Wizard'] },
   'POST /register/wizard/legacy_claim/claim': { stories: ['M_Claim_Legacy_Account', 'M_Complete_Onboarding_Wizard'] },
@@ -164,6 +164,7 @@ export const ROUTE_STORIES: Readonly<Record<string, RouteStory>> = {
 
   // Mail and payments
   'POST /email/unsubscribe': { stories: ['M_Unsubscribe_One_Click'] },
+  'GET /email/unsubscribe': { stories: ['M_Unsubscribe_One_Click'] },
   'POST /payments/webhook': { stories: ['SYS_Handle_Stripe_Webhooks', 'SYS_Process_One_Time_Payments', 'SYS_Process_Recurring_Donations'] },
   'GET /payments/success': { stories: ['M_Donate', 'M_Purchase_Tier_1', 'M_Purchase_Tier_2'] },
   'GET /payments/cancel': { stories: ['M_Donate', 'M_Purchase_Tier_1', 'M_Purchase_Tier_2'] },
@@ -281,6 +282,7 @@ export const ROUTE_STORIES: Readonly<Record<string, RouteStory>> = {
   'GET /admin/club-cleanup': { stories: ['A_Periodic_Club_Cleanup'] },
   'POST /admin/club-cleanup/claim': { stories: ['A_Periodic_Club_Cleanup'] },
   'POST /admin/club-cleanup/bulk-resolve': { stories: ['A_Periodic_Club_Cleanup'] },
+  'POST /admin/club-cleanup/apply-rules': { stories: ['A_Periodic_Club_Cleanup'] },
   'POST /admin/club-cleanup/:clubId/resolve': { stories: ['A_Periodic_Club_Cleanup', 'A_Archive_Club'] },
   'POST /admin/club-cleanup/:clubId/contact-members': { stories: ['A_Periodic_Club_Cleanup'] },
   'POST /admin/club-cleanup/:clubId/delist-residue': { stories: ['A_Periodic_Club_Cleanup'] },

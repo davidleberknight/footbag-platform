@@ -88,8 +88,15 @@
  *   - Gallery edit never mutates item tags; current-items display rows derive from
  *     criteria/exclude tags via `listGalleryItemsForDisplay`.
  *   - `createGallery` and `updateGallery` accept `externalLinks`; each URL passes
- *     `validateExternalUrl` (DD §3.17) inside the same transaction. Per-gallery cap
- *     `config.galleryMaxExternalLinks`.
+ *     `validateExternalUrl` (DD §3.17) behind the throttle, before the write.
+ *     Per-gallery cap `config.galleryMaxExternalLinks`.
+ *   - A member's upload, video, gallery create or gallery edit submitted twice
+ *     reports the first outcome and writes, records and counts nothing. It is
+ *     recognised on every field the form carries, before the throttle and with
+ *     no network call (a link is compared in the parsed form the full check
+ *     stores), and recognised again where the write meets the first submit's
+ *     row: inside the video insert's transaction, and in the unique-name failure
+ *     of a photo or a gallery. One recognised there gives back the slot it took.
  *   - Every write that touches the authoring tree is gated on
  *     `config.allowCuratedSidecarWrites` (dev only), decided in this service
  *     rather than by any caller: URL-reference, photo and video uploads, edits,
@@ -145,7 +152,7 @@
  * MediaStorageAdapter, ImageProcessingAdapter, and VideoTranscodingAdapter (the
  * factory pattern allows test injection).
  */
-import { randomUUID } from 'crypto';
+import { createHash, randomUUID } from 'crypto';
 import path from 'path';
 import { GALLERY_ITEMS_QUERY_CAP, countGalleryItemsByCriteria, listGalleryItemsForDisplay, media, mediaTags as mediaTagsDb, queryCuratorMediaTags, tagStats, transaction, type MediaJobRow } from '../db/db';
 import { config } from '../config/env';
@@ -197,10 +204,11 @@ import { validateExternalUrl } from '../lib/externalUrlValidator';
 import { normalizeLineEndings } from '../lib/multilineText';
 import { isSeededTestPersonaMemberId } from '../lib/personaGuards';
 import { ConflictError, ForbiddenError, NotFoundError, RateLimitedError, ValidationError } from './serviceErrors';
-import { hit as rateLimitHit } from './rateLimitService';
+import { hit as rateLimitHit, refund as rateLimitRefund } from './rateLimitService';
 import { readIntConfig } from './configReader';
+import { isAbandonedUpload, type MediaJobState } from './mediaJobService';
 import { hasTier1Benefits } from './tierPredicates';
-import { appendAuditEntry } from './auditService';
+import { appendAuditEntry, findOwnLatestAudit } from './auditService';
 import { runSqliteRead } from './sqliteRetry';
 import {
   hashtagDiscoveryService,
@@ -440,6 +448,9 @@ export interface MemberVideoInput {
 export interface MemberUploadResult {
   mediaId: string;
   displayUrl: string;
+  /** Set when this was the member's own upload submitted again: the item its
+   *  first submit stored is returned and nothing was written. */
+  repeat?: true;
 }
 
 // Member-self edit form's view-model shape (caption + tags + external URL).
@@ -501,6 +512,14 @@ function throttlePerActor(
       rl.retryAfterSeconds,
     );
   }
+}
+
+/**
+ * Give back the attempt `throttlePerActor` counted, for a submit recognised as
+ * a repeat only where its write met the first submit's row.
+ */
+function refundPerActor(bucket: string, actorId: string): void {
+  rateLimitRefund(`${bucket}:${actorId}`);
 }
 
 /**
@@ -804,6 +823,46 @@ function applyTagsForMember(
   const uploaderTag = `${UPLOADER_TAG_PREFIX}${slug.toLowerCase()}`;
   const canonical = [uploaderTag, ...userTags];
   return applyTags(mediaId, canonical, now);
+}
+
+/**
+ * Whether a member's stored item carries exactly what a new submission asks
+ * for: the same caption, the same tags (with the uploader tag every member
+ * upload carries) and the same external link. A repeated submit of the same
+ * form always does; one that changed any of them is not a repeat, so it is
+ * never told that a change it did not get went through.
+ *
+ * The link is compared in the form the validator stores, which is the parsed
+ * URL's own string, worked out here with no network call: a repeat is matched
+ * before any throttle, so it must cost nothing outbound, and the stored link
+ * already passed the full check when the first submit was accepted.
+ * Synchronous, so it can run again inside the write's transaction.
+ */
+function storedItemMatches(
+  mediaId: string,
+  memberId: string,
+  slug: string,
+  submitted: { caption: string | null; tags: string[]; externalUrl?: string | null },
+): boolean {
+  const row = media.getMemberMediaItemById.get(mediaId, memberId) as
+    | { caption: string | null; external_url: string | null } | undefined;
+  if (!row || (row.caption ?? '') !== (submitted.caption ?? '')) return false;
+
+  const stored = queryCuratorMediaTags([mediaId]).map((r) => r.tag_normalized).sort();
+  const wanted = [...new Set([
+    `${UPLOADER_TAG_PREFIX}${slug.toLowerCase()}`,
+    ...submitted.tags.map((t) => t.toLowerCase()),
+  ])].sort();
+  if (stored.length !== wanted.length || stored.some((t, i) => t !== wanted[i])) return false;
+
+  const rawUrl = (submitted.externalUrl ?? '').trim();
+  if (!rawUrl) return row.external_url === null;
+  if (rawUrl === row.external_url) return true;
+  try {
+    return new URL(rawUrl).toString() === row.external_url;
+  } catch {
+    return false;
+  }
 }
 
 // Default per-member gallery materialized on first upload. It is not a gallery
@@ -1197,6 +1256,9 @@ export interface CuratorGalleryCreateInput {
 
 export interface CuratorGalleryCreateResult {
   id: string;
+  /** Set when this was the actor's own create submitted again: the gallery
+   *  its first submit made is returned and nothing was written. */
+  repeat?: true;
 }
 
 export interface CuratorGalleryDeleteInput {
@@ -2472,10 +2534,13 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     // audit row inside the same transaction as the write.
     async updateGallery(input: CuratorGalleryUpdateInput): Promise<void> {
       const { actorMemberId, actorIsAdmin, galleryId, updates } = input;
-      throttleGalleryWrite(actorMemberId, actorIsAdmin);
       assertTier1Benefits(actorMemberId);
 
-      const validated = await validateGalleryUpdates(updates);
+      // Validate, then recognise an unchanged save, then count, then act. The
+      // links are only parsed here, not checked at the network, so an
+      // unchanged save costs nothing outbound; the full check runs behind the
+      // throttle below.
+      const validated = await validateGalleryUpdates(updates, { checkLinks: false });
 
       const existing = media.getNamedGalleryById.get(galleryId) as
         | {
@@ -2546,6 +2611,20 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         );
       }
 
+      // A save that changes nothing (the same edit submitted twice, or a form
+      // saved untouched) is the outcome already holding: it reports success
+      // and writes, records and counts nothing. Links are compared in order,
+      // because their order is what the gallery shows.
+      const storedLinks = media.listGalleryExternalLinks.all(galleryId) as Array<{ label: string; url: string }>;
+      const sameLinkOrder = storedLinks.length === validated.externalLinks.length
+        && storedLinks.every((l, i) => l.label === validated.externalLinks[i].label && l.url === validated.externalLinks[i].url);
+      if (sameLinkOrder && galleryChangesFor(galleryId, existing, validated).length === 0) {
+        return;
+      }
+
+      throttleGalleryWrite(actorMemberId, actorIsAdmin);
+      validated.externalLinks = (await validateGalleryUpdates(updates)).externalLinks;
+
       const now = new Date().toISOString();
 
       // The tag sets and the external links are rewritten delete-then-insert,
@@ -2556,6 +2635,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         ? galleryChangesFor(galleryId, existing, validated)
         : [];
 
+      let moderationAuditId = '';
       transaction(() => {
         media.updateMemberGalleryMetadata.run(
           validated.name,
@@ -2572,7 +2652,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           // acted on a member's gallery, listing no change, is a false record
           // of an intervention that did not happen.
           if (changed.length > 0) {
-            appendAuditEntry({
+            moderationAuditId = appendAuditEntry({
               actionType:    'media.member_gallery_moderated',
               category:      'media',
               actorType:     'admin',
@@ -2611,7 +2691,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       if (isModeration && changed.length > 0) {
         notifyGalleryOwnerOfModeration(
           existing.owner_member_id, existing.owner_display_name,
-          galleryId, existing.name, changed, moderationReason, now,
+          galleryId, existing.name, changed, moderationReason, moderationAuditId,
         );
       }
 
@@ -2644,10 +2724,14 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       input: CuratorGalleryCreateInput,
     ): Promise<CuratorGalleryCreateResult> {
       const { actorMemberId, actorIsAdmin, ownerMemberId, suggestedId, ownerSlug, updates } = input;
-      throttleGalleryWrite(actorMemberId, actorIsAdmin);
+
       assertTier1Benefits(actorMemberId);
 
-      const validated = await validateGalleryUpdates(updates);
+      // Validate, then recognise a repeat, then count, then act. Validation
+      // here leaves the links unchecked at the network (only parsed into the
+      // form the full check stores), so recognising a repeat costs nothing
+      // outbound and the full check runs only behind the throttle below.
+      const local = await validateGalleryUpdates(updates, { checkLinks: false });
 
       const systemMemberId = resolveSystemMemberIdOrThrow();
       const isFhOwned = ownerMemberId === systemMemberId;
@@ -2668,6 +2752,18 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       }
 
       let galleryId: string;
+      // Member-owned galleries auto-include the owner's `#by_<slug>` so the
+      // tag-AND query scopes to the owner's uploads. validateGalleryTag rejects
+      // `#by_*` from caller input, so the prepended tag is the only `#by_*` in
+      // the criteria set. FH-owned galleries are topic-defined: their criteria
+      // are exactly what the author declares. `#curated` is not auto-added — a
+      // curated collection lists `#curated` in its own criteria, and a topic
+      // gallery omits it so it shows all matching content with `#curated` as
+      // the opt-in filter. `validateGalleryTag` allows `#curated` in caller input.
+      const scopeCriteria = (v: typeof local): typeof local => (isFhOwned ? v : {
+        ...v,
+        criteriaTags: [`${UPLOADER_TAG_PREFIX}${(ownerSlug as string).toLowerCase()}`, ...v.criteriaTags],
+      });
       if (isFhOwned) {
         if (!suggestedId || !/^gallery_[a-z0-9_]+$/.test(suggestedId)) {
           throw new ValidationError(
@@ -2681,27 +2777,57 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
             'Member-owned gallery requires ownerSlug.',
           );
         }
-        assertDoesNotClaimPersonalGallery(ownerSlug, validated.name);
-        galleryId = buildMemberGalleryId(ownerSlug, validated.name, 0);
-        // Member-owned galleries auto-include the owner's `#by_<slug>` so
-        // the tag-AND query scopes to the owner's uploads. validateGalleryTag
-        // rejects `#by_*` from caller input, so the prepended tag is the
-        // only `#by_*` in the criteria set. FH-owned galleries are not
-        // uploader-scoped (handled below).
-        const uploaderTag = `${UPLOADER_TAG_PREFIX}${ownerSlug.toLowerCase()}`;
-        validated.criteriaTags = [uploaderTag, ...validated.criteriaTags];
+        assertDoesNotClaimPersonalGallery(ownerSlug, local.name);
+        galleryId = buildMemberGalleryId(ownerSlug, local.name, 0);
       }
-      // FH-owned galleries are topic-defined: their criteria are exactly what the
-      // author declares. `#curated` is not auto-added — a curated collection
-      // lists `#curated` in its own criteria, and a topic gallery omits it so it
-      // shows all matching content with `#curated` as the opt-in filter.
-      // `validateGalleryTag` allows `#curated` in caller input.
+      const submitted = scopeCriteria(local);
 
-      if (validated.criteriaTags.length === 0) {
+      if (submitted.criteriaTags.length === 0) {
         throw new ValidationError(
           'A gallery must declare at least one criteria tag (otherwise it would render empty).',
         );
       }
+
+      // A member's repeated create is the gallery its first submit made, when
+      // every field the form carries matches what that submit stored; one that
+      // changed any of them is not a repeat. Recognised before the throttle, so
+      // a repeat spends no slot, even the last one. Only a member creating
+      // their own gallery can repeat one here: an administrator's creates, and
+      // anything a member may not create, take the ordinary path and its
+      // refusals. Matched again where the insert meets the name's uniqueness
+      // below, because the two submits of a double click overlap.
+      const canRepeat = !actorIsAdmin && ownerMemberId === actorMemberId;
+      const findSameGallery = (v: typeof local): string | undefined => {
+        const candidate = media.findMemberGalleryByOwnerAndName.get(ownerMemberId, v.name) as
+          | { id: string; created_by: string; description: string; sort_order: string } | undefined;
+        if (!candidate) return undefined;
+        const stored = media.listGalleryTagSetsNormalized.all(candidate.id, candidate.id) as
+          Array<{ kind: 'criteria' | 'exclude'; tag_normalized: string }>;
+        const sameSet = (kind: 'criteria' | 'exclude', tags: string[]): boolean => {
+          const have = stored.filter((r) => r.kind === kind).map((r) => r.tag_normalized).sort();
+          const want = tags.map((t) => t.toLowerCase()).sort();
+          return have.length === want.length && have.every((t, i) => t === want[i]);
+        };
+        const storedLinks = media.listGalleryExternalLinks.all(candidate.id) as
+          Array<{ label: string; url: string }>;
+        const sameLinks = storedLinks.length === v.externalLinks.length
+          && storedLinks.every((l, i) => l.label === v.externalLinks[i].label && l.url === v.externalLinks[i].url);
+        return candidate.created_by === actorMemberId
+          && candidate.description === v.description
+          && candidate.sort_order === v.sortOrder
+          && sameLinks
+          && sameSet('criteria', v.criteriaTags)
+          && sameSet('exclude', v.excludeTags)
+          ? candidate.id
+          : undefined;
+      };
+      if (canRepeat) {
+        const sameId = findSameGallery(submitted);
+        if (sameId) return { id: sameId, repeat: true };
+      }
+
+      throttleGalleryWrite(actorMemberId, actorIsAdmin);
+      const validated = scopeCriteria(await validateGalleryUpdates(updates));
 
       const now = new Date().toISOString();
 
@@ -2757,6 +2883,11 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
             continue;
           }
           if (isUnique && msg.includes('member_galleries')) {
+            const sameId = canRepeat ? findSameGallery(validated) : undefined;
+            if (sameId) {
+              refundPerActor('gallery-write', actorMemberId);
+              return { id: sameId, repeat: true };
+            }
             throw new ConflictError(
               `A gallery named "${validated.name}" already exists for this owner.`,
             );
@@ -2789,15 +2920,20 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     // FH-owned galleries, removes the JSON sidecar after commit
     // (best-effort, ENOENT-tolerant). Throws ValidationError on
     // unauthorized actor; NotFoundError on unknown gallery.
-    async deleteGallery(input: CuratorGalleryDeleteInput): Promise<void> {
+    async deleteGallery(input: CuratorGalleryDeleteInput): Promise<'deleted' | 'own_repeat'> {
       const { actorMemberId, actorIsAdmin, galleryId } = input;
-      throttleGalleryWrite(actorMemberId, actorIsAdmin);
       assertTier1Benefits(actorMemberId);
 
       const existing = media.getNamedGalleryById.get(galleryId) as
         | { id: string; owner_member_id: string; is_system: number; is_default: number }
         | undefined;
       if (!existing) {
+        // The row goes with the delete, so a repeated delete is traced to the
+        // actor's own deletion row. Gallery ids are guessable, so anyone
+        // else's gone gallery stays a plain not-found and leaks nothing.
+        const ownDeletion = findOwnLatestAudit(actorMemberId, 'media.member_gallery_deleted', 'gallery', galleryId)
+          ?? findOwnLatestAudit(actorMemberId, 'media.curated_gallery_deleted', 'gallery', galleryId);
+        if (ownDeletion) return 'own_repeat';
         throw new NotFoundError(`gallery ${galleryId} not found`);
       }
 
@@ -2827,6 +2963,10 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       if (existing.is_system === 1) {
         assertCuratorActorMayWriteCurated(actorMemberId);
       }
+
+      // Counted once the delete is known to be a real one the actor may make,
+      // so neither a repeat nor a refused attempt spends a slot.
+      throttleGalleryWrite(actorMemberId, actorIsAdmin);
 
       // Delete + audit land in one transaction. Every other write method in
       // this service wraps in transaction(...) + appendAuditEntry; gallery
@@ -2866,6 +3006,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           });
         }
       }
+      return 'deleted';
     },
 
 
@@ -2917,6 +3058,32 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     // caller's perspective: image processing, S3 put, DB insert, and
     // Personal Gallery materialization all complete before return.
     async uploadPhotoForMember(input: MemberPhotoInput): Promise<MemberUploadResult> {
+      // The same upload submitted twice carries the same file under the same
+      // name, with the same caption, tags and link, which the first submit
+      // already stored. Matched on the hash of the bytes and those fields
+      // before anything is processed, stored or counted; a different photo
+      // under that name, or the same one with any field changed, still meets
+      // the rename message below.
+      assertTier1Benefits(input.memberId);
+      const sourceSha256 = createHash('sha256').update(input.photoBuffer).digest('hex');
+      // Matched again where the write meets the file name's uniqueness below,
+      // because two submits of one double click both pass this check while
+      // the photo is processed and stored.
+      const findSamePhoto = (): MemberUploadResult | undefined => {
+        if (!input.sourceFilename) return undefined;
+        const same = media.findActiveMemberPhotoByFilename.get(input.memberId, input.sourceFilename) as
+          | { id: string; source_sha256: string | null; s3_key_display: string | null }
+          | undefined;
+        if (
+          same && same.source_sha256 === sourceSha256 && same.s3_key_display
+          && storedItemMatches(same.id, input.memberId, input.slug, input)
+        ) {
+          return { mediaId: same.id, displayUrl: storage.constructURL(same.s3_key_display), repeat: true };
+        }
+        return undefined;
+      };
+      const samePhoto = findSamePhoto();
+      if (samePhoto) return samePhoto;
       if (!input.actorIsAdmin) {
         throttlePerActor(
           'member-photo-upload', input.memberId,
@@ -2924,7 +3091,6 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           'Upload rate limit reached.',
         );
       }
-      assertTier1Benefits(input.memberId);
       validateCaption(input.caption);
       validateTags(input.tags);
       const normalizedExternalUrl = await normalizeExternalUrlOrThrow(input.externalUrl);
@@ -2957,7 +3123,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
             mediaId, now, now,
             input.memberId, input.caption, now,
             thumbKey, displayKey, processed.widthPx, processed.heightPx,
-            input.sourceFilename, RENDITION_IMAGE_MIME,
+            input.sourceFilename, RENDITION_IMAGE_MIME, sourceSha256,
           );
           if (normalizedExternalUrl !== null) {
             media.setMediaItemExternalUrl.run(normalizedExternalUrl, now, mediaId, input.memberId);
@@ -2978,6 +3144,11 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         await compensatingStorageDelete(storage, [thumbKey, displayKey]);
         const msg = (err as Error).message ?? '';
         if (msg.includes('UNIQUE') && msg.includes('source_filename')) {
+          const twin = findSamePhoto();
+          if (twin) {
+            if (!input.actorIsAdmin) refundPerActor('member-photo-upload', input.memberId);
+            return twin;
+          }
           throw new ValidationError(
             `You have already uploaded a file named "${input.sourceFilename}". ` +
             `Rename the file or delete the previous upload first.`,
@@ -3137,21 +3308,30 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       memberId: string;
       actorIsAdmin: boolean;
       mediaId: string;
-    }): Promise<{ mediaId: string }> {
+    }): Promise<{ mediaId: string; repeat?: true }> {
+      assertTier1Benefits(input.memberId);
+      const row = runSqliteRead('getMemberMediaItemById', () =>
+        media.getMemberMediaItemById.get(input.mediaId, input.memberId),
+      ) as MediaItemRow | undefined;
+      if (!row) {
+        // The row goes with the delete, so a repeated delete is traced to the
+        // member's own deletion row; any other missing item stays not found.
+        if (findOwnLatestAudit(input.memberId, 'media.member_deleted', 'media_item', input.mediaId)) {
+          return { mediaId: input.mediaId, repeat: true };
+        }
+        throw new NotFoundError(`Member media not found: ${input.mediaId}`);
+      }
+      if (row.is_avatar === 1) {
+        throw new NotFoundError(`Member media not found: ${input.mediaId}`);
+      }
+      // Counted once the delete is known to be a real one, so neither a repeat
+      // nor a refused attempt spends a slot.
       if (!input.actorIsAdmin) {
         throttlePerActor(
           'media-edit', input.memberId,
           'media_edit_rate_limit_per_hour', 15,
           'Too many media changes.',
         );
-      }
-      assertTier1Benefits(input.memberId);
-
-      const row = runSqliteRead('getMemberMediaItemById', () =>
-        media.getMemberMediaItemById.get(input.mediaId, input.memberId),
-      ) as MediaItemRow | undefined;
-      if (!row || row.is_avatar === 1) {
-        throw new NotFoundError(`Member media not found: ${input.mediaId}`);
       }
 
       // Member media is a photo (stored bytes) or a YouTube/Vimeo URL
@@ -3206,18 +3386,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     // body (Vimeo thumbnails are not derivable from id; YouTube ids
     // are derived at render time).
     async submitVideoForMember(input: MemberVideoInput): Promise<MemberUploadResult> {
-      if (!input.actorIsAdmin) {
-        throttlePerActor(
-          'member-video-submit', input.memberId,
-          'video_submission_rate_limit_per_hour', 5,
-          'Submission rate limit reached.',
-        );
-      }
       assertTier1Benefits(input.memberId);
-      validateCaption(input.caption);
-      validateTags(input.tags);
-      const normalizedExternalUrl = await normalizeExternalUrlOrThrow(input.externalUrl);
-
       if (input.videoPlatform !== 'youtube' && input.videoPlatform !== 'vimeo') {
         throw new ValidationError('Choose YouTube or Vimeo for the video platform.');
       }
@@ -3233,6 +3402,39 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           `Could not extract a ${input.videoPlatform} video id from the URL.`,
         );
       }
+
+      // The same video submitted twice is the item the first submit made:
+      // matched on the platform's own video id, caption, tags and link before
+      // the platform is asked again or a slot is counted. The same video with
+      // a field changed is submitted as a new item.
+      // Matched again inside the write's transaction below, because two submits
+      // of one double click both pass this check while the platform is asked.
+      const findSameVideo = () => {
+        const same = media.findActiveMemberVideo.get(input.memberId, input.videoPlatform, videoId) as
+          | { id: string; thumbnail_url: string | null }
+          | undefined;
+        return same && storedItemMatches(same.id, input.memberId, input.slug, input) ? same : undefined;
+      };
+      const repeatResult = (same: { id: string; thumbnail_url: string | null }): MemberUploadResult => ({
+        mediaId: same.id,
+        displayUrl: input.videoPlatform === 'youtube'
+          ? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`
+          : (same.thumbnail_url ?? ''),
+        repeat: true,
+      });
+      const same = findSameVideo();
+      if (same) return repeatResult(same);
+
+      if (!input.actorIsAdmin) {
+        throttlePerActor(
+          'member-video-submit', input.memberId,
+          'video_submission_rate_limit_per_hour', 5,
+          'Submission rate limit reached.',
+        );
+      }
+      validateCaption(input.caption);
+      validateTags(input.tags);
+      const normalizedExternalUrl = await normalizeExternalUrlOrThrow(input.externalUrl);
 
       const verify = await videoUrlVerifier(input.videoUrl, input.videoPlatform);
       if (!verify.ok) {
@@ -3273,7 +3475,10 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           : (thumbnailUrl ?? '');
 
       let appliedTagIds: string[] = [];
+      let twin: { id: string; thumbnail_url: string | null } | undefined;
       transaction(() => {
+        twin = findSameVideo();
+        if (twin) return;
         media.insertMemberVideo.run(
           mediaId, now, now,
           input.memberId, input.caption, now,
@@ -3294,6 +3499,10 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           metadata: { mediaType: 'video', videoPlatform: input.videoPlatform, tags: input.tags },
         });
       });
+      if (twin) {
+        if (!input.actorIsAdmin) refundPerActor('member-video-submit', input.memberId);
+        return repeatResult(twin);
+      }
       hashtagDiscoveryService.incrementTagStats(appliedTagIds);
 
       return { mediaId, displayUrl };
@@ -3326,7 +3535,13 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
   // Validates a CuratorGalleryUpdates payload and returns a normalized
   // shape (trimmed strings, narrowed sortOrder type). Shared between
   // updateGallery and createGallery.
-  async function validateGalleryUpdates(updates: CuratorGalleryUpdates): Promise<{
+  // `checkLinks: false` leaves each link unchecked at the network and only
+  // parses it into the form the full check stores, for comparing a submission
+  // with what is stored before any throttle has been passed.
+  async function validateGalleryUpdates(
+    updates: CuratorGalleryUpdates,
+    opts: { checkLinks?: boolean } = {},
+  ): Promise<{
     name: string;
     description: string;
     sortOrder: GallerySortOrderValue;
@@ -3428,6 +3643,12 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         throw new ValidationError(m, {
           fieldErrors: { [`externalLinks[${i}].url`]: m },
         });
+      }
+      if (opts.checkLinks === false) {
+        let parsed = rawUrl;
+        try { parsed = new URL(rawUrl).toString(); } catch { /* left as typed; the full check refuses it */ }
+        validatedLinks.push({ label, url: parsed });
+        continue;
       }
       const result = await validateExternalUrl(rawUrl);
       if (!result.valid || !result.normalizedUrl) {
@@ -3538,9 +3759,9 @@ function describeGalleryChanges(changed: GalleryFieldChange[]): string {
 /**
  * Tell the member an administrator acted on their gallery. Every other
  * administrative correction on somebody else's record writes to the person
- * whose record it is, and this is one. The idempotency key carries the instant
- * so a second act on the same gallery is a second message rather than a
- * suppressed duplicate.
+ * whose record it is, and this is one. The idempotency key carries the act's
+ * own audit row, so a second act on the same gallery is a second message while
+ * one act sends once however often the send is attempted.
  */
 function notifyGalleryOwnerOfModeration(
   ownerMemberId: string,
@@ -3549,7 +3770,7 @@ function notifyGalleryOwnerOfModeration(
   galleryName: string,
   changed: GalleryFieldChange[],
   reason: string,
-  sentAt: string,
+  moderationAuditId: string,
 ): void {
   emailService.sendToMember({
     template: 'gallery_moderated_member',
@@ -3560,7 +3781,7 @@ function notifyGalleryOwnerOfModeration(
       note:        reason,
     },
     memberId: ownerMemberId,
-    idempotencyKey: `gallery-moderated:${galleryId}:${sentAt}`,
+    idempotencyKey: `gallery-moderated:${galleryId}:${moderationAuditId}`,
   });
 }
 
@@ -4259,28 +4480,30 @@ export function getCuratorJobNotFoundPage(
 
 export function getCuratorJobStatusPage(job: {
   id: string;
-  state: string;
+  state: MediaJobState;
   media_id: string | null;
   last_error: string | null;
   source_filename: string | null;
   caption: string | null;
+  expires_at: string | null;
 }): PageViewModel<CuratorJobStatusContent> {
+  const abandoned = isAbandonedUpload(job, new Date().toISOString());
   return curatorJobStatusEnvelope('Curator Upload Progress', {
     notFound: false,
     jobId: job.id,
     job: {
       id: job.id,
-      state: job.state,
+      state: abandoned ? 'abandoned' : job.state,
       mediaId: job.media_id,
       errorMessage: job.last_error,
       sourceFilename: job.source_filename,
       caption: job.caption,
-      isPendingUpload: job.state === 'pending_upload',
+      isPendingUpload: job.state === 'pending_upload' && !abandoned,
       isPendingTranscode: job.state === 'pending_transcode',
       isProcessing: job.state === 'processing',
       isSucceeded: job.state === 'succeeded',
       isFailed: job.state === 'failed',
-      isAbandoned: job.state === 'abandoned',
+      isAbandoned: abandoned,
       mediaEditHref: job.media_id
         ? `/admin/curator/media/${encodeURIComponent(job.media_id)}/edit`
         : null,

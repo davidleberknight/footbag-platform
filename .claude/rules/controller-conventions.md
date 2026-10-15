@@ -25,10 +25,9 @@ Controllers emit these statuses by convention. Service errors route through `han
 
 | Status | When | Trigger |
 |---|---|---|
-| 200 | Form re-render with inline errors on the same page (validation / conflict caught locally) | Controller renders the form template with `formErrors` injected |
-| 303 | Post-redirect-get on state-changing POST/PUT/DELETE (success path) | Controller `res.redirect(303, ...)` after a successful write |
+| 303 | Post-redirect-get on state-changing POST (success path, and a repeat of an action that already landed: `own_repeat` or `already_held`) | Controller `res.redirect(303, ...)` after a successful write |
 | 404 | Resource not found; anti-enumeration (owner-only routes where slug mismatches authenticated user); OR any `ValidationError` delegated to `handleControllerError` (validation detail is never leaked to public visitors) | `NotFoundError`, or a delegated `ValidationError`, from service; or explicit controller-side ownership check |
-| 422 | Controller-emitted validation/conflict re-render with submitted values preserved (the discriminated-union `validation_error` result, or a locally-caught `ConflictError`). A thrown `ValidationError` *delegated* to `handleControllerError` renders 404, not 422. | Controller renders the form at 422; or `ConflictError` caught locally |
+| 422 | Controller-emitted validation/conflict re-render with submitted values preserved (the discriminated-union `validation_error` result, or a locally-caught `ConflictError`). A thrown `ValidationError` *delegated* to `handleControllerError` renders 404, not 422. A repeat of an action that already landed is never a conflict re-render; it takes the 303 row. | Controller renders the form at 422; or `ConflictError` caught locally |
 | 429 | Rate-limit exceeded; `Retry-After` header set from `retryAfterSeconds` | `RateLimitedError` caught locally by the controller; `handleControllerError` does not handle it (delegating would 500) |
 | 503 | Service-layer unavailability (SQLite busy/locked, adapter down) | `ServiceUnavailableError` from service |
 
@@ -42,7 +41,7 @@ Any POST that changes a password (login-after-rotate, password-edit, password-re
 
 ## State-changing POSTs
 
-State-changing verbs (POST, PUT, DELETE) follow PRG (post-redirect-get): the controller redirects to a GET URL with status 303. Transient flash payload conveys "operation succeeded" / "validation failed" / "rate-limited" to the receiving GET. Form re-renders for the same page (validation errors) return 200 with the form template plus inline errors.
+State-changing requests are HTML form POSTs, because forms send only GET and POST, and follow PRG (post-redirect-get): the controller redirects to a GET URL with status 303. Transient flash payload conveys "operation succeeded" / "validation failed" / "rate-limited" to the receiving GET. Form re-renders for the same page (validation errors) return 422 with the form template, inline errors and the submitted values. A repeated submit the service recognises takes the same 303 and the first outcome's message (design decision "Every State-changing Action Is Safe to Submit Twice"). A GET handler changes no stored state (design decision "Every GET Is Read-only").
 
 ## Safe-path redirects
 

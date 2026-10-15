@@ -32,8 +32,37 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 function adminCookie(): string {
   return `__Host-footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID, role: 'admin' })}`;
 }
+function admin2Cookie(): string {
+  return `__Host-footbag_session=${createTestSessionJwt({ memberId: ADMIN2_ID, role: 'admin' })}`;
+}
 function memberCookie(): string {
   return `__Host-footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID })}`;
+}
+// The outcome rides a flash cookie across the redirect; the follow-up GET carries
+// it the way a browser would.
+function flashOf(res: { get(h: string): string[] | undefined }): string | undefined {
+  return (res.get('Set-Cookie') ?? []).find((c) => c.startsWith('footbag_flash='))?.split(';')[0];
+}
+async function listPageWith(flash: string): Promise<string> {
+  const page = await request(createApp())
+    .get('/admin/admin-roles')
+    .set('Cookie', `${adminCookie()}; ${flash}`);
+  expect(page.status).toBe(200);
+  return page.text;
+}
+function grantConfirm(cookie: string, memberKey: string) {
+  return request(createApp())
+    .post('/admin/admin-roles/grant/confirm')
+    .set('Cookie', cookie)
+    .type('form')
+    .send({ member_key: memberKey, reason: 'Joining the admin team.' });
+}
+function revokeConfirm(cookie: string, memberId: string) {
+  return request(createApp())
+    .post(`/admin/admin-roles/${memberId}/revoke/confirm`)
+    .set('Cookie', cookie)
+    .type('form')
+    .send({ reason: 'Stepping down.' });
 }
 
 beforeAll(async () => {
@@ -148,13 +177,52 @@ describe('POST /admin/admin-roles/grant', () => {
     expect(countOutboxFor(T2_ID)).toBe(1);
   });
 
-  it('grant confirm re-validates: an already-admin target → 422, no second grant', async () => {
-    const res = await request(createApp())
+  it('a repeated grant confirm by the same admin reports the first grant: 303, no second audit row or email', async () => {
+    // Defect caught: a double-clicked or re-posted Grant shows an error for a grant that succeeded.
+    const send = () => request(createApp())
       .post('/admin/admin-roles/grant/confirm')
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ member_key: ADMIN2_SLUG, reason: 'Already admin.' });
-    expect(res.status).toBe(422);
+      .send({ member_key: T2_SLUG, reason: 'Joining the admin team.' });
+    expect((await send()).status).toBe(303);
+    const auditAfterFirst = countAudit('admin.role_granted', T2_ID);
+    const outboxAfterFirst = countOutboxFor(T2_ID);
+    const repeat = await send();
+    expect(repeat.status).toBe(303);
+    expect(repeat.headers.location).toBe('/admin/admin-roles');
+    expect(flashOf(repeat)).toBeUndefined();   // the first grant carried no notice either
+    expect(readMember(T2_ID).is_admin).toBe(1);
+    expect(countAudit('admin.role_granted', T2_ID)).toBe(auditAfterFirst);
+    expect(countOutboxFor(T2_ID)).toBe(outboxAfterFirst);
+  });
+
+  it('a grant confirm for a member another act already made an administrator says nothing was changed, in the informational tone, and writes nothing', async () => {
+    // Defect caught: an admin acting on a stale page is shown an error, or a
+    // success they did not cause, for a role someone else already granted.
+    const auditBefore = countAudit('admin.role_granted', ADMIN2_ID);
+    const outboxBefore = countOutboxFor(ADMIN2_ID);
+    const res = await grantConfirm(adminCookie(), ADMIN2_SLUG);
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/admin/admin-roles');
+    const page = await listPageWith(flashOf(res)!);
+    expect(page).toMatch(/class="form-notice"[^>]*>That member is already an administrator/);
+    expect(page).not.toContain('form-error-banner');
+    expect(countAudit('admin.role_granted', ADMIN2_ID)).toBe(auditBefore);
+    expect(countOutboxFor(ADMIN2_ID)).toBe(outboxBefore);
+  });
+
+  it("an admin's earlier grant that another admin since reversed and re-made is not their repeat: it reports the state as already held", async () => {
+    // Defect caught: a stale confirm page claims this admin's grant stands when
+    // another admin's later grant is the one in force.
+    expect((await grantConfirm(adminCookie(), T2_SLUG)).status).toBe(303);
+    expect((await revokeConfirm(admin2Cookie(), T2_ID)).status).toBe(303);
+    expect((await grantConfirm(admin2Cookie(), T2_SLUG)).status).toBe(303);
+    const auditBefore = countAudit('admin.role_granted', T2_ID);
+
+    const stale = await grantConfirm(adminCookie(), T2_SLUG);
+    expect(stale.status).toBe(303);
+    expect(flashOf(stale)).toBeDefined();
+    expect(countAudit('admin.role_granted', T2_ID)).toBe(auditBefore);
   });
 
   it('grant confirm: non-admin actor → 403, no change', async () => {
@@ -273,6 +341,41 @@ describe('POST /admin/admin-roles/:memberId/revoke', () => {
     // Other subscriptions are untouched (revoke does not change other lists).
     expect(readSubStatus(ADMIN2_ID, 'all-members')).toBe('subscribed');
     expect(countOutboxFor(ADMIN2_ID)).toBe(1);
+  });
+
+  it('a repeated revoke confirm by the same admin reports the first revoke: 303, no second audit row or email', async () => {
+    // Defect caught: a re-posted Revoke shows an error for a role that was already removed.
+    const send = () => request(createApp())
+      .post(`/admin/admin-roles/${ADMIN2_ID}/revoke/confirm`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ reason: 'Stepping down.' });
+    expect((await send()).status).toBe(303);
+    const auditAfterFirst = countAudit('admin.role_revoked', ADMIN2_ID);
+    const outboxAfterFirst = countOutboxFor(ADMIN2_ID);
+    const repeat = await send();
+    expect(repeat.status).toBe(303);
+    expect(repeat.headers.location).toBe('/admin/admin-roles');
+    expect(flashOf(repeat)).toBeUndefined();   // the first revoke carried no notice either
+    expect(readMember(ADMIN2_ID).is_admin).toBe(0);
+    expect(countAudit('admin.role_revoked', ADMIN2_ID)).toBe(auditAfterFirst);
+    expect(countOutboxFor(ADMIN2_ID)).toBe(outboxAfterFirst);
+  });
+
+  it('a revoke confirm for a member another admin already removed says nothing was changed, in the informational tone, and writes nothing', async () => {
+    // Defect caught: a revoke from a stale page shows an error, or claims this
+    // admin's own success, for a role another admin already took away.
+    expect((await grantConfirm(admin2Cookie(), T1_SLUG)).status).toBe(303);
+    expect((await revokeConfirm(admin2Cookie(), T1_ID)).status).toBe(303);
+    const auditBefore = countAudit('admin.role_revoked', T1_ID);
+    const outboxBefore = countOutboxFor(T1_ID);
+
+    const res = await revokeConfirm(adminCookie(), T1_ID);
+    expect(res.status).toBe(303);
+    const page = await listPageWith(flashOf(res)!);
+    expect(page).toMatch(/class="form-notice"[^>]*>That member is no longer an administrator/);
+    expect(countAudit('admin.role_revoked', T1_ID)).toBe(auditBefore);
+    expect(countOutboxFor(T1_ID)).toBe(outboxBefore);
   });
 
   it('revoke confirm re-validates: an admin cannot confirm revoking their own role → 422, still admin', async () => {

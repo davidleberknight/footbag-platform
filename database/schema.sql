@@ -2744,6 +2744,13 @@ CREATE TABLE media_items (
   -- (see ux_media_items_curator_filename).
   source_filename TEXT,
 
+  -- SHA-256 (lowercase hex) of the bytes a member uploaded for a photo, taken
+  -- before any processing. With the uploader and source_filename it is the
+  -- photo's natural identity: the same upload submitted twice matches it and
+  -- reports the first upload, while a different photo under the same filename
+  -- does not. NULL on curator rows and on videos, which host no member bytes.
+  source_sha256 TEXT,
+
   -- Curator-reference-media provenance + clip range; populated by the
   -- curator seeder from /curated/{category}/*.meta.json sidecars. NULL on
   -- member-uploaded rows.
@@ -2930,7 +2937,7 @@ CREATE TABLE media_jobs (
   kind TEXT NOT NULL CHECK (kind IN ('curator_video')),
 
   state TEXT NOT NULL
-    CHECK (state IN ('pending_upload','pending_transcode','processing','succeeded','failed','abandoned')),
+    CHECK (state IN ('pending_upload','pending_transcode','processing','succeeded','failed')),
 
   -- The admin who initiated the job. Used for status-page authorization
   -- (anti-enumeration: another admin gets 404, not 403) and audit trail.
@@ -2967,9 +2974,8 @@ CREATE TABLE media_jobs (
   last_attempted_at TEXT,
   lease_expires_at  TEXT,
 
-  -- TTL for pending_upload rows whose browser never POSTed /finalize. A web
-  -- cleanup step on next admin visit (or a startup reconciliation) maps
-  -- expired pending_upload rows to 'abandoned'.
+  -- Upload window for pending_upload rows. A pending_upload row past it reads
+  -- as abandoned; that state is derived when read, never stored.
   expires_at TEXT,
 
   CHECK (state <> 'succeeded' OR media_id IS NOT NULL)
@@ -3108,9 +3114,8 @@ CREATE INDEX idx_registrations_attended
 -- SECTION 19: ACCOUNT TOKENS
 -- =============================================================================
 
--- Short-lived security tokens for email verification, password reset, and
--- personal data export requests. Token plaintext is never persisted; only
--- the SHA-256 hash is stored. Multiple outstanding tokens per member per type
+-- Short-lived security tokens for email verification and password reset.
+-- Token plaintext is never persisted; only the SHA-256 hash is stored. Multiple outstanding tokens per member per type
 -- are allowed (single-use via used_at; validity requires used_at IS NULL AND now < expires_at).
 -- The daily SYS_Cleanup_Expired_Tokens job deletes tokens that can no longer do
 -- anything, once they have been that way for longer than the configured
@@ -3132,7 +3137,7 @@ CREATE TABLE account_tokens (
   target_audit_entry_id TEXT REFERENCES audit_entries(id) ON DELETE NO ACTION,
   -- token_type maps to the token "purpose" concept.
   token_type TEXT NOT NULL
-    CHECK (token_type IN ('email_verify','password_reset','data_export')),
+    CHECK (token_type IN ('email_verify','password_reset')),
   token_hash         TEXT NOT NULL,
   token_hash_version INTEGER NOT NULL DEFAULT 1,
   issued_at  TEXT NOT NULL,
@@ -3387,7 +3392,6 @@ VALUES
 --   bulk_send_paused                Operator stop for the bulk stream only
 --   token_cleanup_threshold_days    Age threshold (days) for expired/consumed token cleanup
 --   deceased_cleanup_grace_days     Grace period (days) before PII removal after marked deceased
---   data_export_link_expiry_hours   Hours before a data export download link expires
 --   login_rate_limit_max_attempts   Max failed login attempts before account lockout
 --   login_rate_limit_window_minutes Sliding window (minutes) for failed login counting
 --   login_cooldown_minutes          Lockout duration (minutes) after rate-limit exceeded
@@ -3648,15 +3652,6 @@ VALUES
 INSERT OR IGNORE INTO system_config
   (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
 VALUES
-  (
-   'seed-data-export-link-expiry-hours',
-   '2000-01-01T00:00:00.000Z',
-   'data_export_link_expiry_hours', '72',
-   '2000-01-01T00:00:00.000Z',
-   'Hours before a personal data export download link expires (default: 72).',
-   NULL
-  ),
-
   (
    'seed-login-rate-limit-max-attempts',
    '2000-01-01T00:00:00.000Z',

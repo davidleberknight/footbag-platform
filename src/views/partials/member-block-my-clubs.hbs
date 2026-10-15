@@ -43,6 +43,7 @@
 
       {{#if canSwapPrimary}}
         <form method="POST" action="{{swapPrimaryHref}}" class="mt-4">
+          <input type="hidden" name="club_key" value="{{swapPrimaryClubKey}}">
           <button type="submit" class="btn btn-outline">Swap Primary Club</button>
         </form>
       {{/if}}

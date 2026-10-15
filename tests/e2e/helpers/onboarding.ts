@@ -76,11 +76,13 @@ export function raiseClaimRateLimits(db: BetterSqlite3.Database): void {
 
 // ── DB assertion helpers ─────────────────────────────────────────────────────
 
-export function getTaskState(db: BetterSqlite3.Database, memberId: string, taskType: string): string | null {
+// A missing row reads as pending, as the wizard itself reads it: rows are
+// created when the email is verified, and a seeded persona may have none.
+export function getTaskState(db: BetterSqlite3.Database, memberId: string, taskType: string): string {
   const row = db.prepare(
     'SELECT state FROM member_onboarding_tasks WHERE member_id = ? AND task_type = ?',
   ).get(memberId, taskType) as { state: string } | undefined;
-  return row?.state ?? null;
+  return row?.state ?? 'pending';
 }
 
 export function getMemberField(db: BetterSqlite3.Database, memberId: string, field: string): unknown {

@@ -71,6 +71,7 @@ export type CorrectionOutcome =
   | 'active_player_not_applicable'
   | 'deceased_marked'
   | 'deceased_marked_donation_cancel_failed'
+  | 'deceased_already_marked'
   | 'deceased_reverted'
   | 'deceased_grace_elapsed'
   | 'slug_corrected'
@@ -97,6 +98,7 @@ const OUTCOME_NOTICE: Record<CorrectionOutcome, [OutcomeTone, string]> = {
     ['ok', 'The member is marked deceased. Their honours, media and competition results are untouched, and the platform will send them nothing.'],
   deceased_marked_donation_cancel_failed:
     ['no', 'The member is marked deceased, but their recurring donation could not be cancelled. Cancel it in the Stripe dashboard.'],
+  deceased_already_marked: ['info', 'This member is already marked deceased, so nothing was changed.'],
   deceased_reverted: ['ok', 'The deceased marking has been removed, and the reversal is recorded in the audit log.'],
   deceased_grace_elapsed:
     ['no', 'The window for reversing this marking has passed, so nothing was changed. Past that window the member\'s contact details are cleared, and full account deletion is the remaining path.'],
@@ -1139,6 +1141,7 @@ export const adminMemberService = {
   ): Promise<CorrectionOutcome> {
     if (!reverting) {
       const marked = await deceasedMarkingService.markDeceased(actorId, memberId);
+      if (marked.status === 'already_held') return 'deceased_already_marked';
       return marked.recurringDonationCancelFailures > 0
         ? 'deceased_marked_donation_cancel_failed'
         : 'deceased_marked';

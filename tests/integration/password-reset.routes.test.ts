@@ -70,6 +70,28 @@ async function issueAndExtractResetToken(app: ReturnType<typeof createApp>, emai
   return tokenFromResetPage(res.text);
 }
 
+afterEach(() => {
+  vi.useRealTimers();
+});
+
+/**
+ * Moves the faked clock just past the span within which a second request is
+ * the same request submitted twice (a minute), so the next request is judged
+ * as a new one. The rate-limit window is an hour, so this never empties it.
+ */
+function stepPastRepeatWindow(): void {
+  vi.setSystemTime(Date.now() + 61_000);
+}
+
+function countResetTokensFor(memberId: string): number {
+  const db = new BetterSqlite3(dbPath, { readonly: true });
+  const row = db.prepare(
+    `SELECT COUNT(*) AS n FROM account_tokens WHERE member_id = ? AND token_type = 'password_reset'`,
+  ).get(memberId) as { n: number };
+  db.close();
+  return row.n;
+}
+
 function countOutboxFor(email: string): number {
   const db = new BetterSqlite3(dbPath, { readonly: true });
   const row = db.prepare(
@@ -131,8 +153,12 @@ describe('POST /password/forgot', () => {
 
   it('rate-limits after 5 requests per email per hour', async () => {
     const app = createApp();
+    // Each request is a minute apart, so none is the same request submitted
+    // twice and each one mails a fresh link.
+    vi.useFakeTimers({ toFake: ['Date'] });
     for (let i = 0; i < 5; i++) {
       await request(app).post('/password/forgot').type('form').send({ email: MEMBER_EMAIL });
+      stepPastRepeatWindow();
     }
     const before = countOutboxFor(MEMBER_EMAIL);
     expect(before).toBe(5);
@@ -143,6 +169,69 @@ describe('POST /password/forgot', () => {
     expect(countOutboxFor(MEMBER_EMAIL)).toBe(before);
   });
 
+  // Defect caught: a double click or back-button re-post of the forgot form
+  // mails a second reset link (two live links, two emails), or the repeat
+  // stops counting against the bucket and so becomes a free probe.
+  it('a request repeated within seconds issues no second link, yet every request counts against the bucket', async () => {
+    const app = createApp();
+    vi.useFakeTimers({ toFake: ['Date'] });
+    // Ten seconds apart, so the last repeat lands forty seconds after the
+    // first request: still the same request, not a new one.
+    for (let i = 0; i < 5; i++) {
+      const r = await request(app).post('/password/forgot').type('form').send({ email: MEMBER_EMAIL });
+      expect(r.status).toBe(200);
+      expect(r.text).toContain('If an account exists');
+      vi.setSystemTime(Date.now() + 10_000);
+    }
+    expect(countOutboxFor(MEMBER_EMAIL)).toBe(1);
+    expect(countResetTokensFor(MEMBER_ID)).toBe(1);
+
+    // Past the repeat window a request would mail again, but the five above
+    // filled the bucket, so this one is refused all the same.
+    stepPastRepeatWindow();
+    const sixth = await request(app).post('/password/forgot').type('form').send({ email: MEMBER_EMAIL });
+    expect(sixth.status).toBe(200);
+    expect(countOutboxFor(MEMBER_EMAIL)).toBe(1);
+    expect(countResetTokensFor(MEMBER_ID)).toBe(1);
+  });
+
+  // Defect caught: one member's fresh reset email is taken for another
+  // member's repeat, so a request from anyone silences everyone else's reset
+  // mail for a minute.
+  it("another member's request seconds earlier does not stop this member's link", async () => {
+    const otherEmail = 'pwreset-neighbour@example.com';
+    const db = new BetterSqlite3(dbPath);
+    insertMember(db, { id: 'pwreset-neighbour-001', slug: 'pwreset_neighbour', login_email: otherEmail, display_name: 'Pw Neighbour' });
+    db.close();
+    const app = createApp();
+    await request(app).post('/password/forgot').type('form').send({ email: otherEmail });
+    expect(countOutboxFor(otherEmail)).toBe(1);
+
+    const mine = await request(app).post('/password/forgot').type('form').send({ email: MEMBER_EMAIL });
+    expect(mine.status).toBe(200);
+    expect(countOutboxFor(MEMBER_EMAIL)).toBe(1);
+  });
+
+  // Defect caught: a link already used to reset the password still counts as
+  // the email on its way, so a member asking again straight after a reset is
+  // sent nothing.
+  it('a request straight after the last link was used mails a fresh one', async () => {
+    const app = createApp();
+    const token = await issueAndExtractResetToken(app, MEMBER_EMAIL);
+    const reset = await request(app).post(`/password/reset/${token}`).type('form')
+      .send({ newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD });
+    expect(reset.status).toBe(303);
+    const resetMails = rowPin('outbox_emails', `recipient_email = ? AND idempotency_key LIKE 'pwreset:%'`, [MEMBER_EMAIL]);
+    const snapDb = new BetterSqlite3(dbPath, { readonly: true });
+    const before = snapshotIds(snapDb, resetMails);
+    snapDb.close();
+
+    const again = await request(app).post('/password/forgot').type('form').send({ email: MEMBER_EMAIL });
+    expect(again.status).toBe(200);
+    const after = new BetterSqlite3(dbPath, { readonly: true });
+    expect(oneRowAddedSince(after, resetMails, before)).toBeDefined();
+    after.close();
+  });
   it('password-forgot rate limit is tunable via system_config_current', async () => {
     // Lower the bucket to 2 via system_config; the 3rd request should not enqueue.
     const tuneDb = new BetterSqlite3(dbPath);
@@ -170,9 +259,12 @@ describe('POST /password/forgot', () => {
       seedDb.close();
       const app = createApp();
       // 2 requests are allowed under the configured cap; each enqueues a row.
+      // They are a minute apart, so neither is a repeat of the other.
+      vi.useFakeTimers({ toFake: ['Date'] });
       for (let i = 0; i < 2; i++) {
         const r = await request(app).post('/password/forgot').type('form').send({ email: TUNE_EMAIL });
         expect(r.status).toBe(200);
+        stepPastRepeatWindow();
       }
       const before = countOutboxFor(TUNE_EMAIL);
       expect(before).toBe(2);
@@ -236,18 +328,141 @@ describe('POST /password/reset/:token', () => {
     expect(oldLogin.text).toContain('Invalid email or password. Please try again.');
   });
 
-  it('token is single-use: second consume → 422', async () => {
+  it('token is single-use: a second submit reports the first outcome, changes nothing, and signs nobody in', async () => {
     const app = createApp();
     const token = await issueAndExtractResetToken(app, MEMBER_EMAIL);
     const first = await request(app).post(`/password/reset/${token}`).type('form').send({
       newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD,
     });
     expect(first.status).toBe(303);
+    const versionAfterFirst = (() => {
+      const ro = new BetterSqlite3(dbPath, { readonly: true });
+      const v = (ro.prepare('SELECT password_version FROM members WHERE id=?').get(MEMBER_ID) as { password_version: number }).password_version;
+      ro.close();
+      return v;
+    })();
+
     const second = await request(app).post(`/password/reset/${token}`).type('form').send({
+      newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD,
+    });
+    expect(second.status).toBe(200);
+    expect(second.text).toContain('Your password has been reset. Log in with your new password.');
+    expect(second.text).toContain('href="/login"');
+    expect(second.text).not.toContain('invalid, expired, or already used');
+    expect(second.get('Set-Cookie')?.some((c) => c.startsWith('__Host-footbag_session=')) ?? false).toBe(false);
+    expect(second.headers['cache-control']).toMatch(/no-store/);
+
+    // The repeat set nothing.
+    const ro = new BetterSqlite3(dbPath, { readonly: true });
+    const v = (ro.prepare('SELECT password_version FROM members WHERE id=?').get(MEMBER_ID) as { password_version: number }).password_version;
+    ro.close();
+    expect(v).toBe(versionAfterFirst);
+  });
+
+  // Defect caught: a reopened spent link took a different password, said it had
+  // been reset, and kept the first one, so the member was told a password works
+  // that never did.
+  it('a different password on a spent link is not a repeat: the invalid-link answer, and the first password stands', async () => {
+    const app = createApp();
+    const token = await issueAndExtractResetToken(app, MEMBER_EMAIL);
+    const first = await request(app).post(`/password/reset/${token}`).type('form').send({
+      newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD,
+    });
+    expect(first.status).toBe(303);
+
+    const other = await request(app).post(`/password/reset/${token}`).type('form').send({
       newPassword: 'Another!3', confirmPassword: 'Another!3',
     });
-    expect(second.status).toBe(422);
-    expect(second.text).toContain('invalid, expired, or already used');
+    expect(other.status).toBe(422);
+    expect(other.text).toContain('invalid, expired, or already used');
+    expect(other.text).not.toContain('Your password has been reset');
+
+    const withOther = await request(app).post('/login').type('form').send({ email: MEMBER_EMAIL, password: 'Another!3' });
+    expect(withOther.status).toBe(200);   // refused: the login page re-renders
+    const withFirst = await request(app).post('/login').type('form').send({ email: MEMBER_EMAIL, password: NEW_PASSWORD });
+    expect(withFirst.status).toBe(303);
+  });
+
+  // Defect caught: comparing a submitted password with the stored hash makes a
+  // spent link an unlimited way to test guesses at the member's current password.
+  it('guesses on a spent link are rate-limited: once the limit is spent, even the right password gets the invalid-link answer', async () => {
+    const rlMod = await import('../../src/services/rateLimitService');
+    rlMod.resetRateLimitForTests();
+    const app = createApp();
+    const token = await issueAndExtractResetToken(app, MEMBER_EMAIL);
+    expect((await request(app).post(`/password/reset/${token}`).type('form').send({
+      newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD,
+    })).status).toBe(303);
+
+    const guess = (pw: string) => request(app).post(`/password/reset/${token}`).type('form')
+      .send({ newPassword: pw, confirmPassword: pw });
+
+    // The default limit is 10 attempts per window, one per submit. Nine wrong
+    // guesses leave the tenth attempt for the right password, which is still
+    // recognised; the tenth wrong guess closes the window for it.
+    for (let i = 0; i < 9; i += 1) await guess(`Wrong!guess${i}`);
+    expect((await guess(NEW_PASSWORD)).status).toBe(200);   // refunded, so the window still has one left
+    await guess('Wrong!guess9');
+    const right = await guess(NEW_PASSWORD);
+    expect(right.status).toBe(422);
+    expect(right.text).toContain('invalid, expired, or already used');
+    rlMod.resetRateLimitForTests();
+  });
+
+  // Defect caught: a recognised repeat that keeps its rate-limit slot turns a
+  // member's own re-posts into the invalid-link page once they pass the limit.
+  it("a member's own repeats give their rate-limit slot back: more of them than the limit all report the reset", async () => {
+    const rlMod = await import('../../src/services/rateLimitService');
+    rlMod.resetRateLimitForTests();
+    const app = createApp();
+    const token = await issueAndExtractResetToken(app, MEMBER_EMAIL);
+    const send = () => request(app).post(`/password/reset/${token}`).type('form')
+      .send({ newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD });
+    expect((await send()).status).toBe(303);
+    for (let i = 0; i < 12; i += 1) {
+      const repeat = await send();
+      expect(repeat.status, `repeat ${i + 1}`).toBe(200);
+    }
+    rlMod.resetRateLimitForTests();
+  });
+
+  // Defect caught: a captcha token is single-use, so a re-post of a reset that
+  // already landed carries a spent one; checked first, it shows the captcha
+  // error to a member whose password was in fact reset.
+  it('a re-post carrying a spent captcha token still reports the first outcome', async () => {
+    const { STUB_CAPTCHA_FAIL_TOKEN } = await import('../../src/adapters/captchaAdapter');
+    const app = createApp();
+    const token = await issueAndExtractResetToken(app, MEMBER_EMAIL);
+    const first = await request(app).post(`/password/reset/${token}`).type('form').send({
+      newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD,
+    });
+    expect(first.status).toBe(303);
+
+    const repeat = await request(app).post(`/password/reset/${token}`).type('form').send({
+      newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD,
+      'cf-turnstile-response': STUB_CAPTCHA_FAIL_TOKEN,
+    });
+    expect(repeat.status).toBe(200);
+    expect(repeat.text).toContain('Your password has been reset. Log in with your new password.');
+    expect(repeat.get('Set-Cookie')?.some((c) => c.startsWith('__Host-footbag_session=')) ?? false).toBe(false);
+  });
+
+  // Defect caught: two overlapping submits of one reset both pass the
+  // already-reset check before either consumes the link; the second then meets
+  // the consumed link and is told it is invalid, though its reset landed.
+  it('an overlapping double submit reports the reset to both', async () => {
+    const app = createApp();
+    const token = await issueAndExtractResetToken(app, MEMBER_EMAIL);
+    const form = { newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD };
+    const [a, b] = await Promise.all([
+      request(app).post(`/password/reset/${token}`).type('form').send(form),
+      request(app).post(`/password/reset/${token}`).type('form').send(form),
+    ]);
+    const statuses = [a.status, b.status].sort();
+    expect(statuses).toEqual([200, 303]);
+    const repeat = a.status === 200 ? a : b;
+    expect(repeat.text).toContain('Your password has been reset. Log in with your new password.');
+    expect(repeat.text).not.toContain('invalid, expired, or already used');
   });
 
   it('token issued before the member was marked deceased no longer consumes: 422, password unchanged, no session cookie', async () => {
@@ -390,6 +605,32 @@ describe('POST /password/forgot — outbox failure does not leak via 500', () =>
       enqueueSpy.mockRestore();
     }
   });
+
+  // Defect caught: a request whose email never queued is taken for a repeat,
+  // so the member who tries again straight away is sent nothing at all.
+  it('a retry straight after a failed enqueue mails the link', async () => {
+    expectLoggedError('audit: auth.password_reset_notification_failed');
+    const commsMod = await import('../../src/services/communicationService');
+    const commService = commsMod.getCommunicationService();
+    const enqueueSpy = vi
+      .spyOn(commService, 'enqueue')
+      .mockImplementation(() => {
+        throw new Error('SQLITE_BUSY: database is locked');
+      });
+    const app = createApp();
+    try {
+      const failed = await request(app).post('/password/forgot').type('form').send({ email: MEMBER_EMAIL });
+      expect(failed.status).toBe(200);
+    } finally {
+      enqueueSpy.mockRestore();
+    }
+    expect(countOutboxFor(MEMBER_EMAIL)).toBe(0);
+    expect(countResetTokensFor(MEMBER_ID)).toBe(1);
+
+    const retry = await request(app).post('/password/forgot').type('form').send({ email: MEMBER_EMAIL });
+    expect(retry.status).toBe(200);
+    expect(countOutboxFor(MEMBER_EMAIL)).toBe(1);
+  });
 });
 
 describe('POST /password/reset/:token — session reissue failure', () => {
@@ -449,12 +690,17 @@ describe('POST /password/reset/:token — session reissue failure', () => {
       .get(MEMBER_ID) as { password_version: number };
     expect(row.password_version).toBe(2);
 
-    // Token was consumed; replay must yield 422.
+    // Token was consumed; a replay of the same submit reports the reset as done
+    // and sets nothing.
     const replay = await request(app).post(`/password/reset/${token}`).type('form').send({
-      newPassword: 'Another!9', confirmPassword: 'Another!9',
+      newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD,
     });
+    expect(replay.status).toBe(200);
+    expect(replay.text).toContain('Your password has been reset.');
+    const afterReplay = dbCheck.prepare('SELECT password_version FROM members WHERE id=?')
+      .get(MEMBER_ID) as { password_version: number };
     dbCheck.close();
-    expect(replay.status).toBe(422);
+    expect(afterReplay.password_version).toBe(2);
 
     expect(res.headers['cache-control']).toMatch(/no-store/);
 
@@ -504,7 +750,7 @@ describe('POST /password/reset/:token — confirmation-email enqueue failure', (
       liftAddressSuppression: async () => {},
       processSendQueue: async () => ({
         claimed: 0, sent: 0, failed: 0, deadLettered: 0, manualReview: 0, paused: false,
-        suppressed: 0, sendingDark: false, bulkHalted: false, bulkPaused: false,
+        suppressed: 0, bulkHalted: false, bulkPaused: false,
       }),
     });
 
@@ -568,7 +814,7 @@ describe('Confirmation email for in-profile password change', () => {
         newPassword: NEW_PASSWORD,
         confirmPassword: NEW_PASSWORD,
       });
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(303);
     expect(countOutboxFor(MEMBER_EMAIL)).toBeGreaterThanOrEqual(1);
     const db = new BetterSqlite3(dbPath, { readonly: true });
     const row = oneRowAddedSince<{ subject: string }>(db, memberMail, beforeMail);

@@ -10,7 +10,7 @@ This project is developed under the auspices of the International Footbag Player
 
 ## Changes that touch IFPA matters
 
-A pull request that changes what the platform states or enforces as IFPA policy, rules, records, or membership terms is merged only after the IFPA Secretary approves it, or after a Board vote where the bylaws require one. The pull request records who approved and when.
+A change to what the platform states or enforces as IFPA policy, rules, records, or membership terms lands only after the IFPA Secretary approves it, or after a Board vote where the bylaws require one; its commit message or pull request records who approved and when.
 
 ## Repository
 

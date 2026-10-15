@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import {
   hit,
+  refund,
   resetRateLimitForTests,
   rateLimitBucketCountForTests,
 } from '../../src/services/rateLimitService';
@@ -244,5 +245,44 @@ describe('cooldown after the ceiling', () => {
     for (let i = 0; i < 60_000; i += 1) hit(`flood-${i}`, 3, 600);
 
     expect(hit('locked', 3, 1, 600).allowed).toBe(false);
+  });
+});
+
+describe('rateLimitService.refund', () => {
+  // Defect caught: a repeat recognised only after its attempt was counted keeps
+  // the slot, so a member's double click uses up their allowance.
+  it('returns one counted attempt, reopening a bucket the attempt had closed', () => {
+    hit('k', 2, 5);
+    hit('k', 2, 5);
+    refund('k');
+    expect(hit('k', 2, 5).allowed).toBe(true);
+    expect(hit('k', 2, 5).allowed).toBe(false);
+  });
+
+  // Defect caught: a refund below zero banks credit, so later attempts run
+  // past the ceiling the bucket exists to hold.
+  it('never lowers a bucket below zero and opens none for an unknown key', () => {
+    refund('never-hit');
+    expect(rateLimitBucketCountForTests()).toBe(0);
+    hit('k', 1, 5);
+    refund('k');
+    refund('k');
+    expect(hit('k', 1, 5).allowed).toBe(true);
+    expect(hit('k', 1, 5).allowed).toBe(false);
+  });
+
+  // Defect caught: the refunded attempt was the one that started a cooldown,
+  // and the cooldown outlives the refund, refusing an attempt that never counted.
+  it('lifts a cooldown the refunded attempt started', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-04-17T12:00:00Z'));
+    hit('k', 2, 1, 10);
+    hit('k', 2, 1, 10);
+    refund('k');
+    // The counting window has ended and no cooldown stands, so a fresh window
+    // opens with its full allowance.
+    vi.setSystemTime(new Date('2026-04-17T12:02:00Z'));
+    expect(hit('k', 2, 1, 10).allowed).toBe(true);
+    expect(hit('k', 2, 1, 10).allowed).toBe(true);
   });
 });

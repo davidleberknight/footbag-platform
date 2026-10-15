@@ -291,13 +291,14 @@ describe('getCleanupQueuePage', () => {
     expect(item!.detail).toContain('established club');
   });
 
-  it('a club the rules settle is demoted rather than queued', async () => {
+  it('a club the rules settle is listed for demotion rather than queued for a decision', async () => {
     const { clubCleanupService } = await import('../../src/services/clubCleanupService');
     const vm = clubCleanupService.getCleanupQueuePage();
     const queued = vm.content.itemGroups.flatMap(g => g.items).find(
       i => i.clubId === CLUB_WEAK && i.predicate === 'crowdsource_viability',
     );
     expect(queued).toBeUndefined();
+    expect(vm.content.ruleDemotions.map((d) => d.clubId)).toContain(CLUB_WEAK);
     expect(clubCleanupService.getClubVerdict(CLUB_WEAK)?.verdict).toBe('defunct_by_rule');
   });
 });
@@ -337,6 +338,7 @@ describe('candidate-flag group', () => {
     const badge = clubCleanupService.getBacklogBadge();
     const vm = clubCleanupService.getCleanupQueuePage();
     const visibleCount = vm.content.itemGroups.flatMap(g => g.items).length
+      + vm.content.ruleDemotions.length
       + vm.content.residue.length
       + vm.content.candidates.length
       + vm.content.junkCandidates.length

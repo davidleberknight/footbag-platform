@@ -27,11 +27,13 @@ const ADMIN_ID = 'aaaaaaaa-0000-0000-0000-00000000fe01';
 const MEMBER_ID = 'bbbbbbbb-0000-0000-0000-00000000fe02';
 const PERSONA_ADMIN_ID = 'member_persona_fse_rec';
 const PERSON_ID = 'hp-record-holder';
+const ADMIN2_ID = 'aaaaaaaa-0000-0000-0000-00000000fe03';
 
 function cookieFor(memberId: string, role: 'admin' | 'member'): string {
   return `__Host-footbag_session=${createTestSessionJwt({ memberId, role })}`;
 }
 const admin = () => cookieFor(ADMIN_ID, 'admin');
+const admin2 = () => cookieFor(ADMIN2_ID, 'admin');
 
 // A complete valid edit body for save_ok. Individual tests override a field.
 function validBody(overrides: Record<string, string> = {}): Record<string, string> {
@@ -61,6 +63,7 @@ beforeAll(async () => {
   insertMember(db, { id: ADMIN_ID, slug: 'fre_admin', display_name: 'FRE Admin', login_email: 'fre-admin@example.com', is_admin: 1 });
   insertMember(db, { id: MEMBER_ID, slug: 'fre_member', display_name: 'FRE Member', login_email: 'fre-member@example.com' });
   insertMember(db, { id: PERSONA_ADMIN_ID, slug: 'fre_persona', display_name: 'FRE Persona', login_email: 'fre-persona@example.com', is_admin: 1 });
+  insertMember(db, { id: ADMIN2_ID, slug: 'fre_admin_two', display_name: 'FRE Admin Two', login_email: 'fre-admin2@example.com', is_admin: 1 });
 
   insertHistoricalPerson(db, { person_id: PERSON_ID, person_name: 'Real Historical Holder' });
 
@@ -351,6 +354,41 @@ describe('freestyle records — add new', () => {
     ).all(newId) as { metadata_json: string }[];
     expect(audits).toHaveLength(1);
     expect(audits[0].metadata_json).toContain('Brand New Trick');
+  });
+
+  it('a repeated identical create by the same admin reports the first create: 303 to the same record, no second row', async () => {
+    // Defect caught: a re-posted create makes a second identical record, which then shows in every listing twice.
+    const body = validBody({ displayName: 'Repeat Holder', trickName: 'Repeat Trick', valueNumeric: '88' });
+    const first = await post('/admin/freestyle/records', admin(), body);
+    expect(first.status).toBe(303);
+    const countRows = () => (db.prepare(
+      `SELECT COUNT(*) AS n FROM freestyle_records WHERE trick_name = 'Repeat Trick'`,
+    ).get() as { n: number }).n;
+    const rowsAfterFirst = countRows();
+    const repeat = await post('/admin/freestyle/records', admin(), body);
+    expect(repeat.status).toBe(303);
+    expect(repeat.headers.location).toBe(first.headers.location);
+    expect(countRows()).toBe(rowsAfterFirst);
+  });
+
+  it("another admin's identical create is not this admin's repeat: it makes its own record", async () => {
+    // Defect caught: a second admin's create is silently swallowed into a record they never made.
+    // The table has no natural key, so identical records by two admins are both kept.
+    const body = validBody({ displayName: 'Shared Holder', trickName: 'Shared Trick', valueNumeric: '89' });
+    const first = await post('/admin/freestyle/records', admin(), body);
+    expect(first.status).toBe(303);
+    const other = await post('/admin/freestyle/records', admin2(), body);
+    expect(other.status).toBe(303);
+    expect(other.headers.location).not.toBe(first.headers.location);
+  });
+
+  it('the same admin re-posting with any field changed makes a new record, not a repeat', async () => {
+    // Defect caught: a changed resubmit is swallowed into the first record, losing the new values.
+    const body = validBody({ displayName: 'Change Holder', trickName: 'Change Trick', valueNumeric: '90' });
+    const first = await post('/admin/freestyle/records', admin(), body);
+    const changed = await post('/admin/freestyle/records', admin(), { ...body, valueNumeric: '91' });
+    expect(changed.status).toBe(303);
+    expect(changed.headers.location).not.toBe(first.headers.location);
   });
 
   it('re-renders the new form at 422 on invalid input, preserving submitted values', async () => {

@@ -409,14 +409,14 @@ describe('GET /members/:memberKey/edit — edit form', () => {
 // ── POST /members/:memberKey/edit ───────────────────────────────────────────────
 
 describe('POST /members/:memberKey/edit — save profile', () => {
-  it('unauthenticated → 302 to /login with returnTo', async () => {
+  it('unauthenticated → 302 to /login, with no return to the post-only address', async () => {
     const app = createApp();
     const res = await request(app)
       .post(`/members/${OWN_SLUG}/edit`)
       .type('form')
       .send({ bio: '', city: 'Portland', region: 'OR', country: 'US', phone: '', emailVisibility: 'private', birthDay: '14', birthMonth: '3', birthYear: '1978' });
     expect(res.status).toBe(302);
-    expect(res.headers.location).toBe(`/login?returnTo=%2Fmembers%2F${OWN_SLUG}%2Fedit`);
+    expect(res.headers.location).toBe('/login');
   });
 
   it("another member's profile edit → 404 (cross-member write guard)", async () => {
@@ -554,20 +554,22 @@ describe('POST /members/:memberKey/edit — save profile', () => {
     tuneDb.close();
     try {
       const app = createApp();
+      // Each save changes the bio: a save that changes nothing spends no edit,
+      // so only real changes fill the bucket.
       const validBody = { bio: '', city: 'Portland', region: 'OR', country: 'US', phone: '', emailVisibility: 'private', birthDay: '14', birthMonth: '3', birthYear: '1978' };
       for (let i = 0; i < 2; i++) {
         const ok = await request(app)
           .post(`/members/${OWN_SLUG}/edit`)
           .set('Cookie', ownCookie())
           .type('form')
-          .send(validBody);
+          .send({ ...validBody, bio: `Rate-limited edit ${i}` });
         expect(ok.status).toBe(303);
       }
       const blocked = await request(app)
         .post(`/members/${OWN_SLUG}/edit`)
         .set('Cookie', ownCookie())
         .type('form')
-        .send(validBody);
+        .send({ ...validBody, bio: 'Rate-limited edit 2' });
       expect(blocked.status).toBe(429);
       expect(blocked.headers['retry-after']).toBeDefined();
     } finally {
@@ -660,11 +662,9 @@ describe('gender public visibility', () => {
 // ── GET /members/:memberKey/:section — stub pages ───────────────────────────────
 
 describe('GET /members/:memberKey/:section — stub pages', () => {
-  // `password` is no longer a stub section — it has a real form at
-  // /members/:slug/edit/password. Nor are `download` and `delete`: deleting an
-  // account has its own confirmation page, and asking for a data export is a
-  // form submission rather than a page, so a bare GET of it is not a section at
-  // all. Both are asserted below rather than left to this loop.
+  // `password`, `download` and `delete` are not stub sections: each has a real
+  // route of its own (the password form, the signed-in data download, and the
+  // account deletion confirmation), registered ahead of this catch-all.
   const VALID_SECTIONS = ['media', 'settings'];
 
   it('unauthenticated → 302 to /login with returnTo', async () => {
@@ -692,14 +692,6 @@ describe('GET /members/:memberKey/:section — stub pages', () => {
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('coming soon');
     expect(res.text).toContain('Deleting your account is permanent');
-  });
-
-  it('a bare data-export section is not a page: the request is a form submission', async () => {
-    const app = createApp();
-    const res = await request(app)
-      .get(`/members/${OWN_SLUG}/download`)
-      .set('Cookie', ownCookie());
-    expect(res.status).toBe(404);
   });
 
   it("another member's stub page → 404", async () => {

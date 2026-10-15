@@ -25,10 +25,13 @@ const { dbPath } = setTestEnv('4377');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 let db: BetterSqlite3.Database;
+let anchorLimit: number;
 
 beforeAll(async () => {
   db = createTestDb(dbPath);
   createApp = await importApp();
+  const { readIntConfig } = await import('../../src/services/configReader');
+  anchorLimit = readIntConfig('declared_anchor_rate_limit_max_per_member', 10);
 });
 
 afterAll(() => {
@@ -340,6 +343,244 @@ describe('claiming under the surname a card carries', () => {
     expect(res.status).toBe(422);
     expect(res.text).toContain(NO_LONGER_AVAILABLE);
     expect(count('SELECT COUNT(*) AS n FROM member_declared_anchors WHERE member_id = ?', m)).toBe(0);
+  });
+});
+
+describe('a differing-surname candidate only a declared old address reaches', () => {
+  /** An old account and its linked record under `before`, carrying `old` as its address. */
+  function seedOldAccount(first: string, before: string, old: string): { account: string; record: string } {
+    const account = insertLegacyMember(db, { real_name: `${first} ${before}`, legacy_email: old });
+    const record = insertHistoricalPerson(db, { person_name: `${first} ${before}`, legacy_member_id: account });
+    return { account, record };
+  }
+
+  function claimState(memberId: string, account: string) {
+    return {
+      links: links(memberId),
+      grants: count(`SELECT COUNT(*) AS n FROM member_tier_grants
+                     WHERE member_id = ? AND reason_code = 'legacy.claim_tier_grant'`, memberId),
+      accountClaimed: count(`SELECT COUNT(*) AS n FROM legacy_members
+                             WHERE legacy_member_id = ? AND claimed_by_member_id IS NOT NULL`, account),
+      formerSurnames: count(`SELECT COUNT(*) AS n FROM member_declared_anchors
+                             WHERE member_id = ? AND anchor_type = 'former_surname'`, memberId),
+    };
+  }
+
+  // Defect caught: anyone who types someone's old address is shown that
+  // person's card, learns the surname on it, and takes the account and its
+  // tier with the one-step surname claim; or a crafted post of that claim
+  // succeeds although no card offered it.
+  it('shows no card for it, and refuses a crafted surname claim of it with nothing claimed', async () => {
+    const now = surname();
+    const before = surname();
+    const old = `cs-unproven-${before}@old.example.com`.toLowerCase();
+    const { account, record } = seedOldAccount('Ike', before, old);
+    const m = registrant({ real_name: `Ike ${now}` });
+    insertMemberDeclaredAnchor(db, { member_id: m, anchor_type: 'old_email', anchor_value: old });
+
+    const view = await page(m);
+    expect(view.status).toBe(200);
+    expect(view.text).not.toContain(before);
+    expect(view.text).not.toContain(`value="${account}"`);
+    expect(view.text).not.toContain('action="/register/wizard/legacy_claim/claim-with-surname"');
+
+    const crafted = await post(`${CLAIM_STEP}/claim-with-surname`, m, { accountId: account, recordId: record });
+    expect(crafted.status).toBe(422);
+    expect(crafted.text).toContain(NO_LONGER_AVAILABLE);
+    expect(claimState(m, account)).toEqual({
+      links: { legacy_member_id: null, historical_person_id: null },
+      grants: 0, accountClaimed: 0, formerSurnames: 0,
+    });
+    expect(auditRows(m, 'claim.legacy_account')).toHaveLength(0);
+  });
+
+  // Defect caught: hiding the declared-address case also hides the candidate
+  // when the member's verified sign-in address reaches it too, so a member
+  // whose name changed loses the one-step claim of their own account just
+  // because they also declared an old address it carries.
+  it('still offers the surname claim when the verified sign-in address reaches it as well', async () => {
+    const now = surname();
+    const before = surname();
+    const login = `cs-both-${now}@example.com`.toLowerCase();
+    const old = `cs-both-old-${before}@old.example.com`.toLowerCase();
+    const account = insertLegacyMember(db, { real_name: `Jem ${before}`, legacy_email: login, legacy_email2: old });
+    const m = registrant({ real_name: `Jem ${now}`, login_email: login });
+    insertMemberDeclaredAnchor(db, { member_id: m, anchor_type: 'old_email', anchor_value: old });
+
+    const view = await page(m);
+    expect(view.status).toBe(200);
+    expect(view.text).toContain(`I Used the Surname ${before}`);
+
+    const res = await post(`${CLAIM_STEP}/claim-with-surname`, m, { accountId: account, recordId: '' });
+    expect(res.status).toBe(303);
+    expect(claimState(m, account)).toEqual({
+      links: { legacy_member_id: account, historical_person_id: null },
+      grants: 1, accountClaimed: 1, formerSurnames: 1,
+    });
+  });
+
+  // Defect caught: the administrator's candidate list shows an internal status
+  // code instead of saying why the member could not claim the account, so the
+  // administrator cannot tell a surname mismatch from a hidden candidate.
+  it('labels a differing-surname candidate and a hidden one in words for the administrator', async () => {
+    const { identityAccessService } = await import('../../src/services/identityAccessService');
+
+    const nowA = surname();
+    const beforeA = surname();
+    const login = `cs-admin-${nowA}@example.com`.toLowerCase();
+    const reached = insertLegacyMember(db, { real_name: `Lev ${beforeA}`, legacy_email: login });
+    const a = registrant({ real_name: `Lev ${nowA}`, login_email: login });
+    const labelA = identityAccessService.getLinkCandidatesForAdmin(a).legacyAccounts
+      .find((c) => c.legacyMemberId === reached)?.statusLabel;
+    expect(labelA).toBe('Reached, but the surname differs from the member\'s.');
+
+    const nowB = surname();
+    const beforeB = surname();
+    const old = `cs-admin-old-${beforeB}@old.example.com`.toLowerCase();
+    const { account } = seedOldAccount('Lev', beforeB, old);
+    const b = registrant({ real_name: `Lev ${nowB}` });
+    insertMemberDeclaredAnchor(db, { member_id: b, anchor_type: 'old_email', anchor_value: old });
+    const labelB = identityAccessService.getLinkCandidatesForAdmin(b).legacyAccounts
+      .find((c) => c.legacyMemberId === account)?.statusLabel;
+    expect(labelB).toBe('Hidden from the member: only an old address they declared reaches it, and the surname differs.');
+  });
+
+  // Defect caught: a member who declares the surname they really used still
+  // cannot see or claim their own account found through their old address.
+  it('becomes an ordinary claimable card once the member declares that surname', async () => {
+    const now = surname();
+    const before = surname();
+    const old = `cs-declared-${before}@old.example.com`.toLowerCase();
+    const { account, record } = seedOldAccount('Kit', before, old);
+    const m = registrant({ real_name: `Kit ${now}` });
+    insertMemberDeclaredAnchor(db, { member_id: m, anchor_type: 'old_email', anchor_value: old });
+
+    const added = await post(`${CLAIM_STEP}/anchors/add`, m, { anchorType: 'former_surname', anchorValue: before });
+    expect(added.status).toBe(303);
+
+    const view = await page(m);
+    expect(view.status).toBe(200);
+    expect(view.text).toContain('action="/register/wizard/legacy_claim/claim"');
+    expect(view.text).toContain(`value="${account}"`);
+    expect(view.text).not.toContain('action="/register/wizard/legacy_claim/claim-with-surname"');
+
+    const res = await post(`${CLAIM_STEP}/claim`, m, { accountId: account, recordId: record });
+    expect(res.status).toBe(303);
+    expect(claimState(m, account)).toEqual({
+      links: { legacy_member_id: account, historical_person_id: record },
+      grants: 1, accountClaimed: 1, formerSurnames: 1,
+    });
+  });
+
+  // Defect caught: rendering the claim step records something (an anchor, a
+  // refusal, a claim or a ledger row), so merely looking at the cards changes
+  // the member's evidence or history.
+  it('showing the claim step writes nothing', async () => {
+    const now = surname();
+    const before = surname();
+    const old = `cs-readonly-${before}@old.example.com`.toLowerCase();
+    const { account } = seedOldAccount('Lev', before, old);
+    const m = registrant({ real_name: `Lev ${now}` });
+    insertMemberDeclaredAnchor(db, { member_id: m, anchor_type: 'old_email', anchor_value: old });
+
+    const snapshot = () => ({
+      audits: count('SELECT COUNT(*) AS n FROM audit_entries WHERE actor_member_id = ? OR entity_id = ?', m, m),
+      anchors: count('SELECT COUNT(*) AS n FROM member_declared_anchors WHERE member_id = ?', m),
+      member: db.prepare('SELECT version, updated_at FROM members WHERE id = ?').get(m),
+      task: db.prepare(`SELECT state, version FROM member_onboarding_tasks
+                         WHERE member_id = ? AND task_type = 'legacy_claim'`).get(m) ?? null,
+      claim: claimState(m, account),
+    });
+    const before1 = snapshot();
+    const view = await page(m);
+    expect(view.status).toBe(200);
+    expect(snapshot()).toEqual(before1);
+  });
+});
+
+describe('declaring an anchor', () => {
+  const add = (memberId: string, anchorType: string, anchorValue: string) =>
+    post(`${CLAIM_STEP}/anchors/add`, memberId, { anchorType, anchorValue });
+
+  /** Spend all but one of the member's anchor-change slots on real adds. */
+  async function spendAllButOne(memberId: string): Promise<void> {
+    for (let i = 0; i < anchorLimit - 1; i++) {
+      const res = await add(memberId, 'former_surname', surname());
+      expect(res.status, `real add ${i + 1}`).toBe(303);
+    }
+  }
+
+  // Defect caught: a double submit or a re-add of an anchor already on file
+  // uses up the member's anchor allowance, so a member who resubmits is later
+  // refused a genuine new anchor.
+  it('spends no rate-limit slot re-adding an anchor already on file', async () => {
+    const m = registrant({ real_name: `Mo ${surname()}` });
+    const first = surname();
+    expect((await add(m, 'former_surname', first)).status).toBe(303);
+    await spendAllButOne(m);
+    // The bucket now holds the limit: one more real add would be refused.
+    for (const repeat of [first, ` ${first} `]) {
+      expect((await add(m, 'former_surname', repeat)).status).toBe(303);
+    }
+    expect(count('SELECT COUNT(*) AS n FROM member_declared_anchors WHERE member_id = ?', m)).toBe(anchorLimit);
+    expect(auditRows(m, 'legacy.anchor_declared')).toHaveLength(anchorLimit);
+    // A further genuine add is refused because the real adds filled the
+    // bucket, not because the repeats did.
+    const over = await add(m, 'former_surname', surname());
+    expect(over.status).toBe(429);
+  });
+
+  // Defect caught: a blank, unknown-kind or refused submit uses up the
+  // member's anchor allowance before it is refused.
+  it('spends no rate-limit slot on a blank, unknown or over-long submit', async () => {
+    const m = registrant({ real_name: `Ned ${surname()}` });
+    await spendAllButOne(m);
+    const refused = [
+      await add(m, 'former_surname', '   '),
+      await add(m, 'nickname', 'Whatever'),
+      await add(m, 'former_surname', 'X'.repeat(36)),
+    ];
+    expect(refused.map((r) => r.status)).toEqual([422, 422, 422]);
+    const last = await add(m, 'former_surname', surname());
+    expect(last.status).toBe(303);
+    expect(count('SELECT COUNT(*) AS n FROM member_declared_anchors WHERE member_id = ?', m)).toBe(anchorLimit);
+  });
+
+  // Defect caught: a former surname of any length is stored and matched, so
+  // a member can save a 5000-character value, or a genuine surname at the
+  // family-name limit is refused. The cap is the family-name cap (35
+  // characters, the UK Government Data Standards person-name length the
+  // registration form already holds a family name to).
+  it('refuses a former surname longer than a family name may be, and stores nothing', async () => {
+    const m = registrant({ real_name: `Ola ${surname()}` });
+    for (const value of ['Y'.repeat(36), 'Y'.repeat(5000)]) {
+      const res = await add(m, 'former_surname', value);
+      expect(res.status, `${value.length} characters`).toBe(422);
+      expect(res.text).toContain('Family name must be 35 characters or fewer.');
+    }
+    expect(count('SELECT COUNT(*) AS n FROM member_declared_anchors WHERE member_id = ?', m)).toBe(0);
+    expect(auditRows(m, 'legacy.anchor_declared')).toHaveLength(0);
+
+    const atLimit = await add(m, 'former_surname', 'Y'.repeat(35));
+    expect(atLimit.status).toBe(303);
+    expect(count('SELECT COUNT(*) AS n FROM member_declared_anchors WHERE member_id = ?', m)).toBe(1);
+  });
+
+  // Defect caught: an old email that is not an address at all is stored and
+  // listed back to the member as a matching key that can never match.
+  it('refuses an old email that is not a complete address, and stores nothing', async () => {
+    const m = registrant({ real_name: `Ola ${surname()}` });
+    for (const value of ['not-an-email', 'name@', 'name@example', 'two words@example.com']) {
+      const res = await add(m, 'old_email', value);
+      expect(res.status, value).toBe(422);
+      expect(res.text).toContain('Enter a complete email address, such as name@example.com.');
+    }
+    expect(count('SELECT COUNT(*) AS n FROM member_declared_anchors WHERE member_id = ?', m)).toBe(0);
+    expect(auditRows(m, 'legacy.anchor_declared')).toHaveLength(0);
+
+    const valid = await add(m, 'old_email', 'Old.Name@Example.com');
+    expect(valid.status).toBe(303);
+    expect(count('SELECT COUNT(*) AS n FROM member_declared_anchors WHERE member_id = ?', m)).toBe(1);
   });
 });
 

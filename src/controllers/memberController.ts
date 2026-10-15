@@ -186,28 +186,13 @@ export const memberController = {
     }
   },
 
-  /** POST /members/:memberKey/download */
-  postRequestDataExport(req: Request, res: Response, next: NextFunction): void {
+  /** GET /members/:memberKey/download
+   *  The signed-in member's own data, built and returned in this response. A
+   *  read: it writes nothing, so a repeat or a prefetch is harmless. */
+  getDataExportDownload(req: Request, res: Response, next: NextFunction): void {
     if (!isOwnMemberRoute(req)) { renderNotFound(res); return; }
     try {
-      const outcome = memberDataExportService.requestExport(req.user!.userId);
-      if (outcome.status !== 'sent') { renderNotFound(res); return; }
-      res.render('members/download-requested', memberService.getDataExportRequestedPage(req.params.memberKey));
-    } catch (err) {
-      if (err instanceof NotFoundError) { renderNotFound(res); return; }
-      next(err);
-    }
-  },
-
-  /** GET /members/:memberKey/download/:token
-   *  The emailed link, and no session required: holding the token is the proof
-   *  of mailbox control the design asks for. The token, not the member key in
-   *  the path, decides whose data is served. */
-  getDataExportDownload(req: Request, res: Response, next: NextFunction): void {
-    try {
-      const consumed = memberDataExportService.consumeDownloadToken(String(req.params.token));
-      if (!consumed) { renderNotFound(res); return; }
-      const out = memberDataExportService.getExportBody(consumed.memberId);
+      const out = memberDataExportService.getExportBody(req.user!.userId);
       res.setHeader('Content-Type', `${out.contentType}; charset=utf-8`);
       res.setHeader('Content-Disposition', `attachment; filename="${out.filename}"`);
       res.send(out.body);
@@ -243,7 +228,9 @@ export const memberController = {
         memberId: req.user!.userId,
         recurringDonationChoice: req.body.recurringDonation === 'cancel' ? 'cancel' : 'keep',
       });
-      if (result.status !== 'deleted') {
+      // A deletion that already landed (two overlapping submits) is the same
+      // outcome as the first, so it gets the same done page.
+      if (result.status !== 'deleted' && result.status !== 'already_deleted') {
         res.status(422).render(
           'members/delete-account',
           memberService.getAccountDeletionPage(memberKey, { notice: result.status === 'not_found' ? 'already_deleted' : result.status }),
@@ -433,13 +420,17 @@ export const memberController = {
       renderNotFound(res);
       return;
     }
+    // The change redirects here, so this page is the one that reports it.
+    const flash = readFlash(req);
+    const success = flash?.kind === FLASH_KIND.PASSWORD_CHANGED;
+    if (success) clearFlash(res, req);
     res.render('members/password-edit', {
       seo:  { title: 'Change Password' },
       page: { sectionKey: 'members', pageKey: 'member_password', title: 'Change Password' },
       navigation: {
         contextLinks: [{ label: 'Back to Profile', href: `/members/${req.params.memberKey}` }],
       },
-      content: { memberKey: req.params.memberKey },
+      content: { memberKey: req.params.memberKey, success },
     } satisfies PageViewModel<MemberPasswordEditContent>);
   },
 
@@ -451,14 +442,14 @@ export const memberController = {
     }
     const memberId = req.user!.userId;
 
-    const renderForm = (opts: { error?: string; success?: boolean; status?: number }) => {
-      res.status(opts.status ?? 200).render('members/password-edit', {
+    const renderForm = (opts: { error: string; status: number }) => {
+      res.status(opts.status).render('members/password-edit', {
         seo:  { title: 'Change Password' },
         page: { sectionKey: 'members', pageKey: 'member_password', title: 'Change Password' },
         navigation: {
           contextLinks: [{ label: 'Back to Profile', href: `/members/${req.params.memberKey}` }],
         },
-        content: { error: opts.error, success: opts.success, memberKey: req.params.memberKey },
+        content: { error: opts.error, memberKey: req.params.memberKey },
       } satisfies PageViewModel<MemberPasswordEditContent>);
     };
 
@@ -477,9 +468,14 @@ export const memberController = {
       // service signed it before committing the change, so by the time we get
       // here the token is guaranteed to exist and to carry the new version.
       // Other devices, still on the old version, are rejected by the auth
-      // middleware's per-request check.
-      issueSessionCookie(res, result.sessionJwt, req);
-      renderForm({ success: true });
+      // middleware's per-request check. A re-post of a change that already
+      // landed changes nothing and needs no new cookie, unless it overlapped
+      // the change itself: then it carries the session for the version the
+      // change committed, because the browser may keep this response's cookies
+      // rather than the change's.
+      if (result.sessionJwt) issueSessionCookie(res, result.sessionJwt, req);
+      writeFlash(res, req, FLASH_KIND.PASSWORD_CHANGED);
+      res.redirect(303, `/members/${encodeURIComponent(req.params.memberKey)}/edit/password`);
     } catch (err) {
       if (err instanceof RateLimitedError) {
         if (err.retryAfterSeconds) res.setHeader('Retry-After', String(err.retryAfterSeconds));

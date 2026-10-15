@@ -2,8 +2,8 @@
  * Integration tests for memberOnboardingService.
  *
  * Exercises the scaffold contract: task list lifecycle, state transitions,
- * audit emission per transition, idempotent startTaskList, and the
- * NotImplementedError thrown by submitTaskResponse pending per-task handlers.
+ * audit emission per transition, a missing task row reading as pending, and
+ * the NotImplementedError thrown by submitTaskResponse pending per-task handlers.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
@@ -23,8 +23,7 @@ let ValidationError: typeof ValidationErrorType;
 
 // One member per scenario keeps tests independent without per-test DB resets.
 const MEMBER_NO_TASKS    = 'member-onb-no-tasks';
-const MEMBER_LIST        = 'member-onb-list';
-const MEMBER_NO_AUDIT    = 'member-onb-no-audit';
+const MEMBER_PARTIAL     = 'member-onb-partial';
 const MEMBER_UNANSWERED  = 'member-onb-unanswered';
 const MEMBER_LAZY        = 'member-onb-lazy';
 const MEMBER_COMPLETE    = 'member-onb-complete';
@@ -37,7 +36,7 @@ const MEMBER_NEXT_NONE    = 'member-onb-next-none';
 beforeAll(async () => {
   const db = createTestDb(dbPath);
   for (const id of [
-    MEMBER_NO_TASKS, MEMBER_LIST, MEMBER_NO_AUDIT, MEMBER_UNANSWERED,
+    MEMBER_NO_TASKS, MEMBER_PARTIAL, MEMBER_UNANSWERED,
     MEMBER_LAZY, MEMBER_COMPLETE, MEMBER_CYCLE,
     MEMBER_BAD_TYPE,
     MEMBER_NEXT_PENDING, MEMBER_NEXT_PAUSED, MEMBER_NEXT_NONE,
@@ -56,6 +55,15 @@ beforeAll(async () => {
 });
 
 afterAll(() => cleanupTestDb(dbPath));
+
+// The checklist as email verification leaves it: three pending rows.
+function seedPendingTasks(memberId: string): void {
+  const d = new BetterSqlite3(dbPath);
+  for (const t of ['personal_details', 'legacy_claim', 'club_affiliations'] as const) {
+    insertOnboardingTask(d, memberId, t, 'pending');
+  }
+  d.close();
+}
 
 interface TaskRow {
   id: string;
@@ -126,7 +134,7 @@ describe('memberOnboardingService.nextOutstandingTaskType', () => {
     const d = new BetterSqlite3(dbPath);
     insertMember(d, { id: 'dash-order-1', slug: 'dash_order_1', login_email: 'dash1@example.com', onboarding: 'none' });
     d.close();
-    svc.startTaskList('dash-order-1');
+    seedPendingTasks('dash-order-1');
     expect(svc.nextOutstandingTaskType('dash-order-1')).toBe('personal_details');
     svc.completeTask('dash-order-1', 'personal_details');
     expect(svc.nextOutstandingTaskType('dash-order-1')).toBe('legacy_claim');
@@ -137,41 +145,36 @@ describe('memberOnboardingService.nextOutstandingTaskType', () => {
   });
 });
 
-describe('a member with no task rows is pending, not finished', () => {
-  it('has nothing outstanding to name yet and is not a member', () => {
+describe('a missing task row reads as pending', () => {
+  it('a member with no rows is pending and is sent to the first step, and reading writes no row', () => {
     // Zero rows must never read as "all done": the account has not answered
-    // anything, so the membership predicate has to stay false.
-    expect(svc.nextOutstandingTaskType(MEMBER_NO_TASKS)).toBeNull();
+    // anything, so the membership predicate stays false and the member is
+    // routed to the first step rather than to a completion page that would
+    // bounce them straight back.
+    expect(svc.nextOutstandingTaskType(MEMBER_NO_TASKS)).toBe(TASK_CATALOG[0]);
+    expect(svc.hasOtherOutstandingTasks(MEMBER_NO_TASKS, 'personal_details')).toBe(true);
     expect(svc.isOnboardingComplete(MEMBER_NO_TASKS)).toBe(false);
-  });
-});
-
-describe('memberOnboardingService.startTaskList', () => {
-  it('inserts one pending row per task type in the catalog', () => {
-    svc.startTaskList(MEMBER_LIST);
-    const rows = readTaskRows(MEMBER_LIST);
-    expect(rows).toHaveLength(TASK_CATALOG.length);
-    for (const row of rows) {
-      expect(row.state).toBe('pending');
-      expect(row.completed_at).toBeNull();
-    }
-    expect(new Set(rows.map((r) => r.task_type))).toEqual(new Set(TASK_CATALOG));
+    expect(readTaskRows(MEMBER_NO_TASKS)).toHaveLength(0);
   });
 
-  it('is idempotent: a second call does not duplicate rows', () => {
-    svc.startTaskList(MEMBER_LIST);
-    const rows = readTaskRows(MEMBER_LIST);
-    expect(rows).toHaveLength(TASK_CATALOG.length);
+  it('a member holding only a completed first row is sent to the next step, not looped back', () => {
+    const d = new BetterSqlite3(dbPath);
+    insertOnboardingTask(d, MEMBER_PARTIAL, 'personal_details', 'completed');
+    d.close();
+    expect(svc.nextOutstandingTaskType(MEMBER_PARTIAL)).toBe('legacy_claim');
+    expect(svc.hasOtherOutstandingTasks(MEMBER_PARTIAL, 'legacy_claim')).toBe(true);
+    expect(svc.isOnboardingComplete(MEMBER_PARTIAL)).toBe(false);
   });
 
-  it('does not emit audit rows', () => {
-    svc.startTaskList(MEMBER_NO_AUDIT);
-    expect(readAuditRowsForMember(MEMBER_NO_AUDIT)).toHaveLength(0);
-  });
-
-  it('leaves the member pending, pointed at the first task in catalog order', () => {
-    expect(svc.isOnboardingComplete(MEMBER_LIST)).toBe(false);
-    expect(svc.nextOutstandingTaskType(MEMBER_LIST)).toBe(TASK_CATALOG[0]);
+  it('completing a task with no row creates it completed, with its audit row', () => {
+    const memberId = 'onb-rowless-complete';
+    const d = new BetterSqlite3(dbPath);
+    insertMember(d, { id: memberId, slug: 'onb_rowless_complete', login_email: 'onbrc@example.com', onboarding: 'none' });
+    d.close();
+    svc.completeTask(memberId, 'personal_details');
+    const rows = readTaskRows(memberId);
+    expect(rows.map((r) => [r.task_type, r.state])).toEqual([['personal_details', 'completed']]);
+    expect(readAuditRowsForMember(memberId).map((a) => a.action_type)).toEqual(['wizard.task.completed']);
   });
 });
 
@@ -203,7 +206,7 @@ describe('a task is outstanding until it is completed', () => {
 
 describe('memberOnboardingService.completeTask', () => {
   it('transitions to completed, sets completed_at, removes from widget, and emits one audit row', () => {
-    svc.startTaskList(MEMBER_COMPLETE);
+    seedPendingTasks(MEMBER_COMPLETE);
     svc.completeTask(MEMBER_COMPLETE, 'club_affiliations');
 
     const rows = readTaskRows(MEMBER_COMPLETE);
@@ -231,9 +234,9 @@ describe('memberOnboardingService transition audit trail', () => {
     insertOnboardingTask(d, MEMBER_CYCLE, 'club_affiliations', 'pending');
     d.close();
 
-    // The row is already pending, so starting it again changes nothing and
-    // must not pad the trail with a transition that did not happen.
-    svc.startTask(MEMBER_CYCLE, 'club_affiliations');
+    // Completing an already-completed task changes nothing and must not pad
+    // the trail with a transition that did not happen.
+    svc.completeTask(MEMBER_CYCLE, 'club_affiliations');
     svc.completeTask(MEMBER_CYCLE, 'club_affiliations');
 
     const rows = readTaskRows(MEMBER_CYCLE);
@@ -253,7 +256,7 @@ describe('memberOnboardingService completion audit row', () => {
     const d = new BetterSqlite3(dbPath);
     insertMember(d, { id: memberId, slug: 'onb_complete_audit', login_email: 'onbca@example.com', onboarding: 'none' });
     d.close();
-    svc.startTaskList(memberId);
+    seedPendingTasks(memberId);
 
     svc.completeTask(memberId, 'personal_details');
     svc.completeTask(memberId, 'legacy_claim');
@@ -274,7 +277,7 @@ describe('memberOnboardingService completion audit row', () => {
     const d = new BetterSqlite3(dbPath);
     insertMember(d, { id: memberId, slug: 'onb_complete_audit_2', login_email: 'onbca2@example.com', onboarding: 'none' });
     d.close();
-    svc.startTaskList(memberId);
+    seedPendingTasks(memberId);
 
     svc.completeTask(memberId, 'personal_details');
     svc.completeTask(memberId, 'club_affiliations');
@@ -300,10 +303,6 @@ describe('memberOnboardingService.submitTaskResponse', () => {
 });
 
 describe('memberOnboardingService transition validation', () => {
-  it('startTask throws ValidationError for an unknown task type', () => {
-    expect(() => svc.startTask(MEMBER_BAD_TYPE, 'bogus' as never))
-      .toThrow(ValidationError);
-  });
   it('completeTaskIfOutstanding throws ValidationError for an unknown task type', () => {
     expect(() => svc.completeTaskIfOutstanding(MEMBER_BAD_TYPE, 'bogus' as never))
       .toThrow(ValidationError);
@@ -316,17 +315,20 @@ describe('memberOnboardingService transition validation', () => {
 
 describe('memberOnboardingService.nextOutstandingTaskType', () => {
   it('returns the lowest-index pending task for a fresh task list', () => {
-    svc.startTaskList(MEMBER_NEXT_PENDING);
+    seedPendingTasks(MEMBER_NEXT_PENDING);
     expect(svc.nextOutstandingTaskType(MEMBER_NEXT_PENDING)).toBe(TASK_CATALOG[0]);
   });
 
   it('skips answered tasks and returns the next one still pending', () => {
-    svc.startTaskList(MEMBER_NEXT_PAUSED);
+    seedPendingTasks(MEMBER_NEXT_PAUSED);
     svc.completeTask(MEMBER_NEXT_PAUSED, TASK_CATALOG[0]);
     expect(svc.nextOutstandingTaskType(MEMBER_NEXT_PAUSED)).toBe(TASK_CATALOG[1]);
   });
 
   it('returns null when the member has no outstanding tasks', () => {
+    const d = new BetterSqlite3(dbPath);
+    for (const t of TASK_CATALOG) insertOnboardingTask(d, MEMBER_NEXT_NONE, t, 'completed');
+    d.close();
     expect(svc.nextOutstandingTaskType(MEMBER_NEXT_NONE)).toBeNull();
   });
 });

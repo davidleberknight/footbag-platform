@@ -80,7 +80,12 @@ export type RequestAccountDeletionResult =
       eventsNeedingOrganizer: number;
       recurringDonationCanceled: boolean;
     }
-  | { status: 'already_deleted' }
+  | {
+      /** A repeat of a deletion that already landed, so the member is shown
+       *  the same done page the first request rendered. */
+      status: 'already_deleted';
+      graceDays: number;
+    }
   | { status: 'administrator' }
   | {
       /** Every object removed before the failure took its row with it, so what
@@ -154,14 +159,13 @@ export function createAccountDeletionService(deps: AccountDeletionServiceDeps) {
       recurringDonationChoice: RecurringDonationChoice;
     }): Promise<RequestAccountDeletionResult> {
       const row = account.readForDeletionRequest.get(input.memberId) as DeletionMemberRow | undefined;
+      const graceDays = readIntConfig('member_cleanup_grace_days', 90);
       if (!row) return { status: 'not_found' };
-      if (row.deleted_at !== null) return { status: 'already_deleted' };
+      if (row.deleted_at !== null) return { status: 'already_deleted', graceDays };
       // An administrator cannot drop their own role, so an administrator who
       // deleted their account would leave the role attached to a row no screen
       // offers any more. They hand the role to someone else first.
       if (row.is_admin === 1) return { status: 'administrator' };
-
-      const graceDays = readIntConfig('member_cleanup_grace_days', 90);
 
       let recurringDonationCanceled = false;
       if (input.recurringDonationChoice === 'cancel') {
@@ -237,7 +241,9 @@ export function createAccountDeletionService(deps: AccountDeletionServiceDeps) {
             params:   { memberName: row.display_name, graceDays },
             recipientEmail:    row.login_email,
             recipientMemberId: input.memberId,
-            idempotencyKey:    `account-deletion:${input.memberId}:${nowIso}`,
+            // An account is deleted once and never restored, so the member
+            // alone identifies the act.
+            idempotencyKey:    `account-deletion:${input.memberId}`,
             strict:            true,
           });
         }
@@ -278,7 +284,7 @@ export function createAccountDeletionService(deps: AccountDeletionServiceDeps) {
         return { registrationsWithdrawn: withdrawn.changes };
       });
 
-      if (committed === null) return { status: 'already_deleted' };
+      if (committed === null) return { status: 'already_deleted', graceDays };
 
       hashtagDiscoveryService.decrementTagStats(deletedTagIds);
 

@@ -38,7 +38,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { freestyleRecords, historicalPersonLookup, transaction } from '../db/db';
-import { appendAuditEntry } from './auditService';
+import { appendAuditEntry, findOwnLatestAudit } from './auditService';
 import { ForbiddenError, NotFoundError, ValidationError } from './serviceErrors';
 import { PageViewModel } from '../types/page';
 import { config } from '../config/env';
@@ -415,6 +415,10 @@ export const freestyleRecordCurationService = {
     assertActorMayCurateFreestyle(actorMemberId);
     const id = randomUUID();
     const v = validateRecordInput(input, id);
+    // A repeat of this actor's own create, with every field the same, returns the
+    // record that create made. Another actor's identical record is not a repeat.
+    const ownRecordId = ownIdenticalCreatedRecordId(v, actorMemberId);
+    if (ownRecordId !== null) return ownRecordId;
 
     transaction(() => {
       freestyleRecords.insertForCuration.run(
@@ -436,6 +440,22 @@ export const freestyleRecordCurationService = {
     return id;
   },
 };
+
+/** The id of a record this actor created whose stored values equal every field of
+ *  the submitted create, or null. */
+function ownIdenticalCreatedRecordId(v: ValidatedRecord, actorMemberId: string): string | null {
+  const matches = freestyleRecords.findIdenticalForCuration.all(
+    v.recordType, v.personId, v.displayName, v.trickName, v.sortName, v.addsCount,
+    v.valueNumeric, v.valueText, v.achievedDate, v.datePrecision, v.source, v.confidence,
+    v.videoUrl, v.videoTimecode, v.notes, v.supersededBy,
+  ) as { id: string }[];
+  for (const match of matches) {
+    if (findOwnLatestAudit(actorMemberId, 'freestyle.record.created', 'freestyle_record', match.id)) {
+      return match.id;
+    }
+  }
+  return null;
+}
 
 interface ValidatedRecord {
   recordType: string;

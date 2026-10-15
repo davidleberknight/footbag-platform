@@ -346,6 +346,114 @@ describe('member per-item media delete route', () => {
     } finally { db.close(); }
   });
 
+  // A double click or back-button re-post sends the delete again after the row
+  // is gone. The repeat reports the first outcome, writes no second audit row
+  // and spends no media-edit slot: with the limit tuned to two and both slots
+  // spent by real deletes, a counted repeat would be refused.
+  it('POST the same delete twice -> second answers like the first, one audit row, no slot spent', async () => {
+    const rlMod = await import('../../src/services/rateLimitService');
+    rlMod.resetRateLimitForTests();
+    const tuneDb = new BetterSqlite3(dbPath);
+    insertSystemConfig(tuneDb, {
+      config_key: 'media_edit_rate_limit_per_hour',
+      value_json: '2',
+      // Its own effective instant, so it cannot collide with the edit
+      // rate-limit case's row for the same key; both carry the same limit.
+      effective_start_at: '2026-01-03T00:00:00.000Z',
+    });
+    tuneDb.close();
+    const flashOf = (res: { headers: Record<string, unknown> }) =>
+      ([] as string[]).concat((res.headers['set-cookie'] as string[] | undefined) ?? [])
+        .find((c) => c.startsWith('footbag_flash='))?.split(';')[0];
+    const del = (id: string) => request(createApp())
+      .post(`/members/${OWNER_SLUG}/media/${id}/delete`)
+      .set('Cookie', cookieFor(OWNER_ID))
+      .type('form')
+      .send({});
+    try {
+      const mediaId = insertOwnerMedia('owner-delete-twice.jpg');
+      const filler = insertOwnerMedia('owner-delete-filler.jpg');
+
+      const first = await del(mediaId);
+      expect(first.status).toBe(303);
+      expect((await del(filler)).status).toBe(303);
+
+      const second = await del(mediaId);
+      expect(second.status, 'a repeated delete is not an error').toBe(303);
+      expect(second.headers.location).toBe(first.headers.location);
+      expect(flashOf(first)).toContain('media_saved%3Adelete');
+      expect(flashOf(second)).toBe(flashOf(first));
+
+      const db = new BetterSqlite3(dbPath);
+      try {
+        const n = db.prepare(
+          `SELECT COUNT(*) AS n FROM audit_entries WHERE action_type = 'media.member_deleted' AND entity_id = ?`,
+        ).get(mediaId) as { n: number };
+        expect(n.n).toBe(1);
+      } finally { db.close(); }
+
+      // The limit of two is the one in force: a third real delete is refused.
+      const third = insertOwnerMedia('owner-delete-third.jpg');
+      expect((await del(third)).status).toBe(429);
+    } finally {
+      rlMod.resetRateLimitForTests();
+    }
+  });
+
+  // A delete the member may not make changes nothing, so it spends no slot.
+  it('POST refused deletes (an avatar) spend no media-edit slot', async () => {
+    const rlMod = await import('../../src/services/rateLimitService');
+    rlMod.resetRateLimitForTests();
+    const tuneDb = new BetterSqlite3(dbPath);
+    insertSystemConfig(tuneDb, {
+      config_key: 'media_edit_rate_limit_per_hour',
+      value_json: '2',
+      effective_start_at: '2026-01-04T00:00:00.000Z',
+    });
+    // A member of its own: one avatar per member, and the suite's members'
+    // avatars are seeded by other cases.
+    const rlId = 'member-mme-avatar-rl-001';
+    const rlSlug = 'mme_avatar_rl';
+    tuneDb.pragma('foreign_keys = ON');
+    insertMember(tuneDb, { id: rlId, slug: rlSlug, display_name: 'MME Avatar RL' });
+    completeOnboarding(tuneDb, rlId);
+    insertMemberTierGrant(tuneDb, { member_id: rlId, new_tier_status: 'tier1' });
+    const avatarId = insertMediaItem(tuneDb, { uploader_member_id: rlId, is_avatar: 1, source_filename: 'rl-avatar.jpg', caption: null });
+    const realId = insertMediaItem(tuneDb, { uploader_member_id: rlId, source_filename: 'rl-real.jpg', caption: null });
+    tuneDb.close();
+    const del = (id: string) => request(createApp())
+      .post(`/members/${rlSlug}/media/${id}/delete`)
+      .set('Cookie', cookieFor(rlId))
+      .type('form')
+      .send({});
+    try {
+      for (let i = 0; i < 2; i++) {
+        expect((await del(avatarId)).status, `refused attempt ${i + 1}`).toBe(404);
+      }
+      expect((await del(realId)).status).toBe(303);
+      expect(rowExists(avatarId)).toBe(true);
+    } finally {
+      rlMod.resetRateLimitForTests();
+    }
+  });
+
+  it("POST a delete of another member's already-deleted item -> 404 (no leak of their deletion)", async () => {
+    const otherMediaId = insertOtherMedia('other-deleted-first.jpg');
+    const gone = await request(createApp())
+      .post(`/members/${OTHER_SLUG}/media/${otherMediaId}/delete`)
+      .set('Cookie', cookieFor(OTHER_ID))
+      .type('form')
+      .send({});
+    expect(gone.status).toBe(303);
+
+    const probe = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/media/${otherMediaId}/delete`)
+      .set('Cookie', cookieFor(OWNER_ID))
+      .type('form')
+      .send({});
+    expect(probe.status).toBe(404);
+  });
+
   it("POST against another member's item -> 404, row intact (anti-enumeration)", async () => {
     const otherMediaId = insertOtherMedia('other-delete.jpg');
     const res = await request(createApp())

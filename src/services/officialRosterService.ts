@@ -5,9 +5,7 @@
  * shapes the roster page: the summary counts, the searchable and tier-filtered
  * list, and its paging.
  *
- * Pure read service. Every call audit-logs with category='roster_access' and
- * the supplied actorId, so the access record exists independent of how the
- * controller-side authorization is wired.
+ * Pure read service: it writes nothing, so viewing the roster records nothing.
  *
  * Authorization runs at the route layer, not here: the roster route binds
  * `requireTier2Plus` from src/middleware/requireTier.ts. That gate is the IFPA
@@ -35,7 +33,6 @@ import {
   type OfficialRosterRow,
   type OfficialRosterSummaryRow,
 } from '../db/db';
-import { appendAuditEntry } from './auditService';
 import { ValidationError } from './serviceErrors';
 import { formatDateDisplay } from './dateFormat';
 import type { PageViewModel } from '../types/page';
@@ -206,31 +203,13 @@ function toListRow(r: OfficialRosterRow): OfficialRosterListRow {
 /**
  * List the current Official IFPA Roster. Optional tier filter narrows to a
  * subset of the four tiers (filter applied in-memory; the roster is small).
- *
- * Every call is audit-logged with category='roster_access'.
  */
-export function list(actorId: string, filter?: RosterFilter): OfficialRosterListRow[] {
+export function list(filter?: RosterFilter): OfficialRosterListRow[] {
   const tierFilter = validateFilter(filter);
   const all = (officialRoster.selectAll.all() as OfficialRosterRow[]).map(toListRow);
-  const rows = tierFilter
+  return tierFilter
     ? all.filter((r) => tierFilter.includes(r.tier_status))
     : all;
-
-  appendAuditEntry({
-    actionType: 'roster.list',
-    category: 'roster_access',
-    actorType: 'admin',
-    actorMemberId: actorId,
-    entityType: 'roster',
-    entityId: 'official_ifpa_roster',
-    reasonText: null,
-    metadata: {
-      filter: tierFilter,
-      row_count: rows.length,
-    },
-  });
-
-  return rows;
 }
 
 /**
@@ -239,7 +218,7 @@ export function list(actorId: string, filter?: RosterFilter): OfficialRosterList
  * may overlap with tier counts), and total registered accounts (including
  * Tier 0 members without Active Player status, for comparison).
  */
-export function summary(actorId: string): RosterSummary {
+export function summary(): RosterSummary {
   const row = officialRoster.summary.get() as OfficialRosterSummaryRow;
   const totalRow = officialRoster.totalRegisteredAccounts.get() as { n: number };
 
@@ -259,20 +238,6 @@ export function summary(actorId: string): RosterSummary {
     },
     totalRegistered: totalRow.n,
   };
-
-  appendAuditEntry({
-    actionType: 'roster.summary',
-    category: 'roster_access',
-    actorType: 'admin',
-    actorMemberId: actorId,
-    entityType: 'roster',
-    entityId: 'official_ifpa_roster',
-    reasonText: null,
-    metadata: {
-      total: result.total,
-      total_registered: result.totalRegistered,
-    },
-  });
 
   return result;
 }
@@ -338,18 +303,13 @@ function rosterHref(opts: { tier?: string; q?: string; page?: number }): string 
 /**
  * The Official IFPA Roster page: summary counts, then the searchable,
  * tier-filtered, paged list of roster members.
- *
- * Composes `summary` and `list`, so a page view writes one audit row per
- * dataset read. Each records a distinct read of a distinct dataset, which is
- * what the access record is for.
  */
 export function getOfficialRosterPage(
-  actorId: string,
   opts: RosterPageOptions = {},
 ): PageViewModel<OfficialRosterPageContent> {
   const tierFilter = opts.tier && opts.tier.length ? opts.tier : undefined;
-  const counts = summary(actorId);
-  const all = list(actorId, tierFilter ? { tier: tierFilter } : undefined);
+  const counts = summary();
+  const all = list(tierFilter ? { tier: tierFilter } : undefined);
 
   const searchTerm = (opts.q ?? '').trim();
   const needle = searchTerm.toLowerCase();

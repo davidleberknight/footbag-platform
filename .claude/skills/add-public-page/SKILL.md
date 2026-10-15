@@ -57,6 +57,7 @@ Client JS:
 
 - preserve explicit route ordering
 - do not break `/events/year/:year` vs. `/events/:eventKey` ordering (more-specific must be first)
+- a GET handler, and every service method it calls, changes no stored state (design decision "Every GET Is Read-only"); work triggered by viewing belongs in a POST
 
 ## Step 5: State your plan before editing
 

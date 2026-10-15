@@ -99,7 +99,7 @@ describe('GET /legal', () => {
 
     const routes = await loadRouteTable();
     const deployed = new Set(routes.allRoutes.map((r) => `${r.method.toUpperCase()} ${r.path}`));
-    expect(deployed.has('POST /members/:memberKey/download')).toBe(true);
+    expect(deployed.has('GET /members/:memberKey/download')).toBe(true);
     expect(deployed.has('GET /members/:memberKey/delete')).toBe(true);
     expect(deployed.has('POST /members/:memberKey/delete')).toBe(true);
   });

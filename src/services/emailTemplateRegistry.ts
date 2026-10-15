@@ -85,7 +85,6 @@ export const TEMPLATE_VARIANTS = {
   account_exists_notice:           v('restricted',   ['loginUrl', 'resetUrl']),
   password_reset_request:          v('restricted',   ['resetUrl', 'ttlPhrase']),
   account_deletion_requested:      v('restricted',   ['memberName', 'gracePhrase']),
-  data_export_ready:               v('restricted',   ['memberName', 'downloadUrl', 'ttlPhrase']),
   password_reset_confirm:          v('internal',     []),
   password_changed:                v('internal',     []),
   // Carries nothing about the question it announces: the question itself may
@@ -180,13 +179,6 @@ const SHAPERS = {
   account_deletion_requested: (p: { memberName: string; graceDays: number }): ShapedEmail => ({
     variant: 'account_deletion_requested',
     merge: { memberName: p.memberName, gracePhrase: dayPhrase(p.graceDays) },
-  }),
-  // The member asked for a copy of their own data. The link is the proof of
-  // mailbox control, which is why it goes to the verified address rather than
-  // being handed straight to the browser that asked.
-  data_export_ready: (p: { memberName: string; downloadUrl: string; ttlHours: number }): ShapedEmail => ({
-    variant: 'data_export_ready',
-    merge: { memberName: p.memberName, downloadUrl: p.downloadUrl, ttlPhrase: hourPhrase(p.ttlHours) },
   }),
   password_reset_confirm: (_p: Empty): ShapedEmail => ({
     variant: 'password_reset_confirm',

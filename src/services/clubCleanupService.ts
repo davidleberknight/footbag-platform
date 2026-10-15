@@ -9,7 +9,11 @@
  *   - `leaderless_active_club` predicate
  *   - `stale_provisional_leader` predicate
  *   - Admin club cleanup queue page shaping (with category/region filter
- *     and sort, applied in-service on the assembled queue)
+ *     and sort, applied in-service on the assembled queue). Opening the queue
+ *     only reads: it lists the clubs the rules would demote
+ *   - Applying the rules' demotions, only when an admin presses Apply the
+ *     Rules, recorded with that admin as the actor; recomputed from current
+ *     evidence, so a repeat demotes nothing
  *   - Admin-home backlog badge (open-item count plus oldest-item age, and the
  *     same figures for the review half alone, computed from the same queue
  *     assembly so badge and queue agree)
@@ -260,17 +264,13 @@ function evaluateClubVerdict(row: ClubEvidenceRow): ClubVerdictResult {
   };
 }
 
-// The rules act on the clubs they settle, so the admin never clicks through a
-// decision that was never in doubt. Runs when an admin opens the queue, which
-// is the only trigger there is: nothing here happens unattended.
-//
-// A club an admin has already ruled on is left alone, including a parked one. A
-// park is an explicit "not now" from a person, so new evidence returns that club
-// to the queue as a human decision rather than resolving it behind their back.
-// The clubs the rules will demote the next time an admin opens the queue. Both
-// the sweep and the queue assembly ask this one question, so the backlog badge
-// can never count work that is about to resolve itself: an admin who sees a
-// count and clicks through finds exactly that count waiting.
+// The clubs whose own record leaves nothing to decide, which the rules demote
+// when an admin presses Apply the Rules. A club an admin has already ruled on is
+// left alone, including a parked one: a park is an explicit "not now" from a
+// person, so new evidence returns that club to the queue as a human decision
+// rather than resolving it behind their back. The queue listing and the apply
+// both ask this one question, so the button demotes exactly the clubs the page
+// listed as pending, recomputed from current evidence at the moment it runs.
 function clubsPendingRuleDemotion(
   evidence: ClubEvidenceRow[],
   resolutions: Map<string, ResolutionRow>,
@@ -298,12 +298,15 @@ function isStaleDemotion(res: ResolutionRow, clubStatus: string): boolean {
   return res.resolution === 'demoted' && clubStatus === 'active';
 }
 
-function applyRuleVerdicts(
-  evidence: ClubEvidenceRow[],
-  resolutions: Map<string, ResolutionRow>,
-): number {
+// Applies the rules' demotions, only when an admin presses Apply the Rules, and
+// records that admin as the actor: opening the queue changes nothing. The set is
+// recomputed from current evidence rather than taken from the page, so a second
+// press, or a stale page after another admin applied them, finds nothing left
+// and demotes nothing.
+function applyRuleDemotions(adminMemberId: string): { demotedCount: number } {
   let demoted = 0;
-  const pending = clubsPendingRuleDemotion(evidence, resolutions);
+  const evidence = clubEvidence.listByClub.all(null, null) as ClubEvidenceRow[];
+  const pending = clubsPendingRuleDemotion(evidence, getActiveResolutions());
 
   for (const row of evidence) {
     if (!pending.has(row.club_id)) continue;
@@ -311,17 +314,17 @@ function applyRuleVerdicts(
     const verdict = evaluateClubVerdict(row);
     const now = new Date().toISOString();
     transaction(() => {
-      clubsDb.updateStatus.run('inactive', now, 'club_cleanup_rules', row.club_id);
+      clubsDb.updateStatus.run('inactive', now, adminMemberId, row.club_id);
       // A demoted club's unconfirmed legacy roster goes with it, exactly as it
       // does when an admin demotes by hand.
       const residueDelisted = legacyPersonClubAffiliations
-        .delistResidueByClub.run('club_cleanup_rules', row.club_id).changes;
+        .delistResidueByClub.run(adminMemberId, row.club_id).changes;
 
       appendAuditEntry({
         actionType: 'club.auto_demoted',
         category: 'club_lifecycle',
-        actorType: 'system',
-        actorMemberId: null,
+        actorType: 'admin',
+        actorMemberId: adminMemberId,
         entityType: 'club',
         entityId: row.club_id,
         reasonText: null,
@@ -343,7 +346,7 @@ function applyRuleVerdicts(
     demoted += 1;
   }
 
-  return demoted;
+  return { demotedCount: demoted };
 }
 
 // ---------------------------------------------------------------------------
@@ -673,9 +676,22 @@ interface CleanupQueueItemGroup {
   isOpportunity?: boolean;
 }
 
+// A club the rules would demote when an admin presses Apply the Rules.
+export interface RuleDemotionItem {
+  clubId: string;
+  clubName: string;
+  clubCity: string | null;
+  clubCountry: string | null;
+  openSince: string;
+}
+
 interface CleanupQueueContent {
   itemGroups: CleanupQueueItemGroup[];
   totalItems: number;
+  // Listed in full and never filtered, because the button demotes every one of
+  // them: a filtered list would hide clubs the admin is about to demote.
+  ruleDemotions: RuleDemotionItem[];
+  ruleDemotionCount: number;
   residue: ResidueItem[];
   candidates: PromotableCandidateItem[];
   junkCandidates: JunkCandidateItem[];
@@ -727,6 +743,7 @@ function monthsAgeLabel(since: string): string {
 
 interface AssembledQueue {
   items: CleanupQueueItem[];
+  ruleDemotions: RuleDemotionItem[];
   residue: ResidueItem[];
   candidates: PromotableCandidateItem[];
   junkCandidates: JunkCandidateItem[];
@@ -813,10 +830,8 @@ function assembleQueue(prefetched?: {
   evidence: ClubEvidenceRow[];
   resolutions: Map<string, ResolutionRow>;
 }): AssembledQueue {
-  // The caller may already hold both, because the rule sweep that runs before
-  // the queue is assembled reads exactly the same two things. Passing them in
-  // halves the work on the page an admin opens most; calling with nothing still
-  // reads them here, which is what the badge and the bulk actions do.
+  // The caller may already hold both; calling with nothing reads them here,
+  // which is what the badge and the bulk actions do.
   const resolutions = prefetched?.resolutions ?? getActiveResolutions();
   const claims = loadActiveClaims();
   const items: CleanupQueueItem[] = [];
@@ -831,17 +846,28 @@ function assembleQueue(prefetched?: {
   const newestEvidenceFor = (clubId: string): string | null =>
     evidenceByClub.get(clubId)?.newest_evidence_at ?? null;
 
-  // A club the rules are about to demote is not work for anyone. It is left out
-  // of every listing here, so the counts this function produces describe the
-  // queue as it will stand once the rules have run rather than before.
+  // A club the rules would demote is listed once, in its own section for the
+  // Apply the Rules button, and left out of every other listing here, so no
+  // club asks the admin for two decisions at once.
   const pendingRuleDemotion = clubsPendingRuleDemotion(
     [...evidenceByClub.values()],
     resolutions,
   );
+  const ruleDemotions: RuleDemotionItem[] = [...evidenceByClub.values()]
+    .filter((row) => pendingRuleDemotion.has(row.club_id))
+    .map((row) => ({
+      clubId: row.club_id,
+      clubName: row.club_name,
+      clubCity: row.city,
+      clubCountry: row.country,
+      openSince: row.club_updated_at,
+    }))
+    .sort((a, b) => a.clubName.localeCompare(b.clubName));
 
   // Only a club whose own record contradicts the member who wrote it off
-  // reaches an admin. Everything the rules settle has already been acted on or
-  // deliberately left alone, so nothing here is paperwork.
+  // reaches an admin as a decision. Everything the rules settle is listed for
+  // the Apply the Rules button or deliberately left alone, so nothing here is
+  // paperwork.
   for (const row of evidenceByClub.values()) {
     if (isResolved(resolutions, row.club_id, 'crowdsource_viability', newestEvidenceFor(row.club_id), row.status)) continue;
     const verdict = evaluateClubVerdict(row);
@@ -1148,7 +1174,7 @@ function assembleQueue(prefetched?: {
 
   parked.sort((a, b) => a.clubName.localeCompare(b.clubName));
 
-  return { items, residue, candidates, junkCandidates, candidateFlags, parked };
+  return { items, ruleDemotions, residue, candidates, junkCandidates, candidateFlags, parked };
 }
 
 const PARKED_PREDICATE_LABELS: Record<string, string> = {
@@ -1267,8 +1293,12 @@ function applyFilterAndSort(
 
   // The parked listing is deliberately unfiltered: it is the record that
   // nothing was dropped, so narrowing it by the working queue's filters would
-  // defeat its only job.
-  return { items, residue, candidates, junkCandidates, candidateFlags, parked: queue.parked };
+  // defeat its only job. The pending demotions are unfiltered for the same
+  // reason: the button demotes all of them.
+  return {
+    items, ruleDemotions: queue.ruleDemotions, residue, candidates, junkCandidates, candidateFlags,
+    parked: queue.parked,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -1276,20 +1306,11 @@ function applyFilterAndSort(
 // ---------------------------------------------------------------------------
 
 function getCleanupQueuePage(filter?: CleanupQueueFilter): PageViewModel<CleanupQueueContent> {
-  // The rules act first, so the queue an admin then reads holds only the clubs
-  // the rules could not settle. This is the only place the sweep runs: opening
-  // the queue is the trigger, and nothing here happens unattended.
-  const evidence = clubEvidence.listByClub.all(null, null) as ClubEvidenceRow[];
-  applyRuleVerdicts(evidence, getActiveResolutions());
-
+  // Opening the queue only reads. The clubs the rules would demote are listed
+  // for the Apply the Rules button, which is the only place they are demoted.
   const normalized = normalizeFilter(filter);
-  // Resolutions are re-read after the sweep, which writes some, but the
-  // evidence the sweep just read is unchanged by it and is reused.
-  const { items, residue, candidates, junkCandidates, candidateFlags, parked } =
-    applyFilterAndSort(
-      assembleQueue({ evidence, resolutions: getActiveResolutions() }),
-      normalized,
-    );
+  const { items, ruleDemotions, residue, candidates, junkCandidates, candidateFlags, parked } =
+    applyFilterAndSort(assembleQueue(), normalized);
 
   // Group predicate items by category for the collapsed-by-default
   // presentation; group order follows the items' (possibly sorted) order.
@@ -1332,6 +1353,8 @@ function getCleanupQueuePage(filter?: CleanupQueueFilter): PageViewModel<Cleanup
     content: {
       itemGroups,
       totalItems: items.length,
+      ruleDemotions,
+      ruleDemotionCount: ruleDemotions.length,
       residue,
       candidates,
       junkCandidates,
@@ -1357,13 +1380,17 @@ function getCleanupQueuePage(filter?: CleanupQueueFilter): PageViewModel<Cleanup
 // the review half and the opportunity half counted apart so the admin home can
 // show them as the different things they are.
 // Evaluated fresh on each admin-home load; there is no background process.
+// Pending rule demotions count as review work: nothing applies them until an
+// admin presses the button, so a badge that left them out would read "nothing
+// waiting" while defunct clubs stayed active.
 function getBacklogBadge(): BacklogBadge {
-  const { items, residue, candidates, junkCandidates, candidateFlags } = assembleQueue();
-  const openCount = items.length + residue.length + candidates.length
+  const { items, ruleDemotions, residue, candidates, junkCandidates, candidateFlags } = assembleQueue();
+  const openCount = items.length + ruleDemotions.length + residue.length + candidates.length
     + junkCandidates.length + candidateFlags.length;
 
   const timestamps = [
     ...items.map((i) => i.openSince),
+    ...ruleDemotions.map((d) => d.openSince),
     ...residue.map((r) => r.oldestPendingAt),
     ...candidates.map((c) => c.createdAt),
     ...junkCandidates.map((c) => c.createdAt),
@@ -1375,6 +1402,7 @@ function getBacklogBadge(): BacklogBadge {
   const opportunityCount = opportunities.length;
   const reviewTimestamps = [
     ...items.filter((i) => i.isOpportunity !== true).map((i) => i.openSince),
+    ...ruleDemotions.map((d) => d.openSince),
     ...residue.map((r) => r.oldestPendingAt),
     ...candidates.map((c) => c.createdAt),
     ...junkCandidates.map((c) => c.createdAt),
@@ -1898,6 +1926,7 @@ export const clubCleanupService = {
   getClubVerdict,
   getCleanupQueuePage,
   getBacklogBadge,
+  applyRuleDemotions,
   claimItem,
   resolveClub,
   contactMembersToVolunteer,

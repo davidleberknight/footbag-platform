@@ -41,7 +41,7 @@ All thrown errors are subclasses of `ServiceError` from `src/services/serviceErr
 
 - `ValidationError` -- user-fixable input errors; carries optional `fieldErrors: Record<string,string>`.
 - `NotFoundError` -- missing resources (controller maps to 404, including anti-enumeration cases).
-- `ConflictError` -- unique-constraint or business-conflict situations.
+- `ConflictError` -- unique-constraint or business-conflict situations. A repeat of an action whose result already holds is not a conflict: the method returns `own_repeat` or `already_held` instead of throwing.
 - `RateLimitedError` -- throttle hits; carries `retryAfterSeconds`.
 - `ForbiddenError` -- explicit authorization denials.
 
@@ -57,9 +57,10 @@ When a catch block writes a `*_failed` audit row, it uses `recordOperationalErro
 
 - Reuse the established `action_type` vocabulary — lowercase, dotted, domain-prefixed (`tier.purchase_grant`, `admin.role_granted`, `legacy.auto_link_revert`). For the same event reuse the existing `action_type`; do not coin a synonym. `action_type` is a closed vocabulary that downstream queries, metric filters, and reviews match on, so renaming an existing one means updating every matcher in the same change. Every `action_type` is namespaced; `appendAuditEntry` rejects a value that is not lowercase dotted `domain.event` (`assertCanonicalActionType`), and the convention gate rejects any non-namespaced `action_type` literal in `src/` at build time.
 - Set `category` from the existing set; record `actor_type`, `actor_member_id`, `entity_type`, and `entity_id` faithfully (a member is referenced by id).
-- Never write a secret, token, decrypted ballot, or password into `reason_text` or `metadata_json`. Hash sensitive lookups (search query, IP, email), and reference a person by id rather than by name wherever the id identifies them just as well. Exclude sensitive data at write time rather than relying on read-time redaction.
+- Never write a secret, token, decrypted ballot, or password into `reason_text` or `metadata_json`. Hash sensitive lookups (IP, email), and reference a person by id rather than by name wherever the id identifies them just as well. Exclude sensitive data at write time rather than relying on read-time redaction.
 - An administrative correction of another person's record is the deliberate exception: it records each changed field before and after, values included, because a correction made on someone else's behalf is reviewable and reversible only from a trail that says what the value actually was, and the surface that reads it is admin-only. The ledger is immutable and account erasure cannot reach it, so a value recorded this way outlives an erasure that clears it everywhere else. That is the accepted cost of accountability here, and it is why the exception stays with administrative corrections rather than widening to a member's self-service edits of their own record, which keep recording field names only. The bar is personal data on a person's record, not who performed the write: a club's own details carry none and a club row is never erased, so a co-leader's edit records each changed field's before and after.
 - Log every governance- or security-significant write (grants, overrides, role changes, deletions, claims, disputes) so the trail reconstructs who did what, when, and why.
+- A read writes no audit row: a GET changes no stored state (design decision "Every GET Is Read-only").
 
 ## Rate limiting
 
@@ -67,6 +68,9 @@ Rate-limit enforcement (`rateLimitHit(key)` plus `throw new RateLimitedError(...
 owning service method, whatever the bucket keying (per-member, per-admin, per-IP, per-target);
 controllers pass request-derived key inputs as arguments. Never implement rate limits as per-route
 blanket middleware. All bucket sizes and windows come from `system_config_current` keys.
+Check whether the result already holds before taking a slot, so a repeat of an action that already
+landed spends none. Registration, password-reset and verify-resend requests count every request, as
+anti-enumeration requires.
 
 ## Discriminated-union return shapes
 
@@ -78,6 +82,10 @@ State-transition methods return discriminated unions, not booleans or thrown err
       | { status: 'noop' as const; reason: 'no_shorten' | 'tier1_plus' };
 
 Callers narrow on the `status` discriminator; the `as const` literal narrows the type so TypeScript exhaustiveness checks downstream.
+
+A state-changing method on a path the submitted-twice rule covers also recognises a repeat inside its transaction, before acting: the actor's own act already landed (`own_repeat`, the first submit's success) or the state already held from another act (`already_held`, informational). Prove the own act with `findStandingOwnAct` in `src/services/auditService.ts`, which checks that the act is still the one standing, never with the actor's latest audit row alone; and report what the first submit actually left, read from its record, never re-derived. See the design decision "Every State-changing Action Is Safe to Submit Twice".
+
+A repeat is recognised only when every submitted field matches what the first submit stored; a changed resubmission is not a repeat. A repeat check that compares a submitted password or other secret with a stored hash counts a rate-limit attempt before comparing and gives it back only for a proven repeat, so the check is never a free way to test guesses.
 
 ## Anti-enumeration
 

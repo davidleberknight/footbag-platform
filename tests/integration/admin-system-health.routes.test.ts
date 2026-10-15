@@ -215,7 +215,10 @@ describe('GET /admin/system-health', () => {
 
   it('shows each job with its last outcome, the age of its last success, and its failures in the window', async () => {
     withDb((db) => {
-      insertSystemJobRun(db, { job_name: 'SYS_Alpha', status: 'succeeded', started_at: HOURS_AGO(3) });
+      // Half an hour inside the "3 hours" bucket, not on its edge: the page floors
+      // the elapsed time, so a success stamped exactly three hours back reads as
+      // "2 hours ago" if the clock steps back a second before the page renders.
+      insertSystemJobRun(db, { job_name: 'SYS_Alpha', status: 'succeeded', started_at: HOURS_AGO(3.5) });
       insertSystemJobRun(db, { job_name: 'SYS_Alpha', status: 'failed',    started_at: HOURS_AGO(1), last_error: 'alpha blew up' });
       insertSystemJobRun(db, { job_name: 'SYS_Beta',  status: 'failed',    started_at: HOURS_AGO(2), last_error: 'beta blew up' });
     });

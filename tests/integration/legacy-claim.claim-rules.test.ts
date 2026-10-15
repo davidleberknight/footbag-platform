@@ -192,7 +192,6 @@ describe('repeating a confirmation that already succeeded', () => {
     insertLegacyMember(db, { legacy_member_id: `${t}_leg`, legacy_email: email, real_name: name });
     insertHistoricalPerson(db, { person_id: `${t}_hp`, person_name: name, legacy_member_id: `${t}_leg` });
     const memberId = registrant(t, name, email);
-    onboarding.startTaskList(memberId);
 
     const first = await request(createApp())
       .post('/register/wizard/legacy_claim/claim')

@@ -16,7 +16,7 @@ export const officialRosterController = {
     try {
       const tier = str(req.query.tier);
       const pageRaw = parseInt(String(req.query.page ?? '1'), 10);
-      const vm = getOfficialRosterPage(req.user!.userId, {
+      const vm = getOfficialRosterPage({
         // The service validates the value and rejects an unknown tier.
         tier: tier ? [tier as MemberTier] : undefined,
         q: str(req.query.q),

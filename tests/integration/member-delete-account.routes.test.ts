@@ -13,7 +13,7 @@
  * open for the length of the file sits against the same file the running app
  * writes through, and the request blocks rather than failing.
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import request from '../fixtures/supertestWithOrigin';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
@@ -29,6 +29,7 @@ import {
   insertRecurringDonationSubscription,
   completeOnboarding,
   createTestSessionJwt,
+  insertSystemConfig,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('4184');
@@ -299,6 +300,76 @@ describe('the deletion itself', () => {
 
     expect(res.status).toBe(404);
     expect(deletedAtOf(owner)).toBeNull();
+  });
+});
+
+describe('two overlapping deletion submits', () => {
+  // A distinctive grace period, so a done page that lost the figure on the
+  // repeat (rendering "within  days") cannot pass for the first one's page.
+  const GRACE_DAYS = 45;
+
+  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+  let storageMod: typeof import('../../src/adapters/mediaStorageAdapter');
+
+  beforeAll(async () => {
+    withDb((db) => insertSystemConfig(db, { config_key: 'member_cleanup_grace_days', value_json: String(GRACE_DAYS) }));
+    storageMod = await import('../../src/adapters/mediaStorageAdapter');
+  });
+
+  afterEach(() => {
+    storageMod.resetMediaStorageAdapterForTests();
+  });
+
+  // Defect caught: the second of two overlapping submits (a double click on
+  // the final button) shows the member the "could not delete" form for an
+  // account that is in fact gone, leaves their session cookie in place, or
+  // sends the deletion notice and audit row a second time.
+  it('both see the done page, and the deletion is recorded and announced once', async () => {
+    const slug = 'del_overlap';
+    const id = makeMember({ slug });
+    withDb((db) => insertMediaItem(db, { uploader_member_id: id }));
+
+    // Both requests pass the sign-in gate before either commits: each is held
+    // at the storage delete, the first await of the deletion, until both have
+    // arrived there. Released together, the first commits the deletion and the
+    // second finds it already done.
+    let arrived = 0;
+    let releaseAll!: () => void;
+    const bothArrived = new Promise<void>((resolve) => { releaseAll = resolve; });
+    const realStorage = storageMod.getMediaStorageAdapter();
+    storageMod.setMediaStorageAdapterForTests({
+      ...realStorage,
+      delete: async (key: string) => {
+        arrived += 1;
+        if (arrived === 2) releaseAll();
+        await bothArrived;
+        await realStorage.delete(key);
+      },
+    });
+
+    const [first, second] = await Promise.all([deleteAccount(slug, id), deleteAccount(slug, id)]);
+
+    for (const res of [first, second]) {
+      expect(res.status).toBe(200);
+      expect(res.text).toContain('Your account is deleted and you are signed out.');
+      expect(res.text).toContain(`within ${GRACE_DAYS} days`);
+      const cleared = (res.get('Set-Cookie') ?? []).some((c) =>
+        c.startsWith('__Host-footbag_session=') && /Max-Age=0|Expires=Thu, 01 Jan 1970/i.test(c));
+      expect(cleared).toBe(true);
+    }
+
+    withDb((db) => {
+      const notices = db.prepare(
+        "SELECT idempotency_key FROM outbox_emails WHERE recipient_member_id = ? AND template_key = 'account_deletion_requested'",
+      ).all(id) as { idempotency_key: string }[];
+      // Keyed on the member alone, so any later attempt to send it again for
+      // this deletion folds into the same row.
+      expect(notices).toEqual([{ idempotency_key: `account-deletion:${id}` }]);
+      const audits = db.prepare(
+        "SELECT COUNT(*) AS n FROM audit_entries WHERE action_type = 'auth.account_deleted' AND entity_id = ?",
+      ).get(id) as { n: number };
+      expect(audits.n).toBe(1);
+    });
   });
 });
 

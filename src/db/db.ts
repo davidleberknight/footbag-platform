@@ -722,7 +722,7 @@ export const clubs = {
   `); },
 
   get findByNameAndCountry() { return db.prepare(`
-    SELECT c.id AS club_id, c.name, c.country,
+    SELECT c.id AS club_id, c.name, c.country, c.description, c.city, c.region,
            REPLACE(t.tag_normalized, '#', '') AS club_key
       FROM clubs AS c
       INNER JOIN tags AS t ON t.id = c.hashtag_tag_id
@@ -1902,6 +1902,14 @@ export const memberClubAffiliations = {
       FROM member_club_affiliations
      WHERE member_id = ? AND club_id = ? AND is_current = 1
   `); },
+
+  // The member's row for this club whether current or not: a left
+  // affiliation keeps its row, which is what a repeated leave is traced to.
+  get findAnyByMemberAndClub() { return db.prepare(`
+    SELECT id, is_current
+      FROM member_club_affiliations
+     WHERE member_id = ? AND club_id = ?
+  `); },
 };
 
 export const memberLinks = {
@@ -2497,6 +2505,19 @@ export const freestyleRecords = {
        video_url, video_timecode, notes, superseded_by, created_at, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
             strftime('%Y-%m-%dT%H:%M:%fZ','now'), strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+  `); },
+
+  // Every row whose stored values equal a submitted create in every field. IS
+  // compares NULL to NULL, so an absent optional field matches an absent one.
+  // A repeated create reads these ids and keeps the one the same actor made.
+  get findIdenticalForCuration() { return db.prepare(`
+    SELECT id FROM freestyle_records
+     WHERE record_type IS ? AND person_id IS ? AND display_name IS ?
+       AND trick_name IS ? AND sort_name IS ? AND adds_count IS ?
+       AND value_numeric IS ? AND value_text IS ? AND achieved_date IS ?
+       AND date_precision IS ? AND source IS ? AND confidence IS ?
+       AND video_url IS ? AND video_timecode IS ? AND notes IS ?
+       AND superseded_by IS ?
   `); },
 };
 
@@ -5056,7 +5077,7 @@ export const registration = {
   // already exists" notice reaches the real registered address. Matches any
   // non-purged member (verified or not), the same set checkEmailExists gates.
   get findForDuplicateNotice() { return db.prepare(`
-    SELECT id, login_email
+    SELECT id, login_email, email_verified_at
     FROM members
     WHERE login_email_normalized = ?
       AND personal_data_purged_at IS NULL
@@ -5328,9 +5349,9 @@ export const accountTokens = {
   // an operator a few days in which a member's "that link did not work" can
   // still be answered from the row.
   //
-  // Every type is covered, not only the two the story names: a data-export link
-  // ages out on exactly the same terms, and a sweep that knew
-  // about some types and not others would quietly hoard the rest.
+  // Every type is covered, so a token type added later ages out on the same
+  // terms; a sweep that knew about some types and not others would quietly
+  // hoard the rest.
   get deleteSpentOlderThan() { return db.prepare(`
     DELETE FROM account_tokens
     WHERE (used_at IS NOT NULL AND used_at <= ?)
@@ -5360,6 +5381,20 @@ export const accountTokens = {
            token_type, expires_at, used_at
     FROM account_tokens
     WHERE token_hash = ? AND token_type = ?
+  `); },
+
+  // Whether a member holds an unused, unexpired token of one type issued at or
+  // after a moment whose email is queued, found by its key (the key prefix
+  // followed by the token's own id): the mark of a request submitted twice
+  // within seconds. A token whose email never reached the outbox does not
+  // count, so a request retried after a failed enqueue still sends.
+  get hasLiveQueuedSince() { return db.prepare(`
+    SELECT 1 AS live
+    FROM account_tokens AS t
+    JOIN outbox_emails AS o ON o.idempotency_key = ? || t.id
+    WHERE t.member_id = ? AND t.token_type = ? AND t.used_at IS NULL AND t.expires_at > ?
+      AND t.issued_at >= ?
+    LIMIT 1
   `); },
 
   get consumeIfUnused() { return db.prepare(`
@@ -5422,6 +5457,44 @@ export const auditEntries = {
       )
     ORDER BY occurred_at DESC, id DESC
   `); },
+
+  // The actor's own latest row for one action on one entity. A repeated submit
+  // reads it to tell "you already did this" from "someone else did", where the
+  // entity row is gone or carries no actor of its own.
+  get findLatestOwn() { return db.prepare(`
+    SELECT id, occurred_at, metadata_json
+    FROM audit_entries
+    WHERE actor_member_id = ?
+      AND action_type = ?
+      AND entity_type = ?
+      AND entity_id = ?
+    ORDER BY occurred_at DESC, id DESC
+    LIMIT 1
+  `); },
+
+  // The actor's own latest row for one action naming a club in its metadata,
+  // for acts whose entity row is deleted with the act (a co-leader seat).
+  get findLatestOwnForClub() { return db.prepare(`
+    SELECT id, occurred_at, metadata_json
+    FROM audit_entries
+    WHERE actor_member_id = ?
+      AND action_type = ?
+      AND json_extract(metadata_json, '$.club_id') = ?
+    ORDER BY occurred_at DESC, id DESC
+    LIMIT 1
+  `); },
+
+  // The latest row for any of a set of actions on one entity, whoever did it.
+  // The caller compares its actor with the current one.
+  get findLatestForEntity() { return db.prepare(`
+    SELECT id, occurred_at, actor_member_id, action_type, metadata_json
+    FROM audit_entries
+    WHERE entity_type = ?
+      AND entity_id = ?
+      AND action_type IN (?, ?)
+    ORDER BY occurred_at DESC, id DESC
+    LIMIT 1
+  `); },
 };
 
 // Read surface for the admin audit-log viewer. Filters are optional and
@@ -5435,7 +5508,6 @@ export interface AuditLogFilters {
   fromDate?: string | null;      // occurred_at >= (inclusive)
   toDate?: string | null;        // occurred_at <= (inclusive)
   selfActionOnly?: boolean;      // actor is the affected member (self-dealing lens)
-  includeAuditAccess?: boolean;  // include the viewer's own audit.viewed/exported rows
 }
 
 export interface AuditLogQueryRow {
@@ -5470,9 +5542,6 @@ function buildAuditLogWhere(f: AuditLogFilters): { sql: string; params: unknown[
   if (f.toDate)     { clauses.push('a.occurred_at <= ?'); params.push(f.toDate); }
   if (f.selfActionOnly) {
     clauses.push("a.actor_member_id IS NOT NULL AND a.entity_type = 'member' AND a.actor_member_id = a.entity_id");
-  }
-  if (!f.includeAuditAccess) {
-    clauses.push("a.action_type NOT IN ('audit.viewed', 'audit.exported')");
   }
   return { sql: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '', params };
 }
@@ -5801,6 +5870,13 @@ export const outbox = {
     SELECT id FROM outbox_emails WHERE idempotency_key = ?
   `); },
 
+  // Any row whose key starts with a prefix, given as the half-open range
+  // [prefix, prefix-with-its-last-character-incremented) so the unique index
+  // serves it and no character in the prefix acts as a pattern.
+  get findAnyInKeyRange() { return db.prepare(`
+    SELECT id FROM outbox_emails WHERE idempotency_key >= ? AND idempotency_key < ? LIMIT 1
+  `); },
+
   // Send-path smoke poll: one enqueued row watched to its terminal status,
   // with the columns that say where it stopped if it never gets there.
   get selectStatusById() { return db.prepare(`
@@ -6076,11 +6152,30 @@ export const media = {
       id, created_at, created_by, updated_at, updated_by, version,
       uploader_member_id, media_type, is_avatar, caption, uploaded_at,
       s3_key_thumb, s3_key_display, width_px, height_px,
-      moderation_status, source_filename, mime_type
+      moderation_status, source_filename, mime_type, source_sha256
     ) VALUES (?, ?, 'member', ?, 'member', 1,
               ?, 'photo', 0, ?, ?,
               ?, ?, ?, ?,
-              'active', ?, ?)
+              'active', ?, ?, ?)
+  `); },
+
+  // The uploader's active photo with this filename, and the hash of the bytes
+  // it was made from: what a repeated upload is matched against.
+  get findActiveMemberPhotoByFilename() { return db.prepare(`
+    SELECT id, source_sha256, s3_key_display
+    FROM media_items
+    WHERE uploader_member_id = ? AND source_filename = ?
+      AND moderation_status = 'active' AND media_type = 'photo'
+  `); },
+
+  // The uploader's active video for one platform video id: what a repeated
+  // video submission is matched against.
+  get findActiveMemberVideo() { return db.prepare(`
+    SELECT id, thumbnail_url
+    FROM media_items
+    WHERE uploader_member_id = ? AND media_type = 'video'
+      AND video_platform = ? AND video_id = ? AND moderation_status = 'active'
+    LIMIT 1
   `); },
 
   // Member-submitted video: a YouTube or Vimeo URL reference. The
@@ -6630,8 +6725,22 @@ export const media = {
   // INSERT; if not, createGallery handles it. UNIQUE(owner_member_id,
   // name) is the underlying integrity guard.
   get findMemberGalleryByOwnerAndName() { return db.prepare(`
-    SELECT id FROM member_galleries
+    SELECT id, created_by, description, sort_order FROM member_galleries
     WHERE owner_member_id = ? AND name = ?
+  `); },
+
+  // A gallery's criteria and exclude tags in their stored normalized form, so
+  // a repeated create can be compared with what its first submit made.
+  // Unpaginated; the order only makes the comparison deterministic.
+  get listGalleryTagSetsNormalized() { return db.prepare(`
+    SELECT 'criteria' AS kind, t.tag_normalized
+    FROM member_gallery_tags mgt JOIN tags t ON t.id = mgt.tag_id
+    WHERE mgt.gallery_id = ?
+    UNION ALL
+    SELECT 'exclude' AS kind, t.tag_normalized
+    FROM member_gallery_exclude_tags mget JOIN tags t ON t.id = mget.tag_id
+    WHERE mget.gallery_id = ?
+    ORDER BY 1, 2
   `); },
 
   // Marks a gallery as the member's default Personal Gallery. Called
@@ -7750,8 +7859,7 @@ export interface MediaJobRow {
     | 'pending_transcode'
     | 'processing'
     | 'succeeded'
-    | 'failed'
-    | 'abandoned';
+    | 'failed';
   admin_member_id: string;
   source_video_key: string | null;
   source_poster_key: string | null;
@@ -7849,15 +7957,6 @@ export const mediaJobs = {
         updated_by = ?,
         version = version + 1
     WHERE id = ? AND state = 'processing'
-  `); },
-
-  get markAbandoned() { return db.prepare(`
-    UPDATE media_jobs
-    SET state = 'abandoned',
-        updated_at = ?,
-        updated_by = ?,
-        version = version + 1
-    WHERE id = ? AND state = 'pending_upload'
   `); },
 
   get selectOrphanedProcessing() { return db.prepare(`
@@ -8510,10 +8609,17 @@ export const memberOnboarding = {
     ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, 'pending')
   `); },
 
-  get listForMember() { return db.prepare(`
-    SELECT id, member_id, task_type, state, completed_at
-      FROM member_onboarding_tasks
-     WHERE member_id = ?
+  // The whole checklist at once, for the transaction that verifies the email.
+  // Rows already present are left as they are, so a second verification link
+  // adds nothing.
+  get insertTaskListIfMissing() { return db.prepare(`
+    INSERT OR IGNORE INTO member_onboarding_tasks (
+      id, created_at, created_by, updated_at, updated_by, version,
+      member_id, task_type, state
+    ) VALUES
+      (?, ?, ?, ?, ?, 1, ?, 'personal_details',  'pending'),
+      (?, ?, ?, ?, ?, 1, ?, 'legacy_claim',      'pending'),
+      (?, ?, ?, ?, ?, 1, ?, 'club_affiliations', 'pending')
   `); },
 
   get findByMemberAndType() { return db.prepare(`
@@ -8880,6 +8986,16 @@ export const memberTier = {
     WHERE member_id = ?
   `); },
 
+  // The member's newest ledger stamp, read inside a write transaction so the
+  // next row can be stamped no earlier than it.
+  get getLatestCreatedAt() { return db.prepare(`
+    SELECT created_at
+    FROM member_tier_grants
+    WHERE member_id = ?
+    ORDER BY created_at DESC, id DESC
+    LIMIT 1
+  `); },
+
   // Honor-grant duplicate guard: one row per (member, honor reason_code) is the
   // block condition for the admin honor-grant surface. HoF and BAP use distinct
   // reason codes, so a member may hold one of each.
@@ -9055,6 +9171,7 @@ export interface ActivePlayerGrantLatestRow {
   old_active_player_expires_at: string | null;
   new_active_player_expires_at: string | null;
   reason_code: string;
+  actor_member_id: string | null;
   created_at: string;
 }
 
@@ -9093,7 +9210,7 @@ export const activePlayer = {
   get getLatestGrant() { return db.prepare(`
     SELECT id, change_type,
            old_active_player_expires_at, new_active_player_expires_at,
-           reason_code, created_at
+           reason_code, actor_member_id, created_at
     FROM active_player_grants
     WHERE member_id = ?
     ORDER BY created_at DESC, id DESC
@@ -9725,6 +9842,16 @@ export const workQueue = {
     WHERE entity_type = 'member' AND entity_id = ? AND status = 'open' AND task_type = ?
   `); },
 
+  // An open request carrying exactly this summary and text, which is the one a
+  // repeated submit of the same form opened.
+  get findOpenMemberRequestByText() { return db.prepare(`
+    SELECT id FROM work_queue_items
+    WHERE task_type = ? AND entity_type = ? AND entity_id = ? AND status = 'open'
+      AND reason_text = ? AND detail_text = ?
+    ORDER BY opened_at DESC, id DESC
+    LIMIT 1
+  `); },
+
   // Admin-side listing of open items, ordered by category then opened_at. The
   // LEFT JOIN resolves the claiming admin's display name for the queue view.
   get listOpenForAdmin() { return db.prepare(`
@@ -9863,7 +9990,8 @@ export const workQueue = {
   // Look up a single queue row by id (for resolve-flow validation).
   get findById() { return db.prepare(`
     SELECT id, queue_category, task_type, entity_type, entity_id, status,
-           reason_text, opened_at, parked_at
+           reason_text, opened_at, parked_at, parked_by_member_id, park_reason,
+           resolved_by_member_id, decision_label
     FROM work_queue_items
     WHERE id = ?
   `); },
@@ -9933,6 +10061,14 @@ export const memberMessages = {
     SELECT id, recipient_member_id, work_queue_item_id, expected_answer_kind
     FROM member_messages
     WHERE id = ? AND recipient_member_id = ? AND status = 'sent'
+  `); },
+
+  // The member's own question, already answered: what a repeated answer finds,
+  // with everything the answer stored so a repeat can be told from a change.
+  get findAnsweredForMember() { return db.prepare(`
+    SELECT id, expected_answer_kind, outcome, note_text
+    FROM member_messages
+    WHERE id = ? AND recipient_member_id = ? AND status = 'answered'
   `); },
 
   // Guarded on the current status so two submitted answers cannot both land;
@@ -10792,7 +10928,7 @@ export const memberExport = {
 // recurring donation establishes.
 export const memberBilling = {
   get findDonorProfile() { return db.prepare(`
-    SELECT id, slug, login_email, real_name, is_hof, stripe_customer_id
+    SELECT id, slug, login_email, real_name, stripe_customer_id
     FROM members_active
     WHERE id = ?
       AND is_deceased = 0
@@ -10835,6 +10971,33 @@ export const payments = {
   `); },
 
   get findById() { return db.prepare(`SELECT * FROM payments WHERE id = ?`); },
+
+  // Closes a pending checkout the provider has just confirmed expired, from the
+  // provider's own reply rather than its webhook. Guarded on pending, so it
+  // never moves a row a webhook already settled; the provider event time is
+  // left for the webhook that follows, which finds the row closed.
+  get cancelPendingReleased() { return db.prepare(`
+    UPDATE payments
+    SET status = 'canceled', updated_at = ?, updated_by = ?, version = version + 1
+    WHERE id = ? AND status = 'pending'
+  `); },
+
+  // The member's one open membership checkout, if any; the partial unique index
+  // on pending membership payments allows at most one.
+  get findPendingMembershipByMember() { return db.prepare(`
+    SELECT * FROM payments
+    WHERE member_id = ? AND payment_type = 'membership' AND status = 'pending'
+  `); },
+
+  // The member's latest pending one-time gift of this amount and note: the
+  // checkout a repeated donate submit goes back to.
+  get findPendingDonationForMember() { return db.prepare(`
+    SELECT id, stripe_checkout_session_id AS session_id FROM payments
+    WHERE member_id = ? AND payment_type = 'donation' AND status = 'pending'
+      AND amount_cents = ? AND donation_note IS ?
+    ORDER BY created_at DESC, id DESC
+    LIMIT 1
+  `); },
 
   get findBySessionId() { return db.prepare(`
     SELECT * FROM payments WHERE stripe_checkout_session_id = ?
@@ -11009,6 +11172,15 @@ export const recurringDonationSubscriptions = {
       status, amount_cents, currency, billing_interval,
       started_at, status_updated_at, donation_note
     ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, 'incomplete', ?, ?, 'yearly', ?, ?, ?)
+  `); },
+
+  // The member's latest recurring gift of this amount and note whose checkout
+  // has not completed: the checkout a repeated donate submit goes back to.
+  get findIncompleteForMember() { return db.prepare(`
+    SELECT id, checkout_session_id AS session_id FROM recurring_donation_subscriptions
+    WHERE member_id = ? AND status = 'incomplete' AND amount_cents = ? AND donation_note IS ?
+    ORDER BY created_at DESC, id DESC
+    LIMIT 1
   `); },
 
   // Promotes the row the checkout opened once the provider confirms the

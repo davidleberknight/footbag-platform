@@ -333,9 +333,11 @@ describe('board standing', () => {
     // What this test is actually about is narrower and is what the comment above
     // says: the page can answer who the directors are, and it prints the id the
     // removal form takes. Both are properties of one member.
-    await post('/admin/honor-grants/board/set/confirm', {
+    // Each write's own status is asserted where it happens, so a refused write
+    // fails here, at its cause, rather than as a stale row two steps later.
+    expect((await post('/admin/honor-grants/board/set/confirm', {
       member_key: BOARD_T0_ID, reason: 'elected at the November meeting',
-    });
+    })).status).toBe(303);
 
     const page = await request(createApp())
       .get('/admin/honor-grants').set('Cookie', adminCookie());
@@ -343,9 +345,9 @@ describe('board standing', () => {
     expect(page.text).toContain(BOARD_T0_ID);
     expect(honourRow(BOARD_T0_ID).is_board).toBe(1);
 
-    await post('/admin/honor-grants/board/remove/confirm', {
+    expect((await post('/admin/honor-grants/board/remove/confirm', {
       member_key: BOARD_T0_ID, reason: 'term ended',
-    });
+    })).status).toBe(303);
     const after = await request(createApp())
       .get('/admin/honor-grants').set('Cookie', adminCookie());
     // Gone from the list, which is the removal being visible on the page, and

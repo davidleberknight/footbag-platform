@@ -330,7 +330,6 @@ const POLICY: Record<EmailTemplateKey, Route> = {
   contact_request_resolution:             { via: 'strict', driver: 'contactRequestResolution' },
   link_help_request_resolution:           { via: 'strict', driver: 'linkHelpResolution' },
   media_moderation_decision:              { via: 'strict', driver: 'mediaTakedown' },
-  data_export_ready:                      { via: 'address' },
   member_question_waiting:                { via: 'member' },
   vouch_confirmation:                     { via: 'address' },
   honor_congratulation:                   { via: 'member' },

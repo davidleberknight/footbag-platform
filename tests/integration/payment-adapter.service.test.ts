@@ -5,7 +5,7 @@ process.env.PAYMENT_ADAPTER = 'stub';
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
-import { insertMember } from '../fixtures/factories';
+import { insertMember, insertSystemConfig } from '../fixtures/factories';
 
 const MEMBER_T0_TIER1 = 'pay-svc-t0-tier1';
 const MEMBER_T0_TIER2 = 'pay-svc-t0-tier2';
@@ -13,8 +13,17 @@ const MEMBER_FAIL     = 'pay-svc-fail';
 const MEMBER_CANCEL   = 'pay-svc-cancel';
 const MEMBER_IDEMP    = 'pay-svc-idemp';
 const MEMBER_DBL      = 'pay-svc-dbl';
+const MEMBER_PAID     = 'pay-svc-paid';
 const MEMBER_SAVED_CUS = 'pay-svc-saved-cus';
 const MEMBER_NO_CUS    = 'pay-svc-no-cus';
+const MEMBER_RELEASED_PAID = 'pay-svc-released-paid';
+const MEMBER_UNSETTLED = 'pay-svc-unsettled';
+const MEMBER_OPEN_FAILS = 'pay-svc-open-fails';
+const MEMBER_RACE      = 'pay-svc-race';
+const MEMBER_GIFT_RACE = 'pay-svc-gift-race';
+const MEMBER_GIFT_UNSETTLED = 'pay-svc-gift-unsettled';
+const MEMBER_TIER_RACE = 'pay-svc-tier-race';
+const ATTEMPTS_PER_HOUR = 4;
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -24,11 +33,23 @@ beforeAll(async () => {
   insertMember(db, { id: MEMBER_CANCEL,   slug: 't0_cancel',    display_name: 'Canceler', login_email: 'cancel@example.com' });
   insertMember(db, { id: MEMBER_IDEMP,    slug: 't0_idemp',     display_name: 'Idemp',    login_email: 'idemp@example.com' });
   insertMember(db, { id: MEMBER_DBL,      slug: 't0_dbl',       display_name: 'Doubler',  login_email: 'dbl@example.com' });
+  insertMember(db, { id: MEMBER_PAID,     slug: 't0_paid',      display_name: 'Payer',    login_email: 'paid@example.com' });
   insertMember(db, {
     id: MEMBER_SAVED_CUS, slug: 't0_saved_cus', display_name: 'Repeat Payer', login_email: 'saved@example.com',
     stripe_customer_id: 'cus_member_saved',
   });
   insertMember(db, { id: MEMBER_NO_CUS,   slug: 't0_no_cus',    display_name: 'First Timer', login_email: 'nocus@example.com' });
+  insertMember(db, { id: MEMBER_RELEASED_PAID, slug: 't0_released_paid', display_name: 'Late Payer', login_email: 'latepay@example.com' });
+  insertMember(db, { id: MEMBER_UNSETTLED, slug: 't0_unsettled', display_name: 'Unsettled', login_email: 'unsettled@example.com' });
+  insertMember(db, { id: MEMBER_OPEN_FAILS, slug: 't0_open_fails', display_name: 'Open Fails', login_email: 'openfails@example.com' });
+  insertMember(db, { id: MEMBER_RACE, slug: 't0_race', display_name: 'Racer', login_email: 'racer@example.com' });
+  insertMember(db, { id: MEMBER_GIFT_RACE, slug: 't0_gift_race', display_name: 'Gift Racer', login_email: 'giftrace@example.com' });
+  insertMember(db, { id: MEMBER_GIFT_UNSETTLED, slug: 't0_gift_unsettled', display_name: 'Gift Unsettled', login_email: 'giftunsettled@example.com' });
+  insertMember(db, { id: MEMBER_TIER_RACE, slug: 't0_tier_race', display_name: 'Tier Racer', login_email: 'tierrace@example.com' });
+  // Four attempts an hour, so a slot a race's losing submit failed to give
+  // back shows as a refusal; no other case here needs more than four.
+  insertSystemConfig(db, { config_key: 'purchase_tier_rate_limit_per_hour', value_json: String(ATTEMPTS_PER_HOUR) });
+  insertSystemConfig(db, { config_key: 'donation_rate_limit_per_hour', value_json: String(ATTEMPTS_PER_HOUR) });
   db.close();
   await importApp();
 });
@@ -208,23 +229,80 @@ describe('payment workflow (stub adapter, Stripe-flow mirror)', () => {
     }
   });
 
-  it('a second pending membership purchase for the same member is rejected', async () => {
+  // Defect caught: a member who cancels at the provider and then chooses a
+  // different tier is refused for the hour or two the abandoned checkout stays
+  // open, told to cancel what they already cancelled; or the old row is closed
+  // without the transition and audit row the expiry webhook would write; or
+  // the webhook that arrives afterwards moves the row a second time.
+  it('a second same-tier purchase returns to the open checkout; a different tier releases it and opens its own', async () => {
+    const { paymentService } = await import('../../src/services/paymentService');
+    const { getPaymentAdapter, getStubPaymentAdapterForTests } = await import('../../src/adapters/paymentAdapter');
+    getPaymentAdapter();
+    const stub = getStubPaymentAdapterForTests()!;
+
+    // The first session is one the buyer walks away from, so the simulation's
+    // webhook for it is the expiry.
+    stub.setNextOutcome('cancel');
+    const first = await paymentService.startMembershipPurchase(MEMBER_DBL, 'tier1', `/members/t0_dbl`);
+    const repeat = await paymentService.startMembershipPurchase(MEMBER_DBL, 'tier1', `/members/t0_dbl`);
+    expect(repeat).toEqual(first);
+
+    const other = await paymentService.startMembershipPurchase(MEMBER_DBL, 'tier2', `/members/t0_dbl`);
+    expect(other.paymentId).not.toBe(first.paymentId);
+
+    const read = () => {
+      const testDb = new BetterSqlite3(dbPath, { readonly: true });
+      try {
+        return {
+          rows: testDb.prepare(
+            "SELECT id, status, purchased_tier_status FROM payments WHERE member_id = ? AND payment_type = 'membership' ORDER BY id",
+          ).all(MEMBER_DBL) as Array<{ id: string; status: string; purchased_tier_status: string }>,
+          transitions: testDb.prepare(
+            "SELECT from_status, to_status FROM payment_status_transitions WHERE payment_id = ?",
+          ).all(first.paymentId) as Array<{ from_status: string; to_status: string }>,
+          audits: testDb.prepare(
+            "SELECT actor_type, actor_member_id FROM audit_entries WHERE action_type = 'payment.canceled' AND entity_id = ?",
+          ).all(first.paymentId) as Array<{ actor_type: string; actor_member_id: string }>,
+        };
+      } finally {
+        testDb.close();
+      }
+    };
+    const released = read();
+    expect(released.rows.find((r) => r.id === first.paymentId)?.status).toBe('canceled');
+    expect(released.rows.find((r) => r.id === other.paymentId)).toMatchObject({ status: 'pending', purchased_tier_status: 'tier2' });
+    expect(released.transitions).toEqual([{ from_status: 'pending', to_status: 'canceled' }]);
+    expect(released.audits).toEqual([{ actor_type: 'member', actor_member_id: MEMBER_DBL }]);
+    expect(await stub.openCheckoutUrl(first.sessionId)).toBeNull();
+
+    // The provider's own expiry event for the released session arrives later
+    // and finds nothing to do.
+    const { rawBody, signature } = stub.buildSignedStubWebhookEvent(first.sessionId);
+    paymentService.handleWebhook(rawBody, signature);
+    expect(read()).toEqual(released);
+  });
+
+  // Defect caught: a checkout the buyer actually paid for is cancelled locally
+  // because the member started another purchase, so the payment's settlement
+  // can no longer be applied and they are charged without the tier.
+  it('a different-tier purchase leaves a checkout the provider reports paid, and is refused', async () => {
     const { paymentService } = await import('../../src/services/paymentService');
     const { ConflictError } = await import('../../src/services/serviceErrors');
-    const { getPaymentAdapter } = await import('../../src/adapters/paymentAdapter');
-    getPaymentAdapter();
+    const { getPaymentAdapter, setPaymentAdapterForTests } = await import('../../src/adapters/paymentAdapter');
+    const stub = getPaymentAdapter();
 
-    await paymentService.startMembershipPurchase(MEMBER_DBL, 'tier1', `/members/t0_dbl`);
+    const first = await paymentService.startMembershipPurchase(MEMBER_PAID, 'tier1', `/members/t0_paid`);
+    setPaymentAdapterForTests({ ...stub, closeCheckoutSession: async () => false });
     await expect(
-      paymentService.startMembershipPurchase(MEMBER_DBL, 'tier1', `/members/t0_dbl`),
+      paymentService.startMembershipPurchase(MEMBER_PAID, 'tier2', `/members/t0_paid`),
     ).rejects.toBeInstanceOf(ConflictError);
 
-    const testDb = new BetterSqlite3(dbPath);
+    const testDb = new BetterSqlite3(dbPath, { readonly: true });
     try {
-      const pending = testDb.prepare(
-        "SELECT COUNT(*) AS c FROM payments WHERE member_id = ? AND status = 'pending' AND payment_type = 'membership'",
-      ).get(MEMBER_DBL) as { c: number };
-      expect(pending.c).toBe(1);
+      const rows = testDb.prepare(
+        "SELECT id, status FROM payments WHERE member_id = ? AND payment_type = 'membership'",
+      ).all(MEMBER_PAID) as Array<{ id: string; status: string }>;
+      expect(rows).toEqual([{ id: first.paymentId, status: 'pending' }]);
     } finally {
       testDb.close();
     }
@@ -234,6 +312,194 @@ describe('payment workflow (stub adapter, Stripe-flow mirror)', () => {
     const { paymentService } = await import('../../src/services/paymentService');
     const { ServiceUnavailableError } = await import('../../src/services/serviceErrors');
     expect(() => paymentService.startEventRegistrationPayment('m', 'e', 1000)).toThrow(ServiceUnavailableError);
+  });
+});
+
+describe('a checkout submitted twice, overlapping, or after it was paid', () => {
+  async function load() {
+    const { paymentService } = await import('../../src/services/paymentService');
+    const { ConflictError } = await import('../../src/services/serviceErrors');
+    const adapterMod = await import('../../src/adapters/paymentAdapter');
+    adapterMod.getPaymentAdapter();
+    return { paymentService, ConflictError, adapterMod, stub: adapterMod.getStubPaymentAdapterForTests()! };
+  }
+
+  function rowsFor(memberId: string, paymentType: string) {
+    const testDb = new BetterSqlite3(dbPath, { readonly: true });
+    try {
+      return testDb.prepare(
+        'SELECT id, status FROM payments WHERE member_id = ? AND payment_type = ? ORDER BY id',
+      ).all(memberId, paymentType) as Array<{ id: string; status: string }>;
+    } finally {
+      testDb.close();
+    }
+  }
+
+  function incompleteSubscriptionsFor(memberId: string): number {
+    const testDb = new BetterSqlite3(dbPath, { readonly: true });
+    try {
+      return (testDb.prepare(
+        "SELECT COUNT(*) AS n FROM recurring_donation_subscriptions WHERE member_id = ? AND status = 'incomplete'",
+      ).get(memberId) as { n: number }).n;
+    } finally {
+      testDb.close();
+    }
+  }
+
+  // Defect caught: a checkout the member's new purchase released can still be
+  // paid in the simulation, so "released, then paid" is never exercised and a
+  // regression that grants a tier for a cancelled checkout goes unseen.
+  it('a released checkout cannot be paid afterwards', async () => {
+    const { paymentService, stub } = await load();
+    const first = await paymentService.startMembershipPurchase(MEMBER_RELEASED_PAID, 'tier1', '/members/t0_released_paid');
+    await paymentService.startMembershipPurchase(MEMBER_RELEASED_PAID, 'tier2', '/members/t0_released_paid');
+    expect(await stub.openCheckoutUrl(first.sessionId)).toBeNull();
+
+    expect(paymentService.getStubCheckoutSession(first.sessionId, MEMBER_RELEASED_PAID)).toBeNull();
+    expect(paymentService.completeStubCheckout(first.sessionId, MEMBER_RELEASED_PAID, 'confirm')).toBeNull();
+    expect(rowsFor(MEMBER_RELEASED_PAID, 'membership').find((r) => r.id === first.paymentId)?.status).toBe('canceled');
+  });
+
+  // Defect caught: the member paid, then resubmitted before the provider's
+  // confirmation arrived; the purchase opens and abandons a second session,
+  // spends their allowance, and tells them to "complete or cancel" a checkout
+  // they can no longer do either to.
+  it('a resubmit after paying, before the confirmation arrives, opens nothing and says it is still confirming', async () => {
+    const { paymentService, ConflictError, stub } = await load();
+    const first = await paymentService.startMembershipPurchase(MEMBER_UNSETTLED, 'tier1', '/members/t0_unsettled');
+    // The provider completes the session; its webhook has not been delivered.
+    stub.buildSignedStubWebhookEvent(first.sessionId);
+    const sessionsBefore = stub.sessions.size;
+
+    const err = await paymentService.startMembershipPurchase(MEMBER_UNSETTLED, 'tier1', '/members/t0_unsettled')
+      .catch((e: unknown) => e);
+    expect(err).toBeInstanceOf(ConflictError);
+    expect((err as Error).message).toBe(
+      'We are still confirming your last membership checkout. Please try again in a few minutes.',
+    );
+    expect(stub.sessions.size).toBe(sessionsBefore);
+    expect(rowsFor(MEMBER_UNSETTLED, 'membership')).toEqual([{ id: first.paymentId, status: 'pending' }]);
+  });
+
+  // Defect caught: the provider errors while the resubmit asks for the open
+  // checkout's address, and the member gets a server error instead of a way
+  // to pay.
+  it('a provider error while reopening a checkout falls through rather than failing', async () => {
+    const { paymentService, adapterMod, stub } = await load();
+    await paymentService.startMembershipPurchase(MEMBER_OPEN_FAILS, 'tier1', '/members/t0_open_fails');
+    await paymentService.startDonation(MEMBER_OPEN_FAILS, 2500, null, false, '/members/t0_open_fails');
+    adapterMod.setPaymentAdapterForTests({
+      ...stub,
+      openCheckoutUrl: async () => { throw new Error('provider unavailable'); },
+    });
+
+    const membership = await paymentService.startMembershipPurchase(MEMBER_OPEN_FAILS, 'tier1', '/members/t0_open_fails');
+    expect(membership.redirectUrl).toMatch(/^\/payments\/checkout\//);
+    const gift = await paymentService.startDonation(MEMBER_OPEN_FAILS, 2500, null, false, '/members/t0_open_fails');
+    expect(gift.redirectUrl).toMatch(/^\/payments\/checkout\//);
+  });
+
+  // Defect caught: two overlapping first purchases both open a provider
+  // session; the second meets the one-pending-purchase rule and the member is
+  // shown "already in progress" while an orphaned session stays open.
+  it('two overlapping first purchases of one tier end at one checkout', async () => {
+    const { paymentService, stub } = await load();
+    const [a, b] = await Promise.all([
+      paymentService.startMembershipPurchase(MEMBER_RACE, 'tier1', '/members/t0_race'),
+      paymentService.startMembershipPurchase(MEMBER_RACE, 'tier1', '/members/t0_race'),
+    ]);
+    expect(b.paymentId).toBe(a.paymentId);
+    expect(b.sessionId).toBe(a.sessionId);
+    expect(rowsFor(MEMBER_RACE, 'membership')).toEqual([{ id: a.paymentId, status: 'pending' }]);
+    // The losing request's own session is closed, not left open at the provider.
+    const orphans = [...stub.sessions.values()]
+      .filter((s) => s.memberId === MEMBER_RACE && s.sessionId !== a.sessionId);
+    expect(orphans).toHaveLength(1);
+    expect(await stub.openCheckoutUrl(orphans[0].sessionId)).toBeNull();
+
+    // The losing submit gave back its slot: the race holds one of four, so
+    // three more purchases (each releasing the last) are still allowed.
+    for (const tier of ['tier2', 'tier1', 'tier2'] as const) {
+      await expect(paymentService.startMembershipPurchase(MEMBER_RACE, tier, '/members/t0_race')).resolves.toBeDefined();
+    }
+  });
+
+  // Defect caught: overlapping first purchases of two different tiers both
+  // land on one checkout, so the member pays for a tier they did not choose
+  // on the last click.
+  it('overlapping first purchases of two different tiers are not merged', async () => {
+    const { paymentService, ConflictError, stub } = await load();
+    const outcomes = await Promise.allSettled([
+      paymentService.startMembershipPurchase(MEMBER_TIER_RACE, 'tier1', '/members/t0_tier_race'),
+      paymentService.startMembershipPurchase(MEMBER_TIER_RACE, 'tier2', '/members/t0_tier_race'),
+    ]);
+    const won = outcomes.filter((o) => o.status === 'fulfilled');
+    const lost = outcomes.filter((o): o is PromiseRejectedResult => o.status === 'rejected');
+    expect(won).toHaveLength(1);
+    expect(lost).toHaveLength(1);
+    expect(lost[0].reason).toBeInstanceOf(ConflictError);
+    expect(rowsFor(MEMBER_TIER_RACE, 'membership')).toHaveLength(1);
+    const open = [];
+    for (const s of stub.sessions.values()) {
+      if (s.memberId === MEMBER_TIER_RACE && await stub.openCheckoutUrl(s.sessionId)) open.push(s.sessionId);
+    }
+    expect(open).toHaveLength(1);
+  });
+
+  // Defect caught: two overlapping submits of one gift each open a checkout
+  // and a pending record, so the donor can pay the same gift twice.
+  it('two overlapping submits of one gift, one-time or yearly, end at one checkout', async () => {
+    const { paymentService, stub } = await load();
+    const openSessions = async (): Promise<number> => {
+      let n = 0;
+      for (const s of stub.sessions.values()) {
+        if (s.memberId === MEMBER_GIFT_RACE && await stub.openCheckoutUrl(s.sessionId)) n += 1;
+      }
+      return n;
+    };
+
+    const [a, b] = await Promise.all([
+      paymentService.startDonation(MEMBER_GIFT_RACE, 2500, 'Twice', false, '/members/t0_gift_race'),
+      paymentService.startDonation(MEMBER_GIFT_RACE, 2500, 'Twice', false, '/members/t0_gift_race'),
+    ]);
+    expect(b.reference).toBe(a.reference);
+    expect(rowsFor(MEMBER_GIFT_RACE, 'donation')).toHaveLength(1);
+    // The losing request's own session is closed, not left open to be paid.
+    expect(await openSessions()).toBe(1);
+
+    const [c, d] = await Promise.all([
+      paymentService.startDonation(MEMBER_GIFT_RACE, 3000, 'Yearly', true, '/members/t0_gift_race'),
+      paymentService.startDonation(MEMBER_GIFT_RACE, 3000, 'Yearly', true, '/members/t0_gift_race'),
+    ]);
+    expect(d.reference).toBe(c.reference);
+    expect(incompleteSubscriptionsFor(MEMBER_GIFT_RACE)).toBe(1);
+    expect(await openSessions()).toBe(2);
+
+    // Each losing submit gave back its slot: the two races hold two of four,
+    // so two more gifts are still allowed.
+    for (const amount of [4100, 4200]) {
+      await expect(paymentService.startDonation(MEMBER_GIFT_RACE, amount, null, false, '/members/t0_gift_race'))
+        .resolves.toBeDefined();
+    }
+  });
+
+  // Defect caught: a gift paid at the provider whose confirmation has not yet
+  // arrived no longer reopens, so a resubmit opens a second checkout and the
+  // donor is charged twice for one gift.
+  it('a resubmitted gift after paying, before the confirmation arrives, opens no second checkout', async () => {
+    const { paymentService, ConflictError, stub } = await load();
+    const message = 'We are still confirming your last donation checkout. Please try again in a few minutes.';
+    for (const recurring of [false, true]) {
+      const first = await paymentService.startDonation(MEMBER_GIFT_UNSETTLED, 4000, null, recurring, '/members/t0_gift_unsettled');
+      stub.buildSignedStubWebhookEvent(first.sessionId);
+      const sessionsBefore = stub.sessions.size;
+
+      const err = await paymentService.startDonation(MEMBER_GIFT_UNSETTLED, 4000, null, recurring, '/members/t0_gift_unsettled')
+        .catch((e: unknown) => e);
+      expect(err, `recurring=${recurring}`).toBeInstanceOf(ConflictError);
+      expect((err as Error).message).toBe(message);
+      expect(stub.sessions.size, `recurring=${recurring}`).toBe(sessionsBefore);
+    }
   });
 });
 

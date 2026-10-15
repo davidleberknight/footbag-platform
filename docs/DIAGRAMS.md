@@ -414,7 +414,7 @@ Visual aids for understanding the system design. Six diagrams cover production i
 ┌─────────────────────────────────────────────────────────────────────┐
 │  Controller  (after successful commit)                              │
 │  res.redirect(303, '/events/' + eventId)                            │
-│  (POST → Redirect → GET pattern: prevents double-submit)            │
+│  (POST → Redirect → GET pattern: stops refresh re-posts)            │
 └─────────────────────────────────────────────────────────────────────┘
 
   Browser: 303 → GET /events/123  (fresh read, new version visible)

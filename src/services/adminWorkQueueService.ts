@@ -79,14 +79,15 @@
  *     event the acting action names: support.contact_request_resolved,
  *     payment.queue_item_resolved, or the dismissal event each internal-review
  *     type names for itself)
- *   - outbox_emails enqueue (admin-alerts fan-out on submit; member
- *     notification only where the acting action says the member is answered;
+ *   - outbox_emails enqueue (member notification only where the acting action
+ *     says the member is answered; a submitted contact request reaches
+ *     administrators through the queue digest, never a per-request alert;
  *     NONE on a payments-task resolution or a review dismissal)
  *   - operational-error audit + alarm on post-commit notification failure
  *
  * Service shape: singleton object (no external adapters beyond db.ts).
  */
-import { workQueue, memberMessages, account, payments, transaction } from '../db/db';
+import { workQueue, memberMessages, account, payments, outbox, transaction } from '../db/db';
 import {
   enforceWorkQueueResolveLimit, identityAccessService,
   type ClaimEvidence,
@@ -845,6 +846,12 @@ function buildMemberQuestions(queueItemId: string): MemberQuestionAdminView[] {
   }));
 }
 
+/** The outbox key of a decide resolve's member email. A repeat of the resolve
+ *  reads it to report whether the first submit's email went out. */
+function resolveNotificationKey(queueItemId: string): string {
+  return `contact-request-resolve:${queueItemId}`;
+}
+
 /**
  * Resolve an item whose type declares a decide action: record the decision and
  * the note, and answer the member where that type says the answer is theirs to
@@ -953,7 +960,7 @@ async function resolveDecidedItem(
       },
       recipientEmail:    member.login_email,
       recipientMemberId: member.id,
-      idempotencyKey:    `contact-request-resolve:${input.queueItemId}`,
+      idempotencyKey:    resolveNotificationKey(input.queueItemId),
       strict: true,
     });
     notified = sent.status !== 'suppressed';
@@ -993,6 +1000,22 @@ export const adminWorkQueueService = {
       throw new ValidationError(`Message must be ${MAX_MESSAGE_LEN} characters or fewer.`);
     }
 
+    const categoryLabel = CONTACT_CATEGORY_LABELS[category];
+    const summary = trimmed.length > MAX_REASON_TEXT
+      ? trimmed.slice(0, MAX_REASON_TEXT)
+      : trimmed;
+    const reasonText = `${categoryLabel}: ${summary}`;
+
+    // The same request submitted twice finds the one its first submit opened:
+    // same member, same category, same words, still open. That request is the
+    // result, so nothing is opened, recorded or counted against the cap again.
+    if (category !== 'identity_link_issue') {
+      const sameOpen = workQueue.findOpenMemberRequestByText.get(
+        TASK_TYPE, 'member', input.requestingMemberId, reasonText, trimmed,
+      ) as { id: string } | undefined;
+      if (sameOpen) return { id: sameOpen.id };
+    }
+
     // The cap is on what the member asked of an administrator, whichever queue
     // the answer comes back through, so it is counted across both task types a
     // member can raise. Everything else in the queue was raised by the platform
@@ -1029,16 +1052,9 @@ export const adminWorkQueueService = {
       return { id: result.workQueueItemId };
     }
 
-    const categoryLabel = CONTACT_CATEGORY_LABELS[category];
-    const summary = trimmed.length > MAX_REASON_TEXT
-      ? trimmed.slice(0, MAX_REASON_TEXT)
-      : trimmed;
-    const reasonText = `${categoryLabel}: ${summary}`;
-
-    // The work_queue_items INSERT (with its admin-alerts notification) and the
-    // submission audit row commit in one transaction: a rollback cannot leave a
-    // dangling alert, an alertless queue item, or a queue item without its
-    // corresponding audit-trail entry.
+    // The work_queue_items INSERT and the submission audit row commit in one
+    // transaction, so a rollback cannot leave a queue item without its
+    // audit-trail entry or an entry recording a request that does not exist.
     const { id } = transaction(() => {
       const { id } = workQueueService.enqueue({
         actorId:       input.requestingMemberId,
@@ -1080,13 +1096,14 @@ export const adminWorkQueueService = {
    * timestamp, decision, and note. Returns whether a member was notified, so the
    * queue page can confirm the resolution without claiming an email went out.
    *
-   * Throws NotFoundError when the id is not an open item of a resolvable type,
-   * an answer indistinguishable from an unknown id: a reconciliation-discrepancy
+   * A repeat of this administrator's own resolve, with the same decision and
+   * note, reports that resolve again and writes nothing. Otherwise throws
+   * NotFoundError when the id is not an open item of a resolvable type, an
+   * answer indistinguishable from an unknown id: a reconciliation-discrepancy
    * twin (resolved with its issue), a link-help request, or a review flag cannot
    * be resolved or probed here.
    */
   async resolve(input: WorkQueueResolveInput): Promise<{ status: 'resolved'; memberNotified: boolean }> {
-    enforceWorkQueueResolveLimit(input.adminMemberId);
     const note = (input.resolutionNote ?? '').trim();
     if (note.length === 0) {
       throw new ValidationError('Resolution note is required.');
@@ -1100,18 +1117,36 @@ export const adminWorkQueueService = {
     // as not-found before any label check, so the answer is the same whatever
     // the label — the anti-enumeration outcome.
     const row = workQueue.findById.get(input.queueItemId) as
-      | { status: string; entity_type: string; entity_id: string; task_type: string; reason_text: string | null }
+      | {
+          status: string; entity_type: string; entity_id: string; task_type: string;
+          reason_text: string | null; resolved_by_member_id: string | null;
+          decision_label: string | null;
+        }
       | undefined;
-    if (!row || row.status !== 'open') {
-      throw new NotFoundError(`Open work-queue item not found: ${input.queueItemId}`);
-    }
 
     // Only a type that declares a decide action resolves here. Reconciliation
     // twins close with their issue; link-help and review items have their own
     // controls. None of those is resolvable here, and each is reported like an
     // unknown id so the endpoint reveals nothing about which type a hidden item
     // is.
-    const action = workQueueActionFor(row.task_type, 'resolve');
+    const action = row ? workQueueActionFor(row.task_type, 'resolve') : null;
+
+    // This actor's own resolve of the item, with the same decision and note, is
+    // what closed it: their repeat reports that resolve's outcome, read from
+    // whether its email reached the outbox, and spends no rate-limit slot. A
+    // different decision or note is not a repeat and meets the closed item's
+    // not-found answer.
+    if (row && row.status === 'resolved' && row.resolved_by_member_id === input.adminMemberId
+      && action?.kind === 'decide'
+      && row.decision_label === input.decisionLabel && row.reason_text === note) {
+      const queued = outbox.findByIdempotencyKey.get(resolveNotificationKey(input.queueItemId));
+      return { status: 'resolved', memberNotified: queued !== undefined };
+    }
+
+    enforceWorkQueueResolveLimit(input.adminMemberId);
+    if (!row || row.status !== 'open') {
+      throw new NotFoundError(`Open work-queue item not found: ${input.queueItemId}`);
+    }
     if (action?.kind !== 'decide') {
       throw new NotFoundError(`Open work-queue item not found: ${input.queueItemId}`);
     }
@@ -1457,10 +1492,11 @@ export const adminWorkQueueService = {
    * member answers a question on it, or when an administrator takes it back.
    *
    * Only a type whose declaration offers a park action can be parked. Anything
-   * else is reported not-found, the same answer as an unknown id.
+   * else is reported not-found, the same answer as an unknown id. A repeat of
+   * this administrator's own park, which the item still carries, writes nothing
+   * and reports the park again.
    */
   park(input: { queueItemId: string; adminMemberId: string; note: string }): void {
-    enforceWorkQueueResolveLimit(input.adminMemberId);
     const reason = (input.note ?? '').trim();
     if (reason.length === 0) {
       throw new ValidationError('A reason is required to park an item.');
@@ -1469,8 +1505,18 @@ export const adminWorkQueueService = {
       throw new ValidationError(`Reason must be ${MAX_RESOLUTION_NOTE} characters or fewer.`);
     }
     const row = workQueue.findById.get(input.queueItemId) as
-      | { status: string; task_type: string }
+      | {
+          status: string; task_type: string; parked_at: string | null;
+          parked_by_member_id: string | null; park_reason: string | null;
+        }
       | undefined;
+    // This actor's own park, under the same reason, is what the item carries:
+    // their repeat reports the park and spends no rate-limit slot.
+    if (row && row.status === 'open' && row.parked_at !== null
+      && row.parked_by_member_id === input.adminMemberId && row.park_reason === reason) {
+      return;
+    }
+    enforceWorkQueueResolveLimit(input.adminMemberId);
     const parkable = row && row.status === 'open'
       && workQueueActionFor(row.task_type, 'park')?.kind === 'park';
     if (!parkable) {

@@ -1,6 +1,7 @@
 // Shared view-model builder for the "simulated email" card rendered on
-// email-gated pages (/register/check-email, /password/forgot/sent, the legacy
-// claim sent state, and the unified link-history wizard). Two modes:
+// email-gated pages (/register/check-email and the verify-resend and
+// password-forgot pages). Building the card only reads; the request that
+// queued the mail drains it into the stub first (drainCapturedMail). Two modes:
 //
 //  - dev:      SES_ADAPTER=stub. Returns the captured in-memory messages from
 //              StubSesAdapter so a developer or paid tester can finish email
@@ -78,21 +79,6 @@ export const simulatedEmailService = {
       const stub = getStubSesAdapterForTests();
       if (!stub) return { mode: 'dev', messages: [] };
 
-      // Drain any outbox_emails rows through the stub so the just-enqueued
-      // verification email appears without waiting for the scheduled worker.
-      // Safe because SES_ADAPTER=stub means no network calls. Swallow any
-      // error from the worker drain: this is a dev-card preview, and a
-      // worker hiccup must not propagate a 500 to the user on what is
-      // really just a page render (verify-sent, password-forgot-sent, etc.).
-      try {
-        await operationsPlatformService.runEmailWorker();
-      } catch (err) {
-        logger.warn(
-          'simulatedEmailService.getEmailPreview: runEmailWorker drain failed; returning the stub-captured messages',
-          { error: (err as Error).message ?? String(err) },
-        );
-      }
-
       // sinceIndex is an index into THIS process's buffer, so it is applied
       // there and nowhere else. Applying it to a merged list would cut at the
       // wrong place the moment the worker's buffer is non-empty, which is
@@ -102,9 +88,9 @@ export const simulatedEmailService = {
 
       // The email-outbox loop runs in the worker container, so a message it
       // drains is captured in ITS stub buffer and never reaches this one. The
-      // local drain above only catches what the worker has not already claimed,
-      // so without this the card shows nothing whenever the worker got there
-      // first. Same client and same merge /dev/outbox has used since the
+      // drain the queuing request ran only catches what the worker has not
+      // already claimed, so without this the card shows nothing whenever the
+      // worker got there first. Same client and same merge /dev/outbox has used since the
       // cross-process capture was introduced.
       //
       // Worker captures carry no index to scope by; the urlPathPrefix and
@@ -144,6 +130,27 @@ export const simulatedEmailService = {
     }
 
     return null;
+  },
+
+  /**
+   * Drain queued mail through the stub sender so the card the next page shows
+   * already holds it, without waiting for the scheduled worker. Called by the
+   * state-changing request that queued the mail, never by the page that shows
+   * the card: a page read changes no stored state, and a drain marks outbox
+   * rows sent. Does nothing unless the sender is the stub, so it never makes a
+   * provider call. A drain failure is logged and swallowed: the mail stays
+   * queued for the worker, and the request that queued it already succeeded.
+   */
+  async drainCapturedMail(): Promise<void> {
+    if (config.sesAdapter !== 'stub') return;
+    try {
+      await operationsPlatformService.runEmailWorker();
+    } catch (err) {
+      logger.warn(
+        'simulatedEmailService.drainCapturedMail: runEmailWorker drain failed; the mail stays queued for the worker',
+        { error: (err as Error).message ?? String(err) },
+      );
+    }
   },
 };
 

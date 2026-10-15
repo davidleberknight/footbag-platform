@@ -104,8 +104,7 @@ surface needing more weight than prose and less than a button will otherwise inv
 `*-link`, or `*-deeplink`. There is one class for it, site-wide.
 
 The inline-action tier exists for the mirror case, and its absence had the same effect. A control
-that posts must be a `<button>`, but a delete inside a table row or a "Download My Data" inside a
-list item cannot carry a bordered button without putting enclosing chrome where the callout policy
+that posts must be a `<button>`, but a delete inside a table row cannot carry a bordered button without putting enclosing chrome where the callout policy
 reserves it (DESIGN_DECISIONS "Callout and Box Policy"). The tier carries no box, inherits the
 surrounding font, and takes a resting underline, because colour and a resting underline are what
 mark a control as a link (DESIGN_DECISIONS "Link and Disclosure Affordances") and the underline is
@@ -146,9 +145,11 @@ tones cover every outcome the site has, and each fixes one class and one aria ro
 There is no fifth treatment and no page-local message class. A surface whose outcome fits none of
 the four is a design question to raise, never a licence to mint a class.
 
-An outcome that changed nothing because the desired state already held takes the informational
-tone, never success. Green claims the reader caused a change; where none happened, that is a false
-claim, and where the request was refused it is the opposite of the truth.
+An outcome that changed nothing because the desired state already held from another act takes the
+informational tone, never success. Green claims the reader caused a change; where none happened, that is a false
+claim, and where the request was refused it is the opposite of the truth. The actor's own repeat of
+an act that already landed shows the first submit's success message, because the reader did cause
+that change.
 
 One flash payload carrying several outcomes is the shape this rule exists to prevent. Where a
 controller or service can produce a success, a no-op and a refusal, the tone is decided where the

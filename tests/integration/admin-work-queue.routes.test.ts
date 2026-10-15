@@ -27,6 +27,34 @@ function admin2Cookie(): string {
 function memberCookie(): string {
   return `__Host-footbag_session=${createTestSessionJwt({ memberId: MEMBER_ID })}`;
 }
+// The resolve and park outcomes ride a flash cookie across the redirect. A signed
+// cookie is deterministic for its kind and payload, so two equal values are the
+// same banner.
+function flashOf(res: { get(h: string): string[] | undefined }): string | undefined {
+  return (res.get('Set-Cookie') ?? []).find((c) => c.startsWith('footbag_flash='))?.split(';')[0];
+}
+// The decision rows a resolve of this queue item wrote, whatever its task family.
+function resolveAuditCount(queueItemId: string): number {
+  const db = new BetterSqlite3(dbPath);
+  try {
+    return (db.prepare(
+      `SELECT COUNT(*) AS n FROM audit_entries
+        WHERE json_extract(metadata_json, '$.queue_item_id') = ?
+          AND json_extract(metadata_json, '$.decision_label') IS NOT NULL`,
+    ).get(queueItemId) as { n: number }).n;
+  } finally {
+    db.close();
+  }
+}
+function outboxCountForKey(key: string): number {
+  const db = new BetterSqlite3(dbPath);
+  try {
+    return (db.prepare('SELECT COUNT(*) AS n FROM outbox_emails WHERE idempotency_key = ?')
+      .get(key) as { n: number }).n;
+  } finally {
+    db.close();
+  }
+}
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -377,12 +405,10 @@ describe('POST /admin/work-queue/:id/resolve', () => {
     expect(res.status).toBe(404);
   });
 
-  // Anti-enumeration: resolving an already-resolved item returns 404, the same
-  // status (and body) an unknown id returns, so a caller cannot tell "already
-  // handled" apart from "never existed". The service guard requires
-  // status === 'open' (adminWorkQueueService), mapping non-open rows to
-  // NotFoundError → 404.
-  it('already-resolved id → 404, indistinguishable from an unknown id', async () => {
+  // A repeat of the actor's own resolve reports that resolve's success: 303, and
+  // the item stays resolved with its one audit row.
+  it('a repeated resolve by the same admin reports the first resolve: 303', async () => {
+    // Defect caught: a re-posted resolve shows "no longer open" for an item this admin just closed.
     const app = createApp();
     const queueId = await postOneOpenRequest(app, MEMBER_ID, MEMBER_SLUG);
 
@@ -397,18 +423,49 @@ describe('POST /admin/work-queue/:id/resolve', () => {
       .post(`/admin/work-queue/${queueId}/resolve`)
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ decision_label: 'corrected', resolution_note: 'again' });
-    expect(second.status).toBe(404);
+      .send({ decision_label: 'corrected', resolution_note: 'Fixed it.' });
+    expect(second.status).toBe(303);
+    expect(second.headers.location).toBe(first.headers.location);
+    // The same banner as the first resolve: the member was emailed once, and the
+    // repeat says so rather than guessing.
+    expect(flashOf(second)).toBe(flashOf(first));
+    expect(resolveAuditCount(queueId)).toBe(1);
+    expect(outboxCountForKey(`contact-request-resolve:${queueId}`)).toBe(1);
+  });
 
+  it("another admin re-posting a resolve this admin made gets the closed item's not-found answer, and nothing is written", async () => {
+    // Defect caught: a second admin is told they resolved an item they did not.
+    const app = createApp();
+    const queueId = await postOneOpenRequest(app, MEMBER_ID, MEMBER_SLUG);
+    const body = { decision_label: 'corrected', resolution_note: 'Fixed it.' };
+    expect((await request(app).post(`/admin/work-queue/${queueId}/resolve`)
+      .set('Cookie', adminCookie()).type('form').send(body)).status).toBe(303);
+    const other = await request(app).post(`/admin/work-queue/${queueId}/resolve`)
+      .set('Cookie', admin2Cookie()).type('form').send(body);
+    expect(other.status).toBe(404);
+    expect(resolveAuditCount(queueId)).toBe(1);
+  });
+
+  it('the same admin re-posting with a different note is not a repeat: not-found, and the first resolve stands', async () => {
+    // Defect caught: a second tab with a different note is told it succeeded while the first note stands.
+    const app = createApp();
+    const queueId = await postOneOpenRequest(app, MEMBER_ID, MEMBER_SLUG);
+    const send = (note: string) => request(app).post(`/admin/work-queue/${queueId}/resolve`)
+      .set('Cookie', adminCookie()).type('form')
+      .send({ decision_label: 'corrected', resolution_note: note });
+    expect((await send('Fixed it.')).status).toBe(303);
+    expect((await send('A different note.')).status).toBe(404);
+    expect(resolveAuditCount(queueId)).toBe(1);
+  });
+
+  it('an unknown id still → 404', async () => {
+    const app = createApp();
     const unknown = await request(app)
       .post(`/admin/work-queue/wq_never_existed_zz/resolve`)
       .set('Cookie', adminCookie())
       .type('form')
       .send({ decision_label: 'corrected', resolution_note: 'again' });
     expect(unknown.status).toBe(404);
-
-    // Same not-found body for both: no existence leak.
-    expect(second.text).toBe(unknown.text);
   });
 
   it('non-admin POST → 403', async () => {
@@ -459,7 +516,7 @@ describe('POST /admin/work-queue/:id/resolve', () => {
         liftAddressSuppression: async () => {},
         processSendQueue: async () => ({
           claimed: 0, sent: 0, failed: 0, deadLettered: 0, manualReview: 0, paused: false,
-          suppressed: 0, sendingDark: false, bulkHalted: false, bulkPaused: false,
+          suppressed: 0, bulkHalted: false, bulkPaused: false,
         }),
       });
 
@@ -526,7 +583,7 @@ describe('POST /admin/work-queue/:id/resolve', () => {
           liftAddressSuppression: async () => {},
           processSendQueue: async () => ({
             claimed: 0, sent: 0, failed: 0, deadLettered: 0, manualReview: 0, paused: false,
-          suppressed: 0, sendingDark: false, bulkHalted: false, bulkPaused: false,
+          suppressed: 0, bulkHalted: false, bulkPaused: false,
           }),
         });
 
@@ -759,7 +816,8 @@ describe('POST /admin/work-queue/:id/resolve — payments tasks', () => {
     expect(outboxCount()).toBe(before);
   });
 
-  it('resolving twice returns 404 the second time, indistinguishable from an unknown id', async () => {
+  it('resolving twice by the same admin reports the first resolve: 303', async () => {
+    // Defect caught: a double-clicked resolve on a payments task shows an error for a task that closed.
     const app = createApp();
     const queueId = await seedPaymentsTask('payout_failed', 'stripe_payout', 'po_twice');
 
@@ -774,16 +832,10 @@ describe('POST /admin/work-queue/:id/resolve — payments tasks', () => {
       .post(`/admin/work-queue/${queueId}/resolve`)
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ decision_label: 'follow_up_complete', resolution_note: 'again' });
-    expect(second.status).toBe(404);
-
-    const unknown = await request(app)
-      .post('/admin/work-queue/wq_never_existed_pay/resolve')
-      .set('Cookie', adminCookie())
-      .type('form')
-      .send({ decision_label: 'follow_up_complete', resolution_note: 'again' });
-    expect(unknown.status).toBe(404);
-    expect(second.text).toBe(unknown.text);
+      .send({ decision_label: 'follow_up_complete', resolution_note: 'Bank details corrected.' });
+    expect(second.status).toBe(303);
+    // A payments task emails nobody, and the repeat must not claim it did.
+    expect(flashOf(second)).toBe(flashOf(first));
   });
 
   it('a contact-request decision label is rejected on a payments task', async () => {
@@ -890,6 +942,46 @@ describe('POST /admin/work-queue/:id/resolve — payments tasks', () => {
     }
   });
 
+  it('a repeated resolve spends no rate-limit slot: at a limit of one, the repeat still reports the first resolve', async () => {
+    // Defect caught: a double-clicked resolve near the hourly limit shows "too many
+    // operations" for a resolve that succeeded, and burns the admin's allowance.
+    const rlMod = await import('../../src/services/rateLimitService');
+    const tuneDb = new BetterSqlite3(dbPath);
+    // Later-dated than every other row this suite writes, so it is the current value.
+    insertSystemConfig(tuneDb, {
+      config_key: 'work_queue_resolve_rate_limit_per_hour',
+      value_json: '1',
+      created_at: '2026-06-04T00:00:00.000Z',
+    });
+    tuneDb.close();
+    try {
+      const app = createApp();
+      const q1 = await seedPaymentsTask('charge_dispute_review', 'stripe_dispute', 'di_rl_repeat');
+      const q2 = await seedPaymentsTask('charge_dispute_review', 'stripe_dispute', 'di_rl_fresh');
+      rlMod.resetRateLimitForTests();
+      const send = (id: string) => request(app)
+        .post(`/admin/work-queue/${id}/resolve`)
+        .set('Cookie', adminCookie())
+        .type('form')
+        .send({ decision_label: 'handled_in_stripe', resolution_note: 'one' });
+
+      expect((await send(q1)).status).toBe(303);
+      expect((await send(q1)).status).toBe(303);
+      // The limit is in force: a resolve that is not a repeat is refused.
+      expect((await send(q2)).status).toBe(429);
+    } finally {
+      rlMod.resetRateLimitForTests();
+      const restore = new BetterSqlite3(dbPath);
+      insertSystemConfig(restore, {
+        config_key: 'work_queue_resolve_rate_limit_per_hour',
+        value_json: '120',
+        created_at: '2026-06-05T00:00:00.000Z',
+        reason_text: 'Test restore',
+      });
+      restore.close();
+    }
+  });
+
   it('confirms a payments resolve without claiming an email went out', async () => {
     const app = createApp();
     const queueId = await seedPaymentsTask('recurring_donation_paused', 'recurring_donation_subscription', 'rds_banner');
@@ -989,6 +1081,40 @@ describe('POST /admin/work-queue/:id/park', () => {
     expect(page.text).toContain(`action="/admin/work-queue/${queueId}/unpark"`);
     // Out of the working queue: the card's own resolve controls are gone with it.
     expect(page.text).not.toContain(`action="/admin/work-queue/${queueId}/link-help/approve"`);
+  });
+
+  it('a repeated park by the same admin reports the first park: 303, the item stays parked', async () => {
+    // Defect caught: a re-posted park shows "cannot be parked" for an item this admin just parked.
+    const app = createApp();
+    const queueId = await seedLinkHelpItem(MEMBER_ID);
+    const send = () => request(app)
+      .post(`/admin/work-queue/${queueId}/park`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ note: 'Waiting for them to dig out the old email address.' });
+    const first = await send();
+    expect(first.status).toBe(303);
+    const parkedAt = parkedRow(queueId).parked_at;
+    const repeat = await send();
+    expect(repeat.status).toBe(303);
+    expect(flashOf(repeat)).toBe(flashOf(first));
+    expect(parkedRow(queueId).parked_at).toBe(parkedAt);
+  });
+
+  it("another admin re-posting a park, or the same admin with a different reason, is not a repeat: not-found, and the first park stands", async () => {
+    // Defect caught: a second admin, or a second tab with another reason, is told the park succeeded.
+    const app = createApp();
+    const queueId = await seedLinkHelpItem(MEMBER_ID);
+    const park = (cookie: string, note: string) => request(app)
+      .post(`/admin/work-queue/${queueId}/park`)
+      .set('Cookie', cookie)
+      .type('form')
+      .send({ note });
+    expect((await park(adminCookie(), 'Waiting on the member.')).status).toBe(303);
+    const row = parkedRow(queueId);
+    expect((await park(admin2Cookie(), 'Waiting on the member.')).status).toBe(404);
+    expect((await park(adminCookie(), 'A different reason.')).status).toBe(404);
+    expect(parkedRow(queueId)).toEqual(row);
   });
 
   it('drops the parked item from the digest and the escalation sweep', async () => {

@@ -10,8 +10,10 @@
  * toggled within a single file.
  */
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
+import BetterSqlite3 from 'better-sqlite3';
 import request from '../fixtures/supertestWithOrigin';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
+import { insertOutboxEmail } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3071');
 
@@ -188,5 +190,25 @@ describe('GET /register/check-email — dev mode (SES_ADAPTER=stub)', () => {
     // Exactly one Open link (mine), not one per pending user.
     const openLinks = res.text.match(/\/verify\/[A-Za-z0-9_-]+">CLICK THIS LINK</g);
     expect(openLinks?.length ?? 0).toBe(1);
+  });
+
+  // A page read changes no stored state: the card is filled by the drain the
+  // registration request ran, so opening (or a mail scanner prefetching) the
+  // page must never send queued mail.
+  it('changes no stored state, even with mail waiting in the outbox', async () => {
+    const app = createApp();
+    const flash = await registerFlash(app, 'no-write@example.com');
+    const db = new BetterSqlite3(dbPath);
+    insertOutboxEmail(db, { status: 'pending', body_text: 'queued while the page is open' });
+    const snapshot = () =>
+      db.prepare('SELECT id, status, body_text FROM outbox_emails ORDER BY id').all();
+    const before = snapshot();
+
+    const res = await request(app).get('/register/check-email').set('Cookie', flash);
+
+    expect(res.status).toBe(200);
+    expect(res.text).toMatch(/\/verify\/[A-Za-z0-9_-]+">CLICK THIS LINK</);
+    expect(snapshot()).toEqual(before);
+    db.close();
   });
 });

@@ -210,10 +210,7 @@ publicRouter.get('/members/:memberKey/edit',          requireMember, memberContr
 publicRouter.post('/members/:memberKey/edit',         requireMember, memberController.postProfileEdit);
 publicRouter.get('/members/:memberKey/edit/password', requireMember, memberController.getPasswordEdit);
 publicRouter.post('/members/:memberKey/edit/password',requireMember, memberController.postPasswordEdit);
-publicRouter.post('/members/:memberKey/download',     requireMember, memberController.postRequestDataExport);
-// The emailed download link. No member gate: the single-use token is the
-// authority, because the link is proof the member holds the verified mailbox.
-publicRouter.get('/members/:memberKey/download/:token', memberController.getDataExportDownload);
+publicRouter.get('/members/:memberKey/download',      requireMember, memberController.getDataExportDownload);
 publicRouter.get('/members/:memberKey/delete',        requireMember, memberController.getDeleteAccount);
 publicRouter.post('/members/:memberKey/delete',       requireMember, memberController.postDeleteAccount);
 publicRouter.post('/members/:memberKey/avatar',       requireMember, memberController.postAvatarUpload);
@@ -298,6 +295,7 @@ publicRouter.get('/register',               authController.getRegister);
 publicRouter.post('/register',              authController.postRegister);
 publicRouter.get('/register/check-email',   authController.getCheckEmail);
 publicRouter.get('/verify/:token',          authController.getVerify);
+publicRouter.post('/verify',                authController.postVerify);
 publicRouter.post('/verify/resend',         authController.postVerifyResend);
 
 
@@ -348,6 +346,9 @@ export const STRIPE_WEBHOOK_PATH = '/payments/webhook';
 // string is the whole of the authority, so it takes the same Origin-pin
 // exemption. The path is the shared constant the send path mints its URLs from.
 publicRouter.post(UNSUBSCRIBE_PATH, emailPreferenceController.postOneClickUnsubscribe);
+// A client without one-click opens the same address as a link: a page with one
+// button that posts it, changing nothing itself.
+publicRouter.get(UNSUBSCRIBE_PATH, emailPreferenceController.getUnsubscribe);
 
 publicRouter.post(
   STRIPE_WEBHOOK_PATH,

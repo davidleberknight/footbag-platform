@@ -133,8 +133,10 @@ describe('POST /register', () => {
     expect(member!.email_verified_at).toBeNull();
     expect(member!.display_name_normalized).toBe('new player');
 
+    // The request drains its own mail through the stub sender, so the row is
+    // already sent, on its first attempt.
     expect(outboxRows).toHaveLength(1);
-    expect(outboxRows[0].status).toBe('pending');
+    expect(outboxRows[0].status).toBe('sent');
     expect(outboxRows[0].retry_count).toBe(0);
     expect(outboxRows[0].recipient_member_id).toBe(member!.id);
   });
@@ -173,6 +175,41 @@ describe('POST /register', () => {
     expect(memberCount.c).toBe(1);
     expect(notice).toHaveLength(1);
     expect(notice[0].recipient_member_id).toBe('member-existing-001');
+  });
+
+  // Defect caught: the notice's key carries the time of the attempt rather than
+  // the attempt itself, so a retried send of one attempt mails the owner twice,
+  // or a key naming only the member swallows a later attempt the owner should
+  // hear about.
+  it('keys each account-exists notice on the attempt it reports', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post('/register')
+      .type('form')
+      .send({
+        givenNames: 'Duplicate', familyName: 'Again',
+        email: 'existing@example.com',
+        password: 'securepass123',
+        confirmPassword: 'securepass123',
+      });
+    expect(res.status).toBe(303);
+
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const keys = (db.prepare(
+      `SELECT idempotency_key FROM outbox_emails
+         WHERE recipient_member_id = ? AND template_key = 'account_exists_notice'`,
+    ).all('member-existing-001') as Array<{ idempotency_key: string }>).map((r) => r.idempotency_key);
+    const attempts = (db.prepare(
+      `SELECT id FROM audit_entries
+         WHERE action_type = 'auth.register_duplicate_email' AND entity_id = ?`,
+    ).all('member-existing-001') as Array<{ id: string }>).map((r) => r.id);
+    db.close();
+
+    // This attempt and the one in the case above.
+    expect(attempts).toHaveLength(2);
+    expect(keys.sort()).toEqual(
+      attempts.map((id) => `account_exists_notice:member-existing-001:${id}`).sort(),
+    );
   });
 
   it('short password → 422 with error', async () => {
@@ -823,7 +860,7 @@ describe('POST /register — verify-email enqueue failure', () => {
       liftAddressSuppression: async () => {},
       processSendQueue: async () => ({
         claimed: 0, sent: 0, failed: 0, deadLettered: 0, manualReview: 0, paused: false,
-        suppressed: 0, sendingDark: false, bulkHalted: false, bulkPaused: false,
+        suppressed: 0, bulkHalted: false, bulkPaused: false,
       }),
     });
 
@@ -902,7 +939,7 @@ describe('POST /register → /register/check-email', () => {
   it('renders the verification email link via simulated email card (dev SES_ADAPTER=stub)', async () => {
     const app = createApp();
     // Drain any pending outbox backlog accumulated by earlier tests: the
-    // simulated-card page drains a bounded worker batch, so this registration's
+    // registration request drains a bounded worker batch, so this registration's
     // own verification email must not sit behind more pending rows than one
     // drain clears. Clearing the queue keeps this card render deterministic
     // regardless of how many prior registrations left mail queued.

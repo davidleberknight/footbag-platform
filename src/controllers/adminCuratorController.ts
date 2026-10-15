@@ -33,7 +33,7 @@ import {
   parseGalleryMultipart,
 } from './galleryFormHelpers';
 import { detectImageType } from '../lib/imageProcessing';
-import { getMediaJobService } from '../services/mediaJobService';
+import { getMediaJobService, isAbandonedUpload } from '../services/mediaJobService';
 import { subscribeToJobEvents } from '../services/jobEventBus';
 import {
   getTranscodeDispatchClient,
@@ -1033,7 +1033,7 @@ export const adminCuratorController = {
     try {
       const adminMemberId = req.user!.userId;
       const jobId = req.params.jobId;
-      const job = getMediaJobService().getJobStatusForAdmin(jobId, adminMemberId);
+      const job = getMediaJobService().getJobForAdmin(jobId, adminMemberId);
       if (!job) {
         res.status(404).render('admin/curator/job-status', getCuratorJobNotFoundPage(jobId));
         return;
@@ -1060,7 +1060,7 @@ export const adminCuratorController = {
   streamJobEvents(req: Request, res: Response, _next: NextFunction): void {
     const adminMemberId = req.user!.userId;
     const jobId = req.params.jobId;
-    const job = getMediaJobService().getJobStatusForAdmin(jobId, adminMemberId);
+    const job = getMediaJobService().getJobForAdmin(jobId, adminMemberId);
     if (!job) {
       res.status(404).end();
       return;
@@ -1090,7 +1090,7 @@ export const adminCuratorController = {
 
     // Initial snapshot so a refresh past the live events still shows state.
     writeSse('state', {
-      state: job.state,
+      state: isAbandonedUpload(job, new Date().toISOString()) ? 'abandoned' : job.state,
       mediaId: job.media_id,
       errorMessage: job.last_error,
     });

@@ -52,23 +52,24 @@ export const ADAPTER_SITES: AdapterSite[] = [
     file: 'src/services/paymentService.ts', getter: 'getPaymentAdapter', operation: 'startMembershipPurchase',
     status: {
       swept: SWEEP,
-      knownDefect: 'the payment row and its checkout audit row are written as two statements outside one transaction, so a failed audit write leaves a pending payment no audit row describes, and the retry is refused as a purchase already in progress',
+      knownDefect: 'the payment row and its checkout audit row are written as two statements outside one transaction, so a failed audit write leaves a pending payment no audit row describes, and the retry returns to that open checkout, so the audit row is never written',
     },
+  },
+  {
+    file: 'src/services/paymentService.ts', getter: 'getPaymentAdapter', operation: 'reopenCheckout',
+    status: { noWriteAfter: 'reads the address of the checkout a repeated purchase or gift returns to; nothing is written on that path' },
+  },
+  {
+    file: 'src/services/paymentService.ts', getter: 'getPaymentAdapter', operation: 'closeCheckout',
+    status: { pending: 'closes an abandoned or losing checkout at the provider; a membership purchase then closes its pending row, and a fault between them leaves the row pending until the expiry webhook closes it, which is not yet injected' },
   },
   {
     file: 'src/services/paymentService.ts', getter: 'getPaymentAdapter', operation: 'handleWebhook',
     status: { swept: WEBHOOK_SWEEP },
   },
   {
-    file: 'src/services/paymentService.ts', getter: 'getPaymentAdapter', operation: 'releaseAbandonedCheckout',
-    status: { noWriteAfter: 'expires an abandoned provider session as a courtesy; a failure is logged and nothing is recorded either way' },
-  },
-  {
     file: 'src/services/paymentService.ts', getter: 'getPaymentAdapter', operation: 'startDonation',
-    status: {
-      swept: SWEEP,
-      knownDefect: 'the pending donation row (or pending subscription row) and its checkout audit row are written as two statements outside one transaction, so a failed audit write leaves an orphan pending row no audit row describes, and the retry writes a second one',
-    },
+    status: { swept: SWEEP },
   },
   {
     file: 'src/services/paymentService.ts', getter: 'getPaymentAdapter', operation: 'cancelRecurringDonation',

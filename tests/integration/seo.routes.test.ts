@@ -202,6 +202,20 @@ describe('page-head metadata', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('<meta name="robots" content="noindex, follow" />');
   });
+
+  // Defect caught: an email-verify or password-reset link's single-use token is
+  // written into the landing page's canonical and og:url tags.
+  // The page's own form still carries the token it must post; only the head tags
+  // a crawler or a share preview reads are kept free of it.
+  it('a page reached by a token link writes no canonical or og:url, so the token stays out of the page head', async () => {
+    const token = 'seo-token-should-not-appear';
+    for (const path of [`/verify/${token}`, `/password/reset/${token}`]) {
+      const res = await page(path);
+      expect(res.status, path).toBe(200);
+      expect(res.text, path).not.toContain('rel="canonical"');
+      expect(res.text, path).not.toContain('property="og:url"');
+    }
+  });
 });
 
 describe('indexing-control response headers (non-production)', () => {

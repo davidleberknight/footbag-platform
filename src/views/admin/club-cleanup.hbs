@@ -30,6 +30,31 @@
   </section>
 
   <section class="mt-4">
+    {{#if content.ruleDemotionCount}}
+      <details class="cleanup-group">
+        <summary>Demotions the Rules Would Make ({{content.ruleDemotionCount}})</summary>
+        <p class="mt-2">Each club here has nothing on its record saying it exists. Applying the rules demotes these clubs to inactive, where they stay listed and come back the moment someone joins or leads them, and retires their unconfirmed legacy affiliations.</p>
+        <form method="POST" action="/admin/club-cleanup/apply-rules" class="cleanup-action-form mt-2">
+          <button type="submit" class="btn btn-primary btn-sm">Apply the Rules</button>
+        </form>
+        <table class="cleanup-queue-table mt-2">
+          <thead>
+            <tr>
+              <th>Club</th>
+              <th>Location</th>
+            </tr>
+          </thead>
+          <tbody>
+            {{#each content.ruleDemotions}}
+              <tr>
+                <td class="fw-600">{{this.clubName}}</td>
+                <td class="text-muted">{{this.clubCity}}{{#if this.clubCountry}}, {{this.clubCountry}}{{/if}}</td>
+              </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      </details>
+    {{/if}}
     {{#if content.itemGroups.length}}
       {{#each content.itemGroups}}
         <details class="cleanup-group">

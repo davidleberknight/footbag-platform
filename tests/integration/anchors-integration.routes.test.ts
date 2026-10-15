@@ -280,11 +280,8 @@ describe('registration-time conflict prompt', () => {
     // identity-link category of the contact form is the route, and the platform
     // classifies the request as a dispute from the records it detects rather
     // than from anything the member declares.
-    // Rendering the task above already materialised the task rows, so signing
-    // up is finished by advancing them rather than by seeding new ones.
-    db.prepare(
-      `UPDATE member_onboarding_tasks SET state = 'completed' WHERE member_id = ?`,
-    ).run(memberId);
+    insertOnboardingTask(db, memberId, 'legacy_claim', 'completed');
+    insertOnboardingTask(db, memberId, 'club_affiliations', 'completed');
 
     const res = await request(createApp())
       .post('/members/mem_conflict_new/contact-admin')

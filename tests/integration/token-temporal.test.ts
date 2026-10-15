@@ -9,7 +9,7 @@
  * past `expires_at` rather than moving a clock the SQL layer would not see.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import request from 'supertest';
+import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { seedPersona } from '../../src/testkit/personaFactory';
@@ -69,12 +69,12 @@ afterAll(() => cleanupTestDb(dbPath));
 describe('email-verify token temporal contract', () => {
   it('an expired verify link leaves the account unverified', async () => {
     expect(isVerified(), 'starts unverified').toBe(false);
-    await request(createApp()).get(`/verify/${expiredToken}`);
+    await request(createApp()).post('/verify').type('form').send({ token: expiredToken });
     expect(isVerified(), 'still unverified after expired link').toBe(false);
   });
 
   it('a valid verify link verifies the account', async () => {
-    await request(createApp()).get(`/verify/${validToken}`);
+    await request(createApp()).post('/verify').type('form').send({ token: validToken });
     expect(isVerified(), 'verified after valid link').toBe(true);
   });
 });

@@ -3384,7 +3384,7 @@ section.home-media { padding-top: 0; }
   margin: 1rem 0;
 }
 
-/* ── Simulated email card (dev/sandbox only; production renders nothing) ── */
+/* ── Simulated email card (stub sender only; renders nothing once email is live) ── */
 .sec-card { border: 1px solid var(--sec-border); border-radius: var(--radius-sm); padding: 1rem; margin-top: 1.5rem; background: var(--sec-bg); }
 .sec-card-dev { border-left: 4px solid var(--sec-dev); }
 .sec-card-sandbox { border-left: 4px solid var(--sec-sandbox); background: var(--sec-sandbox-bg); }

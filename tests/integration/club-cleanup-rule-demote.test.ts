@@ -244,26 +244,58 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('the cleanup rules demote the clubs they settle', () => {
-  // Opening the queue is the only trigger there is. The surfaces that read the
-  // same club data must leave every status alone, including the admin home,
-  // whose backlog badge counts the very clubs the rules would settle.
-  it('no surface other than the queue demotes a club', async () => {
+  // The Apply the Rules button is the only trigger there is. Opening the queue,
+  // the admin home whose badge counts the same clubs, and the public club list
+  // all read the same data and must change nothing at all; the queue lists the
+  // clubs the rules would demote while they are still active.
+  it('no page demotes a club, and the queue lists the clubs the rules would demote', async () => {
     const app = createApp();
+    const probe = new BetterSqlite3(dbPath, { readonly: true });
+    const dataVersion = () => probe.pragma('data_version', { simple: true });
+    const before = dataVersion();
 
     const home = await request(app).get('/admin').set('Cookie', adminCookie());
     expect(home.status).toBe(200);
     const clubs = await request(app).get('/clubs');
     expect(clubs.status).toBe(200);
+    const queue = await request(app).get('/admin/club-cleanup').set('Cookie', adminCookie());
+    expect(queue.status).toBe(200);
+    expect(queue.text).toContain('Apply the Rules');
+    expect(queue.text).toContain('Dead Voted Club');
 
+    expect(dataVersion()).toBe(before);
+    probe.close();
     for (const clubId of [CLUB_DEAD, CLUB_DEAD_VOTED, CLUB_WAITING, CLUB_PARKED]) {
       expect(statusOf(clubId)).toBe('active');
       expect(autoDemoteAuditCount(clubId)).toBe(0);
     }
+
+    const { clubCleanupService } = await import('../../src/services/clubCleanupService');
+    const pending = clubCleanupService.getCleanupQueuePage().content.ruleDemotions.map((d) => d.clubId);
+    expect(pending).toContain(CLUB_DEAD);
+    expect(pending).toContain(CLUB_DEAD_VOTED);
+    expect(pending).not.toContain(CLUB_WAITING);
+    expect(pending).not.toContain(CLUB_PARKED);
   });
 
-  it('demotes a club whose record says nothing on any side, and retires its residue', async () => {
-    const { clubCleanupService } = await import('../../src/services/clubCleanupService');
-    clubCleanupService.getCleanupQueuePage();
+  it('a non-admin cannot apply the rules', async () => {
+    const app = createApp();
+    const memberCookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: MEMBER })}`;
+    const res = await request(app).post('/admin/club-cleanup/apply-rules').set('Cookie', memberCookie);
+    expect(res.status).not.toBe(303);
+    expect(statusOf(CLUB_DEAD)).toBe('active');
+    expect(autoDemoteAuditCount(CLUB_DEAD)).toBe(0);
+  });
+
+  it('demotes a club whose record says nothing on any side when an admin applies the rules, and retires its residue', async () => {
+    const app = createApp();
+    const res = await request(app).post('/admin/club-cleanup/apply-rules').set('Cookie', adminCookie());
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/admin/club-cleanup');
+    const flash = (res.get('Set-Cookie') ?? []).find((c) => c.startsWith('footbag_flash='));
+    const page = await request(app).get('/admin/club-cleanup')
+      .set('Cookie', [adminCookie(), flash!.split(';')[0]].join('; '));
+    expect(page.text).toMatch(/The rules demoted \d+ clubs? to inactive\./);
 
     expect(statusOf(CLUB_DEAD)).toBe('inactive');
     expect(autoDemoteAuditCount(CLUB_DEAD)).toBe(1);
@@ -433,21 +465,30 @@ describe('the cleanup rules demote the clubs they settle', () => {
       .toContain(CLUB_PARKED_RETURNED);
   });
 
-  // The audit row is the only record of a decision no human made, so it has to
-  // carry who decided and the evidence that decided it, not merely exist.
-  it('records the system as the actor and the evidence behind the demotion', () => {
+  // The audit row has to say which administrator applied the rules and the
+  // evidence that decided each club, not merely exist; the club and the
+  // retired residue carry the same actor.
+  it('records the pressing admin as the actor, with the evidence behind the demotion', () => {
     const db = new BetterSqlite3(dbPath);
     let row: { actor_type: string; actor_member_id: string | null; metadata_json: string };
+    let clubUpdatedBy: string;
+    let residueUpdatedBy: string[];
     try {
       row = db.prepare(
         "SELECT actor_type, actor_member_id, metadata_json FROM audit_entries WHERE action_type = 'club.auto_demoted' AND entity_id = ?",
       ).get(CLUB_DEAD_VOTED) as typeof row;
+      clubUpdatedBy = (db.prepare('SELECT updated_by FROM clubs WHERE id = ?').get(CLUB_DEAD) as { updated_by: string }).updated_by;
+      residueUpdatedBy = (db.prepare(
+        "SELECT DISTINCT updated_by FROM legacy_person_club_affiliations WHERE resolution_status = 'former_only'",
+      ).all() as Array<{ updated_by: string }>).map((r) => r.updated_by);
     } finally {
       db.close();
     }
 
-    expect(row.actor_type).toBe('system');
-    expect(row.actor_member_id).toBeNull();
+    expect(row.actor_type).toBe('admin');
+    expect(row.actor_member_id).toBe(ADMIN);
+    expect(clubUpdatedBy).toBe(ADMIN);
+    expect(residueUpdatedBy).toEqual([ADMIN]);
 
     const metadata = JSON.parse(row.metadata_json);
     expect(metadata.club_name).toBe('Dead Voted Club');
@@ -459,10 +500,17 @@ describe('the cleanup rules demote the clubs they settle', () => {
     expect(metadata.active_votes).toBe(0);
   });
 
-  it('a second open demotes nothing further and writes no second audit row', async () => {
-    const { clubCleanupService } = await import('../../src/services/clubCleanupService');
-    clubCleanupService.getCleanupQueuePage();
-    clubCleanupService.getCleanupQueuePage();
+  // A second press, or another admin's stale page, finds nothing left to
+  // demote: it says so rather than claiming a change, and writes nothing.
+  it('a second press demotes nothing, writes no second audit row, and says nothing changed', async () => {
+    const app = createApp();
+    const res = await request(app).post('/admin/club-cleanup/apply-rules').set('Cookie', adminCookie());
+    expect(res.status).toBe(303);
+    const flash = (res.get('Set-Cookie') ?? []).find((c) => c.startsWith('footbag_flash='));
+    const page = await request(app).get('/admin/club-cleanup')
+      .set('Cookie', [adminCookie(), flash!.split(';')[0]].join('; '));
+    expect(page.text).toContain('Nothing changed: no club still meets the rules for demotion.');
+    expect(page.text).not.toContain('Apply the Rules');
 
     expect(autoDemoteAuditCount(CLUB_DEAD)).toBe(1);
     expect(autoDemoteAuditCount(CLUB_DEAD_VOTED)).toBe(1);

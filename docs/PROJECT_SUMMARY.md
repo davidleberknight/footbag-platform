@@ -672,7 +672,7 @@ This policy supports GDPR privacy requirements while retaining required financia
 
 **Immutable Append-Only Logs:** Every state-changing action appends an entry to an audit log database table. Immutability and privacy are enforced at the application and infrastructure level.
 
-**What Gets Logged:** Authentication events, profile changes, club membership, event operations, photo and video actions, payment transactions, admin decisions, event-organizer/club-leader additions and acceptances, URL validation results, membership tier changes, price edits and price change events, Board add and remove, election creation, ballot tallying operations, results publication, cancellation, event sanction approvals and denials, administrator overrides and batch operations, announce-list sends, event results publication, login failures over threshold, price configuration reads and exports, email template edits, election settings edits after creation, organizer assignment or removal on events, ClubLeader set or unset, archive access policy changes, payment gateway keys and webhook URL changes, ballot encryption key rotations.
+**What Gets Logged:** Authentication events, profile changes, club membership, event operations, photo and video actions, payment transactions, admin decisions, event-organizer/club-leader additions and acceptances, URL validation results, membership tier changes, price edits and price change events, Board add and remove, election creation, ballot tallying operations, results publication, cancellation, event sanction approvals and denials, administrator overrides and batch operations, announce-list sends, event results publication, login failures over threshold, email template edits, election settings edits after creation, organizer assignment or removal on events, ClubLeader set or unset, archive access policy changes, payment gateway keys and webhook URL changes, ballot encryption key rotations.
 
 Administrators may edit member data (as permitted by rules), and all such actions are audit-logged. Where an action has several possible motives, such as a tier correction, the administrator's reason is recorded with it, the point being that the admin can manually apply BAP and HoF flags, fix Tier status or other data problems. Note that this includes the case where a member dies; the admin can set a deceased flag for the member, which takes a confirmation rather than a reason.
 
@@ -778,7 +778,7 @@ All AWS infrastructure for the platform is defined as code using Terraform confi
 
 **Reproducible AWS environments:** The staging and production AWS environments can be recreated from reviewed Terraform configuration after the one-time bootstrap handoff. Local developer environments are reproduced through the repository’s Docker/SQLite/bootstrap scripts rather than through Terraform.
 
-**Infrastructure review in pull requests:** Changes to infrastructure go through code review process. Team members can see exactly what will change before applying updates.
+**Infrastructure changes approved by the maintainer:** The planned changes are reviewed before applying, ideally in a pull request, so team members can see exactly what will change.
 
 **Disaster recovery:** If AWS resources are accidentally deleted or an entire AWS account is compromised, infrastructure can be rebuilt from version-controlled Terraform files.
 

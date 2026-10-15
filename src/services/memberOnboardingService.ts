@@ -2,8 +2,9 @@
  * MemberOnboardingService -- post-verification onboarding wizard and dashboard task widget.
  *
  * Owns:
- *   - The onboarding task list and its lifecycle: idempotent startTaskList on first wizard GET,
- *     per-task state (pending until answered, then completed; there are no other states), and
+ *   - The onboarding task list and its lifecycle once IdentityAccessService has created its
+ *     rows, pending, in the transaction that verifies the email (a missing row reads as
+ *     pending, and a POST that completes a task creates its row if needed), per-task state (pending until answered, then completed; there are no other states), and
  *     the sequential advance order that the wizard and the dashboard widget target both follow.
  *   - The three tasks: personal_details, legacy_claim, and club_affiliations. ALL THREE are
  *     required to become a full member, and each completes only by a recorded explicit answer,
@@ -48,6 +49,9 @@
  *   - The wizard never reveals whether the member has a plausible legacy match beyond the existing
  *     anti-enumeration contract.
  *   - Per-task answers persist on submit; completing a task advances the sequence.
+ *   - Opening a wizard page writes nothing. Each task completes in the transaction of the
+ *     answer that settles it (the personal-details save, the claim or the non-claiming
+ *     answer, the club card or the no-club answer), never on a later page load.
  *   - A completing answer is given once and not again. Each of the three -- the
  *     personal_details save, the club task's no-club answer, and the claim task's
  *     continue-without-linking decision -- refuses once its task is completed and bounces
@@ -402,16 +406,14 @@ function isTaskAnswered(_memberId: string, _taskType: OnboardingTaskType, state:
 }
 
 // The next task to send a still-onboarding member to: the lowest-index task
-// not yet answered. Residual non-pending states count as outstanding here so
-// a member carrying one is routed back into the task, where entry repairs the
-// row to pending. Returns null only when nothing is outstanding.
+// not yet answered. The catalogue is walked rather than the stored rows, and a
+// missing row reads as pending, so a member with partial or no rows is routed
+// to the first step they owe instead of being bounced between a completed step
+// and the completion page. Returns null only when nothing is outstanding.
 function nextOutstandingTaskType(memberId: string): OnboardingTaskType | null {
-  const outstanding = (memberOnboarding.listForMember.all(memberId) as MemberOnboardingTaskRow[])
-    .filter((r) => (r.task_type as OnboardingTaskType) in TASK_TYPE_INDEX)
-    .filter((r) => !isTaskAnswered(memberId, r.task_type as OnboardingTaskType, r.state))
-    .map((r) => r.task_type as OnboardingTaskType)
-    .sort((a, b) => TASK_TYPE_INDEX[a] - TASK_TYPE_INDEX[b]);
-  return outstanding[0] ?? null;
+  return TASK_CATALOG.find(
+    (t) => !isTaskAnswered(memberId, t, getTaskState(memberId, t) ?? 'pending'),
+  ) ?? null;
 }
 
 // The membership authorization predicate: the auth middleware derives
@@ -433,11 +435,8 @@ function isOnboardingComplete(memberId: string): boolean {
 // Drives the wizard submit label: completing this task continues the wizard
 // when more steps remain, and finishes it when this is the last one.
 function hasOtherOutstandingTasks(memberId: string, exceptTaskType: OnboardingTaskType): boolean {
-  const rows = memberOnboarding.listForMember.all(memberId) as MemberOnboardingTaskRow[];
-  return rows.some(
-    (r) =>
-      (r.task_type as OnboardingTaskType) !== exceptTaskType &&
-      isOutstandingState(r.state),
+  return TASK_CATALOG.some(
+    (t) => t !== exceptTaskType && isOutstandingState(getTaskState(memberId, t) ?? 'pending'),
   );
 }
 
@@ -474,41 +473,11 @@ function prerequisiteTaskFor(
   return null;
 }
 
-function startTaskList(memberId: string): void {
-  const now = new Date().toISOString();
-  let inserted = 0;
-  for (const taskType of TASK_CATALOG) {
-    const result = memberOnboarding.insertTaskIfMissing.run(
-      newTaskId(), now, 'onboarding_service', now, 'onboarding_service',
-      memberId, taskType,
-    );
-    inserted += result.changes;
-  }
-  // Audit emitted once per member, only on first materialization (inserted > 0).
-  // Idempotent re-calls from subsequent GETs produce no inserts and no audit
-  // row, so the log records the wizard start event without flooding.
-  if (inserted > 0) {
-    appendAuditEntry({
-      actionType:    'wizard.start',
-      category:      'onboarding',
-      actorType:     'member',
-      actorMemberId: memberId,
-      entityType:    'member',
-      entityId:      memberId,
-      metadata: { tasks_inserted: inserted },
-    });
-  }
-}
-
-function startTask(memberId: string, taskType: string): void {
-  transitionTask(memberId, taskType, 'pending', 'wizard.task.started');
-}
-
 /**
  * Complete a task, and when that completion is the one that makes the
  * membership predicate true, emit the member's single wizard.complete audit
  * row on the same edge. Computing the edge here, around the transition, covers
- * every completion path (wizard submits, the claim decision, the reconcilers,
+ * every completion path (wizard submits, the claim decision,
  * the cross-surface claim) and cannot double-fire: the predicate is false
  * before at most one completing transition per member and true after it.
  */
@@ -544,57 +513,6 @@ function completeTaskIfOutstanding(memberId: string, taskType: OnboardingTaskTyp
     return;
   }
   completeTask(memberId, taskType);
-}
-
-/**
- * Auto-transition `legacy_claim` to `completed` when the underlying state
- * shows the member is already linked. Returns true if a transition occurred.
- * Handles the case where a link succeeded outside the wizard (e.g. direct
- * HP claim from the history page, or profile-edit side channel).
- */
-function ensureLegacyClaimReflectsState(memberId: string): boolean {
-  const row = memberOnboarding.findByMemberAndType.get(memberId, 'legacy_claim') as
-    | MemberOnboardingTaskRow
-    | undefined;
-  if (!row || row.state === 'completed') return false;
-  const links = account.findLegacyAndHpIdsById.get(memberId) as
-    | { legacy_member_id: string | null; historical_person_id: string | null }
-    | undefined;
-  if (!links) return false;
-  if (links.legacy_member_id || links.historical_person_id) {
-    completeTask(memberId, 'legacy_claim');
-    return true;
-  }
-  return false;
-}
-
-
-/**
- * Auto-complete `club_affiliations` when the member already holds a current
- * club affiliation and has no card left to act on.
- * Returns true if a transition occurred. The task is universal, like
- * legacy_claim: a member with no suggestion cards is NOT skipped: the task
- * stays renderable so every member reaches the find-or-create-your-club
- * wrap-up landing and is asked to join or create a club.
- */
-function ensureClubAffiliationsReflectsState(memberId: string): boolean {
-  const row = memberOnboarding.findByMemberAndType.get(memberId, 'club_affiliations') as
-    | MemberOnboardingTaskRow
-    | undefined;
-  if (!row || row.state === 'completed') return false;
-  const cards = listWizardCardsForMember(memberId);
-  if (cards.length > 0) return false;
-  // No cards left and a current club affiliation in hand: the task's goal
-  // is met regardless of how the affiliation arrived.
-  const current = (memberClubAffiliations.countCurrentByMemberId.get(memberId) as { c: number }).c;
-  if (current > 0) {
-    completeTask(memberId, 'club_affiliations');
-    return true;
-  }
-  // No cards and no current affiliation: the task stays pending so the wrap-up
-  // landing renders for every member, including one with no legacy suggestion
-  // material. No auto-transition.
-  return false;
 }
 
 // A member's claimed identity is the pair (legacy_member_id,
@@ -1026,7 +944,7 @@ function submitMembershipResponse(
   // 'correct' = "this record is wrong": same lpca transition as decline,
   // distinguished only by audit metadata.
   const treatAsDecline = userDecision === 'decline' || userDecision === 'correct';
-  const result = clubService.confirmAffiliation(
+  const result = clubService.confirmAffiliationInTx(
     candidateId,
     memberId,
     treatAsDecline ? 'decline' : 'confirm',
@@ -1178,13 +1096,9 @@ function submitLeadershipResponse(
   // claimLeadership inserts a flat co-leader row, or falls through to
   // affiliate-only when the club is at the cap or the member already co-leads
   // another club. Admins can later add affiliate-only members as co-leaders or
-  // reshape leadership via A_* admin powers.
-  // The promote writes (status, club_leaders, affiliation) are atomic via
-  // claimLeadership's internal transaction; the task-complete + audit
-  // writes that follow are non-transactional but follow the same
-  // append-only pattern as transitionTask (low risk: better-sqlite3 inserts
-  // are synchronous and audit_entries inserts essentially cannot fail).
-  const promote = clubService.claimLeadership(candidateId, memberId);
+  // reshape leadership via A_* admin powers. The promote writes, the audit row
+  // and the task completion share the caller's transaction.
+  const promote = clubService.claimLeadershipInTx(candidateId, memberId);
   appendAuditEntry({
     actionType:    'wizard.club_affiliations.promoted',
     category:      'onboarding',
@@ -1224,6 +1138,9 @@ function submitLeadershipResponse(
 function submitClubAffiliationsResponse(
   memberId: string,
   body: Record<string, unknown>,
+  // Writes that belong to the same answer (the optional insight note) and so
+  // commit with it, given the result they key on.
+  alsoInTx?: (result: ClubAffiliationsResult) => void,
 ): ClubAffiliationsResult {
   // Body shape: { kind: 'membership' | 'leadership' (default 'leadership'),
   //               candidateId, userDecision, activitySignal? }. `kind` is
@@ -1271,17 +1188,27 @@ function submitClubAffiliationsResponse(
   // not answered yet.
   assertCandidateOwnership(memberId, candidateId, kindRaw);
 
-  return kindRaw === 'membership'
-    ? submitMembershipResponse(memberId, candidateId, userDecision, activitySignal)
-    : submitLeadershipResponse(memberId, candidateId, userDecision, activitySignal);
+  // The card's answer and, when it is the last one, the step's completion
+  // commit together, so the step never completes on a later page load.
+  return transaction(() => {
+    const result = kindRaw === 'membership'
+      ? submitMembershipResponse(memberId, candidateId, userDecision, activitySignal)
+      : submitLeadershipResponse(memberId, candidateId, userDecision, activitySignal);
+    alsoInTx?.(result);
+    return result;
+  });
 }
 
 function submitTaskResponse(memberId: string, taskType: string, response: unknown): void {
   assertTaskType(taskType);
   const body = (response ?? {}) as Record<string, unknown>;
   if (taskType === 'personal_details') {
-    memberService.setPersonalDetails(memberId, body);
-    completeTask(memberId, taskType);
+    // The save and the completion commit together, so the step can never be
+    // completed without its answer or answered without completing.
+    transaction(() => {
+      memberService.setPersonalDetailsInTx(memberId, body);
+      completeTask(memberId, taskType);
+    });
     return;
   }
   if (taskType === 'club_affiliations') {
@@ -1338,7 +1265,6 @@ function advanceAfter(
   memberId: string,
   _currentTaskType: OnboardingTaskType,
 ): WizardAdvanceArm {
-  startTaskList(memberId);
   // One sequencing algorithm for the whole wizard: the next task is simply the
   // lowest-index task still outstanding, so the advance and the gate /
   // completion redirects can never disagree about what comes next.
@@ -1422,8 +1348,12 @@ function processClaimCandidate(
     return { kind: 'retry_same', flash: null };
   }
   // A repeat of a claim that already landed (a double click, a back-button
-  // re-post) reports the success it had and writes nothing.
-  if (memberHoldsTarget(memberId, target)) return advanceAfter(memberId, 'legacy_claim');
+  // re-post) reports the success it had. Holding the record answers the step,
+  // so a task still pending beside it completes here; a page load never does.
+  if (memberHoldsTarget(memberId, target)) {
+    transaction(() => completeTaskIfOutstanding(memberId, 'legacy_claim'));
+    return advanceAfter(memberId, 'legacy_claim');
+  }
   if (!claimStepTakesAnswers(memberId)) {
     return { kind: 'retry_same', flash: null };
   }
@@ -1442,7 +1372,8 @@ function processClaimCandidate(
         refused = { candidate: outcome.candidate };
         throw new ClaimRefusedSignal();
       }
-      if (outcome.status === 'claimed') completeTaskIfOutstanding(memberId, 'legacy_claim');
+      // Claimed now, or already the member's own: either way the step is answered.
+      completeTaskIfOutstanding(memberId, 'legacy_claim');
     });
   } catch (err) {
     if (err instanceof ClaimRefusedSignal && refused) {
@@ -1476,21 +1407,27 @@ function processLegacyClaimBirthDate(
     return { kind: 'retry_same', flash: null };
   }
   const max = readIntConfig('onboarding_birth_date_change_max', 3);
-  const counters = memberOnboarding.findLegacyClaimCounters.get(memberId) as
-    | { birth_date_changes: number | null } | undefined;
-  if ((counters?.birth_date_changes ?? 0) >= max) {
-    return {
-      kind: 'validation_error',
-      formState: null,
-      message: 'Your date of birth cannot be changed again while you are signing up. You can correct it from your profile once you have finished.',
-    };
-  }
   try {
-    transaction(() => {
+    // The count lives on the claim step's row, so the row is made sure of
+    // first: without it the increment would change nothing and the cap would
+    // never be reached. The cap is read in the same transaction as the change.
+    const capped = transaction(() => {
+      ensureTaskRow(memberId, 'legacy_claim');
+      const counters = memberOnboarding.findLegacyClaimCounters.get(memberId) as
+        | { birth_date_changes: number | null } | undefined;
+      if ((counters?.birth_date_changes ?? 0) >= max) return true;
       if (memberService.correctOwnBirthDateInTx(slug, parts)) {
         memberOnboarding.incrementBirthDateChanges.run(new Date().toISOString(), memberId, memberId);
       }
+      return false;
     });
+    if (capped) {
+      return {
+        kind: 'validation_error',
+        formState: null,
+        message: 'Your date of birth cannot be changed again while you are signing up. You can correct it from your profile once you have finished.',
+      };
+    }
   } catch (err) {
     if (err instanceof ValidationError) {
       return { kind: 'validation_error', formState: null, message: err.message };
@@ -1671,9 +1608,8 @@ function processContinueWithoutLinking(
  * task can never finish with a card left open. Bulk declines record no
  * activity evidence (like a per-card "Not sure") and carry a bulk marker in
  * their audit metadata so a considered per-card No stays distinguishable.
- * Both decline write paths are transaction-free, which is what makes the
- * single wrapping transaction safe; the confirm/promote branches open their
- * own transactions and are never reached from here.
+ * Both decline writers use the club service's in-transaction entry points,
+ * because the transaction helper does not nest.
  */
 function processNoClubsAnswer(
   memberId: string,
@@ -1714,7 +1650,9 @@ function processNoClubsAnswer(
         }
       }
     }
-    if (insightNote) {
+    // The note is invited once per member, so a member who already left one on
+    // a card answers the wrap-up without a second note being stored.
+    if (insightNote && !memberHasLeftClubInsight(memberId)) {
       writeInsightNote(memberId, null, 'onboarding_club_wrapup', insightNote, null, null);
     }
     completeTask(memberId, 'club_affiliations');
@@ -1726,7 +1664,7 @@ function processNoClubsAnswer(
 // (same status transitions, same audit action types) minus the activity
 // signal and the per-card completion probe, plus the bulk marker.
 function bulkDeclineMembership(memberId: string, candidateId: string): void {
-  const result = clubService.confirmAffiliation(candidateId, memberId, 'decline');
+  const result = clubService.confirmAffiliationInTx(candidateId, memberId, 'decline');
   appendAuditEntry({
     actionType:    'wizard.club_affiliations.declined',
     category:      'onboarding',
@@ -1791,8 +1729,12 @@ function claimHistoricalPersonAndCompleteTask(
     throw new Error('personal_details must be complete before a historical-person claim');
   }
   const target: ClaimTarget = { accountId: null, recordId: personId };
-  // A repeat of a confirmation that already landed reports that success.
-  if (memberHoldsTarget(memberId, target)) return;
+  // A repeat of a confirmation that already landed reports that success, and
+  // completes the step if it is somehow still pending beside the held record.
+  if (memberHoldsTarget(memberId, target)) {
+    transaction(() => completeTaskIfOutstanding(memberId, 'legacy_claim'));
+    return;
+  }
   if (!claimStepTakesAnswers(memberId)) {
     throw new ValidationError(CLAIM_NO_LONGER_AVAILABLE);
   }
@@ -1805,7 +1747,7 @@ function claimHistoricalPersonAndCompleteTask(
         refused = outcome.candidate;
         throw new ClaimRefusedSignal();
       }
-      if (outcome.status === 'claimed') completeTaskIfOutstanding(memberId, 'legacy_claim');
+      completeTaskIfOutstanding(memberId, 'legacy_claim');
     });
   } catch (err) {
     if (err instanceof ClaimRefusedSignal) {
@@ -1890,13 +1832,15 @@ function submitDisambiguationResponse(
   // activity question. Confirming here would consume the pending row the
   // standard card renders from, and the activity signal would never be
   // collected.
-  for (const id of allIds) {
-    if (id === selectedId) continue;
-    submitMembershipResponse(memberId, id, 'decline', null);
-  }
-  const taskState = selectedId !== null
-    ? ('in_progress' as const)
-    : maybeCompleteClubAffiliationsTask(memberId);
+  const taskState = transaction(() => {
+    for (const id of allIds) {
+      if (id === selectedId) continue;
+      submitMembershipResponse(memberId, id, 'decline', null);
+    }
+    return selectedId !== null
+      ? ('in_progress' as const)
+      : maybeCompleteClubAffiliationsTask(memberId);
+  });
   return {
     branch:         selectedId !== null ? 'confirmed' : 'declined',
     classification: 'none',
@@ -2050,20 +1994,24 @@ async function processClubAffiliationsSubmit(
   );
   const clubName = resolvedCard?.clubName ?? 'that club';
 
-  const result = submitClubAffiliationsResponse(memberId, body);
-
-  // The note is stored after the answer, so it keys to the club the answer
-  // resolved to. A membership answer on a candidate with no live club yet has
-  // no club id to key on, so the note follows the candidate and is stamped
-  // with the club id if that candidate is ever promoted, exactly as the
-  // activity signal is.
+  // The note is stored with the answer, in its transaction, so it keys to the
+  // club the answer resolved to and never survives an answer that rolled back,
+  // nor is lost behind one that committed. A membership answer on a candidate
+  // with no live club yet has no club id to key on, so the note follows the
+  // candidate and is stamped with the club id if that candidate is ever
+  // promoted, exactly as the activity signal is.
   // The note is invited once per member and is never required, so a member who
   // has already left one writes no second note. Without this a repeated submit
   // of the same card (a double-click reaches the endpoint twice, and neither
   // the route nor the service checks the wizard step) lands a duplicate on the
-  // admin evidence surface.
-  if (insightNote && !memberHasLeftClubInsight(memberId)) {
-    const resolvedClubId = result.resolvedClubId
+  // admin evidence surface. An idempotent result means the card was already
+  // answered, so this post is not an answer and carries no note: a completed
+  // answer is given once, and a stale tab or crafted re-post must not attach a
+  // note to it afterwards.
+  const result = submitClubAffiliationsResponse(memberId, body, (answered) => {
+    if (answered.branch === 'idempotent') return;
+    if (!insightNote || memberHasLeftClubInsight(memberId)) return;
+    const resolvedClubId = answered.resolvedClubId
       ?? (resolvedCard?.kind === 'leadership' ? resolvedCard.clubId : resolvedCard?.clubId)
       ?? null;
     if (resolvedClubId) {
@@ -2081,15 +2029,16 @@ async function processClubAffiliationsSubmit(
         affiliation ? affiliation.legacy_club_candidate_id : null,
       );
     }
-  }
+  });
 
   if (result.branch === 'cap_hit') {
     // At the two-current-club cap the card still resolves, but what was
     // recorded differs by card: a membership Yes becomes a former membership,
     // while a leadership claim makes the member a co-leader of a club they are
     // not a member of. Either way the notice comes before any advance, so the
-    // member learns how the answer was recorded; the next GET advances via the
-    // reconciler when this was the last card.
+    // member learns how the answer was recorded; when this was the last card
+    // the answer has already completed the step, and the club page shows the
+    // notice with a way onward.
     return {
       kind: 'retry_same',
       flash: {
@@ -2131,12 +2080,8 @@ export type { ClubAffiliationsBranch, ClubAffiliationsResult };
 
 export const memberOnboardingService = {
   nextOutstandingTaskType,
-  startTaskList,
-  startTask,
   completeTask,
   completeTaskIfOutstanding,
-  ensureLegacyClaimReflectsState,
-  ensureClubAffiliationsReflectsState,
   memberHadClubSuggestionMaterial,
   buildClubCapHitNoticeMessage,
   buildClubInsightPrompt,

@@ -38,6 +38,7 @@ let db: BetterSqlite3.Database;
 const ADMIN_ID = 'aaaaaaaa-0000-0000-0000-00000000ed01';
 const MEMBER_ID = 'bbbbbbbb-0000-0000-0000-00000000ed02';
 const PERSONA_ADMIN_ID = 'member_persona_fse_edit';
+const ADMIN2_ID = 'aaaaaaaa-0000-0000-0000-00000000ed03';
 
 function cookieFor(memberId: string, role: 'admin' | 'member'): string {
   return `__Host-footbag_session=${createTestSessionJwt({ memberId, role })}`;
@@ -207,6 +208,12 @@ beforeAll(async () => {
   }
   insertFreestyleTrickSourceLink(db, 'source_host', 'src_a', {});
   insertFreestyleTrickSourceLink(db, 'detach_host', 'src_b', {});
+  // Targets for the cases where a removal is not this admin's own repeat.
+  insertFreestyleTrickSource(db, { id: 'src_other', source_label: 'Source Other', source_type: 'curated' });
+  insertFreestyleTrickSourceLink(db, 'detach_host', 'src_other', {});
+  insertFreestyleTrickAlias(db, 'rm_other', 'alias_host', 'Remove Other');
+  insertFreestyleTrickAlias(db, 'rm_moved', 'alias_host', 'Remove Moved');
+  insertMember(db, { id: ADMIN2_ID, slug: 'fse_admin_two', display_name: 'FSE Admin Two', login_email: 'fse-admin2@example.com', is_admin: 1 });
 
   // Registry modifiers ('blurry' is already registered by the blurry_whirl seed)
   // and the trick the modifier-link tests write against. mod_host starts with one
@@ -370,6 +377,7 @@ async function post(path: string, cookie: string | undefined, body: Record<strin
 }
 
 const admin = () => cookieFor(ADMIN_ID, 'admin');
+const admin2 = () => cookieFor(ADMIN2_ID, 'admin');
 
 function trickRow(slug: string) {
   return db.prepare(
@@ -1221,7 +1229,8 @@ describe('POST /admin/freestyle/tricks/:slug/aliases/:aliasSlug — reclassify',
 });
 
 describe('POST /admin/freestyle/tricks/:slug/aliases/:aliasSlug/delete — remove', () => {
-  it('removes an alias scoped to its trick, writes one audit row, and redirects', async () => {
+  it('removes an alias scoped to its trick, writes one audit row, and redirects; the same admin repeating it reports the same success', async () => {
+    // Defect caught: a re-posted removal shows "No alias" for an alias this admin just removed.
     const res = await post('/admin/freestyle/tricks/alias_host/aliases/rm_me/delete', admin(), {});
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/admin/freestyle/tricks/alias_host/edit');
@@ -1231,6 +1240,26 @@ describe('POST /admin/freestyle/tricks/:slug/aliases/:aliasSlug/delete — remov
     expect(audits).toHaveLength(1);
     expect(audits[0].metadata_json).toContain('Remove Me'); // captured text for recovery
     expect(audits[0].metadata_json).toContain('alias_host');
+
+    const repeat = await post('/admin/freestyle/tricks/alias_host/aliases/rm_me/delete', admin(), {});
+    expect(repeat.status).toBe(303);
+    expect(repeat.headers.location).toBe(res.headers.location);
+    expect(auditByAction('rm_me', 'freestyle.trick_alias.deleted')).toHaveLength(1);
+  });
+
+  it("another admin re-posting a removal this admin made gets 404, and nothing is written", async () => {
+    // Defect caught: a second admin is told they removed an alias they did not.
+    const path = '/admin/freestyle/tricks/alias_host/aliases/rm_other/delete';
+    expect((await post(path, admin(), {})).status).toBe(303);
+    expect((await post(path, admin2(), {})).status).toBe(404);
+    expect(auditByAction('rm_other', 'freestyle.trick_alias.deleted')).toHaveLength(1);
+  });
+
+  it("a removal of an alias this admin took off a different trick gets 404, not this trick's success", async () => {
+    // Defect caught: the alias slug alone is taken as proof, so a request naming
+    // the wrong trick is told the removal succeeded.
+    expect((await post('/admin/freestyle/tricks/alias_host/aliases/rm_moved/delete', admin(), {})).status).toBe(303);
+    expect((await post('/admin/freestyle/tricks/blurry_whirl/aliases/rm_moved/delete', admin(), {})).status).toBe(404);
   });
 
   it('returns 404 removing an alias that belongs to a different trick, leaving it intact', async () => {
@@ -1450,7 +1479,8 @@ describe('POST /admin/freestyle/tricks/:slug/sources/:sourceId/delete — detach
     expect(sourceLink('source_host', 'src_a')).toBeDefined();
   });
 
-  it('detaches a source link scoped to its trick, writes one audit row, and redirects', async () => {
+  it('detaches a source link scoped to its trick, writes one audit row, and redirects; the same admin repeating it reports the same success', async () => {
+    // Defect caught: a re-posted detach shows "No source link" for a link this admin just detached.
     const res = await post('/admin/freestyle/tricks/source_host/sources/src_a/delete', admin(), {});
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/admin/freestyle/tricks/source_host/edit');
@@ -1459,6 +1489,19 @@ describe('POST /admin/freestyle/tricks/:slug/sources/:sourceId/delete — detach
     const audits = auditByAction('source_host:src_a', 'freestyle.trick_source_link.deleted');
     expect(audits).toHaveLength(1);
     expect(audits[0].metadata_json).toContain('src_a');
+
+    const repeat = await post('/admin/freestyle/tricks/source_host/sources/src_a/delete', admin(), {});
+    expect(repeat.status).toBe(303);
+    expect(repeat.headers.location).toBe(res.headers.location);
+    expect(auditByAction('source_host:src_a', 'freestyle.trick_source_link.deleted')).toHaveLength(1);
+  });
+
+  it("another admin re-posting a detach this admin made gets 404, and nothing is written", async () => {
+    // Defect caught: a second admin is told they detached a source they did not.
+    const path = '/admin/freestyle/tricks/detach_host/sources/src_other/delete';
+    expect((await post(path, admin(), {})).status).toBe(303);
+    expect((await post(path, admin2(), {})).status).toBe(404);
+    expect(auditByAction('detach_host:src_other', 'freestyle.trick_source_link.deleted')).toHaveLength(1);
   });
 
   it('returns 404 detaching a link the trick does not have', async () => {

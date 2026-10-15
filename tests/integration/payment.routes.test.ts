@@ -7,7 +7,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
-import type BetterSqlite3 from 'better-sqlite3';
+import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { seedPersona } from '../../src/testkit/personaFactory';
 import { insertPayment, createTestSessionJwt } from '../fixtures/factories';
@@ -125,33 +125,21 @@ describe('GET /payments/cancel', () => {
     expect(res.status).toBe(404);
   });
 
-  it('closes the still-open session at the provider, which is what frees the next purchase', async () => {
-    // Reaching this page is the clearest signal a member is not going to pay,
-    // and the provider has no way to know it. Until the session closes, the
-    // pending row stands, and one pending membership row per member is a
-    // database constraint: every further attempt is refused with a message
-    // naming an action the member cannot take.
-    const { getPaymentAdapter } = await import('../../src/adapters/paymentAdapter');
-    const adapter = getPaymentAdapter() as unknown as {
-      expiredCheckoutSessionsForTests(): string[];
+  it('only reads: the still-open payment stays pending and nothing is written', async () => {
+    const rowCounts = () => {
+      const db = new BetterSqlite3(dbPath, { readonly: true });
+      const status = (db.prepare('SELECT status FROM payments WHERE stripe_checkout_session_id = ?').get(OPEN_SESSION) as { status: string }).status;
+      const audit = (db.prepare('SELECT COUNT(*) AS n FROM audit_entries').get() as { n: number }).n;
+      db.close();
+      return { status, audit };
     };
+    const before = rowCounts();
     const res = await request(createApp())
       .get(`/payments/cancel?session_id=${OPEN_SESSION}`)
       .set('Cookie', cookie(OWNER_ID));
     expect(res.status).toBe(200);
-    expect(adapter.expiredCheckoutSessionsForTests()).toContain(OPEN_SESSION);
-  });
-
-  it('leaves a settled payment alone, since there is no open session to close', async () => {
-    const { getPaymentAdapter } = await import('../../src/adapters/paymentAdapter');
-    const adapter = getPaymentAdapter() as unknown as {
-      expiredCheckoutSessionsForTests(): string[];
-    };
-    const res = await request(createApp())
-      .get(`/payments/cancel?session_id=${OWNER_SESSION}`)
-      .set('Cookie', cookie(OWNER_ID));
-    expect(res.status).toBe(200);
-    expect(adapter.expiredCheckoutSessionsForTests()).not.toContain(OWNER_SESSION);
+    expect(rowCounts()).toEqual(before);
+    expect(before.status).toBe('pending');
   });
 });
 

@@ -60,11 +60,12 @@ function countOnboardingTasks(memberId: string): number {
   ).get(memberId) as { c: number }).c;
 }
 
-function getTaskState(memberId: string, taskType: string): string | null {
+// A missing row reads as pending, as the wizard itself reads it.
+function getTaskState(memberId: string, taskType: string): string {
   const row = testDb.prepare(
     'SELECT state FROM member_onboarding_tasks WHERE member_id = ? AND task_type = ?',
   ).get(memberId, taskType) as { state: string } | undefined;
-  return row?.state ?? null;
+  return row?.state ?? 'pending';
 }
 
 function countAuditEntries(memberId: string, actionType: string): number {
@@ -81,9 +82,10 @@ describe('GET /register/wizard/:taskType — auth + task list bootstrap', () => 
     expect(res.headers.location).toContain('returnTo=%2Fregister%2Fwizard%2Flegacy_claim');
   });
 
-  it('authenticated GET creates all task rows on first visit (idempotent)', async () => {
+  it('authenticated GET renders the first step for a member with no task rows and creates none', async () => {
+    // The rows are created when the email is verified; a page load never
+    // creates them, and a missing row reads as pending.
     const memberId = insertMember(testDb, { onboarding: 'none', slug: `wiz_bootstrap_${Date.now()}`, login_email: `wiz-bs-${Date.now()}@example.com` });
-    expect(countOnboardingTasks(memberId)).toBe(0);
     const res = await request(createApp())
       .get('/register/wizard/personal_details')
       .set('Cookie', cookieFor(memberId));
@@ -91,11 +93,8 @@ describe('GET /register/wizard/:taskType — auth + task list bootstrap', () => 
     // The personal-Details form carries a single save control while other
     // onboarding steps remain, labelled to continue the wizard.
     expect(res.text.match(/>Save and Continue Onboarding</g)?.length).toBe(1);
-    expect(countOnboardingTasks(memberId)).toBe(3);
-    await request(createApp())
-      .get('/register/wizard/club_affiliations')
-      .set('Cookie', cookieFor(memberId));
-    expect(countOnboardingTasks(memberId)).toBe(3);
+    expect(countOnboardingTasks(memberId)).toBe(0);
+    expect(countAuditEntries(memberId, 'wizard.start')).toBe(0);
   });
 
   it('personal_details submit label says Continue while other steps remain, Complete when it is the last', async () => {
@@ -149,10 +148,7 @@ describe('GET /register/wizard/:taskType — auth + task list bootstrap', () => 
     // step can draw. club_affiliations is universal even so: a member with no
     // legacy linkage has no Stage 1 card and lands on the find-or-create-your-
     // club wrap-up landing.
-    testDb.prepare(
-      `UPDATE member_onboarding_tasks SET state = 'completed'
-        WHERE member_id = ? AND task_type = 'legacy_claim'`,
-    ).run(memberId);
+    insertOnboardingTask(testDb, memberId, 'legacy_claim', 'completed');
     const ca = await request(createApp())
       .get('/register/wizard/club_affiliations')
       .set('Cookie', cookie);
@@ -716,29 +712,5 @@ describe('wizard back link', () => {
       .set('Cookie', cookieFor(OTHER_ID));
     expect(res.status).toBe(200);
     expect(res.text).toContain(`href="/members/${OTHER_SLUG}"`);
-  });
-});
-
-// ── wizard.start audit entry ─────────────────────────────────────────────────
-//
-// Every wizard transition emits an audit_entries row. The `start` event
-// fires once per member, the first time the task list materializes; later
-// GETs are idempotent no-ops on the task table and must not duplicate
-// the audit row.
-
-describe('GET /register/wizard/:taskType — wizard.start audit invariant', () => {
-  it('first GET writes exactly one wizard.start audit entry; second GET is a no-op', async () => {
-    const stamp = Date.now() + 200;
-    const memberId = insertMember(testDb, { onboarding: 'none', slug: `wiz_start_${stamp}`, login_email: `wiz-start-${stamp}@example.com` });
-    const cookie = cookieFor(memberId);
-    const app = createApp();
-
-    expect(countAuditEntries(memberId, 'wizard.start')).toBe(0);
-
-    await request(app).get('/register/wizard/legacy_claim').set('Cookie', cookie);
-    expect(countAuditEntries(memberId, 'wizard.start')).toBe(1);
-
-    await request(app).get('/register/wizard/legacy_claim').set('Cookie', cookie);
-    expect(countAuditEntries(memberId, 'wizard.start')).toBe(1);
   });
 });

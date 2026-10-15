@@ -142,6 +142,22 @@ export function hit(
   return { allowed: false, retryAfterSeconds };
 }
 
+/**
+ * Give back one attempt a `hit` counted. For a check that has to count an
+ * attempt before it can know what the attempt is: recognising a repeat by
+ * testing a submitted secret, or by finding the first submit's row only once
+ * the write fails, happens after an `await`, and a slot taken only afterwards
+ * would let a parallel burst run ahead of the count. The attempt is counted
+ * first and returned once it proves to be a repeat. A cooldown the returned
+ * attempt started goes with it. Never takes a bucket below zero, and opens none.
+ */
+export function refund(key: string): void {
+  const bucket = buckets.get(key);
+  if (!bucket || now() >= expiresAt(bucket) || bucket.count === 0) return;
+  bucket.count -= 1;
+  if (bucket.count < bucket.maxAttempts) delete bucket.blockedUntil;
+}
+
 export function resetRateLimitForTests(): void {
   buckets.clear();
   writesSinceSweep = 0;

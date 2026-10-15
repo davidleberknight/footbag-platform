@@ -208,4 +208,19 @@ export const adminClubCleanupController = {
       next(err);
     }
   },
+
+  // A press that finds nothing left to demote says so, rather than reporting a
+  // change another admin (or an earlier press) already made.
+  applyRules(req: Request, res: Response, next: NextFunction): void {
+    try {
+      const { demotedCount } = clubCleanupService.applyRuleDemotions(req.user!.userId);
+      const payload = demotedCount > 0
+        ? outcomePayload('ok', `The rules demoted ${demotedCount} ${demotedCount === 1 ? 'club' : 'clubs'} to inactive.`)
+        : outcomePayload('info', 'Nothing changed: no club still meets the rules for demotion. Another administrator may have applied them first.');
+      writeFlash(res, req, FLASH_KIND.CLUB_ACTION, payload);
+      res.redirect(303, '/admin/club-cleanup');
+    } catch (err) {
+      next(err);
+    }
+  },
 };

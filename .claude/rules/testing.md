@@ -62,7 +62,7 @@ For every service method:
 - Transaction atomicity — multi-row writes either all land or none.
 - Failure between steps — where a step commits before a later send, provider call or write, a failure there leaves nothing lost, doubled or reported done.
 - Member state — a path that mails, lists or counts members covers deceased, purged, unverified and bounced members beside a live one.
-- Idempotency — repeating an operation with the same key returns the same id/outcome.
+- Idempotency — repeating an operation with the same key returns the same id/outcome; a state-changing form on a path the submitted-twice rule covers, submitted twice, reports the first outcome and leaves domain, audit, outbox and rate-limit row counts unchanged.
 - Error classes — every `throw` path has a test that asserts the thrown class and the message shape.
 - Boundary values — zero rows, one row, N rows, N+1 rows, empty strings, unicode, NULLs, extreme dates.
 - Edge cases from the relevant `docs/USER_STORIES.md` story (acceptance criteria) and the owning service's file-header JSDoc (ownership boundary and required service-layer patterns; current method shapes are authoritative in TypeScript and tests). Read the story before writing the test.
@@ -89,7 +89,7 @@ Before calling a test suite complete, try to break the feature. Common attacks:
 - XSS attempts in every field that lands in a Handlebars template.
 - Timing attacks against anti-enumeration endpoints (login, password reset, claim lookup).
 - Race conditions — two simultaneous inserts of one idempotency key; two simultaneous claims of one legacy account. A deterministic pre-commit of the winner's unique value proves the constraint-to-error mapping; only genuinely concurrent requests (`Promise.all` against the running app) prove interleaving safety where there is an async boundary; a synchronous single-transaction service cannot race in-process, so the simulation is the correct evidence there.
-- Expired/wrong-type/replay-attack tokens.
+- Expired/wrong-type/replay-attack tokens; a second POST of a token whose use already did its job reports the first outcome and starts no session.
 - Mass assignment / overposting — a state-changing form or JSON body carrying extra fields that target privileged columns (`is_admin`, `tier`, `id`, `slug`, `login_email`, `password_hash`, verification/email-status flags). The handler must persist only its whitelisted fields; the test posts the crafted extras and asserts every privileged column is untouched and no shadow row is conjured by an injected id or slug.
 
 If an adversarial test reveals a hole, fix it *and* keep the test.

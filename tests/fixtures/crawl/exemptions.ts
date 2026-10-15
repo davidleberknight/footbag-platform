@@ -153,8 +153,7 @@ export const ROUTE_EXEMPTIONS: readonly RouteExemption[] = [
   ]),
   ...group('mailed-token',
     'Reached only from a link mailed to the member carrying a one-time token; no crawl seeds a captured message.', [
-      'GET /verify/:token', 'POST /verify/resend', 'GET /password/reset/:token', 'POST /password/reset/:token',
-      'GET /members/:memberKey/download/:token',
+      'GET /verify/:token', 'POST /verify', 'POST /verify/resend', 'GET /email/unsubscribe', 'GET /password/reset/:token', 'POST /password/reset/:token',
     ]),
   ...group('harness-by-design',
     'The captured-mail viewer is test scaffolding the persona catalog names in its instructions '
@@ -190,9 +189,10 @@ export const ROUTE_EXEMPTIONS: readonly RouteExemption[] = [
     'The crawl fixture seeds no row or state that renders a link or form to this route (no '
     + 'avatar, deceased record, work-queue item of this kind, payment report, flagged media, curator '
     + 'media, trick tip, notation candidate, net team, past event, recurring donation, '
-    + 'organizer task, archive configuration, claimable record, second club for the persona, or '
-    + 'bounced address).', [
+    + 'organizer task, archive configuration, claimable record, second club for the persona, '
+    + 'club the cleanup rules would demote, or bounced address).', [
       'POST /members/:memberKey/email-preferences/recover',
+      'POST /admin/club-cleanup/apply-rules',
       'POST /admin/members/:memberId/avatar/remove', 'POST /admin/members/:memberId/deceased/revert',
       'POST /admin/historical-records/:personId/deceased', 'POST /admin/historical-records/:personId/deceased/revert',
       'POST /admin/work-queue/:id/resolve', 'POST /admin/work-queue/:id/dismiss', 'POST /admin/work-queue/:id/unpark',

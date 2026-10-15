@@ -29,6 +29,8 @@ const ONE_CLUB_SLUG = 'can_one_club_member';
 const CLUB_A = 'can-club-a';
 const CLUB_B = 'can-club-b';
 const CLUB_A_KEY = 'club_can_a';
+const CLUB_B_KEY = 'club_can_b';
+const KEY_OF: Record<string, string> = { [CLUB_A]: CLUB_A_KEY, [CLUB_B]: CLUB_B_KEY };
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
@@ -70,7 +72,13 @@ beforeAll(async () => {
     country: 'USA',
     hashtag_tag_id: insertTag(db, { tag_normalized: `#${CLUB_A_KEY}`, tag_display: `#${CLUB_A_KEY}`, standard_type: 'club' }),
   });
-  insertClub(db, { id: CLUB_B, name: 'Club Can B', city: 'Salem', country: 'USA' });
+  insertClub(db, {
+    id: CLUB_B,
+    name: 'Club Can B',
+    city: 'Salem',
+    country: 'USA',
+    hashtag_tag_id: insertTag(db, { tag_normalized: `#${CLUB_B_KEY}`, tag_display: `#${CLUB_B_KEY}`, standard_type: 'club' }),
+  });
 
   insertMemberClubAffiliation(db, TWO_CLUB, CLUB_A, { is_primary: 1 });
   insertMemberClubAffiliation(db, TWO_CLUB, CLUB_B, { is_primary: 0 });
@@ -82,16 +90,65 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
+/** The key of a club the member holds but not as primary, which is the club
+ *  the profile's swap form names; Club B for a member with no such club. */
+function nonPrimaryClubKey(memberId: string): string {
+  const db = new BetterSqlite3(dbPath, { readonly: true });
+  try {
+    const row = db.prepare(`
+      SELECT club_id FROM member_club_affiliations
+       WHERE member_id = ? AND is_current = 1 AND is_primary = 0
+    `).get(memberId) as { club_id: string } | undefined;
+    return KEY_OF[row?.club_id ?? CLUB_B];
+  } finally {
+    db.close();
+  }
+}
+
 /** Runs a club action and returns the flash cookie it left for the profile. */
 async function swapPrimaryAs(memberId: string): Promise<string> {
   const acted = await request(createApp())
     .post('/clubs/swap-primary')
-    .set('Cookie', cookieFor(memberId));
+    .set('Cookie', cookieFor(memberId))
+    .type('form')
+    .send({ club_key: nonPrimaryClubKey(memberId) });
   expect(acted.status).toBe(303);
   const carried = flashCookieIn(acted);
   expect(carried).not.toBe('');
   return carried;
 }
+
+describe('the swap form on the member profile', () => {
+  // Defect caught: the profile's Swap button posts no club, or the primary
+  // one, so pressing it refuses or does nothing instead of swapping.
+  it('names the member\'s other club, and submitting it makes that club primary', async () => {
+    const page = await request(createApp())
+      .get(`/members/${TWO_CLUB_SLUG}`)
+      .set('Cookie', cookieFor(TWO_CLUB));
+    expect(page.status).toBe(200);
+    const named = /<form method="POST" action="\/clubs\/swap-primary"[^>]*>\s*<input type="hidden" name="club_key" value="([^"]*)">/
+      .exec(page.text)?.[1];
+    const expectedKey = nonPrimaryClubKey(TWO_CLUB);
+    expect(named).toBe(expectedKey);
+
+    const res = await request(createApp())
+      .post('/clubs/swap-primary')
+      .set('Cookie', cookieFor(TWO_CLUB))
+      .type('form')
+      .send({ club_key: named });
+    expect(res.status).toBe(303);
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    try {
+      const primary = db.prepare(`
+        SELECT club_id FROM member_club_affiliations
+         WHERE member_id = ? AND is_current = 1 AND is_primary = 1
+      `).all(TWO_CLUB) as Array<{ club_id: string }>;
+      expect(primary.map((r) => KEY_OF[r.club_id])).toEqual([expectedKey]);
+    } finally {
+      db.close();
+    }
+  });
+});
 
 describe('a club action outcome on the member profile', () => {
   it('tells the member what happened on the page the action sent them to', async () => {

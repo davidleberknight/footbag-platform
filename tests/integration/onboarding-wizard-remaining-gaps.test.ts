@@ -59,11 +59,12 @@ function getClubLeaders(clubId: string) {
   ).all(clubId) as Array<{ member_id: string; role: string }>;
 }
 
-function getTaskState(memberId: string, taskType: string): string | null {
+// A missing row reads as pending, as the wizard itself reads it.
+function getTaskState(memberId: string, taskType: string): string {
   const row = db.prepare(
     'SELECT state FROM member_onboarding_tasks WHERE member_id = ? AND task_type = ?',
   ).get(memberId, taskType) as { state: string } | undefined;
-  return row?.state ?? null;
+  return row?.state ?? 'pending';
 }
 
 // ── One-current-club invariant ───────────────────────────────────────────────
@@ -103,7 +104,6 @@ describe('two-current-club cap: second current affiliation succeeds, third would
       inferred_role: 'member',
     });
 
-    svc.startTaskList(memberId);
 
     const cards = svc.listWizardCardsForMember(memberId);
     const membershipCard = cards.find((c) => c.kind === 'membership');
@@ -167,7 +167,6 @@ describe('Tier 0 leadership: current implementation promotes regardless of tier'
       is_present: 1,
     });
 
-    svc.startTaskList(memberId);
 
     const cards = svc.listWizardCardsForMember(memberId);
     const leaderCard = cards.find((c) => c.kind === 'leadership');
@@ -222,7 +221,6 @@ describe('onboarding wizard leadership confirmation writes the stable club ID', 
       bootstrap_leader_id: candidateId, signal_type: 'affiliation', is_present: 1,
     });
 
-    svc.startTaskList(memberId);
     const leaderCard = svc.listWizardCardsForMember(memberId).find((c) => c.kind === 'leadership');
     if (!leaderCard) throw new Error('Expected a leadership card for this setup');
 
@@ -255,7 +253,6 @@ describe('resume while pending: the profile page routes a pending registrant int
     });
     const cookie = cookieFor(memberId);
 
-    svc.startTaskList(memberId);
     svc.completeTask(memberId, 'personal_details');
     svc.completeTask(memberId, 'legacy_claim');
     expect(getTaskState(memberId, 'club_affiliations')).toBe('pending');

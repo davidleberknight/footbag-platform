@@ -23,6 +23,14 @@
  *   - Append-only ledgers. UPDATE/DELETE blocked by DB triggers.
  *   - `getStatus` derives from `member_active_player_current` (the authoritative
  *     view).
+ *   - Every `active_player_grants` row goes through the one insert helper,
+ *     which stamps `created_at` strictly later than the member's newest existing
+ *     row, read in the same write transaction. The view takes the latest-
+ *     stamped row as the member's standing, so a wall clock stepping backward
+ *     between two writes must not make the newer row read as older, and no tie
+ *     is left for an id to break, since ids rise only within one process (the
+ *     web app and the worker both write). Only the stamp moves:
+ *     expiry dates, the vouch row and the audit row keep the true time.
  *   - Active Player applies to Tier 0 only. Tier 1+ vouches and attendances are
  *     no-ops with audit-log only.
  *   - No-shorten rule: an older event, vouch, or club-join must not shorten an
@@ -70,6 +78,7 @@ import { emailService } from './emailService';
 import { readIntConfig } from './configReader';
 import { RateLimitedError, ValidationError } from './serviceErrors';
 import { uuidv7Hex } from './uuidv7';
+import { laterStamp } from '../lib/ledgerStamp';
 import { formatDateDisplay } from './dateFormat';
 import {
   navigateTo,
@@ -92,6 +101,53 @@ const MS_PER_DAY = 24 * 60 * 60 * 1000;
 // (created_at, id) tiebreaker.
 function newGrantId(): string {
   return `apg_${uuidv7Hex()}`;
+}
+
+interface InsertGrantArgs {
+  id: string;
+  now: string;
+  memberId: string;
+  actorId: string | null;
+  changeType: 'grant' | 'extend' | 'expire' | 'end' | 'correct';
+  oldExpiresAt: string | null;
+  newExpiresAt: string | null;
+  reasonCode: string;
+  reasonText: string | null;
+  relatedEventId?: string | null;
+  relatedRegistrationId?: string | null;
+  relatedClubId?: string | null;
+  relatedClubAffiliationId?: string | null;
+  relatedVouchId?: string | null;
+}
+
+// The one write of an Active Player ledger row. It stamps created_at with the
+// later of `now` and the member's newest existing stamp: member_active_player_current
+// takes the row with the latest created_at as the member's standing, and the
+// host clock can step backward between two writes (a hypervisor time sync, an
+// NTP correction, a resumed VM). A row stamped before the one it follows would
+// read as older, leaving the superseded standing in force. A row that would not
+// be later is stamped one millisecond after the newest (laterStamp). Every
+// caller runs inside a write transaction, so no row lands between this read and
+// the insert. Only the stamp moves: expiry dates are the caller's and are
+// written as given.
+function insertGrant(args: InsertGrantArgs): void {
+  const stamp = laterStamp(readLatestGrant(args.memberId)?.created_at, args.now);
+  activePlayer.insertGrant.run(
+    args.id,
+    stamp,
+    args.memberId,
+    args.actorId,
+    args.changeType,
+    args.oldExpiresAt,
+    args.newExpiresAt,
+    args.reasonCode,
+    args.reasonText,
+    args.relatedEventId ?? null,
+    args.relatedRegistrationId ?? null,
+    args.relatedClubId ?? null,
+    args.relatedClubAffiliationId ?? null,
+    args.relatedVouchId ?? null,
+  );
 }
 
 function readCurrent(memberId: string): MemberActivePlayerCurrentRow | undefined {
@@ -117,19 +173,17 @@ function writeEndRow(ctx: EndContext): { ok: boolean; ended: boolean } {
   if (!current || current.is_active_player !== 1) {
     return { ok: true, ended: false };
   }
-  const id = newGrantId();
-  activePlayer.insertGrant.run(
-    id,
-    ctx.now,
-    ctx.memberId,
-    ctx.actorId,
-    'end',
-    current.active_player_expires_at,
-    null,
-    ctx.reasonCode,
-    ctx.reasonText,
-    null, null, null, null, null,
-  );
+  insertGrant({
+    id: newGrantId(),
+    now: ctx.now,
+    memberId: ctx.memberId,
+    actorId: ctx.actorId,
+    changeType: 'end',
+    oldExpiresAt: current.active_player_expires_at,
+    newExpiresAt: null,
+    reasonCode: ctx.reasonCode,
+    reasonText: ctx.reasonText,
+  });
   appendAuditEntry({
     actionType: 'active_player.end',
     category: 'active_player_change',
@@ -214,7 +268,13 @@ export interface ActivePlayerStatus {
 export type ApplyResult =
   | { status: 'granted'; expiresAt: string }
   | { status: 'extended'; expiresAt: string }
-  | { status: 'noop'; reason: string };
+  | { status: 'noop'; reason: string }
+  /** This voucher's own vouch already gave the standing a vouch now would:
+   *  a repeat submit. `first` is what that vouch did, so it can be reported. */
+  | { status: 'own_repeat'; first: 'granted' | 'extended' }
+  /** The standing already reaches the day a vouch now would, from someone
+   *  else's act. */
+  | { status: 'already_held' };
 
 function isUniqueViolation(err: unknown): boolean {
   return (
@@ -366,20 +426,19 @@ export function applyAttendance(
 
     const id = newGrantId();
     try {
-      activePlayer.insertGrant.run(
+      insertGrant({
         id,
         now,
         memberId,
         actorId,
-        isExtend ? 'extend' : 'grant',
-        oldExpires,
+        changeType: isExtend ? 'extend' : 'grant',
+        oldExpiresAt: oldExpires,
         newExpiresAt,
-        'official_event_attendance',
-        null,
-        reg.event_id,
-        registrationId,
-        null, null, null,
-      );
+        reasonCode: 'official_event_attendance',
+        reasonText: null,
+        relatedEventId: reg.event_id,
+        relatedRegistrationId: registrationId,
+      });
     } catch (err) {
       if (isUniqueViolation(err)) {
         // Idempotent retry for the same registration: return noop.
@@ -453,6 +512,32 @@ function enqueueVouchConfirmation(
 }
 
 /**
+ * Whether a vouch given now would change nothing: the target's standing already
+ * runs to the calendar day a vouch would set, or later. Compared by day because
+ * a second submit seconds after the first computes an expiry milliseconds later,
+ * and that is the same standing, not a longer one. Returns the repeat result,
+ * naming whether it was this voucher's own vouch that set it, or null when the
+ * vouch would extend the standing.
+ */
+function vouchAlreadyHolds(
+  voucherId: string,
+  targetId: string,
+  now: Date,
+): Extract<ApplyResult, { status: 'own_repeat' | 'already_held' }> | null {
+  const latest = readLatestGrant(targetId);
+  if (!latest?.new_active_player_expires_at) return null;
+  const held = latest.new_active_player_expires_at;
+  const wouldSet = isoFromDateAddDays(now, durationDays());
+  if (held.slice(0, 10) < wouldSet.slice(0, 10)) return null;
+  const ownVouch = latest.actor_member_id === voucherId
+    && latest.reason_code === 'tier2_vouch_active_player'
+    && (latest.change_type === 'grant' || latest.change_type === 'extend');
+  return ownVouch
+    ? { status: 'own_repeat', first: latest.change_type === 'grant' ? 'granted' : 'extended' }
+    : { status: 'already_held' };
+}
+
+/**
  * Tier 2 / Tier 3 member vouches for a Tier 0 target to grant or extend AP.
  *
  * - Self-vouch is rejected (ValidationError; DB CHECK is the backstop).
@@ -508,6 +593,12 @@ export function applyVouch(
     return { status: 'noop', reason: 'tier1_plus_no_op' };
   }
 
+  // A vouch whose standing already holds changes nothing, so it writes nothing
+  // and spends no rate-limit slot. Checked before the limit for that reason,
+  // and again inside the transaction against a concurrent writer.
+  const preHeld = vouchAlreadyHolds(voucherId, targetId, new Date());
+  if (preHeld) return preHeld;
+
   // Rate limit per voucher.
   const max = readIntConfig('vouch_rate_limit_max_per_hour', VOUCH_RATE_LIMIT_MAX_DEFAULT);
   const windowMinutes = readIntConfig(
@@ -554,6 +645,8 @@ export function applyVouch(
       });
       return { status: 'noop' as const, reason: 'tier_upgraded_in_race' };
     }
+    const heldInTx = vouchAlreadyHolds(voucherId, targetId, now);
+    if (heldInTx) return heldInTx;
     const latest = readLatestGrant(targetId);
     const oldExpires = latest?.new_active_player_expires_at ?? null;
 
@@ -590,18 +683,18 @@ export function applyVouch(
     const isExtend = !!latest;
     const grantId = newGrantId();
     grantIdForEmail = grantId;
-    activePlayer.insertGrant.run(
-      grantId,
-      nowIso,
-      targetId,
-      voucherId,
-      isExtend ? 'extend' : 'grant',
-      oldExpires,
+    insertGrant({
+      id: grantId,
+      now: nowIso,
+      memberId: targetId,
+      actorId: voucherId,
+      changeType: isExtend ? 'extend' : 'grant',
+      oldExpiresAt: oldExpires,
       newExpiresAt,
-      'tier2_vouch_active_player',
-      validatedReason,
-      null, null, null, null, vouchId,
-    );
+      reasonCode: 'tier2_vouch_active_player',
+      reasonText: validatedReason,
+      relatedVouchId: vouchId,
+    });
 
     appendAuditEntry({
       actionType: isExtend ? 'active_player.extend' : 'active_player.grant',
@@ -705,21 +798,19 @@ function applyClubJoinCore(
   const newExpiresAt = isoFromDateAddDays(now, durationDays());
   const id = newGrantId();
   try {
-    activePlayer.insertGrant.run(
+    insertGrant({
       id,
-      nowIso,
+      now: nowIso,
       memberId,
       actorId,
-      'grant',
-      null,
+      changeType: 'grant',
+      oldExpiresAt: null,
       newExpiresAt,
-      'club_join_one_time_active_player_grant',
-      null,
-      null, null,
-      aff.club_id,
-      clubAffiliationId,
-      null,
-    );
+      reasonCode: 'club_join_one_time_active_player_grant',
+      reasonText: null,
+      relatedClubId: aff.club_id,
+      relatedClubAffiliationId: clubAffiliationId,
+    });
   } catch (err) {
     if (isUniqueViolation(err)) {
       // Concurrent caller won the unique-index race.
@@ -785,18 +876,17 @@ export function applyExpiry(memberId: string, now?: Date): { ok: true; expired: 
   // matching audit row, breaking traceability of who/when status changed.
   // Matches the applyVouch / applyAttendance patterns elsewhere in this file.
   transaction(() => {
-    activePlayer.insertGrant.run(
+    insertGrant({
       id,
-      nowIso,
+      now: nowIso,
       memberId,
-      null,
-      'expire',
-      latest.new_active_player_expires_at,
-      null,
-      'active_player_expired',
-      null,
-      null, null, null, null, null,
-    );
+      actorId: null,
+      changeType: 'expire',
+      oldExpiresAt: latest.new_active_player_expires_at,
+      newExpiresAt: null,
+      reasonCode: 'active_player_expired',
+      reasonText: null,
+    });
     appendAuditEntry({
       actionType: 'active_player.expire',
       category: 'active_player_change',
@@ -872,18 +962,17 @@ export function correctExpiry(
   const nowIso = new Date().toISOString();
   const id = newGrantId();
   transaction(() => {
-    activePlayer.insertGrant.run(
+    insertGrant({
       id,
-      nowIso,
+      now: nowIso,
       memberId,
       actorId,
-      'correct',
+      changeType: 'correct',
       oldExpiresAt,
       newExpiresAt,
-      'admin_correction',
-      reason,
-      null, null, null, null, null,
-    );
+      reasonCode: 'admin_correction',
+      reasonText: reason,
+    });
     appendAuditEntry({
       actionType:    'active_player.admin_correction',
       category:      'active_player_change',

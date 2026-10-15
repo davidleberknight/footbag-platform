@@ -55,6 +55,8 @@ const SLUG_DERIVE_ID  = 'cc-slug-derive';
 const SLUG_DERIVE_SLUG = 'cc_slug_derive';
 const WQ_ID           = 'cc-wq';
 const WQ_SLUG         = 'cc_wq';
+const REPEAT_ID       = 'cc-repeat';
+const REPEAT_SLUG     = 'cc_repeat';
 
 function authCookie(memberId: string): string {
   return `__Host-footbag_session=${createTestSessionJwt({ memberId })}`;
@@ -97,7 +99,8 @@ beforeAll(async () => {
   createMemberAtTier(db, { id: TAG_COLL_ID, slug: TAG_COLL_SLUG, tier: 'tier1' });
   createMemberAtTier(db, { id: SLUG_DERIVE_ID, slug: SLUG_DERIVE_SLUG, tier: 'tier1' });
   createMemberAtTier(db, { id: WQ_ID, slug: WQ_SLUG, tier: 'tier1' });
-  for (const mid of [HAPPY_ID, TIER0_LAPSED_ID, TIER0_NEVER_ID, VALID_ERR_ID, DUP_ID, TAG_COLL_ID, SLUG_DERIVE_ID, WQ_ID]) {
+  createMemberAtTier(db, { id: REPEAT_ID, slug: REPEAT_SLUG, tier: 'tier1' });
+  for (const mid of [HAPPY_ID, TIER0_LAPSED_ID, TIER0_NEVER_ID, VALID_ERR_ID, DUP_ID, TAG_COLL_ID, SLUG_DERIVE_ID, WQ_ID, REPEAT_ID]) {
     completeOnboarding(db, mid);
   }
 
@@ -423,6 +426,99 @@ describe('POST /clubs/create', () => {
     expect(res.status).toBe(422);
     expect(res.text).toContain('TestCity');
     expect(res.text).toContain('preserve_test');
+  });
+});
+
+describe('POST /clubs/create submitted twice', () => {
+  /** Every row a create writes, counted, so a repeat can be shown to write none. */
+  function createState(memberId: string, tagNormalized: string): Record<string, number> {
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    try {
+      const count = (sql: string, ...params: unknown[]): number =>
+        (db.prepare(sql).get(...params) as { n: number }).n;
+      return {
+        clubs:        count('SELECT COUNT(*) AS n FROM clubs'),
+        tags:         count('SELECT COUNT(*) AS n FROM tags WHERE tag_normalized = ?', tagNormalized),
+        leaders:      count('SELECT COUNT(*) AS n FROM club_leaders WHERE member_id = ?', memberId),
+        affiliations: count('SELECT COUNT(*) AS n FROM member_club_affiliations WHERE member_id = ?', memberId),
+        createdAudits: count(
+          `SELECT COUNT(*) AS n FROM audit_entries WHERE action_type = 'club.created' AND actor_member_id = ?`,
+          memberId,
+        ),
+        workQueue:    count('SELECT COUNT(*) AS n FROM work_queue_items'),
+        outbox:       count('SELECT COUNT(*) AS n FROM outbox_emails'),
+      };
+    } finally {
+      db.close();
+    }
+  }
+
+  // Defect caught: a member who double-clicks Create, or re-posts the form
+  // from the back button, is told they already co-lead a club (the one their
+  // first click made), or a second club, tag or audit row is written.
+  it('the creator\'s repeat lands on the club the first submit made, with the same success and no new rows', async () => {
+    const form = formData({ name: 'Repeat Footbag', city: 'Boulder', slug: 'repeat_boulder' });
+    const post = () => request(createApp())
+      .post('/clubs/create')
+      .set('Cookie', authCookie(REPEAT_ID))
+      .set('Content-Type', 'application/x-www-form-urlencoded')
+      .send(form);
+
+    const first = await post();
+    expect(first.status).toBe(303);
+    expect(first.headers.location).toBe('/clubs/club_repeat_boulder');
+    const afterFirst = createState(REPEAT_ID, '#club_repeat_boulder');
+    expect(afterFirst.createdAudits).toBe(1);
+
+    const second = await post();
+    expect(second.status).toBe(303);
+    expect(second.headers.location).toBe(first.headers.location);
+    expect(createState(REPEAT_ID, '#club_repeat_boulder')).toEqual(afterFirst);
+
+    const flash = ((second.headers['set-cookie'] as unknown as string[] | undefined) ?? [])
+      .find((c) => c.startsWith('footbag_flash='))?.split(';')[0];
+    expect(flash).toBeDefined();
+    const landed = await request(createApp())
+      .get(second.headers.location)
+      .set('Cookie', [authCookie(REPEAT_ID), flash].join('; '));
+    expect(landed.status).toBe(200);
+    expect(landed.text).toContain('Repeat Footbag');
+    expect(landed.text).toContain('<div class="form-success-banner" role="status">Club created.</div>');
+  });
+
+  // Defect caught: a creator who goes back, edits a field and submits again is
+  // told the club was created and sent to it, while the edit is silently
+  // dropped.
+  it('the creator\'s resubmission with a changed field is not a repeat, and writes nothing', async () => {
+    const before = createState(REPEAT_ID, '#club_repeat_boulder');
+    expect(before.createdAudits).toBe(1);
+    const res = await request(createApp())
+      .post('/clubs/create')
+      .set('Cookie', authCookie(REPEAT_ID))
+      .set('Content-Type', 'application/x-www-form-urlencoded')
+      .send(formData({
+        name: 'Repeat Footbag', city: 'Boulder', slug: 'repeat_boulder',
+        description: 'Edited after the first submit.',
+      }));
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('You already co-lead');
+    expect(createState(REPEAT_ID, '#club_repeat_boulder')).toEqual(before);
+  });
+
+  // Defect caught: a member who co-leads a club somebody else created can
+  // "create" it again by typing its name and country, and is sent to it as if
+  // they had founded it instead of being told they already co-lead a club.
+  it('a co-leader of a same-named club they did not create is still told they already co-lead', async () => {
+    const before = createState(LEADER_ID, '#club_leader_same_name');
+    const res = await request(createApp())
+      .post('/clubs/create')
+      .set('Cookie', authCookie(LEADER_ID))
+      .set('Content-Type', 'application/x-www-form-urlencoded')
+      .send(formData({ name: 'Existing Leader Club', country: 'USA', city: 'Portland', region: 'Oregon', slug: 'leader_same_name' }));
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('You already co-lead');
+    expect(res.text).not.toContain('Club created.');
+    expect(createState(LEADER_ID, '#club_leader_same_name')).toEqual(before);
   });
 });
 

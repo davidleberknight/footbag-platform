@@ -26,7 +26,7 @@
  */
 import { randomUUID } from 'node:crypto';
 import { consecutiveKicksRecords, transaction } from '../db/db';
-import { appendAuditEntry } from './auditService';
+import { appendAuditEntry, findOwnLatestAudit } from './auditService';
 import { ForbiddenError, NotFoundError, ValidationError } from './serviceErrors';
 import { PageViewModel } from '../types/page';
 import { config } from '../config/env';
@@ -359,6 +359,9 @@ export const consecutiveKicksCurationService = {
   // (with per-field messages) on bad input.
   createRow(input: ConsecutiveScalarInput, actorMemberId: string): string {
     assertActorMayCurateFreestyle(actorMemberId);
+    // A repeat of this actor's own create returns the row that create made.
+    const ownRowId = ownIdenticalCreatedRowId(input, actorMemberId);
+    if (ownRowId !== null) return ownRowId;
     const id = randomUUID();
     const v = validateConsecutiveInput(input, id);
 
@@ -419,6 +422,55 @@ export const consecutiveKicksCurationService = {
     });
   },
 };
+
+/**
+ * The id of the row this actor's own create made at the submitted display
+ * position, when every submitted field matches that row; null otherwise. A
+ * different actor's row, or any different value, is not a repeat and is refused
+ * by the normal create path.
+ */
+function ownIdenticalCreatedRowId(
+  input: ConsecutiveScalarInput,
+  actorMemberId: string,
+): string | null {
+  const sortRaw = (input.sortOrder ?? '').trim();
+  if (!/^\d+$/.test(sortRaw) || parseInt(sortRaw, 10) < 1) return null;
+  const holder = consecutiveKicksRecords.getIdBySortOrder.get(parseInt(sortRaw, 10)) as
+    | { id: string }
+    | undefined;
+  if (!holder) return null;
+  const ownCreate = findOwnLatestAudit(
+    actorMemberId, 'freestyle.consecutive_record.created', 'freestyle_consecutive_record', holder.id,
+  );
+  if (!ownCreate) return null;
+  let v: ValidatedConsecutive;
+  try {
+    v = validateConsecutiveInput(input, holder.id);
+  } catch (err) {
+    if (err instanceof ValidationError) return null;
+    throw err;
+  }
+  const row = consecutiveKicksRecords.getForCurationById.get(holder.id) as {
+    sort_order: number; section: string; subsection: string; division: string;
+    year: string | null; rank: number | null; player_1: string | null; player_2: string | null;
+    score: number | null; note: string | null; event_date: string | null;
+    event_name: string | null; location: string | null;
+  };
+  const identical = row.sort_order === v.sortOrder
+    && row.section === v.section
+    && row.subsection === v.subsection
+    && row.division === v.division
+    && row.year === v.year
+    && row.rank === v.rank
+    && row.player_1 === v.player1
+    && row.player_2 === v.player2
+    && row.score === v.score
+    && row.note === v.note
+    && row.event_date === v.eventDate
+    && row.event_name === v.eventName
+    && row.location === v.location;
+  return identical ? holder.id : null;
+}
 
 interface ValidatedConsecutive {
   sortOrder: number;

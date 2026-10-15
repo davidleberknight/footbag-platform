@@ -188,10 +188,17 @@ describe('creating a mailing list', () => {
     expect((caught as { fieldErrors?: Record<string, string> }).fieldErrors?.subjectPrefix).toBeTruthy();
   });
 
-  it('refuses a second list with a name already in use, leaving one creation on the ledger', () => {
+  it('a repeated identical create by the same admin returns the list it made, leaving one creation on the ledger', () => {
     const slug = svc.mailingListService.createList({ name: 'Duplicate Name' }, ADMIN);
 
-    expect(() => svc.mailingListService.createList({ name: 'Duplicate Name' }, ADMIN))
+    expect(svc.mailingListService.createList({ name: 'Duplicate Name' }, ADMIN)).toBe(slug);
+    expect(auditFor(slug, 'mailing_list.created')).toHaveLength(1);
+  });
+
+  it('refuses a create whose name is in use with different field values, leaving the stored list as it was', () => {
+    const slug = svc.mailingListService.createList({ name: 'Differing Name', description: 'First' }, ADMIN);
+
+    expect(() => svc.mailingListService.createList({ name: 'Differing Name', description: 'Second' }, ADMIN))
       .toThrow(errors.ConflictError);
     expect(auditFor(slug, 'mailing_list.created')).toHaveLength(1);
   });

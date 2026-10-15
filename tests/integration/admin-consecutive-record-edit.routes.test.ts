@@ -26,11 +26,13 @@ let db: BetterSqlite3.Database;
 const ADMIN_ID = 'aaaaaaaa-0000-0000-0000-00000000ck01';
 const MEMBER_ID = 'bbbbbbbb-0000-0000-0000-00000000ck02';
 const PERSONA_ADMIN_ID = 'member_persona_ck_edit';
+const ADMIN2_ID = 'aaaaaaaa-0000-0000-0000-00000000ck03';
 
 function cookieFor(memberId: string, role: 'admin' | 'member'): string {
   return `__Host-footbag_session=${createTestSessionJwt({ memberId, role })}`;
 }
 const admin = () => cookieFor(ADMIN_ID, 'admin');
+const admin2 = () => cookieFor(ADMIN2_ID, 'admin');
 
 // A full valid body for a given display position. Individual tests override a field.
 function bodyFor(sortOrder: string, overrides: Record<string, string> = {}): Record<string, string> {
@@ -57,6 +59,7 @@ beforeAll(async () => {
   insertMember(db, { id: ADMIN_ID, slug: 'ck_admin', display_name: 'CK Admin', login_email: 'ck-admin@example.com', is_admin: 1 });
   insertMember(db, { id: MEMBER_ID, slug: 'ck_member', display_name: 'CK Member', login_email: 'ck-member@example.com' });
   insertMember(db, { id: PERSONA_ADMIN_ID, slug: 'ck_persona', display_name: 'CK Persona', login_email: 'ck-persona@example.com', is_admin: 1 });
+  insertMember(db, { id: ADMIN2_ID, slug: 'ck_admin_two', display_name: 'CK Admin Two', login_email: 'ck-admin2@example.com', is_admin: 1 });
 
   // Rows across sections/divisions for the grouped browse.
   insertConsecutiveKicksRecord(db, { id: 'ck_wr', sort_order: 401, section: 'Official World Records', subsection: 'Current', division: 'Open Singles', player_1: 'WR Holder', score: 50000 });
@@ -249,6 +252,36 @@ describe('consecutive-kicks records — add new', () => {
     const audits = ckAuditByAction(newId, 'freestyle.consecutive_record.created');
     expect(audits).toHaveLength(1);
     expect(audits[0].metadata_json).toContain('Open Doubles');
+  });
+
+  it('a repeated identical create by the same admin reports the first create: 303 to the same row, no second row', async () => {
+    // Defect caught: a re-posted create shows "already used by another row" for the row this admin just made.
+    const body = bodyFor('251', { section: 'Milestone Firsts', division: 'Open Doubles', player1: 'Repeat Player' });
+    const first = await post('/admin/freestyle/consecutive-records', admin(), body);
+    expect(first.status).toBe(303);
+    const repeat = await post('/admin/freestyle/consecutive-records', admin(), body);
+    expect(repeat.status).toBe(303);
+    expect(repeat.headers.location).toBe(first.headers.location);
+    const newId = (first.headers.location as string)
+      .replace('/admin/freestyle/consecutive-records/', '').replace('/edit?saved=1', '');
+    expect(ckAuditByAction(newId, 'freestyle.consecutive_record.created')).toHaveLength(1);
+  });
+
+  it("another admin's identical create at a position this admin filled is refused at 422, not reported as theirs", async () => {
+    // Defect caught: a second admin is sent to a row they did not create as if they had.
+    const body = bodyFor('252', { section: 'Milestone Firsts', division: 'Open Doubles', player1: 'Shared Player' });
+    expect((await post('/admin/freestyle/consecutive-records', admin(), body)).status).toBe(303);
+    const other = await post('/admin/freestyle/consecutive-records', admin2(), body);
+    expect(other.status).toBe(422);
+    expect(other.text).toContain('already used by another row');
+  });
+
+  it('the same admin re-posting with any field changed is refused at 422: the first row stands', async () => {
+    // Defect caught: a second tab with a different score is told it was saved while the first row stands.
+    const body = bodyFor('253', { section: 'Milestone Firsts', division: 'Open Doubles', player1: 'Edit Player' });
+    expect((await post('/admin/freestyle/consecutive-records', admin(), body)).status).toBe(303);
+    const changed = await post('/admin/freestyle/consecutive-records', admin(), { ...body, score: '31000' });
+    expect(changed.status).toBe(422);
   });
 
   it('re-renders the new form at 422 on a display position already in use', async () => {

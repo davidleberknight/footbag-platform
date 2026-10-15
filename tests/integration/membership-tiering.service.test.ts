@@ -10,7 +10,7 @@
  *   - DB CHECK rejection when governance rows omit underlying tier columns
  *   - Admin override writes a correct row with mandatory reason text
  */
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
 import {
@@ -1015,5 +1015,52 @@ describe('member_tier_current — same-millisecond grant resolution', () => {
     db.close();
 
     expect(mts.getTierStatus(memberId).tier_status).toBe('tier2');
+  });
+});
+
+describe('member_tier_current — a wall clock stepping backward between two writes', () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  // Defect caught: the host clock steps back a second or two (a hypervisor
+  // time sync, an NTP correction) between an administrator seating a director
+  // and taking them off the board, the removal row is stamped earlier than the
+  // seating row, and the member reads as Tier 3 after the removal went through.
+  it('a removal written after the clock stepped back still ends the Tier 3 standing', () => {
+    const id = freshMember();
+    vi.useFakeTimers({ toFake: ['Date'] });
+    mts.setGovernanceTier3(ADMIN_ID, id);
+    expect(mts.getTierStatus(id).tier_status).toBe('tier3');
+
+    vi.setSystemTime(Date.now() - 2000);
+    mts.removeGovernanceTier3(ADMIN_ID, id);
+
+    expect(mts.getTierStatus(id)).toEqual({ tier_status: 'tier1', underlying_tier_status: null });
+  });
+
+  // Defect caught: the newest row was written by another process (the worker,
+  // or this one before a restart) whose ids sort above any this process mints,
+  // and its stamp is ahead of this clock. A new row stamped equal to it ties,
+  // the id breaks the tie the wrong way, and the removal reads as never made.
+  it('a removal ends the standing even when the seating row carries a later stamp and a higher id', () => {
+    const id = freshMember();
+    const db = new BetterSqlite3(dbPath);
+    insertMemberTierGrant(db, {
+      id: 'mtg_ffffffffffffffffffffffffffffffff',
+      created_at: new Date(Date.now() + 2000).toISOString(),
+      member_id: id,
+      change_type: 'governance_set',
+      old_tier_status: 'tier0',
+      new_tier_status: 'tier3',
+      new_underlying_tier_status: 'tier1',
+      reason_code: 'governance.tier3_set',
+    });
+    db.close();
+    expect(mts.getTierStatus(id).tier_status).toBe('tier3');
+
+    mts.removeGovernanceTier3(ADMIN_ID, id);
+
+    expect(mts.getTierStatus(id)).toEqual({ tier_status: 'tier1', underlying_tier_status: null });
   });
 });

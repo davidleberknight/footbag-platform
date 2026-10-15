@@ -30,9 +30,7 @@
     <p>
       <label>From <input type="date" name="from" value="{{content.filters.fromDate}}"></label>
       <label>To <input type="date" name="to" value="{{content.filters.toDate}}"></label>
-      <label><input type="checkbox" name="self" value="1"{{#if content.filters.selfActionOnly}} checked{{/if}}> Self-actions only</label>
-      <label><input type="checkbox" name="includeAccess" value="1"{{#if content.filters.includeAuditAccess}} checked{{/if}}> Include audit-access events</label>
-    </p>
+      <label><input type="checkbox" name="self" value="1"{{#if content.filters.selfActionOnly}} checked{{/if}}> Self-actions only</label>    </p>
     <p>
       <button type="submit" class="btn btn-primary">Apply Filters</button>
       <a href="/admin/audit-log" class="btn btn-outline">Clear</a>

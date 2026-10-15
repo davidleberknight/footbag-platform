@@ -55,6 +55,22 @@
  *     the attempt as terminal would make the success that follows it
  *     unapplicable under the monotonic machine, charging a member who never
  *     receives what they paid for.
+ *   - One open membership checkout per member, held by the purchase request
+ *     itself, never by the cancel page (a GET that only reads, and one the
+ *     buyer may never reach). A repeat for the same tier returns to the open
+ *     checkout; any other purchase asks the provider to close the old session
+ *     and, on the provider's confirmation that it expired, closes the pending
+ *     row as checkout.session.expired would, so the webhook that follows finds
+ *     nothing to do. A session the provider reports completed stands, and the
+ *     purchase is refused before any new session opens until its webhook
+ *     settles it; so is one the provider could not be asked about.
+ *   - A checkout submitted twice is matched before the throttle and again where
+ *     the write happens, because the two submits overlap across the provider
+ *     call: a membership purchase in the one-pending index's unique failure, a
+ *     gift inside the transaction that would record it. The loser closes the
+ *     session it opened, gives back its throttle slot, and is sent to the
+ *     winner's checkout. A gift whose matching checkout no longer opens is
+ *     refused while the provider holds it paid, so one gift is never paid twice.
  *   - Payment kill-switch: startMembershipPurchase and startDonation throw
  *     ServiceUnavailableError when payments_paused=1 (runtime config), before
  *     any eligibility check, rate-limit token, or createCheckoutSession call,
@@ -226,14 +242,15 @@
  *     only when the row's member_id matches the event-metadata memberId; a row
  *     bound to a different intent, or owned by a different member, is never
  *     re-pointed). A partial unique index
- *     allows only one pending membership payment per member; a concurrent
- *     double-submit fails with ConflictError.
- *   - Because that index makes one unresolved membership checkout block every
- *     later attempt, an unfinished checkout is bounded at both ends: the session
- *     is created with an expiry of an hour or two rather than the provider's
- *     day-long default, and reaching the cancel page expires it at the provider
- *     outright. Neither writes a status: the expiry event still resolves the
- *     row, as every other status change here does. The expiry is anchored to the
+ *     allows only one pending membership payment per member. A repeated submit
+ *     for the same tier returns to the checkout still open at the provider and
+ *     writes nothing; a different tier while one is open fails with
+ *     ConflictError.
+ *   - Because that index makes one unresolved membership checkout block other
+ *     tiers, an unfinished checkout is bounded: the session is created with an
+ *     expiry of an hour or two rather than the provider's day-long default. The
+ *     cancel page only reads. The expiry event resolves the row, as every
+ *     other status change here does. The expiry is anchored to the
  *     clock hour rather than the moment of the call because it travels under an
  *     idempotency key, and the provider rejects a reused key whose body changed.
  *   - Checkout offers card-backed methods only. Fulfilment is keyed to the
@@ -321,7 +338,7 @@ import {
   RateLimitedError,
   ServiceUnavailableError,
 } from './serviceErrors';
-import { hit as rateLimitHit } from './rateLimitService';
+import { hit as rateLimitHit, refund as rateLimitRefund } from './rateLimitService';
 import {
   applyPurchaseGrantInTx,
   getTierStatus,
@@ -535,8 +552,6 @@ export interface DonateContent {
   action: string;
   returnTo: string;
   suggestedAmounts: DonateAmountOption[];
-  /** Prefilled note for a member holding an honor; empty for everyone else. */
-  defaultNote: string;
   minAmountDisplay: string;
   maxAmountDisplay: string;
   noteMaxChars: number;
@@ -580,8 +595,6 @@ const CURRENCY = 'USD';
 // administrator-tunable: nothing in the donation flow calls for that.
 const DONATION_MIN_CENTS = 100;
 const DONATION_MAX_CENTS = 2_000_000;
-
-const HOF_DEFAULT_DONATION_NOTE = 'HoF Fund';
 
 // Suggested gift amounts offered on the donations page. A custom amount is
 // always available alongside them, so this list is a convenience, not a menu of
@@ -675,7 +688,6 @@ interface DonorProfile {
   slug: string;
   loginEmail: string | null;
   realName: string | null;
-  isHof: boolean;
   stripeCustomerId: string | null;
 }
 
@@ -685,7 +697,6 @@ function lookupDonorProfile(memberId: string): DonorProfile {
         slug: string;
         login_email: string | null;
         real_name: string | null;
-        is_hof: number;
         stripe_customer_id: string | null;
       }
     | undefined;
@@ -694,7 +705,6 @@ function lookupDonorProfile(memberId: string): DonorProfile {
     slug: row.slug,
     loginEmail: row.login_email,
     realName: row.real_name,
-    isHof: row.is_hof === 1,
     stripeCustomerId: row.stripe_customer_id,
   };
 }
@@ -713,14 +723,6 @@ function normalizeDonationNote(raw: unknown): string | null {
     );
   }
   return trimmed;
-}
-
-// A Hall of Fame member who leaves the note blank designates the gift to the
-// Hall of Fame fund, which is restricted to it. IFPA has no other named fund,
-// so every other donor's note stays empty.
-function defaultDonationNote(profile: DonorProfile): string | null {
-  if (profile.isHof) return HOF_DEFAULT_DONATION_NOTE;
-  return null;
 }
 
 /**
@@ -830,6 +832,42 @@ function buildCancelUrl(returnTo: string): string {
   return `${base}/payments/cancel?session_id={CHECKOUT_SESSION_ID}&returnTo=${ret}`;
 }
 
+/**
+ * Close a pending checkout the provider has just confirmed expired, writing
+ * what the expiry webhook writes: the canceled status, its transition and its
+ * audit row, in one transaction. Guarded on pending, so a webhook that settled
+ * the row first wins and nothing is written twice. The member is the actor,
+ * because their new purchase is what released it.
+ */
+function releaseClosedCheckout(payment: PaymentRow, memberId: string): void {
+  transaction(() => {
+    const now = new Date().toISOString();
+    const changed = paymentsDb.cancelPendingReleased.run(now, 'payment_service', payment.id).changes;
+    if (changed === 0) return;
+    recordTransition({
+      paymentId: payment.id,
+      fromStatus: 'pending',
+      toStatus: 'canceled',
+      stripeEventId: null,
+      eventType: 'checkout.session.expired',
+      reasonText: 'released by a new purchase',
+    });
+    appendAuditEntry({
+      actionType: 'payment.canceled',
+      category: 'payment',
+      actorType: 'member',
+      actorMemberId: memberId,
+      entityType: 'payment',
+      entityId: payment.id,
+      reasonText: 'released by a new purchase',
+      metadata: {
+        member_id: payment.member_id,
+        stripe_checkout_session_id: payment.stripe_checkout_session_id,
+      },
+    });
+  });
+}
+
 function recordTransition(args: {
   paymentId: string;
   fromStatus: PaymentRow['status'];
@@ -892,6 +930,48 @@ function recordSubscriptionTransition(args: {
   );
 }
 
+/**
+ * The address of a checkout the buyer can still complete, or null when the
+ * provider holds it paid or closed. A provider error is treated as null and
+ * logged, so a repeat whose checkout cannot be reached falls through to the
+ * ordinary path rather than failing the request.
+ */
+async function reopenCheckout(sessionId: string): Promise<string | null> {
+  try {
+    return await getPaymentAdapter().openCheckoutUrl(sessionId);
+  } catch (err) {
+    logger.warn('could not reopen an open checkout session', {
+      sessionId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return null;
+  }
+}
+
+/**
+ * Ask the provider to close a checkout the buyer is not going back to, and
+ * report whether it now holds the session expired. False when the buyer paid
+ * for it, and when the provider could not be asked, since then its state is
+ * unknown and it must be treated as possibly paid.
+ */
+async function closeCheckout(sessionId: string, paymentId: string | null): Promise<boolean> {
+  try {
+    return await getPaymentAdapter().closeCheckoutSession(sessionId);
+  } catch (err) {
+    logger.warn('could not close an abandoned checkout session', {
+      paymentId,
+      sessionId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return false;
+  }
+}
+
+const MEMBERSHIP_CHECKOUT_UNSETTLED =
+  'We are still confirming your last membership checkout. Please try again in a few minutes.';
+const DONATION_CHECKOUT_UNSETTLED =
+  'We are still confirming your last donation checkout. Please try again in a few minutes.';
+
 // ── Public API ───────────────────────────────────────────────────────────────
 
 async function startMembershipPurchase(
@@ -914,6 +994,19 @@ async function startMembershipPurchase(
   const current = getTierStatus(memberId);
   validateEligibility(current.tier_status, tier);
 
+  // A repeated submit for the same tier (a double click, a back-button
+  // re-post, a second tab, the cancel page's try-again) goes back to the
+  // checkout the first submit opened while the buyer can still complete it,
+  // rather than opening a second session at the provider. Checked before the
+  // throttle, because a repeat spends nothing; writes nothing.
+  const open = paymentsDb.findPendingMembershipByMember.get(memberId) as PaymentRow | undefined;
+  if (open && open.purchased_tier_status === tier && open.stripe_checkout_session_id) {
+    const redirectUrl = await reopenCheckout(open.stripe_checkout_session_id);
+    if (redirectUrl) {
+      return { redirectUrl, paymentId: open.id, sessionId: open.stripe_checkout_session_id };
+    }
+  }
+
   // Throttle before the checkout-session call: every attempt creates a
   // session at the payment provider (a real Stripe session in live mode),
   // so an unthrottled burst piles up orphaned sessions.
@@ -924,6 +1017,22 @@ async function startMembershipPurchase(
       'Too many purchase attempts. Please try again later.',
       rl.retryAfterSeconds,
     );
+  }
+
+  // A pending checkout the member is not going back to (another tier, or one
+  // whose session has closed) is released here, so a member who cancelled at
+  // the provider and chose differently is never blocked by it. The provider is
+  // asked to close it, and its reply is the confirmation: once it holds the
+  // session expired, the row closes as the expiry webhook would close it, and
+  // the webhook that follows finds nothing to do. A session the provider says
+  // was completed was paid for, so it stands, and the purchase is refused here,
+  // before a new session is opened, until its webhook settles it; so is one the
+  // provider could not be asked about, whose state is unknown.
+  if (open?.stripe_checkout_session_id) {
+    if (!await closeCheckout(open.stripe_checkout_session_id, open.id)) {
+      throw new ConflictError(MEMBERSHIP_CHECKOUT_UNSETTLED);
+    }
+    releaseClosedCheckout(open, memberId);
   }
 
   // The donor profile rather than the slug alone, because the checkout call
@@ -976,6 +1085,18 @@ async function startMembershipPurchase(
     );
   } catch (err) {
     if (err instanceof Error && (err as { code?: string }).code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      // An overlapping submit of this same purchase inserted first. The session
+      // this request opened is closed rather than left open at the provider,
+      // and the member is sent to the checkout the other submit opened.
+      await closeCheckout(result.sessionId, null);
+      const winner = paymentsDb.findPendingMembershipByMember.get(memberId) as PaymentRow | undefined;
+      if (winner?.purchased_tier_status === tier && winner.stripe_checkout_session_id) {
+        const redirectUrl = await reopenCheckout(winner.stripe_checkout_session_id);
+        if (redirectUrl) {
+          rateLimitRefund(`purchase-tier:${memberId}`);
+          return { redirectUrl, paymentId: winner.id, sessionId: winner.stripe_checkout_session_id };
+        }
+      }
       throw new ConflictError(
         'A membership purchase is already in progress. Complete or cancel it before starting another.',
       );
@@ -3455,41 +3576,6 @@ function getPaymentSuccessPage(
   };
 }
 
-/**
- * Closes the provider-side checkout a member walked away from.
- *
- * Landing on the cancel page is the clearest signal there is that the member is
- * not going to pay, but the provider does not know that: the session stays open
- * until its own expiry, and the local row stays pending behind it. For a
- * membership that is not cosmetic. One pending membership row per member is a
- * database constraint, so until the row resolves every further attempt is
- * refused with a message naming an action the member cannot take.
- *
- * Expiring the session makes the provider send the expiry event, and that event
- * is what resolves the row. Nothing here writes to the database: the local
- * status still moves only in response to a webhook, as it does everywhere else
- * in this service.
- *
- * Best-effort on purpose, and it never throws. A session the provider already
- * expired or already completed is not a failure the member can act on, and they
- * are looking at a page that has nothing to do with it. The session's own expiry
- * and the nightly reconciliation sweep are both still behind this.
- */
-async function releaseAbandonedCheckout(payment: PaymentRow | null): Promise<void> {
-  if (!payment || payment.status !== 'pending' || !payment.stripe_checkout_session_id) return;
-  try {
-    await getPaymentAdapter().expireCheckoutSession(payment.stripe_checkout_session_id);
-  } catch (err) {
-    // Warn rather than error: this is a convenience, not a guarantee, and an
-    // error here would raise an operational alarm for a member changing their
-    // mind.
-    logger.warn('could not expire an abandoned checkout session', {
-      paymentId: payment.id,
-      error: err instanceof Error ? err.message : String(err),
-    });
-  }
-}
-
 function getPaymentCancelPage(
   payment: PaymentRow | null,
   opts: { continueHref: string; slug: string },
@@ -3737,7 +3823,6 @@ function getDonatePage(
         cents,
         label: formatAmount(cents, CURRENCY),
       })),
-      defaultNote: defaultDonationNote(profile) ?? '',
       minAmountDisplay: formatAmount(DONATION_MIN_CENTS, CURRENCY),
       maxAmountDisplay: formatAmount(DONATION_MAX_CENTS, CURRENCY),
       noteMaxChars: DONATION_NOTE_MAX_CHARS,
@@ -3779,18 +3864,64 @@ async function startDonation(
 
   const amount = parseDonationAmount(amountCents);
   const profile = lookupDonorProfile(memberId);
-  const note = normalizeDonationNote(comment) ?? defaultDonationNote(profile);
+  const note = normalizeDonationNote(comment);
+
+  // A repeated submit of the same gift (a double click, a back-button re-post,
+  // a second tab) goes back to the checkout the first submit opened while the
+  // donor can still complete it, rather than opening a second session at the
+  // provider. Checked before the throttle, because a repeat spends nothing;
+  // writes nothing. A checkout that has closed falls through to a new one.
+  const findOpen = () => (recurring ? subsDb.findIncompleteForMember : paymentsDb.findPendingDonationForMember)
+    .get(memberId, amount, note) as { id: string; session_id: string | null } | undefined;
+  const open = findOpen();
+  if (open?.session_id) {
+    const redirectUrl = await reopenCheckout(open.session_id);
+    if (redirectUrl) {
+      return { redirectUrl, sessionId: open.session_id, reference: open.id };
+    }
+  }
 
   // Throttle before the checkout-session call, because every attempt creates a
   // real session at Stripe in live mode and an unthrottled burst leaves orphans.
+  const rateLimitKey = `donate:${memberId}`;
   const rlMax = readIntConfig('donation_rate_limit_per_hour', 20);
-  const rl = rateLimitHit(`donate:${memberId}`, rlMax, 60);
+  const rl = rateLimitHit(rateLimitKey, rlMax, 60);
   if (!rl.allowed) {
     throw new RateLimitedError(
       'Too many donation attempts. Please try again later.',
       rl.retryAfterSeconds,
     );
   }
+
+  // The same gift whose checkout no longer opens may have been paid at the
+  // provider while its confirmation is still on the way. Opening another would
+  // let the donor pay the one gift twice, so the provider is asked: a session it
+  // holds expired falls through to a new checkout, and one it holds paid, or
+  // could not be asked about, is refused until its confirmation settles it.
+  if (open?.session_id && !await closeCheckout(open.session_id, null)) {
+    throw new ConflictError(DONATION_CHECKOUT_UNSETTLED);
+  }
+
+  // Inside the transaction that would record this gift: an overlapping submit
+  // of the same gift may have recorded it while this one waited on the
+  // provider. Then the session this request opened is closed rather than left
+  // open, and the donor goes to the other submit's checkout. The lookup is
+  // newest first, so the row this request already found expired above is not
+  // mistaken for one.
+  const findNewerOpen = () => {
+    const found = findOpen();
+    return found && found.id !== open?.id ? found : undefined;
+  };
+  const sendToWinner = async (
+    winner: { id: string; session_id: string | null },
+    ownSessionId: string,
+  ): Promise<StartDonationResult> => {
+    await closeCheckout(ownSessionId, null);
+    const redirectUrl = winner.session_id ? await reopenCheckout(winner.session_id) : null;
+    if (!redirectUrl || !winner.session_id) throw new ConflictError(DONATION_CHECKOUT_UNSETTLED);
+    rateLimitRefund(rateLimitKey);
+    return { redirectUrl, sessionId: winner.session_id, reference: winner.id };
+  };
 
   const safeReturn = safeReturnTo(returnTo, `/members/${profile.slug}`);
   const descriptor = donationDescriptor(recurring);
@@ -3827,32 +3958,38 @@ async function startDonation(
     // and carries no provider identifiers yet: the customer and the
     // subscription are minted during checkout, and the session id is the only
     // handle this gift has until customer.subscription.created promotes it.
-    subsDb.insertPendingSubscription.run(
-      subscriptionRecordId,
-      openedAt, memberId, openedAt, memberId,
-      memberId,
-      profile.stripeCustomerId,
-      result.sessionId,
-      amount, CURRENCY,
-      openedAt, openedAt,
-      note,
-    );
+    const recurringWinner = transaction(() => {
+      const winner = findNewerOpen();
+      if (winner) return winner;
+      subsDb.insertPendingSubscription.run(
+        subscriptionRecordId,
+        openedAt, memberId, openedAt, memberId,
+        memberId,
+        profile.stripeCustomerId,
+        result.sessionId,
+        amount, CURRENCY,
+        openedAt, openedAt,
+        note,
+      );
 
-    appendAuditEntry({
-      actionType: 'payment.donation_checkout_started',
-      category: 'payment',
-      actorType: 'member',
-      actorMemberId: memberId,
-      entityType: 'recurring_donation_subscription',
-      entityId: subscriptionRecordId,
-      reasonText: null,
-      metadata: {
-        recurring: true,
-        amount_cents: amount,
-        currency: CURRENCY,
-        session_id: result.sessionId,
-      },
+      appendAuditEntry({
+        actionType: 'payment.donation_checkout_started',
+        category: 'payment',
+        actorType: 'member',
+        actorMemberId: memberId,
+        entityType: 'recurring_donation_subscription',
+        entityId: subscriptionRecordId,
+        reasonText: null,
+        metadata: {
+          recurring: true,
+          amount_cents: amount,
+          currency: CURRENCY,
+          session_id: result.sessionId,
+        },
+      });
+      return null;
     });
+    if (recurringWinner) return sendToWinner(recurringWinner, result.sessionId);
 
     return {
       redirectUrl: result.redirectUrl,
@@ -3876,34 +4013,40 @@ async function startDonation(
     metadata: { paymentId, memberId },
   });
 
-  paymentsDb.insertDonationPayment.run(
-    paymentId,
-    now, memberId, now, memberId,
-    memberId,
-    amount, CURRENCY,
-    descriptor,
-    note,
-    result.sessionId,
-    result.paymentIntentId,
-    result.livemode ? 1 : 0,
-  );
+  const oneTimeWinner = transaction(() => {
+    const winner = findNewerOpen();
+    if (winner) return winner;
+    paymentsDb.insertDonationPayment.run(
+      paymentId,
+      now, memberId, now, memberId,
+      memberId,
+      amount, CURRENCY,
+      descriptor,
+      note,
+      result.sessionId,
+      result.paymentIntentId,
+      result.livemode ? 1 : 0,
+    );
 
-  appendAuditEntry({
-    actionType: 'payment.donation_checkout_started',
-    category: 'payment',
-    actorType: 'member',
-    actorMemberId: memberId,
-    entityType: 'payment',
-    entityId: paymentId,
-    reasonText: null,
-    metadata: {
-      recurring: false,
-      amount_cents: amount,
-      currency: CURRENCY,
-      session_id: result.sessionId,
-      payment_intent_id: result.paymentIntentId,
-    },
+    appendAuditEntry({
+      actionType: 'payment.donation_checkout_started',
+      category: 'payment',
+      actorType: 'member',
+      actorMemberId: memberId,
+      entityType: 'payment',
+      entityId: paymentId,
+      reasonText: null,
+      metadata: {
+        recurring: false,
+        amount_cents: amount,
+        currency: CURRENCY,
+        session_id: result.sessionId,
+        payment_intent_id: result.paymentIntentId,
+      },
+    });
+    return null;
   });
+  if (oneTimeWinner) return sendToWinner(oneTimeWinner, result.sessionId);
 
   return {
     redirectUrl: result.redirectUrl,
@@ -4123,8 +4266,10 @@ function stubCheckoutSessionFor(sessionId: string, memberId: string | undefined)
   const stub = adapter as StubPaymentAdapter;
   const session = stub.sessions.get(sessionId);
   // Another member's session answers exactly as a missing one, so the page
-  // cannot be used to probe for other members' checkouts.
-  if (!session || session.memberId !== memberId) return null;
+  // cannot be used to probe for other members' checkouts. A closed or expired
+  // session can no longer be paid, as at the provider, so a checkout released
+  // by a later purchase is never paid afterwards.
+  if (!session || session.memberId !== memberId || stub.isSessionClosed(sessionId)) return null;
   return { stub, session };
 }
 
@@ -4178,7 +4323,6 @@ export const paymentService = {
   getCheckoutPage,
   getPaymentSuccessPage,
   getPaymentCancelPage,
-  releaseAbandonedCheckout,
   getPaymentHistoryPage,
   getRecurringCancelConfirmPage,
   getDonationSuccessPage,

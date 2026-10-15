@@ -335,13 +335,13 @@ describe('POST /admin/club-cleanup/candidates/:candidateId/promote', () => {
   // A club an admin promoted carries nothing else that says it exists: no
   // leader, no member, no event, no answer, and a dormant legacy record. The
   // rules must read the admin's own decision as the club's record, or the next
-  // queue open undoes the promotion the admin just made.
-  it('a club an admin promoted survives the next queue open', async () => {
+  // press of Apply the Rules undoes the promotion the admin just made.
+  it('a club an admin promoted survives the rules being applied', async () => {
     const app = createApp();
     const res = await request(app)
-      .get('/admin/club-cleanup')
+      .post('/admin/club-cleanup/apply-rules')
       .set('Cookie', adminCookie());
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(303);
 
     const clubId = stableClubId('promote-test-memphis');
     const db = new BetterSqlite3(dbPath);

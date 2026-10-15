@@ -35,6 +35,8 @@ const MEMBER_BLANK   = 'insight-blank-member';
 const MEMBER_CONTROL = 'insight-control-member';
 const MEMBER_PURGE   = 'insight-purge-member';
 const MEMBER_REPEAT  = 'insight-repeat-member';
+const MEMBER_LATE    = 'insight-late-member';
+const MEMBER_TWICE   = 'insight-twice-member';
 
 let cardClubId = '';
 let cardAffId  = '';
@@ -43,6 +45,8 @@ let blankAffId = '';
 let controlAffId = '';
 let repeatClubId = '';
 let repeatAffId  = '';
+let lateAffId    = '';
+let twiceAffId   = '';
 
 interface NoteRow {
   club_id: string | null;
@@ -130,6 +134,10 @@ beforeAll(async () => {
     seedCardMember(db, MEMBER_CONTROL, 'insight_control', 'Insight Control Club'));
   ({ clubId: repeatClubId, affId: repeatAffId } =
     seedCardMember(db, MEMBER_REPEAT, 'insight_repeat', 'Insight Repeat Club'));
+  ({ affId: lateAffId } =
+    seedCardMember(db, MEMBER_LATE, 'insight_late', 'Insight Late Club'));
+  ({ affId: twiceAffId } =
+    seedCardMember(db, MEMBER_TWICE, 'insight_twice', 'Insight Twice Club'));
 
   // Wrap-up path: no cards at all, so the landing is where the question is asked.
   insertMember(db, {
@@ -229,6 +237,76 @@ describe('the insight question is asked once per member', () => {
     // No orphan: the repeat must not land a second note keyed to nothing.
     expect(notes.filter((n) => n.club_id === null)).toHaveLength(0);
     expect(readInsightAudits(MEMBER_REPEAT)).toHaveLength(1);
+  });
+
+  it('stores no note when an already-answered last card is posted again with one', async () => {
+    const answer = {
+      kind: 'membership',
+      candidateId: lateAffId,
+      userDecision: 'confirm',
+      activitySignal: 'active',
+    };
+
+    // The member answers their last card with no note, which completes the step.
+    const first = await request(createApp())
+      .post('/register/wizard/club_affiliations/submit')
+      .set('Cookie', cookieFor(MEMBER_LATE))
+      .type('form')
+      .send(answer);
+    expect(first.status).toBe(303);
+    const taskState = testDb
+      .prepare(`SELECT state FROM member_onboarding_tasks WHERE member_id = ? AND task_type = 'club_affiliations'`)
+      .get(MEMBER_LATE) as { state: string } | undefined;
+    expect(taskState?.state).toBe('completed');
+
+    // A stale tab or crafted request re-posts the same card with a note.
+    const late = await request(createApp())
+      .post('/register/wizard/club_affiliations/submit')
+      .set('Cookie', cookieFor(MEMBER_LATE))
+      .type('form')
+      .send({ ...answer, insightNote: 'late note' });
+    expect(late.status).toBe(303);
+    expect(late.headers.location).toBe(first.headers.location);
+
+    expect(readNotes(MEMBER_LATE)).toHaveLength(0);
+    expect(readInsightAudits(MEMBER_LATE)).toHaveLength(0);
+  });
+
+  it('stores no second note when a member who left one on a card then answers no club with another', async () => {
+    // Declining the only card leaves no current club, so the step waits on the
+    // wrap-up landing's explicit no-club answer.
+    const card = await request(createApp())
+      .post('/register/wizard/club_affiliations/submit')
+      .set('Cookie', cookieFor(MEMBER_TWICE))
+      .type('form')
+      .send({
+        kind: 'membership',
+        candidateId: twiceAffId,
+        userDecision: 'decline',
+        activitySignal: 'not_active',
+        insightNote: 'That club folded years ago.',
+      });
+    expect(card.status).toBe(303);
+    expect(readNotes(MEMBER_TWICE)).toHaveLength(1);
+
+    const wrapUp = await request(createApp())
+      .post('/register/wizard/club_affiliations/none')
+      .set('Cookie', cookieFor(MEMBER_TWICE))
+      .type('form')
+      .send({ insightNote: 'There is a new group downtown.' });
+    expect(wrapUp.status).toBe(303);
+    const taskState = testDb
+      .prepare(`SELECT state FROM member_onboarding_tasks WHERE member_id = ? AND task_type = 'club_affiliations'`)
+      .get(MEMBER_TWICE) as { state: string } | undefined;
+    expect(taskState?.state).toBe('completed');
+
+    const notes = readNotes(MEMBER_TWICE);
+    expect(notes).toHaveLength(1);
+    expect(notes[0]).toMatchObject({
+      source_stage: 'onboarding_club_card',
+      note_text:    'That club folded years ago.',
+    });
+    expect(readInsightAudits(MEMBER_TWICE)).toHaveLength(1);
   });
 });
 

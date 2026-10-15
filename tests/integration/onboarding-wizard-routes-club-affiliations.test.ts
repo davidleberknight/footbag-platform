@@ -386,11 +386,12 @@ function readBootstrapStatus(id: string): string {
   return row?.status ?? '';
 }
 
-function readTaskState(memberId: string, taskType: string = 'club_affiliations'): string | null {
+// A missing row reads as pending, as the wizard itself reads it.
+function readTaskState(memberId: string, taskType: string = 'club_affiliations'): string {
   const row = testDb
     .prepare(`SELECT state FROM member_onboarding_tasks WHERE member_id = ? AND task_type = ?`)
     .get(memberId, taskType) as { state: string } | undefined;
-  return row?.state ?? null;
+  return row?.state ?? 'pending';
 }
 
 function clubJoinGrantCount(memberId: string): number {
@@ -497,7 +498,7 @@ describe('the wizard offers no way out but an answer', () => {
   const taskState = (memberId: string): string =>
     (testDb.prepare(
       `SELECT state FROM member_onboarding_tasks WHERE member_id = ? AND task_type = 'club_affiliations'`,
-    ).get(memberId) as { state: string } | undefined)?.state ?? 'missing';
+    ).get(memberId) as { state: string } | undefined)?.state ?? 'pending';
 
   it('the retired detour and dismiss routes are gone', async () => {
     const id = insertMember(testDb, { onboarding: 'none', slug: 'wiz_no_exits', login_email: 'wiz-no-exits@example.com' });

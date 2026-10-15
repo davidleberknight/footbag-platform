@@ -137,7 +137,7 @@ import {
   freestyleTrickTips,
   transaction,
 } from '../db/db';
-import { appendAuditEntry } from './auditService';
+import { appendAuditEntry, findStandingOwnAct } from './auditService';
 import { ForbiddenError, NotFoundError, ValidationError } from './serviceErrors';
 import { PageViewModel } from '../types/page';
 import { checkAddMatchesScoringBrackets } from '../lib/freestyleNotation';
@@ -589,6 +589,18 @@ const ALIAS_TEXT_MAX = 200;
 // test persona must never author freestyle dictionary content; real maintainer
 // accounts carry ordinary member ids and pass. In staging and production this is
 // a no-op, so any admin may curate. The admin remains the audit actor of record.
+/** True when this actor's removal of this alias from this trick is the last act
+ *  on the alias. The alias slug alone does not name the trick, so the audit row's
+ *  trick must match too. */
+function ownAliasRemovalStands(trickSlug: string, aliasSlug: string, actorMemberId: string): boolean {
+  const own = findStandingOwnAct(
+    actorMemberId, 'freestyle.trick_alias.deleted', 'freestyle.trick_alias.created',
+    'freestyle_trick_alias', aliasSlug,
+  );
+  if (!own) return false;
+  return (JSON.parse(own.metadata_json) as { trickSlug?: string }).trickSlug === trickSlug;
+}
+
 function assertActorMayCurateFreestyle(actorMemberId: string): void {
   if (config.allowCuratedSidecarWrites && isSeededTestPersonaMemberId(actorMemberId)) {
     throw new ForbiddenError(
@@ -2456,6 +2468,9 @@ export const freestyleCurationService = {
     assertActorMayCurateFreestyle(actorMemberId);
     const existing = freestyleTrickAliases.getByAliasSlug.get(aliasSlug) as FullAliasDbRow | undefined;
     if (!existing || existing.trick_slug !== trickSlug) {
+      // This actor's own removal of the alias from this trick: their repeat has
+      // nothing left to remove, and reports that removal's success.
+      if (ownAliasRemovalStands(trickSlug, aliasSlug, actorMemberId)) return;
       throw new NotFoundError(`No alias "${aliasSlug}" on trick "${trickSlug}"`);
     }
 
@@ -2537,6 +2552,13 @@ export const freestyleCurationService = {
     assertActorMayCurateFreestyle(actorMemberId);
     const link = freestyleTrickSourceLinks.getLink.get(trickSlug, sourceId) as SourceLinkKeyDbRow | undefined;
     if (!link) {
+      // This actor's own detach of the source from this trick: their repeat has
+      // nothing left to detach, and reports that detach's success.
+      const ownDetach = findStandingOwnAct(
+        actorMemberId, 'freestyle.trick_source_link.deleted', 'freestyle.trick_source_link.created',
+        'freestyle_trick_source_link', `${trickSlug}:${sourceId}`,
+      );
+      if (ownDetach) return;
       throw new NotFoundError(`No source link "${sourceId}" on trick "${trickSlug}"`);
     }
 

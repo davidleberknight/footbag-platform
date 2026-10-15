@@ -27,17 +27,14 @@
  * status surface cannot be enumerated. This authorization scoping is separate
  * from the in-progress optimistic lock on state transitions.
  *
- * getJobStatusForAdmin is that same scoped read for the surfaces that DISPLAY
- * the state, and it reconciles one thing on the way past: a row still waiting
- * on the browser whose upload window has closed becomes abandoned, because the
- * grants it was signed for no longer open and no bytes or finalize can follow.
- * Reconciling on the read rather than from a scan keeps the expired-lease pass
- * the only scan of this table, which is the one that has no alternative: its
- * subject is a claim that outlived the process holding it, observable no other
- * way. Finalize deliberately uses the plain read instead, because a browser
- * that finished its upload just before the window closed has bytes in storage
- * and a legitimate finalize to make, and the size check ahead of it is what
- * decides whether those bytes are really there.
+ * Abandoned is derived, never stored: a row still waiting on the browser whose
+ * upload window has closed reads as abandoned (isAbandonedUpload), because the
+ * grants it was signed for no longer open. The surfaces that display the state
+ * derive it on the way out and write nothing, since a GET changes no stored
+ * state. Finalize does not consult it, because a browser that finished its
+ * upload just before the window closed has bytes in storage and a legitimate
+ * finalize to make, and the size check ahead of it is what decides whether
+ * those bytes are really there.
  *
  * Persistence: media_jobs only.
  *
@@ -76,8 +73,19 @@ export type MediaJobState =
   | 'pending_transcode'
   | 'processing'
   | 'succeeded'
-  | 'failed'
-  | 'abandoned';
+  | 'failed';
+
+/**
+ * A pending upload past its upload window: the grants it was signed for no
+ * longer open, so no bytes or finalize will follow. Derived on read so the
+ * status page and its event stream agree without either writing the row.
+ */
+export function isAbandonedUpload(
+  job: Pick<MediaJobRow, 'state' | 'expires_at'>,
+  nowIso: string,
+): boolean {
+  return job.state === 'pending_upload' && job.expires_at !== null && job.expires_at <= nowIso;
+}
 
 export interface CreatePendingUploadJobInput {
   // Caller-provided id. Optional; when omitted, the service mints a fresh
@@ -111,10 +119,8 @@ export interface MediaJobService {
   markSucceeded(jobId: string, mediaId: string): void;
   markFailed(jobId: string, errorMessage: string, maxRetries: number): MarkFailedResult;
   getJobForAdmin(jobId: string, adminMemberId: string): MediaJobRow | null;
-  getJobStatusForAdmin(jobId: string, adminMemberId: string): MediaJobRow | null;
   recoverOrphanedProcessingJobs(nowIso: string): RecoverResult;
   findDispatchablePendingTranscode(): MediaJobRow[];
-  markAbandoned(jobId: string): void;
 }
 
 export function createMediaJobService(): MediaJobService {
@@ -224,35 +230,6 @@ export function createMediaJobService(): MediaJobService {
       return row ?? null;
     },
 
-    getJobStatusForAdmin(jobId, adminMemberId) {
-      const row = mediaJobs.findByIdForAdmin.get(jobId, adminMemberId) as
-        | MediaJobRow
-        | undefined;
-      if (!row) return null;
-      // A row still waiting on the browser past its upload window is an upload
-      // that is not coming: the grants it was signed for no longer open, so no
-      // further bytes can arrive under those keys and no finalize will follow.
-      // Reconciling it when the state is asked for keeps the single scan of
-      // this table the one that has to be a scan, the expired-lease pass,
-      // whose subject is a claim that outlived the process holding it and can
-      // therefore be observed no other way. This one has a reader by
-      // definition, so it needs no pass of its own. The transition is guarded
-      // on the state it expects, so two readers racing make one write and
-      // agree on the answer.
-      if (
-        row.state === 'pending_upload' &&
-        row.expires_at !== null &&
-        row.expires_at <= new Date().toISOString()
-      ) {
-        mediaJobs.markAbandoned.run(new Date().toISOString(), SYSTEM_ACTOR, jobId);
-        const reconciled = mediaJobs.findByIdForAdmin.get(jobId, adminMemberId) as
-          | MediaJobRow
-          | undefined;
-        return reconciled ?? null;
-      }
-      return row;
-    },
-
     recoverOrphanedProcessingJobs(nowIso) {
       const candidates = mediaJobs.selectOrphanedProcessing.all(nowIso) as MediaJobRow[];
       const recoveredIds: string[] = [];
@@ -271,11 +248,6 @@ export function createMediaJobService(): MediaJobService {
 
     findDispatchablePendingTranscode() {
       return mediaJobs.selectDispatchablePendingTranscode.all() as MediaJobRow[];
-    },
-
-    markAbandoned(jobId) {
-      const now = new Date().toISOString();
-      mediaJobs.markAbandoned.run(now, SYSTEM_ACTOR, jobId);
     },
   };
 }

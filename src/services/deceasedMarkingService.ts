@@ -75,7 +75,7 @@ import {
   transaction, workQueue,
 } from '../db/db';
 import { logger } from '../config/logger';
-import { appendAuditEntry } from './auditService';
+import { appendAuditEntry, findStandingOwnAct } from './auditService';
 import { readIntConfig } from './configReader';
 import { paymentService } from './paymentService';
 import { ConflictError, NotFoundError } from './serviceErrors';
@@ -85,6 +85,28 @@ const NEEDS_ORGANIZER_TASK = 'needs_organizer';
 
 const DECEASED_GRACE_DAYS_DEFAULT = 30;
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+/** A marking that already held: this actor's own (with the donations its
+ *  cancellations have not yet ended), or another act's. */
+export type MarkDeceasedRepeatResult =
+  | { status: 'own_repeat'; recurringDonationCancelFailures: number }
+  | { status: 'already_held' };
+
+/**
+ * How many of the donations a marking set out to cancel are still being charged:
+ * active, with no cancellation requested. The marking's audit row names them.
+ */
+function donationsStillCharging(memberId: string, markingMetadataJson: string): number {
+  const toCancel = new Set(
+    (JSON.parse(markingMetadataJson) as { recurring_donations_to_cancel?: string[] })
+      .recurring_donations_to_cancel ?? [],
+  );
+  const active = recurringDonationSubscriptions.listActiveByMember.all(memberId) as {
+    id: string;
+    is_cancel_at_period_end: number;
+  }[];
+  return active.filter((d) => toCancel.has(d.id) && d.is_cancel_at_period_end !== 1).length;
+}
 
 export type MarkDeceasedResult = {
   status: 'marked';
@@ -139,10 +161,24 @@ export const deceasedMarkingService = {
    * administrator to finish by hand, rather than undoing a marking that is
    * correct.
    */
-  async markDeceased(actorId: string, memberId: string): Promise<MarkDeceasedResult> {
+  async markDeceased(
+    actorId: string,
+    memberId: string,
+  ): Promise<MarkDeceasedRepeatResult | MarkDeceasedResult> {
     const row = readMember(memberId);
     if (row.is_deceased === 1) {
-      throw new ConflictError('This member is already marked deceased.');
+      // The marking already holds, so nothing is written. It is this actor's own
+      // repeat only when their marking is the one standing; then it reports what
+      // that marking left, including any donation still being charged, which the
+      // first submit may not yet have finished cancelling.
+      const standing = findStandingOwnAct(
+        actorId, 'member.deceased_marked', 'member.deceased_reverted', 'member', memberId,
+      );
+      if (!standing) return { status: 'already_held' };
+      return {
+        status: 'own_repeat',
+        recurringDonationCancelFailures: donationsStillCharging(memberId, standing.metadata_json),
+      };
     }
     // An erased account is an anonymized stub. Marking it deceased would assert
     // something about a person the record no longer identifies, and would leave

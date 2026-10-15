@@ -2069,6 +2069,87 @@ describe('curatorMediaService.createGallery', () => {
     }
   });
 
+  // A member who submits the same create twice gets the gallery the first
+  // submit made, reported as a repeat, with nothing written a second time; the
+  // same name with a different exclude set is a different gallery and stays a
+  // conflict.
+  it('a repeated create of the same gallery returns the first one and writes nothing', async () => {
+    const memberId = 'member-gal-repeat';
+    const db = openDb();
+    insertMember(db, { id: memberId, slug: 'gal_repeat', login_email: 'gal-repeat@example.com' });
+    insertMemberTierGrant(db, { member_id: memberId, new_tier_status: 'tier1' });
+    db.close();
+
+    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'footbag-test-svc-gal-repeat-'));
+    try {
+      const svc = svcModule.createCuratorMediaService({
+        storage: makeStubStorage(),
+        imageProcessor: makeStubImageProcessor(),
+        curatedRootDir: curatedRoot,
+      });
+      const base = { actorMemberId: memberId, actorIsAdmin: false, ownerMemberId: memberId, ownerSlug: 'gal_repeat' };
+      const first = await svc.createGallery({
+        ...base,
+        updates: { name: 'Twice Made', description: '', sortOrder: 'upload_desc', criteriaTags: ['#alpha', '#beta'], excludeTags: ['#gamma'] },
+      });
+      expect(first.repeat).toBeUndefined();
+
+      // The same tags in another order and case are the same gallery.
+      const again = await svc.createGallery({
+        ...base,
+        updates: { name: '  Twice Made ', description: '', sortOrder: 'upload_desc', criteriaTags: ['#Beta', '#alpha'], excludeTags: ['#GAMMA'] },
+      });
+      expect(again).toEqual({ id: first.id, repeat: true });
+
+      await expect(svc.createGallery({
+        ...base,
+        updates: { name: 'Twice Made', description: '', sortOrder: 'upload_desc', criteriaTags: ['#alpha', '#beta'], excludeTags: [] },
+      })).rejects.toThrow(/already exists for this owner/);
+
+      const check = openDb();
+      try {
+        const galleries = check.prepare(
+          'SELECT COUNT(*) AS n FROM member_galleries WHERE owner_member_id = ?',
+        ).get(memberId) as { n: number };
+        expect(galleries.n).toBe(1);
+        const audits = check.prepare(
+          "SELECT COUNT(*) AS n FROM audit_entries WHERE action_type = 'media.member_gallery_created' AND entity_id = ?",
+        ).get(first.id) as { n: number };
+        expect(audits.n).toBe(1);
+      } finally { check.close(); }
+    } finally {
+      await fsp.rm(curatedRoot, { recursive: true, force: true });
+    }
+  });
+
+  // A gallery an administrator made on a member's behalf is not the member's
+  // own create: the member's same-name submit must not be reported as theirs.
+  it('a same-name create matching a gallery someone else made for the owner stays a conflict', async () => {
+    const memberId = 'member-gal-adminmade';
+    const db = openDb();
+    insertMember(db, { id: memberId, slug: 'gal_adminmade', login_email: 'gal-adminmade@example.com' });
+    insertMemberTierGrant(db, { member_id: memberId, new_tier_status: 'tier1' });
+    db.close();
+
+    const curatedRoot = await fsp.mkdtemp(path.join(os.tmpdir(), 'footbag-test-svc-gal-adminmade-'));
+    try {
+      const svc = svcModule.createCuratorMediaService({
+        storage: makeStubStorage(),
+        imageProcessor: makeStubImageProcessor(),
+        curatedRootDir: curatedRoot,
+      });
+      const updates = { name: 'Made For You', description: '', sortOrder: 'upload_desc', criteriaTags: ['#alpha'], excludeTags: [] };
+      await svc.createGallery({
+        actorMemberId: ADMIN_ID, actorIsAdmin: true, ownerMemberId: memberId, ownerSlug: 'gal_adminmade', updates: { ...updates },
+      });
+      await expect(svc.createGallery({
+        actorMemberId: memberId, actorIsAdmin: false, ownerMemberId: memberId, ownerSlug: 'gal_adminmade', updates: { ...updates },
+      })).rejects.toThrow(/already exists for this owner/);
+    } finally {
+      await fsp.rm(curatedRoot, { recursive: true, force: true });
+    }
+  });
+
   it('member-owned: derives slug-id from owner+name; differently-cased and punctuated names that slugify identically get _2, _3 suffixes', async () => {
     // Two distinct names that slugify to the same form trigger an id-PK
     // collision. The retry loop is expected to recover by suffixing _2

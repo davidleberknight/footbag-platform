@@ -5,8 +5,7 @@
  *
  * Port 3060 — unique to this file.
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
-import { createHash } from 'crypto';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import request from 'supertest';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import {
@@ -374,42 +373,31 @@ describe('GET /members/<slug>?q= — member search on personal home', () => {
       expect(ok.text).not.toContain('Too many searches');
     }
     // Third query trips the per-member bucket: the page still renders, with the
-    // wait notice in place of results.
-    const blocked = await request(app).get(`/members/${SEARCHER_SLUG}?q=charlie`).set('Cookie', searcherCookie());
-    expect(blocked.status).toBe(200);
-    expect(blocked.text).toContain('Too many searches just now. Please wait a moment and try again.');
+    // wait notice in place of results, and a warning names the member only.
+    const { logger } = await import('../../src/config/logger');
+    const warn = vi.spyOn(logger, 'warn');
+    try {
+      const blocked = await request(app).get(`/members/${SEARCHER_SLUG}?q=charlie`).set('Cookie', searcherCookie());
+      expect(blocked.status).toBe(200);
+      expect(blocked.text).toContain('Too many searches just now. Please wait a moment and try again.');
 
-    const adb = new (await import('better-sqlite3')).default(dbPath);
-    const row = adb.prepare(
-      `SELECT metadata_json FROM audit_entries
-        WHERE action_type = 'member.search_rate_limited' AND actor_member_id = ?`,
-    ).get(SEARCHER_ID) as { metadata_json: string } | undefined;
-    adb.close();
-    expect(row).toBeDefined();
-    expect(JSON.parse(row!.metadata_json).scope).toBe('member');
+      const lines = warn.mock.calls.filter(([msg]) => msg === 'member search rate limited');
+      expect(lines).toHaveLength(1);
+      expect(lines[0][1]).toEqual({ actorMemberId: SEARCHER_ID, scope: 'member' });
+    } finally {
+      warn.mockRestore();
+    }
   });
 
-  it('writes a privacy-safe audit row per search: query hash + result count, never the IP or raw query', async () => {
-    const app = createApp();
-    const res = await request(app).get(`/members/${SEARCHER_SLUG}?q=Janet`).set('Cookie', searcherCookie());
+  it('a search writes nothing: no audit row records the read', async () => {
+    const adb = new (await import('better-sqlite3')).default(dbPath, { readonly: true });
+    const count = () => (adb.prepare('SELECT COUNT(*) AS c FROM audit_entries').get() as { c: number }).c;
+    const before = count();
+
+    const res = await request(createApp()).get(`/members/${SEARCHER_SLUG}?q=Janet`).set('Cookie', searcherCookie());
     expect(res.status).toBe(200);
 
-    const expectedHash = createHash('sha256').update('janet').digest('hex');
-    const adb = new (await import('better-sqlite3')).default(dbPath);
-    const row = adb.prepare(
-      `SELECT entity_id, entity_type, reason_text, metadata_json FROM audit_entries
-        WHERE action_type = 'member.search' AND actor_member_id = ? AND entity_id = ?`,
-    ).get(SEARCHER_ID, expectedHash) as
-      | { entity_id: string; entity_type: string; reason_text: string | null; metadata_json: string }
-      | undefined;
+    expect(count()).toBe(before);
     adb.close();
-
-    expect(row).toBeDefined();
-    expect(row!.entity_type).toBe('member_search');
-    expect(JSON.parse(row!.metadata_json).resultCount).toBeGreaterThan(0);
-    // The raw query text and the caller IP never enter the trail.
-    expect(row!.metadata_json.toLowerCase()).not.toContain('janet');
-    expect(row!.reason_text).toBeNull();
-    expect(JSON.stringify(row)).not.toMatch(/127\.0\.0\.1|::1|::ffff/);
   });
 });

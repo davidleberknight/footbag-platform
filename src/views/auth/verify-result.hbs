@@ -6,6 +6,12 @@
 
 <div class="wrapper">
   <section>
+    {{#if content.alreadyVerified}}
+    <div class="form-success-banner" role="status">Your email is verified. Log in to continue.</div>
+    <div class="form-actions">
+      <a href="/login" class="btn btn-primary">Sign In</a>
+    </div>
+    {{else}}
     <div class="form-error-banner" role="alert">
       {{#if content.signInPrompt}}
         Your email is verified, but we could not sign you in. Please sign in with your email and password.
@@ -30,6 +36,7 @@
           <button type="submit" class="btn btn-primary">Resend Verification Email</button>
         </div>
       </form>
+    {{/if}}
     {{/if}}
   </section>
 </div>

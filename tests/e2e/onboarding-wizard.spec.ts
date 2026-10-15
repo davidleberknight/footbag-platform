@@ -38,6 +38,8 @@ test('a registrant who signs out part-way through and signs back in is returned 
   const verifyUrl = await registerPage.getSimulatedVerifyUrl();
   expect(verifyUrl, 'dev simulated-email card should contain a verify link').toBeTruthy();
   await page.goto(verifyUrl!);
+  // The emailed link opens a page that changes nothing; its button verifies.
+  await page.getByRole('button', { name: 'Verify My Email' }).click();
   // A freshly verified registrant is pending, never a member with a profile.
   await expect(page).toHaveURL(/\/register\/wizard\/personal_details$/);
 

@@ -321,7 +321,7 @@ A class, not a folder. Lives wherever the assertion most efficiently lives (unit
 
 Cross-cutting regression classes (cookie attributes, CSRF presence on every state-changing verb, anti-enumeration response equivalence) are implemented via shared assertion helpers in `tests/fixtures/` that the route's own test imports and invokes. The shared-helper shape keeps the per-route assertion cheap (one line per route) while preserving the property: a future refactor that mounts a sub-router outside the perimeter, or changes the cookie-issuance helper to drop a flag, fails the route's own test rather than only a centralized middleware test.
 
-Beyond the per-route helpers, three invariant families are generated across every surface they can touch, so a newly added surface is covered by construction rather than by memory: anti-enumeration exists/not-exists response-equivalence pairs, the append-only mutation guards for ledgered tables (audit, tier, active-player, system-config), and the idempotency assertions for replayable surfaces (outbox, webhook delivery, grant application).
+Beyond the per-route helpers, four invariant families are generated across every surface they can touch, so a newly added surface is covered by construction rather than by memory: anti-enumeration exists/not-exists response-equivalence pairs, the append-only mutation guards for ledgered tables (audit, tier, active-player, system-config), the idempotency assertions for replayable surfaces (outbox, webhook delivery, grant application), and the read-only GET and submitted-twice sweeps over the live route table.
 
 ### 5.7 Testing-shortcut regression tests
 
@@ -473,7 +473,7 @@ Reset semantics:
 
 Two env-gated subtrees hold all dev-or-staging-only code. Both are active under `FOOTBAG_ENV ∈ {development, staging}` and excluded from the production image at build time; they differ in lifecycle.
 
-- `src/testkit/` is **permanent, first-class test infrastructure**: the persona harness (row builders, factory, canonical catalog, seed runner), the persona-switch route (`GET /dev/switch?as=<slug>`), the persona listing (`GET /dev/personas`), and the dev-router mount glue. It is never source-deleted; features keep shipping with tests against it after production launch.
+- `src/testkit/` is **permanent, first-class test infrastructure**: the persona harness (row builders, factory, canonical catalog, seed runner), the persona-switch route (`GET /dev/switch`), the persona listing (`GET /dev/personas`), and the dev-router mount glue. It is never source-deleted; features keep shipping with tests against it after production launch.
 - `src/dev-bootstrap/` holds the **permanent** registration-time admin email-allowlist bootstrap: a member registering in development or staging with an allowlisted email is promoted to admin. Like the persona harness it is never source-deleted; it is environment-isolated and excluded from the production image. It is the dev/staging peer of the production first-admin mechanism (the single-shot SSM-token claim), used at platform inception and thereafter only as a break-glass path for total admin loss.
 
 No dev-or-staging-only code path lives outside these two subtrees. A test-only HTTP endpoint, a test-only middleware bypass, or a test-only persona-issue helper belongs in `src/testkit/` (the persona harness) or `src/dev-bootstrap/` (the admin bootstrap). Keeping each subtree self-contained and independent of the other keeps both excluded from the production image by a single build-time strip.
@@ -1108,7 +1108,7 @@ All seeded personas share one fixed test password, defined once in `src/testkit/
 
 ### 16.3 Acting as a persona
 
-`/dev/switch?as=<slug>` looks the persona up by slug through the same email-verified session query the auth middleware uses, mints a real session JWT, and writes a `testkit.persona_switch` audit row. An unknown slug returns 404 (anti-enumeration). Switching while already signed in replaces the current session.
+`GET /dev/switch?as=<slug>` looks the persona up by that slug through the same email-verified session query the auth middleware uses, mints a real session JWT, and writes a `testkit.persona_switch` audit row. An unknown slug returns 404 (anti-enumeration). Switching while already signed in replaces the current session.
 
 ### 16.4 Seeing captured email
 
@@ -1171,7 +1171,7 @@ A charter references these dimensions by number.
 9. State-machine scenarios: each legal transition and each illegal-transition rejection across multi-step flows (onboarding, legacy claim, club cleanup, purchase, account deletion and purge, vote lifecycle).
 10. Temporal and time: expiry boundaries (just before, at, just after); grace-window open versus elapsed; token TTL expiry and replay; sweep-driven expiry; open and close windows; calendar boundaries where relevant. Deterministic through an injected clock or runtime-relative offsets, never absolute years.
 11. Concurrency: simultaneous claims (constraint-loser rollback); double-submit; sole-owner handoff race; same-window collision.
-12. Idempotency: replaying the same key yields the same outcome (webhook, outbox, grant, consume-once token).
+12. Idempotency: replaying the same key yields the same outcome (webhook, outbox, grant, consume-once token), and submitting a state-changing form twice, on a path the submitted-twice rule covers, reports the first outcome with no repeated side effect.
 13. Error and operational: each throw path maps to its status and class; operational paths emit an audit row plus `logger.error`; no stack trace in a 5xx; 503 on database-busy.
 14. Privacy and data-governance: public surfaces never emit contact fields or PII; search excludes unverified, deceased, opted-out, and purged members; member-only fields are gated; logging hygiene; export and erasure correctness.
 15. Audit: state-changing paths emit the correct audit row; append-only immutability is enforced by the table trigger.
@@ -1184,6 +1184,8 @@ A charter references these dimensions by number.
 Several properties hold across every surface and are tested once, generatively, over the live route table or the schema, so a newly added surface is covered by construction:
 
 - CSRF Origin-pin sweep: every deployed state-changing route refuses a foreign Origin, with only the signature-authenticated webhook and `/ipc/*` exemptions.
+- GET read-only sweep: an in-process crawl reads SQLite's change counter around every GET and fails on any change, and every GET route is either reached by the crawl or carries its own no-write case.
+- Submitted-twice sweep: every state-changing route outside the administrator surface has a submitted-twice case (same redirect and message, unchanged counts of domain, audit, outbox and rate-limit rows) or a named exemption; administrator routes are exempt as a class.
 - Route-by-persona authorization matrix: deployed routes crossed with the canonical persona catalog, asserting an allow cell for each authorized persona and a deny cell for each unauthorized one, including the adjacent-owner case.
 - Ledger immutability: every append-only table keeps its BEFORE UPDATE and BEFORE DELETE abort triggers, and the triggers fire on a seeded row.
 - Anti-enumeration equivalence: exists versus not-exists parity on the authentication and claim surfaces.
@@ -1196,7 +1198,7 @@ A per-story charter names only the cases specific to that story; the cross-cutti
 
 **M_Login** (dims 1, 3, 4, 6, 8, 13, 15). Valid credentials issue a session cookie with the correct attributes; a wrong password yields a generic failure; a registered-unverified account is blocked with a verification prompt; a deceased or soft-deleted account is rejected, on both sides of the grace boundary and indistinguishably from an unknown address, since no restore is offered. Anti-enum: unknown email and wrong password are indistinguishable in body and timing. Rate-limit: repeated failures return 429 with `Retry-After`, and the window resets. Adversarial: injection, oversized, and unicode input in the email field. Audit: both failed and successful attempts are recorded.
 
-**M_Verify_Email** (dims 1, 4, 6, 9, 10, 12, 13). A valid token verifies the account and routes it into the onboarding wizard; resend issues a fresh token. Time: an expired token is rejected and the account stays unverified. Single-use: a consumed token cannot be replayed. Anti-enum: invalid and expired tokens produce the same enumeration-safe outcome. Adversarial: malformed or oversized token segment.
+**M_Verify_Email** (dims 1, 4, 6, 9, 10, 12, 13). A valid token verifies the account and routes it into the onboarding wizard; resend issues a fresh token, except that a resend submitted again while the last one's email is seconds old sends nothing more. Time: an expired token is rejected and the account stays unverified. Single-use: a consumed token cannot be replayed. Anti-enum: invalid and expired tokens produce the same enumeration-safe outcome. Adversarial: malformed or oversized token segment.
 
 **M_Reset_Password** (dims 1, 3, 4, 6, 8, 9, 10, 12, 13). Requesting a reset issues a token (delivered to the captured outbox, never reflected in the response, since the request page is unauthenticated and the submitted email is caller-controlled); completing the reset bumps `password_version`, invalidates other sessions, and re-issues the current one. Time: an expired token is rejected with the password unchanged. Single-use: a replayed token is rejected. Anti-enum: the forgot-password request returns identical UX and timing for a known and an unknown email. Rate-limit: repeated requests are throttled. Validation: password policy and confirm-match on completion. Operational: a session-issue failure after the password commit renders a 503, not a 500.
 
@@ -1254,7 +1256,7 @@ A per-story charter names only the cases specific to that story; the cross-cutti
 
 **M_View_Payment_History** (dims 1, 2, 5, 14). Owner-only (cross-owner 404); shows the member's own payment ledger and no other member's data.
 
-**M_Delete_Account** and **M_Download_Data** (dims 1, 5, 9, 10, 14, 15). Self-service deletion is permanent: the account is unreachable from the moment it is confirmed, and the grace window that follows is the interval before the anonymising purge rather than a way back. HoF and BAP members are preserved. Data export returns only the requesting member's own data. Time: the grace-window boundary (open versus elapsed).
+**M_Delete_Account** and **M_Download_Data** (dims 1, 5, 9, 10, 14, 15). Self-service deletion is permanent: the account is unreachable from the moment it is confirmed, and the grace window that follows is the interval before the anonymising purge rather than a way back. HoF and BAP members are preserved. Data export is an owner-only download that returns only the signed-in member's own data. Time: the grace-window boundary (open versus elapsed).
 
 ### 17.7 Charters: payment and membership
 
@@ -1278,7 +1280,7 @@ A per-story charter names only the cases specific to that story; the cross-cutti
 
 **A_Override_Member_Data**, **A_Mark_Member_Deceased**, and **A_Manage_Admin_Role** (dims 1, 3, 5, 13, 15). Admin-only; validation; every override writes an audit row; an admin-role change never derives from a legacy flag.
 
-**A_Periodic_Club_Cleanup** and **A_Reassign_Club_Leader** (dims 1, 5, 9, 13, 15). Admin-only; the club-cleanup state machine (claim, resolve, promote, delist) with idempotent re-resolution; audit on each action.
+**A_Periodic_Club_Cleanup** and **A_Reassign_Club_Leader** (dims 1, 5, 9, 13, 15). Admin-only; the club-cleanup state machine (claim, resolve, promote, delist) with idempotent re-resolution, and an "Apply the rules" button as the only path to rule demotions; audit on each action.
 
 **A_Upload_Curated_Media** and **A_Moderate_Media** (dims 1, 3, 5, 16). The admin-operated curator surface; upload validation and async video processing; audit.
 

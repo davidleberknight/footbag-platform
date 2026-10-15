@@ -442,7 +442,10 @@ export function createApp(): express.Express {
     //     otherwise consume the cookie on the 303 before the banner surfaces.
     const origRender = res.render.bind(res);
     res.render = ((...args: Parameters<typeof origRender>) => {
-      if (res.statusCode < 400) {
+      // A path carrying a single-use token (an email-verify or password-reset
+      // link) gets no canonical: the token would otherwise be written into the
+      // page's markup.
+      if (res.statusCode < 400 && redactTokenPaths(req.path) === req.path) {
         res.locals.canonicalUrl = canonicalBase + req.path;
       }
       if (res.locals.flashLoggedOut || res.locals.flashLoggedIn) {

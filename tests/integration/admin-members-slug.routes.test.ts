@@ -144,6 +144,20 @@ describe('correcting a profile URL', () => {
     expect(meta.uploader_tag_moved).toBe(true);
   });
 
+  // Defect caught: the notice's key carries the send time, so a retried send of
+  // the same correction mails the member twice instead of collapsing onto one.
+  it('keys the member notice on the correction it reports, never on a clock', () => {
+    const auditIds = db((conn) => conn.prepare(
+      `SELECT id FROM audit_entries WHERE action_type = 'member.slug_corrected' AND entity_id = ?`,
+    ).all(MOVER_ID)) as Array<{ id: string }>;
+    const keys = db((conn) => conn.prepare(
+      `SELECT idempotency_key FROM outbox_emails
+       WHERE recipient_member_id = ? AND template_key = 'member_record_corrected'`,
+    ).all(MOVER_ID)) as Array<{ idempotency_key: string }>;
+    expect(auditIds).toHaveLength(1);
+    expect(keys.map((k) => k.idempotency_key)).toEqual([`member-record-corrected:${MOVER_ID}:${auditIds[0].id}`]);
+  });
+
   it('leaves the gallery identifier alone, since it was fixed when the gallery was made', () => {
     const gallery = db((conn) => conn.prepare(
       `SELECT id FROM member_galleries WHERE owner_member_id = ?`,

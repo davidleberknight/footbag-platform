@@ -304,18 +304,49 @@ describe('sending an announcement', () => {
     expect(res.text).toContain('Community announcements');
   });
 
-  it('sends once when the same form is submitted twice', async () => {
+  // Defect caught: a double click on Send mails the list twice, or tells the
+  // organizer their own send did not happen.
+  it('sends once when the same form is submitted twice, and reports the first send', async () => {
     seedSubscribers();
     const token = await formToken();
     const body = { subject: 'Once only', bodyText: 'Body', sendToken: token };
 
-    await request(createApp()).post(ANNOUNCE).set('Cookie', organizerCookie()).type('form').send(body);
+    const first = await request(createApp())
+      .post(ANNOUNCE).set('Cookie', organizerCookie()).type('form').send(body);
     const second = await request(createApp())
       .post(ANNOUNCE).set('Cookie', organizerCookie()).type('form').send(body);
 
-    expect(second.headers.location).toBe(`${ANNOUNCE}?notice=already_sent`);
+    expect(first.headers.location).toBe(`${ANNOUNCE}?notice=sent`);
+    expect(second.headers.location).toBe(first.headers.location);
     expect(outboxRows()).toHaveLength(2);
     expect(archiveRows()).toHaveLength(1);
+  });
+
+  // Defect caught: an organizer goes back, edits the announcement and sends
+  // again on the same form; the edit is reported as sent while nothing went
+  // out, so the correction never reaches the list.
+  it('an edited announcement resubmitted on the same form is refused, and nothing more is sent', async () => {
+    seedSubscribers();
+    const token = await formToken();
+    const first = await request(createApp())
+      .post(ANNOUNCE).set('Cookie', organizerCookie()).type('form')
+      .send({ subject: 'Original', bodyText: 'First text', sendToken: token });
+    expect(first.status).toBe(303);
+    const outboxAfterFirst = outboxRows().length;
+    const auditAfterFirst = announceAuditCount();
+
+    for (const edited of [
+      { subject: 'Original', bodyText: 'Corrected text', sendToken: token },
+      { subject: 'Corrected subject', bodyText: 'First text', sendToken: token },
+    ]) {
+      const res = await request(createApp())
+        .post(ANNOUNCE).set('Cookie', organizerCookie()).type('form').send(edited);
+      expect(res.status, JSON.stringify(edited)).toBe(422);
+      expect(res.text).toContain('This announcement was already sent, so your changes were not sent.');
+    }
+    expect(outboxRows()).toHaveLength(outboxAfterFirst);
+    expect(archiveRows()).toHaveLength(1);
+    expect(announceAuditCount()).toBe(auditAfterFirst);
   });
 
   it('refuses a send with no subject and keeps the text', async () => {
@@ -360,6 +391,69 @@ describe('the daily limit', () => {
     expect(blocked.status).toBe(429);
     expect(blocked.headers['retry-after']).toBeDefined();
     expect(outboxRows()).toHaveLength(sentSoFar);
+  });
+
+  // Defect caught: a double-click on Send spends one of the organizer's daily
+  // announcements, so a later genuine announcement is refused, or a repeat
+  // made at the limit is answered with a refusal for a send that went out.
+  it('a repeated send spends none of the daily allowance', async () => {
+    seedSubscribers();
+    const rl = await import('../../src/services/rateLimitService');
+    rl.resetRateLimitForTests();
+    try {
+      const post = (subject: string, sendToken: string) => request(createApp())
+        .post(ANNOUNCE).set('Cookie', organizerCookie()).type('form')
+        .send({ subject, bodyText: 'Body', sendToken });
+
+      // Leave room for exactly two more sends today.
+      for (let i = 0; i < PER_DAY - 2; i += 1) {
+        expect((await post(`Filler ${i}`, await formToken())).status).toBe(303);
+      }
+      const tokenA = await formToken();
+      expect((await post('Announcement A', tokenA)).status).toBe(303);
+      const auditAfterA = announceAuditCount();
+      const outboxAfterA = outboxRows().length;
+
+      const repeatA = await post('Announcement A', tokenA);
+      expect(repeatA.status).toBe(303);
+      expect(repeatA.headers.location).toBe(`${ANNOUNCE}?notice=sent`);
+      expect(outboxRows()).toHaveLength(outboxAfterA);
+      expect(announceAuditCount()).toBe(auditAfterA);
+
+      // The last slot is still free for a genuinely new announcement.
+      const sendB = await post('Announcement B', await formToken());
+      expect(sendB.status).toBe(303);
+      expect(sendB.headers.location).toBe(`${ANNOUNCE}?notice=sent`);
+
+      // B took the last slot, so the allowance is enforced as before.
+      expect((await post('Announcement C', await formToken())).status).toBe(429);
+    } finally {
+      rl.resetRateLimitForTests();
+    }
+  });
+
+  // Defect caught: once the allowance is spent, an organizer re-posting the
+  // announcement that used the last slot is shown a refusal for a send that
+  // went out.
+  it('a repeat at the limit reports the first send, not a refusal', async () => {
+    seedSubscribers();
+    const rl = await import('../../src/services/rateLimitService');
+    rl.resetRateLimitForTests();
+    try {
+      const post = (subject: string, sendToken: string) => request(createApp())
+        .post(ANNOUNCE).set('Cookie', organizerCookie()).type('form')
+        .send({ subject, bodyText: 'Body', sendToken });
+      let lastToken = '';
+      for (let i = 0; i < PER_DAY; i += 1) {
+        lastToken = await formToken();
+        expect((await post(`Send ${i}`, lastToken)).status).toBe(303);
+      }
+      const repeat = await post(`Send ${PER_DAY - 1}`, lastToken);
+      expect(repeat.status).toBe(303);
+      expect(repeat.headers.location).toBe(`${ANNOUNCE}?notice=sent`);
+    } finally {
+      rl.resetRateLimitForTests();
+    }
   });
 });
 

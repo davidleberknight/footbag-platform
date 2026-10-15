@@ -39,6 +39,8 @@ describe('identityAccessService.changePassword deceased exclusion', () => {
     db.close();
 
     const res = await svc.changePassword('pwchange-alive', OLD_PASSWORD, NEW_PASSWORD, NEW_PASSWORD);
+    expect(res.status).toBe('changed');
+    if (res.status !== 'changed') return;
     expect(res.memberId).toBe('pwchange-alive');
   });
 

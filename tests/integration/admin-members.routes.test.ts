@@ -275,6 +275,20 @@ describe('the name correction', () => {
     expect(meta.fields).toContain('display_name');
   });
 
+  // Defect caught: the notice's key carries the send time, so a retried send of
+  // the same correction mails the member twice instead of collapsing onto one.
+  it('keys the member notice on the correction it reports, never on a clock', () => {
+    const auditIds = db((conn) => conn.prepare(
+      `SELECT id FROM audit_entries WHERE action_type = 'member.name_corrected' AND entity_id = ?`,
+    ).all(MEMBER_ID)) as Array<{ id: string }>;
+    const keys = db((conn) => conn.prepare(
+      `SELECT idempotency_key FROM outbox_emails
+       WHERE recipient_member_id = ? AND template_key = 'member_record_corrected'`,
+    ).all(MEMBER_ID)) as Array<{ idempotency_key: string }>;
+    expect(auditIds).toHaveLength(1);
+    expect(keys.map((k) => k.idempotency_key)).toEqual([`member-record-corrected:${MEMBER_ID}:${auditIds[0].id}`]);
+  });
+
   it('writes nothing at all when the names are the ones already recorded', async () => {
     expect(await correctName(UNCHANGED_ID, {
       given_names: 'Una', family_name: 'Changed', display_name: 'Una Changed',

@@ -1,18 +1,17 @@
 /**
  * Member self-service data export.
  *
- * The contract: a member may ask for a copy of their own data and nobody else's;
- * the file is not handed to the browser that asked but to the verified mailbox,
- * behind a link that works once; the document carries what the platform holds
- * about that member including the parts page-facing reads hide from them; and it
- * never carries how they voted, a payment-provider identifier, or another
- * member's personal data.
+ * The contract: the signed-in member downloads a copy of their own data and
+ * nobody else's, built and returned in the same response; the download is a
+ * read, so it writes nothing and a repeat returns the same document; the
+ * document carries what the platform holds about that member including the
+ * parts page-facing reads hide from them; and it never carries how they voted,
+ * a payment-provider identifier, or another member's personal data.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import request from '../fixtures/supertestWithOrigin';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { expectCsrfReject } from '../fixtures/expectCsrfReject';
 import {
   insertMember,
   insertMediaItem,
@@ -55,25 +54,20 @@ function makeMember(slug: string): string {
   });
 }
 
-/** The emailed link, read out of the queued message the way the member would
- *  read it out of their inbox. The send worker does not run in tests, so the
- *  body is still on the row. */
-function linkFromQueuedEmail(memberId: string): string {
-  const row = withDb((db) => db.prepare(
-    "SELECT body_text FROM outbox_emails WHERE recipient_member_id = ? AND template_key = 'data_export_ready'",
-  ).get(memberId) as { body_text: string | null } | undefined);
-  expect(row?.body_text).toBeTruthy();
-  const match = /\/members\/[^/\s]+\/download\/([A-Za-z0-9_-]+)/.exec(row!.body_text!);
-  expect(match).not.toBeNull();
-  return match![0];
+async function download(slug: string, memberId: string) {
+  return request(createApp())
+    .get(`/members/${slug}/download`)
+    .set('Cookie', cookieFor(memberId));
 }
 
-async function requestExport(slug: string, memberId: string) {
-  return request(createApp())
-    .post(`/members/${slug}/download`)
-    .set('Cookie', cookieFor(memberId))
-    .type('form')
-    .send({});
+/** Rows in every table the old emailed-link flow wrote, so a test can prove the
+ *  download writes none of them. */
+function writeCounts(): { tokens: number; outbox: number; audit: number } {
+  return withDb((db) => ({
+    tokens: (db.prepare('SELECT COUNT(*) AS c FROM account_tokens').get() as { c: number }).c,
+    outbox: (db.prepare('SELECT COUNT(*) AS c FROM outbox_emails').get() as { c: number }).c,
+    audit:  (db.prepare('SELECT COUNT(*) AS c FROM audit_entries').get() as { c: number }).c,
+  }));
 }
 
 beforeAll(async () => {
@@ -84,94 +78,46 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('asking for the export', () => {
-  it('tells the member the link went to their address, and does not hand them the file', async () => {
-    const slug = 'exp_asks';
+describe('downloading the export', () => {
+  it('hands the signed-in member their own file as a download', async () => {
+    const slug = 'exp_downloads';
     const id = makeMember(slug);
-    const res = await requestExport(slug, id);
+    const res = await download(slug, id);
 
     expect(res.status).toBe(200);
-    expect(res.text).toContain(`${slug}@example.com`);
-    expect(res.headers['content-disposition']).toBeUndefined();
+    expect(res.headers['content-type']).toContain('application/json');
+    expect(res.headers['content-disposition']).toContain('attachment');
+    expect(res.headers['content-disposition']).toContain('footbag-my-data.json');
+    expect(JSON.parse(res.text).member.slug).toBe(slug);
   });
 
-  it('queues the link to the verified address, issues a single-use token, and records the request', async () => {
-    const slug = 'exp_records';
+  it('writes nothing, and a repeat returns the same document', async () => {
+    const slug = 'exp_repeat';
     const id = makeMember(slug);
-    await requestExport(slug, id);
+    const before = writeCounts();
 
-    withDb((db) => {
-      const mail = db.prepare(
-        "SELECT status, recipient_email FROM outbox_emails WHERE recipient_member_id = ? AND template_key = 'data_export_ready'",
-      ).get(id) as { status: string; recipient_email: string } | undefined;
-      expect(mail?.status).toBe('pending');
-      expect(mail?.recipient_email).toBe(`${slug}@example.com`);
+    const first = await download(slug, id);
+    const second = await download(slug, id);
 
-      const token = db.prepare(
-        "SELECT token_type, used_at FROM account_tokens WHERE member_id = ? AND token_type = 'data_export'",
-      ).get(id) as { token_type: string; used_at: string | null } | undefined;
-      expect(token).toBeTruthy();
-      expect(token!.used_at).toBeNull();
-
-      expect(db.prepare(
-        "SELECT 1 FROM audit_entries WHERE action_type = 'member.data_exported' AND entity_id = ?",
-      ).get(id)).toBeTruthy();
-    });
+    expect(writeCounts()).toEqual(before);
+    expect(second.status).toBe(200);
+    const strip = (text: string) => ({ ...JSON.parse(text), exportedAt: null });
+    expect(strip(second.text)).toEqual(strip(first.text));
   });
 
   it('answers not-found when one member asks for another member’s data', async () => {
     makeMember('exp_target');
     const nosy = makeMember('exp_nosy');
-    const res = await request(createApp())
-      .post('/members/exp_target/download')
-      .set('Cookie', cookieFor(nosy))
-      .type('form')
-      .send({});
+    const res = await download('exp_target', nosy);
     expect(res.status).toBe(404);
+    expect(res.headers['content-disposition']).toBeUndefined();
   });
 
-  it('refuses a request posted from another origin', async () => {
-    const slug = 'exp_csrf';
-    const id = makeMember(slug);
-    await expectCsrfReject(createApp(), 'post', `/members/${slug}/download`, {
-      cookie: cookieFor(id),
-      body:   {},
-    });
-  });
-});
-
-describe('the emailed link', () => {
-  it('serves the file as a download and spends the token', async () => {
-    const slug = 'exp_downloads';
-    const id = makeMember(slug);
-    await requestExport(slug, id);
-    const link = linkFromQueuedEmail(id);
-
-    const res = await request(createApp()).get(link);
-    expect(res.status).toBe(200);
-    expect(res.headers['content-type']).toContain('application/json');
-    expect(res.headers['content-disposition']).toContain('attachment');
-    expect(res.headers['content-disposition']).toContain('footbag-my-data.json');
-
-    const used = withDb((db) => db.prepare(
-      "SELECT used_at FROM account_tokens WHERE member_id = ? AND token_type = 'data_export'",
-    ).get(id) as { used_at: string | null });
-    expect(used.used_at).not.toBeNull();
-  });
-
-  it('works once', async () => {
-    const slug = 'exp_once';
-    const id = makeMember(slug);
-    await requestExport(slug, id);
-    const link = linkFromQueuedEmail(id);
-
-    expect((await request(createApp()).get(link)).status).toBe(200);
-    expect((await request(createApp()).get(link)).status).toBe(404);
-  });
-
-  it('refuses a token nobody issued', async () => {
-    const res = await request(createApp()).get('/members/exp_once/download/not-a-real-token');
-    expect(res.status).toBe(404);
+  it('hands nothing to a visitor who is not signed in', async () => {
+    makeMember('exp_anon');
+    const res = await request(createApp()).get('/members/exp_anon/download');
+    expect(res.status).not.toBe(200);
+    expect(res.headers['content-disposition']).toBeUndefined();
   });
 });
 
@@ -189,8 +135,7 @@ describe('what the document carries', () => {
       insertMemberClubAffiliation(db, id, clubId);
     });
 
-    await requestExport(slug, id);
-    const res = await request(createApp()).get(linkFromQueuedEmail(id));
+    const res = await download(slug, id);
     const doc = JSON.parse(res.text);
 
     expect(doc.member.slug).toBe(slug);
@@ -207,7 +152,7 @@ describe('what the document carries', () => {
   });
 
   // Defect caught: a section read with SELECT * hands the member's payment
-  // provider identifiers to whoever holds the download link. The member holds
+  // provider identifiers to whoever downloads the file. The member holds
   // every identifier the provider mints, so no section passes for want of a row.
   it('never carries how the member voted, nor a payment-provider identifier', async () => {
     const slug = 'exp_secrets';
@@ -243,8 +188,7 @@ describe('what the document carries', () => {
         stripe_customer_id: providerValues.customer,
       });
     });
-    await requestExport(slug, id);
-    const body = (await request(createApp()).get(linkFromQueuedEmail(id))).text;
+    const body = (await download(slug, id)).text;
 
     // The sections are present, so the absence below is a real exclusion.
     const doc = JSON.parse(body);
@@ -280,8 +224,7 @@ describe('what the document carries', () => {
       insertMediaItem(db, { uploader_member_id: theirs, caption: 'not-my-caption', source_filename: 'theirs.jpg' });
     });
 
-    await requestExport('exp_mine', mine);
-    const body = (await request(createApp()).get(linkFromQueuedEmail(mine))).text;
+    const body = (await download('exp_mine', mine)).text;
 
     expect(body).not.toContain('not-my-caption');
     expect(body).not.toContain('theirs.jpg');

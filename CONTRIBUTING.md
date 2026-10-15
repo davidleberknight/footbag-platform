@@ -14,9 +14,10 @@ vulnerabilities, use the private path in
 
 ## Reporting a problem or proposing work
 
-Contact the maintainer with a clear title, what is wrong or missing, the
-specific file or area affected, what you expected, and steps to reproduce for
-bugs; the maintainers file it on the private board.
+Developers and testers file bug reports in the private dev-tester repository.
+Anyone else contacts the maintainer with a clear title, what is wrong or
+missing, the specific file or area affected, what you expected, and steps to
+reproduce for bugs; the maintainers file it in their private tracker.
 
 **If it touches IFPA policy, competition rules, official records or rankings,
 membership terms, or IFPA branding**, say so clearly: it needs the IFPA
@@ -25,7 +26,7 @@ merge. Everything else is a technical matter for the maintainer.
 
 ## Pull requests
 
-1. Fork and branch from `main`.
+1. Fork and branch from `main`. A pull request is recommended; collaborators may also push to `main` directly.
 2. Keep commits small. Use conventional prefixes: `feat:`, `fix:`, `docs:`, `chore:`.
 3. Sign off every commit: `git commit -s`
 4. Fill in the PR template completely.

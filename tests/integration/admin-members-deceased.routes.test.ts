@@ -39,6 +39,7 @@ const QUEUED_ID = 'dm_queued';
 const DONOR_ID = 'dm_donor';
 const ENDED_DONOR_ID = 'dm_ended_donor';
 const DECLINED_DONOR_ID = 'dm_declined_donor';
+const MARKED_ELSEWHERE_ID = 'dm_marked_elsewhere';
 
 const DONOR_SUB = 'sub_dm_donor';
 const ENDED_SUB = 'sub_dm_ended';
@@ -121,6 +122,11 @@ beforeAll(async () => {
   insertMember(conn, {
     id: LINKED_ID, slug: LINKED_ID, display_name: 'Lena Linked', real_name: 'Lena Linked',
     login_email: 'dm-linked@example.com', historical_person_id: PERSON_ID,
+  });
+  // Marked deceased by an act this suite's administrator did not make.
+  insertMember(conn, {
+    id: MARKED_ELSEWHERE_ID, slug: MARKED_ELSEWHERE_ID, display_name: 'Elsa Where', real_name: 'Elsa Where',
+    login_email: 'dm-elsewhere@example.com', is_deceased: 1,
   });
   insertMember(conn, {
     id: HONOURED_ID, slug: HONOURED_ID, display_name: 'Honor Bright', real_name: 'Honor Bright',
@@ -205,9 +211,29 @@ describe('marking a member deceased', () => {
     expect(rows.sent.status).toBe('sent');
   });
 
-  it('refuses a second marking rather than writing a second audit row', async () => {
-    expect(await mark(PLAIN_ID)).toBe(422);
+  it('a repeated marking by the same admin reports the first marking: 303, no second audit row', async () => {
+    // Defect caught: a re-posted marking shows an error for a member the first submit already marked.
+    expect(await mark(PLAIN_ID)).toBe(303);
     expect(auditCount('member.deceased_marked', PLAIN_ID)).toBe(1);
+  });
+
+  it('marking a member another act already marked says nothing was changed, in the informational tone, and writes nothing', async () => {
+    // Defect caught: a stale page shows an error, or a success this admin did not cause.
+    const res = await request(createApp())
+      .post(`/admin/members/${MARKED_ELSEWHERE_ID}/deceased/confirm`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({});
+    expect(res.status).toBe(303);
+    const carried = (res.headers['set-cookie'] as unknown as string[])
+      .map((c) => c.split(';')[0])
+      .join('; ');
+    const landed = await request(createApp())
+      .get(`/admin/members/${MARKED_ELSEWHERE_ID}`)
+      .set('Cookie', `${carried}; ${adminCookie()}`);
+    expect(landed.status).toBe(200);
+    expect(landed.text).toMatch(/class="form-notice"[^>]*>This member is already marked deceased/);
+    expect(auditCount('member.deceased_marked', MARKED_ELSEWHERE_ID)).toBe(0);
   });
 
   it('records the consequences and no free text on the audit row', async () => {
@@ -445,6 +471,12 @@ describe('a deceased member\'s recurring donations', () => {
     expect(cancelCalls).toEqual([DECLINED_SUB]);
     expect(subscription('rds_dm_declined')).toEqual({ status: 'active', is_cancel_at_period_end: 0 });
     expect(page).toContain('could not be cancelled');
+
+    // A repeat of the same marking must not hide the donation still being
+    // charged: it reports the failure again, and asks the provider nothing.
+    const repeat = await markAndLand(DECLINED_DONOR_ID);
+    expect(repeat).toContain('could not be cancelled');
+    expect(cancelCalls).toEqual([DECLINED_SUB]);
   });
 });
 

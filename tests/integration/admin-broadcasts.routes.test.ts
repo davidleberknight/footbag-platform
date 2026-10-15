@@ -266,17 +266,39 @@ describe('sending to a list', () => {
     const token = tokenFrom(form.text);
     const body = { subject: 'Once only', bodyText: 'Body', sendToken: token };
 
-    await request(createApp())
+    const first = await request(createApp())
       .post('/admin/mailing-lists/twice-list/compose')
       .set('Cookie', adminCookie()).type('form').send(body);
     const second = await request(createApp())
       .post('/admin/mailing-lists/twice-list/compose')
       .set('Cookie', adminCookie()).type('form').send(body);
 
-    expect(second.headers.location).toBe('/admin/mailing-lists/twice-list?notice=already_sent');
+    expect(second.headers.location).toBe(first.headers.location);
+    expect(second.headers.location).toBe('/admin/mailing-lists/twice-list?notice=sent');
     expect(outboxRows()).toHaveLength(2);
     expect(archiveRows()).toHaveLength(1);
     expect(sendAuditCount('twice-list')).toBe(1);
+  });
+
+  // Defect caught: an administrator edits a sent message and submits the same
+  // form again; the edit is reported as already sent while nothing went out.
+  it('refuses the same form resubmitted with an edited message, and sends nothing more', async () => {
+    seedListWithSubscribers('edited-list', { name: 'Edited List' });
+    const form = await request(createApp())
+      .get('/admin/mailing-lists/edited-list/compose').set('Cookie', adminCookie());
+    const token = tokenFrom(form.text);
+    const post = (bodyText: string) => request(createApp())
+      .post('/admin/mailing-lists/edited-list/compose')
+      .set('Cookie', adminCookie()).type('form')
+      .send({ subject: 'Edited', bodyText, sendToken: token });
+
+    expect((await post('Before the edit')).status).toBe(303);
+    const edited = await post('After the edit');
+    expect(edited.status).toBe(422);
+    expect(edited.text).toContain('This announcement was already sent, so your changes were not sent.');
+    expect(outboxRows()).toHaveLength(2);
+    expect(archiveRows()).toHaveLength(1);
+    expect(sendAuditCount('edited-list')).toBe(1);
   });
 
   it('sends nothing and records nothing when the list resolves to nobody', async () => {

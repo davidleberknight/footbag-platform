@@ -236,7 +236,7 @@ describe('claim step — an address two old accounts share', () => {
 describe('verify → routing for ambiguous email', () => {
   it('routes ambiguous-email verify into the onboarding wizard, landing on the first outstanding task', async () => {
     const token = issueVerifyToken(MEM_AMBIG);
-    const res = await request(createApp()).get(`/verify/${token}`);
+    const res = await request(createApp()).post('/verify').type('form').send({ token });
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/wizard/personal_details');
   });
@@ -263,7 +263,7 @@ describe('no-write invariant — no legacy_members or members row changes during
     // must write nothing.
     for (const id of [MEM_AMBIG, MEM_SINGLE, MEM_NONE]) {
       const token = issueVerifyToken(id);
-      await request(app).get(`/verify/${token}`);
+      await request(app).post('/verify').type('form').send({ token });
     }
     const cookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: MEM_AMBIG })}`;
     await request(app).get('/register/wizard/legacy_claim').set('Cookie', cookie);

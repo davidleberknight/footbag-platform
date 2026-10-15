@@ -80,6 +80,25 @@ function leaderRows(clubId: string): Array<{ member_id: string; role: string }> 
 function emailCount(memberId: string): number {
   return (db.prepare(`SELECT COUNT(*) AS n FROM outbox_emails WHERE recipient_member_id = ?`).get(memberId) as { n: number }).n;
 }
+function outboxTotal(): number {
+  return (db.prepare('SELECT COUNT(*) AS n FROM outbox_emails').get() as { n: number }).n;
+}
+function auditCount(actionType: string, where: string, ...params: unknown[]): number {
+  return (db.prepare(
+    `SELECT COUNT(*) AS n FROM audit_entries WHERE action_type = ? AND ${where}`,
+  ).get(actionType, ...params) as { n: number }).n;
+}
+/** The page a club action redirected to, opened with the flash it set. */
+async function landedOn(memberId: string, res: { headers: Record<string, unknown> }): Promise<string> {
+  const flash = ((res.headers['set-cookie'] as unknown as string[] | undefined) ?? [])
+    .find((c) => c.startsWith('footbag_flash='))?.split(';')[0];
+  expect(flash, 'the action left no outcome for the next page to show').toBeDefined();
+  const shown = await request(createApp())
+    .get(res.headers.location as string)
+    .set('Cookie', [cookieFor(memberId), flash].join('; '));
+  expect(shown.status).toBe(200);
+  return shown.text;
+}
 
 describe('POST /clubs/:key/volunteer', () => {
   it('an eligible Tier 1 current member becomes a co-leader, audited', async () => {
@@ -193,25 +212,76 @@ describe('POST /clubs/:key/invite', () => {
     expect(audit.n).toBe(1);
   });
 
-  it('inviting the same member twice enqueues only one email (stable idempotency key)', async () => {
+  // Defect caught: an inviter who double-clicks Invite mails the member twice,
+  // records the invitation twice, or is told the repeat failed.
+  it('the same inviter submitting twice sends one email, records one invitation, and repeats the first success', async () => {
     const { clubId, clubKey } = seedClub();
     const leader = tier1Actor(`i-dup-leader-${_n}`, `i_dup_leader_${_n}`);
     insertClubLeader(db, { club_id: clubId, member_id: leader });
     insertMemberClubAffiliation(db, leader, clubId);
     const invitee = insertMember(db, { id: `i-dup-invitee-${_n}`, slug: `i_dup_invitee_${_n}`, login_email: `i-dup-invitee-${_n}@example.com` });
     insertMemberClubAffiliation(db, invitee, clubId);
+    const invite = () => request(createApp())
+      .post(`/clubs/${clubKey}/invite`)
+      .set('Cookie', cookieFor(leader))
+      .type('form')
+      .send({ member_key: invitee });
 
-    for (let i = 0; i < 2; i++) {
-      const res = await request(createApp())
-        .post(`/clubs/${clubKey}/invite`)
-        .set('Cookie', cookieFor(leader))
-        .type('form')
-        .send({ member_key: invitee });
-      expect(res.status).toBe(303);
-    }
-    // The idempotency key is stable per club and invitee, so the re-send
-    // collapses onto the first outbox row rather than enqueuing a duplicate.
+    const first = await invite();
+    expect(first.status).toBe(303);
+    const outboxAfterFirst = outboxTotal();
     expect(emailCount(invitee)).toBe(1);
+    expect(auditCount('club.coleader_invited', 'entity_id = ?', invitee)).toBe(1);
+
+    const second = await invite();
+    expect(second.status).toBe(303);
+    expect(second.headers.location).toBe(first.headers.location);
+    expect(emailCount(invitee)).toBe(1);
+    expect(outboxTotal()).toBe(outboxAfterFirst);
+    expect(auditCount('club.coleader_invited', 'entity_id = ?', invitee)).toBe(1);
+
+    const page = await landedOn(leader, second);
+    expect(page).toContain(
+      '<div class="form-success-banner" role="status">Invitation recorded. It goes to that member by email.</div>',
+    );
+  });
+
+  // Defect caught: a second co-leader inviting a member another co-leader
+  // already invited mails the member again, records a second invitation, or
+  // is told they sent it when they did not.
+  it('a second co-leader inviting an already-invited member is told so, with no email and no new record', async () => {
+    const { clubId, clubKey } = seedClub();
+    const first = tier1Actor(`i-first-${_n}`, `i_first_${_n}`);
+    const second = tier1Actor(`i-second-${_n}`, `i_second_${_n}`);
+    for (const ldr of [first, second]) {
+      insertClubLeader(db, { club_id: clubId, member_id: ldr });
+      insertMemberClubAffiliation(db, ldr, clubId);
+    }
+    const invitee = insertMember(db, { id: `i-shared-invitee-${_n}`, slug: `i_shared_invitee_${_n}`, login_email: `i-shared-invitee-${_n}@example.com` });
+    insertMemberClubAffiliation(db, invitee, clubId);
+    const inviteAs = (actor: string) => request(createApp())
+      .post(`/clubs/${clubKey}/invite`)
+      .set('Cookie', cookieFor(actor))
+      .type('form')
+      .send({ member_key: invitee });
+
+    const sent = await inviteAs(first);
+    expect(sent.status).toBe(303);
+    const outboxAfterFirst = outboxTotal();
+
+    const res = await inviteAs(second);
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe(sent.headers.location);
+    expect(emailCount(invitee)).toBe(1);
+    expect(outboxTotal()).toBe(outboxAfterFirst);
+    expect(auditCount('club.coleader_invited', 'entity_id = ?', invitee)).toBe(1);
+    expect(auditCount('club.coleader_invited', 'actor_member_id = ?', second)).toBe(0);
+
+    const page = await landedOn(second, res);
+    expect(page).toContain(
+      '<p class="form-notice" role="status">That member has already been invited to co-lead this club.</p>',
+    );
+    expect(page).not.toContain('form-success-banner');
   });
 
   it('a non-co-leader cannot invite', async () => {
@@ -338,5 +408,71 @@ describe('POST /clubs/:key/step-down', () => {
     expect(leaderRows(clubId)).toHaveLength(0);
     const club = db.prepare(`SELECT status FROM clubs WHERE id = ?`).get(clubId) as { status: string };
     expect(club.status).toBe('active');
+  });
+
+  /** What a step-down could write: the club's leader rows and the member's
+   *  affiliation, their step-down audit rows, and the outbox. */
+  function stepDownState(memberId: string, clubId: string): Record<string, unknown> {
+    return {
+      leaders: leaderRows(clubId).map((r) => r.member_id).sort(),
+      affiliation: db.prepare(
+        'SELECT is_current, version FROM member_club_affiliations WHERE member_id = ? AND club_id = ?',
+      ).get(memberId, clubId) ?? null,
+      stepDownAudits: auditCount('club.coleader_stepped_down', 'actor_member_id = ?', memberId),
+      outbox: outboxTotal(),
+    };
+  }
+  const stepDown = (memberId: string, clubKey: string) => request(createApp())
+    .post(`/clubs/${clubKey}/step-down`)
+    .set('Cookie', cookieFor(memberId))
+    .type('form')
+    .send({ confirmed: '1' });
+
+  // Defect caught: a co-leader who confirms a step-down twice is told they are
+  // not a co-leader of the club they just stood down from, or the repeat
+  // records a second step-down or notifies the remaining co-leaders again.
+  it('a step-down submitted twice repeats the first success and writes nothing', async () => {
+    const { clubId, clubKey } = seedClub();
+    const m = tier1Actor(`s-twice-${_n}`, `s_twice_${_n}`);
+    const staying = insertMember(db, { id: `s-staying-${_n}`, slug: `s_staying_${_n}`, login_email: `s-staying-${_n}@example.com` });
+    insertClubLeader(db, { club_id: clubId, member_id: m });
+    insertClubLeader(db, { club_id: clubId, member_id: staying });
+    insertMemberClubAffiliation(db, m, clubId);
+
+    const first = await stepDown(m, clubKey);
+    expect(first.status).toBe(303);
+    const afterFirst = stepDownState(m, clubId);
+    expect(afterFirst.leaders).toEqual([staying]);
+    expect(afterFirst.stepDownAudits).toBe(1);
+
+    const second = await stepDown(m, clubKey);
+    expect(second.status).toBe(303);
+    expect(second.headers.location).toBe(first.headers.location);
+    expect(stepDownState(m, clubId)).toEqual(afterFirst);
+
+    const page = await landedOn(m, second);
+    expect(page).toContain(
+      '<div class="form-success-banner" role="status">Stepped down from co-leading this club.</div>',
+    );
+    expect(page).not.toContain('You are not a co-leader of this club.');
+  });
+
+  // Defect caught: a member who never co-led the club is told they stepped
+  // down, or is shown a refusal for a state that already holds.
+  it('a step-down by a member who never co-led reads as informational and writes nothing', async () => {
+    const { clubId, clubKey } = seedClub();
+    const m = tier1Actor(`s-never-${_n}`, `s_never_${_n}`);
+    insertMemberClubAffiliation(db, m, clubId);
+    const before = stepDownState(m, clubId);
+
+    const res = await stepDown(m, clubKey);
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe(`/members/s_never_${_n}`);
+    expect(stepDownState(m, clubId)).toEqual(before);
+
+    const page = await landedOn(m, res);
+    expect(page).toContain('<p class="form-notice" role="status">You are not a co-leader of this club.</p>');
+    expect(page).not.toContain('form-success-banner');
+    expect(page).not.toContain('form-error-banner');
   });
 });

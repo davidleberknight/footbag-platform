@@ -15,7 +15,7 @@ import request from '../fixtures/supertestWithOrigin';
 import type { Test } from 'supertest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember, createTestSessionJwt } from '../fixtures/factories';
+import { insertMember, insertMemberLink, insertSystemConfig, createTestSessionJwt } from '../fixtures/factories';
 import { rowPin, snapshotIds, oneRowAddedSince } from '../fixtures/rowPinning';
 
 const { dbPath } = setTestEnv('3062');
@@ -79,7 +79,6 @@ beforeAll(async () => {
   // routing, and an incomplete member would be redirected to the wizard before
   // the route resolves.
   const onboarding = (await import('../../src/services/memberOnboardingService')).memberOnboardingService;
-  onboarding.startTaskList(MEMBER_ID);
   onboarding.completeTask(MEMBER_ID, 'personal_details');
   onboarding.completeTask(MEMBER_ID, 'legacy_claim');
   onboarding.completeTask(MEMBER_ID, 'club_affiliations');
@@ -590,5 +589,113 @@ describe('WhatsApp format', () => {
   it('accepts an international number written with spaces and punctuation', async () => {
     const res = await postEdit({ whatsapp: '+1 (555) 010-0200' });
     expect(res.status).toBe(303);
+  });
+});
+
+// ── A save submitted twice ────────────────────────────────────────────────────
+
+describe('profile save submitted twice', () => {
+  // A member of their own, holding a stored link, so the counts below belong to
+  // this case. A ceiling of two edits an hour makes a spent slot visible: the
+  // first save takes one, so exactly one more save is allowed after it.
+  const TWICE_ID = 'edit-val-twice';
+  const TWICE_SLUG = 'edit_val_twice';
+  const LINK_URL = 'https://93.184.216.34/';
+  const form = {
+    bio: 'Saved once', city: 'Portland', region: 'OR', country: 'USA',
+    birthDay: '14', birthMonth: '3', birthYear: '1978',
+    phone: '555-0101', emailVisibility: 'members',
+    link_label: 'Homepage', link_url: LINK_URL,
+  };
+
+  function twiceState(): { version: number; linkIds: string[]; audits: number } {
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const version = (db.prepare('SELECT version FROM members WHERE id = ?').get(TWICE_ID) as { version: number }).version;
+    const linkIds = (db.prepare('SELECT id FROM member_links WHERE member_id = ?').all(TWICE_ID) as Array<{ id: string }>)
+      .map((r) => r.id).sort();
+    const audits = (db.prepare(
+      `SELECT COUNT(*) AS n FROM audit_entries WHERE action_type = 'member.profile_updated' AND entity_id = ?`,
+    ).get(TWICE_ID) as { n: number }).n;
+    db.close();
+    return { version, linkIds, audits };
+  }
+
+  function postTwice(fields: Record<string, string>): Test {
+    return request(createApp())
+      .post(`/members/${TWICE_SLUG}/edit`)
+      .set('Cookie', `__Host-footbag_session=${createTestSessionJwt({ memberId: TWICE_ID })}`)
+      .type('form')
+      .send(fields);
+  }
+
+  beforeAll(async () => {
+    const db = new BetterSqlite3(dbPath);
+    insertMember(db, { id: TWICE_ID, slug: TWICE_SLUG, display_name: 'Twice Saver', login_email: 'twice@example.com' });
+    insertMemberLink(db, TWICE_ID, { label: 'Homepage', url: LINK_URL, sort_order: 0 });
+    insertSystemConfig(db, { config_key: 'profile_edit_rate_limit_per_hour', value_json: '2' });
+    db.close();
+    const onboarding = (await import('../../src/services/memberOnboardingService')).memberOnboardingService;
+    onboarding.completeTask(TWICE_ID, 'personal_details');
+    onboarding.completeTask(TWICE_ID, 'legacy_claim');
+    onboarding.completeTask(TWICE_ID, 'club_affiliations');
+  });
+
+  // Defect caught: a double click or back-button re-post of the profile form
+  // bumps the member's version, rewrites their links, writes a second audit
+  // row or uses up one of their hourly edits, or reports something other than
+  // the first save's success.
+  it('the repeat reports the same success and writes, records and counts nothing', async () => {
+    const first = await postTwice(form);
+    expect(first.status).toBe(303);
+    const afterFirst = twiceState();
+    expect(afterFirst.linkIds).toHaveLength(1);
+
+    const repeat = await postTwice(form);
+    expect(repeat.status).toBe(303);
+    expect(repeat.headers.location).toBe(first.headers.location);
+    const flash = (repeat.get('Set-Cookie') ?? []).find((c) => c.startsWith('footbag_flash=') && !c.startsWith('footbag_flash=;'));
+    expect(flash).toBeDefined();
+    const landed = await request(createApp())
+      .get(repeat.headers.location)
+      .set('Cookie', [`__Host-footbag_session=${createTestSessionJwt({ memberId: TWICE_ID })}`, flash!.split(';')[0]].join('; '));
+    expect(landed.status).toBe(200);
+    expect(landed.text).toContain('Profile updated.');
+
+    expect(twiceState()).toEqual(afterFirst);
+
+    // The repeat took no slot: with the first save holding one of two, a
+    // genuine change is still allowed.
+    const changed = await postTwice({ ...form, bio: 'Saved twice, changed once' });
+    expect(changed.status).toBe(303);
+    expect(twiceState().version).toBe(afterFirst.version + 1);
+  });
+
+  // Defect caught: a save that changes a link and another field together is
+  // charged twice, once before the link check and once before the write, so a
+  // member runs out of edits at half the advertised rate.
+  it('a save changing a link and another field together spends one edit', async () => {
+    const both = await postTwice({ ...form, bio: 'Link and bio', link_url: 'https://198.51.100.7/' });
+    expect(both.status).toBe(303);
+    const next = await postTwice({ ...form, bio: 'One more change', link_url: 'https://198.51.100.7/' });
+    expect(next.status).toBe(303);
+  });
+
+  // Defect caught: a member who used their last edit and re-posts the same
+  // form is refused as rate-limited for a save that went through, instead of
+  // being shown its success; while a genuine change past the limit is still
+  // refused.
+  it('a repeat after the last edit reports success, and a new change is still refused', async () => {
+    const last = { ...form, bio: 'The last edit this hour' };
+    expect((await postTwice({ ...form, bio: 'First edit this hour' })).status).toBe(303);
+    expect((await postTwice(last)).status).toBe(303);
+    const afterLast = twiceState();
+
+    const repeat = await postTwice(last);
+    expect(repeat.status).toBe(303);
+    expect(twiceState()).toEqual(afterLast);
+
+    const another = await postTwice({ ...form, bio: 'One edit too many' });
+    expect(another.status).toBe(429);
+    expect(twiceState()).toEqual(afterLast);
   });
 });

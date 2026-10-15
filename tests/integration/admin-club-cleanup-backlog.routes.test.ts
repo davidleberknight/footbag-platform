@@ -89,16 +89,15 @@ describe('admin-home backlog badge', () => {
       .get('/admin')
       .set('Cookie', adminCookie());
     expect(res.status).toBe(200);
-    // Club A is settled by the rules, which demote it and retire its residue,
-    // so it is nobody's work and the badge does not offer it as any. That
-    // leaves club B's missing leader, club B's residue, and the unpromoted
-    // candidate.
+    // Club A is settled by the rules, but nothing demotes it until an admin
+    // presses Apply the Rules, so it is waiting work and the badge counts it.
+    // With club B's residue and the unpromoted candidate, that is three items
+    // wanting a decision.
     //
-    // The badge counts the two halves apart. Club B's residue and the
-    // unpromoted candidate want a decision; club B's missing leader is a
+    // The badge counts the two halves apart. Club B's missing leader is a
     // tolerated state and an opportunity, and blending it into the same figure
-    // would report three items of work when there are two.
-    expect(res.text).toContain('2 open');
+    // would report four items of work when there are three.
+    expect(res.text).toContain('3 open');
     expect(res.text).toContain('1 club could use a leader');
     expect(res.text).toContain('oldest ');
     expect(res.text).not.toContain('Backlog Club A');
@@ -109,11 +108,12 @@ describe('admin-home backlog badge', () => {
       .get('/admin/club-cleanup')
       .set('Cookie', adminCookie());
     expect(res.status).toBe(200);
-    // 1 predicate item (queue header count) + 1 residue club + 1 candidate
-    // = the 3 the badge reported. The badge is read before the rules run and
-    // the queue after, so a mismatch here means the badge counted work that
-    // resolved itself on the way through.
+    // Club A's pending demotion + 1 predicate item (queue header count) + 1
+    // residue club + 1 candidate: what the badge counted is what the queue
+    // shows, club A included and still active until an admin applies the rules.
     expect(res.text).toContain('1 item(s) requiring attention');
+    expect(res.text).toContain('Demotions the Rules Would Make (1)');
+    expect(res.text).toContain('Backlog Club A');
     expect(res.text).toContain('Backlog Club B');
     expect(res.text).toContain('Backlog Candidate');
   });

@@ -11,7 +11,7 @@
  *
  * Does not own:
  *   - Token delivery (callers enqueue the email carrying the raw token)
- *   - The account workflows the token gates (verify, reset, export);
+ *   - The account workflows the token gates (verify, reset);
  *     callers act on the returned binding
  *   - TTL policy (callers pass ttlHours per flow)
  *
@@ -34,8 +34,7 @@ import { accountTokens, type AccountTokenRow } from '../db/db';
 
 export type AccountTokenType =
   | 'email_verify'
-  | 'password_reset'
-  | 'data_export';
+  | 'password_reset';
 
 export interface IssuedToken {
   /** The raw URL-safe token handed to the caller. Never stored. */
@@ -209,9 +208,50 @@ export function peekToken(
   };
 }
 
+/**
+ * The member a token belonged to, when it has already been spent. A repeat of
+ * an email link reports the first outcome rather than an error, and only a
+ * token that was actually consumed earns that: an unknown or merely expired
+ * token returns null and keeps the generic invalid answer. Reads only.
+ */
+export function findSpentToken(
+  rawToken: string,
+  tokenType: AccountTokenType,
+): { memberId: string } | null {
+  if (!rawToken) return null;
+  const row = accountTokens.findByHash.get(hashToken(rawToken), tokenType) as
+    | AccountTokenRow
+    | undefined;
+  if (!row || row.used_at === null) return null;
+  return { memberId: row.member_id };
+}
+
+
+/**
+ * Whether the member was issued an unused token of this type within the last
+ * `seconds` whose email is queued under `emailKeyPrefix` plus the token's id.
+ * Reads only. A request submitted twice in that span is the same request, and
+ * its first email is already on its way; a token whose email never queued
+ * does not count, so a retry after a failed enqueue still sends.
+ */
+export function hasFreshQueuedToken(
+  memberId: string,
+  tokenType: AccountTokenType,
+  emailKeyPrefix: string,
+  seconds: number,
+): boolean {
+  const now = Date.now();
+  return accountTokens.hasLiveQueuedSince.get(
+    emailKeyPrefix, memberId, tokenType,
+    new Date(now).toISOString(), new Date(now - seconds * 1000).toISOString(),
+  ) !== undefined;
+}
+
 export const accountTokenService = {
   issueToken,
   consumeToken,
   consumeIfUnusedInTx,
   peekToken,
+  findSpentToken,
+  hasFreshQueuedToken,
 };

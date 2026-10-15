@@ -293,16 +293,7 @@ const DRIVERS: Driver[] = [
 const KNOWN_VIOLATIONS: Record<string, string[]> = {
   'membership checkout start': [
     'after the failed write: 1 pending row(s) and 0 audit row(s)',
-    'retry refused: A membership purchase is already in progress. Complete or cancel it before starting another.',
     'after the retry: 1 pending row(s) and 0 audit row(s)',
-  ],
-  'one-time donation checkout start': [
-    'after the failed write: 1 pending row(s) and 0 audit row(s)',
-    'after the retry: 2 pending row(s) and 1 audit row(s)',
-  ],
-  'recurring donation checkout start': [
-    'after the failed write: 1 pending row(s) and 0 audit row(s)',
-    'after the retry: 2 pending row(s) and 1 audit row(s)',
   ],
   'recurring donation cancellation': [
     'after the failed write: 1 recorded request(s) and 0 audit row(s)',
