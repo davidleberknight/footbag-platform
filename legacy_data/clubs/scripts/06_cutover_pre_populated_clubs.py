@@ -49,7 +49,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts" / "lib"))
 from db_cutover_guard import assert_maintainer_db_target  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
-from club_curation import load_club_duplicate_pairs  # noqa: E402
+from club_curation import COUNTRY_TOKENS, load_club_duplicate_pairs  # noqa: E402
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _cutover_write_contract import (  # noqa: E402
@@ -254,10 +254,15 @@ def extract_primary_city(city: str) -> str:
     return parts[0].strip() if parts else ''
 
 
+def country_token(country: str) -> str:
+    """The country's short token for a club hashtag and its clubs page address."""
+    return COUNTRY_TOKENS.get(country) or slugify(country)
+
+
 def make_tag_normalized(name: str, country: str, city: str, seen: set[str]) -> str:
     """Generate unique #club_{slug} using city-first cascade."""
     name_slug = strip_redundant_suffix(slugify(_clean_club_name(name)))
-    country_slug = slugify(country)
+    country_slug = country_token(country)
     primary_city = extract_primary_city(city)
     city_slug = slugify(primary_city)
 
@@ -464,7 +469,7 @@ def main() -> int:
             )
         }
         for _candidate in all_candidates:
-            existing_tags.add(f"#club_{slugify(_candidate[3] or '')}")
+            existing_tags.add(f"#club_{country_token(_candidate[3] or '')}")
 
         # Simulated as the loop goes, because an earlier iteration's planned club
         # is what a later duplicate's canonical-exists check has to see. Reading

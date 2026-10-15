@@ -82,11 +82,7 @@
           {{/if}}
         </div>
         <div class="form-field">
-          <label for="club_country">Country</label>
-          <input id="club_country" name="country" required value="{{content.club.editForm.values.country}}" />
-          {{#if content.club.editForm.errors.country}}
-          <p class="form-field-error" role="alert">{{content.club.editForm.errors.country}}</p>
-          {{/if}}
+          <p>Country: {{content.club.editForm.values.country}}</p>
         </div>
         <div class="form-field">
           <label for="club_external_url">External URL (verified before it appears publicly; leave blank to remove)</label>

@@ -96,13 +96,12 @@
 
       <div class="form-field">
         <label for="country">Country</label>
-        <input
-          type="text"
-          id="country"
-          name="country"
-          value="{{club.country}}"
-          required
-        />
+        <select id="country" name="country" autocomplete="country-name" required>
+          <option value="">Select a country</option>
+          {{#each countryOptions}}
+            <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+          {{/each}}
+        </select>
         {{#if fieldErrors.country}}
           <p class="form-field-error" role="alert">{{fieldErrors.country}}</p>
         {{/if}}

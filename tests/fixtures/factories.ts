@@ -232,7 +232,7 @@ export function insertEvent(db: BetterSqlite3.Database, o: EventOverrides = {}):
     o.end_date           ?? '2026-06-03',
     o.city               ?? 'Testville',
     o.region             ?? null,
-    o.country            ?? 'US',
+    o.country            ?? 'United States',
     o.status             ?? 'reg_open',
     o.registration_status ?? 'open',
     o.sanction_status    ?? 'none',

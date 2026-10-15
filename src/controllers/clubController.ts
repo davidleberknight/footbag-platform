@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { clubService } from '../services/clubService';
+import { locationPickers } from '../services/memberService';
 import { ValidationError } from '../services/serviceErrors';
 import { handleControllerError, renderNotFound } from '../lib/controllerErrors';
 import { writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
@@ -85,7 +86,6 @@ export const clubController = {
           description: str(req.body.description),
           city:        str(req.body.city),
           region:      str(req.body.region),
-          country:     str(req.body.country),
           externalUrl: str(req.body.external_url),
         },
         req.user!.userId,
@@ -120,6 +120,7 @@ export const clubController = {
       formAction: '/clubs/create',
       cancelHref: '/clubs',
       club: { name: '', description: '', city: '', region: '', country: '', slug: '' },
+      countryOptions: locationPickers('', '').countryOptions,
     });
   },
 
@@ -144,6 +145,7 @@ export const clubController = {
           errorMessage,
           fieldErrors,
           club,
+          countryOptions: locationPickers(country, '').countryOptions,
           ...extra,
         });
       };

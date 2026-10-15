@@ -49,6 +49,14 @@ OUTPUT_CSV = OUTPUT_DIR / OUTPUT_FILENAME
 
 FIELDNAMES = SEED_FIELDNAMES
 
+# The platform names a country by one canonical spelling, the one its country
+# picker offers. These are the mirror's spellings that differ from it, folded
+# here so every regenerated club seed carries the canonical name.
+CANONICAL_COUNTRY = {
+    "USA": "United States",
+    "The Netherlands": "Netherlands",
+}
+
 
 _EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
 # A run of digits with the usual phone separators, kept on one line (a real
@@ -207,6 +215,7 @@ def extract_club(html_path, legacy_club_key):
         country = "Georgia"
     elif legacy_club_key == "1486385137":
         country = "Greece"
+    country = CANONICAL_COUNTRY.get(country, country)
 
     # Contact member ID from the .clubsContacts block: capture the FIRST
     # profile link's mirror member ID (if multiple contacts exist, the first

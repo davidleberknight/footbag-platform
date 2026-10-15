@@ -234,6 +234,13 @@ _REGION_NOT_COUNTRY: dict[str, tuple[str, str]] = {
     "northern ireland": ("United Kingdom", "Northern Ireland"),
 }
 
+# The platform names a country by one canonical spelling, the one its country
+# picker offers. The mirror writes the United States as "USA", so that spelling
+# is folded here and every regenerated events CSV carries the canonical name.
+_CANONICAL_COUNTRY: dict[str, str] = {
+    "usa": "United States",
+}
+
 
 def parse_location(location: str) -> tuple[str, str, str]:
     """
@@ -281,6 +288,8 @@ def parse_location(location: str) -> tuple[str, str, str]:
         canonical_country, canonical_region = _REGION_NOT_COUNTRY[city_lc]
         region = canonical_region
         city = ""
+
+    country = _CANONICAL_COUNTRY.get(country.lower().strip(), country)
 
     return city, region, country
 

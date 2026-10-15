@@ -1,196 +1,485 @@
 /**
  * Country-name canonicalization helpers shared across services and templates.
  *
- * Consolidates the flag-emoji lookup (consumed by the `countryFlag` Handlebars
- * helper) and the ISO 3166-1 alpha-2 code lookup (used for club-page SEO
- * titles) into a single source of truth so new countries are added in one
- * place. Both lookups key on the full country name as stored in the DB.
+ * The single source of truth for what names a country on this platform. Every
+ * country is keyed by its ISO 3166-1 alpha-2 code and carries one canonical
+ * name, the name the picker offers and the only spelling a write path stores,
+ * so members, clubs and events all name one place the same way. The flag emoji
+ * is derived from the code, so a country never lacks one.
  *
- * The code map is also the vocabulary a stored country is canonicalized
- * against: it carries every alias the platform accepts, and the picker offers
- * one name per ISO code, so `canonicalCountryName` can fold any accepted
- * spelling to that one name.
- *
- * Keep both maps in sync when adding a new country. `FLAG` entries not
- * present in `CODE` (or vice versa) fall back to the documented default on
- * lookup: empty string for flag, the input name for code. A country the picker
- * offers with no flag entry renders no flag at all, which is why every name
- * `countryNames()` can return carries one.
+ * Alongside the canonical names sits a list of aliases: other spellings people
+ * write for the same country (an abbreviation, a constituent nation, the name in
+ * its own language). `canonicalCountryName` folds any alias, any alpha-2 code,
+ * or the canonical name itself to that one name.
  */
 
-const COUNTRY_FLAGS: Record<string, string> = {
-  'Argentina':        '🇦🇷',
-  'Australia':        '🇦🇺',
-  'Austria':          '🇦🇹',
-  'Belgium':          '🇧🇪',
-  'Brazil':           '🇧🇷',
-  'Bulgaria':         '🇧🇬',
-  'Canada':           '🇨🇦',
-  'Chile':            '🇨🇱',
-  'China':            '🇨🇳',
-  'Colombia':         '🇨🇴',
-  'Croatia':          '🇭🇷',
-  'Czech Republic':   '🇨🇿',
-  'Denmark':          '🇩🇰',
-  'Estonia':          '🇪🇪',
-  'Finland':          '🇫🇮',
-  'France':           '🇫🇷',
-  'Germany':          '🇩🇪',
-  'Greece':           '🇬🇷',
-  'Hungary':          '🇭🇺',
-  'India':            '🇮🇳',
-  'Ireland':          '🇮🇪',
-  'Israel':           '🇮🇱',
-  'Italy':            '🇮🇹',
-  'Japan':            '🇯🇵',
-  'Mexico':           '🇲🇽',
-  'Netherlands':      '🇳🇱',
-  'New Zealand':      '🇳🇿',
-  'Nigeria':          '🇳🇬',
-  'Norway':           '🇳🇴',
-  'Pakistan':         '🇵🇰',
-  'Peru':             '🇵🇪',
-  'Poland':           '🇵🇱',
-  'Portugal':         '🇵🇹',
-  'Puerto Rico':      '🇵🇷',
-  'Romania':          '🇷🇴',
-  'Russia':           '🇷🇺',
-  'Slovakia':         '🇸🇰',
-  'Slovenia':         '🇸🇮',
-  'South Africa':     '🇿🇦',
-  'South Korea':      '🇰🇷',
-  'Spain':            '🇪🇸',
-  'Sweden':           '🇸🇪',
-  'Switzerland':      '🇨🇭',
-  'The Netherlands':  '🇳🇱',
-  'Turkey':           '🇹🇷',
-  'Ukraine':          '🇺🇦',
-  'United Kingdom':   '🇬🇧',
-  'USA':              '🇺🇸',
-  'United States':    '🇺🇸',
-  'Uruguay':          '🇺🇾',
-  'Venezuela':        '🇻🇪',
+const COUNTRY_NAME_BY_CODE: Record<string, string> = {
+  AD: 'Andorra',
+  AE: 'United Arab Emirates',
+  AF: 'Afghanistan',
+  AG: 'Antigua and Barbuda',
+  AI: 'Anguilla',
+  AL: 'Albania',
+  AM: 'Armenia',
+  AO: 'Angola',
+  AQ: 'Antarctica',
+  AR: 'Argentina',
+  AS: 'American Samoa',
+  AT: 'Austria',
+  AU: 'Australia',
+  AW: 'Aruba',
+  AX: 'Åland Islands',
+  AZ: 'Azerbaijan',
+  BA: 'Bosnia and Herzegovina',
+  BB: 'Barbados',
+  BD: 'Bangladesh',
+  BE: 'Belgium',
+  BF: 'Burkina Faso',
+  BG: 'Bulgaria',
+  BH: 'Bahrain',
+  BI: 'Burundi',
+  BJ: 'Benin',
+  BL: 'Saint Barthélemy',
+  BM: 'Bermuda',
+  BN: 'Brunei',
+  BO: 'Bolivia',
+  BQ: 'Caribbean Netherlands',
+  BR: 'Brazil',
+  BS: 'Bahamas',
+  BT: 'Bhutan',
+  BV: 'Bouvet Island',
+  BW: 'Botswana',
+  BY: 'Belarus',
+  BZ: 'Belize',
+  CA: 'Canada',
+  CC: 'Cocos (Keeling) Islands',
+  CD: 'Democratic Republic of the Congo',
+  CF: 'Central African Republic',
+  CG: 'Republic of the Congo',
+  CH: 'Switzerland',
+  CI: "Côte d'Ivoire",
+  CK: 'Cook Islands',
+  CL: 'Chile',
+  CM: 'Cameroon',
+  CN: 'China',
+  CO: 'Colombia',
+  CR: 'Costa Rica',
+  CU: 'Cuba',
+  CV: 'Cape Verde',
+  CW: 'Curaçao',
+  CX: 'Christmas Island',
+  CY: 'Cyprus',
+  CZ: 'Czech Republic',
+  DE: 'Germany',
+  DJ: 'Djibouti',
+  DK: 'Denmark',
+  DM: 'Dominica',
+  DO: 'Dominican Republic',
+  DZ: 'Algeria',
+  EC: 'Ecuador',
+  EE: 'Estonia',
+  EG: 'Egypt',
+  EH: 'Western Sahara',
+  ER: 'Eritrea',
+  ES: 'Spain',
+  ET: 'Ethiopia',
+  FI: 'Finland',
+  FJ: 'Fiji',
+  FK: 'Falkland Islands',
+  FM: 'Micronesia',
+  FO: 'Faroe Islands',
+  FR: 'France',
+  GA: 'Gabon',
+  GB: 'United Kingdom',
+  GD: 'Grenada',
+  GE: 'Georgia',
+  GF: 'French Guiana',
+  GG: 'Guernsey',
+  GH: 'Ghana',
+  GI: 'Gibraltar',
+  GL: 'Greenland',
+  GM: 'Gambia',
+  GN: 'Guinea',
+  GP: 'Guadeloupe',
+  GQ: 'Equatorial Guinea',
+  GR: 'Greece',
+  GS: 'South Georgia and the South Sandwich Islands',
+  GT: 'Guatemala',
+  GU: 'Guam',
+  GW: 'Guinea-Bissau',
+  GY: 'Guyana',
+  HK: 'Hong Kong',
+  HM: 'Heard Island and McDonald Islands',
+  HN: 'Honduras',
+  HR: 'Croatia',
+  HT: 'Haiti',
+  HU: 'Hungary',
+  ID: 'Indonesia',
+  IE: 'Ireland',
+  IL: 'Israel',
+  IM: 'Isle of Man',
+  IN: 'India',
+  IO: 'British Indian Ocean Territory',
+  IQ: 'Iraq',
+  IR: 'Iran',
+  IS: 'Iceland',
+  IT: 'Italy',
+  JE: 'Jersey',
+  JM: 'Jamaica',
+  JO: 'Jordan',
+  JP: 'Japan',
+  KE: 'Kenya',
+  KG: 'Kyrgyzstan',
+  KH: 'Cambodia',
+  KI: 'Kiribati',
+  KM: 'Comoros',
+  KN: 'Saint Kitts and Nevis',
+  KP: 'North Korea',
+  KR: 'South Korea',
+  KW: 'Kuwait',
+  KY: 'Cayman Islands',
+  KZ: 'Kazakhstan',
+  LA: 'Laos',
+  LB: 'Lebanon',
+  LC: 'Saint Lucia',
+  LI: 'Liechtenstein',
+  LK: 'Sri Lanka',
+  LR: 'Liberia',
+  LS: 'Lesotho',
+  LT: 'Lithuania',
+  LU: 'Luxembourg',
+  LV: 'Latvia',
+  LY: 'Libya',
+  MA: 'Morocco',
+  MC: 'Monaco',
+  MD: 'Moldova',
+  ME: 'Montenegro',
+  MF: 'Saint Martin',
+  MG: 'Madagascar',
+  MH: 'Marshall Islands',
+  MK: 'North Macedonia',
+  ML: 'Mali',
+  MM: 'Myanmar',
+  MN: 'Mongolia',
+  MO: 'Macao',
+  MP: 'Northern Mariana Islands',
+  MQ: 'Martinique',
+  MR: 'Mauritania',
+  MS: 'Montserrat',
+  MT: 'Malta',
+  MU: 'Mauritius',
+  MV: 'Maldives',
+  MW: 'Malawi',
+  MX: 'Mexico',
+  MY: 'Malaysia',
+  MZ: 'Mozambique',
+  NA: 'Namibia',
+  NC: 'New Caledonia',
+  NE: 'Niger',
+  NF: 'Norfolk Island',
+  NG: 'Nigeria',
+  NI: 'Nicaragua',
+  NL: 'Netherlands',
+  NO: 'Norway',
+  NP: 'Nepal',
+  NR: 'Nauru',
+  NU: 'Niue',
+  NZ: 'New Zealand',
+  OM: 'Oman',
+  PA: 'Panama',
+  PE: 'Peru',
+  PF: 'French Polynesia',
+  PG: 'Papua New Guinea',
+  PH: 'Philippines',
+  PK: 'Pakistan',
+  PL: 'Poland',
+  PM: 'Saint Pierre and Miquelon',
+  PN: 'Pitcairn Islands',
+  PR: 'Puerto Rico',
+  PS: 'Palestine',
+  PT: 'Portugal',
+  PW: 'Palau',
+  PY: 'Paraguay',
+  QA: 'Qatar',
+  RE: 'Réunion',
+  RO: 'Romania',
+  RS: 'Serbia',
+  RU: 'Russia',
+  RW: 'Rwanda',
+  SA: 'Saudi Arabia',
+  SB: 'Solomon Islands',
+  SC: 'Seychelles',
+  SD: 'Sudan',
+  SE: 'Sweden',
+  SG: 'Singapore',
+  SH: 'Saint Helena',
+  SI: 'Slovenia',
+  SJ: 'Svalbard and Jan Mayen',
+  SK: 'Slovakia',
+  SL: 'Sierra Leone',
+  SM: 'San Marino',
+  SN: 'Senegal',
+  SO: 'Somalia',
+  SR: 'Suriname',
+  SS: 'South Sudan',
+  ST: 'São Tomé and Príncipe',
+  SV: 'El Salvador',
+  SX: 'Sint Maarten',
+  SY: 'Syria',
+  SZ: 'Eswatini',
+  TC: 'Turks and Caicos Islands',
+  TD: 'Chad',
+  TF: 'French Southern Territories',
+  TG: 'Togo',
+  TH: 'Thailand',
+  TJ: 'Tajikistan',
+  TK: 'Tokelau',
+  TL: 'Timor-Leste',
+  TM: 'Turkmenistan',
+  TN: 'Tunisia',
+  TO: 'Tonga',
+  TR: 'Turkey',
+  TT: 'Trinidad and Tobago',
+  TV: 'Tuvalu',
+  TW: 'Taiwan',
+  TZ: 'Tanzania',
+  UA: 'Ukraine',
+  UG: 'Uganda',
+  UM: 'United States Minor Outlying Islands',
+  US: 'United States',
+  UY: 'Uruguay',
+  UZ: 'Uzbekistan',
+  VA: 'Vatican City',
+  VC: 'Saint Vincent and the Grenadines',
+  VE: 'Venezuela',
+  VG: 'British Virgin Islands',
+  VI: 'United States Virgin Islands',
+  VN: 'Vietnam',
+  VU: 'Vanuatu',
+  WF: 'Wallis and Futuna',
+  WS: 'Samoa',
+  YE: 'Yemen',
+  YT: 'Mayotte',
+  ZA: 'South Africa',
+  ZM: 'Zambia',
+  ZW: 'Zimbabwe',
 };
 
-const COUNTRY_CODES: Record<string, string> = {
-  Argentina: 'AR',
-  Australia: 'AU',
-  Austria: 'AT',
-  Belgium: 'BE',
-  Brazil: 'BR',
-  Bulgaria: 'BG',
-  Canada: 'CA',
-  Chile: 'CL',
-  China: 'CN',
-  Colombia: 'CO',
-  Croatia: 'HR',
-  'Czech Republic': 'CZ',
-  Denmark: 'DK',
-  Estonia: 'EE',
-  Finland: 'FI',
-  France: 'FR',
-  Germany: 'DE',
-  Greece: 'GR',
-  Hungary: 'HU',
-  India: 'IN',
-  Ireland: 'IE',
-  Israel: 'IL',
-  Italy: 'IT',
-  Japan: 'JP',
-  Mexico: 'MX',
-  Netherlands: 'NL',
+// Other names people write for a country, each folded to that country's code.
+// Case, full stops and accents are ignored when matching, so each alias is
+// listed once in its plain form.
+const COUNTRY_CODE_BY_ALIAS: Record<string, string> = {
+  'USA': 'US',
+  'United States of America': 'US',
+  'United States America': 'US',
+  'America': 'US',
+  'US Virgin Islands': 'VI',
+  'UK': 'GB',
+  'Great Britain': 'GB',
+  'Britain': 'GB',
+  'The United Kingdom': 'GB',
+  'England': 'GB',
+  'Scotland': 'GB',
+  'Wales': 'GB',
+  'Northern Ireland': 'GB',
   'The Netherlands': 'NL',
-  'New Zealand': 'NZ',
-  Nigeria: 'NG',
-  Norway: 'NO',
-  Pakistan: 'PK',
-  Peru: 'PE',
-  Poland: 'PL',
-  Portugal: 'PT',
-  'Puerto Rico': 'PR',
-  Romania: 'RO',
-  Russia: 'RU',
-  Slovakia: 'SK',
-  Slovenia: 'SI',
-  'South Africa': 'ZA',
-  'South Korea': 'KR',
-  Spain: 'ES',
-  Sweden: 'SE',
-  Switzerland: 'CH',
-  Turkey: 'TR',
-  Ukraine: 'UA',
-  'United Kingdom': 'GB',
-  'United States': 'US',
-  Uruguay: 'UY',
-  USA: 'US',
-  Venezuela: 'VE',
+  'Holland': 'NL',
+  'Nederland': 'NL',
+  'Deutschland': 'DE',
+  'Polska': 'PL',
+  'Brasil': 'BR',
+  'Espana': 'ES',
+  'Espanya': 'ES',
+  'Schweiz': 'CH',
+  'Suisse': 'CH',
+  'Osterreich': 'AT',
+  'Czechia': 'CZ',
+  'Czech': 'CZ',
+  'The Czech Republic': 'CZ',
+  'Ceska Republika': 'CZ',
+  'Cesko': 'CZ',
+  'Slovak Republic': 'SK',
+  'Slovensko': 'SK',
+  'Slovenija': 'SI',
+  'Korea': 'KR',
+  'Republic of Korea': 'KR',
+  'Russian Federation': 'RU',
+  'Turkiye': 'TR',
+  'Norge': 'NO',
+  'Sverige': 'SE',
+  'Suomi': 'FI',
+  'Danmark': 'DK',
+  'Latvija': 'LV',
+  'Lietuva': 'LT',
+  'Eesti': 'EE',
+  'Srbija': 'RS',
+  'Magyarorszag': 'HU',
+  'Belgie': 'BE',
+  'Belgique': 'BE',
+  'Republic of Ireland': 'IE',
+  // Names in a country's own or second official language.
+  'Aotearoa': 'NZ',
+  'Aotearoa New Zealand': 'NZ',
+  'Eire': 'IE',
+  'Cymru': 'GB',
+  'Svizzera': 'CH',
+  'Belgien': 'BE',
+  'Italia': 'IT',
+  'Hrvatska': 'HR',
+  'Hellas': 'GR',
+  'Ellada': 'GR',
+  'Nippon': 'JP',
+  'Nihon': 'JP',
+  'Rossiya': 'RU',
+  'Ukraina': 'UA',
+  'Bharat': 'IN',
+  'Ivory Coast': 'CI',
+  'Cabo Verde': 'CV',
+  'Viet Nam': 'VN',
+  "People's Republic of China": 'CN',
+  'UAE': 'AE',
+  'RSA': 'ZA',
+  'Republic of South Africa': 'ZA',
+  'DR Congo': 'CD',
+  'Macedonia': 'MK',
+  'Burma': 'MM',
+  'Swaziland': 'SZ',
+  'East Timor': 'TL',
+  'Holy See': 'VA',
+  'Republica Dominicana': 'DO',
+  // Three-letter codes members commonly type for their own country.
+  'AUS': 'AU',
+  'AUT': 'AT',
+  'BRA': 'BR',
+  'CAN': 'CA',
+  'CZE': 'CZ',
+  'EST': 'EE',
+  'GER': 'DE',
+  'HUN': 'HU',
+  'JPN': 'JP',
+  'MEX': 'MX',
+  'PAK': 'PK',
 };
 
-/** Flag emoji for the given country name. Empty string if unmapped. */
-export function countryFlag(country: string): string {
-  return COUNTRY_FLAGS[country] ?? '';
-}
+// The short token people type for a country, where it differs from the slug of
+// its name: the country page address under /clubs and the country slot of a
+// club hashtag both use it. A name carrying formal words ("Republic", "United",
+// "and ...", "Saint") is known by its short form, so "#club_usa_portland" beats
+// "#club_united_states_portland". The club data pipeline carries the same
+// tokens, so a club it seeds and a club promoted here derive one hashtag.
+const COUNTRY_TOKEN_BY_CODE: Record<string, string> = {
+  US: 'usa',
+  GB: 'uk',
+  CZ: 'czech',
+  AE: 'uae',
+  BA: 'bosnia',
+  CI: 'ivory_coast',
+  CD: 'dr_congo',
+  CG: 'congo',
+  TT: 'trinidad',
+  AG: 'antigua',
+  ST: 'sao_tome',
+  KN: 'st_kitts',
+  VC: 'st_vincent',
+  LC: 'st_lucia',
+  BL: 'st_barts',
+  SH: 'st_helena',
+  MF: 'st_martin',
+  PM: 'st_pierre',
+  TC: 'turks_and_caicos',
+  VG: 'bvi',
+  VI: 'usvi',
+  UM: 'us_outlying_islands',
+  VA: 'vatican',
+  SJ: 'svalbard',
+  WF: 'wallis',
+  HM: 'heard_island',
+  GS: 'south_georgia',
+  IO: 'chagos',
+  TF: 'french_southern',
+  CC: 'cocos_islands',
+};
 
-/** ISO 3166-1 alpha-2 code for the given country name. Falls back to the input name if unmapped. */
-export function countryCode(country: string): string {
-  return COUNTRY_CODES[country] ?? country;
+function slugifyCountryText(text: string): string {
+  return text
+    .normalize('NFKD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
 }
 
 /**
- * The country names offered in a picker, alphabetical. Aliases that map to a
- * code already covered by another name ('USA' beside 'United States') are left
- * out, so each country appears once.
+ * The short token for a country, however it is spelled: the address of its
+ * clubs page and the country slot of a club hashtag. A spelling that names no
+ * country is slugified as written.
  */
-export function countryNames(): string[] {
-  const seenCodes = new Set<string>();
-  const names: string[] = [];
-  for (const name of Object.keys(COUNTRY_CODES).sort((a, b) => a.localeCompare(b))) {
-    const code = COUNTRY_CODES[name];
-    if (seenCodes.has(code)) continue;
-    seenCodes.add(code);
-    names.push(name);
+export function countrySlug(country: string): string {
+  const code = codeFor(country);
+  if (!code) return slugifyCountryText(country);
+  return COUNTRY_TOKEN_BY_CODE[code] ?? slugifyCountryText(COUNTRY_NAME_BY_CODE[code]);
+}
+
+/** Fold a spelling for matching: case, surrounding space, full stops and accents are ignored. */
+function foldCountrySpelling(country: string): string {
+  return country
+    .trim()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .replace(/\./g, '');
+}
+
+let CODE_BY_SPELLING: Map<string, string> | null = null;
+
+function codeBySpelling(): Map<string, string> {
+  if (CODE_BY_SPELLING) return CODE_BY_SPELLING;
+  const index = new Map<string, string>();
+  for (const [code, name] of Object.entries(COUNTRY_NAME_BY_CODE)) {
+    index.set(foldCountrySpelling(code), code);
+    index.set(foldCountrySpelling(name), code);
   }
-  return names;
+  for (const [alias, code] of Object.entries(COUNTRY_CODE_BY_ALIAS)) {
+    index.set(foldCountrySpelling(alias), code);
+  }
+  CODE_BY_SPELLING = index;
+  return index;
+}
+
+function codeFor(country: string): string | null {
+  return codeBySpelling().get(foldCountrySpelling(country)) ?? null;
+}
+
+/** Flag emoji for the given country, however it is spelled. Empty string if it names no country. */
+export function countryFlag(country: string): string {
+  const code = codeFor(country);
+  if (!code) return '';
+  return String.fromCodePoint(...[...code].map((letter) => 0x1f1e6 + letter.charCodeAt(0) - 65));
+}
+
+/** ISO 3166-1 alpha-2 code for the given country, however it is spelled. Falls back to the input if it names no country. */
+export function countryCode(country: string): string {
+  return codeFor(country) ?? country;
+}
+
+/** The country names offered in a picker, alphabetical, one per country. */
+export function countryNames(): string[] {
+  return Object.values(COUNTRY_NAME_BY_CODE).sort((a, b) => a.localeCompare(b));
 }
 
 /**
  * The picker's name for a country however it was spelled, or null when the
- * spelling names no country this platform knows.
+ * spelling names no country.
  *
  * A country reaches a write path from the picker, from a legacy import, or
- * from a request built by hand, and those three spell the same place
- * differently ('United States', 'USA', 'us', 'U.S.'). Every alias and every ISO
- * code therefore resolves to the single name the picker offers for that
- * country's code, so one place cannot be stored under several spellings.
- * Case and the full stops people write into abbreviations are ignored, which
- * is the same punctuation the region-required rule folds before deciding
- * whether a country is one that needs a state or province: the two must agree
- * about what names a country, or a spelling could satisfy one and escape the
- * other.
+ * from a request built by hand, and those spell the same place differently
+ * ('United States', 'USA', 'us', 'U.S.'). Every alias and every alpha-2 code
+ * therefore resolves to the single canonical name, so one place cannot be
+ * stored under several spellings.
  */
 export function canonicalCountryName(country: string): string | null {
-  return canonicalNameBySpelling().get(foldCountrySpelling(country)) ?? null;
-}
-
-function foldCountrySpelling(country: string): string {
-  return country.trim().toLowerCase().replace(/\./g, '');
-}
-
-let CANONICAL_NAME_BY_SPELLING: Map<string, string> | null = null;
-
-function canonicalNameBySpelling(): Map<string, string> {
-  if (CANONICAL_NAME_BY_SPELLING) return CANONICAL_NAME_BY_SPELLING;
-  const nameForCode = new Map<string, string>();
-  for (const name of countryNames()) nameForCode.set(COUNTRY_CODES[name], name);
-  const index = new Map<string, string>();
-  for (const [name, code] of Object.entries(COUNTRY_CODES)) {
-    const canonical = nameForCode.get(code);
-    if (!canonical) continue;
-    index.set(foldCountrySpelling(name), canonical);
-    index.set(foldCountrySpelling(code), canonical);
-  }
-  CANONICAL_NAME_BY_SPELLING = index;
-  return index;
+  const code = codeFor(country);
+  return code ? COUNTRY_NAME_BY_CODE[code] : null;
 }
 
 /**

@@ -440,7 +440,7 @@ export interface SeedPersonaOpts {
 // a region-less row is real data-quality evidence there. Personas that left the
 // region blank made the development database look like it held a location gap
 // the curated club seed does not actually have.
-const PERSONA_CLUB_LOCATION = { region: 'CO', country: 'USA' } as const;
+const PERSONA_CLUB_LOCATION = { region: 'CO', country: 'United States' } as const;
 
 export function composePersonaBio(spec: PersonaSpec): string {
   return spec.purpose

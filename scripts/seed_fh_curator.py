@@ -287,7 +287,7 @@ def ensure_fh_member(con: sqlite3.Connection, ts: str) -> str:
             "display_name_norm": "footbag hacky",
             "city": "Oregon City",
             "region": "OR",
-            "country": "USA",
+            "country": "United States",
             "first_comp_year": 1972,
         },
     )
@@ -305,7 +305,7 @@ def ensure_fh_member(con: sqlite3.Connection, ts: str) -> str:
               country, is_hof, is_bap, import_source, imported_at, version)
            VALUES
              (:lid, 'Footbag Hacky', 'Footbag Hacky', 'footbag hacky',
-              'USA', 0, 0, 'system_fixture', :ts, 1)""",
+              'United States', 0, 0, 'system_fixture', :ts, 1)""",
         {"lid": hacky_legacy_id, "ts": ts},
     )
     # Provenance heal for a stub row created before the seeder stamped it: the

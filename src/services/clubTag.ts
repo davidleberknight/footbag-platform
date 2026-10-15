@@ -11,6 +11,7 @@
 // tests pin them against pipeline-derived fixtures.
 
 import { createHash } from 'crypto';
+import { countrySlug } from './countryUtils';
 
 /**
  * Deterministic club id for a promoted candidate. Must produce the same id
@@ -74,7 +75,9 @@ export function extractPrimaryCity(city: string): string {
  * Derive a unique `#club_{slug}` hashtag for a candidate being promoted.
  * City-first cascade: `#club_{city}`, `#club_{country}_{city}`,
  * `#club_{country}_{city}_{name}`; when the city is absent or equals the
- * country, the name leads: `#club_{name}`, `#club_{country}_{name}`.
+ * country, the name leads: `#club_{name}`, `#club_{country}_{name}`. The
+ * country slot holds the country's short token ("usa", "czech"), the same
+ * token its clubs page address uses.
  * The first candidate not taken wins; cascade exhaustion appends a
  * numeric suffix to the most specific form.
  */
@@ -85,18 +88,18 @@ export function deriveClubTag(
   isTaken: (tagNormalized: string) => boolean,
 ): string {
   const nameSlug = stripRedundantSuffix(slugifyClubText(cleanClubName(name)));
-  const countrySlug = slugifyClubText(country);
+  const countryToken = countrySlug(country);
   const citySlug = slugifyClubText(extractPrimaryCity(city));
 
-  const candidates = (!citySlug || citySlug === countrySlug)
+  const candidates = (!citySlug || citySlug === countryToken)
     ? [
         `#club_${nameSlug}`,
-        `#club_${countrySlug}_${nameSlug}`,
+        `#club_${countryToken}_${nameSlug}`,
       ]
     : [
         `#club_${citySlug}`,
-        `#club_${countrySlug}_${citySlug}`,
-        `#club_${countrySlug}_${citySlug}_${nameSlug}`,
+        `#club_${countryToken}_${citySlug}`,
+        `#club_${countryToken}_${citySlug}_${nameSlug}`,
       ];
 
   for (const candidate of candidates) {

@@ -66,6 +66,44 @@ SEED_FIELDNAMES = [
 CLUB_DUPLICATES_CSV = LEGACY_DATA_ROOT / "overrides" / "club_duplicates.csv"
 CLUB_TEXT_CORRECTIONS_CSV = LEGACY_DATA_ROOT / "overrides" / "club_text_corrections.csv"
 
+# The short token people type for a country, keyed by the canonical name the
+# club seed carries, where it differs from the slug of that name. It fills the
+# country slot of a club hashtag and names the country's clubs page, so it must
+# equal the app's country table entry for the same country: a club seeded here
+# and a club promoted in the app then derive one hashtag.
+COUNTRY_TOKENS = {
+    "United States": "usa",
+    "United Kingdom": "uk",
+    "Czech Republic": "czech",
+    "United Arab Emirates": "uae",
+    "Bosnia and Herzegovina": "bosnia",
+    "Côte d'Ivoire": "ivory_coast",
+    "Democratic Republic of the Congo": "dr_congo",
+    "Republic of the Congo": "congo",
+    "Trinidad and Tobago": "trinidad",
+    "Antigua and Barbuda": "antigua",
+    "São Tomé and Príncipe": "sao_tome",
+    "Saint Kitts and Nevis": "st_kitts",
+    "Saint Vincent and the Grenadines": "st_vincent",
+    "Saint Lucia": "st_lucia",
+    "Saint Barthélemy": "st_barts",
+    "Saint Helena": "st_helena",
+    "Saint Martin": "st_martin",
+    "Saint Pierre and Miquelon": "st_pierre",
+    "Turks and Caicos Islands": "turks_and_caicos",
+    "British Virgin Islands": "bvi",
+    "United States Virgin Islands": "usvi",
+    "United States Minor Outlying Islands": "us_outlying_islands",
+    "Vatican City": "vatican",
+    "Svalbard and Jan Mayen": "svalbard",
+    "Wallis and Futuna": "wallis",
+    "Heard Island and McDonald Islands": "heard_island",
+    "South Georgia and the South Sandwich Islands": "south_georgia",
+    "British Indian Ocean Territory": "chagos",
+    "French Southern Territories": "french_southern",
+    "Cocos (Keeling) Islands": "cocos_islands",
+}
+
 
 def has_c1_controls(text: str | None) -> bool:
     """True when the text carries a C1 control, which no club field ever should."""

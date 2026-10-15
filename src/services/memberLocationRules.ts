@@ -69,18 +69,11 @@ export function capitalizeLowercaseCity(city: string): string {
 // In the USA and Canada a location without its state or province is ambiguous
 // (a bare "Portland" or "London" names more than one place), so the region is
 // required there and optional everywhere else. The country field may hold free
-// text from an import, so the common spellings are folded to an ISO code before
-// comparing; the shared country map already carries the full names and the USA
-// alias, and the short forms a member is likely to type are handled here.
+// text from an import, so it is folded to its ISO code through the shared country
+// map, which carries every spelling the platform accepts for a country.
 const REGION_REQUIRED_COUNTRY_CODES = new Set(['US', 'CA']);
-const REGION_REQUIRED_SPELLINGS = new Set([
-  'US', 'USA', 'UNITED STATES', 'UNITED STATES OF AMERICA', 'AMERICA',
-  'CA', 'CAN', 'CANADA',
-]);
 
 export function regionRequiredForCountry(country: string): boolean {
-  const raw = trimmed(country).toUpperCase().replace(/\./g, '');
-  if (REGION_REQUIRED_SPELLINGS.has(raw)) return true;
   return REGION_REQUIRED_COUNTRY_CODES.has(countryCode(trimmed(country)).toUpperCase());
 }
 

@@ -250,7 +250,9 @@ describe('POST /admin/club-cleanup/candidates/:candidateId/promote', () => {
       // folded to it at the write path. The member column keeps the code, and
       // the two are deliberately different.
       expect(club.region).toBe('Texas');
-      expect(club.country).toBe('USA');
+      // The candidate's "USA" is stored as the canonical name every club,
+      // member and event row uses, or the club lands apart from its neighbours.
+      expect(club.country).toBe('United States');
       expect(club.description).toBe('Austin freestyle crew since the nineties.');
       expect(club.status).toBe('active');
       expect(club.external_url).toBeNull();

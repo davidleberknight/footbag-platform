@@ -124,8 +124,30 @@ describe('direct edit (authoritative editors)', () => {
   });
 });
 
+describe('a club does not move between countries', () => {
+  it('a co-leader cannot change the country: a submitted one is ignored and the form shows it as fixed', async () => {
+    // Broken, one co-leader slip moves the club to another country page and
+    // out of its neighbours' duplicate checks.
+    const { clubId, clubKey, leaderId, name } = seedClubWithLeader();
+    const res = await request(createApp())
+      .post(`/clubs/${clubKey}/content/edit`)
+      .set('Cookie', cookieFor(leaderId))
+      .type('form')
+      .send(fullForm(name, { country: 'Germany', description: 'Moved?' }));
+    expect(res.status).toBe(303);
+    expect(clubRow(clubId).country).toBe('USA');
+    expect(clubRow(clubId).region).toBe('California');
+    expect(auditChanges(clubId).country).toBeUndefined();
+
+    const page = await request(createApp()).get(`/clubs/${clubKey}`).set('Cookie', cookieFor(leaderId));
+    expect(page.status).toBe(200);
+    expect(page.text).not.toMatch(/name="country"/);
+    expect(page.text).toContain('Country: USA');
+  });
+});
+
 describe('the full club field set', () => {
-  it('a co-leader edits name, city, region and country, each audited with its before and after', async () => {
+  it('a co-leader edits name, city and region, each audited with its before and after', async () => {
     const { clubId, clubKey, leaderId, name } = seedClubWithLeader();
 
     const res = await request(createApp())

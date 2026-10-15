@@ -53,6 +53,14 @@
  *     refuses a candidate that carries none, since nobody triggering it can
  *     supply one. The clubs index lists only countries that name a country
  *     page, so a blank country already on a row never renders a nameless link.
+ *   - A club's country is stored as the country picker's canonical name, the
+ *     one spelling members and events use too, so a club lands on the same
+ *     country page and in the same duplicate checks as its neighbours.
+ *     Creation and an administrator's correction refuse a country the picker
+ *     does not offer and fold an alias to its canonical name; promotion folds
+ *     the candidate's country. A club does not move between countries: its
+ *     co-leaders cannot change the country, and only an administrator's
+ *     correction of a mistake reaches it.
  *   - Club display names are not required to be globally unique; the hashtag is the
  *     canonical identifier. Within one country an exact name is still taken by
  *     at most one club, blocked with no override on creation and on rename
@@ -163,8 +171,8 @@ import { applyClubJoinInTx as applyActivePlayerClubJoinInTx, getStatus as getAct
 import { getTierStatus, tierBadgeShort } from './membershipTieringService';
 import { runSqliteRead } from './sqliteRetry';
 import { PageViewModel } from '../types/page';
-import { countryCode, subdivisionsForCountry } from './countryUtils';
-import { capitalizeLowercaseCity } from './memberLocationRules';
+import { canonicalCountryName, countryCode, countrySlug, subdivisionsForCountry } from './countryUtils';
+import { COUNTRY_CHOICE_MESSAGE, capitalizeLowercaseCity } from './memberLocationRules';
 import { slugifyForTag } from './slugify';
 import { deriveClubTag, stableClubId } from './clubTag';
 import { randomUUID } from 'crypto';
@@ -184,8 +192,10 @@ function isConstraintViolation(err: unknown): boolean {
 
 const PUBLIC_CLUB_KEY_PATTERN = /^club_[a-z0-9_]+$/;
 
+// A country's clubs page sits at its short token ("/clubs/usa"), the same
+// token a club hashtag's country slot carries.
 function slugifyCountry(country: string): string {
-  return country.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+  return countrySlug(country);
 }
 
 function slugifyRegion(region: string): string {
@@ -2135,6 +2145,11 @@ export class ClubService {
     if (!candidate.country || !candidate.country.trim()) {
       throw new ValidationError('Country is required.');
     }
+    // The new club carries the canonical name, as every club row does. A
+    // curated country no spelling of which the picker knows is kept as
+    // written rather than refused, because nobody triggering a promotion can
+    // supply another.
+    const promotedCountry = canonicalCountryName(candidate.country) ?? candidate.country.trim();
 
     // The candidate's own region wins where it has one: it descends from the
     // curated club seed, and curated data outranks anything supplied later.
@@ -2142,7 +2157,7 @@ export class ClubService {
     // it, because a club created without it flattens the country page's
     // grouping for every other club in that country.
     const regionResolution = resolveClubRegion(
-      candidate.country ?? '',
+      promotedCountry,
       candidate.region ?? opts.region ?? null,
     );
     if (regionResolution.status === 'missing') {
@@ -2167,7 +2182,7 @@ export class ClubService {
 
     const tagNormalized = deriveClubTag(
       candidate.display_name,
-      candidate.country ?? '',
+      promotedCountry,
       candidate.city ?? '',
       (tag) => mediaTags.findTagByNormalized.get(tag) !== undefined,
     );
@@ -2206,7 +2221,7 @@ export class ClubService {
         clubs.insertClub.run(
           clubId, now, 'club_service', now, 'club_service',
           candidate.display_name, candidate.description ?? '',
-          capitalizeLowercaseCity(candidate.city ?? ''), promotedRegion, candidate.country ?? '',
+          capitalizeLowercaseCity(candidate.city ?? ''), promotedRegion, promotedCountry,
           tagId,
         );
         if (externalUrl) {
@@ -2308,13 +2323,18 @@ export class ClubService {
     const description = input.description.trim();
     const city = capitalizeLowercaseCity(input.city.trim());
     const region = input.region.trim() || null;
-    const country = input.country.trim();
+    // Stored as the picker's canonical name, the one spelling every club,
+    // member and event row uses, so the club lands on the same country page and
+    // in the same duplicate checks as its neighbours however it was typed.
+    const submittedCountry = input.country.trim();
+    const country = canonicalCountryName(submittedCountry) ?? '';
 
     const fieldErrors: Record<string, string> = {};
     if (!name) fieldErrors.name = 'Club name is required.';
     else if (name.length > 150) fieldErrors.name = 'Club name must be 150 characters or fewer.';
     if (!city) fieldErrors.city = 'City is required.';
-    if (!country) fieldErrors.country = 'Country is required.';
+    if (!submittedCountry) fieldErrors.country = 'Country is required.';
+    else if (!country) fieldErrors.country = COUNTRY_CHOICE_MESSAGE;
 
     // The country page groups clubs by state or province only when every club
     // in that country has one, so a single region-less club flattens the whole
@@ -2857,13 +2877,31 @@ export class ClubService {
     const trimmedCity = input.city?.trim();
     if (trimmedCity !== undefined && !trimmedCity) fieldErrors.city = 'City is required.';
     const city = trimmedCity === undefined ? undefined : capitalizeLowercaseCity(trimmedCity);
-    const country = input.country?.trim();
-    if (country !== undefined && !country) fieldErrors.country = 'Country is required.';
+    // A club does not move between countries, so its leaders cannot change the
+    // country: it is set when the club is created. Only an administrator's
+    // correction of a mistaken country reaches it, held to the country rule
+    // every club and member write obeys: a changed country must be one the
+    // picker offers and is stored as its canonical name, while the value
+    // already on the row passes untouched, so correcting another field is never
+    // blocked over a country nobody changed.
+    let country: string | undefined;
+    const submittedCountry = actor.kind === 'administrator' ? input.country?.trim() : undefined;
+    if (submittedCountry !== undefined) {
+      if (!submittedCountry) {
+        fieldErrors.country = 'Country is required.';
+      } else if (submittedCountry === club.country) {
+        country = club.country;
+      } else {
+        const canonical = canonicalCountryName(submittedCountry);
+        if (canonical) country = canonical;
+        else fieldErrors.country = COUNTRY_CHOICE_MESSAGE;
+      }
+    }
 
     // Region is resolved against whichever country the row will carry once
     // this edit lands, because changing the country changes whether a region
     // is required at all and which names are recognised.
-    const effectiveCountry = country || club.country;
+    const effectiveCountry = country ?? club.country;
     let storedRegion: string | null | undefined;
     if (input.region !== undefined || country !== undefined) {
       const submittedRegion = input.region !== undefined ? input.region.trim() || null : club.region;

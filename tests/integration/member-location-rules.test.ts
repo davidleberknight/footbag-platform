@@ -82,6 +82,16 @@ describe('country canonicalization on the profile edit path', () => {
     expect(stored(id).country).toBe('United States');
   });
 
+  it('lets a member who moved change their country, including to one a short list once lacked', async () => {
+    // Broken, a member born in one country and living in another is stuck with
+    // the first, or cannot record a country such as Lithuania at all.
+    const { id, slug } = seedMember({ country: 'United States', region: 'OR', city: 'Portland' });
+    await svc.updateOwnProfile(slug, editInput({ city: 'Tauranga', region: '', country: 'New Zealand' }));
+    expect(stored(id)).toEqual({ city: 'Tauranga', region: null, country: 'New Zealand' });
+    await svc.updateOwnProfile(slug, editInput({ city: 'Vilnius', region: '', country: 'Lithuania' }));
+    expect(stored(id).country).toBe('Lithuania');
+  });
+
   it('refuses a changed country that names no country the platform knows', async () => {
     const { id, slug } = seedMember({ country: 'United States', region: 'OR', city: 'Portland' });
     await expect(
@@ -154,6 +164,19 @@ describe('the same rules hold on the onboarding wizard path', () => {
       gender: 'undisclosed', yearValue: '',
     });
     expect(stored(id).country).toBe('United States');
+  });
+
+  it('requires a country before the member can finish the step', () => {
+    // Broken, a registrant becomes a member with no country, including a
+    // legacy account whose old record carried none.
+    const { id } = seedMember({ country: null, region: null, city: null });
+    expect(() =>
+      svc.setPersonalDetails(id, {
+        city: 'Portland', region: '', country: '  ', birthDay: '1', birthMonth: '1', birthYear: '1990',
+        gender: 'undisclosed', yearValue: '',
+      }),
+    ).toThrow('Country is required.');
+    expect(stored(id).country).toBeNull();
   });
 
   it('capitalizes an all-lowercase city, as the edit form does', () => {

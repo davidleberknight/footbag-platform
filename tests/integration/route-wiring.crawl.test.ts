@@ -164,11 +164,14 @@ function crawls(): Promise<CrawlSet> {
       fetcher, selfOrigin: SELF_ORIGIN, loggedErrorCount, replayOpenRedirects: true,
       pageOracles: pageChecks({ canaries }), errorPageOracles: errorPageChecks,
     };
+    // The member walks last. It owns the crawl's gallery and media item and
+    // submits their delete forms, so a walk after it would find them gone and
+    // miss the pages another member sees on them (the flag form among them).
     const personas: CrawlPersona[] = [
       { name: 'anonymous', cookie: null, authenticated: false, onboarded: false },
-      jwtPersona('member', CRAWL_MEMBER_ID),
       jwtPersona('admin', CRAWL_ADMIN_ID, true),
       jwtPersona('canary-owner', canaryOwnerId),
+      jwtPersona('member', CRAWL_MEMBER_ID),
     ];
     const byPersona = new Map<string, CrawlResult>();
     for (const persona of personas) {

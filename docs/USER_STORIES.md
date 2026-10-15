@@ -2532,6 +2532,7 @@ Story: As an eligible member, I can create a club so that I can become its first
 Success Criteria:
 
 - Club creation form includes: club name, description, city, state or province, country. The creator becomes the club's first co-leader, and the club is reached through that co-leader's member-visible contact email; there is no separate club contact field. A club that later loses all co-leaders still persists and surfaces only on the low-priority "could use a leader" admin list (see §5.1).
+- A club's country is chosen from the country picker and stored as that single canonical name, with an alias or ISO code folded to it, so a club lands on the same country page and in the same duplicate checks as every other club, member and event in that country. A submitted country the picker does not offer is refused.
 - A club's city follows the member city rule: entered entirely in lowercase, it is stored with each word capitalized; containing any capital letter, it is stored as entered. The rule applies on creation, co-leader edit, administrator correction, and promotion from a legacy record.
 - A club in a country that writes its addresses with states or provinces must name one, and it is stored as the full name ("New York"), with a submitted two-letter code folded to that name. The requirement exists because the country page groups clubs by state or province only when every club in that country has one, so a single club without it flattens the whole country into one list. This is the opposite of the member location rule, where the region is stored as the two-letter code because that column feeds the Official IFPA Roster and a fixed code is the reconcilable form there. The two are deliberately spelled differently and are never joined. A country with no official state or province set keeps a free-text region, which may be blank.
 - The same rule holds wherever a club row is created, not only on this form. Promoting a legacy club candidate applies it too: the candidate's own state wins when it has one, since that value descends from the curated club seed, and otherwise whoever triggered the promotion is asked for it, in the onboarding wizard's club card for a member and in the cleanup queue for an administrator.
@@ -2554,7 +2555,7 @@ Story: As a co-leader, I can edit club information so that I can keep club detai
 
 Success Criteria:
 
-- Co-leaders can edit all club information except the club's hashtag, which is the club's permanent handle and the address of its page; only an administrator moves it, under A_Correct_Club_Data.
+- Co-leaders can edit all club information except the club's hashtag and its country. The hashtag is the club's permanent handle and the address of its page; the country is set when the club is created, because a club does not move between countries. Only an administrator changes either, under A_Correct_Club_Data, to correct a mistake.
 - All edits audit-logged with leader ID, fields changed, old values, new values, timestamp.
 - Co-leaders see a clear success message when the club is updated.
 

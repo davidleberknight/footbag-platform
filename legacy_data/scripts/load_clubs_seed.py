@@ -41,7 +41,7 @@ from pathlib import Path
 # subprocess, or spec-loaded by a test (importlib does not add the script's dir).
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _seed_env_guard import refuse_if_deployed_target
-from club_curation import load_club_duplicate_pairs
+from club_curation import COUNTRY_TOKENS, load_club_duplicate_pairs
 
 CSV_PATH = Path(__file__).parent.parent / "seed" / "clubs.csv"
 # URL safety verdicts produced at data-prep time by `npm run verify:seed-urls`.
@@ -158,10 +158,15 @@ def load_duplicate_drop_keys(path: Path = DUPLICATE_OVERRIDES_PATH) -> set[str]:
     return set(load_club_duplicate_pairs(path))
 
 
+def country_token(country: str) -> str:
+    """The country's short token for a club hashtag and its clubs page address."""
+    return COUNTRY_TOKENS.get(country) or slugify(country)
+
+
 def make_tag_normalized(name: str, country: str, city: str, seen: set[str]) -> str:
     """Generate unique #club_{slug} using city-first cascade."""
     name_slug = strip_redundant_suffix(slugify(_clean_club_name(name)))
-    country_slug = slugify(country)
+    country_slug = country_token(country)
     primary_city = extract_primary_city(city)
     city_slug = slugify(primary_city)
 
@@ -283,9 +288,9 @@ def main() -> None:
     # /clubs/:slug dispatches on country-slug first, so a colliding club would
     # be unreachable. e.g. "#club_sweden" is reserved → "Sweden Footbag" →
     # escalates to "#club_sweden_sweden_footbag" or similar.
-    # NOTE: slugify() here must match slugifyCountry() in clubService.ts.
+    # NOTE: country_token() here must match slugifyCountry() in clubService.ts.
     for row in rows:
-        existing.add(f"#club_{slugify(row['country'])}")
+        existing.add(f"#club_{country_token(row['country'])}")
 
     inserted_tags = 0
     inserted_clubs = 0

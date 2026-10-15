@@ -288,6 +288,35 @@ describe('the details preview writes nothing and reports what would move', () =>
     expect(collision.text).toContain('already exists in that country');
     expect(clubRow().name).toBe('Aukland Footbag');
   });
+
+  it('holds a corrected country to the country rule: an alias folds, a non-country is refused', async () => {
+    // Broken, an administrator's typed country lands the club on a country
+    // page of its own spelling, or a non-country becomes a country page.
+    const sameCountry = await request(createApp())
+      .post(`/admin/clubs/${CLUB_ID}/content`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send(submission({ country: 'Aotearoa' }));
+    expect(sameCountry.status).toBe(200);
+    expect(sameCountry.text).toContain('Nothing would change');
+
+    const folded = await request(createApp())
+      .post(`/admin/clubs/${CLUB_ID}/content`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send(submission({ country: 'uk' }));
+    expect(folded.status).toBe(200);
+    expect(folded.text).toContain('United Kingdom');
+
+    const refused = await request(createApp())
+      .post(`/admin/clubs/${CLUB_ID}/content`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send(submission({ country: 'Freedonia' }));
+    expect(refused.status).toBe(422);
+    expect(refused.text).toContain('Country must be one of the countries offered in the list');
+    expect(clubRow().country).toBe('New Zealand');
+  });
 });
 
 describe('a confirmed details correction', () => {
@@ -328,7 +357,7 @@ describe('a confirmed details correction', () => {
       .post(`/admin/clubs/${CLUB_ID}/content/confirm`)
       .set('Cookie', adminCookie())
       .type('form')
-      .send(submission({ city: 'Auckland', description: 'A corrected description.', country: 'Aotearoa' }));
+      .send(submission({ city: 'Auckland', description: 'A corrected description.', country: 'Australia' }));
     const flash = (res.headers['set-cookie'] as unknown as string[])
       .map((c) => c.split(';')[0]).join('; ');
 

@@ -90,7 +90,7 @@ export async function seedCrawlFixture(env: CrawlEnv): Promise<CrawlFixture> {
   // A real (non-fixture) club in the same country the persona clubs use, so the
   // country directory has a visible club and the persona clubs' country links
   // resolve even though the persona fixtures are excluded from it.
-  insertClub(db, { id: 'club-crawlville-real', name: 'Crawlville Footbag', city: 'Crawlville', country: 'USA', hashtag_tag_id: clubTag });
+  insertClub(db, { id: 'club-crawlville-real', name: 'Crawlville Footbag', city: 'Crawlville', country: 'United States', hashtag_tag_id: clubTag });
 
   insertEvent(db, { title: 'Crawl Open', status: 'reg_open' });
   insertHistoricalPerson(db, { person_name: 'Historic Crawler', hof_member: 1 });

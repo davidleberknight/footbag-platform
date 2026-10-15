@@ -392,7 +392,7 @@ describe('POST /clubs/create', () => {
       .post('/clubs/create')
       .set('Cookie', authCookie(TAG_COLL_ID))
       .set('Content-Type', 'application/x-www-form-urlencoded')
-      .send(formData({ name: 'Tag Collision Club', country: 'TagLand', slug: 'taken_slug' }));
+      .send(formData({ name: 'Tag Collision Club', country: 'Iceland', slug: 'taken_slug' }));
     expect(res.status).toBe(422);
     expect(res.text).toContain('#club_taken_slug is already taken');
     // A bare refusal leaves the member guessing; the story asks for a
@@ -612,5 +612,79 @@ describe('POST /clubs/create — near-match duplicate warning', () => {
       .type('form')
       .send(formData({ name: 'Oslo Footbag', country: 'Sweden', city: 'Stockholm', slug: 'stockholm_oslo' }));
     expect(res.status).toBe(303);
+  });
+});
+
+describe('POST /clubs/create — the club country is the canonical name', () => {
+  let seq = 0;
+  function seedCreator(): string {
+    seq += 1;
+    const id = `cc-country-${seq}`;
+    const db = new BetterSqlite3(dbPath);
+    db.pragma('foreign_keys = ON');
+    createMemberAtTier(db, { id, slug: `cc_country_${seq}`, tier: 'tier1' });
+    completeOnboarding(db, id);
+    db.close();
+    return id;
+  }
+  function storedCountry(name: string): string | undefined {
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const row = db.prepare('SELECT country FROM clubs WHERE name = ?').get(name) as { country: string } | undefined;
+    db.close();
+    return row?.country;
+  }
+
+  it('stores an alias as the canonical name and lists the club on the short country page', async () => {
+    // Broken, a club typed as "USA" lands on its own country page apart from
+    // every other US club and member.
+    const res = await request(createApp())
+      .post('/clubs/create')
+      .set('Cookie', authCookie(seedCreator()))
+      .type('form')
+      .send(formData({ name: 'Boulder Bag Bunch', city: 'Boulder', region: 'Colorado', country: 'U.S.A.', slug: 'boulder_bunch' }));
+    expect(res.status).toBe(303);
+    expect(storedCountry('Boulder Bag Bunch')).toBe('United States');
+    const page = await request(createApp()).get('/clubs/usa');
+    expect(page.status).toBe(200);
+    expect(page.text).toContain('Boulder Bag Bunch');
+  });
+
+  it('refuses a country the picker does not offer and creates nothing', async () => {
+    // Broken, free text such as "Freedonia" becomes a country page of its own.
+    const res = await request(createApp())
+      .post('/clubs/create')
+      .set('Cookie', authCookie(seedCreator()))
+      .type('form')
+      .send(formData({ name: 'Freedonia Kickers', city: 'Fredville', region: '', country: 'Freedonia', slug: 'fredville' }));
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Country must be one of the countries offered in the list');
+    expect(storedCountry('Freedonia Kickers')).toBeUndefined();
+  });
+
+  it('blocks an exact name already taken in the same country under another spelling', async () => {
+    // Broken, a second "Lakewood Lads" is created because one form said "USA"
+    // and the other "United States", so the duplicate check never compared them.
+    const first = await request(createApp())
+      .post('/clubs/create')
+      .set('Cookie', authCookie(seedCreator()))
+      .type('form')
+      .send(formData({ name: 'Lakewood Lads', city: 'Lakewood', region: 'Colorado', country: 'USA', slug: 'lakewood_lads' }));
+    expect(first.status).toBe(303);
+    const second = await request(createApp())
+      .post('/clubs/create')
+      .set('Cookie', authCookie(seedCreator()))
+      .type('form')
+      .send(formData({ name: 'Lakewood Lads', city: 'Lakewood', region: 'Colorado', country: 'United States', slug: 'lakewood_two' }));
+    expect(second.status).toBe(422);
+    expect(second.text).toContain('already exists');
+  });
+
+  it('offers the country picker on the form', async () => {
+    // Broken, the member types a free-text country again and meets a refusal
+    // for a spelling the form never offered.
+    const res = await request(createApp()).get('/clubs/create').set('Cookie', authCookie(seedCreator()));
+    expect(res.status).toBe(200);
+    expect(res.text).toMatch(/<select id="country" name="country"/);
+    expect(res.text).toContain('<option value="New Zealand"');
   });
 });
