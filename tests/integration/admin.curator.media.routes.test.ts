@@ -424,6 +424,46 @@ describe('POST /admin/curator/media/:id/delete', () => {
       .send({ confirmed: '1' });
     expect(res.status).toBe(404);
   });
+
+  // An item the async upload produced is pointed at by its finished upload job.
+  // Deleting the item must keep the job's history and clear its link, never
+  // refuse the delete: a refusal leaves every async-uploaded video undeletable.
+  it('deletes an item a finished upload job produced, keeping the job with its link cleared', async () => {
+    const caption = `DELETE_JOB_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const mediaId = await uploadPhotoViaRoute(caption, ['#delete_job_test']);
+    const { createMediaJobService } = await import('../../src/services/mediaJobService');
+    const jobs = createMediaJobService();
+    const { id: jobId } = jobs.createPendingUploadJob({
+      kind: 'curator_video',
+      adminMemberId: ADMIN_ID,
+      sourceVideoKey: 'pending/delete-job/source.mp4',
+      sourcePosterKey: 'pending/delete-job/poster.jpg',
+      caption,
+      tags: '',
+      sourceFilename: 'delete-job.mp4',
+      expiresAtIso: '2099-01-01T00:00:00.000Z',
+    });
+    jobs.markPendingTranscode(jobId, ADMIN_ID);
+    jobs.claimForProcessing(jobId, '2099-01-01T00:30:00.000Z');
+    jobs.markSucceeded(jobId, mediaId);
+
+    const res = await request(createApp())
+      .post(`/admin/curator/media/${mediaId}/delete`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ confirmed: '1' });
+    expect(res.status).toBe(303);
+
+    const db = new BetterSqlite3(dbPath);
+    try {
+      expect(db.prepare('SELECT id FROM media_items WHERE id = ?').get(mediaId)).toBeUndefined();
+      const job = db.prepare('SELECT state, media_id FROM media_jobs WHERE id = ?').get(jobId) as
+        { state: string; media_id: string | null };
+      expect(job).toEqual({ state: 'succeeded', media_id: null });
+    } finally {
+      db.close();
+    }
+  });
 });
 
 // ── Sidecar-backed URL-reference routes ──────────────────────────────────
@@ -495,6 +535,29 @@ describe('admin curator media routes — sidecar-backed (URL reference)', () => 
     expect(res.text).toContain(`ROUTE_${slug}`);
     // YouTube: thumbnailUrl input is not rendered (Vimeo-only).
     expect(res.text).not.toContain('name="thumbnailUrl"');
+    // Where the authoring tree is written, the page says the edit writes through
+    // to the sidecar; a deployed host, which writes none, says nothing of it.
+    expect(res.text).toContain('URL reference, sidecar-backed)');
+    expect(res.text).toContain('Edits write through to the sidecar JSON');
+  });
+
+  // A refused edit of a YouTube item must come back as that item, with its
+  // URL-reference fields and what was typed, not as a bare photo form that drops
+  // the source and clip-range fields the curator was editing.
+  it('a refused edit of a URL-reference item re-renders that item with its fields and the typed values', async () => {
+    const slug = `refe_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    const { mediaId } = seedSidecarRow(slug);
+    const res = await request(createApp())
+      .post(`/admin/curator/media/${mediaId}/edit`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ caption: 'typed caption', tags: 'noprefix', sourceId: 'src_route', startSeconds: '12', endSeconds: '', externalUrl: '' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Tag must start with');
+    expect(res.text).toContain('Type: <strong>video</strong>');
+    expect(res.text).toContain('URL reference fields');
+    expect(res.text).toContain('value="typed caption"');
+    expect(res.text).toContain('value="12"');
   });
 
   it('GET edit form for a DB-direct photo does NOT show URL-reference fields', async () => {

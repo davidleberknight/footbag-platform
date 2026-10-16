@@ -11,9 +11,14 @@
     item that carries an exclude tag.
   </p>
   <p>
+    {{#if content.sidecarWritesEnabled}}
     Edit metadata, sort order, or tag sets below. Use the Create button to add a new
     gallery; the Delete action in the row removes both the DB row and the JSON sidecar
     at <code>/curated/galleries/&lt;slug&gt;.json</code>.
+    {{else}}
+    Edit metadata, sort order, or tag sets below. Use the Create button to add a new
+    gallery; the Delete action in the row removes it.
+    {{/if}}
   </p>
 
   <p>
@@ -80,7 +85,7 @@
                     <a href="{{../content.listHref}}">Cancel</a>
                   </form>
                 {{else}}
-                  <form method="POST" action="{{deleteHref}}" class="inline-form" data-confirm="Delete gallery {{id}}? This removes both the DB row and the JSON sidecar at /curated/galleries/&lt;slug&gt;.json on disk.">
+                  <form method="POST" action="{{deleteHref}}" class="inline-form" data-confirm="Delete gallery {{id}}?{{#if ../content.sidecarWritesEnabled}} This removes both the DB row and the JSON sidecar at /curated/galleries/&lt;slug&gt;.json on disk.{{/if}}">
                     <button type="submit" class="btn-link-danger">Delete</button>
                   </form>
                 {{/if}}

@@ -13,6 +13,9 @@
  * the persisted save with its one audit row, the validation rules, overposting
  * safety, and the edit-to-send round trip.
  */
+import fs from 'fs';
+import os from 'os';
+import path from 'path';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import request from '../fixtures/supertestWithOrigin';
@@ -64,15 +67,27 @@ function validBody(overrides: Record<string, string> = {}): Record<string, strin
   };
 }
 
+// The suite runs with authoring-tree writes on, as a developer machine does, so
+// every save also writes its template sidecar; point that at a temp tree so no
+// run touches the repository's curated/ directory.
+const CURATED_TMP_ROOT = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-email-templates-curated-'));
+
 beforeAll(async () => {
   const db = createTestDb(dbPath);
   insertMember(db, { id: ADMIN_ID, slug: 'et_admin', display_name: 'ET Admin', login_email: 'et-admin@example.com', is_admin: 1 });
   insertMember(db, { id: MEMBER_ID, slug: 'et_member', display_name: 'ET Member', login_email: 'et-member@example.com' });
   db.close();
   createApp = await importApp();
+  const svcMod = await import('../../src/services/curatorMediaService');
+  svcMod.setCuratedRootDirForTests(CURATED_TMP_ROOT);
 });
 
-afterAll(() => cleanupTestDb(dbPath));
+afterAll(async () => {
+  const svcMod = await import('../../src/services/curatorMediaService');
+  svcMod.resetCuratedRootDirForTests();
+  cleanupTestDb(dbPath);
+  fs.rmSync(CURATED_TMP_ROOT, { recursive: true, force: true });
+});
 
 describe('GET /admin/email-templates', () => {
   it('redirects unauthenticated traffic to login', async () => {
@@ -119,6 +134,34 @@ describe('GET /admin/email-templates/:key/edit', () => {
 });
 
 describe('POST /admin/email-templates/:key/edit', () => {
+  // On a developer machine the committed sidecar is the template's durable
+  // source: an edit that reached only the database would be replaced by the
+  // next seeding, losing the curator's wording.
+  it('writes the saved template back to its sidecar in the seeder\'s shape', async () => {
+    const body = {
+      subjectTemplate: 'A change to your gallery (sidecar check)',
+      bodyTemplate: 'Hi {memberName}, {whatChanged} on {galleryName}. Note: {note}',
+      piiClassification: 'confidential',
+      isEnabled: '1',
+    };
+    const res = await request(createApp())
+      .post('/admin/email-templates/gallery_moderated_member/edit')
+      .set('Cookie', admin())
+      .type('form')
+      .send(body);
+    expect(res.status).toBe(303);
+    const file = path.join(CURATED_TMP_ROOT, 'email_templates', 'gallery_moderated_member.json');
+    const raw = fs.readFileSync(file, 'utf8');
+    expect(JSON.parse(raw)).toEqual({
+      templateKey: 'gallery_moderated_member',
+      subjectTemplate: body.subjectTemplate,
+      bodyTemplate: body.bodyTemplate,
+      piiClassification: 'confidential',
+      isEnabled: true,
+    });
+    expect(raw.endsWith('}\n')).toBe(true);
+  });
+
   it('saves an edit, bumps the version, stamps the admin, and appends one audit row', async () => {
     const before = templateRow('club_coleader_invite');
     const res = await request(createApp())

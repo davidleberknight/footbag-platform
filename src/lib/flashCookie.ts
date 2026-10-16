@@ -143,6 +143,18 @@ export function takeFlash(req: Request, res: Response, kind: FlashKind): string 
   return flash.payload ?? '';
 }
 
+export type MediaSavedKind = 'create' | 'edit' | 'delete' | 'upload';
+
+/**
+ * Consume a media-saved flash and return which save it reports. Any other
+ * flash is left for its own page, and an unrecognised payload reads as none.
+ */
+export function takeMediaSavedFlash(req: Request, res: Response): MediaSavedKind | null {
+  const p = takeFlash(req, res, FLASH_KIND.MEDIA_SAVED);
+  if (p === 'create' || p === 'edit' || p === 'delete' || p === 'upload') return p;
+  return null;
+}
+
 export function clearFlash(res: Response, req: Request): void {
   // RFC 6265-strict browsers require the clear cookie's attributes
   // (path, httpOnly, sameSite, secure) to match the set, so this mirrors

@@ -54,6 +54,7 @@ import { mediaJobs, type MediaJobRow } from '../db/db';
 import { ConflictError, NotFoundError, RateLimitedError, ValidationError } from './serviceErrors';
 import { hit as rateLimitHit } from './rateLimitService';
 import { readIntConfig } from './configReader';
+import type { JobEvent, JobEventState } from './jobEventBus';
 
 const ADMIN_ACTOR = 'admin';
 const SYSTEM_ACTOR = 'system';
@@ -85,6 +86,35 @@ export function isAbandonedUpload(
   nowIso: string,
 ): boolean {
   return job.state === 'pending_upload' && job.expires_at !== null && job.expires_at <= nowIso;
+}
+
+/**
+ * One state message on the admin's job-status event stream. The opening
+ * snapshot and each live transition share this shape, so the page reads them
+ * the same way.
+ */
+export interface JobStatePayload {
+  state: MediaJobState | JobEventState | 'abandoned';
+  mediaId: string | null;
+  errorMessage: string | null;
+}
+
+/** The job's state as the stream opens, so a refresh past the live events still shows it. */
+export function jobStateSnapshot(job: MediaJobRow, nowIso: string): JobStatePayload {
+  return {
+    state: isAbandonedUpload(job, nowIso) ? 'abandoned' : job.state,
+    mediaId: job.media_id,
+    errorMessage: job.last_error,
+  };
+}
+
+/** A live transition the worker reported, in the stream's shape. */
+export function jobEventPayload(event: JobEvent): JobStatePayload {
+  return {
+    state: event.state,
+    mediaId: event.mediaId ?? null,
+    errorMessage: event.errorMessage ?? null,
+  };
 }
 
 export interface CreatePendingUploadJobInput {

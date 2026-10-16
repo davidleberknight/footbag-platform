@@ -552,6 +552,28 @@ describe('POST /admin/curator/galleries (create)', () => {
     expect(res.text).toMatch(/at least one criteria tag/i);
   });
 
+  // The id is the curator's own choice, so its collision must be named as the
+  // id: blaming the name tells a curator who typed a fresh name to change the
+  // wrong field.
+  it('names the id, not the name, when a new gallery reuses a taken id; a taken name still names the name', async () => {
+    const create = (idSlug: string, name: string) => request(createApp())
+      .post('/admin/curator/galleries')
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ idSlug, name, description: '', sortOrder: 'upload_desc', criteriaTags: '#freestyle', excludeTags: '' });
+
+    expect((await create('id_taken', 'First Holder Of The Id')).status).toBe(303);
+    const idClash = await create('id_taken', 'A Fresh Name');
+    expect(idClash.status).toBe(422);
+    expect(idClash.text).toContain('A gallery with the id &quot;gallery_id_taken&quot; already exists. Choose a different Gallery ID.');
+    expect(idClash.text).not.toContain('A gallery named');
+
+    expect((await create('name_taken_a', 'Shared Gallery Name')).status).toBe(303);
+    const nameClash = await create('name_taken_b', 'Shared Gallery Name');
+    expect(nameClash.status).toBe(422);
+    expect(nameClash.text).toContain('A gallery named &quot;Shared Gallery Name&quot; already exists for this owner.');
+  });
+
   it('rejects invalid sortOrder with 422', async () => {
     const res = await request(createApp())
       .post('/admin/curator/galleries')

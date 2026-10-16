@@ -57,6 +57,8 @@ import { runSqliteRead } from './sqliteRetry';
  * slots. Nothing pads it, so the block is as short as recorded usage makes it.
  */
 const BROWSE_POPULAR_LIMIT = 30;
+/** The longest prefix the tag-suggest lookup will search on. */
+const SUGGEST_PREFIX_MAX_LENGTH = 100;
 /** How many event hashtags the recency highlight carries. */
 const BROWSE_HIGHLIGHT_EVENT_LIMIT = 12;
 
@@ -266,8 +268,12 @@ export const hashtagDiscoveryService = {
   },
 
   suggestTags(prefix: string, limit: number = 10): TagSuggestion[] {
+    const trimmed = prefix.trim();
+    // An over-long prefix is answered empty rather than searched, so the public
+    // endpoint cannot be handed arbitrarily long strings to match on.
+    if (trimmed.length > SUGGEST_PREFIX_MAX_LENGTH) return [];
     return runSqliteRead('hashtagDiscoveryService.suggestTags', () => {
-      const normalized = prefix.toLowerCase().replace(/^#/, '');
+      const normalized = trimmed.toLowerCase().replace(/^#/, '');
       if (normalized.length === 0) {
         const popular = tagStats.listPopularPublicTags.all(limit) as PopularTagRow[];
         return popular.map(r => ({

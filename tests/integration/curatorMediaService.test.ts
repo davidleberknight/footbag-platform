@@ -1299,7 +1299,7 @@ describe('curatorMediaService.uploadUrlReference', () => {
     await expect(svc.uploadUrlReference({
       adminMemberId: ADMIN_ID,
       category: 'freestyle_tricks',
-      videoUrl: 'https://www.youtube.com/watch?v=Dmr7zj_c7cY',
+      videoUrl: 'https://www.youtube.com/watch?v=DEADURL0001',
       videoPlatform: 'youtube',
       primarySlug: 'legover',
       title: 'Legover Variation',
@@ -1313,7 +1313,10 @@ describe('curatorMediaService.uploadUrlReference', () => {
     expect(dirContents.some((f) => f.startsWith('legover_'))).toBe(false);
   });
 
-  it('Re-uploading the same URL is idempotent (overwritten=true, content matches)', async () => {
+  // A link already in the library would land on the existing row, keyed by
+  // (platform, url), and silently replace its caption and tags. The second
+  // upload is refused before the availability check or any sidecar write.
+  it('Re-uploading the same URL is refused and leaves the first item and its sidecar as they were', async () => {
     const verifier = makeUrlVerifierStub({ ok: true, status: 200, body: { title: 'X' } });
     const svc = svcModule.createCuratorMediaService({
       storage: makeStubStorage(),
@@ -1336,26 +1339,21 @@ describe('curatorMediaService.uploadUrlReference', () => {
 
     const r1 = await svc.uploadUrlReference(input);
     expect(r1.overwritten).toBe(false);
+    expect(verifier.callCount()).toBe(1);
 
-    const r2 = await svc.uploadUrlReference({ ...input, title: 'second title' });
-    expect(r2.overwritten).toBe(true);
-    expect(r2.filename).toBe(r1.filename);
-    const sidecar = JSON.parse(readFileSync(r2.filePath!, 'utf-8'));
-    expect(sidecar.title).toBe('second title');
+    await expect(svc.uploadUrlReference({ ...input, title: 'second title' }))
+      .rejects.toThrow('That video is already in the curated library. Edit the existing item instead.');
+    expect(verifier.callCount()).toBe(1);
+    const sidecar = JSON.parse(readFileSync(r1.filePath!, 'utf-8'));
+    expect(sidecar.title).toBe('first title');
 
-    // The DB row is upserted on the deterministic (platform, url) id, never
-    // duplicated: exactly one media_items row, carrying the second upload's
-    // caption, with the id both calls returned.
     const expectedId = urlRefMediaId('youtube', 'https://www.youtube.com/watch?v=ZZZ12345678');
     expect(r1.mediaId).toBe(expectedId);
-    expect(r2.mediaId).toBe(expectedId);
     const db = openDb();
     const rows = db.prepare(
       `SELECT id, caption FROM media_items WHERE video_platform = 'youtube' AND video_url = ?`,
     ).all('https://www.youtube.com/watch?v=ZZZ12345678') as { id: string; caption: string }[];
-    expect(rows).toHaveLength(1);
-    expect(rows[0].id).toBe(expectedId);
-    expect(rows[0].caption).toBe('second title');
+    expect(rows).toEqual([{ id: expectedId, caption: 'first title' }]);
     db.close();
   });
 

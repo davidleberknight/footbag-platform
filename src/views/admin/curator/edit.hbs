@@ -24,7 +24,7 @@
     <p>
       Type: <strong>{{content.media.mediaType}}</strong>
       {{#if content.media.isSidecarBacked}}
-        ({{content.media.videoPlatform}} URL reference, sidecar-backed)
+        ({{content.media.videoPlatform}} URL reference{{#if content.sidecarWritesEnabled}}, sidecar-backed{{/if}})
       {{/if}}
       &middot;
       Media id: <code>{{content.media.mediaId}}</code>
@@ -32,8 +32,10 @@
     <p class="text-muted fs-sm">
       The <code>#curated</code> tag is auto-applied and not editable here.
       {{#if content.media.isSidecarBacked}}
+        {{#if content.sidecarWritesEnabled}}
         Edits write through to the sidecar JSON under <code>/curated/</code>;
         the platform DB updates inline. Run the curator seeder to fully resync.
+        {{/if}}
       {{else}}
         File replacement is not supported in-place; delete and re-upload to change the file.
       {{/if}}

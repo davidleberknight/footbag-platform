@@ -10,7 +10,12 @@
  * seeding (`scripts/seed_email_templates.py`).
  *
  * Required patterns: every save appends one `audit_entries` row
- * (`email_template.updated`) in the same transaction as the update.
+ * (`email_template.updated`) in the same transaction as the update. Where the
+ * authoring tree is written (`allowCuratedSidecarWrites`, a developer machine
+ * before go-live), a save also writes the template's committed sidecar,
+ * `curated/email_templates/<key>.json`, after the transaction commits, so the
+ * edit survives the next seeding; on a deployed host the database is the whole
+ * write.
  * Validation enforces the template contract: non-empty subject and body,
  * logic-less single-brace `{token}` syntax, the token set exactly equal to
  * the variant's declared merge-field set (an omitted required token would
@@ -21,6 +26,10 @@
  * (credential-link) templates.
  */
 import { emailTemplates, transaction, type EmailTemplateRow } from '../db/db';
+import { config } from '../config/env';
+import { logger } from '../config/logger';
+import { writeEmailTemplateSidecarFile } from '../lib/emailTemplateSidecar';
+import { resolveCuratedRootDir } from './curatorMediaService';
 import { appendAuditEntry } from './auditService';
 import { NotFoundError, ValidationError } from './serviceErrors';
 import {
@@ -264,5 +273,26 @@ export const emailTemplateAdminService = {
         metadata: { changedFields },
       });
     });
+
+    // On a developer machine before go-live the committed sidecar is the
+    // template's durable source, so the edit is written back to it; the next
+    // seeding would otherwise replace it. A failed write leaves the committed
+    // database change in place and says so.
+    if (config.allowCuratedSidecarWrites) {
+      try {
+        writeEmailTemplateSidecarFile(resolveCuratedRootDir(), {
+          templateKey,
+          subjectTemplate: subject,
+          bodyTemplate: body,
+          piiClassification: classification,
+          isEnabled,
+        });
+      } catch (err) {
+        logger.warn('emailTemplateAdminService: template sidecar write failed', {
+          templateKey,
+          error: (err as Error).message,
+        });
+      }
+    }
   },
 };

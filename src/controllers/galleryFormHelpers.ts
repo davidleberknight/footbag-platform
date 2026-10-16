@@ -1,97 +1,40 @@
-// Shared form-helpers for gallery routes. Used by both the member
-// gallery routes (curatorMediaService.createGallery / updateGallery for
-// owner-edited galleries) and the admin curator gallery routes
-// (FH-owned). Lives outside both controllers so the multipart parser +
-// external-link plumbing don't drift between them.
+// The multipart parser shared by the member-owned and FH-owned gallery forms,
+// kept in one place so it cannot drift between them.
 import type { Request } from 'express';
-import Busboy from 'busboy';
-import { config } from '../config/env';
 import { PHOTO_MAX_BYTES } from '../services/curatorMediaService';
-import type { CuratorGalleryExternalLinkInput } from '../services/curatorMediaService';
+import { readMultipart, type MultipartFile } from '../lib/multipartForm';
 
 const MAX_FILES_PER_GALLERY_SUBMIT = 3;
 
 export interface ParsedGalleryMultipart {
   fields: Record<string, string>;
-  photoFiles: Array<{ buffer: Buffer; filename: string }>;
+  photoFiles: MultipartFile[];
   limitExceeded: boolean;
   // A part that carried bytes but no filename header (malformed upload).
   droppedNamelessFile: boolean;
 }
 
-// Generic multipart parser for the gallery create + update flow. Both
-// the member-owned and FH-owned paths share this so behavior stays in
-// lockstep.
+// Multipart parser for the gallery create + update flow. Both the
+// member-owned and FH-owned paths share this so behavior stays in lockstep.
+// A part sent without a filename is the untouched file input and is skipped.
 export function parseGalleryMultipart(
   req: Request,
   onDone: (result: ParsedGalleryMultipart) => void,
   onError: (err: Error) => void,
 ): void {
-  const fields: Record<string, string> = {};
-  const photoFiles: Array<{ buffer: Buffer; filename: string }> = [];
-  let limitExceeded = false;
-  let droppedNamelessFile = false;
-
-  const busboy = Busboy({
-    headers: req.headers,
-    limits: { fileSize: PHOTO_MAX_BYTES, files: MAX_FILES_PER_GALLERY_SUBMIT, fields: 32 },
-  });
-
-  busboy.on('field', (name, val) => {
-    if (name === 'photoFiles' && val.length > 0) {
-      // A photoFiles part carrying bytes but no filename header is parsed by
-      // busboy as a form field (not a file event), which would otherwise drop
-      // the upload silently. Flag it so the controller surfaces an explicit
-      // error. The normal "no file chosen" submit sends an empty value here
-      // and is ignored.
-      droppedNamelessFile = true;
-      return;
-    }
-    fields[name] = val;
-  });
-
-  busboy.on('file', (name, stream, info) => {
-    if (name !== 'photoFiles') {
-      stream.resume();
-      return;
-    }
-    const chunks: Buffer[] = [];
-    stream.on('data', (chunk: Buffer) => {
-      chunks.push(chunk);
-    });
-    stream.on('limit', () => {
-      limitExceeded = true;
-    });
-    stream.on('end', () => {
-      const filename = info?.filename ?? '';
-      if (!limitExceeded && filename.length > 0) {
-        photoFiles.push({
-          buffer: Buffer.concat(chunks),
-          filename,
-        });
-      }
-    });
-  });
-
-  busboy.on('finish', () => onDone({ fields, photoFiles, limitExceeded, droppedNamelessFile }));
-  busboy.on('error', onError);
-
-  req.pipe(busboy);
-}
-
-// Parses externalLinkLabel<i> + externalLinkUrl<i> form fields into the
-// service-input shape. i ranges 0..(galleryMaxExternalLinks - 1). Empty
-// pairs are dropped (the form may submit blanks for unfilled slots).
-export function parseExternalLinkInputs(
-  fields: Record<string, unknown>,
-): CuratorGalleryExternalLinkInput[] {
-  const out: CuratorGalleryExternalLinkInput[] = [];
-  for (let i = 0; i < config.galleryMaxExternalLinks; i++) {
-    const label = String(fields[`externalLinkLabel${i}`] ?? '');
-    const url = String(fields[`externalLinkUrl${i}`] ?? '');
-    if (!label.trim() && !url.trim()) continue;
-    out.push({ label, url });
-  }
-  return out;
+  readMultipart(
+    req,
+    {
+      limits: { fileSize: PHOTO_MAX_BYTES, files: MAX_FILES_PER_GALLERY_SUBMIT, fields: 32 },
+      fileFields: ['photoFiles'],
+    },
+    ({ fields, files, limitExceeded, droppedNamelessFile }) => onDone({
+      fields,
+      photoFiles: limitExceeded ? [] : (files.photoFiles ?? []).filter((f) => f.filename.length > 0),
+      limitExceeded,
+      droppedNamelessFile,
+    }),
+    onError,
+  );
 }
 

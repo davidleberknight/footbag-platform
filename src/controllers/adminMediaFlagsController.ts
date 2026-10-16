@@ -1,9 +1,15 @@
 import { Request, Response, NextFunction } from 'express';
-import { getDefaultMediaModerationService } from '../services/mediaModerationService';
+import {
+  adminFlagNotice,
+  clearFlagNotice,
+  deleteDecisionNotice,
+  getDefaultMediaModerationService,
+  noActionDecisionNotice,
+  retryRemovalNotice,
+} from '../services/mediaModerationService';
 import { NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { handleControllerError } from '../lib/controllerErrors';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
-import type { OutcomeTone } from '../lib/outcomeNotice';
 
 function sendRateLimited(res: Response, err: RateLimitedError): void {
   if (err.retryAfterSeconds) res.setHeader('Retry-After', String(err.retryAfterSeconds));
@@ -17,44 +23,16 @@ function renderWithError(res: Response, status: number, message: string): void {
   );
 }
 
-/**
- * The banner an administrator reads after a decision. A hidden item whose stored
- * files survived is the one outcome that still needs them, so it says so plainly
- * rather than reporting a clean removal.
- */
-// Each decision carries its own tone. A moderation outcome that left the files
-// in place is not the same event as one that removed them, and an
-// administrator who arrived second changed nothing at all; rendering the three
-// identically is what this map exists to prevent.
-const DECISION_NOTICES: Record<string, [OutcomeTone, string]> = {
-  deleted:            ['ok',   'The item is hidden and its stored files were removed.'],
-  deleted_no_storage: ['no',   'The item is hidden, but its stored files could not be removed. Run Remove again to retry.'],
-  no_action:          ['ok',   'The reports are closed and the item is unchanged.'],
-  already_settled:    ['info', 'Another administrator decided that item first, so nothing changed.'],
-  already_hidden:     ['ok',   'That item was already hidden. The stored files were removed.'],
-  already_hidden_no_storage: ['no', 'That item was already hidden, and its stored files still could not be removed.'],
-  cleared:            ['ok',   'The report is cleared.'],
-  retry_removed:      ['ok',   'The stored files are removed.'],
-  retry_failed:       ['no',   'The stored files still could not be removed. The item stays on the list below until they go.'],
-  retry_not_needed:   ['info', 'That item is visible, so it has no stored files owed.'],
-  flagged:            ['ok',   'Your report was added.'],
-  already_flagged:    ['info', 'You have already reported that item, so nothing changed.'],
-};
-
 export const adminMediaFlagsController = {
   /** GET /admin/media-flags */
   index(req: Request, res: Response, next: NextFunction): void {
     try {
       const flash = readFlash(req);
-      const notice = flash?.kind === FLASH_KIND.MEDIA_MODERATION_DECIDED
-        ? DECISION_NOTICES[String(flash.payload)] ?? undefined
-        : undefined;
+      const decision = flash?.kind === FLASH_KIND.MEDIA_MODERATION_DECIDED ? flash.payload : null;
       if (flash) clearFlash(res, req);
       res.render(
         'admin/media-flags/index',
-        getDefaultMediaModerationService().getAdminMediaFlagsPage(
-          notice ? { noticeTone: notice[0], noticeMessage: notice[1] } : {},
-        ),
+        getDefaultMediaModerationService().getAdminMediaFlagsPage({ decision }),
       );
     } catch (err) {
       handleControllerError(err, res, next, 'admin media flags controller');
@@ -69,12 +47,7 @@ export const adminMediaFlagsController = {
         adminMemberId: req.user!.userId,
         reason:        req.body?.reason,
       });
-      const payload = result.status === 'decided'
-        ? (result.storageRemoved ? 'deleted' : 'deleted_no_storage')
-        : result.status === 'already_hidden'
-          ? (result.storageRemoved ? 'already_hidden' : 'already_hidden_no_storage')
-          : 'already_settled';
-      writeFlash(res, req, FLASH_KIND.MEDIA_MODERATION_DECIDED, payload);
+      writeFlash(res, req, FLASH_KIND.MEDIA_MODERATION_DECIDED, deleteDecisionNotice(result));
       res.redirect(303, '/admin/media-flags');
     } catch (err) {
       if (err instanceof ValidationError) { renderWithError(res, 422, err.message); return; }
@@ -90,10 +63,7 @@ export const adminMediaFlagsController = {
         mediaId:       req.params['mediaId'] ?? '',
         adminMemberId: req.user!.userId,
       });
-      const payload = result.status === 'removed'
-        ? 'retry_removed'
-        : result.status === 'still_failing' ? 'retry_failed' : 'retry_not_needed';
-      writeFlash(res, req, FLASH_KIND.MEDIA_MODERATION_DECIDED, payload);
+      writeFlash(res, req, FLASH_KIND.MEDIA_MODERATION_DECIDED, retryRemovalNotice(result));
       res.redirect(303, '/admin/media-flags');
     } catch (err) {
       if (err instanceof NotFoundError) { renderWithError(res, 404, 'That media item no longer exists.'); return; }
@@ -109,10 +79,7 @@ export const adminMediaFlagsController = {
         adminMemberId: req.user!.userId,
         reason:        req.body?.reason,
       });
-      writeFlash(
-        res, req, FLASH_KIND.MEDIA_MODERATION_DECIDED,
-        result.status === 'decided' ? 'no_action' : 'already_settled',
-      );
+      writeFlash(res, req, FLASH_KIND.MEDIA_MODERATION_DECIDED, noActionDecisionNotice(result));
       res.redirect(303, '/admin/media-flags');
     } catch (err) {
       if (err instanceof ValidationError) { renderWithError(res, 422, err.message); return; }
@@ -130,10 +97,7 @@ export const adminMediaFlagsController = {
         reasonCode:    req.body?.reason_code,
         reasonText:    req.body?.reason_text,
       });
-      writeFlash(
-        res, req, FLASH_KIND.MEDIA_MODERATION_DECIDED,
-        result.status === 'recorded' ? 'flagged' : 'already_flagged',
-      );
+      writeFlash(res, req, FLASH_KIND.MEDIA_MODERATION_DECIDED, adminFlagNotice(result));
       res.redirect(303, '/admin/media-flags');
     } catch (err) {
       if (err instanceof ValidationError)  { renderWithError(res, 422, err.message); return; }
@@ -151,10 +115,7 @@ export const adminMediaFlagsController = {
         adminMemberId: req.user!.userId,
         reason:        req.body?.reason,
       });
-      writeFlash(
-        res, req, FLASH_KIND.MEDIA_MODERATION_DECIDED,
-        result.status === 'cleared' ? 'cleared' : 'already_settled',
-      );
+      writeFlash(res, req, FLASH_KIND.MEDIA_MODERATION_DECIDED, clearFlagNotice(result));
       res.redirect(303, '/admin/media-flags');
     } catch (err) {
       if (err instanceof ValidationError) { renderWithError(res, 422, err.message); return; }

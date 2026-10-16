@@ -343,7 +343,7 @@ Impact:
 
 - Production uses 4GB Lightsail instance with 2 vCPUs, 80GB SSD, 4TB transfer allowance. This will provide adequate headroom for container allocations: 4GB provides sufficient memory for four Docker containers.
 
-- Host shell access uses hardened SSH on two separate paths: each administrator reaches the shared `footbag` account with their own key, and each dev-and-tester reaches only their own named account, on staging only. Ingress to ports 22 and 2222 is Terraform-managed: the administrators' addresses in `operator_cidrs`, joined on staging with each dev-and-tester's own address, read from a parameter per person that onboarding writes and offboarding deletes. Runtime AWS API access uses an assumed-role chain that is independent of operator shell credentials. The two paths never share credentials.
+- Host shell access uses hardened SSH on two separate paths: each administrator reaches the shared `footbag` account with their own key, and each dev-and-tester reaches only their own named account, on staging only. Ingress to ports 22 and 2222 is Terraform-managed: both admit the administrators' addresses in `operator_cidrs`, and on staging port 2222, which every routine connection uses, also admits each dev-and-tester's own address, read from a parameter per person that onboarding writes and offboarding deletes. Port 22 additionally admits the Lightsail browser console, the way back in. Runtime AWS API access uses an assumed-role chain that is independent of operator shell credentials. The two paths never share credentials.
 
 ## 1.7 Docker Containers
 

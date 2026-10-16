@@ -683,11 +683,21 @@ export interface PublicProfileContent {
   vouchNotice: VouchNoticeView | null;
 }
 
+/**
+ * The longest uploaded filename the avatar confirmation repeats back, so a
+ * maliciously long name cannot blow out the banner.
+ */
+export const AVATAR_BANNER_NAME_MAX_LEN = 120;
+
 export interface ProfileEditPageOptions {
   /** Form-level error banner. */
   error?: string;
   avatarError?: string;
-  avatarSuccess?: string;
+  /**
+   * Present when the member has just uploaded a new avatar: the uploaded
+   * file's name for the confirmation, or an empty string when it had none.
+   */
+  avatarUploadedName?: string;
   /**
    * What the member just submitted, layered over the stored row. Supplied on a
    * validation or rate-limit re-render so the form returns their work; omitted
@@ -1486,7 +1496,11 @@ export const memberService = {
     slug: string,
     opts: ProfileEditPageOptions = {},
   ): PageViewModel<ProfileEditContent> {
-    const { error, avatarError, avatarSuccess, submitted } = opts;
+    const { error, avatarError, avatarUploadedName, submitted } = opts;
+    const shownName = avatarUploadedName?.slice(0, AVATAR_BANNER_NAME_MAX_LEN);
+    const avatarSuccess = avatarUploadedName === undefined
+      ? undefined
+      : shownName ? `Avatar updated: ${shownName}` : 'Avatar updated.';
     const row = fetchMemberBySlug(slug);
     // The pickers and the region-required marker follow what the member just
     // chose, not what is stored, so a re-render after a validation error shows

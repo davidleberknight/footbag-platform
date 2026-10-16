@@ -1,4 +1,5 @@
-import express, { Router } from 'express';
+import express, { Router, type RequestHandler } from 'express';
+import { renderNotFound } from '../lib/controllerErrors';
 import { paymentController } from '../controllers/paymentController';
 import { config } from '../config/env';
 import { homeController } from '../controllers/homeController';
@@ -271,11 +272,16 @@ publicRouter.post('/members/:memberKey/media/upload', requireMember, requireTier
 
 // Per-item edit (caption + tags + external URL) and permanent delete.
 // MUST be registered after /media/upload so the literal `upload` segment
-// wins on POST; controller also defends with an `:mediaId === 'upload'` 404.
-publicRouter.get('/members/:memberKey/media/:mediaId/edit',  requireMember, requireTier1Benefits('media'), memberMediaEditController.getEdit);
-publicRouter.post('/members/:memberKey/media/:mediaId/edit', requireMember, requireTier1Benefits('media'), memberMediaEditController.postUpdate);
-publicRouter.get('/members/:memberKey/media/:mediaId/delete',  requireMember, requireTier1Benefits('media'), memberMediaEditController.getDeleteConfirm);
-publicRouter.post('/members/:memberKey/media/:mediaId/delete', requireMember, requireTier1Benefits('media'), memberMediaEditController.postDelete);
+// wins on POST. Defense in depth against a route-ordering regression: the
+// literal segment is refused with a 404 rather than read as a media id.
+const refuseUploadAsMediaId: RequestHandler = (req, res, next) => {
+  if (req.params.mediaId === 'upload') { renderNotFound(res); return; }
+  next();
+};
+publicRouter.get('/members/:memberKey/media/:mediaId/edit',  requireMember, requireTier1Benefits('media'), refuseUploadAsMediaId, memberMediaEditController.getEdit);
+publicRouter.post('/members/:memberKey/media/:mediaId/edit', requireMember, requireTier1Benefits('media'), refuseUploadAsMediaId, memberMediaEditController.postUpdate);
+publicRouter.get('/members/:memberKey/media/:mediaId/delete',  requireMember, requireTier1Benefits('media'), refuseUploadAsMediaId, memberMediaEditController.getDeleteConfirm);
+publicRouter.post('/members/:memberKey/media/:mediaId/delete', requireMember, requireTier1Benefits('media'), refuseUploadAsMediaId, memberMediaEditController.postDelete);
 
 // The catch-all for this prefix, so it decides what every unrecognized
 // /members/<a>/<b> URL looks like — including the old site's member-profile

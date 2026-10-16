@@ -2957,8 +2957,10 @@ CREATE TABLE media_jobs (
   tags             TEXT NOT NULL DEFAULT '',
   source_filename  TEXT,
 
-  -- Set when the job reaches 'succeeded'. ON DELETE SET NULL preserves the
-  -- audit row if the resulting media_items row is later deleted.
+  -- Set when the job reaches 'succeeded', in the same statement that sets the
+  -- state. ON DELETE SET NULL preserves the job row if the resulting
+  -- media_items row is later deleted, so a succeeded row with no media_id is
+  -- one whose item has since been deleted.
   media_id TEXT REFERENCES media_items(id) ON DELETE SET NULL,
 
   -- Failure metadata. last_error is overwritten on each attempt. retry_count
@@ -2976,9 +2978,7 @@ CREATE TABLE media_jobs (
 
   -- Upload window for pending_upload rows. A pending_upload row past it reads
   -- as abandoned; that state is derived when read, never stored.
-  expires_at TEXT,
-
-  CHECK (state <> 'succeeded' OR media_id IS NOT NULL)
+  expires_at TEXT
 );
 
 CREATE INDEX idx_media_jobs_state          ON media_jobs(state, created_at);

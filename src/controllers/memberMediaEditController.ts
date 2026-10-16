@@ -21,29 +21,22 @@
  * Route ordering note: `/members/:memberKey/media/:mediaId/edit` is
  * registered after `/members/:memberKey/media/upload`, so the literal
  * segment `upload` matches the more-specific route first. Defense in
- * depth: this controller refuses `:mediaId === 'upload'` with a 404.
+ * depth: the route refuses `:mediaId === 'upload'` with a 404.
  */
 import { Request, Response, NextFunction } from 'express';
 import { logger } from '../config/logger';
 import {
   getDefaultCuratorMediaService,
   getMemberMediaEditPage,
+  memberGalleriesHref,
+  parseTagList,
   type MemberMediaEditFormValues,
 } from '../services/curatorMediaService';
 import { NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { FLASH_KIND, writeFlash } from '../lib/flashCookie';
 import { renderNotFound } from '../lib/controllerErrors';
-import { isOwnMemberRoute } from '../lib/routeOwnership';
+import { isAdminCaller, isOwnMemberRoute } from '../lib/routeOwnership';
 import { hashtagDiscoveryService, type MemberTagSuggestions } from '../services/hashtagDiscoveryService';
-
-function galleriesHref(memberKey: string): string {
-  return `/members/${memberKey}/galleries`;
-}
-
-
-function parseTagsField(raw: string | undefined): string[] {
-  return (raw ?? '').trim().split(/\s+/).filter((t) => t.length > 0);
-}
 
 const buildSvc = getDefaultCuratorMediaService;
 
@@ -72,36 +65,17 @@ export const memberMediaEditController = {
       renderNotFound(res);
       return;
     }
-    if (req.params.mediaId === 'upload') {
-      // Defense in depth against route-ordering regression: the literal
-      // /media/upload route is meant to match first; if it doesn't,
-      // 404 rather than treat the literal segment as an id.
-      renderNotFound(res);
-      return;
-    }
     try {
       const memberId = req.user!.userId;
       const memberKey = req.params.memberKey;
       const mediaId = req.params.mediaId;
-      const svc = buildSvc();
-      const item = svc.getMemberMediaItem(mediaId, memberId);
-      if (!item) {
+      const formValues = buildSvc().getMemberMediaEditFormValues(mediaId, memberId, req.user!.slug);
+      if (!formValues) {
         renderNotFound(res);
         return;
       }
-      // Strip the auto-applied #by_<slug> uploader marker from the
-      // editable tags string: the user did not type it, the service
-      // re-adds it on save, and surfacing it in the textbox lets the
-      // user accidentally delete it (validateTags would then reject
-      // a free-form #by_* re-add).
-      const uploaderTag = `#by_${req.user!.slug.toLowerCase()}`;
-      const tagsString = item.tags.filter((t) => t.toLowerCase() !== uploaderTag).join(' ');
       const tagSuggestions = hashtagDiscoveryService.getTagSuggestionsForMember(memberId);
-      renderForm(res, memberKey, mediaId, {
-        caption: item.caption ?? '',
-        tags: tagsString,
-        externalUrl: item.externalUrl ?? '',
-      }, { tagSuggestions });
+      renderForm(res, memberKey, mediaId, formValues, { tagSuggestions });
     } catch (err) {
       logger.error('member media edit GET error', { error: err instanceof Error ? err.message : String(err) });
       next(err);
@@ -114,10 +88,6 @@ export const memberMediaEditController = {
       renderNotFound(res);
       return;
     }
-    if (req.params.mediaId === 'upload') {
-      renderNotFound(res);
-      return;
-    }
     const memberKey = req.params.memberKey;
     const mediaId = req.params.mediaId;
     const memberId = req.user!.userId;
@@ -125,7 +95,7 @@ export const memberMediaEditController = {
 
     const captionRaw = String(req.body?.caption ?? '').trim();
     const caption: string | null = captionRaw.length === 0 ? null : captionRaw;
-    const tags = parseTagsField(req.body?.tags);
+    const tags = parseTagList(req.body?.tags);
     const externalUrlRaw = String(req.body?.externalUrl ?? '').trim();
     const externalUrl: string | null = externalUrlRaw.length === 0 ? null : externalUrlRaw;
 
@@ -133,7 +103,7 @@ export const memberMediaEditController = {
       const svc = buildSvc();
       await svc.editMemberMedia({
         memberId,
-        actorIsAdmin: req.user?.role === 'admin',
+        actorIsAdmin: isAdminCaller(req),
         slug,
         mediaId,
         caption,
@@ -141,7 +111,7 @@ export const memberMediaEditController = {
         externalUrl,
       });
       writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, 'edit');
-      res.redirect(303, galleriesHref(memberKey));
+      res.redirect(303, memberGalleriesHref(memberKey));
     } catch (err) {
       if (err instanceof NotFoundError) {
         renderNotFound(res);
@@ -172,7 +142,7 @@ export const memberMediaEditController = {
   /** GET /members/:memberKey/media/:mediaId/delete — confirm page naming the
    * item before the permanent delete below. */
   getDeleteConfirm(req: Request, res: Response, next: NextFunction): void {
-    if (!isOwnMemberRoute(req) || req.params.mediaId === 'upload') {
+    if (!isOwnMemberRoute(req)) {
       renderNotFound(res);
       return;
     }
@@ -200,21 +170,17 @@ export const memberMediaEditController = {
       renderNotFound(res);
       return;
     }
-    if (req.params.mediaId === 'upload') {
-      renderNotFound(res);
-      return;
-    }
     const memberKey = req.params.memberKey;
     const mediaId = req.params.mediaId;
     try {
       const svc = buildSvc();
       await svc.deleteMemberMedia({
         memberId: req.user!.userId,
-        actorIsAdmin: req.user?.role === 'admin',
+        actorIsAdmin: isAdminCaller(req),
         mediaId,
       });
       writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, 'delete');
-      res.redirect(303, galleriesHref(memberKey));
+      res.redirect(303, memberGalleriesHref(memberKey));
     } catch (err) {
       if (err instanceof NotFoundError) {
         renderNotFound(res);

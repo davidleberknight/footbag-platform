@@ -204,3 +204,56 @@ describe('decideDelete — the stored objects', () => {
     expect(auditCount(ITEM_FAILS)).toBe(auditBefore);
   });
 });
+
+describe('the banner an administrator reads after a moderation action', () => {
+  it('reports a removal whose stored files survived as a failure, never as a clean removal', () => {
+    const svc = svcModule.createMediaModerationService({ storage });
+    const clean = svc.getAdminMediaFlagsPage({
+      decision: svcModule.deleteDecisionNotice({ status: 'decided', storageRemoved: true, uploaderNotified: true }),
+    }).page;
+    const leftFiles = svc.getAdminMediaFlagsPage({
+      decision: svcModule.deleteDecisionNotice({ status: 'decided', storageRemoved: false, uploaderNotified: true }),
+    }).page;
+    expect(clean.noticeTone).toBe('ok');
+    expect(leftFiles.noticeTone).toBe('no');
+    expect(leftFiles.notice).not.toBe(clean.notice);
+
+    const hiddenClean = svcModule.deleteDecisionNotice({ status: 'already_hidden', storageRemoved: true });
+    const hiddenLeft = svcModule.deleteDecisionNotice({ status: 'already_hidden', storageRemoved: false });
+    expect(svc.getAdminMediaFlagsPage({ decision: hiddenClean }).page.noticeTone).toBe('ok');
+    expect(svc.getAdminMediaFlagsPage({ decision: hiddenLeft }).page.noticeTone).toBe('no');
+  });
+
+  it('tells a second administrator nothing changed, on every decision that can arrive second', () => {
+    const svc = svcModule.createMediaModerationService({ storage });
+    const second = [
+      svcModule.deleteDecisionNotice({ status: 'already_settled' }),
+      svcModule.noActionDecisionNotice({ status: 'already_settled' }),
+      svcModule.clearFlagNotice({ status: 'already_settled' }),
+      svcModule.adminFlagNotice({ status: 'already_flagged' }),
+      svcModule.retryRemovalNotice({ status: 'not_applicable' }),
+    ];
+    for (const key of second) {
+      expect(svc.getAdminMediaFlagsPage({ decision: key }).page.noticeTone, key).toBe('info');
+    }
+    const firsts = [
+      svcModule.noActionDecisionNotice({ status: 'decided', storageRemoved: false, uploaderNotified: false }),
+      svcModule.clearFlagNotice({ status: 'cleared' }),
+      svcModule.adminFlagNotice({ status: 'recorded', flagId: 'f1' }),
+      svcModule.retryRemovalNotice({ status: 'removed' }),
+    ];
+    for (const key of firsts) {
+      expect(svc.getAdminMediaFlagsPage({ decision: key }).page.noticeTone, key).toBe('ok');
+    }
+    expect(svc.getAdminMediaFlagsPage({
+      decision: svcModule.retryRemovalNotice({ status: 'still_failing' }),
+    }).page.noticeTone).toBe('no');
+  });
+
+  it('lets a refusal outrank a decision banner, so a turned-down request never reads as done', () => {
+    const svc = svcModule.createMediaModerationService({ storage });
+    const refused = svc.getAdminMediaFlagsPage({ decision: 'deleted', errorMessage: 'Give a reason.' }).page;
+    expect(refused.notice).toBe('Give a reason.');
+    expect(refused.noticeTone).toBe('no');
+  });
+});

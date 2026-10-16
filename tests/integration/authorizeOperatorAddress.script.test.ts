@@ -997,12 +997,13 @@ describe('authorize-operator-address checks every port the operator list opens',
     const declared = script.match(/^SSH_PORTS=\(([^)]*)\)/m);
     expect(declared, 'SSH_PORTS is not declared').not.toBeNull();
     const ports = declared![1].trim().split(/\s+/).map(Number).sort((a, b) => a - b);
-    // Production takes the administrators' list as it is. Staging takes that
-    // list joined with the dev-and-tester addresses, so its ports name the
-    // joined local, and the local itself must still contain the list.
+    // Production takes the administrators' list as it is. Staging's routine
+    // port takes that list joined with the dev-and-tester addresses, so it names
+    // the joined local, and the local itself must still contain the list; its
+    // port 22 takes the administrators' list as it is.
     const operatorList: Record<string, RegExp> = {
       production: /cidrs\s*=\s*var\.operator_cidrs\b/,
-      staging: /cidrs\s*=\s*local\.ssh_cidrs\b/,
+      staging: /cidrs\s*=\s*(local\.ssh_cidrs|var\.operator_cidrs)\b/,
     };
     for (const tree of ['staging', 'production']) {
       const tf = readFileSync(join(process.cwd(), `terraform/${tree}/lightsail.tf`), 'utf-8');

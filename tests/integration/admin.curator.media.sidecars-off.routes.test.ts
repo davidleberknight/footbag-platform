@@ -16,7 +16,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
-import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
+import { setTestEnv, createTestDb, cleanupTestDb, importApp, seedEmailTemplates } from '../fixtures/testDb';
 
 const TEST_MEDIA_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-media-admin-sidecars-off-'));
 
@@ -46,6 +46,7 @@ function adminCookie(): string {
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
+  seedEmailTemplates(db);
   insertMember(db, { id: ADMIN_ID, slug: 'curator_admin_sidecars_off', display_name: 'Curator Admin Off', login_email: 'admin-off@example.com', is_admin: 1 });
   insertMember(db, { id: SYSTEM_ID, slug: 'footbag_hacky_sidecars_off_routes', display_name: 'Footbag Hacky', real_name: 'Footbag Hacky', is_system: 1 });
   db.close();
@@ -128,6 +129,26 @@ describe('admin curator pages on a host where the authoring tree is not writable
     expect(res.text).not.toContain('Sidecar saved under');
   });
 
+  // Defect caught: a photo upload refused for want of a category, on a host
+  // where a category names a directory that is never written. Whether the form
+  // needs one follows the authoring-tree flag, not which storage adapter runs.
+  it('accepts a photo with no category, since there is no authoring tree to file it in', async () => {
+    const jpeg = await sharp({ create: { width: 256, height: 256, channels: 3, background: { r: 60, g: 30, b: 200 } } }).jpeg().toBuffer();
+    const caption = `sidecars-off-no-category-${Date.now()}`;
+    const res = await request(createApp())
+      .post('/admin/curator/upload')
+      .set('Cookie', adminCookie())
+      .field('mediaType', 'photo')
+      .field('caption', caption)
+      .attach('mediaFile', jpeg, 'no-category.jpg');
+    expect(res.status).toBe(303);
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    try {
+      const row = db.prepare('SELECT COUNT(*) AS n FROM media_items WHERE caption = ?').get(caption) as { n: number };
+      expect(row.n).toBe(1);
+    } finally { db.close(); }
+  });
+
   // Defect caught: the edit and delete outcomes on a deployed host claim a
   // sidecar was rewritten or removed and send the administrator to the seeder.
   it('reports an edit and a delete without mentioning sidecars or the seeder', async () => {
@@ -165,5 +186,99 @@ describe('admin curator pages on a host where the authoring tree is not writable
     expect(res.status).toBe(200);
     expect(res.text).toContain('No FH-owned named galleries yet. Use the Create button above.');
     expect(res.text).not.toContain('seed_fh_curator.py');
+  });
+});
+
+// The inputs and sentences that exist only to name or describe a sidecar file
+// are absent where no sidecar is written: a deployed host asked for a category
+// and a slug it never uses, and told its administrator about files it never
+// writes.
+describe('curator forms ask for and describe no sidecar where none is written', () => {
+  const VIDEO_URL = 'https://www.youtube.com/watch?v=SIDECAROFF1';
+
+  beforeAll(async () => {
+    const svcMod = await import('../../src/services/curatorMediaService');
+    svcMod.setVideoUrlVerifierForTests(async () => ({ ok: true, status: 200, body: { title: 'off' } }));
+  });
+
+  afterAll(async () => {
+    const svcMod = await import('../../src/services/curatorMediaService');
+    svcMod.resetVideoUrlVerifierForTests();
+  });
+
+  it('the upload form offers no category box and no primary slug', async () => {
+    const res = await request(createApp()).get('/admin/curator/upload').set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('name="primarySlug"');
+    expect(res.text).not.toContain('name="newCategory"');
+    expect(res.text).toContain('name="videoUrl"');
+  });
+
+  it('saves a video link with no slug, then refuses the same link again and leaves the first item as it was', async () => {
+    const send = (title: string) => request(createApp())
+      .post('/admin/curator/upload')
+      .set('Cookie', adminCookie())
+      .field('mediaType', 'url_reference')
+      .field('videoPlatform', 'youtube')
+      .field('videoUrl', VIDEO_URL)
+      .field('title', title)
+      .field('tags', '#zz_first');
+    expect((await send('first title')).status).toBe(303);
+
+    const again = await send('second title');
+    expect(again.status).toBe(422);
+    expect(again.text).toContain('That video is already in the curated library. Edit the existing item instead.');
+
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    try {
+      const row = db.prepare('SELECT caption FROM media_items WHERE video_url = ?').get(VIDEO_URL) as { caption: string };
+      expect(row.caption).toBe('first title');
+    } finally { db.close(); }
+  });
+
+  it('the edit page of a video link says nothing of a sidecar', async () => {
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const { id } = db.prepare('SELECT id FROM media_items WHERE video_url = ?').get(VIDEO_URL) as { id: string };
+    db.close();
+    const res = await request(createApp()).get(`/admin/curator/media/${id}/edit`).set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('URL reference)');
+    expect(res.text).not.toContain('sidecar-backed');
+    expect(res.text).not.toContain('Edits write through');
+  });
+
+  it('the gallery pages describe no JSON sidecar, in the intros or the delete confirmation', async () => {
+    const newPage = await request(createApp()).get('/admin/curator/galleries/new').set('Cookie', adminCookie());
+    expect(newPage.status).toBe(200);
+    expect(newPage.text).not.toContain('/curated/galleries/');
+
+    const created = await request(createApp())
+      .post('/admin/curator/galleries')
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ idSlug: 'zz_off', name: 'ZZ Off', description: '', sortOrder: 'upload_desc', criteriaTags: '#zz_first', excludeTags: '' });
+    expect(created.status).toBe(303);
+    const list = await request(createApp()).get('/admin/curator/galleries').set('Cookie', adminCookie());
+    expect(list.status).toBe(200);
+    expect(list.text).toContain('the Delete action in the row removes it.');
+    expect(list.text).toContain('data-confirm="Delete gallery gallery_zz_off?"');
+    expect(list.text).not.toContain('/curated/galleries/');
+  });
+
+  // A deployed host's database is the template's whole record; writing a
+  // sidecar there would put files on a host whose tree nothing reads.
+  it('an email-template save writes no sidecar', async () => {
+    const res = await request(createApp())
+      .post('/admin/email-templates/gallery_moderated_member/edit')
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({
+        subjectTemplate: 'A change to your gallery',
+        bodyTemplate: 'Hi {memberName}, {whatChanged} on {galleryName}. Note: {note}',
+        piiClassification: 'confidential',
+        isEnabled: '1',
+      });
+    expect(res.status).toBe(303);
+    expect(fs.existsSync(path.join(TEST_MEDIA_DIR, 'email_templates'))).toBe(false);
   });
 });

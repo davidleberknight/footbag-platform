@@ -22,7 +22,7 @@
  * production the guard is a no-op and the admin remains the audit actor.
  *
  * Persistence: reads and writes consecutive_kicks_records. Appends
- * freestyle.consecutive_record.updated to audit_entries.
+ * freestyle.consecutive_record.created, .updated and .deleted to audit_entries.
  */
 import { randomUUID } from 'node:crypto';
 import { consecutiveKicksRecords, transaction } from '../db/db';

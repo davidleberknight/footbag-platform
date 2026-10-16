@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { mediaService, canonicalFilterPath } from '../services/mediaService';
+import { parseTagList } from '../services/curatorMediaService';
 import { handleControllerError } from '../lib/controllerErrors';
 
 export const mediaController = {
@@ -143,12 +144,7 @@ export const mediaController = {
 // Anything else (objects, missing) → empty array.
 function collectQueryArg(raw: unknown): string[] {
   if (Array.isArray(raw)) {
-    return raw.filter((x): x is string => typeof x === 'string').flatMap(splitOnWhitespace);
+    return raw.flatMap(parseTagList);
   }
-  if (typeof raw === 'string') return splitOnWhitespace(raw);
-  return [];
-}
-
-function splitOnWhitespace(s: string): string[] {
-  return s.split(/\s+/).filter((t) => t.length > 0);
+  return parseTagList(raw);
 }

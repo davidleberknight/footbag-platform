@@ -34,6 +34,44 @@ export function publishJobEvent(event: JobEvent): void {
   emitter.emit(EVENT_NAME, event);
 }
 
+function isJobEventState(value: unknown): value is JobEventState {
+  return value === 'claimed' || value === 'retrying' || value === 'succeeded' || value === 'failed';
+}
+
+/**
+ * Validate a state transition as the worker reported it and publish it. A
+ * report without a job id or with an unknown state is refused with the reason,
+ * and nothing is published. Optional fields of the wrong type are dropped, and
+ * a missing timestamp is stamped with the time of receipt.
+ */
+export function publishWorkerJobEvent(
+  raw: unknown,
+): { status: 'published'; event: JobEvent } | { status: 'invalid'; error: string } {
+  const body = (raw ?? {}) as {
+    jobId?: unknown;
+    state?: unknown;
+    mediaId?: unknown;
+    errorMessage?: unknown;
+    occurredAtIso?: unknown;
+  };
+  if (typeof body.jobId !== 'string' || body.jobId.length === 0) {
+    return { status: 'invalid', error: 'jobId required' };
+  }
+  if (!isJobEventState(body.state)) {
+    return { status: 'invalid', error: `invalid state: ${String(body.state)}` };
+  }
+  const event: JobEvent = {
+    jobId: body.jobId,
+    state: body.state,
+    mediaId: typeof body.mediaId === 'string' ? body.mediaId : undefined,
+    errorMessage: typeof body.errorMessage === 'string' ? body.errorMessage : undefined,
+    occurredAtIso:
+      typeof body.occurredAtIso === 'string' ? body.occurredAtIso : new Date().toISOString(),
+  };
+  publishJobEvent(event);
+  return { status: 'published', event };
+}
+
 export type JobEventListener = (event: JobEvent) => void;
 
 /**

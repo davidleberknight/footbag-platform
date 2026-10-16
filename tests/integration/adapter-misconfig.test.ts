@@ -27,7 +27,7 @@ import sharp from 'sharp';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { seedTier1Member } from '../fixtures/personas';
-import { completeOnboarding } from '../fixtures/factories';
+import { completeOnboarding, insertMember } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3099');
 
@@ -45,6 +45,8 @@ beforeAll(async () => {
   const db = createTestDb(dbPath);
   const persona = seedTier1Member(db, { slug: 'misconfig_owner' });
   completeOnboarding(db, persona.memberId);
+  // A gallery create resolves the platform's system member, as production has.
+  insertMember(db, { id: 'member-misconfig-system', slug: 'fh_misconfig', display_name: 'Footbag Hacky', is_system: 1 });
   ownerCookie = persona.cookieHeader;
   ownerSlug = persona.slug;
   db.close();
@@ -151,5 +153,37 @@ describe('Adapter misconfig: avatar upload surfaces 503 truthfully', () => {
     expect(err).toBeInstanceOf(Error);
     expect(err.name).toBe('ImageProcessingError');
     expect(err.status).toBe(503);
+  });
+});
+
+describe('Adapter misconfig: a gallery saved with photos surfaces 503 truthfully', () => {
+  it('image worker down while a new gallery\'s photo uploads -> 503 + unavailable page, not a 500', async () => {
+    expectLoggedError('member gallery upload: image worker unavailable');
+    const fakeFetch: typeof fetch = async () =>
+      new Response(JSON.stringify({ error: 'worker overloaded' }), {
+        status: 503,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    adapterMod.setImageProcessingAdapterForTests(
+      adapterMod.createHttpImageAdapter({
+        baseUrl: 'http://test-injected',
+        internalSecret: 'test-secret',
+        fetchImpl: fakeFetch,
+      }),
+    );
+
+    const res = await request(createApp())
+      .post(`/members/${ownerSlug}/galleries`)
+      .set('Cookie', ownerCookie)
+      .field('name', 'Worker Down')
+      .field('description', '')
+      .field('sortOrder', 'upload_desc')
+      .field('criteriaTags', '')
+      .field('excludeTags', '')
+      .field('uploadTags', '')
+      .attach('photoFiles', await tinyJpeg(), 'down.jpg');
+
+    expect(res.status).toBe(503);
+    expect(res.text).toMatch(/<div class="error-code">503<\/div>/);
   });
 });

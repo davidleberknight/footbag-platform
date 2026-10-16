@@ -23,6 +23,10 @@
  *     sources and creating a new one with a curator-supplied permanent id, so
  *     post-cutover media and assertions can cite a new source. Editing, deleting,
  *     and merging sources are not owned here.
+ *   - The notation authoring funnel: the backlog of Emerging Vocabulary rulings
+ *     that still need a movement notation, authoring a notation draft for one
+ *     with its provenance, and publishing an authored candidate as a new active
+ *     canonical trick.
  *
  * Does not own:
  *   - The public freestyle section pages (FreestyleService is public, read-only).
@@ -118,12 +122,14 @@
  *
  * Persistence: reads and writes freestyle_tricks, freestyle_trick_aliases,
  * freestyle_trick_source_links, freestyle_trick_modifier_links, freestyle_trick_tips,
- * and freestyle_trick_sources; reads freestyle_trick_modifiers. Appends
- * freestyle.trick.updated, freestyle.trick_alias.created/updated/deleted,
+ * freestyle_trick_sources, and freestyle_ev_adjudications; reads
+ * freestyle_trick_modifiers. Appends freestyle.trick.updated,
+ * freestyle.trick.published, freestyle.trick_alias.created/updated/deleted,
  * freestyle.trick_source_link.created/deleted,
  * freestyle.trick_modifier_link.created/deleted,
- * freestyle.trick_tip.edited/hidden/restored/remapped, and
- * freestyle.trick_source.created to audit_entries.
+ * freestyle.trick_tip.edited/reordered/hidden/restored/remapped,
+ * freestyle.trick_source.created, freestyle.adjudication_notation.authored, and
+ * freestyle.adjudication.reconciled to audit_entries.
  */
 import {
   freestyleTricks,

@@ -682,6 +682,68 @@ describe('POST /members/:memberKey/media/upload (photo)', () => {
 
 // ── POST /members/:memberKey/media/upload — video URL ──────────────────────
 
+describe('POST /members/:memberKey/media/upload (gallery picked on the form)', () => {
+  function galleryIdNamed(ownerId: string, name: string): string {
+    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    try {
+      return (db.prepare('SELECT id FROM member_galleries WHERE owner_member_id = ? AND name = ?')
+        .get(ownerId, name) as { id: string }).id;
+    } finally { db.close(); }
+  }
+
+  function tagsOf(mediaId: string): string[] {
+    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    try {
+      return (db.prepare('SELECT tag_display FROM media_tags WHERE media_id = ?').all(mediaId) as Array<{ tag_display: string }>)
+        .map((r) => r.tag_display);
+    } finally { db.close(); }
+  }
+
+  it('a photo uploaded into one of the member\'s own galleries carries that gallery\'s tags, so it shows there', async () => {
+    const app = createApp();
+    const created = await request(app)
+      .post(`/members/${OWNER_SLUG}/galleries`)
+      .set('Cookie', ownerCookie())
+      .type('form')
+      .send({ name: 'Picked Gallery', description: '', sortOrder: 'upload_desc', criteriaTags: '#picked_target', excludeTags: '' });
+    expect(created.status).toBe(303);
+
+    const res = await request(app)
+      .post(`/members/${OWNER_SLUG}/media/upload`)
+      .set('Cookie', ownerCookie())
+      .field('mediaType', 'photo')
+      .field('tags', '#typed_by_member')
+      .field('galleryId', galleryIdNamed(OWNER_ID, 'Picked Gallery'))
+      .attach('photoFile', await makeJpeg({ r: 10, g: 140, b: 30 }), 'picked.jpg');
+    expect(res.status).toBe(303);
+    const rows = ownerPhotoRows('picked.jpg');
+    expect(rows).toHaveLength(1);
+    expect(tagsOf(rows[0].id)).toEqual(expect.arrayContaining(['#typed_by_member', '#picked_target']));
+  });
+
+  it('naming another member\'s gallery adds none of its tags', async () => {
+    const app = createApp();
+    const created = await request(app)
+      .post(`/members/${OTHER_SLUG}/galleries`)
+      .set('Cookie', otherCookie())
+      .type('form')
+      .send({ name: 'Not Yours', description: '', sortOrder: 'upload_desc', criteriaTags: '#other_members_only', excludeTags: '' });
+    expect(created.status).toBe(303);
+
+    const res = await request(app)
+      .post(`/members/${OWNER_SLUG}/media/upload`)
+      .set('Cookie', ownerCookie())
+      .field('mediaType', 'photo')
+      .field('tags', '#typed_by_member')
+      .field('galleryId', galleryIdNamed(OTHER_ID, 'Not Yours'))
+      .attach('photoFile', await makeJpeg({ r: 140, g: 10, b: 30 }), 'not-yours.jpg');
+    expect(res.status).toBe(303);
+    const rows = ownerPhotoRows('not-yours.jpg');
+    expect(rows).toHaveLength(1);
+    expect(tagsOf(rows[0].id)).not.toContain('#other_members_only');
+  });
+});
+
 describe('POST /members/:memberKey/media/upload (video)', () => {
   it('valid YouTube URL -> 303 + media row + #<slug> tag', async () => {
     const app = createApp();

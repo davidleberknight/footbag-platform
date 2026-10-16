@@ -6,12 +6,13 @@
  * which is what separates it from every admin surface, where a signed-in
  * administrator is the whole point.
  *
- * Auth happens inside the controller because shared-secret is the only
- * required signal here; no member-session middleware applies.
+ * The shared secret is the only required signal here, checked by its own
+ * middleware; no member-session middleware applies.
  */
 import { Router } from 'express';
 import { ipcController } from '../controllers/ipcController';
+import { requireInternalSecret } from '../middleware/requireInternalSecret';
 
 export const ipcRouter = Router();
 
-ipcRouter.post('/job-events', ipcController.receiveJobEvent);
+ipcRouter.post('/job-events', requireInternalSecret, ipcController.receiveJobEvent);

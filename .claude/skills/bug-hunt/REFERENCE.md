@@ -50,7 +50,7 @@ The implementation-layer (security/correctness) sweep categories §4.4.1–§4.4
 - Every route in `src/routes/publicRoutes.ts` that touches member-only data must traverse `requireAuth`.
 - Every route in `adminRoutes.ts` already passes `requireAuth + requireAdmin` (mount-level); verify no per-route override skips it.
 - Every route in `internalRoutes.ts` similarly traverses `requireAuth + requireAdmin`.
-- `/ipc/job-events` (ipcRoutes.ts) uses shared-secret auth in the controller, not middleware — verify the controller actually checks the secret on every request.
+- `/ipc/job-events` (ipcRoutes.ts) uses shared-secret auth in the `requireInternalSecret` route middleware, not a session — verify the route mounts that middleware ahead of the controller, so the secret is checked on every request.
 
 #### 4.4.5 Authorization gate misses
 
@@ -73,7 +73,7 @@ For each: assert that the response status code, body shape, and body length are 
 
 - `requireOriginPin` middleware is mounted globally in `src/app.ts` before route registration. Every state-changing verb (POST, PATCH, PUT, DELETE) must traverse it.
 - A new sub-router mounted without inheriting the global middleware (e.g. a route file that constructs its own Express Router and mounts at a different path) would skip the gate. Verify no such mount exists.
-- Routes that explicitly receive CSRF-relevant requests from non-browser clients (the `/ipc/job-events` worker channel) use shared-secret auth in lieu of Origin pinning; verify the controller's shared-secret check is correct.
+- Routes that explicitly receive CSRF-relevant requests from non-browser clients (the `/ipc/job-events` worker channel) use shared-secret auth in lieu of Origin pinning; verify the `requireInternalSecret` middleware's check is correct.
 
 #### 4.4.8 SQL injection / XSS holes
 

@@ -1037,7 +1037,7 @@ A "named gallery" is a stable URL bookmark, not a content bucket. The `member_ga
 
 `admin_member_id REFERENCES members(id)`: the admin who initiated the job. Used for owner-scoped status-page lookups (anti-enumeration: another admin's job appears as 404, same as a job that does not exist) and for the audit entry written on `succeeded`.
 
-`media_id REFERENCES media_items(id) ON DELETE SET NULL`: populated when the job reaches `succeeded`. The FK action preserves the `media_jobs` audit trail if the resulting `media_items` row is later deleted.
+`media_id REFERENCES media_items(id) ON DELETE SET NULL`: populated when the job reaches `succeeded`. The FK action preserves the `media_jobs` audit trail if the resulting `media_items` row is later deleted. A succeeded row whose media_id is NULL is one whose media item has since been deleted.
 
 `retry_count`, `last_error`: failure metadata. `retry_count` increments only on retryable failures; reaching the configured max transitions the job to `failed` (terminal).
 
@@ -1047,7 +1047,6 @@ A "named gallery" is a stable URL bookmark, not a content bucket. The `member_ga
 
 **CHECK constraints:**
 - `state IN ('pending_upload','pending_transcode','processing','succeeded','failed')`
-- `state <> 'succeeded' OR media_id IS NOT NULL`; terminal-state safety: a succeeded row must point at the resulting media item.
 - `kind IN ('curator_video')`
 
 **Indexes:**

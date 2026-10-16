@@ -1,9 +1,7 @@
-{{!-- Curator video upload status page.
-     Current: server-rendered current state is authoritative on first paint
-       and full refresh; the page does not auto-update without a reload.
-     Target: SSE updates the [data-state] block from the data-events-url
-       hook (admin-curator-job-status.js) so the status surface refreshes
-       without operator action. --}}
+{{!-- Curator video upload status page. The server-rendered state is right on
+     first paint and on a full refresh; admin-curator-job-status.js then
+     updates the [data-state] block from the event stream at data-events-url,
+     so the page follows the job without a reload. --}}
 <div class="hero hero-sm">
   <div>
     <h1>{{page.title}}</h1>

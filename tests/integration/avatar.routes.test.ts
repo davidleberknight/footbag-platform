@@ -419,14 +419,12 @@ describe('POST /members/:memberKey/avatar -- file upload', () => {
     expect(editRes.text).toContain('Avatar updated: my-photo.jpg');
   });
 
-  it('avatar over the 5 MB cap is rejected, not stored (busboy truncates at the cap)', async () => {
+  // The avatar cap is AVATAR_MAX_BYTES, 5 MB. Busboy truncates a part at the
+  // cap and ends it normally, so the refusal must come from the parser's
+  // limit signal: counting the delivered bytes never exceeds the cap, and the
+  // member would be told their photo was the wrong type instead of too large.
+  it('avatar one byte over the 5 MB cap is refused as too large, not as the wrong file type', async () => {
     const app = createApp();
-    // Busboy is configured with fileSize: AVATAR_MAX_BYTES (5 MB) and truncates
-    // the stream at the cap, so an over-cap upload can never be stored. The
-    // truncated bytes then fail downstream image validation. The contract
-    // verified here is that an over-cap upload is rejected (422), never a 303
-    // success. (The manual ">cap" guard's dedicated size message is unreachable
-    // because busboy delivers exactly the cap, not more.)
     const tooBig = Buffer.alloc(5 * 1024 * 1024 + 1, 0);
     const res = await request(app)
       .post(`/members/${OWN_SLUG}/avatar`)
@@ -434,6 +432,22 @@ describe('POST /members/:memberKey/avatar -- file upload', () => {
       .attach('avatar', tooBig, 'huge.jpg');
     expect(res.status).toBe(422);
     expect(res.headers.location).toBeUndefined();
+    expect(res.text).toContain('Maximum size is 5 MB');
+    expect(res.text).not.toContain('Only JPEG and PNG images are accepted.');
+  });
+
+  it('avatar exactly at the 5 MB cap is not refused as too large', async () => {
+    const app = createApp();
+    // Zero bytes at the cap: within the size limit, so the refusal it earns is
+    // the file-type one, never the size one.
+    const atCap = Buffer.alloc(5 * 1024 * 1024, 0);
+    const res = await request(app)
+      .post(`/members/${OWN_SLUG}/avatar`)
+      .set('Cookie', ownCookie())
+      .attach('avatar', atCap, 'exact.jpg');
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Only JPEG and PNG images are accepted.');
+    expect(res.text).not.toContain('Maximum size is 5 MB');
   });
 
   it('tampered avatar flash cookie yields no banner', async () => {

@@ -12,7 +12,7 @@
  * form. The item itself stays readable on its own page.
  *
  * Route ordering: /media/upload must match before /media/:mediaId/edit;
- * the controller also guards :mediaId === 'upload' defensively.
+ * the route also guards :mediaId === 'upload' defensively.
  */
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 
@@ -158,7 +158,7 @@ describe('member per-item media edit routes', () => {
   it("GET :mediaId === 'upload' → 404 (literal-segment defense)", async () => {
     // The literal /media/upload GET route is registered before this one
     // and renders the upload form on its own. If route ordering ever
-    // regresses, the controller's :mediaId === 'upload' guard prevents
+    // regresses, the route's :mediaId === 'upload' guard prevents
     // 'upload' from being treated as an id. Reach it by hitting the
     // literal segment with no trailing edit segment is impossible
     // (different route shape), so the guard is exercised indirectly:
@@ -260,6 +260,19 @@ describe('member per-item media edit routes', () => {
       .send({ caption: '', tags: '', externalUrl: '' });
     const tags = findMediaTags(mediaId);
     expect(tags).toEqual([`#by_${OWNER_SLUG}`]);
+  });
+
+  // A hand-made request repeating the tags field arrives as a list, not text;
+  // it must be answered as a submission, never crash the save with a 500.
+  it('POST with the tags field repeated is answered as a save, not a server error', async () => {
+    const mediaId = insertOwnerMedia('owner-repeated-tags.jpg');
+    const res = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/media/${mediaId}/edit`)
+      .set('Cookie', cookieFor(OWNER_ID))
+      .type('form')
+      .send('caption=&externalUrl=&tags=%23one&tags=%23two');
+    expect(res.status).toBe(303);
+    expect(findMediaTags(mediaId)).toEqual([`#by_${OWNER_SLUG}`]);
   });
 
   // Per-item media edit was unlimited per session,

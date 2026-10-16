@@ -52,6 +52,9 @@ import { runSqliteRead } from './sqliteRetry';
 import { appendAuditEntry } from './auditService';
 
 export const AVATAR_MAX_BYTES = 5 * 1024 * 1024;
+// Derived from the limit it enforces, so the two cannot disagree.
+export const AVATAR_TOO_LARGE_MESSAGE =
+  `File is too large. Maximum size is ${Math.floor(AVATAR_MAX_BYTES / (1024 * 1024))} MB.`;
 
 // Avatars carry exactly one tag: the uploader marker `#by_<member_slug>`.
 // No `#curated`, no event/club/freeform tags. The marker exists so the
@@ -113,7 +116,7 @@ export function createAvatarService(deps: AvatarServiceDeps) {
         }
       }
       if (fileBuffer.length > AVATAR_MAX_BYTES) {
-        throw new ValidationError('File is too large. Maximum size is 5 MB.');
+        throw new ValidationError(AVATAR_TOO_LARGE_MESSAGE);
       }
 
       // Cheap reject before crossing the worker process boundary; the worker

@@ -10,9 +10,14 @@
 
 <div class="wrapper">
   <p>
+    {{#if content.sidecarWritesEnabled}}
     Create a new FH-owned named gallery. The Gallery ID becomes the URL slug at
     <code>/media/&lt;id&gt;</code> and the JSON sidecar filename at
     <code>/curated/galleries/&lt;slug&gt;.json</code>.
+    {{else}}
+    Create a new FH-owned named gallery. The Gallery ID becomes the URL slug at
+    <code>/media/&lt;id&gt;</code>.
+    {{/if}}
   </p>
 
   <form method="POST" action="{{content.formAction}}" class="form-block">

@@ -6333,6 +6333,13 @@ export const media = {
     SELECT 1 AS found FROM media_sources WHERE source_id = ?
   `); },
 
+  // Whether any media row holds this id, whatever its owner or moderation
+  // state: a URL-reference upload whose derived id is taken must not replace
+  // the row that holds it.
+  get mediaItemIdExists() { return db.prepare(`
+    SELECT 1 AS found FROM media_items WHERE id = ?
+  `); },
+
   // Caption-only update for curator media. Tags are rewritten via the
   // media_tags helpers (delete + reinsert in a transaction).
   get updateCuratorMediaCaption() { return db.prepare(`

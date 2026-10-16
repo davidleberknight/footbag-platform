@@ -1,11 +1,15 @@
 /**
  * The staging firewall keeps the administrators' SSH addresses on both SSH
- * ports, whatever the dev-and-testers' parameters hold.
+ * ports, and the dev-and-testers' on the routine port, whatever their
+ * parameters hold.
  *
- * Both SSH ports read one joined list. If either port read only the
- * dev-and-testers' addresses, or the join dropped the administrators' list, the
- * next apply would lock every administrator out of staging over SSH, with the
- * plan showing nothing but a firewall replacement.
+ * Port 2222, which every routine connection uses, reads the joined list; port
+ * 22 reads the administrators' list beside the Lightsail console alias. If
+ * 2222 read only the dev-and-testers' addresses, or the join dropped the
+ * administrators' list, the next apply would lock every administrator out of
+ * staging over SSH; if it dropped the dev-and-testers', they would be locked
+ * out. Port 22 listing the dev-and-testers as well is what overran the
+ * instance's address cap, and leaving it empty could admit every address.
  *
  * Read from the HCL as text, as the job-role policy tests are: the suite has no
  * initialized tree and no credential, by design.
@@ -34,12 +38,16 @@ describe('the staging firewall keeps the administrators on SSH', () => {
     );
   });
 
-  it('admits that joined list, and only it, on both SSH ports', () => {
-    const blocks = portBlocks();
-    for (const port of [22, 2222]) {
-      const block = blocks.get(port);
-      expect(block, `no port_info for ${port}`).toBeTruthy();
-      expect(block, `port ${port}`).toMatch(/\n\s+cidrs\s+=\s+local\.ssh_cidrs\s*(\n|$)/);
-    }
+  it('admits that joined list, and only it, on the routine SSH port', () => {
+    const block = portBlocks().get(2222);
+    expect(block, 'no port_info for 2222').toBeTruthy();
+    expect(block, 'port 2222').toMatch(/\n\s+cidrs\s+=\s+local\.ssh_cidrs\s*(\n|$)/);
+  });
+
+  it('admits the administrators\' list and the console alias, and nothing wider, on port 22', () => {
+    const block = portBlocks().get(22);
+    expect(block, 'no port_info for 22').toBeTruthy();
+    expect(block, 'port 22').toMatch(/\n\s+cidrs\s+=\s+var\.operator_cidrs\s*(\n|$)/);
+    expect(block, 'port 22').toMatch(/cidr_list_aliases\s+=\s+\["lightsail-connect"\]/);
   });
 });

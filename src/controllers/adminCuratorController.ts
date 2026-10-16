@@ -1,14 +1,14 @@
 import { Request, Response, NextFunction } from 'express';
-import Busboy from 'busboy';
 import { logger } from '../config/logger';
 import { ImageProcessingError } from '../adapters/imageProcessingAdapter';
 import {
   getDefaultCuratorMediaService,
-  PHOTO_MAX_BYTES,
   VIDEO_MAX_BYTES,
-  VIDEO_MAX_MB,
-  POSTER_MAX_BYTES,
-  isValidCategoryName,
+  fileExceededMessage,
+  updateCuratorGalleryWithUploads,
+  uploadCuratorMedia,
+  parseTagList,
+  createCuratorGallery,
   getCuratorUploadPage,
   getCuratorMediaListPage,
   getCuratorMediaEditPage,
@@ -21,58 +21,29 @@ import {
   getCuratorGalleryNotFoundPage,
   getCuratorJobStatusPage,
   getCuratorJobNotFoundPage,
-  curatorGalleryModerationView,
   type CuratorMediaEditInput,
   type CuratorUploadFormValues,
+  parseExternalLinkInputs,
   type CuratorGalleryFormFields,
 } from '../services/curatorMediaService';
 import { ConflictError, NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
-import { renderInvalidRequest, renderNotFound, renderServiceUnavailable } from '../lib/controllerErrors';
-import {
-  parseExternalLinkInputs,
-  parseGalleryMultipart,
-} from './galleryFormHelpers';
-import { detectImageType } from '../lib/imageProcessing';
-import { getMediaJobService, isAbandonedUpload } from '../services/mediaJobService';
+import { renderImageWorkerUnavailable, renderInvalidRequest, renderNotFound } from '../lib/controllerErrors';
+import { parseGalleryMultipart } from './galleryFormHelpers';
+import { getMediaJobService, jobEventPayload, jobStateSnapshot } from '../services/mediaJobService';
 import { subscribeToJobEvents } from '../services/jobEventBus';
-import {
-  getTranscodeDispatchClient,
-  TranscodeDispatchError,
-} from '../services/transcodeDispatchClient';
 import { config } from '../config/env';
-import { randomUUID } from 'node:crypto';
-import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
+import { FLASH_KIND, writeFlash, takeMediaSavedFlash } from '../lib/flashCookie';
+import { readMultipart, type ParsedMultipart } from '../lib/multipartForm';
 
-type MediaSavedSubKind = 'create' | 'edit' | 'delete' | 'upload';
-
-function readMediaSavedFlag(req: Request, res: Response): MediaSavedSubKind | null {
-  const flash = readFlash(req);
-  if (flash?.kind !== FLASH_KIND.MEDIA_SAVED) return null;
-  clearFlash(res, req);
-  const p = flash.payload;
-  if (p === 'create' || p === 'edit' || p === 'delete' || p === 'upload') return p;
-  return null;
-}
-
-const ALLOWED_VIDEO_CONTENT_TYPES = new Set(['video/mp4', 'video/webm', 'video/quicktime']);
-const ALLOWED_POSTER_CONTENT_TYPES = new Set(['image/jpeg', 'image/png']);
-
-function videoExtFor(contentType: string): string {
-  if (contentType === 'video/mp4') return 'mp4';
-  if (contentType === 'video/webm') return 'webm';
-  if (contentType === 'video/quicktime') return 'mov';
-  return 'bin';
-}
-
-function posterExtFor(contentType: string): string {
-  if (contentType === 'image/jpeg') return 'jpg';
-  if (contentType === 'image/png') return 'png';
-  return 'bin';
-}
-
-function parseTagsField(raw: string | undefined): string[] {
-  return (raw ?? '').trim().split(/\s+/).filter((t) => t.length > 0);
-}
+// The HTTP answer to each way a finalize can be refused. A job another admin
+// owns reads as not found, so job ids cannot be probed.
+const FINALIZE_REFUSAL_STATUS = {
+  invalid: 400,
+  not_found: 404,
+  not_uploaded: 409,
+  too_large: 413,
+  dispatch_failed: 502,
+} as const;
 
 const buildSvc = getDefaultCuratorMediaService;
 
@@ -91,8 +62,7 @@ const PER_FILE_LIMIT = VIDEO_MAX_BYTES;
 // cannot name a limit the check does not enforce. It is correct for a photo
 // part too: the per-file ceiling busboy applies is this one, whatever the part
 // holds.
-const OVERSIZED_FILE_MESSAGE =
-  `File exceeded the maximum allowed size of ${VIDEO_MAX_MB} MB.`;
+const OVERSIZED_FILE_MESSAGE = fileExceededMessage(PER_FILE_LIMIT);
 
 type FormValues = CuratorUploadFormValues;
 
@@ -116,35 +86,12 @@ function renderForm(
   );
 }
 
-// Resolves the form's mutually-exclusive category fields into a single
-// validated category name. Returns either `{ category }` for the caller
-// to use, or `{ errorMessage }` to render at 422. Shared by the photo,
-// video, and url_reference branches of postUpload because all three need
-// the same rules in local-adapter mode.
-function resolveCategoryFromForm(
-  fields: Record<string, string>,
-): { category: string } | { errorMessage: string } {
-  const existingCategory = (fields.category ?? '').trim();
-  const newCategory = (fields.newCategory ?? '').trim();
-  if (existingCategory.length > 0 && newCategory.length > 0) {
-    return { errorMessage: 'Tick an existing category OR type a new category name, not both.' };
-  }
-  if (existingCategory.length === 0 && newCategory.length === 0) {
-    return { errorMessage: 'Tick a category or type a new category name.' };
-  }
-  const category = existingCategory.length > 0 ? existingCategory : newCategory;
-  if (!isValidCategoryName(category)) {
-    return { errorMessage: 'Category name must be lowercase letters, digits, or underscores.' };
-  }
-  return { category };
-}
-
 export const adminCuratorController = {
   async getUpload(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const svc = buildSvc();
       const existingCategories = await svc.listExistingCategories();
-      const savedFlag = readMediaSavedFlag(req, res) === 'upload' ? 'upload' : null;
+      const savedFlag = takeMediaSavedFlash(req, res) === 'upload' ? 'upload' : null;
       renderForm(res, { existingCategories, savedFlag });
     } catch (err) {
       next(err);
@@ -161,70 +108,23 @@ export const adminCuratorController = {
   postUpload(req: Request, res: Response, next: NextFunction): void {
     const adminMemberId = req.user!.userId;
 
-    const fields: Record<string, string> = {};
+    let fields: Record<string, string> = {};
     const fileBuffers: Record<string, Buffer> = {};
     const fileFilenames: Record<string, string> = {};
     let limitExceeded = false;
-    let replied = false;
-
-    const busboy = Busboy({
-      headers: req.headers,
-      // files: 4 — the tabbed form has `mediaFile` inputs in BOTH the
-      // photo panel and the video panel (same name, distinct DOM nodes).
-      // Browsers submit a file part for every file input, even empty ones;
-      // a video upload thus arrives as three file parts (empty mediaFile
-      // from the photo panel + real mediaFile from the video panel +
-      // poster). Capping at 2 silently dropped the poster. 4 has headroom
-      // for the 3 expected parts without admitting genuinely abusive
-      // multi-file submissions.
-      // fields: 24 — the upload form posts up to 10 non-file fields today
-      // (mediaType, newCategory, videoPlatform, videoUrl, primarySlug,
-      // title, sourceId, caption, tags, externalUrl). A cap at or
-      // near the current count silently drops the trailing fields on the
-      // wire, because busboy emits no warning when it truncates. 24 leaves
-      // headroom for near-term form additions without re-tuning.
-      limits: { fileSize: PER_FILE_LIMIT, files: 4, fields: 24 },
-    });
-
-    busboy.on('field', (name, val) => {
-      fields[name] = val;
-    });
-
-    busboy.on('file', (name, stream, info) => {
-      const chunks: Buffer[] = [];
-      if (info && typeof info.filename === 'string' && info.filename.length > 0) {
-        fileFilenames[name] = info.filename;
-      }
-      stream.on('data', (chunk: Buffer) => {
-        chunks.push(chunk);
-      });
-      stream.on('limit', () => {
-        limitExceeded = true;
-        refuseOversized();
-      });
-      stream.on('end', () => {
-        if (!limitExceeded) {
-          fileBuffers[name] = Buffer.concat(chunks);
-        }
-      });
-    });
 
     // A part that crosses the ceiling is refused the moment busboy raises it.
     // Waiting for the parser to finish means waiting for the whole body to
     // arrive, so an upload that was never going to be accepted still costs the
     // curator the entire transfer: ten minutes of progress bar ending in a
-    // refusal the first megabyte already justified. Unpiping stops the parse,
+    // refusal the first megabyte already justified. The reader stops the parse,
     // and closing the connection once the reply has flushed stops the browser
     // sending the rest of a file nothing will read.
     //
     // Fields the browser sends after the file part have not been parsed yet, so
     // the re-rendered form carries only what arrived before the overrun. That
     // is the deliberate trade: a caption to retype costs less than the wait.
-    function refuseOversized(): void {
-      if (replied) return;
-      replied = true;
-      req.unpipe(busboy);
-      busboy.removeAllListeners();
+    function refuseOversized(fieldsSoFar: Record<string, string>): void {
       void (async () => {
         try {
           const existingCategories = await buildSvc().listExistingCategories();
@@ -234,9 +134,9 @@ export const adminCuratorController = {
           renderForm(res.status(422), {
             errorMessage: OVERSIZED_FILE_MESSAGE,
             formValues: {
-              mediaType: fields.mediaType,
-              caption: fields.caption,
-              tags: fields.tags,
+              mediaType: fieldsSoFar.mediaType,
+              caption: fieldsSoFar.caption,
+              tags: fieldsSoFar.tags,
             },
             existingCategories,
           });
@@ -246,8 +146,16 @@ export const adminCuratorController = {
       })();
     }
 
-    busboy.on('finish', () => {
-      if (replied) return;
+    function onParsed(parsed: ParsedMultipart): void {
+      fields = parsed.fields;
+      limitExceeded = parsed.limitExceeded;
+      // The photo and video panels share the `mediaFile` name, so the last part
+      // under a name supplies its bytes and the last named part its filename.
+      for (const [name, parts] of Object.entries(parsed.files)) {
+        fileBuffers[name] = parts[parts.length - 1].buffer;
+        const named = parts.filter((p) => p.filename.length > 0);
+        if (named.length > 0) fileFilenames[name] = named[named.length - 1].filename;
+      }
       void handleFinish().catch((err: unknown) => {
         if (err instanceof ValidationError) {
           renderForm(res.status(422), {
@@ -257,11 +165,7 @@ export const adminCuratorController = {
           return;
         }
         if (err instanceof ImageProcessingError) {
-          logger.error('admin upload: image worker unavailable', {
-            error: err.message,
-            status: err.status,
-          });
-          renderServiceUnavailable(res);
+          renderImageWorkerUnavailable(res, 'admin upload: image worker unavailable', err);
           return;
         }
         if (err instanceof RateLimitedError) {
@@ -271,27 +175,11 @@ export const adminCuratorController = {
         logger.error('admin upload error', { error: err instanceof Error ? err.message : String(err) });
         next(err);
       });
-    });
-
-    busboy.on('error', (err: Error) => {
-      logger.error('busboy parse error', { error: err.message });
-      next(err);
-    });
+    }
 
     async function handleFinish(): Promise<void> {
-      const mediaType = fields.mediaType;
-      const captionRaw = (fields.caption ?? '').trim();
-      const caption = captionRaw.length === 0 ? null : captionRaw;
-      const tags = (fields.tags ?? '')
-        .trim()
-        .split(/\s+/)
-        .filter((t) => t.length > 0);
-      // External URL: empty string -> null; trimmed value -> service-side validation.
-      // Validation lives in the service; the controller only normalises the empty-string sentinel.
-      const externalUrlRaw = (fields.externalUrl ?? '').trim();
-      const externalUrl: string | null = externalUrlRaw.length === 0 ? null : externalUrlRaw;
       const formValues: FormValues = {
-        mediaType,
+        mediaType: fields.mediaType,
         caption: fields.caption ?? '',
         tags: fields.tags ?? '',
         category: fields.category ?? '',
@@ -318,209 +206,62 @@ export const adminCuratorController = {
         return;
       }
 
-      if (mediaType !== 'photo' && mediaType !== 'video' && mediaType !== 'url_reference') {
-        renderForm(res.status(422), {
-          errorMessage: 'Choose a media type (photo, video, or url_reference).',
-          formValues,
-          existingCategories,
-        });
+      const result = await uploadCuratorMedia(svc, {
+        adminMemberId,
+        fields,
+        mediaFile: fileBuffers.mediaFile
+          ? { buffer: fileBuffers.mediaFile, filename: fileFilenames.mediaFile ?? '' }
+          : null,
+        poster: fileBuffers.poster ?? null,
+      });
+      if (result.status === 'refused') {
+        renderForm(res.status(result.httpStatus), { errorMessage: result.message, formValues, existingCategories });
         return;
-      }
-
-      if (mediaType === 'url_reference') {
-        const videoUrl = (fields.videoUrl ?? '').trim();
-        const videoPlatformRaw = (fields.videoPlatform ?? '').trim();
-        const primarySlug = (fields.primarySlug ?? '').trim().toLowerCase();
-        const titleRaw = (fields.title ?? '').trim();
-        const title = titleRaw.length === 0 ? null : titleRaw;
-        const sourceIdRaw = (fields.sourceId ?? '').trim();
-        const sourceId = sourceIdRaw.length === 0 ? null : sourceIdRaw;
-
-        if (videoPlatformRaw !== 'youtube' && videoPlatformRaw !== 'vimeo') {
-          renderForm(res.status(422), { errorMessage: 'Choose YouTube or Vimeo.', formValues, existingCategories });
-          return;
-        }
-        if (videoUrl.length === 0) {
-          renderForm(res.status(422), { errorMessage: 'Paste a YouTube or Vimeo URL.', formValues, existingCategories });
-          return;
-        }
-        if (primarySlug.length === 0) {
-          renderForm(res.status(422), { errorMessage: 'Provide a primary slug for the sidecar filename.', formValues, existingCategories });
-          return;
-        }
-        // The category picks a directory in the authoring tree, so the form only
-        // asks for one where that tree is written. Everywhere else the database
-        // row is the whole write and there is nowhere for a category to go.
-        let resolvedCategory = '';
-        if (config.allowCuratedSidecarWrites) {
-          const categoryResult = resolveCategoryFromForm(fields);
-          if ('errorMessage' in categoryResult) {
-            renderForm(res.status(422), { errorMessage: categoryResult.errorMessage, formValues, existingCategories });
-            return;
-          }
-          resolvedCategory = categoryResult.category;
-        }
-
-        try {
-          await svc.uploadUrlReference({
-            adminMemberId,
-            category: resolvedCategory,
-            videoUrl,
-            videoPlatform: videoPlatformRaw,
-            primarySlug,
-            title,
-            sourceId,
-            startSeconds: null,
-            endSeconds: null,
-            tags,
-            ...(externalUrl !== null && { externalUrl }),
-          });
-        } catch (err) {
-          if (err instanceof ValidationError) {
-            renderForm(res.status(422), { errorMessage: err.message, formValues, existingCategories });
-            return;
-          }
-          throw err;
-        }
-        writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, 'upload');
-        res.redirect(303, '/admin/curator/upload');
-        return;
-      }
-
-      const sourceFilename = fileFilenames.mediaFile ?? '';
-
-      // Photo + video: in local-adapter mode the upload writes to
-      // /curated/{category}/ as the durable source of truth, plus an inline
-      // storage.put + media_items insert as a read-path cache. In S3-adapter
-      // mode the upload writes direct to S3 + DB; no /curated/ involvement.
-      // Category is required in local mode (picks the /curated/ subdir); ignored in S3 mode.
-      const localCuratedMode = config.mediaStorageAdapter === 'local';
-      let resolvedCategoryForBinary: string | undefined;
-      if (localCuratedMode) {
-        const categoryResult = resolveCategoryFromForm(fields);
-        if ('errorMessage' in categoryResult) {
-          renderForm(res.status(422), { errorMessage: categoryResult.errorMessage, formValues, existingCategories });
-          return;
-        }
-        resolvedCategoryForBinary = categoryResult.category;
-      }
-
-      if (mediaType === 'photo') {
-        const photoBuffer = fileBuffers.mediaFile;
-        if (!photoBuffer || photoBuffer.length === 0) {
-          renderForm(res.status(422), { errorMessage: 'Please select a photo to upload.', formValues, existingCategories });
-          return;
-        }
-        try {
-          await svc.uploadPhoto({
-            adminMemberId,
-            photoBuffer,
-            sourceFilename,
-            caption,
-            tags,
-            ...(resolvedCategoryForBinary && { category: resolvedCategoryForBinary }),
-            ...(externalUrl !== null && { externalUrl }),
-          });
-        } catch (err) {
-          if (err instanceof ValidationError) {
-            renderForm(res.status(422), { errorMessage: err.message, formValues, existingCategories });
-            return;
-          }
-          throw err;
-        }
-        writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, 'upload');
-        res.redirect(303, '/admin/curator/upload');
-        return;
-      }
-
-      // mediaType === 'video'
-      if (!localCuratedMode) {
-        // S3-adapter mode: synchronous multipart video upload is
-        // unavailable. Video bytes flow browser → S3 (presigned PUT) →
-        // /finalize → worker per DD §6.8. The async path requires
-        // JavaScript; the noscript banner on the form warns about that.
-        // A request landing here means JS was off or failed to load.
-        // 410 Gone is the right code: the sync video endpoint is
-        // permanently removed for S3-mode environments. The operator-run
-        // curator seeding script still calls uploadVideo directly (not
-        // through HTTP), and local-mode dev uses the branch below.
-        renderForm(res.status(410), {
-          errorMessage:
-            'Synchronous video upload via this form is disabled in this environment. Enable JavaScript and reload the page; video uploads run as background transcode jobs.',
-          formValues,
-          existingCategories,
-        });
-        return;
-      }
-
-      // Local-adapter mode video sync upload. Bytes arrive over multipart,
-      // the service writes the source binary + poster + sidecar under
-      // /curated/{category}/, and the inline transcoded copy lands in the
-      // local media store so the dev gallery reflects the upload
-      // immediately. Direct multipart of large videos is acceptable here
-      // because dev runs against localhost (no nginx/CloudFront in the
-      // path).
-      const videoBuffer = fileBuffers.mediaFile;
-      const posterBuffer = fileBuffers.poster;
-      if (!videoBuffer || videoBuffer.length === 0) {
-        renderForm(res.status(422), { errorMessage: 'Please select a video to upload.', formValues, existingCategories });
-        return;
-      }
-      if (!posterBuffer || posterBuffer.length === 0) {
-        renderForm(res.status(422), { errorMessage: 'Please select a poster image for the video.', formValues, existingCategories });
-        return;
-      }
-      try {
-        await svc.uploadVideo({
-          adminMemberId,
-          videoBuffer,
-          posterBuffer,
-          sourceFilename,
-          caption,
-          tags,
-          ...(resolvedCategoryForBinary && { category: resolvedCategoryForBinary }),
-          ...(externalUrl !== null && { externalUrl }),
-        });
-      } catch (err) {
-        if (err instanceof ValidationError) {
-          renderForm(res.status(422), { errorMessage: err.message, formValues, existingCategories });
-          return;
-        }
-        throw err;
       }
       writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, 'upload');
       res.redirect(303, '/admin/curator/upload');
     }
 
-    req.pipe(busboy);
+    readMultipart(
+      req,
+      {
+        // files: 4 — the tabbed form has `mediaFile` inputs in BOTH the
+        // photo panel and the video panel (same name, distinct DOM nodes).
+        // Browsers submit a file part for every file input, even empty ones;
+        // a video upload thus arrives as three file parts (empty mediaFile
+        // from the photo panel + real mediaFile from the video panel +
+        // poster). Capping at 2 silently dropped the poster. 4 has headroom
+        // for the 3 expected parts without admitting genuinely abusive
+        // multi-file submissions.
+        // fields: 24 — the upload form posts up to 10 non-file fields today
+        // (mediaType, newCategory, videoPlatform, videoUrl, primarySlug,
+        // title, sourceId, caption, tags, externalUrl). A cap at or
+        // near the current count silently drops the trailing fields on the
+        // wire, because busboy emits no warning when it truncates. 24 leaves
+        // headroom for near-term form additions without re-tuning.
+        limits: { fileSize: PER_FILE_LIMIT, files: 4, fields: 24 },
+        onLimit: refuseOversized,
+      },
+      onParsed,
+      (err) => {
+        logger.error('busboy parse error', { error: err.message });
+        next(err);
+      },
+    );
   },
 
   getList(req: Request, res: Response, next: NextFunction): void {
     try {
       const pageRaw = parseInt(String(req.query.page ?? '1'), 10);
       const page = Number.isFinite(pageRaw) && pageRaw > 0 ? pageRaw : 1;
-      const tagFilterRaw = typeof req.query.tag === 'string' ? req.query.tag.trim() : '';
-      const tagFilter = tagFilterRaw.length > 0 ? tagFilterRaw : undefined;
-      // Sort: closed enum mirrored from CuratorMediaListInput.sort. Unknown
-      // values silently fall back to date_desc; sort is a UX preference, not
-      // a contract violation worth a 422.
-      const sortRaw = typeof req.query.sort === 'string' ? req.query.sort : '';
-      const sort: 'date_desc' | 'date_asc' | 'type_asc' | 'caption_asc' =
-        sortRaw === 'date_asc' || sortRaw === 'type_asc' || sortRaw === 'caption_asc'
-          ? sortRaw
-          : 'date_desc';
-      const savedFlagRaw = readMediaSavedFlag(req, res);
-      const savedFlag = savedFlagRaw === 'edit' || savedFlagRaw === 'delete' ? savedFlagRaw : null;
-
-      const confirmDeleteId = typeof req.query.confirmDelete === 'string' ? req.query.confirmDelete : null;
       res.render(
         'admin/curator/list',
         getCuratorMediaListPage(buildSvc(), {
           page,
-          tagFilter: tagFilter ?? null,
-          sort,
-          confirmDeleteId,
-          savedFlag,
+          tagFilter: typeof req.query.tag === 'string' ? req.query.tag : null,
+          sort: typeof req.query.sort === 'string' ? req.query.sort : null,
+          confirmDeleteId: typeof req.query.confirmDelete === 'string' ? req.query.confirmDelete : null,
+          savedFlag: takeMediaSavedFlash(req, res),
         }),
       );
     } catch (err) {
@@ -556,7 +297,7 @@ export const adminCuratorController = {
       const adminMemberId = req.user!.userId;
       const captionRaw = (req.body?.caption ?? '').trim();
       const caption = captionRaw.length === 0 ? null : captionRaw;
-      const tags = parseTagsField(req.body?.tags);
+      const tags = parseTagList(req.body?.tags);
 
       // URL-ref sidecar fields. Sent as form inputs from the edit page;
       // empty string is treated as null (clears the sidecar field).
@@ -589,13 +330,20 @@ export const adminCuratorController = {
           return;
         }
         if (err instanceof ValidationError) {
-          res.status(422).render(
-            'admin/curator/edit',
-            getCuratorMediaEditErrorPage(mediaId, err.message, {
-              caption: req.body?.caption ?? '',
-              tagsString: req.body?.tags ?? '',
-            }),
-          );
+          const typed = (v: unknown): string | undefined => (typeof v === 'string' ? v : undefined);
+          const page = await getCuratorMediaEditErrorPage(svc, mediaId, err.message, {
+            caption: req.body?.caption ?? '',
+            tagsString: req.body?.tags ?? '',
+            sourceId: typed(req.body?.sourceId),
+            startSeconds: typed(req.body?.startSeconds),
+            endSeconds: typed(req.body?.endSeconds),
+            externalUrl: typed(req.body?.externalUrl),
+          });
+          if (!page) {
+            res.status(404).render('admin/curator/edit', getCuratorMediaNotFoundPage(mediaId));
+            return;
+          }
+          res.status(422).render('admin/curator/edit', page);
           return;
         }
         throw err;
@@ -610,7 +358,7 @@ export const adminCuratorController = {
   /** GET /admin/curator/galleries — list FH-owned named galleries. */
   getGalleryList(req: Request, res: Response, next: NextFunction): void {
     try {
-      const savedFlag = readMediaSavedFlag(req, res);
+      const savedFlag = takeMediaSavedFlash(req, res);
       const svc = buildSvc();
       const confirmDeleteId = typeof req.query.confirmDelete === 'string' ? req.query.confirmDelete : null;
       res.render(
@@ -632,20 +380,16 @@ export const adminCuratorController = {
     try {
       const actorMemberId = req.user!.userId;
       const slug = String(req.body?.idSlug ?? '').trim();
-      const suggestedId = slug ? `gallery_${slug}` : '';
       const name = String(req.body?.name ?? '');
       const description = String(req.body?.description ?? '');
       const sortOrderRaw = String(req.body?.sortOrder ?? '');
-      const criteriaTags = parseTagsField(req.body?.criteriaTags);
-      const excludeTags = parseTagsField(req.body?.excludeTags);
+      const criteriaTags = parseTagList(req.body?.criteriaTags);
+      const excludeTags = parseTagList(req.body?.excludeTags);
 
-      const svc = buildSvc();
       try {
-        await svc.createGallery({
+        await createCuratorGallery(buildSvc(), {
           actorMemberId,
-          actorIsAdmin: true,
-          ownerMemberId: svc.getSystemMemberId(),
-          suggestedId,
+          idSlug: slug,
           updates: { name, description, sortOrder: sortOrderRaw, criteriaTags, excludeTags },
         });
         writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, 'create');
@@ -714,8 +458,8 @@ export const adminCuratorController = {
       const name = String(req.body?.name ?? '');
       const description = String(req.body?.description ?? '');
       const sortOrderRaw = String(req.body?.sortOrder ?? '');
-      const criteriaTags = parseTagsField(req.body?.criteriaTags);
-      const excludeTags = parseTagsField(req.body?.excludeTags);
+      const criteriaTags = parseTagList(req.body?.criteriaTags);
+      const excludeTags = parseTagList(req.body?.excludeTags);
       const externalLinks = parseExternalLinkInputs(req.body ?? {});
       const reasonRaw = String(req.body?.reason ?? '');
 
@@ -833,81 +577,28 @@ export const adminCuratorController = {
    * The admin browser, after picking a video + poster + caption + tags, calls
    * this endpoint to get presigned PUT URLs. The browser then PUTs the bytes
    * directly to S3 (bypassing nginx and CloudFront for the body) and finally
-   * POSTs /finalize with the jobId. This handler creates the media_jobs row
-   * in 'pending_upload' state and returns the URLs.
-   *
-   * Validates per-type size and content-type before issuing URLs. The browser-
-   * supplied size is a hint; the worker-side finalize re-checks the actual S3
-   * object size at HEAD time before transcoding.
+   * POSTs /finalize with the jobId. The service checks the claimed files,
+   * creates the media_jobs row in 'pending_upload' state and signs the URLs;
+   * a refusal answers 400 with its reason.
    */
   async postSignUpload(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const adminMemberId = req.user!.userId;
       const body = (req.body ?? {}) as Record<string, unknown>;
-      const videoFilename = String(body.videoFilename ?? '').trim();
-      const videoContentType = String(body.videoContentType ?? '').trim();
-      const videoSizeBytes = Number(body.videoSizeBytes);
-      const posterContentType = String(body.posterContentType ?? '').trim();
-      const posterSizeBytes = Number(body.posterSizeBytes);
-      const caption = body.caption ? String(body.caption).trim() : '';
-      const tags = String(body.tags ?? '');
-
-      if (!videoFilename) {
-        res.status(400).json({ error: 'videoFilename required' });
-        return;
-      }
-      if (!ALLOWED_VIDEO_CONTENT_TYPES.has(videoContentType)) {
-        res.status(400).json({ error: 'Only MP4, WebM, and MOV videos are accepted.' });
-        return;
-      }
-      if (!ALLOWED_POSTER_CONTENT_TYPES.has(posterContentType)) {
-        res.status(400).json({ error: 'Poster must be a JPEG or PNG image.' });
-        return;
-      }
-      if (!Number.isInteger(videoSizeBytes) || videoSizeBytes <= 0) {
-        res.status(400).json({ error: 'videoSizeBytes must be a positive integer.' });
-        return;
-      }
-      if (videoSizeBytes > VIDEO_MAX_BYTES) {
-        res.status(400).json({ error: `Video is too large. Maximum size is ${VIDEO_MAX_MB} MB.` });
-        return;
-      }
-      if (!Number.isInteger(posterSizeBytes) || posterSizeBytes <= 0) {
-        res.status(400).json({ error: 'posterSizeBytes must be a positive integer.' });
-        return;
-      }
-      if (posterSizeBytes > POSTER_MAX_BYTES) {
-        res.status(400).json({ error: 'Poster is too large. Maximum size is 25 MB.' });
-        return;
-      }
-
-      const jobId = `mediajob_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
-      const prefix = config.mediaPendingUploadPrefix;
-      const sourceVideoKey = `${prefix}${jobId}/source.${videoExtFor(videoContentType)}`;
-      const sourcePosterKey = `${prefix}${jobId}/poster.${posterExtFor(posterContentType)}`;
-      const ttl = config.mediaPresignedPutTtlSeconds;
-      const expiresAtIso = new Date(Date.now() + ttl * 1000).toISOString();
-
-      const { videoUrl, posterUrl } = await getDefaultCuratorMediaService().signCuratorUploadTargets({
-        sourceVideoKey,
-        videoContentType,
-        sourcePosterKey,
-        posterContentType,
-        ttlSeconds: ttl,
+      const result = await getDefaultCuratorMediaService().beginCuratorVideoUpload({
+        adminMemberId: req.user!.userId,
+        videoFilename: String(body.videoFilename ?? ''),
+        videoContentType: String(body.videoContentType ?? ''),
+        videoSizeBytes: Number(body.videoSizeBytes),
+        posterContentType: String(body.posterContentType ?? ''),
+        posterSizeBytes: Number(body.posterSizeBytes),
+        caption: body.caption ? String(body.caption) : '',
+        tags: String(body.tags ?? ''),
       });
-
-      getMediaJobService().createPendingUploadJob({
-        jobId,
-        kind: 'curator_video',
-        adminMemberId,
-        sourceVideoKey,
-        sourcePosterKey,
-        caption: caption.length === 0 ? null : caption,
-        tags,
-        sourceFilename: videoFilename,
-        expiresAtIso,
-      });
-
+      if (result.status === 'invalid') {
+        res.status(400).json({ error: result.error });
+        return;
+      }
+      const { jobId, videoUrl, posterUrl, expiresAtIso } = result;
       res.json({ jobId, videoUrl, posterUrl, expiresAtIso });
     } catch (err) {
       next(err);
@@ -931,91 +622,16 @@ export const adminCuratorController = {
     // would 429 a benign browser retry of an already-authorized, already-throttled
     // upload, which is precisely the retry the stranded-dispatch path depends on.
     try {
-      const adminMemberId = req.user!.userId;
       const jobId = String((req.body as Record<string, unknown> | undefined)?.jobId ?? '').trim();
-      if (!jobId) {
-        res.status(400).json({ error: 'jobId required' });
-        return;
-      }
-
-      const job = getMediaJobService().getJobForAdmin(jobId, adminMemberId);
-      if (!job) {
-        // Anti-enumeration: not-found and not-owned look the same.
-        res.status(404).json({ error: 'job not found' });
-        return;
-      }
-      if (!job.source_video_key || !job.source_poster_key) {
-        res.status(409).json({ error: 'job has no source keys' });
-        return;
-      }
-
-      const { videoSize, posterSize } = await getDefaultCuratorMediaService().headCuratorUploadSizes({
-        sourceVideoKey: job.source_video_key,
-        sourcePosterKey: job.source_poster_key,
-      });
-      if (videoSize === null || posterSize === null) {
-        res.status(409).json({ error: 'source files have not been uploaded yet' });
-        return;
-      }
-      // The presigned PUT binds content-type but cannot bind size, so the
-      // sign-time check only saw a client-reported number; this is the first
-      // point the actual uploaded bytes can be measured. Reject before
-      // markPendingTranscode so the worker is never dispatched an oversized
-      // source.
-      if (videoSize > VIDEO_MAX_BYTES) {
-        res.status(413).json({ error: `Video is too large. Maximum size is ${VIDEO_MAX_MB} MB.` });
-        return;
-      }
-      if (posterSize > POSTER_MAX_BYTES) {
-        res.status(413).json({ error: 'Poster is too large. Maximum size is 25 MB.' });
-        return;
-      }
-
-      try {
-        getMediaJobService().markPendingTranscode(jobId, adminMemberId);
-      } catch (err) {
-        if (err instanceof ConflictError) {
-          // Already past pending_upload; treat as idempotent success and
-          // re-dispatch (worker dispatch is itself idempotent because
-          // claimForProcessing only succeeds when state=pending_transcode).
-          logger.info('finalize: job already past pending_upload', {
-            jobId,
-            currentState: job.state,
-          });
-        } else {
-          throw err;
-        }
-      }
-
-      try {
-        await getTranscodeDispatchClient().dispatch(jobId);
-      } catch (err) {
-        if (err instanceof TranscodeDispatchError) {
-          // The worker answers 409 when the row is no longer awaiting
-          // transcode, which is what a second finalize on an already-claimed
-          // job looks like from here. Nothing is wrong in that case: the job
-          // this call was asked to start is already running, so the caller is
-          // told the same thing the first call told it.
-          if (err.status === 409) {
-            logger.info('finalize: worker already claimed this job', { jobId });
-          } else {
-            logger.error('finalize: worker dispatch failed', {
-              jobId,
-              error: err.message,
-              status: err.status,
-            });
-            res.status(502).json({ error: 'worker dispatch failed' });
-            return;
-          }
-        } else {
-          throw err;
-        }
-      }
-
-      res.json({
+      const result = await getDefaultCuratorMediaService().finalizeCuratorVideoUpload(
         jobId,
-        statusUrl: `/admin/curator/upload/jobs/${encodeURIComponent(jobId)}`,
-      });
+        req.user!.userId,
+      );
+      if (result.status !== 'dispatched') {
+        res.status(FINALIZE_REFUSAL_STATUS[result.status]).json({ error: result.error });
+        return;
+      }
+      res.json({ jobId, statusUrl: result.statusUrl });
     } catch (err) {
       next(err);
     }
@@ -1088,19 +704,10 @@ export const adminCuratorController = {
       }
     }
 
-    // Initial snapshot so a refresh past the live events still shows state.
-    writeSse('state', {
-      state: isAbandonedUpload(job, new Date().toISOString()) ? 'abandoned' : job.state,
-      mediaId: job.media_id,
-      errorMessage: job.last_error,
-    });
+    writeSse('state', jobStateSnapshot(job, new Date().toISOString()));
 
     const unsubscribe = subscribeToJobEvents(jobId, (event) => {
-      writeSse('state', {
-        state: event.state,
-        mediaId: event.mediaId ?? null,
-        errorMessage: event.errorMessage ?? null,
-      });
+      writeSse('state', jobEventPayload(event));
     });
 
     const heartbeat = setInterval(() => {
@@ -1161,6 +768,10 @@ function handleCuratorGalleryEditMultipart(
       void executeCuratorGalleryEditMultipart({
         req, res, galleryId, ...parsed,
       }).catch((err: unknown) => {
+        if (err instanceof ImageProcessingError) {
+          renderImageWorkerUnavailable(res, 'curator gallery upload: image worker unavailable', err);
+          return;
+        }
         logger.error('curator gallery multipart edit error', {
           error: err instanceof Error ? err.message : String(err),
         });
@@ -1189,122 +800,44 @@ async function executeCuratorGalleryEditMultipart(args: {
   const name = String(fields.name ?? '');
   const description = String(fields.description ?? '');
   const sortOrderRaw = String(fields.sortOrder ?? '');
-  const criteriaTags = parseTagsField(fields.criteriaTags);
-  const excludeTags = parseTagsField(fields.excludeTags);
+  const criteriaTags = parseTagList(fields.criteriaTags);
+  const excludeTags = parseTagList(fields.excludeTags);
   const uploadTagsRaw = (fields.uploadTags ?? '') as string;
-  const uploadTags = parseTagsField(uploadTagsRaw);
+  const uploadTags = parseTagList(uploadTagsRaw);
   const externalLinks = parseExternalLinkInputs(fields);
   const reasonRaw = String(fields.reason ?? '');
 
-  const svc = buildSvc();
-  const errCtx: CuratorGalleryEditErrorContext = {
+  const result = await updateCuratorGalleryWithUploads(buildSvc(), {
+    actorMemberId,
     galleryId,
-    name,
-    description,
-    sortOrderRaw,
-    criteriaTagsRaw: fields.criteriaTags ?? '',
-    excludeTagsRaw: fields.excludeTags ?? '',
-    uploadTagsRaw,
-    externalLinks,
-    reasonRaw,
-  };
-
-  if (limitExceeded) {
-    renderCuratorGalleryEditError(res, 422, `File exceeded the maximum allowed size of ${Math.floor(PHOTO_MAX_BYTES / (1024 * 1024))} MB.`, errCtx, actorMemberId);
+    updates: { name, description, sortOrder: sortOrderRaw, criteriaTags, excludeTags, externalLinks },
+    reason: reasonRaw,
+    moderation: {
+      clearName:        fields.clearName === '1',
+      clearDescription: fields.clearDescription === '1',
+    },
+    uploadTags,
+    uploads: { files: photoFiles, limitExceeded, droppedNamelessFile },
+  });
+  if (result.status === 'not_found') {
+    res.status(404).render('admin/curator/galleries/edit', getCuratorGalleryNotFoundPage(galleryId));
     return;
   }
-  if (droppedNamelessFile) {
-    renderCuratorGalleryEditError(res, 422, 'One of the uploaded files was missing a filename.', errCtx, actorMemberId);
-    return;
-  }
-  for (const f of photoFiles) {
-    if (f.buffer.length > PHOTO_MAX_BYTES) {
-      renderCuratorGalleryEditError(res, 422, 'Photo is too large. Maximum size is 25 MB.', errCtx, actorMemberId);
-      return;
-    }
-    if (!detectImageType(f.buffer)) {
-      renderCuratorGalleryEditError(res, 422, 'Only JPEG and PNG photos are accepted.', errCtx, actorMemberId);
-      return;
-    }
-  }
-  // Adding a file to a gallery that belongs to another member would put new
-  // content under their name, which is the one thing moderation never does.
-  // The form offers no upload control on that door; this refuses a request that
-  // carries files anyway. Checked only when files are present, so the ordinary
-  // curated save pays for no extra read.
-  if (photoFiles.length > 0) {
-    try {
-      const owner = svc.getGalleryForEdit(galleryId);
-      if (curatorGalleryModerationView(owner, actorMemberId)) {
-        renderCuratorGalleryEditError(
-          res, 422,
-          'Files cannot be added to a gallery that belongs to another member. '
-          + 'Moderating a member\'s gallery means removing what is wrong, never adding to it.',
-          errCtx, actorMemberId,
-        );
-        return;
-      }
-    } catch (err) {
-      if (!(err instanceof NotFoundError)) throw err;
-    }
-  }
-
-  try {
-    await svc.updateGallery({
-      actorMemberId,
-      actorIsAdmin: true,
+  if (result.status === 'refused') {
+    renderCuratorGalleryEditError(res, result.httpStatus, result.message, {
       galleryId,
-      updates: { name, description, sortOrder: sortOrderRaw, criteriaTags, excludeTags, externalLinks },
-      reason: reasonRaw,
-      moderation: {
-        clearName:        fields.clearName === '1',
-        clearDescription: fields.clearDescription === '1',
-      },
-    });
-  } catch (err) {
-    if (err instanceof NotFoundError) {
-      res.status(404).render(
-        'admin/curator/galleries/edit',
-        getCuratorGalleryNotFoundPage(galleryId),
-      );
-      return;
-    }
-    if (err instanceof ValidationError) {
-      renderCuratorGalleryEditError(
-        res, 422, err.message, { ...errCtx, fieldErrors: err.fieldErrors }, actorMemberId,
-      );
-      return;
-    }
-    throw err;
+      name,
+      description,
+      sortOrderRaw,
+      criteriaTagsRaw: fields.criteriaTags ?? '',
+      excludeTagsRaw: fields.excludeTags ?? '',
+      uploadTagsRaw,
+      externalLinks,
+      reasonRaw,
+      fieldErrors: result.fieldErrors,
+    }, actorMemberId);
+    return;
   }
-
-  // Curated uploads via the gallery form: each file is added as an FH-
-  // owned media item. uploadPhoto auto-prepends `#curated`; user-supplied
-  // uploadTags are appended after that. Empty uploadTags → only `#curated`.
-  for (const f of photoFiles) {
-    try {
-      await svc.uploadPhoto({
-        adminMemberId: actorMemberId,
-        photoBuffer: f.buffer,
-        sourceFilename: f.filename,
-        caption: null,
-        tags: uploadTags,
-      });
-    } catch (err) {
-      if (err instanceof ValidationError) {
-        renderCuratorGalleryEditError(
-          res,
-          422,
-          `Gallery saved, but uploading "${f.filename}" failed: ${err.message}`,
-          errCtx,
-          actorMemberId,
-        );
-        return;
-      }
-      throw err;
-    }
-  }
-
   writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, 'edit');
   res.redirect(303, '/admin/curator/galleries');
 }

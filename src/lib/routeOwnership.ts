@@ -13,3 +13,11 @@ import { Request } from 'express';
 export function isOwnMemberRoute(req: Request): boolean {
   return req.user?.slug === req.params.memberKey;
 }
+
+/**
+ * Whether the signed-in caller holds the administrator role, as the service
+ * calls that take an `actorIsAdmin` flag need to be told.
+ */
+export function isAdminCaller(req: Request): boolean {
+  return req.user?.role === 'admin';
+}

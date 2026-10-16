@@ -112,11 +112,13 @@
               <label for="curator-upload-video-url">Video URL</label>
               <input type="url" id="curator-upload-video-url" name="videoUrl" value="{{content.formValues.videoUrl}}" placeholder="https://www.youtube.com/watch?v=...">
             </div>
+            {{#if content.sidecarWritesEnabled}}
             <div class="form-field">
               <label for="curator-upload-primary-slug">Primary slug</label>
               <input type="text" id="curator-upload-primary-slug" name="primarySlug" value="{{content.formValues.primarySlug}}" placeholder="around-the-world">
               <small class="form-hint">Filename prefix: lowercase letters, digits and hyphens.</small>
             </div>
+            {{/if}}
             <div class="form-field">
               <label for="curator-upload-title">Title</label>
               <input type="text" id="curator-upload-title" name="title" maxlength="500" value="{{content.formValues.title}}">
@@ -132,9 +134,10 @@
       </div>
     </div>
 
+    {{#if content.sidecarWritesEnabled}}
     <fieldset class="form-fieldset">
-      <legend>Category{{#unless content.requireCategory}} (URL reference only){{/unless}}</legend>
-      <p class="text-muted fs-sm">{{#if content.requireCategory}}Required for every upload. {{/if}}Determines which subdirectory of <code>/curated/</code> the upload lands in. Tick exactly one existing category, or type a new category name to create a new subdirectory.</p>
+      <legend>Category</legend>
+      <p class="text-muted fs-sm">Required for every upload. Determines which subdirectory of <code>/curated/</code> the upload lands in. Tick exactly one existing category, or type a new category name to create a new subdirectory.</p>
       {{#if content.hasExistingCategories}}
         <div class="form-field">
           {{#each content.existingCategories}}
@@ -150,6 +153,7 @@
         <small class="form-hint">Lowercase letters, digits and underscores.</small>
       </div>
     </fieldset>
+    {{/if}}
 
     <fieldset class="form-fieldset">
       <legend>Details</legend>

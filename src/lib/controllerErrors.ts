@@ -1,6 +1,7 @@
 import { NextFunction, Response } from 'express';
 import { NotFoundError, ServiceUnavailableError, ValidationError } from '../services/serviceErrors';
 import { logger } from '../config/logger';
+import type { ImageProcessingError } from '../adapters/imageProcessingAdapter';
 import { ErrorPageContent, NavLink, PageViewModel, TierBenefitNotice } from '../types/page';
 
 /**
@@ -163,6 +164,21 @@ export function renderServiceUnavailable(res: Response, statusCode: 500 | 503 = 
   renderErrorPage(res, statusCode, 'Service Unavailable', [
     'The site is temporarily unavailable. Please try again in a moment.',
   ]);
+}
+
+/**
+ * The image worker was unreachable, misconfigured or overloaded while an
+ * upload was being processed. That is a dependency outage, not a fault in the
+ * request, so it answers a truthful 503 rather than falling through to the 500
+ * handler. The log line keeps the worker's detail for the operator.
+ */
+export function renderImageWorkerUnavailable(
+  res: Response,
+  logMessage: string,
+  err: ImageProcessingError,
+): void {
+  logger.error(logMessage, { error: err.message, status: err.status });
+  renderServiceUnavailable(res);
 }
 
 /**

@@ -778,6 +778,25 @@ describe('POST /members/:memberKey/galleries/:id/edit', () => {
     } finally { db.close(); }
   });
 
+  // An enumeration leak: if the attached file were judged before ownership, a
+  // probe of another member's gallery id with a bad file would get the form's
+  // 422 instead of the not-found every other wrong-owner request gets, which
+  // tells the prober the id exists.
+  it('answers 404 for another member\'s gallery even when the multipart edit carries a bad file', async () => {
+    await createGalleryViaApi('Probed');
+    const id = findGalleryIdByName('Probed')!;
+    const res = await request(createApp())
+      .post(`/members/${OTHER_SLUG}/galleries/${id}/edit`)
+      .set('Cookie', otherCookie())
+      .field('name', 'Hijack')
+      .field('description', '')
+      .field('sortOrder', 'upload_desc')
+      .field('criteriaTags', '#x')
+      .field('excludeTags', '')
+      .attach('photoFiles', Buffer.from('not an image'), 'bad.jpg');
+    expect(res.status).toBe(404);
+  });
+
   it('admin moderating a member-owned gallery clears the name rather than rewriting it', async () => {
     // The admin route at /admin/curator/galleries/:id/edit serves two cohorts
     // through one URL. On a member's own gallery the administrator is
@@ -799,6 +818,34 @@ describe('POST /members/:memberKey/galleries/:id/edit', () => {
     try {
       const row = db.prepare('SELECT name FROM member_galleries WHERE id = ?').get(id) as { name: string };
       expect(row.name).toBe('Gallery');
+    } finally { db.close(); }
+  });
+
+  // Moderation removes what is wrong from a member's gallery and never adds to
+  // it: a photo an administrator attached would go up under the member's name.
+  it('refuses an admin who attaches a photo to a member-owned gallery, and stores nothing', async () => {
+    await createGalleryViaApi('No Additions');
+    const id = findGalleryIdByName('No Additions')!;
+    const jpeg = await sharp({
+      create: { width: 256, height: 256, channels: 3, background: { r: 9, g: 90, b: 9 } },
+    }).jpeg().toBuffer();
+    const res = await request(createApp())
+      .post(`/admin/curator/galleries/${id}/edit`)
+      .set('Cookie', adminCookie())
+      .field('name', 'No Additions')
+      .field('description', '')
+      .field('sortOrder', 'upload_desc')
+      .field('criteriaTags', '#m')
+      .field('excludeTags', '')
+      .field('reason', 'Adding a missing photo.')
+      .attach('photoFiles', jpeg, 'admin-added.jpg');
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('never adding to it');
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    try {
+      const stored = db.prepare('SELECT COUNT(*) AS n FROM media_items WHERE source_filename LIKE ?')
+        .get('admin-added%') as { n: number };
+      expect(stored.n).toBe(0);
     } finally { db.close(); }
   });
 

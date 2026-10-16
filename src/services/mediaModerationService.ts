@@ -152,6 +152,62 @@ export type RetryRemovalResult =
   // The item is visible, so there is no takedown whose files could be owed.
   | { status: 'not_applicable' };
 
+/**
+ * The banner an administrator reads after a decision, keyed by the outcome the
+ * decision produced. Each carries its own tone: a moderation outcome that left
+ * the files in place is not the same event as one that removed them, and an
+ * administrator who arrived second changed nothing at all; rendering them
+ * identically is what this table exists to prevent. A hidden item whose stored
+ * files survived is the one outcome that still needs them, so it says so
+ * plainly rather than reporting a clean removal.
+ */
+const DECISION_NOTICES = {
+  deleted:            ['ok',   'The item is hidden and its stored files were removed.'],
+  deleted_no_storage: ['no',   'The item is hidden, but its stored files could not be removed. Run Remove again to retry.'],
+  no_action:          ['ok',   'The reports are closed and the item is unchanged.'],
+  already_settled:    ['info', 'Another administrator decided that item first, so nothing changed.'],
+  already_hidden:     ['ok',   'That item was already hidden. The stored files were removed.'],
+  already_hidden_no_storage: ['no', 'That item was already hidden, and its stored files still could not be removed.'],
+  cleared:            ['ok',   'The report is cleared.'],
+  retry_removed:      ['ok',   'The stored files are removed.'],
+  retry_failed:       ['no',   'The stored files still could not be removed. The item stays on the list below until they go.'],
+  retry_not_needed:   ['info', 'That item is visible, so it has no stored files owed.'],
+  flagged:            ['ok',   'Your report was added.'],
+  already_flagged:    ['info', 'You have already reported that item, so nothing changed.'],
+} as const satisfies Record<string, readonly [OutcomeTone, string]>;
+
+/** The outcome of an administrator's moderation action, as the banner reports it. */
+export type ModerationNoticeKey = keyof typeof DECISION_NOTICES;
+
+export function deleteDecisionNotice(result: DecisionResult): ModerationNoticeKey {
+  if (result.status === 'decided') return result.storageRemoved ? 'deleted' : 'deleted_no_storage';
+  if (result.status === 'already_hidden') {
+    return result.storageRemoved ? 'already_hidden' : 'already_hidden_no_storage';
+  }
+  return 'already_settled';
+}
+
+export function noActionDecisionNotice(result: DecisionResult): ModerationNoticeKey {
+  return result.status === 'decided' ? 'no_action' : 'already_settled';
+}
+
+export function retryRemovalNotice(result: RetryRemovalResult): ModerationNoticeKey {
+  if (result.status === 'removed') return 'retry_removed';
+  return result.status === 'still_failing' ? 'retry_failed' : 'retry_not_needed';
+}
+
+export function adminFlagNotice(result: FlagResult): ModerationNoticeKey {
+  return result.status === 'recorded' ? 'flagged' : 'already_flagged';
+}
+
+export function clearFlagNotice(result: ClearFlagResult): ModerationNoticeKey {
+  return result.status === 'cleared' ? 'cleared' : 'already_settled';
+}
+
+function isModerationNoticeKey(value: string): value is ModerationNoticeKey {
+  return Object.prototype.hasOwnProperty.call(DECISION_NOTICES, value);
+}
+
 export interface FlaggedReportViewModel {
   flagId: string;
   reasonLabel: string;
@@ -786,9 +842,13 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
     /** The takedown queue an administrator reads and decides from. */
     getAdminMediaFlagsPage(opts?: {
       errorMessage?: string;
-      noticeMessage?: string;
-      noticeTone?: OutcomeTone;
+      // The notice key a decision's redirect carried; an unrecognised one shows
+      // no banner.
+      decision?: string | null;
     }): PageViewModel<AdminMediaFlagsContent> {
+      const decided = opts?.decision && isModerationNoticeKey(opts.decision)
+        ? DECISION_NOTICES[opts.decision]
+        : null;
       const rows = runSqliteRead('listOpenFlagsWithMedia', () =>
         mediaFlags.listOpenFlagsWithMedia.all(),
       ) as OpenFlagRow[];
@@ -872,8 +932,8 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
           // as a note about the page rather than as the request being turned
           // down.
           ...(opts?.errorMessage ? { notice: opts.errorMessage, noticeTone: 'no' as const } : {}),
-          ...(opts?.noticeMessage && !opts?.errorMessage
-            ? { notice: opts.noticeMessage, ...(opts.noticeTone ? { noticeTone: opts.noticeTone } : {}) }
+          ...(decided && !opts?.errorMessage
+            ? { notice: decided[1], noticeTone: decided[0] }
             : {}),
         },
         navigation: { contextLinks: [{ label: 'Back to Admin', href: '/admin' }] },

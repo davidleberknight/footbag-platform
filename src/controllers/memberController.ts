@@ -1,20 +1,20 @@
 import { Request, Response, NextFunction } from 'express';
-import Busboy from 'busboy';
 import { nextPendingWizardHref } from '../middleware/auth';
-import { memberService, isVouchOutcome, ProfileEditInput, type VouchOutcome } from '../services/memberService';
+import { memberService, isVouchOutcome, ProfileEditInput, AVATAR_BANNER_NAME_MAX_LEN, type VouchOutcome } from '../services/memberService';
 import { outcomeNotice, type OutcomeNoticeView } from '../lib/outcomeNotice';
 import { getDefaultAccountDeletionService } from '../services/accountDeletionService';
 import { memberDataExportService } from '../services/memberDataExportService';
-import { AVATAR_MAX_BYTES, getDefaultAvatarService } from '../services/avatarService';
+import { AVATAR_MAX_BYTES, AVATAR_TOO_LARGE_MESSAGE, getDefaultAvatarService } from '../services/avatarService';
 import { identityAccessService } from '../services/identityAccessService';
 import { ImageProcessingError } from '../adapters/imageProcessingAdapter';
 import { clearSessionCookie, issueSessionCookie } from '../lib/sessionCookie';
 import { ConflictError, RateLimitedError, ServiceUnavailableError, ValidationError, NotFoundError } from '../services/serviceErrors';
 import { paymentService } from '../services/paymentService';
 import { PageViewModel } from '../types/page';
-import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
-import { renderInvalidRequest, renderNotFound, renderRateLimited, renderServiceUnavailable, setRetryAfter } from '../lib/controllerErrors';
-import { isOwnMemberRoute } from '../lib/routeOwnership';
+import { FLASH_KIND, writeFlash, readFlash, clearFlash, takeFlash } from '../lib/flashCookie';
+import { renderImageWorkerUnavailable, renderInvalidRequest, renderNotFound, renderRateLimited, renderServiceUnavailable, setRetryAfter } from '../lib/controllerErrors';
+import { isAdminCaller, isOwnMemberRoute } from '../lib/routeOwnership';
+import { readMultipart, type ParsedMultipart } from '../lib/multipartForm';
 
 interface MemberPasswordEditContent {
   memberKey: string;
@@ -26,9 +26,6 @@ type MemberStubContent = Record<string, never>;
 import { logger } from '../config/logger';
 import { isSafePath } from '../lib/safePath';
 
-// Avatar-upload flash: filename display is capped so a maliciously long
-// filename cannot blow out the banner. Cookie semantics live in lib/flashCookie.
-const FLASH_NAME_MAX_LEN = 120;
 
 interface StubConfig {
   pageKey: string;
@@ -168,16 +165,8 @@ export const memberController = {
       return;
     }
     try {
-      let avatarSuccess: string | undefined;
-      const flash = readFlash(req);
-      if (flash?.kind === FLASH_KIND.AVATAR_UPLOADED) {
-        const name = flash.payload && flash.payload.length > 0
-          ? flash.payload.slice(0, FLASH_NAME_MAX_LEN)
-          : null;
-        avatarSuccess = name ? `Avatar updated: ${name}` : 'Avatar updated.';
-        clearFlash(res, req);
-      }
-      const vm = memberService.getProfileEditPage(req.params.memberKey, { avatarSuccess });
+      const avatarUploadedName = takeFlash(req, res, FLASH_KIND.AVATAR_UPLOADED) ?? undefined;
+      const vm = memberService.getProfileEditPage(req.params.memberKey, { avatarUploadedName });
       res.render('members/profile-edit', vm);
     } catch (err) {
       if (err instanceof NotFoundError) { renderNotFound(res); return; }
@@ -330,50 +319,23 @@ export const memberController = {
       res.status(status).render('members/profile-edit', vm);
     };
 
-    const chunks: Buffer[] = [];
-    let fileFound = false;
-    let totalBytes = 0;
-    let limitExceeded = false;
-    let uploadedFilename = '';
-
-    // fields: 0 because the avatar form posts only the file input; busboy
-    // would otherwise buffer up to ~100 flooded field parts before rejecting.
-    const busboy = Busboy({
-      headers: req.headers,
-      limits: { fileSize: AVATAR_MAX_BYTES, files: 1, fields: 0 },
-    });
-
-    busboy.on('file', (_fieldname, stream, info) => {
-      fileFound = true;
-      if (info && typeof info.filename === 'string') {
-        uploadedFilename = info.filename.slice(0, FLASH_NAME_MAX_LEN);
+    const onParsed = ({ files, limitExceeded }: ParsedMultipart): void => {
+      if (limitExceeded) {
+        renderError(AVATAR_TOO_LARGE_MESSAGE);
+        return;
       }
-      stream.on('data', (chunk: Buffer) => {
-        totalBytes += chunk.length;
-        if (totalBytes > AVATAR_MAX_BYTES) {
-          limitExceeded = true;
-          stream.resume();
-          return;
-        }
-        chunks.push(chunk);
-      });
-    });
-
-    busboy.on('finish', () => {
-      if (!fileFound || totalBytes === 0) {
+      const file = Object.values(files).flat()[0];
+      if (!file || file.buffer.length === 0) {
         renderError('Please select an image file to upload.');
         return;
       }
-      if (limitExceeded) {
-        renderError('File is too large. Maximum size is 5 MB.');
-        return;
-      }
 
-      const fileBuffer = Buffer.concat(chunks);
+      const fileBuffer = file.buffer;
+      const uploadedFilename = file.filename.slice(0, AVATAR_BANNER_NAME_MAX_LEN);
       const avatarService = getDefaultAvatarService();
 
       avatarService.uploadAvatar(memberId, req.user!.slug, fileBuffer, uploadedFilename, {
-        actorIsAdmin: req.user?.role === 'admin',
+        actorIsAdmin: isAdminCaller(req),
       })
         .then(() => {
           writeFlash(res, req, FLASH_KIND.AVATAR_UPLOADED, uploadedFilename || undefined);
@@ -390,28 +352,25 @@ export const memberController = {
             return;
           }
           if (err instanceof ImageProcessingError) {
-            // Image worker unreachable / misconfigured / overloaded. Surface
-            // as a real 503 with the unavailable page instead of falling
-            // through to the 500 handler. Operator log line above the render
-            // still carries the detail.
-            logger.error('avatar upload: image worker unavailable', {
-              error: err.message,
-              status: err.status,
-            });
-            renderServiceUnavailable(res);
+            renderImageWorkerUnavailable(res, 'avatar upload: image worker unavailable', err);
             return;
           }
           logger.error('avatar upload error', { error: err instanceof Error ? err.message : String(err) });
           next(err);
         });
-    });
+    };
 
-    busboy.on('error', (err: Error) => {
-      logger.error('busboy parse error', { error: err.message });
-      next(err);
-    });
-
-    req.pipe(busboy);
+    readMultipart(
+      req,
+      // fields: 0 because the avatar form posts only the file input; busboy
+      // would otherwise buffer up to ~100 flooded field parts before rejecting.
+      { limits: { fileSize: AVATAR_MAX_BYTES, files: 1, fields: 0 } },
+      onParsed,
+      (err) => {
+        logger.error('busboy parse error', { error: err.message });
+        next(err);
+      },
+    );
   },
 
   /** GET /members/:memberKey/edit/password, password-change form (own profile only). */

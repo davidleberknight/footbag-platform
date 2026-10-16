@@ -20,26 +20,24 @@
  * misuse) still fails before any media is written.
  */
 import { Request, Response, NextFunction } from 'express';
-import Busboy from 'busboy';
 import { logger } from '../config/logger';
 import { ImageProcessingError } from '../adapters/imageProcessingAdapter';
 import {
   getDefaultCuratorMediaService,
+  memberGalleriesHref,
   PHOTO_MAX_BYTES,
+  uploadMemberMedia,
   getMemberMediaUploadPage,
   type MemberMediaUploadFormValues,
 } from '../services/curatorMediaService';
 import { RateLimitedError, ValidationError } from '../services/serviceErrors';
-import { renderNotFound, renderServiceUnavailable } from '../lib/controllerErrors';
-import { isOwnMemberRoute } from '../lib/routeOwnership';
+import { renderImageWorkerUnavailable, renderNotFound } from '../lib/controllerErrors';
+import { isAdminCaller, isOwnMemberRoute } from '../lib/routeOwnership';
+import { readMultipart, type ParsedMultipart } from '../lib/multipartForm';
 import { FLASH_KIND, writeFlash } from '../lib/flashCookie';
 import { hashtagDiscoveryService, type MemberTagSuggestions } from '../services/hashtagDiscoveryService';
 
 type FormValues = MemberMediaUploadFormValues;
-
-function listHref(memberKey: string): string {
-  return `/members/${memberKey}/galleries`;
-}
 
 function renderForm(
   res: Response,
@@ -61,10 +59,6 @@ function renderForm(
       tagSuggestions: opts.tagSuggestions,
     }),
   );
-}
-
-function parseTagsField(raw: string | undefined): string[] {
-  return (raw ?? '').trim().split(/\s+/).filter((t) => t.length > 0);
 }
 
 export const memberMediaUploadController = {
@@ -92,39 +86,14 @@ export const memberMediaUploadController = {
     const memberId = req.user!.userId;
     const slug = req.user!.slug;
 
-    const fields: Record<string, string> = {};
-    let photoBuffer: Buffer | null = null;
-    let photoFilename: string | null = null;
+    let fields: Record<string, string> = {};
+    let photo: { buffer: Buffer; filename: string } | null = null;
     let limitExceeded = false;
 
-    const busboy = Busboy({
-      headers: req.headers,
-      limits: { fileSize: PHOTO_MAX_BYTES, files: 1, fields: 10 },
-    });
-
-    busboy.on('field', (name, val) => {
-      fields[name] = val;
-    });
-
-    busboy.on('file', (name, stream, info) => {
-      const chunks: Buffer[] = [];
-      if (info && typeof info.filename === 'string' && info.filename.length > 0) {
-        photoFilename = info.filename;
-      }
-      stream.on('data', (chunk: Buffer) => {
-        chunks.push(chunk);
-      });
-      stream.on('limit', () => {
-        limitExceeded = true;
-      });
-      stream.on('end', () => {
-        if (!limitExceeded && name === 'photoFile') {
-          photoBuffer = Buffer.concat(chunks);
-        }
-      });
-    });
-
-    busboy.on('finish', () => {
+    function onParsed(parsed: ParsedMultipart): void {
+      fields = parsed.fields;
+      limitExceeded = parsed.limitExceeded;
+      photo = parsed.files.photoFile?.[0] ?? null;
       void handleFinish().catch((err: unknown) => {
         if (err instanceof ValidationError) {
           renderForm(res, memberKey, memberId, {
@@ -146,100 +115,42 @@ export const memberMediaUploadController = {
           return;
         }
         if (err instanceof ImageProcessingError) {
-          logger.error('member upload: image worker unavailable', {
-            error: err.message,
-            status: err.status,
-          });
-          renderServiceUnavailable(res);
+          renderImageWorkerUnavailable(res, 'member upload: image worker unavailable', err);
           return;
         }
         logger.error('member upload error', { error: err instanceof Error ? err.message : String(err) });
         next(err);
       });
-    });
-
-    busboy.on('error', (err: Error) => {
-      logger.error('busboy parse error', { error: err.message });
-      next(err);
-    });
-
-    async function handleFinish(): Promise<void> {
-      const mediaType = fields.mediaType;
-      const captionRaw = (fields.caption ?? '').trim();
-      const caption = captionRaw.length === 0 ? null : captionRaw;
-      let tags = parseTagsField(fields.tags);
-
-      const galleryId = (fields.galleryId ?? '').trim();
-      if (galleryId) {
-        const svcForGallery = getDefaultCuratorMediaService();
-        const galleries = svcForGallery.listGalleriesForOwner(memberId);
-        const selectedGallery = galleries.find(g => g.id === galleryId);
-        if (selectedGallery && selectedGallery.criteriaTags.length > 0) {
-          const existing = new Set(tags.map(t => t.toLowerCase()));
-          for (const ct of selectedGallery.criteriaTags) {
-            if (!existing.has(ct.toLowerCase())) {
-              tags.push(ct);
-              existing.add(ct.toLowerCase());
-            }
-          }
-        }
-      }
-
-      const externalUrlRaw = (fields.externalUrl ?? '').trim();
-      const externalUrl: string | null = externalUrlRaw.length === 0 ? null : externalUrlRaw;
-
-      if (mediaType !== 'photo' && mediaType !== 'video') {
-        throw new ValidationError('Choose a media type (photo or video).');
-      }
-
-      if (limitExceeded) {
-        throw new ValidationError(
-          `File exceeded the maximum allowed size of ${Math.floor(PHOTO_MAX_BYTES / (1024 * 1024))} MB.`,
-        );
-      }
-
-      const svc = getDefaultCuratorMediaService();
-
-      if (mediaType === 'photo') {
-        if (!photoBuffer) {
-          throw new ValidationError('Choose a photo file (JPEG or PNG).');
-        }
-        await svc.uploadPhotoForMember({
-          memberId,
-          actorIsAdmin: req.user?.role === 'admin',
-          slug,
-          photoBuffer,
-          sourceFilename: photoFilename ?? '',
-          caption,
-          tags,
-          ...(externalUrl !== null && { externalUrl }),
-        });
-        writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, 'upload');
-        res.redirect(303, listHref(memberKey));
-        return;
-      }
-
-      // video branch
-      const videoUrl = (fields.videoUrl ?? '').trim();
-      const videoPlatform = (fields.videoPlatform ?? '').trim();
-      if (videoPlatform !== 'youtube' && videoPlatform !== 'vimeo') {
-        throw new ValidationError('Choose YouTube or Vimeo for the video platform.');
-      }
-      await svc.submitVideoForMember({
-        memberId,
-        actorIsAdmin: req.user?.role === 'admin',
-        slug,
-        videoUrl,
-        videoPlatform,
-        caption,
-        tags,
-        ...(externalUrl !== null && { externalUrl }),
-      });
-      writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, 'upload');
-      res.redirect(303, listHref(memberKey));
     }
 
-    req.pipe(busboy);
+    async function handleFinish(): Promise<void> {
+      await uploadMemberMedia(getDefaultCuratorMediaService(), {
+        memberId,
+        actorIsAdmin: isAdminCaller(req),
+        slug,
+        mediaType: fields.mediaType,
+        galleryId: fields.galleryId ?? '',
+        caption: fields.caption ?? '',
+        tags: fields.tags ?? '',
+        externalUrl: fields.externalUrl ?? '',
+        photo,
+        limitExceeded,
+        videoUrl: fields.videoUrl ?? '',
+        videoPlatform: fields.videoPlatform ?? '',
+      });
+      writeFlash(res, req, FLASH_KIND.MEDIA_SAVED, 'upload');
+      res.redirect(303, memberGalleriesHref(memberKey));
+    }
+
+    readMultipart(
+      req,
+      { limits: { fileSize: PHOTO_MAX_BYTES, files: 1, fields: 10 }, fileFields: ['photoFile'] },
+      onParsed,
+      (err) => {
+        logger.error('busboy parse error', { error: err.message });
+        next(err);
+      },
+    );
   },
 };
 

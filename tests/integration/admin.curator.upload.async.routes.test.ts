@@ -605,6 +605,21 @@ describe('POST /admin/curator/upload/sign', () => {
     expect(row.caption).toBe('a clip');
     expect(row.tags).toBe('#demo_freestyle');
   });
+
+  it('names each stored source by its own file type, so a MOV and a PNG are not stored as MP4 and JPEG', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post('/admin/curator/upload/sign')
+      .set('Cookie', adminACookie())
+      .send(validBody({ videoFilename: 'clip.mov', videoContentType: 'video/quicktime', posterContentType: 'image/png' }));
+    expect(res.status).toBe(200);
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const row = db.prepare('SELECT source_video_key, source_poster_key FROM media_jobs WHERE id = ?')
+      .get(res.body.jobId) as { source_video_key: string; source_poster_key: string };
+    db.close();
+    expect(row.source_video_key).toMatch(/source\.mov$/);
+    expect(row.source_poster_key).toMatch(/poster\.png$/);
+  });
 });
 
 // ── POST /admin/curator/upload/finalize ────────────────────────────────────
@@ -642,6 +657,16 @@ describe('POST /admin/curator/upload/finalize', () => {
     const app = createApp();
     const res = await request(app).post('/admin/curator/upload/finalize').send({ jobId: 'mediajob_x' });
     expect(res.status).toBe(302);
+  });
+
+  it('a finalize naming no job is refused as a bad request, not looked up as a missing one', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post('/admin/curator/upload/finalize')
+      .set('Cookie', adminACookie())
+      .send({ jobId: '   ' });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe('jobId required');
   });
 
   it('unknown jobId -> 404', async () => {

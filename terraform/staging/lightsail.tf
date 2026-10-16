@@ -149,13 +149,19 @@ resource "aws_lightsail_instance_public_ports" "web" {
   # updates operator_cidrs and applies instead; a dev-and-tester's new address
   # is set by re-running their onboarding. operator_cidrs in
   # terraform.tfvars holds the administrators' routine SSH CIDR allow-list and
-  # may carry multiple /32s for network flexibility; the dev-and-testers'
-  # addresses are joined to it above, from their own parameters.
+  # may carry multiple /32s for network flexibility.
+  #
+  # Port 22 admits the administrators only. Every routine connection, the
+  # dev-and-testers' included, is made on 2222 (below), and a Lightsail
+  # instance's firewall holds at most 60 addresses in all, most of them the
+  # CloudFront list on port 80: listing the dev-and-testers on both SSH ports
+  # is what overran that cap. The list is never left empty, since an empty
+  # list can admit every address.
   port_info {
     protocol          = "tcp"
     from_port         = 22
     to_port           = 22
-    cidrs             = local.ssh_cidrs
+    cidrs             = var.operator_cidrs
     cidr_list_aliases = ["lightsail-connect"]
   }
 
@@ -171,8 +177,10 @@ resource "aws_lightsail_instance_public_ports" "web" {
     cidrs     = local.cloudfront_origin_facing_cidrs
   }
 
-  # SSH alternate port — operator access when port 22 is ISP-blocked
-  # Some ISPs block outbound port 22 to AWS EC2 IP ranges.
+  # SSH alternate port — the port every routine connection uses, since some
+  # ISPs block outbound port 22 to AWS EC2 IP ranges. It admits the
+  # administrators and the dev-and-testers, whose addresses are joined to the
+  # administrators' above from their own parameters.
   # sshd is configured to listen on both 22 and 2222 on the host.
   port_info {
     protocol  = "tcp"
