@@ -34,7 +34,7 @@ The principal offices of IFPA shall be 93 Sacramento Avenue, San Anselmo, Califo
 
 ## **ARTICLE III - PURPOSE**
 
-The purpose for which IFPA is organized is to promote the growth of footbag play as a lifetime recreation and a competitive sport on a national and international basis. To achieve this purpose, IFPA shall disseminate information to the membership, media, and general public. In addition, IFPA shall further the purposes mentioned by conducting professional and amateur footbag events. Such events shall include, but no be limited to, competitions, festivals, demonstrations, and instructional programs. In furtherance of these main purposes, the following sub-purposes are set forth:
+The purpose for which IFPA is organized is to promote the growth of footbag play as a lifetime recreation and a competitive sport on a national and international basis. To achieve this purpose, IFPA shall disseminate information to the membership, media, and general public. In addition, IFPA shall further the purposes mentioned by conducting professional and amateur footbag events. Such events shall include, but not be limited to, competitions, festivals, demonstrations, and instructional programs. In furtherance of these main purposes, the following sub-purposes are set forth:
 
 A) To teach the sport of footbag.
 
@@ -47,12 +47,12 @@ C) To foster and conduct international, national, state, regional and area footb
   
 
 
-2) Sanctioning: For a IFPA sanctioned event, IFPA will provide formats and judging systems for competition as well as a limited amount of marketing assistance for the proper administration and promotion of such events in exchange for the tournament director's agreement to abide by all the guidelines for sanctioning set up by IFPA. Events that do not strictly adhere to IFPA-approved formats or judging systems may be sanctioned at IFPA’s discretion.  
+2) Sanctioning: For an IFPA sanctioned event, IFPA will provide formats and judging systems for competition as well as a limited amount of marketing assistance for the proper administration and promotion of such events in exchange for the tournament director's agreement to abide by all the guidelines for sanctioning set up by IFPA. Events that do not strictly adhere to IFPA-approved formats or judging systems may be sanctioned at IFPA’s discretion.  
 
   
 
 
-3) Accreditation: For a IFPA accredited event, IFPA will provide formats and judging systems for competition in exchange for the tournament director's agreement to abide by all the guidelines for accreditation set up by IFPA.
+3) Accreditation: For an IFPA accredited event, IFPA will provide formats and judging systems for competition in exchange for the tournament director's agreement to abide by all the guidelines for accreditation set up by IFPA.
 
 D) To foster and facilitate demonstrations, shows, festivals, and amateur competitions.
 
@@ -263,7 +263,7 @@ A person whose membership is suspended shall not be a member during the period o
   
 
 
-SECTION 3. Procedure for Expulsion or Suspension: If grounds appear to exist for expulsion or suspension of a member under Article X Section 1 and Section 2 of these bylaws, the procedure set forth below shall be Followed:
+SECTION 3. Procedure for Expulsion or Suspension: If grounds appear to exist for expulsion or suspension of a member under Article X Section 1 and Section 2 of these bylaws, the procedure set forth below shall be followed:
 
   
 
