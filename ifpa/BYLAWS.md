@@ -145,7 +145,7 @@ SECTION 4. The elected directors of IFPA board of directors will be minimally Ex
   
 
 
-SECTION 5. The remaining board of directors will be appointed by the Executive Director and approved by a majority of the board present or by majority of board in an online vote. The duties of the appointed directors and members at large are set by IFPA policy.
+SECTION 5. The remaining board of directors will be appointed by the Executive Director and approved by a majority of the board present or by a majority of the board in an online vote. The duties of the appointed directors and members at large are set by IFPA policy.
 
   
 
@@ -210,7 +210,7 @@ SECTION 3. Not less than 10% of IFPA members shall constitute a quorum for full 
   
 
 
-SECTION 4. Not less than one half of the Directors of the board of directors shall constitute a quorum for the transaction of business. Resolutions shall be upon approval by the majority of the quorum present or by a majority of the board in an online vote.
+SECTION 4. Not less than one half of the Directors of the board of directors shall constitute a quorum for the transaction of business. Resolutions shall be adopted upon approval by the majority of the quorum present or by a majority of the board in an online vote.
 
   
 
@@ -275,16 +275,6 @@ B) The member shall be given an opportunity to be heard, either orally, in writi
 C) The board, committee, or person shall decide whether or not the member should be expelled, suspended, or sanctioned in some other way. The decision of the board, committee or person shall be final.
 
 D) Any action challenging an expulsion, suspension, or termination of membership, including a claim alleging defective notice, must be commenced within one year after the date of the expulsion, suspension, or termination.
-
-  
-
-
-SECTION 4. Election results will be posted on the [footbag.org](http://footbag.org) website after the election.
-
-  
-
-
-SECTION 5. After assuming office, all pertinent materials will be turned over to the new Director. The past Director may be asked to advise at the discretion of the new Director.
 
 
 
