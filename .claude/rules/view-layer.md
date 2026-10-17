@@ -82,37 +82,33 @@ stacked sections, so adjacent blocks never butt together with a zero gap.
 
 ## Action hierarchy
 
-Every clickable control on a public page belongs to exactly one of seven tiers, and the tier fixes
-the class. A control that fits no tier is a design question to raise, never a licence to mint a
-class.
+Every clickable control on a public page belongs to exactly one of six tiers, and the tier fixes
+the class (DESIGN_DECISIONS "Action Hierarchy"). The site frame's own controls and a media
+player's controls are styled by their component and sit outside the tiers. A control that fits no
+tier is a design question to raise, never a licence to mint a class.
 
 | Tier | What it is | Class |
 |---|---|---|
 | Primary action | The main action of a page, or of each self-contained panel on it when a page serves distinct audiences side by side (the login page's log-in form and its two join panels) | `.btn .btn-primary` |
-| Secondary action | A real action, subordinate to the primary one | `.btn .btn-outline`, or `.btn .btn-inverse` on a dark gradient panel |
-| Inline action | A state-changing control that reads as text because it sits in a table row, a list item, or a sentence | `.btn-link`; `.btn-link-danger` for a destructive one |
+| Secondary action | A real action, subordinate to the primary one, including every state-changing control in a list item, a table row or a filter bar | `.btn .btn-outline`, or `.btn .btn-inverse` on a dark gradient panel |
 | Prominent action link | A destination that must read as important without being a button: a cross-link out of a section, a "see all of X" pointer, the page's back link | `.action-link` |
 | Prose link | An ordinary link inside running text | bare `<a>` |
 | Tag or chip | A clickable filter, tag, or hashtag | `.tag-chip`; a trick hashtag uses the shared hashtag token |
 | Non-clickable token | An identity or status that is not a link | the hashtag token at rest; `.badge` for status |
 
 `.btn-sm` is a size modifier on the two button tiers, not a variant of its own; it changes the
-padding and type size and nothing else.
+padding and type size and nothing else. A button inside a list item, a table row or a filter bar
+takes it; a button standing on its own does not. A container holding a row of buttons wraps them
+(`flex-wrap: wrap`) and centres them on one line (`align-items: center`).
 
 The prominent-action-link tier exists because its absence is what produces one-off classes: a
 surface needing more weight than prose and less than a button will otherwise invent a local `*-cta`,
 `*-link`, or `*-deeplink`. There is one class for it, site-wide.
 
-The inline-action tier exists for the mirror case, and its absence had the same effect. A control
-that posts must be a `<button>`, but a delete inside a table row cannot carry a bordered button without putting enclosing chrome where the callout policy
-reserves it (DESIGN_DECISIONS "Callout and Box Policy"). The tier carries no box, inherits the
-surrounding font, and takes a resting underline, because colour and a resting underline are what
-mark a control as a link (DESIGN_DECISIONS "Link and Disclosure Affordances") and the underline is
-the cue a reader who cannot use the colour still gets. Both classes
-carry a visible focus ring: a control drawn as text has nothing else to show the keyboard where it
-is, and a change of underline is not a focus indicator. Which of the two a destructive control takes
-is decided by where it sits, not by which page it is on: inline in a row or a list, `.btn .btn-outline
-.btn-sm` when it stands alone.
+A control that changes state is a `<button>` drawn as a button, never as underlined text: text
+reads as a link, and a link promises a destination, not an act. A destructive control in a row
+takes the same compact outlined button as any other row action; its confirm step, not its colour,
+is what guards it.
 
 An action that permanently loses data or stops money (cancelling a recurring donation, removing a
 record row) goes through a server-rendered confirm page that states the consequence in body colour
@@ -183,7 +179,7 @@ discipline, not the enumeration.
 
 - Every class used in a template has a corresponding rule in `style.css` that reaches it where it is
   used. A compound such as `.hero.hero-sm` defines both parts; a descendant selector such as
-  `.filter-bar .btn-link` defines the class only inside that container, so the same class used
+  `.hero .hero-title-link` defines the class only inside that container, so the same class used
   anywhere else is undefined and renders unstyled. A class that a template uses outside any
   container that styles it needs a base rule of its own. Before a template change ships, grep
   `style.css` for each class introduced and check what actually matches: an undefined class fails

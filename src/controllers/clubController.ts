@@ -254,17 +254,17 @@ export const clubController = {
     }
   },
 
-  postSwapPrimary(req: Request, res: Response, next: NextFunction): void {
+  postMakePrimary(req: Request, res: Response, next: NextFunction): void {
     try {
       const targetClubKey = typeof req.body?.club_key === 'string' ? req.body.club_key : '';
-      const result = clubService.swapPrimaryAffiliation(req.user!.userId, targetClubKey);
+      const result = clubService.makePrimaryAffiliation(req.user!.userId, targetClubKey);
 
       const endings: Record<typeof result.branch, [ActionEnding, string]> = {
-        swapped:          ['advance',      'Primary club swapped.'],
-        own_repeat:       ['own_repeat',   'Primary club swapped.'],
+        made_primary:     ['advance',      'Primary club changed.'],
+        own_repeat:       ['own_repeat',   'Primary club changed.'],
         already_held:     ['already_held', 'This is already your primary club.'],
         not_member:       ['refused',      'You are not a member of this club.'],
-        not_enough_clubs: ['refused',      'You need two clubs to swap primary.'],
+        not_enough_clubs: ['refused',      'You need two clubs to choose a primary.'],
       };
       const [ending, text] = endings[result.branch];
       redirectWithOutcome(req, res, {

@@ -150,8 +150,9 @@ Committed public text never carries the private repository's slug, owner, name, 
 issue numbers, in any form: prose says "the maintainers' private tracker"; commands
 say `-R "$FOOTBAG_PRIVATE_REPO"`; fixtures use synthetic slugs. A public commit
 message never references a private issue; the private issue cites the public commit
-SHA instead. Public code comments keep the `Current:`/`Target:` convention and
-never carry an issue number; the issue cites the file and line.
+SHA instead. A card closes when its work is verified, never waiting on a commit.
+Public code comments keep the `Current:`/`Target:` convention and never carry an
+issue number; the issue cites the file and line.
 
 ## Private ops docs
 

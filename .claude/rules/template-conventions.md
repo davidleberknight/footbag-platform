@@ -51,7 +51,7 @@ Class names live in `src/public/css/style.css`. Every class used in a template m
 - Hero: `.hero`, `.hero-sm`, `.hero-eyebrow`, `.hero-subtitle`, `.hero-hashtag`.
 - Sections: `.content-section`, `.section-heading`, `.section-intro`; `.profile-section` on member profile pages only.
 - Cards / badges / tables / empty states: `.card`, `.card-static`, `.card-title`, `.card-meta`, `.card-description`, `.card-grid`, `.badge`, `.data-table`, `.empty-state`.
-- Actions: `.btn`, `.btn-primary`, `.btn-outline`, `.btn-inverse`, `.btn-sm`, `.btn-link`, `.btn-link-danger`, `.action-link`, `.tag-chip`.
+- Actions: `.btn`, `.btn-primary`, `.btn-outline`, `.btn-inverse`, `.btn-sm`, `.action-link`, `.tag-chip`.
 - Forms: `.form-block`, `.form-field`, `.form-hint`, `.form-fieldset`, `.form-actions`, `.filter-bar`.
 - Messages and notices: the `outcome-notice` partial for an action's result; `.notice notice-warn` for a caution on a confirm page.
 - Spacing utilities (1 unit = 4px): `.mt-1` through `.mt-10`, `.mb-2` through `.mb-8`.

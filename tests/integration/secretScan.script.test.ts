@@ -156,6 +156,37 @@ describe('the secret scan with a usable scanner', () => {
 
 const REAL_ROOT = path.resolve(__dirname, '..', '..');
 
+/** The path patterns in the scanner config's allowlist, as gitleaks reads them. */
+function allowlistedPaths(): RegExp[] {
+  const toml = fs.readFileSync(path.join(REAL_ROOT, '.gitleaks.toml'), 'utf8');
+  const block = /^\[allowlist\][\s\S]*?^paths = \[([\s\S]*?)^\]/m.exec(toml)?.[1] ?? '';
+  return [...block.matchAll(/'''(.*?)'''/g)].map((m) => new RegExp(m[1]));
+}
+
+describe('the scanner config exempts data files only, never whole trees', () => {
+  // Defect caught: an exemption written for UUID columns and template keys
+  // swallows a whole content tree, so a private key or cloud credential saved
+  // there as source or notes passes every rule in the history scan.
+  it('keeps source, notes and text under the content trees under every rule', () => {
+    const patterns = allowlistedPaths();
+    expect(patterns.length).toBeGreaterThan(0);
+    for (const file of ['legacy_data/notes.py', 'legacy_data/README.md', 'legacy_data/x.txt',
+      'legacy_data/scripts/run.sh', 'curated/email_templates/key.txt', 'curated/email_templates/notes.md']) {
+      expect(patterns.filter((p) => p.test(file)).map(String), file).toEqual([]);
+    }
+  });
+
+  // Defect caught: the narrowing drops the exemption the data files need, so the
+  // history scan goes red on the false positives it was written to silence.
+  it('still exempts the data files whose false positives the exemptions exist for', () => {
+    const patterns = allowlistedPaths();
+    for (const file of ['legacy_data/out/persons.csv', 'legacy_data/inputs/records.jsonl',
+      'legacy_data/inputs/sources.json', 'curated/email_templates/honor_congratulation.json']) {
+      expect(patterns.some((p) => p.test(file)), file).toBe(true);
+    }
+  });
+});
+
 interface ScanRepo { root: string; bin: string; log: string; list: string }
 
 /**

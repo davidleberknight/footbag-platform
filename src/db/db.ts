@@ -1876,8 +1876,8 @@ export const memberClubAffiliations = {
      WHERE member_id = ? AND club_id = ? AND is_current = 0
   `); },
 
-  // Sets one current affiliation primary. swapPrimary flips both rows and so
-  // cannot serve a member left holding a single affiliation.
+  // Sets one current affiliation primary. Making the other club primary runs
+  // clearPrimary first, in the same transaction.
   get setPrimary() { return db.prepare(`
     UPDATE member_club_affiliations
        SET is_primary = 1, updated_at = ?, updated_by = ?, version = version + 1
@@ -10911,6 +10911,16 @@ export const memberExport = {
     INNER JOIN votes AS v ON v.id = b.vote_id
     WHERE b.voter_member_id = ?
     ORDER BY b.cast_at, v.id
+  `); },
+
+  // What the member did, as the action and when it happened. Metadata, the
+  // reason and the entity are never selected: they are free-form and routinely
+  // name other people, and the action alone answers what the member did.
+  get ownAuditActions() { return db.prepare(`
+    SELECT action_type, occurred_at
+    FROM audit_entries
+    WHERE actor_member_id = ?
+    ORDER BY occurred_at, id
   `); },
 
   // The member's recurring gifts as the export shows them. Column-listed so no

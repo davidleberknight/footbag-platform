@@ -23,6 +23,7 @@ import {
   insertStripeEvent,
   insertRecurringDonationSubscription,
   insertPayment,
+  insertAuditEntry,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('4185');
@@ -214,6 +215,55 @@ describe('what the document carries', () => {
       'password_hash',
     ]) {
       expect(body).not.toContain(forbidden);
+    }
+  });
+
+  // Defect caught: the member's copy omits what they did on the platform, or
+  // hands them the free-form metadata and reasons that routinely name other
+  // people, or lists actions someone else took on their record.
+  it('carries the member’s own actions as type and time only, and nothing done to them by others', async () => {
+    const slug = 'exp_audit';
+    const id = makeMember(slug);
+    const other = makeMember('exp_audit_other');
+    withDb((db) => {
+      insertAuditEntry(db, {
+        actor_type: 'member', actor_member_id: id,
+        action_type: 'member.profile_updated', entity_type: 'member', entity_id: id,
+        occurred_at: '2026-03-02T10:00:00.000Z',
+        reason_text: 'own-reason-text-leak',
+        metadata: { other_member_id: other, note: 'own-metadata-leak' },
+      });
+      insertAuditEntry(db, {
+        actor_type: 'member', actor_member_id: id,
+        action_type: 'club.affiliation_added', entity_type: 'club', entity_id: 'club-exp-audit',
+        occurred_at: '2026-03-01T10:00:00.000Z',
+      });
+      // The member is only the subject here: an administrator acted, and the
+      // system acted with no actor at all.
+      insertAuditEntry(db, {
+        actor_type: 'admin', actor_member_id: other,
+        action_type: 'admin.subject_only_correction', entity_type: 'member', entity_id: id,
+      });
+      insertAuditEntry(db, {
+        actor_type: 'system', actor_member_id: null,
+        action_type: 'system.subject_only_sweep', entity_type: 'member', entity_id: id,
+      });
+    });
+
+    const res = await download(slug, id);
+    expect(res.status).toBe(200);
+    const doc = JSON.parse(res.text);
+
+    // ordering-is-the-contract: the member's actions read oldest first.
+    expect(doc.ownActions).toEqual([
+      { action_type: 'club.affiliation_added', occurred_at: '2026-03-01T10:00:00.000Z' },
+      { action_type: 'member.profile_updated', occurred_at: '2026-03-02T10:00:00.000Z' },
+    ]);
+    for (const leak of [
+      'own-reason-text-leak', 'own-metadata-leak', 'club-exp-audit', other,
+      'admin.subject_only_correction', 'system.subject_only_sweep',
+    ]) {
+      expect(res.text, `export leaked ${leak}`).not.toContain(leak);
     }
   });
 

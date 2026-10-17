@@ -77,7 +77,6 @@ browse-view-why-body
 btn
 btn-inverse
 btn-link
-btn-link-danger
 btn-outline
 btn-primary
 btn-sm

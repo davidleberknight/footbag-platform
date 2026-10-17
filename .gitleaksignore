@@ -24,3 +24,12 @@ e7eb26a66945672e8c60d22667eb9b3375b59d70:.gitleaksignore:generic-api-key:9
 # shape: both values are built into locals named for what they are, a path, and
 # assigned from those.
 bdb92337e2ec72ed8aedbfa36a6db67da24d76fd:tests/integration/media.routes.test.ts:generic-api-key:67
+#
+# Two legacy-pipeline tests, scanned since the content-tree exemption was
+# narrowed to data files. Each flagged line assigns an event-key slug (a year,
+# an underscore and an event name) to a key-named field, and the rule read the
+# slug as a key value. No credential was ever present. Unlike the entries above,
+# both lines are still in the working tree; an edit that moves them is
+# reported again and gets a new entry here.
+3a7170c8372f0573461c60b4ddf001dd080033d1:legacy_data/tests/test_aggregate_standings.py:generic-api-key:59
+ecce8379da403d5a7304313b9c9a93a1548ba5d4:legacy_data/tests/test_polish_2024_golf_fixup.py:generic-api-key:37

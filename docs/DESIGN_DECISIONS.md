@@ -2798,6 +2798,42 @@ Impact:
 
 - Technical notation panels keep their chrome, which is what makes them legible as notation.
 
+## 4.16 Action Hierarchy
+
+Decision:
+
+Every control on a public page belongs to one of six tiers, and the tier fixes its treatment: the primary action, a secondary action, a prominent action link, a prose link, a tag or chip, and a non-clickable token. A control that changes state is always a button, drawn as a button, never as text. Inside a list item, a table row or a filter bar a button takes the compact size, and a row of controls wraps as whole buttons on a narrow screen. Navigation is a link; a link is drawn as a button only where it is a page's call to action. The class each tier takes, and the conventions that apply it, live in the view-layer rule.
+
+Rationale:
+
+- Text reads as a link, and a link promises a destination. A control drawn as text that instead performs an act misleads the reader about what the click does.
+
+- One button treatment for every act, alone or in a row, lets a reader recognise every action on the site the same way. A row mixing bordered buttons with text controls reads as two kinds of control where there is one, and their different padding misaligns the row.
+
+- A fixed set of tiers stops each surface inventing its own control styles.
+
+Requirements:
+
+- A `<button>` that posts is drawn as a primary or outlined button.
+
+- A button inside a list item, a table row or a filter bar is compact, and a compact button keeps a target of at least 24 by 24 CSS pixels.
+
+- A row whose controls can outgrow a phone's width wraps them as whole buttons rather than squeezing their labels.
+
+- A destructive control in a row takes the same compact outlined button; its confirm step, not its colour, is what guards it.
+
+- The site frame's own controls and a media player's controls are styled by their component and sit outside the tiers.
+
+Trade-offs:
+
+- A row of compact buttons carries more visual weight than a row of text controls.
+
+- A destructive control is not marked by colour; the reader relies on its label and its confirm step.
+
+Impact:
+
+- The class baseline test refuses a retired control class if a template reintroduces it.
+
 # 5. Back-End Services and Patterns
 
 ## 5.1 Node.js with TypeScript

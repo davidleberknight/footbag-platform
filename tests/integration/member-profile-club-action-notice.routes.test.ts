@@ -91,7 +91,7 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 /** The key of a club the member holds but not as primary, which is the club
- *  the profile's swap form names; Club B for a member with no such club. */
+ *  the profile's Make Primary form names; Club B for a member with no such club. */
 function nonPrimaryClubKey(memberId: string): string {
   const db = new BetterSqlite3(dbPath, { readonly: true });
   try {
@@ -106,9 +106,9 @@ function nonPrimaryClubKey(memberId: string): string {
 }
 
 /** Runs a club action and returns the flash cookie it left for the profile. */
-async function swapPrimaryAs(memberId: string): Promise<string> {
+async function makePrimaryAs(memberId: string): Promise<string> {
   const acted = await request(createApp())
-    .post('/clubs/swap-primary')
+    .post('/clubs/make-primary')
     .set('Cookie', cookieFor(memberId))
     .type('form')
     .send({ club_key: nonPrimaryClubKey(memberId) });
@@ -118,21 +118,21 @@ async function swapPrimaryAs(memberId: string): Promise<string> {
   return carried;
 }
 
-describe('the swap form on the member profile', () => {
-  // Defect caught: the profile's Swap button posts no club, or the primary
-  // one, so pressing it refuses or does nothing instead of swapping.
+describe('the Make Primary form on the member profile', () => {
+  // Defect caught: the profile's Make Primary button posts no club, or the
+  // primary one, so pressing it refuses or does nothing instead of changing it.
   it('names the member\'s other club, and submitting it makes that club primary', async () => {
     const page = await request(createApp())
       .get(`/members/${TWO_CLUB_SLUG}`)
       .set('Cookie', cookieFor(TWO_CLUB));
     expect(page.status).toBe(200);
-    const named = /<form method="POST" action="\/clubs\/swap-primary"[^>]*>\s*<input type="hidden" name="club_key" value="([^"]*)">/
+    const named = /<form method="POST" action="\/clubs\/make-primary"[^>]*>\s*<input type="hidden" name="club_key" value="([^"]*)">/
       .exec(page.text)?.[1];
     const expectedKey = nonPrimaryClubKey(TWO_CLUB);
     expect(named).toBe(expectedKey);
 
     const res = await request(createApp())
-      .post('/clubs/swap-primary')
+      .post('/clubs/make-primary')
       .set('Cookie', cookieFor(TWO_CLUB))
       .type('form')
       .send({ club_key: named });
@@ -152,18 +152,18 @@ describe('the swap form on the member profile', () => {
 
 describe('a club action outcome on the member profile', () => {
   it('tells the member what happened on the page the action sent them to', async () => {
-    const carried = await swapPrimaryAs(TWO_CLUB);
+    const carried = await makePrimaryAs(TWO_CLUB);
 
     const shown = await request(createApp())
       .get(`/members/${TWO_CLUB_SLUG}`)
       .set('Cookie', [cookieFor(TWO_CLUB), carried].join('; '));
 
     expect(shown.status).toBe(200);
-    expect(shown.text).toContain('Primary club swapped.');
+    expect(shown.text).toContain('Primary club changed.');
   });
 
   it('renders a refusal in the refusal treatment, not the success one', async () => {
-    const carried = await swapPrimaryAs(ONE_CLUB);
+    const carried = await makePrimaryAs(ONE_CLUB);
 
     const shown = await request(createApp())
       .get(`/members/${ONE_CLUB_SLUG}`)
@@ -171,16 +171,16 @@ describe('a club action outcome on the member profile', () => {
 
     expect(shown.status).toBe(200);
     // A refused request reads as refused and is announced assertively. It used
-    // to render in the same flat grey line as "Primary club swapped.", which
+    // to render in the same flat grey line as "Primary club changed.", which
     // left the member no way to tell a denial from a completed act.
     expect(shown.text).toContain(
-      '<div class="form-error-banner" role="alert">You need two clubs to swap primary.</div>',
+      '<div class="form-error-banner" role="alert">You need two clubs to choose a primary.</div>',
     );
     expect(shown.text).not.toContain('form-success-banner');
   });
 
   it('renders a completed club action in the success treatment', async () => {
-    const carried = await swapPrimaryAs(TWO_CLUB);
+    const carried = await makePrimaryAs(TWO_CLUB);
 
     const shown = await request(createApp())
       .get(`/members/${TWO_CLUB_SLUG}`)
@@ -188,34 +188,34 @@ describe('a club action outcome on the member profile', () => {
 
     expect(shown.status).toBe(200);
     expect(shown.text).toContain(
-      '<div class="form-success-banner" role="status">Primary club swapped.</div>',
+      '<div class="form-success-banner" role="status">Primary club changed.</div>',
     );
     expect(shown.text).not.toContain('form-error-banner');
   });
 
   it('takes the outcome once: the response that shows it clears it, and a reload does not repeat it', async () => {
-    const carried = await swapPrimaryAs(TWO_CLUB);
+    const carried = await makePrimaryAs(TWO_CLUB);
 
     const shown = await request(createApp())
       .get(`/members/${TWO_CLUB_SLUG}`)
       .set('Cookie', [cookieFor(TWO_CLUB), carried].join('; '));
-    expect(shown.text).toContain('Primary club swapped.');
+    expect(shown.text).toContain('Primary club changed.');
     expect(flashCookieIn(shown)).toBe('footbag_flash=');
 
     const reloaded = await request(createApp())
       .get(`/members/${TWO_CLUB_SLUG}`)
       .set('Cookie', [cookieFor(TWO_CLUB), flashCookieAfter(carried, shown)].join('; '));
     expect(reloaded.status).toBe(200);
-    expect(reloaded.text).not.toContain('Primary club swapped.');
+    expect(reloaded.text).not.toContain('Primary club changed.');
   });
 
   it('does not resurface on the next club page the member opens', async () => {
-    const carried = await swapPrimaryAs(TWO_CLUB);
+    const carried = await makePrimaryAs(TWO_CLUB);
 
     const shown = await request(createApp())
       .get(`/members/${TWO_CLUB_SLUG}`)
       .set('Cookie', [cookieFor(TWO_CLUB), carried].join('; '));
-    expect(shown.text).toContain('Primary club swapped.');
+    expect(shown.text).toContain('Primary club changed.');
 
     // The club page consumes this same kind, so a note the profile left in the
     // cookie would announce a club action there that happened elsewhere.
@@ -223,6 +223,6 @@ describe('a club action outcome on the member profile', () => {
       .get(`/clubs/${CLUB_A_KEY}`)
       .set('Cookie', [cookieFor(TWO_CLUB), flashCookieAfter(carried, shown)].join('; '));
     expect(clubPage.status).toBe(200);
-    expect(clubPage.text).not.toContain('Primary club swapped.');
+    expect(clubPage.text).not.toContain('Primary club changed.');
   });
 });

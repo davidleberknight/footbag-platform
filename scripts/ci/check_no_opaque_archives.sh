@@ -45,7 +45,7 @@ ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
 
 python3 - <<'PY'
-import subprocess, sys
+import re, subprocess, sys
 
 # Magic bytes rather than extensions: the whole point is that the name proves
 # nothing. A renamed archive is still an archive.
@@ -68,11 +68,20 @@ MAGIC = {
     # is plain text a reviewer and a secret scanner can read, and a committed
     # vendor signing key is exactly that.
     b'-----BEGIN PGP MESSAGE': 'PGP message',
-    # An armoured private key is readable text, but nothing that reads text
-    # here refuses it everywhere: the secret scanner exempts whole data
-    # directories. A committed private key is never legitimate.
-    b'-----BEGIN PGP PRIVATE KEY BLOCK': 'PGP private key',
 }
+
+# A private key in any armoured text form: PKCS#8 (plain or encrypted), the
+# traditional RSA, EC and DSA forms, OpenSSH's own format, and PGP. Each is
+# readable text, but a committed private key is never legitimate, and the secret
+# scanner leaves whole data-file types unread. Unlike the table above, a key is
+# looked for anywhere in the head, so one pasted after a docstring, a comment or
+# indentation is refused too. The whole header line is required, closing dashes
+# included, so prose or source that only names the marker passes. A key whose
+# header starts past the head is left to the secret scanner.
+PRIVATE_KEY_HEADER = re.compile(
+    rb'-----BEGIN (RSA |EC |DSA |OPENSSH |ENCRYPTED |PGP )?PRIVATE KEY( BLOCK)?-----',
+)
+PRIVATE_KEY_KINDS = {b'OPENSSH ': 'OpenSSH private key', b'PGP ': 'PGP private key'}
 
 # Two container shapes the prefix table cannot express.
 #
@@ -136,6 +145,9 @@ def container_kind(head):
         return 'PGP message'
     if pgp_secret_key(head):
         return 'PGP secret key'
+    key = PRIVATE_KEY_HEADER.search(head)
+    if key:
+        return PRIVATE_KEY_KINDS.get(key.group(1), 'PEM private key')
     return None
 
 archives, states = [], []
@@ -166,11 +178,12 @@ for raw in files:
 
 if archives or states:
     for path, kind in archives:
-        print(f'{path}: {kind} archive', file=sys.stderr)
+        label = kind if kind.endswith('private key') else f'{kind} archive'
+        print(f'{path}: {label}', file=sys.stderr)
     for path in states:
         print(f'{path}: Terraform state', file=sys.stderr)
     print('', file=sys.stderr)
-    print('  FAIL: the repository tracks no archives and no Terraform state.', file=sys.stderr)
+    print('  FAIL: the repository tracks no archives, no private keys and no Terraform state.', file=sys.stderr)
     print('        An archive is opaque to every secret scanner here, including the', file=sys.stderr)
     print('        gitleaks history scan, so anything inside one is unreviewable and', file=sys.stderr)
     print('        undetectable. A saved Terraform plan is a zip: that is how three', file=sys.stderr)

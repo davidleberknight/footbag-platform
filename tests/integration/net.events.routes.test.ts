@@ -5,7 +5,6 @@
  *   GET /net/events — public event list
  *
  * Verifies:
- *   - Evidence disclaimer always present
  *   - Events ordered by start_date DESC
  *   - Events without net appearances do NOT appear in the list
  *   - The discipline-review badge follows net_discipline_group.conflict_flag alone
@@ -177,11 +176,6 @@ afterAll(() => cleanupTestDb(dbPath));
 // ---------------------------------------------------------------------------
 
 describe('GET /net/events', () => {
-  it('includes the evidence disclaimer', async () => {
-    const res = await page('/net/events');
-    expect(res.text).toContain('may not reflect official partnerships');
-  });
-
   it('shows events that have net appearances', async () => {
     const res = await page('/net/events');
     expect(res.status).toBe(200);

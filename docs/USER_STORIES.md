@@ -909,10 +909,10 @@ Story: As a member, I can download all my personal data as JSON so that I can ex
 Success Criteria:
 
 - Member can download a personal data export from their own profile page.
-- The system generates a JSON export that includes: Member profile data (identity, contact, membership tier, Active Player status, etc.). Payment history associated with the member. Event registrations and participation data. Media metadata uploaded by the member (e.g., file names, timestamps, captions, tags). Audit log entries where the member is the actor.
+- The system generates a JSON export that includes: Member profile data (identity, contact, membership tier, Active Player status, etc.). Payment history associated with the member. Event registrations and participation data. Media metadata uploaded by the member (e.g., file names, timestamps, captions, tags). Audit log entries where the member is the actor (action type and timestamp only).
 - Vote data in the export: Indicates which votes the member participated in and relevant metadata (vote title, vote ID, submission timestamp). Does not include raw ballot content, receipt tokens, or receipt token hashes. Members who need to verify a ballot must use the receipt information from their original vote-confirmation email; the system does not store plaintext receipt tokens.
 - The data export is delivered as a human-readable JSON file with a documented structure.
-- Export contents include: member profile, membership tier and Active Player status, email subscription settings, club memberships/roles, event registrations, uploaded media metadata owned by the member (including tags/captions/links), payment history entries that reference the member, and vote participation records (but never vote selections).
+- Export contents include: member profile, membership tier and Active Player status, email subscription settings, club memberships/roles, event registrations, uploaded media metadata owned by the member (including tags/captions/links), payment history entries that reference the member, vote participation records (but never vote selections), and audit log entries where the member is the actor (action type and timestamp only).
 - Delivery: Member presses a "Download my data" button on their own profile page, and the system builds the JSON file and returns it as a download in the same response. Only the signed-in member can download their own export, and it is built fresh on each request.
 
 ### M_Browse_Legacy_Archive
@@ -1223,7 +1223,7 @@ Story: As a member, I can leave a current club to be removed from the roster.
 Success Criteria:
 
 - Leaving sets `member_club_affiliations.is_current=0` and `is_primary=0` for the member-club pair.
-- A member who holds any current club affiliation holds exactly one primary. If leaving the primary club leaves exactly one current affiliation, that affiliation becomes primary in the same transaction. A member holding two current affiliations changes which is primary through the explicit swap control, never automatically.
+- A member who holds any current club affiliation holds exactly one primary. If leaving the primary club leaves exactly one current affiliation, that affiliation becomes primary in the same transaction. A member holding two current affiliations makes either one primary through the Make Primary control beside that club, never automatically.
 - A member who is the club's only co-leader is warned before leaving ("You are the only co-leader; the club will have no member-visible contact until someone steps up") and may invite a successor first via `CL_Manage_CoLeaders` or proceed. Leaving as the last co-leader leaves the club leaderless, a tolerated state per §5.1, not blocked.
 - Leaving a club where the member also held a `club_leaders` row removes that co-leader row in the same transaction.
 - Leaving sends an email notification to the leaving member and to all current co-leaders.

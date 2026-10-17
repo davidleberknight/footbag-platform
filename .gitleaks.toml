@@ -10,8 +10,10 @@ useDefault = true
 description = "Verified false positives"
 paths = [
   # Historical-pipeline identity CSVs: UUID columns trip the generic-api-key
-  # rule. The tree holds no credentials by design (synthetic-only rule).
-  '''legacy_data/.*''',
+  # rule. The tree holds no credentials by design (synthetic-only rule). Only
+  # the data files are exempt; source, notes and text there stay under every
+  # rule.
+  '''legacy_data/.*\.(csv|jsonl?)$''',
   # Read-only legacy-site clone (the gitignored footbag_legacy_repo symlink).
   # The old footbag.org source legitimately holds the legacy site's clear-text
   # credentials; it is never committed, so git-mode scans already skip it, and a
@@ -23,8 +25,9 @@ paths = [
   '''footbag_legacy_repo_original_data/.*''',
   # Curated email templates: long snake_case templateKey values (for example
   # honor_congratulation_bap_tier3) trip the generic-api-key rule. The tree
-  # holds template text and keys only, no credentials by design.
-  '''curated/email_templates/.*''',
+  # holds template text and keys only, no credentials by design. Only the JSON
+  # templates are exempt; any other file there stays under every rule.
+  '''curated/email_templates/.*\.json$''',
   # Scanner output from local runs must never feed back into the scan.
   '''\.gitleaks-report\.json''',
 ]

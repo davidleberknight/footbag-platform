@@ -84,8 +84,7 @@ const DECISIONS: Record<string, Decision> = {
   'active_player_vouches.target_member_id': { export: { unruled: NOT_LISTED }, erasure: { unruled: NO_ERASURE_RULE } },
   'active_player_vouches.voucher_member_id': ACTOR,
   'audit_entries.actor_member_id': {
-    // The download story lists audit entries where the member is the actor.
-    export: { exported: 'MISSING' },
+    export: { exported: 'memberExport.ownAuditActions' },
     erasure: { retained: 'erasure does not delete audit history' },
   },
   'ballots.voter_member_id': {
@@ -209,13 +208,7 @@ const DECISIONS: Record<string, Decision> = {
  * the defect. The checks below assert the gap is still there, so the fix fails
  * this file until its entry here is replaced by the statement that closes it.
  */
-const KNOWN_GAPS: Record<string, { side: 'export' | 'erasure'; table: string; defect: string }> = {
-  'audit_entries.actor_member_id': {
-    side: 'export',
-    table: 'audit_entries',
-    defect: 'the download story lists audit entries where the member is the actor, and the export reads no audit statement at all; the service header says the ledger is excluded, so the code and the story disagree',
-  },
-};
+const KNOWN_GAPS: Record<string, { side: 'export' | 'erasure'; table: string; defect: string }> = {};
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let dbModule: Record<string, Record<string, any>>;

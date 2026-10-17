@@ -50,7 +50,7 @@ publicRouter.get('/',      homeController.home);
 // archive edge cannot share the platform session cookie.
 publicRouter.get('/archive', requireMember, homeController.archiveRedirect);
 publicRouter.get('/clubs',                  clubController.index);
-publicRouter.post('/clubs/swap-primary',    requireMember, clubController.postSwapPrimary);
+publicRouter.post('/clubs/make-primary',    requireMember, clubController.postMakePrimary);
 publicRouter.get('/clubs/create',           requireMember, requireMayCreateClub(), clubController.getCreate);
 publicRouter.post('/clubs/create',          requireMember, requireMayCreateClub(), clubController.postCreate);
 publicRouter.get('/clubs/:key',             clubController.byKey);

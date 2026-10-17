@@ -7,7 +7,6 @@
  *
  * Verifies:
  *   - 200 for valid routes, 404 for unknown teamId
- *   - Evidence disclaimer always present
  *   - Teams ordered by appearance_count DESC
  *   - Team name and partner names visible
  *   - Year grouping on detail page
@@ -420,11 +419,6 @@ describe('GET /net/teams/:teamId', () => {
     const res = await page(`/net/teams/${TEAM_1_ID}`);
     expect(res.text).toContain(`/history/${PERSON_A1}`);
     expect(res.text).toContain(`/history/${PERSON_B1}`);
-  });
-
-  it('includes evidence disclaimer', async () => {
-    const res = await page(`/net/teams/${TEAM_1_ID}`);
-    expect(res.text).toContain('algorithmically constructed');
   });
 
   it('excludes inferred_partial appearances from timeline and summary', async () => {

@@ -11,42 +11,41 @@
               {{#if this.isLeader}}
                 <span class="badge badge-honor">{{this.leaderRole}}</span>
               {{/if}}
+              {{#if this.canMakePrimary}}
+                <form method="POST" action="{{this.makePrimaryHref}}" class="inline-form">
+                  <input type="hidden" name="club_key" value="{{this.makePrimaryClubKey}}">
+                  <button type="submit" class="btn btn-outline btn-sm">Make Primary</button>
+                </form>
+              {{/if}}
             </div>
             <div class="my-clubs-actions">
-              <form method="POST" action="{{this.leaveHref}}" class="inline-form">
-                <button type="submit" class="btn btn-outline">Leave Club</button>
-              </form>
+              {{#if this.canStepDown}}
+                <form method="POST" action="{{this.clubHref}}/step-down" class="inline-form">
+                  <button type="submit" class="btn btn-outline btn-sm">Step Down as Co-leader</button>
+                </form>
+              {{/if}}
               {{#if this.canMarkInactive}}
                 <form method="POST" action="{{this.clubHref}}/mark-inactive" class="inline-form">
-                  <button type="submit" class="btn-link text-muted fs-sm">Mark Inactive</button>
+                  <button type="submit" class="btn btn-outline btn-sm">Mark Inactive</button>
                 </form>
               {{/if}}
               {{#if this.canReactivate}}
                 <form method="POST" action="{{this.clubHref}}/reactivate" class="inline-form">
-                  <button type="submit" class="btn-link text-muted fs-sm">Reactivate Club</button>
-                </form>
-              {{/if}}
-              {{#if this.canStepDown}}
-                <form method="POST" action="{{this.clubHref}}/step-down" class="inline-form">
-                  <button type="submit" class="btn btn-outline">Step Down as Co-leader</button>
+                  <button type="submit" class="btn btn-outline btn-sm">Reactivate Club</button>
                 </form>
               {{/if}}
               {{#if this.canVolunteer}}
                 <form method="POST" action="{{this.volunteerHref}}" class="inline-form">
-                  <button type="submit" class="btn-link fs-sm">{{#if this.clubIsLeaderless}}This Club Has No Co-leader Yet; Become Its First{{else}}Volunteer to Co-lead{{/if}}</button>
+                  <button type="submit" class="btn btn-outline btn-sm">{{#if this.clubIsLeaderless}}This Club Has No Co-leader Yet; Become Its First{{else}}Volunteer to Co-lead{{/if}}</button>
                 </form>
               {{/if}}
+              <form method="POST" action="{{this.leaveHref}}" class="inline-form">
+                <button type="submit" class="btn btn-outline btn-sm">Leave Club</button>
+              </form>
             </div>
           </li>
         {{/each}}
       </ul>
-
-      {{#if canSwapPrimary}}
-        <form method="POST" action="{{swapPrimaryHref}}" class="mt-4">
-          <input type="hidden" name="club_key" value="{{swapPrimaryClubKey}}">
-          <button type="submit" class="btn btn-outline">Swap Primary Club</button>
-        </form>
-      {{/if}}
     {{else}}
       <p class="text-muted">You have no club affiliations yet.</p>
       {{#if nearbySuggestions.length}}

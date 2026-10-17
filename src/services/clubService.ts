@@ -17,7 +17,7 @@
  *   - Co-leader management: a flat, equal set of co-leaders (creator is the
  *     first; self-volunteer and invite-accept add more; step-down and leave
  *     remove one's own)
- *   - Roster management (self-service join, leave, swap primary)
+ *   - Roster management (self-service join, leave, make primary)
  *
  * Does not own:
  *   - Media (MediaGalleryService)
@@ -2732,14 +2732,14 @@ export class ClubService {
   /**
    * Make the named club the member's primary. The form names its target, so a
    * second submit asks for the state the first one made: a target that is
-   * already primary changes nothing, and reports the member's own earlier swap
+   * already primary changes nothing, and reports the member's own earlier change
    * when there was one.
    */
-  swapPrimaryAffiliation(
+  makePrimaryAffiliation(
     actorMemberId: string,
     targetClubKey: string,
   ): {
-    branch: 'swapped' | 'own_repeat' | 'already_held' | 'not_member' | 'not_enough_clubs';
+    branch: 'made_primary' | 'own_repeat' | 'already_held' | 'not_member' | 'not_enough_clubs';
   } {
     const current = memberClubAffiliations.listCurrentWithClubName.all(actorMemberId) as
       Array<{ id: string; club_id: string; club_key: string; club_name: string; is_primary: number }>;
@@ -2782,7 +2782,7 @@ export class ClubService {
       });
     });
 
-    return { branch: 'swapped' };
+    return { branch: 'made_primary' };
   }
 
   /**

@@ -335,6 +335,37 @@ describe('the server a run reaches follows its label, and confirms it', () => {
       .filter((line) => !/^\s*#/.test(line))
       .join('\n');
 
+  // The script with the contents of every quoted string blanked, quotes and
+  // line breaks kept. A command substitution inside double quotes is code, so
+  // it is kept and read as code until its closing parenthesis.
+  const shellCode = (body: string): string => {
+    const stack: Array<'code' | 'single' | 'double'> = ['code'];
+    const depth: number[] = [];
+    let out = '';
+    for (let i = 0; i < body.length; i++) {
+      const c = body[i];
+      const top = stack[stack.length - 1];
+      if (top === 'single') {
+        if (c === "'") { stack.pop(); out += c; } else out += c === '\n' ? '\n' : ' ';
+      } else if (top === 'double') {
+        if (c === '\\') { out += '  '; i++; }
+        else if (c === '"') { stack.pop(); out += c; }
+        else if (c === '$' && body[i + 1] === '(') { stack.push('code'); depth.push(0); out += '$('; i++; }
+        else out += c === '\n' ? '\n' : ' ';
+      } else {
+        if (c === "'") stack.push('single');
+        else if (c === '"') stack.push('double');
+        else if (c === '(' && depth.length) depth[depth.length - 1]++;
+        else if (c === ')' && depth.length) {
+          if (depth[depth.length - 1] === 0) { depth.pop(); stack.pop(); }
+          else depth[depth.length - 1]--;
+        }
+        out += c;
+      }
+    }
+    return out;
+  };
+
   const operatorScripts = (): Array<[string, string]> => {
     const files = (dir: string) =>
       readdirSync(dir, { withFileTypes: true })
@@ -426,8 +457,27 @@ describe('the server a run reaches follows its label, and confirms it', () => {
   // library's wire functions.
   // `ssh -G` only reads the local configuration and reaches nothing, so it is
   // not a connection.
-  const connects = (body: string): boolean =>
-    /(^|[|(;&!]|\b(then|do|else))\s*ssh\s+(?!-G\b)|"?\$\{?(HOST_)?SSH_BIN\}?"?\s|\b(scp|sftp)\s|-e\s+"?ssh\b|\bhost_env_(fetch|install)\s/m.test(body);
+  // A sentence that mentions ssh is not a connection either, so the forms that
+  // look for a command are judged on the code alone, with quoted text blanked;
+  // only the two forms written to match a quoted client read the text as is.
+  const connects = (body: string): boolean => {
+    const codeOnly = shellCode(body);
+    return /(^|[|(;&!]|\b(then|do|else))\s*ssh\s+(?!-G\b)|\b(scp|sftp)\s|\bhost_env_(fetch|install)\s/m.test(codeOnly)
+      || /"?\$\{?(HOST_)?SSH_BIN\}?"?\s|-e\s+"?ssh\b/m.test(body);
+  };
+
+  it('judges a connection by the code, not by text that mentions ssh', () => {
+    // Defect caught: an advice line naming an ssh command fails the gate on a
+    // script that connects to nothing.
+    expect(connects('NOTE="not linked yet; ssh -T git@github.com shows which"')).toBe(false);
+    // Defect caught: blanking quoted text hides a connection made inside a
+    // quoted command substitution, so an unconfirmed script passes.
+    expect(connects('out="$(ssh "$HOST" uptime)"')).toBe(true);
+    // Defect caught: splitting the forms loses the plain client or rsync's
+    // quoted remote shell.
+    expect(connects('ssh "$HOST" true')).toBe(true);
+    expect(connects('rsync -e "ssh -i key" a b')).toBe(true);
+  });
 
   it('every script that connects to a server asks it which environment it is first', () => {
     const offenders = operatorScripts()

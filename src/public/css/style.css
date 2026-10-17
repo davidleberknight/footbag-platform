@@ -744,7 +744,7 @@ th.sortable:hover { color: var(--primary-ink); }
 .my-clubs-item:last-child { border-bottom: none; }
 .my-clubs-item-header { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .my-clubs-name { font-weight: 600; }
-.my-clubs-actions { display: flex; gap: 12px; margin-top: 4px; }
+.my-clubs-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 6px; }
 .my-clubs-ctas { display: flex; gap: 8px; flex-wrap: wrap; }
 
 /* ── Club create form ───────────────────────────────────────── */
@@ -1938,29 +1938,21 @@ section.home-media { padding-top: 0; }
   text-underline-offset: 2px;
 }
 
-/* Inline action: a state-changing control that reads as text because it sits in
-   a table row, a list item or a sentence, where a bordered button would be the
-   default chrome the callout policy reserves. It is a <button> because it posts,
-   so it inherits the surrounding font and carries no box; the resting underline
-   is the non-colour cue a link owes a reader who cannot use its colour. The
-   danger variant is the same control for a destructive act. Both take a visible
-   focus ring: a control styled as text has nothing else to show the keyboard
-   where it is, and changing the underline on focus is not an indicator. */
-.btn-link,
-.btn-link-danger {
+/* A navigation link drawn as underlined text in a control position. A control
+   that changes state never takes it: an act is a button, because text reads as
+   a link and a link promises a destination. The focus ring is the keyboard's
+   only indicator, since a change of underline is not one. */
+.btn-link {
   background: none;
   border: none;
   padding: 0;
   font: inherit;
   cursor: pointer;
   text-decoration: underline;
+  color: var(--primary-ink);
 }
-.btn-link { color: var(--primary-ink); }
 .btn-link:hover { color: var(--primary-ink-dk); }
-.btn-link-danger { color: var(--danger-accent); }
-.btn-link-danger:hover { color: var(--danger-text); }
-.btn-link:focus-visible,
-.btn-link-danger:focus-visible {
+.btn-link:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }

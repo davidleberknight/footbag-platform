@@ -326,6 +326,10 @@ export interface MyClubsClubView {
   canVolunteer: boolean;
   volunteerHref: string | null;
   clubIsLeaderless: boolean;
+  // Offered beside the member's secondary club when they hold two.
+  canMakePrimary: boolean;
+  makePrimaryHref: string | null;
+  makePrimaryClubKey: string | null;
 }
 
 export interface NearbyClubSuggestion {
@@ -338,11 +342,8 @@ export interface MyClubsView {
   clubs: MyClubsClubView[];
   canAddClub: boolean;
   canCreateClub: boolean;
-  canSwapPrimary: boolean;
   browseClubsHref: string;
   createClubHref: string | null;
-  swapPrimaryHref: string | null;
-  swapPrimaryClubKey: string | null;
   createTierNotice: TierBenefitNotice | null;
   nearbySuggestions: NearbyClubSuggestion[];
 }
@@ -2352,6 +2353,9 @@ function buildMyClubsView(memberId: string, slug: string): MyClubsView {
     // A member co-leads at most one club, edits content directly, and can step
     // down at any time (the last co-leader out leaves the club leaderless).
     const canVolunteer = leadership == null && volunteerBenefits && !coLeadsAnyClub && coLeaderCount < 5;
+    // The form names the club it makes primary, so a second submit of the same
+    // page asks for the state the first one made rather than flipping it back.
+    const canMakePrimary = rows.length === 2 && r.is_primary !== 1;
 
     return {
       clubName: r.club_name,
@@ -2367,6 +2371,9 @@ function buildMyClubsView(memberId: string, slug: string): MyClubsView {
       canVolunteer,
       volunteerHref: canVolunteer ? `/clubs/${encodeURIComponent(r.club_key)}/volunteer` : null,
       clubIsLeaderless: coLeaderCount === 0,
+      canMakePrimary,
+      makePrimaryHref: canMakePrimary ? '/clubs/make-primary' : null,
+      makePrimaryClubKey: canMakePrimary ? r.club_key : null,
     };
   });
 
@@ -2391,13 +2398,8 @@ function buildMyClubsView(memberId: string, slug: string): MyClubsView {
     clubs: clubViews,
     canAddClub: rows.length < 2,
     canCreateClub: canCreateClubBenefits && !coLeadsAnyClub,
-    canSwapPrimary: rows.length === 2,
     browseClubsHref: '/clubs',
     createClubHref: canCreateClubBenefits && !coLeadsAnyClub ? '/clubs/create' : null,
-    swapPrimaryHref: rows.length === 2 ? '/clubs/swap-primary' : null,
-    // The form names the club it makes primary, so a second submit of the same
-    // page asks for the state the first one made rather than swapping back.
-    swapPrimaryClubKey: rows.length === 2 ? rows.find((r) => r.is_primary !== 1)?.club_key ?? null : null,
     // A member ineligible to create a club (a lapsed-AP Tier 0 member) reads
     // what the benefit is and how to earn it, instead of the create path being
     // hidden with nothing said. Having a club already is no reason to withhold

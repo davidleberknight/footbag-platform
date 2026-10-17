@@ -19,7 +19,7 @@ export const ROUTE_STORIES: Readonly<Record<string, RouteStory>> = {
   'GET /': { stories: ['V_Browse_Static_Content'] },
   'GET /archive': { stories: ['M_Browse_Legacy_Archive'] },
   'GET /clubs': { stories: ['V_Browse_Clubs'] },
-  'POST /clubs/swap-primary': { stories: ['M_Leave_Club'] },
+  'POST /clubs/make-primary': { stories: ['M_Leave_Club'] },
   'GET /clubs/create': { stories: ['M_Create_Club'] },
   'POST /clubs/create': { stories: ['M_Create_Club'] },
   'GET /clubs/:key': { stories: ['V_Browse_Clubs', 'M_View_Club'] },

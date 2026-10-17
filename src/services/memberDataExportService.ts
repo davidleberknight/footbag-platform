@@ -24,16 +24,18 @@
  *   - Three things are excluded by rule rather than by omission, and each is
  *     enforced at the statement: how the member voted (the encrypted ballot
  *     envelope and the receipt-token hash are never selected), payment-provider
- *     identifiers, and the audit ledger. The ledger is out because the right of
- *     access does not extend to it and because its metadata is free-form and
- *     routinely names other people.
+ *     identifiers, and everything in the audit ledger beyond the member's own
+ *     actions. Those actions are carried as the action type and the time only:
+ *     the ledger's metadata, reason and entity are free-form and routinely name
+ *     other people, and an entry where the member is only the subject records
+ *     someone else's act.
  *   - The download is a read: it is built fresh on each request and writes
  *     nothing, so it is safe to repeat and safe for anything that follows links.
  *
  * Persistence: reads members, member_club_affiliations, club_leaders,
  *   registrations, mailing_list_subscriptions, media_items, media_tags,
  *   member_galleries, payments, recurring_donation_subscriptions, ballots,
- *   member_declared_anchors, legacy_members. Writes nothing.
+ *   member_declared_anchors, legacy_members, audit_entries. Writes nothing.
  *
  * Side effects: none.
  *
@@ -79,6 +81,8 @@ export interface MemberDataExport {
    *  row, so this is the only place an export can honestly find them. */
   legacyAccount: Record<string, unknown> | null;
   externalLinks: unknown[];
+  /** Each audit entry where the member is the actor: action type and time. */
+  ownActions: unknown[];
 }
 
 function capped<T>(rows: T[], truncated: { hit: boolean }): T[] {
@@ -154,6 +158,7 @@ export const memberDataExportService = {
       declaredAnchors:     capped(declaredAnchors.listByMember.all(memberId) as unknown[], truncated),
       legacyAccount,
       externalLinks:       capped(memberLinks.listByMember.all(memberId) as unknown[], truncated),
+      ownActions:          capped(memberExport.ownAuditActions.all(memberId) as unknown[], truncated),
     };
 
     return { document, truncated: truncated.hit };
