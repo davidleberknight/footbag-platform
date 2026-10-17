@@ -198,6 +198,15 @@ Family pages weight Q3 high (selling the family). Trick pages downweight Q3 (int
 - No expert hedges ("it's said to be...", "some consider...": erodes trust)
 - No editorialized difficulty ("hard tricks ahead!"): ADD numbers speak
 
+### Public prose: attribution and internal language
+
+Two rules bind every word a visitor reads on a freestyle page: rendered template text, service-shaped copy, and curator prose stored in the database (descriptions, technique notes, tips).
+
+- **No individual named as a source or contributor.** A freestyle page never credits a person for a trick, a notation, a description, a ruling or a reference. The one standing exception is Ben Job, named as the author of the Job notation system on the notation article. A record holder named for the record is not attribution and is outside this rule. Any further exception needs an explicit ruling from the freestyle maintainer before it is written.
+- **No internal-process language.** Rendered prose never carries the working vocabulary of curation: the rules expert's name, ruling identifiers, "adjudication", maintainer names, sprint or phase labels, or dated "curator-reviewed" notes. A specific outside source is named as "an outside source", except on the surfaces whose job is attribution: the glossary's sources sections, media, the observational pages, the sets pages and the notation article.
+
+Verify both against the rendered HTML, not only the source data.
+
 ### "Show me your work" expander depth
 
 The ontology-details expander is for trust, not information density. It includes:

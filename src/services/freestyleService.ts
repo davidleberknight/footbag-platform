@@ -42,8 +42,8 @@
  *   - The public family browse layer and modifier clusters are navigation/display layers only and
  *     carry no canonical-ontology weight.
  *   - The deep family / topology / modifier / set doctrine and the curator-content authoring rules
- *     are owned by the freestyle dictionary, topology-governance, and dictionary-surface skills and
- *     the committed content modules; current editorial pilots and allow-lists live in the code
+ *     are owned by the freestyle dictionary and dictionary-surface skills and the committed
+ *     content modules; current editorial pilots and allow-lists live in the code
  *     and the maintainers' private tracker, not in this contract.
  */
 import {
@@ -7341,11 +7341,17 @@ export const freestyleService = {
           structuralAbout: derivedStructuralAbout,
           quantityLadder,
           modifierMemberships,
+          // The same modifiers the Structural Facts block shows: the trick's own
+          // links, or the curator-published operator when it has none, so the
+          // two never disagree about whether a trick carries a modifier.
           symbolicEducationCtas:   dictRow
             ? buildSymbolicEducationCtas({
                 slug,
                 baseTrick:     dictRow.base_trick,
-                modifierSlugs: modifierLinks.map(l => l.modifier_slug),
+                modifierSlugs: (currentTrickMods.length > 0
+                  ? currentTrickMods
+                  : deriveModifierLinksFromOperator(dictRow.slug, allModifierRows)
+                ).map(m => m.slug),
               })
             : [],
           structuralFacts: (() => {

@@ -69,6 +69,10 @@ beforeAll(async () => {
   // follow the row, not the stale grouping.
   insertFreestyleTrick(db, { slug: 'bigwalk', canonical_name: 'bigwalk', adds: '5', base_trick: 'mirage', trick_family: 'mirage', category: 'compound' });
 
+  // scorpions_tail has no modifier link rows; its curator-published formula
+  // names the spinning operator, which the Structural Facts block shows.
+  insertFreestyleTrick(db, { slug: 'scorpions_tail', canonical_name: "scorpion's tail", adds: '5', base_trick: 'down_double_down', trick_family: 'down_double_down', category: 'compound' });
+
   db.close();
   createApp = await importApp();
 });
@@ -292,6 +296,14 @@ describe('trick-page educational CTAs follow the trick, not a stored grouping', 
     const block = ctaBlock(res.text);
     expect(block).toContain('href="/freestyle/modifier/spinning"');
     expect(block).not.toContain('href="/freestyle/progression/walking-family"');
+  });
+
+  it('a trick with no modifier link rows takes its modifiers from the curated formula, as its Structural Facts do', async () => {
+    // Otherwise the page lists spinning among the trick's facts while offering
+    // no link to the spinning modifier's teaching page.
+    const res = await page('/freestyle/tricks/scorpions_tail');
+    expect(res.status).toBe(200);
+    expect(ctaBlock(res.text)).toContain('href="/freestyle/modifier/spinning"');
   });
 
   it('a trick moved off the butterfly loses the walking-family link the stored grouping still gives it', async () => {
