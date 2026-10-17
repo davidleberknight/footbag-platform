@@ -21,6 +21,9 @@
 # Local symlink to the footbag.org mirror crawl output (canonical link name; machine-specific target)
 /footbag_legacy_mirror
 
+# Local symlink into the private bug-intake repository's clone (canonical link name; machine-specific target)
+/footbag_dev_tester_repo
+
 #=========================
 # Legacy migration data (keep code, ignore generated/mirrored data)
 # =========================

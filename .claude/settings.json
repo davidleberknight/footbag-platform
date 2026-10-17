@@ -1,5 +1,8 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "env": {
+    "FOOTBAG_DEVTESTER_REPO": "davidleberknight/footbag-dev-tester"
+  },
   "permissions": {
     "additionalDirectories": ["footbag_private_repo", "../footbag-ops"],
     "allow": [
@@ -49,6 +52,10 @@
       "Bash(gh issue comment -R \"$FOOTBAG_PRIVATE_REPO\":*)",
       "Bash(gh issue close -R \"$FOOTBAG_PRIVATE_REPO\":*)",
       "Bash(gh issue reopen -R \"$FOOTBAG_PRIVATE_REPO\":*)",
+      "Bash(gh issue edit -R \"$FOOTBAG_DEVTESTER_REPO\":*)",
+      "Bash(gh issue comment -R \"$FOOTBAG_DEVTESTER_REPO\":*)",
+      "Bash(gh issue close -R \"$FOOTBAG_DEVTESTER_REPO\":*)",
+      "Bash(gh issue reopen -R \"$FOOTBAG_DEVTESTER_REPO\":*)",
       "Bash(whois footbag.org)",
       "Bash(dig +short footbag.org NS)",
       "Bash(dig +short footbag.org MX)",
@@ -170,6 +177,7 @@
     "deny": [
       "Edit(./footbag_legacy_repo/**)",
       "Edit(./footbag_legacy_repo_original_data/**)",
+      "Edit(./footbag_dev_tester_repo/**)",
       "Edit(./.env)",
       "Edit(./.env.local)",
       "Edit(./.env.production)",

@@ -24,7 +24,7 @@ COMMAND="$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')"
 
 GIT_DENY="HARD BLOCK: the human owns every change to this repository. Claude may read history and working-tree state, and may never stage, commit, push, pull, branch, switch, checkout, merge, rebase, tag, stash, reset, or otherwise write to the repository. Say what needs running and let the human run it."
 
-GH_DENY="HARD BLOCK: the human owns every change to the GitHub repository. Claude may read GitHub and may operate the maintainers' private issue tracker, and may never create or modify branches, pull requests, releases, workflow runs, keys, or repository settings."
+GH_DENY="HARD BLOCK: the human owns every change to the GitHub repository. Claude may read GitHub and may operate issues in the maintainers' private tracker and the private bug-intake repository, and may never create or modify branches, pull requests, releases, workflow runs, keys, or repository settings."
 
 deny() {
   jq -n --arg reason "$1" '{
@@ -126,9 +126,10 @@ judge_config() {
 }
 
 # The GitHub CLI reaches the same repository over the API, so the same rule holds
-# there. The one sanctioned exception is the maintainers' private issue tracker,
-# whose create/edit/comment/close operations this project's permission rules grant
-# on their own merits; everything that changes repository state is refused.
+# there. The one sanctioned exception is issue operations, which is how the
+# maintainers' private tracker and the private bug-intake repository are worked;
+# the permission rules decide which repositories they auto-approve for. Everything
+# else that changes repository state is refused.
 # A GraphQL call is always a POST carrying its query in a field, so the field rule
 # below would refuse every one, reads included. It is judged on the document
 # instead: a mutation or subscription anywhere in the command is refused, and so is

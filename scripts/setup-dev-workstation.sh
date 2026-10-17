@@ -39,6 +39,11 @@
 #   11. With --account only: the named key pair a dev-and-tester is onboarded
 #       with, at ~/.ssh/id_ed25519_<account>, where the acceptance looks for it,
 #       made with no passphrase.
+#   12. The link footbag_dev_tester_repo to the private bug-intake repository's
+#       clone, beside this checkout as ../footbag-dev-tester, cloning it over SSH
+#       first when GitHub admits this machine to it. The owner is taken from this
+#       checkout's own origin. Without access it says so and carries on: plain
+#       contributors are not invited to that repository.
 #   Then it checks every tool again and exits non-zero if anything is missing.
 #   With --account it ends by printing what the holder who onboards them needs:
 #   the public key, its fingerprint, and the address this machine connects from.
@@ -59,6 +64,8 @@
 #     re-run keeps it; and once replaced, a re-run finds a different fingerprint
 #     there and keeps the new one.
 #   - Set aside, or create, only one half of a pair.
+#   - Replace anything at footbag_dev_tester_repo that is not a link, or move a
+#     link that already resolves to a directory.
 #
 # Usage:
 #   bash scripts/setup-dev-workstation.sh
@@ -95,7 +102,8 @@
 #   --yes       Accept the typed confirmation in advance.
 #
 # Test seam (CI only): SETUP_DEV_AWS_BIN replaces the aws CLI used for the
-# dead-identity proof, and a run using it says so.
+# dead-identity proof, and SETUP_DEV_GIT the git that reaches GitHub for the
+# bug-intake clone; a run using either says so.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -209,9 +217,10 @@ ALTERNATIVES="${SETUP_DEV_ALTERNATIVES:-sudo update-alternatives}"
 SYSTEM_PYTHON3="${SETUP_DEV_SYSTEM_PYTHON3:-/usr/bin/python3}"
 DIST_PACKAGES="${SETUP_DEV_DIST_PACKAGES:-/usr/lib/python3/dist-packages}"
 FETCH="${SETUP_DEV_FETCH:-curl -fsSL -o}"
+GITHUB_GIT="${SETUP_DEV_GIT:-git}"
 NVM_DIR="${NVM_DIR:-${HOME}/.nvm}"
 for seam in SETUP_DEV_BIN_DIR SETUP_DEV_PYTHON_ROOT SETUP_DEV_APT SETUP_DEV_DPKG_QUERY SETUP_DEV_FETCH \
-  SETUP_DEV_ALTERNATIVES SETUP_DEV_SYSTEM_PYTHON3 SETUP_DEV_DIST_PACKAGES; do
+  SETUP_DEV_ALTERNATIVES SETUP_DEV_SYSTEM_PYTHON3 SETUP_DEV_DIST_PACKAGES SETUP_DEV_GIT; do
   [[ -n "${!seam:-}" ]] && echo "SYNTHETIC: ${seam} is set -- this run proves nothing about this machine." >&2
 done
 
@@ -355,6 +364,48 @@ if [[ -n "$ACCOUNT" ]]; then
   fi
 fi
 
+# What the bug-intake link needs: nothing, "link", or "clone" (then link).
+# Settled before the plan, so something other than a link in its place stops
+# the run before anything is installed. A link that already resolves is kept
+# wherever it points; one that resolves to nothing is replaced, losing nothing.
+# The probe and the clone run with BatchMode, so a key passphrase or an unknown
+# host key is reported as no access rather than prompting mid-run.
+DEVTESTER_LINK="footbag_dev_tester_repo"
+DEVTESTER_TARGET="../footbag-dev-tester"
+DEVTESTER_DIR="$(dirname "$REPO_ROOT")/footbag-dev-tester"
+DEVTESTER_ACTION=""
+DEVTESTER_NOTE=""
+DEVTESTER_URL=""
+if [[ -L "$DEVTESTER_LINK" && -d "$DEVTESTER_LINK" ]]; then
+  :
+elif [[ -e "$DEVTESTER_LINK" && ! -L "$DEVTESTER_LINK" ]]; then
+  echo "ERROR: ${DEVTESTER_LINK} exists and is not a link. Move it aside and re-run." >&2
+  echo "       Nothing changed." >&2
+  exit 1
+elif [[ -d "${DEVTESTER_DIR}/.git" ]]; then
+  DEVTESTER_ACTION="link"
+elif [[ -e "$DEVTESTER_DIR" ]]; then
+  DEVTESTER_NOTE="Bug intake is not linked: ${DEVTESTER_DIR} exists and is not a clone, so it is left alone."
+else
+  origin="$(git remote get-url origin 2>/dev/null || true)"
+  owner=""
+  case "$origin" in
+    git@github.com:*/*) owner="${origin#git@github.com:}" ;;
+    https://github.com/*/*|ssh://git@github.com/*/*) owner="${origin#*github.com/}" ;;
+  esac
+  owner="${owner%%/*}"
+  if [[ -z "$owner" ]]; then
+    DEVTESTER_NOTE="Bug intake is not linked: this checkout has no GitHub origin to take the owner from."
+  else
+    DEVTESTER_URL="git@github.com:${owner}/footbag-dev-tester.git"
+    if GIT_SSH_COMMAND="ssh -o BatchMode=yes" "$GITHUB_GIT" ls-remote "$DEVTESTER_URL" >/dev/null 2>&1; then
+      DEVTESTER_ACTION="clone"
+    else
+      DEVTESTER_NOTE="Bug intake is not linked: GitHub did not admit this machine to ${DEVTESTER_URL} (no invitation accepted yet, or no SSH key GitHub knows; ssh -T git@github.com shows which). Re-run once it does."
+    fi
+  fi
+fi
+
 PLAN=()
 system_python_ok || PLAN+=("system python3: point it back at Ubuntu's own $(distro_python), which apt's tools need")
 mapfile -t MISSING_APT < <(apt_missing)
@@ -371,6 +422,8 @@ seeder_env_ok || PLAN+=("python env: build or repair the seeder environment")
 (( WITH_AWS )) && ! aws_ok && PLAN+=("aws: install AWS CLI ${AWS_CLI_VERSION} into ${BIN_DIR}")
 [[ "$KEY_ACTION" == "create" ]] && PLAN+=("ssh key: create ${NAMED_KEY_TILDE} for ${ACCOUNT}, with no passphrase")
 [[ "$KEY_ACTION" == "replace" ]] && PLAN+=("ssh key: set ${NAMED_KEY_TILDE} (${REPLACE_KEY}) aside as ~/.ssh/retired_${ACCOUNT}_<time>, then create a fresh pair")
+[[ "$DEVTESTER_ACTION" == "link" ]] && PLAN+=("bug intake: link ${DEVTESTER_LINK} to ${DEVTESTER_TARGET}")
+[[ "$DEVTESTER_ACTION" == "clone" ]] && PLAN+=("bug intake: clone ${DEVTESTER_URL} to ${DEVTESTER_DIR}, then link ${DEVTESTER_LINK} to it")
 
 echo "Developer workstation setup for ${REPO_ROOT}"
 if (( ${#PLAN[@]} == 0 )); then
@@ -379,6 +432,7 @@ else
   printf '  %s\n' "${PLAN[@]}"
 fi
 [[ -n "$KEY_NOTE" ]] && echo "  ${KEY_NOTE}"
+[[ -n "$DEVTESTER_NOTE" ]] && echo "  ${DEVTESTER_NOTE}"
 tool_ok docker || echo "  Docker is not ready and is not installed by this script: see the container runtime section of the developer onboarding guide."
 
 if (( CHECK_ONLY )); then
@@ -527,6 +581,16 @@ if [[ -n "$KEY_ACTION" ]]; then
   ssh-keygen -q -t ed25519 -N '' -f "$NAMED_KEY" -C "${ACCOUNT} footbag"
 fi
 
+# ── 12. The bug-intake repository link ───────────────────────────────────────
+if [[ "$DEVTESTER_ACTION" == "clone" ]]; then
+  echo "==> clone ${DEVTESTER_URL}"
+  GIT_SSH_COMMAND="ssh -o BatchMode=yes" "$GITHUB_GIT" clone -q "$DEVTESTER_URL" "$DEVTESTER_DIR"
+fi
+if [[ -n "$DEVTESTER_ACTION" ]]; then
+  echo "==> link ${DEVTESTER_LINK} -> ${DEVTESTER_TARGET}"
+  ln -sfn "$DEVTESTER_TARGET" "$DEVTESTER_LINK"
+fi
+
 # ── Verify the outcome ───────────────────────────────────────────────────────
 echo ""
 remaining=0
@@ -539,6 +603,10 @@ npm_deps_current "$REPO_ROOT" || { echo "  still missing: npm dependencies at th
 chromium_ok || { echo "  still missing: Playwright's Chromium" >&2; remaining=1; }
 if (( WITH_AWS )) && ! aws_ok; then
   echo "  still missing: AWS CLI ${AWS_CLI_VERSION} (an older one earlier on PATH shadows ${BIN_DIR}/aws)" >&2
+  remaining=1
+fi
+if [[ -n "$DEVTESTER_ACTION" ]] && ! git -C "$DEVTESTER_LINK" rev-parse --git-dir >/dev/null 2>&1; then
+  echo "  still missing: ${DEVTESTER_LINK}, the link to the bug-intake clone" >&2
   remaining=1
 fi
 tool_report node python3 sqlite3 ffmpeg ffprobe jq age docker gitleaks terraform

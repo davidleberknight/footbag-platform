@@ -18,7 +18,7 @@ Legacy site (HTTP only): [http://www.footbag.org/](http://www.footbag.org/)
 - **Humans:** read [docs/PROJECT_SUMMARY.md](docs/PROJECT_SUMMARY.md)
 - **AI tools:** read [PROJECT_SUMMARY_CONCISE.md](PROJECT_SUMMARY_CONCISE.md)
 
-**Active project planning, operations, and anything private or otherwise not suitable for this public GitHub repo** live in a private repository. This includes `DEVOPS_GUIDE.md`, `AWS_OPERATIONS.md`, the GitHub Issues task-tracking board, separate bug tracking, and more. The separate repo also holds archived and private data, and IFPA-internal docs and archives.
+**Active project planning, operations, and anything private or otherwise not suitable for this public GitHub repo** live in a private repository. This includes `DEVOPS_GUIDE.md`, `AWS_OPERATIONS.md`, the GitHub Issues task-tracking board, and more. The separate repo also holds archived and private data, and IFPA-internal docs and archives.
 
 ## Current Project State
 
@@ -70,7 +70,7 @@ This repository doubles as a worked example of a production Claude Code harness:
 
 - [CLAUDE.md](CLAUDE.md): the always-loaded operating rules (authority order, non-negotiable rules, workflow). The AI loads this file first, every session.
 - [docs/CLAUDE_CODE_GUIDE.md](docs/CLAUDE_CODE_GUIDE.md): how and why the harness is built this way, section by section, mapped to Anthropic's published best practices.
-- 17 skills (repeatable procedures), 15 path-scoped rules (per-layer coding conventions), and 17 fixture-tested hooks, including an obfuscation-resistant read-only Bash auto-approver and a Stop hook that blocks low-quality questions to the human.
+- 20 skills (repeatable procedures), 15 path-scoped rules (per-layer coding conventions), and 17 fixture-tested hooks, including an obfuscation-resistant read-only Bash auto-approver and a Stop hook that blocks low-quality questions to the human.
 - Defense in depth: a version-proof permission floor in `.claude/settings.json` with guard hooks layered on top, and a CI self-check (`scripts/ci/assert_claude_harness.sh`) that fails the build when the harness drifts.
 
 
@@ -78,7 +78,7 @@ This repository doubles as a worked example of a production Claude Code harness:
 ## Contributing
 
 - Talk to Dave.
-- You can run this code locally (see Quickstart above), but to contribute you need an invitation as a collaborator on this repository and on the private dev-tester repository, used mainly for bug tracking and dev-tester communication. Access to the maintainers' private operations repository is granted separately, and is a hard prerequisite for all operations work: every environment's Terraform values live there and are reached by symlink, so without it no AWS environment can be planned or applied. Local development and the test suite need none of it.
+- You can run this code locally (see Quickstart above), but to contribute you need an invitation as a collaborator on this repository and on the private dev-tester repository, used for bug reports, and to the team Discord server, used for dev-tester conversation. Access to the maintainers' private operations repository is granted separately, and is a hard prerequisite for all operations work: every environment's Terraform values live there and are reached by symlink, so without it no AWS environment can be planned or applied. Local development and the test suite need none of it.
 - [CONTRIBUTING.md](CONTRIBUTING.md).
 - [SECURITY.md](SECURITY.md) for vulnerability reporting (developers and testers report bugs in the private dev-tester repository).
 - **Do not report security vulnerabilities in public.**

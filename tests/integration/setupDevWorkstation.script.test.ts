@@ -13,7 +13,9 @@
  *   - without a terminal to confirm on, nothing is installed;
  *   - a download whose checksum does not match is refused before it is unpacked;
  *   - a machine that already has everything is told so, with no prompt at all,
- *     which is what makes running it again safe.
+ *     which is what makes running it again safe;
+ *   - the bug-intake link is made only to a clone, never over something that is
+ *     not a link, and a machine GitHub does not admit carries on without it.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
@@ -27,6 +29,8 @@ import {
   existsSync,
   readFileSync,
   readdirSync,
+  readlinkSync,
+  symlinkSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -712,5 +716,110 @@ describe('setup-dev-workstation.sh — the named key pair a dev-and-tester is on
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('could not read the address this machine connects from');
     expect(r.stdout).toContain('address:      unknown');
+  });
+});
+
+describe('setup-dev-workstation.sh — the link to the bug-intake clone', () => {
+  const link = () => join(repo, 'footbag_dev_tester_repo');
+  const sibling = () => join(root, 'footbag-dev-tester');
+  const gitLog = () => join(root, 'github-git.log');
+
+  /** A clone of the bug-intake repository beside the checkout. */
+  function makeSibling() {
+    spawnSync('git', ['init', '-q', sibling()], SPAWN_GUARD);
+    spawnSync('git', ['-C', sibling(), 'remote', 'add', 'origin', 'git@github.com:acme/footbag-dev-tester.git'], SPAWN_GUARD);
+  }
+
+  /**
+   * The git that reaches GitHub: ls-remote answers with the status a case
+   * chooses, and clone makes a real repository at the destination.
+   */
+  function githubGit(lsRemoteStatus: number) {
+    file(
+      join(root, 'github-git'),
+      [
+        '#!/bin/bash',
+        `echo "$@" >> ${gitLog()}`,
+        `[ "$1" = ls-remote ] && exit ${lsRemoteStatus}`,
+        'if [ "$1" = clone ]; then git init -q "$4" && git -C "$4" remote add origin "$3"; exit $?; fi',
+        'exit 1',
+        '',
+      ].join('\n'),
+      0o755,
+    );
+    return { SETUP_DEV_GIT: join(root, 'github-git') };
+  }
+
+  const setOrigin = (url: string) =>
+    spawnSync('git', ['-C', repo, 'remote', 'add', 'origin', url], SPAWN_GUARD);
+
+  it('plans the link to a clone already beside the checkout under --check, and makes nothing', () => {
+    stubCompleteMachine();
+    makeSibling();
+    const r = run(['--check']);
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain('bug intake: link footbag_dev_tester_repo to ../footbag-dev-tester');
+    expect(existsSync(link())).toBe(false);
+  });
+
+  it('links to the clone beside the checkout by a relative path', () => {
+    stubCompleteMachine();
+    makeSibling();
+    const r = run(['--yes']);
+    expect(r.status, r.stderr).toBe(0);
+    expect(readlinkSync(link())).toBe('../footbag-dev-tester');
+  });
+
+  it('keeps a link that already resolves, wherever it points', () => {
+    stubCompleteMachine();
+    const elsewhere = join(root, 'elsewhere');
+    mkdirSync(elsewhere);
+    symlinkSync(elsewhere, link());
+    makeSibling();
+    const r = run(['--check']);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).not.toContain('bug intake:');
+    expect(readlinkSync(link())).toBe(elsewhere);
+  });
+
+  it('refuses something other than a link in its place, before anything is installed', () => {
+    stubCompleteMachine();
+    stub('dpkg-query', 'exit 1');
+    makeSibling();
+    file(join(link(), 'notes.txt'), 'mine');
+    const r = run(['--yes']);
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('footbag_dev_tester_repo exists and is not a link');
+    expect(readFileSync(join(link(), 'notes.txt'), 'utf-8')).toBe('mine');
+    expect(existsSync(aptLog)).toBe(false);
+  });
+
+  it('plans a clone from the owner in an https origin when GitHub admits this machine', () => {
+    stubCompleteMachine();
+    setOrigin('https://github.com/acme/footbag-platform.git');
+    const r = run(['--check'], githubGit(0));
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain('bug intake: clone git@github.com:acme/footbag-dev-tester.git');
+    expect(r.stderr).toContain('SYNTHETIC: SETUP_DEV_GIT is set');
+    expect(readFileSync(gitLog(), 'utf-8')).not.toContain('clone');
+  });
+
+  it('clones beside the checkout from the owner in an ssh origin, then links it', () => {
+    stubCompleteMachine();
+    setOrigin('git@github.com:acme/footbag-platform.git');
+    const r = run(['--yes'], githubGit(0));
+    expect(r.status, r.stderr).toBe(0);
+    expect(readFileSync(gitLog(), 'utf-8')).toContain(`clone -q git@github.com:acme/footbag-dev-tester.git ${sibling()}`);
+    expect(existsSync(join(sibling(), '.git'))).toBe(true);
+    expect(readlinkSync(link())).toBe('../footbag-dev-tester');
+  });
+
+  it('carries on without the link when GitHub does not admit this machine, saying why', () => {
+    stubCompleteMachine();
+    setOrigin('git@github.com:acme/footbag-platform.git');
+    const r = run(['--check'], githubGit(128));
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toContain('GitHub did not admit this machine to git@github.com:acme/footbag-dev-tester.git');
+    expect(r.stdout).not.toContain('bug intake:');
   });
 });

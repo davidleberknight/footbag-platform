@@ -289,6 +289,9 @@ expect "$H" 'gh issue list -R "$FOOTBAG_PRIVATE_REPO" --state open' defer
 expect "$H" 'gh issue view 325 -R "$FOOTBAG_PRIVATE_REPO"' defer
 expect "$H" 'gh issue comment -R "$FOOTBAG_PRIVATE_REPO" 325 --body x' defer
 expect "$H" 'gh issue close -R "$FOOTBAG_PRIVATE_REPO" 325' defer
+expect "$H" 'gh issue comment -R "$FOOTBAG_DEVTESTER_REPO" 12 --body-file f' defer
+expect "$H" 'gh issue close -R "$FOOTBAG_DEVTESTER_REPO" 12' defer
+expect "$H" 'gh label create needs-info -R "$FOOTBAG_DEVTESTER_REPO"' deny
 expect "$H" 'gh api repos/o/r/commits --jq ".[0].sha"' defer
 expect "$H" 'gh project item-list 1 --owner o --format json' defer
 expect "$H" 'gh project field-list 1 --owner o' defer

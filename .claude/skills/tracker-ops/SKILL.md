@@ -11,6 +11,9 @@ accepted implementation deviations. Claude reads it freely and drafts issue bodi
 files, and exact commands, and runs tracker mutations itself once the human has
 agreed to the specific change, per Mutations below. Git writes stay human-run.
 
+Bug reports from developers and testers live in the private dev-tester repository, not here;
+reading and triaging them is the `triage-bugs` skill, which hands carded reports back here.
+
 ## Wiring and polite degradation
 
 Two optional machine-local pieces, wired per developer (the private repo is

@@ -105,6 +105,7 @@ One canonical, idempotent script installs every tool the repository needs, at th
 - Playwright's Chromium browser with its system libraries
 - the two Python environments: the seeder environment under `scripts/.venv`, and the legacy pipeline environment built by `bash legacy_data/run_pipeline.sh venv`. Both serve only the pre-go-live migration pipelines, which are deleted after cutover.
 - the repository's git hooks
+- the link `footbag_dev_tester_repo` to the private dev-tester repository's clone, cloned beside this checkout when GitHub admits your machine; without an invitation it says so and carries on
 
 Every download is compared with a pinned checksum before anything from it is unpacked. The script shows its plan and changes nothing until you type `APPLY`; `--check` reports what it would install and changes nothing, and `--yes` accepts the confirmation in advance. Re-run it any time: on a machine that already has everything, it reports that there is nothing to do.
 
@@ -669,7 +670,7 @@ A stub `legacy_members` row with no email and no date of birth (for example befo
 
 ### 1.15 Filing a bug
 
-Developers and testers file defects in the private dev-tester repository, where a maintainer triages each report: state observed versus expected behavior with the exact route or surface, reference members by record id and structural description (never name plus contact data), and never paste secret values. A contributor without access to that repository reports the same information to the maintainer instead, per `CONTRIBUTING.md`'s "Reporting a problem or proposing work", and the maintainer files it. Security vulnerabilities go through GitHub's private vulnerability reporting on this public repository (see `SECURITY.md`), never a regular issue.
+Developers and testers file bug reports in the private dev-tester repository, whose README is the one place that says how: what a complete report holds, the privacy rules, and what happens after triage. In Claude Code, say "file a bug": the `file-bug` skill asks one question at a time until the report is complete, removes private data, and files it once you approve. A contributor without access to that repository reports the same information to the maintainer instead, per `CONTRIBUTING.md`'s "Reporting a problem or proposing work", and the maintainer files it. Security vulnerabilities go through GitHub's private vulnerability reporting on this public repository (see `SECURITY.md`), never a regular issue.
 
 Per `docs/TESTING.md` §9.6, every closed bug lands with a regression test at the cheapest appropriate layer. A bug without a regression test is not closed.
 
@@ -953,7 +954,7 @@ A dev-and-tester has their own host account on staging and their own IAM user, w
    ```
 
    It checks your tools first, fetches the sealed file over your own login, and proves it was issued in this project's AWS account before trusting anything in it. It then shows each change and asks you to type `APPLY`: your AWS profiles, the pinned staging host key, the SSH stanza, and your own sudo password in place of the one-time one (any password you choose, kept in `~/AWS/DEV_TESTER_HOST.txt` so you never type it again). It removes the sealed file from the host, ends by setting up and checking your workstation as you, and prints an evidence block to send the maintainer.
-3. Prove the path with a code-only deploy and the smoke suite, after telling the maintainer:
+3. Prove the path with a code-only deploy and the smoke suite, after a heads-up in the team Discord server:
 
    ```bash
    bash scripts/as-dev-tester.sh --account <your_account> \
@@ -964,7 +965,7 @@ A dev-and-tester has their own host account on staging and their own IAM user, w
 
 **Working on staging.** Develop locally with `./run_dev.sh` as before. Reach staging only by putting a command through `bash scripts/as-dev-tester.sh --account <your_account>`, which runs it as you: on AWS as the job role under your name, on the host as your account. A command run without it has no identity and is refused.
 
-- Message the maintainer before any staging deploy, of any kind, every time. Staging is shared, and a deploy can replace what someone else is testing. The read-only `--staging` test rows are exempt.
+- Post a heads-up in the team Discord server before any staging deploy or reset of staging's data, of any kind, every time; no go-ahead is needed. Staging is shared, and a deploy or reset can replace what someone else is testing. The read-only `--staging` test rows are exempt.
 - Every deploy first checks that the environment's infrastructure matches the Terraform in the tree being shipped, and refuses if it does not. That check needs the maintainers' private values file, so on your machine a staging deploy prints `NOTICE: infrastructure check not run` and carries on; a maintainer's next deploy makes the check. If your change edits staging's Terraform, it has to be applied by a maintainer before staging can run it.
 - A schema change reaches staging with `./deploy_to_aws.sh --public-data`, through the wrapper. It rebuilds staging's database from the committed public inputs alone and replaces it. Staging then lacks the real legacy members, the roster-based enrichment, the account rulings and board flags, and every other member row it held, until a maintainer's full rebuild restores them. The run says so before it starts and as the last thing it prints, and it is refused for production.
 

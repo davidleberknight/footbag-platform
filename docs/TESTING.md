@@ -559,7 +559,7 @@ Dev and continuous integration keep the unit, route and service integration, the
 - Exercise the legacy-claim surface across its risk classes with the deterministic strata sample (linked-with-email, paid-tier evidence, honoree, same-name disambiguated only by birth date, no-email, bare collision stub, and historical-person-without-account): for each sampled row, register on staging with the row's address, read the captured mail on the outbox viewer, and confirm the claim wizard does exactly what the sample expects, including the enumeration-safe outcomes for an absent and an already-claimed record.
 - Validate whole-population invariants by query, not by sampling: loaded counts reconcile against the source minus the held-out and excluded cohorts; no claimed account lacks its claim audit row; no historical-person link points at a missing account; every stored email is lowercased.
 - Never rehearse a deceased-member flow against a real person's record — use the seeded persona for that.
-- PII discipline: never paste real member data into a bug report, screenshot, trace, chat, or any shared or committed artifact. Report a real-data defect by record identifier and structural description, never by real name, email, address, or birth date. Test output is treated as potentially public (§2.1, §10.6).
+- PII discipline: never put real member data into anything public or committed, including test output, which is treated as potentially public (§2.1, §10.6). The private bug-intake repository, the maintainers' private tracker and the team Discord may carry real member details where they help reproduce a defect. Secrets go nowhere.
 
 ---
 
@@ -1149,6 +1149,10 @@ On the staging host the harness is seeded after a deploy with `./deploy_to_aws.s
 ### 16.8 Provenance and the production-residue audit
 
 Every harness write carries a stable marker (`reason_code = 'dev_persona_seed.tier_grant'`, `audit_entries.action_type` in `testkit.persona_seed` or `testkit.persona_switch`, `created_by = 'dev-shortcuts/personas'`). `scripts/audit-dev-shortcuts.sh` counts these against a production database and exits non-zero on any residue (§9.5), so the harness is provably absent from production.
+
+### 16.9 Reporting what you find
+
+A defect a tester finds is filed as a bug report in the private dev-tester repository, whose README holds the procedure, through the `file-bug` skill or the repository's form. The maintainer triages each bug report once, with the `triage-bugs` skill: it is fixed with its regression test, carded into the maintainers' private tracker, closed as not a bug or a duplicate, or sent back to its reporter with questions. A bug report is not a tracker card: only a carded one becomes tracked work.
 
 ---
 
