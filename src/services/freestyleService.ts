@@ -819,10 +819,6 @@ interface TrickRefMediaRow {
   video_platform: string | null;
   uploaded_at: string;
   source_id: string | null;
-  // Joined from media_sources (null for member uploads, which carry no source).
-  source_name: string | null;
-  source_creator: string | null;
-  source_url: string | null;
 }
 
 // ── Semantic-notation fallback ladder (NF-2B) ────────────────────────────
@@ -1011,23 +1007,6 @@ function movesAnchorSlug(label: string): string {
     .replace(/^_|_$/g, '');
 }
 
-// Read-only registry: consumers may read a friendly label but cannot mutate the
-// map (matching the repository convention for exported lookup registries). The
-// Readonly<Record<...>> view is a compile-time contract only; no runtime freeze.
-export const SOURCE_LABELS: Readonly<Record<string, string>> = {
-  tt_youtube:           'Tricks of the Trade',
-  passback_records:     'Passback record',
-  anz_trikz:            "Anz' Trikz",
-  footbag_finland:      'Footbag Finland',
-  shred_global:         'Shred Global',
-  flipsider_footbag:    'Flipsider',
-  footbagspot_passback: 'FootbagSpot',
-  footbagspot_tutorials:'FootbagSpot Tutorials',
-  passback_demos:       'PassBack',
-  passback_basics:      'PassBack Basics',
-  passback_tutorials:   'PassBack Tutorials',
-};
-
 // What a curated clip is for is carried by the clip, as exactly one of
 // #tutorial, #demo or #record, and read from its tags wherever it matters.
 // A source-id lookup used to stand in for it: it said nothing the source id
@@ -1048,11 +1027,6 @@ function shapeReferenceMedia(
     mediaId: row.id,
     media,
     caption: row.caption ?? null,
-    sourceLabel: row.source_id ? (SOURCE_LABELS[row.source_id] ?? row.source_name ?? row.source_id) : null,
-    sourceCreator: row.source_creator && row.source_creator.trim() ? row.source_creator.trim() : null,
-    // Only surface a clickable source when the joined URL is an absolute
-    // http(s) link; a stored relative or empty value renders as no link.
-    sourceUrl: row.source_url && /^https?:\/\//i.test(row.source_url) ? row.source_url : null,
     tags: shapeMediaTagsForBrowse(rawTags, { surfaceContext: 'freestyle-only' }),
   };
 }
@@ -1902,12 +1876,6 @@ export interface TrickReferenceMediaItem {
   mediaId: string;
   media: VideoMedia | null;
   caption: string | null;
-  sourceLabel: string | null;         // human-friendly source label, e.g. 'Tricks of the Trade'
-  // Creator/source attribution joined from media_sources. Optional so the many
-  // editorial constructors (which carry no media-source row) need not set them.
-  // Null for member uploads and any source row missing the field.
-  sourceCreator?: string | null;      // e.g. 'Honza Weber'
-  sourceUrl?: string | null;          // absolute http(s) link to the source page, else null
   // Hashtag chips for the visible symbolic-navigation layer (F7). Shaped via
   // shapeMediaTagsForBrowse: noise (`#trick`, `#unavailable_embed`, `#freestyle`
   // on freestyle-only surfaces) suppressed; remainder sorted by kind precedence.

@@ -3114,10 +3114,9 @@ Success Criteria, Upload:
 - Uploaded photos go through the standard Sharp pipeline (DD §6.8): re-encode, strip metadata, generate thumb + display variants.
 - Uploaded videos go through the curator video pipeline (DD §6.8): ffmpeg full transcode with explicit malware-stripping options, producing a single standardized output rendition. Companion poster goes through the Sharp pipeline.
 - The resulting media_items row has uploader_member_id set to the system member id (the row where is_system=1). Admin actor is not stored on the media_items row.
-- Admin can specify a caption (plain text, max 500 characters; same security validation as M_Upload_Photo), source attribution (sourceId referencing an existing media_sources row, or a new source created inline by the admin), and clip ranges (startSeconds, endSeconds) for video reference media.
+- Admin can specify a caption (plain text, max 500 characters; same security validation as M_Upload_Photo), an optional source id for YouTube and Vimeo URL references (it must name a source already in the media-source registry; an unknown id is refused), and clip ranges (startSeconds, endSeconds) for video reference media. Where a clip's source matters to members and admins, it is recorded as a hashtag.
 - Before go-live, on a developer machine, admin assigns the upload to a category subdirectory under /curated/; a deployed host stores the upload in the database and media bucket with no category directory. The admin UI accepts an existing category or a new category name; entering a name not yet used creates the subdirectory on next deploy. Filesystem-driven; any /curated/{name}/ subdirectory is a valid category.
-- Admin can specify tags at upload time. Standardized event/club hashtags auto-link to the corresponding gallery per §1.1. Freeform tags are browsable via the tag gallery at /media/browse?tag=<tag>. The `#curated` tag is auto-applied by the curator pipeline as the FH/admin uploader marker; it is reserved for system use and rejected if supplied by the admin in the input. Per-category default tag stacks are also auto-applied (e.g. /curated/freestyle_tricks/ adds `#freestyle #trick`; /curated/freestyle_demos/ adds `#demo`). Filtering by `#curated` returns the all-FH gallery.
-- Tag autocomplete is category-aware: /curated/freestyle_tricks/ uploads autocomplete trick-slugs from the freestyle dictionary (`freestyle_tricks.slug`); admin sees a warning if a tricklike tag matches no known dictionary slug, but the upload still completes. Alias-shaped trick tags (matching `freestyle_trick_aliases.alias_slug`) are canonicalized to the parent trick's slug before insertion; the saved tag set shows the canonical form.
+- Admin can specify tags at upload time. Standardized event/club hashtags auto-link to the corresponding gallery per §1.1. Freeform tags are browsable via the tag gallery at /media/browse?tag=<tag>. The `#curated` tag is auto-applied by the curator pipeline as the FH/admin uploader marker; it is reserved for system use and rejected if supplied by the admin in the input. Filtering by `#curated` returns the all-FH gallery.
 - Admin can specify an optional external URL on each uploaded item (media_items.external_url; e.g. link to creator page, source article, related event). Validated at the service boundary per DD §3.17. Persists on the row, and before go-live on a developer machine also on the file-paired sidecar (DD §1.13). The upload form works without JavaScript for photo and URL-reference uploads; admin S3-mode video uploads require JavaScript (the noscript banner warns).
 - Curator uploads are detached. A gallery is a saved tag query rather than a container of items, so uploaded content joins a gallery by carrying that gallery's include tags. The `#curated` tag marks curator content and is applied automatically to uploads made by an administrator acting as the Footbag Hacky system member; it is reserved, and rejected if supplied as input. Curator gallery management is its own story.
 - Upload completion model varies by media type:
@@ -3134,7 +3133,7 @@ Success Criteria, Edit:
 - Admin edit UI is accessible only to authenticated admins. Non-admin authenticated members receive 403; unauthenticated visitors receive 302 to login.
 - Editable fields are caption, tags, source attribution (sourceId), and clip ranges (startSeconds, endSeconds). Same validation rules as upload.
 - File replacement is not supported in-place. To change the file bytes, admin deletes the existing item and uploads a new one.
-- The `#curated` tag is auto-applied on every save and rejected if supplied in the tags input. Per-category default tags are preserved across edits.
+- The `#curated` tag is auto-applied on every save and rejected if supplied in the tags input.
 - Tags are rewritten atomically: the existing tag set is replaced by the new set in a single transaction. The auto-applied tags are preserved across edits.
 - For URL-reference items (YouTube, Vimeo), edit updates the `media_items` row directly; this DB write is the contract. Before go-live, where sidecar writes are enabled, the edit also writes through to the `/curated/` sidecar (DD §1.13) so the git-tracked authoring source stays in step. Caption maps to `sidecar.title`; URL-reference fields (sourceId, startSeconds, endSeconds, Vimeo thumbnailUrl) merge into the sidecar.
 - Editing a media item that does not exist (or is not FH-owned) returns 404.
@@ -3151,7 +3150,7 @@ Success Criteria, Category creation (before go-live, on a developer machine):
 
 - Admin enters a new category name during upload (e.g. `tutorials`, `news`); the seeder creates `/curated/{name}/` on next deploy.
 - Filesystem is the source of truth for category existence; no code-side whitelist of valid categories. Category names follow a slug convention (lowercase, alphanumeric plus underscore or hyphen).
-- The `#curated` marker is auto-applied to every FH upload regardless of category; a category may additionally define its own default concept-tag stack (as `/curated/freestyle_tricks/` adds `#freestyle #trick`), applied on top of `#curated` plus admin-selected tags. A new category with no defined stack gets only `#curated` plus admin-selected tags. Per-category tag-autocomplete dictionaries are configured separately as new categories require them; the default fallback is no autocomplete.
+- The `#curated` marker is auto-applied to every FH upload regardless of category. A category adds no tags of its own; every item gets `#curated` plus the admin-selected tags.
 
 Audit:
 
@@ -3307,7 +3306,7 @@ Success Criteria:
 - The permanent identifier is curator-supplied rather than generated, so a source keeps the same identity across a rebuild of the dictionary and the attributions pointing at it stay valid. It uses lowercase letters, digits, hyphens, and underscores, beginning and ending with a letter or digit, and a value already in use is rejected.
 - A source may also carry a URL and curator notes.
 - A trick's own source attachment and detachment is a separate capability (A_Edit_Freestyle_Trick); this surface owns only the registry the attachments point at.
-- This registry is distinct from the media-source registry, whose entries are created inline while publishing curated media (A_Upload_Curated_Media).
+- This registry is distinct from the media-source registry that curated media may reference by source id (A_Upload_Curated_Media).
 - Creating a source appends one audit entry, in the same transaction as the row it records.
 
 ### A_Edit_Freestyle_Record

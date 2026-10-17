@@ -6299,12 +6299,10 @@ export const media = {
   // the browse read disagree with nothing to signal it.
   get listMediaByTrickTag() { return db.prepare(`
     SELECT mi.id, mi.video_id, mi.video_url, mi.thumbnail_url, mi.caption,
-           mi.video_platform, mi.uploaded_at, mi.source_id,
-           ms.source_name, ms.creator AS source_creator, ms.url AS source_url
+           mi.video_platform, mi.uploaded_at, mi.source_id
     FROM media_items_linkable_video mi
     JOIN media_tags mt ON mt.media_id = mi.id
     JOIN tags t ON t.id = mt.tag_id
-    LEFT JOIN media_sources ms ON ms.source_id = mi.source_id
     WHERE t.tag_normalized = ?
     ORDER BY mi.uploaded_at DESC, mi.id ASC
   `); },

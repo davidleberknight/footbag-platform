@@ -14,9 +14,6 @@
  * lookup table, which is why it is derived from the committed sidecars rather
  * than from a hand-written list that can drift the way the map did.
  *
- * The friendly-label registry stays and is still checked: a display name is a
- * genuine property of a source, unlike its content type.
- *
  * The individual-shred gallery is a separate media domain: a shred routine is
  * not trick media and carries none of the three. That is asserted rather than
  * skipped, because "no content-type tag" is the ruling for those clips and a
@@ -25,7 +22,6 @@
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync, existsSync } from 'fs';
 import path from 'path';
-import { SOURCE_LABELS } from '../../src/services/freestyleService';
 
 const CURATED_ROOT = path.join(__dirname, '../../curated');
 const CONTENT_TYPE_TAGS = ['#tutorial', '#demo', '#record'] as const;
@@ -94,22 +90,5 @@ describe('a shred routine is not trick media', () => {
   it('carries no tier field either', () => {
     const leftovers = shredMedia().filter((s) => s.tier !== undefined).map((s) => s.file);
     expect(leftovers).toEqual([]);
-  });
-});
-
-describe('the source label registry', () => {
-  // A display name is a real property of a source, unlike its content type.
-  it('names every source in-use curated trick media actually carries', () => {
-    const inUse = new Set(trickMedia().map((s) => s.sourceId).filter((k): k is string => !!k));
-    expect(inUse.size).toBeGreaterThan(0);
-    const unlabelled = [...inUse].filter((key) => !SOURCE_LABELS[key]);
-    expect(unlabelled, `${unlabelled.length} in-use source(s) have no friendly label: `
-      + `${unlabelled.join(', ')}`).toEqual([]);
-  });
-
-  it('keeps the labels it is relied on for', () => {
-    expect(SOURCE_LABELS.tt_youtube).toBeTruthy();
-    expect(SOURCE_LABELS.passback_tutorials).toBeTruthy();
-    expect(SOURCE_LABELS.passback_records).toBeTruthy();
   });
 });
