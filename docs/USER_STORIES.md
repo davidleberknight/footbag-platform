@@ -3226,6 +3226,36 @@ Success Criteria:
 - A name already published to the public observational page is excluded from the packet, so the workbench shows only what still needs a decision.
 - This surface is read-only. It performs no writes and records no audit entry; a ruling is recorded through the freestyle ruling ledger, not here.
 
+### A_Author_Freestyle_Notation_Draft
+
+Access: Only admins can use the notation backlog, the drafts list, and the authoring form, on behalf of the platform's freestyle curator identity. Non-admin authenticated members receive 403; unauthenticated visitors receive 302 to login. Authoring a ruling that does not exist returns 404.
+
+Story: As an admin, I can see the Emerging Vocabulary rulings whose identity and difficulty are settled but whose movement is not, and author the movement notation and where it came from onto one of them, so that a name can later become a canonical trick without a curator re-establishing what is already settled.
+
+Success Criteria:
+
+- The backlog lists the open rulings released by a curator decision rather than by a doctrine question, whose evidence does not already carry the movement, and that have no authored notation, grouped by the decision that released them. Each shows its identity, evidence, owner, source and note. The backlog is read-only and links to the drafts list.
+- The authoring form shows what the ruling already settled beside the notation field, asks where the notation came from and how it was produced from fixed vocabularies, offers a ratified convention for a derivation, and states the scoring-bracket count as information.
+- A save requires a notation of at most 500 characters, an answer to both provenance questions, a convention when and only when the method is a derivation, and accepts an optional provenance note. A refused save writes nothing and keeps the submitted values.
+- A saved draft leaves the backlog and appears on the drafts list. The ruling's own decision, blocker and owner are unchanged, and no canonical trick is created.
+- A resolved ruling is history: its authoring page states that its notation can no longer be changed and offers no form, and a submitted save is refused.
+- Audit: each save appends one `freestyle.adjudication_notation.authored` row recording the admin actor, timestamp, ruling id, the new notation and provenance, and the values it replaced, in the same transaction as the write.
+
+### A_Publish_Freestyle_Trick_From_Draft
+
+Access: same as A_Author_Freestyle_Notation_Draft. Publishing a ruling that does not exist returns 404.
+
+Story: As an admin, I can create a canonical freestyle trick from an authored notation draft, so that new vocabulary enters the dictionary through the application with curator-grade validation.
+
+Success Criteria:
+
+- The publication form shows the draft's notation and provenance and does not ask for them again. The curator supplies the canonical name, ADD, base trick, category, an optional family override, description, aliases, source link and modifier links.
+- Publication is refused, with the reason stated and no form offered, when the ruling is already resolved, has no authored notation, is not about a complete trick, is held on an identity or open doctrine question, or is held pending recovery of its source.
+- A save is refused, writing nothing, when the ADD is not a whole number or disagrees with the scoring-bracket count; the name or its slug is already a trick or an alias; the name is written as a slug; the base, category or family override is not in the dictionary; an alias collides with a canonical slug or repeats the trick's name; a source is missing where the notation rests on one; the source's own notation is missing for a source-notation basis; or a modifier is unregistered.
+- A published trick is active and curated, carries the draft's notation and provenance, takes its family from its base unless overridden, sorts after the existing dictionary, and gets the aliases, source link and modifier links it was given.
+- The ruling resolves to the new trick in the same transaction and stays as history; a ruling cannot be published twice, and a ruling already recorded against a different trick is refused. A published trick's slug is permanent: the trick editor can hide it but never delete it, and hiding it does not reopen the ruling.
+- Audit: one `freestyle.trick.published` row names the new slug, the ruling and the curator's choices, in the same transaction as the writes.
+
 ### A_Edit_Freestyle_Trick
 
 Access: Only admins can edit freestyle dictionary content, on behalf of the platform's freestyle curator identity. Non-admin authenticated members receive 403; unauthenticated visitors receive 302 to login. Editing a slug that has no trick row returns 404.
@@ -3234,16 +3264,15 @@ Story: As an admin, I can edit a freestyle trick dictionary row and the aliases,
 
 Success Criteria, Row fields:
 
-- Editable row fields are the canonical name, the ADD value, the movement and execution notation, the trick family, the base trick, the category, the active flag, the core-primitive marker, the browse sort position, the review status (curated, expert-reviewed, or pending), and the editorial prose fields: the description, the short description, the execution summary, the learning notes, the prerequisite notes, the pronunciation, and the execution-notation source note. Every database-backed field on the trick row has an in-app edit path, so no trick content freezes once the live database is the source of truth.
+- Editable row fields are the canonical name, the ADD value, the movement and execution notation, the trick family, the base trick, the category, the active flag, the browse sort position, the review status (curated, expert-reviewed, or pending), and the editorial prose fields: the description, the short description, the execution summary, the learning notes, the prerequisite notes, the pronunciation, and the execution-notation source note. Every field that shapes what a reader sees on a trick page has an in-app edit path, so no trick content freezes once the live database is the source of truth.
 - A save that passes validation writes the trick row through a prepared statement; the database write is the contract.
 
 Success Criteria, Validation (enforced at the write; a save that fails any check is rejected with a clear message and the submitted values preserved):
 
 - The notation's scoring-bracket count equals the stored ADD value.
-- The trick terminates in one of the twelve core atoms.
-- The ADD contribution of each modifier or operator a trick links to is the one the single operator-reference source of truth gives it. The editor reads those contributions and never changes them: a modifier's or operator's own ADD changes only through the operator reference and a reviewed database migration.
+- The editor never changes a modifier's or operator's own ADD: that changes only through the operator reference and a reviewed database migration.
 - The display-name-to-slug naming rule holds: the normalized canonical name reproduces the slug, honoring the curator-maintained genuine-hyphen exception list. This check applies to a name the admin changes; an existing row whose stored name predates the one-time name normalization stays editable in its other fields without the naming check blocking the save.
-- These are the same structural validations the freestyle content pipeline applies when it loads the dictionary, so a save that would fail the pipeline's quality gate is refused in the application rather than accepted and reconciled later.
+- The naming rule is the one the freestyle content pipeline's quality gate applies, so a save that would fail that gate is refused in the application rather than accepted and reconciled later.
 
 Success Criteria, Aliases:
 
@@ -3255,7 +3284,7 @@ Success Criteria, Sources and modifier links:
 
 Success Criteria, Activation and publication:
 
-- Admin can set the active flag and the review status. A trick whose ADD is settled but whose structure is contested can be held (kept inactive or unpublished) rather than published, preserving the held-not-published publication rule for contested structures.
+- Admin can set the active flag and the review status. A trick whose ADD is settled but whose structure is contested can be held (kept inactive or unpublished) rather than published, preserving the held-not-published publication rule for contested structures. Saving a held trick (inactive and pending) as active or with a settled review status publishes it: the Emerging Vocabulary ruling it answers resolves to it in the same transaction, with this editor's validation rather than the publication form's.
 
 Success Criteria, Atomicity:
 
@@ -4124,7 +4153,7 @@ Story: The persistent production database is the single source of truth for free
 
 Success Criteria:
 
-- The audited in-app curation surfaces (A_Edit_Freestyle_Trick and the other freestyle admin stories) are the write path for curated freestyle content; the symbolic-grammar layers derived from trick data are regenerated in the app from the database when a trick is published or edited; the code-managed registries (the modifier registry and the curated symbolic-grammar layers) change only through a reviewed database migration.
+- The audited in-app curation surfaces (A_Edit_Freestyle_Trick and the other freestyle admin stories) are the write path for curated freestyle content; a trick page's educational links are decided from the trick's own base trick and modifier links when the page renders, so a published or edited trick needs nothing regenerated; the code-managed registries (the modifier registry and the curated symbolic-grammar layers) change only through a reviewed database migration.
 - The freestyle rebuild refuses to run against any non-development database, with no bypass flag, so it never rewrites a live database.
 - Freestyle table rows survive a data-preserving deploy that does not run the rebuild.
 - Recovery from a bad edit is a corrective in-app edit or a database restore; every in-app edit is recorded in the audit trail.

@@ -13,6 +13,10 @@
 
 <div class="wrapper">
 
+  {{! A released ruling's next stage is authoring its movement, so the backlog is
+      reached from here as well as from the dashboard. }}
+  <p><a class="action-link" href="{{content.notationBacklogHref}}">Notation Backlog</a></p>
+
   {{! ── Reconciliation warnings ── }}
   {{#if content.warnings.length}}
   <section class="content-section">

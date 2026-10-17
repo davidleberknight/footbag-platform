@@ -68,6 +68,14 @@ describe('workbench content', () => {
     expect(res.text).toContain('Consequence');
   });
 
+  it('links to the notation backlog, the next stage for a released ruling', async () => {
+    // Without it the backlog is reachable only from the dashboard, and a curator
+    // finishing a ruling here has no way on to authoring its movement.
+    const res = await request(createApp()).get(PATH).set('Cookie', ADMIN_COOKIE);
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('href="/admin/freestyle/notation-backlog"');
+  });
+
   it('renders the full-dimension table with internal diagnostics', async () => {
     const res = await request(createApp()).get(PATH).set('Cookie', ADMIN_COOKIE);
     for (const col of ['Object', 'Evidence', 'Blocker', 'Owner', 'Publication', 'Section', 'Parser', 'Ledger']) {

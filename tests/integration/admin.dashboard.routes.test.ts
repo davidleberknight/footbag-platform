@@ -267,6 +267,7 @@ describe('the Go To tier', () => {
       '/admin/freestyle/consecutive-records',
       '/admin/freestyle/sources',
       '/admin/freestyle/emerging-vocabulary',
+      '/admin/freestyle/notation-backlog',
       '/admin/freestyle/tips',
       '/admin/system-parameters',
       '/admin/media-flags',

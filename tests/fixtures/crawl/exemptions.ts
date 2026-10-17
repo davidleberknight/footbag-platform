@@ -182,8 +182,7 @@ export const ROUTE_EXEMPTIONS: readonly RouteExemption[] = [
     ]),
   ...group('unlinked-page',
     'A served page that no rendered page links to, reachable only by typing its address.', [
-      'GET /freestyle/tricks/:add(\\d+)', 'GET /admin/freestyle/notation-backlog',
-      'GET /admin/freestyle/notation-drafts',
+      'GET /freestyle/tricks/:add(\\d+)',
     ]),
   ...group('fixture-gap',
     'The crawl fixture seeds no row or state that renders a link or form to this route (no '

@@ -3,9 +3,9 @@
  *
  * Covers four surfaces:
  *   1. NEW route GET /freestyle/learn — symbolic-subsystem index page.
- *   2. Trick-page educational CTAs (data-driven from symbolic-group membership):
- *      butterfly-wing-topology → walking-family progression
- *      spinning-family / whirl-rotational-topology → spinning modifier page
+ *   2. Trick-page educational CTAs, decided from the trick's own structure:
+ *      built on the butterfly → walking-family progression
+ *      built on the whirl, or carrying the spinning modifier → spinning modifier page
  *   3. Cross-links rendered on /freestyle/progression/walking-family and
  *      /freestyle/modifier/spinning footers.
  *   4. Landing-page educational pointer paragraph at /freestyle.
@@ -21,7 +21,11 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
-import { insertFreestyleTrick } from '../fixtures/factories';
+import {
+  insertFreestyleTrick,
+  insertFreestyleTrickModifier,
+  insertFreestyleTrickModifierLink,
+} from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3093');
 
@@ -47,6 +51,23 @@ beforeAll(async () => {
 
   // A trick OUTSIDE both topologies — used to verify CTAs are NOT injected.
   insertFreestyleTrick(db, { slug: 'mirage', canonical_name: 'mirage', adds: '2', base_trick: 'mirage', trick_family: 'mirage', category: 'compound' });
+
+  // montage carries the spinning modifier as well as its whirl base, so two
+  // conditions fire the same link.
+  insertFreestyleTrickModifier(db, { slug: 'spinning', modifier_type: 'rotational' });
+  insertFreestyleTrickModifierLink(db, 'montage', 'spinning');
+
+  // Tricks no stored grouping knows about: one published on the butterfly, one
+  // built on the mirage but carrying the spinning modifier. Their links can come
+  // only from their own structure.
+  insertFreestyleTrick(db, { slug: 'fresh_walk',      canonical_name: 'fresh walk',      adds: '4', base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'spinning_mirage', canonical_name: 'spinning mirage', adds: '3', base_trick: 'mirage',    trick_family: 'mirage',    category: 'compound' });
+  insertFreestyleTrickModifierLink(db, 'spinning_mirage', 'spinning');
+
+  // bigwalk is filed under the butterfly in the stored grouping every test
+  // database is seeded with; here it sits on a different base, so the page must
+  // follow the row, not the stale grouping.
+  insertFreestyleTrick(db, { slug: 'bigwalk', canonical_name: 'bigwalk', adds: '5', base_trick: 'mirage', trick_family: 'mirage', category: 'compound' });
 
   db.close();
   createApp = await importApp();
@@ -242,6 +263,41 @@ describe('trick-page educational CTAs — spinning/whirl-rotational members', ()
 describe('trick-page educational CTAs — non-triggering tricks', () => {
   it('/freestyle/tricks/mirage does NOT render any CTA block', async () => {
     const res = await page('/freestyle/tricks/mirage');
+    expect(res.status).toBe(200);
+    expect(res.text).not.toContain('symbolic-trick-ctas-block');
+  });
+});
+
+// The educational links block alone, or '' when the page has none. A trick page
+// also links to the spinning modifier from its modifier list, so a whole-page
+// match could not tell an educational link from that one.
+function ctaBlock(html: string): string {
+  const start = html.indexOf('symbolic-trick-ctas-block');
+  if (start === -1) return '';
+  return html.substring(start, html.indexOf('</aside>', start));
+}
+
+describe('trick-page educational CTAs follow the trick, not a stored grouping', () => {
+  it('a trick no grouping has heard of gets the walking-family link from its butterfly base', async () => {
+    // A trick published in the application has no stored grouping row, and
+    // without this it would never be pointed at the progression it belongs to.
+    const res = await page('/freestyle/tricks/fresh_walk');
+    expect(res.status).toBe(200);
+    expect(ctaBlock(res.text)).toContain('href="/freestyle/progression/walking-family"');
+  });
+
+  it('the spinning modifier alone earns the spinning link, on a base that is not the whirl', async () => {
+    const res = await page('/freestyle/tricks/spinning_mirage');
+    expect(res.status).toBe(200);
+    const block = ctaBlock(res.text);
+    expect(block).toContain('href="/freestyle/modifier/spinning"');
+    expect(block).not.toContain('href="/freestyle/progression/walking-family"');
+  });
+
+  it('a trick moved off the butterfly loses the walking-family link the stored grouping still gives it', async () => {
+    // An edit in the trick editor must change the page at once; a stale stored
+    // grouping would keep pointing a mirage-based trick at the walking family.
+    const res = await page('/freestyle/tricks/bigwalk');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('symbolic-trick-ctas-block');
   });

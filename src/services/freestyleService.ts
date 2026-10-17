@@ -4053,6 +4053,8 @@ export interface FreestyleEmergingInternalContent {
   }[];
   rowTotal:       number;
   shownTotal:     number;
+  /** The next stage for a released ruling: authoring its movement notation. */
+  notationBacklogHref: string;
 }
 
 const OBSERVED_SOURCE_LABELS: Record<string, string> = {
@@ -7371,7 +7373,13 @@ export const freestyleService = {
           structuralAbout: derivedStructuralAbout,
           quantityLadder,
           modifierMemberships,
-          symbolicEducationCtas:   buildSymbolicEducationCtas(slug),
+          symbolicEducationCtas:   dictRow
+            ? buildSymbolicEducationCtas({
+                slug,
+                baseTrick:     dictRow.base_trick,
+                modifierSlugs: modifierLinks.map(l => l.modifier_slug),
+              })
+            : [],
           structuralFacts: (() => {
             if (!dictRow) return null;
             // Folk-named compounds with no DB modifier links fall back to the
@@ -9432,6 +9440,7 @@ export const freestyleService = {
         })),
         rowTotal: all.length,
         shownTotal: shown.length,
+        notationBacklogHref: '/admin/freestyle/notation-backlog',
       },
     };
   },

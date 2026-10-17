@@ -68,10 +68,11 @@ tiers, and knowing which tier a datum sits in is the whole of making a safe edit
    the group-membership layer is machine-generated and the rest are curator
    research artifacts. Before cutover the spreadsheets are authoritative and the
    database is a rendered copy, and their loader must not run inside a general
-   live rebuild. After cutover the database tables are the authority: the layers
-   derived from trick data, group membership among them, are regenerated inside
-   the app, in TypeScript, from the database, when a trick is published or edited;
-   the curated layers change only through a reviewed database migration.
+   live rebuild. After cutover the symbolic group-membership table is frozen
+   rather than regenerated: the trick-page educational links it once fed are
+   decided from the trick's own base trick and modifier links when the page
+   renders, and the curated layers change only through a reviewed database
+   migration.
 4. **Sealed provenance inputs.** `freestyle/inputs/footbag_org_moves_metadata.ndjson`
    is a sealed, immutable archive artifact preserved for provenance and as a
    future description-upgrade source. No loader consumes it.
@@ -163,6 +164,12 @@ exception below.
   never flattened.
 - Provenance-source rows (create): the admin dictionary-provenance registry at
   `/admin/freestyle/sources`. Distinct from the media-source registry.
+- Notation authoring and canonical trick creation: the admin notation backlog at
+  `/admin/freestyle/notation-backlog`, its drafts list, the authoring form and the
+  publication form. Authoring writes a movement and its provenance onto an
+  Emerging Vocabulary ruling; publication creates the canonical trick, attaches
+  its aliases, source and modifier links, and resolves the ruling in one
+  transaction.
 
 **Deliberately ruled exceptions (no in-app editor by design):**
 
@@ -177,9 +184,10 @@ exception below.
   A stored relation, with its own editor, is added only for a curator-authored
   relationship that derivation cannot represent.
 - **The six symbolic layers are generated, doctrine-blocked, or code-managed.**
-  Group membership, and any other layer derived from trick data, is regenerated
-  in the app from the database whenever a trick is published or edited;
-  equivalence clusters are doctrine-blocked; movement archetypes, topology groups,
+  Group membership is generated before cutover and frozen after it; nothing on a
+  page depends on it changing, because a trick page's educational links are
+  decided from the trick's own base trick and modifier links when it renders.
+  Equivalence clusters are doctrine-blocked; movement archetypes, topology groups,
   modifier groups, and glossary crosslinks are intentionally code-managed. Before
   cutover the committed spreadsheets are authoritative; after cutover the database
   tables are, and the curated layers change only through a reviewed database

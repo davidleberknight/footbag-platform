@@ -15,11 +15,17 @@
   {{> outcome-notice text="Saved. The draft is listed under authored drafts until its trick is published." tone='ok'}}
   {{/if}}
 
+  {{! A resolved ruling states why in place of the form; its banner would only
+      repeat the same sentence. }}
+  {{#unless content.authorable}}
+  <p class="notice notice-warn">{{content.refusal}}</p>
+  {{else}}
   {{#if content.hasErrors}}
   <div class="form-error-banner" role="alert">
     {{#each content.errorList}}<p>{{this}}</p>{{/each}}
   </div>
   {{/if}}
+  {{/unless}}
 
   <section class="content-section">
     <div class="section-heading">
@@ -52,6 +58,7 @@
       <h2>The Movement</h2>
     </div>
 
+    {{#if content.authorable}}
     <form method="POST" action="{{content.saveHref}}" class="form-block">
       <div class="form-field">
         <label for="notation">Movement notation</label>
@@ -104,6 +111,14 @@
         <button type="submit" class="btn btn-primary btn-sm">Save Notation</button>
       </div>
     </form>
+    {{else}}
+    {{#if content.fields.notation}}
+    <dl class="trick-structural-facts-list">
+      <dt>Movement notation</dt>
+      <dd><code>{{content.fields.notation}}</code></dd>
+    </dl>
+    {{/if}}
+    {{/if}}
 
     {{#if content.isAuthored}}
     <p class="text-muted fs-sm">Last authored {{content.authoredAt}} by {{content.authoredBy}}.</p>

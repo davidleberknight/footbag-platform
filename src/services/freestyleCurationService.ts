@@ -26,7 +26,8 @@
  *   - The notation authoring funnel: the backlog of Emerging Vocabulary rulings
  *     that still need a movement notation, authoring a notation draft for one
  *     with its provenance, and publishing an authored candidate as a new active
- *     canonical trick.
+ *     canonical trick. A resolved ruling is history: authoring refuses it, in the
+ *     service, so its draft cannot drift from the trick published from it.
  *
  * Does not own:
  *   - The public freestyle section pages (FreestyleService is public, read-only).
@@ -36,11 +37,12 @@
  *
  * Write discipline: updateTrickScalars validates the submitted fields for row
  * shape (canonical name required, ADD numeric/empty/"modifier", category and
- * review status within the existing allowed values, active and the core-primitive
- * marker booleans, the browse sort position a whole number zero or greater with a
+ * review status within the existing allowed values, the active flag a boolean, the
+ * browse sort position a whole number zero or greater with a
  * cleared field meaning the unset zero, each
- * editorial prose field within a length cap) plus one
- * structural doctrine checks. When the ADD is numeric and the execution notation
+ * editorial prose field within a length cap) plus two
+ * structural doctrine checks. The core-primitive column is not editable here: the
+ * loaders write it and nothing reads it. When the ADD is numeric and the execution notation
  * carries scoring brackets, the scoring-bracket count must equal the ADD; rows
  * with no scoring brackets are not checked, because a blank notation is the
  * recorded state of the rows whose operator contribution is still unruled, and
@@ -732,6 +734,9 @@ export interface FreestyleNotationAuthoringContent {
   errorList: string[];
   hasErrors: boolean;
   saved: boolean;
+  /** Why this ruling's notation can no longer be authored, or empty when it can. */
+  refusal: string;
+  authorable: boolean;
 }
 
 export interface FreestyleNotationDraftRow {
@@ -907,6 +912,19 @@ function publicationCrossed(
 /** The ledger's comparison key: alphanumerics of the name, lowercased. */
 function adjudicationNameKey(name: string): string {
   return name.toLowerCase().replace(/[^a-z0-9]/g, '');
+}
+
+/** Why a ruling's notation can no longer be authored, or null when it can. A
+ *  resolved ruling is history: its published trick carries its own copy of the
+ *  notation, so rewriting the ruling's draft would let the two drift apart, and a
+ *  resolved ruling is on neither the backlog nor the drafts list, so nobody would
+ *  see the drift. Held and non-trick rulings stay authorable, because publication
+ *  refuses them and a draft on them loses nothing. */
+function authoringRefusal(row: AuthoringDbRow): string | null {
+  if (row.final_disposition !== 'C') {
+    return 'This ruling is already resolved, so its notation can no longer be changed here.';
+  }
+  return null;
 }
 
 // ── Publishing a draft as a canonical trick ────────────────────────────────
@@ -1340,6 +1358,8 @@ export const freestyleCurationService = {
         errorList: Object.values(fieldErrors),
         hasErrors: Object.keys(fieldErrors).length > 0,
         saved: opts.saved === true,
+        refusal:    authoringRefusal(row) ?? '',
+        authorable: authoringRefusal(row) === null,
       },
     };
   },
@@ -1363,6 +1383,11 @@ export const freestyleCurationService = {
     assertActorMayCurateFreestyle(actorMemberId);
     const current = freestyleEvAdjudications.getForAuthoring.get(candidateId) as AuthoringDbRow | undefined;
     if (!current) throw new NotFoundError(`No adjudication "${candidateId}"`);
+
+    // Refused here rather than only on the form, so a direct post cannot rewrite
+    // a resolved ruling's history.
+    const refusal = authoringRefusal(current);
+    if (refusal) throw new ValidationError(refusal, { fieldErrors: { authoring: refusal } });
 
     const fieldErrors: Record<string, string> = {};
 

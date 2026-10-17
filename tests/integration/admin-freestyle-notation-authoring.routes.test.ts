@@ -96,6 +96,7 @@ function trickCount(): number {
 }
 
 const CANDIDATES = ['ev-author-1', 'ev-author-2', 'ev-author-3', 'ev-author-4', 'ev-author-5'];
+const RESOLVED = 'ev-author-resolved';
 
 beforeAll(async () => {
   db = createTestDb(dbPath);
@@ -119,6 +120,22 @@ beforeAll(async () => {
       owner: 'james', source: 'SG', confidence: 'high',
       proposed_formula: 'pixie(+1) + whirl(3) = 4',
     });
+  });
+
+  // A ruling already resolved: its draft is history. It names no published trick,
+  // because this file holds the trick table empty and the refusal rests on the
+  // resolution alone.
+  insertFreestyleEvAdjudication(db, {
+    candidate_id: RESOLVED,
+    submitted_name: 'Resolved Name',
+    normalized_name: 'resolvedname',
+    ev_state: 'parser', final_disposition: 'A',
+    evidence_state: 'compositional-name-only',
+    blocker_id: 'D7', blocker_subtype: 'settled-modifier-on-published-terminal',
+    owner: 'james', source: 'SG', confidence: 'high',
+    authored_notation: NOTATION,
+    notation_evidence_basis: 'source-notation',
+    notation_derivation_method: 'transcription',
   });
 
   createApp = await importApp();
@@ -322,6 +339,36 @@ describe('what else the save refuses', () => {
     expect(row.notation_evidence_basis).toBeNull();
     expect(row.version).toBe(1);
     expect(auditRows(CANDIDATES[3])).toHaveLength(0);
+  });
+
+  it('offers no form on a resolved ruling, and says why', async () => {
+    // A curator reaching a resolved ruling by its URL must not be invited to
+    // rewrite a draft its published trick has already copied.
+    const res = await get(`/admin/freestyle/notation-backlog/${RESOLVED}/author`, admin());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('This ruling is already resolved, so its notation can no longer be changed here.');
+    expect(res.text).not.toContain(`action="/admin/freestyle/notation-backlog/${RESOLVED}/author"`);
+    expect(res.text).not.toContain('Save Notation');
+  });
+
+  it('refuses a direct post to a resolved ruling and leaves its history untouched', async () => {
+    // Without the service-side check, a hand-built post would overwrite the draft
+    // a published trick rests on, and the ruling is on no list where anyone would
+    // notice the two had drifted apart.
+    const res = await post(`/admin/freestyle/notation-backlog/${RESOLVED}/author`, validForm({
+      notation: 'TOE > SAME TOE [DEL]',
+      evidenceBasis: 'footage',
+      derivationMethod: 'reconstruction',
+    }));
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('This ruling is already resolved, so its notation can no longer be changed here.');
+
+    const row = ruling(RESOLVED);
+    expect(row.authored_notation).toBe(NOTATION);
+    expect(row.notation_evidence_basis).toBe('source-notation');
+    expect(row.notation_derivation_method).toBe('transcription');
+    expect(row.version).toBe(1);
+    expect(auditRows(RESOLVED)).toHaveLength(0);
   });
 
   it('does not check the notation against a difficulty, because there is none to check', async () => {
