@@ -29,7 +29,6 @@ footbag-domain rules, not web-engineering rules.
 
 The contract sources this skill audits against are the freestyle governance skills —
 `.claude/skills/footbag-freestyle-dictionary/SKILL.md`,
-`.claude/skills/freestyle-topology-governance/SKILL.md`,
 `.claude/skills/freestyle-dictionary-surface/SKILL.md`,
 `.claude/skills/footbag-curated-media/SKILL.md`,
 `.claude/skills/add-browse-view/SKILL.md` — plus the freestyle sections of the

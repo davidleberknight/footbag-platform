@@ -57,8 +57,7 @@ export const FAMILY_INVARIANTS: ReadonlyMap<string, string> = new Map([
   // mechanical specification.
   ['rev_whirl', 'leggy out dex > ss clipper'],
   // The four entries below are the remaining terminal-family candidates
-  // named in the freestyle-topology-governance skill description (whirl
-  // and rev-whirl are already covered above). Structural-form lines
+  // (whirl and rev-whirl are already covered above). Structural-form lines
   // follow the shallow-readable pedagogical convention established by
   // the whirl / rev-whirl pair, not raw operational-notation columns.
   //
