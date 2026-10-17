@@ -27,7 +27,9 @@ Three pieces:
 - `footbag_dev_tester_repo/` gitignored repo-root symlink to the repository's clone, made by
   `scripts/setup-dev-workstation.sh`. Needed only for reading the repository's README, whose "What
   happens after you report" is what testers are told: the labels and comments below keep to it,
-  and a difference is reported rather than acted on. Read only, never written.
+  and a difference is reported rather than acted on. Triage only reads it; Claude edits the
+  clone's files only when the maintainer asks, and every commit and push there is the
+  maintainer's.
 - The private tracker's wiring, per the `tracker-ops` skill, for carding.
 
 When a piece is absent, say exactly one line naming the wiring step. Without the variable there is

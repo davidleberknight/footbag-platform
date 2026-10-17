@@ -8,7 +8,6 @@ old read-the-CSV-files-at-runtime path). Idempotent; honest counters.
 Reads:  freestyle/symbolic_grammar/*.csv   (committed loader inputs)
 Writes: database/footbag.db
           symbolic_equivalence_clusters
-          symbolic_group_membership
           symbolic_movement_archetypes
           symbolic_topology_groups
           symbolic_modifier_groups
@@ -36,8 +35,6 @@ SPECS = [
      ["cluster_id", "cluster_label", "symbolic_normalization", "member_trick_slugs",
       "ifpa_decomposition_variance", "add_range", "anchor_topology_group", "notes",
       "review_status"]),
-    ("symbolic_group_membership.csv", "symbolic_group_membership",
-     ["trick_slug", "symbolic_group_id", "membership_reason", "confidence", "source"]),
     ("movement_archetype_registry.csv", "symbolic_movement_archetypes",
      ["archetype_id", "archetype_label", "uptime_pattern", "midtime_pattern",
       "downtime_pattern", "anchor_topology_group", "anchor_modifier_groups",

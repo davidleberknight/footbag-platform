@@ -11942,7 +11942,6 @@ export const sesEvents = {
 // maps them to its typed structures at read time.
 export const symbolicGrammar = {
   get equivalenceClusters() { return db.prepare(`SELECT * FROM symbolic_equivalence_clusters`); },
-  get groupMembership()     { return db.prepare(`SELECT * FROM symbolic_group_membership`); },
   get movementArchetypes()  { return db.prepare(`SELECT * FROM symbolic_movement_archetypes`); },
   get topologyGroups()      { return db.prepare(`SELECT * FROM symbolic_topology_groups`); },
   get modifierGroups()      { return db.prepare(`SELECT * FROM symbolic_modifier_groups`); },

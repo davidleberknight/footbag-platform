@@ -40,15 +40,6 @@ export interface SymbolicEquivalenceCluster {
   layerSource:               'observational';
 }
 
-export interface SymbolicGroupMembership {
-  trickSlug:        string;
-  symbolicGroupId:  string;
-  membershipReason: string;
-  confidence:       string;
-  source:           string;
-  layerSource:      'observational';
-}
-
 export interface SymbolicMovementArchetype {
   archetypeId:           string;
   archetypeLabel:        string;
@@ -121,7 +112,7 @@ function splitMembers(raw: string): string[] {
 // The symbolic-grammar CSVs key tricks by hyphenated slug ("around-the-world"),
 // while freestyle_tricks and every public route use the underscore canonical
 // form ("around_the_world"). Normalizing to underscore at each slug boundary is
-// what lets a compound trick resolve its memberships and equivalence clusters;
+// what lets a compound trick resolve its equivalence clusters;
 // without it the lookup silently returns nothing and the panels never render.
 export function normalizeSymbolicSlug(slug: string): string {
   return slug.trim().toLowerCase().replace(/-/g, '_');
@@ -139,8 +130,6 @@ function parseIntOrNull(raw: string): number | null {
 
 interface Cache {
   equivClusters:     SymbolicEquivalenceCluster[];
-  membershipBySlug:  Map<string, SymbolicGroupMembership[]>;
-  membershipByGroup: Map<string, SymbolicGroupMembership[]>;
   archetypes:        SymbolicMovementArchetype[];
   topologyById:      Map<string, SymbolicTopologyGroup>;
   modifierById:      Map<string, SymbolicModifierGroup>;
@@ -165,26 +154,6 @@ function buildCache(): Cache {
     reviewStatus:              r['review_status'] ?? '',
     layerSource:               'observational',
   }));
-
-  // Memberships — build two indexes (by trick + by group)
-  const membershipRows = readTable(symbolicGrammar.groupMembership);
-  const memberships: SymbolicGroupMembership[] = membershipRows.map(r => ({
-    trickSlug:        normalizeSymbolicSlug(r['trick_slug'] ?? ''),
-    symbolicGroupId:  r['symbolic_group_id'] ?? '',
-    membershipReason: r['membership_reason'] ?? '',
-    confidence:       r['confidence'] ?? '',
-    source:           r['source'] ?? '',
-    layerSource:      'observational',
-  }));
-  const membershipBySlug = new Map<string, SymbolicGroupMembership[]>();
-  const membershipByGroup = new Map<string, SymbolicGroupMembership[]>();
-  for (const m of memberships) {
-    if (!m.trickSlug) continue;
-    if (!membershipBySlug.has(m.trickSlug)) membershipBySlug.set(m.trickSlug, []);
-    membershipBySlug.get(m.trickSlug)!.push(m);
-    if (!membershipByGroup.has(m.symbolicGroupId)) membershipByGroup.set(m.symbolicGroupId, []);
-    membershipByGroup.get(m.symbolicGroupId)!.push(m);
-  }
 
   // Archetypes
   const archetypeRows = readTable(symbolicGrammar.movementArchetypes);
@@ -271,8 +240,6 @@ function buildCache(): Cache {
 
   return {
     equivClusters,
-    membershipBySlug,
-    membershipByGroup,
     archetypes,
     topologyById,
     modifierById,
@@ -307,24 +274,6 @@ export const symbolicGrammarService = {
   getEquivalenceClusters(): SymbolicEquivalenceCluster[] {
     const c = loadOnce();
     return c ? c.equivClusters : [];
-  },
-
-  /**
-   * All symbolic-group memberships for a trick slug. Returns [] when missing.
-   */
-  getMembershipsForSlug(slug: string): SymbolicGroupMembership[] {
-    const c = loadOnce();
-    if (!c) return [];
-    return c.membershipBySlug.get(normalizeSymbolicSlug(slug)) ?? [];
-  },
-
-  /**
-   * All trick slugs belonging to a symbolic group. Returns [] when missing.
-   */
-  getMembersOfGroup(symbolicGroupId: string): SymbolicGroupMembership[] {
-    const c = loadOnce();
-    if (!c) return [];
-    return c.membershipByGroup.get(symbolicGroupId) ?? [];
   },
 
   /**

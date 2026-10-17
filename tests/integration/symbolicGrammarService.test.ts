@@ -55,45 +55,7 @@ describe('symbolicGrammarService — equivalence clusters', () => {
   });
 });
 
-describe('symbolicGrammarService — group memberships', () => {
-  it('returns memberships for a known slug', () => {
-    const memberships = svc.getMembershipsForSlug('ripwalk');
-    expect(memberships.length).toBeGreaterThan(0);
-    for (const m of memberships) {
-      expect(m.layerSource).toBe('observational');
-      expect(m.trickSlug).toBe('ripwalk');
-    }
-    const groupIds = memberships.map(m => m.symbolicGroupId);
-    expect(groupIds).toContain('butterfly-wing-topology');
-  });
-
-  it('returns empty for unknown slug', () => {
-    expect(svc.getMembershipsForSlug('not-a-real-slug-xyz')).toEqual([]);
-  });
-
-  it('reverse-lookup: getMembersOfGroup returns all slugs in a group', () => {
-    const members = svc.getMembersOfGroup('butterfly-wing-topology');
-    expect(members.length).toBeGreaterThan(0);
-    const slugs = members.map(m => m.trickSlug);
-    expect(slugs).toContain('butterfly');
-    expect(slugs).toContain('ripwalk');
-  });
-
-  it('returns empty for unknown group id', () => {
-    expect(svc.getMembersOfGroup('not-a-real-group')).toEqual([]);
-  });
-});
-
 describe('symbolicGrammarService — hyphen/underscore slug normalization', () => {
-  it('resolves an underscore canonical slug against hyphenated CSV membership keys', () => {
-    // The CSV keys this trick "spinning-whirl"; the dictionary and every public
-    // route use the underscore canonical "spinning_whirl". The lookup bridges
-    // the two, and the shaped slug is the underscore form.
-    const memberships = svc.getMembershipsForSlug('spinning_whirl');
-    expect(memberships.length).toBeGreaterThan(0);
-    for (const m of memberships) expect(m.trickSlug).not.toContain('-');
-  });
-
   it('resolves an underscore slug against a hyphenated equivalence-cluster member', () => {
     // "dada-curve" is a wing-on-butterfly cluster member in the CSV; the route
     // slug is "dada_curve".
@@ -190,7 +152,6 @@ describe('symbolicGrammarService — cache + fail-safe', () => {
 describe('symbolicGrammarService — observational-layer separation', () => {
   it('every shape has layerSource=observational', () => {
     expect(svc.getEquivalenceClusters()[0]?.layerSource).toBe('observational');
-    expect(svc.getMembershipsForSlug('butterfly')[0]?.layerSource).toBe('observational');
     expect(svc.getMovementArchetypes()[0]?.layerSource).toBe('observational');
     expect(svc.getTopologyGroup('butterfly-wing-topology')?.layerSource).toBe('observational');
     expect(svc.getModifierGroup('spinning-family')?.layerSource).toBe('observational');

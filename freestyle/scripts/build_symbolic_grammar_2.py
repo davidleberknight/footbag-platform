@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """SYMBOLIC-GRAMMAR-2: build educational symbolic-grammar integration layer.
 
-Generates Tasks A/B/C/F/G of the SG-2 brief from live IFPA dictionary state:
+Generates Tasks A/C/F/G of the SG-2 brief from live IFPA dictionary state:
 freestyle_tricks, freestyle_trick_modifier_links and freestyle_trick_modifiers,
 read-only. The database is the only input; there is no snapshot or CSV overlay.
 
@@ -12,7 +12,6 @@ Outputs (all under freestyle/symbolic_grammar/):
     symbolic_contact_groups.csv
     symbolic_dex_groups.csv
     symbolic_execution_patterns.csv
-  Task B — symbolic_group_membership.csv (every IFPA pilot row × its symbolic groups)
   Task C — symbolic_equivalence_clusters.csv (mechanical equivalence families)
   Task F — symbolic_vs_ifpa_family_analysis.csv (cross-cut analysis)
   Task G — movement_archetype_registry.csv (reusable execution shapes)
@@ -312,17 +311,8 @@ def write_group_csvs() -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────
-# Task B — group membership
+# Topology derivation (feeds the family analysis)
 # ─────────────────────────────────────────────────────────────────────────
-
-MEMBERSHIP_FIELDS = [
-    "trick_slug",
-    "symbolic_group_id",
-    "membership_reason",
-    "confidence",
-    "source",
-]
-
 
 def derive_topology_for_trick(t: dict, mod_links: dict[str, list[str]]) -> list[tuple[str, str]]:
     """Return [(group_id, reason)] for topology memberships."""
@@ -375,130 +365,6 @@ def derive_topology_for_trick(t: dict, mod_links: dict[str, list[str]]) -> list[
         out.append(("unusual-surface-topology", "non-standard recovery surface"))
 
     return out
-
-
-def derive_modifier_memberships(t: dict, mod_links: dict[str, list[str]]) -> list[tuple[str, str]]:
-    """Return [(group_id, reason)] from modifier_links table."""
-    out: list[tuple[str, str]] = []
-    slug = t["slug"]
-    modifiers = mod_links.get(slug, [])
-    for m in modifiers:
-        group_id = f"{m}-family"
-        # Only emit if we defined the group in MODIFIER_GROUPS
-        if any(g[0] == group_id for g in MODIFIER_GROUPS):
-            out.append((group_id, f"modifier_link={m}"))
-    return out
-
-
-def derive_contact_memberships(t: dict) -> list[tuple[str, str]]:
-    """Derive contact-group memberships from canonical_name + family heuristics."""
-    out: list[tuple[str, str]] = []
-    name = t["canonical_name"].lower()
-    # The IFPA tricks don't carry direct contact-pattern info; we use canonical-name
-    # heuristics + family signals. This is conservative.
-    if any(w in name for w in ("toe", "blur", "mirage", "atom_smasher", "smear")):
-        out.append(("toe-ending", "compound terminates in toe_stall via canonical-name pattern"))
-    if "clip" in name or "butterfly" in name or "wing" in name or t["base_trick"] == "butterfly":
-        out.append(("clipper-ending", "compound terminates in clipper_stall via wing-motion or canonical-name pattern"))
-    return out
-
-
-def derive_dex_memberships(t: dict) -> list[tuple[str, str]]:
-    """Derive dex-mechanic group memberships from base_trick."""
-    out: list[tuple[str, str]] = []
-    base = t["base_trick"]
-    base_dex_map = {
-        "mirage": "hippy-in-dex",
-        "illusion": "hippy-out-dex",
-        "legover": "leggy-pass",
-        "around_the_world": "leggy-circle",
-        "pickup": "under-foot-scoop",
-        "butterfly": "wing-motion-dex",
-        "whirl": "front-spin-dex",
-        "swirl": "back-spin-dex",
-    }
-    if base in base_dex_map:
-        out.append((base_dex_map[base], f"base_trick={base}"))
-    # Also: if the slug itself IS one of these primitives
-    if not base or base == t["slug"]:
-        if t["slug"] in base_dex_map:
-            out.append((base_dex_map[t["slug"]], f"slug={t['slug']} (foundation)"))
-    return out
-
-
-def derive_execution_memberships(t: dict, mod_links: dict[str, list[str]]) -> list[tuple[str, str]]:
-    """Derive execution-pattern memberships from slug/family rules."""
-    out: list[tuple[str, str]] = []
-    slug = t["slug"]
-    # Direction-variant pairs
-    if slug in ("reverse_drifter", "rev_whirl", "rev_up"):
-        out.append(("directional-reverse-pair", f"{slug} is reverse-direction variant"))
-    if slug in ("drifter", "whirl"):
-        out.append(("directional-reverse-pair", f"{slug} is anchor of direction-variant pair"))
-    # Multiplicity exceptions
-    if slug in ("double_leg_over", "double_around_the_world", "double_spin"):
-        out.append(("productive-multiplicity-stabilized", "pt8 §10 community-stabilized doubling"))
-    # §3.2 policy class
-    if slug in ("nemesis", "bullwhip"):
-        out.append(("stated-ADD-without-stated-structure", "CANONICALIZATION_POLICY §3.2"))
-    # Same-side cohort (canonical-name pattern)
-    if "(same side)" in t["canonical_name"] or "same-side" in slug:
-        out.append(("same-side-execution", "same-side qualifier in canonical_name or slug"))
-    # Symposium / no-plant-while
-    symposium_modifiers = mod_links.get(slug, [])
-    if "symposium" in symposium_modifiers:
-        out.append(("no-plant-while-symposium", "modifier_link=symposium"))
-    # Movement archetypes
-    base = t["base_trick"]
-    mods = mod_links.get(slug, [])
-    if base == "butterfly" and any(m in ("stepping", "pixie", "ducking") for m in mods):
-        out.append(("uptime-dex-downtime-butterfly", f"{'/'.join(mods)} + butterfly archetype"))
-    if base == "osis" and any(m in ("stepping", "ducking", "spinning") for m in mods):
-        out.append(("uptime-dex-downtime-osis", f"{'/'.join(mods)} + osis archetype"))
-    if slug in ("barrage", "barfly", "barfry", "bubba_beater"):
-        out.append(("double-dex-clipper-ending", f"{slug} is double-dex+clip exemplar"))
-    return out
-
-
-def write_membership_csv(state: dict) -> int:
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    rows: list[dict] = []
-    for t in state["tricks"]:
-        # Skip modifier-stub rows (per modifier-public-visibility rule)
-        if t["slug"] in state["modifier_stubs"]:
-            continue
-        memberships: list[tuple[str, str, str, str]] = []
-        for g, r in derive_topology_for_trick(t, state["modifier_links"]):
-            memberships.append((g, r, "high", "topology heuristic"))
-        for g, r in derive_modifier_memberships(t, state["modifier_links"]):
-            memberships.append((g, r, "high", "freestyle_trick_modifier_links"))
-        for g, r in derive_contact_memberships(t):
-            memberships.append((g, r, "medium", "canonical-name heuristic"))
-        for g, r in derive_dex_memberships(t):
-            memberships.append((g, r, "high", "base_trick mapping"))
-        for g, r in derive_execution_memberships(t, state["modifier_links"]):
-            memberships.append((g, r, "high", "execution-pattern rule"))
-        # Dedup
-        seen = set()
-        for group_id, reason, conf, src in memberships:
-            key = (t["slug"], group_id)
-            if key in seen:
-                continue
-            seen.add(key)
-            rows.append({
-                "trick_slug": t["slug"],
-                "symbolic_group_id": group_id,
-                "membership_reason": reason,
-                "confidence": conf,
-                "source": src,
-            })
-    # Stable sort
-    rows.sort(key=lambda r: (r["trick_slug"], r["symbolic_group_id"]))
-    with (OUT_DIR / "symbolic_group_membership.csv").open("w", newline="", encoding="utf-8") as f:
-        w = csv.DictWriter(f, fieldnames=MEMBERSHIP_FIELDS, quoting=csv.QUOTE_ALL, lineterminator="\n")
-        w.writeheader()
-        w.writerows(rows)
-    return len(rows)
 
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -666,7 +532,7 @@ ANALYSIS_FIELDS = [
 ]
 
 
-def write_family_analysis_csv(state: dict, memberships: list[dict]) -> int:
+def write_family_analysis_csv(state: dict) -> int:
     """For each IFPA trick_family, compute symbolic-topology coherence + spread."""
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     # Build {family: [trick]} mapping
@@ -676,11 +542,9 @@ def write_family_analysis_csv(state: dict, memberships: list[dict]) -> int:
             continue
         family_tricks[t["trick_family"]].append(t)
 
-    # Re-derive memberships indexed by slug → set of topology group_ids
+    # Topology group ids per slug
     slug_topologies: dict[str, set] = defaultdict(set)
     topology_group_ids = {g[0] for g in TOPOLOGY_GROUPS}
-    # We need to actually have memberships passed in; use the script-generated CSV
-    # to be safe, but it's easier to recompute inline:
     for t in state["tricks"]:
         if t["slug"] in state["modifier_stubs"]:
             continue
@@ -884,13 +748,8 @@ def main() -> int:
     assert_db_current(DB, "the symbolic-grammar CSVs")
     state = load_ifpa_state()
     write_group_csvs()
-    n_memberships = write_membership_csv(state)
-    # Read back memberships for analysis pass
-    memberships = []
-    with (OUT_DIR / "symbolic_group_membership.csv").open(encoding="utf-8") as f:
-        memberships = list(csv.DictReader(f))
     n_clusters = write_equivalence_clusters_csv(state)
-    n_families = write_family_analysis_csv(state, memberships)
+    n_families = write_family_analysis_csv(state)
     n_archetypes = write_archetype_registry(state)
 
     n_topology = len(TOPOLOGY_GROUPS)
@@ -908,7 +767,6 @@ def main() -> int:
     print(f"  symbolic_dex_groups.csv            {n_dex:>3d} rows")
     print(f"  symbolic_execution_patterns.csv    {n_exec:>3d} rows")
     print()
-    print(f"Task B — symbolic_group_membership.csv  {n_memberships:>4d} memberships across {len([t for t in state['tricks'] if t['slug'] not in state['modifier_stubs']])} non-modifier rows")
     print(f"Task C — symbolic_equivalence_clusters.csv  {n_clusters:>3d} clusters")
     print(f"Task F — symbolic_vs_ifpa_family_analysis.csv  {n_families:>3d} IFPA families analyzed")
     print(f"Task G — movement_archetype_registry.csv  {n_archetypes:>3d} archetypes")

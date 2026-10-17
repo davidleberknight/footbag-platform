@@ -36,7 +36,7 @@ const page = cachedGet(() => createApp());
 beforeAll(async () => {
   const db = createTestDb(dbPath);
 
-  // butterfly-wing-topology members (per symbolic_group_membership.csv)
+  // butterfly-based tricks
   insertFreestyleTrick(db, { slug: 'butterfly',  canonical_name: 'butterfly',   adds: '3', base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound' });
   insertFreestyleTrick(db, { slug: 'ripwalk',    canonical_name: 'ripwalk',     adds: '4', base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound' });
   insertFreestyleTrick(db, { slug: 'sidewalk',   canonical_name: 'sidewalk',    adds: '4', base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound' });

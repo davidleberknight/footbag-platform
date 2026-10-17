@@ -750,7 +750,7 @@ def main(argv: list[str] | None = None) -> None:
     if "club_id" in df.columns:
         out_cols.append("club_id")
     out_cols += ["_club_key", "name"]
-    for optional in ["city", "country", "contact_member_id", "external_url", "description", "created", "last_updated"]:
+    for optional in ["city", "region", "country", "contact_member_id", "external_url", "description", "created", "last_updated"]:
         if optional in df.columns:
             out_cols.append(optional)
 

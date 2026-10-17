@@ -80,7 +80,7 @@ This repository doubles as a worked example of a production Claude Code harness:
 - Talk to Dave.
 - You can run this code locally (see Quickstart above), but to contribute you need an invitation as a collaborator on this repository and on the private dev-tester repository, used for bug reports, and to the team Discord server, used for dev-tester conversation. Access to the maintainers' private operations repository is granted separately, and is a hard prerequisite for all operations work: every environment's Terraform values live there and are reached by symlink, so without it no AWS environment can be planned or applied. Local development and the test suite need none of it.
 - [CONTRIBUTING.md](CONTRIBUTING.md).
-- [SECURITY.md](SECURITY.md) for vulnerability reporting (developers and testers report bugs in the private dev-tester repository).
+- [SECURITY.md](SECURITY.md) for vulnerability reporting by anyone outside the team (developers and testers report every bug, security problems included, in the private dev-tester repository).
 - **Do not report security vulnerabilities in public.**
 
 

@@ -53,7 +53,7 @@ def _run_loader(tmp_path: Path, db_path: Path, candidate_rows: list[dict]) -> su
     # contract under test is the candidate live-content carry.
     _write_csv(persons_csv, ["master_person_id", "person_name", "person_type"], [])
     _write_csv(affiliations_csv, ["club_key", "master_person_id"], [])
-    _write_csv(candidates_csv, ["club_key", "name", "category", "description", "external_url"], candidate_rows)
+    _write_csv(candidates_csv, ["club_key", "name", "category", "region", "description", "external_url"], candidate_rows)
     return subprocess.run(
         [
             sys.executable, str(LOADER),
@@ -115,3 +115,25 @@ def test_loader_empty_live_content_boundary(fresh_db: Path, tmp_path: Path) -> N
     # external_url stores NULL (nullable, set only after validation).
     assert desc == ""
     assert url is None
+
+
+def test_loader_carries_the_state(fresh_db: Path, tmp_path: Path) -> None:
+    # A club the old site never made real is promoted when a member confirms it,
+    # and promotion takes the candidate's own state first. A candidate loaded
+    # without the state the seed recorded makes every such member answer a
+    # question the data already settles. An empty state stores NULL, so the
+    # member is asked only where the seed had nothing.
+    rows = [
+        {"club_key": "tc-stated", "name": "Stated Club", "category": "dormant", "region": "Oregon"},
+        {"club_key": "tc-stateless", "name": "Stateless Club", "category": "dormant", "region": ""},
+    ]
+    result = _run_loader(tmp_path, fresh_db, rows)
+    assert result.returncode == 0, f"loader failed.\nstdout: {result.stdout}\nstderr: {result.stderr}"
+
+    conn = sqlite3.connect(fresh_db)
+    regions = dict(conn.execute(
+        "SELECT legacy_club_key, region FROM legacy_club_candidates WHERE legacy_club_key IN (?, ?)",
+        ("tc-stated", "tc-stateless"),
+    ).fetchall())
+    conn.close()
+    assert regions == {"tc-stated": "Oregon", "tc-stateless": None}

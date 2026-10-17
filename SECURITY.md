@@ -8,7 +8,8 @@ Only the current `main` branch is supported.
 
 **Do not use public GitHub issues for security reports.**
 
-Use GitHub's [private vulnerability reporting](https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing/privately-reporting-a-security-vulnerability)
+Developers and testers with access to the private dev-tester repository report a security
+problem there, like any other bug; its README says how. Everyone else uses GitHub's [private vulnerability reporting](https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-writing/privately-reporting-a-security-vulnerability)
 (Security tab → "Report a vulnerability").
 
 Please include: description and potential impact · steps to reproduce ·

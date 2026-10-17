@@ -28,6 +28,7 @@ import { hostIdentityAnswer } from '../fixtures/hostIdentityStub';
 import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
 import { createTestDb } from '../fixtures/testDb';
 import { insertHistoricalPerson, insertLegacyMember } from '../fixtures/factories';
+import { requiredRealdataGates } from '../fixtures/realdataGates';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const RUNNER = path.join(REPO_ROOT, 'run_all_tests.sh');
@@ -308,7 +309,7 @@ describe('gate_staging_realdata_invariants', () => {
   // One line per gate the host reports, in the shape the check scripts print;
   // the workstation half refuses a reply missing any of them.
   const gateLines = (g1Reason = 'no email shared across accounts'): string =>
-    [`GATE: G1 PASS: ${g1Reason}`, ...['G2', 'G3', 'G4', 'G5', 'G6', 'RI1', 'RI2', 'RI3'].map((g) => `GATE: ${g} PASS: fine`)]
+    [`GATE: G1 PASS: ${g1Reason}`, ...requiredRealdataGates().filter((g) => g !== 'G1').map((g) => `GATE: ${g} PASS: fine`)]
       .join('\n');
 
   // Defect caught: the staging invariants never reach the host, or a pass on

@@ -23,6 +23,7 @@ import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
 import { createTestDb } from '../fixtures/testDb';
 import { insertHistoricalPerson, insertLegacyMember } from '../fixtures/factories';
+import { gateIds, requiredRealdataGates } from '../fixtures/realdataGates';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const REMOTE_HALF = path.join(REPO_ROOT, 'scripts/internal/realdata-invariants-remote.sh');
@@ -167,8 +168,7 @@ describe('realdata-invariants-remote.sh invariants', () => {
     const lines = stdoutLines(res.stdout);
     const stray = lines.filter((l) => !/^(GATE: |RDI_)/.test(l));
     expect(stray, 'lines that are neither gate lines nor RDI_ keys').toEqual([]);
-    expect(lines.filter((l) => l.startsWith('GATE: G')).length, 'the six import gates ran').toBe(6);
-    expect(lines.filter((l) => l.startsWith('GATE: RI')).length, 'the three RI checks ran').toBe(3);
+    expect(gateIds(lines), 'every required gate ran, once each').toEqual(requiredRealdataGates());
     expect(res.stdout).not.toContain('@');
     expect(lines).toContain('RDI_RI_RC=0');
     expect(after).toBe(before);

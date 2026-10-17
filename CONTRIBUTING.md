@@ -8,9 +8,9 @@ Contributions are welcome. This project is maintained by
 Active work is tracked in a private maintainers' repository, and public Issues
 are disabled on this repository. Before starting significant work, contact the
 maintainer (see the README) so it can be coordinated there. Read
-[`GOVERNANCE.md`](GOVERNANCE.md) for who decides what. For security
-vulnerabilities, use the private path in
-[`SECURITY.md`](SECURITY.md).
+[`GOVERNANCE.md`](GOVERNANCE.md) for who decides what. Developers and testers
+report security problems in the private dev-tester repository like any other
+bug; anyone else uses the private path in [`SECURITY.md`](SECURITY.md).
 
 ## Reporting a problem or proposing work
 

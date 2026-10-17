@@ -2353,7 +2353,7 @@ DECLARED = {
     'freestyle_tricks', 'freestyle_trick_modifiers', 'freestyle_trick_sources',
     'freestyle_trick_source_links', 'freestyle_trick_aliases',
     'freestyle_trick_modifier_links', 'freestyle_trick_tips',
-    'symbolic_equivalence_clusters', 'symbolic_group_membership',
+    'symbolic_equivalence_clusters',
     'symbolic_movement_archetypes', 'symbolic_topology_groups',
     'symbolic_modifier_groups', 'symbolic_glossary_crosslinks',
     # External-event ingestion: each row claims a provider's identifier and is

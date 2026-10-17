@@ -497,7 +497,7 @@ def main() -> None:
                     """
                     INSERT OR IGNORE INTO legacy_club_candidates (
                       id, created_at, created_by, updated_at, updated_by, version,
-                      legacy_club_key, display_name, city, country,
+                      legacy_club_key, display_name, city, region, country,
                       confidence_score, mapped_club_id, bootstrap_eligible,
                       classification,
                       contact_signal_substitute_applied,
@@ -511,7 +511,7 @@ def main() -> None:
                       -- not carried from the legacy seed.
                       description, external_url
                     ) VALUES (
-                      ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?,
+                      ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?,
                       ?,
                       ?, ?, ?, ?, ?, ?, ?, ?,
                       ?, ?
@@ -522,6 +522,7 @@ def main() -> None:
                         club_key,
                         row["name"].strip(),
                         opt_str(row.get("city", "")),
+                        opt_str(row.get("region", "")),
                         opt_str(row.get("country", "")),
                         opt_float(row.get("confidence_score", "")),
                         # mapped_club_id is owned by Phase H (06_cutover_pre_populated_clubs.py),

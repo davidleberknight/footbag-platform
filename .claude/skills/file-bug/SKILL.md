@@ -24,7 +24,7 @@ working, and is a supported configuration):
   repository's own files, which this skill follows rather than restates where they differ:
   `footbag_dev_tester_repo/README.md` (the single home for how to report a bug, including "What a
   complete report holds" and "No secrets") and its bug form, `bug.yml` among the clone's GitHub
-  issue forms (its headings and their order; `idea.yml` for an idea). Read only, never written: changes to that repository are the human's. The clone can
+  issue forms (its headings and their order; `idea.yml` for an idea). This skill only reads them; Claude edits the clone's files only when the maintainer asks, and every commit and push there is the maintainer's. The clone can
   lag GitHub; a difference that matters is reported, not guessed around.
 
 When a piece is absent, say exactly one line naming the wiring step, skip the part that needs it,

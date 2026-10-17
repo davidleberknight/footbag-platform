@@ -5475,16 +5475,6 @@ CREATE TABLE symbolic_equivalence_clusters (
   review_status               TEXT
 );
 
-CREATE TABLE symbolic_group_membership (
-  trick_slug        TEXT,
-  symbolic_group_id TEXT,
-  membership_reason TEXT,
-  confidence        TEXT,
-  source            TEXT
-);
-CREATE INDEX idx_sgm_trick ON symbolic_group_membership(trick_slug);
-CREATE INDEX idx_sgm_group ON symbolic_group_membership(symbolic_group_id);
-
 CREATE TABLE symbolic_movement_archetypes (
   archetype_id          TEXT PRIMARY KEY,
   archetype_label       TEXT,

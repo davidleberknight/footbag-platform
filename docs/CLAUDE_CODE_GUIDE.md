@@ -296,8 +296,8 @@ IFPA board member can use the harness efficiently from day one.
   the `triage-bugs` skill. Reached through the gitignored `footbag_dev_tester_repo` symlink,
   which `scripts/setup-dev-workstation.sh` makes, cloning it beside this checkout when GitHub
   admits the machine. The skills read its README, the single home for how to report a bug, and
-  its forms through the link, and never write there: the harness denies edits under the link,
-  as it does under the legacy clone's. Its slug, `FOOTBAG_DEVTESTER_REPO`, is set in the committed
+  its forms through the link. Claude may edit the clone's files when the maintainer asks; the
+  git-mutation guard keeps every commit and push there the maintainer's. Its slug, `FOOTBAG_DEVTESTER_REPO`, is set in the committed
   `.claude/settings.json`, since every developer needs the same value and it reveals nothing.
   Optional: a contributor who is not invited works without it.
 - **The legacy footbag.org clone** — a read-only clone of the legacy webmaster's repository,

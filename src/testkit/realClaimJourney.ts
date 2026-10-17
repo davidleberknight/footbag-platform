@@ -208,12 +208,21 @@ export async function buildRealClaimJourney(legacyMemberId: string): Promise<Bui
 
   // 6. Confirm any pending club membership candidate the legacy link surfaced,
   //    then advance the step. Records with no club affiliation simply have no
-  //    membership card, and the step completes empty.
+  //    membership card, and the step completes empty. Each answer goes through
+  //    the wizard's own submit, which first turns a club the old site never made
+  //    real into a club record; confirming such a card any other way is refused.
+  //    Where that club's country groups by state and the old site recorded none,
+  //    the card asks for one, and the journey answers with the first offered,
+  //    since the record carries no state to give.
   for (const card of memberOnboardingService.listWizardCardsForMember(memberId)) {
     if (card.kind === 'membership') {
-      memberOnboardingService.submitClubAffiliationsResponse(memberId, {
+      const answer = await memberOnboardingService.processClubAffiliationsSubmit(memberId, {
         kind: 'membership', candidateId: card.candidateId, userDecision: 'confirm', activitySignal: 'active',
+        clubRegion: card.needsRegion ? (card.regionOptions[0]?.value ?? '') : '',
       });
+      if (answer.kind === 'validation_error') {
+        throw new Error(`buildRealClaimJourney: confirming club card ${card.candidateId} was refused: ${answer.message}`);
+      }
     }
   }
   memberOnboardingService.completeTaskIfOutstanding(memberId, 'club_affiliations');

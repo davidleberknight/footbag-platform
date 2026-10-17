@@ -25,6 +25,7 @@ import { hostIdentityAnswer } from '../fixtures/hostIdentityStub';
 import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
 import { createTestDb } from '../fixtures/testDb';
 import { insertHistoricalPerson, insertLegacyMember } from '../fixtures/factories';
+import { gateIds, requiredRealdataGates } from '../fixtures/realdataGates';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const SCRIPT = 'scripts/realdata-staging.sh';
@@ -286,7 +287,7 @@ describe('realdata-staging.sh output filter', () => {
   it('refuses clean exit codes when any gate reported no line, naming the missing ones', () => {
     const none = run(['invariants'], 'RDI_GATES_RC=0\nRDI_RI_RC=0\n');
     expect(none.status).toBe(1);
-    expect(none.stderr).toContain('no result for: G1 G2 G3 G4 G5 G6 RI1 RI2 RI3');
+    expect(none.stderr).toContain(`no result for: ${requiredRealdataGates().join(' ')}`);
 
     const withoutRi3 = realGateLines.authoritative.filter((l) => !l.startsWith('GATE: RI3 ')).join('\n');
     const partial = run(['invariants'], `${withoutRi3}\nRDI_GATES_RC=0\nRDI_RI_RC=0\n`);
@@ -298,7 +299,7 @@ describe('realdata-staging.sh output filter', () => {
   // really print, so a genuine run drops its own results and always fails.
   it('keeps every line the two check scripts actually print', () => {
     for (const [label, lines] of Object.entries(realGateLines)) {
-      expect(lines.length, `${label}: gate lines produced`).toBe(9);
+      expect(gateIds(lines), `${label}: every required gate printed a line`).toEqual(requiredRealdataGates());
       const res = run(['invariants'], `${lines.join('\n')}\nRDI_GATES_RC=1\nRDI_RI_RC=0\n`);
       const kept = res.stdout.split('\n').filter((l) => l.startsWith('GATE: '));
       expect(kept, label).toEqual(lines);

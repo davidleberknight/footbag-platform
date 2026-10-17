@@ -79,8 +79,6 @@ const SYMBOLIC_SPECS: ReadonlyArray<readonly [string, string, readonly string[]]
   ['symbolic_equivalence_clusters.csv', 'symbolic_equivalence_clusters',
     ['cluster_id', 'cluster_label', 'symbolic_normalization', 'member_trick_slugs',
      'ifpa_decomposition_variance', 'add_range', 'anchor_topology_group', 'notes', 'review_status']],
-  ['symbolic_group_membership.csv', 'symbolic_group_membership',
-    ['trick_slug', 'symbolic_group_id', 'membership_reason', 'confidence', 'source']],
   ['movement_archetype_registry.csv', 'symbolic_movement_archetypes',
     ['archetype_id', 'archetype_label', 'uptime_pattern', 'midtime_pattern', 'downtime_pattern',
      'anchor_topology_group', 'anchor_modifier_groups', 'member_examples', 'min_adds', 'max_adds',

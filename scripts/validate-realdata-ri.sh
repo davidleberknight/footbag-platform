@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# scripts/validate-realdata-ri.sh -- referential-integrity invariants RI1-RI3.
+# scripts/validate-realdata-ri.sh -- real-data invariants RI1-RI4.
 #
 # Read-only whole-population checks over a loaded real dataset. Emits one
 # GATE: RI<N> PASS|FAIL: <reason> line per invariant to stdout, each carrying a
@@ -9,6 +9,7 @@
 #   RI1: no historical_persons attribution points at a missing legacy_members row
 #   RI2: every claimed legacy account points at a real member
 #   RI3: every stored login email is lowercased
+#   RI4: every US and Canadian club and club candidate carries a state
 #
 # One copy of these queries serves both places they run: the test runner calls
 # this file against the local database, and the staging real-data leg streams
@@ -60,4 +61,15 @@ else
   echo "GATE: RI3 FAIL: ${bad_emails} stored login email(s) are not lowercased"
 fi
 
-[[ "${orphan_links}" == "0" && "${orphan_claims}" == "0" && "${bad_emails}" == "0" ]]
+# The clubs page groups a country's clubs by state only when every club there has
+# one, and a member confirming a club the old site never made real is asked for a
+# state only when its candidate row carries none. Either kind of row missing one
+# is data the pipeline dropped, not data the old site lacked.
+stateless_clubs=$(sqlite3 -readonly "${db}" "SELECT (SELECT COUNT(*) FROM clubs WHERE country IN ('United States','Canada') AND COALESCE(TRIM(region),'') = '') + (SELECT COUNT(*) FROM legacy_club_candidates WHERE country IN ('United States','Canada') AND COALESCE(TRIM(region),'') = '');" 2>/dev/null || echo -1)
+if [[ "${stateless_clubs}" == "0" ]]; then
+  echo "GATE: RI4 PASS: every US and Canadian club and club candidate carries a state"
+else
+  echo "GATE: RI4 FAIL: ${stateless_clubs} US or Canadian club or club candidate row(s) carry no state"
+fi
+
+[[ "${orphan_links}" == "0" && "${orphan_claims}" == "0" && "${bad_emails}" == "0" && "${stateless_clubs}" == "0" ]]

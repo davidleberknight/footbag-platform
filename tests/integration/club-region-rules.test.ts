@@ -15,7 +15,10 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
+import fs from 'node:fs';
+import path from 'node:path';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
+import { parseCsvRecords } from '../../scripts/verify-seed-urls';
 import { insertMember, insertLegacyClubCandidate } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3081');
@@ -91,6 +94,32 @@ describe('resolveClubRegion', () => {
       status: 'ok', region: 'Occitanie',
     });
     expect(rules.resolveClubRegion('France', null)).toEqual({ status: 'ok', region: null });
+  });
+});
+
+describe('the committed club seed meets the rule promotion applies', () => {
+  // A seed club the old site never made real is promoted when a member confirms
+  // it, and promotion takes the seed's state over the member's answer. A state
+  // the rule does not accept therefore refuses the member with a message they
+  // cannot act on, and a blank one asks them for what the old site recorded.
+  it('gives every club in a country with states one the rule accepts', () => {
+    const seed = path.join(__dirname, '..', '..', 'legacy_data', 'seed', 'clubs.csv');
+    const [header = [], ...records] = parseCsvRecords(fs.readFileSync(seed, 'utf8'));
+    const col = (name: string) => header.indexOf(name);
+    const failures: string[] = [];
+    let checked = 0;
+    for (const r of records.filter((rec) => rec.length > 1)) {
+      const country = (r[col('country')] ?? '').trim();
+      if (!['United States', 'Canada'].includes(country)) continue;
+      checked += 1;
+      const region = (r[col('region')] ?? '').trim();
+      const verdict = rules.resolveClubRegion(country, region);
+      if (verdict.status !== 'ok' || verdict.region !== region) {
+        failures.push(`${r[col('legacy_club_key')]}: ${JSON.stringify(region)} -> ${verdict.status}`);
+      }
+    }
+    expect(checked, 'the seed still holds US and Canadian clubs to check').toBeGreaterThan(0);
+    expect(failures, 'seed states the promotion rule refuses or rewrites').toEqual([]);
   });
 });
 

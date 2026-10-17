@@ -22,8 +22,8 @@ pieces:
   consecutive-kicks records pages, and curated media. These are read-only
   projections of the dictionary tables, shaped by `src/services/freestyleService.ts`
   and its helpers.
-- **The dictionary tables.** Sixteen tables (nine `freestyle_*`, the
-  consecutive-kicks records table, and six `symbolic_*`) hold the trick corpus,
+- **The dictionary tables.** Fifteen tables (nine `freestyle_*`, the
+  consecutive-kicks records table, and five `symbolic_*`) hold the trick corpus,
   its provenance and aliases, the modifier registry, the records, the community
   tips, and the observational symbolic-grammar layer. See section 3.
 - **The doctrine record.** `freestyle/doctrine/` holds the standing rulings that
@@ -63,16 +63,13 @@ tiers, and knowing which tier a datum sits in is the whole of making a safe edit
    must stay consistent with it. Changing an operator is a code change plus a
    reviewed data change, never an in-app edit. Doctrine rulings live in
    `freestyle/doctrine/` (section 6).
-3. **Generated or spreadsheet-owned symbolic research.** The six `symbolic_*`
+3. **Generated or spreadsheet-owned symbolic research.** The five `symbolic_*`
    tables load from committed spreadsheets under `freestyle/symbolic_grammar/`;
-   the group-membership layer is machine-generated and the rest are curator
-   research artifacts. Before cutover the spreadsheets are authoritative and the
-   database is a rendered copy, and their loader must not run inside a general
-   live rebuild. After cutover the symbolic group-membership table is frozen
-   rather than regenerated: the trick-page educational links it once fed are
-   decided from the trick's own base trick and modifier links when the page
-   renders, and the curated layers change only through a reviewed database
-   migration.
+   they are curator research artifacts. Before cutover the spreadsheets are
+   authoritative and the database is a rendered copy, and their loader must not
+   run inside a general live rebuild. After cutover they change only through a
+   reviewed database migration. A trick page's educational links are decided
+   from the trick's own base trick and modifier links when the page renders.
 4. **Sealed provenance inputs.** `freestyle/inputs/footbag_org_moves_metadata.ndjson`
    is a sealed, immutable archive artifact preserved for provenance and as a
    future description-upgrade source. No loader consumes it.
@@ -91,9 +88,9 @@ authority order in the root `CLAUDE.md`.
 ## 3. The data model (table level)
 
 Column-level detail lives in the inline comments in `database/schema.sql`; this
-section is the table-level home that `docs/DATA_MODEL.md` points to. Seventeen
+section is the table-level home that `docs/DATA_MODEL.md` points to. Sixteen
 tables are freestyle-owned: ten `freestyle_*` tables, `consecutive_kicks_records`,
-and six `symbolic_*` tables.
+and five `symbolic_*` tables.
 
 - **`freestyle_tricks`** - the trick corpus. Load-bearing columns: `adds` (the ADD
   value; may be numeric, blank, or the literal `modifier`), `review_status` and
@@ -134,8 +131,8 @@ and six `symbolic_*` tables.
   live trick row deciding whether a linked name is still a candidate.
 - **`freestyle_records`** and **`consecutive_kicks_records`** - the world-record
   and consecutive-kicks corpora, with confidence and superseded-by state.
-- **The six `symbolic_*` tables** - `symbolic_equivalence_clusters`,
-  `symbolic_group_membership`, `symbolic_movement_archetypes`,
+- **The five `symbolic_*` tables** - `symbolic_equivalence_clusters`,
+  `symbolic_movement_archetypes`,
   `symbolic_topology_groups`, `symbolic_modifier_groups`, and
   `symbolic_glossary_crosslinks`. The observational symbolic-grammar layer; a
   public research overlay, never the canonical family classification.
@@ -183,10 +180,9 @@ exception below.
   modifiers and movement neighbourhood), so they follow every edit to those rows.
   A stored relation, with its own editor, is added only for a curator-authored
   relationship that derivation cannot represent.
-- **The six symbolic layers are generated, doctrine-blocked, or code-managed.**
-  Group membership is generated before cutover and frozen after it; nothing on a
-  page depends on it changing, because a trick page's educational links are
-  decided from the trick's own base trick and modifier links when it renders.
+- **The five symbolic layers are doctrine-blocked or code-managed.** A trick
+  page's educational links are decided from the trick's own base trick and
+  modifier links when it renders, so no symbolic layer changes when a trick does.
   Equivalence clusters are doctrine-blocked; movement archetypes, topology groups,
   modifier groups, and glossary crosslinks are intentionally code-managed. Before
   cutover the committed spreadsheets are authoritative; after cutover the database

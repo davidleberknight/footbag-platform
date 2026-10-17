@@ -177,7 +177,6 @@
     "deny": [
       "Edit(./footbag_legacy_repo/**)",
       "Edit(./footbag_legacy_repo_original_data/**)",
-      "Edit(./footbag_dev_tester_repo/**)",
       "Edit(./.env)",
       "Edit(./.env.local)",
       "Edit(./.env.production)",
