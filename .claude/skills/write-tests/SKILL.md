@@ -29,7 +29,8 @@ Read the open issues in the maintainers' private tracker (`gh issue list -R "$FO
 - **Integration** (`tests/integration/`): routes, database, auth, rendered HTML, and operator scripts (`<script>.script.test.ts`, driven through the script's test seam). Route contracts, auth and ownership gates, privacy boundaries, session edge cases, validation negatives, and business rules through routes.
 - **Browser** (`tests/e2e/`, Playwright): only what a real browser can show: cookie attributes and session behaviour across redirect chains, CSRF-protected form submission where browser semantics matter, the wizard happy paths plus the one negative case per wizard a browser reveals, and upload round-trips. Every business-rule branch belongs in integration. Sessions come from the persona switch (`GET /dev/switch?as=<slug>`).
 - **Smoke** (`tests/smoke/`): read-only live probes of staging wiring only. Read `SMOKE.md` first.
-- **Real-claim crawl** (`tests/dev/`): claims one real migrated record on a local dev stack and walks the surfaces that render it. Extend it only for a surface that renders migrated real-world data.
+- **Real-data leg** (`tests/dev/`): claims one real migrated record per claim shape and walks the surfaces that render it. Extend it only for a surface that renders migrated real-world data, adding the surface's shapes to the leg's shape query.
+- **Destructive staging tier**: a story check that must submit forms against staging's real data, run only by the bare `./run_all_tests.sh --staging`; it targets persona-owned rows or the named curated-content forms, and every case names its undo.
 
 Generative sweeps already cover every route, so check what they give a new route before writing per-route cases for it:
 
@@ -53,7 +54,10 @@ The case floor is the edge-case and adversarial lists in the rule; read them now
 
 - Privacy: purged members excluded, honours-gated public profiles, no PII to unauthorised viewers.
 - A form-bearing page: the primary form is not nested and its submit control posts to the intended handler. A nested `<form>` orphans the submit button and is invisible to a handler-only POST test.
-- A state-changing route outside the administrator surface: a submitted-twice case asserting the same redirect and message and unchanged domain, audit, outbox and rate-limit counts, unless the route carries a named exemption. An own-repeat case gets a sibling proving another actor's act is not treated as this actor's repeat.
+- A state-changing route on a covered path (an email link, a checkout or payment start, an outward send): a submitted-twice case asserting the same redirect and message and unchanged domain, audit, outbox and rate-limit counts, unless the route carries a named exemption. An own-repeat case gets a sibling proving another actor's act is not treated as this actor's repeat.
+- A story over migrated data: one case per data shape the built database holds, from the shape inventory, not one representative record.
+- Seed data through a factory whose column pattern matches the pipeline's; where the story reads pipeline-built rows, add or extend a pipeline test or a whole-population invariant too, because a factory row cannot show what the pipeline drops.
+- A test helper or journey: drive the entry the controller calls, never a function inside it.
 
 For the high-risk areas (auth and session, member privacy, payments, identity claim, erasure), also walk the risk classification and STRIDE vocabulary in `docs/TESTING.md`.
 

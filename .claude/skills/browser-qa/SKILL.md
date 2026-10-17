@@ -60,7 +60,7 @@ Minimal call sequence for content/behavior check:
 1. Confirm with the human before running (questions follow `.claude/rules/asking.md`: one self-contained question with a recommended answer, no codes the human was not given):
    - exact URL(s) to visit
    - what is being checked (layout, content, behavior)
-   - target environment: local dev server (default port 3000), staging, or explicit URL
+   - target environment: local dev server (default port 3000), staging, or explicit URL. On staging, submit no form: a form walk on staging belongs to the destructive staging tier of the bare `./run_all_tests.sh --staging` run.
 
 2. Run only what was confirmed. Do not add pages or checks.
 

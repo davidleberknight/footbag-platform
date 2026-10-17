@@ -79,6 +79,15 @@ For every schema change or factory change:
 - The factory's auto-creation of dependent rows (e.g. `legacy_members` stub on passing `legacy_member_id`) is exercised by a test that proves the dependent row appears.
 - The factory applies the same value normalization as the production write path (lowercasing, trimming, stored-form invariants). After changing such an invariant, the change reaches every file that uses the factory, so `scripts/test-targets.sh` reports it as needing the full gate: factories are shared, so regressions surface in other files' tests.
 
+## Real data shapes and the real path
+
+The strategy behind these four rules is in `docs/TESTING.md`. Each closes a class of defect that passed the whole suite.
+
+- **One test per real data shape.** A story that reads migrated data is tested once per distinct shape the built database holds (counted, with a sample record id), never on one representative record.
+- **Factory parity.** A factory's column pattern (set, null, blank) matches what the pipeline builds, or the difference is named beside the factory. Never set a column by hand in a factory that the pipeline leaves empty, without that name.
+- **The real path.** A test helper or `src/testkit/` journey calls the entry a controller calls, never a function that entry wraps. Drive a journey over HTTP through the real forms where the story is a journey.
+- **Whole-population invariants.** A rule over migrated data is checked over the whole built database in `scripts/validate-realdata-ri.sh` or a built-database Python check, and skips rather than passes on an empty table.
+
 ## Adversarial testing
 
 Before calling a test suite complete, try to break the feature. Common attacks:
@@ -147,7 +156,7 @@ Any pytest gate over the legacy suites (`legacy_data/tests/`, `legacy_data/legac
 
 ## Tests never mutate live infrastructure (hard invariant, by design)
 
-No test writes, deletes, or arms anything in a deployed environment: no `put-parameter`, no object written to a bucket, no host file changed, no card charged, no mail to a real recipient.
+No test writes, deletes, or arms anything in production, and none does in staging outside the destructive staging tier described below: no `put-parameter`, no object written to a bucket, no host file changed, no card charged, no mail to a real recipient.
 
 The default suite reaches AWS not at all, enforced rather than trusted. `tests/setup-env.ts` breaks credential resolution for every worker and everything it spawns, from the single declaration in `tests/fixtures/awsIsolation.ts`: no profile, no config or credentials file, no environment keys, and the instance metadata endpoint disabled. Never widen the exception or drop a credential source; the gate enforces it.
 
@@ -157,4 +166,4 @@ The runner's shell gates follow the same invariant: a gate that must not reach A
 
 Isolation lives in the shared declaration; extend it, never isolate per file.
 
-The one exception is the opt-in smoke tier behind `RUN_STAGING_SMOKE=1`, run through `npm run test:smoke` or the `--staging` rows of the runner, which exists to prove live wiring and sets its own profile. It may make only calls that mutate nothing, the same condition the adapter three-test contract in `.claude/rules/adapter-conventions.md` puts on a staging smoke.
+Two tiers reach a deployed environment, both staging. The opt-in smoke tier behind `RUN_STAGING_SMOKE=1`, run through `npm run test:smoke` or the read-only `--staging` rows of the runner, exists to prove live wiring and sets its own profile; it may make only calls that mutate nothing, the same condition the adapter three-test contract in `.claude/rules/adapter-conventions.md` puts on a staging smoke. The destructive staging tier, the `gate_staging_*` rows only the bare `./run_all_tests.sh --staging` schedules, writes to staging on persona-owned targets and on the named curated-content forms, and undoes every change it makes; it passes the shared isolation through its own named opt-in rather than widening the shared declaration. Nothing automated writes to production.

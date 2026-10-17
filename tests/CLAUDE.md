@@ -10,13 +10,16 @@ the layout: layers, fixtures, isolation, naming.
 - **Integration** (`tests/integration/`): real HTTP routes through Supertest against a real SQLite
   file, services, and operator scripts driven through their test seams. No mocked DB.
 - **Smoke** (`tests/smoke/`): read-only live probes of staging wiring (`npm run test:smoke -- --target staging`, or the
-  `--staging` rows of `./run_all_tests.sh`, run as `footbag-operator` or by a dev-tester through the dev-tester role).
-- **Browser** (`tests/e2e/`): Playwright against a local throwaway stack (`npm run test:e2e`).
+  read-only `--staging` rows of `./run_all_tests.sh`, run as `footbag-operator` or by a dev-tester through the dev-tester role).
+- **Browser** (`tests/e2e/`): Playwright against a local throwaway stack (`npm run test:e2e`), including the one
+  template-deduplicated browser spec.
 - **Deployed browser check** (`tests/e2e/deployed/`): anonymous, submit-nothing page loads against
   staging or production (`npm run test:deployed -- --target <staging|production>`).
-- **Dev** (`tests/dev/`): the real-claim crawl, which claims one real migrated record on a local dev
-  stack and walks the surfaces that render it (`npm run test:persona-crawl`). It needs the
-  authoritative local member load.
+- **Real-data leg** (`tests/dev/`): claims one real migrated record per claim shape and walks the surfaces that
+  render it, against a temporary copy of the local database before cutover and on staging after it. It
+  needs the authoritative member load.
+- **Destructive staging tier**: the `gate_staging_*` rows only the bare `./run_all_tests.sh --staging`
+  schedules (persona walk, curated-content form walk, story checks), each change undone.
 
 `npm test` is unit plus integration. Smoke and dev gate on their own environment variable
 (`RUN_STAGING_SMOKE`, `RUN_PERSONA_CRAWL`); the two browser layers are separate Playwright configs.
