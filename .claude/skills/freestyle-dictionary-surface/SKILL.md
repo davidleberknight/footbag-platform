@@ -1,6 +1,6 @@
 ---
 name: freestyle-dictionary-surface
-description: Use when building or changing any freestyle page or freestyle admin editor — the trick list and trick-detail pages (/freestyle/tricks, /freestyle/tricks/:slug), family, set, modifier, operator, glossary, concepts, records and learning pages, the /admin/freestyle/* editors, alias rendering, decomposition/related-trick/record/media display, and per-section disclosure controls. Covers user-facing rendering and pedagogical authoring of dictionary content.
+description: Use when building or changing a freestyle public page or /admin/freestyle/* editor: what dictionary content a page shows (aliases, decomposition, related tricks, records, media, per-section disclosure) and pedagogical authoring. Visual treatment is not here; see .claude/rules/view-layer.md.
 paths:
   - "src/views/freestyle/**"
   - "src/views/admin/freestyle-*"
@@ -36,7 +36,7 @@ If the work is media pipeline (sidecar emit, gallery seeding, source registratio
 
 The freestyle dictionary's competitive edge is **structural ontology** (relationships, decomposition, families, sets, aliases, provenance), not trick count. This skill governs how that ontology gets projected onto user-facing surfaces without overwhelming users.
 
-The single load-bearing finding from the sandbox exploration:
+The load-bearing design finding:
 
 > The dictionary's structure already encodes the things UX wants to surface. The work ahead is **projection** (services + templates + curator content), not **modeling** (schema).
 
@@ -46,9 +46,9 @@ When future sessions encounter requests like "let's add a `family_galleries` tab
 
 ## 2. Status of the surfaces this skill governs
 
-These are **live production surfaces**: the trick index and detail pages (`/freestyle/tricks`, `/freestyle/tricks/:slug`), family pages (`/freestyle/families`, `/freestyle/families/:slug`), sets, the A–Z glossary (`/freestyle/glossary`, alphabetical term lookup), Freestyle Concepts (`/freestyle/concepts`, the chapter-based conceptual reference; the trick index carries the "Reading the Dictionary" disclosure), operators, and search all ship and passed the V1 release audit. This skill's contract rules apply to them now — they are not exploration, and there is no "when a production phase begins" caveat.
+These are **live production surfaces**: the trick index and detail pages (`/freestyle/tricks`, `/freestyle/tricks/:slug`), family pages (`/freestyle/families`, `/freestyle/families/:slug`), sets, the A–Z glossary (`/freestyle/glossary`, alphabetical term lookup), Freestyle Concepts (`/freestyle/concepts`, the chapter-based conceptual reference; the trick index carries the "Reading the Dictionary" disclosure), operators, modifier pages (`/freestyle/modifier/:slug`), and search all ship. This skill's contract rules apply to them now.
 
-Not in scope, by design: modifier-page production routes (`/freestyle/modifiers/:name`, never planned); schema changes such as an `alias_kind` column or a `secondary_family` relation (projection over extension); auth-gated dictionary depth (never — depth is layered, not gated). Implementation status and forward sequencing live in the maintainers' private tracker; this skill carries the durable UX contract only. The one active forward-build track is Glossary V2, whose design lives in `exploration/glossary-v2-architecture/`.
+Not in scope, by design: schema changes such as an `alias_kind` column or a `secondary_family` relation (projection over extension); auth-gated dictionary depth (never — depth is layered, not gated). Implementation status and forward sequencing live in the maintainers' private tracker; this skill carries the durable UX contract only.
 
 ---
 
@@ -58,7 +58,7 @@ These are the load-bearing patterns. Future work that quietly relaxes them is a 
 
 ### Projection over extension
 
-The default answer to "how do we surface X about a trick?" is: query the existing ontology and shape at the service layer. New schema is the rare exception, not the norm. Three of four UX axes explored needed zero new schema; the fourth degraded gracefully without it.
+The default answer to "how do we surface X about a trick?" is: query the existing ontology and shape at the service layer. New schema is the rare exception, not the norm.
 
 ### Disclosure by interaction, never auth gating
 
@@ -74,7 +74,7 @@ The single-mapping-site pattern: status enums, alias categories, media tier orde
 
 ### Search resolves all aliases; display surfaces only what helps
 
-An alias carries a curator-set type (common, historical, technical, typo) and, separately, a display flag. Search resolves any alias to the canonical trick regardless of the flag, so a misspelling or an internal shorthand still finds the move. Public surfaces render one "Also called" list holding exactly the aliases whose display flag is set; the type is curator metadata and does not by itself decide what a reader sees.
+An alias carries a curator-set type (the `alias_type` classes in `database/schema.sql`) and, separately, a display flag (`alias_display`). Search resolves any alias to the canonical trick regardless of the flag, so a misspelling or an internal shorthand still finds the move. Public surfaces render one "Also called" list holding exactly the aliases whose display flag is set; the type is curator metadata and does not by itself decide what a reader sees.
 
 ### The ontology is the joint model
 
@@ -91,9 +91,9 @@ These UX contract patterns (established via the Whirl family and Mobius trick mo
 The dictionary stores `trick_family` as a single value. A trick "in two families" is actually:
 
 - **Primary family** (`trick_family` value, navigable badge)
-- **Modifier association** (via `modifier_links`, informational text only: not a clickable alternative family destination unless a modifier-aggregator surface exists)
+- **Modifier association** (via `freestyle_trick_modifier_links`, informational text only: never a clickable alternative family destination; it may link to the modifier's own page)
 
-Mobius example: primary family `torque` (data) + modifier association `gyro` (via `modifier_links = 'gyro'`). The "gyro family" is narrative, not structural.
+Mobius example: primary family `torque` (data) + modifier association `gyro` (via a `freestyle_trick_modifier_links` row). The "gyro family" is narrative, not structural.
 
 Render both honestly. Do not invent a `secondary_family` field; do not show two equal family badges.
 
@@ -104,15 +104,15 @@ Render both honestly. Do not invent a `secondary_family` field; do not show two 
 | Family page | Multi-trick representative (e.g., AnzTrikz "Whirl and Reverse Whirl" pair) |
 | Trick page | Focused single-trick demo (e.g., Footbag Finland "Mobius") |
 
-Same source data; different curatorial choice. The family page wants breadth; the trick page wants focus. Source-priority ordering (`anz_trikz > tt_youtube > footbagspot_passback > ...`) is the same; the *selection* differs.
+Same source data; different curatorial choice. The family page wants breadth; the trick page wants focus. Source-priority ordering is the same on both; the *selection* differs (tier semantics: the `footbag-curated-media` skill).
 
-### Alias five-category taxonomy
+### Alias classes
 
 | Category | Render rule | Example |
 |---|---|---|
 | Common alias | Displayed when flagged | `Whip` → rev_whirl; `Reverse Mirage` → illusion |
 | Historical name | Displayed when flagged; carries provenance | `Toe Delay` → toe_stall; `Clipper Delay` → clipper_stall |
-| **Structural alias** | Displayed when flagged, alongside the decomposition block | `Gyro Torque` → mobius; `Atomic Legover` → eggbeater; `Pixie DLO` → smog |
+| **Structural alias** | Displayed when flagged, alongside the decomposition block | `Gyro Torque` → mobius; `Atomic Legover` → eggbeater |
 | Technical decomposition | Search-only in practice; not flagged for display | `pdx_whirl`, `BW`, `bs_magellan` |
 | Typo / misspelling | Search-only; never flagged for display | `blury_whirl`, `m_bius`, `spinning_symposium_wirl` |
 
@@ -135,12 +135,8 @@ Validated examples from the alias audit:
 | Gyro Torque | mobius | gyro(+1) + torque(4) = 5 |
 | Atomic Legover | eggbeater | atomic(+1) + legover(2) = 3 |
 | Atomic Mirage | atom_smasher | atomic(+1) + mirage(2) + [XDEX](1) = 4 |
-| Blurry Butterfly | ripwalk | blurry(+1) + butterfly(3) = 4 |
-| Barraging Legover | flurry | furious(+2) + legover(2) = 4 |
-| Pixie DLO | smog | pixie(+1) + double_leg_over(3) = 4 |
-| Stepping DLO | haze | stepping(+1) + double_leg_over(3) = 4 |
 
-Roughly 10–15 dictionary aliases fit this pattern. The audit found them clustered in the Common bucket under the prior four-category taxonomy; the fifth category surfaces them honestly.
+The class is large and most structural aliases are not displayed (`alias_display = 0`); the examples illustrate the class, not a display list. The schema carries further classes (`suppressed`, `positional`, `ambiguous`); their meaning is in the comment above `freestyle_trick_aliases` in `database/schema.sql`.
 
 #### Render rule for Structural aliases
 
@@ -227,7 +223,7 @@ Surfacing `gyro 1 + torque 4 = 5 ✓` doesn't add information for a casual viewe
 
 ## 6. Future direction
 
-Forward sequencing for these surfaces (alias-category surfacing, a modifier-aggregator surface, search disambiguation, curated learning paths, and the Glossary V2 layering track) is tracked in the maintainers' private tracker, not here. The dictionary's data and the existing `freestyleService.getFreestyleTrickPage` shape already support most enrichment with zero schema work — projection over extension.
+Forward sequencing for these surfaces is tracked in the maintainers' private tracker, not here. The dictionary's data and the existing `freestyleService.getTrickDetailPage` shape already support most enrichment with zero schema work — projection over extension.
 
 ---
 

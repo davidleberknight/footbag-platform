@@ -36,15 +36,15 @@ Every script that reads `out/*` must have its producer run earlier in the same o
 
 Sweep: list every `out/*` path the touched code reads; locate the producing script; confirm the orchestrator runs the producer first.
 
-Reference failure: `run_pipeline.sh csv_only` aborts in its preflight with `MISSING: legacy_data/event_results/canonical_input/events.csv` when the canonical export (`export_canonical_platform.py`, run in the backbone) has not populated `canonical_input/` first.
+Reference failure: `run_pipeline.sh csv_only` aborts in its preflight with `MISSING: event_results/canonical_input/events.csv` when the canonical export (`export_canonical_platform.py`, run in the backbone) has not populated `canonical_input/` first.
 
 ### 2. No hidden dependency on prior local state
 
-The pipeline must run end-to-end on a fresh clone with no pre-existing artifacts beyond what is committed. Forbidden:
+The pipeline must run end-to-end on a fresh clone with no pre-existing artifacts beyond what is committed and the documented local-only inputs (the footbag.org mirror and the operator-provided membership roster; see `legacy_data/CLAUDE.md`). Forbidden:
 
 - Reading `seed/*.csv`, `out/*.csv`, or `legacy_data/out/*` without an explicit producer step in the same orchestrator
 - Assuming `database/footbag.db` already exists
-- Assuming a Python environment that `./run_pipeline.sh venv`, its only builder, did not create
+- Assuming a Python environment that the orchestrator's venv bootstrap did not create
 - Hand-edited files in `inputs/curated/` without either a generator or a clear "manual source" classification
 
 Verify by mentally walking the orchestrator from a clean checkout. Flag any step that would fail.
@@ -89,11 +89,11 @@ No change is "done" until:
 .venv/bin/python pipeline/qc/run_qc.py
 ```
 
-returns `QC STATUS: PASS` with zero hard failures. `run_pipeline.sh full` enforces this between stage 4 and stage 5. If you bypassed `full`, run QC manually and report the result. Never commit canonical outputs while QC is failing. Never load the DB after a QC failure.
+returns `QC STATUS: PASS` with zero hard failures. `run_pipeline.sh full` enforces this between stage 4 and stage 5. If you bypassed `full`, run QC manually and report the result. Never commit the canonical snapshot (`event_results/canonical_input/`) while QC is failing. Never load the DB after a QC failure.
 
 ### 7. Fresh-clone / clean-`out/` behavior is considered
 
-Before claiming a change is correct, simulate or actually run the pipeline from a clean state:
+Before claiming a change is correct, simulate or actually run the pipeline from a clean state (it needs the local mirror, refreshed first, or the run silently drops events; see the stale-mirror trap in `legacy_data/CLAUDE.md`):
 
 ```
 rm -rf legacy_data/out
@@ -140,7 +140,7 @@ cd legacy_data
 wc -l out/canonical/*.csv                              # baseline
 ./run_pipeline.sh full                                 # rebuild
 wc -l out/canonical/*.csv                              # delta
-git diff --stat out/canonical/                         # row-level confirmation
+git diff --stat event_results/canonical_input/         # row-level confirmation
 .venv/bin/python pipeline/qc/run_qc.py                 # QC gate
 ```
 

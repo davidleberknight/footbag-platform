@@ -1,7 +1,7 @@
 # Freestyle Bug Hunt — detailed reference
 
 Detailed reference for the freestyle-bug-hunt skill, factored out of SKILL.md to stay under
-the 500-line ceiling; SKILL.md points here at the relevant step. Category numbers §F1–§F17
+the 500-line ceiling; SKILL.md points here at the relevant step. Category numbers §F1–§F18
 are the `Category:` values findings cite.
 
 ## Tracked-work exclusion list — how to build it (every run)
@@ -54,10 +54,9 @@ once, plus every row any category flags:
 Read-only query recipes (adjust table/column names against `database/schema.sql` first):
 
 ```bash
-sqlite3 -readonly database/footbag.db "SELECT slug, canonical_name, official_add, notation, status FROM freestyle_tricks ORDER BY RANDOM() LIMIT 40;"
+sqlite3 -readonly database/footbag.db "SELECT slug, canonical_name, adds, notation, review_status, is_active FROM freestyle_tricks ORDER BY RANDOM() LIMIT 40;"
 sqlite3 -readonly database/footbag.db "SELECT slug FROM freestyle_tricks WHERE slug LIKE '%-%';"   # §F17: hyphenated slugs
-sqlite3 -readonly database/footbag.db "SELECT t.slug, mt.tag FROM media_tags mt LEFT JOIN freestyle_tricks t ON ... ;"  # §F10: tags with no active/pending slug
-rg -n "buildFamilyGroup|shapeDictionaryTrickCard|SOURCE_LABELS" src/services/
+rg -n "shapeDictionaryTrickCard|SOURCE_LABELS" src/services/
 rg -n "view=" src/views/freestyle/ src/controllers/freestyleController.ts
 ```
 
@@ -201,8 +200,8 @@ stay on their own sides of the boundary.
 
 The primary clip for a trick is derived at report/render time as the strongest-strength
 curated item tagged to it, ranked by source tier; there is no stored `is_primary` flag and
-no write-time promotion. Record-tier sources never rank as tutorial-primary. Registering a new source requires the six
-coordinated edits the curated-media skill enumerates — a partial registration is a
+no write-time promotion. Record-tier sources never rank as tutorial-primary. Registering a new source requires the coordinated
+edits the curated-media skill enumerates — a partial registration is a
 finding. Curated trick media and member-owned media stay separate. A wrong tier is
 presentation-level (`inconsistent`), never `broken` — calibrate severity accordingly.
 

@@ -143,7 +143,7 @@ frame, so a mandate omitted or contradicted — regression-test-on-fix, edge-cas
 `logger.error` gate — is drift on whichever side moved); `template-conventions`, `view-layer`,
 `controller-conventions`, and the add-public-page skill against the UI and page intent in
 `docs/USER_STORIES.md` and `docs/DESIGN_DECISIONS.md`; `service-layer`, `db-layer`, and the
-extend-service-contract and migrate-browse-view skills against the contracts in
+extend-service-contract and add-browse-view skills against the contracts in
 `docs/DESIGN_DECISIONS.md` and `docs/DATA_MODEL.md`. A clause a rule or skill states that no
 doc supports, or a doc requirement a rule or skill never mentions, is a finding with its drift
 direction named.

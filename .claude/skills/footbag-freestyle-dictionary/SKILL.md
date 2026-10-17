@@ -1,6 +1,6 @@
 ---
 name: footbag-freestyle-dictionary
-description: Use when adding, modifying, reviewing, or classifying freestyle trick / dictionary / glossary / modifier / alias / sequence data in the footbag-platform project. Enforces strict layer separation between trick dictionary, modifiers, aliases, glossary, sequence/combo analysis, and canonical competition results.
+description: Use when adding, modifying, reviewing, or classifying freestyle trick, modifier, alias, glossary or sequence data, to keep those layers separate and propagate every change to every freestyle surface. Not for page rendering (freestyle-dictionary-surface) or media intake (footbag-curated-media).
 ---
 
 # Footbag Freestyle Dictionary Skill
@@ -26,15 +26,13 @@ Each has different truth rules.
 
 ## Operating posture
 
-The freestyle encyclopedia is release-ready and in **stewardship mode**. There is no active promotion campaign; the promotion arc is closed, and what remains unpromoted is blocked on doctrine questions recorded in `freestyle/doctrine/RED_QUEUE.md`.
-
 This skill carries **no project status**. For what is done, active, parked, or blocked, read the open freestyle issues in the maintainers' private tracker (`gh issue list -R "$FOOTBAG_PRIVATE_REPO" --state open --label freestyle`; if unwired, note it in one line and rely on the human's instruction). For what is currently held pending the rules expert's answers, read `freestyle/doctrine/RED_QUEUE.md`; for what is settled, `freestyle/doctrine/RED_RULINGS.md`. Never trust a remembered or skill-embedded status or hold list.
 
-Do not begin promotion, authoring, or restructuring work from this skill. Start only from a scoped item the maintainer has pulled from the tracker. The one sanctioned forward-build track is Glossary V2 (`exploration/glossary-v2-architecture/`), and it is content-first and gated on maintainer approval. The public freestyle surfaces (trick index and detail, family pages, sets, glossary, operators, browse, search) are **live production**, not exploration.
+Do not begin promotion, authoring, or restructuring work from this skill. Start only from a scoped item the maintainer has pulled from the tracker. The public freestyle surfaces (trick index and detail, family pages, sets, glossary, operators, browse, search) are **live production**, not exploration.
 
 ## Surface propagation (definition of done for every freestyle slice)
 
-A standing rule, not a task. Any freestyle update — a promotion, a doctrine change, a classifier change, or a content backfill — must propagate to every affected surface before the slice is complete; a change is not complete merely because the source row was edited. Affected surfaces, as applicable: canonical trick data; aliases / duplicate archive; Emerging Vocabulary; the observational universe; tracked names; ADD analysis; trick detail pages; browse / search; operator / modifier pages; set pages; family surfaces; media / related-trick projections; metrics / counts / copy; generated content files (`src/content/freestyleObservationalUniverse.ts`, `freestyleTrackedNames.ts`, and their peers, until their content moves into the database before cutover); and tests / QC gates. For every slice, explicitly verify one of: (1) all affected surfaces were updated (and, before cutover, regenerated), or (2) a surface is intentionally unchanged, with the reason documented. This applies to human and AI work alike.
+A standing rule, not a task. Any freestyle update — a promotion, a doctrine change, a classifier change, or a content backfill — must propagate to every affected surface before the slice is complete; a change is not complete merely because the source row was edited. Affected surfaces, as applicable: canonical trick data; aliases / duplicate archive; Emerging Vocabulary; the observational universe; tracked names; ADD analysis; trick detail pages; browse / search; operator / modifier pages; set pages; family surfaces; media / related-trick projections; metrics / counts / copy; the curator-content tables or modules that carry the changed fact (generated content files too, while they exist); and tests / QC gates. For every slice, explicitly verify one of: (1) all affected surfaces were updated (and, before cutover, regenerated), or (2) a surface is intentionally unchanged, with the reason documented. This applies to human and AI work alike.
 
 ---
 
@@ -49,7 +47,7 @@ The Core Rule above describes DATA layers (which table, which file). This sectio
 | Ontology layer | Meaning | Example surface |
 |---|---|---|
 | **Canonical names** | Official trick naming. The community labels. | `freestyle_tricks.canonical_name`, dictionary card titles, family slugs |
-| **Symbolic decomposition** | Structural tokenization. Operators + bases + side-positionals composed into formulas. | `tokenizedEquivalences`, semantic notation tokens, `≡` readings |
+| **Symbolic decomposition** | Structural tokenization. Operators + bases + side-positionals composed into formulas. | Semantic notation tokens, `≡` readings |
 | **Glossary pedagogy** | Educational explanation. Coach-tone primer prose, modifier-feel cards, definitions. | `/freestyle/concepts` (Freestyle Concepts, the chapter-based conceptual reference), modifier feel cards, dex direction prose; `/freestyle/glossary` is the separate alphabetical A–Z term lookup (short definitions that link into Concepts) |
 | **Embodied movement analogy** | Descriptive movement relationships. How body parts move; movement neighborhoods; feel. | Concepts feel-card "feel" + "intuition" fields, future movement-archetype layer |
 
@@ -70,6 +68,8 @@ Movement relationships involve multiple overlapping axes: symbolic structure, mo
 - **Multi-axis movement relationships exist.** A trick can be primary-family `legover` AND secondary-related to `mirage` (via `miraging legover` reading). A trick can appear in multiple topology groups. Single-value `trick_family` columns express ONE axis; do not pretend they express all of them.
 - **Descriptive shorthand ≠ canonical decomposition.** Coach-tone descriptions ("body drops under the bag") are pedagogical; they are NOT structural decomposition (`pixie ducking butterfly`). Keep them on separate layers.
 - **Embodied analogies are pedagogical, not canonical.** Movement-feel cards are teaching material; they never freeze into canon.
+- **Promotion is the curator's.** An observational grouping becomes canonical only with curator sign-off; corpus frequency or a detected pattern is evidence, never a promotion.
+- **No auto-derived classification.** Never derive a family, topology group or neighborhood relationship from notation or from a name; curator classification is authored, not computed.
 - **Public family-base qualification (`?view=family` / `freestylePublicFamilies.ts`).** A public family ROOT must (a) have MORE THAN 2 active members (>=3) — HARD RULE — and (b) express a terminal/downside structural identity: a landing signature descendants preserve even as modifiers stack on the entry (paradox-whirl still "is" a whirl). Entry-side dexterity primitives / operators (ATW is the canonical example) are NOT family roots — they belong in the components / movement-system / glossary-fundamentals layer. This is the public-display layer only and never changes canonical `trick_family`.
 
 When a slice proposal collapses any of these distinctions, **stop and surface the conflict to the curator** before writing code.
@@ -167,7 +167,7 @@ Positional qualifiers (`same-side` / `near` / `far` / `opposite` / `ss` / `op`) 
 
 Glossary terms describe runs, style, scoring concepts, or community vocabulary (guiltless, tiltless, fearless, density, shred circle). They are not tricks and not modifiers.
 
-Definitions: Tiltless = all tricks 2+ ADD; Guiltless = 3+; Tripless = 4+; Fearless = 5+; Beastly = 6+; Godly = 7+; BOP = Butterfly / Osis / Paradox Mirage.
+The run-quality ladder (Tiltless to Godly, and BOP) is defined in `docs/FREESTYLE.md`; do not restate it here.
 
 Rules: do not store glossary terms in `freestyle_tricks` or `freestyle_trick_modifiers`; prefer editorial markdown / static content first; only create a glossary DB table if there is a clear product need.
 
@@ -200,7 +200,7 @@ These surfaces have **different semantics**; do not collapse them:
 - **Trick name** = a link to the trick detail page `/freestyle/tricks/<slug>`.
 - **Hashtag** = media-gallery link. `#<slug>` links to `/media/browse?context=<slug>` when the trick has at least one media item, and renders as a plain non-clickable token otherwise; a clickable hashtag is the sole signal that media exists.
 - **Detail** = a distinct link beside the name that opens the same page as the name. Name, hashtag, Detail, and Media are four explicit controls (view-layer rule, "Hashtag and dictionary-filter links"); a click's destination is never guessed.
-- **Family navigation** = a separate `family-badge` linking to `/freestyle/tricks?family={trick_family}`.
+- **Family navigation** = a separate family chip whose href the service supplies (view-layer rule, "Hashtag and dictionary-filter links").
 
 Forbidden: hashtags must NOT trigger family filtering; slug-prefix matching is NOT used for filtering (narrow on `trick_family` only); family selection must NOT be derived from a hashtag.
 
@@ -218,9 +218,9 @@ Priority: (1) expert-reviewed corrections from Red Husted; (2) curated project d
 
 ---
 
-## Red Husted Clarifications
+## Settled rulings
 
-Known Red-reviewed points: Atom Smasher = 4 ADD (X-Dex); Flurry = 4 ADD; Sidewalk / Tombstone should be added; Flail and Omelette are common names and should be added; Merkon is standalone; Terrage and Barrage are standalone and can also be used compositionally; Royale and Ripstein are primary entries; Eclipse is 3 ADD (hop-over portion counts); 1 ADD delay / body tricks should be included; Spyro is a trick, not a general modifier (name shifted toward Inspin); Surging = spinning + stepping; Pogo is a set and does not add ADD; Quantum is modern naming replacing older "toe" naming; Gyro = spinning and dexing with the same foot that set the bag; Atomic can be modeled as a standard modifier.
+Settled rulings from the rules expert live in `freestyle/doctrine/RED_RULINGS.md`; do not keep a copy here.
 
 ---
 

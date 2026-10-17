@@ -75,11 +75,9 @@ and the current trick.
 
 ### `buildRelatedTricks` (broad navigation, cap = 8)
 
-Three rules in priority order; within each, ADD-bucket round-robin sampling (slug ASC tiebreak) ensures a low/mid/high mix; display order = R1 → R2 → R3.
-
-- **R1 same-family:** `trick_family = current.trick_family`. Strongest relationship.
-- **R2 modifier-prefix:** slug starts with `{first-underscore-segment}_` AND family differs. Captures cross-family modifier siblings (`paradox_mirage` ↔ `paradox_torque`).
-- **R3 grandparent:** `current.base_trick → that row's base_trick → if active, non-modifier, family differs → include`. Fires only when R1 + R2 < 6; yields at most 1.
+The ranking rules, their gates and the cap are specified in the doc comment on
+`buildRelatedTricks` in `src/services/freestyleRelatedTricks.ts`; read them there rather
+than from a copy.
 
 ### Adding a new navigation surface
 

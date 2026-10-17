@@ -32,7 +32,7 @@ The contract sources this skill audits against are the freestyle governance skil
 `.claude/skills/freestyle-topology-governance/SKILL.md`,
 `.claude/skills/freestyle-dictionary-surface/SKILL.md`,
 `.claude/skills/footbag-curated-media/SKILL.md`,
-`.claude/skills/migrate-browse-view/SKILL.md` — plus the freestyle sections of the
+`.claude/skills/add-browse-view/SKILL.md` — plus the freestyle sections of the
 canonical docs and the standing surface-propagation rule in the
 `footbag-freestyle-dictionary` skill.
 The `pipeline-invariant-enforcer` skill governs *modifying* the pipeline; this skill

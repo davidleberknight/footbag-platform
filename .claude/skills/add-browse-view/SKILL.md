@@ -1,17 +1,16 @@
 ---
-name: migrate-browse-view
-description: Add or change a dictionary browse view (any `?view=` surface) on the shared `<dictionary-trick-row>` partial. Use when a task adds a new browse view, moves a legacy view off inline markup, or changes grouping or ordering on an existing one. Preserves the row contract, which is mechanically tested across every browse view.
+name: add-browse-view
+description: Add or change a dictionary browse view (any `?view=` surface) on the shared `<dictionary-trick-row>` partial. Use when a task adds a new browse view or changes grouping or ordering on an existing one. Preserves the row contract, which is mechanically tested across every browse view.
 ---
 
-# Migrate Browse View
+# Add Browse View
 
 ## When to use this skill
 
 Use this skill (not general editing) when a task does any of the following:
 
 - Adds a new browse view at `/freestyle/tricks?view={new}`
-- Moves an existing browse view off legacy markup (table, spreadsheet, inline `<li>` rows) onto the shared `<dictionary-trick-row>` partial
-- Renames a view (a renamed view also needs server-side alias resolution in the service)
+- Renames a view (an unknown `?view=` value falls through to ADD, so an inbound link to the old name needs an explicit redirect)
 - Adds a new grouping wrapper that consumes existing `DictionaryTrickCard[]` data
 - Changes within-group ordering rules for any browse view
 
@@ -22,7 +21,7 @@ Do **not** use this skill to:
 
 ## The pattern this skill encodes
 
-Every browse view in the `allowedViews` set in `src/services/freestyleService.ts` renders the same
+Every browse view in the `allowedViews` list in `src/services/freestyleService.ts` renders the same
 row. There is no per-view density choice and no view-specific row variant: a trick reads the same
 way whichever view a visitor arrived through, and that is the whole point. A view that grows a
 rendering of its own is the defect this skill exists to prevent.
@@ -78,8 +77,8 @@ const buildGroup = (key: string, rows: FreestyleTrickRowWithStatus[]): Freestyle
 };
 ```
 
-For a brand-new view, add a `*BrowseView` interface in `freestyleService.ts`, add the view key to
-`FreestyleTricksActiveView` and `allowedViews`, and add the view model to
+For a brand-new view, add a `*Group` interface in `freestyleService.ts`, add the view key to
+`FreestyleTricksActiveView` and `allowedViews`, and add the group array to
 `FreestyleTricksIndexContent`.
 
 ### Required invariants (every browse view)
@@ -124,18 +123,18 @@ The branch owns grouping, headings and prose; the row owns everything inside a r
 
 ### Template rules (load-bearing)
 
-- **One heading system.** A group heading is the site `.section-heading` with an `<h2>` (or `<h3>`
-  for a sub-group) and a `.section-count` chip. Never a per-view heading class: a view with its own
-  heading treatment fails uniformity exactly as a view with its own row would.
-- **Service-provided hrefs only.** Every `?view=`, `?family=`, and anchor link comes from the
-  service as an `href` field on the group; a template never assembles one (view-layer rule,
-  "Hashtag and dictionary-filter links"). Render a query-string href with triple braces,
-  `{{{href}}}`, so Handlebars does not escape `=` to `&#x3D;`.
+- **One heading system.** A group heading is the site `.section-heading` with an `<h2>` and a
+  `.section-count` chip; a sub-group heading is a plain `<h3>`, never a second `.section-heading`.
+  Never a per-view heading class: a view with its own heading treatment fails uniformity exactly as
+  a view with its own row would.
+- **Service-provided hrefs only**, per the view-layer rule "Hashtag and dictionary-filter links".
+  Render a query-string href with triple braces, `{{{href}}}`, so Handlebars does not escape `=` to
+  `&#x3D;`.
 - **Section ID format `{view}-{slug}`.** Anchor IDs are public API. Never rename one without
   updating every cross-link in the same change.
 - **Heading wraps the label in a self-anchored link**, so a reader can copy a deep link to a group.
-- **Update the view toggle** unless the view is deliberately unlisted. A renamed view also needs
-  server-side alias resolution in the service.
+- **Update the view toggle** unless the view is deliberately unlisted. A renamed view also needs an
+  explicit redirect for the old value.
 - **No row-internal markup.** The template never renders a name, difficulty value, hashtag, control
   or notation itself. That is the partial's job.
 
@@ -163,8 +162,8 @@ If the new CSS exceeds ~40 lines, the change is probably reshaping the row: that
 
 ## Step 5: Tests
 
-Each view ships a focused integration test at
-`tests/integration/freestyle.{view}-view.routes.test.ts` covering:
+Each view ships a focused integration test under `tests/integration/` (see the existing add-,
+family-, set- and modifier-view suites) covering:
 
 1. **Route + view toggle**: the view's toggle entry is active (or deliberately absent), asserted in the same case as the 200 rather than in a standalone status test
 2. **Grouping wrapper**: anchor IDs render; the heading carries its self-anchor link and count chip
@@ -185,9 +184,6 @@ and no view may be added to one.
 contracts (required row slots, sparse and deep tricks through one template, group placement, no
 authoring status, no accounting prose). Update it when a change affects what a row renders anywhere.
 
-If moving off legacy markup, find the old assertions for that view, most likely in
-`tests/integration/freestyle.tricks-insights.routes.test.ts`, and update or retire them.
-
 ### Test seeding requirements
 
 - Modifier links: `insertFreestyleTrickModifier` + `insertFreestyleTrickModifierLink`, required when
@@ -200,12 +196,8 @@ If moving off legacy markup, find the old assertions for that view, most likely 
 
 ## Step 6: Verify and hand off
 
-- `npm run build`: clean.
-- The view's own suite, the shared row-contract guard, and the cross-view rendering suite, named
-  explicitly.
-- The importers of the row partial and the row view-model, as `scripts/test-targets.sh` lists them,
-  per the Verification default in root `CLAUDE.md`.
-- Every new assertion demonstrated red before it goes green.
+- Verify per the Verification default in root `CLAUDE.md`; the targets always include the view's
+  own suite, the shared row-contract guard and the cross-view rendering suite.
 - A view change is UI work: run `./run_dev.sh` and read the view in a browser beside a neighbouring
   view at desktop and at 480px, confirming row rhythm, heading weight, count-chip treatment and the
   controls all match. The stylesheet is read once at boot and memoized, so a CSS edit needs a restart
