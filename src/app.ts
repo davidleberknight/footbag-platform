@@ -467,6 +467,12 @@ export function createApp(): express.Express {
       if (res.locals.flashLoggedOut || res.locals.flashLoggedIn) {
         clearFlash(res, req);
       }
+      // In development only, name the view in a response header, so the layout
+      // check can confirm each page it measures renders the view it is listed
+      // under. Staging and production never reveal their template layout.
+      if (config.footbagEnv === 'development' && typeof args[0] === 'string') {
+        res.setHeader('X-Footbag-View', args[0]);
+      }
       return origRender(...args);
     }) as typeof res.render;
     next();

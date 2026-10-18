@@ -1,26 +1,20 @@
 /**
- * Mobile-viewport smoke over the main freestyle public pages.
+ * Phone-width checks the whole-site rendered-style check cannot make, because
+ * they need a page in a seeded state or a control that must be reachable.
+ * Page fit for every view, the freestyle pages and the longest real trick row
+ * among them, is the rendered-style check's job.
  *
- * The responsive design contract says every public page works at phone width
- * with wide content scrolling inside its own container, never the page body.
- * This spec drives a phone-sized browser context (no Playwright project or
- * config change) over the landing, the trick dictionary index, one seeded trick
- * detail, the records page, the glossary, and Freestyle Concepts, asserting each renders with its
- * main content and without horizontal document overflow. Assertions stay
- * structural; no screenshots.
- *
- * A second spec drives every onboarding step at phone width, asserting each
+ * One spec drives every onboarding step at phone width, asserting each
  * step's answer controls sit inside the screen so a registrant on a phone can
  * finish signing up.
  *
- * A third spec covers the two authenticated pages whose tables carry controls
+ * A second spec covers the two authenticated pages whose tables carry controls
  * in their rightmost columns: the member payment history and the gallery
  * editor. There the contract is stronger than "no overflow" — the table has to
  * scroll inside its own container, because a clipped table leaves the cancel
  * and row-action controls present in the DOM and unreachable on a phone.
  */
 import { test, expect } from '@playwright/test';
-import { insertFreestyleTrick, insertFreestyleTrickAlias } from '../fixtures/factories';
 import { seedTier1Member } from '../fixtures/personas';
 import {
   insertPersonaNamedGallery,
@@ -38,79 +32,6 @@ import {
 import type { Persona } from '../fixtures/personas';
 
 const PHONE = { width: 390, height: 844 };
-
-test('freestyle public pages render at phone width without horizontal overflow', { tag: ['@smoke'] }, async ({ browser, baseURL }) => {
-  const db = openLiveDb();
-  const slug = `e2e_fs_mobile_${Date.now()}`;
-  insertFreestyleTrick(db, {
-    slug, canonical_name: `e2e fs mobile ${Date.now()}`, adds: '3',
-    trick_family: 'whirl', base_trick: 'whirl', category: 'compound',
-    review_status: 'curated', is_active: 1,
-  });
-  // A dictionary row at the real data's widest: the longest canonical name is
-  // 47 characters, the longest movement notation 132, and the longest slug, which
-  // is also the hashtag and has no break point, 47
-  // (surging_ducking_paradox_symposium_whirling_rake). A displayed nickname
-  // rides on the same line as the name. A short row fits a phone in any layout,
-  // so the row check below would pass without testing anything.
-  const longSlug = `e2e_surging_ducking_paradox_symposium_${String(Date.now() % 1e9).padStart(9, '0')}`;
-  insertFreestyleTrick(db, {
-    slug: longSlug, canonical_name: `e2e mobile stepping paradox blurry whirling ${Date.now() % 1000}`.slice(0, 47), adds: '9',
-    trick_family: 'whirl', base_trick: 'whirl', category: 'compound',
-    review_status: 'curated', is_active: 1,
-    operational_notation: 'SET > STEPPING [BOD] > PARADOX [BOD] > BLURRY [BOD] > SPIN [BOD] > LEGGY IN [DEX] > SAME CLIP [XBD] [DEL] > OP TOE',
-  });
-  insertFreestyleTrickAlias(db, `${longSlug}_nick`, longSlug, 'the extraordinarily long community nickname', { alias_type: 'common', alias_display: 1 });
-  db.close();
-
-  const context = await browser.newContext({ viewport: PHONE, baseURL: baseURL! });
-  const page = await context.newPage();
-
-  const pages = [
-    '/freestyle',
-    '/freestyle/tricks',
-    `/freestyle/tricks/${slug}`,
-    '/records',
-    '/freestyle/glossary',
-    '/freestyle/concepts',
-  ];
-  const overflows: string[] = [];
-  for (const mobilePath of pages) {
-    const res = await page.goto(mobilePath);
-    expect(res?.status() ?? 500, `${mobilePath} status`).toBeLessThan(500);
-    await expect(page.locator('div.error-page'), `${mobilePath} error-page`).toHaveCount(0);
-    await expect(page.locator('h1').first(), `${mobilePath} h1`).toBeVisible();
-
-    // Wide content (tables, notation blocks) must scroll inside its own
-    // container; the document itself must not scroll horizontally. One pixel
-    // of tolerance absorbs rounding.
-    const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
-    if (scrollWidth > PHONE.width + 1) {
-      // Name the innermost elements past the edge, so a failure says what to fix.
-      const culprits = await page.evaluate((width) => [...document.querySelectorAll('body *')]
-        .filter((el) => el.getBoundingClientRect().right > width + 1
-          && ![...el.children].some((c) => c.getBoundingClientRect().right > width + 1))
-        .slice(0, 3)
-        .map((el) => `${el.tagName.toLowerCase()} in .${el.closest('[class]')?.className ?? ''} "${(el.textContent ?? '').trim().slice(0, 40)}" (${Math.round(el.getBoundingClientRect().right)}px)`), PHONE.width);
-      overflows.push(`${mobilePath}: scrollWidth ${scrollWidth} > ${PHONE.width}: ${culprits.join(', ')}`);
-    }
-  }
-
-  // The seeded row itself must fit the screen, so the check cannot pass on a
-  // page where the row was clipped by an ancestor rather than laid out to fit.
-  await page.goto('/freestyle/tricks');
-  const row = page.locator(`article.dict-trick-row[data-trick-slug="${longSlug}"]`);
-  await expect(row, 'the seeded long row must be listed').toHaveCount(1);
-  const rowRight = await row.evaluate((el) => Math.max(
-    el.getBoundingClientRect().right,
-    ...[...el.querySelectorAll('*')].map((c) => c.getBoundingClientRect().right),
-  ));
-  if (rowRight > PHONE.width + 1) {
-    overflows.push(`/freestyle/tricks: the seeded row reaches ${Math.round(rowRight)}px > ${PHONE.width}`);
-  }
-  await context.close();
-  expect(overflows.join('\n'), `horizontal document overflow at phone width:\n${overflows.join('\n')}`).toBe('');
-});
 
 test('every onboarding step is usable at phone width with its submit control reachable', async ({ browser, baseURL }) => {
   // A registrant on a phone has to be able to finish signing up: every step's

@@ -20,6 +20,7 @@ This skill is for ad-hoc human-driven browser review. The standing Playwright su
 - State exactly what will be checked before running anything.
 - Only check the URLs and interactions the human named.
 - Do not expand to adjacent pages or broad QA passes.
+- For anything layout-shaped (overflow, sizes, contrast, spacing), measure before looking: `npm run style -- url <path>` reports what the rules find. `__footbagMeasure()` in the MCP browser returns the same capture, but calling it needs `browser_evaluate`, which prompts.
 
 ## Token discipline
 

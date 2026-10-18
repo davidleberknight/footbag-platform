@@ -263,6 +263,14 @@ describe('test-targets.sh — browser specs and legacy pytest files', () => {
     expect(e2eCheck(r.checks)).toBe('npm run test:e2e -- tests/e2e/member-onboarding-legacy-claim.spec.ts');
   });
 
+  it('runs the whole-site layout check through its own config, never the browser suite', () => {
+    // The browser suite's config ignores this spec, so naming it there would run nothing and report green.
+    const r = run(['tests/e2e/rendered-style.spec.ts']);
+    expect(e2eCheck(r.checks)).toBe('');
+    expect(r.checks).toContain('npm run test:rendered-style');
+    expect(run(['tests/e2e/helpers/pageWalk.ts']).checks).toContain('npm run test:rendered-style');
+  });
+
   it('reaches the browser spec named for a wizard template', () => {
     const r = run(['src/views/register/wizard/legacy-claim.hbs']);
     expect(e2eCheck(r.checks)).toContain('tests/e2e/member-onboarding-legacy-claim.spec.ts');

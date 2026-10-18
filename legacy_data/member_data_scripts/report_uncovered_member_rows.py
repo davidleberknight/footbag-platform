@@ -9,7 +9,11 @@ refuses when a row has none. Nothing here writes to the database, and recording 
 clear decision is not performing it.
 
 Uncovered is defined by what the row is not, rather than by any one bootstrap
-label, so relabelling the local seed cannot quietly empty the report.
+label, so relabelling the local seed cannot quietly empty the report. The one
+label left out is the persona harness's test accounts: counted here they would
+fail every developer database the harness seeded, and a production ship refuses
+any such row through the dev-shortcut residue audit, so relabelling a real row
+as a test account cannot hide it from a ship either.
 
 Usage (from the repository root):
     python3 legacy_data/member_data_scripts/report_uncovered_member_rows.py \\
@@ -32,6 +36,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import member_row_disposition as mrd  # noqa: E402
 
 AUTHORITATIVE = "legacy_site_data"
+TEST_PERSONA = "test"
 OUT_FIELDS = ("legacy_member_id", "import_source", "exclusion_rule", "pulled_back",
               "dependent_person_ids", "display_name", "fingerprint",
               "decision", "reason")
@@ -61,8 +66,8 @@ def collect(db: Path, exclusions: dict[str, dict[str, str]]) -> list[dict]:
     try:
         rows = [dict(r) for r in conn.execute(
             "SELECT legacy_member_id, display_name, import_source FROM legacy_members "
-            "WHERE COALESCE(import_source, '') <> ? ORDER BY legacy_member_id",
-            (AUTHORITATIVE,))]
+            "WHERE COALESCE(import_source, '') NOT IN (?, ?) ORDER BY legacy_member_id",
+            (AUTHORITATIVE, TEST_PERSONA))]
         dependants: dict[str, list[str]] = {}
         for r in conn.execute(
                 "SELECT legacy_member_id, person_id FROM historical_persons "

@@ -16,41 +16,12 @@
  * Run through `npm run test:deployed -- --target <staging|production>`.
  */
 import { test, expect, type Page } from '@playwright/test';
+import { watchPageProblems } from '../helpers/pageProblems';
 
 const TARGET = process.env.DEPLOYED_TARGET;
 
-interface Problems { list: string[] }
-
-async function watch(page: Page): Promise<Problems> {
-  const problems: Problems = { list: [] };
-  const origin = new URL(process.env.DEPLOYED_BASE_URL as string).origin;
-  await page.route('**/csp-report', (route) => route.abort());
-  await page.addInitScript(() => {
-    document.addEventListener('securitypolicyviolation', (e) => {
-      // eslint-disable-next-line no-console
-      console.error(`CSP violation: ${e.violatedDirective} blocked ${e.blockedURI}`);
-    });
-  });
-  // Errors a third-party frame logs about itself (the captcha widget, a video
-  // player) are that vendor's noise, not this site's defect; a policy violation is
-  // logged from the page itself and always counts.
-  page.on('console', (msg) => {
-    if (msg.type() !== 'error') return;
-    const source = msg.location().url;
-    if (source && new URL(source, origin).origin !== origin && !msg.text().startsWith('CSP violation')) return;
-    problems.list.push(`console error: ${msg.text()}`);
-  });
-  page.on('pageerror', (err) => problems.list.push(`script error: ${err.message}`));
-  page.on('requestfailed', (req) => {
-    const url = new URL(req.url());
-    // The report POST aborted above; the violation it reports is already counted.
-    if (url.pathname === '/csp-report') return;
-    if (url.origin === origin) problems.list.push(`request failed: ${req.url()} (${req.failure()?.errorText ?? 'unknown'})`);
-  });
-  page.on('response', (res) => {
-    if (new URL(res.url()).origin === origin && res.status() >= 400) problems.list.push(`${res.status()} for ${res.url()}`);
-  });
-  return problems;
+function watch(page: Page) {
+  return watchPageProblems(page, new URL(process.env.DEPLOYED_BASE_URL as string).origin);
 }
 
 async function visit(page: Page, path: string): Promise<void> {

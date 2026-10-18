@@ -38,7 +38,9 @@ const budget = (ms: number): number => Math.round(ms * TIMEOUT_FACTOR);
 
 export default defineConfig({
   testDir: 'e2e',
-  testIgnore: ['deployed/**'],
+  // The rendered-style check walks and measures every view, so it has its own
+  // config (playwright.rendered-style.config.ts) and CI job.
+  testIgnore: ['deployed/**', 'rendered-style.spec.ts'],
   fullyParallel: false,
   workers: 1,
   retries: 0,

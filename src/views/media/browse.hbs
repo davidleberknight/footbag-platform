@@ -28,7 +28,7 @@
     <section class="media-blocks">
       <div role="region" aria-labelledby="browse-search-heading">
         <h2 id="browse-search-heading" class="browse-section-heading">Find Media by Hashtag</h2>
-        <form method="GET" action="/media/browse" class="browse-search-form">
+        <form method="GET" action="/media/browse" class="browse-search-form" role="search">
           <input type="text" name="tag" value="{{content.formIncludeText}}" data-tag-chips class="browse-search-input" placeholder="Include hashtags, e.g. tutorial passback_records" aria-label="Include hashtags">
           <input type="text" name="exclude" value="{{content.formExcludeText}}" data-tag-chips class="browse-search-input" placeholder="Exclude hashtags (optional)" aria-label="Exclude hashtags">
           <button type="submit" class="btn btn-primary">Browse</button>

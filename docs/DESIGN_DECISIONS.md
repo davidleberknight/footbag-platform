@@ -2553,6 +2553,8 @@ Requirements:
 
 - Every `font-family` declaration in the stylesheet references `--font-body` or `--font-mono`; no rule names a typeface directly.
 
+- Both faces are web fonts the site serves (Inter at the head of `--font-body`, JetBrains Mono at the head of `--font-mono`), so text renders the same on every device and the rendered-style check measures the same widths on every machine; a system font is only the fallback.
+
 - No section introduces its own typeface, serif accent, or alternative sans stack.
 
 Trade-offs:
@@ -2603,7 +2605,7 @@ Rationale:
 
 Requirements:
 
-- A new color enters as a named `:root` token before use; a new corner radius enters as a `--radius*` token.
+- A new color enters as a named `:root` token before use; a new corner radius enters as a `--radius*` token. No rule body carries a colour literal of any form (hex, `rgb()`, `rgba()`, `hsl()`, or a named colour); the gate's hex check is the floor of this rule, not its extent.
 
 - A new breakpoint is not introduced; layouts fit the canonical set.
 
@@ -2621,7 +2623,7 @@ Impact:
 
 Decision:
 
-The public site has a single reusable rendering standard that every public page consumes: the page contract (`PageViewModel<TContent>` in `src/types/page.ts`), a small set of reusable primitives (site frame, hero, content section, cards, queue rows, grouped link index, result sections, year navigation, metadata rows, empty state, notice), and a shared CSS vocabulary. A page composes from these; it does not define its own structure or chrome. Home is the one composition-page exception (§4.1).
+The public site has a single reusable rendering standard that every public page consumes: the page contract (`PageViewModel<TContent>` in `src/types/page.ts`), a small set of reusable primitives (site frame, hero, content section, cards, queue rows, grouped link index, result sections, year navigation, metadata rows, empty state, notice), and a shared CSS vocabulary. A page composes from these; it does not define its own structure or chrome. Home is the one composition-page exception (see "Server-rendered HTML with Handlebars Templates").
 
 Rationale:
 
@@ -2642,7 +2644,7 @@ Trade-offs:
 
 Impact:
 
-- The cross-cutting view standard lives in the path-scoped `.claude/rules/view-layer.md`; each page's rendering contract, audience, and sensitive-page invariants live in the owning service's file-header JSDoc; the visual disciplines are mechanically enforced in two places, by the convention gate `scripts/ci/assert_conventions.sh` (§4.8) for the checks a shell script can express, and by conformance tests under `tests/unit/` for the checks better expressed in TypeScript over the template tree (asset fingerprinting, profile section systems, interface-chrome casing). The casing gate additionally imports the rule it enforces from `src/lib/titleCase.ts`, so that rule and its gate cannot drift apart.
+- The cross-cutting view standard lives in the path-scoped `.claude/rules/view-layer.md`; each page's rendering contract, audience, and sensitive-page invariants live in the owning service's file-header JSDoc; the visual disciplines are mechanically enforced in three places, by the convention gate `scripts/ci/assert_conventions.sh` (see "Stylesheet Convention Gates") for the checks a shell script can express, by conformance tests under `tests/unit/` for the checks better expressed in TypeScript over the template tree (asset fingerprinting, profile section systems, interface-chrome casing), and by the rendered-style check for what the browser actually draws (sizes, contrast, fit, labels). The casing gate additionally imports the rule it enforces from `src/lib/titleCase.ts`, so that rule and its gate cannot drift apart.
 
 ## 4.10 Search-engine and Crawler Readiness
 
@@ -2729,11 +2731,11 @@ Muted grey (`--text-muted`) marks only metadata, form hints, captions, and sourc
 
 Rationale:
 
-- A component that picks its own size produces a page where nothing outranks anything. The stylesheet had drifted to sixty distinct font sizes, twenty of them inside a tenth of a rem of a neighbour, and one trick detail page rendered its section headings smaller and lighter than the prose beneath them.
+- A component that picks its own size produces a page where nothing outranks anything, and a section heading can end up smaller and lighter than the prose beneath it.
 
-- Steps a tenth of a rem apart are not a hierarchy a reader can perceive; they are an accident that survived review. Ratios wide enough to see are what make a heading read as a heading.
+- Steps a tenth of a rem apart are not a hierarchy a reader can perceive. Ratios wide enough to see are what make a heading read as a heading.
 
-- Five steps cover every job the site has. A sixth step is almost always a second name for one that already exists, which is how sixty accumulated.
+- Five steps cover every job the site has. A sixth step is almost always a second name for one that already exists, and each such name invites the next.
 
 - Text below roughly 14px is uncomfortable to read and disproportionately excludes older and low-vision readers, who are a real share of a sport's audience. Colour and weight push text into the background without pushing it out of reach.
 
@@ -2755,7 +2757,7 @@ Requirements:
 
 Trade-offs:
 
-- Components whose size was tuned by eye shift by a step. Badge, chip, and footnote text grows noticeably, because the scale has no step below `0.9rem`; those elements now recede by colour rather than by size.
+- A component cannot be tuned by eye between steps. Badge, chip, and footnote text sits larger than such text often does elsewhere, because the scale has no step below `0.9rem`; those elements recede by colour rather than by size.
 
 Impact:
 
@@ -2795,7 +2797,7 @@ Impact:
 
 Decision:
 
-A link is marked as a link by its colour and its resting underline, never by a decorative glyph. No public control appends an arrow to its label, in the template text or through a CSS pseudo-element. Disclosure controls use the browser's native marker; no surface draws its own caret. Arrows and triangles that carry meaning are not affordances and are unaffected: sort-direction indicators, notation such as an input-to-result transformation, sequence and ladder separators, and position markers within a list.
+A link is marked as a link by its colour and a cue that does not depend on colour, never by a decorative glyph. A link in running text carries a resting underline; a link whose context already signals a link (navigation, a link list, a card) may drop it, and then underlines on hover and on keyboard focus. No public control appends an arrow to its label, in the template text or through a CSS pseudo-element. Disclosure controls use the browser's native marker; no surface draws its own caret. Arrows and triangles that carry meaning are not affordances and are unaffected: sort-direction indicators, notation such as an input-to-result transformation, sequence and ladder separators, and position markers within a list.
 
 Rationale:
 
@@ -2805,7 +2807,11 @@ Rationale:
 
 - Distinguishing decoration from notation keeps the ban enforceable: notation is content and stays.
 
+- The link green against body text is 2.54:1, below the 3:1 at which colour alone can mark a link inside text (WCAG 1.4.1), so a link in running text needs its underline. Navigation, link lists and cards signal a link by position, the convention the major design systems follow; there the underline appears on hover and on keyboard focus, so pointer and keyboard readers get the same cue.
+
 Requirements:
+
+- A link in running text is underlined at rest. A link without a resting underline sits where its context signals a link, and underlines on both hover and `:focus-visible`.
 
 - No `&rarr;`, `&larr;`, or literal arrow character in the rendered label of a public control, and no arrow supplied by a `::before` or `::after` on a link class.
 

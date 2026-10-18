@@ -12,7 +12,7 @@
   {{#if content.worldRecords}}
   <section class="content-section">
     <h2>Current World Records</h2>
-    <div class="records-table-wrap">
+    <div class="records-table-wrap" tabindex="0" role="region" aria-label="Current World Records">
       <table class="records-table consecutive-wr-table">
         <thead>
           <tr>
@@ -48,7 +48,7 @@
     <h2>Highest Official Scores</h2>
     {{#each content.highestScores}}
     <h3 class="content-subheading">{{subsection}}</h3>
-    <div class="records-table-wrap">
+    <div class="records-table-wrap" tabindex="0" role="region" aria-label="{{subsection}}">
       <table class="records-table consecutive-scores-table">
         <thead>
           <tr>
@@ -83,7 +83,7 @@
     <h2>World Record Progression</h2>
     {{#each content.progression}}
     <h3 class="content-subheading">{{subsection}}</h3>
-    <div class="records-table-wrap">
+    <div class="records-table-wrap" tabindex="0" role="region" aria-label="{{subsection}}">
       <table class="records-table consecutive-progression-table">
         <thead>
           <tr>
@@ -117,7 +117,7 @@
     <p class="section-desc">First player to reach each milestone kick count.</p>
     {{#each content.milestones}}
     <h3 class="content-subheading">{{subsection}}</h3>
-    <div class="records-table-wrap">
+    <div class="records-table-wrap" tabindex="0" role="region" aria-label="{{subsection}}">
       <table class="records-table consecutive-milestones-table">
         <thead>
           <tr>
@@ -149,7 +149,7 @@
   <section class="content-section">
     <h2>Freestyle Passback Records</h2>
     <p class="detail-muted">{{content.totalPassback}} per-trick consecutive records from the freestyle passback community.</p>
-    <div class="records-table-wrap">
+    <div class="records-table-wrap" tabindex="0" role="region" aria-label="Freestyle Passback Records">
       <table class="records-table">
         <thead>
           <tr>

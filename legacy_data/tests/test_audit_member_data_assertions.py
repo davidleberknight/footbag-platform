@@ -141,6 +141,18 @@ def test_backed_assertions_with_the_fixture_and_a_test_persona_pass(world):
     assert "3 assertions audited" in world.check()
 
 
+def test_the_uncovered_row_ruling_leaves_test_persona_accounts_to_the_residue_audit(world, monkeypatch):
+    # Counted as uncovered, the persona harness's accounts would fail the audit on
+    # every developer database it seeded and mark every recorded ruling stale; a
+    # production ship refuses them through the residue audit instead.
+    monkeypatch.setattr(aud, "FIXTURE_PERSON", "person_fixture")
+    world.figures["uncovered_rows"] = 1
+    assert aud.check_uncovered_row_ruling(world.build()).startswith("1 uncovered rows")
+    world.accounts["300"] = "mirror"
+    with pytest.raises(aud.AuditFailure, match="2 uncovered rows, 1 with no recorded decision"):
+        aud.check_uncovered_row_ruling(world.build())
+
+
 def test_a_link_to_an_account_the_export_did_not_import_refuses_until_decided(world):
     # Stranded, the person's competition record and old account split apart and
     # a paid standing on the account is never granted at claim.

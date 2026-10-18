@@ -33,8 +33,10 @@ compile error at every call site.
 - `navigation` (breadcrumbs / siblings / contextLinks) is service-provided. Middleware separately
   provides `currentSection`, `isAuthenticated`, and `isMember` via `res.locals`; those are not part of the
   service contract.
-- `content` holds page-specific regions. Services compute every href and every domain-derived label
-  and boolean; templates render them. Templates never construct URLs or derive labels.
+- `content` holds page-specific regions. Services compute every displayed href and every
+  domain-derived label and boolean; templates render them. A controller supplies only the
+  response's own URL fields (a form action, a cancel href, a redirect target). Templates never
+  construct URLs or derive labels.
 
 Naming: a page's content interface is `<PageName>Content` (e.g. `RecordsContent`); a row-level
 view-model inside it is `<Entity>ViewModel` (e.g. `NetTeamViewModel`); the template is
@@ -49,7 +51,7 @@ discipline, and service-owned shaping. Internal `/internal/*` tooling is exempt 
 ## Reusable primitives
 
 Compose every public page from one small set: site frame (header / main / footer), page hero
-(eyebrow / title / subtitle / notice), content section, compact disclosure card grid, event card,
+(eyebrow / title / subtitle / notice), content section, compact disclosure card grid,
 discipline tag, result section, year navigation, metadata / summary rows, data table (`.data-table`,
 the one table treatment), queue row, grouped link
 index, prominent action link,
@@ -119,9 +121,11 @@ without JavaScript. A typed reason is asked for only where the audit trail needs
 Three constraints bind every tier. No control appends a decorative arrow to its label, in template
 text or through a pseudo-element; colour, underline, and wording carry the affordance, and glyphs
 that carry meaning (sort direction, notation, sequence separators, position markers) are content,
-not decoration (DESIGN_DECISIONS "Link and Disclosure Affordances"). A link never renders at
-`color: inherit` with no resting underline;
-the global underline on links in running text is a colour-blind affordance, not decoration. And a
+not decoration (DESIGN_DECISIONS "Link and Disclosure Affordances"). A link in running text is
+underlined at rest: the link green against the body text is 2.54:1, so colour alone does not mark
+it. A link whose context already signals a link (navigation, a link list, a card) may drop the
+resting underline, and then underlines on hover and on keyboard focus. No link renders at
+`color: inherit` without one of these cues. And a
 control's visible label names where it goes or what it does, per the truthful-controls rule in
 `template-conventions.md`.
 
@@ -245,7 +249,7 @@ A page uses one section pattern and one content-card pattern, never two. Do not 
 label system on the same page; pick one and apply it to every section. Three section systems exist and
 each has a home: the bare `<section>` element, with a rule between siblings, is the default for a browse
 or index page; `.content-section` is the denser variant for a long prose or reference page, taking the
-compact rhythm through `.section-compact` or a section body class; `.profile-section` is the member
+compact rhythm through a section body class; `.profile-section` is the member
 profile's label system. A page picks the one that fits its content and uses nothing else, and a new page
 does not introduce a fourth.
 
@@ -264,12 +268,13 @@ rule. Enclosing chrome is reserved for notices, cards, empty states, and
 technical-notation panels, and a callout accent bar takes one of three role colours, per the
 callout and box policy.
 
-Content fits a phone without a horizontal scroll. A table is designed to fit 390px: it carries only
-the columns a reader needs, and a table whose rows carry controls stacks each row into a block at
-phone width so its controls stay reachable. A column that is often empty is a sign the table carries
-more than it should. A horizontally scrolling box is allowed only for fixed-width preformatted text
-(ASCII notation and diagrams) and dense admin data; it is keyboard-focusable (`tabindex="0"`) and
-labelled, and the page body itself never scrolls sideways.
+Content fits a phone without a horizontal scroll, and the page body itself never scrolls sideways.
+A table carries only the columns a reader needs; a column that is often empty is a sign the table
+carries more than it should. A wide results or admin table scrolls horizontally inside one wrapper
+(`.records-table-wrap`) that is keyboard-focusable (`tabindex="0"`), has `role="region"` and carries
+an accessible name; only a narrow, record-like table stacks each row into a block at phone width.
+Fixed-width preformatted text (ASCII notation and diagrams) scrolls inside its own labelled,
+keyboard-focusable box the same way.
 
 A section heading is an `h2` inside a `.section-heading` wrapper (`<div class="section-heading"><h2>
 …</h2></div>`); a sub-heading within a section is a plain `h3`, never a second `.section-heading`.
@@ -285,9 +290,13 @@ profile-owned markup reintroduces the competing system.
 The durable visual decisions live in the design document's front-end part and are mechanically
 enforced by `scripts/ci/assert_conventions.sh`: one type system with body-font notation, canonical
 breakpoints 480 / 768 / 1024, accessible responsive HTML-first design, and the
-stylesheet / template convention gates — colors from `:root` tokens (no raw hex in rule
-bodies), `--radius*` tokens for corners, `--font-body` / `--font-mono` only, no inline `style` or
-`script`, no nested `<form>`, and template-class-to-`style.css` correspondence.
+stylesheet / template convention gates — colors from `:root` tokens (no colour literal of any
+form in rule bodies; the gate's hex check is the floor), `--radius*` tokens for corners,
+`--font-body` / `--font-mono` only, no inline `style` or `script`, no nested `<form>`, and
+template-class-to-`style.css` correspondence. What the browser draws is enforced by the
+rendered-style check (`npm run test:rendered-style`): every page view at 390px and 1280px against
+the measurable parts of this standard, with known findings in a shrink-only baseline.
+`npm run style -- url <path>` runs the same rules on one page of the dev stack.
 
 ## Detail-page order
 

@@ -9,6 +9,7 @@ import { createHash } from 'crypto';
 import { readFileSync } from 'fs';
 import path from 'path';
 import { assetUrl, renderStylesheet, clearAssetVersionCache } from '../../src/lib/assetVersion';
+import { listFiles } from '../fixtures/sourceTree';
 
 beforeEach(() => clearAssetVersionCache());
 
@@ -49,7 +50,10 @@ describe('assetUrl', () => {
 describe('renderStylesheet', () => {
   it('rewrites every font url() reference to carry a version token', () => {
     const { css } = renderStylesheet();
-    for (const font of ['Inter-Regular', 'Inter-Medium', 'Inter-SemiBold', 'Inter-Bold']) {
+    // Every font file the site ships, read from disk, so a font added later is held to the same rule.
+    const fonts = listFiles('src/public/fonts', /\.woff2$/).map((f) => path.basename(f, '.woff2'));
+    expect(fonts).toEqual(expect.arrayContaining(['Inter-Regular', 'JetBrainsMono-Regular']));
+    for (const font of fonts) {
       expect(css).toMatch(new RegExp(`url\\("/fonts/${font}\\.woff2\\?v=[0-9a-f]{10}"\\)`));
       expect(css).not.toContain(`url("/fonts/${font}.woff2")`);
     }

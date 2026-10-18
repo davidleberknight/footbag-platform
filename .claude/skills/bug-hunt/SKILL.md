@@ -164,7 +164,7 @@ read-or-sampled inventory, and any human-owned question. Never file dumps.
 | 1 Design | `auditor` | `DESIGN.md` | design-layer candidates (requirements quality, threat model, contracts, migration gate-index audit) |
 | 2 Implementation | `auditor` (may sub-split auth/session, payments, media, admin) | `REFERENCE.md` 4.4 and 4.4B | implementation candidates traced input to controller to service to DB to response, each with its reproduction |
 | 3 Discrepancy | `auditor` | section 7 of this file, `REFERENCE.md` 4.4B and 4.4.48 | code-against-doc-against-intent candidates, each naming the side that looks wrong; harness defects deduped against the self-check |
-| 4 UI/UX | `general-purpose` with the Playwright MCP tools, dev stack running | `REFERENCE.md` 4.4.54 | layout and usability candidates: page, viewport (390px and 1280px), offending selector, measured number; one snapshot and one evaluate per page per viewport, no screenshots |
+| 4 UI/UX | `general-purpose` with the Playwright MCP tools, dev stack running | `REFERENCE.md` 4.4.54 | layout and usability candidates: page, viewport (390px and 1280px), offending selector, measured number; measured with the rendered-style helper, one snapshot per page per viewport, no screenshots |
 
 Lane 4 runs only when the kickoff authorizes the dev stack (`./run_dev.sh`); otherwise the
 ledger records it as not run. It is the one lane that is not read-only in the browser sense

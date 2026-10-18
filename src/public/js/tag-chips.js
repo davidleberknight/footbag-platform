@@ -31,18 +31,30 @@
     hidden.name = name;
     hidden.value = original.value;
 
-    // Container wraps chips + text input
+    // Container wraps chips + text input. It holds chips and a field, not
+    // options, so it carries no list role of its own.
     var container = document.createElement('div');
     container.className = 'tag-chip-input-container';
-    container.setAttribute('role', 'listbox');
 
-    // Text input for typing new tags
+    // Text input for typing new tags. It takes over the original field's id and
+    // accessible name, so the page's visible <label for> (or its aria-label)
+    // names the field the reader actually types into, not the hidden original.
     var textInput = document.createElement('input');
     textInput.type = 'text';
     textInput.className = 'tag-chip-input-field';
     textInput.placeholder = placeholder;
     textInput.setAttribute('autocomplete', 'off');
-    textInput.setAttribute('aria-label', 'Add tag');
+    var originalId = original.getAttribute('id');
+    var originalName = original.getAttribute('aria-label');
+    if (originalId) {
+      original.removeAttribute('id');
+      textInput.id = originalId;
+    }
+    if (originalName) {
+      textInput.setAttribute('aria-label', originalName);
+    } else if (!originalId) {
+      textInput.setAttribute('aria-label', 'Add tag');
+    }
 
     // Autocomplete dropdown
     var dropdown = document.createElement('ul');

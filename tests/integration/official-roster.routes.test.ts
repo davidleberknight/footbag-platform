@@ -245,9 +245,11 @@ describe('the roster page keeps the reader oriented', () => {
     expect(res.text).not.toContain('Dana Director');
   });
 
-  it('scrolls the member table on a narrow screen rather than squeezing it', async () => {
+  it('scrolls the member table on a narrow screen rather than squeezing it, reachable by keyboard', async () => {
+    // Without focus and a name, a keyboard user cannot scroll to the columns past a phone's edge,
+    // and a screen reader announces the scroll box as nothing.
     const res = await request(createApp()).get('/ifpa/roster').set('Cookie', cookieFor(TIER2_ID));
-    expect(res.text).toMatch(/<div class="records-table-wrap">\s*<table class="data-table">/);
+    expect(res.text).toMatch(/<div class="records-table-wrap" tabindex="0" role="region" aria-label="Roster Members">\s*<table class="data-table">/);
   });
 
   it('states the roster access terms on the page the reader is standing on', async () => {

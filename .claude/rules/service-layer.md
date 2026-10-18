@@ -27,7 +27,7 @@ Methods that produce a public page view-model:
 
 - Named `get<Page>Page()` (e.g. `getOwnProfile`, `getPublicEventPage`, `getIfpaIndexPage`).
 - Declared return type `Promise<PageViewModel<TContent>>` from `src/types/page.ts` (or `PageViewModel<TContent> | null` for privacy-gated reads where null maps to 404 at the controller).
-- Compose all view-model fields, including hrefs, labels, badges, booleans. Controllers do not augment the result.
+- Compose all view-model fields, including every displayed href, label, badge and boolean. Controllers do not augment the result beyond the response's own URL fields (a form action, a cancel href, a redirect target).
 
 Non-page methods follow distinct prefixes: `list<X>` for arrays, `search<X>` for queries, `get<X>` for single rows that aren't page envelopes.
 

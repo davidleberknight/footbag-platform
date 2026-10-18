@@ -15,7 +15,10 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import type BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb } from '../testDb';
+import { seedPersona } from '../../../src/testkit/personaFactory';
+import { CANONICAL_PERSONAS } from '../../../src/testkit/canonicalPersonas';
 import {
   insertMember,
   insertClub,
@@ -67,7 +70,23 @@ export interface CrawlFixture {
 
 export async function seedCrawlFixture(env: CrawlEnv): Promise<CrawlFixture> {
   const db = createTestDb(env.dbPath);
+  const canaries = seedCrawlWorld(db);
+  db.close();
 
+  // The admin curator pages exercise disk paths at render time; point the
+  // curated root at tmp via the service's explicit test seam.
+  const svcMod = await import('../../../src/services/curatorMediaService');
+  svcMod.setCuratedRootDirForTests(env.mediaTmp);
+
+  return { canaries };
+}
+
+/**
+ * The crawl corpus itself, inserted into an open database. The in-process crawl
+ * seeds a fresh test database with it; the rendered-style browser check seeds the
+ * running stack's database with it, so both walk the same site.
+ */
+export function seedCrawlWorld(db: BetterSqlite3.Database): PrivateFieldCanaries {
   insertMember(db, {
     id: CRAWL_MEMBER_ID, slug: 'crawl_member', display_name: 'Crawl Member',
     login_email: 'crawl-member@example.com',
@@ -168,21 +187,11 @@ export async function seedCrawlFixture(env: CrawlEnv): Promise<CrawlFixture> {
 
   // The full canonical persona catalog, so every /dev/switch link resolves to a
   // loadable session and each persona's conditional surfaces exist.
-  const { seedPersona } = await import('../../../src/testkit/personaFactory');
-  const { CANONICAL_PERSONAS } = await import('../../../src/testkit/canonicalPersonas');
   for (const spec of CANONICAL_PERSONAS) {
     seedPersona(db, spec);
   }
 
-  const canaries = seedPrivateFieldCanaries(db, 'canary');
-  db.close();
-
-  // The admin curator pages exercise disk paths at render time; point the
-  // curated root at tmp via the service's explicit test seam.
-  const svcMod = await import('../../../src/services/curatorMediaService');
-  svcMod.setCuratedRootDirForTests(env.mediaTmp);
-
-  return { canaries };
+  return seedPrivateFieldCanaries(db, 'canary');
 }
 
 export async function teardownCrawlFixture(env: CrawlEnv): Promise<void> {

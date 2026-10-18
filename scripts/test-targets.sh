@@ -96,6 +96,7 @@ fi
 
 TESTS=()
 SPECS=()
+RENDERED_STYLE=0
 PYTESTS=()
 CHECKS=()
 NOTES=()
@@ -123,6 +124,9 @@ add_test() {
 add_spec() {
   case "$1" in
     tests/e2e/deployed/*) return 0 ;;
+    # The whole-site layout check has its own config, which the browser suite's
+    # config ignores, so it is run through its own script.
+    tests/e2e/rendered-style.spec.ts) [ -f "$1" ] && RENDERED_STYLE=1 ;;
     tests/e2e/*.spec.ts) [ -f "$1" ] && SPECS+=("$1") ;;
   esac
   return 0
@@ -548,6 +552,19 @@ fi
 if [ "${#SPECS[@]}" -gt 0 ]; then
   mapfile -t SPECS < <(printf '%s\n' "${SPECS[@]}" | sort -u)
   add_check "npm run test:e2e -- ${SPECS[*]}"
+fi
+if [ "$RENDERED_STYLE" -eq 1 ]; then
+  add_check "npm run test:rendered-style"
+else
+  # The whole-site layout check judges every stylesheet and template change, but
+  # it renders every view twice, so it is named rather than run per change.
+  for p in "${PATHS[@]}"; do
+    case "$p" in
+      src/public/css/*|src/views/*.hbs|src/views/*/*.hbs|src/views/*/*/*.hbs)
+        note "the rendered-style check (npm run test:rendered-style) measures this change; the full gate runs it"
+        break ;;
+    esac
+  done
 fi
 if [ "${#PYTESTS[@]}" -gt 0 ]; then
   mapfile -t PYTESTS < <(printf '%s\n' "${PYTESTS[@]}" | sort -u)

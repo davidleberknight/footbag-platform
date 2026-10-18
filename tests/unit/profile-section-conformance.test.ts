@@ -3,7 +3,7 @@
  *
  * The profile must compose from a single section pattern: the `.profile-section`
  * container with the `.profile-section-heading` label. It must not reintroduce
- * the site-wide `.section-heading` (the 1.8rem h2 system) in its own markup, and
+ * the site-wide `.section-heading` (the h2 type-scale system) in its own markup, and
  * no single view file may mix the two heading systems on one page.
  */
 import { describe, it, expect } from 'vitest';

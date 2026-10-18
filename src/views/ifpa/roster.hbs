@@ -50,7 +50,7 @@
     {{#if content.hasMembers}}
       {{! Six columns of member facts overflow a phone; the wrap scrolls the
           table on its own rather than squeezing every column unreadable. }}
-      <div class="records-table-wrap">
+      <div class="records-table-wrap" tabindex="0" role="region" aria-label="Roster Members">
       <table class="data-table">
         <thead>
           <tr>

@@ -9,10 +9,10 @@
  * likely, so they are the coverage this adds. Each test accumulates every page's
  * violations into a single failure so one run reports the whole surface.
  *
- * The scan excludes the colour-contrast rule, matching the public-page scan: the
- * shared theme's near-threshold greens and greys are an accepted site-wide
- * choice, so this gate covers the automatable structural checks (form labels,
- * ARIA, landmarks, headings) rather than re-litigating contrast per surface.
+ * The scan excludes the colour-contrast rule, matching the public-page scan:
+ * the rendered-style check measures contrast on every page view, so this gate
+ * covers the automatable structural checks (form labels, ARIA, landmarks,
+ * headings).
  *
  * Tagged @a11y so `--grep @a11y` runs the accessibility tier on its own; not
  * @smoke, because seeding a session per persona is heavier than the quick smoke

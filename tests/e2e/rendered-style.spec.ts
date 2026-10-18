@@ -1,0 +1,217 @@
+/**
+ * Every page view on the site, measured as the browser draws it, at phone and
+ * desktop width, against the site's layout standard.
+ *
+ * One page per view: the check seeds the crawl corpus, walks the site by links
+ * as each viewer and keeps the first page that names each view in its
+ * development-only response header; views no link reaches are listed by URL or
+ * exempted with a reason, and a view in none of those fails the check. Each
+ * page is then rendered at 390px and 1280px, captured, and judged by the
+ * rendered-style rules, with axe's automated accessibility rules at desktop
+ * width (colour contrast is left to the rules, which composite real
+ * backgrounds) and anything the browser refused or reported while loading.
+ *
+ * Findings that exist today are listed in the known-findings baseline by rule,
+ * view, viewport and count. A finding not listed, or a count above its line,
+ * fails, and every offending page is reported in one failure. A fixed finding
+ * never fails: run on a workstation, the check lowers the baseline itself, so it
+ * only ever shrinks without anyone remembering a step. Accepting a new finding
+ * as known is the one deliberate act: RENDERED_STYLE_WRITE_BASELINE=1.
+ */
+import { test, expect, type Browser, type BrowserContext, type Page } from '@playwright/test';
+import fs from 'node:fs';
+import path from 'node:path';
+import { evaluate, formatFinding, tableNamesFromSchema, type Finding } from './helpers/renderedStyle';
+import { compareToBaseline, formatBaseline, formatBaselineEntries, measuredKey, normalisePageProblem, parseBaseline, shrinkBaseline } from './helpers/renderedStyleDiff';
+import { capture, DESKTOP, PHONE, VIEW_HEADER } from './helpers/renderedStyleCapture';
+import { walkViews } from './helpers/pageWalk';
+import { watchPageProblems } from './helpers/pageProblems';
+import { scanWcagAa } from './helpers/axe';
+import { openLiveDb } from './helpers/liveDb';
+import { seedCrawlWorld } from '../fixtures/crawl/seedCrawlFixture';
+import {
+  insertClub, insertCuratorVideo, insertEvent, insertFreestyleTrick, insertFreestyleTrickAlias,
+  insertHistoricalPerson, insertMediaItem, insertMediaJob,
+  insertMemberGallery, insertNetTeam, insertPayment, insertRecurringDonationSubscription, insertTag,
+} from '../fixtures/factories';
+import {
+  EXEMPT, REACH, REACH_ROWS, STRESS, VIEWERS, listPageTemplates,
+  STRESS_CLUB_KEY, STRESS_CLUB_NAME, STRESS_CLUB_URL,
+  STRESS_TRICK_NAME, STRESS_TRICK_NOTATION, STRESS_TRICK_SLUG,
+  type Reach,
+} from '../fixtures/pageLists';
+
+const BASELINE = path.resolve(__dirname, 'rendered-style-baseline.txt');
+const ctx = { tableNames: tableNamesFromSchema(fs.readFileSync(path.resolve(__dirname, '../../database/schema.sql'), 'utf8')) };
+
+test.beforeAll(() => {
+  const db = openLiveDb();
+  seedCrawlWorld(db);
+  const tag = insertTag(db, { standard_type: 'club', tag_normalized: `#${STRESS_CLUB_KEY}`, tag_display: `#${STRESS_CLUB_KEY}` });
+  insertClub(db, { id: 'club-stress-longest', hashtag_tag_id: tag, name: STRESS_CLUB_NAME, external_url: STRESS_CLUB_URL, city: 'Stress City' });
+  insertFreestyleTrick(db, {
+    slug: STRESS_TRICK_SLUG, canonical_name: STRESS_TRICK_NAME, adds: '9',
+    trick_family: 'whirl', base_trick: 'whirl', category: 'compound',
+    review_status: 'curated', is_active: 1, operational_notation: STRESS_TRICK_NOTATION,
+  });
+  // A displayed nickname rides on the same line as the name, so the longest row carries one.
+  insertFreestyleTrickAlias(db, `${STRESS_TRICK_SLUG}_nick`, STRESS_TRICK_SLUG, 'the extraordinarily long community nickname', { alias_type: 'common', alias_display: 1 });
+
+  // Rows the listed pages need, under the ids their URLs name.
+  const member = 'member_persona_t1_paid';
+  const eventTag = insertTag(db, { standard_type: 'event', tag_normalized: `#${REACH_ROWS.eventKey}`, tag_display: `#${REACH_ROWS.eventKey}` });
+  insertEvent(db, { id: REACH_ROWS.eventId, hashtag_tag_id: eventTag, title: 'Rendered Style Open' });
+  const playerA = insertHistoricalPerson(db, { person_name: 'Rendered Style Player A' });
+  const playerB = insertHistoricalPerson(db, { person_name: 'Rendered Style Player B' });
+  insertNetTeam(db, { team_id: REACH_ROWS.netTeamId, person_id_a: playerA, person_id_b: playerB });
+  insertMemberGallery(db, { id: REACH_ROWS.memberGalleryId, owner_member_id: member, created_by: member, name: 'Rendered Style Gallery', description: '', is_default: 0 });
+  insertMediaItem(db, { id: REACH_ROWS.memberMediaId, uploader_member_id: member, caption: 'Rendered style upload' });
+  insertPayment(db, { member_id: member, status: 'succeeded', stripe_checkout_session_id: REACH_ROWS.checkoutSessionId });
+  insertRecurringDonationSubscription(db, { member_id: member, stripe_subscription_id: REACH_ROWS.recurringSubscriptionId, status: 'active', amount_cents: 2500 });
+  insertCuratorVideo(db, { uploaderMemberId: 'crawl-fh-system', sourceFilename: 'rendered-style.mp4', slotTag: '#rendered_style_demo', mediaId: REACH_ROWS.curatorMediaId });
+  insertMediaJob(db, { id: REACH_ROWS.curatorJobId, admin_member_id: 'member_persona_admin_t2' });
+  db.close();
+});
+
+/**
+ * The fonts the browser actually drew an element with, as Chromium reports
+ * them: a face the site serves, or a system font it fell back to.
+ */
+async function platformFonts(page: Page, selector: string): Promise<string[]> {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('DOM.enable');
+  await cdp.send('CSS.enable');
+  const { root } = await cdp.send('DOM.getDocument', { depth: -1 });
+  const { nodeId } = await cdp.send('DOM.querySelector', { nodeId: root.nodeId, selector });
+  if (!nodeId) return [];
+  const { fonts } = await cdp.send('CSS.getPlatformFontsForNode', { nodeId });
+  await cdp.detach();
+  return fonts.map((f) => `${f.familyName}${f.isCustomFont ? '' : ' (system)'}`);
+}
+
+async function viewerContext(browser: Browser, baseURL: string, persona: string | null): Promise<BrowserContext> {
+  const context = await browser.newContext({ baseURL });
+  if (persona) {
+    const res = await context.request.get(`/dev/switch?as=${encodeURIComponent(persona)}`);
+    if (!res.ok()) throw new Error(`persona switch to ${persona} failed: HTTP ${res.status()}`);
+  }
+  return context;
+}
+
+test('every page view meets the layout standard at phone and desktop width', async ({ browser, baseURL }) => {
+  test.setTimeout(45 * 60_000);
+  const contexts = new Map<string, BrowserContext>();
+  for (const v of VIEWERS) contexts.set(v.name, await viewerContext(browser, baseURL!, v.persona));
+
+  // The measurements are the same on every machine only because the site serves
+  // its own fonts. A face that failed to load would leave the browser on a system
+  // font, so widths, and with them the findings, would differ between machines.
+  {
+    const probe = await contexts.get('anonymous')!.newPage();
+    await probe.goto('/legal', { waitUntil: 'load' });
+    // Known text in both faces, styled by the site's own stylesheet, so the probe
+    // does not depend on what content the seeded pages happen to hold.
+    await probe.evaluate(async () => {
+      const main = document.querySelector('main') as HTMLElement;
+      main.insertAdjacentHTML('beforeend', '<p data-font-probe="body">Footbag 0123</p><pre class="font-mono" data-font-probe="mono">Footbag 0123</pre>');
+      await document.fonts.ready;
+    });
+    expect(await platformFonts(probe, '[data-font-probe="body"]'), 'body text must render in the Inter the site serves').toEqual(['Inter']);
+    expect(await platformFonts(probe, '[data-font-probe="mono"]'), 'monospace must render in the JetBrains Mono the site serves').toEqual(['JetBrains Mono']);
+    await probe.close();
+  }
+
+  // Discover one page per view.
+  const plan = new Map<string, Reach>();
+  const walkNotes: string[] = [];
+  for (const v of VIEWERS) {
+    const context = contexts.get(v.name)!;
+    const cookies = (await context.cookies()).map((c) => `${c.name}=${c.value}`).join('; ');
+    const walked = await walkViews(context.request, v.seeds, cookies || null);
+    if (walked.capped) walkNotes.push(`${v.name} walk stopped at its page budget after ${walked.fetched} pages`);
+    for (const [template, url] of walked.views) {
+      if (!plan.has(template)) plan.set(template, { template, viewer: v.name, url, why: 'found by the walk' });
+    }
+  }
+  for (const r of REACH) if (!plan.has(r.template)) plan.set(r.template, r);
+
+  const onDisk = listPageTemplates();
+  const unmeasured = onDisk.filter((t) => !plan.has(t) && !(t in EXEMPT));
+  const reachedButExempt = Object.keys(EXEMPT).filter((t) => plan.has(t));
+  const targets = [...[...plan.values()].filter((r) => !(r.template in EXEMPT)), ...STRESS];
+
+  // Measure each page at both widths.
+  const findings: Finding[] = [];
+  const visited = new Set<string>();
+  for (const target of targets) {
+    const context = contexts.get(target.viewer)!;
+    const page = await context.newPage();
+    // The seeded rows name media files the throwaway stack's store does not
+    // hold, and the check navigates on before videos and event streams finish.
+    const problems = await watchPageProblems(page, new URL(baseURL!).origin, {
+      ignoreDocumentStatus: true,
+      ignoreAborted: true,
+      ignoreUrl: (u) => new URL(u).pathname.startsWith('/media-store/'),
+    });
+    for (const viewport of [PHONE, DESKTOP]) {
+      await page.setViewportSize(viewport);
+      const res = await page.goto(target.url, { waitUntil: 'load' });
+      const rendered = res?.headers()[VIEW_HEADER] ?? null;
+      const base = { template: target.template, url: target.url, viewport: viewport.width };
+      if (rendered !== target.template) {
+        findings.push({ ...base, rule: 'wrong-view', selector: 'document', measured: `rendered ${rendered ?? 'no view'} (HTTP ${res?.status() ?? 'none'}), not ${target.template}` });
+        continue;
+      }
+      visited.add(measuredKey(target.template, viewport.width));
+      visited.add(measuredKey(target.template, 0));
+      findings.push(...evaluate(await capture(page, target.template), ctx));
+      if (viewport === DESKTOP) {
+        for (const v of await scanWcagAa(page, { disableRules: ['color-contrast'] })) {
+          findings.push({ ...base, rule: `axe-${v.id}`, selector: v.sampleTargets[0] ?? 'document', measured: `${v.nodes} node(s): ${v.help}` });
+        }
+      }
+    }
+    for (const p of new Set(problems.list.map((m) => normalisePageProblem(m, new URL(baseURL!).origin)))) {
+      findings.push({ template: target.template, url: target.url, viewport: 0, rule: 'page-problem', selector: 'document', measured: p });
+    }
+    await page.close();
+  }
+  for (const c of contexts.values()) await c.close();
+
+  // Every finding in full, baseline-listed ones included, for whoever works the
+  // baseline down; the CI job keeps it with the run's other results.
+  fs.writeFileSync(test.info().outputPath('rendered-style-findings.txt'), `${findings.map(formatFinding).sort().join('\n')}\n`);
+
+  const header = '# Known rendered-style findings: rule, view, viewport, count. The check lowers these itself as findings are fixed.\n';
+  if (process.env.RENDERED_STYLE_WRITE_BASELINE === '1') {
+    // The deliberate escape hatch: accept every current finding, new ones included.
+    fs.writeFileSync(BASELINE, header + formatBaseline(findings));
+  }
+  const baseline = parseBaseline(fs.readFileSync(BASELINE, 'utf8'));
+  const verdict = compareToBaseline(findings, baseline, visited);
+
+  // A fixed finding needs no one to remember anything. Run on its own on a
+  // workstation, the check lowers the baseline itself and the smaller file rides
+  // along in the next commit. In CI, which cannot commit, and inside the full
+  // runner, which voids a run whose tree changes mid-flight, a lower count
+  // simply passes and is reported.
+  const { entries, changes } = shrinkBaseline(baseline, findings, visited, new Set(onDisk));
+  const mayWrite = !process.env.CI && process.env.RENDERED_STYLE_READ_ONLY !== '1';
+  if (changes.length > 0) {
+    if (mayWrite) fs.writeFileSync(BASELINE, header + formatBaselineEntries(entries));
+    test.info().annotations.push({
+      type: 'baseline',
+      description: `${mayWrite ? 'lowered' : 'could be lowered (npm run test:rendered-style records it)'}: ${changes.length} line(s)\n${changes.join('\n')}`,
+    });
+  }
+
+  const accept = 'fix it; to accept it as known instead, run RENDERED_STYLE_WRITE_BASELINE=1 npm run test:rendered-style';
+  const report = [
+    ...unmeasured.map((t) => `unmeasured view ${t}: no walk reached it; add it to REACH with a URL or to EXEMPT with a reason`),
+    ...reachedButExempt.map((t) => `exempt view ${t} is reached by the walk; remove its exemption`),
+    ...verdict.unexpected.map((f) => `new finding (${accept}): ${formatFinding(f)}`),
+    ...verdict.exceeded.map((e) => `more than listed (${accept}): ${e.entry.rule} ${e.entry.template} @${e.entry.viewport} found ${e.count}, listed ${e.entry.max}`),
+    ...walkNotes,
+  ];
+  expect(report.join('\n'), `rendered-style check over ${targets.length} pages:\n${report.join('\n')}`).toBe('');
+});

@@ -13,7 +13,7 @@
     <div class="section-heading"><h2>Find a Member</h2></div>
     <p class="text-muted fs-sm">This lookup reads every member account, including those held back from member search, those inside the deletion grace period, and those marked deceased.</p>
     <div class="search-box-section">
-      <form method="GET" action="/admin/members" class="search-box-form">
+      <form method="GET" action="/admin/members" class="search-box-form" role="search">
         <input type="text" name="q" maxlength="200"
                placeholder="Member id, profile URL, login email, or part of a display name"
                value="{{content.query}}"

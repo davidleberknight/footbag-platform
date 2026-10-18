@@ -93,8 +93,8 @@
     <ol class="combo-analysis-worked-examples">
       {{#each content.workedExamples}}
       <li id="{{anchorId}}" class="combo-analysis-worked-example">
-        <h3 class="combo-analysis-example-heading">{{title}}</h3>
-        <pre class="combo-analysis-example-diagram">{{diagram}}</pre>
+        <h3 id="{{anchorId}}-heading" class="combo-analysis-example-heading">{{title}}</h3>
+        <pre class="combo-analysis-example-diagram" tabindex="0" role="region" aria-labelledby="{{anchorId}}-heading">{{diagram}}</pre>
         <p class="combo-analysis-example-total"><strong>{{totalLine}}</strong></p>
         <p class="combo-analysis-example-what">{{whatHappens}}</p>
         <h4 class="combo-analysis-example-why-heading">Why this architecture works</h4>

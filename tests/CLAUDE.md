@@ -11,8 +11,12 @@ the layout: layers, fixtures, isolation, naming.
   file, services, and operator scripts driven through their test seams. No mocked DB.
 - **Smoke** (`tests/smoke/`): read-only live probes of staging wiring (`npm run test:smoke -- --target staging`, or the
   read-only `--staging` rows of `./run_all_tests.sh`, run as `footbag-operator` or by a dev-tester through the dev-tester role).
-- **Browser** (`tests/e2e/`): Playwright against a local throwaway stack (`npm run test:e2e`), including the one
-  template-deduplicated browser spec.
+- **Browser** (`tests/e2e/`): Playwright against a local throwaway stack (`npm run test:e2e`). The
+  template-deduplicated rendered-style check (`rendered-style.spec.ts`) has its own config and runs as
+  `npm run test:rendered-style`; which page it measures for each view is `tests/fixtures/pageLists.ts`.
+  Every finding in full is written to `tests/test-results/rendered-style-findings.txt`.
+  `npm run style -- url <path> [--as <persona>]` measures one page on a running dev stack (`./run_dev.sh`);
+  the header of `scripts/rendered-style.ts` lists `capture`, `judge`, `diff` and `coverage`.
 - **Deployed browser check** (`tests/e2e/deployed/`): anonymous, submit-nothing page loads against
   staging or production (`npm run test:deployed -- --target <staging|production>`).
 - **Real-data leg** (`tests/dev/`): claims one real migrated record per claim shape and walks the surfaces that
@@ -22,7 +26,7 @@ the layout: layers, fixtures, isolation, naming.
   schedules (persona walk, curated-content form walk, story checks), each change undone.
 
 `npm test` is unit plus integration. Smoke and dev gate on their own environment variable
-(`RUN_STAGING_SMOKE`, `RUN_PERSONA_CRAWL`); the two browser layers are separate Playwright configs.
+(`RUN_STAGING_SMOKE`, `RUN_PERSONA_CRAWL`); the browser layers each have their own Playwright config.
 
 ## Test data: factories only
 

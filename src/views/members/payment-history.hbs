@@ -18,7 +18,7 @@
       {{! Wide tables scroll inside their own container so the page body never
           does. This one carries the cancel control, which becomes unreachable
           at phone width if the table is merely clipped. }}
-      <div class="records-table-wrap">
+      <div class="records-table-wrap" tabindex="0" role="region" aria-label="Recurring Donations">
       <table class="data-table">
         <thead>
           <tr>
@@ -55,7 +55,7 @@
 
     <h2 class="section-heading mt-8">Payments</h2>
     {{#if content.rows.length}}
-      <div class="records-table-wrap">
+      <div class="records-table-wrap" tabindex="0" role="region" aria-label="Payments">
       <table class="data-table">
         <thead>
           <tr>

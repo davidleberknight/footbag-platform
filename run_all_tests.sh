@@ -1565,6 +1565,13 @@ gate_e2e() {
   reclaim_port 3000
   reclaim_port 4001
   npm run test:e2e
+  # The rendered-style check boots its own throwaway stack on the same ports, so
+  # it runs after the browser suite's stack has gone. Read-only here: run on its
+  # own, the check lowers its committed baseline as findings are fixed, and a file
+  # written mid-run would void this run's verdict.
+  reclaim_port 3000
+  reclaim_port 4001
+  RENDERED_STYLE_READ_ONLY=1 npm run test:rendered-style
 }
 
 gate_a11y() {

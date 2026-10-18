@@ -9,13 +9,11 @@
  * failure so one run reports the whole surface rather than stopping at the
  * first offending page.
  *
- * The scan excludes the colour-contrast rule. The shared theme's chrome (logo
- * text, active nav, primary and outline buttons, footer text) uses a deep-green
- * interaction token that meets AA contrast; the remaining contrast question is
- * in-text link colour, where darkening the link green for background contrast
- * reduces its distinguishability from body text and calls for an underline
- * treatment, handled on its own. This gate covers the automatable structural
- * checks (form labels, ARIA, landmarks, headings, page language).
+ * The scan excludes the colour-contrast rule because the rendered-style check
+ * measures contrast on every page view instead: it composites translucent
+ * backgrounds and holds large text to 3:1, which a second, differently computed
+ * verdict here would only contradict. This gate covers the automatable
+ * structural checks (form labels, ARIA, landmarks, headings, page language).
  *
  * Tagged @a11y so `--grep @a11y` runs the accessibility tier on its own, and
  * @smoke so it rides the quick smoke run over the high-traffic public pages.

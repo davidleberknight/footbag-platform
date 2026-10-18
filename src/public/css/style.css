@@ -34,12 +34,34 @@
   src: url("/fonts/Inter-Bold.woff2") format("woff2");
 }
 
+/* ── Self-hosted JetBrains Mono (jetbrains.com/lp/mono, SIL Open Font License) ─
+   The monospace face for fixed-width content, so it renders the same on every
+   device rather than as whatever monospace each one has installed. Split by
+   script: a page downloads the extended-Latin file only when its text needs it,
+   and a page with no monospace text downloads neither. */
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/JetBrainsMono-Regular.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("/fonts/JetBrainsMono-Regular-LatinExt.woff2") format("woff2");
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
 /* ── Reset & root variables ─────────────────────────────────── */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
   --font-body:   "Inter", "Helvetica Neue", Arial, sans-serif;
-  --font-mono:   ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  --font-mono:   "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
   --primary:     #1bb36b;   /* vivid green */
   --primary-dk:  #16985b;   /* deep green */
   --primary-ink:    #0e8050; /* deep green for green-as-text and green fills under white text (WCAG AA) */
@@ -47,10 +69,9 @@
   --secondary:   #0b5e6b;   /* dark teal */
   --text:        #333333;   /* near-black gray */
   --text-muted:  #666666;   /* medium gray */
-  --text-subtle: #8a8a8a;   /* Light gray. Reserved for clearly subordinate technical
-                                content (symbolic-object notation lines, lineage
-                                attributions). Distinct from --text-muted, which carries
-                                body-relevant muted content. */
+  --text-subtle: #8a8a8a;   /* Light gray for borders and icons only; it is below
+                                4.5:1 on white, so it never colours text. Text that
+                                recedes takes --text-muted at the 0.9rem step. */
   --bg:          #ffffff;   /* white */
   --bg-light:    #f7f8f9;   /* off-white */
   --border:      #e5e5e5;   /* light gray */
@@ -2177,7 +2198,7 @@ section.home-media { padding-top: 0; }
 .footer-brand-block { display: flex; flex-direction: column; gap: 10px; }
 .footer-brand { color: var(--white); font-weight: 600; font-size: 1rem; margin-bottom: 6px; }
 .footer-logo { width: 175px; height: 68px; display: block; background: transparent; border-radius: 0; }
-.footer-tagline { color: var(--text-muted); font-size: 0.9rem; }
+.footer-tagline { color: var(--gray-500); font-size: 0.9rem; }
 .footer-links { column-count: 3; column-gap: 32px; }
 .footer-links a { color: var(--gray-500); display: block; margin-bottom: 6px; break-inside: avoid; }
 .footer-links a:hover { color: var(--white); }
@@ -2205,7 +2226,7 @@ section.home-media { padding-top: 0; }
 .footer-legal-links span { color: var(--gray-800); }
 .footer-copy {
   text-align: center;
-  color: var(--text-muted);
+  color: var(--gray-500);
   font-size: 0.9rem;
   line-height: 1.5;
   max-width: 820px;
@@ -2309,7 +2330,9 @@ section.home-media { padding-top: 0; }
 }
 .club-detail-meta {
   display: grid;
-  grid-template-columns: max-content 1fr;
+  /* minmax(0, ...) lets the value column shrink below its longest word, so a
+     long club web address wraps instead of widening the page past a phone. */
+  grid-template-columns: max-content minmax(0, 1fr);
   gap: 6px 20px;
   font-size: 1rem;
   margin-bottom: 24px;
@@ -2321,6 +2344,7 @@ section.home-media { padding-top: 0; }
 .club-detail-meta dd {
   margin: 0;
   color: var(--text);
+  overflow-wrap: anywhere;
 }
 .club-detail-description {
   line-height: 1.7;
@@ -2345,6 +2369,8 @@ section.home-media { padding-top: 0; }
   font-size: 1rem;
   color: var(--text-muted);
 }
+/* The gate is a sentence in a div, which the prose-link underline does not reach. */
+.club-members-gate a { text-decoration: underline; }
 .club-back-link {
   margin-top: 32px;
 }
@@ -4949,6 +4975,10 @@ a.hashtag--media:hover {
   gap: 0.4rem;
   font-size: 0.9rem;
 }
+/* Form controls do not inherit the page font; left alone they render at the
+   browser's own 13.33px, below the type ramp's floor. */
+.filter-bar input,
+.filter-bar button { font: inherit; }
 .filter-bar select {
   padding: 0.3rem 0.5rem;
   font-size: 0.9rem;
@@ -6105,7 +6135,7 @@ a.hashtag--media:hover {
 }
 /* Both spellings are in use across templates: the class on a wrapper around
    the h2, and the class on the h2 itself. A descendant selector alone silently
-   drops the second spelling to the global 1.8rem h2, so match both. The h3
+   drops the second spelling to the global h2 rule, so match both. The h3
    rule below already does. */
 .section-compact .section-heading h2,
 .page-freestyle  .section-heading h2,
@@ -7071,7 +7101,7 @@ a.trick-hero-meta-chip--media:hover {
   background: var(--parch-100);
   padding: 1px 6px;
   border-radius: var(--radius-2xs);
-  font-size: 0.9em;
+  font-size: 0.9rem;
 }
 .glossary-family-card-anchor-adds {
   display: inline-block;
@@ -7244,7 +7274,7 @@ a.trick-hero-meta-chip--media:hover {
   background: var(--parch-100);
   padding: 1px 5px;
   border-radius: var(--radius-2xs);
-  font-size: 0.9em;
+  font-size: 0.9rem;
 }
 .glossary-add-example-add {
   font-variant-numeric: tabular-nums;
@@ -8400,7 +8430,7 @@ a.trick-hero-meta-chip--media:hover {
   background: var(--parch-100);
 }
 .passback-add-disagreement-hint {
-  font-size: 0.9em;
+  font-size: 0.9rem;
   color: var(--text-muted);
   margin-left: 4px;
 }
@@ -8432,7 +8462,7 @@ a.trick-hero-meta-chip--media:hover {
 .passback-add-no-note {
   color: var(--text-muted);
   font-style: italic;
-  font-size: 0.9em;
+  font-size: 0.9rem;
 }
 
 /* Canonical formula resolution: settled +1-stack reference */
@@ -8458,7 +8488,7 @@ a.trick-hero-meta-chip--media:hover {
   background: var(--bg-light);
   padding: 2px 6px;
   border-radius: var(--radius-2xs);
-  font-size: 0.9em;
+  font-size: 0.9rem;
 }
 .resolved-formula-add {
   text-align: center;
@@ -9656,6 +9686,9 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
     text-align: left;
   }
 }
+/* The browser's own "smaller" would take a superscript under the type ramp's
+   floor once the phone step has shrunk the formula to it. */
+.glossary-generative-formula sup { font-size: 0.9rem; }
 
 /* Additional compact symbolic blocks. */
 
@@ -9775,6 +9808,9 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
  * Minimal restraint-first styling: reuses .content-section + .section-heading
  * patterns. Adds a small set of page-specific classes for the worked examples,
  * discrepancy cases, and cross-links inventory. No new color tokens. */
+/* An intro sits beside its heading in the heading row, so one long unbroken
+   phrase in it would otherwise push the row past a phone's edge. */
+.add-analysis-page .section-intro { overflow-wrap: anywhere; }
 .add-analysis-page .page-philosophy {
   margin: 12px 0 0 0;
   font-size: 1rem;

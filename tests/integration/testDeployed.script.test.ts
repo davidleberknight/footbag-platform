@@ -87,7 +87,7 @@ describe('test-deployed.sh', () => {
     const spec = readFileSync(path.join(process.cwd(), 'tests/e2e/deployed/deployed-browser.spec.ts'), 'utf8');
     expect(spec).not.toContain('/dev/');
     // The local Playwright config never collects the deployed spec.
-    expect(readFileSync(path.join(process.cwd(), 'tests/playwright.config.ts'), 'utf8')).toContain("testIgnore: ['deployed/**']");
+    expect(readFileSync(path.join(process.cwd(), 'tests/playwright.config.ts'), 'utf8')).toMatch(/testIgnore: \['deployed\/\*\*'[,\]]/);
   });
 
   // Defect caught: a policy violation during the walk makes the browser POST a
@@ -95,7 +95,9 @@ describe('test-deployed.sh', () => {
   // sees the violation through the page's own listener.
   it('blocks the browser’s report POST while still listening for policy violations', () => {
     const spec = readFileSync(path.join(process.cwd(), 'tests/e2e/deployed/deployed-browser.spec.ts'), 'utf8');
-    expect(spec).toMatch(/page\.route\('\*\*\/csp-report', \(route\) => route\.abort\(\)\)/);
-    expect(spec).toContain("addEventListener('securitypolicyviolation'");
+    expect(spec).toContain('watchPageProblems(page,');
+    const watcher = readFileSync(path.join(process.cwd(), 'tests/e2e/helpers/pageProblems.ts'), 'utf8');
+    expect(watcher).toMatch(/page\.route\('\*\*\/csp-report', \(route\) => route\.abort\(\)\)/);
+    expect(watcher).toContain("addEventListener('securitypolicyviolation'");
   });
 });

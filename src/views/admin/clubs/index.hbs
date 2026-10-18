@@ -13,7 +13,7 @@
     <div class="section-heading"><h2>Find a Club</h2></div>
     <p class="text-muted fs-sm">This lookup reads every club, including the inactive ones the directory leaves out and the archived ones kept for history.</p>
     <div class="search-box-section">
-      <form method="GET" action="/admin/clubs" class="search-box-form">
+      <form method="GET" action="/admin/clubs" class="search-box-form" role="search">
         <input type="text" name="q" maxlength="200"
                placeholder="Club id, hashtag, or part of a name or city"
                value="{{content.query}}"
