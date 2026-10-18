@@ -2,18 +2,20 @@
  * scripts/provision-url-screening-key.sh — argument validation, the refusals
  * that run before any AWS call, and the documented handling of the key file.
  *
- * CI cannot exercise the AWS half: there is no account to write to and no
- * parameter to read. What is pinned instead is everything that happens before
- * the first AWS call, because that is where this script earns its place. A key
- * stored with a trailing newline authenticates nowhere and fails at the first
- * member submission rather than at the command that stored it; a key file left
- * behind at the default mode is readable by every account on the workstation;
- * and destroying the file when a write fails costs the operator the key, since
- * the vault is the only other copy.
+ * Everything before the first AWS call is pinned by exit status and message,
+ * because that is where this script earns its place. A key stored with a
+ * trailing newline authenticates nowhere and fails at the first member
+ * submission rather than at the command that stored it; a key file left behind
+ * at the default mode is readable by every account on the workstation; and
+ * destroying the file when a write fails costs the operator the key, since the
+ * vault is the only other copy.
  *
- * The refusals are asserted by exit status and message rather than by mocking
- * the AWS CLI: each fires before any call is made, so an environment with no
- * credentials reaches them exactly as a real run would.
+ * The write path is driven end to end against a stand-in `aws` that records
+ * every call and fails or interrupts where a case tells it to, because the
+ * script's own reading of each call decides what it writes next, what it
+ * shreds and what it reports. The prompt path runs through a pseudo-terminal.
+ * No account is reached: credential resolution is broken and the stub is first
+ * on PATH.
  */
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
@@ -25,6 +27,8 @@ import {
   mkdirSync,
   existsSync,
   readFileSync,
+  readdirSync,
+  rmSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -207,82 +211,236 @@ describe('provision-url-screening-key.sh — key shape checks before any write',
   });
 });
 
-describe('provision-url-screening-key.sh — documented contract', () => {
-  const source = readFileSync(SCRIPT, 'utf-8');
+/**
+ * The write path, driven end to end against a stand-in `aws` that records every
+ * call it receives and misbehaves where a case tells it to. The script's own
+ * reading of each call's outcome decides what it writes next, what it shreds
+ * and what it reports, so the verdict has to come from a real run. Nothing
+ * real is reached: the stub is first on PATH, credential resolution is broken,
+ * and `--profile` names a profile the stub never looks at.
+ */
+interface AwsStubBehaviour {
+  /** Fail `get-parameter` on a parameter whose name contains this. */
+  failGet?: string;
+  /** Fail `put-parameter` on a parameter whose name contains this. */
+  failPut?: string;
+  /** Send the calling script a signal (INT unless named) on the first call of this kind to a parameter containing this. */
+  interruptOn?: { call: 'get-parameter' | 'put-parameter'; param: string; signal?: 'INT' | 'TERM' };
+  /** The decrypted value `get-parameter --with-decryption` returns. */
+  value?: string;
+}
 
-  it('passes the key by file reference, never as an argument', () => {
-    // An argument reaches the process list, where any account on the box can
-    // read it, and the shell history file.
-    expect(source).toMatch(/--value "file:\/\/\$\{KEY_FILE\}"/);
-    expect(source).not.toMatch(/--value "\$\(cat/);
+function awsStub(behaviour: AwsStubBehaviour = {}): { log: string; env: NodeJS.ProcessEnv } {
+  const dir = mkdtempSync(join(tmpdir(), 'footbag-test-sb-aws-'));
+  const bin = join(dir, 'bin');
+  mkdirSync(bin);
+  const log = join(dir, 'calls.txt');
+  const { interruptOn } = behaviour;
+  writeFileSync(join(bin, 'aws'), [
+    '#!/usr/bin/env bash',
+    `printf '%s\\n' "$*" >> ${JSON.stringify(log)}`,
+    'name=""; decrypt=0; call="$2"',
+    'while (( $# )); do',
+    '  case "$1" in --name) name="$2"; shift ;; --with-decryption) decrypt=1 ;; esac',
+    '  shift',
+    'done',
+    interruptOn
+      ? `if [[ "$call" == ${JSON.stringify(interruptOn.call)} && "$name" == *${JSON.stringify(interruptOn.param)}* ]]; then kill -${interruptOn.signal ?? 'INT'} "$PPID"; exit 1; fi`
+      : '',
+    behaviour.failGet !== undefined
+      ? `if [[ "$call" == get-parameter && "$name" == *${JSON.stringify(behaviour.failGet)}* ]]; then echo "ParameterNotFound" >&2; exit 254; fi`
+      : '',
+    behaviour.failPut !== undefined
+      ? `if [[ "$call" == put-parameter && "$name" == *${JSON.stringify(behaviour.failPut)}* ]]; then echo "AccessDeniedException" >&2; exit 254; fi`
+      : '',
+    `if [[ "$call" == get-parameter && $decrypt == 1 ]]; then printf '%s\\n' ${JSON.stringify(behaviour.value ?? 'TODO-set-via-cli-after-apply')}; exit 0; fi`,
+    'if [[ "$call" == get-parameter ]]; then printf "%s\\n" "armed"; exit 0; fi',
+    'exit 0',
+  ].join('\n'));
+  chmodSync(join(bin, 'aws'), 0o755);
+  return {
+    log,
+    env: { ...process.env, ...NO_AWS_CREDENTIALS, PATH: `${bin}:${process.env.PATH ?? ''}` },
+  };
+}
+
+function calls(log: string): string[] {
+  return existsSync(log) ? readFileSync(log, 'utf-8').trimEnd().split('\n') : [];
+}
+
+function runStore(args: string[], env: NodeJS.ProcessEnv): RunResult {
+  const result = spawnSync('setsid', ['bash', SCRIPT, '--profile', 'fixture-profile', ...args], {
+    cwd: process.cwd(),
+    encoding: 'utf-8',
+    env: { ...process.env, ...env },
+    stdio: ['ignore', 'pipe', 'pipe'],
+    ...SPAWN_GUARD,
   });
+  return { exitCode: result.status ?? 1, stdout: result.stdout ?? '', stderr: result.stderr ?? '' };
+}
 
-  it('encrypts under each environment own KMS key even when the plaintext is shared', () => {
-    expect(source).toMatch(/kms_for\(\) \{ echo "alias\/footbag-\$1"; \}/);
-  });
+/** Files the prompt path creates, so a run can be checked for leaving one behind. */
+function promptedKeyFiles(): string[] {
+  return readdirSync('/tmp').filter((name) => name.startsWith('footbag-sb-key.'));
+}
 
-  it('checks every destination before writing any of them', () => {
-    // Otherwise --target both can write one environment, fail on the second, and
-    // leave the operator with a partial state and a misleading remedy.
-    const checkLoop = source.indexOf('Every destination is checked before any of them is written');
-    const putAt = source.indexOf('aws ssm put-parameter');
-    expect(checkLoop).toBeGreaterThan(-1);
-    expect(putAt).toBeGreaterThan(checkLoop);
-  });
+describe('provision-url-screening-key.sh — the write path against a stand-in', () => {
+  const KEY = 'AIzaSyExampleKeyValue0123456789';
 
-  it('shreds the key file only after every destination has taken it', () => {
-    // The vault is the only other copy, so shredding on a failed run costs the
-    // operator a trip back to the console.
-    // The LAST call is the one that ends a successful run. There is an earlier
-    // one in the interrupt handler, which is a different rule with its own
-    // cases below; finding the first would silently start asserting about that
-    // one instead.
-    const shredCall = source.lastIndexOf('shred_key_file\n');
-    const putAt = source.indexOf('aws ssm put-parameter');
-    expect(shredCall).toBeGreaterThan(putAt);
-    expect(source).toMatch(/The key file is left in place so you can re-run/);
-  });
+  it('stores the key by file reference under each environment own KMS key, checking every destination first, then shreds the file', () => {
+    // Defect caught: the key reaching the process list as an argument; one
+    // environment keyed under the other's KMS key; or a write landing before
+    // the second destination was known to exist, leaving a partial state.
+    const path = keyFile(KEY);
+    const aws = awsStub();
+    const result = runStore(['--target', 'both', '--key-file', path, 'store'], aws.env);
+    expect(result.exitCode, result.stderr).toBe(0);
 
-  // An interrupt used to be the one way out of this script that left a live
-  // vendor key in a shared temp directory. The prompt path cannot be driven from
-  // a test, because it refuses without a controlling terminal by design, so the
-  // contract is read from the source the way the Dockerfile strip contract is.
-  // What matters is that the interrupt handler applies the same two rules the
-  // ordinary paths already follow rather than inventing a third.
-  describe('an interrupt leaves nothing behind that a clean run would not', () => {
-    it('handles INT and TERM, and deliberately not EXIT', () => {
-      // EXIT would fight the explicit decisions at the end of a successful run
-      // and after a failed write, both of which already choose correctly.
-      expect(source).toMatch(/^trap interrupt_key_file INT TERM$/m);
-      expect(source).not.toMatch(/^trap [^\n]*\bEXIT\b/m);
-    });
-
-    it('shreds only a file the script created from a prompt', () => {
-      // A file the operator supplied with --key-file is theirs. Destroying it
-      // because they pressed ctrl-c would be the script deleting somebody
-      // else's data.
-      expect(source).toMatch(/\(\(\s*PROMPTED_KEY_FILE\s*\)\)\s*&&\s*\(\(\s*!\s*KEY_REACHED_DESTINATION\s*\)\)/);
-    });
-
-    it('stops shredding once the key has reached an environment', () => {
-      // From that point the existing rule governs: the file stays so the run can
-      // be retried, because the vault is the only other copy.
-      const flagSet = source.indexOf('KEY_REACHED_DESTINATION=1');
-      const putAt = source.indexOf('aws ssm put-parameter');
-      expect(flagSet).toBeGreaterThan(putAt);
-      expect(source).toMatch(/Interrupted after the key reached at least one environment/);
-      expect(source).toMatch(/in place so you can re-run; delete it yourself/);
-    });
-  });
-
-  it('never prints the stored value, reporting only its length', () => {
-    expect(source).toMatch(/value not shown/);
-    expect(source).not.toMatch(/echo "\$value"/);
-  });
-
-  it('says plainly that storing a key does not arm screening', () => {
+    const made = calls(aws.log);
+    const puts = made.filter((c) => c.startsWith('ssm put-parameter'));
+    const gets = made.filter((c) => c.startsWith('ssm get-parameter'));
+    expect(puts).toHaveLength(2);
+    expect(gets).toHaveLength(2);
+    expect(Math.max(...gets.map((g) => made.indexOf(g)))).toBeLessThan(made.indexOf(puts[0]));
+    expect(puts[0]).toContain('--name /footbag/staging/secrets/safe_browsing_api_key');
+    expect(puts[0]).toContain('--key-id alias/footbag-staging');
+    expect(puts[1]).toContain('--name /footbag/production/secrets/safe_browsing_api_key');
+    expect(puts[1]).toContain('--key-id alias/footbag-production');
+    for (const put of puts) {
+      expect(put).toContain(`--value file://${path}`);
+      expect(put).not.toContain(KEY);
+    }
+    expect(existsSync(path)).toBe(false);
+    expect(result.stdout).toMatch(/Shredded/);
     // The two-step opt-in is the whole safety property: a key in Parameter
     // Store with the switch still dark stays in standby rather than in use.
-    expect(source).toMatch(/Storing a key does not turn screening on/);
+    expect(result.stdout).toMatch(/Storing a key does not turn screening on/);
+  });
+
+  it('keeps the key file when asked to', () => {
+    const path = keyFile(KEY);
+    const result = runStore(['--target', 'staging', '--key-file', path, '--keep-key-file', 'store'], awsStub().env);
+    expect(result.exitCode, result.stderr).toBe(0);
+    expect(existsSync(path)).toBe(true);
+    expect(result.stdout).not.toMatch(/Shredded/);
+  });
+
+  it('writes nothing when any destination is unreadable', () => {
+    // Defect caught: --target both keying staging, then discovering production
+    // was never applied, leaving the operator a partial state and a remedy
+    // that names the wrong environment.
+    const path = keyFile(KEY);
+    const aws = awsStub({ failGet: 'production' });
+    const result = runStore(['--target', 'both', '--key-file', path, 'store'], aws.env);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toMatch(/\/footbag\/production\/secrets\/safe_browsing_api_key is not readable/);
+    expect(result.stderr).toMatch(/Nothing was written/);
+    expect(calls(aws.log).filter((c) => c.startsWith('ssm put-parameter'))).toHaveLength(0);
+    expect(existsSync(path)).toBe(true);
+  });
+
+  it('leaves the key file in place when a later write fails, naming what was already written', () => {
+    // Defect caught: a failed second write shredding the operator's only local
+    // copy, so the retry needs a trip back to the vendor console.
+    const path = keyFile(KEY);
+    const aws = awsStub({ failPut: 'production' });
+    const result = runStore(['--target', 'both', '--key-file', path, 'store'], aws.env);
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toMatch(/writing \/footbag\/production\/secrets\/safe_browsing_api_key failed/);
+    expect(result.stderr).toMatch(/Already written: \/footbag\/staging\/secrets\/safe_browsing_api_key/);
+    expect(result.stderr).toMatch(/The key file is left in place so you can re-run/);
+    // Staging's write and production's refused attempt; nothing after the refusal.
+    expect(calls(aws.log).filter((c) => c.startsWith('ssm put-parameter'))).toHaveLength(2);
+    expect(existsSync(path)).toBe(true);
+  });
+
+  it('reports a stored key by length only', () => {
+    // Defect caught: status printing the live vendor key into a terminal or a
+    // captured log.
+    const aws = awsStub({ value: KEY });
+    const result = runStore(['--target', 'staging', 'status'], aws.env);
+    expect(result.exitCode, result.stderr).toBe(0);
+    expect(result.stdout).toMatch(new RegExp(`set \\(${KEY.length} characters\\); value not shown`));
+    expect(result.stdout).not.toContain(KEY);
+    expect(result.stderr).not.toContain(KEY);
+  });
+});
+
+/**
+ * The prompt path needs a terminal by design, so these drive it through a
+ * pseudo-terminal, typing the key where an operator would. An interrupt arrives
+ * from the stand-in `aws` at the point under test, as ctrl-c would.
+ */
+describe('provision-url-screening-key.sh — an interrupt leaves nothing behind that a clean run would not', () => {
+  const KEY = 'AIzaSyExampleKeyValue0123456789';
+
+  function runPrompted(aws: ReturnType<typeof awsStub>, extra: string[] = []) {
+    const inner = ['bash', SCRIPT, '--profile', 'fixture-profile', '--target', 'both', ...extra, 'store'].join(' ');
+    return spawnSync('script', ['-qec', inner, '/dev/null'], {
+      cwd: process.cwd(),
+      env: { ...process.env, ...aws.env },
+      input: `${KEY}\n`,
+      encoding: 'utf-8',
+      ...SPAWN_GUARD,
+    });
+  }
+
+  it('shreds a file it created from the prompt when interrupted before the key reached any environment', () => {
+    // Defect caught: an interrupt between the prompt and the first write leaving
+    // a live vendor key in a shared temp directory with nothing to collect it.
+    const before = promptedKeyFiles();
+    const aws = awsStub({ interruptOn: { call: 'get-parameter', param: 'production' } });
+    const result = runPrompted(aws);
+    expect(result.status).toBe(130);
+    expect(result.stdout).toMatch(/Interrupted before the key reached any environment/);
+    expect(calls(aws.log).filter((c) => c.startsWith('ssm put-parameter'))).toHaveLength(0);
+    expect(promptedKeyFiles().filter((f) => !before.includes(f))).toEqual([]);
+  });
+
+  it('treats a termination signal the same way as an interrupt', () => {
+    // Defect caught: a closed terminal or a `kill` leaving the prompted live key
+    // in the shared temp directory, where ctrl-c would have shredded it.
+    const before = promptedKeyFiles();
+    const aws = awsStub({ interruptOn: { call: 'get-parameter', param: 'production', signal: 'TERM' } });
+    const result = runPrompted(aws);
+    expect(result.status).toBe(130);
+    expect(result.stdout).toMatch(/Interrupted before the key reached any environment/);
+    expect(promptedKeyFiles().filter((f) => !before.includes(f))).toEqual([]);
+  });
+
+  it('always shreds a file it created from the prompt once every destination took it, even when asked to keep it', () => {
+    // Defect caught: --keep-key-file leaving a live vendor key in the shared temp
+    // directory that the operator never asked to exist and does not know about.
+    const before = promptedKeyFiles();
+    const aws = awsStub();
+    const result = runPrompted(aws, ['--keep-key-file']);
+    expect(result.status, result.stdout).toBe(0);
+    expect(calls(aws.log).filter((c) => c.startsWith('ssm put-parameter'))).toHaveLength(2);
+    expect(promptedKeyFiles().filter((f) => !before.includes(f))).toEqual([]);
+  });
+
+  it('stops shredding once the key has reached an environment', () => {
+    // Defect caught: destroying the only local copy over an unreachable second
+    // environment, turning a retry into a trip back to the vendor console.
+    const aws = awsStub({ interruptOn: { call: 'put-parameter', param: 'production' } });
+    const result = runPrompted(aws);
+    expect(result.status).toBe(130);
+    expect(result.stdout).toMatch(/Interrupted after the key reached at least one environment/);
+    expect(result.stdout).toMatch(/in place so you can re-run; delete it yourself/);
+    const put = calls(aws.log).find((c) => c.startsWith('ssm put-parameter')) ?? '';
+    const path = put.slice(put.indexOf('file://') + 'file://'.length).split(' ')[0];
+    expect(existsSync(path)).toBe(true);
+    rmSync(path, { force: true });
+  });
+
+  it('never shreds a file the operator supplied', () => {
+    // Defect caught: the script deleting somebody else's data because they
+    // pressed ctrl-c.
+    const path = keyFile(KEY);
+    const aws = awsStub({ interruptOn: { call: 'get-parameter', param: 'staging' } });
+    const result = runStore(['--target', 'both', '--key-file', path, 'store'], aws.env);
+    expect(result.exitCode).toBe(130);
+    expect(result.stderr).not.toMatch(/was shredded/);
+    expect(existsSync(path)).toBe(true);
   });
 });

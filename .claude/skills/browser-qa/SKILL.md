@@ -8,7 +8,7 @@ description: Browser automation for visual layout review or QA verification. Use
 
 Use this skill only when the human explicitly asks to look at a page, check a layout, or verify rendered output. Do not run it speculatively, do not expand scope beyond what was named, and do not take screenshots unless specifically useful for the stated goal.
 
-This skill is for ad-hoc human-driven browser review. The standing Playwright test suite (lightweight at `tests/e2e/`, heavyweight invoked separately) is described in `docs/TESTING.md` §6 and is a separate concern from this skill.
+This skill is for ad-hoc human-driven browser review. The standing Playwright suite (`tests/e2e/`) is described in the Playwright strategy section of `docs/TESTING.md` and is a separate concern from this skill.
 
 ## Two modes
 

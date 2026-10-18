@@ -22,7 +22,7 @@
       <h2 class="section-heading">{{heading}}</h2>
       {{#each paragraphs}}
         {{#if subheading}}<h3 class="content-subheading">{{subheading}}</h3>{{/if}}
-        <p>{{{bodyHtml}}}</p>
+        <p>{{#each body}}{{#if href}}{{{externalLink href label=text noIcon=true}}}{{else if pending}}<span class="contact-pending">{{text}}</span>{{else}}{{text}}{{/if}}{{/each}}</p>
       {{/each}}
     </section>
   {{/each}}

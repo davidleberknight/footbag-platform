@@ -1871,7 +1871,7 @@ unset _prune_db_dir
 
 systemctl status footbag --no-pager -l
 
-# CUTOVER-REMOVE: post-deploy persona-catalog seed. Mirrors the same block in
+# Post-deploy persona-catalog seed, for staging. Mirrors the same block in
 # deploy-rebuild-remote.sh. Runs only when the workstation passed
 # SEED_TEST_PERSONAS=yes (set by --seed-test-personas). Signal only: the
 # persona catalog is code (dist/testkit/canonicalPersonas.js), so there
@@ -1894,7 +1894,7 @@ if [[ "${SEED_TEST_PERSONAS:-no}" == "yes" ]]; then
   fi
 fi
 
-# CUTOVER-REMOVE: post-deploy persona rebuild. Runs only when the workstation
+# Post-deploy persona rebuild, for staging. Runs only when the workstation
 # passed REFRESH_TEST_PERSONAS=yes (set by --refresh-test-personas, which the
 # deploy_to_aws.sh wrapper allowlists to --target staging only).
 # The seed step above can only ADD personas: it skips every slug already

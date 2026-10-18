@@ -515,7 +515,10 @@ else
   # credential pipe, so a prompt reading from it would silently take the next
   # line of the operator's credential file as the typed answer: a Stripe key
   # that is really a password, accepted without anyone seeing it happen.
-  if [[ ! -r /dev/tty ]]; then
+  # Opening the device is the test: with no controlling terminal /dev/tty still
+  # exists and is world-readable, so a readability check passes and lets the run
+  # through to a prompt nothing can answer.
+  if ! (exec 3< /dev/tty) 2>/dev/null; then
     echo "ERROR: no terminal available; this mode has to prompt for secrets." >&2
     exit 1
   fi

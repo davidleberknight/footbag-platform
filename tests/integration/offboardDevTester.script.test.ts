@@ -530,7 +530,6 @@ describe('offboard-dev-tester ends the shell before the AWS identity', () => {
     expect(r.status, r.stderr).toBe(0);
     expect(awsCalls()).toContain('--yes');
     expect(hostCalls()).not.toContain('--yes');
-    expect(readFileSync(SCRIPT, 'utf-8')).toMatch(/the host step always asks at the/);
   });
 
   it('does not touch the AWS identity when the host account failed', () => {

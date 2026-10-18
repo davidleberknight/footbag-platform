@@ -166,7 +166,7 @@ Simplicity: Single file, 5 PRAGMAs, no cluster, no Litestream sidecar, zero serv
 
 Operational Simplicity: No database server, no connection pooling, no replication lag. Backup is file upload. Recovery is download + restart (RTO ~5 minutes). Migrations require maintenance window (acceptable for community site).
 
-Cost: \$2/month S3 storage. No RDS, no per-connection charges, no IOPS fees.
+Cost: about \$1/month S3 backup storage (per the backup decision). No RDS, no per-connection charges, no IOPS fees.
 
 Prepared Statement Performance: Statements compiled once at startup eliminates repeated SQL parsing overhead. Official SQLite-recommended pattern. better-sqlite3 auto-resets statements after execution for immediate reuse.
 
@@ -1060,7 +1060,7 @@ Member personal data: retained for a configurable grace period (Administrator-co
 
 Decision:
 
-The platform represents people using three distinct entity types stored in three tables: `members` (authenticated accounts), `legacy_members` (imported old-site accounts from the mirror and future data dump), and `historical_persons` (archival identity records of past participants sourced from event data and club data). These entity types have different primary keys, different URL namespaces, and different privacy and capability rules. Three FK linkages (rule 3) express the identity overlaps between them; unlinked rows in `legacy_members` and `historical_persons` remain archival read-only records.
+The platform represents people using three distinct entity types stored in three tables: `members` (authenticated accounts), `legacy_members` (imported old-site accounts from the legacy data dump), and `historical_persons` (archival identity records of past participants sourced from event data and club data). These entity types have different primary keys, different URL namespaces, and different privacy and capability rules. Three FK linkages (rule 3) express the identity overlaps between them; unlinked rows in `legacy_members` and `historical_persons` remain archival read-only records.
 
 Rules:
 
@@ -1068,7 +1068,7 @@ Rules:
 
    - `members` = authenticated accounts on this platform. Identified by `members.id`; addressable by `members.slug`. Hold credentials, tier, profile fields, optional avatar, mailing-list subscriptions.
 
-   - `legacy_members` = imported archival records of old footbag.org user accounts (from the mirror and the legacy data dump). Identified by `legacy_members.legacy_member_id` (the old-site account id). Read-only after import; never deleted; hold no live credentials. Persist as the permanent audit record of a legacy account even after a current member claims it.
+   - `legacy_members` = imported archival records of old footbag.org user accounts (from the legacy data dump; an id it does not cover stays a seeded stand-in). Identified by `legacy_members.legacy_member_id` (the old-site account id). Read-only after import; never deleted, except a seeded stand-in the account rulings collapse into another account; hold no live credentials. Persist as the permanent audit record of a legacy account even after a current member claims it.
 
    - `historical_persons` = archival records of past participants sourced from event data and (future) mirror club-roster extraction. Identified by `historical_persons.person_id`. Read-only; never deleted; hold no credentials. Contact information, if present, is admin-surface only and never publicly rendered.
 
@@ -1082,7 +1082,7 @@ Rules:
 
    Sport-specific pages render person-related aggregates (event results, partnerships, records, etc.) as SECTIONS on the canonical person page (`/history/{personId}` or `/members/{slug}`), not under their own sport-scoped person namespaces. Sport-specific URL namespaces own sport CONTENT only: events, aggregated team/partnership lists, record tables, trick catalogs, sport landings, and informational pages. They do NOT include per-person deep-dive URLs; per-person data belongs on the canonical person page as sections, not under parallel sport-scoped person URLs.
 
-3. Linkages. Three FK relationships express the identity overlaps between entity types. All three are nullable; `ON DELETE NO ACTION` throughout. Rows in `historical_persons` and `legacy_members` are never deleted.
+3. Linkages. Three FK relationships express the identity overlaps between entity types. All three are nullable; `ON DELETE NO ACTION` throughout. Rows in `historical_persons` and `legacy_members` are never deleted, apart from a seeded `legacy_members` stand-in the account rulings collapse.
 
    - `members.historical_person_id` → `historical_persons(person_id)`. Non-NULL = this member claims that historical identity. Partial UNIQUE index enforces at most one live member per historical person.
 
@@ -1096,7 +1096,7 @@ Rules:
 
 6. Historical persons confer no member capabilities. A row in `historical_persons`; whether claimed or unclaimed; does NOT confer authentication, inclusion in member search, contactability, profile ownership, mailing-list subscriptions, or any current-member privilege. See §3.9 and DATA_GOVERNANCE.md §3. A `historical_persons` row also carries its own admin-settable `is_deceased` flag, independent of `members.is_deceased`; its effect on claiming is specified in `M_Claim_Legacy_Account` and `A_Mark_Member_Deceased`.
 
-7. Imported legacy accounts live in `legacy_members`, never in `members`. Legacy migration imports old footbag.org user-account rows into the `legacy_members` table (§4.14b of DATA_MODEL). `legacy_members` rows are permanent archival records; they are never deleted. They do not grant authentication and are not visible on current-member surfaces. When a current member completes the claim flow (§6.5 and the `IdentityAccessService` entry in SC) for a legacy account, the application sets `legacy_members.claimed_by_member_id` and `claimed_at`, copies merge-eligible fields to the claiming `members` row (fill-if-empty merge semantics; the live account always wins for login and auth fields), and (if the legacy account's `legacy_member_id` matches a `historical_persons.legacy_member_id`) also sets the claiming member's `historical_person_id`. The `legacy_members` row itself is not mutated at claim beyond the two claim-state columns.
+7. Imported legacy accounts live in `legacy_members`, never in `members`. Legacy migration imports old footbag.org user-account rows into the `legacy_members` table (§4.14b of DATA_MODEL). `legacy_members` rows are permanent archival records; they are never deleted, apart from a seeded stand-in the account rulings collapse. They do not grant authentication and are not visible on current-member surfaces. When a current member completes the claim flow (§6.5 and the `IdentityAccessService` entry in SC) for a legacy account, the application sets `legacy_members.claimed_by_member_id` and `claimed_at`, copies merge-eligible fields to the claiming `members` row (fill-if-empty merge semantics; the live account always wins for login and auth fields), and (if the legacy account's `legacy_member_id` matches a `historical_persons.legacy_member_id`) also sets the claiming member's `historical_person_id`. The `legacy_members` row itself is not mutated at claim beyond the two claim-state columns.
 
 Rationale:
 
@@ -1592,7 +1592,7 @@ Requirements:
 
 Trade-offs:
 
-- Verb discipline must be maintained at the source level: a GET handler that mutates state bypasses the entire defense. Integration tests (`tests/integration/csrf.test.ts`, `tests/integration/csrf.origin-pin.test.ts`, `tests/integration/csrf.per-route.test.ts`) cover the surface, and `tests/integration/csrf.sweep.test.ts` sweeps every deployed mutation route so a route added later cannot escape the perimeter unasserted; a regression that adds a mutating GET would surface there.
+- Verb discipline must be maintained at the source level: a GET handler that mutates state bypasses the entire defense. Integration tests (`tests/integration/csrf.test.ts`, `tests/integration/csrf.origin-pin.test.ts`) cover the surface, and `tests/integration/csrf.sweep.test.ts` sweeps every deployed mutation route so a route added later cannot escape the perimeter unasserted; a regression that adds a mutating GET would surface there.
 - A small fraction of legitimate user-agents strip both `Origin` and `Referer` (privacy plugins, `file://` pages, certain redirect chains) and cannot submit state-changing forms. Accepted given the protected surface (community site, not a public API).
 - The defense does not protect against same-origin XSS on `footbag.org` itself. The Content Security Policy (§3.12), input sanitization (§3.14), and text-sanitization pipeline (§3.15) are the layers responsible for that surface.
 
@@ -2472,7 +2472,7 @@ Implementation:
 
 Impact:
 
-- Build pipeline compiles TypeScript into JavaScript bundles referenced by hashed filenames.
+- Browser scripts are plain per-page JavaScript served without a bundler and versioned by a content-hash token in the URL, per the static-assets decision.
 
 - Forms submit via standard POST; JavaScript validates before allowing submission.
 
@@ -3019,7 +3019,7 @@ Impact:
 
 - Service-level tests can mock adapters; integration tests validate adapter + SDK behavior end-to-end.
 
-- The adapter set covers: JWT signing (§3.5), secrets resolution (§3.6), ballot encryption (§3.7), email send (§5.4), notification-feed polling (the queues carrying bounce, complaint and alarm notifications), media storage, image processing (§6.8), video transcoding, payments (§6.1), Safe Browsing URL screening, CAPTCHA verification, and outbound HTTP reachability. Each adapter defines one interface; dev and test use an in-process stub, a local backend, or an injected double, while staging and production use the live AWS or third-party backend (image processing and video transcoding instead call the in-cluster worker in every environment). Three backends differ by intent: SES email send and CAPTCHA verification stay stubbed on staging and go live in production only (§5.6); outbound HTTP reachability has a disabled backend for deployments that opt out of all outbound probes from the validation path.
+- The adapter set covers: JWT signing (§3.5), secrets resolution (§3.6), ballot encryption (§3.7), email send (§5.4), notification-feed polling (the queues carrying bounce, complaint and alarm notifications), media storage, image processing (§6.8), video transcoding, payments (§6.1), Safe Browsing URL screening, CAPTCHA verification, and outbound HTTP reachability. Each adapter defines one interface; dev and test use an in-process stub, a local backend, or an injected double, while staging and production use the live AWS or third-party backend (image processing and video transcoding instead call the in-cluster worker in every environment). Four backends differ by intent: SES email send, CAPTCHA verification and payments stay stubbed on staging and go live in production only (§5.6, and for payments the arming switch); outbound HTTP reachability has a disabled backend for deployments that opt out of all outbound probes from the validation path.
 
 - Adapters fail fast at boot when a required environment variable is absent, so a misconfigured deployment cannot start in a half-wired state. Adapter contract parity is verified per §5.7.
 
@@ -4213,9 +4213,9 @@ Impact:
   PAYMENT_ADAPTER=live and reads from a single env var.
 - Production deployment populates STRIPE_WEBHOOK_SECRET from SSM at
   container start, alongside other §3.6 secrets.
-- The dev recipe in docs/TESTING.md §16 instructs running
+- Local development against live Stripe runs
   `stripe listen --forward-to localhost:3000/payments/webhook`
-  alongside `./run_dev.sh` and copying the printed whsec_ into the
+  alongside `./run_dev.sh` and copies the printed whsec_ into the
   local environment.
 - Cross-environment secret leakage (e.g., a dev environment
   accidentally using a production secret) becomes a boot-time
@@ -4899,9 +4899,9 @@ Rationale:
 
 - 1-second threshold provides acceptable UX for community site.
 
-- Server-Side Rendering: HTML rendered on the server and delivered immediately. CloudFront CDN caches rendered HTML at edge locations.
+- Server-Side Rendering: HTML rendered on the server and delivered immediately. HTML is never edge-cached; CloudFront caches static assets and media at edge locations.
 
-- Lightweight JavaScript: Vanilla TypeScript bundles are intentionally small. Fast parse and execution time avoids heavy framework overhead.
+- Lightweight JavaScript: plain per-page scripts are intentionally small. Fast parse and execution time avoids heavy framework overhead.
 
 - SQLite has low latency compared to database server alternatives.
 
@@ -5075,7 +5075,7 @@ Photo Backup (S3 replication):
 
 Photos are backed up separately from database due to data volume. Amazon S3 cross-region replication handles photo backup automatically and continuously. The primary media bucket (`<env>-media`, us-east-1) replicates all photo objects to a dedicated DR bucket (`<env>-media-dr`, us-west-2) using S3 One Zone-IA storage class for cost savings on DR storage. Replication is continuous; per-object propagation typically completes within minutes. S3 Replication Time Control (RTC) is not enabled, so there is no formal RPO SLA. No backup job or cron process is required; S3's native cross-region replication feature handles this automatically. Photo backup is completely decoupled from database backup cycle. The DR bucket preserves the primary's S3 key structure exactly (replication preserves keys), so a recovery scenario can restore objects without remapping. Object Lock is intentionally not applied to the photo DR bucket: photo deletion must propagate to the DR side to honor member-account-erasure (§1.5 "When member deletes account: member's photos automatically hard-deleted"). Operator-recovery headroom is provided by S3 Versioning plus 30-day `NoncurrentVersionExpiration` on both buckets.
 
-Recovery procedure: Promote the DR bucket to primary by updating the CloudFront `/media/*` origin and the `MEDIA_STORAGE_S3_BUCKET` env var, or restore objects from the DR bucket to a new primary bucket (replication-preserved keys make either path mechanical).
+Recovery procedure: Promote the DR bucket to primary by updating the CloudFront `/media-store/*` origin and the `MEDIA_STORAGE_S3_BUCKET` env var, or restore objects from the DR bucket to a new primary bucket (replication-preserved keys make either path mechanical).
 
 ## 9.5 Failure Modes
 
@@ -5109,7 +5109,7 @@ Monitoring and alerts: Alert if memory usage remains above 80 percent for five c
 
 Decision:
 
-All steady-state AWS infrastructure is defined in Terraform configuration files version-controlled in the repository under `/terraform`. A one-time manual bootstrap is allowed only to provision the AWS account baseline, the first operator principal that subsequently runs Terraform, and the Terraform remote-state S3 bucket; all steady-state IAM (source-profile users, the human job role and its policy, runtime roles, policies, instance profiles) is defined in Terraform. The bootstrap principal is the directly authenticated IAM user `footbag-operator`, and it is what the identity model is then built with, so it is the one identity that cannot itself be declared in code. Named dev-and-tester users are the deliberate exception and are not declared in Terraform at all: their lifecycle mints and revokes access-key secrets, and a secret Terraform creates is a secret held in its state, so they are created and retired by a tested script instead. That script is infrastructure discipline rather than an ad-hoc manual path, carrying caller preconditions, a deterministic policy shape, secret-safe credential handling, verification, offboarding, cleanup semantics and companion tests. After that handoff, manual console changes are prohibited except for emergency incident response, and any emergency change must be reconciled back into Terraform before the next `terraform plan` or `apply`. Terraform remote state is held in an S3 bucket with S3 native locking (`use_lockfile = true`, Terraform >= 1.11); DynamoDB locking and Terraform Cloud are excluded.
+All steady-state AWS infrastructure is defined in Terraform configuration files version-controlled in the repository under `/terraform`. A one-time manual bootstrap is allowed only to provision the AWS account baseline, the first operator principal that subsequently runs Terraform, and the Terraform remote-state S3 bucket; all steady-state IAM (source-profile users, the human job role and its policy, runtime roles, policies, instance profiles) is defined in Terraform. The bootstrap principal is the directly authenticated IAM user `footbag-operator`, and it is what the identity model is then built with, so it is the one identity that cannot itself be declared in code. Named dev-and-tester users are the deliberate exception and are not declared in Terraform at all: their lifecycle mints and revokes access-key secrets, and a secret Terraform creates is a secret held in its state, so they are created and retired by a tested script instead. That script is infrastructure discipline rather than an ad-hoc manual path, carrying caller preconditions, a deterministic policy shape, secret-safe credential handling, verification, offboarding, cleanup semantics and companion tests. After that handoff, every change reaches AWS only through a reviewed, tested and audited script (Terraform through `scripts/terraform-apply.sh`, secret values through the provisioning scripts); there is no console or hand-typed exception. Terraform remote state is held in an S3 bucket with S3 native locking (`use_lockfile = true`, Terraform >= 1.11); DynamoDB locking and Terraform Cloud are excluded.
 
 Rationale:
 
@@ -5155,7 +5155,7 @@ Committed HCL carries each variable's declaration and description; the values li
 
 Secrets Management:
 
-Terraform creates Parameter Store parameters (paths and metadata) but does not store secret values in version control. Secret values (Stripe API keys, Stripe webhook secrets, and other non-KMS credentials) are set manually via AWS CLI or secure deployment pipeline after Terraform creates parameter structure. Terraform references secrets via parameter names, and every secret parameter is declared as a shell — the name, the type and the KMS key — carrying a placeholder value and `lifecycle { ignore_changes = [value] }`, so no secret value appears in a `.tf` file or in state. That shape is not cosmetic and the exception below is the reason it is stated so plainly: a value Terraform generates or reads back is written to state in plaintext by construction, and a saved plan is a zip archive that no text-based secret scan can see into. One such plan, committed under a filename an ignore rule did not match, held two live secrets in public history for seven weeks. There is exactly one deliberate exception: the origin-verify shared secret, which CloudFront must carry as a custom header, so its value is part of the distribution's own configuration and therefore in state no matter how the parameter is provisioned. It is treated accordingly — rotatable in one apply, and named in the incident-response procedure as a value to burn if state is ever exposed. JWT signing keys and ballot encryption keys use AWS KMS (non-exportable key material) and are provisioned via Terraform KMS resources; they are never stored in Parameter Store.
+Terraform creates Parameter Store parameters (paths and metadata) but does not store secret values in version control. Secret values (Stripe API keys, Stripe webhook secrets, and other non-KMS credentials) are set by the reviewed provisioning scripts under `scripts/` after Terraform creates parameter structure, never by a hand-typed command or a console. Terraform references secrets via parameter names, and every secret parameter is declared as a shell — the name, the type and the KMS key — carrying a placeholder value and `lifecycle { ignore_changes = [value] }`, so no secret value appears in a `.tf` file or in state. That shape is not cosmetic and the exception below is the reason it is stated so plainly: a value Terraform generates or reads back is written to state in plaintext by construction, and a saved plan is a zip archive that no text-based secret scan can see into. One such plan, committed under a filename an ignore rule did not match, held two live secrets in public history for seven weeks. There is exactly one deliberate exception: the origin-verify shared secret, which CloudFront must carry as a custom header, so its value is part of the distribution's own configuration and therefore in state no matter how the parameter is provisioned. It is treated accordingly — rotatable in one apply, and named in the incident-response procedure as a value to burn if state is ever exposed. JWT signing keys and ballot encryption keys use AWS KMS (non-exportable key material) and are provisioned via Terraform KMS resources; they are never stored in Parameter Store.
 
 Requirements:
 
@@ -5171,7 +5171,7 @@ Trade-offs:
 - Initial setup cost: must define all infrastructure as code.
 - Learning curve: Contributors must understand basic Terraform syntax and workflow.
 - State file management requires multi-operator coordination on the shared S3 backend. Native locking serializes concurrent applies; operators still coordinate before invasive changes.
-- Requires discipline: Manual console changes create drift requiring reconciliation. Manual AWS console changes are prohibited except for emergency troubleshooting. Any permanent changes must be made via Terraform.
+- Requires discipline: every change goes through the apply script or a provisioning script, with no console exception, so nothing drifts from what the repository records.
 - AWS provider major version is pinned. Provider major upgrades require explicit review of the migration guide and a coordinated apply across all workspaces, not a casual `terraform init -upgrade`.
 - Two control surfaces: AWS-side resources land via `terraform apply`, host-side state via on-host script execution. Operators run scripts on each host after the corresponding apply for a full bootstrap. Script-side failures are not visible in `terraform apply` output.
 
@@ -5180,7 +5180,7 @@ Impact:
 - Terraform must remain the authority for IAM roles, policies, Parameter Store structure (per §3.6), KMS resources, CloudWatch resources, Lightsail instance configuration, Lightsail firewall rules, and any infrastructure-side inputs required by the SSH operator-access posture and the runtime-credential model in §7.2.
 - Deployment/bootstrap documentation must clearly separate one-time bootstrap actions from steady-state Terraform-managed infrastructure.
 - Workspace layout: `terraform/shared/` for one-time bootstrap (state bucket, account baseline); `terraform/staging/` and `terraform/production/` for per-environment resources, each with its own remote state; and one account-level tree, `terraform/identity/`, which declares what a dev-and-tester may do and is applied only by the directly authenticated bootstrap principal, because a role able to rewrite its own policy has no least-privilege story. Who the dev-and-testers are is not a tree, because joining and leaving mint and revoke key material that must not enter Terraform state, and revoking somebody's access must never be the slower half.
-- Resources are created only by Terraform: one made outside it is declared with an import block beside its definition and taken in through `scripts/terraform-apply.sh`, never by a hand-typed terraform import and never deleted to be recreated. The drift reconciliation procedure (plan-clean verification, PR review) lives in DEVOPS_GUIDE.md (private GitHub repo), "Emergency console changes". A clean `terraform plan` is the check for drift within declared resources, and it is not a completeness check: a policy, role, or rule created outside Terraform is invisible to it, because a plan reconciles only what the configuration declares. Detecting an undeclared resource requires enumerating what the account actually holds and comparing it against the configuration, which is an audit step rather than a plan.
+- Resources are created only by Terraform: one made outside it is declared with an import block beside its definition and taken in through `scripts/terraform-apply.sh`, never by a hand-typed terraform import and never deleted to be recreated. The plan-clean drift check lives in DEVOPS_GUIDE.md (private GitHub repo). A clean `terraform plan` is the check for drift within declared resources, and it is not a completeness check: a policy, role, or rule created outside Terraform is invisible to it, because a plan reconciles only what the configuration declares. Detecting an undeclared resource requires enumerating what the account actually holds and comparing it against the configuration, which is an audit step rather than a plan.
 - Any agent or daemon needing host-level access (e.g. CloudWatch Agent reading host CPU/memory/disk) is bootstrapped through an idempotent script under `scripts/`, not through Terraform provisioners or AWS Console clicks.
 
 

@@ -1,7 +1,7 @@
 ---
 name: freestyle-bug-hunt
 disable-model-invocation: true
-description: Run a disciplined adversarial bug hunt over the freestyle dictionary, its admin curation write paths, and the curated-media domain - domain invariants (layer separation, ADD math, slot governance, naming/slug/hashtag conventions, the trick-tag invariant), write-path validation and audit, cross-surface propagation, and stored-prose hygiene, with verified findings recorded in BUGS.md. Invoke ONLY when the user explicitly asks for a "freestyle bug hunt" or "freestyle bug sweep" by name. Generic security/correctness review of freestyle routes belongs to bug-hunt; doctrine decisions belong to the curator and the rules expert, never to this skill.
+description: Run a bounded adversarial bug hunt over the freestyle dictionary, its admin curation write paths, and the curated-media domain - domain invariants (layer separation, ADD math, slot governance, naming/slug/hashtag conventions, the trick-tag invariant), write-path validation and audit, cross-surface propagation, and stored-prose hygiene, with reproduced findings recorded in BUGS.md. Invoke ONLY when the user explicitly asks for a "freestyle bug hunt" or "freestyle bug sweep" by name. Generic security/correctness review of freestyle routes belongs to bug-hunt; a missing QC gate or test belongs to write-tests; doctrine decisions belong to the curator and the rules expert, never to this skill.
 ---
 
 # Freestyle Bug Hunt — domain-invariant audit of the freestyle dictionary and curated media
@@ -89,8 +89,15 @@ rule stays here.
     maintainers' private tracker every run (see the tracked-work step below); an item
     already covered by an open issue is excluded. The inverse IS a finding: an open issue
     whose described state no longer matches the repo is a stale-tracker-issue finding.
-11. **Active refutation** before recording anything; loop to dryness (two consecutive
-    passes with no new candidate, at most four passes per category).
+11. **Reproduce, then refute, before recording anything.** A finding carries one concrete
+    reproduction: a `sqlite3 -readonly` query against the precondition build, a request
+    against the precondition dev server, a run of an existing test, or a scratch probe
+    never committed; never staging or production. A candidate with no reproduction is a
+    Lead naming the reproduction that would settle it. Every survivor above Low gets one
+    independent refutation in fresh context (a read-only subagent per category batch that
+    did not produce the candidates, given only the candidate, its reproduction and the
+    governing clause). One bounded pass per category; a short findings list is a valid
+    result, and nothing is re-swept to reach a count.
 12. No emojis, no dates-as-status, concise output.
 
 ## Preconditions (maintainer-run, before the hunt starts)
@@ -136,13 +143,12 @@ In scope:
 - The freestyle maintainer guide (`docs/FREESTYLE.md`: authority tiers, the
   publication gate, terminology ownership) and the freestyle governance skills, as
   contracts to audit code against (deep doc-to-doc sync stays with bug-hunt).
-- Deterministic QC/test coverage for every category in `REFERENCE.md`: a missing
-  mandatory-class check is a first-class finding, not advice.
 
 Out of scope by default: loader Python internals; the `exploration/` working corpus;
 doctrine judgment calls; editorial voice and wording of curator-authored prose (the
 attribution and internal-language rules are in scope; style is not); screenshot-based
-visual QA.
+visual QA; and QC-gate or test coverage, which is the `write-tests` skill's: a category
+with no deterministic check is handed there as a named defect class, never recorded here.
 
 ## Mandatory pre-reads (in this order)
 
@@ -203,24 +209,27 @@ visual QA.
    §F21, §F22) run on the rendered HTML from the precondition server: the orchestrator
    crawls every route and `?view=` variant plus one detail page per sample-matrix row
    (lightweight page fetches, no screenshots) and hands the lanes the extraction.
-5. **QC-gate coverage sweep**: for each category, identify the deterministic check that
-   pins it (loader QC, CI gate, route test), then check the check: find a negative test or
-   case in which it fails on a violating row. Record each pin as "pinned (fail-tested)",
-   "pinned (presence only)" or "warn-only". A category with no deterministic check, only a
-   presence-only or warn-only one, a check that exits clean on missing input, or a check
-   covering only part of the invariant, is a finding — a testing gap is a bug.
+5. **Name and grade the check that pins each category** (loader QC, CI gate, route test)
+   in the coverage ledger, then check the check: find a negative test or case in which it
+   fails on a violating row. Record each pin as "pinned (fail-tested)", "pinned (presence
+   only)" or "warn-only". A category with no deterministic check, only a presence-only or
+   warn-only one, or a check covering only part of the invariant, is a `write-tests`
+   hand-off listed in the report, not a finding here. A check that exits clean on missing
+   input, or otherwise does not do what its name or comment claims, is a configuration
+   defect and stays a finding here.
 6. **Verify centrally (orchestrator).** A subagent lead is never a finding until the main
-   session refutes it: for each candidate, re-run its reproduction command or re-fetch its
-   URL and observe the string itself, re-read the governing clause, check the tracked-work
-   list, check whether the behavior is a frozen hold, and grep `tests/` for a test pinning
-   the behavior (a pinning test is evidence to weigh, not a dismissal). Drop what cannot be
-   reproduced, and list every dropped candidate with its refutation in the report, so a
-   mistaken refutation is visible. Check the lane's §F classifications against the catalog.
-7. **Second pass and dryness loop**: re-dispatch per category, each time giving the subagent
-   the prior candidate list, until two consecutive re-dispatches surface no new candidate,
-   at most four passes per category. The final dryness pass goes to a differently briefed
-   lane: diff the database against the rendered pages for the sample matrix, without the
-   catalog.
+   session reproduces and refutes it: for each candidate, re-run its reproduction command
+   or re-fetch its URL and observe the string itself, re-read the governing clause, check
+   the tracked-work list, check whether the behavior is a frozen hold, and run any test
+   pinning the behavior (a test refutes the candidate only if it asserts the recorded
+   doctrine; a test that would still pass with the surface wrong refutes nothing, and is
+   itself a `write-tests` hand-off). Drop what cannot be reproduced, and list every dropped
+   candidate with its refutation in the report, so a mistaken refutation is visible. Check
+   the lane's §F classifications against the catalog. Every survivor above Low then gets
+   the fresh-context refutation of absolute rule 11.
+7. **Independent cross-check lane**, once, after the category pass: a differently briefed
+   lane diffs the database against the rendered pages for the sample matrix, without the
+   catalog. Its new candidates go through step 6; nothing is re-swept to reach a count.
 8. **Report** (output spec below), then stop. No remediation in the same run.
 
 ## Output specification
@@ -249,7 +258,9 @@ Per-finding format:
 - **Owner:** curator | rules expert | freestyle maintainer | primary maintainer
 - **Evidence:** <path:line / table+row / rendered URL, concrete>
 - **Reproduction:** <the read-only command or URL, and the exact string observed>
-- **Verification:** <how it was confirmed and what refutation was attempted>
+- **Verification:** <how it was confirmed and what refutation was attempted; the
+  fresh-context refutation above Low>
+- **Confidence:** reproduced | traced end to end, not reproduced
 - **Description:** <1-3 sentences: which invariant, violated how>
 - **Impact:** <what a visitor or maintainer sees wrong, or what silently corrupts>
 - **Suggested fix:** <1-2 lines; for data findings name the correct write surface
@@ -267,8 +278,9 @@ decision is not recorded as a bug; it goes in the report's owner-question list, 
 decision per question, per `.claude/rules/asking.md`.
 
 **Severity** uses the risk scale in `docs/TESTING.md` (Catastrophic, High, Medium, Low),
-with domain calibrations: a wrong content-type tag on a clip is a curator-judgment review
-item (Low); a missing one on a curated clip that names a trick is High, because the
+calibrated from what the reproduction showed rather than what the category could in
+principle do, with domain calibrations: a wrong content-type tag on a clip is a
+curator-judgment review item (Low); a missing one on a curated clip that names a trick is High, because the
 media-tag invariant refuses it and the refresh stops; a naming/slug/hashtag violation on a
 public page is Medium; a propagation miss that shows a visitor wrong canonical data is
 Medium or High; a tag-invariant break that corrupts gallery membership is High; an admin
@@ -285,19 +297,22 @@ finding leaves `BUGS.md` when its issue is filed or its fix lands.
 
 ## Stopping condition and self-review
 
-The sweep is done when the coverage grid has no empty cell: every surface in the inventory
-carries every applicable §F category and every vetted delta category as checked, not
-applicable (with the reason) or not checked (with the reason); the QC-coverage sweep ran;
-and two consecutive passes surfaced nothing new. Close with a short adversarial review of
-this skill itself: name what the category catalog, exclusions, or sampling let slip this
-run, and propose (never apply) any gap-closing edit to the maintainer, including each
-pre-pass delta category that survived this run, proposed as a new §F entry. A false
-negative discovered later is converted into a deterministic check and, if it is a new
-class, a proposed new §F category.
+The sweep is bounded and done when the coverage grid has no empty cell: one pass per
+category over the sample matrix, every surface in the inventory carrying every applicable
+§F category and every vetted delta category as checked, not applicable (with the reason)
+or not checked (with the reason); the pinning check named and graded for each category;
+the cross-check lane run once; and every candidate reproduced and refuted. A short
+findings list is a valid result. Close with a short adversarial review of this skill
+itself: name what the category catalog, exclusions, or sampling let slip this run, and
+propose (never apply) any gap-closing edit to the maintainer, including each pre-pass
+delta category that survived this run, proposed as a new §F entry. A false negative
+discovered later is converted into a deterministic check through `write-tests` and, if it
+is a new class, a proposed new §F category.
 
 ## After delivering
 
 End with a short summary: the build identity line and the coverage label, counts by
 category and severity, the two or three highest-leverage findings in one sentence each,
-the owner-question list (one decision per question), and an offer to plan remediation for
-a named finding. Do not auto-remediate.
+the `write-tests` hand-offs (categories with no pinning check, or a presence-only or
+warn-only one), the owner-question list (one decision per question), and an offer to plan
+remediation for a named finding. Do not auto-remediate.

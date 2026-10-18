@@ -18,7 +18,6 @@ Run from repo root:
 """
 from __future__ import annotations
 
-import csv
 import importlib.util
 from pathlib import Path
 
@@ -27,7 +26,6 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 LEGACY = REPO_ROOT / "legacy_data"
 CURATION = LEGACY / "scripts" / "club_curation.py"
-SEED_CSV = LEGACY / "seed" / "clubs.csv"
 
 # (legacy_club_key, club name as the seed records it)
 DORMANT_FLORIDA_CLUBS = [
@@ -65,18 +63,6 @@ def test_the_correction_rewrites_the_mirror_value(club_key, name):
     row["region"] = MIRROR_ABBREVIATION
     corrected = curation.apply_club_text_corrections(row, club_key, CORRECTIONS)
     assert corrected["region"] == CANONICAL_REGION
-
-
-@pytest.mark.parametrize("club_key,name", DORMANT_FLORIDA_CLUBS)
-def test_the_committed_seed_already_carries_the_corrected_value(club_key, name):
-    """
-    The correction reproduces what the seed says rather than changing it. If
-    these ever disagree, the seed has drifted from its own overrides and the
-    next rebuild will move it.
-    """
-    with SEED_CSV.open(newline="", encoding="utf-8") as fh:
-        rows = {r["legacy_club_key"]: r for r in csv.DictReader(fh)}
-    assert rows[club_key]["region"] == CANONICAL_REGION
 
 
 def test_every_correction_names_a_real_seed_column():

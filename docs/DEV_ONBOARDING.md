@@ -7,7 +7,7 @@ This guide helps contributors understand how the platform is structured and get 
 > **Who you are (pick your lane).** This guide serves four kinds of contributor:
 >
 > - **New developer** — run it locally and learn the architecture. Lanes: Path A, then B.
-> - **New tester** — run it locally; browse and switch between seeded personas at `/dev/personas` and read captured dev mail without a real inbox. Lanes: Path A, then the persona/tester harness (see `docs/TESTING.md` §16).
+> - **New tester** — run it locally; browse and switch between seeded personas at `/dev/personas` and read captured dev mail without a real inbox. Lanes: Path A, then the testing guide, TESTING_GUIDE.md (private dev-tester repository).
 > - **Initial operator / AWS maintainer** — owns AWS, applies Terraform, performs production activation, and claims the first admin. Starts here at Path A and Path B; AWS work is outside this guide (see §3).
 > - **Other actors** — the historical-data and freestyle pipeline maintainer and docs/design contributors work mostly outside this guide; start at Path B for orientation, then their domain: the pipeline maintainer runs `legacy_data/run_pipeline.sh` and `freestyle/run_freestyle.sh` (and loads the full dataset, from the maintainers' private repository and the mirror, per §1.10A), while design and content contributors work in `docs/` and `src/views/`.
 
@@ -664,9 +664,9 @@ Production carries none of these tools. A member who needs a legacy identity lin
 
 ##### Acting as a persona in the browser
 
-To act as any seeded persona in the browser without a login chain, use the persona harness described in the tester runbook in `docs/TESTING.md` (Tester runbook: using the persona harness).
+To act as any seeded persona in the browser without a login chain, open `/dev/personas` and choose Switch on its card; `/dev/outbox` lists the email the site would have sent. The step-by-step for testers is TESTING_GUIDE.md (private dev-tester repository).
 
-A stub `legacy_members` row with no email and no date of birth (for example before the legacy data dump is loaded) offers nothing to corroborate a self-serve claim, so the onboarding wizard's `legacy_claim` task shows it without a claim control; an administrator links it through the identity-link request after onboarding.
+A stub `legacy_members` row with no email and no date of birth carries nothing that could ever corroborate a self-serve claim, so the onboarding wizard's `legacy_claim` task offers it, and a record linked to it, on the name and the surname rule. An account with no name and no linked record is not shown; an administrator links it through the identity-link request after onboarding.
 
 
 ### 1.15 Filing a bug
@@ -682,7 +682,7 @@ With hello world running and the tests green, here is where to go next:
 - **Architecture orientation:** Path B (§2) for the mental model, scope boundaries, and repo map. Read it before doing code work.
 - **More tests:** `./run_all_tests.sh` is the complete local gate: the full suite once, with the unit and integration tiers run as the coverage run inside the clean room, plus the security probes and the pentest's scriptable probes; the OWASP ZAP scan runs only with `--zap`, before a production deploy. It needs nothing but the checkout and contacts no deployed environment; the real-data rows report "not required" without the full member load, and the staging checks run only with `--staging` and at minimum the dev-tester role: read-only with `--quick`, and the destructive staging tier as well in the bare run.
 - **The full dataset:** load the full dataset (§1.10A) when you need the real event archive and member roster; the roster comes with access to the maintainers' private repository, and the mirror is a maintainer handoff.
-- **Testers:** browse and switch between seeded personas at `/dev/personas` and read captured dev/staging mail without a real inbox; the full tester runbook is `docs/TESTING.md` §16.
+- **Testers:** browse and switch between seeded personas at `/dev/personas` and read captured dev/staging mail without a real inbox; the step-by-step is TESTING_GUIDE.md (private dev-tester repository).
 - **AWS deployment and operations:** see §3. Get the application running locally and under Docker first: infrastructure is stood up after the app it serves, never before.
 
 ## 2. Path B — Orientation: what this project is and how to think about it

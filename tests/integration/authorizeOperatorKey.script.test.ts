@@ -10,16 +10,18 @@
  * named account themselves and choose their own password, so the only thing
  * that ever travels between two people is a public key.
  *
- * The mutating half belongs to an operator with a real host and a real sudo
- * password and is not exercised here. What is pinned is everything before the
- * first change, plus the root-side invariants that a hand-run would never
- * check: that the file is appended to rather than rebuilt, that exactly one key
- * moves, and that every key belonging to somebody else survives. Those are the
- * failures that report success and lock an unrelated operator out.
+ * Pinned here: everything before the first change; the wire, recorded by a
+ * stand-in host (the password as line one, the bound assignments, the root-side
+ * body, nothing in argv); and the root-side body run against real files, since
+ * its own verification decides what it reports: that the file is appended to
+ * rather than rebuilt, that exactly one key moves, that every key belonging to
+ * somebody else survives, that the modes are the ones sshd honours, and that an
+ * interrupt leaves nothing behind. Those are the failures that report success
+ * and lock an unrelated operator out. No host is reached.
  */
 import { describe, it, expect, beforeAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, readFileSync, readdirSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -244,90 +246,101 @@ describe('authorize-operator-key.sh — preconditions before anything changes', 
   });
 });
 
-describe('authorize-operator-key.sh — what it says it is doing', () => {
+describe('authorize-operator-key.sh — what it never does', () => {
   const source = readFileSync(SCRIPT, 'utf-8');
 
-  it('creates no account and mints no password', () => {
-    // The distinction from provision-dev-tester-account.sh. This grants a second
-    // way into an identity that exists; it never grants a new identity.
+  it('creates no account, mints no password and names no retired route', () => {
+    // The distinction from provision-dev-tester-account.sh: this grants a second
+    // way into an identity that exists, never a new identity. Each name below is
+    // one a regression could restore; the retired flag is spelled in pieces
+    // because written whole it is what the convention gate refuses.
     expect(source).not.toMatch(/useradd/);
     expect(source).not.toMatch(/chpasswd/);
     expect(source).not.toMatch(/openssl rand/);
-  });
-
-  it('says only a holder key belongs on the shared account, and how it comes off', () => {
-    // The shared account is every holder's standing default route, so a key
-    // there stays while they hold footbag-operator and is withdrawn by name
-    // when they stop; offboarding a named identity deliberately never removes it.
-    expect(source).toMatch(/--remove/);
-    expect(source).toMatch(/for as long as they hold footbag-operator/);
     expect(source).not.toMatch(/bootstrap/);
-  });
-
-  it('tells the new holder their administrative host access is complete, with no named account', () => {
-    // Administrative work runs on the shared account, so the key is the whole
-    // of it: no named account is made for a holder as a holder.
-    expect(source).toMatch(/which is their\s+administrative host access: nothing further is needed/);
     expect(source).not.toMatch(/onboard-operator\.sh/);
-    // Spelled in pieces: written whole, the retired flag is what the convention gate refuses.
     expect(source).not.toContain(`--${'own-password'}`);
-  });
-
-  it('carries the sudo password over the wire pattern rather than argv', () => {
-    expect(source).toMatch(/printf '%s\\n' "\$SUDO_PASS"/);
-    expect(source).toMatch(/sudo -k -S -p "" bash/);
   });
 });
 
-describe('authorize-operator-key.sh — the root-side invariants', () => {
-  const remote = readFileSync(REMOTE_HALF, 'utf-8');
+/**
+ * The wire, recorded by a stand-in host. The sudo password travels as line one
+ * of the stream, the assignments and the root-side body follow it, and argv
+ * carries nothing secret. `--yes` stands in for the typed confirmation, which
+ * reads from a terminal there is none of here.
+ */
+describe('authorize-operator-key.sh — what reaches the host', () => {
+  function recordingHost(): { argv: string; stream: string; ssh: string } {
+    const dir = mkdtempSync(join(WORK_DIR, 'wire-'));
+    const argv = join(dir, 'argv.txt');
+    const stream = join(dir, 'stream.txt');
+    const ssh = join(dir, 'ssh');
+    writeFileSync(ssh, [
+      '#!/usr/bin/env bash',
+      hostIdentityAnswer(),
+      `printf '%s\\n' "$@" > ${JSON.stringify(argv)}`,
+      `cat > ${JSON.stringify(stream)}`,
+      'exit 0',
+    ].join('\n'));
+    chmodSync(ssh, 0o755);
+    return { argv, stream, ssh };
+  }
 
-  it('appends rather than rebuilding the file', () => {
-    // Every other key in authorized_keys is somebody else's access. Rewriting
-    // the file to add one line is how an unrelated operator is locked out by a
-    // run that reports success.
-    expect(remote).toMatch(/cat "\$AUTH_FILE" > "\$WORK"/);
+  function runWire(extra: string[]) {
+    const host = recordingHost();
+    const result = spawnSync('bash', [SCRIPT, ...args(), '--yes', ...extra], {
+      cwd: process.cwd(),
+      encoding: 'utf-8',
+      input: 'fixture-sudo-password\n',
+      env: {
+        ...process.env,
+        ...NO_AWS_CREDENTIALS,
+        FOOTBAG_AUTHKEY_SSH: host.ssh,
+        FOOTBAG_KNOWN_HOSTS: PIN,
+        PATH: `${SSH_BIN_DIR}:${process.env.PATH ?? ''}`,
+      },
+      ...SPAWN_GUARD,
+    });
+    return {
+      status: result.status,
+      stdout: result.stdout ?? '',
+      stderr: result.stderr ?? '',
+      argv: readFileSync(host.argv, 'utf-8'),
+      stream: readFileSync(host.stream, 'utf-8'),
+    };
+  }
+
+  it('sends the password as line one, then the bound assignments and the root-side body, never through argv', () => {
+    // Defect caught: the sudo password in the process list, where every account
+    // on the workstation reads it; or a body reaching root with the key or the
+    // mode unbound, so it edits the wrong thing or refuses on the host.
+    const r = runWire([]);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.argv).not.toContain('fixture-sudo-password');
+    expect(r.argv.trimEnd().split('\n').pop()).toBe('sudo -k -S -p "" bash');
+    const lines = r.stream.split('\n');
+    expect(lines[0]).toBe('fixture-sudo-password');
+    expect(lines[1]).toBe('AUTHKEY_MODE=add');
+    expect(lines[2]).toBe('AUTHKEY_ACCOUNT=footbag');
+    expect(lines[3]).toBe("AUTHKEY_OPERATOR=Robin\\ Fielder");
+    expect(lines[4]).toBe(`AUTHKEY_KEY_LINE=${shellQuoted(readFileSync(VALID_KEY, 'utf-8').trim())}`);
+    expect(lines[5]).toMatch(/^AUTHKEY_FINGERPRINT=SHA256:/);
+    expect(r.stream.endsWith(readFileSync(REMOTE_HALF, 'utf-8'))).toBe(true);
+    expect(r.stdout).toMatch(/administrative host access: nothing further is needed/);
   });
 
-  it('matches on fingerprint, not on key text', () => {
-    // A different comment, different whitespace or an options prefix is the
-    // same credential. Text comparison would authorize a duplicate on add and
-    // miss the key on remove.
-    expect(remote).toMatch(/AUTHKEY_FINGERPRINT/);
-    expect(remote).toMatch(/ssh-keygen -l/);
+  it('sends the remove mode when asked to withdraw', () => {
+    const r = runWire(['--remove']);
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stream.split('\n')[1]).toBe('AUTHKEY_MODE=remove');
+    expect(r.stdout).toMatch(/no longer authorized/);
   });
 
-  it('is idempotent on add and on remove', () => {
-    expect(remote).toMatch(/Already authorized/);
-    expect(remote).toMatch(/nothing to remove/);
-  });
-
-  it('asserts exactly one key moved', () => {
-    // The check an eyeball never makes, and the one that catches a rebuild
-    // that dropped somebody.
-    expect(remote).toMatch(/exactly one changed/);
-  });
-
-  it('asserts every pre-existing key survived, which a count alone would miss', () => {
-    // A count is satisfied by a swap: one key lost, one gained.
-    expect(remote).toMatch(/a pre-existing key is gone/);
-  });
-
-  it('asserts the mode and owner sshd requires', () => {
-    // sshd silently ignores a group- or world-writable authorized_keys, with
-    // nothing in the client output to say so.
-    expect(remote).toMatch(/sshd will ignore it/);
-  });
-
-  it('refuses an account that does not exist rather than creating one', () => {
-    expect(remote).toMatch(/does not exist on this host/);
-    expect(remote).toMatch(/never creates one/);
-  });
-
-  it('cleans up its temp files on interrupt as well as exit', () => {
-    expect(remote).toMatch(/trap authkey_cleanup EXIT INT TERM/);
-  });
-
+  /** What bash's `printf %q` makes of a public-key line: spaces escaped, nothing else changed. */
+  function shellQuoted(value: string): string {
+    const r = spawnSync('bash', ['-c', 'printf %q "$1"', '_', value], { encoding: 'utf-8', ...SPAWN_GUARD });
+    return r.stdout ?? '';
+  }
 });
 
 /**
@@ -365,7 +378,7 @@ describe('authorize-operator-key.sh — the root-side invariants', () => {
  */
 describe('authorize-operator-key-remote.sh — what it does to a real file', () => {
   /** How the privileged write behaves, so a wrong outcome can be driven. */
-  type WriteBehaviour = 'faithful' | 'adds-a-second-key' | 'drops-a-survivor';
+  type WriteBehaviour = 'faithful' | 'adds-a-second-key' | 'drops-a-survivor' | 'wrong-mode' | 'interrupted';
 
   function fingerprintOf(pubKeyPath: string): string {
     const r = spawnSync('ssh-keygen', ['-l', '-f', pubKeyPath], {
@@ -397,20 +410,29 @@ describe('authorize-operator-key-remote.sh — what it does to a real file', () 
         ? [`  printf '%s\\n' ${JSON.stringify(extraKeyLine)} >> "$dest"`]
         : behaviour === 'drops-a-survivor'
           ? ['  sed -i "1d" -- "$dest"']
-          : [];
+          : behaviour === 'wrong-mode'
+            ? ['  mode=644']
+            : [];
     return [
       'install() {',
-      '  local mode="" positional=()',
+      '  local mode="" dir=0 positional=()',
       '  while [ $# -gt 0 ]; do',
       '    case "$1" in',
       '      -m) mode="$2"; shift 2 ;;',
       // Dropped rather than honoured: chown is super-user-only, and the fixture
       // is already owned by the account the body is asked about.
       '      -o|-g) shift 2 ;;',
-      '      -d) shift ;;',
+      '      -d) dir=1; shift ;;',
       '      *) positional+=("$1"); shift ;;',
       '    esac',
       '  done',
+      // The directory form, as GNU install behaves: created if absent, and set
+      // to the mode either way.
+      '  if (( dir )); then mkdir -p -- "${positional[0]}"; [ -n "$mode" ] && chmod "$mode" -- "${positional[0]}"; return 0; fi',
+      // ctrl-c lands while the privileged write is in flight: the shell takes
+      // the signal, the write never completes, and the run must leave the file
+      // as it was and its temp copies gone.
+      ...(behaviour === 'interrupted' ? ['  kill -INT $$', '  return 130'] : []),
       '  cp -- "${positional[0]}" "${positional[1]}"',
       '  local dest="${positional[1]}"',
       ...tamper,
@@ -428,6 +450,8 @@ describe('authorize-operator-key-remote.sh — what it does to a real file', () 
     after: string;
     /** One fingerprint per parseable key in that file, in order. */
     afterFingerprints: string[];
+    /** The permission bits the body left on the account's .ssh directory. */
+    sshDirMode: number;
   }
 
   let caseCounter = 0;
@@ -443,7 +467,14 @@ describe('authorize-operator-key-remote.sh — what it does to a real file', () 
     const remoteSource = readFileSync(REMOTE_HALF, 'utf-8');
     const helpersStart = remoteSource.indexOf('AUTHKEY_TMPS=()');
     const helpersEnd = remoteSource.indexOf('if ! id -u -- "$AUTHKEY_ACCOUNT"');
-    const coreStart = remoteSource.indexOf('BEFORE_LIST="$(fingerprints_of "$AUTH_FILE")"');
+    // The core starts where the body first touches the account's files: the
+    // directory step, whose mode sshd also insists on. Found without naming the
+    // mode, so a wrong mode is a failing case rather than a lost anchor.
+    const dirStep = remoteSource
+      .split('\n')
+      .find((line) => line.startsWith('install -d ') && line.includes('"$SSH_DIR"'));
+    expect(dirStep, 'the .ssh directory step was not found').toBeDefined();
+    const coreStart = remoteSource.indexOf(dirStep!);
     expect(helpersStart, 'the helper block was not found').toBeGreaterThan(-1);
     expect(helpersEnd).toBeGreaterThan(helpersStart);
     expect(coreStart).toBeGreaterThan(helpersEnd);
@@ -451,7 +482,12 @@ describe('authorize-operator-key-remote.sh — what it does to a real file', () 
     caseCounter += 1;
     const caseDir = join(WORK_DIR, `core-${caseCounter}`);
     mkdirSync(caseDir);
-    const authFile = join(caseDir, 'authorized_keys');
+    // The directory exists at a mode sshd ignores, so only the body's own step
+    // can bring it to 700.
+    const sshDir = join(caseDir, 'ssh');
+    mkdirSync(sshDir, { mode: 0o755 });
+    chmodSync(sshDir, 0o755);
+    const authFile = join(sshDir, 'authorized_keys');
     writeFileSync(authFile, opts.authorizedKeys);
     chmodSync(authFile, 0o600);
 
@@ -465,6 +501,7 @@ describe('authorize-operator-key-remote.sh — what it does to a real file', () 
         // real check against a real file rather than one the stub answered.
         'AUTHKEY_ACCOUNT="$(id -un)"',
         'PRIMARY_GROUP="$(id -gn)"',
+        `SSH_DIR=${JSON.stringify(sshDir)}`,
         `AUTH_FILE=${JSON.stringify(authFile)}`,
         `AUTHKEY_MODE=${JSON.stringify(opts.mode)}`,
         `AUTHKEY_OPERATOR='Robin Fielder'`,
@@ -498,8 +535,49 @@ describe('authorize-operator-key-remote.sh — what it does to a real file', () 
       stderr: res.stderr ?? '',
       after,
       afterFingerprints,
+      sshDirMode: statSync(sshDir).mode & 0o777,
     };
   }
+
+  /**
+   * The preflight that precedes the core: from the helpers through the account
+   * check, with the home lookup and everything after it left out, so no account
+   * on this machine is ever resolved.
+   */
+  function runPreflight(account: string): { status: number; stderr: string } {
+    const remoteSource = readFileSync(REMOTE_HALF, 'utf-8');
+    const helpersStart = remoteSource.indexOf('AUTHKEY_TMPS=()');
+    const homeLookup = remoteSource.indexOf('HOME_DIR="$(getent passwd');
+    expect(helpersStart).toBeGreaterThan(-1);
+    expect(homeLookup).toBeGreaterThan(helpersStart);
+    caseCounter += 1;
+    const caseDir = join(WORK_DIR, `core-${caseCounter}`);
+    mkdirSync(caseDir);
+    const harness = join(caseDir, 'preflight.sh');
+    writeFileSync(harness, [
+      'set -euo pipefail',
+      `AUTHKEY_ACCOUNT=${JSON.stringify(account)}`,
+      remoteSource.slice(helpersStart, homeLookup),
+      'echo "preflight passed"',
+    ].join('\n') + '\n');
+    const res = spawnSync('bash', [harness], {
+      encoding: 'utf-8',
+      env: { ...process.env, ...NO_AWS_CREDENTIALS, TMPDIR: caseDir },
+      ...SPAWN_GUARD,
+    });
+    return { status: res.status ?? -1, stderr: res.stderr ?? '' };
+  }
+
+  it('refuses an account that does not exist rather than creating one', () => {
+    // Defect caught: a typo in --account minting a home directory and an
+    // authorized_keys file for a login nobody made, with a key in it.
+    const r = runPreflight('no-such-account-here');
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/does not exist on this host/);
+    expect(r.stderr).toMatch(/never creates one/);
+    // The same check lets a real account through.
+    expect(runPreflight(spawnSync('id', ['-un'], { encoding: 'utf-8', ...SPAWN_GUARD }).stdout.trim()).status).toBe(0);
+  });
 
   // ── the two invariants the text assertions only claimed to make ───────────
 
@@ -636,9 +714,11 @@ describe('authorize-operator-key-remote.sh — what it does to a real file', () 
     expect(r.after).toBe(original);
   });
 
-  it('leaves the file at the mode sshd requires', () => {
-    // sshd silently ignores a group- or world-writable authorized_keys, with
-    // nothing in the client output to say so.
+  it('leaves the file and its directory at the modes sshd requires', () => {
+    // sshd silently ignores a group- or world-writable authorized_keys, or one
+    // inside a directory others can write, with nothing in the client output
+    // to say so. The directory starts at 755 here, so only the body's own step
+    // brings it to 700.
     const r = runCore({
       mode: 'add',
       authorizedKeys: `${keyLine(THIRD_KEY)}\n`,
@@ -646,6 +726,40 @@ describe('authorize-operator-key-remote.sh — what it does to a real file', () 
     });
     expect(r.status).toBe(0);
     expect(r.stdout).toMatch(/is 600 and owned by/);
+    expect(r.sshDirMode.toString(8)).toBe('700');
+  });
+
+  it('refuses a write that left the file at a mode sshd ignores', () => {
+    // Defect caught: a write that landed the key at 644. sshd silently ignores
+    // a group- or world-readable authorized_keys, so the key is there and the
+    // operator still cannot log in, with nothing in their client output to say why.
+    const r = runCore({
+      mode: 'add',
+      authorizedKeys: `${keyLine(THIRD_KEY)}\n`,
+      subject: VALID_KEY,
+      write: 'wrong-mode',
+    });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/is 644 owned by .*; sshd will ignore it/);
+    expect(r.stdout).toMatch(/authorize_failed/);
+  });
+
+  it('leaves the file untouched and its temp copies destroyed when interrupted mid-write', () => {
+    // Defect caught: a ctrl-c during the privileged write leaving a root-owned
+    // copy of every key on the host in a temp directory, or a half-written file.
+    const original = `${keyLine(THIRD_KEY)}\n`;
+    const r = runCore({
+      mode: 'add',
+      authorizedKeys: original,
+      subject: VALID_KEY,
+      write: 'interrupted',
+    });
+    expect(r.status).toBe(130);
+    expect(r.after).toBe(original);
+    const leftovers = readdirSync(join(WORK_DIR, `core-${caseCounter}`)).filter((name) =>
+      name.startsWith('tmp.'),
+    );
+    expect(leftovers).toEqual([]);
   });
 
   it('destroys its temp files and still reports a successful run as successful', () => {

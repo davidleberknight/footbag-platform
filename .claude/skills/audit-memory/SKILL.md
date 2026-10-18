@@ -39,12 +39,14 @@ and decide exactly one verdict:
   a `.claude/hooks/*`, or a committed `docs/*`; or a one-off incident; or state re-derivable from
   code; or implementation status (belongs in the maintainers' private tracker).
 - PROMOTE — a real, durable lesson with a repo home it is not yet in. Name the destination
-  (root `CLAUDE.md`, a specific rule, a doc, a hook, or a CI check) and the exact text to add.
+  (root `CLAUDE.md`, a specific rule, a skill, a doc, a hook, a CI check, the private operations
+  checkout, or the private tracker) and the exact text to add.
 - REWRITE — the lesson is sound but the entry is stale: it cites a deleted doc, carries a dead
   `[[link]]`, has malformed frontmatter, or states more than the machine-local nucleus. Trim to
   the part with no repo home.
-- KEEP — a machine-local or Claude-product fact with no repo home (tooling behavior, a local
-  file pointer, a secret-bearing pointer), passing every exclusion.
+- KEEP — one of the two classes `memory.md` allows (a machine-local fact such as a local file
+  pointer or secret-bearing pointer, or the user's personal working preference), passing every
+  exclusion.
 
 To decide DELETE-vs-KEEP, grep the harness for the entry's keywords across root and nested
 `CLAUDE.md`, every `.claude/rules/*`, every `.claude/hooks/*`, and every committed `docs/*`. A
@@ -66,7 +68,7 @@ the structural-check findings. Make no change yet. Recommend an execution order 
 approval.
 
 **Phase 5 — Execute in review batches.** On approval, execute in this order, pausing for the
-human between batches (batch-by-batch review is the standing preference): (1) DELETEs; (2)
+human between batches: (1) DELETEs; (2)
 REWRITEs; (3) PROMOTEs — each promotion is a committed-file edit shown as literal before/after
 and separately approved, since it touches a rule/doc/CLAUDE.md. After each batch, rewrite the
 `MEMORY.md` index to match the surviving files. Every Write/Edit to the memory directory still

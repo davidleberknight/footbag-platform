@@ -10,7 +10,7 @@ Design and specification documents for the footbag-platform modernization projec
 - [`DESIGN_DECISIONS.md`](DESIGN_DECISIONS.md): rationale, constraints, and non-negotiable design commitments
 - [`DATA_MODEL.md`](DATA_MODEL.md): canonical entities, relationships, schema conventions, DB-vs-app boundaries
 - [`DATA_GOVERNANCE.md`](DATA_GOVERNANCE.md): GDPR compliance, privacy boundaries, sensitivity tiers, and data-handling rules (members, historical persons, search, exports, erasure)
-- [`USER_STORIES.md`](USER_STORIES.md): functional scope and acceptance criteria
+- [`USER_STORIES.md`](USER_STORIES.md): functional scope and success criteria
 - [`TESTING.md`](TESTING.md): test strategy, risk-classification rubric, coverage expectations, and verification gates
 - [`DIAGRAMS.md`](DIAGRAMS.md): architecture and data-flow diagrams
 - [`GLOSSARY.md`](GLOSSARY.md): cross-document terminology

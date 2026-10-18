@@ -83,7 +83,18 @@ cleanup_env_tempfiles() {
   shred -u /srv/footbag/.env.tmp.* /srv/footbag/.deployed-from.tmp.* 2>/dev/null || \
     rm -f /srv/footbag/.env.tmp.* /srv/footbag/.deployed-from.tmp.* 2>/dev/null || true
 }
-trap cleanup_env_tempfiles EXIT
+# The uploaded database is a full copy of the site's data in the connecting
+# account's home. The promotion installs its own root-owned copy, so the upload
+# has no use once this run ends, and nothing else removes it: the next deploy by
+# the same account wipes the directory, but an account that never deploys again,
+# an offboarded dev-and-tester's included, would keep it indefinitely. Removed on
+# every exit, success or failure, overwritten first for the same reason as the
+# env temp files.
+cleanup_staged_db() {
+  shred -u "$NEW_DB" "$NEW_DB-wal" "$NEW_DB-shm" 2>/dev/null || \
+    rm -f "$NEW_DB" "$NEW_DB-wal" "$NEW_DB-shm" 2>/dev/null || true
+}
+trap 'cleanup_env_tempfiles; cleanup_staged_db' EXIT
 # A signal ends the run through the EXIT trap, never through bash's own
 # fatal-signal handling, where a second signal can cut the cleanup short.
 trap "trap '' HUP INT TERM; exit 129" HUP
@@ -1508,14 +1519,12 @@ echo "    Container AWS identity verified: ${_expected_role}."
 
 systemctl status footbag.service --no-pager -l
 
-# CUTOVER-REMOVE: post-deploy persona-catalog seed.
-# Current: runs only when the workstation passed SEED_TEST_PERSONAS=yes (set by
-#   --seed-test-personas). Signal only: the persona catalog is code
-#   (dist/testkit/canonicalPersonas.js), so there is no JSON payload and
-#   no stdin pipe. The seed runner is idempotent (skips existing slugs), so a
-#   re-run incrementally adds newly-added catalog personas.
-# Target: remove this block and the SEED_TEST_PERSONAS pathway at production
-#   cutover.
+# Post-deploy persona-catalog seed, for staging. Runs only when the
+# workstation passed SEED_TEST_PERSONAS=yes (set by --seed-test-personas, or
+# implicitly by a staging DB rebuild). Signal only: the persona catalog is
+# code (dist/testkit/canonicalPersonas.js), so there is no JSON payload and
+# no stdin pipe. The seed runner is idempotent (skips existing slugs), so a
+# re-run incrementally adds newly-added catalog personas.
 #
 # Runs inside the web container via `node dist/testkit/personaSeedRunner.js`
 # (compiled at build time; no tsx in the runtime image). FOOTBAG_ENV is NOT

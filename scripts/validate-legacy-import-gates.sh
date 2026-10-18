@@ -99,7 +99,7 @@ fi
 # import_source value, so a row missing one is routed to admin review rather than
 # silently trusted.
 #
-# Populated is not the same as loaded. The local build seeds this table with
+# Populated is not the same as loaded. Every build seeds this table with
 # system fixtures: rows carrying a curated display name and nothing else, whose
 # purpose is to give historical references a stable parent identity before any
 # real export exists. Those rows satisfy "import_source is non-empty" perfectly,
@@ -112,9 +112,9 @@ fi
 # itself -- a curated identity may legitimately be absent from a dirty export,
 # and the ruling default is to keep it -- but it is never invisible: it is named
 # here so the cutover report can attribute it to the exclusion rule that dropped
-# it, or to another known reason. Whether the checklist should refuse to proceed
-# on a survivor carrying no recorded disposition is deliberately not decided
-# here, because nothing yet provides a place for such a disposition to live.
+# it, or to another known reason. This gate only counts survivors; the
+# member-data audit refuses one with no recorded decision, after every member
+# load and on the production ship.
 g3_total=$(q "SELECT COUNT(*) FROM legacy_members;")
 g3_with_source=$(q "SELECT COUNT(*) FROM legacy_members WHERE import_source IS NOT NULL AND import_source <> '';")
 g3_exported=$(q "SELECT COUNT(*) FROM legacy_members WHERE import_source = 'legacy_site_data';")

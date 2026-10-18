@@ -54,11 +54,13 @@ The Footbag Website Modernization Project upgrades footbag.org into the global c
 
 This project's knowledge base has two layers. **Canonical documents** hold durable design intent and requirements; an AI or a human reads only the slice a task needs. **Implementation contracts** are the lower-level standards and patterns those documents defer to, and they live at their enforcement site in code and `.claude/`. The two are listed separately below, and §1.3 explains why the split is efficient for Claude Code.
 
+Which source wins when sources conflict is the authority order in the root `CLAUDE.md`: an explicit human decision, then the IFPA governing documents under `ifpa/` (membership, tiers, bylaws, sanctioning, rules), then clear design intent as the user stories, design decisions, data model, rules and service contracts record it. Design intent is the purpose a feature serves for the people who use it, traced from those governing documents and members' needs to the user stories' success criteria and then to the design decisions that support them; the `design-intent` skill defines it for agents. Current code shows what exists, never what is intended. Where sources disagree, the answer is worked out from the intent down, and a maintainer decides only when that leaves it unclear.
+
 ## 1.1 Canonical Documents
 
-**User Stories:** Defines complete feature scope, and describes what users must be able to achieve, and acceptance criteria (system side effects). Source of Truth for Functional Requirements.
+**User Stories:** Defines complete feature scope and the release each story belongs to, and describes what users must be able to achieve, with success criteria (system side effects). Source of Truth for Functional Requirements.
 
-**Project Summary (this document):** Provides a high-level introduction to the Footbag Website Modernization Project, explaining what the system does, why it is designed this way, and the major solution architecture choices that follow from the Design Decisions and User Stories documents. Together, User Stories, Design Decisions, and this Project Summary define the high-level requirements with which all other documents must be consistent.
+**Project Summary (this document):** Provides a high-level introduction to the Footbag Website Modernization Project, explaining what the system does, why it is designed this way, and the major solution architecture choices that follow from the Design Decisions and User Stories documents. It is written for people and aims to cover every part of the project, but it is not a requirements source: it summarizes the design and must stay consistent with User Stories and Design Decisions; where they differ, those documents govern.
 
 **Design Decisions:** Captures technology and design decisions and their rationale. It explains why major choices were made, and which constraints are intentional, with implementation details where known or applicable. It is the Source of Truth for design commitments and non-functional requirements from which the Solution Architecture follows.
 
@@ -70,13 +72,19 @@ This project's knowledge base has two layers. **Canonical documents** hold durab
 
 **Migration and go-live** (listed here for orientation): migration and go-live planning lives in GO_LIVE_PLAN.md (private GitHub repo) — the gate index, the cutover state machine, the launch sequencing, the rollback posture, the operational-readiness gate detail (backup, observability, edge security, IAM, email ops, maintenance jobs, secrets rotation, pre-cutover reverts), and the stakeholder coordination. The legacy data migration design it carries out (streams, claim flow, auto-link, merge rules, club bootstrap, name model, competition history) is the Legacy Data Migration decision in Design Decisions, with the member-facing behaviour in the claim and onboarding user stories. The pipeline validation gates that govern the data load are in Testing Strategy; the private plan carries a copy of them and wins where the two disagree.
 
-**Operations** (listed here for orientation): develop, test, build, release, operate, and recover procedures across environments (dev, stage, prod), including operational runbooks, CI/CD pipeline implementation, and infrastructure management procedures, live in DEVOPS_GUIDE.md (private GitHub repo), not in this repository.
+**Operations** (listed here for orientation): develop, test, build, release, operate, and recover procedures across environments (dev, stage, prod), including operational runbooks, CI/CD pipeline implementation, and infrastructure management procedures, live in DEVOPS_GUIDE.md and AWS_OPERATIONS.md (private GitHub repo), not in this repository.
 
-**Developer Onboarding:** Guidance for software developers joining the project, specifically targetting the Minimum Viable First Page of functionality, to stand up the full tech stack for the first time. Covers technology-specific tutorials, architecture walkthroughs, contribution workflows, troubleshooting, and tips.
+**Developer Onboarding:** The single ordered procedure for contributors: set up a workstation, run the site locally, run the test suite, and learn the architecture, with a lane for each kind of contributor (developer, tester, initial operator). Testers then follow TESTING_GUIDE.md (private dev-tester repository), and bug reports go to the private dev-tester repository.
+
+**Freestyle Guide:** Orientation for maintainers of the freestyle subsystem: what it covers, who owns each fact, and how to change it safely after go-live.
+
+**Claude Code Guide:** How the repository's Claude Code setup works and how to change it safely.
+
+**Project Summary for AI:** `PROJECT_SUMMARY_CONCISE.md`, orientation and routing for AI tools: which document to read for which need.
 
 **Glossary:** Jargon definitions and acronym reference for technical terms for humans.
 
-**Diagrams:** Visual aids to understand system design including system context, infrastructure topology, the data model, data flow diagrams, and security boundaries.
+**Diagrams:** Visual aids: production infrastructure topology, the four-layer software architecture, authentication and session flow, request routing, read and write request flow, and development versus production parity.
 
 **Work tracking** (listed here for orientation): active work, current scope, defects, and accepted implementation deviations are tracked in a private maintainers' repository, a kanban-style issue board, kept private for member-data privacy. The canonical documents above describe design intent and carry no implementation status.
 
@@ -84,13 +92,13 @@ This project's knowledge base has two layers. **Canonical documents** hold durab
 
 These are not documents in the suite; they are the lower-level standards and patterns the canonical docs defer to, each living at its enforcement site so it stays next to the code it governs.
 
-**View-layer standard:** The public-rendering standard (the `PageViewModel<TContent>` contract every page consumes, the reusable primitives, the CSS-vocabulary discipline, and the visual standard) lives in `.claude/rules/view-layer.md`; each page's rendering contract, audience, and sensitive-page invariants (privacy gates, anti-enumeration, owner-only boundaries, public/private profile boundary) live in the owning service's file-header JSDoc; durable view design intent lives in DESIGN_DECISIONS.md §4.
+**View-layer standard:** The public-rendering standard (the `PageViewModel<TContent>` contract every page consumes, the reusable primitives, the CSS-vocabulary discipline, and the visual standard) lives in `.claude/rules/view-layer.md`; each page's rendering contract, audience, and sensitive-page invariants (privacy gates, anti-enumeration, owner-only boundaries, public/private profile boundary) live in the owning service's file-header JSDoc; durable view design intent lives in the Front-End / UI Technology part of Design Decisions; the route list lives in `src/routes/publicRoutes.ts`.
 
-**Service-layer design:** Ownership boundaries for every service under `src/services/**`, the cross-cutting required patterns, and the non-negotiable service invariants live at their enforcement site: each high-stakes service's file-header JSDoc, the path-scoped `.claude/rules/*.md` files, and DESIGN_DECISIONS.md §3–§4 with schema triggers. Pair with code, tests, and TypeScript types for current method shapes.
+**Service-layer design:** Ownership boundaries for every service under `src/services/**`, the cross-cutting required patterns, and the non-negotiable service invariants live at their enforcement site: each high-stakes service's file-header JSDoc, the path-scoped `.claude/rules/*.md` files, and the Back-End Services and Patterns and Data Model parts of Design Decisions, with schema triggers. Pair with code, tests, and TypeScript types for current method shapes.
 
-**Path-scoped rules (`.claude/rules/`):** Cross-cutting AI coding rules (db-layer, service-layer, view-layer, testing, comments, doc-governance, and others) that auto-attach when work happens inside the path they govern.
+**Rules (`.claude/rules/`):** Cross-cutting AI coding rules (db-layer, service-layer, view-layer, testing, comments, doc-governance, and others). Most are scoped to the paths they govern; the asking and memory rules apply everywhere. Before writing code, the matching skill and every touched path's rules are read explicitly.
 
-**Skills (`.claude/skills/`):** Repeatable procedures (add a public page, extend a service contract, write tests, run a doc-sync) that trigger when a task matches them.
+**Skills (`.claude/skills/`):** Repeatable procedures and on-demand knowledge (add a public page, extend a service contract, write tests, run a doc-sync, design intent) that load when a task matches them.
 
 **Service file-header JSDoc:** The per-service and per-page contract: ownership boundary, required patterns, invariants preserved, transaction discipline, persistence, and side-effect categories. Auto-loads with the file every time the service is read.
 
@@ -100,9 +108,9 @@ These are not documents in the suite; they are the lower-level standards and pat
 
 All important design decisions live in one authoritative home, Design Decisions, so the reasoning behind the system is found in a single place. The lower-level implementation standards and patterns (how a page renders, how a service is shaped, how the database layer is called, how a test is derived, naming and SQL conventions) live instead at their enforcement site, next to the code they govern. That placement is what makes the knowledge base efficient for Claude Code:
 
-- **The right contract loads at the right moment.** A service's file-header JSDoc auto-loads whenever the service file is read; a path-scoped `.claude/rules/*.md` auto-attaches when work happens inside its path; a `.claude/skills/*` triggers when a task matches it. The relevant standard arrives in context exactly when the code is touched, without first loading the whole documentation suite.
+- **The right contract loads at the right moment.** A service's file-header JSDoc auto-loads whenever the service file is read; a path-scoped `.claude/rules/*.md` auto-attaches when work happens inside its path; a `.claude/skills/*` triggers when a task matches it. Each standard is found by the path or task it governs, so it is loaded when that code is touched, without first loading the whole documentation suite.
 - **Each fact has one home.** A canonical doc states the design; it does not restate a contract that a JSDoc, rule, or skill already owns. One home per fact minimizes both drift between sources and the tokens spent re-reading duplicated content.
-- **Reading stays selective.** Because durable design intent is separated from enforcement-site detail, an AI reads only the canonical slice a task needs (per the source-of-truth order in CLAUDE.md) and picks up the precise lower-level contract automatically as it edits.
+- **Reading stays selective.** Because durable design intent is separated from enforcement-site detail, an AI reads only the canonical slice a task needs (per the read order in the root `CLAUDE.md`) and loads the precise lower-level contract for each path it edits.
 
 ---
 
@@ -128,7 +136,7 @@ Members can upload media content (photos and links to videos), lead clubs, and l
 
 # 3. Functionality
 
-Complete functional requirements with acceptance criteria are in the User Stories document. The functionality closely follows the legacy footbag.org site, but with usability improvements for members, payments and email integration, secure voting, and much improved admin powers.
+Complete functional requirements with success criteria are in the User Stories document. Not everything here ships at launch: the Release Scope section of User Stories names what follows in later releases, voting and elections and the news feed among them, and those stories are written in full as settled design for that build. The functionality closely follows the legacy footbag.org site, but with usability improvements for members, payments and email integration, secure voting, and much improved admin powers.
 
 The site is a public-facing community hub with a tiered membership model: Visitors can browse public clubs, events, news, tutorials, media, the freestyle trick dictionary, official rules, and public historical records (competition results, world records, Hall of Fame). Members (Tier 0+) authenticate to participate (create a profile, club affiliation, event registration, email preferences, donations/payments, and personal data controls). Tier 1+ Members add community creation (media uploads, galleries/hashtags) and can take on leadership roles by creating clubs and free events. Tier 2+ members unlock advanced eligibility, including the ability to apply for IFPA event sanctioning and sponsorship; payments are a separate capability that may be enabled for events via admin approval.
 
@@ -152,13 +160,13 @@ When system events require administrator attention (event sanction requests, fla
 - Multi-language support (English only, except event info).
 - Advanced analytics and BI.
 - Third-party REST API.
-- Video hosting (except legacy archive).
+- Member video uploads (members link YouTube or Vimeo; the platform hosts only the system account's curated video and the legacy archive's videos).
 - Animated GIFs (use video links).
 - Direct organizer payouts (Stripe Connect).
 - Archive search.
 - Marketplace beyond event registrations and donations.
-- E-Commerce (a store) is a planned future addition. We can raise money and provide cool merch to the community. This might include adding PayPal as a second payment option (after Stripe) for user convenience.
-- Merging the full content from FootbagHallOfFame.net onto Footbag.org is a planned future addition, which will eliminate the cost of hosting that site on SquareSpace.
+- E-Commerce (a store) is a possible later addition. We can raise money and provide cool merch to the community. This might include adding PayPal as a second payment option (after Stripe) for user convenience.
+- Merging the full content from FootbagHallOfFame.net onto Footbag.org is a possible later addition, which would eliminate the cost of hosting that site on SquareSpace.
 
 ## 3.1 Media Content
 
@@ -177,7 +185,7 @@ Members upload photos and share links to videos into named galleries, and then u
 
 **Discovery and browsing**
 
-- Tags are clickable everywhere and open a tag gallery (photos + videos) plus Related Tags (top co-occurring tags). The public /media/browse landing provides Popular Tags and All Tags; All Tags only lists "community tags" used by at least two distinct members.
+- A tag links to its tag gallery (photos + videos) wherever media carries it, and the gallery offers co-occurring tags as filter suggestions. The public /media/browse landing provides Popular Tags and All Tags; both list only public tags: those used by at least two distinct members, plus tags on curator-published content.
 
 **Auto-generated event/club galleries**
 
@@ -219,7 +227,7 @@ The platform supports four lifetime IFPA membership tiers plus a temporary Activ
 - Hall of Fame (HoF): Permanent honor; induction grants Tier 2.
 - Big Add Posse (BAP): Permanent honor; induction grants Tier 2.
 - Board Members: Tier 3 while serving (governance status).
-- Site Administrators: Must be Tier 2 or Tier 3 to be assigned the role.
+- Site Administrators: Hold at least Tier 2; granting the role raises a lower-tier member to Tier 2.
 
 **Official IFPA Roster:**
 
@@ -231,7 +239,7 @@ Standardized member attributes: membership tier (Tier 0, Tier 1, Tier 2, or Tier
 
 ## 3.3 Voting
 
-The platform provides Admin-configurable voting services, using server-side ballot encryption with voter privacy protections and audit logging, giving IFPA full control. Ballots submitted as plaintext over HTTPS and encrypted server-side using AWS KMS envelope encryption before storage. Decryption requires separate privileged role used only in tally operations.
+Voting is a later-release feature; its design is settled. The platform provides Admin-configurable voting services, using server-side ballot encryption with voter privacy protections and audit logging, giving IFPA full control. Ballots submitted as plaintext over HTTPS and encrypted server-side using AWS KMS envelope encryption before storage. Decryption requires separate privileged role used only in tally operations.
 
 A vote could be run for IFPA Board elections, Hall of Fame elections, or single-topic votes for IFPA Board members (for example a rule change). It's all configurable based on member attributes (Tier status, HoF/BAP/Board flags) or explicit inclusion lists, as defined when creating a vote configuration. Admins can run a vote and then act on the results manually.
 
@@ -255,15 +263,15 @@ Note that it is possible to add PayPal as a second option for user convenience i
 
 ## 3.5 Emails
 
-The platform sends all transactional and bulk email via AWS SES using an Outbox pattern that decouples email reliability from request processing. This provides reliable delivery with retries, auditability, and operational controls. Full implementation details (poll interval, retry behavior, dead-letter handling, pause toggle) are in Design Decisions and User Stories SYS_Send_Email. SES bounce/complaint webhooks keep mailing list subscription status current.
+The platform sends all transactional and bulk email via AWS SES using an Outbox pattern that decouples email reliability from request processing. This provides reliable delivery with retries, auditability, and operational controls. Full implementation details (poll interval, retry behavior, dead-letter handling, pause toggle) are in Design Decisions and User Stories SYS_Send_Email. SES bounce and complaint notifications, polled from a queue, keep mailing list subscription status current.
 
-Mailing Lists: Lightweight MailingList and MailingListSubscription entities provide clear, query-friendly model. Event participant lists (organizers only), club member lists (leaders only), IFPA announce list (admins only). Member-controlled subscription preferences stored via MailingListSubscription provide transparency and control. SES bounce and complaint handling keeps email lists clean automatically.
+Mailing Lists: Lightweight MailingList and MailingListSubscription entities provide clear, query-friendly model. Event participant lists (organizers only), the IFPA announce list (Tier 2 and Tier 3 members), and the general lists such as the newsletter (admins only). Member-controlled subscription preferences stored via MailingListSubscription provide transparency and control. SES bounce and complaint handling keeps email lists clean automatically.
 
 ---
 
 # 4. Solution Architecture
 
-The modernized Footbag.org is a traditional web application in which the pages are rendered on the server. Visitors and members use a browser to request pages from AWS CloudFront, which forwards dynamic requests to the Lightsail-hosted web application. The Presentation Layer renders HTML using Handlebars templates, then TypeScript provides interactive behavior in the browser (for usability-enhancing features that need validation/autocomplete/media previews) while page navigation remains server-rendered.
+The modernized Footbag.org is a traditional web application in which the pages are rendered on the server. Visitors and members use a browser to request pages from AWS CloudFront, which forwards dynamic requests to the Lightsail-hosted web application. The Presentation Layer renders HTML using Handlebars templates, then plain per-page JavaScript provides interactive behavior in the browser (for usability-enhancing features that need validation/autocomplete/media previews) while page navigation remains server-rendered.
 
 Controllers handle HTTP requests, calling services and returning HTML or JSON based on request context. Services implement the business rules, and all persistent state is stored in SQLite except for photos. A single TypeScript file, db.ts exports prepared SQL statements, database connection, and transaction helpers. This separation keeps the front end (pages, forms, interactions) clearly distinct from the business logic, which is separated from the back end storage, and AWS infrastructure.
 
@@ -272,8 +280,8 @@ Controllers handle HTTP requests, calling services and returning HTML or JSON ba
 The following key solution architecture decisions define how the new Footbag.org is built. This subsection is a summary only, as later sections of this document and the Design Decisions document provide the full rationale.
 
 - Data storage: All application data (except photos) is stored in a single SQLite database file named `footbag.db`. The application runtime opens that filename directly. Local and production host paths may differ, but Docker/Compose mounts the host directory that contains the DB into the application working directory at `/app/db`, so the WAL and SHM sidecars live alongside the main DB file and are shared across the web and worker containers (the DB is visible at `/app/db/footbag.db`). Photo data is stored in a separate AWS S3 bucket. Queries are expressed as prepared SQL statements in a single `db.ts` module (plus transaction helpers) that services call directly by query name. 
-- Server-rendered web application: The site is a traditional multi-page web application. HTML pages are rendered on the server using Handlebars templates. Client-side TypeScript/JavaScript is used for validation, autocomplete (optional), media previews, and similar conveniences.
-- Four-layer software architecture: The code is organized into Presentation Views, HTTP Controllers, Business Logic Services, and Infrastructure Adapters.
+- Server-rendered web application: The site is a traditional multi-page web application. HTML pages are rendered on the server using Handlebars templates. Client-side JavaScript is used for validation, autocomplete (optional), media previews, and similar conveniences.
+- Four-layer software architecture: The code is organized into Services (business logic), Middleware (cross-cutting HTTP concerns such as authentication and origin pinning), Controllers (per-route HTTP glue), and Adapters (external services), with Handlebars views rendered by the controllers.
 - JWT-based sessions with per-request validation: Members authenticate via short-lived JSON Web Tokens stored in secure cookies, including a passwordVersion field so password changes immediately invalidate old tokens, like this: per-request validation compares JWT passwordVersion claim with the current passwordVersion datum; a password change increments passwordVersion, immediately invalidating all sessions across all devices. Authorization decisions (tier/role) are evaluated against the current database state on each request, not only JWT claims.
 - Immutable audit logs: All state-changing actions are recorded in append-only immutable audit table.
 - Single Lightsail origin with CloudFront CDN: A single Docker-based application instance on AWS Lightsail handles dynamic requests behind an AWS CloudFront distribution.
@@ -310,7 +318,7 @@ For a community site at this scale, the design, development, maintainability, an
 
 **Data Access Pattern:**
 
-All data access occurs through a single database module (db.ts) that exports prepared SQL statements and a transaction helper. Services call prepared statements directly with parameters. All statements are prepared once at application startup for maximum performance (SQLite compiles SQL to bytecode once, reused forever).
+All data access occurs through a single database module (db.ts) that exports prepared SQL statements and a transaction helper. Services call prepared statements directly with parameters. Each statement is prepared on first access through a named getter, so importing the module never depends on the schema being in place.
 
 Statement naming follows consistent pattern: entityByField (memberByEmail, eventById), entitiesByField for arrays (eventsByOrganizer), createEntity (createMember), updateEntity, deleteEntity. Positional parameters (?) prevent SQL injection attacks. Error handling catches specific code for consistency. Transactions acquire write lock immediately, wrapping multi-step operations with automatic commit or rollback.
 
@@ -328,9 +336,9 @@ The platform targets modern browsers and uses JavaScript for interactive feature
 
 Every primary view (home page, event listings, club directory, member dashboard, admin dashboards) is reachable via a stable, bookmarkable URL. When the browser requests such a URL, the server resolves it to a TypeScript Controller function, which invokes a Service method for the business logic if authorized. Page-access authorization decisions are always derived from the current member record in the database on each authenticated request, not from cached JWT claims. This ensures member tier or role changes, and password resets take effect immediately (rather than waiting for JWT expiry). Controllers render full HTML pages using Handlebars templates. Services call prepared SQL statements exported from db.ts (via named query objects) against the SQLite database.
 
-**TypeScript Enhancement:**
+**JavaScript Enhancement:**
 
-Browser-side TypeScript/JavaScript attaches to specific pages for usability enhancements such as inline validation, autocomplete, dynamic filters for lists, file previews, and drag-and-drop for media uploads (if implemented). Templates remain server-rendered by Handlebars. Forms submit via native browser POST; JavaScript acts as a client-side validation gate to catch errors before submission, improving UX but not blocking functionality, as server-side validation is authoritative. The site functions without JavaScript: forms still submit and navigation still works. The one functional exception is Stripe's hosted checkout page, which requires JavaScript as a third-party dependency.
+Browser-side JavaScript attaches to specific pages for usability enhancements such as inline validation, autocomplete, dynamic filters for lists, file previews, and drag-and-drop for media uploads. Templates remain server-rendered by Handlebars. Forms submit via native browser POST; JavaScript acts as a client-side validation gate to catch errors before submission, improving UX but not blocking functionality, as server-side validation is authoritative. The site functions without JavaScript: forms still submit and navigation still works. The one functional exception is Stripe's hosted checkout page, which requires JavaScript as a third-party dependency.
 
 **Page Navigation:**
 
@@ -338,13 +346,13 @@ On the site, each meaningful URL corresponds to a real server-rendered page. Whe
 
 **Static Assets and CDN:**
 
-CSS, JavaScript bundles, images, and fonts are served as static assets via CloudFront CDN using versioned filenames. HTML pages are rendered at the origin and not cached at CloudFront; the Express middleware sets `Cache-Control: private, no-store` on every authenticated response.
+CSS, JavaScript, images, and fonts are served from the origin and cached at CloudFront under a content-hash version token in the URL, computed at runtime with no bundler. HTML pages are rendered at the origin and not cached at CloudFront; the Express middleware sets `Cache-Control: private, no-store` on every authenticated response.
 
-Templates reference assets using versioned URLs so that new deployments do not break older pages that are still cached. Old content-hash asset versions are removed after a configurable retention window (default defined in User Stories); exact cleanup mechanism and lifecycle details are specified in the Design Decisions document.
+Templates reference assets only through the asset helper, which appends the version token, so each deploy refreshes the CDN without an invalidation. Files are overwritten in place on deploy, so old versions never accumulate and no cleanup job is needed.
 
 **Controllers Layer (HTTP Interface):**
 
-Handles HTTP request/response cycle. Parses and validates input using Zod schemas (TypeScript-based validation providing compile-time and runtime safety). Extracts and verifies JWT authentication tokens. Calls appropriate service methods. Maps service responses and errors to HTTP responses. Enforces rate limits and security policies. Controllers act as the reception desk; they receive requests, verify credentials, route appropriately, and format responses.
+Handles HTTP request/response cycle. Parses and validates input against a schema at the trust boundary. Receives the authenticated member from the authentication middleware. Calls appropriate service methods. Maps service responses and errors to HTTP responses, including rate-limit refusals raised by the services. Controllers act as the reception desk; they receive requests, verify credentials, route appropriately, and format responses.
 
 **Controller Pipeline for Form Submissions:**
 
@@ -372,7 +380,7 @@ Contains all domain logic and business rules (documented in each service's file-
 
 Provides abstractions for External Services making them look identical whether running locally (development) or in production. These are code-level abstraction layers in the back end which provide developer-production parity, and allow developers to build and test code without using AWS credentials or live links to the other systems.
 
-- JwtSigningAdapter: `createKmsJwtAdapter` signs JWTs via AWS KMS in production; `createLocalJwtAdapter` signs with a file-based RSA keypair in dev/test. Both use RS256.
+- JwtSigningAdapter: `createKmsJwtAdapter` signs JWTs via AWS KMS in staging and production; `createLocalJwtAdapter` signs with a file-based RSA keypair in dev/test. Both use RS256.
 - SesAdapter: `LiveSesAdapter` sends via AWS SES in production; `StubSesAdapter` captures messages in memory for dev, test, and staging.
 - MediaStorageAdapter: `S3MediaStorageAdapter` for staging/production; `LocalMediaStorageAdapter` for dev. Content-agnostic; handles photos, system-account video bytes, and posters identically.
 - SecretsAdapter: `LiveSecretsAdapter` reads SSM SecureString in staging/production with KMS decryption and lazy in-process cache; `StubSecretsAdapter` is an in-memory map used by tests and by local development, where every consuming adapter runs its own stub and asks it for nothing. Distinct from env-var secrets (`SESSION_SECRET`, host runtime config) which load via dotenv.
@@ -380,7 +388,9 @@ Provides abstractions for External Services making them look identical whether r
 - HttpReachabilityAdapter: `LiveHttpReachabilityAdapter` performs outbound HEAD probes with redirect-follow and per-hop SSRF re-check in production; `StubHttpReachabilityAdapter` in dev/test; `DisabledHttpReachabilityAdapter` opts out of all outbound HTTP from the validation path.
 - ImageProcessingAdapter: `HttpImageAdapter` calls the in-cluster image worker container in all environments; tests inject test doubles.
 - VideoTranscodingAdapter: `HttpVideoTranscodingAdapter` calls the in-cluster image worker container in all environments; tests inject test doubles.
-- PaymentAdapter: Stripe SDK in production, configurable mock responses in development.
+- PaymentAdapter: `createLivePaymentAdapter` (Stripe SDK) in production once payments are armed; `createStubPaymentAdapter`, an in-process Stripe simulation, everywhere else, staging included.
+- NotificationFeedAdapter: polls the queues carrying SES bounce, complaint and alarm notifications in staging and production; an in-memory stub in dev and test.
+- BallotEncryptionAdapter: KMS envelope encryption for ballots in staging and production; a locally keyed implementation in dev and test.
 - CaptchaAdapter: `createLiveCaptchaAdapter` verifies Cloudflare Turnstile in production; `createStubCaptchaAdapter` in dev, test, and staging.
 
 This layer is the translation service. Services call generic interfaces; infrastructure routes to appropriate implementation based on environment (dev, stage, prod).
@@ -404,7 +414,7 @@ The platform could run on any cloud provider (Azure, Google Cloud, DigitalOcean)
 - AWS S3: Object storage with 99.999999999% durability; primary bucket (us-east-1), backup bucket (us-west-2), and archive bucket for footbag.org mirror.
 - AWS CloudFront - Global CDN for caching content at edge locations globally, and serving custom error pages when the origin is unavailable. When the Lightsail origin returns 5xx errors or is unreachable, CloudFront serves a maintenance page from S3. 
 - AWS SES: Email delivery with authentication (SPF, DKIM, DMARC) and bounce handling.
-- AWS Parameter Store: Stores webhook/Stripe secrets and non-key config. JWT tokens are signed with an AWS KMS asymmetric key; signing keys are not stored in Parameter Store. SecureString secrets (organized hierarchically under /footbag/ namespace with /prod/, /staging/, /dev/ environment subpaths) can hold sensitive configuration details that must not be checked into source control.
+- AWS Parameter Store: Stores webhook/Stripe secrets and non-key config. JWT tokens are signed with an AWS KMS asymmetric key; signing keys are not stored in Parameter Store. SecureString secrets (organized hierarchically under /footbag/ namespace with /production/, /staging/, /development/ environment subpaths) can hold sensitive configuration details that must not be checked into source control.
 - AWS CloudWatch: Unified monitoring service for logs, metrics, and alarms.
 - AWS Route 53: DNS service routing traffic to CloudFront distributions.
 
@@ -415,14 +425,14 @@ All AWS services accessed with least-privilege IAM (Identity and Access Manageme
 - Deployed workload runtime assumed role(s) limited to: S3 operations on primary/backup buckets only, SES send operations bounded to the permitted From addresses by policy condition, Parameter Store read-only on /footbag/ namespace, and CloudWatch put metrics/logs as required. The Lightsail host does not rely on an EC2-style instance role attachment; runtime AWS access uses explicit runtime role assumption.
 - Parameter Store uses AWS SecureString encryption.
 - KMS keys have minimal access per security rules.
-- S3 bucket policies deny access except from the application runtime assumed role(s) and approved administrator IAM principals (different from the application-administrator role).
-- MFA delete enabled on backup bucket.
+- Buckets are private: viewer reads come only through CloudFront origin access control, and the application reaches them only through its runtime role's scoped IAM grants.
+- Object Lock in governance mode on the cross-region backup bucket, so no ordinary credential can delete or overwrite a retained snapshot.
 
 **System Administrator vs Application Administrator Roles:**
 
 The platform distinguishes between two distinct administrative roles with different responsibilities and access levels:
 
-- System Administrator (Developer Role): Technical staff responsible for AWS account setup, IAM policy configuration, billing management, infrastructure provisioning, and deployment operations. This role is necessary for initial platform setup and ongoing infrastructure maintenance but does not require access to application-level member data or business operations. Examples: configure CloudWatch job schedules, rotate Stripe keys in Parameter Store via CLI, adjust container memory limits in docker-compose.yml, set up budget alerts and SNS topics, configure SES domain authentication. System administrators have AWS console and CLI access with permissions to manage Parameter Store secrets, S3 bucket policies, CloudWatch configurations, and other infrastructure components.
+- System Administrator (Developer Role): Technical staff responsible for AWS account setup, IAM policy configuration, billing management, infrastructure provisioning, and deployment operations. This role is necessary for initial platform setup and ongoing infrastructure maintenance but does not require access to application-level member data or business operations. Examples: change alarm or job schedules in Terraform, rotate Stripe keys with the reviewed provisioning script, adjust per-container memory limits in `docker-compose.prod.yml`, configure SES domain authentication. Every change reaches AWS only through a reviewed, tested and audited script (Terraform through the apply script, secrets through the provisioning scripts), never by a hand-typed command or a console change, so nothing is applied that the repository does not record.
 - Application Administrator (User Role): IFPA Board members or designated volunteers who manage day-to-day platform operations through the web interface. Application administrators can moderate content, manage member flags, approve event sanctions, handle payment disputes, and access audit logs for governance purposes. This role operates entirely through the web application and has no direct AWS infrastructure access.
 
 This separation follows AWS security best practices for least-privilege access: system administrators manage infrastructure but cannot directly access or modify member data without audit trails, while application administrators manage community operations without infrastructure permissions. All system administrator AWS actions are logged via CloudTrail, and all application administrator actions are logged via the platform's audit logging system.
@@ -432,7 +442,7 @@ This separation follows AWS security best practices for least-privilege access: 
 The platform uses a single controller layer that handles all HTTP interactions. Controllers are HTTP request handlers that:
 
 - Receive and validate HTTP requests (query parameters, form data, JSON payloads)
-- Perform authentication (validate session cookies) and authorization (check member permissions)
+- Receive the authenticated member from the authentication middleware and check authorization (member permissions)
 - Call business services with domain objects
 - Return responses in appropriate format: HTML pages (server-rendered via Handlebars) for browser navigation, JSON data for AJAX requests and webhooks, Proper HTTP status codes and headers.
 
@@ -447,7 +457,7 @@ The platform uses a focused, mainstream technology stack chosen for volunteer ma
 **Front end:**
 
 - Handlebars templates - Server-rendered HTML, no build step required for templates.
-- TypeScript - Required for interactive features; provides client-side validation, type safety, and dynamic behavior. Compiled to JavaScript bundles with content-hash filenames.
+- Per-page scripts - Provide client-side validation and dynamic behavior, delivered without a bundler and versioned by a content-hash token in the URL.
 
 **Back end:**
 
@@ -501,7 +511,7 @@ The Problem: Deleting records breaks references (event references organizer, reg
 
 The Solution: Each entity follows one of three deletion lifecycles depending on its referential and recovery requirements:
 
-- **Grace-period deletion with restore** (members): sets a deleted_at timestamp. The account is immediately inaccessible but can be restored by the member within the configurable grace period. After the grace period, PII is purged and the row is anonymized but retained for referential integrity. Foreign keys use ON DELETE NO ACTION to prevent accidental hard deletes during the grace period.
+- **Grace-period deletion** (members): sets a deleted_at timestamp. The account is immediately and permanently inaccessible, and the platform offers no way to reverse it. The configurable grace period lets an administrator reconcile audits and payments; after it, PII is purged and the row is anonymized but retained for referential integrity. Foreign keys use ON DELETE NO ACTION to prevent accidental hard deletes during the grace period.
 - **Status-based archival** (clubs): sets status = 'archived'. Records are never removed from the database.
 - **Hard delete** (events without results, news items, media): records are immediately and permanently removed. Events with results are always preserved permanently.
 
@@ -509,7 +519,7 @@ Trade-offs: Database table views filter member deleted_at for transparent query 
 
 ## 4.8 Runtime Infrastructure and Cost
 
-Four Docker containers run on a single AWS Lightsail instance (4GB RAM): nginx (reverse proxy), web (Node.js application), worker (background tasks), and image (isolated image/video media processor). Authoritative memory allocations are defined in Design Decisions. At initial allocations, total container memory is approximately 1,920MB (~47% of 4GB), leaving over 2GB headroom for OS and traffic spikes. Memory limits are enforced via docker-compose.yml mem_limit directives. Containers exceeding limits are killed (OOM) with automatic restart. CloudWatch monitors per-container memory with alerts at 80% (warning) and 90% (critical) utilisation. These are initial estimates based on typical workload patterns. Production monitoring will validate allocations and inform adjustments. 
+Four Docker containers run on a single AWS Lightsail instance (4GB RAM): nginx (reverse proxy), web (Node.js application), worker (background tasks), and image (isolated image/video media processor). Authoritative memory allocations are defined in Design Decisions. At initial allocations, total container memory is approximately 1,920MB (~47% of 4GB), leaving over 2GB headroom for OS and traffic spikes. Memory limits are set per container in `docker-compose.prod.yml`, with per-environment values from the committed environment file the deploy seeds onto the host. Containers exceeding limits are killed (OOM) with automatic restart. CloudWatch monitors per-container memory with alerts at 80% (warning) and 90% (critical) utilisation.
 
 **Operational Simplicity:**
 
@@ -517,7 +527,7 @@ This single-instance architecture eliminates common operational burdens: no load
 
 **Container Memory Allocation Rationale:**
 
-Docker containers share host resources. Without explicit limits, one container can consume all available memory, crashing others. The specific memory limits for the nginx, web, worker, and image containers are defined in the Runtime Infrastructure section; this section explains why those limits exist and how they protect overall system stability and cost.
+Docker containers share host resources. Without explicit limits, one container can consume all available memory, crashing others. The specific memory limits for the nginx, web, worker, and image containers are defined in the Container Memory Allocation decision in Design Decisions; this section explains why those limits exist and how they protect overall system stability and cost.
 
 Memory limits provide:
 
@@ -528,20 +538,21 @@ Memory limits provide:
 
 **Estimated Monthly Costs:**
 
-- AWS Lightsail (4GB instance): $40.00 (2 vCPUs, 80GB SSD, 4TB transfer).
-- AWS S3 storage: approximately $3.20 (database backups: approximately $3/month for primary and cross-region backup storage using per-generation lifecycle rules and Object Lock; photos: approximately $0.18/month with 2-variant storage and One Zone-IA backup replication). 
+- AWS Lightsail (4GB instance): $24.00 (2 vCPUs, 80GB SSD, 4TB transfer).
+- AWS S3 storage: approximately $1.20 (database backups: approximately $1/month for primary and cross-region backup storage using per-generation lifecycle rules and Object Lock; photos: approximately $0.18/month with 2-variant storage and One Zone-IA backup replication).
+- Lightsail host snapshots: approximately $1/month (daily, seven retained).
 - AWS S3 requests: $0.05 (Normal read/write volume).
 - AWS CloudFront: $0.00 (Free tier covers expected usage).
-- AWS SES email: $0.00 (Free 62k emails/month from Lightsail).
+- AWS SES email: under $1 (pay per message at community volumes).
 - AWS data transfer: $0.00 (Covered by Lightsail allowance).
  
-**Estimated TOTAL approximately $43 USD.** This estimate DOES NOT INCLUDE domain name costs, and assumes moderate community activity. Costs scale gradually with usage. All services pay-as-you-go.
+**Estimated TOTAL approximately $28 USD.** This estimate DOES NOT INCLUDE domain name costs, and assumes moderate community activity. Costs scale gradually with usage. All services pay-as-you-go.
 
 **Cost Optimization Strategies:**
 
 **No Managed Database:** SQLite runs on same container instance as main application code.
 
-**CloudFront Caching:** Aggressive caching reduces origin requests by 95%, minimizing compute costs and enabling smaller instance size.
+**CloudFront Caching:** Static assets and media are cached at the edge under versioned URLs, so the origin renders only HTML, which keeps the instance small.
 
 **Image Processing:** Re-encoding at 85% quality with metadata stripping reduces storage by 50 to 70%. Smaller storage, lower bandwidth costs.
 
@@ -557,13 +568,9 @@ Memory limits provide:
 
 This cost model remains sustainable even if community doubles or triples in size. At 3,000+ active members, may need to optimize (add selective indexes for specific high-frequency queries) or scale (8GB instance), but architectural changes not required.
 
-**Cost Monitoring:** CloudWatch monitors actual memory usage continuously. If utilization stays consistently below 50%, could down-scale to 2GB in future. If regularly exceeds 80%, would up-scale to 8GB ($40/month). Current allocation follows the typical workload patterns recorded in the design decisions, with a conservative margin for launch; the staging load check calibrates the monitoring thresholds rather than the allocation.
+**Cost Monitoring:** CloudWatch monitors actual memory usage continuously. If utilization stays consistently below 50%, could down-scale to 2GB in future. If regularly exceeds 80%, would up-scale to the 8GB instance. The allocation follows the typical workload patterns recorded in the design decisions, with a conservative margin for launch; the staging load check calibrates the monitoring thresholds rather than the allocation.
 
-AWS CloudWatch alarms notify administrators if:
-
-- Monthly costs exceed a configurable threshold (default $75; DD §9.2 sets the $50-$100 cost ceiling).
-- Any single service exceeds 2x expected cost.
-- Unexpected AWS services appear (indicates misconfiguration).
+Spend is watched against one monthly ceiling, inside the $50 to $100 target set by the Cost Constraints decision in Design Decisions, by two controls: an AWS Budget that emails the operator on actual and forecast spend, and a CloudWatch alarm on estimated charges that raises an alert in the application for an administrator to acknowledge.
 
 ---
 
@@ -573,11 +580,11 @@ AWS CloudWatch alarms notify administrators if:
 
 A common problem in volunteer software projects is that code works on developer laptops but fails in production due to environmental differences. Debugging production issues requires production access. New volunteers spend days setting up environments before contributing.
 
-This project achieves perfect environment parity: identical Docker containers, identical code, identical folder structures in development and production. All environmental differences are hidden behind an abstraction layer.
+Development, staging and production run the same code, the same container shapes and the same folder structure; the default development mode runs the same application directly under Node for fast iteration. All environmental differences are hidden behind an abstraction layer.
 
 ## 5.2 How Parity Works
 
-**Storage Parity:** Same SQLite database file in development (local filesystem) and production (Lightsail local storage). Same schema (run same migration SQL files). Same db.ts module with prepared statements. S3 backup disabled in development via feature flag (ENABLE_S3_BACKUP=false). Perfect parity except backup mechanism. No AWS credentials required for local development (but hybrid mode is possible for integration testing).
+**Storage Parity:** Same SQLite database file in development (local filesystem) and production (Lightsail local storage). Same schema: every database but production is built from schema.sql, and production receives the same changes as numbered migrations, with a parity test holding the two in agreement. Same db.ts module with prepared statements. The backup runs as a host timer on deployed hosts only. No AWS credentials required for local development (but hybrid mode is possible for integration testing).
 
 Implementation switches based on environment. Production uses SQLite database file on Lightsail local storage with S3 backup. Development uses SQLite database file on local filesystem without S3 backup. Services call the same db.ts prepared-statement query objects (wrapped by services) whether running locally or in production and
 receive the same domain data. Services do not depend on environment-specific infrastructure wiring beyond injected adapters/config.
@@ -585,13 +592,13 @@ receive the same domain data. Services do not depend on environment-specific inf
 External Service Stubs implement identical interfaces for dev or production services. Code calls email.send(message) whether running locally or in production. Infrastructure layer routes appropriately. Development and test environments use in-memory stubs (fake or mock implementations) for external services:
 
 - AWS SES: Writes to in-memory queue instead of sending; tests inspect queued emails.
-- Stripe: Returns mock successful payments; can simulate webhooks with fixture files.
+- Stripe: an in-process Stripe simulation drives the checkout through the real signed-webhook handler, in development and on staging.
 - Parameter Store: An in-memory map instead of the AWS API; unseeded it answers nothing, which is what development wants because every consumer runs its own stub.
-- Logging and metrics: Development writes to local files instead of AWS CloudWatch.
+- Logging: every environment writes the same structured JSON logs to standard output; deployed hosts ship them to CloudWatch Logs.
 - URL validation: Deterministic stub validates syntax and patterns without external network requests.
 - AWS KMS (signing): Uses a local stub signer in default dev mode (same JWT algorithm and claims shape). Optional hybrid mode uses real KMS for end-to-end integration testing.
 
-**Contract Testing Validates Parity:** Contract tests verify development stubs correctly implement production behavior. CI pipeline runs contract tests against stubs on every commit (fast feedback under 30 seconds).
+**Adapter Parity Tests Validate Parity:** Adapter parity tests check that each stub honours its live counterpart's interface and the inputs live would refuse, and run with the suite in CI; a staging smoke suite exercises the live AWS adapters against real staging services.
 
 **Hybrid Development Mode:** Developers can optionally integrate with real AWS services during local development by setting a non-production `AWS_PROFILE`. Default mode uses local stubs (fast, no AWS credentials needed). Optional hybrid mode connects to actual S3, SES, Parameter Store, or KMS for integration testing. This local developer-profile path is distinct from the production Lightsail runtime model, where deployed services use root-owned host AWS config/credential material to assume the documented runtime role.
 
@@ -621,7 +628,7 @@ Members (Tier 1+) can upload photos in JPEG or PNG format, with maximum 25MB fil
 
 Processing eliminates malware through re-encoding that converts images to raw pixels and back, discarding everything except visual content. This approach removes the need for antivirus scanning infrastructure. All metadata (EXIF, GPS, camera information, ICC profiles) is stripped for privacy and security. Original uploaded files are discarded after processing, reducing storage requirements.
 
-The platform does not host video files, members can embed videos from YouTube or Vimeo instead. Animated GIFs are not supported due to processing library limitations. Members can view and share processed images but cannot download original high-resolution versions.
+Members do not upload video files; they embed videos from YouTube or Vimeo instead. Curated tutorial video uploaded by the system account is the one hosted video, re-encoded through a full transcode that strips anything but the video and audio streams. Animated GIFs are not supported due to processing library limitations. Members can view and share processed images but cannot download original high-resolution versions.
 
 Benefits Gained: Zero antivirus maintenance, Standardized image quality, Simple deployment, Photo data size reduction.
 
@@ -641,25 +648,25 @@ Uniqueness is enforced via database constraints and case-insensitive unique inde
 
 ## 6.4 Video Content 
 
-The platform does not host user-uploaded video files. Instead, members submit YouTube or Vimeo links, the system validates those URLs, extracts the video IDs, and embeds sandboxed players. This approach avoids the storage and transcoding complexity of hosting video, reduces infrastructure costs, and takes advantage of the global delivery and playback features provided by YouTube and Vimeo.
+The platform does not host member-uploaded video files; the system account's curated tutorial video is the one exception. Instead, members submit YouTube or Vimeo links, the system validates those URLs, extracts the video IDs, and embeds sandboxed players. This approach avoids the storage and transcoding complexity of hosting video, reduces infrastructure costs, and takes advantage of the global delivery and playback features provided by YouTube and Vimeo.
 
-Exception: The legacy videos that have been hosted on footbag.org for decades will be hosted on the new platform's archive. These have all been converted to mp4 format by the mirror program.
+The legacy videos that have been hosted on footbag.org for decades are hosted on the archive. These have all been converted to mp4 format by the mirror program.
 
 ## 6.5 Privacy-First Design
 
 **Minimal Data Collection:** Platform collects only what a stated purpose needs, and each field's purpose is recorded in the governance document. Name, email, city, country and date of birth are required; the date of birth is what matches a member to their old footbag.org account and their competition records, and it is owner-and-admin private. Phone and WhatsApp are optional and default to private. No payment card numbers: Stripe collects those and the platform stores only a customer reference.
 
-**No Tracking:** Zero tracking cookies, analytics scripts, session replay tools, or heatmaps. Only first-party authentication cookie. This eliminates tracking liability and respects user privacy maximally.
+**No Tracking:** Zero tracking cookies, analytics scripts, session replay tools, or heatmaps. Only first-party cookies needed to run the site: the sign-in session, a one-shot notice cookie, and the archive access cookies. This eliminates tracking liability and respects user privacy maximally.
 
-**Data Rights Implementation:** Members can view all stored data, edit profile information, download complete export as JSON, request account deletion (90-day grace period during which the account can be restored, followed by permanent PII purge), and restrict searchability/visibility through profile flags. Public member search shows display name with city and country by default, email is private unless the member opts in.
+**Data Rights Implementation:** Members can view all stored data, edit profile information, download complete export as JSON, request account deletion (permanent from the moment it is confirmed, with personal data purged after a 90-day grace period), and restrict searchability/visibility through profile flags. Member search is for signed-in members only and is never a public directory; it shows display name with city and country, and contact fields stay hidden unless the member opts in, and then only to signed-in members.
 
-**Member Data Export and Deletion:** Members can export their data and request account deletion. Member-requested account deletion is permanent: the account is unreachable from the moment it is confirmed and the platform offers no way back. A 90-day grace period follows before PII is permanently purged and the anonymized member row is retained for referential integrity; the period exists so an administrator can reconcile audits and payments before the personal data is gone, not as a window for the member to return in. A member who deleted in error asks IFPA outside the platform. Photo deletion is immediate and permanent when requested by members. Deleted data may persist in historical database backups until backup retention expiry (90 days). This operational reality is documented in the privacy policy to provide accurate expectations about data removal timelines.
+**Member Data Export and Deletion:** Members can export their data and request account deletion. Member-requested account deletion is permanent: the account is unreachable from the moment it is confirmed and the platform offers no way back. A 90-day grace period follows before PII is permanently purged and the anonymized member row is retained for referential integrity; the period exists so an administrator can reconcile audits and payments before the personal data is gone, not as a window for the member to return in. A member who deleted in error asks IFPA outside the platform. Photo deletion is immediate and permanent when requested by members. Deleted data may persist in historical database backups until each backup ages out under its retention window. Every erasure is recorded, and a restore from backup re-applies the recorded erasures before the restored data is served. This is documented in the privacy policy to set accurate expectations about data removal timelines.
 
-**External URL Support:** Members can publish up to 3 external web page URLs with custom labels (example: "Personal Site", "Instagram", "YouTube Channel") in their profiles. Events, clubs, and galleries can each publish one optional external web page URL. All URLs validated before publication using strict syntax checks (https-only, max length, no credentials, no localhost/private/reserved targets), plus Google Safe Browsing API malware check (free tier). All URLs display with rel="nofollow" attribute for SEO. Failed validation shows clear error message with retry option. The system does **not** fetch user-provided URLs server-side.
+**External URL Support:** Members can publish up to 3 external web page URLs with custom labels (example: "Personal Site", "Instagram", "YouTube Channel") in their profiles. Events, clubs, and galleries can each publish one optional external web page URL. All URLs validated before publication using strict syntax checks (http or https only, max length, no credentials, no localhost/private/reserved targets), plus Google Safe Browsing API malware check (free tier). All URLs display with rel="nofollow" attribute for SEO. Failed validation shows clear error message with retry option. An optional, configurable reachability check sends one HEAD request, re-checking the address against private and reserved ranges at every redirect.
 
 **Data Retention Policy:** Active member data: indefinite until deletion requested.
 
-- Deleted member personal data: 90-day grace period (configurable), then PII permanently purged from primary storage; anonymized row retained for referential integrity. Deleted data may persist in historical backups until backup retention expiry, which is documented as an operational constraint.
+- Deleted member personal data: 90-day grace period (configurable), then PII permanently purged from primary storage; anonymized row retained for referential integrity. Deleted data may persist in historical backups until they age out, and any restore re-applies the recorded erasures before serving.
 - Financial/audit records: anonymized after 90-day member deletion grace period, transaction IDs retained 7 years for compliance.
 - Audit logs retain actorMemberId and entity IDs only, for traceability, and do not store email addresses or hashed emails.
 - Photos and video links: indefinite while member active; immediately and permanently deleted on member request.
@@ -688,7 +695,7 @@ Ballot encryption uses AWS KMS envelope encryption with per-ballot data keys; st
 
 This approach is appropriate for the platform's threat model: Community membership data is not regulated (not HIPAA, not PCI, not financial records). Encryption at rest protects against physical disk theft and some insider threats. AWS handles key management, rotation, and security.
 
-Customer-managed keys via AWS KMS were considered but rejected. Benefits (more control over key rotation, ability to disable keys) do not justify costs (complexity of key management, rotation procedures, additional failure modes, AWS KMS API costs). SSE-S3 with S3-managed keys provides appropriate security for this use case.
+S3 storage encryption uses S3-managed keys (SSE-S3), not a customer-managed KMS key: a second key gate would not constrain a compromised runtime credential, which needs both permissions anyway, and would add failure modes to media rendering, database restore and cross-region replication. Customer-managed KMS keys are reserved for what needs non-exportable custody: session signing, ballot encryption and SecureString parameters.
 
 ## 6.8 Threat Model
 
@@ -732,7 +739,7 @@ Photos are backed up via Amazon S3 cross-region replication separate from databa
 
 **Disaster Recovery (rare):** Restore from the cross-region backup bucket, which receives the promoted hourly and daily snapshots by continuous S3 replication. The recovery point is up to an hour, the interval between promoted points, plus replication lag; photos replicate continuously too, with per-object propagation typically completing within minutes and no formal RPO commitment. Use this for: complete AWS region failure, S3 bucket deletion, catastrophic infrastructure loss.
 
-**Recovery Time Objective (RTO):** Depends on failure scope: routine application/database recovery targets minutes-scale restoration (about 5 minutes for database file restore once operators begin recovery), whereas full regional disaster recovery is hours-scale (2-4 hours).
+**Recovery Time Objective (RTO):** Depends on failure scope: routine application/database recovery targets minutes-scale restoration (about 5 minutes for database file restore once operators begin recovery), The recovery-time objective is four hours for host or application failure in-region and up to twenty-four hours for a cross-region disaster, with the maintenance page served throughout.
 
 The AWS free tier does not provide viable continuous database backup at the required RPO. The selected 5-minute backup interval provides acceptable RPO (5-10 minutes) at minimal cost (approximately $1/month, held there by the per-generation lifecycle rules that expire each generation at the end of its window). This approach balances data protection requirements with budget constraints.
 
@@ -751,15 +758,15 @@ CloudFront exit from maintenance is automatic. When Lightsail origin returns to 
 
 **Recovery:** CloudFront exit from maintenance is automatic. When the origin returns to health, CloudFront resumes normal operation within 10 seconds (error page cache TTL). Origin recovery may require admin intervention (restart/rollback/restore); this procedure is documented in DEVOPS_GUIDE.md (private GitHub repo).
 
-**Monitoring and Alerting:** CloudWatch monitors origin error rates, application health, and resource utilization. Alarms trigger within 2 minutes of failures, notifying administrators via email. Documented recovery procedures enable rapid restoration (typically 15-30 minutes for application issues, up to 2 hours for complete infrastructure restore).
+**Monitoring and Alerting:** CloudWatch monitors origin error rates, application health, and resource utilization. Alarms trigger within 2 minutes of failures, notifying administrators via email. Documented recovery procedures, with host restore from the daily instance snapshot followed by database restore from its own backup stream, meet a four-hour in-region recovery-time objective.
 
-**Regional Outage Handling:** In the extremely unlikely event of extended AWS regional outage, recovery process: restore from cross-region backup bucket (us-east-1) to new Lightsail instance in any available region using documented procedures (2-4 hours). No pre-planned regional failover is maintained; the probability is too low to justify ongoing complexity.
+**Regional Outage Handling:** In the extremely unlikely event of extended AWS regional outage, recovery process: restore from the cross-region backup bucket (us-west-2) to a new Lightsail instance in the recovery region using documented procedures, within the recovery-time objective of up to twenty-four hours. No pre-planned regional failover is maintained; the probability is too low to justify ongoing complexity.
 
 This approach provides high availability appropriate to community scale: reliable infrastructure, rapid recovery, transparent failure modes. NOT achieved through redundant compute instances, multi-region failover, or 24/7 operations.
 
 ## 7.3 Operational Documentation
 
-Refer to DEVOPS_GUIDE.md (private GitHub repo) for more details. It is the authoritative guide for all build, release, operate, and recover procedures, with detailed specifications for:
+Refer to DEVOPS_GUIDE.md and AWS_OPERATIONS.md (private GitHub repo) for more details. It is the authoritative guide for all build, release, operate, and recover procedures, with detailed specifications for:
 
 - Environment model and lifecycle (Dev, Test/Staging, Production).
 - Configuration management and secrets handling.
@@ -769,7 +776,7 @@ Refer to DEVOPS_GUIDE.md (private GitHub repo) for more details. It is the autho
 - Monitoring dashboards and alerting thresholds (CloudWatch-first, with optional tooling guidance).
 - Health endpoints (/health/live and /health/ready) and how they are used in deployment/health checks.
 - Backup validation and disaster recovery drills.
-- Staging data refresh procedures and anonymization policy.
+- Staging data refresh procedures for the real dataset staging carries, and the protections that apply to it.
 - Promotion flows and deployment checklists.
 
 ## 7.4 Infrastructure as Code
@@ -797,9 +804,9 @@ All AWS infrastructure for the platform is defined as code using Terraform confi
 - Route53 DNS records.
 - Budget alerts and cost allocation tags.
 
-**Secrets Management:** Terraform creates AWS Parameter Store parameter structures (paths, encryption configuration) but does not store secret values in version control. Secret values (Stripe API keys, Stripe webhook secrets, and other non-KMS credentials) are set manually via AWS CLI after Terraform creates the infrastructure. JWT signing keys and ballot encryption keys use AWS KMS and are not stored in Parameter Store; their key material remains non-exportable within KMS. KMS keys for JWT signing and ballot encryption are provisioned via Terraform, but key material remains non-exportable within AWS KMS. This separates infrastructure definition (version-controlled) from secret data (not version-controlled).
+**Secrets Management:** Terraform creates AWS Parameter Store parameter structures (paths, encryption configuration) but does not store secret values in version control. Secret values (Stripe API keys, Stripe webhook secrets, and other non-KMS credentials) are set by the reviewed provisioning scripts under `scripts/` after Terraform creates the parameter structure; no value is ever typed into a command line or a console. JWT signing keys and ballot encryption keys use AWS KMS and are not stored in Parameter Store; their key material remains non-exportable within KMS. KMS keys for JWT signing and ballot encryption are provisioned via Terraform, but key material remains non-exportable within AWS KMS. This separates infrastructure definition (version-controlled) from secret data (not version-controlled).
 
-**Operational Discipline:** Manual AWS console changes are prohibited except for emergency troubleshooting. Any permanent changes must be made via Terraform. This discipline ensures Terraform state remains accurate. If manual changes are made, they create drift between Terraform state and actual infrastructure, leading to confusing errors on next terraform apply. For emergency fixes, document the manual change and create a Terraform PR immediately after to bring configuration back in sync.
+**Operational Discipline:** Every change reaches AWS only through a reviewed, tested and audited script: Terraform through the apply script, secrets through the provisioning scripts, with no console or hand-typed exception. A resource that was ever created outside Terraform is declared with an import block and taken in through the apply script, never recreated. This keeps Terraform state accurate and leaves nothing applied that the repository does not record.
 
 Remote state uses an S3 backend with native S3 state locking (`use_lockfile`), preventing concurrent applies that could corrupt state.
 
@@ -811,15 +818,19 @@ Automated testing ensures reliability while enabling rapid volunteer development
 
 **Integration Tests:** Verify HTTP endpoints work end-to-end. Test complete request/response cycles through controllers and services.
 
-**Contract Tests:** Ensure adapter stubs match production service behavior. Validate that development stubs correctly implement production API contracts.
+**Adapter Parity Tests:** Every adapter carries a boot-time configuration test and an interface parity test proving the stub and live implementations behave alike; adapters that reach an external service also carry a read-only staging smoke test.
+
+**End-to-End Tests:** A lightweight Playwright suite drives key flows in a real browser.
+
+The full layering, risk rubric and gates live in the Testing Strategy document.
 
 ## 7.6 Continuous Integration
 
-Every code commit triggers automated GitHub Actions workflow. Runs all tests (unit, integration, contract), performs security scanning, validates TypeScript types, checks code style. Tests must pass before code can merge to main branch.
+Every push to any branch, and every pull request to main, runs the GitHub Actions workflow: type-checking, lint, dependency audit and review, secret scanning, the convention and harness gates, the full test suite with coverage thresholds, browser end-to-end tests, security probes against a locally booted stack, CodeQL static analysis, and Terraform checks.
 
-Contract tests run against local stubs in CI (fast feedback, approximately 30 seconds total). Same contract tests run against real AWS services in pre-release validation (confirms production behavior matches stub expectations).
+A production deploy ships only a commit on main whose CI run is green, so CI on that exact commit is the release's test proof. Adapter parity is proved in CI against stubs and injected fakes, and separately by a read-only staging smoke against the real AWS and third-party services that can be probed safely.
 
-This approach enables rapid local development (no AWS credentials needed) with high confidence in production deployment (real services validated before release).
+This approach enables rapid local development (no AWS credentials needed) with high confidence in production deployment.
 
 ---
 
@@ -842,7 +853,10 @@ A custom Python-based crawler was developed to capture the complete Footbag.org 
 - The mirror cannot fetch login credentials. Legacy passwords are never imported or accepted.
 - Legacy data migration uses two sources: (1) historical pipeline: persons from human-curated CSV, clubs from mirror extraction, events, results, and honors; (2) legacy member import: all legacy registered accounts imported as rows in the `legacy_members` table, which cannot log in and do not appear in any member-facing surface.
 - Imported members connect their legacy identity to a modern account in the onboarding wizard's claim step: the platform matches their verified email, any old emails and former surnames they declare, their name and their date of birth against the old accounts and competition records, and the member claims what is theirs. An old account from the legacy member data needs email or date-of-birth corroboration, however it is reached, while a mirror-built account (which carries neither) and a competition record with no such account behind it are claimable on the name and the surname rule; old addresses are matching keys only and are never mailed. This transfers legacy identity, honors, tier entitlements, and club data to the modern account.
-- Club leaders assigned at bootstrap are leaders. They can manage the club once they register.
+- Club leadership candidates identified at bootstrap confirm their role in the onboarding wizard when they register, and then manage the club; other clubs show their legacy leaders as provisional until a member claims leadership.
+- Migrated data is faithful, complete history from the old footbag.org, with curated human corrections winning over the legacy dump and mirror, and unknown data left unknown, never invented. The data-load pipeline and other pre-go-live tooling serve the migration and retire after it; at cutover the production database becomes the source of truth.
+- Migration is one coordinated go-live: no website, email, DNS, data or application function remains dependent on legacy infrastructure afterward, and every legacy function is migrated, replaced, archived read-only, or retired with notice.
+- The legacy group-mail archive is sealed in private encrypted custody, never imported or published; its disposition is the IFPA secretary's decision.
 
 **Archive Hosting Architecture:**
 
@@ -850,19 +864,18 @@ A custom Python-based crawler was developed to capture the complete Footbag.org 
 - CloudFront distribution serves archive at archive.footbag.org.
 - Aggressive caching (1-year TTL) since content never changes.
 - Minimal ongoing costs.
-- Authentication reuses the main site's member session across the .footbag.org domain and is enforced at CloudFront edge for archive access. Exact cookie naming and JWT validation implementation details are specified in the Design Decisions document.
+- Access is enforced at the CloudFront edge by signed cookies that the main site issues alongside the member session at every sign-in and session refresh. They are scoped to .footbag.org, so one sign-in covers the archive, and they expire with the session. The session cookie itself stays on the main site.
 
 **URL Redirects:**
 
 - The platform never links into the archive's interior, only to its landing page: legacy footbag.org URLs are served the standard not-found page, and archive content is reached by browsing from there.
-- footbagworldwide.net redirects to footbag.org.
 - The mirror program's `redirect_map.json` is an internal crawl artifact, a legacy-URL to legacy-URL de-duplication map the crawler consumes during link rewriting; it is not a serving-time redirect table.
 
 **Access and Governance:**
 
 - Archive accessible to members only, not public (read-only, authentication required).
 - No modifications possible (immutable preservation).
-- Some historical content will be migrated to the new live site for public access, unifying old and new content where appropriate. This will include historical event results, for example.
+- Selected historical content, such as event results, honors and historical-person records, is migrated to the live site for public access.
 - The archive requires member authentication and is served with a noindex directive, so it is neither publicly reachable nor indexed.
 - Initial mirror capture is one-time for launch, no future refresh possible once we switch over to new site.
 
@@ -876,11 +889,11 @@ Legacy data contains private member information not suitable for public viewing.
 
 **Volunteer-Driven Schedule:** Development proceeds on volunteer availability (estimated hundreds of hours). Project structured for parallel work by multiple contributors through clear module boundaries and comprehensive documentation.
 
-**Standard Technology Stack:** Docker, Node.js, TypeScript, Express, Handlebars, AWS, Stripe; widely adopted technologies familiar to millions of developers. Extensive documentation and community support available. No exotic frameworks or custom tools. The platform code and documentation will be open source and version controlled, hosted on Git at https://github.com/davidleberknight/footbag-platform
+**Standard Technology Stack:** Docker, Node.js, TypeScript, Express, Handlebars, AWS, Stripe; widely adopted technologies familiar to millions of developers. Extensive documentation and community support available. No exotic frameworks or custom tools. The platform code and documentation are open source and version controlled, hosted on Git at https://github.com/davidleberknight/footbag-platform
 
 **Clear Solution Architecture:** Uses standard design patterns with obvious separation of concerns. Presentation layer handles front-end layout and user interactivity in the browser, controllers handle HTTP communications with the back end code, services contain business logic and authorization rules, all data operations use prepared SQL statements in a thin database-access layer, all external services accessed through suitable abstract interfaces that allow local development and testing mock services.
 
-**Fast Feedback Loops:** One-command local setup. Live reload of a browser page shows changes immediately. Contract tests verify behavior. Integration tests validate full flows. Data generated via scripts based on legacy footbag.org data creates testing datasets. Best practice DevOps standardized for industry standard CI/CD pipeline.
+**Fast Feedback Loops:** One-command local setup. The development server restarts on every save. Adapter parity tests verify behavior. Integration tests validate full flows. Deterministic synthetic seed data drives development and CI; staging carries the real migrated dataset. Best practice DevOps standardized for industry standard CI/CD pipeline.
 
 ---
 

@@ -1274,4 +1274,21 @@ describe('the convention gate: where the local runner may reach', () => {
     expect(res.exitCode).toBe(1);
     expect(res.stderr).toContain('gate_smoke invokes aws or terraform outside aws_isolated_run');
   });
+
+  // Defect caught: the runner's startup sweep loses its flag and deletes the test
+  // databases of a second run already going, which then fails on a missing table
+  // far from the cause.
+  it('refuses a startup sweep without --stale-only, and accepts it with the flag', () => {
+    const SWEEP_RULE = 'the local runner sweeps only what no live run owns';
+    const anchor = 'source scripts/lib/aws-isolation.sh';
+
+    const bare = inFixtureRepo(runner(plant(anchor, `${anchor}\nbash scripts/clean_up_rubbish.sh`)));
+    expect(bare.exitCode).toBe(1);
+    expect(bare.stderr).toContain('sweeps without --stale-only');
+
+    const spared = inFixtureRepo(runner(plant(anchor,
+      `${anchor}\n# a bare bash scripts/clean_up_rubbish.sh in a comment is not a sweep\nbash scripts/clean_up_rubbish.sh --stale-only`)));
+    expect(spared.exitCode, spared.stderr).toBe(0);
+    expectCheckRan(spared, SWEEP_RULE);
+  });
 });

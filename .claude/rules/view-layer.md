@@ -92,7 +92,7 @@ tier is a design question to raise, never a licence to mint a class.
 | Primary action | The main action of a page, or of each self-contained panel on it when a page serves distinct audiences side by side (the login page's log-in form and its two join panels) | `.btn .btn-primary` |
 | Secondary action | A real action, subordinate to the primary one, including every state-changing control in a list item, a table row or a filter bar | `.btn .btn-outline`, or `.btn .btn-inverse` on a dark gradient panel |
 | Prominent action link | A destination that must read as important without being a button: a cross-link out of a section, a "see all of X" pointer, the page's back link | `.action-link` |
-| Prose link | An ordinary link inside running text | bare `<a>` |
+| Prose link | An ordinary link inside running text; the service shapes linked prose as text and link segments, never an HTML string, and an external one renders through the `externalLink` helper | bare `<a>` |
 | Tag or chip | A clickable filter, tag, or hashtag | `.tag-chip`; a trick hashtag uses the shared hashtag token |
 | Non-clickable token | An identity or status that is not a link | the hashtag token at rest; `.badge` for status |
 

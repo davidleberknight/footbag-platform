@@ -2,9 +2,12 @@
  * scripts/activate-payments.sh — env-file rewrite logic and refusal paths.
  *
  * Real runs prompt for live Stripe credentials and touch SSM and a remote
- * host, which CI cannot exercise. The synthetic --env-file mode operates on
- * a local file with the secrets supplied via STRIPE_SECRET_KEY_VALUE /
- * STRIPE_WEBHOOK_SECRET_VALUE, skipping ssh and aws entirely. These tests
+ * host. The synthetic --env-file mode operates on a local file with the
+ * secrets supplied via STRIPE_SECRET_KEY_VALUE / STRIPE_WEBHOOK_SECRET_VALUE,
+ * skipping ssh and aws entirely; the real-host preamble, up to the terminal
+ * guard, is driven end to end against stand-ins (a stub host, a stub AWS
+ * identity, a credential line on stdin), so the refusals there come from a
+ * real run rather than from the script's text. These tests
  * pin the rewrite contract (replace-or-append with duplicates collapsed),
  * the credential-shape refusals, the SECRETS_ADAPTER=live precondition, the
  * two-step webhook-secret rotation (shift current to previous, install new;
@@ -21,7 +24,9 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
-import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, readFileSync, rmSync, mkdirSync, chmodSync, existsSync } from 'node:fs';
+import { hostIdentityAnswer } from '../fixtures/hostIdentityStub';
+import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -568,12 +573,6 @@ describe('activate-payments.sh — a declined push says what is already written'
     expect(branch).toMatch(/will NOT remove it/);
     expect(branch).toMatch(/Re-run --deactivate/);
   });
-
-  it('no longer claims a deploy rebuilds the host env file unconditionally', () => {
-    // That claim is what made the divergence look self-healing.
-    expect(source).not.toMatch(/the deploy rebuilds the host env file\s*\n?\s*#?\s*from the parameter store on every run/);
-    expect(source).toMatch(/Removal is\s*\n\s*#\s*therefore this script's job alone/);
-  });
 });
 
 describe('activate-payments.sh — prompts never read the credential stream', () => {
@@ -602,9 +601,91 @@ describe('activate-payments.sh — prompts never read the credential stream', ()
     expect(source).not.toMatch(/^\s*read -r CONFIRM\s*$/m);
   });
 
+  /**
+   * A real-host run with no terminal, against stand-ins: the credential line on
+   * stdin, an alias that resolves, a host that answers the identity question as
+   * `hostAnswers` (the target itself by default), and an `aws` whose identity
+   * proof the caller may break. Every connection goes to a stub; the host's
+   * address is a documentation-range one that routes nowhere. Returns the run
+   * and the two files that record whether the host was asked anything and
+   * whether a session past the identity question was opened.
+   */
+  function runRealHostWithoutTerminal(opts: { hostAnswers?: string; awsEnv?: Record<string, string> } = {}) {
+    const caseDir = mkdtempSync(join(tmpDir, 'real-host-'));
+    const stubDir = join(caseDir, 'bin');
+    mkdirSync(stubDir, { recursive: true });
+    const asked = join(caseDir, 'host-asked.txt');
+    const sessions = join(caseDir, 'sessions.txt');
+    writeFileSync(join(stubDir, 'ssh'), [
+      '#!/usr/bin/env bash',
+      'for a in "$@"; do',
+      '  if [[ "$a" == "-G" ]]; then printf "hostname 203.0.113.20\\nuser footbag\\n"; exit 0; fi',
+      'done',
+      `echo "$*" >> "${asked}"`,
+      opts.hostAnswers === undefined ? hostIdentityAnswer() : hostIdentityAnswer(opts.hostAnswers),
+      `echo "$*" >> "${sessions}"`,
+      'exit 0',
+    ].join('\n'));
+    chmodSync(join(stubDir, 'ssh'), 0o755);
+    const pin = join(caseDir, 'pin');
+    writeFileSync(pin, '[203.0.113.20]:22 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFAKE\n');
+
+    const result = spawnSync('setsid', [
+      'bash', SCRIPT, '--target', 'production', '--profile', 'footbag-operator',
+    ], {
+      cwd: process.cwd(),
+      encoding: 'utf-8',
+      input: 'fixture-sudo-password\n',
+      env: {
+        ...process.env,
+        ...(opts.awsEnv ?? awsIdentityStubEnv(caseDir)),
+        PATH: `${stubDir}:${process.env.PATH ?? ''}`,
+        FOOTBAG_KNOWN_HOSTS: pin,
+      },
+      ...SPAWN_GUARD,
+    });
+    return { result, asked, sessions };
+  }
+
   it('refuses the real-host modes outright when there is no terminal to prompt on', () => {
-    // Better to stop than to fall through to a prompt that cannot be answered
-    // and consume the credential file instead.
-    expect(source).toMatch(/no terminal available; this mode has to prompt for secrets/);
+    // Defect caught: with no controlling terminal the run falls through to a
+    // prompt that cannot be answered, rather than stopping before it. Run under
+    // setsid, which leaves the script no terminal, past every earlier check.
+    const { result, sessions } = runRealHostWithoutTerminal();
+    expect(result.status, result.stderr).toBe(1);
+    expect(result.stderr).toMatch(/no terminal available; this mode has to prompt for secrets/);
+    // It stopped at the guard: no session beyond the identity question was opened.
+    expect(existsSync(sessions)).toBe(false);
+  });
+
+  it('refuses before asking the host anything when the AWS identity cannot be proved', () => {
+    // Defect caught: a dead or wrong AWS credential discovered only after the
+    // operator has typed the Stripe key and worked through the Dashboard. The
+    // proof runs first, and a run it fails never reaches the host.
+    const stub = join(tmpDir, 'aws-identity-fails.sh');
+    writeFileSync(stub, [
+      '#!/usr/bin/env bash',
+      'if [[ "$1" == "configure" && "$2" == "list-profiles" ]]; then echo footbag-operator; exit 0; fi',
+      'echo "An error occurred (ExpiredToken)" >&2',
+      'exit 255',
+    ].join('\n'));
+    chmodSync(stub, 0o755);
+    const { result, asked } = runRealHostWithoutTerminal({
+      awsEnv: { AWS_PROFILE_BIN: stub, AWS_IDENTITY_BIN: stub },
+    });
+    expect(result.status, result.stderr).toBe(1);
+    expect(result.stderr).not.toMatch(/no terminal available/);
+    expect(existsSync(asked)).toBe(false);
+  });
+
+  it('refuses a host that records another environment before the first prompt', () => {
+    // Defect caught: the parameter paths follow the label and the env file
+    // follows the host, so a host that is not the target splits one activation
+    // across two environments, found only after the operator's work is done.
+    const { result, sessions } = runRealHostWithoutTerminal({ hostAnswers: 'staging' });
+    expect(result.status, result.stderr).toBe(1);
+    expect(result.stderr).toMatch(/records FOOTBAG_ENV=staging/);
+    expect(result.stderr).not.toMatch(/no terminal available/);
+    expect(existsSync(sessions)).toBe(false);
   });
 });

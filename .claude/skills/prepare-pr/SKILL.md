@@ -21,7 +21,7 @@ Read:
 
 ## Step 3: Verify architecture compliance
 
-Path-scoped rule files in `.claude/rules/` (read each touched path's rule yourself, per root `CLAUDE.md` rule 8) define the non-negotiable patterns for service, controller, template, view-layer, and db-layer work. Confirm the change complies. Public-page work also follows the `.claude/rules/view-layer.md` rendering invariants and the owning service's file-header JSDoc; service-boundary work also follows the service's file-header JSDoc ownership and required patterns. Intentional deviations land as private-tracker issues.
+Path-scoped rule files in `.claude/rules/` (read each touched path's rule yourself, per the pre-writing-code gate in root `CLAUDE.md`) define the non-negotiable patterns for service, controller, template, view-layer, and db-layer work. Confirm the change complies. Public-page work also follows the `.claude/rules/view-layer.md` rendering invariants and the owning service's file-header JSDoc; service-boundary work also follows the service's file-header JSDoc ownership and required patterns. Intentional deviations land as private-tracker issues.
 
 Flag any violations explicitly in the summary.
 
@@ -31,7 +31,7 @@ Include:
 - **What changed**: concise description of behavior added, fixed, or removed
 - **Why**: user story, bug, or decision that drove it
 - **Key files changed**: list with one-line notes on the role of each
-- **Tests**: what integration tests cover the change; pass/fail status
+- **Tests**: the tests added or changed and the evidence the `write-tests` report carries for them (defect caught, criteria covered, red-then-green, surviving breaks on a high-risk change, new exemptions with reasons); pass/fail status
 - **Type-check**: `tsc` pass/fail
 - **Architecture compliance**: confirm the rules above or flag any deviations
 - **Risks and tradeoffs**: anything a reviewer should scrutinize

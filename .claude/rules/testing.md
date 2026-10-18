@@ -21,16 +21,16 @@ Strategy and rationale (how to derive, layer and verify tests, and why each rule
 
 ## Mandate
 
-1. **Every bug fix includes a regression test** that fails against the pre-fix code and passes after the fix. A bug in a class with a sweep lands as a row of that sweep.
-2. **Every new feature covers its edge cases**, not only the happy path; the lists below are the floor.
-3. **Every service contract change includes shape assertions**: a new method, return shape, error class or validation each gets an explicit test.
+1. **Every bug fix includes a regression test** that fails against the pre-fix code and passes after the fix. The fix states why the existing suite missed it and names the defect class, and the test catches the class, not only the instance: a bug in a class with a sweep lands as a row of that sweep.
+2. **Every new feature covers its edge cases**, not only the happy path; the lists below are the floor. Where a generative sweep already proves a floor item for the route, the floor item is the sweep row, not a new per-route case.
+3. **Every service contract change includes shape assertions**: a new method, return shape, error class or validation each gets an assertion on what it adds, inside a case that exercises it. A field the types already guarantee needs none.
 4. **Tests land in the same diff as the code they cover.** Never "add tests later".
 5. **An unexpected `logger.error()` fails the test.** A global spy in `tests/setup-env.ts` fails any test producing a `logger.error()` not opted in via `expectLoggedError(pattern)`.
-6. **Every test is demonstrated to fail** (the demonstrated-failure requirement). Break the code it covers (invert the condition, delete the guard, return the other branch), confirm it goes red for that reason, and restore. Do this per test for a regression test and for every test on the high-risk areas (auth and session, payments, member privacy, identity claim, erasure); elsewhere once per distinct branch or behaviour a group of tests covers. A test that passes against broken code asserts nothing, and no threshold detects it: coverage is satisfied by any test that merely executes a line. The `write-tests` skill carries the procedure.
+6. **Every test is demonstrated to fail** (the demonstrated-failure requirement). Break the code it covers (invert the condition, delete the guard, return the other branch), confirm it goes red for that reason, and restore. Do this per test for a regression test and for every test on the high-risk areas (auth and session, payments, member privacy, identity claim, erasure, and any destructive, irreversible or outward-facing action); elsewhere once per distinct branch or behaviour a group of tests covers. A test that passes against broken code asserts nothing, and no threshold detects it: coverage is satisfied by any test that merely executes a line. On the high-risk areas a reviewer agent that did not write the tests also chooses about five to ten one-line breaks to the changed code; each runs against the affected test files only, every surviving break gets a stronger test, and the tried and surviving counts are reported. The `write-tests` skill carries the procedure.
 7. **Every assertion names the defect it catches** (the name-the-defect mandate). State in one sentence what a visitor, member, admin or operator would experience if the code broke the way the assertion detects. If the only sentence is "somebody changed this copy on purpose", it is a change-detector: only a deliberate edit to the text or table it asserts can fail it, and it is not written. The four shapes that assert words and still pass are the strategic anti-patterns in `docs/TESTING.md`.
-8. **Every acceptance criterion of the motivating story is exercised by at least one test.**
+8. **Every success criterion of the motivating story is exercised by at least one test.**
 
-Do not ask whether to add tests. Add them.
+Do not ask whether to add tests. Add each one that catches a named defect no existing test or sweep catches; where a sweep owns the class, add its row instead.
 
 ## Scope of a verification run
 
@@ -42,7 +42,7 @@ A CI job or step must be reachable from `npm run test:quick` or the bare runner,
 
 ## What "edge cases" means
 
-For every public-facing route:
+For every public-facing route, each item that applies to it (a sweep row counts, per mandate 2):
 
 - Happy path — correct HTTP status, the data and state the story promises rendered (not static copy), expected redirects.
 - Authentication gate — 302 redirect if unauthenticated, 200 if authenticated (for protected routes).
@@ -64,8 +64,8 @@ For every service method:
 - Member state — a path that mails, lists or counts members covers deceased, purged, unverified and bounced members beside a live one.
 - Idempotency — repeating an operation with the same key returns the same id/outcome; a state-changing form on a path the submitted-twice rule covers, submitted twice, reports the first outcome and leaves domain, audit, outbox and rate-limit row counts unchanged.
 - Error classes — every `throw` path has a test that asserts the thrown class and the message shape.
-- Boundary values — zero rows, one row, N rows, N+1 rows, empty strings, unicode, NULLs, extreme dates.
-- Edge cases from the relevant `docs/USER_STORIES.md` story (acceptance criteria) and the owning service's file-header JSDoc (ownership boundary and required service-layer patterns; current method shapes are authoritative in TypeScript and tests). Read the story before writing the test.
+- Boundary values — the ones the method's own logic decides on, from zero rows, one row, N rows, N+1 rows, empty strings, unicode, NULLs and extreme dates; a boundary no branch reads is not a case.
+- Edge cases from the relevant `docs/USER_STORIES.md` story (success criteria) and the owning service's file-header JSDoc (ownership boundary and required service-layer patterns; current method shapes are authoritative in TypeScript and tests). Read the story before writing the test.
 
 For every pure function / shaping helper:
 
@@ -136,13 +136,13 @@ Three scans in `scripts/ci/assert_conventions.sh` are advisory and print a warni
 
 Thresholds are set in `vitest.config.ts` and enforced by the CI `coverage` job on every push. Each sits about a point under measured coverage; only a human raises one, and none is lowered to admit new code.
 
-Auth, session, member privacy, payments and identity claim have no per-path threshold; their floor is the demonstrated-failure requirement.
+Auth, session, member privacy, payments, identity claim and erasure have no per-path threshold; their floor is the demonstrated-failure requirement.
 
-New source files must land with tests that keep coverage at or above the current floor.
+New source files land with tests that each catch a named defect. Where that leaves coverage under the floor, report the drop and the uncovered lines to the maintainer rather than adding a test that only executes them; an uncovered line with no defect sentence is a candidate for deletion.
 
 ## Adapter parity
 
-An adapter change lands with three tests: boot config in `tests/unit/env-config.test.ts`, interface parity in `tests/integration/adapter-parity.test.ts` (an injected fake client, never a mocked SDK), and a staging smoke in `tests/smoke/` only where the live call mutates nothing. The full contract is in `.claude/rules/adapter-conventions.md`.
+An adapter change lands with the three-test contract in `.claude/rules/adapter-conventions.md`, which also holds the stub-strictness rule.
 
 ## Tests never write real data (hard invariant, by design)
 

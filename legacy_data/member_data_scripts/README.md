@@ -30,8 +30,10 @@ column header is found.
 The private checkout exists only on a maintainer machine. Without it, the load
 refuses with the missing path named, and a `--all-data` build refuses before any
 destructive step. A development database built without it (`./run_dev.sh
---reset`) carries no legacy member accounts, which is the correct state for local
-development and CI.
+--reset`) carries no member data: its `legacy_members` rows are the system
+fixtures every build seeds from the club rosters and canonical persons (an id and
+a display name), the Footbag Hacky fixture and, by default, the test personas.
+That is the correct state for local development and CI.
 
 ## Maintainer-only, cutover-time load
 

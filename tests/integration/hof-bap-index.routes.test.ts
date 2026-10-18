@@ -47,6 +47,24 @@ describe('GET /hof — editorial landing page', () => {
     expect(res.text).toContain('href="https://www.footbaghalloffame.net/"');
   });
 
+  // Defect caught: the history's links to the pioneers' own pages render as
+  // escaped markup, point somewhere else, or open without the safe attribute set.
+  it('links the named pioneers to their pages on the honor\'s site, as safe external links', async () => {
+    const res = await page('/hof');
+    for (const [slug, name] of [
+      ['mike-marshall', 'Mike Marshall'],
+      ['john-stalberger', 'John Stalberger'],
+      ['ken-shults', 'Kenny Shults'],
+    ]) {
+      const anchor = res.text.match(
+        new RegExp(`<a href="https://www\\.footbaghalloffame\\.net/our-members/${slug}"[^>]*>${name}</a>`),
+      );
+      expect(anchor, name).not.toBeNull();
+      expect(anchor![0], name).toContain('target="_blank"');
+      expect(anchor![0], name).toMatch(/rel="[^"]*noopener[^"]*"/);
+    }
+  });
+
   it('carries no inductee roster', async () => {
     const res = await page('/hof');
     expect(res.text).not.toContain('Inductees');

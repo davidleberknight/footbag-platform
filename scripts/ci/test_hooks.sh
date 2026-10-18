@@ -648,10 +648,10 @@ expect "$H" 'find . -delete' defer
 
 H=guard-full-suite-vitest.sh
 
-# A whole-tree vitest run collects the Playwright specs under tests/e2e, so it must
-# ask; a run naming a path below tests/, or one excluding tests/e2e, defers, as do
-# the npm scripts. A bare tests/ target is the whole tree, and an exclude that
-# leaves tests/e2e in removes nothing that matters, so both still ask.
+# A run that names nothing narrower than a whole tier is the full gate, which is the
+# maintainer's to start, so it asks: an untargeted run with or without excludes, a bare
+# tests/ target, and a whole tests/unit or tests/integration tier. A run naming a file
+# or folder below a tier defers, as do the npm scripts, which sit in permissions.ask.
 expect "$H" 'npx vitest run' ask
 expect "$H" 'vitest run' ask
 expect "$H" 'node_modules/.bin/vitest run' ask
@@ -668,12 +668,24 @@ expect "$H" 'npx vitest run --testNamePattern=tests/x' ask
 expect "$H" "npx vitest run --exclude 'tests/e2e/helpers/**'" ask
 expect "$H" "npx vitest run --exclude 'tests/e2e-old/**'" ask
 expect "$H" 'npx vitest run -t "a name" tests/unit/x.test.ts' defer
-expect "$H" 'npx vitest run --exclude tests/e2e' defer
+expect "$H" 'npx vitest run --exclude tests/e2e' ask
 expect "$H" 'npx vitest run tests/integration/x.test.ts' defer
-expect "$H" 'npx vitest run ./tests/unit/' defer
+expect "$H" 'npx vitest run ./tests/unit/' ask
+expect "$H" 'npx vitest run tests/integration' ask
+expect "$H" 'npx vitest run tests/integration --shard=1/3' ask
+expect "$H" 'npx vitest run tests/unit/fixtures/' defer
+# One targeted run in a compound command cannot clear a whole-tree run beside it, and
+# a glob or a dot over a tier is the whole tier.
+expect "$H" 'npx vitest run tests/unit/a.test.ts && npx vitest run' ask
+expect "$H" 'npx vitest run tests/unit/a.test.ts; npx vitest run tests/integration' ask
+expect "$H" 'npx vitest run tests/unit/*' ask
+expect "$H" 'npx vitest run tests/u*' ask
+expect "$H" 'npx vitest run tests/unit/.' ask
+expect "$H" 'npx vitest run tests/unit/a.test.ts && npx vitest run tests/integration/b.test.ts' defer
+expect "$H" 'npx vitest run tests/unit/a*.test.ts' defer
 expect "$H" "npx vitest run tests/integration/x.test.ts --exclude 'tests/smoke/**'" defer
-expect "$H" "npx vitest run --exclude 'tests/e2e/**'" defer
-expect "$H" "vitest run --exclude 'tests/smoke/**' --exclude 'tests/e2e/**' --exclude 'tests/dev/**'" defer
+expect "$H" "npx vitest run --exclude 'tests/e2e/**'" ask
+expect "$H" "vitest run --exclude 'tests/smoke/**' --exclude 'tests/e2e/**' --exclude 'tests/dev/**'" ask
 expect "$H" 'npm test' defer
 expect "$H" 'npm run test:integration' defer
 expect "$H" './run_all_tests.sh' defer

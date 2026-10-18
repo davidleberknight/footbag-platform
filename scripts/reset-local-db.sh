@@ -156,13 +156,16 @@ else
   sqlite3 "${DB_FILE}" "INSERT INTO system_config (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id) VALUES ('cfg_dev_outbox_poll', strftime('%Y-%m-%dT%H:%M:%fZ','now'), 'outbox_poll_interval_seconds', '2', strftime('%Y-%m-%dT%H:%M:%fZ','now'), 'Local dev fast outbox poll so the captured-email viewer updates promptly', NULL);"
 fi
 
-# TEMP-DEVIATION: legacy_members seed source.
-# Current: legacy_members is seeded from the mirror-derived extract before
-#   historical_persons loads, so the FK historical_persons.legacy_member_id
-#   -> legacy_members(legacy_member_id) is satisfied by script 08 below.
-# Target: replace the mirror-derived seed with the authoritative legacy-site
-#   data export when it becomes available.
-echo "  → Loading legacy_members seed (temporary, mirror-derived)..."
+# Seed legacy_members with system fixtures: one row per member id the committed
+# club rosters name, plus any id a canonical historical person carries that no
+# roster names, each holding only a display name and
+# import_source='system_fixture'. The canonical load binds
+# historical_persons.legacy_member_id with foreign keys enforced, so these parent
+# rows must exist before it, on every build. When the legacy member load runs, it
+# updates each fixture its member CSV covers in place and marks it
+# 'legacy_site_data'. A fixture it leaves behind is an uncovered row, and a
+# production database ships only once each one carries a recorded decision.
+echo "  → Seeding legacy_members fixtures from the club rosters and canonical persons..."
 "${PYTHON}" legacy_data/scripts/load_legacy_members_seed.py --db "${DB_FILE}"
 }
 

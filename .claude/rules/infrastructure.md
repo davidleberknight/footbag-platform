@@ -132,7 +132,9 @@ which leaves no previous initialization to reuse, and add
 `-plugin-dir=.terraform/providers` where a local mirror exists so the providers
 already on disk are reused rather than re-downloaded. Applying, planning against
 real state, and any state mutation are human-run operator actions, not agent
-actions.
+actions. Before go-live no state holds anything that must survive, so moving,
+rebuilding or discarding it is the cheap option to recommend, never a reason to
+call the work hard or operator-only; this sentence retires at go-live.
 
 ## Check how the thing is actually reached before adding a resource for it
 

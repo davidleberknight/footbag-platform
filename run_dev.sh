@@ -142,7 +142,7 @@ Opt-outs (valid only in the mode that turns the axis on by default):
   --no-personas    Skip the canonical persona-catalog seed.
                    Valid with --from-csv or --soup-to-nuts.
 
-Test-data personas (CUTOVER-REMOVE; combinable with any rebuild mode):
+Test-data personas (combinable with any rebuild mode):
   --seed-test-personas Seeds the canonical persona catalog via
                    scripts/manage-test-personas.sh. Switch between them in a
                    browser at http://localhost:3000/dev/switch?as=<slug>.
@@ -379,7 +379,7 @@ else
   fi
 fi
 
-# CUTOVER-REMOVE: optional test-data persona seed. Runs after DB bootstrap so
+# Optional test-data persona seed. Runs after DB bootstrap so
 # the harness has a database to insert against. Refuses on production
 # (manage-test-personas.sh enforces); allowed on development and staging.
 if (( SEED_TEST_PERSONAS == 1 )); then
@@ -387,7 +387,7 @@ if (( SEED_TEST_PERSONAS == 1 )); then
   bash scripts/manage-test-personas.sh --seed-test-personas
 fi
 
-# CUTOVER-REMOVE: default persona refresh. Runs after DB bootstrap for the same
+# Default persona refresh. Runs after DB bootstrap for the same
 # reason the seed does. A persona whose spec changed since this database was
 # seeded would otherwise keep its old rows and read as a broken feature, which
 # is a slow, misleading failure; rebuilding it costs only persona-owned test

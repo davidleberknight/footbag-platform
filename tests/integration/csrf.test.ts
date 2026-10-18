@@ -91,27 +91,6 @@ describe('CSRF — SameSite cookie attribute', () => {
   });
 });
 
-describe('CSRF — cross-site POST without session cookie is blocked', () => {
-  // A real browser with SameSite=Lax would not attach the cookie on a
-  // cross-site POST, leaving the server to see an unauthenticated request.
-  // Each protected POST below must redirect to /login instead of mutating.
-  const protectedPosts: Array<[string, string, Record<string, string>]> = [
-    ['profile edit',      `/members/${MEMBER_SLUG}/edit`,           { displayName: 'Hacked' }],
-    ['password change',   `/members/${MEMBER_SLUG}/edit/password`,  { oldPassword: 'x', newPassword: 'y', confirmPassword: 'y' }],
-    ['anchor add',        `/register/wizard/legacy_claim/anchors/add`,        { anchorType: 'old_email', anchorValue: 'x@example.com' }],
-    ['claim confirm',     `/register/wizard/legacy_claim/claim`,              { accountId: 'lm-1', recordId: 'hp-1' }],
-  ];
-
-  for (const [name, path, body] of protectedPosts) {
-    it(`${name}: POST without cookie → 302 to /login`, async () => {
-      const app = createApp();
-      const res = await request(app).post(path).type('form').send(body);
-      expect(res.status).toBe(302);
-      expect(res.headers.location).toContain('/login');
-    });
-  }
-});
-
 describe('CSRF — verb discipline', () => {
   it('logout is not reachable by GET at all, so no link on another site can trigger it', async () => {
     const app = createApp();

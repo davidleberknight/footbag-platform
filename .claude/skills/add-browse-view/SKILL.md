@@ -171,7 +171,6 @@ family-, set- and modifier-view suites) covering:
 4. **Within-group ordering**: assert the sort with an example spanning three or more ADD values
 5. **Empty-group hiding**: groups with zero members render no anchor
 6. **Intentional duplication** where a trick can appear in several groups (set, modifier)
-7. **Row contract**: the view renders `dict-trick-row-stack` and at least one `data-trick-slug=`
 
 The cases read one shared response per path, per the repeated-requests anti-pattern in `.claude/rules/testing.md`.
 

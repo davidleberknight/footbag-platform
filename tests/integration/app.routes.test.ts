@@ -805,7 +805,8 @@ describe('GET /hof', () => {
     const res = await page('/hof');
     expect(res.text).not.toContain('[object Object]');
     expect(res.text).not.toContain('}}');
-    expect(res.text).not.toContain('render is safe');
+    // Link markup held in paragraph text would show as escaped tags.
+    expect(res.text).not.toContain('&lt;a ');
   });
 });
 
@@ -816,7 +817,8 @@ describe('GET /bap', () => {
     const res = await page('/bap');
     expect(res.text).not.toContain('[object Object]');
     expect(res.text).not.toContain('}}');
-    expect(res.text).not.toContain('render is safe');
+    // Link markup held in paragraph text would show as escaped tags.
+    expect(res.text).not.toContain('&lt;a ');
   });
 });
 

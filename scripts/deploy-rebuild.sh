@@ -248,20 +248,10 @@ fi
 # Resolve it once here and use that one value for
 # the upload and for the root-side promotion, exactly as the code deploy does. The
 # root half cannot derive it: it runs as root, so a `~` there names root's home, and
-# a literal there names whichever account the literal was written for.
-#
-# This script used to carry that literal and refuse any connecting account but the
-# shared one, which stopped a destructive success at the cost of locking a
-# dev-and-tester out of the rebuild path entirely.
-#
-# Current: the staging tree lives in the connecting account's own home, so the
-#          path varies by connecting account and both halves are kept in step by
-#          passing the resolved value and by the release stamp below.
-# Target:  one fixed staging location outside every account's home, group-owned,
-#          that every account, script, runbook and diagnostic can name. The
-#          stamp is already part of that design; the location is not built. Until
-#          it is, no script may name an account's home, which a conventions check
-#          enforces.
+# a literal there names whichever account the literal was written for and locks
+# every other account out of this path. The release stamp below is what proves the
+# promoted tree, database included, is the one this run wrote. No script names an
+# account's home, which a conventions check enforces.
 REMOTE_HOME="$(ssh "${SSH_OPTS[@]}" "$REMOTE" 'printf %s "$HOME"' </dev/null)"
 # Absolute, not merely non-empty. This captures the remote shell's whole stdout, so
 # a host whose profile prints a banner or a version-manager line for a

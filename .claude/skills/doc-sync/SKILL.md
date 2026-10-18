@@ -1,6 +1,6 @@
 ---
 name: doc-sync
-description: Detect documentation drift against current code and confirmed decisions, then propose only the smallest accurate doc updates. Never edit docs without explicit human approval. Use when user asks whether docs need updating, code behavior has changed, interfaces or identifiers have changed, or suspected drift needs investigation. For a full-surface audit across all canonical docs, use the bug-hunt skill's full doc-sync audit (explicit request only), not this skill.
+description: Detect documentation drift against current code and confirmed decisions, then propose only the smallest accurate doc updates. Never edit docs without explicit human approval. Use when user asks whether docs need updating, code behavior has changed, interfaces or identifiers have changed, or suspected drift needs investigation. Its full-audit mode (FULL_AUDIT.md) runs the mechanical hygiene detectors across the whole documentation universe; that mode runs on a request by name for a "full doc-sync audit", "extended doc sync" or "doc hygiene audit", never inferred.
 ---
 
 # Doc Sync
@@ -24,6 +24,18 @@ Do not use this skill for:
 - speculative architecture work
 - broad documentation improvement passes unrelated to actual drift
 
+## Full audit (explicit request only)
+
+When the user asks for a "full doc-sync audit", "extended doc sync" or "doc hygiene audit"
+by name, and never otherwise, run the method in `FULL_AUDIT.md` beside this file: enumerate
+the documentation universe, run the mechanical detectors (banned stale tokens, broken
+internal references, bare section-number locators, doc paths and section shorthands in
+code comments, sprint and date markers, console logging) over all of it, confirm every
+survivor by inspection, aggregate systemic patterns, and present the findings under the
+same human-in-the-loop and smallest-fix rules as the change-driven mode. A finding that is
+a code-against-document discrepancy about behavior, rather than a hygiene defect, is the
+`bug-hunt` skill's discrepancy lane, and is listed as a hand-off rather than fixed here.
+
 ## Source-of-truth order
 
 Use the authority order and read order in root `CLAUDE.md`; do not restate them here. For membership, tiers, Active-Player status, voting eligibility, or published-rules content, consult the IFPA governing documents at the rank that order gives them; a genuine governance change is routed to IFPA, not edited in.
@@ -32,11 +44,11 @@ When code, plan, and derived docs disagree, surface the drift explicitly. Do not
 
 ### Final design vs implementation deviation (apply before proposing any edit)
 
-Canonical docs (`docs/USER_STORIES.md`, `docs/DESIGN_DECISIONS.md`, `docs/DATA_MODEL.md`, `docs/DIAGRAMS.md`, `docs/GLOSSARY.md`, `PROJECT_SUMMARY*`, per-service JSDoc) describe the **final, target design** — not the current build state. Code and infrastructure (including `terraform/**` and `docker/**`) are authoritative ONLY for *implemented behavior*, never for *design intent*.
+Canonical docs (`docs/USER_STORIES.md`, `docs/DESIGN_DECISIONS.md`, `docs/DATA_MODEL.md`, `docs/DIAGRAMS.md`, `docs/GLOSSARY.md`, `PROJECT_SUMMARY*`, per-service JSDoc) describe the **final, target design** — not the current build state. Code and infrastructure (including `terraform/**` and `docker/**`) are evidence of implemented behavior only (the `design-intent` skill).
 
-So when current code or infra disagrees with a canonical doc, **the default is NOT "the doc is drifted."** Classify the gap as exactly one of:
+So when current code or infra disagrees with a canonical doc, **the default is NOT "the doc is drifted."** Classify the gap as exactly one of the cases below, and where the intent does not make the classification clear, ask the human with the case you recommend:
 
-1. **The doc is genuinely wrong** — internally inconsistent, contradicts the actual final design (one canonical doc vs another, a diagram vs `DESIGN_DECISIONS.md`), or states a stale descriptive fact. → propose the smallest canonical-doc edit.
+1. **The doc is genuinely wrong** — internally inconsistent, contradicts the actual final design (one canonical doc vs another, a diagram vs `DESIGN_DECISIONS.md`), states a stale descriptive fact, or no longer matches clear design intent (a later human decision or a governing document). → propose the smallest canonical-doc edit.
 2. **The implementation has truly deviated from the final design** — a built thing works differently than the final design says. → record the deviation as a private-tracker issue labeled `bug` (drafted per the `tracker-ops` skill). **Never edit the canonical doc down to match the current implementation.**
 3. **The feature is simply not built yet** (future work). → neither a doc edit nor automatically a tracker issue; it is roadmap, not drift.
 
@@ -140,7 +152,7 @@ Change only the approved text: no opportunistic cleanup, no adjacent rewriting, 
 
 ## Guardrails
 Do not:
-- infer intent not supported by code or explicit human direction
+- infer intent not supported by the design sources or explicit human direction
 - treat comments as authoritative if code behavior differs
 - edit a canonical (final-design) doc to match current code or infrastructure; an implementation that diverges from the final design is a deviation to record as a private-tracker issue, not a reason to rewrite the doc
 - mix confirmed drift with speculative improvements

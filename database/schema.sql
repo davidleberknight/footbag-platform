@@ -4490,7 +4490,7 @@ CREATE TABLE legacy_members (
   legacy_was_board_at_cutover INTEGER NOT NULL DEFAULT 0 CHECK (legacy_was_board_at_cutover IN (0,1)),
 
   -- Import audit
-  import_source TEXT,                 -- 'mirror' | 'legacy_site_data' | 'system_fixture' (platform-seeded stub) | null pre-integration
+  import_source TEXT,                 -- 'legacy_site_data' (member load) | 'system_fixture' (platform-seeded stand-in) | 'test' (test persona)
   imported_at   TEXT NOT NULL,
   version       INTEGER NOT NULL DEFAULT 1,
 

@@ -22,7 +22,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
@@ -94,6 +94,54 @@ describe('the rebuild root half requires the directory it is told to promote', (
     const r = runPreamble({ RELEASE_DIR: '/home/someone/footbag-release' });
     expect(r.status).not.toBe(0);
     expect(r.stderr).toMatch(/direct invocation is refused/);
+  });
+});
+
+describe('the rebuild root half leaves no copy of the database in the staging tree', () => {
+  /**
+   * The preamble through the exit and signal traps, so the trap the run really
+   * installs is the one under test. The env temp-file sweep is replaced with a
+   * no-op after the traps are set, because it names host paths and the trap looks
+   * the function up only when it fires.
+   */
+  function throughTraps(endWith: string): string {
+    const lines = readFileSync(REMOTE_HALF, 'utf8').split('\n');
+    const end = lines.findIndex((l) => l.startsWith('trap ') && l.endsWith(' TERM'));
+    expect(end, 'the TERM trap anchors the slice').toBeGreaterThan(0);
+    return [...lines.slice(0, end + 1), 'cleanup_env_tempfiles() { :; }', endWith].join('\n');
+  }
+
+  function runEndingWith(endWith: string) {
+    const release = join(scratch, 'footbag-release');
+    mkdirSync(join(release, 'database'), { recursive: true });
+    const db = join(release, 'database', 'footbag.db');
+    for (const f of [db, `${db}-wal`, `${db}-shm`]) writeFileSync(f, 'member rows\n');
+    writeFileSync(join(release, 'package.json'), '{}\n');
+    const path = join(scratch, 'traps.sh');
+    writeFileSync(path, throughTraps(endWith), 'utf8');
+    const res = spawnSync('bash', [path], {
+      encoding: 'utf-8',
+      env: { ...process.env, ...GUARDS_PASSED, RELEASE_DIR: release },
+      ...SPAWN_GUARD,
+    });
+    return { res, release, db };
+  }
+
+  // Defect caught: a rebuild leaves a full copy of the site's data in the
+  // connecting account's home, which outlives that account's access when it never
+  // deploys again.
+  it('removes the uploaded database and its sidecars when the run succeeds', () => {
+    const { res, release, db } = runEndingWith('exit 0');
+    expect(res.status, res.stderr).toBe(0);
+    for (const f of [db, `${db}-wal`, `${db}-shm`]) expect(existsSync(f), f).toBe(false);
+    // Only the database goes: the rest of the tree is the next deploy's to wipe.
+    expect(existsSync(join(release, 'package.json'))).toBe(true);
+  });
+
+  it('removes them when the run fails partway as well', () => {
+    const { res, db } = runEndingWith('exit 1');
+    expect(res.status).toBe(1);
+    for (const f of [db, `${db}-wal`, `${db}-shm`]) expect(existsSync(f), f).toBe(false);
   });
 });
 

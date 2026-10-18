@@ -1,490 +1,277 @@
-# Bug Hunt — design-layer reference
+# Bug Hunt: design-layer reference
 
-Design-layer method detail for the bug-hunt skill, kept out of SKILL.md to stay under the
-500-line ceiling; the Lane 1 row of SKILL.md's dispatch table points here. Evidence at this layer is doc sections,
-contracts, and reconstructed data flows, not file:line; code and deployment artifacts serve
-only as design evidence (implementation status where docs claim it, parity, testability,
-schema alignment, cutover risk).
+The design lane's brief, read by the subagent that sweeps the design layer and never by the
+orchestrator. Evidence at this layer is doc sections, contracts and reconstructed data
+flows, not file:line; code and deployment artifacts serve only as design evidence
+(implementation status where docs claim it, parity, schema alignment, cutover risk). The
+verification design (whether every design-critical invariant has a deterministic check) is
+the `write-tests` skill's; a design finding here may name the invariant it leaves
+unguarded, and the hand-off goes there.
 
 ## Contents
 
 - Definition of a design bug
 - Design category taxonomy
-- Scope declaration
-- Design surface inventory
-- Traceability matrix
-- Requirements-quality sweep
+- Scope declaration and surface inventory
+- Traceability matrix and requirements-quality sweep
 - Threat model: STRIDE per element, LINDDUN GO, misuse cases
-- Service contract sweep
-- View-layer sweep
-- Data model and data governance sweep
-- Migration and go-live design sweep
+- Service contract, view-layer, data and migration sweeps
 - Dev/staging/prod parity sweep
-- Testing and verification design sweep
-- Scenario tabletop
 - Cross-document contradiction sweep
 - Missing-decision owner classification
 - Design-finding refutation checklist
-- Reviewer personas second pass
-- Dryness loop
+- The four personas
+- Scenario tabletop (optional)
 - Design-specific high-risk checklist
 
 ## Definition of a design bug
 
 A design bug exists when at least one is true:
 
-1. A user story requires behavior but the success criteria do not make it testable.
-2. A user story requires behavior but no service, view, schema, governance, or test
-   contract supports it.
+1. A story requires behavior but its success criteria do not make it testable.
+2. A story requires behavior but no service, view, schema, governance or test contract
+   supports it.
 3. A design decision settles a principle but leaves a production-critical edge case
    unspecified.
 4. Two canonical docs conflict.
 5. A future implementer would have to invent business rules.
-6. A role, authorization boundary, or trust boundary is unspecified.
-7. A state transition is missing, ambiguous, or unsafe.
-8. A lifecycle lacks failure, retry, cancellation, expiry, rollback, or dispute behavior.
-9. A privacy or data-governance rule is missing for PII, legacy data, exports, logs,
-   notifications, audit trails, public pages, search, or admin views.
-10. A service JSDoc or view-layer contract omits behavior required by the stories.
-11. A design assumes data quality that the validation gates do not prove.
-12. A migration rule has no validation gate.
-13. A go-live rule has no rollback or freeze rule.
-14. A dev/staging/prod difference could create production-only behavior.
-15. Docker, Terraform, CI/CD, environment variables, or adapters could diverge from the
-    documented design.
-16. Testing standards do not require deterministic checks for a design-critical invariant.
-17. Observability, backup, restore, or incident response is insufficient for the feature's
+6. A role, authorization boundary or trust boundary is unspecified.
+7. A state transition is missing, ambiguous or unsafe.
+8. A lifecycle lacks failure, retry, cancellation, expiry, rollback or dispute behavior.
+9. A privacy or governance rule is missing for PII, legacy data, exports, logs,
+   notifications, audit trails, public pages, search or admin views.
+10. A service JSDoc or view-layer contract omits behavior the stories require.
+11. A design assumes data quality the validation gates do not prove.
+12. A migration rule has no validation gate, or a go-live rule has no rollback or freeze rule.
+13. A dev/staging/prod difference could create production-only behavior.
+14. Observability, backup, restore or incident response is insufficient for the feature's
     risk.
-18. A legacy data source is expected to remain useful after go-live without a clear
-    source-of-truth handoff.
-19. A retained legacy service or subdomain creates unclear auth, cookie, TLS, CSRF, data,
-    mail, or DNS behavior.
-20. The design does not say who decides an unresolved governance or operational policy.
+15. A legacy data source is expected to stay useful after go-live with no source-of-truth
+    handoff, or a retained legacy service creates unclear auth, cookie, TLS, CSRF, mail or
+    DNS behavior.
+16. The design does not say who decides an unresolved governance or operational policy.
 
-Do not treat existing design rationale as automatically correct: good rationale can still
-hide edge-case bugs. Do not guess; carry uncertainty as `UNKNOWN`, `NOT SPECIFIED`,
-`NOT FOUND`, `CONTRADICTED`, or `NEEDS HUMAN DECISION` until resolved through the asking
-rule.
+Existing rationale is not automatically correct: good rationale can hide edge-case bugs. Do
+not guess; carry uncertainty as `UNKNOWN`, `NOT SPECIFIED`, `CONTRADICTED` or `NEEDS HUMAN
+DECISION` until resolved through the asking rule.
 
 ## Design category taxonomy
 
-Use these categories in the finding `Class` field where possible: Requirements ambiguity;
-Missing acceptance criteria; Missing negative case; Cross-document contradiction; Missing
-service ownership; Missing view contract; Missing data-governance rule; Missing
-schema/data-model rule; Role/authorization gap; State-machine/lifecycle gap;
-Identity/legacy-claim risk; Club/group distinction risk; Payment/tier/status risk; Voting
-integrity/anonymity risk; Media/archive boundary risk; Migration source-of-truth risk;
-Post-go-live source-of-truth risk; Cutover/rollback risk; Email/DNS risk; Dev/staging/prod
-parity risk; Docker/runtime artifact risk; Terraform/infrastructure drift;
-Testing/verification gap; Observability/ops gap; Security/threat-model gap; Privacy/PII
-exposure risk; Admin workflow gap; Governance decision gap; Future implementation
-ambiguity.
+Use these in the finding `Class` field: Requirements ambiguity; Missing acceptance criteria;
+Missing negative case; Cross-document contradiction; Missing service ownership; Missing view
+contract; Missing data-governance rule; Missing schema rule; Role/authorization gap;
+State-machine/lifecycle gap; Identity/legacy-claim risk; Club/group distinction risk;
+Payment/tier/status risk; Voting integrity/anonymity risk; Media/archive boundary risk;
+Migration source-of-truth risk; Post-go-live source-of-truth risk; Cutover/rollback risk;
+Email/DNS risk; Dev/staging/prod parity risk; Docker/runtime artifact risk;
+Terraform/infrastructure drift; Observability/ops gap; Security/threat-model gap;
+Privacy/PII exposure risk; Admin workflow gap; Governance decision gap; Future
+implementation ambiguity.
 
-## Scope declaration
+## Scope declaration and surface inventory
 
-Before the design sweep, write a brief scope declaration into the run's scratch notes (it
-feeds the `BUGS.md` scope note): docs read; artifacts inspected as parity evidence;
-out-of-scope areas; whether legacy pipeline code is excluded; whether Docker/Terraform
-artifacts are included; whether all user stories are included; and, for a scoped run,
-which sweeps are skipped and why.
+Before the sweep, write a scope declaration into scratch notes (it feeds the `BUGS.md` scope
+note): docs read; artifacts inspected as parity evidence; out-of-scope areas; whether
+Docker and Terraform artifacts are included; whether all stories are included; which sweeps
+a scoped run skips and why.
 
-## Design surface inventory
+Inventory the design surface from repo evidence, never memory: story sections and roles;
+feature domains; design decision sections; service-contract JSDoc entries; page contracts
+in service JSDoc and the view-layer rule; data model areas; governance rules; deployment
+and runtime artifacts; adapter boundaries; retained legacy services; post-go-live data
+boundaries.
 
-Create an inventory of the design surface from repo evidence, never from memory. At
-minimum: user story sections and roles; major feature domains; design decision sections;
-service-contract JSDoc entries; page contracts in service JSDoc and the view-layer rule;
-data model areas; data governance rules; test/verification standards;
-DevOps/deployment/runtime artifacts; environment adapter boundaries; retained
-legacy services; post-go-live data source boundaries.
+## Traceability matrix and requirements-quality sweep
 
-## Traceability matrix
+Build a matrix across: story; success criteria; design decision; service owner; view
+contract; schema support; governance rule; operational consideration; migration
+consideration; status or open question. A missing, contradictory or too-vague cell is a
+bug. Cover every story in scope, undelivered ones under the undelivered-work gate (design
+quality only).
 
-Build a traceability matrix across: user story; success criteria; relevant design
-decision; service owner or missing service owner; view/page contract or missing one;
-schema/data-model support; privacy/data-governance rule; tests/verification gate;
-operational/deployment consideration; migration/go-live consideration where relevant;
-status or open question.
+For each story and decision test for: ambiguity; incompleteness; contradiction;
+unverifiability; a missing actor, precondition, postcondition, failure behavior,
+authorization rule, ownership rule, retention rule, audit rule, error handling, edge case
+or test oracle; a hidden dependency on legacy data, staging-only behavior or manual admin
+knowledge; a hidden policy, migration, timing or external-service assumption. "Admin can
+manage X" is insufficient unless the design says which role, what actions, what
+constraints, what audit event, what errors, what is visible and what can be undone.
 
-Find bugs where any required cell is missing, contradictory, or too vague to implement
-safely. Do this for all user stories in scope, including undelivered future stories,
-subject to the undelivered-work gate (design quality only; absence of the feature is never
-a finding).
-
-## Requirements-quality sweep
-
-For each story and design decision, test for: ambiguity; incompleteness; contradiction;
-unverifiability; missing actor; missing precondition; missing postcondition; missing
-failure behavior; missing authorization rule; missing data ownership rule; missing
-retention/exposure rule; missing audit/log rule; missing error handling; missing edge
-case; missing success metric; missing test oracle; hidden dependency on legacy data,
-staging-only behavior, or manual admin knowledge; hidden policy decision; hidden migration
-assumption; hidden timing assumption; hidden external service assumption.
-
-A statement like "admin can manage X" is insufficient unless the design says: which admin
-role; what actions; what constraints; what audit event; what errors; what user-facing
-consequences; what data is visible; what can be undone; what is tested.
+Write the expected outcome of each criterion from the story text before reading any code.
 
 ## Threat model: STRIDE per element, LINDDUN GO, misuse cases
 
-This is deliberately different from the implementation-layer sweep. That sweep runs a
-code-pattern, file:line, OWASP-style review of deployed source — "does this line do
-something exploitable." This one runs an architecture-and-requirements threat model on the
-design itself, before and independent of code — "can this design produce a wrong or unsafe
-outcome no matter how competently it is coded." Do not reach for file:line evidence here.
+This is an architecture-and-requirements threat model on the design itself, before and
+independent of code: can this design produce a wrong or unsafe outcome however competently
+it is coded. Do not reach for file:line evidence here.
 
-Compose three methodologies, in order (framing questions for the whole phase: what are we
-working on, what can go wrong, what are we going to do about it, did the design say enough
-to verify it):
-
-**STRIDE-per-element over a reconstructed data-flow diagram.** Reconstruct from the design
-docs (not the code) a data-flow diagram of each major surface. Identify the elements —
-external entities, processes, data stores, data flows — and every trust boundary a flow
-crosses. Enumerate threats per element with STRIDE: Spoofing, Tampering, Repudiation,
-Information disclosure, Denial of service, Elevation of privilege. Coverage: external
-entities get S, R; data flows and data stores get T, I, D; processes get all six. A design
+**STRIDE per element** over a data-flow diagram reconstructed from the design docs for each
+major surface: external entities get Spoofing and Repudiation; flows and stores get
+Tampering, Information disclosure and Denial of service; processes get all six. A design
 bug exists wherever a trust-boundary crossing has no specified authentication, validation,
-encryption, audit, or authorization rule, or where a STRIDE property an element needs is
-left unspecified.
+encryption, audit or authorization rule.
 
-**LINDDUN GO over the same diagram (privacy).** STRIDE does not cover privacy, and this
-project's PII, legacy-identity linking, historical persons, contact exports, and cross-era
-correlation are squarely privacy-threat territory. Walk the same diagram against:
-Linkability (can records be correlated — legacy plus current re-identifying a historical
-person?); Identifiability (can a person be singled out?); Non-repudiation (is a data
-subject unable to deny an action where they should be able to — ballot secrecy?);
-Detectability (can someone tell data about a person exists?); Disclosure of information;
-Unawareness (is the member uninformed of, or unable to control, collection and use?);
-Non-compliance (purpose limitation, proportionality, retention, consent). A design bug
-exists wherever the governance docs leave a category unaddressed for an element handling
-personal data. Cross-check every privacy finding against `docs/DATA_GOVERNANCE.md`.
+**LINDDUN GO** over the same diagram: Linkability (legacy plus current re-identifying a
+historical person), Identifiability, Non-repudiation (ballot secrecy), Detectability (can
+someone tell data about a person exists), Disclosure, Unawareness, Non-compliance (purpose,
+proportionality, retention, consent). Cross-check every privacy finding against
+`docs/DATA_GOVERNANCE.md`.
 
-**Misuse cases over every user story (requirements layer).** For each story — delivered or
-not — write the misuse case: who could misuse it, and how. "Member registers" → "attacker
-registers as another member's legacy identity." "Member votes" → "member votes twice, or a
-third party links a ballot to a voter." Derive the security/privacy acceptance criterion
-each misuse case demands, then check whether the story's success criteria state it. A
-missing security acceptance criterion is a design bug. This is the mechanism by which all
-user stories, not only deployed ones, get security coverage.
+**Misuse cases** over every story, delivered or not: who could misuse it and how ("member
+registers" becomes "attacker registers as another member's legacy identity"). Derive the
+security or privacy acceptance criterion each misuse case demands and check the story
+states it; a missing one is a design bug. This is how undeployed stories get security
+coverage.
 
-Domains the threat model must cover (each gets a data-flow diagram and misuse cases):
-account registration and login; onboarding wizard; legacy identity claim; profile editing
-and public profile; member tier/status changes; payments and Stripe webhooks; clubs;
-groups/committees; events and registration; voting; media upload and archive; email in and
-out; admin workflows; migration/go-live and cutover; retained legacy services; search and
-public directories. For each, note assets, actors, entry points, sensitive data, state
-transitions, fraud/spam/enumeration risks, rate-limit needs, audit needs, and
-rollback/recovery needs.
+Domains: registration and login; onboarding; legacy claim; profile editing and public
+profile; tier and status changes; payments and webhooks; clubs; groups and committees;
+events; voting; media upload and archive; email in and out; admin workflows; migration and
+cutover; retained legacy services; search and public directories. Attack trees only for the
+one or two highest-severity findings, never as the primary sweep and never as runtime
+simulation.
 
-Optional drill-down — attack trees, for the one or two highest-severity findings only
-(for example "exfiltrate all member PII", "forge a legacy-identity claim"): decompose the
-attacker goal into AND/OR sub-goals down to primitive steps, to test whether the design
-closes every cheap path. Never the primary sweep, and never runtime attack simulation —
-that crosses into the implementation-layer sweep.
+## Service contract, view-layer, data and migration sweeps
 
-## Service contract sweep
+**Service contracts.** Review the per-service file-header JSDoc and the service-related
+decisions against every story: required behavior with no owner; ownership split across
+services; missing authorization, transaction, idempotency, validation, audit or privacy
+responsibility; missing error taxonomy or result-shape contract; missing migration handoff
+or post-go-live boundary. Incompleteness in an intentionally partial service is a bug only
+when the missing contract would force guessing or create production risk.
 
-Review the per-service file-header JSDoc and the service-related design decisions against
-all user stories. Look for: required behavior with no service owner; ownership split
-across services; controller/template doing business logic by implication; missing
-authorization, transaction/idempotency, validation, audit, or privacy-filtering
-responsibility; missing error taxonomy; missing query-shape or result-shape contract;
-missing migration handoff responsibility; missing admin, email/outbox, payment/webhook,
-club/group, voting, media-moderation, or post-go-live source-of-truth boundary.
+**View layer.** Review `.claude/rules/view-layer.md` and the page contracts in service JSDoc
+against the stories: a required page with no contract; a journey with no page-state model;
+missing empty, error, unauthorized, draft, deleted or private states; missing admin-versus-
+public rendering rules; missing anti-enumeration behavior; missing redaction rule; missing
+CTA visibility by role, tier or state; missing canonical URL or redirect rule; missing
+no-JavaScript fallback where the standard requires one.
 
-If a service is intentionally partial, incompleteness is a bug only when the missing
-contract would force guessing or create production risk.
+**Data model and governance.** Review `docs/DATA_MODEL.md`, `database/schema.sql`,
+`docs/DATA_GOVERNANCE.md` and the stories for missing or contradictory rules on identity,
+legacy links, historical persons, former surnames and old emails, email and address
+visibility, birth dates, club and group membership, roles, tiers, lifetime membership,
+Active Player, honours, payments, registration, results, media ownership, voting
+eligibility, audit, exports, deletion, retention, archives, search, logs, backups and
+persona data. Check for data collected but not governed; governed but not modeled; public
+in one doc and private in another; migrated but not used; retained after go-live without
+purpose; visible to admins without audit rationale.
 
-## View-layer sweep
-
-Review `.claude/rules/view-layer.md` and the page services' JSDoc page contracts against
-all user stories and design decisions. Look for: a required page with no view contract; a
-required journey with no page-state model; missing empty/loading/error/unauthorized
-states; missing draft/unpublished/deleted/private states; missing admin-vs-public
-rendering rules; missing anti-enumeration behavior; missing accessibility constraint;
-missing responsive constraint where production-critical; missing sensitive-data redaction
-rule; missing CTA visibility rule by role/tier/state; missing canonical URL,
-redirect/canonicalization, or cross-link rule; missing success/error message semantics;
-missing legacy archive link behavior; missing no-JavaScript fallback where the project
-standard requires one. Find bugs where future UI code would have to invent rules.
-
-## Data model and data governance sweep
-
-Review `docs/DATA_MODEL.md`, `database/schema.sql`, `docs/DATA_GOVERNANCE.md`, migration
-docs, and user stories. Look for missing or contradictory rules for: member identity;
-legacy identity links; historical persons; former surnames and old emails; email
-visibility; address/location; birth dates; public profile fields; club membership;
-group/committee membership; leadership and admin roles; tiers and flags; lifetime
-membership; Active Player status; Hall of Fame and BAP flags; payment history; event
-registration; results; media ownership; voting eligibility; audit events; exports;
-deletion/deactivation; retention; archival snapshots; search indexes; logs; backups;
-staging/persona data.
-
-Specifically check for data that is: collected but not governed; governed but not modeled;
-modeled but not in user stories; public in one doc and private in another; migrated but
-not used; used but not migrated; retained after go-live without purpose; allowed in
-staging but unsafe in production; required for support but unavailable to admins; visible
-to admins without audit rationale.
-
-## Migration and go-live design sweep
-
-Migration design is in scope; Python migration code is not (unless the kickoff prompt
-includes it). Review `docs/TESTING.md` for the pipeline validation gates, GO_LIVE_PLAN.md
-(private GitHub repo; skip when the private checkout is not wired) for the rollback
-posture, the operational-readiness detail and the email, DNS and cutover material, the
-maintainers' private tracker (open issues plus the Launch v1 milestone), governance docs,
-onboarding/claim and club-bootstrap stories, the member-load input contract,
-archive/legacy-retention requirements.
-
-Find bugs in: source-of-truth selection; whether an input that changes the loaded result
-is visible when it is missing; repeated-import idempotency; validation gate coverage; rollback plan; question ownership
-(legacy-site webmaster vs IFPA secretary vs IFPA Board vs CTO); legacy account claim safety; legacy
-credential exclusion; legacy admin role migration; member tier derivation; board/committee
-derivation; old email handling; club affiliation derivation; dormant/junk club cleanup;
-historical result source authority; media/gallery archive scope; retained subdomains;
-route/DNS cutover; inbound/outbound email transition; post-go-live retirement of legacy
-feeds; raw dump retention and access; staging test data derived from legacy data; the
-production database becoming the source of truth.
-
-**Gate-index accuracy and completeness (mandatory).** The go-live gate index in
-GO_LIVE_PLAN.md (private GitHub repo; skip its rows when the private checkout is not
-wired) and the pipeline validation-gate table in `docs/TESTING.md` are themselves audited
-surfaces:
-
-- Accuracy: every artifact a gate references — script, route, table, column, count,
-  section, Terraform resource — must resolve against the current repo. A gate pointing at
-  a renamed script or a count the data no longer supports silently passes or blocks
-  go-live on wrong evidence; that is a Catastrophic/High finding.
-- Completeness: every migration/cutover risk the plan names must map to a gate; a named
-  risk with no gate is a missing-gate finding.
-- Consistency: the index rows, the detail rows, and the Launch v1 milestone issues in
-  the maintainers' private tracker must agree, and every go-live-relevant deviation
-  unblock condition must map to a gate that enforces it.
-
-Critical principle: the legacy pipeline, mirror data, dump, and CSVs are pre-go-live
-transition machinery. Flag any design implying a runtime dependency on migration inputs
-after go-live unless a canonical doc explicitly retains one.
+**Migration and go-live.** Migration design is in scope; the Python pipeline is not. Review
+the pipeline validation gates in `docs/TESTING.md`, GO_LIVE_PLAN.md (private GitHub repo;
+skip when unwired), the Launch v1 milestone in the maintainers' private tracker, the
+governance docs and the claim and club-bootstrap stories. Find bugs in source-of-truth
+selection; visibility of a missing input that changes the loaded result; repeated-import
+idempotency; rollback; question ownership; claim safety and legacy credential exclusion;
+tier, board and club derivation; archive scope; DNS and email transition; post-go-live
+retirement of legacy feeds. **Gate-index accuracy is mandatory**: every artifact a gate
+references must resolve against the current repo (a renamed script or an unsupported count
+silently passes or blocks go-live on wrong evidence, Catastrophic or High); every named
+risk maps to a gate; the index rows, detail rows and milestone issues agree.
 
 ## Dev/staging/prod parity sweep
 
-Inspect as design evidence: Dockerfiles; compose files and committed `docker/env/*.env`
-runtime env files; Terraform (staging, production, shared, identity, operators); GitHub Actions workflows;
-deploy scripts and `run_all_tests.sh`; `ops/systemd/*` units and timers; `.githooks/`;
-environment templates; config docs; adapter interfaces; `package.json` scripts; staging
-persona docs; production runbooks.
-
-Look for: dev on one adapter and staging/prod on another without contract tests; staging
-differing from production in SES/S3/Stripe/DB/auth behavior; production-only env vars not
-checked at boot; staging-only mocks hiding production failure modes; a Docker image
-omitting build/runtime assets; Terraform creating infrastructure the docs do not describe,
-or docs describing infrastructure Terraform does not create; secrets supplied differently
-across environments; backups, logging/redaction, migrations, static assets, email,
-scheduled jobs, rate limits, or CSRF/session/cookie/TLS config differing across
-environments without rationale; rollback documented but not artifact-supported; smoke
-tests that never exercise production-like adapters.
-
-Classify each hit: design bug; test gap; documentation drift; implementation-layer bug;
-accepted environment difference; unknown.
-
-## Testing and verification design sweep
-
-Review `docs/TESTING.md`, `.claude/rules/testing.md`, package scripts, CI workflows, and
-story success criteria. Find bugs where the design lacks deterministic verification for:
-every critical success criterion; every security/privacy invariant; every service and view
-contract; every data-model invariant; every migration validation gate; every post-go-live
-source-of-truth rule; every environment adapter contract; every Docker/Terraform/runtime
-config expectation; every email/DNS/cutover gate; every payment/tier/webhook invariant;
-every voting integrity/anonymity invariant; every anti-enumeration rule; every club/group
-distinction; every admin-action audit rule; every PII redaction/logging/export rule; every
-backup/restore/rollback claim; every rate-limit/abuse-control claim.
-
-A design-critical invariant with no specified deterministic verification is a design bug
-outright, with severity calibrated to the surface it leaves unguarded, naming the exact
-missing gate and the invariant it would pin.
-
-## Scenario tabletop
-
-Adversarial tabletop from the design docs only — no browser QA. For each scenario ask:
-"Can the design determine the correct production behavior without a future implementer
-guessing?" Record per scenario: design answer; supporting docs; missing rule; likely
-production bug if unfixed; owner; severity.
-
-Required scenarios:
-
-1. New member registers and matches a legacy member by old email.
-2. New member registers and falsely tries to claim someone else's legacy identity.
-3. Two people claim the same historical person.
-4. A member has a former surname and multiple old emails.
-5. A member wants to belong to two clubs.
-6. A member tries to join a third current club.
-7. A member leads one club and tries to lead another.
-8. A dormant legacy club is shown during onboarding.
-9. A junk legacy club should be demoted or hidden.
-10. A group/committee is confused with a club.
-11. A board member at cutover receives tier/status treatment.
-12. A Hall of Fame or BAP member has missing or conflicting migrated data.
-13. A lifetime member has no current payment.
-14. Active Player status expires.
-15. Stripe webhook arrives twice or out of order.
-16. Email address is invalid in legacy data but valid in new registration.
-17. A member opts out of announcements in legacy data.
-18. A media upload contains private/sensitive content.
-19. Legacy gallery media must be archived but not migrated as live editable content.
-20. A public profile should hide a field that admin can see.
-21. A club contact email should not be exposed publicly.
-22. An admin merges duplicate identities incorrectly.
-23. A vote needs anonymity and eligibility.
-24. Inbound email MX flips before Google addresses are provisioned.
-25. Outbound email sends before SES/DKIM/SPF/DMARC is fully ready.
-26. A retained legacy subdomain shares cookies or auth assumptions.
-27. Final export happens after some member writes continue.
-28. Rollback occurs after some users have used the new platform.
-29. Production DB diverges from staging despite green tests.
-30. Backups exist but restore procedure has never been tested.
-31. A curated media item is published carrying a tag that resolves to no active trick.
-32. A trick promotion updates the dictionary row but not the galleries, records, or browse
-    surfaces that project it (a propagation miss).
+Inspect as design evidence: Dockerfiles, compose and committed `docker/env/*.env` files,
+Terraform trees, workflows, deploy scripts and `run_all_tests.sh`, `ops/systemd/*`,
+`.githooks/`, adapter interfaces, `package.json` scripts, persona docs and runbooks. Look
+for one adapter in dev and another in staging or production without contract tests;
+production-only env vars not checked at boot; staging-only mocks hiding production failure
+modes; an image omitting assets; Terraform creating what the docs do not describe or the
+reverse; secrets, backups, logging, scheduled jobs, rate limits or cookie and TLS config
+differing across environments without rationale; rollback documented but not
+artifact-supported. Classify each hit: design bug; documentation discrepancy;
+implementation bug; accepted environment difference; test gap (hand-off); unknown.
 
 ## Cross-document contradiction sweep
 
-Search for contradictions across: user stories vs design decisions, data model, service
-contracts (JSDoc), page contracts (service JSDoc / view-layer rule), and testing
-standards; service contracts vs the view-layer rule; data model vs schema; DEVOPS_GUIDE.md (private GitHub repo) vs
-Terraform/Docker/scripts; testing docs vs CI/package scripts; open private-tracker issue
-claims vs canonical docs. Report contradictions only when they affect implementation,
-testing, migration, privacy, security, operations, or go-live decisions. When two
-sources conflict, the
-conflict is the finding; never silently choose one.
+Search for contradictions across stories, design decisions, data model, service JSDoc, the
+view-layer rule, the testing standards, DEVOPS_GUIDE.md (private GitHub repo) against
+Terraform, Docker and scripts, and open tracker claims against the canonical docs. Report a
+contradiction only when it affects implementation, testing, migration, privacy, security,
+operations or go-live. The conflict is the finding; never silently choose one side. Where
+the conflict is code against a document's wording, hand it to the discrepancy lane, which
+names the side that looks wrong.
 
 ## Missing-decision owner classification
 
-Classify every unresolved design issue into exactly one primary owner before asking:
-legacy-site webmaster factual question; IFPA secretary decision (IFPA policy, rules, records,
-membership, communications); IFPA Board vote (bylaw votes only: funds account, dues and
-membership levels, election timing); CTO (project maintainer) decision; technical design
-decision; test/verification backlog;
-DevOps/parity backlog; migration validation backlog; implementation-layer follow-up.
-
-Do not ask the legacy-site webmaster to decide new-platform policy unless the issue is a
-legacy fact. Do not ask the IFPA secretary or the IFPA Board technical implementation
-questions. Do not ask the maintainer anything deterministic repo analysis can answer. The
-IFPA governing documents are the authority of record for membership and voting policy: a
-design doc that contradicts them is a design bug classifiable now, not a question for the
-IFPA secretary or the IFPA Board; reserve those buckets for questions the governing
-documents genuinely leave open.
+Classify every unresolved design issue into exactly one owner before asking: legacy-site
+webmaster (factual questions about the old site); IFPA secretary (IFPA policy, rules,
+records, membership, communications); IFPA Board (bylaw votes only: funds account, dues and
+membership levels, election timing); CTO (project maintainer); technical design; or a
+hand-off backlog (`write-tests`, DevOps parity, migration validation, implementation). Do
+not ask the webmaster to decide new-platform policy, the secretary or the Board a technical
+question, or the maintainer anything repo analysis can answer. The IFPA governing documents
+are the authority of record for membership and voting policy: a doc contradicting them is a
+design bug classifiable now, not a question.
 
 ## Design-finding refutation checklist
 
-Before recording a design-layer candidate, try to disprove it:
+Before recording a design candidate, try to disprove it:
 
-1. Search the repo for the relevant term, role, table, route, service, view, test, and
-   design-decision id.
-2. Check whether an open issue in the maintainers' private tracker covers it (the run's
-   tracked-work exclusion list: `gh issue list -R "$FOOTBAG_PRIVATE_REPO" --state open`
-   plus the local `BUGS.md`; the `bug` label marks defects and accepted deviations, with
-   `blocked` and `question` for held items). Bidirectional: an open issue whose described
-   state no longer matches the repo is itself a stale-tracker-issue finding.
-3. Check whether the user story explicitly defers it.
-4. Check whether a design decision intentionally excludes it.
-5. Check whether the view-layer rule or a service JSDoc says the area is intentionally
-   partial.
-6. Check whether it is purely an implementation defect — if so, reclassify the layer
-   rather than discarding it.
-7. Check whether it is only legacy-pipeline behavior outside scope.
-8. Check whether it matters after go-live.
-9. Check whether a deterministic validation gate already covers it.
-10. Check whether the risk is real enough to affect production behavior.
-11. Check whether it reduces to "the feature is not built yet" — if so, discard it.
+1. Search the repo for the term, role, table, route, service, view, test and decision id.
+2. Check the tracked-work exclusion list (open issues plus `BUGS.md`); an open issue whose
+   described state no longer matches the repo is itself a finding.
+3. Check whether the story defers it, a decision excludes it, or a JSDoc says the area is
+   intentionally partial.
+4. Check whether it is purely an implementation defect (reclassify) or a code-against-doc
+   discrepancy (hand to that lane).
+5. Check whether it is legacy-pipeline behavior out of scope, or stops mattering after
+   go-live.
+6. Check whether a deterministic gate already covers it.
+7. Check whether it reduces to "the feature is not built yet"; if so, discard it.
 
-## Reviewer personas second pass
+## The four personas
 
-Re-run the design findings through independent personas, each trying to find production
-bugs the first pass missed: malicious user; careless legitimate member; legacy member
-claiming an old profile; club leader; group/committee owner; IFPA board member; event
-director; admin support person; privacy reviewer; security reviewer; DevOps/on-call
-maintainer; future developer implementing an undelivered story; the legacy-site webmaster
-as factual witness; the project maintainer as docs maintainer. Record only evidence-backed
-findings.
+The second pass over the design findings and the five-ranked surfaces, each persona a
+separate read-only subagent given the findings so far, trying to find what the first pass
+missed. Record only evidence-backed findings.
 
-## Dryness loop
+- **The hostile visitor**: no account. What can I read, enumerate, link, replay or cause to
+  be emailed; which story's criteria leave that open.
+- **The careless legitimate member**, including the legacy claimant: what breaks when I do
+  the ordinary thing twice, out of order, on the wrong record, or with a former surname and
+  three old emails.
+- **The pressed administrator or operator**: what does a hurried admin action or a script
+  run with the wrong flag destroy, and does the design say what stops it or undoes it.
+- **The privacy and security reviewer**: what crosses an audience boundary, who can tell a
+  record exists, what is kept longer than its purpose, which trust-boundary crossing has no
+  stated control.
 
-After the draft findings, run one more search sweep for each major noun in them (for
-example: legacy_member, historical_person, tier, lifetime, active player, club, group,
-committee, vote, media, email, Stripe, SES, S3, CloudFront, Terraform, Docker, staging,
-production, rollback, archive, privacy, PII). If new evidence changes a finding, update
-it; if no new findings appear, state that the dryness loop came up empty.
+## Scenario tabletop (optional)
+
+Run when the kickoff names a design area, or when a lane's leads cluster on one flow. For
+each scenario ask whether the design determines the correct production behavior without a
+future implementer guessing; record the design answer, the supporting docs, the missing
+rule, the likely production bug, the owner and the severity. Build the scenarios from the
+high-risk checklist below for the area named: the legacy claimant with a former surname and
+three old emails, or a false claim on someone else's identity; a third club or a second
+leadership; a dormant or junk club shown in onboarding; a board member, honoree or lifetime
+member with conflicting migrated data; a webhook twice or out of order; a private media
+upload or an archive item edited; a field an admin sees that the public must not; a wrong
+identity merge; MX flipped before Google addresses exist, or a send before SES is ready; a
+final export after writes continue, a rollback after use, a restore never rehearsed; a
+curated tag resolving to no trick, or a promotion that reaches the dictionary and not its
+projections.
 
 ## Design-specific high-risk checklist
 
-Always check these project-specific risks.
-
-### Identity and onboarding
-
-Legacy member id namespace; historical person linking; self-serve claim; one matching
-component; corroboration of old accounts; former surnames; old emails as keys only; email invalid/opt-out fields; anti-enumeration
-messages; dispute/revert; admin escalation; no legacy credentials imported; no legacy
-admin auto-promotion; member-declared anchors privacy; tier grant from claim; onboarding
-skip/resume/detour; audit trail.
-
-### Membership, tiers, and flags
-
-Tier 0/1/2/3 semantics; Active Player temporary status; lifetime membership; Hall of Fame
-and BAP status; payment history; expired status; board-at-cutover treatment;
-migration-derived grants; admin overrides; testability of each status transition.
-
-### Clubs
-
-Onboarding asks one club; downstream allows up to two current clubs; third current club
-blocked; only one club leader at a time; dormant clubs; junk clubs; merge/dedupe; pending
-affiliation roster; legacy residue cleanup; club contact privacy; stale external URLs;
-leader candidate confidence.
-
-### Groups and committees
-
-Groups/committees are not clubs; committee membership source; IFPA board semantics; group
-ownership; group pages; group email aliases; mail/list archives; ballots and governance;
-privacy/audit of membership.
-
-### Events and results
-
-Event creation/approval; registration; payment dependency; CSV export; results to
-profiles; historical event data source; event director permissions;
-cancellation/refund/failure paths; retained legacy registration boundary.
-
-### Voting
-
-Eligibility; anonymity; receipts; auditability; dispute handling; admin visibility
-limits; duplicate voting prevention; board/committee relationship.
-
-### Media and archive
-
-New uploads; YouTube-only new video policy; legacy gallery archive-only boundary;
-MP4/JPEG conversion expectations; virus scrub expectations; media ownership;
-takedown/moderation; privacy; S3/CloudFront retention; old URLs and redirects.
-
-### Email, DNS, and retained legacy
-
-Outbound from the new platform through AWS SES; inbound through Google managed services;
-the `@ifpa.footbag.org` distinction; aliases/groups provisioning; MX/DKIM/SPF/DMARC
-sequencing; no dual-sender period unless designed; retained subdomains; TLS on retained
-hosts; cookie/session scope; CSRF origins; rollback behavior; legacy archive host.
-
-### Freestyle and curated media (design layer)
-
-The standing surface-propagation rule in the `footbag-freestyle-dictionary` skill (every
-freestyle change propagates to all affected surfaces before its slice is done) treated
-as a design rule with verification; the curated-media pipeline's pre-go-live lifecycle
-boundary and the
-post-go-live handoff to the production DB as source of truth; the trick-tag invariant as a
-designed control with a deterministic gate;
-conformance of the publication design to the canonical-trick publication contract in
-`docs/FREESTYLE.md`;
-naming/slug/hashtag conventions specified well enough to implement without guessing. Deep
-domain sweeps hand off to the `freestyle-bug-hunt` skill; this checklist covers only
-whether the DESIGN of these controls is complete, consistent, and testable.
-
-### DevOps and parity
-
-Dev/staging/prod adapter parity; production-like staging smoke tests; Docker image
-contents; Terraform-managed resources; config validation; secrets handling; migration
-execution environment; backups and restore; observability; logs and redaction; rate
-limits; CI/CD checks; no staging-only success.
+Always check: identity and onboarding (legacy id namespace, historical person linking,
+self-serve claim with one matching component, former surnames, old emails as keys only,
+anti-enumeration messages, dispute and revert, no legacy credentials or admin
+auto-promotion, tier grant from claim, onboarding skip and resume, audit); membership
+(Tier 0 to 3 semantics, Active Player as temporary status, lifetime membership, Hall of Fame
+and BAP, board-at-cutover, migration-derived grants, admin overrides); clubs (one club asked
+at onboarding, two current clubs allowed and a third blocked, one leader role, dormant and
+junk clubs, pending roster, contact privacy, stale URLs); groups and committees (not clubs,
+membership source, board semantics, aliases, ballots); events and results (approval,
+registration, payment dependency, results to profiles, historical source authority,
+cancellation and refund); voting (eligibility, anonymity, receipts, audit, duplicate
+prevention); media and archive (YouTube-only new video, archive-only legacy gallery,
+ownership, takedown, retention, old URLs); email, DNS and retained legacy (SES out, Google
+in, the `@ifpa.footbag.org` distinction, MX, DKIM, SPF and DMARC sequencing, retained
+subdomains, cookie and CSRF scope, rollback); freestyle and curated media (the propagation
+rule as a design rule, the curated pipeline's pre-go-live boundary and post-go-live
+handoff, the trick-tag invariant as a designed control, conformance to the publication
+contract in `docs/FREESTYLE.md`; deep domain sweeps hand off to `freestyle-bug-hunt`);
+DevOps and parity (adapter parity, production-like staging smoke, image contents,
+Terraform-managed resources, config validation, secrets, backups and restore,
+observability, redaction, rate limits, no staging-only success).

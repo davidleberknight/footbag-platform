@@ -34,9 +34,9 @@ Every test, every helper, every staging script, every Playwright artifact treats
 
 Any `logger.error()` call in service or controller code is treated as "an operator must see this." The same call drives two enforcement mechanisms: (1) a global test-suite spy in `tests/setup-env.ts` that fails any test producing an unexpected `logger.error()` (opt in deliberately via `expectLoggedError(pattern)`); and (2) a CloudWatch log metric filter in staging/prod that fans out to the admin SNS topic. Service catch blocks that pair an audit row with the alert use the `recordOperationalError(...)` helper at `src/services/operationalErrors.ts` rather than writing the audit row alone.
 
-### 2.3 The doc applies to humans and AI agents equally
+### 2.3 Tests are written by agents, and the doctrine is written for that
 
-When an AI agent (Claude Code or any other) writes or reviews tests for this codebase, the agent applies this document the same way a human contributor does: read the user story verbatim, understand what is being asserted, classify the risk severity, apply the relevant techniques, and submit for human review. §13 expands these obligations into the AI-assisted testing governance rules.
+Nearly every test in this suite is written by an AI agent, usually the agent that has just read or written the code under test. That changes which failures are likely. An agent does not tire or skip steps, but it anchors on what is in its context: expected values read off the implementation, fixtures shaped like the one record it looked at, a break chosen to match the test it has already written, and a feature reported done because its own tests pass. A test's author is therefore never the only judge of it. Expected outcomes come from the story before the code is read, the breaks that prove a high-risk test are chosen by an agent that did not write it, and a change a person can see is driven through the real pages before it is called done. The AI-assisted testing governance section states these operationally.
 
 ### 2.4 Tests verify intent, never implementation (the load-bearing rule)
 
@@ -182,7 +182,7 @@ What follows is the depth expected on top of that floor, not an alternative to i
 
 - ASVS Level 3 verification depth (per §3.4) for the categories that apply.
 - Every applicable item from the baseline adversarial list and per-route baseline in `.claude/rules/testing.md`, covered with no skip.
-- The canonical invariants -- anti-enumeration response equivalence, CSRF presence on every state-changing verb, session cookie attribute completeness, and idempotency where the surface declares it -- covered by scenario tests with shared assertion helpers in `tests/fixtures/`. The shared-helper shape keeps per-route assertions cheap (one line per route) while preserving the property: a future refactor that breaks an invariant fails the route's own test.
+- The canonical invariants -- anti-enumeration response equivalence, session cookie attribute completeness, and idempotency where the surface declares it -- covered by scenario tests with shared assertion helpers in `tests/fixtures/`, so a future refactor that breaks an invariant fails the route's own test. CSRF presence on every state-changing verb is proven by the CSRF sweep over the live route table, so a route's row in that sweep is its CSRF case.
 
   Anti-enumeration equivalence means the two responses are the same, compared whole under a normalization that redacts only what legitimately varies per request. It does not mean the same within a tolerance. A tolerance cannot fail: the login check was once a plus-or-minus five percent comparison of body *lengths*, and appending the submitted address to the refusal message -- a one-character difference in a multi-kilobyte page -- passed it. `tests/fixtures/normalizeAntiEnumerationBody.ts` is the shared helper and the shape to copy. Timing is a separate assertion with its own test, not a clause inside this one.
 
@@ -343,7 +343,7 @@ A class, not a folder. Lives wherever the assertion most efficiently lives (unit
 - Secret and PII leakage regression tests (see §10)
 - Testing-shortcut regression tests (§7.5)
 
-Cross-cutting regression classes (cookie attributes, CSRF presence on every state-changing verb, anti-enumeration response equivalence) are implemented via shared assertion helpers in `tests/fixtures/` that the route's own test imports and invokes. The shared-helper shape keeps the per-route assertion cheap (one line per route) while preserving the property: a future refactor that mounts a sub-router outside the perimeter, or changes the cookie-issuance helper to drop a flag, fails the route's own test rather than only a centralized middleware test.
+Cross-cutting regression classes (cookie attributes, anti-enumeration response equivalence) are implemented via shared assertion helpers in `tests/fixtures/` that the route's own test imports and invokes, so a future refactor that changes the cookie-issuance helper to drop a flag fails the route's own test rather than only a centralized middleware test. CSRF presence on every state-changing verb is proven by the CSRF sweep over the live route table, which also catches a sub-router mounted outside the perimeter.
 
 Beyond the per-route helpers, four invariant families are generated across every surface they can touch, so a newly added surface is covered by construction rather than by memory: anti-enumeration exists/not-exists response-equivalence pairs, the append-only mutation guards for ledgered tables (audit, tier, active-player, system-config), the idempotency assertions for replayable surfaces (outbox, webhook delivery, grant application), and the read-only GET and submitted-twice sweeps over the live route table.
 
@@ -364,10 +364,10 @@ The five layers and what each owns:
 - *Content (unit + conformance).* Each email's subject and body are rendered from its committed template sidecar (seeded into `email_templates`), with a typed shaper computing the merge values and selecting the variant key. Unit tests cover the shaper catalog (every logical email shapes to its expected variant with exactly the declared merge fields) and the sidecar conformance gate (every registered variant has exactly one sidecar, every token declared and used); the render contract (token substitution, disabled-template suppression, missing-row failure) is pinned once over the email service. A test that asserts wording reads the sidecar through the shared render helper rather than restating body copy as a literal, per the strategic anti-patterns in §15.1.
 - *Enqueue (integration).* For each email, a test asserts the triggering service method enqueues one `outbox_emails` row with the correct recipient, idempotency key, and the rendered template content; that guard and no-op paths enqueue nothing; and that a member with no deliverable address (absent login email, deceased, soft-deleted, or purged) is skipped without raising.
 - *Transport drain (integration).* `communicationService.processSendQueue` drains pending rows through `StubSesAdapter`, and the captured `sentMessages` carry the rendered message. The queue mechanics (retry with backoff, dead-letter at the retry ceiling, crash recovery, admin pause, scheduled deferral, and the `body_text` scrub after send) are exercised once over the shared path rather than per email.
-- *Human inspection (development and staging).* Captured mail is readable without a real inbox. Every email-gated login page renders the simulated-email card (§16.4) with the flow's captured message and its clickable link, and the `/dev/outbox` viewer lists every captured message for notifications that have no host page. The in-process stub and these viewers serve as the catch-all inbox; they need no extra process and run identically in CI.
+- *Human inspection (development and staging).* Captured mail is readable without a real inbox. Every email-gated login page renders the simulated-email card with the flow's captured message and its clickable link, and the `/dev/outbox` viewer lists every captured message for notifications that have no host page. The in-process stub and these viewers serve as the catch-all inbox; they need no extra process and run identically in CI.
 - *Deliverability (production).* On staging, email is the adapter stub and nothing else: nothing on staging sends, and staging's runtime role holds no send permission. Live sending is first exercised on production by the operator-run `scripts/verify-prod-email.sh`, which sends to the Amazon SES mailbox simulator (`success@simulator.amazonses.com` for a clean send, and `bounce@simulator.amazonses.com` with `--bounce-probe` to drive the feedback path) and optionally to one operator inbox. Simulator mail consumes no sender reputation and no quota. Inbox placement, sender reputation, and SPF, DKIM, and DMARC alignment are observed in production through the SES reputation metrics and the feed.
 
-Every promised email is covered by construction. The email catalog names each email by key, owning service, and idempotency-key prefix; the email-catalog sweep (§17.2) asserts each entry has a live enqueue site and a firing test, so an email that a service contract promises and the code never sends fails the suite.
+Every promised email is covered by construction. The email catalog names each email by key, owning service, and idempotency-key prefix; the email-catalog sweep (§16.2) asserts each entry has a live enqueue site and a firing test, so an email that a service contract promises and the code never sends fails the suite.
 
 Armed production differs in what the live path adds: it resolves `SES_ADAPTER=live` and sends through SES; it honors the SES suppression list, so an address that has hard-bounced or complained is withheld; it records bounce and complaint feedback from the queue the worker polls, where that environment's feedback queue has been brought up; and it carries the sender-identity, DKIM, and DMARC records that the stub path does not exercise. Production safety rests on the build-time strip and config guards (§7.1, §9.5); below production, the stub captures every message.
 
@@ -472,6 +472,8 @@ The three-test contract from `.claude/rules/adapter-conventions.md` applies to e
 
 These tests describe permanent contracts. They are not sprint-scoped.
 
+A stub refuses every input the live implementation would refuse without contacting the provider: an absent captcha field, an address on the provider's suppression list, an unsigned payload. A stub that accepts what live refuses hides the defect from every environment below production, so the interface-parity test asserts the refusal on both sides. Stubs stay permissive about everything else, so development convenience is unaffected.
+
 The staging-smoke leg applies to adapters that reach an external service over the network: `JwtSigningAdapter` and `SecretsAdapter` (real AWS via the assumed-role chain), `SafeBrowsingAdapter` (the real Google Safe Browsing API), and `HttpReachabilityAdapter` (arbitrary member-submitted hosts on the public internet). The two internal docker-network adapters (`ImageProcessingAdapter`, `VideoTranscodingAdapter`) carry boot-config and interface-parity tests but no workstation staging-smoke: their dependency is the internal `image` worker rather than an external surface the dev-against-staging (no-ssh) model can reach, and their failure mode is a noisy first-request error rather than silent IAM or network drift. Their wiring is covered by the interface-parity tests, the compose `image:4000/health` healthcheck that gates stack startup, and the e2e upload path.
 
 `HttpReachabilityAdapter` belongs with the external group rather than the internal one, which is what its outbound probe actually is: it resolves and fetches hostnames a member typed, and it needs no deployed host to exercise, so a workstation runs the same code path a host runs. Its failure mode is also the silent kind the smoke tier exists for. Every other test of it injects a fake fetch and a fake resolver, and outbound HTTPS that a network, a proxy or a resolver refuses is indistinguishable from an adapter that was never wired: the site simply starts telling members their links are wrong. Its smoke probes are chosen to touch nothing incidental — IANA's reserved documentation domain for the reachable case, an RFC 5737 TEST-NET address for the unreachable one, and a loopback address for the SSRF refusal, which is the assertion that matters most because a live adapter that lost its per-hop guard still passes the other two.
@@ -562,7 +564,7 @@ Some contracts cannot be exercised below production: the stub and staging paths 
 
 **Live email deliverability.** With `SES_ADAPTER=live`: a real send to an operator inbox lands in the inbox and passes SPF, DKIM, and DMARC at a major provider; a real bounce and a real complaint (the SES simulator addresses) write a suppression row and a feedback-feed audit row; the suppression list then withholds a later send to that address.
 
-**Live Stripe payments.** Live payments move real money, so they are verified in two stages — Stripe test mode against the real Stripe API, then a controlled live canary — before members can pay. The stub checkout (§16.5) and the signed-webhook integration tests (§7.2) cover the handler; this verifies the real Stripe surface the stub cannot.
+**Live Stripe payments.** Live payments move real money, so they are verified in two stages — Stripe test mode against the real Stripe API, then a controlled live canary — before members can pay. The stub checkout pass-through and the signed-webhook integration tests (§7.2) cover the handler; this verifies the real Stripe surface the stub cannot.
 
 1. Test-mode end-to-end, run on production because the live adapter runs nowhere else, while the production-live marker reads "false", the only state in which the key-match guard admits a test key there: against test keys, drive real Checkout session creation and real Stripe-signed webhooks delivered to the registered production endpoint: success grants the tier, cancel and decline do not, the signature validates against the production verifier, a resent event does not double-grant, and the SCA / authentication-required and declined-card paths behave. Then the flows a one-time charge does not touch: a recurring signup, a renewal produced by advancing a test clock, a declined renewal through the configured dunning to its cancellation, a platform-side cancellation, a partial and a full refund, a dispute raised with the dispute test card and closed, a signing-secret rotation overlap with no dropped delivery, and the payments pause drill with a delivery still processing. Each real payload is sanitised into the golden-payload fixture, renewal invoices first, and the reconciliation pass runs clean afterwards.
 2. Live canary: with the live API key and webhook signing secret in Parameter Store and the live endpoint registered against the production domain, make one real low-value charge with a real card; confirm a settled `payments` row, the tier grant, the receipt email, and the audit row written by the signature-validation path; refund it and confirm the refund path leaves no dangling grant; replay the live webhook from the Stripe Dashboard and confirm no double-grant.
@@ -590,7 +592,7 @@ Dev and continuous integration keep the unit, route and service integration, the
 
 **Protection model.** Staging matches production's network posture — a public site with no edge access control — because parity with production and operational simplicity are first-order goals, and a staging-only gate would break both. Real member data on staging is protected by the same mechanisms that protect it in production: the application's own authentication and the public-versus-member visibility model (public surfaces expose only public historical records; member data requires a session). The environment is additionally kept out of search indexes. The anonymous persona switch (§7.5, §7.6) remains the tester's full-access affordance. The residual exposure this leaves is a risk the maintainer, as risk owner, accepts; data masking and a staging edge gate were both considered and deliberately not adopted. Any IFPA authorization for using real member data in testing is a private governance record kept out of the repo, and no committed doc names the staging address.
 
-**Tester procedure for real-data testing.**
+**Tester procedure for real-data testing.** This is the real-data test design; the step-by-step for human testers, persona tools included, is TESTING_GUIDE.md (private dev-tester repository).
 
 - Reach staging through the privately shared preview address (never a committed link). Use the persona grid and switch for role-conditional testing, and the loaded real dataset for real-data testing.
 - Verify migrated data renders and behaves correctly by claiming a real record and walking its profile, results, honors, and media across the site. Claim any record from the deterministic claim-risk strata below rather than one fixed person.
@@ -749,12 +751,7 @@ The internal QC subsystem was operator tooling for reviewing imported net result
 
 **Where the loader findings go.** The net team builder still runs its seven checks, including a priority-one identity conflict that exists in no other output. They are written to `legacy_data/out/net_team_qc_issues.jsonl`, beside the QC artifacts the canonicalization stage already writes there. Every field is derived from the data rather than the run, so a rerun over unchanged data reproduces the file byte for byte and a diff means the data moved.
 
-**Automated enforcement**: two layers, paired so a typo or rename cannot silently slip through.
-
-1. **Positive-assertion test.** `tests/unit/qc-subsystem-retired.test.ts` names every retired directory, file and table and requires each to be absent. Absence is the success signal. It also refuses to pass if its own lists are emptied, and checks that each path sits under a real top-level directory, because a path with a typo would be absent for the wrong reason and would pass forever while checking nothing. This catches a deleted file being restored.
-2. **Pattern scan** (defense in depth). The convention gate scans for QC entry points and retired table names. Its scope is the surfaces that ship or that build the database — application source, the schema, and the pipeline — because a QC page cannot return without code in one and a table in the other. Tests are deliberately outside that scope: the tests proving the subsystem is gone have to name it, and no pattern can tell those apart from a test exercising a restored one. This catches QC code returning under a name the first layer cannot know.
-
-Both run in continuous integration through jobs that already exist, the unit-test job and the convention gate, rather than through workflow steps of their own. Keeping both present and green is what holds the retirement.
+**Automated enforcement.** The convention gate scans application source, the schema and the pipeline for QC entry points and retired table names, because a QC page cannot return without code in one and a table in the other. It runs in continuous integration through the existing convention-gate job.
 
 ## 9. Security and penetration testing
 
@@ -905,7 +902,7 @@ The db-load smoke gate runs the loader pipeline against fixed fixtures in every 
 
 ### 11.2 Selection mechanisms within a gate
 
-- *Test impact analysis* for the local fast loop. `scripts/test-targets.sh` over the git-diff file list, by naming convention and grep rather than the import graph. The fast loop runs only tests that own or name the changed code.
+- *Test impact analysis* for the local fast loop. `scripts/test-targets.sh` over the git-diff file list, by naming convention, grep and route tracing rather than the import graph. The fast loop runs only tests that own or name the changed code. A module no test names is followed to the modules that import it, up to two hops, and those are mapped in its place, so a content or library module reaches the suites requesting the pages it feeds.
 - *Tag-based selection* across all gates. The tag taxonomy in §6.3 (`@smoke`, `@security`, `@a11y`, `@migration`) drives which tests run at each gate.
 - *Risk-severity-based selection* for the on-demand deep audits. Catastrophic and high surfaces (per §3) run in CI on every push. Medium and low surfaces run when the surface changes; a periodic sweep is optional future depth on top of the on-push gate.
 - *Parallel workers* where the test runner supports it. Vitest workers for unit and integration; Playwright runs one worker, constrained by SQLite WAL serialization.
@@ -986,7 +983,9 @@ The release order: commit and push to main, with CI green on every run for that 
 
 Coverage thresholds set in `vitest.config.ts` are floors per `.claude/rules/testing.md`. They are a leading indicator of test absence, not of test quality. A surface at one hundred percent line coverage with no adversarial tests is still under-tested.
 
-Overall coverage is an aspirational, best-effort goal, not a fixed percentage; the floor that a drop trips lives in `vitest.config.ts` and is enforced by the CI coverage job. Catastrophic-severity surfaces (auth, session, member privacy, payments, identity claim) are verified by inspection of the tests themselves rather than by a per-surface percentage, since a percentage is satisfied by any test that executes the line. For general code, 100% is not a blanket target; forcing coverage of error branches and dead-code paths produces contrived tests without catching real bugs.
+The floor is a signal, never a target. A test written to restore coverage still meets the name-the-defect mandate; where no defect sentence exists for an uncovered line, the line is a candidate for deletion, and the drop is reported to the maintainer rather than met with a test that only executes it.
+
+Overall coverage is an aspirational, best-effort goal, not a fixed percentage; the floor that a drop trips lives in `vitest.config.ts` and is enforced by the CI coverage job. Catastrophic-severity surfaces (auth, session, member privacy, payments, identity claim, erasure) are verified by inspection of the tests themselves rather than by a per-surface percentage, since a percentage is satisfied by any test that executes the line. For general code, 100% is not a blanket target; forcing coverage of error branches and dead-code paths produces contrived tests without catching real bugs.
 
 Uncovered branches are also a read-targeting signal: they are where both the test suite and a review pass go blind, so they are the priority surface for the next adversarial review.
 
@@ -994,7 +993,7 @@ Uncovered branches are also a read-targeting signal: they are where both the tes
 
 Property-based testing is not a universal tier-promotion requirement. It is a technique to reach for when a specific surface justifies the cost: validators, encoders, anti-enumeration helpers, idempotency invariants, and security-critical pure functions. A property-testing library is added with the first surface that needs one, never ahead of need.
 
-Whether a test would catch the defect it guards is established by the demonstrated-failure requirement in `.claude/rules/testing.md`: break the guarded code by hand and watch the test go red for that reason.
+Whether a test would catch the defect it guards is established by the demonstrated-failure requirement in `.claude/rules/testing.md`: break the guarded code and watch the test go red for that reason. On the high-risk areas (auth and session, member privacy, payments, identity claim, erasure, and any destructive, irreversible or outward-facing action) the author breaks each test one at a time, and a fresh reviewer agent that did not write the tests adds its own breaks: it proposes a handful of one-line edits to the changed code (invert a condition, drop a filter, delete a guard, return the other branch, move a write out of its transaction), each is applied alone against only the affected test files and then reversed, and every edit no test notices gets a stronger assertion shown red against it. The report states how many edits were tried and how many survived. An author choosing the breaks for its own tests tends to choose the breaks its tests already catch. The probe is bounded on purpose: it is never a whole-suite run, and no mutation tool is adopted.
 
 A decision to adopt a heavier tool, and the specific surface it targets, is tracked in the maintainers' private tracker, not here.
 
@@ -1006,22 +1005,25 @@ When an AI agent (Claude Code or any other) writes, reviews, or modifies tests f
 
 The standing AI obligations (no silent skips, no test that blesses current behavior, no canonical-doc modification to fit implementation, regression test at the cheapest layer for every fixed bug, bootstrap code is not a design signal, no automated run that mutates production, and none that mutates staging outside the destructive staging tier (§5.11), no fetching real member PII) come from `.claude/rules/testing.md` and `.claude/rules/doc-governance.md` and apply to AI agents unchanged.
 
-### 13.1 Read the user story verbatim
+### 13.1 Expected outcomes come before the code
 
-Before writing tests for a surface, the AI reads the relevant `docs/USER_STORIES.md` entry verbatim (full `Access:`, `Story:`, and `Success Criteria:` blocks). If the success criteria are unclear or appear to conflict with implemented behavior, the AI escalates to the human rather than guessing.
+Before writing a test for a behaviour, the agent reads the governing `docs/USER_STORIES.md` entry verbatim (the full `Access:`, `Story:`, and `Success Criteria:` blocks), or the governing decision or governance passage, and writes down the expected outcome of each case from that text alone, before reading the implementation. A case whose outcome the text does not decide is a question for the maintainer, never a value read off the code. A bug fix starts with a reproduction seen red against the unfixed code.
 
-### 13.2 Human review is required
+### 13.2 The writer is not the only judge
 
-No AI-written test lands without human review. The maintainer reviews every change before it is committed, which is where this is enforced; nothing in the platform's automation can vouch for a test's intent. The human review covers:
+An agent never weakens, deletes or rewrites a test to make its own change pass; a test that disagrees with the code is reported, and the source of intent decides. On the high-risk areas the strength of new tests is judged by a fresh reviewer agent that sees only the diff, the code under test and the brief in the `write-tests` skill, and a finding counts only with the one-line break that proves it, so the review cannot be satisfied by asking for more tests.
 
-- The user story success criterion has been understood and is reflected in test names and assertions.
-- For catastrophic-severity surfaces, applicable STRIDE categories (§4.2) are covered, and the verification floor (§4.5) is met or its gap is tracked in the maintainers' private tracker.
-- Technique selection is appropriate.
-- No bootstrap-stub code is cited as design signal (per `.claude/rules/doc-governance.md`).
+### 13.3 Done means driven as a member would drive it
 
-### 13.3 The AI applies this document the same way a human does
+A change a person can see is not done because its tests pass. The agent drives the changed journey through the real pages on the development stack, across every page the journey touches, and a defect found that way lands as a test. Behaviour that differs only under production configuration is covered by the stub-strictness rule in the adapter parity section and by the staging tiers.
 
-The AI applies the test-design principles (§4), risk classification (§3), the catastrophic-surface verification floor (§4.5), the coverage and selective tooling guidance (§12), and the strategic anti-patterns (§15.1) when writing tests. It does not skip steps because they are tedious; the steps exist to keep test quality high. It also does not invent ceremony beyond what this document and `.claude/rules/testing.md` require.
+### 13.4 What the maintainer reviews
+
+The maintainer reviews every change before it is committed, and reviews the evidence rather than re-deriving each assertion. The agent's report carries it: the defect sentence each new test carries, the success criteria it covers, the red-then-green record, the reviewer's surviving breaks on a high-risk change, and any new exemption with its reason. A test without that evidence does not land. Nothing in the platform's automation can vouch for a test's intent; the evidence is what makes the review possible at the scale agents write tests.
+
+### 13.5 A test is a cost
+
+Every test costs run time, agent context and maintenance, and a test that cannot fail costs confidence too. A new test earns its place by catching a named defect no existing test or sweep catches; where a sweep owns the class, the case is a row of the sweep, and a per-route test the sweep makes redundant is deleted. The agent applies the test-design principles, risk classification, the catastrophic-surface verification floor and the strategic anti-patterns, and adds no ceremony beyond what this document and `.claude/rules/testing.md` require.
 
 ---
 
@@ -1069,7 +1071,6 @@ Deferral does not mean these test classes are unimportant. It means the strategy
 
 Operational anti-patterns (no DB mocking, no framework mocking, no timestamp leakage, no global state leakage between files, no silent skips, no "tested manually," no tests on the dev DB) are enumerated in `.claude/rules/testing.md` and apply to every test. (The "tested manually" anti-pattern bars substituting a manual check for a required automated regression test; the operator-driven exploration this document prescribes is an additive layer whose findings land as regression tests.) This section adds the strategic anti-patterns that follow from the playbook discipline.
 
-- *Tests that assert what the code does rather than what the user story says.* A test that documents implementation behavior without anchoring to a success criterion blesses accidental behavior and provides false confidence.
 - *Playwright tests for every business-rule branch.* Business rules are covered by unit and integration tests; Playwright is for browser-only assertions and business-critical happy paths plus the minimal negative cases that only a browser can reveal.
 - *Brittle locators.* CSS selectors that depend on auto-generated class names, XPath that depends on DOM structure, and text selectors that depend on copy phrasing are brittle. Prefer role and accessible-name selectors per Playwright best practice.
 - *Change-detector tests.* A test is worthless when no plausible production defect can make it fail, only a deliberate edit to the very text or table it asserts. The common case is a positive pin on static copy, such as `expect(res.text).toContain('exact heading')` against a template that always renders that heading: a static page cannot render the wrong words unless a person writes them, so the test costs a render, fails only on an intended edit, and trains reviewers to ignore red. The check is the testing rule's name-the-defect mandate: state in one sentence what a visitor, member, admin or operator would experience if the code broke the way the assertion detects. If the only sentence available is "somebody changed this copy on purpose", the assertion is a change-detector and is not written. Four shapes pass the check although they assert words, and are kept:
@@ -1096,6 +1097,8 @@ Operational anti-patterns (no DB mocking, no framework mocking, no timestamp lea
 - *A factory that fills what the pipeline drops.* Every US and Canadian club candidate reached the database without its state, because the candidate builder and loader dropped the column the seed carried; every app test built candidates through a factory that set the state by hand, so none saw the pipeline's rows (§4.7).
 - *A helper that skips the real path.* The development claim helper confirmed a member's club by calling a function inside the onboarding wizard rather than the wizard's own submit, which first creates a club the old site never made real; every such record returned a server error, and the only test claimed one record that had no such club (§4.7).
 - *One example standing for every shape.* A test that claims one fixed record, or renders one fixed trick, proves only that record's branch. A story over migrated data is tested once per shape the data takes (§4.7).
+- *An absence check with nothing that could have been present.* Every assertion that something is absent runs beside a positive control in the same case that proves the thing appears when it should: a live member beside the deceased one, a filled column beside the empty one. A check run over an empty table, or against a fixture that never held the value, passes by construction.
+- *Two lists that must agree, held together by nothing.* Where the same set is declared twice (the fields a parser reads and the fields a save clears, the jobs a gate waits for and the jobs its verdict reads, the keys two deploy halves write, a generator and the artifact it produced), a relation test derives one from the other and fails on any difference. Review does not keep two lists in step.
 
 ### 15.2 Tooling appendix
 
@@ -1111,7 +1114,7 @@ The platform's testing toolchain consists of:
 - *Test fixtures.* `tests/fixtures/factories.ts` (synthetic row factories), `tests/fixtures/testDb.ts` (DB setup and teardown), `tests/fixtures/personas.ts` (member plus tier grant plus JWT plus Playwright cookie composition). Shared assertion helpers, by purpose: `cachedGet.ts` (many assertions on one rendered page), `queryCount.ts` (bounded statement counts), `routeTable.ts` (the live route table the generative sweeps enumerate), `clock.ts` (runtime-relative time), `expectCsrfReject.ts` (the CSRF refusal), `assertSecureSessionCookie.ts` (session cookie attributes), and `assertAppendOnly.ts` (ledger immutability).
 - *@axe-core/playwright.* Accessibility automated checks for the lightweight Playwright suite per §14.1, tagged `@a11y`, plus the smoke-tagged subset on high-traffic public pages.
 - *OWASP ZAP.* Heavyweight pentest scanner. Used in the on-demand heavyweight pentest gate per §9.3. Scripted invocation against the local stack or a dedicated pentest staging environment; report aggregation; findings produce regression tests per §9.6.
-- *Pairwise generator.* PICT, ACTS, or an equivalent. Used by the technique reference per §4.3 for matrix-shaped threats. May be hand-derived for small matrices; the generator becomes mandatory when the role-by-surface-by-method matrix exceeds 32 combinations.
+- *Pairwise generator.* PICT, ACTS, or an equivalent. Used by the technique reference per §4.3 for matrix-shaped threats. May be hand-derived for small matrices.
 - *Dependency vulnerability scanner.* `npm audit` is built in; a third-party scanner (Snyk, Socket, or equivalent) supplements with supply-chain signal. Integrated into the on-demand heavyweight pentest gate.
 
 #### 15.2.2 Tools explicitly not adopted
@@ -1121,88 +1124,15 @@ The platform's testing toolchain consists of:
 - *Cucumber and other BDD frameworks.* Tests describe long-term contracts in straightforward TypeScript; no Gherkin or feature files. Test names describe user-visible behavior; no separate spec layer is maintained.
 - *Snapshot-driven UI testing libraries that produce committed image diffs.* Per §14.3.
 - *Load testing or chaos tooling (k6, Locust, Chaos Monkey, equivalent).* Still not adopted. The staging calibration run in §14.3 drives the platform's own routes with the tooling already in the tree and adds no dependency; chaos tooling remains deferred.
+- *Whole-suite mutation tools (Stryker, mutmut, equivalent).* Their run time and noise outweigh what they add here. The bounded break probe in the selective heavier tooling section is the targeted form, chosen by an independent reviewer and run against the affected test files only.
 
 ---
 
-## 16. Tester runbook: using the persona harness
+## 16. Per-story test charters
 
-The persona harness in `src/testkit/` lets a tester act as any seeded member, act as a real migrated member by claiming its record, see captured email without a real inbox, and drive the membership purchase flow without Stripe. It is active under `FOOTBAG_ENV ∈ {development, staging}` and absent from production (§7.5, §7.6). This section is the step-by-step; §7 is the design contract.
+This section prescribes, per user story, the tests the platform requires. Each charter selects from the test-dimension taxonomy (§16.1) and names the story-specific edge, scenario, time, and concurrency cases. Charters are prescriptive and timeless: they describe the tests a story warrants, not which already exist. Build status lives in the maintainers' private tracker. Properties that every surface shares are verified once by a generative sweep (§16.2) rather than restated in each charter, so a charter that reads "covered by the CSRF sweep" is asserting the sweep includes that route, not that the property is untested.
 
-### 16.1 What the harness provides
-
-- A curated persona catalog (`src/testkit/canonicalPersonas.ts`), seeded into the dev or staging database.
-- `GET /dev/personas`, a grid of cards, one per loadable persona, showing its tier, roles, purpose, and coverage notes. A session-eligible persona card carries a Switch control; a login-blocked persona (unverified, deceased, soft-deleted) carries a Log in control that drives the real login path.
-- `GET /dev/switch?as=<slug>`, which issues a real session cookie for that persona (the same primitive the login path uses, not an auth bypass).
-- A **Switch to a real member** card on `/dev/personas`: enter a real migrated legacy record's member id and `GET /dev/build-claim?as=<legacy_member_id>` builds a claimed account for it (running the real register, verify, claim, and onboarding journey once), issues a session for it, and lands on its profile, so a tester acts as a real claimed member rather than only a seeded persona. A record already claimed reuses its account, so a repeat switch rebuilds nothing. It needs a loaded real dataset and is the manual peer of the real-claim crawl (§5.10, §8.5).
-- Each persona's profile About marks it as a test persona and states what it exists to test, so a switched-in profile is never read as a real member.
-- A **Refresh all personas** control on `/dev/personas` (`POST /dev/personas/refresh`) that tears down the persona-owned rows and re-seeds the catalog, returning every persona to its seeded state. Use it to undo in-app changes a persona accumulated, for example a tier upgrade, which appends to the membership ledger and otherwise persists.
-- The simulated-email card, captured outbound email rendered inline on every email-gated login page when `SES_ADAPTER=stub`.
-- `GET /dev/outbox`, a read-only page listing every message the stub adapter captured, newest first. The simulated-email card covers email-gated login pages; this viewer covers notifications that have no host page (a tier change, a vouch confirmation), so a tester reads any outbound message in one place.
-- The stub payment adapter, a checkout pass-through (Confirm, Cancel, Decline) that drives the full purchase flow through the real webhook verifier with no Stripe dependency.
-
-### 16.2 Local quickstart (development)
-
-1. Seed the catalog: `./run_dev.sh --seed-test-personas` (combinable with any rebuild mode; idempotent, a persona whose slug already exists is skipped). To seed without launching, run `./scripts/manage-test-personas.sh --seed-test-personas`. A launch that keeps the existing database also rebuilds the personas already in it from their current specs, so a spec edited since the database was seeded takes effect rather than reading as a broken feature; `--no-refresh-personas` opts out, and a rebuild mode skips it because its seed is current already.
-2. Open `GET /dev/personas`. Every seeded persona is listed.
-3. Click Switch on a card to become that persona (redirects to `/`). Log out to return to anonymous.
-
-All seeded personas share one fixed test password, defined once in `src/testkit/` and never reproduced in docs. `/dev/switch` needs no password, so prefer it for routine switching and use form login only when the password path itself is under test.
-
-### 16.3 Acting as a persona
-
-`GET /dev/switch?as=<slug>` looks the persona up by that slug through the same email-verified session query the auth middleware uses, mints a real session JWT, and writes a `testkit.persona_switch` audit row. An unknown slug returns 404 (anti-enumeration). Switching while already signed in replaces the current session.
-
-### 16.4 Seeing captured email
-
-When `SES_ADAPTER=stub` (the development default and the staging setting), outbound mail is captured in memory instead of sent. Every email-gated login page (registration check-email, password-reset sent, verify-resend) renders a "Simulated email" card listing that flow's captured messages with their subject, body, and the actionable link; follow the link to continue without a real inbox and without leaving the page. The buffer clears on server restart. This works anywhere the stub adapter runs: development, staging, and a production email side still dark under its arming switch. Notifications without a host page (membership, club, payment, Active Player) carry no card; read them on `GET /dev/outbox`, which lists the full captured buffer newest first.
-
-The development stack runs the outbox worker beside the web and image-worker processes, so an enqueued message drains through the stub adapter and reaches `/dev/outbox` within the outbox poll interval (short in development); reload if a just-triggered message has not yet landed. To read any host-page-less notification, act as the persona that triggers it and then open `/dev/outbox`:
-
-- Contact IFPA admin: as a member, submit the Contact IFPA admin form; the admin-alerts notification to subscribed admins appears. As an admin, resolve the item from the work queue; the resolution reply to the member appears.
-- Club membership: as a member, join or leave a club; the joining or leaving member and every co-leader are notified.
-- Membership tier and payment: drive the stub purchase flow (§16.5); the payment receipt and the tier-change notice appear.
-- Active Player: as a Tier 2 or Tier 3 persona, vouch for a Tier 0 member; the vouch confirmation appears. Expiry reminders are produced by the worker's daily pass rather than by a tester action.
-
-Honors congratulations, club-cleanup contact, and the other notification stories surface the same way: trigger the owning action as the appropriate persona and read the captured message on `/dev/outbox`.
-
-### 16.5 Exercising the purchase flow
-
-The stub payment adapter registers the checkout pass-through when `PAYMENT_ADAPTER=stub`, the development default and the staging setting. As a seeded persona:
-
-1. Start a purchase from the member profile (`POST /members/<slug>/purchase-tier`), which redirects to `GET /payments/checkout/<sessionId>`.
-2. The checkout page offers three buttons, each driving the same signed-webhook path a real Stripe delivery uses:
-   - **Confirm and Pay**: payment succeeds, the tier is granted, redirect to the success page.
-   - **Cancel**: payment is canceled, no tier change, redirect to the cancel page.
-   - **Decline payment**: payment fails, no tier change, redirect to the cancel page in its failure variant.
-
-Live Stripe checkout-session creation and real webhook delivery belong to the production-only go-live verification (§7.7) and are out of the dev/staging harness.
-
-### 16.6 Staging loop
-
-On the staging host the harness is seeded after a deploy with `./deploy_to_aws.sh --seed-test-personas` (allowlisted to the staging target only). `/dev/personas`, `/dev/switch`, the simulated-email card, and the stub purchase flow behave as in development. Operator staging-AWS adapter smoke checks run with `npm run test:smoke`.
-
-### 16.7 Pre-flight checklist
-
-- `FOOTBAG_ENV` is `development` or `staging` (the `/dev` surface is absent otherwise).
-- `SES_ADAPTER=stub` (so the simulated-email card renders).
-- `PAYMENT_ADAPTER=stub` (the default in development; the staging setting) for the purchase flow.
-- The database has been seeded (`--seed-test-personas`); `/dev/personas` is non-empty.
-
-### 16.8 Provenance and the production-residue audit
-
-Every harness write carries a stable marker (`reason_code = 'dev_persona_seed.tier_grant'`, `audit_entries.action_type` in `testkit.persona_seed` or `testkit.persona_switch`, `created_by = 'dev-shortcuts/personas'`). `scripts/audit-dev-shortcuts.sh` counts these against a production database and exits non-zero on any residue (§9.5), so the harness is provably absent from production.
-
-### 16.9 Reporting what you find
-
-A defect a tester finds is filed as a bug report in the private dev-tester repository, whose README holds the procedure, through the `file-bug` skill or the repository's form. The maintainer triages each bug report once, with the `triage-bugs` skill: it is fixed with its regression test, carded into the maintainers' private tracker, closed as not a bug or a duplicate, or sent back to its reporter with questions. A bug report is not a tracker card: only a carded one becomes tracked work.
-
----
-
-## 17. Per-story test charters
-
-This section prescribes, per user story, the tests the platform requires. Each charter selects from the test-dimension taxonomy (§17.1) and names the story-specific edge, scenario, time, and concurrency cases. Charters are prescriptive and timeless: they describe the tests a story warrants, not which already exist. Build status lives in the maintainers' private tracker. Properties that every surface shares are verified once by a generative sweep (§17.2) rather than restated in each charter, so a charter that reads "covered by the CSRF sweep" is asserting the sweep includes that route, not that the property is untested.
-
-### 17.1 Test-dimension taxonomy
+### 16.1 Test-dimension taxonomy
 
 A charter references these dimensions by number.
 
@@ -1225,7 +1155,7 @@ A charter references these dimensions by number.
 17. Accessibility: axe checks on UI surfaces; keyboard, focus, label, and contrast for stories with UI.
 18. Migration: loader row-count and shape; confidence outcomes; alias and name-change; club-affiliation cases.
 
-### 17.2 Platform-wide generative sweeps
+### 16.2 Platform-wide generative sweeps
 
 Several properties hold across every surface and are tested once, generatively, over the live route table or the schema, so a newly added surface is covered by construction:
 
@@ -1241,7 +1171,7 @@ Several properties hold across every surface and are tested once, generatively, 
 
 A per-story charter names only the cases specific to that story; the cross-cutting properties above are inherited from these sweeps.
 
-### 17.3 Charters: authentication and identity
+### 16.3 Charters: authentication and identity
 
 **M_Login** (dims 1, 3, 4, 6, 8, 13, 15). Valid credentials issue a session cookie with the correct attributes; a wrong password yields a generic failure; a registered-unverified account is blocked with a verification prompt; a deceased or soft-deleted account is rejected, on both sides of the grace boundary and indistinguishably from an unknown address, since no restore is offered. Anti-enum: unknown email and wrong password are indistinguishable in body and timing. Rate-limit: repeated failures return 429 with `Retry-After`, and the window resets. Adversarial: injection, oversized, and unicode input in the email field. Audit: both failed and successful attempts are recorded.
 
@@ -1255,7 +1185,7 @@ A per-story charter names only the cases specific to that story; the cross-cutti
 
 **M_Claim_Legacy_Account** (dims 1, 2, 3, 5, 6, 9, 10, 11, 12, 13, 15). Scenarios across every outcome class in the identity-claim section: claimable strong and possible matches, a competition record with no account, an uncorroborated account found by name, a surname-differing card answered with a former surname, each of the never-offered refusals, both non-claiming answers and the once-only cannot-find last attempt. Repeat: a repeated claim reports the success it already had. Concurrency: two simultaneous claims of one legacy row, with the loser rolling back to no partial link, grant, or audit. Anti-enum: an unknown person id and an already-claimed record both return the enumeration-safe message, and low or no-match leaks no candidate identity. Authz: a claimed legacy admin flag never confers a live admin role. Audit: claim, link, and grant are recorded.
 
-### 17.4 Charters: visitor and public read surfaces
+### 16.4 Charters: visitor and public read surfaces
 
 **V_Browse_Static_Content** (dims 1, 2, 14, 17). Any visitor reads the public site with no authentication. Public pages never expose member contact fields or PII. An unknown slug or section returns 404, not a 500. High-traffic public pages carry accessibility checks.
 
@@ -1273,7 +1203,7 @@ A per-story charter names only the cases specific to that story; the cross-cutti
 
 **V_Register_Account** (dims 1, 3, 6, 8, 13, 15). Registration creates an unverified account and issues a verification token; login is blocked until verification. Anti-enum: registering an already-registered email returns the same enumeration-safe UX as a fresh address. Rate-limit on repeated registration. Validation and adversarial input on every field (email shape, password policy, unicode display name). Audit on account creation.
 
-### 17.5 Charters: club and club co-leader
+### 16.5 Charters: club and club co-leader
 
 **M_View_Club** (dims 1, 2, 5, 14). Anyone views the public club page; member-only surfaces appear only to authenticated members. An unknown club key returns 404.
 
@@ -1285,7 +1215,7 @@ A per-story charter names only the cases specific to that story; the cross-cutti
 
 **CL_Mark_Club_Inactive** (dims 1, 5, 9, 10, 15). Co-leader-scoped state transitions. Parking is reversible and open to any co-leader, and the club returns to the active listings the moment anyone joins, claims or reactivates it. The inactive state gates public listing visibility. Audit on each transition.
 
-### 17.6 Charters: member profile, account, and media
+### 16.6 Charters: member profile, account, and media
 
 **M_Edit_Profile** (dims 1, 3, 4, 5, 13, 14). An authenticated owner edits their own profile; another member's edit route returns 404. Validation and adversarial input on every field, escaped on render. Contact fields are gated to the owner and admins. Audit on change.
 
@@ -1305,7 +1235,7 @@ A per-story charter names only the cases specific to that story; the cross-cutti
 
 **M_Delete_Account** and **M_Download_Data** (dims 1, 5, 9, 10, 14, 15). Self-service deletion is permanent: the account is unreachable from the moment it is confirmed, and the grace window that follows is the interval before the anonymising purge rather than a way back. HoF and BAP members are preserved. Data export is an owner-only download that returns only the signed-in member's own data. Time: the grace-window boundary (open versus elapsed).
 
-### 17.7 Charters: payment and membership
+### 16.7 Charters: payment and membership
 
 **M_Purchase_Tier_1** and **M_Purchase_Tier_2** (dims 1, 5, 9, 12, 13, 15). Authenticated; the stub checkout drives the real signed-webhook path, where confirm grants the tier and cancel and decline do not. Idempotency: a replayed webhook does not double-grant. The payment-status-transition ledger is append-only. Audit on the grant.
 
@@ -1321,7 +1251,7 @@ A per-story charter names only the cases specific to that story; the cross-cutti
 
 **A_Acknowledge_Alarm** alarm intake (dims 1, 7, 12, 13, 15). Origin-exempt and signature-authenticated; an absent or invalid signature is rejected even when the URL key is correct; redelivery is idempotent per message identifier; a return to normal clears the newest uncleared alarm of that name.
 
-### 17.8 Charters: admin
+### 16.8 Charters: admin
 
 **A_View_Dashboard**, **A_View_System_Health**, **A_View_Audit_Logs**, and **A_Acknowledge_Alarm** (dims 1, 5, 14). Admin-only (the deny half is covered by the authorization matrix); audit logs are read-only, and an acknowledgment is one-shot and audited.
 
@@ -1335,7 +1265,7 @@ A per-story charter names only the cases specific to that story; the cross-cutti
 
 **A_Reconcile_Payments**, **A_Review_Member_Link_Help_Requests**, and **A_Resolve_Contact_IFPA_Admin_Request** (dims 1, 5, 9, 13, 15). Admin-only queue actions with audit and idempotent resolution.
 
-### 17.9 Charters: not-yet-deployed surfaces
+### 16.9 Charters: not-yet-deployed surfaces
 
 Each of these surfaces gains its full charter when its routes land; the dimension emphasis is fixed in advance so the charter is ready:
 
@@ -1346,11 +1276,11 @@ Each of these surfaces gains its full charter when its routes land; the dimensio
 
 ---
 
-## 18. Completeness audit checklist
+## 17. Completeness audit checklist
 
 A periodic audit of test completeness walks this checklist top to bottom. Each line names a dimension, where its evidence lives, and the pass condition. A complete audit records a verdict per line; a dimension that cannot be verified against the codebase is itself a finding. Where a prescribed capability is not yet wired, that is a tracked deviation in the maintainers' private tracker (an open issue labeled `bug`), not a relaxation of this checklist.
 
-1. **Deployed user-story coverage.** Cross the deployed-route inventory to its user stories and to the charters in §17, and read the criterion ledger (§4.1). Pass: every deployed story has a charter, every applicable charter dimension is met by a test or carries a gap issue in the maintainers' private tracker, and every deployed success criterion maps to a test that fails when it breaks, or to a named exemption. A deployed route that maps to no story is unintended scope (§4.1).
+1. **Deployed user-story coverage.** Cross the deployed-route inventory to its user stories and to the charters in §16, and read the criterion ledger (§4.1). Pass: every deployed story has a charter, every applicable charter dimension is met by a test or carries a gap issue in the maintainers' private tracker, and every deployed success criterion maps to a test that fails when it breaks, or to a named exemption. A deployed route that maps to no story is unintended scope (§4.1).
 2. **Adapter parity, three legs (§7.2).** Every adapter in `src/adapters/` has a boot-config test (`tests/unit/env-config.test.ts`) and an interface-parity test (`tests/integration/adapter-parity.test.ts`). Every external-service adapter whose live probe is side-effect-free (JWT-KMS, Secrets-SSM, SafeBrowsing, HttpReachability) also has a staging-smoke leg (`tests/smoke/`, including `staging-readiness.test.ts` for the KMS-sign round-trip). The internal docker-network adapters (ImageProcessing, VideoTranscoding) carry only the first two legs, as do the adapters whose live call would mutate a deployed system (MediaStorage-S3, Payment) and the SES adapter, whose live sending is confined to production and verified by `scripts/verify-prod-email.sh`. Pass: the matrix has no missing required leg.
 3. **Stub-versus-live parity.** Every adapter with both a stub and a live implementation asserts identical observable output; single-code-path adapters assert through an injected client. Pass: no stub diverges from its live counterpart untested.
 4. **Staging-smoke comprehensiveness (§5.4, §7.3).** `tests/smoke/` probes the assumed-role identity, KMS sign and verify, SSM-plus-KMS secret decryption, the archive signing key's SSM round trip, Safe Browsing, outbound URL reachability including its SSRF refusal, Turnstile captcha secret acceptance (production target only), static-asset cache-busting at the staging CloudFront edge, the seeded persona catalog read over ssh (current state only; the seed is never re-run), and health and readiness. Files run one at a time rather than in parallel: every assertion is a real network round-trip against one environment, so concurrent files contend for the same egress and the same remote throttles, and a per-test timeout calibrated on a file running alone stops meaning anything. Run: `npm run test:smoke` (`scripts/test-smoke.sh`), or the staging AWS smoke row of `./run_all_tests.sh --staging`. Pass: every external surface has a smoke probe.

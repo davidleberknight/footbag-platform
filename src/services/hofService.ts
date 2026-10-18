@@ -17,9 +17,15 @@
  */
 import { PageViewModel } from '../types/page';
 
+/** A run of paragraph text; one carrying `href` renders as an external link. */
+interface ProseSegment {
+  text: string;
+  href?: string;
+}
+
 interface HofSection {
   heading: string;
-  paragraphs: string[];
+  paragraphs: ProseSegment[][];
 }
 
 interface HofContent {
@@ -30,7 +36,11 @@ interface HofContent {
 export const hofService = {
   getHofLandingPage(): PageViewModel<HofContent> {
     return {
-      seo: { title: 'Hall of Fame' },
+      seo: {
+        title: 'Hall of Fame',
+        description:
+          'The Footbag Hall of Fame honors the pioneers, champions and promoters of footbag sports. Read the history of the honor and visit the official Hall of Fame site.',
+      },
       page: {
         sectionKey: 'hof',
         pageKey: 'hof_index',
@@ -43,16 +53,27 @@ export const hofService = {
           {
             heading: 'A Bit of History...',
             paragraphs: [
-              'One fine day in Oregon in 1972, <a href="https://www.footbaghalloffame.net/our-members/mike-marshall" target="_blank" rel="noopener noreferrer">Mike Marshall</a> and <a href="https://www.footbaghalloffame.net/our-members/john-stalberger" target="_blank" rel="noopener noreferrer">John Stalberger</a> decided to hack a sack, ' +
-              'to kick a small bag around for fun and exercise. ' +
-              'This became Hacky Sack brand footbag, and soon there were competitions, ' +
-              'plus joyful free-flow kicking at festivals and events. ' +
-              'The Footbag Hall of Fame was founded in 1997 by Stalberger and fellow pioneers ' +
-              'to honour the champions and promoters who left their mark, turning this back-yard game into a global phenomenon. ' +
-              'Maybe some day you can become a HoF member too! Get involved, join a club, go to tournaments, ' +
-              'and most of all, have fun! Go get a hack with a sack. The most fun wins. ' +
-              'Well, sometimes <a href="https://www.footbaghalloffame.net/our-members/ken-shults" target="_blank" rel="noopener noreferrer">Kenny Shults</a> still wins!\n\n' +
-              '#BringBackTheHack',
+              [
+                { text: 'One fine day in Oregon in 1972, ' },
+                { text: 'Mike Marshall', href: 'https://www.footbaghalloffame.net/our-members/mike-marshall' },
+                { text: ' and ' },
+                { text: 'John Stalberger', href: 'https://www.footbaghalloffame.net/our-members/john-stalberger' },
+                {
+                  text:
+                    ' decided to hack a sack, ' +
+                    'to kick a small bag around for fun and exercise. ' +
+                    'This became Hacky Sack brand footbag, and soon there were competitions, ' +
+                    'plus joyful free-flow kicking at festivals and events. ' +
+                    'The Footbag Hall of Fame was founded in 1997 by Stalberger and fellow pioneers ' +
+                    'to honour the champions and promoters who left their mark, turning this back-yard game into a global phenomenon. ' +
+                    'Maybe some day you can become a HoF member too! Get involved, join a club, go to tournaments, ' +
+                    'and most of all, have fun! Go get a hack with a sack. The most fun wins. ' +
+                    'Well, sometimes ',
+                },
+                { text: 'Kenny Shults', href: 'https://www.footbaghalloffame.net/our-members/ken-shults' },
+                { text: ' still wins!' },
+              ],
+              [{ text: '#BringBackTheHack' }],
             ],
           },
         ],

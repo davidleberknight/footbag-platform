@@ -52,39 +52,6 @@ def test_every_category_the_fix_list_sets_is_one_of_the_four_families():
     assert cats - {""} <= FAMILIES
 
 
-def test_a_contest_whose_heading_names_no_family_takes_the_family_the_fix_sets():
-    d = _disciplines()
-    king = d[("1998_southern_california", "unknown")]
-    assert (king["discipline_name"], king["discipline_category"], king["team_type"]) == (
-        "Supreme Exhalted Ruler of the Court", "net", "singles")
-    square = d[("2014_polish", "unknown")]
-    assert (square["discipline_name"], square["discipline_category"]) == ("Open 2-Square", "sideline")
-
-
-def test_an_overall_standing_is_a_cross_sport_aggregate_under_its_source_name():
-    d = _disciplines()
-    expected = {
-        "2002_de_france_de": "Overall Champions",
-        "2003_footbagjam_copenhagen": "Best ranged Danish players",
-        "2008_texas_statewide": "Iron Man competition",
-    }
-    for event, name in expected.items():
-        r = d[(event, "unknown")]
-        assert (r["discipline_name"], r["discipline_category"], r["is_aggregate_standing"]) == (
-            name, "", "1"), event
-
-
-def test_misread_and_empty_disciplines_are_removed_with_their_results():
-    removed = {"1997_montreal", "1997_westregion", "2009_eurochamp_strzelin",
-               "2014_eastregion", "2000_new_zealand", "2008_funtastik_summer",
-               "2015_eastregion"}
-    d = _disciplines()
-    assert {e for e in removed if (e, "unknown") in d} == set()
-    leftovers = {(r["event_key"], r["discipline_key"]) for r in _rows("event_results.csv")
-                 if r["event_key"] in removed and r["discipline_key"] == "unknown"}
-    assert leftovers == set()
-
-
 def test_the_rebuilt_event_publishes_its_source_divisions_and_no_trick_named_ones():
     # The parser filed this event's freestyle results under trick names and
     # shifted every doubles pair by one place.

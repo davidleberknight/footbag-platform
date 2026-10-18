@@ -12,12 +12,12 @@ Public pages in this project are IFPA-facing visitor pages. Every page must conf
 Read only the section relevant to this task. For large documents, locate the section by heading or keyword before reading. Do not load entire files into context.
 
 1. **The maintainers' private tracker** (`gh issue list -R "$FOOTBAG_PRIVATE_REPO" --state open`; if unwired, note it in one line and proceed with the human's instruction as given): confirm an open issue covers the page. Note any tracked deviations from target patterns.
-2. **`docs/USER_STORIES.md`**: locate the relevant user story by page name or route, then read only that story's acceptance criteria. Do not infer behavior; derive it from the stories.
+2. **`docs/USER_STORIES.md`**: locate the relevant user story by page name or route, then read only that story's success criteria. Do not infer behavior; derive it from the stories.
 3. **`docs/DATA_GOVERNANCE.md`**: when the page touches members, historical persons, search, contact fields, exports, stats, auth, or privacy boundaries, read the relevant section before proceeding.
 4. **`docs/DESIGN_DECISIONS.md`** (targeted): read when entering a new code area, unwinding a temporary simplification, or when the rationale behind a pattern is unclear.
 5. **`.claude/rules/view-layer.md`** (auto-attaches when editing `src/views/**` or `src/public/css/**`): the public-rendering standard — required `PageViewModel<TContent>` shape (`seo`, `page`, `navigation`, `content`); the reusable primitives (event card, discipline tag, result section, year nav, etc.); thin-controller and logic-light-template discipline; CSS-vocabulary discipline; and the visual standard. Confirm the route exists in `src/routes/publicRoutes.ts` or add it there. The per-route service binding, audience, authorization, rendering pattern, and sensitive-page invariants (privacy, anti-enumeration, owner-only, public/private boundary) live in the owning service's file-header JSDoc (item 6); read it in full for the route you are touching.
 6. **The owning service's file-header JSDoc** (`src/services/<name>.ts`): the authoritative service-layer contract; read its ownership boundary and required patterns. If the required service method does not yet exist, **invoke `extend-service-contract` first and complete it before continuing here**.
-7. **Code, types, tests, and `database/schema.sql`**: authoritative for current shapes (method signatures, view-model TypeScript, return types, exact column names, nullable vs required, enum values, FK relationships, indices, triggers). When current shapes disagree with the target patterns in `.claude/rules/view-layer.md` or the owning service's JSDoc, that is a deviation tracked as a private-tracker issue. Always follow existing code patterns and naming conventions if similar features have already been implemented; if no good pattern exists, ask the human before introducing a new one. Questions to the human follow `.claude/rules/asking.md`.
+7. **Code, types, tests, and `database/schema.sql`**: authoritative for current shapes (method signatures, view-model TypeScript, return types, exact column names, nullable vs required, enum values, FK relationships, indices, triggers). When current code disagrees with the owning service's JSDoc or `.claude/rules/view-layer.md` and no tracker issue records the gap, resolve it per the `design-intent` skill: settled and reported when the intent makes it clear, a question for the human when not. Always follow existing code patterns and naming conventions if similar features have already been implemented; if no good pattern exists, ask the human before introducing a new one. Questions to the human follow `.claude/rules/asking.md`.
 8. **`docs/DATA_MODEL.md`**: understand entity relationships, soft-delete conventions (`deleted_at`), audit patterns, and data invariants the view-layer change must preserve.
 
 If the requested page is not covered by a user story or an open private-tracker issue, first determine whether it is out of scope before proposing it as new work.
@@ -37,7 +37,7 @@ If this task adds a **new top-level nav section**, also read:
 
 ## Step 3: Architecture context
 
-Path-scoped rule files in `.claude/rules/` govern the paths the change touches. For public-page work these are typically `service-layer.md`, `controller-conventions.md`, `template-conventions.md`, and `db-layer.md`. Read each touched path's rule yourself (root `CLAUDE.md` rule 8); do not restate them in your plan.
+Path-scoped rule files in `.claude/rules/` govern the paths the change touches. For public-page work these are typically `service-layer.md`, `controller-conventions.md`, `template-conventions.md`, and `db-layer.md`. Read each touched path's rule yourself (the pre-writing-code gate in root `CLAUDE.md`); do not restate them in your plan.
 
 Two architecture rules sit outside any path-scoped file and apply broadly:
 
@@ -63,7 +63,7 @@ Client JS:
 
 Before touching any file, state:
 - route(s) affected and whether they are already registered in `src/routes/publicRoutes.ts`
-- user story acceptance criteria being satisfied
+- user story success criteria being satisfied
 - view-model fields required by the route's page contract (from the owning service's file-header JSDoc)
 - service method(s) that will own the page shaping (from the owning service's file-header JSDoc)
 - if content comes from an external URL: the fetched content structure and how it maps to `content.sections[]`
@@ -91,8 +91,7 @@ If in doubt about a layout, flag it to the human rather than shipping something 
 
 ## Step 7: Verification
 
-- write or update integration tests in `tests/integration/` using factory helpers from `tests/fixtures/factories.ts` (see `tests/CLAUDE.md` for conventions and `write-tests` skill for guidance)
-- make excellent adversarial tests: happy path, auth gates, not-found, draft/unpublished leakage, route ordering, edge cases from acceptance criteria
+- write the tests through the `write-tests` skill, which owns the layer choice, the case floor and the sweeps a new route already gets
 - verify per the Verification default in root `CLAUDE.md`
-- only use browser automation if the human explicitly asked for it (see `browser-qa` skill)
+- drive the changed page on the dev stack as the `write-tests` Drive step says; screenshots and visual review run only when the human asks (`browser-qa`)
 - after changes, invoke `doc-sync` to check whether the owning service's file-header JSDoc or `.claude/rules/view-layer.md` needs updating

@@ -721,11 +721,6 @@ describe('scripts/deploy-local-data.sh member-intake dispatch', () => {
     expect(combined).toMatch(/deploy-local-data\.sh --all-data --apply-members/);
   });
 
-  it('run_dev.sh --all-data passes --apply-members to deploy-local-data.sh (static guard)', () => {
-    const content = fs.readFileSync(path.join(REPO_ROOT, 'run_dev.sh'), 'utf8');
-    expect(content).toMatch(/deploy-local-data\.sh --all-data --apply-members/);
-  });
-
   // A direct run skips what each entry point adds around the build, so it is
   // refused, and refused before anything touches the database.
   it('a direct invocation is refused before any step runs, naming the entry points', () => {
@@ -742,20 +737,6 @@ describe('scripts/deploy-local-data.sh member-intake dispatch', () => {
       expect(fs.existsSync(path.join(tmpRoot, 'SLATE_RAN'))).toBe(false);
     } finally {
       fs.rmSync(tmpRoot, { recursive: true, force: true });
-    }
-  });
-
-  // Every entry point must set the marker, or every rebuild through it is refused.
-  it('both entry points set the marker before they call deploy-local-data.sh', () => {
-    for (const [file, value] of [
-      ['run_dev.sh', 'run_dev'],
-      ['scripts/deploy-to-aws.sh', 'deploy'],
-    ] as const) {
-      const content = fs.readFileSync(path.join(REPO_ROOT, file), 'utf8');
-      const marker = content.indexOf(`export FOOTBAG_DATA_BUILD_ENTRY=${value}`);
-      expect(marker, file).toBeGreaterThan(-1);
-      const firstCall = content.search(/^\s*(run_step )?bash \S*deploy-local-data\.sh/m);
-      expect(firstCall, file).toBeGreaterThan(marker);
     }
   });
 
@@ -905,19 +886,41 @@ describe('legacy_data/run_pipeline.sh identity-lock preflight', () => {
 // host. Loss of the guard would let a workstation holding a non-empty
 // allowlist accidentally seed admin emails on production.
 
-describe('remote-half script production refusal guards (static-text)', () => {
+describe('remote-half script production refusal guards', () => {
+  // The guard itself, lifted out of each half and run: from the line that
+  // defaults the value through the `fi` that closes the refusal. Everything
+  // around it needs a root shell on the host, which is why the slice is what runs.
+  function runGuard(relPath: string, env: Record<string, string>): { status: number | null; stderr: string } {
+    const content = fs.readFileSync(path.join(REPO_ROOT, relPath), 'utf8');
+    const start = content.indexOf(': "${FOOTBAG_DEV_INITIAL_ADMIN_EMAILS=}"');
+    const end = content.indexOf('\nfi\n', start);
+    expect(start, `${relPath}: guard start`).toBeGreaterThan(-1);
+    expect(end, `${relPath}: guard end`).toBeGreaterThan(start);
+    const res = spawnSync('bash', ['-c', `set -euo pipefail\n${content.slice(start, end + 4)}\necho guard-passed`], {
+      encoding: 'utf8',
+      env: { ...process.env, FOOTBAG_ENV: '', FOOTBAG_DEV_INITIAL_ADMIN_EMAILS: '', ...env },
+      ...SPAWN_GUARD,
+    });
+    return { status: res.status, stderr: res.stderr ?? '' };
+  }
+
   it.each([
     'scripts/internal/deploy-rebuild-remote.sh',
     'scripts/internal/deploy-code-remote.sh',
-  ])('%s contains the FOOTBAG_DEV_INITIAL_ADMIN_EMAILS production-refusal guard', (relPath) => {
-    const content = fs.readFileSync(path.join(REPO_ROOT, relPath), 'utf8');
-    // The guard refuses any non-development, non-staging FOOTBAG_ENV when
-    // the value is non-empty. Match the literal error-message text and the
-    // exit so a partial removal still trips the test.
-    expect(content).toMatch(/FOOTBAG_DEV_INITIAL_ADMIN_EMAILS is dev\/staging-only/);
-    expect(content).toMatch(
-      /\[\[\s*-n\s*"\$FOOTBAG_DEV_INITIAL_ADMIN_EMAILS"\s*&&\s*"\$FOOTBAG_ENV"\s*!=\s*"development"\s*&&\s*"\$FOOTBAG_ENV"\s*!=\s*"staging"\s*\]\]/,
-    );
+  ])('%s refuses a non-empty admin allowlist unless the host is development or staging', (relPath) => {
+    // Defect caught: a workstation holding a non-empty allowlist seeding admin
+    // emails onto production, where first-admin is the single-use token path.
+    for (const hostEnv of ['production', '', 'Staging']) {
+      const r = runGuard(relPath, { FOOTBAG_ENV: hostEnv, FOOTBAG_DEV_INITIAL_ADMIN_EMAILS: 'a@example.org' });
+      expect(r.status, `${relPath} FOOTBAG_ENV=${JSON.stringify(hostEnv)}`).toBe(1);
+      expect(r.stderr).toMatch(/FOOTBAG_DEV_INITIAL_ADMIN_EMAILS is dev\/staging-only/);
+    }
+    // The same guard lets the two environments it serves through, and an empty
+    // value through anywhere, because an empty list clears the host's line.
+    for (const hostEnv of ['development', 'staging']) {
+      expect(runGuard(relPath, { FOOTBAG_ENV: hostEnv, FOOTBAG_DEV_INITIAL_ADMIN_EMAILS: 'a@example.org' }).status).toBe(0);
+    }
+    expect(runGuard(relPath, { FOOTBAG_ENV: 'production' }).status).toBe(0);
   });
 });
 
@@ -1014,8 +1017,6 @@ describe('the code deploy resolves one release directory and shares it (static-t
     // sent the value from one that sent an empty one, so it answered a sender bug
     // by promoting a directory nobody named, with --delete, over the live install.
     expect(content).toMatch(/: "\$\{RELEASE_DIR:\?/);
-    // An unconditional assignment would silently override what the caller sent.
-    expect(content).not.toMatch(/^RELEASE_DIR=\/home/m);
   });
 });
 
@@ -1033,27 +1034,55 @@ describe('the code deploy resolves one release directory and shares it (static-t
 // the production refusal and the path, and each wrapper reaches it by calling
 // the library rather than resolving the file itself.
 
-describe('deploy wrappers do not read the dev admin allowlist for production (static-text)', () => {
+describe('deploy wrappers do not read the dev admin allowlist for production', () => {
   const LIB = 'scripts/lib/initial-admins.sh';
 
-  it('the shared resolver refuses the production target before reading anything', () => {
-    const content = fs.readFileSync(path.join(REPO_ROOT, LIB), 'utf8');
-    // The refusal returns before the path is even built, so there is no read to
-    // make conditional and no way to reach the file on a production run.
-    expect(content).toMatch(
-      /if\s*\[\[\s*"\$remote"\s*==\s*"footbag-production"\s*\]\];\s*then\s*\n\s*return 0/,
-    );
-    const refusalAt = content.indexOf('footbag-production');
-    const pathAt = content.indexOf('initial-admins.txt', refusalAt);
-    expect(refusalAt).toBeGreaterThan(-1);
-    expect(pathAt).toBeGreaterThan(refusalAt);
+  /** The resolver, called as the wrappers call it, against a scaffold repository root. */
+  function resolve(repoRoot: string, remote: string) {
+    const res = spawnSync('bash', ['-c', `source "$1"; resolve_initial_admin_emails_csv "$2" "$3"`, '_', path.join(REPO_ROOT, LIB), repoRoot, remote], {
+      encoding: 'utf8',
+      ...SPAWN_GUARD,
+    });
+    return { status: res.status, stdout: res.stdout ?? '', stderr: res.stderr ?? '' };
+  }
+
+  /** A scaffold root whose private checkout holds an allowlist at the documented path. */
+  function scaffoldAllowlist(contents: string, mode = 0o600): string {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-admins-'));
+    const dir = path.join(root, 'footbag_private_repo', 'private_data', 'operator-local');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, 'initial-admins.txt'), contents);
+    fs.chmodSync(path.join(dir, 'initial-admins.txt'), mode);
+    return root;
+  }
+
+  it('reads the allowlist from the private operations checkout for staging, parsed as the runtime parses it', () => {
+    // Defect caught: the two sides deciding who becomes an administrator on
+    // staging from different readings of the same file (a comment kept, a case
+    // kept, a blank counted).
+    const root = scaffoldAllowlist('Alice@Example.org  # founder\n\n  bob@example.org\n# nobody@example.org\n');
+    try {
+      const r = resolve(root, 'footbag-staging');
+      expect(r.status, r.stderr).toBe(0);
+      expect(r.stdout.trim()).toBe('alice@example.org,bob@example.org');
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
 
-  it('the allowlist lives in the private operations checkout, not this one', () => {
-    const content = fs.readFileSync(path.join(REPO_ROOT, LIB), 'utf8');
-    expect(content).toMatch(
-      /footbag_private_repo\/private_data\/operator-local\/initial-admins\.txt/,
-    );
+  it('sends production nothing, without opening the file', () => {
+    // Defect caught: a production deploy depending on whether one workstation
+    // holds the file, refused by the host only after the release was promoted.
+    // The file is unreadable here, so a read would surface as an error.
+    const root = scaffoldAllowlist('alice@example.org\n', 0o000);
+    try {
+      const r = resolve(root, 'footbag-production');
+      expect(r.status).toBe(0);
+      expect(r.stdout).toBe('');
+      expect(r.stderr).toBe('');
+    } finally {
+      fs.rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it.each([
@@ -1502,11 +1531,56 @@ describe('both remote halves verify the container AWS identity', () => {
     content: fs.readFileSync(path.join(REPO_ROOT, p), 'utf8'),
   }));
 
+  /**
+   * The check, lifted out of the half and run against a stand-in `docker` that
+   * answers the container's identity question with `arn`. The slice runs from
+   * the expected-role line through the line that reports success.
+   */
+  function runIdentityCheck(content: string, arn: string): { status: number | null; stdout: string; stderr: string } {
+    const start = content.indexOf('_expected_role="footbag-${FOOTBAG_ENV_VAL}-app-runtime"');
+    const marker = 'Container AWS identity verified';
+    const end = content.indexOf('\n', content.indexOf(marker, start));
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    const bin = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-docker-stub-'));
+    fs.writeFileSync(path.join(bin, 'docker'), `#!/usr/bin/env bash\ncat >/dev/null\nprintf '%s' ${JSON.stringify(arn)}\n`);
+    fs.chmodSync(path.join(bin, 'docker'), 0o755);
+    try {
+      // The rebuild half reaches compose through a helper and dumps diagnostics
+      // on failure; both are defined ahead of the slice as the half defines them.
+      const preamble = [
+        'set -euo pipefail',
+        'FOOTBAG_ENV_VAL=staging',
+        'compose_cmd() { docker compose "$@"; }',
+        'dump_diagnostics() { :; }',
+      ].join('\n');
+      const res = spawnSync('bash', ['-c', `${preamble}\n${content.slice(start, end + 1)}`], {
+        encoding: 'utf8',
+        env: { ...process.env, PATH: `${bin}:${process.env.PATH ?? ''}` },
+        ...SPAWN_GUARD,
+      });
+      return { status: res.status, stdout: res.stdout ?? '', stderr: res.stderr ?? '' };
+    } finally {
+      fs.rmSync(bin, { recursive: true, force: true });
+    }
+  }
+
   it.each(halves)('$file asks its own container and refuses a mismatch', ({ content }) => {
-    expect(content).toMatch(/_expected_role="footbag-\$\{FOOTBAG_ENV_VAL\}-app-runtime"/);
-    expect(content).toMatch(/exec -T web node -e/);
-    expect(content).toMatch(/GetCallerIdentityCommand/);
-    expect(content).toMatch(/\*"assumed-role\/\$\{_expected_role\}\/"\*/);
+    // Defect caught: a stack that boots and answers its readiness check while
+    // running as the host provider's own role in a foreign account, reported as
+    // a successful deploy. The role is the environment's own, and nothing else passes.
+    const foreign = runIdentityCheck(content, 'arn:aws:sts::000000000000:assumed-role/some-provider-instance-role/i-0abc');
+    expect(foreign.status).toBe(1);
+    expect(foreign.stderr).toMatch(/does not resolve the expected AWS identity/);
+    expect(foreign.stderr).toMatch(/Expected an assumed-role session for footbag-staging-app-runtime/);
+    const wrongEnv = runIdentityCheck(content, 'arn:aws:sts::000000000000:assumed-role/footbag-production-app-runtime/web');
+    expect(wrongEnv.status).toBe(1);
+    const none = runIdentityCheck(content, '');
+    expect(none.status).toBe(1);
+    expect(none.stderr).toMatch(/resolved no identity at all/);
+    const own = runIdentityCheck(content, 'arn:aws:sts::000000000000:assumed-role/footbag-staging-app-runtime/web');
+    expect(own.status, own.stderr).toBe(0);
+    expect(own.stdout).toMatch(/Container AWS identity verified: footbag-staging-app-runtime/);
   });
 
   it.each(halves)('$file runs the check after the readiness poll', ({ content }) => {
@@ -1533,19 +1607,6 @@ describe('deploy-code-remote.sh container AWS identity verification', () => {
     content.indexOf('_expected_role="footbag-${FOOTBAG_ENV_VAL}-app-runtime"'),
     content.indexOf('Container AWS identity verified'),
   );
-
-  it('asks the container, not the host', () => {
-    // A host-side check reads root\'s profile, which is not the identity the
-    // application resolves and was never the one that broke.
-    expect(block).toMatch(/exec -T web node -e/);
-    expect(block).toMatch(/GetCallerIdentityCommand/);
-  });
-
-  it('requires an assumed-role session for the environment app-runtime role', () => {
-    expect(block).toMatch(
-      /\*"assumed-role\/\$\{_expected_role\}\/"\*/,
-    );
-  });
 
   it('fails the deploy rather than warning', () => {
     expect(block).toMatch(/exit 1/);
@@ -1599,11 +1660,6 @@ describe('production database-replacement ack threading', () => {
   // The typed confirmation lives in the wrapper; the leaf refuses a production
   // run without the threaded ack, so a direct leaf invocation with piped stdin
   // cannot bypass the confirmation.
-  it('the wrapper exports the ack only after the confirmation path', () => {
-    const wrapper = fs.readFileSync(path.join(REPO_ROOT, 'deploy_to_aws.sh'), 'utf8');
-    expect(wrapper).toMatch(/export FOOTBAG_PROD_DB_REPLACE_ACK=1/);
-  });
-
   it('the wrapper clears any inherited ack before it asks', () => {
     // Order is the whole property: clearing after the prompt, or not at all,
     // lets an exported value decide that the most destructive operation in the
@@ -1716,14 +1772,6 @@ describe('deploy-rebuild-remote.sh guard handshake', () => {
   // The destructive remote half must never run without the guard chain the
   // caller prepends into the same shell stream; the production-live guard
   // sets the handshake as its last act.
-  it('the guard sets the handshake after its checks', () => {
-    const guard = fs.readFileSync(
-      path.join(REPO_ROOT, 'scripts/internal/deploy-rebuild-production-live-guard.sh'),
-      'utf8',
-    );
-    expect(guard.trimEnd()).toMatch(/PROD_LIVE_GUARD_RAN=1$/);
-  });
-
   it('a direct invocation of the remote half refuses before touching anything', () => {
     const res = spawnSync(
       'bash',
@@ -2408,7 +2456,7 @@ describe('both deploy halves leave a host able to survive on its own', () => {
     // interruption between the two leaves a complete copy of the session
     // signing key, the worker channel secret and the origin-verify secret on
     // the host, which nothing else looks for or cleans up.
-    expect(source).toContain('trap cleanup_env_tempfiles EXIT');
+    expect(source).toMatch(/^trap '?cleanup_env_tempfiles[;' ].*EXIT$/m);
     expect(source).toContain('/srv/footbag/.env.tmp.*');
     expect(source).toContain('/srv/footbag/.deployed-from.tmp.*');
   });
@@ -2630,13 +2678,17 @@ describe('a production deploy refuses to run unattended', () => {
   });
 
   it.each(LEAVES)('%s gates on production alone, leaving staging unattended by design', (leaf) => {
-    // Asserted against the source rather than by running a staging deploy, which
-    // would open a real connection to the deployed host. What matters is that the
-    // condition names the production alias and nothing broader.
-    const content = fs.readFileSync(path.join(REPO_ROOT, leaf), 'utf8');
-    expect(content).toMatch(
-      /if \[\[ "\$REMOTE" == "footbag-production" \]\] && ! terminal_present; then/,
-    );
+    // Defect caught: the gate widened to every target, so the scheduled and
+    // agent-driven staging deploys the design relies on stop. The same unattended
+    // shape as above, against staging: it is refused for some later reason (no
+    // credential file on this isolated machine), never for the missing terminal.
+    // No host is reached: the shared isolation puts a refusing ssh first on PATH.
+    const r = run('bash', [leaf], {
+      env: { DEPLOY_TARGET: 'footbag-staging' },
+      input: 'unused-password\n',
+    });
+    expect(r.status).toBe(1);
+    expect(r.stderr).not.toMatch(/production deploy requires a terminal/);
   });
 });
 
@@ -2732,26 +2784,55 @@ describe('the code deploy protects host state at least as well as the rebuild de
 // that list is the refactor mistake the handshake exists to catch, and a single
 // shared flag would have left it satisfied by the guard that remained.
 describe('the destructive remote half requires every guard that ran ahead of it', () => {
-  it('each guard sets its own handshake', () => {
-    const cutover = fs.readFileSync(
-      path.join(REPO_ROOT, 'scripts/internal/deploy-rebuild-cutover-guard.sh'),
-      'utf8',
-    );
-    const prodLive = fs.readFileSync(
-      path.join(REPO_ROOT, 'scripts/internal/deploy-rebuild-production-live-guard.sh'),
-      'utf8',
-    );
-    expect(cutover).toMatch(/^CUTOVER_GUARD_RAN=1$/m);
-    expect(prodLive).toMatch(/^PROD_LIVE_GUARD_RAN=1$/m);
+  const GUARDS = [
+    'scripts/internal/deploy-rebuild-cutover-guard.sh',
+    'scripts/internal/deploy-rebuild-production-live-guard.sh',
+  ];
+  const REMOTE = 'scripts/internal/deploy-rebuild-remote.sh';
+
+  /** The handshake names the remote half demands, read from its own checks. */
+  function demandedHandshakes(): string[] {
+    const content = fs.readFileSync(path.join(REPO_ROOT, REMOTE), 'utf8');
+    return [...content.matchAll(/\$\{([A-Z_]+_GUARD_RAN):-\}" != "1"/g)].map((m) => m[1]);
+  }
+
+  it('every handshake the remote half demands is the last act of exactly one guard', () => {
+    // Two lists held together by nothing: the names the remote half checks and
+    // the names the guards set. One is derived from the other here, so a guard
+    // dropped from the stream, or a renamed handshake, fails rather than passing
+    // on the handshake that remained.
+    const demanded = demandedHandshakes();
+    expect(demanded).toHaveLength(GUARDS.length);
+    const set = GUARDS.map((g) => {
+      const content = fs.readFileSync(path.join(REPO_ROOT, g), 'utf8');
+      const lastLine = content.trimEnd().split('\n').pop() ?? '';
+      const m = lastLine.match(/^([A-Z_]+_GUARD_RAN)=1$/);
+      expect(m, `${g}: last line sets a handshake`).not.toBeNull();
+      return m![1];
+    });
+    expect([...set].sort()).toEqual([...demanded].sort());
   });
 
-  it('the remote half refuses unless both handshakes are present', () => {
-    const content = fs.readFileSync(
-      path.join(REPO_ROOT, 'scripts/internal/deploy-rebuild-remote.sh'),
-      'utf8',
-    );
-    expect(content).toMatch(/\$\{CUTOVER_GUARD_RAN:-\}" != "1"/);
-    expect(content).toMatch(/\$\{PROD_LIVE_GUARD_RAN:-\}" != "1"/);
+  it('the remote half refuses unless every handshake is present', () => {
+    // Defect caught: one handshake standing for both guards, so a stream that
+    // lost one guard still runs the destructive half on a post-cutover host.
+    const demanded = demandedHandshakes();
+    for (const missing of demanded) {
+      const env: Record<string, string> = {};
+      for (const name of demanded) env[name] = name === missing ? '' : '1';
+      const res = spawnSync('bash', [path.join(REPO_ROOT, REMOTE)], {
+        encoding: 'utf8', env: { ...process.env, ...env }, ...SPAWN_GUARD,
+      });
+      expect(res.status, missing).toBe(1);
+      expect(res.stderr, missing).toContain('the deploy guards did not run in this shell');
+    }
+    // With every handshake present it gets past them, to the next refusal.
+    const env: Record<string, string> = {};
+    for (const name of demanded) env[name] = '1';
+    const res = spawnSync('bash', [path.join(REPO_ROOT, REMOTE)], {
+      encoding: 'utf8', env: { ...process.env, ...env }, ...SPAWN_GUARD,
+    });
+    expect(res.stderr).not.toContain('the deploy guards did not run in this shell');
   });
 
   it('every streamed guard ends in a newline, so no line merges at a file boundary', () => {
@@ -2771,18 +2852,18 @@ describe('the destructive remote half requires every guard that ran ahead of it'
 // the orchestrator refuses, killing the run after the typed word and the password.
 describe('the production media question is only asked where the answer can be carried', () => {
   it('is never reached in reuse mode, which production refuses before the question', () => {
-    const content = fs.readFileSync(path.join(REPO_ROOT, 'deploy_to_aws.sh'), 'utf8');
-    const refusal = content.indexOf('-r/--reuse-local-db is not a production mode');
-    expect(refusal, 'production refuses reuse').toBeGreaterThan(-1);
-    expect(refusal).toBeLessThan(content.indexOf('Skip the media upload'));
-  });
-
-  it('only emits the no-media flag in a mode the orchestrator accepts it in', () => {
-    // The orchestrator's refusal is the other half of this contract: the flag is
-    // meaningful only alongside a rebuild, so the question must not be able to
-    // produce it anywhere else.
-    const orchestrator = fs.readFileSync(path.join(REPO_ROOT, 'scripts/deploy-to-aws.sh'), 'utf8');
-    expect(orchestrator).toMatch(/--no-media is only meaningful with --from-csv/);
+    // Defect caught: the question asked in a mode that reseeds no media, whose
+    // "yes" answer emits a flag the orchestrator refuses after the typed word.
+    const tmpRoot = scaffoldWrapperRoot();
+    try {
+      const r = run('bash', ['deploy_to_aws.sh', '-r', '--target', 'production'], { cwd: tmpRoot });
+      const combined = (r.stderr ?? '') + (r.stdout ?? '');
+      expect(r.status, combined).toBe(1);
+      expect(combined).toMatch(/-r\/--reuse-local-db is not a production mode/);
+      expect(combined).not.toMatch(/Skip the media upload/);
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
   });
 });
 
@@ -2805,6 +2886,7 @@ describe('production has two modes: code-only, and a database built in the run b
         expect(r.status, `${args.join(' ')}: ${combined}`).toBe(1);
         expect(combined, args.join(' ')).toMatch(message);
         expect(combined, args.join(' ')).not.toMatch(/Type 'APPLY'/);
+        expect(combined, args.join(' ')).not.toMatch(/Skip the media upload/);
       } finally {
         fs.rmSync(tmpRoot, { recursive: true, force: true });
       }

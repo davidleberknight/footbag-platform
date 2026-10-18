@@ -170,12 +170,14 @@ directory.
 
 Every operator script has a companion test under `tests/integration/` named
 `<script>.script.test.ts`. It drives the script through its test seam and pins the refusals: the
-argument guards, the preconditions, and the cleanup behaviour. The mutating path is the
-operator's and is not exercised there, except where the script's own reading of its outcome
-decides what it does next or reports: the archive publisher, whose post-publish checks gate
-the CDN invalidation, and the pause levers, which report the switch they read back. Those
-suites drive the mutating path end to end against stand-ins (the levers against a scratch
-database), so the verdict comes from a real run. Nothing real is reached or mutated.
+argument guards, the preconditions, and the cleanup behaviour. Each refusal sits beside a case
+where the same guard lets a valid run through, so a script that refuses everything cannot pass.
+The mutating path is the operator's and is not exercised there, except wherever the script's own
+reading of its outcome decides what it does next or what it reports: there the suite drives the
+mutating path end to end against stand-ins (a stub binary, a scratch database), so the verdict
+comes from a real run. The archive publisher, whose post-publish checks gate the CDN
+invalidation, and the pause levers, which report the switch they read back, are the worked
+examples. Nothing real is reached or mutated.
 Synchronous spawns use the shared bound from `tests/fixtures/spawnGuard.ts`.
 
 ## Do NOT

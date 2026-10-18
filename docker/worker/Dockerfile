@@ -41,14 +41,14 @@ COPY --from=builder /app/dist ./dist
 # Production excludes the dev/staging-only subtrees. The dev-bootstrap
 # register-allowlist and the testkit persona harness are permanent development
 # and staging infrastructure, never present in production: the build strips
-# dist/testkit, dist/dev-bootstrap, and dist/internal-qc when
+# dist/testkit and dist/dev-bootstrap when
 # INCLUDE_DEV_SHORTCUTS != 1. identityAccessService statically imports
 # dev-bootstrap/runtime and the worker loads that service through
 # operationsPlatformService, so the module is replaced with a no-op stub rather
 # than merely removed; a bare rm leaves a dangling require and the worker cannot boot.
 ARG INCLUDE_DEV_SHORTCUTS=0
 RUN if [ "$INCLUDE_DEV_SHORTCUTS" != "1" ]; then \
-      rm -rf dist/testkit dist/dev-bootstrap dist/internal-qc && \
+      rm -rf dist/testkit dist/dev-bootstrap && \
       mkdir -p dist/dev-bootstrap && \
       printf 'module.exports = { applyDevStagingBootstrapAdmin: function () { return { applied: false }; }, getInitialAdminEmails: function () { return new Set(); } };\n' > dist/dev-bootstrap/runtime.js; \
     fi

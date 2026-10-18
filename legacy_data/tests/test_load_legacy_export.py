@@ -255,7 +255,7 @@ def test_mirror_preseed_updates_in_place_and_claim_state_survives(tmp_path: Path
     export = write_export(tmp_path, [export_row("400", DisplayName="Fresh Export Name")])
     result = run_loader(db, export)
     assert result.returncode == 0, result.stderr
-    assert "updated from mirror:    1" in result.stdout
+    assert "updated from fixture:   1" in result.stdout
 
     rows = query(db, "SELECT * FROM legacy_members WHERE legacy_member_id = '400'")
     assert len(rows) == 1
@@ -272,7 +272,7 @@ def test_rerun_is_idempotent(tmp_path: Path) -> None:
 
     first = run_loader(db, export)
     assert first.returncode == 0, first.stderr
-    assert "updated from mirror:    1" in first.stdout
+    assert "updated from fixture:   1" in first.stdout
     assert "inserted new:           1" in first.stdout
 
     second = run_loader(db, export)

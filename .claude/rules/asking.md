@@ -8,8 +8,8 @@ Asking is the last resort. Work every answer through the authority order in root
 is never restated here, and prefer live research, reading the actual docs and code now, over memory
 or assumption. Confirm what "done" means before starting: the success criteria from the user story
 or design intent. If the design supplies none, that is itself a genuine question. Derive the answer
-rather than guessing it: the user stories rule on behaviour, design decisions on technical design,
-the data model gives the details, and code shows current reality. `docs/DATA_GOVERNANCE.md` is mandatory
+rather than guessing it, from the passages the pre-design gate in root `CLAUDE.md` names; what
+counts as clear intent is the `design-intent` skill. `docs/DATA_GOVERNANCE.md` is mandatory
 for members, historical persons, search, auth, contact fields, exports, stats, and privacy.
 Triangulate across more than one source and re-read the cited passages yourself. A ruling that
 ratifies text you drafted is not primary grounding: trace any new surface (route, page, table, flag)
@@ -21,7 +21,8 @@ genuine doubt survives the sources, DO ASK, never guess or assume. Multi-step an
 grounds to ask; only genuine undeterminability is. Read-only investigation needs no permission:
 git reads, DB SELECTs, curl GETs, file listings, compile-checks. Run them, never ask.
 
-Ask only when materially different interpretations survive the sources, or the call needs an
+Ask only when materially different interpretations survive the sources, the code, a document
+and the intent disagree and working from the intent down leaves it unclear, or the call needs an
 external fact, an IFPA or governance authority, a human preference the design does not determine,
 or the task would create or choose a canonical artifact the design does not already fix: a new
 document, the single home for a body of content, or the relocation or consolidation of content
@@ -29,8 +30,7 @@ between documents. That last case is always the human's; never settle it by pick
 plausible option. When two or more interpretations genuinely remain, name each and stop, and push
 back when the evidence warrants rather than defaulting to the human's framing.
 
-Scoping belongs to plan mode: surface and resolve every real scoping question before exiting, as
-many as it takes to exhaust material doubt. Once the plan is approved, continuation defaults to
+Scoping questions belong to plan mode, under the plan-mode rule in root `CLAUDE.md`. Once the plan is approved, continuation defaults to
 completion; carry the work through its deferred and follow-on tasks. A genuine new material
 decision still gets a question; "should I keep going" never does.
 
@@ -49,7 +49,7 @@ Before any message containing "?":
 8. State the load-bearing assumptions behind the recommendation, so a wrong one can be corrected before you act.
 9. Propose any surgical edit as literal BEFORE/AFTER text, verbatim with enough surrounding context to locate it, never an abstract description.
 10. When presenting a doc or canonical-text draft, show only the literal text plus a one-line approval prompt, with no trailing style or conformance commentary.
-11. In a multi-question pass, present exactly one question per message, headed "Question N of M: " plus a short bold title, and never finalize a plan while any queued question remains unasked.
+11. In a multi-question pass, present exactly one question per message, headed "Question N of M: " plus a short bold title.
 
 A Stop hook (`.claude/hooks/guard-question-quality.sh`) blocks a question still carrying a section
 sign, a state number, a documentation-file pointer, or a code used as a bare label. It is a

@@ -60,7 +60,7 @@ Rule of thumb: if deferral points to another section or document as the home for
 
 - **No refs to gitignored / local-only files** from any committed doc, code comment, script, or Terraform. State the underlying fact inline; name the fact, never the local-only file (the operator's AWS specifics such as account IDs, IPs, secrets, and Lightsail constraints; personal permission-setup notes).
 - **No refs to temporary / sprint-scoped files** from canonical docs, even when both are committed. Temp files have short lifespans; pointing canonical docs at them creates broken references.
-- **No dedicated "Cross-references" sections** or trailing "Cross-references:" bullets in DD, DATA_MODEL, or other long-term docs. Inline refs in prose are fine when they're load-bearing for comprehension. AI routing between docs is handled via CLAUDE.md + skill triggers + memory, not in-doc navigation.
+- **No dedicated "Cross-references" sections** or trailing "Cross-references:" bullets in DD, DATA_MODEL, or other long-term docs. Inline refs in prose are fine when they're load-bearing for comprehension. AI routing between docs is handled via CLAUDE.md and skill triggers, not in-doc navigation.
 - **Refs to committed `.claude/rules/*` and `.claude/skills/*` are allowed** as sources of truth, and preferred over restating their content. Pointing a canonical doc (or a service JSDoc) at the committed, stable rule, skill, or contract that owns a detail is more AI-efficient and drift-resistant than duplicating it.
 
 ## Plain words, not bare codes
@@ -77,7 +77,7 @@ In any doc or plan, describe the thing in plain words a reader understands on it
 
 - **No "Last updated: <date>"** in any canonical doc header; git log is the authoritative source. Strip existing ones on audit passes.
 - **State what the system does** (the real mechanism), never what it lacks: write the positive behavior, not a negative like "there is no X" or "not gated".
-- **Where a canonical doc and current code disagree**, the doc describes the target and the code describes today; that gap is a tracked deviation, not canonical drift. Surface the conflict rather than silently blending incompatible sources.
+- **Where a canonical doc and current code disagree**, and no tracker issue records the gap, resolve it per the `design-intent` skill: settled and reported when the intent makes it clear, a question for the human when not. Never silently blend incompatible sources.
 
 ## DD-specific rules (`docs/DESIGN_DECISIONS.md`)
 
@@ -99,7 +99,7 @@ When a drift-fix surfaces disagreement between a doc and another source:
 
 ## Bootstrap code is not a design signal
 
-Current code includes bootstrap stubs that will be replaced. Code-as-it-exists is not the source of truth for design intent. Design intent lives in DD, USER_STORIES, GOVERNANCE, DATA_MODEL, and per-service file-header JSDoc. Current implementation reality lives in the maintainers' private tracker.
+Current code includes bootstrap stubs that will be replaced, so it is evidence of current behavior, never of design intent (the `design-intent` skill); tracked deviations live in the maintainers' private tracker.
 
 When reviewing DD drift, cite the design sources as evidence. Do NOT cite current code unless it's explicitly marked as the final implementation. Adapter gaps (DD specifies `SesAdapter` / `JwtSigningAdapter` / `MediaStorageAdapter` / `BallotEncryptionAdapter` / `SecretsAdapter`; code must provide it) are real parity gaps, not paper architecture to delete from the DD.
 

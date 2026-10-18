@@ -14,6 +14,9 @@ private operations checkout). Workflow and tracker practice live in the
   `tracker-ops` skill's card-reading rule.
 - Claude drafts here freely; a human reviews, commits, and pushes. Never run a git
   write in this checkout.
+- A gitignored file carrying personal data lives here, never in the public checkout. Where code
+  reads it at a fixed public path, move it here, leave a symlink at the old path, say in the
+  public ignore file where it now lives, and add a row to this checkout's data inventory.
 - No secret values, ever (the vault holds those; point at a vault entry by name).
   Member references follow the redaction rules in this checkout's
   `TRACKER_GUIDE.md`: record id and structural description, never name plus

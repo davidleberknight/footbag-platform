@@ -14,17 +14,20 @@
  * somebody ran to inspect a host was the one connection on the whole path with
  * nothing verifying which host had answered.
  *
- * What is pinned here is the refusal surface, which is all a test can reach: a
- * real run needs the host. The mutating path is the operator's.
+ * What is pinned here is the refusal surface, and the wire: the one session the
+ * script opens is driven against a stand-in host that records what it was sent,
+ * so the password's place in the stream, the body it carries and the quoting of
+ * the pass-through arguments come from a real run. No host is reached.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, rmSync, mkdirSync, chmodSync, readFileSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, rmSync, mkdirSync, chmodSync, readFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { connectingAs, SHARED_ACCOUNT, NAMED_ACCOUNT } from '../fixtures/sshConfigStub';
+import { hostIdentityAnswer } from '../fixtures/hostIdentityStub';
 
 const SCRIPT = join(process.cwd(), 'scripts/host-diagnostics.sh');
 
@@ -175,28 +178,79 @@ describe('host-diagnostics.sh — what it refuses before connecting', () => {
 });
 
 describe('host-diagnostics.sh — the shape of the run', () => {
-  const source = () => readFileSync(SCRIPT, 'utf-8');
+  const PASSWORD = 'fixture-sudo-password';
+  const DIAGNOSTICS = readFileSync(join(process.cwd(), 'scripts/staging_diagnostics.sh'), 'utf-8');
 
-  it('streams the body into one root shell rather than uploading a file', () => {
-    // No file on the host means no staging path to choose, no copy for two
-    // operators to collide over, and no cleanup for a crash to skip — which is
-    // what retires the runbook's "upload it each time" instruction.
-    const src = source();
-    expect(src).toMatch(/cat "\$DIAGNOSTICS"/);
-    expect(src).toMatch(/sudo -k -S -p '' bash -s --/);
-    // An scp INVOCATION, not the word: the comments name what this replaced.
-    expect(src).not.toMatch(/^\s*scp\s/m);
+  /**
+   * A stand-in host that records the one session the script opens: its argv
+   * and the stream it is sent. It answers the configuration query and the
+   * identity question first, as every host does, and an `scp` beside it
+   * records that it was reached at all.
+   */
+  function recordingHost(sessionExit = 0): { argv: string; stream: string; scp: string; env: NodeJS.ProcessEnv } {
+    const bin = join(fakeHome, 'recordbin');
+    mkdirSync(bin, { recursive: true });
+    const argv = join(fakeHome, 'session-argv.txt');
+    const stream = join(fakeHome, 'session-stream.txt');
+    const scp = join(fakeHome, 'scp-reached.txt');
+    writeFileSync(join(bin, 'ssh'), [
+      '#!/usr/bin/env bash',
+      'if [[ "${1:-}" == "-G" ]]; then',
+      '  printf "user footbag\\nhostname 203.0.113.10\\nport 2222\\n"; exit 0',
+      'fi',
+      hostIdentityAnswer(),
+      `printf '%s\\n' "$@" > "${argv}"`,
+      `cat > "${stream}"`,
+      `exit ${sessionExit}`,
+    ].join('\n'), 'utf-8');
+    chmodSync(join(bin, 'ssh'), 0o755);
+    writeFileSync(join(bin, 'scp'), `#!/usr/bin/env bash\necho "$*" > "${scp}"\nexit 1\n`, 'utf-8');
+    chmodSync(join(bin, 'scp'), 0o755);
+    return { argv, stream, scp, env: { PATH: `${bin}:${process.env.PATH ?? ''}` } };
+  }
+
+  it('streams the password as line one and the diagnostics body into one root shell, uploading nothing', () => {
+    // Defect caught: the password reaching the host in argv, where every process
+    // on the workstation can read it; or the body uploaded as a file, which
+    // leaves a copy for the next run to read stale. The stream is the only
+    // carrier, so it is read back whole.
+    writePin();
+    writeCredential('staging', `${PASSWORD}\n`);
+    const host = recordingHost();
+    const r = run(['--target', 'staging'], host.env);
+    expect(r.status, r.stderr).toBe(0);
+    const argv = readFileSync(host.argv, 'utf-8');
+    expect(argv).not.toContain(PASSWORD);
+    expect(argv).toMatch(/sudo -k -S -p '' bash -s --\n$/);
+    expect(readFileSync(host.stream, 'utf-8')).toBe(`${PASSWORD}\n${DIAGNOSTICS}`);
+    expect(existsSync(host.scp)).toBe(false);
   });
 
-  it('passes the password as line one and never as an argument', () => {
-    const src = source();
-    expect(src).toMatch(/printf '%s\\n' "\$SUDO_PASS"/);
-    // A secret in argv is readable by every process on the machine.
-    expect(src).not.toMatch(/--password/);
+  it('reports the host session failing as its own failure', () => {
+    // Defect caught: a sudo refusal or a diagnostics failure on the host read as
+    // a clean run, because the wrapper exits 0 whatever the session returned.
+    writePin();
+    writeCredential('staging', `${PASSWORD}\n`);
+    const host = recordingHost(3);
+    const r = run(['--target', 'staging'], host.env);
+    expect(r.status).toBe(3);
   });
 
-  it('quotes pass-through arguments rather than splitting them', () => {
-    const src = source();
-    expect(src).toMatch(/printf ' %q' "\$@"/);
+  it('quotes pass-through arguments so the host receives them unsplit', () => {
+    // Defect caught: an argument carrying a space arriving as two, so the
+    // diagnostics run a different subcommand from the one the operator typed.
+    writePin();
+    writeCredential('staging', `${PASSWORD}\n`);
+    const host = recordingHost();
+    const r = run(['--target', 'staging', 'host-access', 'two words'], host.env);
+    expect(r.status, r.stderr).toBe(0);
+    const command = readFileSync(host.argv, 'utf-8').trimEnd().split('\n').pop() ?? '';
+    expect(command).toBe("sudo -k -S -p '' bash -s -- host-access two\\ words");
+    // The quoting round-trips: a shell reading that command sees the two
+    // arguments the operator gave, not three.
+    const parsed = spawnSync('bash', ['-c', `set -- ${command.slice(command.indexOf('-- ') + 3)}; printf '%s\\n' "$@"`], {
+      encoding: 'utf-8', ...SPAWN_GUARD,
+    });
+    expect(parsed.stdout).toBe('host-access\ntwo words\n');
   });
 });

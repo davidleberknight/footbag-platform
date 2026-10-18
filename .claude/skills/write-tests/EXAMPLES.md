@@ -53,7 +53,7 @@ describe('GET /events/year/:year', () => {
 });
 ```
 
-Both titles are seeded rows, not template copy, so the assertions tie the render to the data, and the draft makes the case a branch asserted on both sides. The status sits in the case that checks the body. A signed-in request carries a cookie built with `createTestSessionJwt` from the factories.
+Both titles are seeded rows, not template copy, so the assertions tie the render to the data, and the draft makes the case a branch asserted on both sides. The completed event is also the positive control for the draft's absence: without it, a page that rendered no events would pass. The status sits in the case that checks the body. A signed-in request carries a cookie built with `createTestSessionJwt` from the factories.
 
 ## One response per page
 

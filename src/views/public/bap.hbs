@@ -1,7 +1,7 @@
 <div class="hero hero-sm">
   <div>
     <h1>{{page.title}}</h1>
-    {{#if page.intro}}<p>{{page.intro}}</p>{{/if}}
+    {{#if page.intro}}<p class="hero-subtitle">{{page.intro}}</p>{{/if}}
     {{> outcome-notice text=page.notice tone=page.noticeTone}}
   </div>
 </div>
@@ -9,15 +9,10 @@
 <div class="wrapper">
 
   {{#each content.sections}}
-    <section>
-      <h2 class="section-heading">{{this.heading}}</h2>
-      {{!-- Current: paragraphs are static operator-authored string literals with
-          intentional inline <a> markup, so unescaped triple-stash render is safe.
-          Target: if the paragraph source becomes DB-backed or admin-editable,
-          switch to an allowlisted-HTML helper (or escaped render) before that
-          lands; unescaped render of untrusted data is stored XSS. --}}
+    <section class="content-section">
+      <div class="section-heading"><h2>{{this.heading}}</h2></div>
       {{#each this.paragraphs}}
-        <p class="ws-pre-line">{{{this}}}</p>
+        <p>{{#each this}}{{#if href}}{{{externalLink href label=text noIcon=true}}}{{else}}{{text}}{{/if}}{{/each}}</p>
       {{/each}}
     </section>
   {{/each}}

@@ -1,30 +1,28 @@
 #!/usr/bin/env python3
-"""Seed the legacy_members table with a temporary local bootstrap population.
+"""Seed legacy_members with system fixtures, so historical persons can bind to them.
 
-This population is TEMPORARY. It exists to unblock the FK
-historical_persons.legacy_member_id -> legacy_members(legacy_member_id) on a
-machine that has no delivered export. The legacy-site data dump supersedes these
-rows with full profile fields and sets import_source='legacy_site_data'.
+The canonical load binds historical_persons.legacy_member_id to
+legacy_members(legacy_member_id) with foreign keys enforced, so every member id
+a club roster or a historical person names needs a parent row first. Every
+database build runs this, with or without the member data. Where the member load
+then runs, it updates each row whose id its member CSV carries in place, filling
+the profile fields and setting import_source='legacy_site_data'.
 
-The rows are written as import_source='system_fixture', because that is what they
-are: development fixture data standing in for a population this machine has not
-been given. They are derived from the mirror, but they are not the mirror-derived
-delivered population, and labelling them as though they were made a local
-bootstrap indistinguishable from real data in every report that reads provenance.
-'legacy_site_data' remains the only authoritative label, and the uncovered-row
-report defines its subject as everything that is not that, so this bootstrap is
-reported like any other uncovered row rather than exempted from the invariant.
+The rows are written as import_source='system_fixture': stand-ins carrying an id
+and a display name, not member data. 'legacy_site_data' is the only
+authoritative label, and a row at any other label after the member load is
+uncovered: it is reported like any other, and a production database ships only
+once each carries a recorded decision.
 
 Seeds legacy_member_id (PK), display_name, display_name_normalized,
-imported_at, import_source. Other columns are left NULL; the legacy-site data
-dump populates the full profile fields authoritatively.
+imported_at, import_source. Every other column stays NULL until the member load
+fills it.
 
 Sources:
-  legacy_data/seed/club_members.csv                       (2,372 unique
-    mirror_member_ids; columns legacy_club_key,
-    mirror_member_id, display_name, alias)
+  legacy_data/seed/club_members.csv    (one row per distinct mirror_member_id;
+    columns legacy_club_key, mirror_member_id, display_name, alias)
   legacy_data/event_results/canonical_input/persons.csv   (gap-fill for
-    HP-referenced IDs that don't appear in any club roster)
+    ids a historical person carries that no club roster names)
 
 Idempotent: INSERT OR IGNORE throughout. Safe to re-run.
 

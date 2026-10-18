@@ -24,7 +24,7 @@
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { closeSync, existsSync, mkdirSync, openSync, readFileSync, utimesSync, writeFileSync } from 'node:fs';
+import { closeSync, existsSync, mkdirSync, openSync, utimesSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
@@ -155,21 +155,5 @@ describe('the sweep an operator runs by hand', () => {
 
     expect(res.status).toBe(2);
     expect(res.stderr).toMatch(/unknown argument/);
-  });
-});
-
-describe('the runner never sweeps what another run is using', () => {
-  it('passes the sparing flag on its automatic startup sweep', () => {
-    // This is the pin that matters: the defect was not in the script, it was a
-    // bare invocation from a runner that starts whenever an operator asks for a
-    // second run.
-    const runner = readFileSync(join(REPO_ROOT, 'run_all_tests.sh'), 'utf8');
-    const invocations = runner
-      .split('\n')
-      .filter((line) => !line.trimStart().startsWith('#'))
-      .filter((line) => line.includes('clean_up_rubbish.sh'));
-
-    expect(invocations.length).toBe(1);
-    expect(invocations[0]).toMatch(/clean_up_rubbish\.sh --stale-only/);
   });
 });

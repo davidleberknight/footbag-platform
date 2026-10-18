@@ -265,16 +265,9 @@ ssh "${SSH_OPTS[@]}" "$REMOTE" "echo '    SSH OK'" </dev/null
 # path there names whichever account the literal was written for. A
 # dev-and-tester deploying from their named account then uploads to their own home while root
 # promotes the shared account's -- shipping whatever that account last deployed,
-# and reporting success.
-#
-# Current: the staging tree lives in the connecting account's own home, so the
-#          path varies by connecting account and both halves are kept in step by
-#          passing the resolved value and by the release stamp below.
-# Target:  one fixed staging location outside every account's home, group-owned,
-#          that every account, script, runbook and diagnostic can name. The
-#          stamp is already part of that design; the location is not built. Until
-#          it is, no script may name an account's home, which a conventions check
-#          enforces.
+# and reporting success. The release stamp below is what proves the promoted tree
+# is the one this run wrote. No script names an account's home, which a
+# conventions check enforces.
 echo "==> Preparing remote upload directory..."
 REMOTE_HOME="$(ssh "${SSH_OPTS[@]}" "$REMOTE" 'printf %s "$HOME"' </dev/null)"
 # Absolute, not merely non-empty. This captures the remote shell's whole stdout,

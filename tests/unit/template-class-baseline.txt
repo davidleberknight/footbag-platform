@@ -217,6 +217,7 @@ consecutive-milestones-table
 consecutive-progression-table
 consecutive-scores-table
 consecutive-wr-table
+contact-pending
 content-section
 content-subheading
 core-trick-add
@@ -1099,7 +1100,6 @@ w-12
 w-20
 work-queue-item
 wrapper
-ws-pre-line
 year-grid
 year-heading
 year-page-nav

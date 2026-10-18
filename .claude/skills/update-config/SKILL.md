@@ -1,6 +1,6 @@
 ---
 name: update-config
-description: Change this repo's Claude Code harness config (settings.json, hooks, permissions, env vars, MCP servers). Use before any such edit. Adds this project's mandatory harness governance and guide-sync on top of the general Claude Code config-editing mechanics.
+description: Change this repo's Claude Code harness config (settings.json, hooks, permissions, env vars, MCP servers, rules and skills). Use before any such edit, or when asked to review the harness against current Claude Code docs. Adds this project's mandatory harness governance and guide-sync on top of the general Claude Code config-editing mechanics.
 ---
 
 # update-config (footbag-platform)
@@ -13,8 +13,12 @@ Follow `.claude/rules/claude-harness-governance.md`: Plan Mode first for any non
 
 ## Guide sync
 
-Keep `docs/CLAUDE_CODE_GUIDE.md` in sync in the same change whenever the edit alters behavior it describes: the permission policy, a hook's decision surface, the read-only approver, the layer/subagent model, or change control. The config files stay the source of truth; the guide is the human-facing explanation and must not drift.
+Update `docs/CLAUDE_CODE_GUIDE.md` in the same change whenever the edit alters behavior it describes; the governance rule lists what that covers.
+
+## Harness review (explicit request only)
+
+Compare the harness with current Anthropic docs; edit nothing. The maintainer may first run `/doctor prompt-audit` for stale or conflicting instruction text. Then fetch the official pages for settings, permissions, permission modes, hooks, skills and subagents, and check only the mechanics the governance rule relies on: rule precedence, hook decision values and how they combine with rules, whether hooks fire in subagents, and skill frontmatter meaning. Churn filter: act only on a documented mechanic quoted with its URL; ignore tips, version notes, plan or default-mode details, and anything not on a fetched page. Report KEEP, REVISE or ADD with literal before and after text, then follow the governance rule for any change.
 
 ## Stop when
 
-The approved config edit is applied, any guide/rule sync it required is done, and any new hook or deterministic rule has its fixture test or CI check in place.
+The approved config edit is applied, any guide/rule sync it required is done, and any new hook or deterministic rule has its fixture test or CI check in place. A harness review stops at its report.

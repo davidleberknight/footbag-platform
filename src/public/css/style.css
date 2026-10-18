@@ -3296,7 +3296,6 @@ section.home-media { padding-top: 0; }
 .fw-500  { font-weight: 500; }
 .fw-600  { font-weight: 600; }
 .op-60   { opacity: 0.6; }
-.ws-pre-line { white-space: pre-line; }
 .truncate-50 {
   max-width: 200px;
   overflow: hidden;

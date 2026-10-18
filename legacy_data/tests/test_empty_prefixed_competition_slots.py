@@ -43,6 +43,16 @@ CLEARED_EVENTS = {
 # The fifth event. Its prefixed slots hold competitors and must survive.
 PROTECTED_EVENT = "1984_worlds_golden_fbw"
 
+_PARTICIPANTS = _CANON / "event_result_participants.csv"
+
+# Competitors whose placements must survive under the copy that kept them. One
+# per affected event, taken from the division the empty copy shadowed.
+SURVIVING_PLACEMENTS = [
+    ("1982_worlds_oregon_city", "singles_net", "Kenny Shults"),
+    ("1983_worlds_boulder_wfa", "singles_net", "Kenny Shults"),
+    (PROTECTED_EVENT, "open_singles_net", "Bruce Guettich"),
+]
+
 EXPECTED_TARGETS = 20
 
 
@@ -189,3 +199,45 @@ def test_the_protected_event_still_carries_competitors_in_its_prefixed_slots():
                  if r["event_key"] == PROTECTED_EVENT and r["discipline_key"] == dk}
         assert any((dk, pl) in occupied for pl in slots), (
             f"{PROTECTED_EVENT}/{dk} no longer carries a competitor")
+
+
+@pytest.mark.skipif(not (_CANON / "event_disciplines.csv").exists(),
+                    reason="the canonical competitor data is not present here")
+@pytest.mark.parametrize("event_key", sorted(CLEARED_EVENTS))
+def test_the_merge_leaves_no_second_empty_copy_of_a_competition(event_key):
+    """One name per competition slot at the events the merge touched.
+
+    The copy holding the competitors is the one that stays; a prefixed slot back
+    on one of these events means the correction stopped firing and the results
+    page shows the empty duplicate section again.
+    """
+    disciplines = list(csv.DictReader((_CANON / "event_disciplines.csv").open(encoding="utf-8")))
+    prefixed = sorted(d["discipline_key"] for d in disciplines
+                      if d["event_key"] == event_key
+                      and d["discipline_key"].startswith("open_"))
+    assert not prefixed, (
+        f"{event_key} carries {prefixed}, which the merge left as empty duplicate "
+        "sections. Removing them is a source-side correction; if they are back, "
+        "the correction stopped firing."
+    )
+
+
+@pytest.mark.skipif(not _PARTICIPANTS.exists(),
+                    reason="the canonical participant data is not present here")
+@pytest.mark.parametrize("event_key, discipline_key, competitor", SURVIVING_PLACEMENTS)
+def test_the_surviving_copy_still_carries_its_competitors(
+    event_key, discipline_key, competitor,
+):
+    """Removing an empty duplicate must never cost a placement.
+
+    The empty copy held result rows with nobody attached; every competitor sat
+    under the copy that stays. If one of these disappears, the wrong copy was
+    removed.
+    """
+    with _PARTICIPANTS.open(encoding="utf-8") as fh:
+        names = {p["display_name"] for p in csv.DictReader(fh)
+                 if p["event_key"] == event_key
+                 and p["discipline_key"] == discipline_key}
+    assert competitor in names, (
+        f"{competitor!r} is no longer recorded in {event_key}/{discipline_key}"
+    )

@@ -24,8 +24,8 @@ Reference classes (enumerated from database/schema.sql):
   loser that the export owns (anything but the local development bootstrap's
   import_source='system_fixture') aborts too. That is not live-entity evidence,
   it is a refusal to re-run the merge over data already loaded authoritatively.
-  The bootstrap's own rows are exempt, because they exist only to satisfy the
-  historical_persons foreign key on a machine with no delivered export and carry
+  The bootstrap's own rows are exempt, because they exist only to give the
+  historical_persons foreign key a parent before the member load runs, and carry
   no claim; one that has since been claimed is caught by the members check above.
 
   The loser's own legacy_members row, deleted after the remap has moved every
@@ -98,16 +98,13 @@ def precheck_live_references(cur: sqlite3.Cursor, losers: set[str]) -> None:
     read; raises MergeAbort naming the offending table and ids."""
     violations: list[str] = []
 
-    # What this check is for is refusing to re-run the merge over a row the export
-    # has already loaded authoritatively, where collapsing would destroy loaded
-    # data. It used to fire on a row's bare existence, and the local build seeds
-    # legacy_members from a development bootstrap so the historical_persons foreign
-    # key resolves on a machine with no delivered export. Those rows carry an id, a
-    # display name and import_source='system_fixture', and nothing else: no
-    # profile, no claim, no token. Counting them as live evidence blocked every
-    # merge whose loser the bootstrap covered, and it covers the same curated id
-    # space the rulings adjudicate, so the first real load aborted on sixteen of its
-    # hundred and thirty merges before writing anything.
+    # This check refuses to re-run the merge over a row the member load already
+    # owns, where collapsing it would destroy loaded data. Every build seeds
+    # legacy_members with system fixtures (an id, a display name,
+    # import_source='system_fixture', nothing else) so the historical_persons
+    # foreign key has a parent before the member load, and they cover the same
+    # roster id space the account rulings adjudicate, so counting them as loaded
+    # data would block merges the rulings require.
     #
     # A bootstrap row that someone has since claimed is still caught, by the
     # members check immediately below rather than by this one. An unknown

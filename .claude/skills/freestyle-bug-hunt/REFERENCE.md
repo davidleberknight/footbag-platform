@@ -269,19 +269,20 @@ presence, never on enum values. The trick name, the hashtag, the Detail link, an
 link are four distinct controls: the name and Detail both open the trick-detail page, and
 the hashtag and Media open the gallery, only when media exists.
 
-### §F16 Freestyle QC-gate coverage (a testing gap is a bug)
+### §F16 Freestyle QC-gate coverage (a hand-off, not a finding)
 
-For every category, identify the deterministic check that pins it: the tag-invariant QC
-loader and its shared validation module, the dictionary route tests, the admin freestyle
-route tests, the card-uniformity regression test, schema constraints where they
-legitimately exist, and CI gates. Then check the check (SKILL.md method step 5). A category
-with no deterministic check, only a presence-only or warn-only one, one that passes on
-missing input, or one covering only part of the invariant, is a first-class finding with
-severity from the surface it leaves unguarded — not a suggestion. State the exact missing
-check, the invariant it pins, and where it should live. The freestyle content
-source-of-truth story's clauses (the destructive rebuild refuses a non-development
-database; rows survive a data-preserving deploy; content changes only through audited
-surfaces) are pins this category verifies.
+For every category, name in the coverage ledger the deterministic check that pins it: the
+tag-invariant QC loader and its shared validation module, the dictionary route tests, the
+admin freestyle route tests, the card-uniformity regression test, schema constraints where
+they legitimately exist, and CI gates. Then check the check and grade it (SKILL.md method
+step 5). A category with no deterministic check, only a presence-only or warn-only one, or
+one covering only part of the invariant, is handed to the `write-tests` skill as a named
+defect class, with the invariant it pins and where the check should live; it is listed in
+the report's hand-offs, never recorded in `BUGS.md`. A check that passes on missing input,
+or otherwise does not do what its name or comment claims, is a configuration defect and
+stays a finding here. The freestyle content source-of-truth story's clauses (the
+destructive rebuild refuses a non-development database; rows survive a data-preserving
+deploy; content changes only through audited surfaces) are pins this category verifies.
 
 ### §F17 Naming, slug, and hashtag conventions
 
@@ -335,7 +336,8 @@ moderation, record editing):
 
 1. Trace every validation clause to the line that enforces it in the owning service.
 2. Find the route test that asserts the refusal AND that nothing was written. A clause
-   with no such test is a §F16 finding.
+   with no such test is a §F16 `write-tests` hand-off; a clause with no enforcing line is
+   a finding here.
 3. One audit row per write, in the same transaction, with a namespaced `action_type`; no
    audit row on a GET or a refused save.
 4. A multi-row action (publication: trick, aliases, source link, modifier links, ruling
@@ -401,4 +403,7 @@ display follows `docs/DATA_GOVERNANCE.md`.
 7. Owner-run checks the hunt could not do read-only (for example a §F13 regeneration).
 8. Refuted leads: every dropped candidate with the reason it was refuted.
 9. Negative findings worth recording (categories checked clean), with each pin's status.
-10. Dryness statement: whether the final two passes surfaced no new candidate.
+10. The `write-tests` hand-offs: each category with no pinning check, or a presence-only,
+    warn-only or partial one.
+11. Coverage statement: what the one pass read in full, what it sampled, and why, plus
+    what the cross-check lane surfaced.

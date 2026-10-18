@@ -1254,6 +1254,25 @@ fi
 unset _outside_staging _staging_hits _full_block _prod_hits
 fi
 
+# Rule: every cleanup sweep the local runner starts on its own passes --stale-only.
+# Reason: the runner sweeps the shared temp directory at startup, and an operator
+# starts a second run while one is going. The bare invocation it once made deleted
+# the live run's test databases mid-suite; an open SQLite handle kept working on the
+# unlinked file, so the damage surfaced as a missing table in whichever suite was
+# between tests, with nothing pointing back at the sweep. The script's default stays
+# the immediate sweep an operator asks for by hand, so the flag is the runner's to
+# remember. Comments are stripped so a line cannot describe a flag it does not pass.
+if check "the local runner sweeps only what no live run owns" run_all_tests.sh; then
+_bare_sweeps="$(sed 's/#.*//' run_all_tests.sh | grep -n 'clean_up_rubbish\.sh' \
+  | grep -vE 'clean_up_rubbish\.sh([[:space:]]+--[a-z-]+)*[[:space:]]+--stale-only([[:space:]]|$)' || true)"
+if [[ -n "$_bare_sweeps" ]]; then
+  echo "  FAIL: run_all_tests.sh sweeps without --stale-only; an automatic sweep deletes the databases of a run already going:" >&2
+  printf '    run_all_tests.sh:%s\n' "$_bare_sweeps" >&2
+  violations=$((violations + 1))
+fi
+unset _bare_sweeps
+fi
+
 # Rule: the same setup denies every worker the rest of the machine it runs on.
 # Reason: two suites passed on a maintainer's workstation and failed on the
 # runner, one reaching an operator signing key beneath the home directory, the

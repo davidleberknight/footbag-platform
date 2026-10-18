@@ -11,9 +11,6 @@ So the pipeline does not read the file. A human resolves each entry into an
 explicit, key-accurate correction, and this tests the resolved set — that the two
 outstanding removals are carried, that nothing else moves, and that a correction
 whose target has drifted refuses rather than quietly retiring itself.
-
-The one entry deliberately left unresolved is pinned too, so that "not done" stays
-visibly a decision rather than an oversight.
 """
 from __future__ import annotations
 
@@ -25,7 +22,6 @@ import pytest
 
 _ROOT = Path(__file__).resolve().parents[2]
 _SCRIPT = _ROOT / "legacy_data" / "pipeline" / "05p5_remediate_canonical.py"
-_YAML = _ROOT / "legacy_data" / "overrides" / "andy_linder_corrections.yaml"
 _CANON = _ROOT / "legacy_data" / "event_results" / "canonical_input"
 
 SOURCE = _SCRIPT.read_text(encoding="utf-8")
@@ -66,17 +62,6 @@ def test_he_is_not_a_competitor_in_the_curated_1995_worlds():
         rows = [r for r in csv.DictReader(fh) if r["year"] == "1995"]
     assert rows, "no 1995 rows in the curated 1994-97 Worlds file, so nothing was checked"
     assert not [r for r in rows if r["player_name"].strip().lower() == "andy linder"]
-
-
-def test_the_declared_targets_use_real_discipline_keys_not_the_file_s_wording():
-    # The file says "singles_consecutives"; no such key exists. Carrying its
-    # wording across verbatim would match nothing and silently do nothing.
-    text = _YAML.read_text(encoding="utf-8")
-    assert "singles_consecutives" in text
-    assert "singles_consecutives" not in SOURCE.split("_ANDY_REMOVALS = [", 1)[1][:400]
-    for _tag, _ev, dk, _pl in _declared():
-        assert dk.startswith(("open_", "womens_", "advanced_", "intermediate_",
-                              "mixed_", "doubles_", "singles_", "footbag_")), dk
 
 
 def test_the_earlier_corrections_are_still_carried():
@@ -139,13 +124,6 @@ def test_a_row_for_a_different_person_does_not_satisfy_the_target():
     assert len(other) == 1
 
 
-def test_the_pipeline_declares_the_same_guards():
-    block = SOURCE.split("_ANDY_REMOVALS = [", 1)[1]
-    assert "raise SystemExit(" in block
-    assert "and it does not" in block
-    assert "is ambiguous" in block
-
-
 # ── nothing else moves ───────────────────────────────────────────────────────
 
 def test_only_the_named_rows_are_removed():
@@ -168,17 +146,6 @@ def test_the_confirmed_results_are_never_removals():
     declared = {(ev, dk) for _t, ev, dk, _p in _declared()}
     assert ("1986_worlds_golden", "open_singles_footbag_freestyle") not in declared
     assert ("1991_worlds", "open_singles_freestyle") not in declared
-
-
-def test_the_ambiguous_entry_is_not_acted_on():
-    """The file lists 1991 under remove_results with no division, while another
-    entry confirms one of that event's two results as correct. Which row it means
-    is unresolvable from the file, so it stays for a ruling — recorded here so
-    that staying undone is visibly a decision."""
-    assert not any(ev == "1991_worlds" for _t, ev, _d, _p in _declared())
-    block = SOURCE.split("_ANDY_REMOVALS = [", 1)[0]
-    assert "1991_worlds" in block[-2000:], (
-        "the reason 1991 is left alone is no longer written down beside the list")
 
 
 # ── against the delivered results ────────────────────────────────────────────

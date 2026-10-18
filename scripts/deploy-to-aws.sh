@@ -130,7 +130,7 @@ MODIFIERS
                                on the host (personaRefreshCli.js --apply). The
                                seed step names any persona it could not seed and
                                fails the deploy. Allowlisted to
-                               --target staging only. CUTOVER-REMOVE.
+                               --target staging only.
   --refresh-test-personas      ON BY DEFAULT for a code-only staging deploy;
                                this flag only states it explicitly. After the
                                deploy completes, rebuilds every persona on the
@@ -150,10 +150,8 @@ MODIFIERS
                                --seed-test-personas, and for any target but
                                staging. Named explicitly, those same
                                conditions are errors rather than skips.
-                               CUTOVER-REMOVE.
   --no-refresh-personas        Opt out of the default persona refresh, keeping
                                whatever persona state the target already holds.
-                               CUTOVER-REMOVE.
   --target staging|production  The environment to deploy to (default: staging).
                                Read by deploy_to_aws.sh; a DEPLOY_TARGET already
                                set in the shell is refused.
@@ -219,22 +217,20 @@ FROM_CSV="no"        # explicit alias for default rebuild source
 SOUP_TO_NUTS="no"    # full clean rebuild from legacy mirror
 ALL_DATA="no"        # --from-csv build + member intake applied and shipped (full migration load)
 PUBLIC_DATA="no"     # --db-only build from committed public inputs; staging only, no private checkout
-# CUTOVER-REMOVE: --seed-test-personas flag.
-# Current: post-deploy seeds the canonical persona catalog into dev/staging
-#   only; not part of the production path. Signal only, no JSON payload.
-# Target: remove this flag and the seed pathway at production cutover.
+# --seed-test-personas: after the deploy completes, seed the canonical persona
+#   catalog inside the staging web container. Staging only: production never
+#   carries test personas, so the flag is refused for a production target.
+#   Signal only, no JSON payload, because the catalog is code.
 SEED_TEST_PERSONAS="no"
 
-# CUTOVER-REMOVE: --refresh-test-personas flag.
-# Current: post-deploy rebuilds every persona on staging from its current spec,
-#   which is the only way a database that already holds personas picks up a spec
-#   edited since it was seeded. ON BY DEFAULT for a code-only staging deploy,
+# --refresh-test-personas: after a code-only staging deploy, rebuild every
+#   persona from its current spec. This is the only way a database that already
+#   holds personas picks up a spec edited since it was seeded. On by default,
 #   because the failure it prevents is silent: a stale persona reads as a broken
 #   feature, and a tester has no way to tell that from a real defect. The cost is
 #   bounded by what a refresh deletes, which is persona-owned test scaffolding
-#   only. Opt out with --no-refresh-personas. Destructive, staging-only, and
-#   never part of the production path. Signal only, no payload.
-# Target: remove this flag and the refresh pathway at production cutover.
+#   only. Opt out with --no-refresh-personas. Destructive and staging-only;
+#   production refuses it. Signal only, no payload.
 REFRESH_TEST_PERSONAS="yes"
 REFRESH_ASKED_EXPLICITLY="no"   # distinguishes an operator request from the default
 NO_REFRESH_FLAG="no"            # --no-refresh-personas: opt OUT of the default refresh
@@ -426,7 +422,7 @@ fi
 
 # Personas ride along with any staging DB rebuild (--from-csv or --soup-to-nuts)
 # so a freshly rebuilt staging DB is never left without the test catalog. Opt out
-# with --no-personas. Staging-only (CUTOVER-REMOVE): auto-enable ONLY on staging,
+# with --no-personas. Staging-only: auto-enable ONLY on staging,
 # re-enforcing the wrapper's allowlist (which scans literal --seed-* flags and
 # cannot see this implicit enable). The seed runner is idempotent.
 if [[ "$ANY_REBUILD" == "yes" ]]; then
@@ -665,18 +661,17 @@ fi
 # -----------------------------------------------------------------------------
 export CURATOR_SEED="${CURATOR_SEED:-yes}"
 
-# CUTOVER-REMOVE: SEED_TEST_PERSONAS, explicit opt-in; defaults to no. The
-# leaf scripts (deploy-code.sh / deploy-rebuild.sh) thread this signal through
+# SEED_TEST_PERSONAS: on with --seed-test-personas or with any staging DB
+# rebuild, off otherwise. The leaf scripts (deploy-code.sh / deploy-rebuild.sh) thread this signal through
 # the SSH cat-pipe env block; the staging-side remote scripts then run the
 # persona-catalog seed inside the web container. No JSON payload (the catalog
 # is code).
 export SEED_TEST_PERSONAS
 
-# CUTOVER-REMOVE: REFRESH_TEST_PERSONAS, explicit opt-in; defaults to no.
-# Threaded to the staging-side remote script the same way, which then rebuilds
-# every persona inside the web container. Destructive, so it is never implied by
-# another flag the way the seed rides a DB rebuild: it happens only when it was
-# asked for by name.
+# REFRESH_TEST_PERSONAS: on by default for a code-only staging deploy, off for a
+# DB rebuild, -r, --seed-test-personas, --no-refresh-personas and any target but
+# staging. Threaded to the staging-side remote script the same way, which then
+# rebuilds every persona inside the web container.
 export REFRESH_TEST_PERSONAS
 
 # SYNC_MEDIA: opt-in via -m / --sync-media (default off). When off, the leaf

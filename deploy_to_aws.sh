@@ -110,8 +110,8 @@ MODE_REUSE=0       # -r / --reuse-local-db: ship current ./database/footbag.db; 
 DB_REBUILD_INVOLVED=0   # set when --from-csv / --soup-to-nuts / --all-data opt into a DB rebuild.
 DATA_REBUILD=0     # --from-csv / --soup-to-nuts / --all-data: opt-in DB rebuild + replace.
 PUBLIC_REBUILD=0   # --public-data: rebuild from committed public inputs only (staging).
-SEED_TEST_PERSONAS=0   # --seed-test-personas: opt-in persona-catalog seed after deploy (CUTOVER-REMOVE).
-# --refresh-test-personas: persona rebuild after deploy (CUTOVER-REMOVE). The
+SEED_TEST_PERSONAS=0   # --seed-test-personas: opt-in persona-catalog seed after deploy.
+# --refresh-test-personas: persona rebuild after deploy. The
 # rebuild is ON BY DEFAULT for a code-only staging deploy; this counter tracks
 # only whether the operator NAMED it, because the target allowlist below refuses
 # an explicit request and the inner script re-checks the target for the default.
@@ -381,7 +381,7 @@ if [[ "${DEPLOY_TARGET:-footbag-staging}" == "footbag-production" ]]; then
   echo "" >&2
 fi
 
-# CUTOVER-REMOVE: --seed-test-personas is allowlisted to a single deploy
+# --seed-test-personas is allowlisted to a single deploy
 # target: --target staging. Any other target is refused
 # before the SSH connection. The persona catalog is code (canonicalPersonas.ts),
 # so this flag carries a signal only; there is no .local JSON payload to
@@ -396,7 +396,7 @@ if (( SEED_TEST_PERSONAS == 1 )); then
   fi
 fi
 
-# CUTOVER-REMOVE: --refresh-test-personas carries the same staging-only
+# --refresh-test-personas carries the same staging-only
 # allowlist as the seed, and is refused earlier and harder besides: it deletes
 # persona-owned rows, so a target confusion would destroy test state rather than
 # merely add to it.

@@ -45,6 +45,8 @@ Reach for these before writing a helper of your own; each file's header says whe
 - The security flags on an issued session cookie: `assertSecureSessionCookie.ts`.
 - A ledger table refusing update and delete: `assertAppendOnly.ts`.
 - The row an action added, without trusting order: `rowPinning.ts`.
+- One member in every state a sender or listing must tell apart, with a live positive control: `memberStates.ts`.
+- Two anti-enumeration responses compared whole, never by length: `normalizeAntiEnumerationBody.ts`.
 
 ## Database isolation
 

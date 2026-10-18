@@ -145,17 +145,11 @@ locals {
   #
   # The policy as a whole is a STARTING policy, derived statically from every
   # resource type in the Terraform trees and every AWS call in the scripts tree,
-  # which is the closest thing to an observed-usage input available before the
-  # role has been used. The long-run rule is that it is derived from the observed
-  # usage of EVERY dev-and-tester who assumes it, never from one person's history: a
-  # policy derived from one dev-and-tester under-grants the others and surfaces as a
+  # together with the trail of the work administrators did as footbag-operator.
+  # The long-run rule is that it is derived from the observed usage of EVERY
+  # dev-and-tester who assumes it, never from one person's history: a policy
+  # derived from one dev-and-tester under-grants the others and surfaces as a
   # permission error mid-task, usually during something time-critical.
-  #
-  # Current: derived from the trees, the scripts, and four weeks of trail of the
-  # work administrators did as footbag-operator; this role itself has never been used,
-  # so there is no trail of its own.
-  # Target: reconciled against an Access Analyzer generation from a month of
-  # this role's own use by every dev-and-tester who assumes it.
   statements = {
 
     project_buckets = {

@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
-"""Load the legacy-site member-account export into legacy_members.
+"""Load the published legacy member CSV into legacy_members.
 
-This is the State-4 step-3 import (also run once earlier against the test
-export): it supersedes the temporary mirror pre-seed with the export's full
-profile fields, flipping import_source from 'mirror' to 'legacy_site_data'.
-The export file is operator-supplied and never committed; this loader is
-invoked from the cutover runbook, not from run_pipeline.sh.
+The input is the member CSV the legacy publish writes into the maintainers'
+private checkout, with the honours joined and, where the account rulings are
+present, ruled duplicates merged; it is never committed to this repository. The
+member-data runner invokes it, never run_pipeline.sh. Each imported row updates
+the system-fixture row the database build seeded for that id, or is inserted
+when there is none, and either way ends at import_source='legacy_site_data'. A
+fixture it does not cover keeps its label, which is how the uncovered-row report
+finds it.
 
 Safety contract (in order):
   1. SAFETY ABORT before reading any row data: if any export column header
@@ -266,9 +269,9 @@ def main() -> None:
     db_path = Path(args.db)
     if not db_path.exists():
         fail(
-            f"database not found at {db_path}. Build it first (schema apply + "
-            "legacy_data/scripts/load_legacy_members_seed.py pre-seed, wired in "
-            "scripts/reset-local-db.sh)."
+            f"database not found at {db_path}. Build it first with "
+            "scripts/reset-local-db.sh, which applies the schema and seeds the "
+            "fixture rows this load updates."
         )
 
     with export_path.open("r", encoding="utf-8", newline="") as f:
@@ -399,7 +402,7 @@ def main() -> None:
     importable = kept
 
     ts = now_iso()
-    updated_from_mirror = 0
+    updated_from_fixture = 0
     re_applied = 0
     inserted_new = 0
 
@@ -493,11 +496,11 @@ def main() -> None:
             ts,
         )
         if existing:
-            # A pre-load row is anything that is not the authoritative delivered
-            # population, so this counter stays correct whatever the local
-            # bootstrap calls itself and for a row still carrying an older label.
+            # A row at any label but the authoritative one was seeded before this
+            # load, so this counts every fixture the load turns into imported
+            # data, whatever its label.
             if (existing["import_source"] or "") != "legacy_site_data":
-                updated_from_mirror += 1
+                updated_from_fixture += 1
             else:
                 re_applied += 1
             if args.apply:
@@ -554,8 +557,8 @@ def main() -> None:
           f"invalid-ts {email_stats['invalid_timestamp_groups']})")
     print(f"    email retained:         {email_stats['accounts_retaining_email']}")
     print(f"    email cleared on import:{email_stats['accounts_email_cleared']}")
-    print(f"  imported total:           {updated_from_mirror + re_applied + inserted_new}")
-    print(f"    updated from mirror:    {updated_from_mirror}")
+    print(f"  imported total:           {updated_from_fixture + re_applied + inserted_new}")
+    print(f"    updated from fixture:   {updated_from_fixture}")
     print(f"    re-applied (export):    {re_applied}")
     print(f"    inserted new:           {inserted_new}")
     if merge_map:

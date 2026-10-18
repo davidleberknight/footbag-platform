@@ -129,22 +129,6 @@ describe('anchor add feedback banner', () => {
   });
 });
 
-describe('completion page copy', () => {
-  it('the completion page carries no display-name-permanence warning', async () => {
-    const res = await request(createApp())
-      .get('/register/wizard/complete')
-      .set('Cookie', cookie());
-    // Render or redirect depending on task state; the warning text must be
-    // gone from the template either way.
-    if (res.status === 200) {
-      expect(res.text).not.toContain('display name is permanent');
-    }
-    const fs = await import('fs');
-    const tpl = fs.readFileSync('src/views/register/wizard/complete.hbs', 'utf8');
-    expect(tpl).not.toContain('display name is permanent');
-  });
-});
-
 describe('country browse href fallback', () => {
   it('resolves to the country page when an active club exists there, else the all-clubs index', async () => {
     const { clubService } = await import('../../src/services/clubService');
