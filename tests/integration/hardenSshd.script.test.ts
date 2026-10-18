@@ -29,6 +29,7 @@ import { tmpdir } from 'node:os';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { hostIdentityAnswer } from '../fixtures/hostIdentityStub';
 import { requireToolInCI } from '../fixtures/toolAvailability';
+import { REAL_PASSWORD_REFUSAL, refusalOffering } from '../fixtures/sshPasswordRefusal';
 
 const REMOTE_HALF = join(process.cwd(), 'scripts/internal/harden-sshd-remote.sh');
 const OPERATOR_SCRIPT = join(process.cwd(), 'scripts/harden-sshd.sh');
@@ -575,6 +576,25 @@ describe('the root-side hardening', () => {
     expect(res.stderr).toContain('still waiting to be confirmed');
   });
 
+  it('refuses a new change while an earlier self-revert is running, and says so in status', () => {
+    // Defect caught: a timer that has fired reads as not pending, so an apply
+    // landing while its revert runs saves the hardened file as "previous", the
+    // revert puts that back, and the run then fails to restore a copy that is gone.
+    const running = { REVERT_SERVICE_STATE: 'activating' };
+    const status = runRemote('status', running);
+    expect(status.status, status.stderr).toBe(0);
+    expect(status.stdout).toContain('self-revert is running now');
+
+    const res = runRemote('apply', running);
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('self-revert is running now');
+    expect(dropinNames()).toEqual([]);
+    expect(reloads()).toBe(0);
+
+    // The same host with the revert finished takes the change.
+    expect(runRemote('apply').status).toBe(0);
+  });
+
   it('makes nothing live when the self-revert cannot be set', () => {
     // Defect caught: a reload with no revert behind it because the timer
     // quietly failed to start.
@@ -655,7 +675,7 @@ describe('the operator-facing run', () => {
       '      echo "ssh: connect to host 203.0.113.40 port 22: Connection refused" >&2',
       '      exit 255',
       '    fi',
-      '    echo "footbag@203.0.113.40: ${PASSWORD_REFUSAL:-Permission denied (publickey).}" >&2',
+      `    echo "\${PASSWORD_REFUSAL:-${REAL_PASSWORD_REFUSAL}}" >&2`,
       '    exit 255',
       '  fi',
       '  exit "${FRESH_EXIT:-0}"',
@@ -752,6 +772,18 @@ describe('the operator-facing run', () => {
 
     expect(res.status, res.stderr).toBe(0);
     expect(res.stdout).toContain('password login refused');
+  });
+
+  it('prints the daemon\'s own refusal line whole, so a real run yields the sample the parse is tested on', () => {
+    // Defect caught: a run that reports only the methods it extracted, leaving
+    // no real refusal line to check the parse against when OpenSSH's wording moves.
+    const { env } = standInHost();
+    const res = runOperator(['--target', 'staging', '--apply'], env);
+
+    expect(res.status, res.stderr).toBe(0);
+    expect(res.stdout.split('\n')).toContain(`    ${REAL_PASSWORD_REFUSAL}`);
+    // The captured line parses to the methods the real daemon offered.
+    expect(res.stdout).toContain('refused, offering (publickey,gssapi-keyex,gssapi-with-mic)');
   });
 
   it('leaves the change unconfirmed, for the host to revert, when no fresh connection succeeds', () => {
@@ -861,7 +893,7 @@ describe('the operator-facing run', () => {
       // is left as it is instead of being hardened again with --apply.
       const { env, sessions } = standInHost();
       const res = runOperatorInTerminal(['--target', 'staging', '--confirm'], 'APPLY\n',
-        { ...env, PASSWORD_REFUSAL: 'Permission denied (publickey,password).' });
+        { ...env, PASSWORD_REFUSAL: refusalOffering('publickey,gssapi-keyex,gssapi-with-mic,password') });
 
       expect(res.status).toBe(1);
       expect(res.out).toContain('still offers');
@@ -883,8 +915,8 @@ describe('the operator-facing run', () => {
 
   it.each([
     ['the daemon accepts a password-only connection', { PASSWORD_ACCEPTED: '1' }, 'was accepted'],
-    ['the daemon still offers password login', { PASSWORD_REFUSAL: 'Permission denied (publickey,password).' }, 'still offers'],
-    ['the daemon still offers keyboard-interactive login', { PASSWORD_REFUSAL: 'Permission denied (publickey,keyboard-interactive).' }, 'still offers'],
+    ['the daemon still offers password login', { PASSWORD_REFUSAL: refusalOffering('publickey,gssapi-keyex,gssapi-with-mic,password') }, 'still offers'],
+    ['the daemon still offers keyboard-interactive login', { PASSWORD_REFUSAL: refusalOffering('publickey,gssapi-keyex,gssapi-with-mic,keyboard-interactive') }, 'still offers'],
     ['the refusal names no methods', { PASSWORD_REFUSAL: 'Connection closed by remote host' }, 'could not read'],
   ] as const)('fails when %s', (_label, extra, message) => {
     // Defect caught: success reported from the file on disk while the running

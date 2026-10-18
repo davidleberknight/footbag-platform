@@ -209,6 +209,10 @@ if grep -qE 'password|keyboard-interactive' <<<"$methods"; then
   unconfirmed "the running daemon still offers ${methods#Permission denied }; the reload did not take effect"
 fi
 echo "    refused, offering ${methods#Permission denied }"
+# The parse above relies on wording OpenSSH never promised to keep, so the
+# daemon's own line is printed whole: a run against a real host is where the
+# sample the tests parse comes from.
+echo "    $(grep -m1 'Permission denied (' <<<"$refusal")"
 
 # Both proofs passed, so the change is kept: cancel the host's self-revert.
 echo "==> Confirming the change on ${ALIAS}"

@@ -119,15 +119,6 @@ before="$(posture)" || before=""
 [[ -n "$before" ]] || { echo "ERROR: could not read the effective sshd configuration (sshd -T failed)." >&2; exit 1; }
 printf '%s\n' "$before" | sed 's/^/    /'
 
-if [[ "$MODE" == "status" ]]; then
-  # A change waiting to be confirmed is not what status would otherwise suggest:
-  # the hardened file is on disk and is about to be put back.
-  if systemctl is-active --quiet "${REVERT_UNIT}.timer" </dev/null 2>/dev/null; then
-    echo "    NOTE: a change is waiting to be confirmed; its self-revert will put the previous file back." || true
-  fi
-  exit 0
-fi
-
 revert_pending() {
   systemctl is-active --quiet "${REVERT_UNIT}.timer" </dev/null 2>/dev/null
 }
@@ -141,6 +132,17 @@ revert_running() {
     *) return 1 ;;
   esac
 }
+
+if [[ "$MODE" == "status" ]]; then
+  # A change waiting to be confirmed, or one being undone, is not what the posture
+  # above would otherwise suggest: the file on disk is about to be replaced.
+  if revert_pending; then
+    echo "    NOTE: a change is waiting to be confirmed; its self-revert will put the previous file back." || true
+  elif revert_running; then
+    echo "    NOTE: a self-revert is running now and is putting the previous file back." || true
+  fi
+  exit 0
+fi
 
 # Confirm: cancel the pending revert, and prove the hardened file is what stays.
 # A revert that has already fired is reported as such, never as a confirmation.
@@ -216,6 +218,14 @@ systemctl cat sshd.service >/dev/null 2>&1 </dev/null || unit="ssh"
 if revert_pending; then
   echo "ERROR: an earlier run's change is still waiting to be confirmed, and its revert will fire" >&2
   echo "       within ${REVERT_AFTER} seconds of that run. Let it fire, or confirm it, then re-run. Nothing changed." >&2
+  exit 1
+fi
+# Once the timer has fired it no longer reads as pending, but the revert it
+# started may not yet have moved the file. A copy taken now would save the file
+# the revert is about to remove, and the revert would put that back instead.
+if revert_running; then
+  echo "ERROR: an earlier run's self-revert is running now and is putting the previous file back." >&2
+  echo "       Let it finish, read the posture, then re-run. Nothing changed." >&2
   exit 1
 fi
 if [[ -e "$SAVED" ]]; then
