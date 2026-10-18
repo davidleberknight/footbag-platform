@@ -341,7 +341,6 @@ const POLICY: Record<EmailTemplateKey, Route> = {
   club_membership_member:                 { via: 'address' },
   club_membership_leader:                 { via: 'address' },
   club_volunteer_leadership:              { via: 'address' },
-  club_coleader_invite:                   { via: 'address' },
   club_leaderless_contact:                { via: 'address' },
   active_player_expiry_reminder:          { via: 'address' },
   payment_receipt:                        { via: 'address' },

@@ -74,7 +74,7 @@ describe('GET /freestyle/concepts — standardized outward-link phrasings', () =
     expect(startIdx).toBeGreaterThan(-1);
     const endIdx = res.text.indexOf('</article>', startIdx);
     const card = res.text.slice(startIdx, endIdx);
-    // The plain-language physical description leads; notation no longer stands alone.
+    // The plain-language physical description leads; notation does not stand alone.
     expect(card).toContain('A down is a finishing movement');
     // Links to the full family article, not the anchor trick slug that 404s.
     expect(card).toContain('href="/freestyle/families/down"');
@@ -117,7 +117,7 @@ describe('GET /freestyle/concepts — ADD Accounting mobius doctrine-lighting cl
     expect(startIdx).toBeGreaterThan(0);
     const endIdx = res.text.indexOf('</article>', startIdx);
     const region = res.text.slice(startIdx, endIdx);
-    // The retired rotational-continuity framing no longer appears in the ADD Accounting
+    // The retired rotational-continuity framing does not appear in the ADD Accounting
     // mobius card.
     expect(region).not.toMatch(/rotational-frame continuity/i);
     expect(region).not.toMatch(/preserved as a teaching artifact/i);

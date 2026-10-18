@@ -248,10 +248,10 @@ describe('POST /admin/alarms/:id/acknowledge', () => {
 
     expect(page.text).toContain('That alarm was already handled. Nothing was changed.');
     expect(page.text).not.toContain('Alarm acknowledged.');
-    // Nothing changed and nothing was refused, so it reads informational. It
-    // used to wear the red refusal treatment, which told the second
-    // administrator their acknowledgment had failed when it had simply
-    // arrived after somebody else's.
+    // Nothing changed and nothing was refused, so it reads informational. The
+    // red refusal treatment would tell the second administrator their
+    // acknowledgment had failed when it had simply arrived after somebody
+    // else's.
     expect(page.text).toContain('<p class="form-notice" role="status">That alarm was already handled.');
     expect(page.text).not.toContain('form-error-banner');
   });

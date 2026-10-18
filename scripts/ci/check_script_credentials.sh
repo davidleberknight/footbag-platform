@@ -63,14 +63,12 @@ for d in scripts legacy_data/scripts legacy_data/tools; do
   [ -d "$d" ] && SCAN_DIRS+=("$d")
 done
 
-# Every other find failure does fail the gate. Discovery used to end
-# `-print 2>/dev/null || true`, discarding both find's message and its exit
-# status, so a directory in scope that could not be read was skipped in silence
-# and whatever remained was reported as a pass. That is the fail-open shape this
-# gate exists to refuse, and the one its header claims it does not have: an
-# unreadable FILE and a dangling symlink already failed closed, so the directory
-# case was the single hole, with the printed file count as its only mitigation.
-# A grep exit above 1 already fails closed further down; discovery now matches it.
+# Every other find failure does fail the gate. Ending discovery in
+# `-print 2>/dev/null || true` would discard both find's message and its exit
+# status, so a directory in scope that could not be read would be skipped in
+# silence and whatever remained reported as a pass: the fail-open shape this
+# gate exists to refuse. An unreadable FILE and a dangling symlink fail closed,
+# and a grep exit above 1 fails closed further down; discovery matches them.
 # Each find runs outside the mapfile subshell so its status can be seen at all.
 FIND_STATUS=0
 SUBTREE_LIST=""
@@ -138,11 +136,10 @@ strip_comments() {
 # `#` cut away.
 #
 # One definition of "is this code or is this text", because the question is
-# asked in more than one place and the two halves of the earlier comment hole
-# were exactly what happens when each place answers it separately. A file could
-# no longer DESCRIBE a guard it does not have in a comment, but it could still
-# do it in a usage heredoc or an `echo`, and every prompt in the file was then
-# exempt.
+# asked in more than one place, and places that answer it separately disagree:
+# stripping only comments stops a file DESCRIBING a guard it does not have in a
+# comment, but not in a usage heredoc or an `echo`, and every prompt in the
+# file would then be exempt.
 #
 # Quotes are blanked rather than removed so column positions survive, and the
 # cut at `#` runs last so a `#` inside a string cannot truncate a real line.

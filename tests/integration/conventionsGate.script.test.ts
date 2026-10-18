@@ -555,7 +555,7 @@ describe('the convention gate: rules about templates and the stylesheet', () => 
   });
 
   it('refuses a form class the stylesheet does not define', () => {
-    // The rule that used to end the run before anything after it could be proved.
+    // Defect caught: this rule ending the run before anything after it is proved.
     const res = inFixtureRepo({
       'src/public/css/style.css': PLAIN_CSS,
       'src/views/page.hbs': '<div class="form-unknown">hello</div>\n',
@@ -611,8 +611,8 @@ describe('the convention gate: rules about templates and the stylesheet', () => 
   });
 
   it('reports a form class against a stylesheet defining no form vocabulary at all', () => {
-    // An empty match on the stylesheet is the shape that used to end the run: the
-    // search for defined class names found none, and a pipeline that finds nothing
+    // An empty match on the stylesheet is the shape that can end the run: the
+    // search for defined class names finds none, and a pipeline that finds nothing
     // fails under abort-on-error. The rule has an answer for this tree, and it is
     // the one below rather than silence.
     const res = inFixtureRepo({
@@ -892,6 +892,30 @@ describe('the convention gate: assertions that cannot fail', () => {
     expect(res.stderr).not.toContain('WARNING');
     expectCheckRan(res, 'cachedGet suites write nothing inside a case');
   });
+
+  // Spelled in pieces, so this file stays clean under the scan it tests.
+  const HISTORY = ['used', 'to', 'be'].join(' ');
+  const HISTORY_TREE = (comment: string): Record<string, string> => ({
+    'src/thing.ts': `// ${comment}\nexport const x = 1;\n`,
+    'scripts/run.sh': '#!/usr/bin/env bash\n',
+    'tests/unit/thing.test.ts': '',
+    'terraform/main.tf': '',
+  });
+
+  // Defect caught: a comment describing a former behaviour lands unreported, and
+  // a reader without the history takes it as a claim about the code today.
+  it('warns on a comment that narrates change history, without failing the gate', () => {
+    const res = inFixtureRepo(HISTORY_TREE(`The lookup ${HISTORY} a pipe.`));
+    expect(res.exitCode, res.stderr).toBe(0);
+    expect(res.stderr).toContain('WARNING: a comment narrates change history');
+  });
+
+  it('accepts a comment that states the code as it stands', () => {
+    const res = inFixtureRepo(HISTORY_TREE('The lookup reads a here-string, never a pipe.'));
+    expect(res.exitCode, res.stderr).toBe(0);
+    expect(res.stderr).not.toContain('WARNING');
+    expectCheckRan(res, 'comments narrate no change history');
+  });
 });
 
 describe('the convention gate: retired onboarding scripts and flags', () => {
@@ -1066,8 +1090,8 @@ describe('the convention gate: citing a document from a test', () => {
   });
 
   it('allows a filename that is fixture data rather than a citation', () => {
-    // The case that surfaced the defect: a synthetic repository whose contents
-    // are described by filename. Nothing here points a reader at a document.
+    // A synthetic repository whose contents are described by filename. Nothing
+    // here points a reader at a document.
     const res = inFixtureRepo({
       'tests/x.test.ts': "const files = { 'README.md': 'no scripts here\\n' };\nexport default files;\n",
     });
@@ -1076,8 +1100,8 @@ describe('the convention gate: citing a document from a test', () => {
   });
 
   it('allows an asserted string value that happens to name a path', () => {
-    // The second hand-written exception this replaces: a test checking that some
-    // output contains a path is asserting behaviour, not citing a document.
+    // A test checking that some output contains a path is asserting
+    // behaviour, not citing a document.
     const res = inFixtureRepo({
       'tests/x.test.ts': "expect(out).toContain('exploration/notes');\n",
     });

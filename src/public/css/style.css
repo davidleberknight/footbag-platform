@@ -6131,9 +6131,9 @@ a.hashtag--media:hover {
 }
 
 /* Section intro: the one-or-two-sentence orientation line under a section
-   heading. Defined globally because templates use it well outside the few
-   scopes that previously styled it, where it rendered unstyled at full body
-   size and set its own uncontrolled spacing. */
+   heading. Defined globally because templates use it well outside any one
+   section scope; a scoped rule leaves it unstyled elsewhere, at full body
+   size with uncontrolled spacing. */
 .section-intro {
   font-size: 0.9rem;
   color: var(--text);

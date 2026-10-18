@@ -128,8 +128,8 @@ locals {
 
     # Both trees name their configuration sets `${local.prefix}-<kind>` and
     # local.prefix carries the environment, so unlike the rest of SES these ARNs
-    # scope exactly. The statement below therefore did not have to be a wildcard
-    # and no longer is: ses:DeleteConfigurationSet on "*" reached production's
+    # scope exactly. The statement below therefore need not be a wildcard, and
+    # must not be: ses:DeleteConfigurationSet on "*" would reach production's
     # transactional and bulk sets, which carry the reputation tracking for every
     # message the membership receives.
     ses_configuration_sets = "arn:aws:ses:*:${var.aws_account_id}:configuration-set/footbag-staging-*"
@@ -205,31 +205,24 @@ locals {
       }
     }
 
-    # The calls left here carry no resource of their own. What used to sit
-    # beside them was a wildcard on four whole services, on the reasoning that
-    # an environment cannot be expressed in a Lightsail, CloudFront, ACM or SES
-    # ARN and that a partial scoping whose remainder fails silently is worse
-    # than an honest wildcard.
-    #
-    # The first half of that is right and the conclusion did not follow. A
-    # service whose ARNs cannot carry an environment can still be scoped by
-    # ACTION, and the four wildcards were never narrowed that way, so this role
-    # could clone the production host, rewrite the edge function on every live
-    # request, send mail as the domain to the membership, and delete the
-    # certificate serving it -- while its own description said it reaches no
-    # production resource. The statements below enumerate what the staging tree
-    # declares and what the scripts call, derived from both plus four weeks of
-    # trail of the work operators did as footbag-operator, and the ACM and
-    # budgets wildcards are gone outright.
+    # The calls left here carry no resource of their own. An environment cannot
+    # be expressed in a Lightsail, CloudFront, ACM or SES ARN, but that does not
+    # justify a wildcard on the whole service: a service whose ARNs cannot carry
+    # an environment can still be scoped by ACTION. A whole-service wildcard on
+    # those four would let this role clone the production host, rewrite the edge
+    # function on every live request, send mail as the domain to the
+    # membership, and delete the certificate serving it. The statements below
+    # enumerate what the staging tree declares and what the scripts call, and
+    # grant nothing on ACM or budgets at all.
     #
     # Budgets the staging tree genuinely does not declare. ACM it does, at
-    # terraform/staging/archive.tf. What makes the removal right anyway is the
-    # gate that resource
+    # terraform/staging/archive.tf. What makes leaving it out right anyway is
+    # the gate that resource
     # sits behind: enable_archive_custom_domain, whose own description says it
     # "stays off in staging, which has neither a domain nor a zone". The
     # certificate is therefore declared and will never be created here, so an
     # ACM grant could only ever reach the production certificate, which is the
-    # one the paragraph above names as something the old wildcard could delete.
+    # one the paragraph above names as something a wildcard could delete.
     # The same reasoning keeps route53:ChangeResourceRecordSets out while the
     # zone's reads are granted below: one zone serves the estate, and a write
     # over it is a write over production's DNS.

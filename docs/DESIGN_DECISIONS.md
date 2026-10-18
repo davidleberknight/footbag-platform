@@ -34,6 +34,7 @@ Current implementation status and accepted temporary deviations are tracked in t
   - [1.15 Convention and Invariant Gates](#115-convention-and-invariant-gates)
   - [1.16 Multi-repository Structure and Companion-checkout Convention](#116-multi-repository-structure-and-companion-checkout-convention)
   - [1.17 Deploy-time Host Value Ownership](#117-deploy-time-host-value-ownership)
+  - [1.18 Migrations and Non-production Databases with a Live Production Database](#118-migrations-and-non-production-databases-with-a-live-production-database)
 - [2. Data Model](#2-data-model)
   - [2.1 Schema and Versioning](#21-schema-and-versioning)
   - [2.2 Data Access Pattern](#22-data-access-pattern)
@@ -894,6 +895,58 @@ Impact:
 - The archive signing values follow the same test as everything else once the legacy archive is built: the cookie signer selector and the cookie domain are constants of each environment and are file-owned; the key-pair identifier names a CloudFront resource and is a Terraform-published identifier.
 
 - The Configuration Model decision governs how the application reads a deploy-time value; this one governs how the value reaches the host it is read from.
+
+## 1.18 Migrations and Non-production Databases with a Live Production Database
+
+Decision:
+
+Once production is live, its database is the only source of truth, and a schema or data change reaches it only through a committed migration (the migration ledger in the data model and the database layer's own rules hold the file-level rules). Every such change makes one round trip: a developer writes the code and the migration against a copy of production; CI proves it on a database built from `database/schema.sql` with the test factories; staging rehearses it on a fresh copy of production; and production runs it through the migrating deploy. Before production is live, the data-load pipeline and the curated-content seeders build every database, production included, and none of this applies.
+
+Every non-production database is a copy of the live production database. One approved, tested operator script makes the copy on the production host from a snapshot, building a fresh database at production's migration level table by table: it removes every credential and every payment-provider identifier and keeps everything else, member personal data included. The copy goes to staging inside AWS and, through the dev-and-tester role, to invited developers. CI builds its own data through the test factories and never receives a copy. The data-load pipeline and the curated-content seeders are deleted once copies replace them. The script may run before production is live to prove this loop; a copy taken then carries the pre-go-live load.
+
+Rationale:
+
+- Production is where curated content is authored and where members act, so any other source drifts from it. A copy arrives with production's current content, schema and migration ledger, so a migration rehearsed on staging meets the data it will meet in production.
+
+- One script for every environment is the smallest mechanism the project can keep working: no seed files, no committed content exports, and no second code path kept in step with each migration.
+
+- Access control protects the personal data a copy carries. The repository is public, but a copy is reachable only by a named identity holding the dev-and-tester role or a higher one, every fetch is logged in AWS, and the holders are invited, trusted members of the community. At this project's scale that control is proportionate; masking personal fields would cost realism and upkeep for little added protection.
+
+- Credentials and payment identifiers are removed because no non-production use needs them and they are where real harm lies: a copied password hash, one-time token or Stripe identifier is a working key or a link to real money.
+
+- Email and payments are stubbed below production by configuration, by the deploy and by IAM, so a copy carrying real addresses cannot mail or charge a member.
+
+Requirements:
+
+- The script follows a classification of every table and column as keep, drop, rewrite or mask, and a test fails on any table or column the classification omits, so a new column cannot reach a copy unclassified. The mask action is available and unused; a field moves to it by changing its classification.
+
+- Removed: password hashes (replaced by a value that can never verify), account tokens, vote receipt token hashes, unsent email bodies and their recipients, and every Stripe identifier. Encrypted ballots and the vote eligibility snapshot are not copied.
+
+- Unstripped data never leaves the production host; only the cleaned database moves.
+
+- The go-live markers carried in the database are reset in the copy, and no scheduled job acts on a copied row as though it were production's.
+
+- Synthetic test personas are added to every copy. While a copy can hold real member accounts, the development test routes (persona switch, test mailbox, claim builder) serve synthetic personas only, and the script refuses to make a copy without that restriction in place.
+
+- Staging receives production's media files by a bucket sync inside AWS. Developer copies carry no media files, and the development media mount answers a missing file with a placeholder that says so.
+
+- A copy is replaced, never patched: a refresh takes a new copy.
+
+- Every migration is rehearsed on a fresh staging copy before it runs on production.
+
+Trade-offs:
+
+- Developer machines hold real member personal data, birth dates and addresses included. A lost machine is a personal-data breach for IFPA to handle under its notification duties.
+
+- An erasure in production reaches existing copies only at their next refresh.
+
+- Uploaded photos and videos are absent on developer machines.
+
+Impact:
+
+- When production goes live, the privacy-governance requirements in 3.9 and the processors statement in the data-governance document are restated to say where member data may live.
+
+- The development media mount gains a placeholder for missing files.
 
 # 2. Data Model
 
@@ -1963,7 +2016,7 @@ Requirements:
 
 - Historical-pipeline outputs that feed the database carry no member email addresses. Email addresses arrive only via member self-claim. The pipeline's intermediate artifacts and committed CSVs are scrubbed of email columns before they enter the working tree. If a pipeline output reaches the working tree containing email PII, the leak is purged from history (filter-repo, force-push, GitHub Support cache invalidation) before any public exposure.
 - A working GDPR Article 17 erasure path exists pre-launch covering the primary database, any read replicas, backup snapshots (via re-application on restore of the erasures the restored snapshot records, from §1.2), and any search or derived-stat indices. Erasure that fails on any of those surfaces is a launch-blocker.
-- Production member data never leaves AWS: it exists only in production and its encrypted backups, restore drills run inside AWS, and it never reaches a workstation. Staging runs on the legacy footbag.org dataset, the public historical data and synthetic personas, and no production data is shared with developers or third parties.
+- Production member data never leaves AWS: it exists only in production and its encrypted backups, restore drills run inside AWS, and it never reaches a workstation. Staging runs on the legacy footbag.org dataset, the public historical data and synthetic personas, and no production data is shared with developers or third parties. Once production is live, 1.18 governs where copies of production data may live.
 
 ## 3.10 Trust-proxy strategy
 
@@ -3644,7 +3697,7 @@ Scenarios this page covers:
 
 - Disaster recovery: the four-hour host-restore objective assumes this page is served for the whole window, which is what makes four hours tolerable.
 
-One scenario it does not cover: the one-time migration notice shown during the go-live window. That is served per-hostname by the distribution's viewer-request function, so the preview hostname can keep serving the real platform while the public names show the notice. This page cannot do that, because it is reached through the default cache behaviour, which answers on every hostname at once.
+One scenario it does not cover: withholding the site on some hostnames while others keep serving it. That is done per-hostname by the distribution's viewer-request function. This page cannot do it, because it is reached through the default cache behaviour, which answers on every hostname at once.
 
 Rationale:
 

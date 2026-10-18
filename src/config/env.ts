@@ -40,8 +40,7 @@ export interface AppConfig {
   publicBaseUrl: string;
   // True when this deployment answers on the canonical public host and its
   // pages belong in search indexes. False for every non-production environment
-  // and for the temporary pre-cutover preview hostname, which serves the same
-  // production build under a name that is withdrawn at cutover.
+  // and for any other hostname the production build answers on.
   searchIndexable: boolean;
   // Base URL of the members-only legacy archive (the preserved original
   // footbag.org, served by its own CloudFront distribution). The landing page
@@ -1118,11 +1117,10 @@ function loadConfig(): AppConfig {
     );
   }
 
-  // The production build serves the canonical host and, before the cutover, a
-  // temporary preview hostname as well. Only the canonical host belongs in a
-  // search index: the preview name is withdrawn once the canonical host takes
-  // over, so anything indexed under it becomes a result that no longer
-  // resolves. The edge does not forward the viewer's Host header to the origin,
+  // The production build can answer on hostnames other than the canonical one.
+  // Only the canonical host belongs in a search index: a result indexed under
+  // any other name points at a name the site does not speak for, and may stop
+  // resolving. The edge does not forward the viewer's Host header to the origin,
   // so the request cannot answer which name was used; the base URL this
   // deployment is configured to speak for can. Requiring the canonical host
   // rather than excluding known temporary ones keeps an unexpected hostname out

@@ -346,7 +346,7 @@ export const systemHealthService = {
     // from the counts at a coarser precision. Rendering one decimal of percent
     // against a two-decimal threshold produces a notice that contradicts
     // itself: one complaint in 401 sent halts at exactly 25 per ten-thousand
-    // and used to display "is 0.2% of what was sent, at or above the 0.25%
+    // and would display "is 0.2% of what was sent, at or above the 0.25%
     // limit". The number shown has to be the number that decided.
     const haltRateLabel = halt.reason === 'complaint_rate'
       ? per10kLabel(halt.complaintPer10k)

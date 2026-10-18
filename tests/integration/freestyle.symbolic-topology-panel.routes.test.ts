@@ -2,8 +2,8 @@
  * Trick pages carry no observational topology panel.
  *
  * The symbolic-grammar topology groups still exist as data, and a trick can
- * still belong to one, but a trick page no longer lists "Related topology
- * tricks" with an observational badge and a non-canonical disclaimer: that was
+ * still belong to one, but a trick page does not list "Related topology
+ * tricks" with an observational badge and a non-canonical disclaimer: that is
  * internal taxonomy on a public page, and the page's related-trick lists already
  * do the job. The educational links the same memberships drive (a trick to its
  * teaching page) stay.
@@ -30,9 +30,9 @@ const { dbPath } = setTestEnv('3091');
 let createApp: Awaited<ReturnType<typeof importApp>>;
 const page = cachedGet(() => createApp());
 
-// The flagship slugs the panel used to render on, plus enough members of their
+// The flagship slugs such a panel would render on, plus enough members of their
 // butterfly-wing and whirl-rotational topology groups that the panel would have
-// had tricks to list.
+// tricks to list.
 beforeAll(async () => {
   const db = createTestDb(dbPath);
 

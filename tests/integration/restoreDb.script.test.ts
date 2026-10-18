@@ -376,11 +376,11 @@ describe('restoring a snapshot onto a host', () => {
 
   it('fetches from the bucket the caller named, not the host\'s own', () => {
     // The cutover rollback artifact lives in the DR bucket, which is not the one
-    // the host is configured with. --bucket used to select the snapshot and print
-    // the confirmation banner, then get dropped before the ssh wire, so the host
-    // restored from its own bucket while displaying the DR one. The failure was
-    // invisible: correct-looking provenance, wrong database, after the live one
-    // had already been replaced.
+    // the host is configured with. Defect caught: --bucket selects the snapshot
+    // and prints the confirmation banner, then is dropped before the ssh wire,
+    // so the host restores from its own bucket while displaying the DR one. The
+    // failure is invisible: correct-looking provenance, wrong database, after
+    // the live one has already been replaced.
     const DR = 'footbag-production-db-snapshots-dr';
     const key = publishSnapshot(
       ['from-dr'],

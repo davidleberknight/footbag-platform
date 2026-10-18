@@ -7,11 +7,11 @@
  * point at, whether it fans an urgent notification out on enqueue, how its
  * evidence renders, and its ordered list of actions.
  *
- * Why it exists. The queue used to model each type as membership of one of five
- * hardcoded families: a predicate deciding the family, a matching boolean on the
- * view item, and a branch in the template. A type had to be added to all three or
- * its card rendered with no control at all and could never be closed. Declaring
- * the type once removes the two places a type could be forgotten, and the enqueue
+ * Why it exists. Modelling each type as membership of a hardcoded family needs a
+ * predicate deciding the family, a matching boolean on the view item, and a
+ * branch in the template; a type missing from any of the three renders a card
+ * with no control at all that can never be closed. Declaring the type once
+ * removes the places a type could be forgotten, and the enqueue
  * assertion in WorkQueueService turns a missing declaration into a refusal to
  * create the row rather than a card nobody can act on.
  *

@@ -6,9 +6,9 @@ import { ErrorPageContent, NavLink, PageViewModel, TierBenefitNotice } from '../
 
 /**
  * Every error surface on the site renders one template through these helpers.
- * Routes never build the error view-model themselves: a hand-written render is
- * how a response answering 422 came to display "404" and tell the visitor their
- * link was no longer routable. Here the digit is derived from the status the
+ * Routes never build the error view-model themselves: a hand-written render can
+ * let a response answering 422 display "404" and tell the visitor their link is
+ * not routable. Here the digit is derived from the status the
  * response is given, so the two cannot drift apart.
  *
  * Each page offers a single control home. An error page is a dead end by
@@ -122,9 +122,9 @@ export function renderInvalidRequest(
  * A throttle hit rendered as a page. Callers set `Retry-After` from the error's
  * `retryAfterSeconds` before calling this.
  *
- * The body is not optional in practice. This used to render a heading over an
- * empty page, so a visitor who tripped a limit was told a title and nothing
- * about what had happened or what to do next; `detail` carries that, and the
+ * The body is not optional in practice. A heading over an empty page tells a
+ * visitor who tripped a limit a title and nothing about what happened or what
+ * to do next; `detail` carries that, and the
  * default says it for callers with nothing more specific to add.
  */
 export function renderRateLimited(

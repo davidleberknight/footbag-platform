@@ -47,10 +47,10 @@ read only from `freestyle/inputs/` (and `curated/` for media), never from
 - **Read inputs from `freestyle/inputs/`.** When adding a loader input, put the
   file under `freestyle/inputs/` and reference it via `SCRIPT_DIR.parent` (the
   `freestyle/` root), not `legacy_data/`.
-- **Shared helpers live in `scripts/`.** `_trick_canonicalization.py` is shared
-  with the curator-media seeder, and `_trick_tag_invariant.py` with the media QC
-  loaders and the media-acquisition scripts; the QC loaders import both via
-  `REPO_ROOT/scripts`. Do not duplicate them here.
+- **Shared helpers live in `scripts/`.** `_trick_canonicalization.py` is used
+  by the curator-media seeder, and `_trick_tag_invariant.py` is shared with the
+  media QC loaders and the media-acquisition scripts; the QC loaders import it
+  via `REPO_ROOT/scripts`. Do not duplicate them here.
 
 ## Run / verify
 

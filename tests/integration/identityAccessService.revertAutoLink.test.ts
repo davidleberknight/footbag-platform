@@ -610,13 +610,13 @@ describe('identityAccessService.revertClaimForDispute (queue-item binding)', () 
     expect(claimed.city).toBe('Testville');            // member value kept
     expect(claimed.country).toBe('US');                // member value kept
     expect(claimed.is_hof).toBe(1);
-    // The claim no longer copies the address columns: nothing reads them off a
+    // The claim does not copy the address columns: nothing reads them off a
     // member row, so they stay in the archival snapshot instead.
     expect(claimed.street_address).toBeNull();
     expect(claimed.postal_code).toBeNull();
 
-    // A row claimed before that change still carries both, and the revert must
-    // still clear them, so the scrub is exercised against a row that has them.
+    // A claimed row may still carry both, and the revert must clear them, so
+    // the scrub is exercised against a row that has them.
     const dbSeed = open();
     dbSeed.prepare('UPDATE members SET street_address = ?, postal_code = ? WHERE id = ?')
       .run('1 Old Road', 'A1B2C3', memberId);

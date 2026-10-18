@@ -1,6 +1,6 @@
 /**
- * Flat co-leadership member flows: self-volunteer eligibility, invite-by-email,
- * and step-down.
+ * Flat co-leadership member flows: self-volunteer eligibility, the club page's
+ * leadership block, and step-down.
  *
  *   - volunteerToCoLeadClub is immediate for an eligible member (current member
  *     of the club, Tier 1 benefits via Tier 1+ or an active Active-Player
@@ -9,8 +9,8 @@
  *   - A member with no Tier 1 benefits, a non-member, a member who already
  *     co-leads elsewhere, and a full club are each refused without writing a
  *     club_leaders row.
- *   - Invite is an email to the volunteer affordance, not a stored handshake:
- *     it writes no club_leaders row and is restricted to current co-leaders.
+ *   - Co-leadership is gained only by volunteering (or admin assignment): a
+ *     co-leader's club page offers no recruiting control.
  *   - Step-down removes the caller's own co-leader row while preserving their
  *     club membership; the last co-leader out leaves the club leaderless.
  */
@@ -186,136 +186,37 @@ describe('POST /clubs/:key/volunteer', () => {
   });
 });
 
-describe('POST /clubs/:key/invite', () => {
-  it('a co-leader invites a member: email enqueued, audited, no club_leaders row for the invitee', async () => {
+describe('club page leadership block', () => {
+  // Defect caught: a co-leader's club page offers a way to recruit another
+  // co-leader by mail (or an empty Leadership heading with nothing under it),
+  // when co-leadership is gained only by volunteering or admin assignment;
+  // or the eligible member beside them loses the volunteer button.
+  it('a co-leader sees no leadership controls and no mail goes out; an eligible member still sees Volunteer', async () => {
     const { clubId, clubKey } = seedClub();
-    const leader = tier1Actor(`i-leader-${_n}`, `i_leader_${_n}`);
+    const leader = tier1Actor(`lb-leader-${_n}`, `lb_leader_${_n}`);
     insertClubLeader(db, { club_id: clubId, member_id: leader });
     insertMemberClubAffiliation(db, leader, clubId);
-    const invitee = insertMember(db, { id: `i-invitee-${_n}`, slug: `i_invitee_${_n}`, login_email: `i-invitee-${_n}@example.com` });
-    // The invitee must already be a current member of the club.
-    insertMemberClubAffiliation(db, invitee, clubId);
+    const eligible = tier1Actor(`lb-member-${_n}`, `lb_member_${_n}`);
+    insertMemberClubAffiliation(db, eligible, clubId);
 
+    const leaderPage = await request(createApp()).get(`/clubs/${clubKey}`).set('Cookie', cookieFor(leader));
+    expect(leaderPage.status).toBe(200);
+    expect(leaderPage.text).not.toContain('<h2>Leadership</h2>');
+    expect(leaderPage.text).not.toContain(`/clubs/${clubKey}/invite`);
+
+    const memberPage = await request(createApp()).get(`/clubs/${clubKey}`).set('Cookie', cookieFor(eligible));
+    expect(memberPage.status).toBe(200);
+    expect(memberPage.text).toContain('<h2>Leadership</h2>');
+    expect(memberPage.text).toContain(`action="/clubs/${clubKey}/volunteer"`);
+
+    const outboxBefore = outboxTotal();
     const res = await request(createApp())
       .post(`/clubs/${clubKey}/invite`)
       .set('Cookie', cookieFor(leader))
       .type('form')
-      .send({ member_key: invitee });
-    expect(res.status).toBe(303);
-
-    expect(emailCount(invitee)).toBe(1);
-    // No leadership row is written by an invite; acceptance is the invitee volunteering.
-    expect(leaderRows(clubId).some((r) => r.member_id === invitee)).toBe(false);
-    const audit = db.prepare(
-      `SELECT COUNT(*) AS n FROM audit_entries WHERE action_type = 'club.coleader_invited' AND actor_member_id = ?`,
-    ).get(leader) as { n: number };
-    expect(audit.n).toBe(1);
-  });
-
-  // Defect caught: an inviter who double-clicks Invite mails the member twice,
-  // records the invitation twice, or is told the repeat failed.
-  it('the same inviter submitting twice sends one email, records one invitation, and repeats the first success', async () => {
-    const { clubId, clubKey } = seedClub();
-    const leader = tier1Actor(`i-dup-leader-${_n}`, `i_dup_leader_${_n}`);
-    insertClubLeader(db, { club_id: clubId, member_id: leader });
-    insertMemberClubAffiliation(db, leader, clubId);
-    const invitee = insertMember(db, { id: `i-dup-invitee-${_n}`, slug: `i_dup_invitee_${_n}`, login_email: `i-dup-invitee-${_n}@example.com` });
-    insertMemberClubAffiliation(db, invitee, clubId);
-    const invite = () => request(createApp())
-      .post(`/clubs/${clubKey}/invite`)
-      .set('Cookie', cookieFor(leader))
-      .type('form')
-      .send({ member_key: invitee });
-
-    const first = await invite();
-    expect(first.status).toBe(303);
-    const outboxAfterFirst = outboxTotal();
-    expect(emailCount(invitee)).toBe(1);
-    expect(auditCount('club.coleader_invited', 'entity_id = ?', invitee)).toBe(1);
-
-    const second = await invite();
-    expect(second.status).toBe(303);
-    expect(second.headers.location).toBe(first.headers.location);
-    expect(emailCount(invitee)).toBe(1);
-    expect(outboxTotal()).toBe(outboxAfterFirst);
-    expect(auditCount('club.coleader_invited', 'entity_id = ?', invitee)).toBe(1);
-
-    const page = await landedOn(leader, second);
-    expect(page).toContain(
-      '<div class="form-success-banner" role="status">Invitation recorded. It goes to that member by email.</div>',
-    );
-  });
-
-  // Defect caught: a second co-leader inviting a member another co-leader
-  // already invited mails the member again, records a second invitation, or
-  // is told they sent it when they did not.
-  it('a second co-leader inviting an already-invited member is told so, with no email and no new record', async () => {
-    const { clubId, clubKey } = seedClub();
-    const first = tier1Actor(`i-first-${_n}`, `i_first_${_n}`);
-    const second = tier1Actor(`i-second-${_n}`, `i_second_${_n}`);
-    for (const ldr of [first, second]) {
-      insertClubLeader(db, { club_id: clubId, member_id: ldr });
-      insertMemberClubAffiliation(db, ldr, clubId);
-    }
-    const invitee = insertMember(db, { id: `i-shared-invitee-${_n}`, slug: `i_shared_invitee_${_n}`, login_email: `i-shared-invitee-${_n}@example.com` });
-    insertMemberClubAffiliation(db, invitee, clubId);
-    const inviteAs = (actor: string) => request(createApp())
-      .post(`/clubs/${clubKey}/invite`)
-      .set('Cookie', cookieFor(actor))
-      .type('form')
-      .send({ member_key: invitee });
-
-    const sent = await inviteAs(first);
-    expect(sent.status).toBe(303);
-    const outboxAfterFirst = outboxTotal();
-
-    const res = await inviteAs(second);
-    expect(res.status).toBe(303);
-    expect(res.headers.location).toBe(sent.headers.location);
-    expect(emailCount(invitee)).toBe(1);
-    expect(outboxTotal()).toBe(outboxAfterFirst);
-    expect(auditCount('club.coleader_invited', 'entity_id = ?', invitee)).toBe(1);
-    expect(auditCount('club.coleader_invited', 'actor_member_id = ?', second)).toBe(0);
-
-    const page = await landedOn(second, res);
-    expect(page).toContain(
-      '<p class="form-notice" role="status">That member has already been invited to co-lead this club.</p>',
-    );
-    expect(page).not.toContain('form-success-banner');
-  });
-
-  it('a non-co-leader cannot invite', async () => {
-    const { clubId, clubKey } = seedClub();
-    const notLeader = tier1Actor(`i-notldr-${_n}`, `i_notldr_${_n}`);
-    insertMemberClubAffiliation(db, notLeader, clubId);
-    const invitee = insertMember(db, { id: `i-inv2-${_n}`, slug: `i_inv2_${_n}`, login_email: `i-inv2-${_n}@example.com` });
-
-    const res = await request(createApp())
-      .post(`/clubs/${clubKey}/invite`)
-      .set('Cookie', cookieFor(notLeader))
-      .type('form')
-      .send({ member_key: invitee });
-    expect(res.status).toBe(303);
-    expect(emailCount(invitee)).toBe(0);
-    void clubId;
-  });
-
-  it('cannot invite a member who is not a current member of the club: no email enqueued', async () => {
-    const { clubId, clubKey } = seedClub();
-    const leader = tier1Actor(`i-leader2-${_n}`, `i_leader2_${_n}`);
-    insertClubLeader(db, { club_id: clubId, member_id: leader });
-    insertMemberClubAffiliation(db, leader, clubId);
-    // Invitee has no affiliation with this club.
-    const invitee = insertMember(db, { id: `i-nonmem-${_n}`, slug: `i_nonmem_${_n}`, login_email: `i-nonmem-${_n}@example.com` });
-
-    const res = await request(createApp())
-      .post(`/clubs/${clubKey}/invite`)
-      .set('Cookie', cookieFor(leader))
-      .type('form')
-      .send({ member_key: invitee });
-    expect(res.status).toBe(303);
-    expect(emailCount(invitee)).toBe(0);
-    expect(leaderRows(clubId).some((r) => r.member_id === invitee)).toBe(false);
+      .send({ member_key: eligible });
+    expect(res.status).toBe(404);
+    expect(outboxTotal()).toBe(outboxBefore);
   });
 });
 

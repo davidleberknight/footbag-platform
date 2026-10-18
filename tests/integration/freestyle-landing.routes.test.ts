@@ -56,8 +56,8 @@ describe('freestyle landing foundations gallery link', () => {
     const res = await page('/freestyle');
     expect(res.text).toContain('Browse Freestyle Media');
     expect(res.text).toContain('href="/freestyle/media"');
-    // The per-collection sub-tiles live on /freestyle/media now; the landing no
-    // longer lists them separately (they previously duplicated the section).
+    // The per-collection sub-tiles live on /freestyle/media; the landing does
+    // not list them separately, which would duplicate that section.
     expect(res.text).not.toContain('Freestyle Records Videos');
     expect(res.text).not.toContain('Individual Shred Videos');
   });

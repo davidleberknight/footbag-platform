@@ -87,7 +87,7 @@ describe('Freestyle Concepts — core trick atoms band', () => {
     expect(card(html, 'toe_stall')).toContain('What it reveals');
     expect(card(html, 'butterfly')).toContain('What it reveals');
 
-    // the eight formerly-connective atoms now carry one too
+    // the other eight atoms carry one too
     for (const slug of ['around_the_world', 'orbit', 'legover', 'pickup', 'illusion', 'osis', 'whirl', 'swirl']) {
       expect(card(html, slug), `${slug} reveal`).toContain('What it reveals');
     }

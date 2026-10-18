@@ -358,7 +358,7 @@ const read = (name: string): string => (existsSync(join(dir, name)) ? readFileSy
 
 /** The sealed file as placed in the person's home on the host. */
 const SEALED = (): string => join(dir, 'host-delivery');
-/** Where it used to be left on this machine, and must never be now. */
+/** A local copy on this machine, which must never exist. */
 const LOCAL_COPY = (): string => join(home, 'AWS', `${ACCOUNT}-staging.onboarding.age`);
 
 /** A finished onboarding in IAM: the user, its grant and an active key. */

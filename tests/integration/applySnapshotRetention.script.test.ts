@@ -507,7 +507,7 @@ describe('apply-snapshot-retention.sh: verification', () => {
   });
 
   it('fails the run on an unfiltered replication rule, rather than describing one', () => {
-    // The step used to print "the change did not land" and exit 0. An unfiltered
+    // Defect caught: printing "the change did not land" and exiting 0. An unfiltered
     // rule keeps replicating the two-day routine/ stream this change narrows away,
     // so the verdict has to be carried by the exit status.
     writeAwsStub(2, 2, { replication: 'unfiltered' });

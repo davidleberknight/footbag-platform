@@ -116,11 +116,11 @@ describe('the credential gate: what it must refuse', () => {
     expect(res.exitCode, res.stderr).toBe(0);
   });
 
-  it('sees the host sudo password, whose name the pattern used to miss', () => {
+  it('sees the host sudo password, whose name ends in a bare PASS', () => {
     // SUDO_PASS is the variable the required wire pattern uses, so it is the one
-    // name every privileged remote step in this tree carries — and the secret-name
-    // pattern matched SECRET, TOKEN, PASSWORD, PASSWD, CREDENTIAL and compound
-    // KEY names while missing a bare PASS entirely. The gate could not see the
+    // name every privileged remote step in this tree carries. Defect caught: a
+    // secret-name pattern matching SECRET, TOKEN, PASSWORD, PASSWD, CREDENTIAL
+    // and compound KEY names but not a bare PASS leaves the gate blind to the
     // single most common credential variable in the scripts it guards.
     const res = inFixtureRepo(script('ssh host "echo $SUDO_PASS | sudo -S true"'));
     expect(res.exitCode).toBe(1);
@@ -295,11 +295,10 @@ describe('the credential gate: what it must refuse', () => {
   });
 
   it('finds a terminal guard that sits near the top of a long file', () => {
-    // The guard search used to be a pipe into `grep -q`. Its early exit closed
-    // the pipe, the comment stripper died on SIGPIPE, and under pipefail the
-    // pipeline's status became 141, so a guard followed by enough output to fill
-    // a pipe buffer read as no guard at all. The real deploy leaf was refused
-    // for exactly this reason.
+    // The guard search reads a here-string rather than piping into `grep -q`.
+    // A pipe's early exit closes the stripper, which dies on SIGPIPE, and under
+    // pipefail the status becomes 141, so a guard followed by enough output to
+    // fill a pipe buffer would read as no guard at all.
     const filler = Array.from({ length: 40000 }, (_, i) => `echo "line ${i}"`).join('\n');
     const res = inFixtureRepo(script(`if [[ ! -t 0 ]]; then exit 1; fi\n${filler}\nread -r answer`));
     expect(res.exitCode, res.stderr).toBe(0);
@@ -483,7 +482,7 @@ describe('the credential gate: forms only the current gate catches', () => {
     expect(res.stderr).toMatch(/no terminal guard/);
   });
 
-  // A file can no longer DESCRIBE a guard it does not have in a comment. These
+  // A file cannot DESCRIBE a guard it does not have in a comment. These
   // are the other two ways to say the same words without writing the guard.
 
   it('is not exempted by the terminal device named inside a quoted string', () => {
@@ -649,13 +648,13 @@ describe('the credential gate: properties that make the refusals worth having', 
   });
 
   it('fails closed when part of the scan scope cannot be read', () => {
-    // Discovery used to end `-print 2>/dev/null || true`, which discards both the
-    // warning and the exit status, so a directory in scope that could not be read
-    // was skipped in silence and the gate reported a pass over whatever remained.
-    // That is the fail-open shape the gate exists to refuse, and its own header
-    // claims it does not have: an unreadable FILE and a dangling symlink already
-    // fail closed, so the directory case was the one hole. The printed file count
-    // was the only thing standing between a shrunken scan and a green run.
+    // Defect caught: discovery ending `-print 2>/dev/null || true` discards both
+    // the warning and the exit status, so a directory in scope that cannot be
+    // read is skipped in silence and the gate reports a pass over whatever
+    // remains. That is the fail-open shape the gate exists to refuse, and its
+    // own header claims it does not have: an unreadable FILE and a dangling
+    // symlink fail closed too. The printed file count would be the only thing
+    // standing between a shrunken scan and a green run.
     const root = mkdtempSync(join(tmpdir(), 'footbag-test-cred-gate-'));
     const hidden = join(root, 'scripts', 'sub');
     try {

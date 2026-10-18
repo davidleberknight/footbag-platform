@@ -534,7 +534,7 @@ describe('GET /freestyle/operators — compact modifier index + advanced referen
 
   it('renders the compact index and a minimal cross-cutting decomposition tail', async () => {
     const res = await page('/freestyle/operators');
-    // Compact index rows (not the old feel-card scroll).
+    // Compact index rows, not a scroll of feel cards.
     expect(res.text).toContain('dict-trick-row-stack');
     expect(res.text).toContain('id="operator-paradox"');
     expect(res.text).not.toContain('class="glossary-modifier-card"');
@@ -542,7 +542,7 @@ describe('GET /freestyle/operators — compact modifier index + advanced referen
     // per-modifier depth moved to the detail pages.
     expect(res.text).toContain('id="how-operators-combine"');
     expect(res.text).toContain('id="alpine"');
-    // The per-modifier reference dl/grid no longer renders on the operators page.
+    // The per-modifier reference dl/grid does not render on the operators page.
     expect(res.text).not.toContain('id="intermediate-operators"');
     expect(res.text).not.toContain('id="set-modifiers-tier-1"');
     expect(res.text).not.toContain('class="glossary-intermediate-operators"');
@@ -580,13 +580,13 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
     expect(res.text).toContain('href="/freestyle/add-analysis"');
   });
 
-  it('previously-canonicalized entries (assassin / big-apple / mantis) do NOT appear in the observational layer', async () => {
+  it('canonical entries (assassin / big-apple / mantis) do NOT appear in the observational layer', async () => {
     // Layer-coexistence regression: these three slugs are canonical
     // (freestyle_tricks.slug), and their observational entries must
     // stay removed — the canonical-promotion process documented in the
     // content module's JSDoc says "move the row to inputs/
     // curated/tricks/<slug>.txt + re-run loader + REMOVE the
-    // observational entry", and that third step has been skipped before.
+    // observational entry", and that third step is the easy one to skip.
     //
     // Layer separation contract requires:
     //   observational.folkSlug != canonical freestyle_tricks.slug
@@ -731,7 +731,7 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
     const res = await page('/freestyle/observational');
     // No literal null leaks through
     expect(res.text).not.toMatch(/class="observed-card-external-claim"[^>]*>\s*null/);
-    // Em-dash framing no longer used
+    // No em-dash framing
     expect(res.text).not.toMatch(/—\s*ADD/);
   });
 
@@ -747,7 +747,7 @@ describe('GET /freestyle/observational — observational-layer trick entries', (
 });
 
 describe('GET /freestyle/operators — orientation lede', () => {
-  it('links no dictionary view that no longer exists', async () => {
+  it('links no dictionary view the dictionary does not offer', async () => {
     const res = await page('/freestyle/operators');
     expect(res.text).not.toMatch(/\/freestyle\/tricks\?view=(movement-system|topology|dex-count|component|category)/);
   });
@@ -1409,7 +1409,7 @@ describe('Freestyle Concepts and history — anchor preservation + cross-link co
   it('history page links to the ADD analysis page as its difficulty evidence', async () => {
     const res = await page('/freestyle/history');
     expect(res.text).toContain('href="/freestyle/add-analysis"');
-    // The narrative history page no longer routes readers through a run-quality anchor.
+    // The narrative history page does not route readers through a run-quality anchor.
     expect(res.text).not.toContain('/freestyle/combo-analysis#run-quality');
     expect(res.text).not.toContain('/freestyle/glossary#run-quality');
     expect(res.text).not.toContain('/freestyle/concepts#run-quality');
@@ -1518,7 +1518,7 @@ describe('Freestyle Concepts framing paragraphs + history page contracts', () =>
     expect(occurrences, 'whirl resolution-point note renders exactly once').toBe(1);
   });
 
-  it('whirl family card no longer presents an unsupported network / most-documented claim', async () => {
+  it('whirl family card does not present an unsupported network / most-documented claim', async () => {
     const res = await page('/freestyle/concepts');
     expect(res.text).not.toMatch(/most documented two-trick/);
     expect(res.text).not.toMatch(/22 years of Sick3/);
@@ -2201,19 +2201,15 @@ describe('Freestyle Concepts — Execution mechanics subsection', () => {
 // plus dictionary unification (CSS-level). Most assertions are structural:
 // class presence, anchor presence, ordering.
 
-// The landing-side "symbolic-object class contract preserved" tests are
-// retired. The .core-trick-object / .core-
-// trick-slug / .core-trick-equivalence / core-trick-add-pending classes
-// pinned the landing Core Tricks grid which no longer renders. The
-// `core-tricks-grid` Handlebars partial is still in use on the
-// Concepts page (§5 "Other foundational atoms"), where the class
-// contract is preserved and tested.
+// The landing page renders no Core Tricks grid. The .core-trick-object /
+// .core-trick-slug / .core-trick-equivalence / core-trick-add-pending
+// class contract belongs to the `core-tricks-grid` Handlebars partial on
+// the Concepts page ("Other foundational atoms"), where it is tested.
 
 describe('Freestyle Concepts — compression-flow visual continuity (compact form)', () => {
   it('symbolic-compression-flow renders zero per-step cards (collapsed to one-liner)', async () => {
-    // The compression flow renders as a one-row equivalence, not the
-    // retired three .core-trick-object cards. This test
-    // asserts the cascade is gone; the current contract is covered above.
+    // The compression flow renders as a one-row equivalence, not a cascade
+    // of .core-trick-object cards; the row's own contract is covered above.
     const res = await page('/freestyle/concepts');
     const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
     expect(flowIdx).toBeGreaterThan(0);

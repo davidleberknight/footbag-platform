@@ -12,16 +12,16 @@
 # wrapper cannot hold, and each of them fails silently rather than loudly:
 #
 #   1. The session-secret parameter must come through the apply with its value
-#      untouched. Terraform no longer owns that value — the parameter is a shell
+#      untouched. Terraform does not own that value — the parameter is a shell
 #      carrying a placeholder and lifecycle { ignore_changes = [value] } — so a
 #      plan proposing to change it means ignore_changes is not taking, and
 #      confirming would overwrite a live secret with the literal placeholder and
 #      sign out every member on the next deploy. This refuses on that diff
 #      before the confirmation, rather than asking an operator to spot it.
 #
-#   2. The two platform-logs buckets previously had a bucket policy the AWS
-#      log-delivery service wrote for itself and none in Terraform. The new
-#      policy replaces it wholesale, and the delivery statements are reproduced
+#   2. On the two platform-logs buckets, the Terraform bucket policy replaces
+#      wholesale any policy the AWS log-delivery service wrote for itself, so
+#      the delivery statements are reproduced
 #      by hand from the archive log bucket. If they are wrong, nothing errors:
 #      CloudFront simply stops delivering access logs, and nobody notices until
 #      the logs are wanted. This records the newest delivered key before the
@@ -176,9 +176,9 @@ trap cleanup_plan EXIT INT TERM
 # the human rendering elides a SecureString value as (sensitive value), which
 # looks identical whether it is changing or not.
 #
-# A gate that cannot read refuses. Every failure path below used to collapse to
-# an empty result, which reads as "nothing is changing": a `terraform show` that
-# failed, an absent python3, or truncated JSON all let a typed APPLY through and
+# A gate that cannot read refuses. A failure path that collapsed to an empty
+# result would read as "nothing is changing": a `terraform show` that failed,
+# an absent python3, or truncated JSON would let a typed APPLY through and
 # overwrite the live secret with the placeholder. The reasons a gate cannot see
 # are exactly the conditions under which it must not wave the change past.
 gate_session_secret() {
@@ -303,8 +303,8 @@ assert_plaintext_refused() {
   fi
   # The refusal has to be the deny doing its job, not any failure at all. A
   # proxy blocking port 80, a credential expiring mid-run, or a redirect from a
-  # bucket outside this region all made the old form print "refuses plaintext"
-  # while proving nothing. An invariant this script exists to establish cannot be
+  # bucket outside this region would all fail the request, and a check that
+  # accepted any failure would print "refuses plaintext" while proving nothing. An invariant this script exists to establish cannot be
   # asserted by a check that passes on every error.
   if ! grep -qiE 'AccessDenied|403|Forbidden' <<< "$err"; then
     echo "  FAIL: ${bucket} did not accept plaintext, but not because it was denied." >&2
@@ -443,11 +443,11 @@ if (( FROM_STEP <= 3 )) || (( VERIFY_ONLY )); then
   # The proof that matters: a refresh-only plan reads and writes nothing but
   # still has to reach the backend.
   #
-  # Anchored to $REPO_ROOT, and the error is kept. Both mattered: the path was
-  # relative to the caller's working directory, and every error was discarded, so
-  # a run started from the wrong directory reported "Terraform can no longer read
-  # its own state" and handed the operator a command that removes the protection
-  # this script had just installed. A verdict that cannot distinguish a lockout
+  # Anchored to $REPO_ROOT, and the error is kept. Both matter: with a path
+  # relative to the caller's working directory and the error discarded, a run
+  # started from the wrong directory would report a lockout from its own state
+  # and hand the operator a command that removes the protection this script
+  # had just installed. A verdict that cannot distinguish a lockout
   # from a missing directory must not name the lockout as its cause.
   refresh_err=""
   if ! refresh_err="$("$TF_BIN" -chdir="$REPO_ROOT/terraform/production" plan -refresh-only -input=false 2>&1)"; then

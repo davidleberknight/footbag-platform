@@ -145,7 +145,7 @@ describe('GET /tags/suggest', () => {
     const res = await request(app).get('/tags/suggest?q=pixie');
     expect(res.status).toBe(200);
     const normalized = res.body.map((t: { normalized: string }) => t.normalized);
-    // Regression: previously only the #pixie-prefixed tag surfaced. The ontology
+    // Defect caught: only the #pixie-prefixed tag surfaces. The ontology
     // expansion must also surface the set, concept, and modifier-carrying tags
     // that do not share the #pixie prefix.
     expect(normalized).toContain('#pixie_barrage');     // #pixie_ prefix

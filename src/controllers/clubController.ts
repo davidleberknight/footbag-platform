@@ -340,30 +340,6 @@ export const clubController = {
     }
   },
 
-  postInvite(req: Request, res: Response, next: NextFunction): void {
-    try {
-      const clubId = clubService.resolveClubIdByKey(req.params.key);
-      const inviteeKey = String(req.body?.member_key ?? '');
-      const result = clubService.inviteToCoLeadClub(req.user!.userId, clubId, inviteeKey);
-
-      const messages: Record<string, [OutcomeTone, string]> = {
-        sent:             ['ok',   'Invitation recorded. It goes to that member by email.'],
-        own_repeat:       ['ok',   'Invitation recorded. It goes to that member by email.'],
-        already_invited:  ['info', 'That member has already been invited to co-lead this club.'],
-        not_leader:       ['no',   'Only a co-leader can invite members to co-lead.'],
-        member_not_found: ['no',   'No member found with that id or username.'],
-        not_member:       ['no',   'That member must join the club before they can be invited to co-lead.'],
-        already_coleader: ['info', 'That member already co-leads this club.'],
-        no_email:         ['no',   'That member has no contact email on file.'],
-      };
-      const outcome = messages[result.branch] ?? (['no', 'Could not send the invitation.'] as [OutcomeTone, string]);
-      writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload(outcome[0], outcome[1]));
-      res.redirect(303, `/clubs/${encodeURIComponent(req.params.key)}`);
-    } catch (err) {
-      handleControllerError(err, res, next, 'clubs controller');
-    }
-  },
-
   postMarkInactive(req: Request, res: Response, next: NextFunction): void {
     try {
       const clubId = clubService.resolveClubIdByKey(req.params.key);

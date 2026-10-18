@@ -532,8 +532,8 @@ aws_profile_ensure || exit 1
 # denied every write to it. Asserted here rather than left to AWS because the
 # denial lands mid-apply: terraform would create some resources, refuse on the
 # role itself, and leave the tree half applied with a state file that says so.
-# This invariant used to live in the separate script that owned this tree; it
-# lives on the apply path now so there is one way in and one place that checks.
+# The invariant lives on the apply path so there is one way in and one place
+# that checks.
 #
 # The IAM user is named as a literal rather than taken from the profile name
 # the library owns. They happen to agree today, and a check that reads the name
@@ -696,7 +696,7 @@ if (( BREAK_LOCK )); then
 
   # Said accurately rather than uniformly: a waived floor is three checks and an
   # attestation, not four checks, and a message claiming otherwise would be the
-  # same class of defect as the age this parser used to invent.
+  # same class of defect as reporting a lock age the parser invented.
   if (( KILLED_IT && LOCK_AGE_SECS < STALE_LOCK_MIN_AGE_SECS )); then
     echo "Three checks pass: this machine's lock, taken by a plan, with no terraform"
     echo "running here. The age floor is waived on your attestation that you killed"
@@ -839,10 +839,10 @@ echo ""
 # It ignores --yes, because an approval a flag can supply in advance is not the
 # human approval this is asking for.
 #
-# FAILS CLOSED, on both reads. Each used to swallow its own failure and yield an
-# empty answer, which this block cannot distinguish from "no DNS in the plan" --
-# so a `show -json` that errored, or an unreadable plan text, silently skipped the
-# gate on exactly the plans it exists for. A gate that cannot read the plan must
+# FAILS CLOSED, on both reads. A read that swallowed its own failure would yield
+# an empty answer, which this block cannot distinguish from "no DNS in the plan"
+# -- so a `show -json` that errored, or an unreadable plan text, would silently
+# skip the gate on exactly the plans it exists for. A gate that cannot read the plan must
 # stop, not wave it through.
 #
 # Failing closed cuts both ways, so the reads have to be precise about what a
@@ -897,15 +897,13 @@ else
   # Without jq, fall back to the human-readable plan captured above. It is
   # written with -no-color, because terraform colours its output when it is not
   # writing to a terminal here and the escape sequence lands between the line
-  # start and the +/-/~ marker, so an anchored pattern matches nothing at all.
-  # That is the under-match this fallback previously had, and it is worse than
-  # over-matching: it reads as "no DNS in this plan".
+  # start and the +/-/~ marker, so an anchored pattern would match nothing at
+  # all. That under-match is worse than over-matching: it reads as "no DNS in
+  # this plan".
   # grep exits 0 on a match, 1 on no match, and 2 when it could not read the file
-  # at all. `|| true` collapsed all three into an empty result, which this block
-  # reads as "no DNS in this plan" and applies -- so an unreadable or swept plan
-  # log waved through exactly the changes this gate exists to stop. Only the jq
-  # read above was made fail-closed; this one was not, while the comment at the
-  # top of the block claimed both were.
+  # at all. `|| true` would collapse all three into an empty result, which this
+  # block reads as "no DNS in this plan" and applies -- so an unreadable or swept
+  # plan log would wave through exactly the changes this gate exists to stop.
   DNS_GREP_STATUS=0
   DNS_CHANGES="$(grep -E '^[[:space:]]*[#~+-].*aws_route53' "$TF_PLAN_LOG")" || DNS_GREP_STATUS=$?
   if (( DNS_GREP_STATUS > 1 )); then

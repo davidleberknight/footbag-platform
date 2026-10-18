@@ -817,6 +817,22 @@ if [ -n "$cached_hits" ]; then
 fi
 fi
 
+# Rule: comments state the code as it stands, not how it got there.
+# Reason: a reader with no history takes a described former behaviour as a claim
+# about the code today, and an AI agent acts on it; git already records the
+# change. Where the history carries a reason the code depends on, the reason
+# stays, in the present tense. Advisory: these phrases also appear in sentences
+# that narrate nothing, so the scan warns and a person judges.
+if check "comments narrate no change history" src scripts tests terraform; then
+history_hits=$(grep -rniE --exclude-dir=.venv --exclude-dir=node_modules --exclude-dir=.terraform \
+  'renamed from|formerly|used to be|previously called|was removed in' \
+  src scripts tests terraform | grep -v '^scripts/ci/assert_conventions\.sh:' || true)
+if [ -n "$history_hits" ]; then
+  echo "$history_hits" >&2
+  warn "a comment narrates change history; delete it, or keep its reason in the present tense"
+fi
+fi
+
 # Rule: the same, for the Python suites.
 # Reason: the testing rule's own scope covers legacy_data/tests/ and the mirror
 # suite, and a silent skip is a coverage regression nothing reports whatever the
@@ -1141,10 +1157,10 @@ fi
 # declaration cannot cover. `terraform init -backend=false` does not make an init
 # offline: it disables *configuring* a backend and uses whatever was previously
 # initialized instead, so in a tree where an operator has run `terraform init`
-# the gate loaded the S3 state backend and called STS on every local run. That
-# was invisible for months, because a passing credential check looks exactly like
-# no credential check, and it surfaced as the terraform gate failing on the day
-# the operator's access key stopped being accepted. Avoiding credentials is not
+# the gate would load the S3 state backend and call STS on every local run. That
+# stays invisible, because a passing credential check looks exactly like no
+# credential check, until the terraform gate fails on the day the operator's
+# access key stops being accepted. Avoiding credentials is not
 # something a gate can be trusted to do; it is enforced here so a gate that
 # starts reaching AWS fails at once rather than passing wherever a key works.
 if check "the local runner isolates AWS credentials" run_all_tests.sh scripts/lib/aws-isolation.sh; then
@@ -1812,29 +1828,14 @@ delegate "no child of the DNS zone is delegated away" check_closed_namespace.sh
 delegate "config seed / Configurable Parameters parity" check_config_seed_parity.sh
 delegate "every CI job and invoked command has a local gate or a recorded reason" check_ci_parity.sh
 
-# Rule: no concrete CloudFront distribution hostname in any tracked file.
-# Production's distribution name and the archive's stay unpublished until they
-# are meant to be reached, so a real hostname in a committed file publishes one
-# early. Staging's preview host is published in the README on purpose and is
-# exempted below by name.
-# Generic wildcard references like "*.cloudfront.net" are fine: the character
-# before the first dot is not alphanumeric, so the pattern skips them.
-# No target guard: this reads the tracked tree through git, which exists
-# wherever the gate can run at all, so it never has nothing to scan. It still
-# announces itself through `check`, with no targets, because that is where a
-# violation is attributed to a rule name. Printing the announcement directly is
-# what this rule used to do, and the attribution then belonged to whichever
-# check ran before it: a real CloudFront violation was reported under the name
-# of the continuous-integration parity rule above, which had passed, sending the
-# reader to a rule with nothing wrong with it.
 check "no superseded operator-identity model in tracked files"
 # IAM Identity Center federation is not the identity model: no permission sets,
 # no directory roster, no generated reserved-SSO roles, no second profile name
 # holding a key. A dev-and-tester is a named IAM user assuming one ordinary
 # shared role.
 #
-# This exists because that model was removed from roughly forty files at once,
-# and the failure mode of a straggler is not a broken build. It is a runbook
+# This exists because the failure mode of a straggler naming that model is not
+# a broken build. It is a runbook
 # step, a help string or a policy action that still instructs somebody toward a
 # path that no longer works, read by the one person least placed to know it was
 # superseded. Nothing else in the tree would report it.
@@ -1897,6 +1898,20 @@ if [ -n "$retired_onboarding_hits" ]; then
   violations=$((violations + 1))
 fi
 
+# Rule: no concrete CloudFront distribution hostname in any tracked file.
+# Production's distribution name and the archive's stay unpublished until they
+# are meant to be reached, so a real hostname in a committed file publishes one
+# early. Staging's preview host is published in the README on purpose and is
+# exempted below by name.
+# Generic wildcard references like "*.cloudfront.net" are fine: the character
+# before the first dot is not alphanumeric, so the pattern skips them.
+# No target guard: this reads the tracked tree through git, which exists
+# wherever the gate can run at all, so it never has nothing to scan. It still
+# announces itself through `check`, with no targets, because that is where a
+# violation is attributed to a rule name. Printing the announcement directly
+# would hand the attribution to whichever check ran before it: a real CloudFront
+# violation would be reported under the name of the previous rule, which had
+# passed, sending the reader to a rule with nothing wrong with it.
 check "no concrete CloudFront hostnames tracked"
 # Exempt the two documented fake hosts (the onboarding guide's "something
 # like" example domain and the Terraform bootstrap placeholder value), plus the

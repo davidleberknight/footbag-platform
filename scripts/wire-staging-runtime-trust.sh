@@ -12,10 +12,10 @@
 # one: the profile is there, it looks right, and what is missing sits in an
 # account-level trust policy nobody is looking at.
 #
-# The operation used to be a hand edit of one value in the private operations
-# checkout followed by an apply. That shape can carry out the change and cannot
-# carry out the thing that matters, which is reading the trust policy back
-# afterwards, so the gap was invisible: the edit and the apply both succeed
+# A hand edit of one value in the private operations checkout followed by an
+# apply can carry out the change and cannot carry out the thing that matters,
+# which is reading the trust policy back afterwards, so the gap stays
+# invisible: the edit and the apply both succeed
 # whether or not the resulting policy names the role. A precondition, a change,
 # an apply and an outcome worth proving is exactly the shape a script owns.
 #

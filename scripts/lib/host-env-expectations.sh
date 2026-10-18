@@ -7,10 +7,9 @@
 #   scripts/bringup-status.sh      reports whether they are present and valid
 #   scripts/verify-host-env.sh     warns when they are not
 #
-# The hop count in particular was previously written out in two of those
-# scripts, once as an inline conditional and once inside a warning string.
-# Three scripts describing the same host from three copies of one fact is how
-# they come to disagree, and nothing would have failed when they did.
+# None of them writes the hop count out itself, inline or inside a warning
+# string: three scripts describing the same host from three copies of one fact
+# is how they come to disagree, and nothing would fail when they did.
 #
 # TRUST_PROXY is the exact integer X-Forwarded-For hop count of the proxy chain
 # in front of the application. It is not a boolean and not a guess: the value is
@@ -29,9 +28,7 @@
 # whether or not the apex still points at the legacy site, so there is no legacy
 # front-door hop in front of it at any milestone. The design decision on proxy
 # trust and the private devops guide's host env table both state 2 for both
-# environments; a status message in one script used to say production ran 3
-# until the handover, which nothing else supported and which would have had the
-# setter write a value one hop too generous.
+# environments; 3 for production would be one hop too generous.
 
 # expected_trust_proxy <staging|production>
 # Prints the integer hop count. Returns non-zero on an unknown target so a

@@ -22,7 +22,7 @@
  *      transform row (not in the ADD calculation).
  *   7. Rake renders curator-locked JOB notation `SET > SWING TOE [DEL]`
  *      and is not labelled "canonical decomposition pending".
- *   8. "unusual surface" no longer appears in ADD-accounting displays;
+ *   8. "unusual surface" does not appear in ADD-accounting displays;
  *      `UNS(1)` is the bucket token. Freestyle Concepts explains UNS.
  *   9. double_around_the_world and double_leg_over surface JOB
  *      notation + ADD calculation rows from the resolved-formulas

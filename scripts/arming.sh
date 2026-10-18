@@ -1104,10 +1104,9 @@ if (( FROM_STEP <= 4 )); then
   egress_allowlist_check "$TARGET" "$SSH_ALIAS"
   printf '%s\n' "$EGRESS_DETAIL" | sed 's/^/  /'
   if [[ "$EGRESS_VERDICT" != "covered" ]]; then
-    # Both "not covered" and "could not tell" ask. This script used to warn and
-    # carry on when the address lookup failed, which is the one outcome that must
-    # not happen: the address a run cannot resolve is exactly the one the check
-    # exists to doubt.
+    # Both "not covered" and "could not tell" ask. Warning and carrying on when
+    # the address lookup fails is the one outcome that must not happen: the
+    # address a run cannot resolve is exactly the one the check exists to doubt.
     echo ""
     printf "  Is this address covered? (yes/no): "
     read -r COVERED
@@ -1132,10 +1131,10 @@ if (( FROM_STEP <= 4 )); then
   # defaults to no and aborts. Arming must never be able to become a database
   # replace, whatever is answered here.
   if ! "$DEPLOY_CMD" --target "$TARGET" "${DEPLOY_ARGS[@]}"; then
-    # Read it rather than assert it. This message used to state that SSM
-    # already declared the new value, which the script had never checked: on a
-    # --from-step 4 resume the apply may never have run, and the operator was
-    # being told the parameter was published when it was not.
+    # Read it rather than assert it. The message reports what SSM reads now,
+    # never that it already declares the new value: on a --from-step 4 resume
+    # the apply may never have run, and asserting it would tell the operator
+    # the parameter was published when it was not.
     echo "ERROR: the deploy failed. Resume with --from-step 4." >&2
     echo "       SSM /footbag/$TARGET/app/$SSM_SUFFIX reads: $(read_ssm_armed)" >&2
     echo "       If that is not \"$STATE\", step 3 has not run; resume with --from-step 3." >&2

@@ -42,8 +42,8 @@ describe('require_target: the refusal', () => {
   });
 
   it('refuses an empty value as missing rather than as wrong', () => {
-    // These used to share one message in several scripts, which told an
-    // operator who had forgotten the flag that their value was invalid.
+    // Defect caught: one shared message tells an operator who has forgotten
+    // the flag that their value is invalid.
     const r = callHelper('require_target "" staging production');
     expect(r.status).toBe(2);
     expect(r.stderr).toMatch(/--target is required \('staging' or 'production'\)/);

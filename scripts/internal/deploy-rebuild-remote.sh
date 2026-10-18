@@ -450,7 +450,7 @@ fi
 # from the declared flag (armed -> live, dark -> stub).
 FOOTBAG_ENV_VAL=$(require_env FOOTBAG_ENV)
 
-# The media bucket name is no longer composed here. It is an identifier
+# The media bucket name is not composed here. It is an identifier
 # Terraform creates, published as an app parameter read from the bucket resource
 # and synced onto the host further down, so a bucket rename travels with the
 # resource instead of relying on every environment's bucket being named by
@@ -501,8 +501,8 @@ fi
 
 # NODE_ENV is deliberately NOT required here. Every compose service sets it
 # literally rather than interpolating it, so no host env line feeds it and a
-# host without one starts perfectly well. The check that used to sit here
-# refused a first-ever rebuild for a value the stack never reads.
+# host without one starts perfectly well. Requiring it would refuse a
+# first-ever rebuild for a value the stack never reads.
 # LOG_LEVEL is intentionally NOT pulled from /srv/footbag/env here. Terraform
 # owns the canonical value (aws_ssm_parameter.app_log_level in
 # terraform/{env}/ssm.tf); the SSM-sync block below fetches it and writes it
@@ -987,9 +987,9 @@ if [[ "$FOOTBAG_ENV_VAL" == "production" ]]; then
     echo "    Syncing ${env_key} from ${param} ..."
     # A failed read and a placeholder are different facts and must not share a
     # branch. Every other parameter read in this script aborts the deploy when
-    # the call fails; this one used to swallow the failure and continue, so a
-    # transient throttle or a credentials hiccup left a stale secret on the host
-    # while the adapter went live, and the deploy still reported success. Both
+    # the call fails, and so does this one: swallowing the failure would let a
+    # transient throttle or a credentials hiccup leave a stale secret on the host
+    # while the adapter went live, and the deploy would report success. Both
     # parameters are declared in this environment's Terraform, so a read that
     # fails here means the call failed, not that there is nothing to read.
     if ! value=$(
@@ -1383,10 +1383,9 @@ if [[ -f "$LIVE_DIR/ops/systemd/footbag-backup.timer" ]]; then
   cp "$LIVE_DIR/ops/systemd/footbag-backup.timer" /etc/systemd/system/
 fi
 systemctl daemon-reload
-# Enable for boot, not merely start. This half used to install and start the
-# unit without enabling it, so a host whose first deploy was a rebuild ran
-# correctly until its first reboot and then came back with nothing running.
-# Leaving it disabled asserts the incoherent "run now, but not after a reboot".
+# Enable for boot, not merely start. A unit installed and started without
+# being enabled runs correctly on a host whose first deploy was a rebuild until
+# its first reboot, and then comes back with nothing running. Leaving it disabled asserts the incoherent "run now, but not after a reboot".
 systemctl is-enabled --quiet footbag || systemctl enable footbag
 # Only restart the timer if it was already enabled: installing the backup timer
 # for the first time is a deliberate operator step with its own procedure

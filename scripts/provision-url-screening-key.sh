@@ -216,9 +216,9 @@ shred_key_file() {
   shred -u "$KEY_FILE" 2>/dev/null || rm -f "$KEY_FILE" 2>/dev/null || true
 }
 
-# An interrupt between the prompt and either outcome used to leave a live vendor
-# key sitting in a shared temp directory with nothing to collect it. The two
-# cleanup rules above still decide what happens; this only makes them apply when
+# Without this, an interrupt between the prompt and either outcome would leave a
+# live vendor key sitting in a shared temp directory with nothing to collect it.
+# The two cleanup rules above decide what happens; this only makes them apply when
 # the operator presses ctrl-c rather than only when the script runs to an end.
 #
 # Which rule applies turns on whether the key has reached an environment yet.

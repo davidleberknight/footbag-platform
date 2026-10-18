@@ -284,7 +284,7 @@ describe('GET /freestyle/tricks — browse axes and their explanations', () => {
     // with the Jump to row two lines below.
     expect(res.text).not.toContain('dict-landing-grid');
     expect(res.text).not.toContain('dict-landing-card');
-    // The two reference surfaces the grid used to cross-link stay reachable.
+    // The operators and sets reference surfaces stay reachable without a grid.
     expect(res.text).toContain('href="/freestyle/operators"');
     expect(res.text).toContain('href="/freestyle/sets"');
   });

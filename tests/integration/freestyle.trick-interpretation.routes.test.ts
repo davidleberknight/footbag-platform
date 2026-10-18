@@ -91,7 +91,7 @@ describe('Naming & interpretation overlay — eggbeater (seed entry)', () => {
     const res = await page('/freestyle/tricks/eggbeater');
     // The reading is owned by the Compressed-from surface near the hero.
     expect(res.text).toContain('class="trick-compressed-from-reading">atomic legover');
-    // The interpretation section no longer restates it as a canonical reading,
+    // The interpretation section does not restate it as a canonical reading,
     // so the reading is stated exactly once on the page.
     expect(res.text).not.toContain('Current reading');
   });

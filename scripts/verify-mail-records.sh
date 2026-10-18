@@ -9,8 +9,8 @@
 # must be live before anything else changes, so mail sent from Google-hosted
 # addresses is signed when the sender policy is replaced; and after the mail-day
 # apply, every record it publishes must be seen together, with the domain's
-# verification token still in the apex text set. Both used to be hand-typed
-# lookups. This script is those lookups, judged.
+# verification token still in the apex text set. This script is those lookups,
+# judged.
 #
 # It READS and never writes. Each record is asked of a Route 53 nameserver, whose
 # answer must carry the authoritative flag, and of a public resolver, which is

@@ -290,9 +290,9 @@ export interface FreestyleTrickEditModifierLink {
  * identity and the key the update is issued against, not an input that can change
  * underneath a parse.
  *
- * This list is one declaration on purpose. It used to be three field names
- * written inline, which was how a rename — the parser's primary input — went on
- * leaving a parse of the former name in place. A test pins it against the
+ * This list is one declaration on purpose: three inline copies of the field
+ * names would let a rename of the parser's primary input leave a parse of the
+ * old name behind. A test pins it against the
  * parser's own select list, so widening what the parser reads cannot silently
  * narrow what invalidates it.
  */
@@ -2430,9 +2430,8 @@ export const freestyleCurationService = {
     }
     // Agreeing with the class clears any reason a previous exception left, so a
     // stale explanation cannot outlive the exception it explained. It reaches the
-    // reason only: provenance is a different fact, and clearing it here is what
-    // used to erase where an alias came from every time somebody adjusted its
-    // class.
+    // reason only: provenance is a different fact, and clearing it here would
+    // erase where an alias came from every time somebody adjusted its class.
     const displayReason = diverges ? reason : null;
 
     // Provenance changes only when the curator edits it. A field the form did not

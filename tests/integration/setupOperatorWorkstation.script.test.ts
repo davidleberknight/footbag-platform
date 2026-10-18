@@ -422,11 +422,9 @@ describe('the alias itself must be pinned, not only the deploy scripts', () => {
   });
 
   it('proves the login and the sudo password over a pinned connection instead', () => {
-    // What replaced it. The files being present is not the same as the
-    // credentials working: a wrong password in a well-formed file passes every
-    // other check here and is discovered mid-deploy, after it has been piped to
-    // the host. This is also what retired the two hand-typed ssh commands the
-    // card used to carry.
+    // The files being present is not the same as the credentials working: a
+    // wrong password in a well-formed file passes every other check here and
+    // is discovered mid-deploy, after it has been piped to the host.
     const src = readFileSync(SCRIPT, 'utf-8');
     expect(src).toMatch(/require_pinned_known_hosts/);
     expect(src).toMatch(/FOOTBAG_SSH_PIN_OPTS/);
@@ -462,8 +460,8 @@ describe('the alias itself must be pinned, not only the deploy scripts', () => {
 
 // A configured profile is not an authenticating one. The key behind it can be
 // deactivated, deleted or rotated away and nothing in a list of profile names
-// changes, so this step used to report three `[ok]` lines for a credential that
-// could not reach AWS at all, and the failure then surfaced further down in
+// changes. Defect caught: this step reports three `[ok]` lines for a credential
+// that cannot reach AWS at all, and the failure then surfaces further down in
 // another step's vocabulary.
 describe('a run acting as the shared job role', () => {
   // The job role is denied the Lightsail call that yields host keys, because the
@@ -698,10 +696,10 @@ describe('the AWS identity is proved, not listed', () => {
 
     expect(all).toMatch(/does not assume its role/);
     // The grant is on whichever principal that profile sources from, which is
-    // no longer one shared IAM user for everybody: footbag-operator's chain
-    // sources the footbag-operator key and a federated one would source the
-    // sign-in. Naming a single principal here sent the reader to the wrong
-    // trust policy.
+    // not one shared IAM user for everybody: footbag-operator's chain sources
+    // the footbag-operator key and a federated one would source the sign-in.
+    // Naming a single principal here would send the reader to the wrong trust
+    // policy.
     expect(all).toMatch(/assume-role permission on whichever principal it sources from/);
   });
 
@@ -741,7 +739,7 @@ describe('the AWS identity is proved, not listed', () => {
   it('reports an absent key profile without ruling on whose machine it is', () => {
     // A profile's absence is a fact about a config file. Turning it into a
     // statement about the person at the keyboard is the defect this file's own
-    // note helper exists to avoid, and it used to hand out the install command
+    // note helper exists to avoid, and so is handing out the install command
     // that the operations reference forbids offering here.
     const env = stubAwsOnPath({
       profiles: ['FootbagDevTester', 'footbag-staging-runtime'],

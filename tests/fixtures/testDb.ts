@@ -72,9 +72,9 @@ export function setTestEnv(port: string): { dbPath: string; sessionSecret: strin
 
 // ── Symbolic-grammar seed ──────────────────────────────────────────────────
 // symbolicGrammarService reads the symbolic_* tables at runtime. Seeding every
-// test DB from the committed CSVs keeps the observational panels populated the
-// way the always-present CSVs used to be, so the freestyle reference route tests see
-// real symbolic data without each one re-seeding.
+// test DB from the committed CSVs keeps the observational panels populated, so
+// the freestyle reference route tests see real symbolic data without each one
+// re-seeding.
 const SYMBOLIC_SPECS: ReadonlyArray<readonly [string, string, readonly string[]]> = [
   ['symbolic_equivalence_clusters.csv', 'symbolic_equivalence_clusters',
     ['cluster_id', 'cluster_label', 'symbolic_normalization', 'member_trick_slugs',

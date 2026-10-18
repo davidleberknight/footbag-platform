@@ -107,11 +107,10 @@
   }
 
   function init() {
-    // Selected by the endpoint it posts to. An attribute the markup never
-    // carried used to be the selector, so this whole enhancement returned here
-    // and never ran; in S3-adapter mode the synchronous video route answers 410
-    // Gone, which made binary video upload impossible rather than merely
-    // unenhanced.
+    // Selected by the endpoint it posts to, which the markup always carries. A
+    // selector the markup lacks returns here and the enhancement never runs; in
+    // S3-adapter mode the synchronous video route answers 410 Gone, which makes
+    // binary video upload impossible rather than merely unenhanced.
     var form = $('form[action="/admin/curator/upload"]');
     if (!form) return;
     var statusEl = $('[data-async-status]', form);

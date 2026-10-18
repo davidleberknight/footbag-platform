@@ -45,7 +45,7 @@ export const UNRESOLVED_COMPOUNDS: ReadonlySet<string> = new Set<string>([
   // witchdoctor is not flagged: Red published a composite-base reading
   // (atom-smasher(4) + symposium(+1) = 5) that mechanically converges
   // through the convergence-rule extension. Its structural identity is
-  // no longer single-sourced, so the pill would misrepresent the row's
+  // not single-sourced, so the pill would misrepresent the row's
   // resolution state.
   // Folk name; curator-flagged.
   'fury',

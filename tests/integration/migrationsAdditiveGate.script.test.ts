@@ -145,9 +145,9 @@ describe('the additive-migration gate', () => {
   });
 
   it('does not let one declaration cover the statement written underneath it', () => {
-    // The marker used to be read per file, so the first acknowledged statement
-    // bought immunity for everything after it, including work added later by
-    // somebody who read the header as already settled.
+    // Read per file, the marker would let the first acknowledged statement buy
+    // immunity for everything after it, including work added later by somebody
+    // who read the header as already settled.
     const res = inFixtureRepo({
       '2030-01-01-two.sql':
         '-- DATA CHANGE: clears the abandoned drafts, which nothing reads.\n'

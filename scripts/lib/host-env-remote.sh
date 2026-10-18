@@ -349,9 +349,9 @@ host_env_decode_section() {
 #
 # WHY THE DIGEST IS REQUIRED RATHER THAN OPTIONAL.
 #
-# Every write here is the back half of a read-modify-write, and it used to be an
-# unconditional whole-file replacement: no re-read, no comparison, nothing that
-# could notice the host's copy had moved on. The second writer that makes this
+# Every write here is the back half of a read-modify-write. As an unconditional
+# whole-file replacement, with no re-read and no comparison, nothing could
+# notice the host's copy had moved on. The second writer that makes this
 # reachable is not another person, it is the deploy: its root half rewrites
 # /srv/footbag/env around thirty times, seeding values and syncing about twenty
 # of them from the parameter store. So one operator alone can do it. Fetch the
@@ -531,35 +531,29 @@ write_tfvars_string() {
 
 # Set to "yes" by a caller's --yes flag, matching the deploy wrapper's -y.
 #
-# Assigned unconditionally, NOT defaulted from the environment. This used to read
-# "${ASSUME_YES:-no}", which meant every script sourcing this file inherited the
-# variable from whatever shell launched it: an exported ASSUME_YES=yes accepted
-# the typed confirmation on a production apply, on arming live payments, and on
-# restoring a database, with no terminal involved and nothing printed to say so.
-# The name is generic enough that an unrelated tool could set it.
+# Assigned unconditionally, NOT defaulted from the environment. Defaulting it
+# as "${ASSUME_YES:-no}" would let every script sourcing this file inherit the
+# variable from whatever shell launched it: an exported ASSUME_YES=yes would
+# accept the typed confirmation on a production apply, on arming live payments,
+# and on restoring a database, with no terminal involved and nothing printed to
+# say so. The name is generic enough that an unrelated tool could set it.
 #
-# Each caller was clearing the variable before sourcing to defend against that,
-# which is a convention every new script has to remember and one no test can
-# enforce from the outside. Assigning here removes the class instead: a caller
-# cannot inherit what the library always overwrites, and --yes still works
-# because every caller parses its flags after this file is sourced.
+# Having each caller clear the variable before sourcing is a convention every
+# new script has to remember and one no test can enforce from the outside.
+# Assigning here removes the class instead: a caller cannot inherit what the
+# library always overwrites, and --yes still works because every caller parses
+# its flags after this file is sourced.
 ASSUME_YES="no"
 
 # require_target <value> <accepted...> — which environment a run lands on.
 #
-# Nineteen scripts had their own copy of this, each a hand-written case with its
-# own wording and its own accepted set, and the sets had already diverged: the
-# apply wrapper takes a third `shared` target, and the production-only levers
-# take one. Nothing checked that a new script had the guard at all.
-#
-# It has produced no defect yet, which is the honest reason this was a card
-# rather than a fix. But it is the same structure as the confirmation flag, which
-# every script was expected to clear before sourcing: seven had not, and an
-# exported value accepted the typed confirmation on a production apply, on arming
-# live payments, and on restoring a database. That was fixed here rather than in
-# each caller, and this is the same move for the same reason -- a safety property
-# that depends on every script independently getting the same thing right belongs
-# where every script already goes.
+# A hand-written case in each script drifts in wording and in accepted set,
+# and the sets genuinely differ: the apply wrapper takes a third `shared`
+# target, and the production-only levers take one. Nor could anything check
+# that a new script had the guard at all. This is the same move as the
+# confirmation flag above, for the same reason -- a safety property that depends
+# on every script independently getting the same thing right belongs where
+# every script already goes.
 #
 # The accepted values are the caller's, so a script whose subject exists in one
 # environment expresses that by naming one. What is shared is the refusal, its

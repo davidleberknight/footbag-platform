@@ -8,7 +8,7 @@
 # workstation, and configuration rows live in that file. A value meant only for
 # a developer's own machine therefore travels to whatever host the deploy lands
 # on, where it is invisible: the host behaves differently from every document
-# describing it, and nothing fails. The build no longer writes such rows, but a
+# describing it, and nothing fails. The build does not write such rows, but a
 # host already carrying one cannot be corrected by a code deploy.
 #
 # The configuration table is append-only, enforced by triggers, so a correction

@@ -14,8 +14,8 @@
 # differently from every document describing it until somebody notices the
 # symptom and traces it back.
 #
-# The builder no longer writes developer-only rows into a database destined for
-# a host. That fixes the next rebuild and cannot reach a host already carrying
+# The builder does not write developer-only rows into a database destined for
+# a host. That protects each rebuild and cannot reach a host already carrying
 # one, because a code deploy does not touch configuration rows. This is the
 # scripted correction for that state.
 #

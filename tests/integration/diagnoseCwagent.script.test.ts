@@ -7,9 +7,9 @@
  *
  * What is pinned here is the front half, which is all of it that runs on the
  * workstation: the argument guards, and the credential guard. The credential
- * guard is the part worth pinning, because this script's refusal used to name a
- * placeholder rather than a file. A dev-and-tester reading that placeholder
- * reaches for the shared account's file, the connection succeeds on their key,
+ * guard is the part worth pinning: a refusal naming a placeholder rather than a
+ * file sends a dev-and-tester reading it to the shared account's file, the
+ * connection succeeds on their key,
  * and sudo then fails with a message that reads as a broken account rather than
  * as the wrong password. Which file a run needs is a property of the account the
  * alias connects as, so both branches are exercised with that account supplied

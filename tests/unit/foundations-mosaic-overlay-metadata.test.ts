@@ -69,9 +69,9 @@ describe('Foundations of Freestyle mosaic overlay metadata', () => {
     });
   }
 
-  it('leaves no clip tagged by the layout slot it used to sit in', () => {
-    // The tag it replaced named this page's mosaic position rather than what the
-    // clip shows, and it reached visitors as a hashtag saying so.
+  it('leaves no clip tagged by its layout slot in the mosaic', () => {
+    // A tag naming this page's mosaic position rather than what the clip shows
+    // reaches visitors as a hashtag saying so.
     for (const file of sidecars) {
       const meta = JSON.parse(readFileSync(join(SITE_DIR, file), 'utf8')) as { tags?: string[] };
       expect(meta.tags ?? [], `${file} tags`).not.toContain('#demo_mosaic');

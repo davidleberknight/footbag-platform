@@ -70,7 +70,7 @@ describe('named kick variants inherit their base structure and terminal-foot rel
     });
   }
 
-  it('the three formerly-colliding kick pairs are distinguished by their terminal relations', () => {
+  it('the three kick pairs that share a dex are distinguished by their terminal relations', () => {
     const pairs: Array<[string, string]> = [
       ['around_the_world_kick', 'pixie_kick'],
       ['orbit_kick', 'fairy_kick'],

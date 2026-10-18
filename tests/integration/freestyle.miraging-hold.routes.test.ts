@@ -20,7 +20,7 @@ import { insertFreestyleTrick } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3190');
 
-// Compounds whose published derivation used to score miraging(+1).
+// Compounds whose published derivation scores a miraging(+1) component.
 const HELD_FORMULA_SLUGS = [
   'big_apple_sauce',
   'spinning_miraging_symposium_torque',

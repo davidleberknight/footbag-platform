@@ -1,18 +1,16 @@
 /**
  * What a curated trick clip is for is carried by the clip, exactly once.
  *
- * This suite used to pin a source-id-to-tier registry: a map that decided a
- * clip's content type from where it came from. That map said nothing the source
- * id did not, could not describe a clip differing from its source, and spent a
- * fourth meaning of a word already used here for membership tier, ADD tier and
- * display tier. Three tags replaced it, and tags are the only categorisation a
- * member sees.
+ * A clip's content type is a tag on the clip, not a lookup from its source id:
+ * a source-to-type map says nothing the source id does not, cannot describe a
+ * clip differing from its source, and would spend a fourth meaning of "tier", a
+ * word already used here for membership tier, ADD tier and display tier. Tags
+ * are the only categorisation a member sees.
  *
- * So the invariant moved with the concept. It is no longer "every in-use source
- * is registered in both maps" but "every curated trick clip carries exactly one
- * of #tutorial, #demo or #record" — a property of the data rather than of a
+ * So the invariant is "every curated trick clip carries exactly one of
+ * #tutorial, #demo or #record" — a property of the data rather than of a
  * lookup table, which is why it is derived from the committed sidecars rather
- * than from a hand-written list that can drift the way the map did.
+ * than from a hand-written list that can drift.
  *
  * The individual-shred gallery is a separate media domain: a shred routine is
  * not trick media and carries none of the three. That is asserted rather than

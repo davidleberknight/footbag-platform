@@ -1218,9 +1218,9 @@ if [[ "$FOOTBAG_ENV_VAL" == "production" ]]; then
     echo "==> Syncing ${env_key} from ${param} ..."
     # A failed read and a placeholder are different facts and must not share a
     # branch. Every other parameter read in this script aborts the deploy when
-    # the call fails; this one used to swallow the failure and continue, so a
-    # transient throttle or a credentials hiccup left a stale secret on the host
-    # while the adapter went live, and the deploy still reported success. Both
+    # the call fails, and so does this one: swallowing the failure would let a
+    # transient throttle or a credentials hiccup leave a stale secret on the host
+    # while the adapter went live, and the deploy would report success. Both
     # parameters are declared in this environment's Terraform, so a read that
     # fails here means the call failed, not that there is nothing to read.
     if ! value=$(

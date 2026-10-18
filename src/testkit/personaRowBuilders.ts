@@ -107,9 +107,9 @@ export function insertMember(db: BetterSqlite3.Database, o: MemberOverrides = {}
   const slug    = o.slug          ?? `test_user_${uid()}`;
   const name    = o.real_name     ?? 'Test User';
   const display = o.display_name  ?? name;
-  // Derived only when the caller supplied neither part. The split is the same
-  // last-word guess the platform used to make everywhere, so a fixture that
-  // passes a full name behaves exactly as it did before the columns existed.
+  // Derived only when the caller supplied neither part. The split is a
+  // last-word guess, so a fixture that passes only a full name still gets a
+  // given and a family name.
   const nameWords  = name.trim().split(/\s+/).filter(Boolean);
   const derivedFamily = nameWords.length > 1 ? nameWords[nameWords.length - 1] : null;
   const derivedGiven  = nameWords.length > 1

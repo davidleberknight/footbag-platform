@@ -39,7 +39,7 @@ afterEach(() => {
 /**
  * Clear a seeded persona's credentials the way the platform itself does.
  *
- * This is the shape the seed used to choke on, and it is not something the
+ * The seed must tolerate this shape, though it is not something the
  * seeder produces: the PII purge and deceased-scrub paths produce it later, in
  * any development database that has been running a while. The members
  * credentials CHECK admits it only with the purge timestamp set, which is

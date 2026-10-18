@@ -3,8 +3,8 @@
  *
  * The contract they exist to hold: the status digit the visitor reads is
  * derived from the status the response carries, so the two can never disagree.
- * A hand-written render is how a 422 response came to display "404" and tell
- * the visitor their link was no longer routable.
+ * Defect caught: a hand-written render that displays "404" on a 422 response
+ * and tells the visitor their link is not routable.
  *
  * The second contract is the control row. An error page is a dead end, so it
  * offers a way home, and offers the surface the caller came from instead only

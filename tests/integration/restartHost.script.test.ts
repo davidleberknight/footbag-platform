@@ -1,8 +1,8 @@
 /**
  * Restarting the application stack on a deployed host, and proving it came back.
  *
- * The restart used to be a hand-typed sudo command over ssh, closing several
- * runbooks with no check that the site answered afterwards. What these pin: the
+ * A restart is proved by the site answering afterwards, not by a command having
+ * run. What these pin: the
  * root-side body judges the restart on the outcome (unit active, every container
  * running and healthy, readiness answering) rather than on systemctl's exit
  * status; and the operator half refuses a missing or unknown target, a host that

@@ -157,8 +157,7 @@ case "$ACTION" in
         echo "       Most likely the profile's key no longer authenticates, or it" >&2
         echo "       lacks ssm:GetParameter or kms:Decrypt on this environment's" >&2
         echo "       key. Do NOT read this as 'apply Terraform': applying" >&2
-        echo "       production to fix a credential fault is the wrong move and" >&2
-        echo "       an earlier version of this message invited exactly that." >&2
+        echo "       production to fix a credential fault is the wrong move." >&2
         exit 1
         ;;
       absent)

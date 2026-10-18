@@ -246,12 +246,12 @@ describe('deploy_to_aws.sh wrapper', () => {
   it.skipIf(!HAS_DOCKER)(
     'production DB-replace refuses even when the acknowledgement is exported in the environment',
     () => {
-      // An exported FOOTBAG_PROD_DB_REPLACE_ACK=1 used to skip the typed
-      // confirmation outright, on the one operation that destroys the live
-      // database. That is the same defect the accept-without-asking flag had: a
-      // variable left in a profile, or inherited from a parent process, standing
-      // in for a person typing. The wrapper now clears the variable on entry and
-      // sets it only after the word is typed, so it is a handshake with the leaf
+      // Defect caught: an exported FOOTBAG_PROD_DB_REPLACE_ACK=1 skipping the
+      // typed confirmation outright, on the one operation that destroys the live
+      // database: a variable left in a profile, or inherited from a parent
+      // process, standing in for a person typing. The wrapper clears the
+      // variable on entry and sets it only after the word is typed, so it is a
+      // handshake with the leaf
       // rather than something a shell can hold.
       //
       // Driven as a dry run, and the refusal is the passing outcome: with no
@@ -666,17 +666,16 @@ describe('scripts/deploy-local-data.sh member-intake dispatch', () => {
   });
 
   // --all-data IS the cutover build, so it takes the cutover club set whether or
-  // not the flag is typed. It used to wait to be asked, and the recorded
-  // production command does not ask: that build loaded every seeded club,
-  // including the cohort classified junk, whose descriptions the public club
-  // page renders. The club population at cutover is the pre-populate cohort,
+  // not the flag is typed. The recorded production command does not ask, so a
+  // build that waits to be asked loads every seeded club, including the cohort
+  // classified junk, whose descriptions the public club page renders. The club population at cutover is the pre-populate cohort,
   // and that is a property of the build rather than of an operator's memory.
   it('--all-data takes the cutover club set without being asked', () => {
     const tmpRoot = scaffoldAllDataRoot();
     try {
       const r = run('bash', ['scripts/deploy-local-data.sh', '--all-data', '--dry-run'], {
         cwd: tmpRoot,
-        // The permissive value the loader used to obey, exported by the caller.
+        // A permissive value exported by the caller, which the build must not obey.
         env: { ...ENTRY, CLUBS_SEED: 'yes' },
       });
       expect(r.status).toBe(0);
@@ -964,10 +963,9 @@ describe('deploy wrapper has no yes-defaulting prompt (static-text)', () => {
 //
 // Permanent contract: every deploy records what it shipped to
 // /srv/footbag/deployed-from, so "what is running" is a question with an answer
-// afterwards rather than an inference. This used to hold on the code-only path
-// only, which left the gap on the rebuild path, the one deploy that replaces the
-// database and therefore the one after which the question is hardest to answer
-// any other way.
+// afterwards rather than an inference. The rebuild path is covered as well as the
+// code-only path: it is the one deploy that replaces the database and therefore
+// the one after which the question is hardest to answer any other way.
 
 describe('deploy provenance is recorded by both deploy paths (static-text)', () => {
   it.each([
@@ -1254,21 +1252,19 @@ describe('the remote halves never append onto an unterminated last line', () => 
 // ── the leaves work in their own checkout ────────────────────────────────────
 
 describe('the deploy leaves resolve everything against their own checkout', () => {
-  // A leaf run from anywhere but the repository root used to ship a tree that
-  // matched none of the anchored rsync includes, and the remote half then promoted
-  // that near-empty tree over the live install. Anchoring the rsync source fixed
-  // the half that ships; the database rebuild, the media check, the Terraform read
-  // and the smoke checks were still resolved against the caller's directory, so a
-  // run from a second checkout could build one database and ship another.
+  // Defect caught: a leaf run from anywhere but the repository root shipping a
+  // tree that matches none of the anchored rsync includes, which the remote half
+  // then promotes over the live install; or the database rebuild, the media
+  // check, the Terraform read and the smoke checks resolving against the caller's
+  // directory, so a run from a second checkout builds one database and ships
+  // another.
   const LEAVES = ['scripts/deploy-code.sh', 'scripts/deploy-rebuild.sh'];
   const source = (relPath: string) => fs.readFileSync(path.join(REPO_ROOT, relPath), 'utf8');
 
   it('the wrapper reaches its orchestrator by absolute path, so it runs from anywhere', () => {
-    // The leaves anchor their own work, and the orchestrator anchors the leaves,
-    // but the entry point an operator actually types called the orchestrator as
-    // `scripts/deploy-to-aws.sh`, so it only ran from the repository root. It
-    // failed loudly rather than shipping the wrong tree, which is why it survived
-    // the first pass at this.
+    // The leaves anchor their own work, and the orchestrator anchors the leaves.
+    // Defect caught: the entry point an operator types calling the orchestrator
+    // as `scripts/deploy-to-aws.sh`, which runs only from the repository root.
     const wrapper = fs.readFileSync(path.join(REPO_ROOT, 'deploy_to_aws.sh'), 'utf8');
     expect(wrapper).toMatch(/^ORCHESTRATOR="\$\{SCRIPT_DIR\}\/scripts\/deploy-to-aws\.sh"$/m);
     const relativeCalls = wrapper
@@ -1651,7 +1647,7 @@ describe('Stripe webhook-secret sync from Parameter Store (both remote halves)',
     expect(content).toMatch(/if ! value=\$\(/);
     expect(content).toMatch(/ERROR: could not read \$param from Parameter Store/);
     expect(content).not.toMatch(/\) \|\| value=""/);
-    // The placeholder branch must no longer claim to cover an unreadable value.
+    // The placeholder branch must not claim to cover an unreadable value.
     expect(content).not.toMatch(/still the placeholder or unreadable/);
   });
 });
@@ -1856,9 +1852,9 @@ describe('arming-switch sync and production adapter derivation (both remote halv
   it('reconciles the below-production payment adapter rather than seeding it once', () => {
     // Below production the value has exactly one correct setting: the application
     // refuses the live payment SDK there, so the stub is the only bootable value.
-    // Seeding it only when absent left whoever last edited the host owning it from
-    // then on, and a hand-set `live` would survive every later deploy while being
-    // unbootable. The SES adapter immediately above it in both halves already
+    // Seeding it only when absent would leave whoever last edited the host owning
+    // it from then on, and a hand-set `live` would survive every later deploy
+    // while being unbootable. The SES adapter immediately above it in both halves already
     // force-reconciles for the same reason, so this is the seed-versus-owner
     // mismatch inside a single block rather than a disagreement between scripts.
     for (const { file, content } of halves) {
@@ -1869,7 +1865,7 @@ describe('arming-switch sync and production adapter derivation (both remote halv
       expect(block.length, file).toBeGreaterThan(0);
       expect(block, file).toMatch(/grep -v '\^PAYMENT_ADAPTER=' "\$ENV_PATH"/);
       expect(block, file).not.toMatch(/if ! grep -q '\^PAYMENT_ADAPTER='/);
-      // And this block's wording no longer promises to preserve what it overwrites.
+      // And this block's wording does not promise to preserve what it overwrites.
       // Scoped to the block: the stub webhook secret below it genuinely is kept
       // when already set, because regenerating one would reject deliveries that
       // are already configured against the old value.
@@ -1900,10 +1896,10 @@ describe('legacy_data script 20 graceful skip', () => {
 describe('the production gate asks what happens to the media bucket', () => {
   // A rebuild couples the media sync on, and that sync defaults to removing bucket
   // objects with no local counterpart, which the leaf refuses anywhere but staging.
-  // The refusal used to arrive after the whole local database had been rebuilt and
-  // after this gate had taken a typed word and a password, telling the operator to
-  // start over with a flag. An intent nobody stated is a question, and it belongs
-  // where the answer is still free.
+  // A refusal arriving after the whole local database has been rebuilt and after
+  // this gate has taken a typed word and a password tells the operator to start
+  // over with a flag. An intent nobody stated is a question, and it belongs where
+  // the answer is still free.
   const wrapperSrc = fs.readFileSync(path.join(REPO_ROOT, 'deploy_to_aws.sh'), 'utf-8');
   const gate = wrapperSrc.slice(wrapperSrc.indexOf('# What happens to the media bucket'));
   const question = gate.slice(0, gate.indexOf("Type 'APPLY'"));
@@ -2667,8 +2663,8 @@ describe('a production deploy refuses to run unattended', () => {
   });
 
   it('the database-replace acknowledgement does not satisfy it', () => {
-    // The bypass this closes: the ack is an ordinary environment variable, so a
-    // shell that exports it and invokes the leaf directly used to get through.
+    // Defect caught: the ack is an ordinary environment variable, so a shell
+    // that exports it and invokes the leaf directly would get through.
     const r = run('bash', ['scripts/deploy-rebuild.sh'], {
       env: { DEPLOY_TARGET: 'footbag-production', FOOTBAG_PROD_DB_REPLACE_ACK: '1' },
       input: 'unused-password\n',

@@ -128,8 +128,8 @@ afterAll(() => cleanupTestDb(dbPath));
 describe('Browse rows carry no chain tokens on any view', () => {
   // A browse row carries identity and notation. A chain reading is structural
   // content and reads on the trick's own page, so no browse view renders one,
-  // and none renders the glossary-linked token markup that used to accompany
-  // it. ripwalk is the probe: its chain reading "stepping butterfly" survives
+  // and none renders glossary-linked chain token markup. ripwalk is the
+  // probe: its chain reading "stepping butterfly" survives
   // the tautological filter, so if any view still rendered chain tokens, this
   // is the trick that would show them.
   it('no browse view renders a chain token', async () => {

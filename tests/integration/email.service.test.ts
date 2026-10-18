@@ -117,19 +117,19 @@ describe('emailService render-from-DB contract', () => {
   it('an unresolved token in an edited template is left literal and does not fail the send', () => {
     const db = new BetterSqlite3(dbPath);
     insertEmailTemplate(db, {
-      template_key: 'club_coleader_invite',
-      body_template: 'Hi {inviteeName}, join {clubName}. Stray: {notARealField}.',
+      template_key: 'club_volunteer_leadership',
+      body_template: 'Hi {leaderName}, {joinerName} joined {clubName}. Stray: {notARealField}.',
     });
     db.close();
 
     const result = email.emailService.send({
-      template: 'club_coleader_invite',
-      params: { leaderName: 'L', inviteeName: 'I', clubName: 'C' },
+      template: 'club_volunteer_leadership',
+      params: { leaderName: 'L', joinerName: 'J', clubName: 'C' },
       recipientEmail: 'stray-target@example.com',
       recipientMemberId: RECIPIENT_ID,
     });
     expect(result.status).toBe('enqueued');
-    const row = outboxRows().find((r) => r.template_key === 'club_coleader_invite');
+    const row = outboxRows().find((r) => r.template_key === 'club_volunteer_leadership');
     expect(row!.body_text).toContain('Stray: {notARealField}.');
   });
 

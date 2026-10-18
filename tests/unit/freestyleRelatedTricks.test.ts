@@ -357,7 +357,7 @@ describe('buildRelatedTricks — dex-kick group + kick/stall pairs (R0 overlay)'
     expect(buildRelatedTricks(get('clipper_stall'), KICKS).map(r => r.slug)).toContain('clipper');
   });
 
-  it('a stalled trick now surfaces its kick variant (the previously-missing direction)', () => {
+  it('a stalled trick surfaces its kick variant', () => {
     expect(buildRelatedTricks(get('around_the_world'), KICKS).map(r => r.slug)).toContain('around_the_world_kick');
     expect(buildRelatedTricks(get('mirage'), KICKS).map(r => r.slug)).toContain('miraging_kick');
     expect(buildRelatedTricks(get('butterfly'), KICKS).map(r => r.slug)).toContain('butterfly_kick');

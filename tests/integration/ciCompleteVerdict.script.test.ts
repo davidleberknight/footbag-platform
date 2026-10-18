@@ -5,18 +5,12 @@
  * branch protection requires. Its `needs:` list only sequences jobs — it makes
  * nothing required — so the job decides the verdict itself.
  *
- * It used to decide from a second hand-written list naming each job again, and
- * the two lists drifted twice. The first time, three jobs sat in `needs` and
- * nowhere else, so they ran, could go red, and left the tick green; a comment was
- * added asking the next person not to repeat it. The second time it was
- * `freestyle-db-integrity` and `legacy-pytest`, underneath that comment. Both
- * exist because their coverage was once silently absent, which is the worst
- * possible pair to have running non-blocking.
- *
- * So the verdict is now derived from `needs` itself, and this suite is what holds
- * that: it reads the real workflow, runs the real step body, and asserts that
- * every job in the list blocks. A job added to `needs` and forgotten is a failing
- * test rather than a green tick.
+ * The verdict is derived from `needs` itself. A second hand-written list naming
+ * each job again drifts from `needs`, and a job listed in `needs` alone runs,
+ * can go red, and leaves the tick green. This suite holds that: it reads the
+ * real workflow, runs the real step body, and asserts that every job in the
+ * list blocks. A job added to `needs` and forgotten is a failing test rather
+ * than a green tick.
  *
  * The single exception is a job whose own `if:` restricts it to pull requests:
  * on a push it reports `skipped` through no fault of the code, and requiring

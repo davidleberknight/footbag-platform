@@ -148,7 +148,7 @@ describe('Freestyle Concepts framing — chapter navigation + non-regression', (
     // Within a tier the cards split by lineage position.
     expect(html).toContain('glossary-family-subgroup-label');
     expect(html).toContain('Root lineages');
-    // The retired single-axis grid vocabulary no longer renders.
+    // The retired single-axis grid vocabulary does not render.
     expect(html).not.toContain('Branch and lineage families');
     expect(html).not.toContain('Root terminal families');
     expect(html).not.toContain('Branch families');
@@ -189,7 +189,7 @@ describe('Freestyle Concepts framing — surfaces and advanced-reference notes (
   });
 });
 
-describe('Freestyle Concepts framing — Phase D2 step 5 (interpretation doctrine)', () => {
+describe('Freestyle Concepts framing: interpretation doctrine', () => {
   it('states the descriptive-not-productive core of an equivalence reading', async () => {
     const html = await concepts();
     expect(html).toMatch(/<em>descriptive, never a recipe<\/em>/);
@@ -218,7 +218,7 @@ describe('Freestyle Concepts framing — Phase D2 step 5 (interpretation doctrin
   });
 });
 
-describe('Freestyle Concepts framing — Phase D2 step 4 (modifier ecosystem doctrine)', () => {
+describe('Freestyle Concepts framing: modifier ecosystem doctrine', () => {
   it('renders the lineage-vs-ecosystem test with the "can you do it on its own?" tell', async () => {
     const html = await concepts();
     expect(html).toContain('id="lineage-or-ecosystem"');
@@ -241,7 +241,7 @@ describe('Freestyle Concepts framing — Phase D2 step 4 (modifier ecosystem doc
   });
 });
 
-describe('Freestyle Concepts §families — Phase D2 step 3 (parent/child/descendant-lineage rewrite)', () => {
+describe('Freestyle Concepts families: parent, child and descendant lineage', () => {
   it('embeds the "What makes a family?" explainer with the whirl model + the two non-family failure modes', async () => {
     const html = await concepts();
     expect(html).toContain('What makes a family?');
@@ -262,7 +262,7 @@ describe('Freestyle Concepts §families — Phase D2 step 3 (parent/child/descen
     // The Family entry carries both axes (lineage position + tier) with examples.
     expect(html).toMatch(/lineage position/i);
     expect(html).toMatch(/Family Parent[\s\S]*Minor Lineage/);
-    // The retired first-class / sub-family framing no longer renders.
+    // The retired first-class / sub-family framing does not render.
     expect(html).not.toContain('<dt>First-class family</dt>');
     expect(html).not.toContain('<dt>Sub-family</dt>');
     expect(html).not.toMatch(/eight\s+recognized parents/);
@@ -287,7 +287,7 @@ describe('Freestyle Concepts §families — Phase D2 step 3 (parent/child/descen
     for (const id of ['term-illusion', 'term-legover', 'term-pickup']) {
       expect(html, `family card ${id}`).toContain(`id="${id}"`);
     }
-    // ATW is no longer a parent card; the retired framing is gone.
+    // ATW is not a parent card, and the eight-parents framing does not render.
     expect(html).not.toMatch(/All eight recognized parents/);
     // Every carded family carries an educational card (status line removed).
     expect(html).toMatch(/Every family below has an educational card/);

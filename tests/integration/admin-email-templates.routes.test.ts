@@ -55,12 +55,12 @@ function auditRowsFor(key: string): Array<{ action_type: string; actor_member_id
   return rows;
 }
 
-// A complete valid edit body for club_coleader_invite. Individual tests
+// A complete valid edit body for club_volunteer_leadership. Individual tests
 // override a field.
 function validBody(overrides: Record<string, string> = {}): Record<string, string> {
   return {
     subjectTemplate: 'Co-lead {clubName}?',
-    bodyTemplate: 'Hi {inviteeName},\n\n{leaderName} asks you to come co-lead {clubName}.\n\n-- IFPA platform',
+    bodyTemplate: 'Hi {leaderName},\n\n{joinerName} asks you to come co-lead {clubName}.\n\n-- IFPA platform',
     piiClassification: 'confidential',
     isEnabled: '1',
     ...overrides,
@@ -163,14 +163,14 @@ describe('POST /admin/email-templates/:key/edit', () => {
   });
 
   it('saves an edit, bumps the version, stamps the admin, and appends one audit row', async () => {
-    const before = templateRow('club_coleader_invite');
+    const before = templateRow('club_volunteer_leadership');
     const res = await request(createApp())
-      .post('/admin/email-templates/club_coleader_invite/edit')
+      .post('/admin/email-templates/club_volunteer_leadership/edit')
       .set('Cookie', admin())
       .type('form')
       .send(validBody());
     expect(res.status).toBe(303);
-    expect(res.headers.location).toBe('/admin/email-templates/club_coleader_invite/edit');
+    expect(res.headers.location).toBe('/admin/email-templates/club_volunteer_leadership/edit');
 
     // The confirmation shows on this template's page and on no other.
     const cookie = `${admin()}; ${flashCookieOf(res)}`;
@@ -185,17 +185,17 @@ describe('POST /admin/email-templates/:key/edit', () => {
     expect(params.text).not.toContain('form-success-banner');
     // The page's own address typed without the cookie claims nothing.
     const bare = await request(createApp())
-      .get('/admin/email-templates/club_coleader_invite/edit?saved=1').set('Cookie', admin());
+      .get('/admin/email-templates/club_volunteer_leadership/edit?saved=1').set('Cookie', admin());
     expect(bare.status).toBe(200);
     expect(bare.text).not.toContain('form-success-banner');
 
-    const after = templateRow('club_coleader_invite');
+    const after = templateRow('club_volunteer_leadership');
     expect(after.subject_template).toBe('Co-lead {clubName}?');
     expect(after.body_template).toContain('asks you to come co-lead {clubName}.');
     expect(after.version).toBe(before.version + 1);
     expect(after.updated_by).toBe(ADMIN_ID);
 
-    const audits = auditRowsFor('club_coleader_invite');
+    const audits = auditRowsFor('club_volunteer_leadership');
     expect(audits).toHaveLength(1);
     expect(audits[0]!.action_type).toBe('email_template.updated');
     expect(audits[0]!.actor_member_id).toBe(ADMIN_ID);
@@ -205,8 +205,8 @@ describe('POST /admin/email-templates/:key/edit', () => {
   it('the very next send renders the edited wording', async () => {
     const email = await import('../../src/services/emailService');
     email.emailService.send({
-      template: 'club_coleader_invite',
-      params: { leaderName: 'Lee', inviteeName: 'Renee', clubName: 'Boulder Footbag' },
+      template: 'club_volunteer_leadership',
+      params: { leaderName: 'Lee', joinerName: 'Renee', clubName: 'Boulder Footbag' },
       recipientEmail: 'roundtrip@example.com',
       recipientMemberId: MEMBER_ID,
     });
@@ -216,8 +216,8 @@ describe('POST /admin/email-templates/:key/edit', () => {
     ).get() as { subject: string; body_text: string };
     db.close();
     expect(row.subject).toBe('Co-lead Boulder Footbag?');
-    expect(row.body_text).toContain('Hi Renee,');
-    expect(row.body_text).toContain('asks you to come co-lead Boulder Footbag.');
+    expect(row.body_text).toContain('Hi Lee,');
+    expect(row.body_text).toContain('Renee asks you to come co-lead Boulder Footbag.');
   });
 
   it('rejects an unknown merge token with a 422 naming the allowed fields, leaving the row unchanged', async () => {

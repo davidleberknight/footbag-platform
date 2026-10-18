@@ -43,9 +43,9 @@
 # They belong to the bare `./run_all_tests.sh`, which is the command that stands
 # for the push gate; this room is the isolation gate inside it and its value is
 # the empty home and a tree with nothing gitignored in it, not breadth. The distinction
-# matters because this script used to close by saying the runner saw the same
-# tree in the same conditions, which was a claim about all of CI made by
-# something running two thirds of it.
+# matters because closing by saying the runner saw the same tree in the same
+# conditions would be a claim about all of CI made by something running two
+# thirds of it.
 #
 # And the dependency audit reads the registry at the moment it runs, so even
 # where it does run, a verdict from an hour ago is not a verdict about the push.
@@ -174,9 +174,9 @@ CLEAN_HOME="${WORK_DIR}/home"
 # Deliberately OUTSIDE WORK_DIR, which the trap removes. A gate's full output is
 # the only thing that can answer why it failed, and the recap below is a
 # summary by construction: it selects, and a selection that turned out to be the
-# wrong one used to leave the reader with nothing at all, because the evidence
-# went with the worktree the moment the run ended. The whole log now outlives
-# the run and the path is printed, so the recap can be an aid rather than the
+# wrong one would leave the reader with nothing at all if the evidence went
+# with the worktree the moment the run ended. The whole log outlives the run
+# and the path is printed, so the recap can be an aid rather than the
 # last copy. One run's worth is kept: the directory is emptied at the start of
 # each run, so this never grows and never becomes something to tidy.
 GATE_LOG_DIR="${TMPDIR:-/tmp}/footbag-clean-room-last"

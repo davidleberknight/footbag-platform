@@ -198,10 +198,9 @@ export function createApp(): express.Express {
 
   // Keep everything that is not the canonical public site out of search
   // indexes. Staging and development must never have their content indexed even
-  // if a URL leaks, and the production build also answers on a temporary
-  // pre-cutover hostname that is withdrawn once the canonical host takes over,
-  // so indexing it would leave search results pointing at a name that no longer
-  // resolves. The canonical site omits the header so public pages are
+  // if a URL leaks, and any other hostname the production build answers on stays
+  // out too, so search results never point at a name the site does not speak
+  // for. The canonical site omits the header so public pages are
   // indexable; private production pages are handled per-response
   // (authenticated) and per-page (thin auth pages) below and in the layout.
   if (!config.searchIndexable) {

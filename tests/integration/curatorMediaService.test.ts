@@ -2728,8 +2728,8 @@ describe('curatorMediaService.finalizeTranscodeForJob', () => {
   });
 
   it('propagates transcodeFromStorage errors as finalize failures', async () => {
-    // Source-video size validation lives on the image worker side now (videoMaxBytes
-    // gate in src/imageWorker.ts) since the service no longer fetches the buffer.
+    // Source-video size validation lives on the image worker side (videoMaxBytes
+    // gate in src/imageWorker.ts) because the service does not fetch the buffer.
     // The user-visible cap is enforced earlier still at /admin/curator/upload/sign.
     // This test verifies the service propagates whatever error transcodeFromStorage
     // throws (size-rejection, S3 GET failure, ffmpeg failure, S3 PUT failure)

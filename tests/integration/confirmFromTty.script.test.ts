@@ -42,7 +42,7 @@ const SETSID = requireToolInCI('setsid', '--version');
 function runConfirm(assumeYes: 'yes' | 'no'): { status: number | null; stderr: string } {
   // spawnSync always captures, so the child's stdout and stderr are pipes. When
   // the machine running the suite has a controlling terminal, this is exactly the
-  // condition that used to produce a prompt.
+  // condition under which a guard that checked only for /dev/tty would prompt.
   const res = spawnSync(
     'bash',
     // Assigned AFTER the source, which is the real calling convention: every
@@ -120,13 +120,13 @@ describe('confirm_from_tty: the human-present guard', () => {
   });
 
   it('does not let the launching environment decide a confirmation', () => {
-    // An exported ASSUME_YES=yes once accepted the typed confirmation on a
-    // production apply, on arming live payments, and on restoring a database,
-    // with no terminal involved and nothing printed to say so. The name is
-    // generic enough for an unrelated tool to set it.
+    // Defect caught: an exported ASSUME_YES=yes accepting the typed confirmation
+    // on a production apply, on arming live payments, and on restoring a
+    // database, with no terminal involved and nothing printed to say so. The
+    // name is generic enough for an unrelated tool to set it.
     //
-    // The fix is here rather than in each caller. Every script used to have to
-    // remember to clear the variable before sourcing, which is a convention no
+    // The guard is here rather than in each caller. Requiring every script to
+    // clear the variable before sourcing is a convention no
     // test can enforce from outside and every new script can forget. Assigning
     // unconditionally in the library removes the class: a caller cannot inherit
     // what the library always overwrites.

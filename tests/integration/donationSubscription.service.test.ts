@@ -689,11 +689,11 @@ describe('invoice.payment_succeeded', () => {
 
   it('does not record a subscription as collecting when the provider says its first payment has not settled', async () => {
     // Stripe raises customer.subscription.created for a subscription still
-    // waiting on an authentication step or an asynchronous payment method. The
-    // handler used to promote every one of them to active, so a donation that
-    // had collected nothing appeared live on the member's history and in the
-    // admin surfaces, and stayed that way unless a later failure happened to
-    // arrive.
+    // waiting on an authentication step or an asynchronous payment method.
+    // Defect caught: a handler promoting every one of them to active, so a
+    // donation that has collected nothing appears live on the member's history
+    // and in the admin surfaces, and stays that way unless a later failure
+    // happens to arrive.
     const paymentService = await svc();
     const { signStripeWebhook } = await import('../../src/adapters/stripeWebhook');
     const { STUB_WEBHOOK_SECRET } = await import('../../src/adapters/paymentAdapter');
@@ -1115,13 +1115,13 @@ describe('customer.subscription.updated', () => {
   });
 
   it('attributes a refund of a renewal charge to the row that charge booked', async () => {
-    // A renewal is settled from an invoice, so its payment row used to carry an
-    // invoice id and no payment intent. A refund arrives as a charge carrying
-    // only its intent, and the charge has no invoice reference at the API
-    // version this codebase pins, so there was nothing to match on: every
-    // refund of a recurring donation went to the unattributable pile and the
-    // member's history kept showing the charge as settled. The row now records
-    // the intent the invoice reports as having settled it.
+    // A renewal is settled from an invoice, so its payment row records the
+    // intent the invoice reports as having settled it. A refund arrives as a
+    // charge carrying only its intent, and the charge has no invoice reference
+    // at the API version this codebase pins. Defect caught: a row carrying only
+    // the invoice id, leaving nothing to match on, so every refund of a
+    // recurring donation goes to the unattributable pile and the member's
+    // history keeps showing the charge as settled.
     const paymentService = await svc();
     const stub = await stubAdapter();
     const { sessionId, subscriptionId } = await activateSubscription(M_RENEWAL_REFUND, {

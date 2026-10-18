@@ -1,9 +1,9 @@
 /**
  * scripts/lib/tool-report.sh — the workstation tools the local runners need.
  *
- * A missing tool used to surface one gate at a time, deep into a run: a skipped
- * secret scan, a Terraform gate that could not start, a clean-room gate failing
- * on a missing encoder. The report names every problem up front, and where the
+ * Without it, a missing tool surfaces one gate at a time, deep into a run: a
+ * skipped secret scan, a Terraform gate that cannot start, a clean-room gate
+ * failing on a missing encoder. The report names every problem up front, and where the
  * push gate pins a version it reads that pin from the workflow rather than
  * holding a copy that can drift.
  *

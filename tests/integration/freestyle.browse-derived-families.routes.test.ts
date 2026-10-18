@@ -8,10 +8,10 @@
  *      fold invisibly into osis. drifter renders as its own family, with
  *      high_plains_drifter re-bucketed in via the family override.
  *
- *   2. Clipper-Stall family retirement — Family View no longer renders
- *      an id="family-clipper_stall" section. The clipper_stall row
+ *   2. No Clipper-Stall family — Family View renders no
+ *      id="family-clipper_stall" section. The clipper_stall row
  *      itself remains visible in the ADD view. ducking_clipper /
- *      spinning_clipper / reaper / high_plains_drifter no longer
+ *      spinning_clipper / reaper / high_plains_drifter do not
  *      surface under a clipper_stall heading.
  *
  *   3. Unresolved compounds — curator-flagged folk-derived slugs (reaper /
@@ -177,7 +177,7 @@ describe('Family view — torque + blender render as their own family parents', 
 // ─────────────────────────────────────────────────────────────────────────
 
 describe('Clipper-Stall family retirement (Family View)', () => {
-  it('Family View no longer renders id="family-clipper_stall"', async () => {
+  it('Family View does not render id="family-clipper_stall"', async () => {
     const res = await page('/freestyle/tricks?view=family');
     expect(res.text).not.toContain('id="family-clipper_stall"');
   });

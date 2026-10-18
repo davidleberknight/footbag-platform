@@ -91,9 +91,9 @@ function writeTerraformStub(
     /**
      * Make `terraform show -json <plan>` fail. The gate reads the plan through
      * that call, so this is the only way to reach the branch where it cannot
-     * see the plan at all — which is the case it exists for, because the reads
-     * used to swallow their own failure and yield an empty answer the gate
-     * could not tell apart from "no DNS in this plan".
+     * see the plan at all — which is the case it exists for, because a read
+     * that swallows its own failure yields an empty answer the gate cannot
+     * tell apart from "no DNS in this plan".
      */
     showFails?: boolean;
     /**
@@ -312,11 +312,9 @@ describe('terraform-apply.sh: argument handling', () => {
   });
 
   it('accepts the identity tree, which has one way in rather than a script of its own', () => {
-    // It used to be refused here and applied by a separate script, so that the
-    // one principal allowed to apply it could be asserted somewhere. That
-    // invariant lives on this path now, which leaves one entry point carrying
-    // the saved-plan, confirmation and cleanup discipline the other one had to
-    // reimplement.
+    // The invariant naming the one principal allowed to apply it lives on this
+    // path, so one entry point carries the saved-plan, confirmation and cleanup
+    // discipline rather than a separate script reimplementing it.
     const res = run(['--target', 'identity', '--dry-run'], false);
     expect(res.exitCode).toBe(0);
   });
@@ -394,9 +392,8 @@ describe('terraform-apply.sh: argument handling', () => {
     // The job role is denied every write to its own definition, and that
     // denial lands mid-apply: terraform would create some resources, refuse on
     // the role itself, and leave the tree half applied with a state file
-    // saying so. The invariant used to live in the separate script that owned
-    // this tree, which is why it has to be here now that the tree does not
-    // have one.
+    // saying so. No separate script owns this tree, so the invariant has to
+    // be held here.
     writeTerraformStub();
     const res = run(['--target', 'identity'], true, assumedRoleIdentity());
     expect(res.exitCode).toBe(1);
@@ -422,10 +419,10 @@ describe('terraform-apply.sh: argument handling', () => {
   it.each([['production'], ['shared'], ['identity']])(
     'refuses --yes when breaking the %s state lock, before any terraform runs',
     (target) => {
-      // The refusal used to sit below the stale-lock block, which exits on its
-      // own, so nothing under it was reachable from a lock-breaking run: the
-      // typed word was asked for with the flag still set, the helper answered it,
-      // and force-unlock ran against that tree's state with nothing typed.
+      // Defect caught: a refusal placed below the stale-lock block, which exits
+      // on its own, is unreachable from a lock-breaking run: the typed word is
+      // asked for with the flag still set, the helper answers it, and
+      // force-unlock runs against that tree's state with nothing typed.
       // Breaking a lock while a run is genuinely live lets two runs write state
       // at once, which is why this is refused rather than merely discouraged.
       //
@@ -1049,9 +1046,9 @@ describe('terraform-apply.sh: the firewall written in place', () => {
 });
 
 describe('terraform-apply.sh: replacing one listed resource', () => {
-  // The origin-verify secret rotates by destroying and recreating its random_id,
-  // which used to be a hand-typed apply with no saved plan, no confirmation and
-  // no shred. Routed through here it gets all three; the list is what stops the
+  // The origin-verify secret rotates by destroying and recreating its random_id.
+  // Routed through here it gets a saved plan, a confirmation and a shred; the
+  // list is what stops the
   // flag becoming a way to destroy and recreate anything at all.
 
   it('plans the replacement through the saved plan and applies that same file', () => {
@@ -1353,10 +1350,10 @@ describe('terraform-apply.sh: the DNS approval gate', () => {
   });
 
   it('refuses when it cannot read the plan at all, rather than reading silence as no DNS', () => {
-    // The defect this pins: both reads used to swallow their own failure and
-    // hand back an empty answer, which is indistinguishable from a plan with no
-    // DNS in it. So the gate skipped itself on exactly the plans it exists for,
-    // and the apply went through.
+    // Defect caught: a read that swallows its own failure hands back an empty
+    // answer, which is indistinguishable from a plan with no DNS in it. So the
+    // gate skips itself on exactly the plans it exists for, and the apply goes
+    // through.
     writeTerraformStub({ planResourceChanges: dnsChange, showFails: true });
     const res = run(['--target', 'staging']);
     expect(res.exitCode).toBe(1);

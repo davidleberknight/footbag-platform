@@ -1009,9 +1009,9 @@ function movesAnchorSlug(label: string): string {
 
 // What a curated clip is for is carried by the clip, as exactly one of
 // #tutorial, #demo or #record, and read from its tags wherever it matters.
-// A source-id lookup used to stand in for it: it said nothing the source id
-// did not, it could not describe a clip that differed from its source, and
-// it spent a fourth meaning of a word this repository already uses for
+// A source-id lookup cannot stand in for it: it says nothing the source id
+// does not, it cannot describe a clip that differs from its source, and it
+// would spend a fourth meaning of a word this repository already uses for
 // membership tier, ADD tier and display tier.
 
 function shapeReferenceMedia(
@@ -1047,7 +1047,7 @@ function shapeCoreTricks(trickRows: FreestyleTrickRow[]): FreestyleCoreTrickCard
     //     column. TS is source-of-truth for atom op-notation.
     //   - semanticEquivalences takes only the first reading (descriptive
     //     prose). The accounting formula equivalences[1] is preserved in the
-    //     content module but no longer rendered on the public landing grid;
+    //     content module but not rendered on the public landing grid;
     //     prune in the shaping helper, not the template.
     //     Accounting derivations remain accessible at /freestyle/add-analysis.
     return {
@@ -4097,7 +4097,7 @@ export interface OperatorIndexAxisGroup {
 export interface FreestyleOperatorsContent {
   // Compact, grouped index (the consistency layer). Per-modifier depth lives on
   // the detail/stub pages; the page tail carries only cross-cutting notes, so the
-  // operators surface no longer renders the per-modifier reference (that stays in
+  // operators surface does not render the per-modifier reference (that stays in
   // the glossary's Modifiers & Operators section, the anchor home).
   indexAxes: OperatorIndexAxisGroup[];
 }
@@ -5513,7 +5513,7 @@ function shapeDictionaryTrickCard(
   //
   // Tautological-reading filter (universal): drop any reading whose case-insensitive
   // trimmed form equals the canonical name, regardless of first-class
-  // status. Examples that previously leaked through: "double around the
+  // status. Examples it drops: "double around the
   // world" ≡ on the DATW card, "reverse whirl" ≡ on rev-whirl. Curator-
   // locked non-tautological folk-name readings (ripwalk → "stepping
   // butterfly", torque → "quantum osis") survive this filter unchanged —
@@ -6741,8 +6741,8 @@ export const freestyleService = {
    * Relationship sections follow a single-owner rule, so no trick appears in two
    * relationship sections: the Family ladder owns same-family progression;
    * Related Tricks owns conceptual movement-neighbour / swing-element links only;
-   * Structural Neighbors owns cross-base composition only (the same operators on
-   * another base, plus same-structure twins). There is no standalone Mechanical
+   * Structurally related tricks owns cross-base composition (the same operators
+   * on another base, plus same-structure twins). There is no standalone Mechanical
    * Delta or Progressive Readings section: their useful content is relocated to
    * two derived one-liners, `intuitionDelta` (rendered in Movement Intuition) and
    * `buildPath` (rendered in About), both null for atoms and link-less tricks.
@@ -7060,8 +7060,8 @@ export const freestyleService = {
           // A clip is a tutorial only if it says so. Anything else is a
           // demonstration, including a clip carrying no content-type tag: the
           // instructional claim is the one that has to be made rather than
-          // assumed, and this is also what the dictionary index reads, which the
-          // two surfaces previously disagreed about.
+          // assumed, and this is also what the dictionary index reads, so the
+          // two surfaces agree.
           if (clipTags.includes('#tutorial')) {
             tutorialMedia.push(shaped);
           } else {
@@ -7150,7 +7150,7 @@ export const freestyleService = {
         // neighbourhoods (kick/stall pairs, dex-kick variants, surface stalls)
         // and the swing-element pair. Same-family progression is owned by the
         // Family ladder; compositional and same-base structural relationships
-        // are owned by Structural Neighbors. So only the curated `neighborhood`
+        // are owned by Structurally related tricks (`similarTricks`). So only the curated `neighborhood`
         // rule surfaces here; the family / modifier-prefix / parent / grandparent
         // rules are not rendered as related groups.
         // One batched coverage read serves every panel on this page that

@@ -2771,9 +2771,9 @@ export const freestyleTricks = {
 
   // Admin curation scalar edit: update the editable row fields of one trick,
   // the structural fields plus the editorial prose fields (slug is the identity
-  // key and stays fixed). The browse sort position is included because the content
-  // pipeline that used to set it stops running at the source-of-truth cutover, so
-  // this is its only remaining write path. Stamps updated_at. Attached aliases,
+  // key and stays fixed). The browse sort position is included because no content
+  // pipeline sets it once the database is the source of truth, so this is its
+  // only write path. Stamps updated_at. Attached aliases,
   // sources, and modifier links are untouched here.
   //
   // is_core is deliberately absent. Nothing in the application reads it, so a
@@ -10147,7 +10147,7 @@ export const deceasedMarking = {
   `); },
 
   // The record, plus whoever holds it. A soft-deleted claimant counts: their
-  // account can still be restored, so the record is not free to be marked
+  // member row still holds the link, so the record is not free to be marked
   // independently of them.
   get findHistoricalPerson() { return db.prepare(`
     SELECT hp.person_id, hp.person_name, hp.is_deceased,

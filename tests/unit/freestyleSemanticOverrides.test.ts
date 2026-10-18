@@ -7,7 +7,7 @@ import { getCompoundSemanticDescription } from '../../src/content/freestyleSeman
 import { findCanonicalSetBySlug, resolveCanonicalSetAlias } from '../../src/content/freestyleCanonicalSets';
 
 describe('dex-kick description overrides', () => {
-  it('Around the World Kick no longer claims to be the only 1-ADD dex trick', () => {
+  it('Around the World Kick does not claim to be the only 1-ADD dex trick', () => {
     const d = getCompoundSemanticDescription('around_the_world_kick') ?? '';
     expect(d).not.toMatch(/only documented/i);
     expect(d).toMatch(/dex-kick/);
@@ -48,7 +48,7 @@ describe('Atomic and Illusioning are distinct (no merge)', () => {
     expect(relatedSlugs).not.toContain('miraging');
   });
 
-  it('the illusioning slug no longer folds to atomic', () => {
+  it('the illusioning slug does not fold to atomic', () => {
     expect(resolveCanonicalSetAlias('illusioning')).toBeNull();
   });
 });

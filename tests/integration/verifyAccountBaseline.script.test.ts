@@ -331,10 +331,10 @@ describe('verify-account-baseline.sh — each control is genuinely checked', () 
   });
 
   it('does not let a gated control decide the run', () => {
-    // The defect this replaces: counting them made the exit status non-zero
-    // before an apply and non-zero after a completely successful one, so it
-    // could not tell an operator which had happened and the walk asked them to
-    // count failure lines by eye instead.
+    // Defect caught: counting them makes the exit status non-zero before an
+    // apply and non-zero after a completely successful one, so it cannot tell
+    // an operator which has happened and the walk asks them to count failure
+    // lines by eye instead.
     const r = run({ alternateContact: 'None' });
     expect(r.status, r.stderr).toBe(0);
     expect(r.stdout).toContain('No findings.');

@@ -550,10 +550,10 @@ describe('manage-dev-tester.sh — offboarding', () => {
   });
 
   it('clears an expired revocation before writing, so a role with room for one still takes the next', () => {
-    // A role's inline policies share one size limit. With room for a single
-    // revocation, an earlier departure's expired one left on the role refused
-    // this write when clearing ran after it, and every re-run was refused the
-    // same way with the departing person's sessions still live.
+    // A role's inline policies share one size limit. Defect caught: with room
+    // for a single revocation, an earlier departure's expired one left on the
+    // role refuses this write when clearing runs after it, and every re-run is
+    // refused the same way with the departing person's sessions still live.
     seedRevocation('long_gone', '2020-01-01T00:00:00Z');
     writeFileSync(join(stateDir, 'inline-budget'), '300\n', 'utf-8');
     const r = run(['--offboard', DEV_TESTER, '--yes'], ACTIVE);

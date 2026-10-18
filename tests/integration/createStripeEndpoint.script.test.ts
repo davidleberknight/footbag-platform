@@ -8,10 +8,10 @@
  * distribution domain. The key may come from the environment only while the
  * curl seam is in use, so no test path can reach the real account.
  *
- * These tests pin what --verify is for. It exists because the event-set diff
- * used to run once, against the creation call's own response, and never again:
- * an endpoint edited afterwards, or left behind by a code change that added an
- * event, both passed unnoticed while Stripe silently stopped delivering. So the
+ * These tests pin what --verify is for. An event-set diff run once, against the
+ * creation call's own response, and never again misses an endpoint edited
+ * afterwards, or one left behind by a code change that added an event, while
+ * Stripe silently stops delivering. So the
  * cases that matter here are the disagreements — missing events, unexpected
  * ones, a wildcard subscription, a stale URL, a version off the pin — and the
  * refusals that keep --repair from papering over the ones it cannot fix.

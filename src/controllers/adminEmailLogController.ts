@@ -34,8 +34,8 @@ function returnPath(req: Request): string {
 
 /**
  * What the administrator is told after a review, by outcome, each with its own
- * tone. One review can land three different ways and they used to render
- * identically: a review that happened, one somebody else had already done, and
+ * tone. One review can land three different ways, and each must render
+ * distinctly: a review that happened, one somebody else had already done, and
  * a refusal on a message that was never in a failed state.
  */
 const REVIEW_NOTICES: Record<string, [OutcomeTone, string]> = {

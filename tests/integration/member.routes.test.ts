@@ -279,14 +279,14 @@ describe('GET /members/:memberKey — profile view', () => {
     expect(res.text).toContain('Member of the IFPA Board of Directors');
   });
 
-  it('own profile links to the shipped Payment History page and no longer lists it as coming soon', async () => {
+  it('own profile links to the Payment History page and does not list it as coming soon', async () => {
     const app = createApp();
     const res = await request(app)
       .get(`/members/${OWN_SLUG}`)
       .set('Cookie', ownCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain(`href="/members/${OWN_SLUG}/payments"`);
-    // The coming-soon card no longer promises payment history as unbuilt.
+    // The coming-soon card does not promise payment history as unbuilt.
     expect(res.text).not.toContain('Payments &amp; Donations');
   });
 });

@@ -18,10 +18,10 @@
 # so the registered set is proved equal to the dispatcher's rather than merely
 # the right length.
 #
-# --verify exists because that diff used to happen once and never again. It ran
-# against the creation call's own response, so it proved what Stripe had just
-# echoed back and nothing afterwards: an endpoint edited in the Dashboard, or
-# left behind by a code change that added an event, both passed unnoticed. The
+# --verify exists because a diff run only at creation proves what Stripe had
+# just echoed back and nothing afterwards: an endpoint edited in the Dashboard,
+# or left behind by a code change that added an event, would both pass
+# unnoticed. The
 # repository's own test proves the service constant, the dispatcher's switch and
 # the copy in the activation script agree with one another, but all three are
 # local files and none of them is the copy that decides what Stripe delivers.

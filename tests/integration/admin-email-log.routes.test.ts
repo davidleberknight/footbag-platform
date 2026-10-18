@@ -336,8 +336,8 @@ describe('POST /admin/email-log/:id/review', () => {
     expect(outboxRow('el_rev_nonote').reviewed_at).toBeNull();
   });
 
-  // The 422 re-render used to carry no message of any kind, so a refused
-  // review looked exactly like a click that did nothing: same listing, same
+  // Defect caught: a 422 re-render with no message of any kind, so a refused
+  // review looks exactly like a click that did nothing: same listing, same
   // rows, no explanation anywhere on the page.
   it('says why it refused a review with no note, in the refusal treatment', async () => {
     withDb((db) => insertOutboxEmail(db, { id: 'el_rev_silent', status: 'dead_letter' }));

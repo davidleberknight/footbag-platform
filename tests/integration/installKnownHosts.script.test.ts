@@ -4,12 +4,11 @@
  * The pin is what stops a deploy handing its sudo password to a substituted
  * host, because that password is line one of the SSH stream and a
  * trust-on-first-connect would send it before anything about the host had been
- * checked. It used to be assembled by hand out of an error message: two keys
- * from one API call, an address from a Terraform output, then four lines
- * covering two algorithms across two ports with the bracketed form on the
- * non-default one, checked by eye.
+ * checked. Assembling it takes two keys from one API call, an address from a
+ * Terraform output, then four lines covering two algorithms across two ports
+ * with the bracketed form on the non-default one.
  *
- * Every one of those fails quietly. A wrapped paste yields a line ssh-keygen
+ * Done by hand, every one of those fails quietly. A wrapped paste yields a line ssh-keygen
  * does not find, a missing bracketed form covers one port and not the other, and
  * a stale address survives an instance replacement. The symptom in each case is
  * a refused connection that reads like a firewall fault.

@@ -2,8 +2,8 @@
 #
 # Which workstation tools the local runners need, reported all at once.
 #
-# A missing tool used to surface one gate at a time, far into a run and far from
-# the cause: a skipped secret scan, a Terraform gate that could not start, a
+# Unreported, a missing tool surfaces one gate at a time, far into a run and far
+# from the cause: a skipped secret scan, a Terraform gate that could not start, a
 # clean-room gate that failed on a missing encoder and read as a test failure.
 # This reports every missing or wrong-version tool up front, each with the fix,
 # the way the operator workstation script reports its tools. For sqlite3,

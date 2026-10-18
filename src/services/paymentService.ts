@@ -3208,16 +3208,16 @@ function handleSubscriptionDeleted(event: StripeWebhookEvent): WebhookOutcome {
  * The payment intent that settled an invoice, read from the invoice's own
  * payments list.
  *
- * A renewal is booked from the invoice, so its payment row used to carry an
- * invoice id and no intent id at all. That mattered later, at refund time: a
- * refund arrives as a charge carrying its payment intent and nothing else, and
- * the charge object has no invoice reference at the API version this codebase
- * pins. With no intent id on the row there was nothing to match on, so every
- * refund of a recurring donation landed in the unattributable pile and the
- * member's history went on showing the charge as settled.
+ * A renewal is booked from the invoice, so its payment row needs the intent id
+ * as well as the invoice id. That matters at refund time: a refund arrives as a
+ * charge carrying its payment intent and nothing else, and the charge object
+ * has no invoice reference at the API version this codebase pins. With no
+ * intent id on the row there is nothing to match on, so every refund of a
+ * recurring donation would land in the unattributable pile and the member's
+ * history would go on showing the charge as settled.
  *
- * The top-level `payment_intent` field the invoice used to carry was removed;
- * the payments list is where the provider surfaces it now, and an invoice
+ * The invoice carries no top-level `payment_intent` field at the pinned API
+ * version; the payments list is where the provider surfaces it, and an invoice
  * settled in one attempt carries exactly one entry.
  */
 function invoicePaymentIntentId(obj: Record<string, unknown>): string | null {

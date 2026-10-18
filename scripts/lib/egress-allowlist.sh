@@ -147,10 +147,10 @@ egress_allowlist_check() {
 
   # ── The address ────────────────────────────────────────────────────────────
   #
-  # A lookup that fails answers "unknown", never "fine". Carrying on here is the
-  # defect this replaces: the address a run cannot resolve is precisely the one
-  # the check exists to doubt, and the deploy then stranded part-way through its
-  # remote half with nothing having asked.
+  # A lookup that fails answers "unknown", never "fine". The address a run
+  # cannot resolve is precisely the one the check exists to doubt, and carrying
+  # on would strand the deploy part-way through its remote half with nothing
+  # having asked.
   local addr=""
   if [[ -n "$checkip" ]]; then
     addr="$("$checkip" 2>/dev/null | tr -d '[:space:]')" || addr=""

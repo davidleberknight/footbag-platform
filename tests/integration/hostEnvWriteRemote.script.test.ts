@@ -4,9 +4,8 @@
  *
  * Every write through this body is the back half of a read-modify-write: the
  * caller read the whole file, edited its copy, and is installing the whole thing
- * back. It used to be unconditional, with no re-read and no comparison, so a
- * change made on the host in between was replaced with nothing errored and
- * nothing said.
+ * back. Unconditional, with no re-read and no comparison, a change made on the
+ * host in between would be replaced with nothing errored and nothing said.
  *
  * The second writer that makes that reachable is not a second person. The
  * deploy's own root half rewrites /srv/footbag/env around thirty times, seeding

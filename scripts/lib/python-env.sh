@@ -3,11 +3,11 @@
 # The one place that decides which Python interpreter a project script runs.
 #
 # Every loader, verifier and suite in this repository needs an interpreter
-# carrying the pinned dependencies, and each one used to decide for itself:
-# some walked a candidate list, some probed a single hardcoded path, some
-# spawned a bare `python3` and hoped. The spellings disagreed, so the same
-# checkout could run one script under a virtualenv and the next under whatever
-# the host happened to ship. The failure that shape produces is the expensive
+# carrying the pinned dependencies. Left to decide for itself, each would
+# choose differently: walk a candidate list, probe a single hardcoded path, or
+# spawn a bare `python3` and hope. Spellings that disagree let the same
+# checkout run one script under a virtualenv and the next under whatever the
+# host happens to ship. The failure that shape produces is the expensive
 # kind: the error names the loader that died rather than the interpreter that
 # ran it, and it reproduces on one machine and not the next.
 #

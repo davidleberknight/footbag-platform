@@ -229,7 +229,7 @@ describe('Edit Profile offers a route to the missing linkage', () => {
   });
 });
 
-describe('Edit Profile no longer hosts legacy-claim anchors', () => {
+describe('Edit Profile does not host legacy-claim anchors', () => {
   it('does not render the declared-anchor section', async () => {
     const res = await request(createApp())
       .get(`/members/${MEMBER_SLUG}/edit`)

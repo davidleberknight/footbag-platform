@@ -85,9 +85,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "media" {
 # Put/Delete/Head only; CloudFront-OAC is the sole read path for clients.
 
 # The document and its policy are ungated even though the OAC statement inside
-# is not. They used to carry the CloudFront gate themselves, which would now
-# mean the deny-plaintext statement below vanished on any tree with the
-# distribution turned off — the first-apply bootstrap state, exactly when a
+# is not. Gating them on CloudFront would make the deny-plaintext statement
+# below vanish on any tree with the distribution turned off — the first-apply bootstrap state, exactly when a
 # bucket is newest and least watched. The gate belongs on the one statement that
 # needs it.
 data "aws_iam_policy_document" "media_cloudfront_oac" {

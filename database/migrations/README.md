@@ -26,6 +26,6 @@ later release. A statement that means one of those says so on its own line or ju
 `-- CONTRACTION:` for a schema removal and `-- DATA CHANGE:` for one that touches rows; the marker
 is read per statement, so it never covers the next one.
 
-The rule and the reasoning behind it live in DATA_MODEL's `schema_migrations` entry and in
-`../../src/db/CLAUDE.md`. A test that needs to exercise the migrating deploy before go-live
+The ledger is described in DATA_MODEL's `schema_migrations` entry; the before-and-after-go-live
+rule and its reasoning live in `../../src/db/CLAUDE.md`. A test that needs to exercise the migrating deploy before go-live
 authors a throwaway migration outside this directory and hands it to the deploy by path.

@@ -238,7 +238,7 @@ describe('compact structural-fact block', () => {
     // Each classification carries a one-line beginner explanation.
     expect(block).toContain('structural-fact-note');
     expect(block).toContain('The hips pivot on a single dexterity');
-    // No row for a grouping the dictionary no longer offers a view of.
+    // No row for a grouping the dictionary does not offer a view of.
     expect(block).not.toMatch(/Movement system|Movement neighborhood/);
     expect(block).not.toContain('>observational<');
   });

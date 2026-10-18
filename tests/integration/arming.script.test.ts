@@ -101,7 +101,7 @@ describe('arming.sh — argument validation', () => {
   });
 
   it('refuses to run without a target, rather than choosing an environment', () => {
-    // This script used to default to production, so `--state dark` disarmed the
+    // Defect caught: a default of production, so `--state dark` disarms the
     // environment holding member data having been told no environment at all.
     const res = run(ARMING, ['--switch', 'payments', '--state', 'dark']);
     expect(res.exitCode).toBe(2);
@@ -149,8 +149,8 @@ describe('arming.sh — the plan states the safe order', () => {
 
   // Arming has its own precondition, and it is not the endpoint. An armed
   // production refuses to boot without the Stripe credentials, so arming ahead
-  // of activation takes the site down rather than turning payments on. This
-  // direction used to state that it had no precondition at all.
+  // of activation takes the site down rather than turning payments on, so this
+  // direction must not state that it has no precondition at all.
   it('arming states the credential precondition and does not claim there is none', () => {
     const res = dryRun(['--target', 'production', '--state', 'armed']);
     expect(res.exitCode).toBe(0);
@@ -952,10 +952,9 @@ describe('production-live-marker.sh — refusals and plan', () => {
  *
  * Synthetic mode returns before step 4, so no run of the script can reach this
  * block at all; it is sliced out and executed on its own against a stubbed
- * helper. The unknown-verdict case is the one that could not previously have
- * existed: this script used to warn and carry straight on to the deploy when it
- * could not resolve the address, so the run that knew least about it asked
- * nothing at all.
+ * helper. The unknown-verdict case is the one that matters most: a script that
+ * warns and carries straight on to the deploy when it cannot resolve the
+ * address lets the run that knows least about it ask nothing at all.
  *
  * The confirmation is read from stdin here rather than from the terminal device,
  * which is this script's own idiom and the reason the shared helper does not
@@ -1009,10 +1008,9 @@ describe('arming.sh — the operator-address check before the deploy', () => {
     expect(res.exitCode).toBe(1);
     expect(res.stdout).not.toMatch(/REACHED_THE_DEPLOY/);
     expect(res.stderr).toMatch(/Aborted before the deploy/);
-    // The instruction matters as much as the refusal. It used to warn against
-    // replacing the list by hand, which is how the standing ranges get lost; it
-    // now names the command that cannot replace it, which is a stronger form of
-    // the same protection.
+    // The instruction matters as much as the refusal. Replacing the list by
+    // hand is how the standing ranges get lost, so it names the command that
+    // cannot replace it.
     expect(res.stderr).toMatch(/authorize-operator-address\.sh/);
     expect(res.stderr).toMatch(/appends rather than replacing/);
   });

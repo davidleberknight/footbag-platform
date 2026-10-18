@@ -212,9 +212,9 @@ describe('destructive-deploy cutover guard', () => {
 
   it('treats a marker query that fails as unknown, not as a definite absent', () => {
     // 'unknown' being distinct from 'absent' is the whole design of the marker
-    // block, and the read used to defeat it: it discarded the query's exit
-    // status, so anything that stopped the read succeeding became a definite
-    // "no marker on this host".
+    // block, and a read that discards the query's exit status defeats it:
+    // anything that stops the read succeeding becomes a definite "no marker
+    // on this host".
     //
     // The readability probe cannot cover this. It asks whether the file is a
     // readable SQLite database, which is satisfied by a database with an older

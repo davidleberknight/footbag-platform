@@ -450,19 +450,14 @@ if [[ -t 0 ]]; then
 fi
 
 # -----------------------------------------------------------------------------
-# The per-axis prompt helper that lived here has been removed. It had no caller:
-# the mode flags decide each axis directly, so nothing asked. Leaving it in place
-# meant the usage text advertised a -y flag that changed nothing, and the helper
-# itself used the `[[ -r /dev/tty ]]` probe that deploy-migrate.sh documents as
-# unreliable -- it tests the device node's permissions, which pass in a process
-# with no controlling terminal, so it reports a terminal that is not there.
+# There is no per-axis prompt here: the mode flags decide each axis directly,
+# so nothing asks.
 #
-# The destructive confirmation that does remain is read before this file runs at
-# all: the root entry point stops every production deploy, whatever its mode, and
-# requires a word typed at the terminal, refusing outright when no terminal is
-# attached. It is deliberately not answerable by a flag or by an environment
-# variable. Naming this file as the home of that guard, which an earlier version of
-# this comment did, sends a reader looking for it in the wrong script.
+# The destructive confirmation is read before this file runs at all: the root
+# entry point stops every production deploy, whatever its mode, and requires a
+# word typed at the terminal, refusing outright when no terminal is attached.
+# It is deliberately not answerable by a flag or by an environment variable,
+# and this file is not the home of that guard.
 # -----------------------------------------------------------------------------
 
 # -----------------------------------------------------------------------------

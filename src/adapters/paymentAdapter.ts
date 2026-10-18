@@ -115,13 +115,12 @@ export interface StripePaymentIntentSummary {
    * originate, which at this provider means a subscription cycle's own
    * settlement intent or an object created directly in the provider's console.
    *
-   * This is the discriminator the reconciliation reverse pass uses, and it
-   * replaces an earlier read of an `invoice` field on the intent. That field
-   * does not exist on PaymentIntent at the pinned API version, so the read was
-   * always undefined and every renewal would have been reported as money the
-   * provider settled with no local record, nightly and unresolvably. The
-   * webhook handlers already treat absent platform metadata as "not ours";
-   * reconciliation now uses the same rule.
+   * This is the discriminator the reconciliation reverse pass uses. An
+   * `invoice` field on the intent cannot serve: it does not exist on
+   * PaymentIntent at the pinned API version, so the read would always be
+   * undefined and every renewal would be reported as money the provider
+   * settled with no local record, nightly and unresolvably. The webhook
+   * handlers treat absent platform metadata as "not ours" by the same rule.
    */
   platformPaymentId: string | null;
   /**

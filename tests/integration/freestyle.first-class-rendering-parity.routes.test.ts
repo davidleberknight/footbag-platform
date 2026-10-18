@@ -20,8 +20,8 @@
  * 1) Tautological-chain suppression. The freestyleSymbolicEquivalences
  *    registry holds 28 chain entries whose `readings` field is the
  *    canonical name in lowercase form (paradox-mirage → "paradox
- *    mirage"). The shaper now filters these out so the ≡ chain row
- *    no longer renders an information-free line on a card titled with
+ *    mirage"). The shaper filters these out so the ≡ chain row
+ *    does not render an information-free line on a card titled with
  *    the same text.
  *
  * 2) Honest incomplete-state for first-class slugs missing op-notation.
@@ -297,7 +297,7 @@ describe('First-class rendering parity — osis golden', () => {
 });
 
 describe('First-class rendering parity — tautological-chain suppression', () => {
-  it('paradox-mirage no longer renders a tautological ≡ chain reading', async () => {
+  it('paradox-mirage does not render a tautological ≡ chain reading', async () => {
     const res = await page('/freestyle/tricks?view=add');
     const card = cardFor('paradox_mirage', res.text);
     // The chain reading "paradox mirage" must NOT appear inside the
@@ -308,13 +308,13 @@ describe('First-class rendering parity — tautological-chain suppression', () =
     );
   });
 
-  it('symposium-mirage no longer renders a tautological ≡ chain reading', async () => {
+  it('symposium-mirage does not render a tautological ≡ chain reading', async () => {
     const res = await page('/freestyle/tricks?view=add');
     const card = cardFor('symposium_mirage', res.text);
     expect(card).not.toMatch(/data-token-slug="symposium"[\s\S]+data-token-slug="mirage"/);
   });
 
-  it('atomic-butterfly no longer renders a tautological ≡ chain reading', async () => {
+  it('atomic-butterfly does not render a tautological ≡ chain reading', async () => {
     const res = await page('/freestyle/tricks?view=add');
     const card = cardFor('atomic_butterfly', res.text);
     expect(card).not.toMatch(/data-token-slug="atomic"[\s\S]+data-token-slug="butterfly"/);
@@ -415,7 +415,7 @@ describe('First-class cohort expansion — Tier 1 atom parity', () => {
   // CORE_TRICK_SPEC.operationalNotation (curator-authored content
   // module) — same shape as osis. The 'OPERATIONAL:' label only
   // fires when opNotationRaw is empty AND the atomic-chain fallback
-  // supplies the chain (a path no longer reached for atoms with
+  // supplies the chain (a path not reached for atoms with
   // CORE_TRICK_SPEC entries).
   // The `= N ADD` terminator is not rendered in ADD breakdowns
   // (hero/registry ADD chip is the authoritative total).

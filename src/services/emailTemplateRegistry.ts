@@ -118,7 +118,6 @@ export const TEMPLATE_VARIANTS = {
   club_membership_leader_join:     v('confidential', ['leaderName', 'memberName', 'clubName']),
   club_membership_leader_leave:    v('confidential', ['leaderName', 'memberName', 'clubName']),
   club_volunteer_leadership:       v('confidential', ['leaderName', 'joinerName', 'clubName']),
-  club_coleader_invite:            v('confidential', ['leaderName', 'inviteeName', 'clubName']),
   club_leaderless_contact:         v('confidential', ['memberName', 'clubName']),
   contact_request_resolution:      v('confidential', ['memberName', 'displayDecision', 'note']),
   media_moderation_decision:       v('confidential', ['memberName', 'displayDecision', 'note']),
@@ -347,10 +346,6 @@ const SHAPERS = {
   club_volunteer_leadership: (p: { leaderName: string; joinerName: string; clubName: string }): ShapedEmail => ({
     variant: 'club_volunteer_leadership',
     merge: { leaderName: p.leaderName, joinerName: p.joinerName, clubName: p.clubName },
-  }),
-  club_coleader_invite: (p: { leaderName: string; inviteeName: string; clubName: string }): ShapedEmail => ({
-    variant: 'club_coleader_invite',
-    merge: { leaderName: p.leaderName, inviteeName: p.inviteeName, clubName: p.clubName },
   }),
   club_leaderless_contact: (p: { memberName: string; clubName: string }): ShapedEmail => ({
     variant: 'club_leaderless_contact',

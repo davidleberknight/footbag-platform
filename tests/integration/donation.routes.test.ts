@@ -452,9 +452,9 @@ describe('POST /members/:memberKey/recurring-donations/:stripeSubscriptionId/can
 });
 
 // The recurring flow's two page surfaces. Both resolve state by checkout-session
-// id, which a recurring checkout never writes, so both used to answer 404 and
-// neither had any coverage: the earlier route tests asserted only that the POST
-// redirected towards checkout, never that the destination rendered.
+// id, which a recurring checkout never writes. Defect caught: both answering 404
+// for a recurring checkout, which a test asserting only that the POST redirects
+// towards checkout never sees, because it never renders the destination.
 describe('the recurring donation checkout and confirmation pages', () => {
   async function startRecurringCheckout(memberId: string): Promise<{
     sessionId: string;

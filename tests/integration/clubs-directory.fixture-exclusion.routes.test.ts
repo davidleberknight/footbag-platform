@@ -74,9 +74,9 @@ describe('public club directory excludes test fixtures', () => {
 
   it('the country page lists exactly its two real clubs: no fixture reaches a row', async () => {
     // Five USA clubs are seeded and three are fixtures. Counted from the rendered
-    // rows rather than from a displayed tally, because the pages no longer show
-    // one: a club total counts every recorded row whether or not anyone has
-    // confirmed the club exists, so it read as the size of the active scene.
+    // rows rather than from a displayed tally, because the pages show none: a
+    // club total counts every recorded row whether or not anyone has confirmed
+    // the club exists, so it would read as the size of the active scene.
     // What a fixture must not reach is the listing itself.
     const res = await request(createApp()).get('/clubs/usa');
     expect(res.status).toBe(200);

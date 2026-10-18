@@ -153,8 +153,8 @@ beforeAll(async () => {
   });
 
   // Corpus-audit fixtures. Prose rich in capitalized place / event names but with
-  // no roster label or contact must stay public (the old name-pair proxy withheld
-  // these by mistake).
+  // no roster label or contact must stay public (a name-pair heuristic would
+  // withhold these by mistake).
   insertClub(db, {
     id:   'club-placenames-001',
     name: 'Placenames Club',

@@ -25,12 +25,10 @@
 # lifecycle sits on a trap. There is nothing to create beforehand and nothing to
 # shred afterwards.
 #
-# This used to begin with the operator running `aws iam create-access-key` into a
-# temp file by hand, vaulting it, running this script, and shredding the file;
-# and it ended with three more hand-typed steps to retire the predecessor, which
-# is the half a rotation done by memory never reaches. Both ends are now the
-# script's. The keys-file form below still works, because a key issued in the
-# console has to reach a host somehow, but it is no longer the ordinary path.
+# Both ends of a rotation are the script's: minting the new key, and retiring
+# the predecessor, which is the half a rotation done by memory never reaches.
+# The keys-file form below exists because a key issued in the console has to
+# reach a host somehow, but it is not the ordinary path.
 #
 # Prerequisites:
 #   - terraform applied for the target environment (creates the source-profile

@@ -1113,7 +1113,7 @@ export const mediaService = {
     return runSqliteRead('mediaService.getMediaHubPage', () => {
       const galleries = media.listAllNamedGalleries.all() as NamedGalleryWithOwnerRow[];
 
-      // The hub no longer lists each gallery inline: member-owned named
+      // The hub does not list each gallery inline: member-owned named
       // galleries live behind the Member galleries card and its list page, and
       // FH-owned galleries are reached through the curated collection cards.
       // Only two facts drive the cards here: whether any member gallery has at

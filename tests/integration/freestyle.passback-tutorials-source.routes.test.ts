@@ -2,11 +2,10 @@
  * A curated clip tagged to a trick classifies as tutorial coverage because the
  * clip says so, through its own #tutorial tag.
  *
- * It used to classify because its source id was registered in a tier map, which
- * meant an unregistered source fell to the default and the same clip read
- * differently on the two surfaces that consulted it. The source is still carried
- * here, and still gets its friendly label, but it no longer decides what the
- * clip is for.
+ * Classifying by a source id registered in a tier map would let an unregistered
+ * source fall to the default, so the same clip would read differently on the two
+ * surfaces that consult it. The source is still carried here, and still gets its
+ * friendly label, but it does not decide what the clip is for.
  *
  * The friendly coverage text is rendered; the raw source key never appears as
  * visible browse copy.
@@ -36,8 +35,8 @@ beforeAll(async () => {
     operational_notation: 'SET > OP IN [DEX] > SAME TOE [DEL]',
   });
   // A PassBack Tutorials clip tagged to the trick. The clip says it teaches,
-  // through its own #tutorial tag: classification stopped being a property of
-  // the source id, so the source alone no longer decides how this reads.
+  // through its own #tutorial tag: classification is not a property of the
+  // source id, so the source alone does not decide how this reads.
   insertTtLesson(db, {
     uploader_member_id: uploader, ttNumber: 1, trickSlug: 'pbt_trick',
     videoId: 'pbtvid1', source_id: 'passback_tutorials',

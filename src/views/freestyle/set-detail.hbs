@@ -7,11 +7,9 @@
   navigation, and source / audit provenance last.
 --}}
 {{! The shared page hero and page frame, arranged as the trick detail page
-    arranges them, since this page mirrors that one's information order. It
-    previously opened straight into a hand-rolled 760px frame with no hero and
-    no breadcrumb, so arriving here from the encyclopedia dropped the reader
-    onto a narrower page with no way back up. The breadcrumbs were already in
-    the view model; only the template never rendered them. }}
+    arranges them, since this page mirrors that one's information order. The
+    hero renders the view model's breadcrumbs, so a reader arriving from the
+    encyclopedia lands on a full-width page with a way back up. }}
 <div class="hero hero-sm">
   <div>
     {{#if navigation.breadcrumbs}}

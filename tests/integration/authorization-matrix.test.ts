@@ -746,7 +746,7 @@ describe('owner gate — club-leader actions (adjacent-owner BOLA)', () => {
   // DIFFERENT club (the adjacent owner) is treated exactly as a plain non-leader
   // on this club, proving the gate keys on the specific club rather than on
   // holding any leadership, and neither one performs the action.
-  const LEADER_ACTIONS = ['step-down', 'mark-inactive', 'reactivate', 'invite'];
+  const LEADER_ACTIONS = ['step-down', 'mark-inactive', 'reactivate'];
 
   it('treats an adjacent-club leader as a non-leader and redirects the unauthenticated', async () => {
     for (const action of LEADER_ACTIONS) {

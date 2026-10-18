@@ -327,8 +327,8 @@ put_ssm_secret() {
   umask 077
   # KEY_TMP is deliberately global. A trap cannot see a function-local, and the
   # window that matters is between creating this file and shredding it: an
-  # interrupt there used to leave the plaintext secret in /tmp, because the only
-  # trap in this script named a variable nothing ever assigned. The trap that
+  # interrupt there leaves the plaintext secret in /tmp unless a trap names this
+  # very variable and it has been assigned. The trap that
   # covers it is installed immediately below this definition, and the later
   # cleanup_remote trap that replaces it shreds the same variable, so the window
   # stays covered across both.
@@ -560,12 +560,13 @@ if [[ "$MODE" == "activate" ]]; then
   fi
 fi
 
-# The Stripe key is NOT written here. It used to be, and that put the one
-# irreversible write in this script ahead of three refusals that can still abort
-# it: the webhook-secret shape check below, the SECRETS_ADAPTER check, and the
-# refusal to replace a signing secret already in service. An abort at any of
-# them left the key parameter already replaced with no way back to the previous
-# value. Both secrets are now written together, after every check has passed.
+# The Stripe key is NOT written here. Replacing it is the one irreversible write
+# in this script, and three refusals can still abort the run after this point:
+# the webhook-secret shape check below, the SECRETS_ADAPTER check, and the
+# refusal to replace a signing secret already in service. Written here, an abort
+# at any of them would leave the key parameter replaced with no way back to the
+# previous value. So both secrets are written together, after every check has
+# passed.
 
 # Step 2: the endpoint and its signing secret. Activation creates the endpoint;
 # rotation rolls its signing secret. Completion supplies no secret and skips this.

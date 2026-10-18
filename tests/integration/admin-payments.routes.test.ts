@@ -224,9 +224,9 @@ describe('GET /admin/payments/:paymentId', () => {
   });
 
   it('resolves by payment id, not by a provider reference that happens to collide', async () => {
-    // The detail page used to reuse the multi-column reference filter with a
-    // single-row limit, so a payment whose id matched another row's provider id
-    // resolved to the wrong row and answered 404 for a payment that exists.
+    // Defect caught: the detail page reusing the multi-column reference filter
+    // with a single-row limit, so a payment whose id matches another row's
+    // provider id resolves to the wrong row and answers 404 for one that exists.
     const db = openDb();
     try {
       insertPayment(db, {

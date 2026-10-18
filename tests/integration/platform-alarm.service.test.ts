@@ -291,8 +291,8 @@ describe('payloads the service declines to act on', () => {
   });
 
   it('records one subscription confirmation however often it is redelivered', async () => {
-    // The confirmation path used to write an audit row per delivery with no
-    // idempotency at all, so anyone able to reach the endpoint could flood a
+    // Defect caught: a confirmation path that writes an audit row per delivery
+    // with no idempotency lets anyone able to reach the endpoint flood a
     // ledger that is append-only by trigger and has no sweep.
     const confirmation = JSON.stringify({
       Type: 'SubscriptionConfirmation',

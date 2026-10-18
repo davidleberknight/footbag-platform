@@ -82,8 +82,8 @@ export type CorrectionOutcome =
   | 'profile_unchanged';
 
 // Each outcome carries its tone. A correction that landed and a correction that
-// found nothing to change are different events, and the page used to paint both
-// of them, plus the two refusals, in the same warning amber.
+// found nothing to change are different events, and painting both of them, plus
+// the two refusals, in one warning amber would hide which one happened.
 const OUTCOME_NOTICE: Record<CorrectionOutcome, [OutcomeTone, string]> = {
   name_corrected:   ['ok',   'The name has been corrected, and the change is recorded in the audit log.'],
   name_unchanged:   ['info', 'Those are the names the record already held, so nothing changed.'],

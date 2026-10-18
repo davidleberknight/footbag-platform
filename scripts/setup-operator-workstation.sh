@@ -6,17 +6,17 @@
 #
 # WHY THIS EXISTS.
 #
-# Everything below used to be hand-typed out of an onboarding card: seven tools
-# checked one at a time, gitignored secrets files created with the right umask, an
-# SSH stanza with five fields, a credential file whose mode matters, and a
-# verification block of three commands whose output the operator interpreted.
+# Everything below is a set of steps an operator would otherwise hand-type: seven
+# tools checked one at a time, gitignored secrets files created with the right
+# umask, an SSH stanza with five fields, a credential file whose mode matters,
+# and a verification block of three commands whose output needs interpreting.
 # None of it is hard and all of it is the kind of step that is skipped under
 # pressure or half-done, and every failure surfaces later as something that
 # reads like an outage: a refused connection that looks like a firewall fault, a
 # credential error that is really a missing stanza, a deploy that stops at
 # terraform saying a variable is undeclared when the real answer is a symlink.
 #
-# So the card becomes: run this, fix what it names, run it again.
+# So the setup is: run this, fix what it names, run it again.
 #
 # WHAT IT REFUSES TO DO.
 #
@@ -708,11 +708,11 @@ fi
 # in a well-formed file passes every check above and is then discovered mid-deploy,
 # after it has already been piped to the host.
 #
-# This also removes the last hand-typed `ssh` from the operator's path. The card
-# used to ask for `ssh <alias> "uptime"` and `ssh <alias> "sudo -v"` by hand, which
-# is a runbook doing a script's job: a hand-typed ssh does not carry the pinned
-# host-key file, so the very command an operator ran to check their access was the
-# one connection in the whole path with nothing verifying the host it reached.
+# This also keeps hand-typed `ssh` out of the operator's path. Asking for
+# `ssh <alias> "uptime"` and `ssh <alias> "sudo -v"` by hand would be a runbook
+# doing a script's job: a hand-typed ssh does not carry the pinned host-key file,
+# so the very command an operator ran to check their access would be the one
+# connection in the whole path with nothing verifying the host it reached.
 # Here it goes through the same pin the deploy uses.
 step "Login and sudo on ${ALIAS}"
 if [[ -f "$CRED_FILE" ]] && command -v ssh >/dev/null 2>&1 && require_pinned_known_hosts 2>/dev/null; then

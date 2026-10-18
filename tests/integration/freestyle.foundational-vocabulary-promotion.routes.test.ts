@@ -263,7 +263,7 @@ describe('Foundational-vocabulary promotion — canonical browse view (/freestyl
   });
 });
 
-describe('Foundational-vocabulary promotion — Emerging Vocabulary no longer counts the promoted slugs', () => {
+describe('Foundational-vocabulary promotion — Emerging Vocabulary does not count the promoted slugs', () => {
   it('TRACKED_DOCUMENTED_TOTAL is bounded after promoted slugs moved to canonical-published state', async () => {
     // The total fluctuates: promotions drop it; corpus expansions
     // raise it (the reconciliation audit added ~1700 names). The

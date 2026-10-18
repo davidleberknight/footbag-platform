@@ -1143,10 +1143,9 @@ export function findCanonicalSetBySlug(slug: string): CanonicalSet | null {
 }
 
 /**
- * Set-to-set canonical folds. Empty under current doctrine: the former merge
- * folds (illusioning to atomic, furious to barraging) are removed, because those
- * pairs are no longer treated as one set. Furious is now its own set entry, and
- * Illusioning, Miraging, and Barraging are not sets. A media set-tag therefore
+ * Set-to-set canonical folds. Empty under current doctrine: illusioning and
+ * atomic, and furious and barraging, are not treated as one set. Furious is its
+ * own set entry, and Illusioning, Miraging, and Barraging are not sets. A media set-tag therefore
  * canonicalizes to itself, never folding one set name into another.
  */
 const SET_SLUG_ALIASES: ReadonlyMap<string, string> = new Map();

@@ -1224,7 +1224,7 @@ Success Criteria:
 
 - Leaving sets `member_club_affiliations.is_current=0` and `is_primary=0` for the member-club pair.
 - A member who holds any current club affiliation holds exactly one primary. If leaving the primary club leaves exactly one current affiliation, that affiliation becomes primary in the same transaction. A member holding two current affiliations makes either one primary through the Make Primary control beside that club, never automatically.
-- A member who is the club's only co-leader is warned before leaving ("You are the only co-leader; the club will have no member-visible contact until someone steps up") and may invite a successor first via `CL_Manage_CoLeaders` or proceed. Leaving as the last co-leader leaves the club leaderless, a tolerated state per §5.1, not blocked.
+- A member who is the club's only co-leader is warned before leaving ("You are the only co-leader; the club will have no member-visible contact until someone steps up") and may proceed. Leaving as the last co-leader leaves the club leaderless, a tolerated state per §5.1, not blocked.
 - Leaving a club where the member also held a `club_leaders` row removes that co-leader row in the same transaction.
 - Leaving sends an email notification to the leaving member and to all current co-leaders.
 - The leave action is audit-logged with actor identity, club id, before and after affiliation state, and timestamp.
@@ -2539,7 +2539,7 @@ Club leadership is a flat set of equal co-leaders (up to 5 per club), each with 
 
 ## 5.1 Club Lifecycle
 
-Club leadership rule: a club should have at least one co-leader, but a club with none is still a valid, persisting entity: it keeps its roster, stays joinable, and stays listed. A club is reachable through its co-leaders' member-visible contact emails; there is no separate club-level contact field, so a club with no co-leaders simply has no platform-surfaced contact and no platform-side editor until a member steps up. Such clubs surface on a single low-priority "could use a leader" admin list (an opportunity, not a remediation obligation, with no deadline and no escalation); a current member can volunteer to co-lead (see V_Volunteer_To_CoLead), an existing co-leader can invite one, or an admin can assign one. Governance groups are different: a committee with zero owners is genuinely adrift (see §3.10).
+Club leadership rule: a club should have at least one co-leader, but a club with none is still a valid, persisting entity: it keeps its roster, stays joinable, and stays listed. A club is reachable through its co-leaders' member-visible contact emails; there is no separate club-level contact field, so a club with no co-leaders simply has no platform-surfaced contact and no platform-side editor until a member steps up. Such clubs surface on a single low-priority "could use a leader" admin list (an opportunity, not a remediation obligation, with no deadline and no escalation); a current member can volunteer to co-lead (see V_Volunteer_To_CoLead), or an admin can assign one. Governance groups are different: a committee with zero owners is genuinely adrift (see §3.10).
 
 ### M_Create_Club
 
@@ -2596,20 +2596,16 @@ Success Criteria:
 
 ### CL_Manage_CoLeaders
 
-Access: Any co-leader can invite a member to co-lead, view the current co-leaders, and step down. Co-leaders are equal; a co-leader cannot remove or modify another co-leader. Removing another co-leader is an admin action (see A_Reassign_Club_Leader).
+Access: Any co-leader can view the current co-leaders and step down. A member becomes a co-leader by volunteering (see V_Volunteer_To_CoLead) or by administrator assignment (see A_Reassign_Club_Leader). Co-leaders are equal; a co-leader cannot remove or modify another co-leader. Removing another co-leader is an admin action (see A_Reassign_Club_Leader).
 
-Story: As a co-leader, I can invite additional co-leaders, see the current co-leaders, and step down, so that I help maintain my club's leadership team.
+Story: As a co-leader, I can see the current co-leaders and step down, so that I help maintain my club's leadership team.
 
 Success Criteria:
 
-- Any co-leader can invite a member to co-lead, up to a maximum of 5 co-leaders per club. Co-leadership requires Tier 1+ benefits.
-- An invited member must accept before the co-leader row is written; acceptance is the member's consent to having their contact email shown to authenticated members. An invitee who already co-leads another club cannot accept (a member co-leads at most one club).
-- The invite email states club name and responsibilities and directs the invitee to the standing "volunteer to co-lead" affordance on the club page; accepting is the invitee using it. The invitee must already be a current member of the club (a non-member joins first), and acceptance is their consent to contact-email exposure.
-- Upon acceptance, the new co-leader gains club-editing permissions, and their contact email becomes visible to authenticated members.
 - Any co-leader can view the list of current co-leaders by name.
 - A co-leader can step down at any time via the member dashboard. Stepping down removes only the co-leader role, not club membership; if they were the last co-leader, the club becomes leaderless (a tolerated state per §5.1).
 - A co-leader cannot remove or modify another co-leader; that is an admin action (A_Reassign_Club_Leader).
-- All co-leader actions (invite, accept, step down, admin removal) are audit-logged, and the acting co-leader sees a clear success message.
+- All co-leader actions (step down, admin removal) are audit-logged, and the acting co-leader sees a clear success message.
 - All co-leaders are displayed on the club detail page (names only on the public page). Each co-leader's contact email is visible to authenticated members; holding the co-leader role is the consent and the email cannot be hidden while the role is held. A co-leader's WhatsApp shows to authenticated members only if that co-leader opts in. Provisional (unclaimed) bootstrap entries, and the mirror-inferred affiliation entries shown as provisional leaders for clubs with no bootstrap rows, never show contact information.
 - After any co-leader change, a club with at least one co-leader is reachable through that co-leader's contact; a club with zero co-leaders is leaderless (tolerated per §5.1) and surfaces on the single low-priority "could use a leader" admin list under the "Needs Leader" label.
 
@@ -2617,7 +2613,7 @@ Success Criteria:
 
 Access: A current member of a club with Tier 1 benefits (Tier 1+ or Active Player), who does not already co-lead another club, can volunteer to co-lead it.
 
-Story: As a current member of a club, I can volunteer to become a co-leader so that a club without one gains a co-leader and any club can grow its leadership without waiting for an invite.
+Story: As a current member of a club, I can volunteer to become a co-leader so that a club without one gains a co-leader and any club can grow its leadership.
 
 Success Criteria:
 
@@ -2879,7 +2875,7 @@ Success Criteria:
 
 - Admin can add a co-leader from the member base (audit-logged); the added member becomes a current affiliate if not already.
 - Admin can remove a co-leader (returning them to ordinary club member), or remove their affiliation entirely (audit-logged with mandatory reason text). Admin removal is the only way to remove a co-leader other than the co-leader stepping down themselves.
-- A member co-leads at most one club. Changing which club a member co-leads is the member's own action: they step down at their current club, then volunteer or accept an invitation at the other.
+- A member co-leads at most one club. Changing which club a member co-leads is the member's own action: they step down at their current club, then volunteer at the other.
 - Admin can override the 5-co-leader cap when adding a co-leader, with an explicit "cap-override" reason recorded in the audit row.
 - Admin can make an affiliated-only member (one whose wizard claim was capped out) a co-leader at any time.
 - Clubs with zero co-leaders are flagged "Needs Leader" and surface on the low-priority admin opportunity list (§5.1).

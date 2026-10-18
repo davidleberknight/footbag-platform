@@ -376,7 +376,7 @@ fi
 #    webhook secret; the Stripe key itself lives in SSM).
 #
 #    The gate reads a deploy env file, which exists on a host and nowhere else, so
-#    on a workstation it used to fail for a reason that had nothing to do with the
+#    on a workstation it would fail for a reason that had nothing to do with the
 #    environment being certified. Pointing it at a local stand-in is worse than
 #    failing: it certifies a fixture under the target's heading. With a target
 #    named, fetch the host's own file over the same wire every other privileged

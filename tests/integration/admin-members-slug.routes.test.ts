@@ -80,7 +80,7 @@ beforeAll(async () => {
     given_names: 'Percy', family_name: 'Plain', login_email: 'sl-plain@example.com',
   });
   // A member whose family name has no Latin form, carrying the unreadable
-  // address that used to be the only one such a member could ever hold.
+  // generated address that the slug editor exists to replace.
   insertMember(conn, {
     id: NO_LATIN_ID, slug: 'member_9f8e7d6c', display_name: '世界 你好', real_name: '世界 你好',
     given_names: '世界', family_name: '你好', login_email: 'sl-no-latin@example.com',

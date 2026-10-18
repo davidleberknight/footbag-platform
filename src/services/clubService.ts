@@ -15,7 +15,7 @@
  *     (admin override or wizard confirmation; ClubCleanupService and
  *     MemberOnboardingService delegate here)
  *   - Co-leader management: a flat, equal set of co-leaders (creator is the
- *     first; self-volunteer and invite-accept add more; step-down and leave
+ *     first; self-volunteer adds more; step-down and leave
  *     remove one's own)
  *   - Roster management (self-service join, leave, make primary)
  *
@@ -129,8 +129,7 @@
  * Side effects:
  *   - audit_entries append
  *   - outbox_emails enqueue (join/leave notifications to the member and
- *     current club leaders; co-leader invitations to a nominated member;
- *     co-leader-volunteered notifications to existing leaders; an
+ *     current club leaders; co-leader-volunteered notifications to existing leaders; an
  *     administrator's correction of a club's content or hashtag to every
  *     current co-leader, since they are a flat equal set with no first among
  *     them; best-effort after the commit)
@@ -142,7 +141,6 @@ import {
   MemberCountRow,
   account,
   auditEntries,
-  outbox,
   clubs,
   clubBootstrapLeaders,
   clubInsightNotes,
@@ -597,12 +595,9 @@ export interface PublicClubDetail extends PublicClubSummary {
   // own club. Without this the volunteer control is simply absent and a guest
   // member is told nothing.
   volunteerBlockedNote: string | null;
-  // Whether the leadership block renders at all: the volunteer control, the
-  // invite control, or the note explaining why neither is offered.
+  // Whether the leadership block renders at all: the volunteer control, or
+  // the note explaining why it is not offered.
   showLeadershipBlock: boolean;
-  // Invite-a-member-to-co-lead control: shown to a viewer who already co-leads
-  // this club. The invite is an email pointing at the volunteer affordance.
-  inviteHref: string | null;
   contentEditHref: string | null;
   // The co-leader edit form's field values and per-field errors. Shaped only
   // for a co-leader of this club, and read unmasked: the public read hides an
@@ -862,7 +857,6 @@ function toPublicClubDetail(
     volunteerHref: null,
     volunteerBlockedNote: null,
     showLeadershipBlock: false,
-    inviteHref: null,
     contentEditHref: null,
     editForm: null,
     joinHref: null,
@@ -1573,15 +1567,13 @@ export class ClubService {
           club.joinHref = `/clubs/${encodeURIComponent(clubKey)}/join`;
         }
 
-        // Co-leaders edit club content directly and can invite a member to
-        // co-lead; other eligible members reach leadership via the volunteer
-        // affordance below.
+        // Co-leaders edit club content directly; other eligible members reach
+        // leadership via the volunteer affordance below.
         const viewerLeadership = clubLeaders.memberInClubLeadership.get(row.club_id, viewerMemberId) as
           | { id: string } | undefined;
         club.viewerIsLeader = viewerLeadership != null;
         if (club.viewerIsLeader) {
           club.contentEditHref = `/clubs/${encodeURIComponent(clubKey)}/content/edit`;
-          club.inviteHref = `/clubs/${encodeURIComponent(clubKey)}/invite`;
           club.editForm = buildClubEditForm(row.club_id, opts);
         }
 
@@ -1608,7 +1600,7 @@ export class ClubService {
         }
 
         club.showLeadershipBlock =
-          club.viewerCanVolunteer || club.viewerIsLeader || club.volunteerBlockedNote != null;
+          club.viewerCanVolunteer || club.volunteerBlockedNote != null;
       }
 
       return {
@@ -3195,108 +3187,6 @@ export class ClubService {
     }
 
     return { branch: 'volunteered', clubLeaderId };
-  }
-
-  /**
-   * A co-leader invites a member to co-lead. The invite is an email, not a
-   * stored handshake: no pending row is written. The member accepts by logging
-   * in and using the standing volunteer affordance (volunteerToCoLeadClub),
-   * which is itself the consent and the one-club-cap enforcement point. The
-   * email carries no link (anti-phishing); it gives precise log-in-and-navigate
-   * instructions. The send is audit-logged.
-   */
-  inviteToCoLeadClub(
-    actorMemberId: string,
-    clubId: string,
-    inviteeKey: string,
-  ): {
-    branch: 'sent' | 'own_repeat' | 'already_invited' | 'not_leader' | 'member_not_found' | 'not_member'
-      | 'already_coleader' | 'no_email';
-  } {
-    const leadership = clubLeaders.memberInClubLeadership.get(clubId, actorMemberId) as
-      | { id: string } | undefined;
-    if (!leadership) {
-      return { branch: 'not_leader' };
-    }
-
-    const key = inviteeKey.trim();
-    const invitee = clubLeaders.findMemberByKeyForAdmin.get(key, key) as
-      | { id: string; display_name: string; slug: string } | undefined;
-    if (!invitee) {
-      return { branch: 'member_not_found' };
-    }
-
-    // The invitee must already be a current member of the club; a non-member
-    // joins first. Mirrors the membership gate on the volunteer path.
-    const inviteeAffiliation = memberClubAffiliations.findCurrentByMemberAndClub.get(invitee.id, clubId) as
-      | { id: string } | undefined;
-    if (!inviteeAffiliation) {
-      return { branch: 'not_member' };
-    }
-
-    const already = clubLeaders.memberInClubLeadership.get(clubId, invitee.id) as
-      | { id: string } | undefined;
-    if (already) {
-      return { branch: 'already_coleader' };
-    }
-
-    const club = clubs.findById.get(clubId) as { club_id: string; name: string } | undefined;
-    if (!club) {
-      return { branch: 'not_leader' };
-    }
-
-    const contact = account.findContactInfoById.get(invitee.id) as
-      | { login_email: string | null } | undefined;
-    if (!contact?.login_email) {
-      return { branch: 'no_email' };
-    }
-
-    // The ping reads as one co-leader asking another, so it carries the
-    // inviter's name; an unreadable actor row falls back to the role.
-    const actor = account.findContactInfoById.get(actorMemberId) as
-      | { display_name: string } | undefined;
-
-    // One invitation per member per club: the key carries no time, so an
-    // invitation already queued is the result a repeat asked for. Nothing is
-    // sent or recorded again; the inviter's own earlier invitation repeats its
-    // message, and another co-leader's reads as already done.
-    const idempotencyKey = `club-coleader-invite:${clubId}:${invitee.id}`;
-    if (outbox.findByIdempotencyKey.get(idempotencyKey)) {
-      const own = findOwnLatestAudit(actorMemberId, 'club.coleader_invited', 'member', invitee.id);
-      const ownClub = own ? (JSON.parse(own.metadata_json) as { club_id?: string }).club_id : undefined;
-      return { branch: ownClub === clubId ? 'own_repeat' : 'already_invited' };
-    }
-
-    try {
-      emailService.send({
-        template: 'club_coleader_invite',
-        params: {
-          leaderName: actor?.display_name ?? 'A co-leader',
-          inviteeName: invitee.display_name,
-          clubName: club.name,
-        },
-        recipientEmail: contact.login_email,
-        recipientMemberId: invitee.id,
-        idempotencyKey,
-      });
-    } catch (err) {
-      logger.warn('club co-leader invite enqueue failed', {
-        clubId,
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-
-    appendAuditEntry({
-      actionType: 'club.coleader_invited',
-      category:   'club_leadership',
-      actorType:  'member',
-      actorMemberId,
-      entityType: 'member',
-      entityId:   invitee.id,
-      metadata:   { club_id: clubId, club_name: club.name, invitee_member_id: invitee.id },
-    });
-
-    return { branch: 'sent' };
   }
 
   /**

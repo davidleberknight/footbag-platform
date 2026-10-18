@@ -162,14 +162,13 @@ describe('GET /admin/curator/galleries', () => {
     expect(res.status).toBe(403);
   });
 
-  // Regression: the controller used to call `getVideoTranscodingAdapter()`
-  // and `getImageProcessingAdapter()` eagerly inside `buildSvc()`. Both
-  // throw "INTERNAL_EVENT_SECRET not configured" at first resolution
-  // when the secret is unset. That made the gallery list 500 on dev
-  // environments without the secret (any route touching buildSvc, even
-  // read-only ones, blew up). The test fixture sets the secret so the
-  // failure mode was invisible to the suite — this regression spies on
-  // both factories so a re-introduction surfaces immediately.
+  // Defect caught: the controller resolving `getVideoTranscodingAdapter()`
+  // and `getImageProcessingAdapter()` eagerly while building its service.
+  // Both throw "INTERNAL_EVENT_SECRET not configured" at first resolution
+  // when the secret is unset, so every gallery route, read-only ones
+  // included, answers 500 on a dev environment without the secret. The
+  // test fixture sets the secret, which hides that failure, so this spies
+  // on both factories instead.
   it('does not invoke the video or image worker adapter on a read-only gallery list', async () => {
     const videoMod = await import('../../src/adapters/videoTranscodingAdapter');
     const imageMod = await import('../../src/adapters/imageProcessingAdapter');
@@ -348,10 +347,10 @@ describe('POST /admin/curator/galleries/:id/edit (validation)', () => {
   });
 
   it('FH-owned gallery: empty criteria input is rejected with 422 (galleries are author-defined)', async () => {
-    // FH-owned galleries are topic-defined: `#curated` is no longer auto-added,
+    // FH-owned galleries are topic-defined: `#curated` is not auto-added,
     // so an FH gallery, like a member gallery, must declare at least one
     // criteria tag. A curated collection lists `#curated` itself; a topic
-    // gallery lists its topic tag. Empty criteria can no longer be saved.
+    // gallery lists its topic tag. Empty criteria cannot be saved.
     const res = await request(createApp())
       .post(`/admin/curator/galleries/${GALLERY_B}/edit`)
       .set('Cookie', adminCookie())

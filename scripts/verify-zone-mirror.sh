@@ -237,14 +237,13 @@ CAPTURE_LOGICAL="$(capture_logical_lines)"
 # obsolete sender type are dropped, because Route 53 offers neither and each
 # sender record has a text twin that IS carried and IS compared.
 #
-# Case is NOT folded here, and that is a correction. It used to be folded over
-# every value, on the reasoning that DNS names are case-insensitive and the
-# capture carries the provider's upper-case spelling of the Google exchangers.
-# True of a name and false of a text value: the apex carries the Google
-# site-verification token, which is case-sensitive and is the proof of ownership
-# the Workspace recovery path rests on, and a signing key is base64. Folding
-# those would have certified a mirror that destroyed one. Folding is applied per
-# type below instead.
+# Case is NOT folded over every value here. DNS names are case-insensitive, and
+# the capture carries the provider's upper-case spelling of the Google
+# exchangers, but that is true of a name and false of a text value: the apex
+# carries the Google site-verification token, which is case-sensitive and is the
+# proof of ownership the Workspace recovery path rests on, and a signing key is
+# base64. Folding those would certify a mirror that destroyed one. Folding is
+# applied per type below instead.
 #
 # This parser understands ONE dialect: absolute name, explicit lifetime, explicit
 # class, type, value. That is what the committed captures carry. Rather than
@@ -287,10 +286,10 @@ CAPTURE_ROWS="$(
 )"
 
 # The apex is the owner of the start-of-authority record, which is what defines
-# it. It used to be taken from the first parsed row, which worked only because
-# this capture happens to lead with the apex nameserver set: a capture sorted
-# alphabetically would have made the first alias the apex, mis-scoping the
-# nameserver departure and sending the www check to a name that does not exist.
+# it. The first parsed row is not a substitute: this capture happens to lead
+# with the apex nameserver set, but a capture sorted alphabetically would make
+# the first alias the apex, mis-scoping the nameserver departure and sending the
+# www check to a name that does not exist.
 APEX="$(
   printf '%s\n' "$CAPTURE_LOGICAL" \
     | sed -E 's/[[:space:]]+/\t/g' \

@@ -2,16 +2,16 @@
  * scripts/set-host-env.sh — the rewrite contract, the refusals, and the single
  * definition of the proxy hop count.
  *
- * A real run stages /srv/footbag/env down from a host through an interactive
- * sudo and reads the snapshots bucket name out of Terraform state, neither of
+ * A real run stages /srv/footbag/env down from a host over ssh, with the sudo
+ * password read from stdin, and reads the snapshots bucket name out of
+ * Terraform state, neither of
  * which CI can do. The synthetic --env-file mode operates on a local file with
  * the bucket name supplied through BACKUP_S3_BUCKET_VALUE, reaching no host and
  * no AWS.
  *
  * The hop count is the reason this suite exists as much as the script is. Three
- * scripts have an opinion about the same host, and the value used to be written
- * out in two of them independently. The assertions below pin that there is now
- * one definition, that each script reads it, and that nothing reintroduces a
+ * scripts have an opinion about the same host. The assertions below pin that
+ * there is one definition, that each script reads it, and that nothing adds a
  * literal alongside it, because a disagreement between those copies would fail
  * nothing at runtime and would quietly coarsen rate limiting.
  */

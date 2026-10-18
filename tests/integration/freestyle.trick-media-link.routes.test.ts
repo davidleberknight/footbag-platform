@@ -109,7 +109,7 @@ describe('GET /freestyle/tricks/:slug — Media section links to the gallery', (
     // Links to the trick's full video gallery using the locked-context convention.
     expect(res.text).toContain('See All Videos for');
     expect(res.text).toContain('href="/media/browse?context&#x3D;ripwalk"');
-    // The trick page no longer embeds clips, an in-page filter, or players.
+    // The trick page embeds no clips, in-page filter, or players.
     expect(res.text).not.toContain('class="tag-filter-bar"');
     expect(res.text).not.toContain('Ripwalk Curated');
     expect(res.text).not.toContain('member-ripwalk-clip');

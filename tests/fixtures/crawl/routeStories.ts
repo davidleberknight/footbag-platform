@@ -26,7 +26,6 @@ export const ROUTE_STORIES: Readonly<Record<string, RouteStory>> = {
   'POST /clubs/:key/join': { stories: ['M_Join_Club'] },
   'POST /clubs/:key/leave': { stories: ['M_Leave_Club'] },
   'POST /clubs/:key/volunteer': { stories: ['V_Volunteer_To_CoLead'] },
-  'POST /clubs/:key/invite': { stories: ['CL_Manage_CoLeaders'] },
   'POST /clubs/:key/step-down': { stories: ['CL_Manage_CoLeaders'] },
   'POST /clubs/:key/mark-inactive': { stories: ['CL_Mark_Club_Inactive'] },
   'POST /clubs/:key/reactivate': { stories: ['CL_Mark_Club_Inactive'] },

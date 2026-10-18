@@ -173,8 +173,8 @@ export interface ComposeContent {
 
 /**
  * What each send outcome says on the compose page it returns to, and the tone
- * it takes. One field used to carry all three, so a send that went out and a
- * send that reached nobody read identically; the sender could not tell the
+ * it takes. One field cannot carry all three: a send that went out and a send
+ * that reached nobody would read identically, and the sender could not tell the
  * message left from the message that did not.
  */
 const COMPOSE_NOTICES: Record<string, [OutcomeTone, string]> = {

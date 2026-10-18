@@ -77,10 +77,10 @@ describe('the parse invalidation trigger covers every column the parser reads', 
     expect([...PARSE_INPUT_FIELDS]).not.toContain(IDENTITY_COLUMN);
   });
 
-  it('carries the rename that the short list let through', () => {
-    // Named on its own because it is the case that was live: the parser's
-    // primary input is the canonical name, and renaming a trick used to leave a
-    // decomposition of the previous name on the page.
+  it('carries the canonical name, so a rename invalidates the parse', () => {
+    // Named on its own because the parser's primary input is the canonical
+    // name. Defect caught: renaming a trick leaves a decomposition of the
+    // previous name on the page.
     expect([...PARSE_INPUT_FIELDS]).toContain('canonical_name');
   });
 });

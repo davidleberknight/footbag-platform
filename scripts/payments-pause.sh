@@ -26,10 +26,10 @@
 #
 # The application has no write path to this switch and none is planned. Halting
 # live payments is a System Administrator action, not something an application
-# administrator does from a browser, and the design says so twice. Until this
-# script existed the switch was readable and unwritable, which meant the
-# documented kill switch could only be pulled by hand-writing SQL into the
-# production database during an incident. That is what this replaces.
+# administrator does from a browser, and the design says so twice. Without this
+# script the switch would be readable and unwritable, and the documented kill
+# switch could only be pulled by hand-writing SQL into the production database
+# during an incident.
 #
 # The admin payments-health page shows the switch's state and names this script
 # as what clears it, so an administrator who sees a paused platform knows what

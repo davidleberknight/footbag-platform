@@ -145,16 +145,14 @@ vendor_secret_put() {
 
 # vendor_secret_status <parameter-name> [aws-args...]
 #
-# Prints one of: absent, placeholder, set. Reads the value to tell the last two
-# apart and prints none of it.
-# Answers one of: absent, placeholder, set, unreadable.
+# Answers one of: absent, placeholder, set, unreadable. Reads the value to tell
+# placeholder from set and reveals none of it.
 #
-# `unreadable` is not pedantry. Every non-zero exit used to become `absent`, and
-# the caller then told the operator that Terraform had not been applied and that
-# they should apply it — so a deactivated key, or a profile without
-# ssm:GetParameter or kms:Decrypt, turned a credential fault into an instruction
-# to run a production apply. The distinguishing evidence is in the stderr the
-# old version discarded.
+# `unreadable` is not pedantry. Were every non-zero exit `absent`, the caller
+# would tell the operator that Terraform had not been applied and that they
+# should apply it, so a deactivated key, or a profile without ssm:GetParameter or
+# kms:Decrypt, would turn a credential fault into an instruction to run a
+# production apply. The distinguishing evidence is in the stderr, which is kept.
 # Sets VENDOR_SECRET_STATE and VENDOR_SECRET_STATUS_DETAIL rather than printing,
 # for the same reason tf_output_read does: `state="$(f)"` runs f in a subshell,
 # so the detail explaining WHY it could not be read dies there -- which is the

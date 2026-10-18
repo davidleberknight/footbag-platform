@@ -68,7 +68,7 @@ const NOTE_BOUNDS: ReadonlyArray<[string, string, string]> = [
   [CONCEPTS_CONTENT, 'video-corroborated landing', 'corroborating footage'],
 ];
 
-describe('the name the difficulty note used to carry', () => {
+describe('the retired name the difficulty note must not carry', () => {
   it('is absent from both public copies of the note', () => {
     // Both are rendered surfaces. Correcting one and not the other would leave
     // the contradiction live for whichever readers reach the other.

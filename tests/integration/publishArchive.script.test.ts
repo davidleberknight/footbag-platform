@@ -234,8 +234,9 @@ describe('publish-archive.sh: a staging publish, driven end to end', () => {
 
   it('refuses before reaching the bucket when the mirror verifier runs without the committee exclusion list', () => {
     // The real verifier, copied into a layout whose private checkout is absent,
-    // with a stand-in interpreter. Without that list its excluded-surface check
-    // used to read ok while checking less, and the publish went ahead.
+    // with a stand-in interpreter. Defect caught: without that list its
+    // excluded-surface check reads ok while checking less, and the publish
+    // goes ahead.
     const layout = path.join(root, 'verifier-layout');
     const mirrorDir = path.join(layout, 'legacy_data', 'legacy_mirror');
     fs.mkdirSync(path.join(layout, 'legacy_data', 'footbag_venv', 'bin'), { recursive: true });

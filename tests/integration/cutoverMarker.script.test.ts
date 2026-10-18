@@ -302,9 +302,8 @@ describe('cutover marker writer', () => {
   });
 
   it('states which direction it is about to take, and what that costs, before asking', () => {
-    // The typed word used to encode the direction, so typing the wrong script's
-    // phrase aborted the run. Every confirmation in the tree now asks for the same
-    // word, which means the direction is carried by --set alone and the operator's
+    // Every confirmation in the tree asks for the same word, which means the
+    // direction is carried by --set alone and the operator's
     // only protection against the wrong one is being told, in full, what is about
     // to happen. That text is therefore load-bearing and is pinned here.
     makeDb('1');

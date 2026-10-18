@@ -63,7 +63,7 @@ beforeAll(async () => {
   // equivalence chain (vortex ≡ gyro drifter). The "Compressed from" line
   // MUST NOT render for this slug because it's not in the famous-compression
   // allowlist. (Drifter's own "miraging clipper" reading is held for curator
-  // review, so drifter no longer carries a chain and cannot serve as this
+  // review, so drifter carries no chain and cannot serve as this
   // control.)
   insertFreestyleTrick(db, {
     slug: 'vortex', canonical_name: 'vortex', adds: '4',

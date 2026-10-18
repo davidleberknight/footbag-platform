@@ -221,8 +221,8 @@ describe('the profile states the club benefit and withholds the shortcut it cann
       .set('Cookie', cookieFor(T0_ID));
     expect(res.text).toContain(MEDIA_LEAD);
     expect(res.text).not.toContain('Upload Media');
-    // The shortcut list is gone for a member below the organizer tier, so an
-    // empty heading cannot stand where the media shortcuts used to be.
+    // A member below the organizer tier has no shortcut list, so no empty
+    // Quick Actions heading stands in its place.
     expect(res.text).not.toContain('Quick Actions');
   });
 

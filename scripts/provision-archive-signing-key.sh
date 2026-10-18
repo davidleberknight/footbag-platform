@@ -135,8 +135,7 @@ needs_aws() {
     # No profile named on the command line, so the identity is the one the
     # shared library settles and proves: whatever this shell already carries,
     # or the operator profile. Operator credentials are what this needs, since
-    # the runtime roles are read-only on SSM by design, and asking the operator
-    # to export a variable was how that requirement used to be expressed.
+    # the runtime roles are read-only on SSM by design.
     aws_profile_ensure || exit 1
   fi
 }

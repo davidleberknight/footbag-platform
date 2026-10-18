@@ -35,8 +35,7 @@ A row is promotion-eligible when:
 ## Filename
 
 `curated/freestyle_tricks/{trick-slug}_{sha1(video_id)[:8]}.meta.json`,
-matching the convention used by `migrate-freestyle-media-to-curated.py`
-and `tools/emit_tt_sidecars.py` for Phase R1.
+the convention every sidecar in that directory follows.
 
 ## Usage
 

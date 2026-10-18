@@ -480,10 +480,9 @@ describe('the modifier-versus-trick lesson uses operators, not sets', () => {
 describe('the ruled side relationship is stated, and the source keeps its own claim', () => {
   // The side question is answered: the side a set originates from is the
   // reference, a following component on that side is same-side, and crossing is
-  // opposite. Four cases here used to enforce the opposite, that no platform
-  // surface may name a side for blazing, and they are gone rather than inverted:
-  // a prohibition kept past its ruling is how a corpus ends up unable to say what
-  // it knows.
+  // opposite. Nothing here forbids a platform surface from naming a side for
+  // blazing: a prohibition kept past its ruling is how a corpus ends up unable
+  // to say what it knows.
   //
   // What survives is the pair of claims the ruling does not touch. The
   // compilation's own reading stays attributed rather than absorbed, and the two
@@ -555,9 +554,8 @@ describe('the ruled side relationship is stated, and the source keeps its own cl
 
   it('neither set is cross-referenced as a variant or alias of the other', () => {
     // They stay distinct named sets because what would rank one under the other
-    // is the kind question, which is unruled. The side is no longer the reason,
-    // and the companion check that forbade a side in these labels retired with
-    // the ruling.
+    // is the kind question, which is unruled. The side is not the reason, and
+    // nothing forbids a side in these labels.
     const offenders = CANONICAL_SETS
       .filter((s) => s.slug === 'blazing' || s.slug === 'whirling')
       .flatMap((s) => s.relatedSystems.map((r) => ({ from: s.slug, to: r.slug, label: r.label })))

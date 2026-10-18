@@ -447,7 +447,7 @@ fi
 # ── Step 3: prove it ─────────────────────────────────────────────────────────
 #
 # Everything this step can decide, it decides, and the run's exit status carries
-# the verdict. It used to print "the change did not land" and exit 0, which is the
+# the verdict. Printing "the change did not land" and exiting 0 would be the
 # worst of both: an operator told to go looking for a problem by a run that
 # reports success, and a wrapper or a CI job that sees a pass. What genuinely
 # cannot be decided here is the alarm STATE, because INSUFFICIENT_DATA

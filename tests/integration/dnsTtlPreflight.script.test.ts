@@ -273,7 +273,7 @@ describe('dns-ttl-preflight: record shapes it has to survive', () => {
 });
 
 describe('dns-ttl-preflight: preconditions', () => {
-  it('refuses without a phase, and the refusal no longer describes a flip on a zone we do not hold', () => {
+  it('refuses without a phase, and the refusal does not describe a flip on a zone we do not hold', () => {
     const res = run([]);
     expect(res.status).toBe(2);
     expect(res.stderr).toContain('--phase handover is required');

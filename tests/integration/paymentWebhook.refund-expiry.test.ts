@@ -185,9 +185,9 @@ describe('partial refunds', () => {
   it('raises one review item and one audit row when the same partial refund is redelivered', async () => {
     // The provider redelivers whenever it does not see a timely 200, including
     // when the 200 was sent and lost. This path acknowledges rather than
-    // mutating, so it used to append its audit row and raise its work item on
-    // every delivery: an administrator saw two review items for one refund, and
-    // the append-only ledger permanently double-counted the money.
+    // mutating. Defect caught: appending its audit row and raising its work
+    // item on every delivery shows an administrator two review items for one
+    // refund, and the append-only ledger permanently double-counts the money.
     const { paymentService } = await import('../../src/services/paymentService');
     const { paymentId, sessionId } = await settleSucceededPayment(M_REDELIVERED);
     const evt = await stubRefundEvent(sessionId, { amountCents: 1000, refundedAmountCents: 250 });

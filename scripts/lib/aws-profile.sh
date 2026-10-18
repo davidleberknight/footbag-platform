@@ -42,12 +42,12 @@
 # holder's machine can carry all of them; each run still acts as exactly one
 # identity, the one sts get-caller-identity returns.
 #
-# The answer used to be a line in a runbook telling the operator to export
-# AWS_PROFILE in every new shell. That is a step held in a person's head, it has
-# to be repeated in every terminal they open, and it is recorded in the
-# operations reference as a common cause of failure partway through a bring-up.
-# A safety or usability property that depends on every operator remembering
-# something belongs in the tooling instead, which is where this is.
+# The alternative, a runbook line telling the operator to export AWS_PROFILE in
+# every new shell, is a step held in a person's head: it has to be repeated in
+# every terminal they open, and it is recorded in the operations reference as a
+# common cause of failure partway through a bring-up. A safety or usability
+# property that depends on every operator remembering something belongs in the
+# tooling instead, which is where this is.
 #
 # WHAT IT WILL NOT DO.
 #
@@ -210,10 +210,10 @@ aws_profile_note_stub() {
 #
 # The proof is the point. Checking that a profile is configured says nothing
 # about whether the credential behind it still authenticates, so a key that has
-# been deactivated, deleted, rotated away or expired used to be discovered by
-# whatever tool reached AWS first, in that tool's words: a terraform read failing
-# on credential sources reads as an uninitialised tree, and a deploy spent an
-# afternoon being debugged as one. Resolving it here costs one call, at the top
+# been deactivated, deleted, rotated away or expired is otherwise discovered by
+# whatever tool reaches AWS first, in that tool's words: a terraform read failing
+# on credential sources reads as an uninitialised tree, and is debugged as one.
+# Resolving it here costs one call, at the top
 # of the run, and turns that whole class into one sentence naming the credential.
 aws_profile_announce() {
   local origin="$1"
@@ -385,8 +385,8 @@ aws_profile_use() {
     # something that deliberately does not exist, arriving as advice from the
     # tooling itself.
     #
-    # Three answers, not two. The branch used to send everything that was not
-    # the first name at the onboarding, which is wrong for the runtime chains:
+    # Three answers, not two. Sending everything that is not the first name at
+    # the onboarding would be wrong for the runtime chains:
     # those are written by the key install for the directly authenticated
     # identity, and telling its holder to be onboarded as a dev-and-tester is
     # the mirror image of the harm this comment describes.

@@ -444,9 +444,8 @@ else
   # Reclaim host disk before the load. Each deploy loads a fresh :latest and
   # leaves the previous image dangling; left unchecked these orphans and build
   # cache fill the disk until `docker load` fails with "no space left on device".
-  # This runs, automatically, the same reclaim the failure hint used to ask the
-  # operator to perform by hand. Best-effort: a reclaim failure must not abort the
-  # deploy.
+  # This runs the reclaim automatically rather than leaving it to the operator.
+  # Best-effort: a reclaim failure must not abort the deploy.
   #
   # Scoped deliberately, and NOT `docker system prune -af`. That form removes
   # stopped containers first and then every image no container references, so the

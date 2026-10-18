@@ -81,7 +81,7 @@ describe('toe-blur alias re-pointing (Red equivalence ruling)', () => {
     expect(res.text).toMatch(/toe blur/i);
   });
 
-  it('quantum detail page no longer surfaces "toe blur" as an alias (re-pointed away)', async () => {
+  it('quantum detail page does not surface "toe blur" as an alias (it points to quantum-mirage)', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/quantum');
     expect(res.status).toBe(200);
     // The quantum set primitive's "Also known as" row should NOT list

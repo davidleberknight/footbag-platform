@@ -176,7 +176,7 @@ describe('GET /clubs/create', () => {
       .get('/clubs/create')
       .set('Cookie', authCookie(HAPPY_ID));
     expect(res.status).toBe(200);
-    // The gate decides who reaches this page, so the page no longer restates
+    // The gate decides who reaches this page, so the page does not restate
     // the requirement to a reader who has already met it.
     expect(res.text).not.toContain('requires IFPA Membership');
     expect(res.text).toContain('href="/clubs"');

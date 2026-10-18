@@ -80,8 +80,7 @@ describe('the apex certificate-authorisation record', () => {
 describe('the origin certificate-authorisation record', () => {
   it('rides the same flag as the name it protects', () => {
     // Created together so no ordering can separate a name from the authority
-    // permitted to issue for it. This is also what dissolves the reason the apex
-    // record used to be deferred: the child set replaces its ancestor's rather
+    // permitted to issue for it. The child set replaces its ancestor's rather
     // than adding to it, so an Amazon-only policy at the apex cannot block the
     // origin name's own issuance.
     const block = resourceBlock('origin_caa');

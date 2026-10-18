@@ -19,8 +19,8 @@ describe('formatDate', () => {
   });
 
   it('falls back to year when month sentinel is "00" (legacy "month unknown" rows)', () => {
-    // Regression: previously rendered `15 undefined 2024` because parseInt('00') = 0
-    // and months[-1] = undefined slipped past the truthy-string guard.
+    // Defect caught: rendering `15 undefined 2024`, because parseInt('00') = 0
+    // and months[-1] = undefined slips past a truthy-string guard.
     expect(formatDate('2024-00-15')).toBe('2024');
   });
 

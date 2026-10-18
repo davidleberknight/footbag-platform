@@ -57,7 +57,6 @@ publicRouter.get('/clubs/:key',             clubController.byKey);
 publicRouter.post('/clubs/:key/join',           requireMember, clubController.postJoin);
 publicRouter.post('/clubs/:key/leave',          requireMember, clubController.postLeave);
 publicRouter.post('/clubs/:key/volunteer',      requireMember, requireTier1Benefits(), clubController.postVolunteer);
-publicRouter.post('/clubs/:key/invite',         requireMember, clubController.postInvite);
 publicRouter.post('/clubs/:key/step-down',      requireMember, clubController.postStepDown);
 publicRouter.post('/clubs/:key/mark-inactive',  requireMember, clubController.postMarkInactive);
 publicRouter.post('/clubs/:key/reactivate',     requireMember, clubController.postReactivate);

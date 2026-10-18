@@ -312,7 +312,7 @@ describe('GET /freestyle/add-analysis', () => {
     expect(res.text).toMatch(/pedagogical axis, not an official grouping/i);
   });
 
-  it('Mirage worked-example no longer describes mirage as "rotational"', async () => {
+  it('Mirage worked-example does not describe mirage as "rotational"', async () => {
     const res = await page('/freestyle/add-analysis');
     const sliceStart = res.text.indexOf('>Mirage</a>');
     const sliceEnd = res.text.indexOf('>Legover</a>');
@@ -572,8 +572,8 @@ describe('GET /freestyle/add-analysis — resolved compound formulas (§2b refer
     expect(res.text).toMatch(new RegExp(`stepping\\(\\+1\\)\\s*\\+\\s*butterfly\\(3\\)\\s*${eq}\\s*4 ADD`));
     // rev-whirl publishes the structural form.
     expect(res.text).toMatch(/xbody\(1\) \+ dex\(1\) \+ stall\(1\) &#x3D; 3 ADD/);
-    // The reverse(+0) reading is no longer in the /freestyle/add-analysis
-    // table for rev-up (rev-up demoted) or rev-whirl (structural form).
+    // The reverse(+0) reading is not in the /freestyle/add-analysis
+    // table for rev-up (rev-up is demoted) or rev-whirl (structural form).
   });
 
   it('resolved-formulas section sits between worked examples (§2) and discrepancies (§3)', async () => {

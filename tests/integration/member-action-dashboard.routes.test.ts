@@ -342,10 +342,10 @@ describe('the block belongs to its owner', () => {
 
 describe('a membership payment that failed', () => {
   it('reaches the member on the site, not only by an email carrying no link', async () => {
-    // The two payment obligations were previously deliverable only by mail, and
-    // notification mail on this platform carries no clickable links, so neither
-    // message could point anywhere. A member who paid and received nothing had
-    // no way to find the problem or act on it.
+    // Notification mail on this platform carries no clickable links, so a
+    // payment obligation delivered only by mail cannot point anywhere. A member
+    // who paid and received nothing would have no way to find the problem or
+    // act on it.
     const res = await ownProfile(FAILED_PURCHASE_ID, FAILED_PURCHASE_SLUG);
     expect(res.status).toBe(200);
     expect(res.text).toContain('Your membership payment did not go through');

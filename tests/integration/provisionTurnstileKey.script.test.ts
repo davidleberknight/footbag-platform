@@ -65,7 +65,7 @@ function awsStub(storedValue: string | null): string {
       '  get-parameter)',
       // `absent` and `unreadable` are different answers and the stub has to be
       // able to produce both, because conflating them is the defect these cases
-      // pin: a credential fault used to be reported as "not applied yet".
+      // pin: a credential fault must never be reported as "not applied yet".
       storedValue === null
         ? '    echo "An error occurred (ParameterNotFound) when calling the GetParameter operation" >&2; exit 255'
         : storedValue === '__DENIED__'
@@ -175,10 +175,10 @@ describe('provision-turnstile-key.sh — status', () => {
   });
 
   it('separates a credential fault from an absent parameter', () => {
-    // Every non-zero exit used to become "absent", and the caller then told the
-    // operator that Terraform had not been applied and to apply it. A
-    // deactivated key therefore produced an instruction to run a production
-    // apply, which is the wrong move made on the wrong evidence.
+    // Were every non-zero exit "absent", the caller would tell the operator
+    // that Terraform had not been applied and to apply it. A deactivated key
+    // would then produce an instruction to run a production apply, which is the
+    // wrong move made on the wrong evidence.
     const r = run(['--target', 'production', 'status'], '__DENIED__');
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/could not be read, which is not the same as it/);

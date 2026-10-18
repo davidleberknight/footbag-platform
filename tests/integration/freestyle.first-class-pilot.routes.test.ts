@@ -4,8 +4,8 @@
  *
  * Every trick-detail page renders one universal notation card: Movement
  * notation, then Execution notation, then the ADD derivation. The card is
- * identical for bases and derivatives; "first-class" no longer grants a
- * special summary card.
+ * identical for bases and derivatives; "first-class" grants no special
+ * summary card.
  *
  * Contract under test:
  *   - First-class trick pages render the universal notation card: the
@@ -250,9 +250,9 @@ describe('First-class trick pilot — hero record-chip removal', () => {
 });
 
 describe('First-class trick pilot — notation card is universal', () => {
-  it('the separate "Notation summary" card was removed app-wide (mobius, a non-first-class control)', async () => {
-    // The special first-class summary card no longer exists for any
-    // trick; this guards against its reintroduction.
+  it('no trick renders a separate "Notation summary" card (mobius, a non-first-class control)', async () => {
+    // No trick carries a special first-class summary card; the notation
+    // card is the same for every trick.
     const res = await page('/freestyle/tricks/mobius');
     expect(res.status).toBe(200);
     expect(res.text).not.toMatch(/trick-notation-summary/);

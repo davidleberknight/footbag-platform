@@ -9,8 +9,8 @@
  *   - The dexterity row counts every [DEX] in the notation, set dexes
  *     included; shows zero for a dexless body atom; and is absent when the
  *     trick has no notation to count
- *   - No trick page links to a dictionary view that no longer exists
- *   - The standalone Component-memberships panel is retired; per-modifier
+ *   - No trick page links to a dictionary view the dictionary does not offer
+ *   - No standalone Component-memberships panel renders; per-modifier
  *     linkage is owned by the Modifiers section
  *   - A trick with nothing to show renders no membership panels
  */
@@ -179,7 +179,7 @@ describe('trick-detail — structural facts carry no row for a removed grouping'
     expect(structuralBlock(res.text)).not.toContain('symbolic-layer-badge');
   });
 
-  it('no fixture trick page links into a dictionary view that no longer exists', async () => {
+  it('no fixture trick page links into a dictionary view the dictionary does not offer', async () => {
     for (const slug of FIXTURE_SLUGS) {
       const res = await page(`/freestyle/tricks/${slug}`);
       expect(res.status, slug).toBe(200);

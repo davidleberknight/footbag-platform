@@ -1,14 +1,14 @@
 /**
  * Integration tests for the Runs & Sequences topic on GET /freestyle/concepts:
- * the former Symbolic Composition and Run Architecture sections, merged into one
- * section and presented as a major topic behind a destination card.
+ * symbolic composition and run architecture in one section, presented as a
+ * major topic behind a destination card.
  *
  * The whole section (the used-vs-defined distinction, the core run vocabulary,
  * the decomposition table, the vocabulary-relationships reference, and the
- * run-architecture detail) lives inside the topic. Run Architecture folds from a
- * section into a div (preserving section-run-architecture), the section is renamed
- * away from "Composition" so it no longer collides with the trick-level Composition
- * concept card, and the duplicated run framing is removed.
+ * run-architecture detail) lives inside the topic. Run Architecture is a div
+ * inside it (keeping section-run-architecture), the section is not named
+ * "Composition" so it does not collide with the trick-level Composition concept
+ * card, and the run framing is not duplicated.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { cachedGet } from '../fixtures/cachedGet';

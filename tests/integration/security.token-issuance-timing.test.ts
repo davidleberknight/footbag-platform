@@ -85,8 +85,7 @@ const N = 7;
 //
 // The resolution that buys, measured rather than claimed: with a deliberate
 // asymmetry injected into one branch, these cases pass it at 25 ms and fail it
-// at 40 ms here, where the fixed 50 ms figure they used to carry waved 40 ms
-// through. So they see a branch that skips something costing about one request
+// at 40 ms here, where a fixed 50 ms figure would wave 40 ms through. So they see a branch that skips something costing about one request
 // or more. They do NOT see the token-generation burn itself, which is 32 random
 // bytes and one hash and sits below HTTP noise by orders of magnitude; removing
 // it entirely leaves these cases green, and no wall-clock test at this layer

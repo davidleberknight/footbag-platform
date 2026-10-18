@@ -49,7 +49,7 @@ const VIEWS: Array<[string, string]> = [
   ['modifier', 'By modifier'],
 ];
 
-// View values the dictionary no longer offers; each renders the default view.
+// View values the dictionary does not offer; each renders the default view.
 const REMOVED_VIEWS = ['movement-system', 'topology', 'dex-count', 'component', 'category'];
 
 const CANONICAL_ORDER = [

@@ -18,7 +18,7 @@ const ALIAS_ADDITIONS = read('freestyle/inputs/base_dictionary/alias_additions.c
 const OVERRIDES = read('freestyle/inputs/base_dictionary/alias_overrides.csv');
 
 describe('Revup is retired as a duplicate of reverse swirling pickup', () => {
-  it('the base dictionary no longer defines a separate rev-up canonical row', () => {
+  it('the base dictionary does not define a separate rev-up canonical row', () => {
     expect(TRICKS).not.toMatch(/^rev up,/m);
   });
 

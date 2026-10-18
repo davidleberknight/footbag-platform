@@ -257,7 +257,7 @@ describe('Concepts trick links use canonical underscore slugs (no dead hyphenate
     'quantum_illusion', 'quantum_mirage', 'rev_whirl', 'spinning_whirl', 'walk_over',
   ];
 
-  it('links the formerly-hyphenated template tricks by their canonical underscore slug', async () => {
+  it('links the template tricks by their canonical underscore slug', async () => {
     const res = await page('/freestyle/concepts');
     for (const slug of UNDERSCORE_TARGETS) {
       expect(res.text, `${slug} should link by its canonical underscore slug`).toContain(`href="/freestyle/tricks/${slug}"`);

@@ -342,7 +342,7 @@ describe('an ordinary refresh completes', () => {
   });
 });
 
-describe('what the refresh no longer destroys', () => {
+describe('what the refresh leaves intact', () => {
   it('leaves an authored but unpublished ruling exactly as the curator left it', () => {
     expect(afterRefresh.draft).toEqual(pre.draft);
     expect(afterRefresh.draft!.authored_notation).toBe(NOTATION);

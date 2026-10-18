@@ -2,9 +2,9 @@
  * scripts/lib/terraform-output.sh — the reader that keeps terraform's own
  * words instead of discarding them.
  *
- * Every deploy read of a terraform output used to redirect stderr to /dev/null,
- * tolerate the failure, and then guess at the cause on an empty value. The
- * guess named one cause, an uninitialised tree, while at least three produce
+ * Defect caught: a deploy read that redirects stderr to /dev/null, tolerates
+ * the failure, and then guesses at the cause on an empty value. Such a guess
+ * names one cause, an uninitialised tree, while at least three produce
  * exactly that symptom: an uninitialised tree, a credential that no longer
  * authenticates because the sign-in expired or the key behind it was rotated,
  * and an operator profile that was never set up on the machine at all. So a
@@ -21,7 +21,7 @@
  *   - the temp file the capture needs does not outlive the call, and neither
  *     does the trap that removes it;
  *   - both deploy entry points route every output read through this, because a
- *     single site left on the old form is the one that will be hit.
+ *     single site reading an output directly is the one that will be hit.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
@@ -189,7 +189,7 @@ describe('tf_output_read', () => {
 });
 
 describe('tf_output_explain', () => {
-  it('names all three causes rather than the one that used to be guessed', () => {
+  it('names all three causes rather than guessing one', () => {
     const stub = tfStub('', 'Error: nope', 1);
     const r = withLib(
       ['tf_output_read /nowhere cloudfront_domain || true', 'tf_output_explain terraform/staging cloudfront_domain'].join(

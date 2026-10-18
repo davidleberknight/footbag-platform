@@ -80,7 +80,7 @@ describe('GET /freestyle/operators — compact modifier index', () => {
     expect(res.text).toContain('Head and body passage');
     expect(res.text).toContain('Set and preparatory operators');
     expect(res.text).toContain('No-plant and suspension');
-    // The set primitives no longer have their own operator axis here.
+    // The set primitives have no operator axis of their own here.
     expect(res.text).not.toContain('Set / Uptime Systems');
     // Reuses the trick-dictionary row idiom.
     expect(res.text).toContain('dict-trick-row-stack');
@@ -168,7 +168,7 @@ describe('GET /freestyle/operators — compact modifier index', () => {
     // paradox and spinning are relationships/body actions, not sets.
     expect(rowSlice(res.text, 'paradox')).not.toContain('dict-trick-row-notation');
     expect(rowSlice(res.text, 'spinning')).not.toContain('dict-trick-row-notation');
-    // pixie's set formula no longer surfaces here now that sets left the page.
+    // pixie's set formula does not surface here, since sets are not on this page.
     expect(res.text).not.toContain('SAME IN [DEX]');
   });
 

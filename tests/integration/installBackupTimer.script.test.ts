@@ -72,7 +72,7 @@ describe('install-backup-timer.sh — dry-run command plan', () => {
     expect(result.stdout).toMatch(/internal\/install-backup-timer-remote\.sh/);
     // The units ride the pipe, so no staging directory is created and none has
     // to be cleaned up; a plan that still mentioned scp would be describing a
-    // host-side artifact the script no longer creates.
+    // host-side artifact the script does not create.
     expect(result.stdout).not.toMatch(/\bscp\b/);
     expect(result.stdout).toMatch(/Nothing is staged on the host/);
     expect(result.stdout).toMatch(/enable_backup_alarm = true in terraform\/staging\/terraform\.tfvars/);

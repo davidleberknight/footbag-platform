@@ -10,10 +10,10 @@
  * carries out silently: every step after a mistargeted run succeeds against the
  * wrong host exactly as readily as against the right one.
  *
- * Chief among them is that `--target` has no default. It used to default to
- * staging, so a run meaning production with the flag forgotten would install
- * the production source-profile key onto the staging host under staging profile
- * names, having also sent the production sudo password there.
+ * Chief among them is that `--target` has no default. With a default of staging,
+ * a run meaning production with the flag forgotten would install the production
+ * source-profile key onto the staging host under staging profile names, having
+ * also sent the production sudo password there.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
@@ -126,11 +126,11 @@ describe('install-host-credentials.sh — which host it is aimed at', () => {
 });
 
 describe('install-host-credentials.sh — whether the material is fit to send', () => {
-  it('no longer requires a keys file, because it mints the key itself', () => {
-    // The keys file used to be mandatory, which meant the ordinary path began
-    // with the operator running `aws iam create-access-key` into a temp file by
-    // hand and ended with them remembering to shred it. Omitting it now reaches
-    // the minting path, which writes no secret to disk at all. Without a
+  it('does not require a keys file, because it mints the key itself', () => {
+    // A mandatory keys file would make the ordinary path begin with the
+    // operator running `aws iam create-access-key` into a temp file by hand and
+    // end with them remembering to shred it. Omitting it reaches the minting
+    // path, which writes no secret to disk at all. Without a
     // terminal that path refuses at the library's own guard rather than at an
     // argument check, which is what this asserts: exit 1, not the exit 2 of a
     // usage error.

@@ -1,10 +1,10 @@
 """
 The complete map of which committed producer should own which trick slug.
 
-A refresh used to clear the trick table and rebuild it. That cannot work once a
-row can outlive its inputs: a curator's trick is in no committed file, and each
-committed producer's file accounts for only part of the dictionary. What replaces
-it is preflight, then upsert, then retire, and all three read from one map built
+A refresh does not clear the trick table and rebuild it, because a row can
+outlive its inputs: a curator's trick is in no committed file, and each
+committed producer's file accounts for only part of the dictionary. A refresh
+is preflight, then upsert, then retire, and all three read from one map built
 here before anything is written.
 
 One map, not three. If each producer computed its own retirement set from its own

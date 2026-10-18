@@ -50,12 +50,11 @@ variable "domain_name" {
   default     = "footbag.org" # TODO: Confirm apex domain
 }
 
-# The hosted zone is no longer an input. Terraform creates it (route53.tf) and
-# every record reads its id from there, so there is no value to supply, nothing
-# to import, and no way for the id to be empty or point at the wrong zone. The
-# two validations that used to guard those failures are gone with the variable:
-# the certificate can no longer hang on validation against a zone that does not
-# exist, because the zone is created in the same configuration that validates
+# The hosted zone is not an input. Terraform creates it (route53.tf) and every
+# record reads its id from there, so there is no value to supply, nothing to
+# import, and no way for the id to be empty or point at the wrong zone. Nor can
+# the certificate hang on validation against a zone that does not exist,
+# because the zone is created in the same configuration that validates
 # against it.
 
 variable "lightsail_bundle_id" {

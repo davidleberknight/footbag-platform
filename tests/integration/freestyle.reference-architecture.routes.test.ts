@@ -6,7 +6,7 @@
  *   - GET /freestyle/glossary  looks up terminology: one alphabetical A to Z list
  *                              of terms with short definitions
  *   - GET /freestyle/concepts  explains concepts in depth: the chapter-based
- *                              reference, which no longer carries "Reading the
+ *                              reference, which does not carry "Reading the
  *                              Dictionary" and never calls itself a glossary
  *
  * Also pins the deep-link contract: every Concepts anchor a Glossary entry
@@ -234,7 +234,7 @@ describe('GET /freestyle/concepts — Freestyle Concepts', () => {
     expect(html).not.toMatch(/dict-tile-title">Reading the Dictionary</);
     const firstChapter = html.match(/<details class="dict-tile" id="chapter-([a-z-]+)"/);
     expect(firstChapter?.[1]).toBe('movement-basics');
-    // The box no longer exists on the dictionary page, so a link to it would
+    // The box does not exist on the dictionary page, so a link to it would
     // land at the top of that page with nothing to explain why.
     expect(html).not.toContain('#reading-the-dictionary');
   });

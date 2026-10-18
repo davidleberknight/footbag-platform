@@ -31,9 +31,9 @@ secret_file_destroy() {
 
 # The registry, and why a library function cannot just set its own trap.
 #
-# A function here that created a secret-bearing temp file used to clean it on a
+# A function here that creates a secret-bearing temp file cannot clean it on a
 # RETURN trap, which fires when the function returns and not when the operator
-# interrupts it. Ctrl-C mid-write therefore left a live credential on disk, which
+# interrupts it. Ctrl-C mid-write would leave a live credential on disk, which
 # the operator-script rule forbids: cleanup covers EXIT, INT and TERM.
 #
 # A function cannot install those itself without silently replacing whatever its

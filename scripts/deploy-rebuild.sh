@@ -363,10 +363,10 @@ if [[ "${CURATOR_SEED:-yes}" != "no" ]]; then
   rm -rf "${CURATED_BUILD_DIR}"
   mkdir -p "${CURATED_BUILD_DIR}"
   # Armed here rather than above, and covering the signals an interrupt actually
-  # sends. Installed before the branch it used to be, the handler removed a
-  # directory this run never created whenever curator seeding was off, which is
-  # the one thing a trap must never do; EXIT alone also left the build tree
-  # behind when the Python seed below was interrupted.
+  # sends. Installed before this branch, the handler would remove a directory
+  # this run never created whenever curator seeding is off, which is the one
+  # thing a trap must never do; EXIT alone would leave the build tree behind when
+  # the Python seed below is interrupted.
   trap 'rm -rf "${CURATED_BUILD_DIR}"' EXIT INT TERM
   _venv="${REPO_ROOT}/scripts/.venv"
   # shellcheck source=lib/seeder-env.sh
@@ -521,9 +521,8 @@ else
   # Reclaim host disk before the load. Each deploy loads a fresh :latest and
   # leaves the previous image dangling; left unchecked these orphans and build
   # cache fill the disk until `docker load` fails with "no space left on device".
-  # This runs, automatically, the same reclaim the failure hint used to ask the
-  # operator to perform by hand. Best-effort: a reclaim failure must not abort the
-  # deploy.
+  # This runs the reclaim automatically rather than leaving it to the operator.
+  # Best-effort: a reclaim failure must not abort the deploy.
   #
   # Scoped deliberately, and NOT `docker system prune -af`. That form removes
   # stopped containers first and then every image no container references, so the

@@ -5,10 +5,10 @@
 #
 # Some changes reach the running containers only through a restart: a rotated
 # key installed on the host, a value written into the host env file, the worker's
-# recovery sweep. Each of those runbooks used to end in a hand-typed
-# `sudo systemctl restart footbag` over ssh, which is a step an operator holds in
-# their head, run with no check that the site answered afterwards. This is that
-# step as a script.
+# recovery sweep. Without a script, each of those runbooks would end in a
+# hand-typed `sudo systemctl restart footbag` over ssh, which is a step an
+# operator holds in their head, run with no check that the site answered
+# afterwards. This is that step as a script.
 #
 # WHAT IT DOES.
 #

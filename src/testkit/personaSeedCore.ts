@@ -87,8 +87,8 @@ export function seedPersonas(
     // Name the persona that failed and keep going, whichever branch failed. A
     // create rolls its own transaction back, so the database holds no partial
     // persona, and the caller reports a non-zero exit once every offender has
-    // been named. The re-hash belongs inside this same guard: it is the branch
-    // that used to throw past the loop and truncate the catalog.
+    // been named. The re-hash belongs inside this same guard: outside it, a
+    // throw from that branch would escape the loop and truncate the catalog.
     try {
       const existing = findById.get(personaId(spec.slug)) as
         | { passwordHash: unknown }

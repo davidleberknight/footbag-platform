@@ -6,8 +6,8 @@ script, one place to look. It does, in order:
 
   1. Inserts the FH system member row (DD §2.8): is_system=1, NULL
      credentials, anchored at /members/footbag_hacky. Idempotent.
-  2. Links FH to its historical_persons row (FK-based redirect under
-     Phase 4+ read paths). Tolerant of cold-start: emits a notice when
+  2. Links FH to its historical_persons row (FK-based redirect). Tolerant
+     of cold-start: emits a notice when
      the matching historical row is not yet loaded.
   3. Inserts each entry from CURATOR_ITEMS (FH-owned media): demo loops,
      the FH avatar, event-pinned curator photos. Re-encodes video through
@@ -51,10 +51,8 @@ from urllib.parse import parse_qs, urlparse
 
 from PIL import Image
 
-# Slice 2: shared trick-slug canonicalization helper. Same import path used
-# by scripts/migrate-freestyle-media-to-curated.py (one-shot migration);
-# single source of truth for alias resolution prevents migration-time and
-# seed-time canonicalization drift.
+# Trick-slug canonicalization helper: alias resolution lives in one module, so
+# any later importer resolves an alias the same way this seeder does.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from _trick_canonicalization import canonicalize_slug, load_alias_map  # noqa: E402
 
@@ -66,7 +64,7 @@ DEFAULT_DB = "./database/footbag.db"
 DEFAULT_MEDIA_DIR = "./.curated-build"
 DEFAULT_SOURCE_DIR = REPO_ROOT / "curated"
 
-# Slice 2: URL-reference freestyle media — embed-eligible hosts only.
+# URL-reference freestyle media — embed-eligible hosts only.
 YOUTUBE_HOSTS = {"youtube.com", "www.youtube.com", "m.youtube.com", "youtu.be"}
 VIMEO_HOSTS   = {"vimeo.com", "www.vimeo.com", "player.vimeo.com"}
 
@@ -640,16 +638,12 @@ def seed_item(
     print(f"  → Seeded {item['id_seed']} (media_id={media_id}, tags={insert_tags})")
 
 
-# ── Slice 2: URL-reference freestyle trick reference media ─────────────────
+# ── URL-reference freestyle trick reference media ──────────────────────────
 # The hardcoded CURATOR_ITEMS pipeline above handles file-backed binary
 # (member-uploaded MP4/photos transcoded into the local-FS adapter). The
 # helpers below handle URL-reference YouTube/Vimeo embeds owned by the
 # system member account, sourced from /curated/freestyle_tricks/*.meta.json
-# sidecars produced by scripts/migrate-freestyle-media-to-curated.py.
-#
-# Two pipelines coexist during the Slice 2 cutover. Phase E removes the
-# legacy freestyle_media_* tables + loaders; this branch then becomes the
-# only path for curator reference videos.
+# sidecars. This is the only path for curator reference videos.
 
 def _detect_platform(url: str) -> str | None:
     """Return 'youtube' / 'vimeo' / None for non-embed-eligible hosts."""

@@ -9,9 +9,9 @@
 # three acts in a fixed order: replace the resource, deploy so the host picks up
 # the new value, and check the site through CloudFront. Between the first two,
 # CloudFront sends the new value while nginx still expects the old one and every
-# request is refused, so the order and the gap both matter. It used to be a
-# hand-typed `terraform apply -replace` with no saved plan, no confirmation and no
-# shred, followed by a deploy someone had to remember. This is the whole of it.
+# request is refused, so the order and the gap both matter. This script is the
+# whole of it: the replacement goes through a saved plan, a confirmation and a
+# shred, and the deploy follows without anyone having to remember it.
 #
 # Rotation is for cause, never on a clock: a suspected exposure of a state file,
 # a saved plan or the host env file.

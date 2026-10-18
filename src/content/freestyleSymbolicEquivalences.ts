@@ -369,7 +369,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   {
     slug:     'blurry_torque',
     readings: ['blurry torque'],
-    curatorConfirmPending: true,   // Red: blurry no longer implies paradox; structural decomposition under review
+    curatorConfirmPending: true,   // Red: blurry does not imply paradox; structural decomposition under review
   },
 
   // ── Dada-curve ──────────────────────────────────
@@ -423,7 +423,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
   {
     slug:     'blurry_whirl',
     readings: ['blurry whirl'],
-    curatorConfirmPending: true,   // Red: blurry no longer implies paradox; structural decomposition under review
+    curatorConfirmPending: true,   // Red: blurry does not imply paradox; structural decomposition under review
   },
   {
     slug:     'spinning_symposium_whirl',

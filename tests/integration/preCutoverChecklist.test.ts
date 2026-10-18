@@ -385,8 +385,8 @@ describe.runIf(TOOLS_PRESENT)('pre-cutover checklist orchestrator', () => {
 
   it('payments-boot skips with its reason when there is no env file to read', () => {
     // The gate reads a deploy env file, which lives on a host. Without a target
-    // and without a file it used to FAIL, so a run counted a failure that said
-    // nothing about the environment being certified. Looking at nothing is a
+    // and without a file, a FAIL would count a failure that says nothing about
+    // the environment being certified. Looking at nothing is a
     // skip, and the reason has to name what was missing.
     buildFixtureDb(dbPath);
     const envFile = path.join(workDir, 'deploy-env');

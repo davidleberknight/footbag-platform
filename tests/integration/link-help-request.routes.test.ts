@@ -798,9 +798,9 @@ describe('admin review', () => {
  * then approves it, and because the approve path links with admin-vetted
  * evidence (which skips the surname gate by design) nothing at all stands
  * between that member and an unclaimed record. The dispute action is the other
- * half: it used to take the member to strip from the request body, bound to
- * nothing but the existence of an open dispute, so one request could revert the
- * claim of a member with no relationship to the dispute.
+ * half: taking the member to strip from the request body, bound to nothing but
+ * the existence of an open dispute, would let one request revert the claim of a
+ * member with no relationship to the dispute.
  */
 describe('admin review: separation of duties', () => {
   it('refuses an approval by the administrator who filed the request, leaving the item open', async () => {
@@ -931,11 +931,11 @@ describe('admin review: separation of duties', () => {
     expect(landing.text).not.toContain('email reply dispatched');
     expect(landing.text).not.toContain('Item resolved');
 
-    // And the item really is still open, which is what the banner now promises.
+    // And the item really is still open, which is what the banner promises.
     expect(openItems(requesterId).map((i) => i.id)).toContain(item.id);
   });
 
-  it('cannot reach an unrelated member: the old holder-id body field is inert', async () => {
+  it('cannot reach an unrelated member: a holder-id body field is inert', async () => {
     const bystanderId = seedRequester();
     const requesterId = seedRequester();
     const personId = insertHistoricalPerson(db, {
@@ -950,7 +950,7 @@ describe('admin review: separation of duties', () => {
       .send({ category: 'identity_link_issue', message:'Dispute.' });
     const item = openItems(requesterId)[0];
 
-    // Exactly the payload that used to strip an arbitrary member's claim.
+    // A payload naming an arbitrary member whose claim to strip.
     const res = await request(createApp())
       .post(`/admin/work-queue/${item.id}/link-help/dispute-revert`)
       .set('Cookie', adminCookie())

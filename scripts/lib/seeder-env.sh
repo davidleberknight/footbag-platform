@@ -4,11 +4,11 @@
 # brought to the hash-pinned scripts/requirements.txt, and proved, in one place.
 #
 # Four callers need it (the dev launcher, the local database reset, the deploy's
-# rebuild, the workstation setup) and each used to build it its own way with its
-# own test for "already there". The weakest of those, a file-exists check, called
-# an environment healthy after its interpreter link had come to resolve to a
-# different Python, and the next pip call crashed. One definition, judged by the
-# outcome, is what stops the four drifting apart again.
+# rebuild, the workstation setup), and each building it its own way would bring
+# its own test for "already there". A file-exists check calls an environment
+# healthy after its interpreter link has come to resolve to a different Python,
+# and the next pip call crashes. One definition, judged by the outcome, is what
+# stops the four drifting apart.
 #
 # Usage, sourced:
 #

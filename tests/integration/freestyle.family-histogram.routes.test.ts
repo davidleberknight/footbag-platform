@@ -68,8 +68,8 @@ describe('family-endings chart', () => {
   });
 
   it('moves a bar on the next request after a trick joins the family', async () => {
-    // The defect this replaces: counts baked into a committed file, unchanged
-    // by anything published in the app until someone regenerated them.
+    // Defect caught: counts baked into a committed file, unchanged by
+    // anything published in the app until someone regenerates them.
     const db = new BetterSqlite3(dbPath);
     seedTrick(db, 'zeta_torque_c', 'torque');
     db.close();

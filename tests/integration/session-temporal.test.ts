@@ -4,8 +4,7 @@
  * A session JWT is valid for 24 hours and is silently re-issued when a request
  * arrives within the final 6 hours of its life; a token allowed to expire is
  * not renewed and the next request lands unauthenticated. These properties are
- * the lifetime half of authentication and were previously unexercised — token
- * issuance was tested, expiry behavior was not.
+ * the lifetime half of authentication: expiry behavior, not token issuance.
  *
  * Time is controlled through the token's own TTL (createTestSessionJwt's
  * ttlSeconds), not a faked clock, so the assertions exercise the real

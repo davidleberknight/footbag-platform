@@ -866,12 +866,11 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
   },
 
   // ── Mechanical notation back-fill promotions.
-  //    18 ordinary modifier+base compounds previously sitting in
-  //    missing-notation because the DB notation column was empty.
+  //    18 ordinary modifier+base compounds whose DB notation column is
+  //    back-filled via red_corrections.
   //    Each derivation uses the standard modifier × base ADD math; no
   //    doctrine interpretation, no composite-modifier expansion, no
-  //    folk-name semantics required. Notation column back-filled
-  //    via red_corrections in the same slice. Provenance cites the
+  //    folk-name semantics required. Provenance cites the
   //    DB description (curator-authored short-form) where it sources
   //    the modifier identity.
   {

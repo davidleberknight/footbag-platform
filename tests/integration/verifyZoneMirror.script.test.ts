@@ -185,9 +185,9 @@ describe('verify-zone-mirror.sh', () => {
     expect(r.stdout).not.toMatch(/DIFFERS {3}g\.footbag\.org\./);
   });
 
-  // The other half of that, and the one that matters. Case folding used to be
-  // applied to every value, which would have certified a mirror that destroyed
-  // the Google site-verification token by lowercasing it.
+  // The other half of that, and the one that matters. Case folding applied to
+  // every value would certify a mirror that destroyed the Google
+  // site-verification token by lowercasing it.
   it('does report a difference when a text value changes case', () => {
     const lowered = FAITHFUL.replace(TOKEN, TOKEN.toLowerCase());
     const r = run(lowered);
@@ -303,7 +303,7 @@ describe('verify-zone-mirror.sh', () => {
   });
 
   // The legacy zone has no certificate-authorisation record, so nothing in the
-  // capture asks for the apex one; a mirror that had never applied it used to pass.
+  // capture asks for the apex one, so a mirror that never applied it can pass.
   // It must be served before the registrar is touched, so its absence fails.
   it('fails when the apex certificate-authorisation record is not served', () => {
     const noCaa = FAITHFUL.replace(/\n {2}"footbag\.org\. CAA"\)[^\n]*/, '');
@@ -343,8 +343,8 @@ describe('verify-zone-mirror.sh', () => {
     expect(r.stdout).not.toMatch(/\[zone-mirror\] pass/);
   });
 
-  // The apex used to be taken from the first parsed row, which worked only
-  // because the committed capture leads with the apex nameserver set.
+  // The first parsed row is the apex only because the committed capture
+  // happens to lead with the apex nameserver set.
   it('takes the apex from the start-of-authority record, not the first line', () => {
     const sorted = [
       'a-alias.footbag.org.\t720\tIN\tCNAME\tfootbag.org.',

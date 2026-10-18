@@ -693,7 +693,7 @@ describe('per-member scoping: handlers read memberId from session, never URL/bod
 });
 
 describe('flash cookie behavior (adversarial)', () => {
-  it('a forged flash naming a claim-result kind the platform no longer issues draws nothing', async () => {
+  it('a forged flash naming a claim-result kind the platform does not issue draws nothing', async () => {
     const memberId = insertClaimReadyMember({ slug: `wiz_ft_${Date.now()}`, login_email: `wiz-ft-${Date.now()}@example.com` });
     const res = await request(createApp())
       .get('/register/wizard/legacy_claim')

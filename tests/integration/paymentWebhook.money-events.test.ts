@@ -449,8 +449,8 @@ describe('a renewal the provider reports as paid', () => {
 // A payer can die, delete their account or start bouncing between paying and
 // the provider reporting it. The payment still has to be booked and the event
 // acknowledged, but no receipt may be queued, and the ledger must not claim one
-// was sent. A thrown lookup here used to answer 500 after the payment had
-// committed, waking the operator alarm for an event that had in fact applied.
+// was sent. Defect caught: a thrown lookup here answers 500 after the payment
+// has committed, waking the operator alarm for an event that in fact applied.
 describe('the receipt for a payer the platform may no longer mail', () => {
   async function makeUnmailable(memberId: string, state: 'deceased' | 'softDeleted'): Promise<void> {
     if (state === 'deceased') {

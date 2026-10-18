@@ -22,14 +22,11 @@
 # rather than four remembered ones, and why the last step verifies rather than
 # assuming.
 #
-# WHAT IT REPLACES.
+# WHY THERE IS NO SECRET.
 #
-# Both feeds previously arrived as pushes to a public endpoint authenticated by
-# a secret carried in the URL. Activating one then meant generating that secret,
-# installing it, writing it into a values file and confirming a subscription by
-# hand. None of that exists now: the queue read is authorized by the host's own
-# runtime role, so there is no secret to generate, install, rotate or leak, and
-# activation is the flag plus the four steps below.
+# Both feeds are read from a queue, and the queue read is authorized by the
+# host's own runtime role, so there is no secret to generate, install, rotate or
+# leak, and activation is the flag plus the four steps below.
 #
 # REVERSING IT.
 #

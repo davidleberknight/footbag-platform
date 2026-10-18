@@ -14,13 +14,10 @@
  * tool, and rendering the policy for real would need an initialized tree and a
  * credential, which the suite is built to have neither of.
  *
- * WHAT CHANGED, AND WHY THE ASSERTIONS ARE STRICTER NOW.
+ * WHY THE ASSERTIONS ARE EXACT.
  *
- * There used to be two roles assembled from one set of statement definitions,
- * and the load-bearing property was that the narrower one was a strict subset
- * of the wider one: a grant added to a shared statement reached both and could
- * not be added to one alone. There is one role now, so that property is gone
- * and nothing replaces it. What replaces the SAFETY it bought is exactness:
+ * There is one role, so no second role bounds what a grant can reach. The
+ * safety comes from exactness instead:
  * every statement's action list is asserted whole rather than by substring, and
  * the set of statements the policy carries is asserted as an exact list. A
  * `toContain` check passes just as happily against a statement that has since
@@ -189,8 +186,8 @@ describe('the job role carries exactly the statements it is meant to', () => {
     expect(source).not.toMatch(/aws_identitystore_/);
     expect(source).not.toMatch(/AWSReservedSSO/);
 
-    // The action ban here used to be absolute. It is now an exact allow-list of
-    // three reads, because verify-account-baseline.sh asks Identity Center
+    // Not an absolute ban but an exact allow-list of three reads, because
+    // verify-account-baseline.sh asks Identity Center
     // whether the dormant instance is still dormant -- whether it carries any
     // permission set, and whether its directory holds any user -- and a role
     // that cannot ask cannot report. Reading that the surface is empty is the
@@ -387,8 +384,7 @@ describe('the job role grants what a terraform plan actually calls', () => {
   });
 
   it('resolves who acted from the trail alone', () => {
-    // It used to read the directory too, which no longer exists. The trail
-    // records the role session name, and the trust policy forces that name to
+    // No directory read is needed. The trail records the role session name, and the trust policy forces that name to
     // be the assuming user's own, so the trail answers the question by itself.
     expect(actions('ResolveWhoActed')).toEqual(['cloudtrail:LookupEvents']);
   });

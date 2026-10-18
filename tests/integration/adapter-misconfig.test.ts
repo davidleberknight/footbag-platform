@@ -124,8 +124,8 @@ describe('Adapter misconfig: avatar upload surfaces 503 truthfully', () => {
     expectLoggedError('unhandled error');
     // A bug in the adapter or service (not a worker availability problem)
     // should still produce a friendly error page, and the page MUST report
-    // "500", not "503". This is the Bug A regression test: the template
-    // used to hardcode "503" regardless of HTTP status.
+    // "500", not "503". Defect caught: a template that hardcodes "503"
+    // regardless of the HTTP status.
     const buggyAdapter: import('../../src/adapters/imageProcessingAdapter').ImageProcessingAdapter = {
       processAvatar: async () => {
         throw new Error('synthetic non-IPE failure');

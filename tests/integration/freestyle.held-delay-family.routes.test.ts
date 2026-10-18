@@ -158,7 +158,7 @@ describe('First-class browse-card rendering — JOB+ADD card renders for promote
   );
 });
 
-describe('Observational backlog — wrap is no longer counted', () => {
+describe('Observational backlog — wrap is not counted', () => {
   it('TRACKED_DOCUMENTED_TOTAL is bounded above (wrap + later promotions removed)', async () => {
     const { TRACKED_DOCUMENTED_TOTAL } = await import('../../src/content/freestyleTrackedNames');
     // The total fluctuates: promotions drop it; corpus expansions

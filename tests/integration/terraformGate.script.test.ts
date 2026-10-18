@@ -1,20 +1,19 @@
 /**
  * The terraform gate reaches AWS not at all, proved against what terraform is handed.
  *
- * `gate_terraform` in run_all_tests.sh used to run `terraform init -backend=false`,
- * believing the flag made the init offline. It does not. Terraform's own help says
- * it "disables backend initialization for this configuration and uses what was
- * previously initialized instead", so in a tree where an operator has run a real
- * `terraform init`, the .terraform left behind holds the S3 state backend and init
- * loads it and calls STS. The gate therefore made a live AWS call on every local
- * run from the day it was written, and nobody could tell, because a passing
- * credential check looks exactly like no credential check. It surfaced months later
- * as `FAILED gates (1): terraform` on the day the operator's access key was rotated:
- * a credential outage reported as a terraform verdict, against a configuration that
- * was valid the whole time.
+ * `terraform init -backend=false` alone does not make the init offline. Terraform's
+ * own help says the flag "disables backend initialization for this configuration and
+ * uses what was previously initialized instead", so in a tree where an operator has
+ * run a real `terraform init`, the .terraform left behind holds the S3 state backend
+ * and init loads it and calls STS. Defect caught: the gate makes a live AWS call on
+ * every local run, and nobody can tell, because a passing credential check looks
+ * exactly like no credential check. It surfaces only when the operator's access key
+ * is rotated, as `FAILED gates (1): terraform`: a credential outage reported as a
+ * terraform verdict, against a configuration that is valid the whole time.
  *
- * The fix runs every terraform invocation through `aws_isolated_run` and initializes
- * into a throwaway TF_DATA_DIR, so there is no previous initialization to reuse. This
+ * `gate_terraform` runs every terraform invocation through `aws_isolated_run` and
+ * initializes into a throwaway TF_DATA_DIR, so there is no previous initialization
+ * to reuse. This
  * suite pins the outcome rather than the spelling: a stub terraform on PATH records
  * the environment and arguments it was actually handed, and the cases assert what
  * reached it. That is deliberate — a grep for `aws_isolated_run` would pass on a gate
@@ -24,7 +23,7 @@
  * The ambient environment each case runs under carries a plausible live credential,
  * because the assertion that matters is that the isolation OVERRIDES what the
  * operator's shell supplies. A test run with no credentials present would pass
- * against the unfixed gate and prove nothing.
+ * against a gate without the isolation and prove nothing.
  *
  * A stub also means these cases need no terraform binary, so they run on every
  * machine and on the runner rather than skipping into a silent green.

@@ -125,13 +125,12 @@ echo
 # host-tagged originals are still published alongside them.
 #
 # Only the three measurements the alarms and the dashboard read are collected.
-# The others were published and read by nothing, and every custom metric is
-# billed, so collecting them bought diagnostic breadth nobody consumed.
+# Every custom metric is billed, so collecting others would buy diagnostic
+# breadth nobody consumes.
 #
 # There is deliberately no append_dimensions block. fetch-config's translator
-# drops it, so the InstanceId it used to declare never reached CloudWatch, and
-# three documents went on describing an instance dimension that has never
-# existed. Keeping it was worse than useless: an agent version that honoured it
+# drops it, so an InstanceId declared there never reaches CloudWatch. Keeping
+# one would be worse than useless: an agent version that honoured it
 # would add a dimension to every metric at once and unbind all three alarms,
 # which treat missing data as missing and would then report insufficient data
 # for a host that is publishing normally. Hosts are told apart by namespace,
@@ -205,8 +204,8 @@ echo "=== Step 4: fetch-config and start agent (onPremise mode) ==="
 # exits nonzero even when the config is good: the agent's own control script
 # fails its validation step and reports a credentials or region complaint. That
 # is a known property of this build here rather than a signal about the config,
-# and treating its exit status as the install's verdict is what used to abort
-# the run after the config and credentials were already written, leaving a
+# and treating its exit status as the install's verdict would abort the run
+# after the config and credentials were already written, leaving a
 # half-installed agent and a withdrawn key. Its failure is therefore tolerated
 # and systemd is what actually starts the agent.
 /opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \

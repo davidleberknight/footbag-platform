@@ -26,10 +26,10 @@
  *
  * The two media directories default to gitignored trees inside the checkout, and
  * on a maintainer's machine one of them holds real member media. That makes this
- * more than a parity concern: the rule that no test writes real data currently
- * rests on each media suite remembering to override the default, which is the
- * same per-file arrangement that failed for credentials. Pointed at a throwaway
- * directory by default, forgetting is no longer possible.
+ * more than a parity concern: left to each media suite to override the default,
+ * the rule that no test writes real data would rest on a per-file arrangement,
+ * the same one that fails for credentials. Pointed at a throwaway directory by
+ * default, forgetting is not possible.
  *
  * The SSH client's configuration is the surface `HOME` does not reach, and it
  * cost three red pushes to find. Sixteen operator scripts refuse to run unless

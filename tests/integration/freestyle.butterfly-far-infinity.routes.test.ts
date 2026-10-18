@@ -145,7 +145,7 @@ describe('freestyle glossary family cards — butterfly base reconciled, compoun
   });
 });
 
-describe('GET /freestyle/tricks — browse no longer lists a separate Far Butterfly card', () => {
+describe('GET /freestyle/tricks — browse does not list a separate Far Butterfly card', () => {
   it('the dictionary index has no far_butterfly card link', async () => {
     const res = await page('/freestyle/tricks');
     expect(res.status).toBe(200);

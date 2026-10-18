@@ -3,10 +3,10 @@
  * live IAM access key.
  *
  * Several identities in this estate authenticate with long-lived access keys,
- * because a Lightsail host has no instance role. Minting one used to be an
- * operator's hand-typed command with things to remember afterwards: record it
- * in the vault before installing, shred the file, and come back later to cut
- * the predecessor. Every one of those failures is silent, and the worst leaves
+ * because a Lightsail host has no instance role. Minting one by hand leaves
+ * things to remember afterwards: record it in the vault before installing,
+ * shred the file, and come back later to cut the predecessor. Every one of
+ * those failures is silent, and the worst leaves
  * either a live credential that exists in the account and in no record, or a
  * rotation that ends with two live keys and retires nothing.
  *
@@ -550,7 +550,7 @@ describe('cwagent installers', () => {
     expect(r.status).toBe(2);
   });
 
-  it.each(installers)('%s no longer takes a keys file, so there is none to shred', (script) => {
+  it.each(installers)('%s takes no keys file, so there is none to shred', (script) => {
     const source = readFileSync(join(process.cwd(), script), 'utf-8');
     expect(source).not.toContain('KEYS_FILE');
     expect(source).not.toContain('create-access-key');

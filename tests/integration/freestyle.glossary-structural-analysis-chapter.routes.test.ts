@@ -90,7 +90,7 @@ describe('Freestyle Concepts — Structural Analysis and ADD Accounting chapters
     const html = await concepts();
     // single reconciled expansion
     expect(html).toContain('ADD (Additional Degree of Difficulty)');
-    // the accounting prose no longer restates the bracket-count checksum
+    // the accounting prose does not restate the bracket-count checksum
     expect(html).not.toContain('contributes 1 ADD');
     // the checksum lives in the card reveal, stated over scoring brackets: an
     // action marker sits in brackets and carries no weight, so a plain bracket

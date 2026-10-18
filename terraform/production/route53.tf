@@ -235,8 +235,8 @@ variable "legacy_apex_cname_records" {
 # earlier. The gate for their removal is therefore the flip itself, not the
 # mirror flag, which stays on past the flip because the mail records count on it.
 # Removed in the same apply that switches the alias, which is what the cutover
-# runbook requires and what nothing previously implemented: these names had no
-# Terraform resource, so no apply could remove them.
+# runbook requires; that is why these names are Terraform resources at all,
+# since a name with none could not be removed by any apply.
 #
 # These five are separated from the rest of the mirrored zone because their
 # disposition is fixed by their shape rather than by the removal schedule: they
@@ -592,9 +592,8 @@ resource "aws_route53_record" "origin_caa" {
   # The refusal has to be written. Omitting issuewild does not withhold wildcard
   # issuance: RFC 8659 says that when no issuewild set is present, the issue set
   # governs wildcard requests too, so a record carrying only the issue line
-  # authorises *.origin.<domain> as readily as the name itself. The comment here
-  # previously claimed the opposite, which is the kind of mistake that survives
-  # because the record looks narrower than it is.
+  # authorises *.origin.<domain> as readily as the name itself. That is easy to
+  # get wrong, because the record looks narrower than it is.
   #
   # This name takes a single-name certificate by DNS-01, so nothing is lost.
   records = [

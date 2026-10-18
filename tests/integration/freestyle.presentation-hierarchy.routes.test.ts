@@ -46,10 +46,10 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 const page = cachedGet(() => createApp());
 
 // paradox-whirl + spinning-whirl are absent from PILOTS — they are
-// promoted into FIRST_CLASS_TIER_2 alongside symposium-whirl.
+// in FIRST_CLASS_TIER_2 alongside symposium-whirl.
 // First-class compounds with tautological chain readings (canonical-
 // name-equal) have those readings suppressed AND have no inline
-// dict-card-notation rendered, so the "formula" slot no longer falls
+// dict-card-notation rendered, so the "formula" slot does not fall
 // between title and ADD chip — the structural decomposition surfaces
 // in the first-class secondary row below the status badges instead.
 //
@@ -98,7 +98,7 @@ function trickRowRegion(html: string, slug: string): string | null {
 }
 
 describe('Presentation-hierarchy contract — ADD View row order', () => {
-  // The ADD view no longer renders the shared dict-card. It uses the
+  // The ADD view does not render the shared dict-card. It uses the
   // dict-trick-row contract: an identity column (name, nicknames, hashtag,
   // controls) and a notation column (difficulty value, then movement
   // notation). Identity comes first: a reader scanning the view is looking

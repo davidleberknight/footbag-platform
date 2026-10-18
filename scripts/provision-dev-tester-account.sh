@@ -453,13 +453,13 @@ if [[ "$ACCOUNT" == "$OPERATOR_SHARED_ACCOUNT" && "$OFFBOARD" -eq 0 ]]; then
   exit 2
 fi
 
-# The shared gate, as every sibling script uses, rather than the hand-rolled
-# check this used to carry. The difference is not cosmetic. The old one refused
-# an interactive stdin and stopped there, so an EMPTY credential file passed it:
-# the bare read further down then set an empty password, every sudo on the host
-# refused it, and the run reported what looked like a host problem. It also
-# named the staging credential file whatever the target was, so an operator
-# whose production run was refused was handed the wrong file to re-run with.
+# The shared gate, as every sibling script uses, rather than a hand-rolled
+# check. The difference is not cosmetic. A check that refuses an interactive
+# stdin and stops there lets an EMPTY credential file through: an empty
+# password would reach every sudo on the host, be refused, and the run would
+# report what looked like a host problem. The shared gate also names the
+# credential file for the target, so an operator whose run is refused is handed
+# the right file to re-run with.
 #
 # Read ONCE, here, for both branches. A single stdin cannot serve two sessions
 # because the first consumer drains it, and the rollback path needs the
@@ -833,11 +833,11 @@ provision_cleanup() {
 }
 trap provision_cleanup EXIT INT TERM
 
-# The credential was read once, by the shared gate above, for exactly the reason
-# this comment used to give: a single stdin cannot serve two sessions, because
-# the first consumer drains it, and the rollback path above needs it as much as
-# the install does. Reading it here as well consumed a second line that nobody
-# sends, which on an empty file left the password empty and unchecked.
+# The credential was read once, by the shared gate above: a single stdin cannot
+# serve two sessions, because the first consumer drains it, and the rollback
+# path above needs it as much as the install does. Reading it here as well
+# would consume a second line that nobody sends, which on an empty file would
+# leave the password empty and unchecked.
 
 # ── Where the password comes from ────────────────────────────────────────────
 #

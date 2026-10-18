@@ -2,18 +2,16 @@
  * scripts/lib/egress-allowlist.sh — whether this workstation can still reach the
  * host's SSH port, asked once for the tree.
  *
- * Two operator scripts ask it immediately before handing off to a deploy, and
- * both used to ask it of the local Terraform values file: one matched the
- * address as a fixed string but carried on when the address lookup failed, the
- * other stopped on a failed lookup but matched as an unanchored regex, so
- * 1.2.3.4 passed against an entry for 51.2.3.4/32 by substring alone. Neither
- * read AWS, neither could tell that an address fell inside a wider range, and
- * neither could see a source-IP alias.
+ * Two operator scripts ask it immediately before handing off to a deploy. A
+ * check against the local Terraform values file falls short: it can carry on
+ * when the address lookup fails, match an unanchored regex so 1.2.3.4 passes
+ * against an entry for 51.2.3.4/32 by substring alone, miss that an address
+ * falls inside a wider range, and miss a source-IP alias.
  *
- * The cases that matter most in a year are the ones no grep could have answered:
- * an address admitted on port 22 but not on the port the deploy actually uses,
- * and a lookup that fails answering "unknown" rather than "fine". The second is
- * the one that stranded a deploy part-way through its remote half.
+ * The cases that matter most are the ones no grep could answer: an address
+ * admitted on port 22 but not on the port the deploy actually uses, and a
+ * lookup that fails answering "unknown" rather than "fine". The second is the
+ * one that strands a deploy part-way through its remote half.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
@@ -315,9 +313,9 @@ describe('the whole check, against a live firewall', () => {
 
 describe('everything it cannot read is unknown, never fine', () => {
   it('answers unknown when the egress address cannot be resolved', () => {
-    // The defect this replaces: the address a run cannot resolve is precisely
-    // the one the check exists to doubt, and one script warned and carried on to
-    // the deploy, which then stranded part-way through its remote half.
+    // The address a run cannot resolve is precisely the one the check exists to
+    // doubt. Defect caught: warning and carrying on to the deploy, which then
+    // strands part-way through its remote half.
     const r = check({ address: null, port: 2222, firewall: TWO_PORT_FIREWALL });
     expect(r.verdict).toBe('unknown');
     expect(r.detail).toContain('unknown rather than fine');

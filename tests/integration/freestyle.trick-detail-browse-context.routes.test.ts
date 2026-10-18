@@ -76,7 +76,7 @@ describe('W1 — same-family and shared-modifier relating owned by the Family la
   it('does not render Same-family / Shares-a-modifier groups in Related Tricks', async () => {
     const html = await page('paradox-torque');
     // Same-family relating is owned by the Family ladder; the shared-modifier
-    // and same-family groups no longer appear in the Related Tricks section.
+    // and same-family groups do not appear in the Related Tricks section.
     expect(html).not.toContain('Same family');
     expect(html).not.toContain('Shares a modifier');
     // The canonical same-family relating still surfaces via the Family ladder.
@@ -93,7 +93,7 @@ describe('W2/W3 — "Modifiers on this trick" block', () => {
     expect(html).toContain('trick-modifier-cluster');
     // Composition gloss line present.
     expect(html).toContain('trick-modifier-gloss');
-    // No row links into a dictionary view that no longer exists.
+    // No row links into a dictionary view the dictionary does not offer.
     expect(html).not.toContain('trick-modifier-axis');
     expect(html).not.toContain('view=movement-system');
   });

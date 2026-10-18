@@ -531,8 +531,8 @@ describe('setup-dev-workstation.sh — the named key pair a dev-and-tester is on
   });
 
   it('says why it stops on a pair ssh-keygen cannot read, rather than exiting silently', () => {
-    // The read is a pipeline under pipefail, so its failure used to end the run
-    // through errexit with no message at all.
+    // The read is a pipeline under pipefail. Defect caught: its failure ends
+    // the run through errexit with no message at all.
     awsMachine();
     mkdirSync(join(home, '.ssh'), { recursive: true });
     writeFileSync(namedKey(), 'not a key\n');

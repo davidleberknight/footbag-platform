@@ -19,16 +19,15 @@
 #      is wrong the guard silently fails to protect, so it lives here in the
 #      header, stated with its reasoning.
 #
-#      WHAT IT DOES NOT COVER, corrected 2026-09-05. The sentence here used to
-#      read "real members arrive only with the final data load, after which this
-#      deploy path is dead". That is not what the load does. The final load
-#      populates `legacy_members` -- roughly 25,000 rows of real member data --
-#      and those rows carry NO password hash, because a legacy account has none
-#      until its member claims it. So this tripwire counts the handful of
+#      WHAT IT DOES NOT COVER. Real member data does not arrive as accounts
+#      this tripwire counts. The final load populates `legacy_members` --
+#      roughly 25,000 rows of real member data -- and those rows carry NO
+#      password hash, because a legacy account has none until its member
+#      claims it. So this tripwire counts the handful of
 #      operator accounts, passes, and a rebuild would destroy the load while
 #      printing nothing.
 #
-#      This is deliberate and was ruled 2026-09-05 rather than patched. Counting
+#      This is a deliberate ruling, not a gap awaiting a patch. Counting
 #      `legacy_members` instead would refuse every pre-live test load too, since
 #      a test load is itself a database-replacing deploy filling the same table
 #      with the same volume: the two are indistinguishable by row count. The

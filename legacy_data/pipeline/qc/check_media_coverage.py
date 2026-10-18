@@ -187,9 +187,8 @@ def main() -> int:
     # 5. no_canonical_trick_tag — HARD
     # Gallery contract: every freestyle-gallery media row must carry at
     # least one tag whose slug (post-#-strip) exists in freestyle_tricks.slug.
-    # Otherwise the asset is unreachable from any trick page. Migration-time
-    # invariant in scripts/migrate-freestyle-media-to-curated.py; QC asserts
-    # it post-load.
+    # Otherwise the asset is unreachable from any trick page. QC asserts it
+    # post-load.
     #
     # Scoped to freestyle-gallery items only (must carry both #freestyle AND
     # #trick). Demo loops, avatars, and event photos live in other tag

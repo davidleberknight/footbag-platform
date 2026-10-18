@@ -646,7 +646,7 @@ describe('POST /admin/freestyle/tricks/:slug/edit — derived notation parse', (
   }
 
   it('clears the stored parse when the canonical name changes, since the parser reads the name', async () => {
-    // The case that was live. The parse decomposes the canonical name, so a name
+    // The parse decomposes the canonical name, so a name
     // change leaves the maintainer panel presenting a decomposition of a name the
     // row no longer carries, as though it were current.
     //
@@ -897,10 +897,9 @@ describe('POST/GET /admin/freestyle/tricks/:slug/edit — editorial prose fields
   });
 });
 
-// The core-primitive marker and the browse sort position are the two row fields
-// the retiring content pipeline used to own. They need an in-app write path
-// because nothing else maintains them once the live database is the source of
-// truth for freestyle content.
+// The core-primitive marker and the browse sort position need an in-app write
+// path because nothing else maintains them once the live database is the
+// source of truth for freestyle content.
 describe('POST/GET /admin/freestyle/tricks/:slug/edit — sort position, and the retired core marker', () => {
   it('displays the stored sort position for editing', async () => {
     const res = await get('/admin/freestyle/tricks/core_host/edit', admin());
@@ -1296,9 +1295,9 @@ describe('POST /admin/freestyle/tricks/:slug/aliases/:aliasSlug/delete — remov
 
 describe('alias provenance, judgement and ownership are three separate facts', () => {
   it('keeps provenance when only the publication judgement changes', async () => {
-    // The failure this replaces: the reason and the provenance shared one column,
-    // so agreeing with the class cleared the reason and took the provenance with
-    // it. After cutover no loader would have put it back.
+    // Defect caught: the reason and the provenance sharing one column, so
+    // agreeing with the class clears the reason and takes the provenance with
+    // it. After cutover no loader would put it back.
     const before = aliasRow('provenanced')!;
     const res = await post('/admin/freestyle/tricks/alias_host/aliases/provenanced', admin(),
       { aliasType: 'technical' });

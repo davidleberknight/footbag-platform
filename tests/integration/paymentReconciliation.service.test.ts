@@ -184,8 +184,8 @@ describe('pass 1: one-time payments against the provider ledger', () => {
     // subscription, since a payment intent carries no invoice reference at all
     // at the pinned API version.
     //
-    // Regression: this skip used to key on an `invoice` field that does not
-    // exist on a payment intent, so it never fired.
+    // Defect caught: a skip keyed on an `invoice` field, which does not exist
+    // on a payment intent, never fires.
     const adapter = await stub();
     adapter.setLedgerSubscription({
       id: 'sub_renewing', customerId: 'cus_donor', status: 'active',
@@ -646,9 +646,9 @@ describe('pass 2: subscriptions and renewal invoices', () => {
 
   it('raises one issue per stranded checkout, not one for all of them', async () => {
     // A webhook outage strands several members' checkouts at once, and each may
-    // be a live subscription charging a card this platform cannot see. They
-    // used to collapse onto a single dedup slot, so an administrator saw one
-    // issue naming one member and the rest stayed invisible.
+    // be a live subscription charging a card this platform cannot see. Defect
+    // caught: collapsed onto a single dedup slot, an administrator sees one
+    // issue naming one member and the rest stay invisible.
     seed((db) => {
       insertRecurringDonationSubscription(db, {
         id: 'rds-stranded-a', member_id: MEMBER, status: 'incomplete', created_at: BEFORE_WINDOW,
@@ -730,10 +730,11 @@ describe('pass 2: subscriptions and renewal invoices', () => {
     // The costly gap: the provider collects a final dunning attempt after the
     // subscription is canceled locally, and the webhook recording it is lost.
     // The webhook path books such a charge deliberately, because the money
-    // moved, so a missing row is a real discrepancy. Both passes used to skip
-    // it — the subscription pass compares only live rows, and the invoice pass
-    // read the active view to decide whether it knew the subscription at all —
-    // so the money went unrecorded and unreported, permanently.
+    // moved, so a missing row is a real discrepancy. Defect caught: both passes
+    // skip it — the subscription pass compares only live rows, and an invoice
+    // pass that reads the active view to decide whether it knows the
+    // subscription at all misses it too — so the money goes unrecorded and
+    // unreported, permanently.
     seed((db) => {
       insertRecurringDonationSubscription(db, {
         member_id: MEMBER, stripe_subscription_id: 'sub_ended', status: 'canceled',
@@ -1280,7 +1281,7 @@ describe('resolving an issue', () => {
     }
   });
 
-  it('re-raises the discrepancy on a later run once it has been resolved, because a resolved issue no longer suppresses it', async () => {
+  it('re-raises the discrepancy on a later run once it has been resolved, because a resolved issue does not suppress it', async () => {
     const issueId = await oneOutstandingIssue();
     const service = await svc();
     service.resolveIssue({ issueId, adminMemberId: ADMIN, notes: 'Handled.' });

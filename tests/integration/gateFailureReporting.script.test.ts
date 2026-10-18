@@ -53,8 +53,8 @@ describe('the persona-crawl gate prints the dev stack log it holds', () => {
     expect(messageAt).toBeGreaterThan(-1);
     const failureBranch = runner.slice(messageAt, messageAt + 800);
     expect(failureBranch).toContain('tail -n 60 "${LOG_DIR}/persona-stack.log"');
-    // The path alone was the whole message before, and LOG_DIR is removed on the
-    // EXIT trap, so the reader was sent to a file that no longer existed.
+    // LOG_DIR is removed on the EXIT trap, so a message giving the path alone
+    // sends the reader to a file that no longer exists.
     expect(failureBranch).toContain('(the stack produced no output at all)');
   });
 });

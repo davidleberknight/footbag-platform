@@ -576,8 +576,8 @@ describe('GET /', () => {
   it('does not list Sideline as a coming-soon section', async () => {
     const app = createApp();
     const res = await request(app).get('/');
-    // The promoted card replaces the "Coming soon" entry; "Sideline Events"
-    // should no longer appear paired with the coming-soon badge.
+    // Sideline has its own card, so "Sideline Events" must not appear
+    // paired with the coming-soon badge.
     expect(res.text).not.toMatch(/Sideline Events[\s\S]{0,400}badge-coming-soon/);
   });
 });
@@ -1117,10 +1117,9 @@ describe('GET /nonexistent-route', () => {
   });
 });
 
-// /csp-report previously logged the wholesale request
-// body, so an attacker could inflate CloudWatch log volume by POSTing
-// arbitrarily-structured JSON up to the body-parser cap. Fix narrows the
-// logged payload to the standard `csp-report` key only.
+// /csp-report logs only the standard `csp-report` key. Logging the whole
+// request body would let an attacker inflate CloudWatch log volume by
+// POSTing arbitrarily-structured JSON up to the body-parser cap.
 describe('POST /csp-report', () => {
   // eslint-disable-next-line @typescript-eslint/consistent-type-imports
   let loggerMod: typeof import('../../src/config/logger');

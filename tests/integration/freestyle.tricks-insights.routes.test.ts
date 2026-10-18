@@ -189,40 +189,40 @@ beforeAll(async () => {
   // The trick-detail page reads `listMediaByTrickTag` (curator channel:
   // media_items + media_tags + tags). Three dedicated tricks with curator-
   // channel coverage exercise the three Reference Media heading states.
-  const phase3Uploader = insertMember(db, { slug: 'phase3-uploader' });
+  const refmediaUploader = insertMember(db, { slug: 'refmedia-uploader' });
   insertFreestyleTrick(db, {
-    slug: 'phase3-tutorial-only', canonical_name: 'phase3-tutorial-only', adds: '3', sort_order: 96,
+    slug: 'refmedia-tutorial-only', canonical_name: 'refmedia-tutorial-only', adds: '3', sort_order: 96,
   });
   insertFreestyleTrick(db, {
-    slug: 'phase3-demo-only', canonical_name: 'phase3-demo-only', adds: '3', sort_order: 97,
+    slug: 'refmedia-demo-only', canonical_name: 'refmedia-demo-only', adds: '3', sort_order: 97,
   });
   insertFreestyleTrick(db, {
-    slug: 'phase3-mixed-media', canonical_name: 'phase3-mixed-media', adds: '3', sort_order: 98,
+    slug: 'refmedia-mixed-media', canonical_name: 'refmedia-mixed-media', adds: '3', sort_order: 98,
   });
   // Tutorial-only: one clip that says it teaches. The content type is the
-  // clip's own tag; the source id no longer decides it.
+  // clip's own tag; the source id does not decide it.
   insertTtLesson(db, {
-    uploader_member_id: phase3Uploader, ttNumber: 700,
-    trickSlug: 'phase3-tutorial-only', videoId: 'phase3-tut-only',
-    lessonTitle: 'Phase3 Tutorial Only', extraTags: ['#curated', '#tutorial'],
+    uploader_member_id: refmediaUploader, ttNumber: 700,
+    trickSlug: 'refmedia-tutorial-only', videoId: 'refmedia-tut-only',
+    lessonTitle: 'RefMedia Tutorial Only', extraTags: ['#curated', '#tutorial'],
   });
   // Demo-only: one clip showing the trick without teaching it.
   insertTtLesson(db, {
-    uploader_member_id: phase3Uploader, ttNumber: 701,
-    trickSlug: 'phase3-demo-only', videoId: 'phase3-demo-only',
-    lessonTitle: 'Phase3 Demo Only', source_id: 'footbag_finland',
+    uploader_member_id: refmediaUploader, ttNumber: 701,
+    trickSlug: 'refmedia-demo-only', videoId: 'refmedia-demo-only',
+    lessonTitle: 'RefMedia Demo Only', source_id: 'footbag_finland',
     extraTags: ['#curated', '#demo'],
   });
   // Mixed: one of each on the same trick.
   insertTtLesson(db, {
-    uploader_member_id: phase3Uploader, ttNumber: 702,
-    trickSlug: 'phase3-mixed-media', videoId: 'phase3-mixed-tut',
-    lessonTitle: 'Phase3 Mixed Tutorial', extraTags: ['#curated', '#tutorial'],
+    uploader_member_id: refmediaUploader, ttNumber: 702,
+    trickSlug: 'refmedia-mixed-media', videoId: 'refmedia-mixed-tut',
+    lessonTitle: 'RefMedia Mixed Tutorial', extraTags: ['#curated', '#tutorial'],
   });
   insertTtLesson(db, {
-    uploader_member_id: phase3Uploader, ttNumber: 703,
-    trickSlug: 'phase3-mixed-media', videoId: 'phase3-mixed-demo',
-    lessonTitle: 'Phase3 Mixed Demo', source_id: 'footbag_finland',
+    uploader_member_id: refmediaUploader, ttNumber: 703,
+    trickSlug: 'refmedia-mixed-media', videoId: 'refmedia-mixed-demo',
+    lessonTitle: 'RefMedia Mixed Demo', source_id: 'footbag_finland',
     extraTags: ['#curated', '#demo'],
   });
 
@@ -565,14 +565,14 @@ describe('GET /freestyle/tricks/:slug — pathways cross-link block', () => {
 
 describe('GET /freestyle/tricks/:slug — Media section + Learn-pathway counts', () => {
   it('tutorial-only trick: Media section links to the gallery; Learn pathway counts only tutorials', async () => {
-    // 'phase3-tutorial-only' has one tt_youtube curator-tagged clip and no
+    // 'refmedia-tutorial-only' has one tt_youtube curator-tagged clip and no
     // demo-tier coverage.
-    const res = await page('/freestyle/tricks/phase3-tutorial-only');
+    const res = await page('/freestyle/tricks/refmedia-tutorial-only');
     expect(res.status).toBe(200);
     // The Media section links to the trick gallery; clips are watched there, not
     // embedded inline, so there are no per-tier subsections.
     expect(res.text).toMatch(/<h2>Media<\/h2>/);
-    expect(res.text).toContain('href="/media/browse?context&#x3D;phase3-tutorial-only"');
+    expect(res.text).toContain('href="/media/browse?context&#x3D;refmedia-tutorial-only"');
     expect(res.text).not.toMatch(/<h2>\s*Reference Media\s*<\/h2>/);
     expect(res.text).not.toContain('reference-media-subsection');
     // Learn pathway counts ONLY tutorials. Anchor on the pathway li.
@@ -585,12 +585,12 @@ describe('GET /freestyle/tricks/:slug — Media section + Learn-pathway counts',
   });
 
   it('demo-only trick: Media section links to the gallery; Learn pathway counts only demos', async () => {
-    // 'phase3-demo-only' has one footbag_finland curator-tagged clip and no
+    // 'refmedia-demo-only' has one footbag_finland curator-tagged clip and no
     // tutorial-tier coverage.
-    const res = await page('/freestyle/tricks/phase3-demo-only');
+    const res = await page('/freestyle/tricks/refmedia-demo-only');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<h2>Media<\/h2>/);
-    expect(res.text).toContain('href="/media/browse?context&#x3D;phase3-demo-only"');
+    expect(res.text).toContain('href="/media/browse?context&#x3D;refmedia-demo-only"');
     expect(res.text).not.toMatch(/<h2>\s*Reference Media\s*<\/h2>/);
     expect(res.text).not.toContain('reference-media-subsection');
     // Learn pathway counts ONLY demos. The legacy "X tutorials available"
@@ -605,12 +605,12 @@ describe('GET /freestyle/tricks/:slug — Media section + Learn-pathway counts',
   });
 
   it('mixed-tier trick: Media section links to the gallery; Learn pathway counts both separately', async () => {
-    // 'phase3-mixed-media' has BOTH a tt_youtube and a footbag_finland clip
+    // 'refmedia-mixed-media' has BOTH a tt_youtube and a footbag_finland clip
     // in the curator-tagged channel.
-    const res = await page('/freestyle/tricks/phase3-mixed-media');
+    const res = await page('/freestyle/tricks/refmedia-mixed-media');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/<h2>Media<\/h2>/);
-    expect(res.text).toContain('href="/media/browse?context&#x3D;phase3-mixed-media"');
+    expect(res.text).toContain('href="/media/browse?context&#x3D;refmedia-mixed-media"');
     expect(res.text).not.toMatch(/<h2>\s*Reference Media\s*<\/h2>/);
     expect(res.text).not.toContain('reference-media-subsection');
     // Learn pathway carries BOTH counts in distinct fragments — no conflation.
@@ -653,9 +653,9 @@ describe('GET /freestyle/tricks/:slug — family badge in hero', () => {
   });
 });
 
-// Previous Tricks and Next Tricks are no longer standalone sections; lower-ADD
+// Previous Tricks and Next Tricks are not standalone sections; lower-ADD
 // and higher-ADD same-family navigation is owned by the Family ladder.
-describe('GET /freestyle/tricks/:slug — Previous/Next Tricks sections removed', () => {
+describe('GET /freestyle/tricks/:slug — no Previous/Next Tricks sections', () => {
   it('does not render a Previous Tricks section, surfacing lower-ADD peers via the Family ladder', async () => {
     // 'spinning-whirl' (5 ADD) has whirl(3) as a lower-ADD family peer.
     const res = await page('/freestyle/tricks/spinning-whirl');

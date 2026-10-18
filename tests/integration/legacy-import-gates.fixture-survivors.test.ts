@@ -88,8 +88,8 @@ describe('the provenance gate separates export-loaded rows from system fixtures'
   });
 
   it('names the survivors when the export left fixtures behind', async () => {
-    // The state the card exists to surface, and the one that used to read as an
-    // unremarkable clean pass.
+    // The state the card exists to surface, and the one that would otherwise
+    // read as an unremarkable clean pass.
     await populate(['legacy_site_data', 'legacy_site_data', 'system_fixture']);
     const line = provenanceLine();
     expect(line).toContain('PASS');

@@ -8,13 +8,12 @@
 #
 # WHY THIS EXISTS.
 #
-# The tools used to be a list of commands in the onboarding guide, copied by
-# hand, with versions that nothing checked. A machine set up from that list could
-# not reach a green full run: it had no secret scanner, a Terraform newer than
-# the one CI formats with, no interpreter of the pinned Python version, and
-# browsers without their system libraries. Every one of those surfaced as a
-# skipped or failed gate an hour into a run. A setup step that lives in a document
-# is a step somebody skips, so it lives here instead.
+# A list of commands copied by hand, with versions that nothing checks, gives a
+# machine that cannot reach a green full run: no secret scanner, a Terraform
+# newer than the one CI formats with, no interpreter of the pinned Python
+# version, and browsers without their system libraries. Each of those surfaces
+# as a skipped or failed gate an hour into a run. A setup step that lives in a
+# document is a step somebody skips, so it lives here instead.
 #
 # WHAT IT DOES, IN ORDER, EACH ONLY WHEN NEEDED.
 #

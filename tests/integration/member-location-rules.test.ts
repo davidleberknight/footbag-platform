@@ -117,10 +117,10 @@ describe('country canonicalization on the profile edit path', () => {
 });
 
 describe('country spelling cannot be used to escape the region rule', () => {
-  // The state and province list is looked up by country. A country spelled in
-  // a way the lookup does not recognize used to match no list, so its region
-  // skipped the two-letter-code rule entirely and free text reached the roster
-  // export -- the exact failure the region rule exists to prevent.
+  // The state and province list is looked up by country. Defect caught: a
+  // country spelled in a way the lookup does not recognize matches no list, so
+  // its region skips the two-letter-code rule entirely and free text reaches
+  // the roster export -- the exact failure the region rule exists to prevent.
   it('refuses a full state name even when the country is spelled with dots', async () => {
     const { id, slug } = seedMember({ country: 'Canada', region: 'ON', city: 'Toronto' });
     await expect(
