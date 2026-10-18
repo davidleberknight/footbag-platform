@@ -198,8 +198,7 @@ The trick detail page ships the family ladder plus the Related Tricks and Relate
 These surfaces have **different semantics**; do not collapse them:
 
 - **Trick name** = a link to the trick detail page `/freestyle/tricks/<slug>`.
-- **Hashtag** = media-gallery link. `#<slug>` links to `/media/browse?context=<slug>` when the trick has at least one media item, and renders as a plain non-clickable token otherwise; a clickable hashtag is the sole signal that media exists.
-- **Detail** = a distinct link beside the name that opens the same page as the name. Name, hashtag, Detail, and Media are four explicit controls (view-layer rule, "Hashtag and dictionary-filter links"); a click's destination is never guessed.
+- **Hashtag, Detail and Media** = the trick dictionary's four-control rule, stated once in the view-layer rule, "Hashtag and dictionary-filter links"; a click's destination is never guessed.
 - **Family navigation** = a separate family chip whose href the service supplies (view-layer rule, "Hashtag and dictionary-filter links").
 
 Forbidden: hashtags must NOT trigger family filtering; slug-prefix matching is NOT used for filtering (narrow on `trick_family` only); family selection must NOT be derived from a hashtag.

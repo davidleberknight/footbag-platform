@@ -7,8 +7,8 @@ Local rules for the pre-go-live freestyle pipeline.
 This subtree rebuilds the freestyle tables from committed inputs. It keeps
 changing after the `legacy_data/` freeze, until it too is deleted after cutover,
 so it must stay self-contained:
-read only from `freestyle/inputs/` (and `curated/` for media), never from
-`legacy_data/`, and never from the live network.
+read only from `freestyle/inputs/` and `freestyle/symbolic_grammar/` (and
+`curated/` for media), never from `legacy_data/`, and never from the live network.
 
 ## Invariants
 
@@ -33,11 +33,11 @@ read only from `freestyle/inputs/` (and `curated/` for media), never from
   to re-run and reach a fixed point in one pass. Do not describe the pipeline as
   delete-and-insert; that was true before the tables held writable authority, and it is
   what made a destructive refresh look safe.
-- **Loaders that still clear their whole table are the ones whose data is wholly
-  derived**: records, consecutive records, modifier registry rows absent from the
-  input, symbolic grammar, tips. The records loader is additive (`INSERT OR IGNORE`,
-  no `DELETE`), so a change to an existing record needs a fresh database build to take
-  effect.
+- **Loaders that clear what they load are the ones whose data is wholly derived**:
+  consecutive records, modifier registry rows absent from the input, and symbolic
+  grammar clear their whole table; tips clear only the rows from their own source.
+  The records loader is additive (`INSERT OR IGNORE`, no `DELETE`), so a change to an
+  existing record needs a fresh database build to take effect.
 - **The record CSVs are hand-curated, not generated.**
   `inputs/curated/records/records_master.csv` and
   `inputs/curated/records/consecutives_records.csv` have no producing pipeline and no

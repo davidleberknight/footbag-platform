@@ -30,8 +30,8 @@ pieces:
   govern classification, scoring, and naming. See section 6.
 - **The code-side authority modules.** `src/content/freestyle*.ts` carry the
   content that is deliberately code-managed rather than database-managed: the
-  operator reference (the ADD and structure authority), the family tiers, the
-  observational universe, and the symbolic panels. See sections 2 and 4.
+  operator reference (the ADD and structure authority), the family tiers, and
+  the symbolic panels. See sections 2 and 4.
 - **The curated media lane.** A separate system from the dictionary, governed by
   the curated-media skill; it attaches reference videos to tricks. Never merged
   with the dictionary tables.
@@ -58,18 +58,17 @@ tiers, and knowing which tier a datum sits in is the whole of making a safe edit
    links, records, consecutive-kicks records, trick tips, and provenance-source
    rows. Section 4 lists the surface for each.
 2. **Code-managed doctrine and operator authority.** `freestyleOperatorReference.ts`
-   is the single authority for every operator's ADD value, structure, and X-Dex
-   behavior; the database modifier registry is a secondary data-side mirror that
-   must stay consistent with it. Changing an operator is a code change plus a
-   reviewed data change, never an in-app edit. Doctrine rulings live in
+   is the single authority for operator ADD, structure, and X-Dex behavior; the
+   rule and the secondary surfaces it binds are in the
+   `footbag-freestyle-dictionary` skill. Changing an operator is a code change
+   plus a reviewed data change, never an in-app edit. Doctrine rulings live in
    `freestyle/doctrine/` (section 6).
 3. **Generated or spreadsheet-owned symbolic research.** The five `symbolic_*`
    tables load from committed spreadsheets under `freestyle/symbolic_grammar/`;
    they are curator research artifacts. Before cutover the spreadsheets are
    authoritative and the database is a rendered copy, and their loader must not
    run inside a general live rebuild. After cutover they change only through a
-   reviewed database migration. A trick page's educational links are decided
-   from the trick's own base trick and modifier links when the page renders.
+   reviewed database migration.
 4. **Sealed provenance inputs.** `freestyle/inputs/footbag_org_moves_metadata.ndjson`
    is a sealed, immutable archive artifact preserved for provenance and as a
    future description-upgrade source. No loader consumes it.
@@ -88,8 +87,8 @@ authority order in the root `CLAUDE.md`.
 ## 3. The data model (table level)
 
 Column-level detail lives in the inline comments in `database/schema.sql`; this
-section is the table-level home that `docs/DATA_MODEL.md` points to. Sixteen
-tables are freestyle-owned: ten `freestyle_*` tables, `consecutive_kicks_records`,
+section is the table-level home that `docs/DATA_MODEL.md` points to. Fifteen
+tables are freestyle-owned: nine `freestyle_*` tables, `consecutive_kicks_records`,
 and five `symbolic_*` tables.
 
 - **`freestyle_tricks`** - the trick corpus. Load-bearing columns: `adds` (the ADD
@@ -98,9 +97,9 @@ and five `symbolic_*` tables.
   `base_trick`, `category`, the editorial-prose fields, and the structural-parse
   columns (`structural_parse_json`, `computed_adds`, `add_formula_status`)
   populated by the notation parser.
-- **`freestyle_trick_aliases`** - first-class aliases. `alias_type` is one of the
-  documented semantic classes; `alias_display` gates public "Also called" display
-  while search and redirect resolve any alias regardless of the gate.
+- **`freestyle_trick_aliases`** - first-class aliases, each with a semantic
+  class (`alias_type`) and a display flag (`alias_display`). How the two decide
+  search and display is in the `freestyle-dictionary-surface` skill.
 - **`freestyle_trick_sources`** and **`freestyle_trick_source_links`** - the
   provenance registry and its many-to-many trick-to-source links, which preserve
   per-source assertions that may diverge from canonical.
@@ -130,7 +129,8 @@ and five `symbolic_*` tables.
   nullable `published_trick_slug` link plus the disposition transition, with the
   live trick row deciding whether a linked name is still a candidate.
 - **`freestyle_records`** and **`consecutive_kicks_records`** - the world-record
-  and consecutive-kicks corpora, with confidence and superseded-by state.
+  and consecutive-kicks corpora; world records also carry confidence and
+  superseded-by state.
 - **The five `symbolic_*` tables** - `symbolic_equivalence_clusters`,
   `symbolic_movement_archetypes`,
   `symbolic_topology_groups`, `symbolic_modifier_groups`, and
@@ -153,8 +153,8 @@ exception below.
 - Source links (attach and detach): the admin trick edit page.
 - Modifier links (attach and detach): the admin trick edit page.
 - World records (create and edit): the admin records surface.
-- Consecutive-kicks records (create and edit): the admin consecutive-records
-  surface.
+- Consecutive-kicks records (create, edit and delete): the admin
+  consecutive-records surface.
 - Trick tips (edit text, set display order, hide, restore, remap to an active
   canonical trick): the admin tips index at `/admin/freestyle/tips`. Hide and
   restore toggle only published and hidden; the import's unresolved buckets are
@@ -192,7 +192,8 @@ exception below.
 ## 5. Pre-go-live CSV provenance (history, not the current edit model)
 
 This section is historical. Before cutover the committed CSVs under
-`freestyle/inputs/` were the source of truth: they were hand-edited and loaded by
+`freestyle/inputs/` and `freestyle/symbolic_grammar/` were the source of truth:
+they were hand-edited and loaded by
 the disposable rebuild, with git as the audit trail. The input classes and what
 each owned:
 
@@ -202,7 +203,8 @@ each owned:
 - The curated expert-review addition and correction overlays.
 - The records masters.
 - The footbag.org moves snapshot and the imported member tips.
-- The `symbolic_grammar` spreadsheets.
+- The Emerging Vocabulary ruling ledger.
+- The `freestyle/symbolic_grammar/` spreadsheets.
 
 After cutover these files and the pipeline are no longer consumed, and they are
 deleted once the final production load is signed off; they are never a production

@@ -67,7 +67,9 @@ rule stays here.
    curator confirm flags) are held state, not drift; read `freestyle/doctrine/RED_QUEUE.md`
    for the current open set. A later explicit ruling on the relevant tracker card
    supersedes conflicting older doctrine; ordinary comments, status updates, and
-   implementation notes do not (record any conflict as an owner question). An entry that
+   implementation notes do not (record any conflict as an owner question). Before treating
+   a ruling in `RED_RULINGS.md` or `RED_QUEUE.md` as settled, search the tracker (all
+   states, comments included) for a later ruling on the same point. An entry that
    says a reading is provisional, or presents two attested readings without picking one, is
    being honest, not buggy. A doctrine-adjacent finding is valid only when the site asserts
    *certainty it should not* — publishing a single confident value where the doctrine is
@@ -92,8 +94,13 @@ rule stays here.
 11. **Reproduce, then refute, before recording anything.** A finding carries one concrete
     reproduction: a `sqlite3 -readonly` query against the precondition build, a request
     against the precondition dev server, a run of an existing test, or a scratch probe
-    never committed; never staging or production. A candidate with no reproduction is a
-    Lead naming the reproduction that would settle it. Every survivor above Low gets one
+    never committed; never staging or production. For an admin write path the
+    reproduction is a run of the named route test, quoting its assertion that the refusal
+    happened and nothing was written; with no such test the clause is a `write-tests`
+    hand-off, never a clean cell, and a finding that is traced but not reproduced is
+    capped at Medium. A query that errors, or returns zero rows where the population says
+    rows exist, stops that category; it is never a clean result. A candidate with no
+    reproduction is a Lead naming the reproduction that would settle it. Every survivor above Low gets one
     independent refutation in fresh context (a read-only subagent per category batch that
     did not produce the candidates, given only the candidate, its reproduction and the
     governing clause). One bounded pass per category; a short findings list is a valid
@@ -109,10 +116,15 @@ pages a visitor sees. The maintainer supplies both, and the orchestrator checks 
    working tree (`./run_dev.sh --reset`, or the reset then `deploy-local-data.sh --from-csv`;
    the freestyle loader alone is not enough). The orchestrator records the HEAD SHA, the
    database file's modification time, the build mode, and the row count of every freestyle
-   table, and stops if the database is older than the latest commit touching
-   `freestyle/inputs`, `freestyle/loaders`, `curated/` or `src/content`.
+   table, and stops if `git status --porcelain` is not empty, or if the database is older
+   than the latest commit touching `database/schema.sql`, `database/migrations`,
+   `freestyle/inputs`, `freestyle/symbolic_grammar`, `freestyle/loaders`, `curated/`, or a
+   generated `src/content` module.
 2. **The dev server running against that build**, so every visitor-facing claim is checked
-   on rendered HTML.
+   on rendered HTML. The orchestrator confirms the server process started after the HEAD
+   commit and after the database was built, and stops otherwise: an older server serves
+   stale code and assets. It records the archive and media host values the server
+   resolved from configuration, for §F18.
 3. **The tracker wired** (`FOOTBAG_PRIVATE_REPO` set). A go-live hunt without it cannot apply
    the tracked-work exclusion or find stale issues, so the orchestrator stops and says so in
    one line rather than degrading.
@@ -126,16 +138,22 @@ In scope:
 
 - Deployed freestyle routes and pages (`/freestyle/**` in `src/routes/publicRoutes.ts`,
   `freestyleController`, `freestyleService` and its sibling freestyle services,
-  `src/views/freestyle/**`).
+  `src/views/freestyle/**`, the search and suggest endpoints and
+  `src/public/js/freestyle-trick-search.js`).
 - Freestyle admin routes and pages (`/admin/freestyle/**` in `src/routes/adminRoutes.ts`,
   `adminFreestyleController`, `emergingVocabController`, `freestyleCurationService`,
   `freestyleRecordCurationService`, `consecutiveKicksCurationService`,
-  `src/views/admin/freestyle-*`, `emerging-vocabulary.hbs`, the consecutive-records views).
+  `src/views/admin/freestyle-*`, `emerging-vocabulary.hbs`, the consecutive-records views),
+  and the curated-gallery and curator upload surfaces (`/admin/curator/**`,
+  `adminCuratorController`, `curatorMediaService`, `src/views/admin/curator/**`).
+- Freestyle content on routes outside `/freestyle`: the records pages, the media hub and
+  its redirects, the home, rules, equipment and history pages where they show freestyle
+  data, and the freestyle entries in `/sitemap.xml` (`siteMetaService`).
 - Freestyle DB tables as loaded (`freestyle_tricks`, `freestyle_trick_modifiers`,
   `freestyle_trick_aliases`, modifier/source link tables, `freestyle_trick_sources`,
   `freestyle_trick_tips`, `freestyle_ev_adjudications`, `freestyle_records`, the
-  consecutive-records table, `media_items` / `media_tags` for curated media), and the
-  freestyle `audit_entries` rows the write paths append.
+  consecutive-records table, the five `symbolic_*` tables, `media_items` / `media_tags`
+  for curated media), and the freestyle `audit_entries` rows the write paths append.
 - Generated content modules (`src/content/freestyle*.ts` and peers) and their agreement
   with the services that consume them.
 - Curated intake artifacts as they manifest publicly: sidecars under
@@ -178,12 +196,15 @@ with no deterministic check is handed there as a named defect class, never recor
    proposal; it lands with the approved findings write. Audit only the Freestyle group;
    never edit the other groups.
 1. **Derive the freestyle surface fresh** per the deployed-surface method: every public
-   `/freestyle` and admin `/admin/freestyle` route, view, browse `?view=` variant, gallery,
-   and the services and content modules behind them. Cross-check the inventory against the
+   `/freestyle` and admin `/admin/freestyle` and `/admin/curator` route, view, browse
+   `?view=` variant, gallery, and the services and content modules behind them, plus the
+   freestyle reads on routes outside `/freestyle` (grep `src/services` and `src/views` for
+   the freestyle tables and services) and the freestyle entries in `/sitemap.xml`. Cross-check the inventory against the
    route files and a listing of the freestyle views and content modules, and record the
    counts. The inventory becomes the rows of the coverage grid the report carries.
-2. **Build the tracked-work exclusion list** from the full card reads and `BUGS.md`
-   (method in REFERENCE.md), and verify each open issue still describes reality; a stale
+2. **Build the tracked-work exclusion list** from the full card reads and the `BUGS.md`
+   entries step 0 re-verified (an entry that failed re-verification excludes nothing;
+   method in REFERENCE.md), and verify each open issue still describes reality; a stale
    tracker issue is a finding.
 3. **Build the sample matrix** deterministically: REFERENCE.md gives the axes and the
    selection queries. Every-row invariants run over the whole population, never a sample.
@@ -199,19 +220,24 @@ with no deterministic check is handed there as a named defect class, never recor
    or has no recorded home, is an owner question, never a sweep dimension — and adds the
    survivors as ad-hoc categories. The §F catalog always runs in full regardless; the
    pre-pass may add categories, never remove, narrow, or reorder them.
-4. **Dispatch the category sweeps** §F1–§F23 to a read-only `auditor` subagent that reads
+4. **Dispatch the category sweeps** §F1–§F25 to a read-only `auditor` subagent that reads
    this skill's REFERENCE.md §F category catalog and sweeps the matrix and surfaces, returning
    a structured lead list (candidate, cited surface, the §F category, the reproduction
    command or rendered URL with the exact observed string, refutation attempted,
-   read/analyzed inventory, any owner question) — never file dumps. Every category is
+   per-category counts of queries run and rows or pages examined, any owner question) —
+   never file dumps. A category returned without counts is "not checked". Every category is
    applied to every surface it can touch; a surface is covered only when the applicable
-   categories were applied. Visitor-facing categories (§F3, §F6, §F12, §F15, §F17, §F18,
-   §F21, §F22) run on the rendered HTML from the precondition server: the orchestrator
-   crawls every route and `?view=` variant plus one detail page per sample-matrix row
-   (lightweight page fetches, no screenshots) and hands the lanes the extraction.
+   categories were applied. Visitor-facing categories (§F1, §F3, §F6, §F9, §F12, §F14,
+   §F15, §F17, §F18, §F21, §F22, §F23, §F24, §F25) run on the rendered HTML from the
+   precondition server: the orchestrator crawls every route and `?view=` variant, every
+   active trick detail page, every set, family and modifier page, and every freestyle URL
+   in `/sitemap.xml` (lightweight page fetches, no screenshots; sampling narrows analysis,
+   never extraction), records pages fetched against each population, and hands the lanes
+   the extraction.
 5. **Name and grade the check that pins each category** (loader QC, CI gate, route test)
-   in the coverage ledger, then check the check: find a negative test or case in which it
-   fails on a violating row. Record each pin as "pinned (fail-tested)", "pinned (presence
+   in the coverage ledger, then check the check: read the check itself, never this skill's
+   description of it, and find a negative test or case in which it fails on a violating
+   row. Record each pin as "pinned (fail-tested)", "pinned (presence
    only)" or "warn-only". A category with no deterministic check, only a presence-only or
    warn-only one, or a check covering only part of the invariant, is a `write-tests`
    hand-off listed in the report, not a finding here. A check that exits clean on missing
@@ -225,7 +251,8 @@ with no deterministic check is handed there as a named defect class, never recor
    doctrine; a test that would still pass with the surface wrong refutes nothing, and is
    itself a `write-tests` hand-off). Drop what cannot be reproduced, and list every dropped
    candidate with its refutation in the report, so a mistaken refutation is visible. Check
-   the lane's §F classifications against the catalog. Every survivor above Low then gets
+   the lane's §F classifications against the catalog, and re-run one query or fetch per
+   category to compare its count with the lane's. Every survivor above Low then gets
    the fresh-context refutation of absolute rule 11.
 7. **Independent cross-check lane**, once, after the category pass: a differently briefed
    lane diffs the database against the rendered pages for the sample matrix, without the
@@ -252,7 +279,7 @@ Per-finding format:
 ```markdown
 ##### FBH-<N> — <short title>
 
-- **Category:** <one of §F1–§F23 in this skill's REFERENCE.md>
+- **Category:** <one of §F1–§F25 in this skill's REFERENCE.md>
 - **Severity:** Catastrophic | High | Medium | Low
 - **Lane:** <the tracker lane the issue would carry>
 - **Owner:** curator | rules expert | freestyle maintainer | primary maintainer
@@ -301,8 +328,10 @@ The sweep is bounded and done when the coverage grid has no empty cell: one pass
 category over the sample matrix, every surface in the inventory carrying every applicable
 §F category and every vetted delta category as checked, not applicable (with the reason)
 or not checked (with the reason); the pinning check named and graded for each category;
-the cross-check lane run once; and every candidate reproduced and refuted. A short
-findings list is a valid result. Close with a short adversarial review of this skill
+the cross-check lane run once; and every candidate reproduced and refuted. A not-checked
+cell in §F17, §F18, §F19, §F21, §F24 or §F25, or more than five not-checked cells overall,
+makes the hunt incomplete, and the report says so instead of reporting a clean result. A
+short findings list is a valid result. Close with a short adversarial review of this skill
 itself: name what the category catalog, exclusions, or sampling let slip this run, and
 propose (never apply) any gap-closing edit to the maintainer, including each pre-pass
 delta category that survived this run, proposed as a new §F entry. A false negative
