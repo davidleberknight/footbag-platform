@@ -131,6 +131,7 @@ export type RuleId =
   | 'scroll-box-unlabelled'
   | 'scroll-box-disallowed'
   | 'table-overflows-container'
+  | 'table-columns-misaligned'
   | 'tap-target-small'
   | 'text-below-ramp'
   | 'heading-not-outranking'
@@ -525,6 +526,41 @@ export const RULES: readonly Rule[] = [
         if (!container) continue;
         const room = container.rect.w;
         if (el.rect.w > room + 1) out.push({ el, measured: `table ${fmt(el.rect.w)}px in a ${fmt(room)}px container` });
+      }
+      return out;
+    },
+  },
+  {
+    id: 'table-columns-misaligned',
+    applies: 'any',
+    requirement: 'A table\'s header row spans the same columns as its data rows, so every header sits over its own data.',
+    check(v) {
+      // Hiding a header cell without its data cells (or the reverse) leaves one
+      // row a column short, and the table pads the short row at its trailing
+      // edge. Comparing the outer edges of the two rows' painted cells catches
+      // it whatever the column count, and a header spanning columns still
+      // covers the same edges.
+      const cellsOf = (row: ElementRecord) =>
+        v.childrenOf(row).filter((c) => (c.tag === 'th' || c.tag === 'td') && v.isPainted(c));
+      const edges = (cells: ElementRecord[]) => ({
+        left: Math.min(...cells.map((c) => c.rect.x)),
+        right: Math.max(...cells.map((c) => c.rect.x + c.rect.w)),
+      });
+      const out: Array<{ el: ElementRecord; measured: string }> = [];
+      for (const table of v.elements) {
+        if (table.tag !== 'table' || !v.isPainted(table)) continue;
+        const sections = v.childrenOf(table);
+        const paintedRows = (tag: string) =>
+          sections.filter((s) => s.tag === tag).flatMap((s) => v.childrenOf(s))
+            .filter((r) => r.tag === 'tr' && v.isPainted(r) && cellsOf(r).length > 0);
+        const headRow = paintedRows('thead').at(-1);
+        const bodyRow = paintedRows('tbody')[0];
+        if (!headRow || !bodyRow) continue;
+        const head = edges(cellsOf(headRow));
+        const body = edges(cellsOf(bodyRow));
+        if (Math.abs(head.left - body.left) > 1 || Math.abs(head.right - body.right) > 1) {
+          out.push({ el: table, measured: `header cells span ${fmt(head.left)}-${fmt(head.right)}px, data cells ${fmt(body.left)}-${fmt(body.right)}px` });
+        }
       }
       return out;
     },

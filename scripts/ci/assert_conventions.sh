@@ -679,6 +679,26 @@ if [ -n "$hex_hits" ]; then
 fi
 fi
 
+# Rule: every var(--name) in style.css names a custom property the stylesheet
+# defines.
+# Reason: an undefined property makes the whole declaration invalid at computed
+# time, so the property silently falls back to its initial value (a background
+# turns transparent) and no build or test step notices.
+if check "undefined custom property in style.css" src/public/css/style.css; then
+# One anchored pattern per defined name, so a use of --bg is not excused by
+# a definition of --bg-card or the reverse.
+defined_patterns=$(grep -oE '(^|[;{[:space:]])--[A-Za-z0-9_-]+[[:space:]]*:' src/public/css/style.css \
+  | grep -oE -- '--[A-Za-z0-9_-]+' | sort -u | sed 's/^/:var\\(/; s/$/$/' || true)
+undefined_hits=$(grep -noE 'var\(--[A-Za-z0-9_-]+' src/public/css/style.css \
+  | grep -vEf <(printf '%s\n' "$defined_patterns") \
+  | sed 's/^/src\/public\/css\/style.css:/' || true)
+if [ -n "$undefined_hits" ]; then
+  echo "$undefined_hits" >&2
+  echo "  FAIL: var() names a custom property style.css never defines; use a defined :root token" >&2
+  violations=$((violations + 1))
+fi
+fi
+
 # Rule: border-radius uses the --radius* tokens, never a raw px value.
 # Reason: corner radii are part of the token system; a raw px is an untracked one-off.
 if check "raw px border-radius in style.css" src/public/css/style.css; then

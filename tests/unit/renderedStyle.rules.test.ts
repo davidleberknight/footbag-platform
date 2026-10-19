@@ -154,6 +154,44 @@ describe('table-overflows-container', () => {
   });
 });
 
+describe('table-columns-misaligned', () => {
+  // Cells laid out the way a browser draws them: each spec is [x, width], and a
+  // row with fewer cells than the table has columns is padded at its trailing edge.
+  const cells = (tag: string, specs: Array<[number, number]>) =>
+    specs.map(([x, w]) => el(tag, { rect: { x, w }, style: { display: 'table-cell' } }));
+  const table = (head: Array<[number, number]>, body: Array<[number, number]>) =>
+    buildCapture(el('table', { rect: { w: 300 } },
+      el('thead', {}, el('tr', {}, ...cells('th', head))),
+      el('tbody', {}, el('tr', {}, ...cells('td', body)))), { width: PHONE });
+  const THREE: Array<[number, number]> = [[0, 100], [100, 100], [200, 100]];
+
+  it('reports a header row a column short of its data, as when one header is hidden by position', () => {
+    // Every header after the hidden one sits over the wrong column, so a phone reader takes a holder for a score.
+    expect(hits(table([[0, 100], [100, 100]], THREE), 'table-columns-misaligned')).toHaveLength(1);
+  });
+
+  it('reports data cells hidden under a header that is still drawn', () => {
+    // The reverse slip: a column's data hidden while its header stays leaves the last header over nothing.
+    expect(hits(table(THREE, [[0, 100], [100, 100]]), 'table-columns-misaligned')).toHaveLength(1);
+  });
+
+  it('passes an aligned table and a header that spans two columns', () => {
+    // A rule that flagged a spanning header would put every grouped-column table in the baseline as noise.
+    expect(hits(table(THREE, THREE), 'table-columns-misaligned')).toEqual([]);
+    expect(hits(table([[0, 200], [200, 100]], THREE), 'table-columns-misaligned')).toEqual([]);
+  });
+
+  it('ignores a header cell that is not drawn when its data cells are not drawn either', () => {
+    // Hiding a whole column on phones is allowed; only a header and its data hidden apart misalign.
+    const hidden = el('th', { style: { display: 'none' }, rect: { w: 0 } });
+    const hiddenTd = el('td', { style: { display: 'none' }, rect: { w: 0 } });
+    const capture = buildCapture(el('table', { rect: { w: 200 } },
+      el('thead', {}, el('tr', {}, ...cells('th', [[0, 100]]), hidden, ...cells('th', [[100, 100]]))),
+      el('tbody', {}, el('tr', {}, ...cells('td', [[0, 100]]), hiddenTd, ...cells('td', [[100, 100]])))), { width: PHONE });
+    expect(hits(capture, 'table-columns-misaligned')).toEqual([]);
+  });
+});
+
 describe('tap-target-small', () => {
   const pair = (gap: number) =>
     buildCapture(

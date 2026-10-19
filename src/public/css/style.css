@@ -359,7 +359,11 @@ body {
 }
 
 a { color: var(--primary-ink); text-decoration: none; }
-a:hover { color: var(--primary-ink-dk); text-decoration: underline; }
+a:hover,
+a:focus-visible { color: var(--primary-ink-dk); text-decoration: underline; }
+/* A keyboard reader needs a mark that does not depend on the link's resting
+   style, so every focused link draws the same ring as a focused text button. */
+a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* In-prose links carry a non-color cue at rest: an anchor inside running
    paragraph text is underlined, so it stays distinguishable for color-blind
    readers regardless of the surrounding text's color. Buttons rendered as
@@ -382,6 +386,11 @@ main :is(li, dd, td, figcaption, blockquote) a:not([class]) { text-decoration: u
 .dev-only-note a { text-decoration: underline; font-weight: 600; }
 
 img { max-width: 100%; height: auto; border-radius: var(--radius-sm); }
+
+/* Form controls otherwise take the browser's own family at about 13px, a font
+   and a size outside the site's type ramp; every control starts from the text
+   around it, and a component that needs another size sets it. */
+input, select, textarea, button { font: inherit; }
 
 /* ── Typography ─────────────────────────────────────────────── */
 h1 { font-size: 2.25rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; margin-bottom: 0.5rem; }
@@ -1222,11 +1231,6 @@ th.sortable:hover { color: var(--primary-ink); }
   width: auto;
 }
 .browse-section-heading {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
   margin: 0 0 10px;
 }
 .browse-tags-help {
@@ -1882,6 +1886,7 @@ section.home-media { padding-top: 0; }
   text-decoration: none;
 }
 .btn:hover { text-decoration: none; transform: translateY(-1px); }
+.btn:focus-visible { text-decoration: none; }
 
 .btn-primary { background: var(--primary-ink); color: var(--white); }
 .btn-primary:hover { background: var(--primary-ink-dk); color: var(--white); }
@@ -2172,7 +2177,7 @@ section.home-media { padding-top: 0; }
   line-height: 1;
   margin-bottom: 8px;
 }
-.error-page p  { color: var(--text-muted); margin-bottom: 24px; }
+.error-page p  { margin-bottom: 24px; }
 .error-actions {
   display: flex;
   flex-wrap: wrap;
@@ -2200,7 +2205,9 @@ section.home-media { padding-top: 0; }
 .footer-logo { width: 175px; height: 68px; display: block; background: transparent; border-radius: 0; }
 .footer-tagline { color: var(--gray-500); font-size: 0.9rem; }
 .footer-links { column-count: 3; column-gap: 32px; }
-.footer-links a { color: var(--gray-500); display: block; margin-bottom: 6px; break-inside: avoid; }
+/* Footer links sit stacked or side by side with no clear space between them,
+   so each carries the full 24px tap-target height on its own. */
+.footer-links a { color: var(--gray-500); display: block; min-height: 24px; margin-bottom: 6px; break-inside: avoid; }
 .footer-links a:hover { color: var(--white); }
 
 /* Hall of Fame and Big Add Posse are short editorial pages ending in one link
@@ -2221,7 +2228,7 @@ section.home-media { padding-top: 0; }
   font-size: 0.9rem;
   margin-bottom: 10px;
 }
-.footer-legal-links a { color: var(--gray-500); }
+.footer-legal-links a { color: var(--gray-500); min-height: 24px; }
 .footer-legal-links a:hover { color: var(--white); }
 .footer-legal-links span { color: var(--gray-800); }
 .footer-copy {
@@ -2396,7 +2403,7 @@ section.home-media { padding-top: 0; }
   font-size: 0.9rem;
   color: var(--text);
   text-decoration: none;
-  background: var(--surface);
+  background: var(--bg-card);
   transition: border-color 0.15s, background 0.15s;
 }
 .club-country-nav-list a:hover {
@@ -2825,14 +2832,17 @@ section.home-media { padding-top: 0; }
 
 /* A short either/or choice a form must put in front of the member rather than
    settle by default: the options are grouped and stack one per line so neither
-   reads as the incidental one. */
+   reads as the incidental one. The group carries no border: enclosing chrome
+   is reserved for notices, cards and empty states, and its legend keeps the
+   question in body type rather than the uppercase label `.form-fieldset`
+   draws. */
 .choice-fieldset {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 12px 16px;
+  border: none;
+  padding: 0;
+  margin-inline: 0;
 }
 .choice-fieldset legend {
-  padding: 0 4px;
+  padding: 0;
 }
 .choice-fieldset .radio-label {
   display: block;
@@ -2844,12 +2854,12 @@ section.home-media { padding-top: 0; }
 }
 
 .activity-signal-fieldset {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 12px 16px;
+  border: none;
+  padding: 0;
+  margin-inline: 0;
 }
 .activity-signal-fieldset legend {
-  padding: 0 4px;
+  padding: 0;
 }
 .activity-signal-fieldset .radio-label {
   display: block;
@@ -4587,9 +4597,12 @@ a.hashtag--media:hover {
 }
 
 /* ── Responsive ─────────────────────────────────────────────────────────── */
+/* A column hides on phones by its class on header and data cells alike, never
+   by position: a positional selector reaches every records table, including
+   ones whose second column is something else, and hides a header while its
+   data stays, so every later header sits over the wrong column. */
 @media (max-width: 768px) {
-  .records-table .col-adds,
-  .records-table th:nth-child(2) { display: none; }
+  .records-table .col-adds { display: none; }
 }
 
 /* ── Leaders table ──────────────────────────────────────────────────────── */
@@ -4602,7 +4615,7 @@ a.hashtag--media:hover {
 
 /* ── Content sub-headings (About, Moves pages) ──────────────────────────── */
 .content-subheading {
-  font-size: 1rem;
+  font-size: 1.25rem;
   font-weight: 600;
   margin: 20px 0 6px;
   color: var(--text-primary);

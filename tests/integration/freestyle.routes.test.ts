@@ -288,7 +288,7 @@ describe('GET /freestyle/records', () => {
     // The table already labels its column "ADD (recorded)"; the paragraph
     // ranking that value against the canonical ADD is page furniture.
     const res = await page('/freestyle/records');
-    expect(res.text).toContain('<th>ADD (recorded)</th>');
+    expect(res.text).toContain('<th class="col-adds">ADD (recorded)</th>');
     expect(res.text).not.toContain('the canonical ADD is authoritative');
     expect(res.text).not.toContain('the recording source assigned');
   });

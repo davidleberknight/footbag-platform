@@ -64,6 +64,15 @@ const CASES: Case[] = [
     green: '<main><div style="width:800px"><table class="records-table"><tr><td>Row</td></tr></table></div></main>',
   },
   {
+    rule: 'table-columns-misaligned',
+    viewport: PHONE,
+    red: [
+      '<main><table><thead><tr><th>Rank</th><th style="display:none">Holder</th><th>Score</th></tr></thead><tbody><tr><td>1</td><td>A player</td><td>63</td></tr></tbody></table></main>',
+      '<main><table><thead><tr><th>Rank</th><th>Adds</th><th>Score</th></tr></thead><tbody><tr><td>1</td><td style="display:none">5</td><td>63</td></tr></tbody></table></main>',
+    ],
+    green: '<main><table><thead><tr><th colspan="2">Holder</th><th style="display:none">Adds</th></tr></thead><tbody><tr><td>1</td><td>A player</td><td style="display:none">5</td></tr></tbody></table></main>',
+  },
+  {
     rule: 'tap-target-small',
     viewport: PHONE,
     red: ['<main><button style="width:16px;height:16px;padding:0">a</button><button style="width:16px;height:16px;padding:0">b</button></main>'],
