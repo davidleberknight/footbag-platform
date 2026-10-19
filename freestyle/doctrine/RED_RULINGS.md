@@ -154,7 +154,11 @@ Values for all of these live in `freestyleOperatorReference.ts` /
   halves recorded in the registry and the pogo row's provenance; evidence dossier
   at `exploration/pogo-add-doctrine-packet/CURATOR_PACKET.md`).
 - **Furious = Barraging** (pt14; rules-expert ruling, 2026-10-18): the same
-  concept, with Furious the canonical and commonly used name.
+  concept, with Furious the canonical and commonly used name. Compounds named for
+  the Barraging set take the Furious name (rules-expert ruling, 2026-10-18):
+  "since they are Barraging sets, they are Furious", so Barraging Mirage becomes
+  Furious Mirage, and likewise for each barraging-named compound. Two whose Furious
+  name already belongs to another trick are held in `RED_QUEUE.md`.
 - **Inspinning** (pt14): any spin counts the same, so inspinning carries spinning's
   weight; it differs in rotation direction (front where spinning is back).
 - **Nuclear** (pt9, pt14): structurally a paradox dex plus a downtime illusioning
