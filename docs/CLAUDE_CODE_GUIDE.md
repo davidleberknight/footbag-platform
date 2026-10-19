@@ -223,6 +223,7 @@ The third premise in practice: the workflow for editing the harness itself. Its 
 - **A hook** emits a valid PreToolUse decision (allow, deny, or ask) or exits 0 to defer, and picks its fail mode deliberately. It is reviewed for bypass via substitution, redirection, pipes, `xargs`, and quoting; it ships with a fixture test that pipes a synthetic event on stdin; and it is wired in `settings.json`.
 - **A permission** follows `deny > ask > allow`, adds no broad mutating or network allow, and keeps the committed file pretty-printed.
 - **A subagent** keeps a read-only tool set unless there is a documented reason otherwise, and a clear evidence-cited output contract.
+- **The instruction files are audited** periodically, and whenever Claude follows a stale or conflicting instruction, with Claude Code's built-in `/doctor prompt-audit`. It reports outdated instructions, dead references and contradictions between files, and changes nothing until a finding is approved like any other harness edit.
 
 **Why this rigor:** a committed `.claude/` directory that any contributor, or a compromised dependency, could alter is a real attack surface. Public advisories have shown a malicious `.claude/settings.json` reaching code execution and credential exfiltration before a trust prompt appears. Treating the configuration as reviewed, tested production code is the mitigation, and keeping platform-specific settings in each developer's own uncommitted `~/.claude/settings.json` keeps `.claude/` behaving identically for everyone.
 

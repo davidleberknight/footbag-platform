@@ -84,10 +84,8 @@ finding-count target: a short findings list is a valid result.
 - **Single deliverable, then a clean handoff.** Triage, fresh-context re-verification and
   graduation to the maintainers' private tracker happen in a later session; the `BUGS.md`
   header carries the standing re-audit instruction (section 9).
-- **Ask the human one question at a time, before finalizing.** Resolve through the
-  authority order first; when a genuine question survives, ask exactly one self-contained
-  decision per message, plain English, no internal codes, one researched recommendation a
-  bare "y" accepts. Never batch questions (`.claude/rules/asking.md`).
+- **Every genuine question is answered before finalizing**, asked per
+  `.claude/rules/asking.md`.
 - **Dispatch research, verify centrally.** Read-only subagents each sweep one lane and read
   that lane's brief. A subagent conclusion is a lead, never a finding: the main session
   re-verifies every candidate against the cited lines. Subagents have no channel to the

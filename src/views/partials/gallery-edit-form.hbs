@@ -185,13 +185,13 @@
   {{else}}
   <fieldset class="form-fieldset">
     <legend>Upload files now (optional)</legend>
-    {{! The legend names the group, not the control, so assistive tech needs
-        the input's own accessible name; aria-label mirrors the legend without
-        adding a redundant visible label. }}
-    <input type="file" name="photoFiles" accept="image/jpeg,image/png" multiple aria-label="Upload files now">
-    <small class="form-hint">
-      JPEG or PNG, up to 25 MB each, max 3 files.
-    </small>
+    <div class="form-field">
+      <label for="gallery-upload-files">Photo files</label>
+      <input type="file" id="gallery-upload-files" name="photoFiles" accept="image/jpeg,image/png" multiple>
+      <small class="form-hint">
+        JPEG or PNG, up to 25 MB each, max 3 files.
+      </small>
+    </div>
     <div class="form-field">
       <label for="gallery-upload-tags">Extra tags for these uploads (optional)</label>
       <textarea id="gallery-upload-tags" name="uploadTags" rows="2" placeholder="#extra #optional">{{uploadTags}}</textarea>

@@ -43,7 +43,7 @@ Before any message containing "?":
 2. Context inline: what it is, where it bites, the options.
 3. One recommended answer, researched from the canonical docs and code and grounded in design intent, verified and never guessed. Pros and cons when the trade-offs are real.
 4. One decision per message. A trailing "open questions" or "decisions for you" list carrying a second ask is the same violation.
-5. Prose by default. Use the multiple-choice tool only when the human explicitly asks to pick from options.
+5. In plan mode, ask through the multiple-choice tool, exactly one question per call, the recommended option first and marked "(Recommended)", with the context and load-bearing assumptions in the question text; its free-text row stays open for any other answer. Outside plan mode, prose by default, and the tool only when the human asks to pick from options.
 6. Explain before any approval prompt; never spring a bare approval.
 7. Structure it so a bare "y" or "go" means take the recommended answer: exactly one recommendation to affirm, never an ambiguous "y".
 8. State the load-bearing assumptions behind the recommendation, so a wrong one can be corrected before you act.

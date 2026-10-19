@@ -16,21 +16,23 @@
     <h3>{{this.label}}</h3>
     <p class="text-muted">Price now: {{this.currentAmountLabel}}</p>
     {{#if this.hasEntries}}
-    <table class="data-table">
-      <thead>
-        <tr><th>Amount</th><th>Starts</th><th>State</th><th>Reason</th></tr>
-      </thead>
-      <tbody>
-        {{#each this.entries}}
-        <tr>
-          <td>{{this.amountLabel}}</td>
-          <td>{{this.effectiveLabel}}</td>
-          <td><span class="badge">{{this.stateLabel}}</span></td>
-          <td>{{this.reasonText}}</td>
-        </tr>
-        {{/each}}
-      </tbody>
-    </table>
+    <div class="records-table-wrap" tabindex="0" role="region" aria-label="{{this.label}}">
+      <table class="data-table">
+        <thead>
+          <tr><th>Amount</th><th>Starts</th><th>State</th><th>Reason</th></tr>
+        </thead>
+        <tbody>
+          {{#each this.entries}}
+          <tr>
+            <td>{{this.amountLabel}}</td>
+            <td>{{this.effectiveLabel}}</td>
+            <td><span class="badge">{{this.stateLabel}}</span></td>
+            <td>{{this.reasonText}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
     {{/if}}
     {{/each}}
 
@@ -80,22 +82,24 @@
     <div class="section-heading"><h2>Donations and Payments</h2></div>
     <p class="text-muted fs-sm">These three switches stop money or mail during an incident. They are set by a system administrator running a script on the host, never from this screen, so that stopping live payments stays a deliberate act with a record of who ran it.</p>
 
-    <table class="data-table">
-      <thead>
-        <tr><th>Switch</th><th>State</th><th>Since</th><th>Reason</th><th>Changed by running</th></tr>
-      </thead>
-      <tbody>
-        {{#each content.switches}}
-        <tr>
-          <td>{{this.label}}<p class="text-muted fs-sm">{{this.helpText}}</p></td>
-          <td><span class="badge{{#unless this.isPaused}} badge-muted{{/unless}}">{{this.stateLabel}}</span></td>
-          <td>{{this.sinceLabel}}</td>
-          <td>{{#if this.hasReason}}{{this.reasonText}}{{/if}}</td>
-          <td><code>{{this.operatorScript}}</code></td>
-        </tr>
-        {{/each}}
-      </tbody>
-    </table>
+    <div class="records-table-wrap" tabindex="0" role="region" aria-label="Donations and payments">
+      <table class="data-table">
+        <thead>
+          <tr><th>Switch</th><th>State</th><th>Since</th><th>Reason</th><th>Changed by running</th></tr>
+        </thead>
+        <tbody>
+          {{#each content.switches}}
+          <tr>
+            <td>{{this.label}}<p class="text-muted fs-sm">{{this.helpText}}</p></td>
+            <td><span class="badge{{#unless this.isPaused}} badge-muted{{/unless}}">{{this.stateLabel}}</span></td>
+            <td>{{this.sinceLabel}}</td>
+            <td>{{#if this.hasReason}}{{this.reasonText}}{{/if}}</td>
+            <td><code>{{this.operatorScript}}</code></td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
   </section>
 
   {{#if content.hasErrors}}

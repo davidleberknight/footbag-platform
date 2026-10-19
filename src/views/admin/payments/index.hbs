@@ -76,30 +76,32 @@
 
     {{#if content.hasPeriodTotals}}
       <h2 class="section-heading">Totals for {{content.periodLabel}}</h2>
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Category</th>
-            <th>Currency</th>
-            <th>Payments</th>
-            <th>Received</th>
-            <th>Returned</th>
-            <th>Net</th>
-          </tr>
-        </thead>
-        <tbody>
-          {{#each content.periodTotals}}
+      <div class="records-table-wrap" tabindex="0" role="region" aria-label="Payment totals">
+        <table class="data-table">
+          <thead>
             <tr>
-              <td>{{this.categoryLabel}}</td>
-              <td>{{this.currency}}</td>
-              <td>{{this.count}}</td>
-              <td>{{this.grossDisplay}}</td>
-              <td>{{#if this.hasRefunds}}{{this.refundedDisplay}}{{else}}<span class="text-muted">--</span>{{/if}}</td>
-              <td class="fw-600">{{this.netDisplay}}</td>
+              <th>Category</th>
+              <th>Currency</th>
+              <th>Payments</th>
+              <th>Received</th>
+              <th>Returned</th>
+              <th>Net</th>
             </tr>
-          {{/each}}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {{#each content.periodTotals}}
+              <tr>
+                <td>{{this.categoryLabel}}</td>
+                <td>{{this.currency}}</td>
+                <td>{{this.count}}</td>
+                <td>{{this.grossDisplay}}</td>
+                <td>{{#if this.hasRefunds}}{{this.refundedDisplay}}{{else}}<span class="text-muted">--</span>{{/if}}</td>
+                <td class="fw-600">{{this.netDisplay}}</td>
+              </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      </div>
       <p class="text-muted fs-sm">
         Each currency is totalled on its own, because one figure covering two of them is true of
         neither. Returned money covers refunds and chargebacks, which never change the payment
@@ -115,52 +117,54 @@
     <p class="text-muted">{{content.resultSummary}}</p>
 
     {{#if content.hasRows}}
-      <table class="data-table">
-        <thead>
-          <tr>
-            {{#each content.sortHeaders}}
-              <th{{#if this.ariaSort}} aria-sort="{{this.ariaSort}}"{{/if}}>
-                {{#if this.href}}
-                  <a href="{{this.href}}">{{this.label}}{{#if this.directionGlyph}} {{this.directionGlyph}}{{/if}}</a>
-                {{else}}
-                  {{this.label}}
-                {{/if}}
-              </th>
-            {{/each}}
-          </tr>
-        </thead>
-        <tbody>
-          {{#each content.rows}}
+      <div class="records-table-wrap" tabindex="0" role="region" aria-label="Payments">
+        <table class="data-table">
+          <thead>
             <tr>
-              <td>{{this.dateDisplay}}</td>
-              <td>{{this.typeLabel}}</td>
-              <td>{{this.amountDisplay}}</td>
-              <td>{{this.statusLabel}}</td>
-              <td>
-                {{#if this.memberHref}}
-                  <a href="{{this.memberHref}}">{{this.memberSlug}}</a>
-                {{else}}
-                  <span class="text-muted">none</span>
-                {{/if}}
-              </td>
-              <td>
-                {{#if this.eventHref}}
-                  <a href="{{this.eventHref}}">{{this.eventTitle}}</a>
-                {{else}}
-                  <span class="text-muted">none</span>
-                {{/if}}
-              </td>
-              <td>
-                {{this.reference}}
-                {{#if this.hasProviderModeBadge}}
-                  <span class="badge">{{this.providerModeLabel}}</span>
-                {{/if}}
-              </td>
-              <td><a href="{{this.detailHref}}" class="btn btn-outline btn-sm">View Payment</a></td>
+              {{#each content.sortHeaders}}
+                <th{{#if this.ariaSort}} aria-sort="{{this.ariaSort}}"{{/if}}>
+                  {{#if this.href}}
+                    <a href="{{this.href}}">{{this.label}}{{#if this.directionGlyph}} {{this.directionGlyph}}{{/if}}</a>
+                  {{else}}
+                    {{this.label}}
+                  {{/if}}
+                </th>
+              {{/each}}
             </tr>
-          {{/each}}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {{#each content.rows}}
+              <tr>
+                <td>{{this.dateDisplay}}</td>
+                <td>{{this.typeLabel}}</td>
+                <td>{{this.amountDisplay}}</td>
+                <td>{{this.statusLabel}}</td>
+                <td>
+                  {{#if this.memberHref}}
+                    <a href="{{this.memberHref}}">{{this.memberSlug}}</a>
+                  {{else}}
+                    <span class="text-muted">none</span>
+                  {{/if}}
+                </td>
+                <td>
+                  {{#if this.eventHref}}
+                    <a href="{{this.eventHref}}">{{this.eventTitle}}</a>
+                  {{else}}
+                    <span class="text-muted">none</span>
+                  {{/if}}
+                </td>
+                <td>
+                  {{this.reference}}
+                  {{#if this.hasProviderModeBadge}}
+                    <span class="badge">{{this.providerModeLabel}}</span>
+                  {{/if}}
+                </td>
+                <td><a href="{{this.detailHref}}" class="btn btn-outline btn-sm">View Payment</a></td>
+              </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      </div>
     {{else}}
       <p class="text-muted">No payments match your search.</p>
     {{/if}}

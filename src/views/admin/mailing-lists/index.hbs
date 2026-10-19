@@ -10,31 +10,33 @@
 
   <p><a href="{{content.newHref}}" class="btn btn-primary">Create a Mailing List</a></p>
 
-  <table class="data-table">
-    <thead>
-      <tr>
-        <th>List</th>
-        <th>Recipients</th>
-        <th>Subscribed</th>
-        <th>Bounced</th>
-        <th>Complained</th>
-        <th>Status</th>
-      </tr>
-    </thead>
-    <tbody>
-      {{#each content.rows}}
-      <tr>
-        <td>
-          <a href="{{detailHref}}">{{name}}</a>
-          <div class="fs-sm text-muted">{{manageabilityLabel}}</div>
-        </td>
-        <td class="fs-sm">{{audienceLabel}}</td>
-        <td>{{subscribedCount}}</td>
-        <td>{{bouncedCount}}</td>
-        <td>{{complainedCount}}</td>
-        <td>{{#if isArchived}}<span class="badge">{{statusLabel}}</span>{{else}}{{statusLabel}}{{/if}}</td>
-      </tr>
-      {{/each}}
-    </tbody>
-  </table>
+  <div class="records-table-wrap" tabindex="0" role="region" aria-label="Mailing lists">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>List</th>
+          <th>Recipients</th>
+          <th>Subscribed</th>
+          <th>Bounced</th>
+          <th>Complained</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {{#each content.rows}}
+        <tr>
+          <td>
+            <a href="{{detailHref}}">{{name}}</a>
+            <div class="fs-sm text-muted">{{manageabilityLabel}}</div>
+          </td>
+          <td class="fs-sm">{{audienceLabel}}</td>
+          <td>{{subscribedCount}}</td>
+          <td>{{bouncedCount}}</td>
+          <td>{{complainedCount}}</td>
+          <td>{{#if isArchived}}<span class="badge">{{statusLabel}}</span>{{else}}{{statusLabel}}{{/if}}</td>
+        </tr>
+        {{/each}}
+      </tbody>
+    </table>
+  </div>
 </div>

@@ -401,6 +401,15 @@ h4 { font-size: 1rem;    font-weight: 600; margin-bottom: 0.3rem; }
 p { margin-bottom: 1rem; }
 p:last-child { margin-bottom: 0; }
 
+/* One reading measure, about 70 characters a line, reaches every block of
+   running prose in the page body from here, so prose added anywhere is capped
+   without a rule of its own. Zero specificity, so a component capping tighter
+   still wins. A list carrying a class is a component and sizes its own items;
+   an outcome message (it carries a role) is a banner that spans its column. */
+main :where(p:not([role]), dd, blockquote, figcaption, ol:not([class]) > li, ul:not([class]) > li) { max-width: 55ch; }
+/* A capped paragraph inside a centred block stays centred under its heading. */
+main :is(.hero, .empty-state, .error-page, .text-center, .player-search-empty, .observational-empty-state) :where(p) { margin-inline: auto; }
+
 /* Inline code and notation render in the body font, so notation reads as
    emphasised prose rather than as a second typeface. Without this rule a
    `code` element falls through to the browser's own monospace default, which
@@ -536,6 +545,9 @@ section + section { border-top: 1px solid var(--border); }
   color: var(--white);
   text-align: center;
   padding: 72px 24px;
+  /* A long unbroken identifier (a payment reference, a member's handle) breaks
+     rather than pushing a phone-width page sideways. */
+  overflow-wrap: break-word;
 }
 
 .hero h1 { color: var(--white); margin-bottom: 0.75rem; }
@@ -4324,19 +4336,6 @@ a.hashtag--media:hover {
   letter-spacing: 0;
   text-transform: lowercase;
 }
-/* Optional micro-distinguishers for the high-frequency 4 flags via dotted
- * underline border: DEX green, DEL magenta, BOD
- * orange, PDX violet. The four hues are spread roughly evenly around the
- * wheel so a 1px dotted line reads as a different colour, not a shade of its
- * neighbour. Other flags render plain. */
-/* Selectors match the second class the tokenizer emits, which carries no
-   `op-token--` prefix; they are scoped by `.op-token` rather than left as
-   bare global names. Written against the prefixed form they would match
-   nothing, and the flags they distinguish would look no different. */
-.op-token.component-flag-dex { border-bottom: 1px dotted var(--success-accent); } /* green-600 */
-.op-token.component-flag-del { border-bottom: 1px dotted var(--pink-deep); }      /* magenta-800 */
-.op-token.component-flag-bod { border-bottom: 1px dotted var(--severity-medium); } /* orange-600 */
-.op-token.component-flag-pdx { border-bottom: 1px dotted var(--violet-deep); } /* violet-600 */
 /* Pre-state flags render italic: they're annotation language, not structural tokens. */
 .op-token--pre-state {
   color: var(--medal-silver);                                                    /* neutral-500 */

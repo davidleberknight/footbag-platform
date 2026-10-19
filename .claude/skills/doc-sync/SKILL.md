@@ -54,7 +54,7 @@ So when current code or infra disagrees with a canonical doc, **the default is N
 
 This applies to design intent and target architecture. Purely descriptive facts a derived doc mirrors from code (a renamed identifier, a changed method signature, a schema column) still follow the code and are normal case-1 fixes.
 
-Never silently pick. After verifying each gap, **present it to the human with the classification above and your recommendation, and let the human decide.** Editing a final-design doc to match a current shortcut destroys the design of record.
+Never silently pick. After verifying each gap, present it with its classification and the passages behind it: where the intent makes the case clear, report the case as settled; where it does not, ask, recommending a case. Either way, a doc edit lands only once the human approves its literal text. Editing a final-design doc to match a current shortcut destroys the design of record.
 
 ## Read first
 
@@ -117,7 +117,7 @@ Do not treat these as drift:
 - missing nice-to-have explanation when the docs are still accurate
 
 ### 4) Escalate when meaning changes
-Always escalate to the human before any documentation edit (questions follow `.claude/rules/asking.md`: resolve from the source-of-truth order first, one self-contained question with a recommended answer, no codes the human was not given):
+Always escalate to the human before any documentation edit (questions follow `.claude/rules/asking.md`):
 - user-visible behavior
 - interfaces or interface semantics
 - identifiers
