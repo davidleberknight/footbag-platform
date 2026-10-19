@@ -591,13 +591,6 @@ Each is separable and answered on its own.
   the ratified IN and OUT vocabulary. The ask is whether rotational path tokens are
   sanctioned as a register, or whether the movement must be re-derived in IN and OUT
   terms. Until it lands, `BACK SWIRL` stays confined to this one exception.
-- **Barraging Barfly and Barraging Eggbeater identity.** Barraging compounds take
-  the Furious name, but two renames would land on names that already belong to other
-  tricks: Furious Barfly is an alias of Nemesis, and Furious Eggbeater an alias of
-  Clown Face. The ask: are Barraging Barfly and Nemesis the same trick, or distinct
-  tricks? Are Barraging Eggbeater and Clown Face the same trick, or distinct tricks?
-  Until it lands, `barraging_barfly` and `barraging_eggbeater` keep their names and
-  slugs, and neither collision is resolved from notation alone.
 
 ## Records-only and memory riders
 

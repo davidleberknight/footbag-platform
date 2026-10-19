@@ -157,8 +157,12 @@ Values for all of these live in `freestyleOperatorReference.ts` /
   concept, with Furious the canonical and commonly used name. Compounds named for
   the Barraging set take the Furious name (rules-expert ruling, 2026-10-18):
   "since they are Barraging sets, they are Furious", so Barraging Mirage becomes
-  Furious Mirage, and likewise for each barraging-named compound. Two whose Furious
-  name already belongs to another trick are held in `RED_QUEUE.md`.
+  Furious Mirage, and likewise for each barraging-named compound. The two whose
+  Furious name already belonged to another trick are that trick (rules-expert
+  ruling, 2026-10-19): "Barraging Barfly is Nemesis, but it's explained more like
+  Furious Barfly", and "Barraging Eggbeater is actually Furious Eggbeater, which is
+  Clownface." Barraging Barfly folds into Nemesis and Barraging Eggbeater into Clown
+  Face, each former name kept as an alias.
 - **Inspinning** (pt14): any spin counts the same, so inspinning carries spinning's
   weight; it differs in rotation direction (front where spinning is back).
 - **Nuclear** (pt9, pt14): structurally a paradox dex plus a downtime illusioning
