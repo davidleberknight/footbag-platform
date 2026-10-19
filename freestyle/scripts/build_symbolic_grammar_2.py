@@ -356,8 +356,9 @@ def derive_topology_for_trick(t: dict, mod_links: dict[str, list[str]]) -> list[
         if slug in base_topology_map:
             out.append((base_topology_map[slug], f"slug={slug}"))
 
-    # Multi-dex / double-dex topology (rough heuristic: names with "barr" or "double-dex")
-    if "barr" in slug or slug in ("barrage", "barfly", "barfry"):
+    # Multi-dex / double-dex topology (rough heuristic: names with "barr" or
+    # "furious", the canonical name of the two-dex set formerly called barraging)
+    if "barr" in slug or "furious" in slug or slug in ("barrage", "barfly", "barfry"):
         out.append(("double-dex-topology", "barrage/barfly canonical double-dex pattern"))
 
     # Unusual-surface topology
