@@ -79,7 +79,7 @@ describe('Freestyle Concepts Vocabulary Relationships subsection', () => {
     expect(res.text).toMatch(/Equivalent derivations/i);
     // flurry: two paths
     expect(res.text).toMatch(/flurry/i);
-    expect(res.text).toMatch(/barraging legover/i);
+    expect(res.text).toMatch(/furious legover/i);
     expect(res.text).toMatch(/paradox \+ paradox legover/i);
     expect(res.text).toMatch(/furious\(\+2\)[\s\S]*legover\(2\)[\s\S]*4 ADD/i);
     // witchdoctor: composite-base + historical

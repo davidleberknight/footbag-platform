@@ -305,7 +305,7 @@ describe('dictionary trick row — required slots', () => {
       'symposium_whirl', 'whirling_swirl',
       // Tier 2 — audit-validated promotions (28)
       'squeeze', 'barrage', 'barfly', 'high_plains_drifter', 'paradon',
-      'barraging_osis',
+      'furious_osis',
       'cross_body_sole_stall', 'legeater', 'paste', 'reverse_drifter',
       'scrambled_eggbeater', 'tap', 'blur', 'hatchet', 'paradox_whirl',
       'pigbeater', 'spinning_whirl', 'tripwalk', 'matador', 'phoenix',

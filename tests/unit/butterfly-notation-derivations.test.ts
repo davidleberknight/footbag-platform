@@ -12,7 +12,7 @@ import { join } from 'node:path';
 const APPROVED = [
   { slug: 'diving-butterfly',             adds: 4, notation: 'SET > DIVE [BOD] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL]' },
   { slug: 'gyro-diving-butterfly',        adds: 5, notation: 'SET > (back) SPIN [BOD] > DIVE [BOD] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL]' },
-  { slug: 'barraging-butterfly',          adds: 5, notation: 'SET > OP IN [DEX] > SAME IN [DEX] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL]' },
+  { slug: 'furious-butterfly',          adds: 5, notation: 'SET > OP IN [DEX] > SAME IN [DEX] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL]' },
   { slug: 'swirling-butterfly',           adds: 4, notation: 'SET > SAME BACK SWIRL [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]' },
   { slug: 'whirling-butterfly',           adds: 4, notation: 'SET > OP FRONT WHIRL [DEX] > OP OUT [DEX] > OP CLIP [XBD] [DEL]' },
   { slug: 'miraging-symposium-butterfly', adds: 5, notation: 'SET > OP IN [DEX] > (no plant while) SAME/OP OUT [BOD] [DEX] > OP CLIP [XBD] [DEL]' },

@@ -107,7 +107,7 @@ const BUCKETS: Bucket[] = [
     title: 'approximate (full universe)',
     intro: 'The only row whose computed ADD disagrees with the asserted value. Looking for: does the disagreement read educational, or alarming?',
     picks: [
-      { slug: 'barraging-osis', reason: 'computed=4, asserted=5; the only approximate row in the corpus' },
+      { slug: 'furious-osis', reason: 'computed=4, asserted=5; the only approximate row in the corpus' },
     ],
   },
   {

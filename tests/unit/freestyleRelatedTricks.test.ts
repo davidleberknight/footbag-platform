@@ -78,7 +78,7 @@ const FIXTURE: FreestyleTrickRow[] = [
   row('spinning_osis',   '4', 'compound', 'osis',   'osis'),
   row('stepping_osis',   '4', 'compound', 'osis',   'osis'),
   row('torque',          '4', 'compound', 'osis',   'osis'),
-  row('barraging_osis',  '5', 'compound', 'osis',   'osis'),
+  row('furious_osis',  '5', 'compound', 'osis',   'osis'),
 
   // torque family (grandchildren of osis via torque)
   row('paradox_torque',  '5', 'compound', 'torque', 'torque'),

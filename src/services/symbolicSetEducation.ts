@@ -1339,25 +1339,25 @@ const FURIOUS_SET_CONTENT: SetEducationInput = {
           'The mirage dexterity on its own, opened from a stationary set. Furious will open it with two inward dexes.',
       },
       {
-        slug:       'barraging_mirage',
+        slug:       'furious_mirage',
         addedLabel: '+ furious',
         rationale:
-          'The two-dex furious launch applied to mirage, furious(+2) + mirage(2) = 4. This compound is recorded under a legacy barraging-based name, kept for name continuity; the set is Furious.',
+          'The two-dex furious launch applied to mirage, furious(+2) + mirage(2) = 4.',
       },
     ],
   },
   representativeTricks: {
     framingLine:
-      'These examples show the two-dex furious launch opening different bases; some are recorded under legacy barraging-based names kept for name continuity, but the set is Furious.',
+      'These examples show the two-dex furious launch opening different bases.',
     examples: [
       {
-        slug:      'barraging_mirage',
+        slug:      'furious_mirage',
         baseLabel: 'Basic dex',
         prose:
           'The furious launch opening a single mirage, the clearest two-dex case, 4 ADD.',
       },
       {
-        slug:      'barraging_osis',
+        slug:      'furious_osis',
         baseLabel: 'Osis family',
         prose:
           'The furious launch opening an osis, 5 ADD.',
@@ -1369,13 +1369,13 @@ const FURIOUS_SET_CONTENT: SetEducationInput = {
           'Fury is a named trick built on the furious launch, 5 ADD.',
       },
       {
-        slug:      'barraging_butterfly',
+        slug:      'furious_butterfly',
         baseLabel: 'Butterfly family',
         prose:
           'The furious launch opening a butterfly, 5 ADD.',
       },
       {
-        slug:      'barraging_legover',
+        slug:      'furious_legover',
         baseLabel: 'Legover family',
         prose:
           'The furious launch opening a legover, furious(+2) + legover(2) = 4.',

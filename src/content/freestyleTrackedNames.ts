@@ -41,7 +41,7 @@ export interface TrackedNameGroup {
  *  recorded as a canonical trick in the committed canonical CSVs. Test
  *  fixture only; not a live publication filter (a name here may be a
  *  registered alias in the live database). */
-export const TRACKED_DOCUMENTED_TOTAL = 1457;
+export const TRACKED_DOCUMENTED_TOTAL = 1458;
 
 export const TRACKED_DOCUMENTED_NAMES: readonly TrackedNameGroup[] = [
   { sourceLabel: 'stanford', names: [
@@ -67,8 +67,8 @@ export const TRACKED_DOCUMENTED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Atomic Symposium Whirl (Gary Coleman)', slug: 'atomic_symposium_whirl_gary_coleman' },
     { displayName: 'Atomic Torque (Silo)', slug: 'atomic_torque_silo' },
     { displayName: 'Atomic Whirl (Reactor)', slug: 'atomic_whirl_reactor' },
-    { displayName: 'Barraging Legover (Flurry)', slug: 'barraging_legover_flurry' },
     { displayName: 'Barraging Osis (Baroque)', slug: 'barraging_osis_baroque' },
+    { displayName: 'Barraging Pickup', slug: 'barraging_pickup' },
     { displayName: 'Blazing Mirage (Blaze)', slug: 'blazing_mirage_blaze' },
     { displayName: 'Blazing Whirl (Whirl Walk)', slug: 'blazing_whirl_whirl_walk' },
     { displayName: 'Blistering Whirl (Whirling Gyro Whirl)', slug: 'blistering_whirl_whirling_gyro_whirl', operationalNotation: 'CLIP > OP IN [DEX] > (back) SPIN [BOD] > OP IN [DEX] > OP CLIP [XBD] [DEL]', formulaProvenance: 'footbag.org' },
@@ -230,6 +230,8 @@ export const TRACKED_DOCUMENTED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Furious Barfly (Nemesis)', slug: 'furious_barfly_nemesis' },
     { displayName: 'Furious Butterfly (Jani Walker)', slug: 'furious_butterfly_jani_walker' },
     { displayName: 'Furious DLO (Nebula)', slug: 'furious_dlo_nebula' },
+    { displayName: 'Furious Illusion (Fission)', slug: 'furious_illusion_fission' },
+    { displayName: 'Furious Mirage (Fury)', slug: 'furious_mirage_fury' },
     { displayName: 'Fusing Butterfly', slug: 'fusing_butterfly' },
     { displayName: 'Fusing Clipper', slug: 'fusing_clipper' },
     { displayName: 'Fusing Legover', slug: 'fusing_legover' },
@@ -615,7 +617,9 @@ export const TRACKED_DOCUMENTED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Atomic ss Osis', slug: 'atomic_ss_osis' },
     { displayName: 'Atomotion', slug: 'atomotion', operationalNotation: 'Toe > Op Out (DEX) >> Op Out (DEX)(XDEX) > Same Out (DEX) > (back) Spin (BOD) > Same Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Barrage (toe set)', slug: 'barrage_toe_set', operationalNotation: 'Clip >> Op In (DEX) > Same In (DEX) >> Op Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
-    { displayName: 'Barraging Butterfly (same side)', slug: 'barraging_butterfly_same_side' },
+    { displayName: 'Barraging Barfly Swirl', slug: 'barraging_barfly_swirl' },
+    { displayName: 'Barraging Butterfly', slug: 'barraging_butterfly' },
+    { displayName: 'Barraging Legover', slug: 'barraging_legover' },
     { displayName: 'Barraging ss Double Double Down', slug: 'barraging_ss_double_double_down' },
     { displayName: 'Barroque', slug: 'barroque', operationalNotation: 'Clip > Op In (DEX) > Same In (DEX) >> (back) Spin (BOD) > Op Clip (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
     { displayName: 'Big Apple Sauce / Chilly Pilly Sauce', slug: 'big_apple_sauce_chilly_pilly_sauce' },
@@ -738,10 +742,7 @@ export const TRACKED_DOCUMENTED_NAMES: readonly TrackedNameGroup[] = [
     { displayName: 'Frootie Mirage', slug: 'frootie_mirage' },
     { displayName: 'Frozen Butterfly', slug: 'frozen_butterfly' },
     { displayName: 'Fudge', slug: 'fudge', operationalNotation: 'Toe > Same Out (DEX) >> Op Out (DEX) > Op Toe (DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'high' },
-    { displayName: 'Furious Double Legover', slug: 'furious_double_legover' },
     { displayName: 'Furious Eggbeater', slug: 'furious_eggbeater' },
-    { displayName: 'Furious Illusion', slug: 'furious_illusion' },
-    { displayName: 'Furious Mirage', slug: 'furious_mirage' },
     { displayName: 'Furious Symposium Mirage', slug: 'furious_symposium_mirage' },
     { displayName: 'Furious Whirl', slug: 'furious_whirl' },
     { displayName: 'Furnace', slug: 'furnace', operationalNotation: 'Inside > Jump (BOD >> Same Back Swirl (DEX) > Same Dragon (XBD)(DEL)', formulaProvenance: 'FootbagMoves', formulaConfidence: 'low' },

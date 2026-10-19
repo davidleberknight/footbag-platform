@@ -199,7 +199,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     curatorConfirmPending: false,   // pt5-locked (= paradox grifter)
   },
   // flurry has no chain entry: it is an equivalent-derivation case (two
-  // valid structural paths converging on 4 ADD: barraging legover vs
+  // valid structural paths converging on 4 ADD: furious legover vs
   // paradox paradox-legover). S9
   // (EQUIVALENCE_TOPOLOGY) is the sole owner of the both-paths rendering;
   // S5 would duplicate one path and obscure the other.
@@ -328,7 +328,7 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
 
   // ── Osis-family trivially-named compounds ───────
   // Single-modifier-stacked-on-osis decompositions. All tokens already
-  // in MODIFIERS + BASE_ANCHORS registries. barraging-osis already
+  // in MODIFIERS + BASE_ANCHORS registries. furious-osis already
   // pending the operator-class question; deferred.
   {
     slug:     'ducking_osis',
@@ -624,9 +624,9 @@ export const SYMBOLIC_EQUIVALENCE_CHAINS: readonly SymbolicEquivalenceChain[] = 
     curatorConfirmPending: false,   // Resolved: whirling(+1) + swirl(3) = 4 ADD. Canonical name IS the structural reading
   },
   {
-    slug:     'barraging_osis',
-    readings: ['barraging osis'],
-    curatorConfirmPending: false,   // Red ruling: 'Baroque (Barraging Osis) = Two dexes + Osis = 5'. Structurally = barraging segment + osis. DB alias 'baroque' preserved
+    slug:     'furious_osis',
+    readings: ['furious osis'],
+    curatorConfirmPending: false,   // Red ruling: 'Baroque (Furious Osis) = Two dexes + Osis = 5'. Structurally = barraging segment + osis. DB alias 'baroque' preserved
   },
   {
     slug:     'surging',

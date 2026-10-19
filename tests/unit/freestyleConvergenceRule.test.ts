@@ -129,22 +129,22 @@ describe('assertFirstClassConvergence — flat derivation path', () => {
     expect(result.status).toBe('first-class');
   });
 
-  it('barraging-osis is convergence-ready (math works; awaits published formula)', () => {
+  it('furious-osis is convergence-ready (math works; awaits published formula)', () => {
     // barraging weighs 2, so the math works mechanically. But H4
     // enforces "explicit publication" as a separate gate: a slug needs
     // a RESOLVED_FORMULAS entry, atomic decomp, or composite-derivation
-    // entry to reach first-class. barraging-osis has none of these (no
+    // entry to reach first-class. furious-osis has none of these (no
     // published-derivation row is authored), so the rule correctly
     // reports convergence-ready, not governance-blocked. This is the
     // intended intermediate state: "math agrees; awaiting curator
     // promotion entry."
     const result = assertFirstClassConvergence(
-      'barraging-osis',
+      'furious-osis',
       {
-        canonical_name: 'barraging osis',
+        canonical_name: 'furious osis',
         adds: 5,
         base_trick: 'osis',
-        notation: 'BARRAGING OSIS',
+        notation: 'FURIOUS OSIS',
       },
       ['barraging'],
       modifierTable,
@@ -237,14 +237,14 @@ describe('assertFirstClassConvergence — doctrine-blocked guard', () => {
     expect(result.diagnostic).not.toBe('workbook doctrine blocker');
   });
 
-  it('barraging-osis is NOT in DOCTRINE_BLOCKED_SLUGS anymore', () => {
+  it('furious-osis is NOT in DOCTRINE_BLOCKED_SLUGS anymore', () => {
     const result = assertFirstClassConvergence(
-      'barraging-osis',
+      'furious-osis',
       {
-        canonical_name: 'barraging osis',
+        canonical_name: 'furious osis',
         adds: 5,
         base_trick: 'osis',
-        notation: 'BARRAGING OSIS',
+        notation: 'FURIOUS OSIS',
       },
       ['barraging'],
       modifierTable,

@@ -8,7 +8,7 @@ import { join } from 'node:path';
 // add-bearing token count, and survive verbatim in the source.
 const APPROVED = [
   { slug: 'diving-illusion',    adds: 3, notation: 'SET > DIVE [BOD] > OP OUT [DEX] > OP TOE [DEL]' },
-  { slug: 'barraging-illusion', adds: 4, notation: 'SET > OP IN [DEX] > SAME IN [DEX] > OP OUT [DEX] > OP TOE [DEL]' },
+  { slug: 'furious-illusion', adds: 4, notation: 'SET > OP IN [DEX] > SAME IN [DEX] > OP OUT [DEX] > OP TOE [DEL]' },
   { slug: 'symposium-bubba',    adds: 3, notation: 'CLIP > (no plant while) OP OUT [BOD] [DEX] > OP TOE [DEL]' },
 ] as const;
 

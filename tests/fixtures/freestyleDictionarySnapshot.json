@@ -1340,15 +1340,15 @@
 "sort_order": 1074
 },
 {
-"slug": "barraging_osis",
-"canonical_name": "barraging osis",
+"slug": "furious_osis",
+"canonical_name": "furious osis",
 "adds": "5",
 "base_trick": "osis",
 "trick_family": "osis",
 "category": "compound",
 "description": null,
 "aliases_json": null,
-"notation": "BARRAGING OSIS",
+"notation": "FURIOUS OSIS",
 "operational_notation": "CLIP > OP IN [DEX] > SAME IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]",
 "sort_order": 1075
 },
@@ -7177,15 +7177,15 @@
 "sort_order": 1540
 },
 {
-"slug": "barraging_butterfly",
-"canonical_name": "barraging butterfly",
+"slug": "furious_butterfly",
+"canonical_name": "furious butterfly",
 "adds": "5",
 "base_trick": "butterfly",
 "trick_family": "butterfly",
 "category": "compound",
 "description": null,
 "aliases_json": null,
-"notation": "BARRAGING BUTTERFLY",
+"notation": "FURIOUS BUTTERFLY",
 "operational_notation": "SET > OP IN [DEX] > SAME IN [DEX] > SAME/OP OUT [DEX] > OP CLIP [XBD] [DEL]",
 "sort_order": 1541
 },
@@ -7203,54 +7203,54 @@
 "sort_order": 1542
 },
 {
-"slug": "barraging_illusion",
-"canonical_name": "barraging illusion",
+"slug": "furious_illusion",
+"canonical_name": "furious illusion",
 "adds": "4",
 "base_trick": "illusion",
 "trick_family": "illusion",
 "category": "compound",
 "description": null,
 "aliases_json": null,
-"notation": "BARRAGING ILLUSION",
+"notation": "FURIOUS ILLUSION",
 "operational_notation": "SET > OP IN [DEX] > SAME IN [DEX] > OP OUT [DEX] > OP TOE [DEL]",
 "sort_order": 1543
 },
 {
-"slug": "barraging_legover",
-"canonical_name": "barraging legover",
+"slug": "furious_legover",
+"canonical_name": "furious legover",
 "adds": "4",
 "base_trick": "legover",
 "trick_family": "legover",
 "category": "compound",
 "description": null,
 "aliases_json": null,
-"notation": "BARRAGING LEGOVER",
+"notation": "FURIOUS LEGOVER",
 "operational_notation": "SET > OP IN [DEX] > SAME IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]",
 "sort_order": 1544
 },
 {
-"slug": "barraging_mirage",
-"canonical_name": "barraging mirage",
+"slug": "furious_mirage",
+"canonical_name": "furious mirage",
 "adds": "4",
 "base_trick": "mirage",
 "trick_family": "mirage",
 "category": "compound",
 "description": null,
 "aliases_json": null,
-"notation": "BARRAGING MIRAGE",
+"notation": "FURIOUS MIRAGE",
 "operational_notation": "SET > OP IN [DEX] > SAME IN [DEX] > OP IN [DEX] > OP TOE [DEL]",
 "sort_order": 1545
 },
 {
-"slug": "barraging_pickup",
-"canonical_name": "barraging pickup",
+"slug": "furious_pickup",
+"canonical_name": "furious pickup",
 "adds": "4",
 "base_trick": "pickup",
 "trick_family": "pickup",
 "category": "compound",
 "description": null,
 "aliases_json": null,
-"notation": "BARRAGING PICKUP",
+"notation": "FURIOUS PICKUP",
 "operational_notation": "SET > OP IN [DEX] > SAME IN [DEX] > OP IN [DEX] > SAME TOE [DEL]",
 "sort_order": 1546
 },
@@ -7853,15 +7853,15 @@
 "sort_order": 1599
 },
 {
-"slug": "barraging_barfly_swirl",
-"canonical_name": "barraging barfly swirl",
+"slug": "furious_barfly_swirl",
+"canonical_name": "furious barfly swirl",
 "adds": "7",
 "base_trick": "barfly_swirl",
 "trick_family": "swirl",
 "category": "compound",
 "description": null,
 "aliases_json": null,
-"notation": "BARRAGING BARFLY SWIRL",
+"notation": "FURIOUS BARFLY SWIRL",
 "operational_notation": "CLIP > OP IN [DEX] > SAME IN [DEX] > SAME OUT [DEX] > SAME OUT [DEX] > OP OUT [DEX] > SAME CLIP [XBD] [DEL]",
 "sort_order": 1600
 },
@@ -9673,15 +9673,15 @@
 "sort_order": 1746
 },
 {
-"slug": "barraging_double_leg_over",
-"canonical_name": "barraging double leg over",
+"slug": "furious_double_leg_over",
+"canonical_name": "furious double leg over",
 "adds": "5",
 "base_trick": "double_leg_over",
 "trick_family": "double_leg_over",
 "category": "compound",
 "description": null,
 "aliases_json": null,
-"notation": "BARRAGING DOUBLE LEG OVER",
+"notation": "FURIOUS DOUBLE LEG OVER",
 "operational_notation": "SET > OP IN [DEX] > SAME IN [DEX] > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]",
 "sort_order": 1747
 },
@@ -11558,8 +11558,8 @@
 "sort_order": 1891
 },
 {
-"slug": "barraging_drifter",
-"canonical_name": "barraging drifter",
+"slug": "furious_drifter",
+"canonical_name": "furious drifter",
 "adds": "5",
 "base_trick": "drifter",
 "trick_family": "clipper_stall",
@@ -11571,8 +11571,8 @@
 "sort_order": 1892
 },
 {
-"slug": "barraging_butterfly_swirl",
-"canonical_name": "barraging butterfly swirl",
+"slug": "furious_butterfly_swirl",
+"canonical_name": "furious butterfly swirl",
 "adds": "6",
 "base_trick": "butterfly_swirl",
 "trick_family": "butterfly_swirl",
@@ -11584,8 +11584,8 @@
 "sort_order": 1893
 },
 {
-"slug": "barraging_symposium_eggbeater",
-"canonical_name": "barraging symposium eggbeater",
+"slug": "furious_symposium_eggbeater",
+"canonical_name": "furious symposium eggbeater",
 "adds": "6",
 "base_trick": "eggbeater",
 "trick_family": "legover",
@@ -11597,8 +11597,8 @@
 "sort_order": 1894
 },
 {
-"slug": "barraging_symposium_legover",
-"canonical_name": "barraging symposium legover",
+"slug": "furious_symposium_legover",
+"canonical_name": "furious symposium legover",
 "adds": "5",
 "base_trick": "legover",
 "trick_family": "legover",
@@ -12989,15 +12989,15 @@
 },
 {
 "alias_text": "janiwalker",
-"trick_slug": "barraging_butterfly"
+"trick_slug": "furious_butterfly"
 },
 {
 "alias_text": "sunilwalk",
-"trick_slug": "barraging_butterfly"
+"trick_slug": "furious_butterfly"
 },
 {
 "alias_text": "tsunami",
-"trick_slug": "barraging_butterfly_swirl"
+"trick_slug": "furious_butterfly_swirl"
 },
 {
 "alias_text": "clownface",
@@ -13005,15 +13005,15 @@
 },
 {
 "alias_text": "fission",
-"trick_slug": "barraging_illusion"
+"trick_slug": "furious_illusion"
 },
 {
 "alias_text": "baroque",
-"trick_slug": "barraging_osis"
+"trick_slug": "furious_osis"
 },
 {
 "alias_text": "walrus",
-"trick_slug": "barraging_symposium_eggbeater"
+"trick_slug": "furious_symposium_eggbeater"
 },
 {
 "alias_text": "infinity",

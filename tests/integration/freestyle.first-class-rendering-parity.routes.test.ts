@@ -128,7 +128,7 @@ beforeAll(async () => {
   insertFreestyleTrick(db, { slug: 'barfly',                   canonical_name: 'barfly',                   adds: '4', base_trick: 'barfly',                   trick_family: 'barfly',                   category: 'compound', notation: 'BARFLY',                           operational_notation: 'CLIP >> SAME OUT [DEX] > SAME OUT [DEX] > OP CLIP [DEL] [XBD]' });
   insertFreestyleTrick(db, { slug: 'high_plains_drifter',      canonical_name: 'high-plains-drifter',      adds: '4', base_trick: 'clipper_stall',            trick_family: 'clipper_stall',            category: 'compound', operational_notation: 'CLIP > OP IN [DEX] > SAME IN [DEX] > SAME CLIP [XBD] [DEL]' });
   insertFreestyleTrick(db, { slug: 'paradon',                  canonical_name: 'paradon',                  adds: '4', base_trick: 'paradon',                  trick_family: 'paradon',                  category: 'compound', operational_notation: 'TOE > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]' });
-  insertFreestyleTrick(db, { slug: 'barraging_osis',           canonical_name: 'barraging osis',           adds: '5', base_trick: 'osis',                     trick_family: 'osis',                     category: 'compound', operational_notation: 'CLIP > OP IN [DEX] > SAME IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]' });
+  insertFreestyleTrick(db, { slug: 'furious_osis',           canonical_name: 'furious osis',           adds: '5', base_trick: 'osis',                     trick_family: 'osis',                     category: 'compound', operational_notation: 'CLIP > OP IN [DEX] > SAME IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]' });
   insertFreestyleTrick(db, { slug: 'cross_body_sole_stall',    canonical_name: 'cross-body sole stall',    adds: '3', base_trick: 'cross_body_sole_stall',    trick_family: 'cross_body_sole_stall',    category: 'compound', notation: 'CROSS-BODY SOLE STALL',            operational_notation: '[set] > sole [xbd]' });
   insertFreestyleTrick(db, { slug: 'legeater',                 canonical_name: 'legeater',                 adds: '3', base_trick: 'pickup',                   trick_family: 'pickup',                   category: 'compound', notation: 'QUANTUM PICKUP' });
   insertFreestyleTrick(db, { slug: 'paste',                    canonical_name: 'paste',                    adds: '3', base_trick: 'pickup',                   trick_family: 'pickup',                   category: 'compound', notation: 'PIXIE PICKUP' });
@@ -506,7 +506,7 @@ describe('First-class cohort governance — isFirstClass() and getFirstClassTier
       'symposium_whirl', 'whirling_swirl',
       // audit-validated promotions — ATAM bracket-flag (6)
       'squeeze', 'barrage', 'barfly', 'high_plains_drifter', 'paradon',
-      'barraging_osis',
+      'furious_osis',
       // parser-derived (21) + composite witchdoctor (1)
       'cross_body_sole_stall', 'legeater', 'paste', 'reverse_drifter',
       'scrambled_eggbeater', 'tap', 'blur', 'hatchet', 'paradox_whirl',

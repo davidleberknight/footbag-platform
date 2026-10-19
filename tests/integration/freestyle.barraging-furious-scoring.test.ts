@@ -2,7 +2,7 @@
  * Barraging is retired as a scored operator: where a trick's structure is ruled
  * Furious, its prose and ADD decomposition resolve to Furious, not to a scored
  * barraging operator. Historical barraging trick names and the preserved
- * "barraging legover" / "barraging osis" readings are unaffected.
+ * "furious legover" / "furious osis" readings are unaffected.
  *
  * Pins: Nemesis renders as a Furious Barfly (never a barraging barfly), and the
  * curated source stores the ruled Furious readings rather than a scored
@@ -52,10 +52,10 @@ describe('curated source resolves barraging scoring to Furious', () => {
     expect(row!.toLowerCase()).not.toContain('a barraging barfly');
   });
 
-  it('the Barraging Double Leg Over decomposition scores furious(+2), not barraging(+2)', () => {
+  it('the Furious Double Leg Over decomposition scores furious(+2), not barraging(+2)', () => {
     const csv = readFileSync(join(root, 'freestyle/inputs/curated/tricks/red_additions_2026_04_20.csv'), 'utf8');
-    const row = csv.split('\n').find(l => l.startsWith('barraging double leg over,'));
-    expect(row, 'barraging double leg over row').toBeDefined();
+    const row = csv.split('\n').find(l => l.startsWith('furious double leg over,'));
+    expect(row, 'furious double leg over row').toBeDefined();
     expect(row!).toContain('furious(+2) + double-leg-over(3)');
     expect(row!).not.toContain('barraging(+2)');
   });

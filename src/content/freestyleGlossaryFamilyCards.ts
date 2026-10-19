@@ -746,7 +746,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     familyAnchorAdds:  3,
     commonDescendants: ['paradox barrage', 'pogo paradox barrage', 'symposium barrage'],
     siblingFamilies:   ['blur'],
-    notableCompounds:  ['blurrage (≡ stepping paradox barrage)', 'baroque (≡ barraging osis)'],
+    notableCompounds:  ['blurrage (≡ stepping paradox barrage)', 'baroque (≡ furious osis)'],
     observationalNotes: [],
   },
   {
@@ -969,8 +969,8 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     notableCompounds:  ['flurricane'],
     observationalNotes: [
       {
-        title: 'Flurry\'s barraging-legover lineage',
-        body:  'Flurry is the barraging-legover counterpart to eggbeater (the atomic legover): both are legover-family branches named by the set operator that builds them, conserving the legover toe-catch terminal.',
+        title: 'Flurry\'s furious-legover lineage',
+        body:  'Flurry is the furious-legover counterpart to eggbeater (the atomic legover): both are legover-family branches named by the set operator that builds them, conserving the legover toe-catch terminal.',
       },
     ],
   },

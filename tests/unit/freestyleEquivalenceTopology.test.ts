@@ -143,9 +143,9 @@ describe('freestyleEquivalenceTopology — ratified membership', () => {
     expect(flurry?.derivations[1].role).toBe('alternate-equivalent');
   });
 
-  it('flurry canonical-primary reading is barraging legover', () => {
+  it('flurry canonical-primary reading is furious legover', () => {
     const flurry = getEquivalenceTopologyFor('flurry');
-    expect(flurry?.derivations[0].reading).toBe('barraging legover');
+    expect(flurry?.derivations[0].reading).toBe('furious legover');
   });
 
   it('flurry alternate reading is paradox-stack', () => {

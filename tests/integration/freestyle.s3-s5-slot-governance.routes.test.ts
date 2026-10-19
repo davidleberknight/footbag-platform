@@ -152,7 +152,7 @@ describe('S3/S5 separation rule — no aliases_json contains structural compress
     { slug: 'avalanche',     banned: 'stepping ducking paradox illusion' },
     { slug: 'spike_hammer',  banned: 'stepping ducking paradox mirage' },
     { slug: 'witchdoctor',   banned: 'atomic symposium mirage' },
-    { slug: 'flurry',        banned: 'barraging legover' },
+    { slug: 'flurry',        banned: 'furious legover' },
     { slug: 'eggbeater',     banned: 'atomic legover' },
   ];
 

@@ -83,7 +83,7 @@ export const ADD_WORKED_EXAMPLES: readonly GlossaryAddExample[] = [
   {
     slug:              'baroque',
     displayName:       'Baroque',
-    compactNotation:   'barraging osis',
+    compactNotation:   'furious osis',
     officialAdd:       5,
     derivation:        'furious(+2) + osis(3) = 5 ADD',
     status:            'canonical',

@@ -67,7 +67,7 @@ beforeAll(async () => {
   insertFreestyleTrick(db, {
     slug: 'flurry', canonical_name: 'flurry', base_trick: 'legover',
     trick_family: 'legover', category: 'compound', adds: '4', is_active: 1,
-    notation: 'BARRAGING LEGOVER',
+    notation: 'FURIOUS LEGOVER',
   });
 
   insertFreestyleTrick(db, {
@@ -99,13 +99,13 @@ describe('equivalence-topology — section renders for ratified entries', () => 
     expect(res.text).toMatch(/trick-equivalence-topology-summary-title[^>]*>\s*Alternate derivations\s*</);
   });
 
-  it('flurry topology section lists barraging-legover as canonical-primary', async () => {
+  it('flurry topology section lists furious-legover as canonical-primary', async () => {
     const res = await page('/freestyle/tricks/flurry');
     const startIdx = res.text.indexOf('trick-equivalence-topology"');
     const endIdx = res.text.indexOf('</section>', startIdx);
     expect(startIdx).toBeGreaterThan(0);
     const region = res.text.slice(startIdx, endIdx);
-    expect(region).toContain('barraging legover');
+    expect(region).toContain('furious legover');
     expect(region).toContain('paradox + paradox legover');
     expect(region).toMatch(/trick-equivalence-topology-row--canonical-primary/);
     expect(region).toMatch(/trick-equivalence-topology-row--alternate-equivalent/);

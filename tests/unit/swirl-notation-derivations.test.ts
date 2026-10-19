@@ -12,7 +12,7 @@ const APPROVED = [
   { slug: 'symposium-swirl',         adds: 4, notation: 'CLIP > (no plant while) SAME BACK SWIRL [BOD] [DEX] > SAME CLIP [XBD] [DEL]' },
   { slug: 'spinning-whirling-swirl', adds: 5, notation: 'CLIP > (back) SPIN [BOD] > OP IN [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]' },
   { slug: 'swirling-whirling-swirl', adds: 5, notation: 'CLIP > SAME BACK SWIRL [DEX] > OP IN [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]' },
-  { slug: 'barraging-barfly-swirl',  adds: 7, notation: 'CLIP > OP IN [DEX] > SAME IN [DEX] > SAME OUT [DEX] > SAME OUT [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]' },
+  { slug: 'furious-barfly-swirl',  adds: 7, notation: 'CLIP > OP IN [DEX] > SAME IN [DEX] > SAME OUT [DEX] > SAME OUT [DEX] > OP BACK SWIRL [DEX] > SAME CLIP [XBD] [DEL]' },
 ] as const;
 
 const ADD_TOKEN   = /\[(DEX|BOD|DEL|XBD|PDX|XDEX)\]/g;

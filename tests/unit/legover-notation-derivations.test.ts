@@ -8,7 +8,7 @@ import { join } from 'node:path';
 // add-bearing token count, and survive verbatim in the source.
 const APPROVED = [
   { slug: 'diving-legover',    adds: 3, notation: 'SET > DIVE [BOD] > OP OUT [DEX] > SAME TOE [DEL]' },
-  { slug: 'barraging-legover', adds: 4, notation: 'SET > OP IN [DEX] > SAME IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]' },
+  { slug: 'furious-legover', adds: 4, notation: 'SET > OP IN [DEX] > SAME IN [DEX] > OP OUT [DEX] > SAME TOE [DEL]' },
 ] as const;
 
 const ADD_TOKEN   = /\[(DEX|BOD|DEL|XBD|PDX|XDEX)\]/g;

@@ -133,7 +133,7 @@ MODIFIER_GROUPS = [
     ("whirling-family", "Whirling modifier family", "modifier", "+1 rotation modifier; flat per pt10.",
      "whirling_swirl, blender (whirling-osis)"),
     ("barraging-family", "Barraging modifier family", "modifier", "+1 universal body modifier.",
-     "flurry (barraging_legover; data-debt), barraging_osis (deferred)"),
+     "flurry (furious_legover; data-debt), furious_osis (deferred)"),
     ("blurry-family", "Blurry modifier family", "modifier", "+1 flat per pt11; set modifier.",
      "blur, blurry_whirl, blurry_torque, blurriest, food_processor"),
     ("miraging-family", "Miraging modifier family", "modifier", "+1 body modifier; underlies torque/drifter/DLO canonical decompositions.",

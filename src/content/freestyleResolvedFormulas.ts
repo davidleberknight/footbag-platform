@@ -51,7 +51,7 @@
 //
 //   1. CANONICAL BRACKET CONVENTION (footbag.org-style; uppercase tokens,
 //      [BRACKETS]). Every [TOKEN] contributes +1 ADD. Used by the
-//      curator-resolved compounds (barfly, paradon, blur, barraging-osis,
+//      curator-resolved compounds (barfly, paradon, blur, furious-osis,
 //      high-plains-drifter, squeeze, etc.) and by the published modifier-
 //      stack rows. Most entries in this file use this convention.
 //
@@ -2688,8 +2688,8 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     provenance:  'Furious-set promotion (historical name barraging). furious(+2) two-dex set; bracket count 6 matches ADD. Observational (FM).',
   },
   {
-    slug:        'barraging_butterfly',
-    name:        'barraging butterfly',
+    slug:        'furious_butterfly',
+    name:        'furious butterfly',
     operator:    'furious',
     base:        'butterfly',
     baseAdd:     3,
@@ -2710,8 +2710,8 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     provenance:  'Furious-set promotion (historical name barraging). furious(+2) two-dex set; bracket count 5 matches ADD. Observational (PB).',
   },
   {
-    slug:        'barraging_illusion',
-    name:        'barraging illusion',
+    slug:        'furious_illusion',
+    name:        'furious illusion',
     operator:    'furious',
     base:        'illusion',
     baseAdd:     2,
@@ -2721,8 +2721,8 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     provenance:  'Furious-set promotion (historical name barraging). furious(+2) two-dex set; bracket count 4 matches ADD. Observational (PB).',
   },
   {
-    slug:        'barraging_legover',
-    name:        'barraging legover',
+    slug:        'furious_legover',
+    name:        'furious legover',
     operator:    'furious',
     base:        'legover',
     baseAdd:     2,
@@ -2732,8 +2732,8 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     provenance:  'Furious-set promotion (historical name barraging). furious(+2) two-dex set; bracket count 4 matches ADD. Observational (FM/PB).',
   },
   {
-    slug:        'barraging_mirage',
-    name:        'barraging mirage',
+    slug:        'furious_mirage',
+    name:        'furious mirage',
     operator:    'furious',
     base:        'mirage',
     baseAdd:     2,
@@ -2743,8 +2743,8 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     provenance:  'Furious-set promotion (historical name barraging). furious(+2) two-dex set; bracket count 4 matches ADD. Observational (PB).',
   },
   {
-    slug:        'barraging_pickup',
-    name:        'barraging pickup',
+    slug:        'furious_pickup',
+    name:        'furious pickup',
     operator:    'furious',
     base:        'pickup',
     baseAdd:     2,
@@ -3359,8 +3359,8 @@ export const RESOLVED_ADD_FORMULAS: readonly ResolvedFormula[] = [
     provenance:  'Clean Tier-1 sweep. spinning on canonical butterfly-kick; bracket count 3 matches ADD. Observational (FM).',
   },
   {
-    slug:        'barraging_barfly_swirl',
-    name:        'barraging barfly swirl',
+    slug:        'furious_barfly_swirl',
+    name:        'furious barfly swirl',
     operator:    'furious',
     base:        'barfly-swirl',
     baseAdd:     5,

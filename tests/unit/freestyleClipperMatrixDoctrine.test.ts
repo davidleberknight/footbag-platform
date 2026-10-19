@@ -45,7 +45,7 @@ const MATRIX = {
 // Every row the matrix migration re-derived; each must keep bracket-count == ADD.
 const MIGRATED_SLUGS = [
   'atomic_reverse_swirl', 'atomic_swirl', 'barfly_swirl',
-  'barraging_barfly_swirl', 'barraging_butterfly_swirl', 'big_papa_smurf',
+  'furious_barfly_swirl', 'furious_butterfly_swirl', 'big_papa_smurf',
   'bling_blang', 'blurry_whirling_swirl', 'butterfly_swirl',
   'diving_reverse_swirl', 'diving_swirl', 'double_over_down_swirl',
   'ducking_butterfly_swirl', 'fairy_butterfly_swirl', 'fairy_reverse_swirl',

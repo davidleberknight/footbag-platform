@@ -73,7 +73,7 @@ describe('GET /freestyle/concepts — flurry worked example (preserved from prio
     // to their detail pages, so the <strong> wraps an <a>.
     const res = await page('/freestyle/concepts');
     expect(res.text).toMatch(/<strong>\s*<a href="\/freestyle\/tricks\/flurry">flurry<\/a>\s*<\/strong>/i);
-    expect(res.text).toContain('barraging legover');
+    expect(res.text).toContain('furious legover');
     expect(res.text).toContain('paradox + paradox legover');
   });
 

@@ -4193,7 +4193,7 @@ const FAMILY_NOTES: Record<string, string> = {
     'under their modifier in the modifier view; drifter anchors its own branch family.',
   legover:
     'The legover base yields a compact family: eggbeater (atomic legover) and flurry ' +
-    '(barraging legover) are the primary 3-ADD entries. The family is notable for producing ' +
+    '(furious legover) are the primary 3-ADD entries. The family is notable for producing ' +
     'DLO-style combinations at 5 ADD (fog).',
   torque:
     'Torque is the most important intermediate base in advanced freestyle. Canonically ' +
@@ -4517,12 +4517,12 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'fairy_whirl',
   // Furious-set + base batch (two-dex +2 chassis; furious=+2; historical name barraging; all bases canonical).
   'barraging_barfly',
-  'barraging_butterfly',
+  'furious_butterfly',
   'barraging_eggbeater',
-  'barraging_illusion',
-  'barraging_legover',
-  'barraging_mirage',
-  'barraging_pickup',
+  'furious_illusion',
+  'furious_legover',
+  'furious_mirage',
+  'furious_pickup',
   'genesis',
   // Symposium + base batch (no-plant first-dex chassis; symposium=+1; all bases canonical).
   'symposium_atomic_butterfly',
@@ -4580,7 +4580,7 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'gyro_diving_butterfly',
   'symposium_whirling_mirage',
   'spinning_butterfly_kick',
-  'barraging_barfly_swirl',
+  'furious_barfly_swirl',
   'ducking_symposium_reverse_whirl',
   'tapping_double_over_down',
   'gyro_diving_clipper',
@@ -4620,7 +4620,7 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'whirling_swirl',          // whirling(+1) + swirl(3) = 4 ADD
   // ── Promotions: 28 slugs covering the remaining
   //    audit-validated promotion candidates. 6 via ATAM bracket-flag
-  //    decomposition (squeeze through barraging-osis); 22 via parser-
+  //    decomposition (squeeze through furious-osis); 22 via parser-
   //    derived modifier × base (or composite for witchdoctor). The
   //    promotion-candidate pool is closed for
   //    all rows except composite-modifier compounds (blurry-* / haze /
@@ -4632,7 +4632,7 @@ const FIRST_CLASS_TIER_2: ReadonlySet<string> = new Set([
   'barfly',                  // dex(1) + dex(1) + xbody(1) + stall(1) = 4 ADD
   'high_plains_drifter',     // dex(1) + dex(1) + xbody(1) + stall(1) = 4 ADD
   'paradon',                 // dex(1) + dex(1) + xbody(1) + stall(1) = 4 ADD
-  'barraging_osis',          // dex(1) + dex(1) + BOD(1) + xbody(1) + stall(1) = 5 ADD
+  'furious_osis',          // dex(1) + dex(1) + BOD(1) + xbody(1) + stall(1) = 5 ADD
   // Parser-derived modifier × base (21) + composite witchdoctor (1):
   'cross_body_sole_stall',   // xbody(+1) + sole-stall(2) = 3 ADD
   'legeater',                // quantum(+1) + pickup(2) = 3 ADD
@@ -4864,7 +4864,7 @@ export function getFirstClassTier(slug: string): 'tier-1' | 'tier-2' | null {
 // gate. Update when workbook status changes for any of these slugs.
 const DOCTRINE_BLOCKED_SLUGS: ReadonlySet<string> = new Set([
   // derived_add_mismatch
-  // barraging-osis excluded: ruled a two-dex set
+  // furious-osis excluded: ruled a two-dex set
   // (modifier weight 1 → 2); 3+2=5 now converges.
   // witchdoctor excluded: ruling
   // (atomic-mirage(4) + symposium(+1) = 5) now mechanically supported
@@ -5131,7 +5131,7 @@ const ATOMIC_FLAG_DECOMPOSITIONS: ReadonlyMap<string, AtomicFlagDecomposition> =
     totalAdd:         4,
     operationalChain: 'TOE > OP OUT [DEX] > SAME OUT [DEX] > OP CLIP [XBD] [DEL]',
   }],
-  ['barraging_osis', {
+  ['furious_osis', {
     decomposition:    'dex(1) + dex(1) + BOD(1) + xbody(1) + stall(1) = 5 ADD',
     totalAdd:         5,
     operationalChain: 'CLIP > OP IN [DEX] > SAME IN [DEX] > (back) SPIN [BOD] > OP CLIP [XBD] [DEL]',

@@ -49,7 +49,7 @@ export const bapService = {
           {
             heading: 'History of the BAP',
             paragraphs: [
-              [{ text: 'One degree of difficulty in footbag freestyle is called an ADD (Additional Degree of Difficulty), so for example the trick called flurry (aka barraging legover) is a 4-add move. The Big Add Posse takes its name from this metric. The BAP is an elite, invite-only group, and the only way to get in is by shredding incredibly hard in front of the existing members.' }],
+              [{ text: 'One degree of difficulty in footbag freestyle is called an ADD (Additional Degree of Difficulty), so for example the trick called flurry (aka furious legover) is a 4-add move. The Big Add Posse takes its name from this metric. The BAP is an elite, invite-only group, and the only way to get in is by shredding incredibly hard in front of the existing members.' }],
               [{ text: 'These kickers are the legends of freestyle!' }],
             ],
           },

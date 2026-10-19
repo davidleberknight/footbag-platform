@@ -78,9 +78,21 @@ atw_heel,retype,technical,0,abbreviation of the canonical name
 atw_kick,retype,technical,0,abbreviation of the canonical name
 backside_symposium_toe_blur,retype,structural,0,modifier-stack decomposition rather than a nickname
 bar_fly,retype,technical,0,spacing or spelling variant of the canonical name
+barraging_barfly_swirl,retype,historical,0,former canonical name; Barraging compounds take the Furious name
+barraging_butterfly,retype,historical,0,former canonical name; Barraging compounds take the Furious name
+barraging_butterfly_swirl,retype,historical,0,former canonical name; Barraging compounds take the Furious name
+barraging_double_leg_over,retype,historical,0,former canonical name; Barraging compounds take the Furious name
+barraging_drifter,retype,historical,0,former canonical name; Barraging compounds take the Furious name
 barraging_far_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+barraging_illusion,retype,historical,0,former canonical name; Barraging compounds take the Furious name
+barraging_legover,retype,historical,0,former canonical name; Barraging compounds take the Furious name
+barraging_mirage,retype,historical,0,former canonical name; Barraging compounds take the Furious name
 barraging_near_double_down,retype,structural,0,modifier-stack decomposition rather than a nickname
+barraging_osis,retype,historical,0,former canonical name; Barraging compounds take the Furious name
 barraging_paradox_mirage,retype,structural,0,modifier-stack decomposition rather than a nickname
+barraging_pickup,retype,historical,0,former canonical name; Barraging compounds take the Furious name
+barraging_symposium_eggbeater,retype,historical,0,former canonical name; Barraging compounds take the Furious name
+barraging_symposium_legover,retype,historical,0,former canonical name; Barraging compounds take the Furious name
 barraging_whirl,retype,structural,0,modifier-stack decomposition rather than a nickname
 barroque,retype,typo,0,misspelling of baroque
 blurr_iest,retype,typo,0,misspelling of the canonical name
@@ -133,14 +145,9 @@ flapper_stall,retype,historical,0,stall-form of the flapper nickname
 floating_butterfly,retype,structural,0,modifier-stack decomposition rather than a nickname
 forehead_delay,retype,historical,0,delay-form of the canonical stall name
 furious_barfly,retype,structural,0,modifier-stack decomposition rather than a nickname
-furious_butterfly_swirl,retype,structural,0,modifier-stack decomposition rather than a nickname
 furious_double_legover,retype,structural,0,modifier-stack decomposition rather than a nickname
-furious_drifter,retype,structural,0,modifier-stack decomposition rather than a nickname
 furious_eggbeater,retype,structural,0,modifier-stack decomposition rather than a nickname
-furious_illusion,retype,structural,0,modifier-stack decomposition rather than a nickname
-furious_mirage,retype,structural,0,modifier-stack decomposition rather than a nickname
 furious_paradox_mirage,retype,structural,0,modifier-stack decomposition rather than a nickname
-furious_symposium_eggbeater,retype,structural,0,modifier-stack decomposition rather than a nickname
 furious_symposium_mirage,retype,structural,0,modifier-stack decomposition rather than a nickname
 furious_whirl,retype,structural,0,modifier-stack decomposition rather than a nickname
 gdlo,retype,technical,0,abbreviation of the canonical name

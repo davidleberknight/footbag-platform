@@ -128,7 +128,7 @@ export const TRICK_PRODUCTIVITY_ENTRIES: readonly TrickProductivity[] = [
   {
     slug: 'osis',
     prose:
-      "Osis anchors one of the dictionary's most productive trees. The spin-into-clipper structural signature composes naturally with body modifiers (ducking-osis, spinning-osis, atomic-osis), with paradox topology (paradox-osis), with an X-Dex where the notation carries [XDEX] (atomic-osis; stepping-osis as the multi-dex case), with set treatments (pixie-osis), with rotational layering producing compound-of-canonicals (torque = quantum-osis; blender = whirling-osis), and with naming-driven extensions (twirl, aeon-flux, barraging-osis). The osis family is among the broadest at the 4-5 ADD layer.",
+      "Osis anchors one of the dictionary's most productive trees. The spin-into-clipper structural signature composes naturally with body modifiers (ducking-osis, spinning-osis, atomic-osis), with paradox topology (paradox-osis), with an X-Dex where the notation carries [XDEX] (atomic-osis; stepping-osis as the multi-dex case), with set treatments (pixie-osis), with rotational layering producing compound-of-canonicals (torque = quantum-osis; blender = whirling-osis), and with naming-driven extensions (twirl, aeon-flux, furious-osis). The osis family is among the broadest at the 4-5 ADD layer.",
     productiveDescendants: [
       { slug: 'torque',         label: 'torque',         note: 'Quantum-osis compound; sub-family anchor in its own right.' },
       { slug: 'blender',        label: 'blender',        note: 'Whirling-osis compound; compound-of-canonicals exemplar.' },

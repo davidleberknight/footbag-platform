@@ -253,8 +253,8 @@ export const TRICK_FAMILY_EVOLUTION_ENTRIES: readonly TrickFamilyEvolution[] = [
       {
         branchAxis: 'Multi-dex extension',
         prose:
-          "Stepping-osis at 4 ADD and barraging-osis at 5 ADD layer multi-dex extensions onto the spin-clipper chassis.",
-        exemplarSlugs: ['stepping_osis', 'barraging_osis'],
+          "Stepping-osis at 4 ADD and furious-osis at 5 ADD layer multi-dex extensions onto the spin-clipper chassis.",
+        exemplarSlugs: ['stepping_osis', 'furious_osis'],
       },
       {
         branchAxis: 'Naming-driven extensions',

@@ -585,8 +585,8 @@ const DISCREPANCY_CASES: readonly AddAnalysisDiscrepancyCase[] = [
   },
   {
     caseId:                  'DC-09',
-    trickName:               'Baroque (Barraging Osis)',
-    trickSlug:               'barraging_osis',
+    trickName:               'Baroque (Furious Osis)',
+    trickSlug:               'furious_osis',
     ifpaAdd:                 '5',
     externalSourceLabel:     'IFPA (operator class)',
     externalAdd:             '5',

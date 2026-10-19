@@ -16,6 +16,7 @@ import {
 } from '../fixtures/testDb';
 import {
   insertFreestyleTrick,
+  insertFreestyleTrickAlias,
   insertFreestyleTrickModifier,
   insertFreestyleTrickModifierLink,
 } from '../fixtures/factories';
@@ -39,15 +40,18 @@ beforeAll(async () => {
     review_status: 'expert_reviewed', is_active: 1,
   });
   insertFreestyleTrickModifierLink(db, 'baroque', 'furious');
-  // A barraging-named Furious compound: the active dictionary keeps these names
-  // for continuity, and they are what text-search surfaces for "barraging".
+  // A Furious compound once named for the Barraging set. Its former name stays
+  // as a hidden historical alias, which search and redirect still resolve.
   insertFreestyleTrick(db, {
-    slug: 'barraging_mirage', canonical_name: 'barraging mirage', adds: '4',
+    slug: 'furious_mirage', canonical_name: 'furious mirage', adds: '4',
     base_trick: 'mirage', trick_family: 'mirage', category: 'compound',
     operational_notation: 'CLIP > OP IN [DEX] > SAME IN [DEX] > OP TOE [DEL]',
     review_status: 'expert_reviewed', is_active: 1,
   });
-  insertFreestyleTrickModifierLink(db, 'barraging_mirage', 'furious');
+  insertFreestyleTrickModifierLink(db, 'furious_mirage', 'furious');
+  insertFreestyleTrickAlias(db, 'barraging_mirage', 'furious_mirage', 'barraging mirage', {
+    alias_type: 'historical', alias_display: 0,
+  });
   // Deliberately DO NOT seed a standalone 'barraging' trick or modifier row:
   // the pipeline retires it, so the redirect must fire without any such row.
   db.close();
@@ -133,15 +137,25 @@ describe('Barraging retirement — no standalone identity or stale copy', () => 
 describe('Barraging retirement — search behavior (active tricks only)', () => {
   // The freestyle search product indexes active tricks (plus displayed aliases
   // and family pages), never sets. Furious is an intentionally-inactive set row,
-  // so search cannot return it; searching "barraging" surfaces the active
-  // Furious-based barraging-named compounds instead, and never a standalone
+  // so search cannot return it; searching "barraging" surfaces the Furious
+  // compounds through their former barraging names, and never a standalone
   // barraging identity.
-  it('surfaces a Furious-based barraging-named compound, not a standalone barraging', async () => {
+  it('surfaces a Furious compound by its former barraging name, not a standalone barraging', async () => {
     const res = await request(await createApp()).get('/freestyle/search').query({ q: 'barraging' });
     expect(res.status).toBe(200);
-    // The barraging-named Furious compound is findable.
-    expect(res.text).toContain('/freestyle/tricks/barraging_mirage');
+    // A visitor searching the old name still finds the renamed trick.
+    expect(res.text).toContain('/freestyle/tricks/furious_mirage');
     // No standalone barraging trick result (the closing quote pins the exact slug).
     expect(res.text).not.toContain('href="/freestyle/tricks/barraging"');
+  });
+});
+
+describe('Barraging compound rename — old trick URLs', () => {
+  // A bookmark or outside link to a trick under its former barraging name must
+  // land on the renamed Furious trick, not a 404.
+  it('redirects a former barraging trick slug to its Furious trick in one hop', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/barraging_mirage');
+    expect(res.status).toBe(301);
+    expect(res.headers.location).toBe('/freestyle/tricks/furious_mirage');
   });
 });

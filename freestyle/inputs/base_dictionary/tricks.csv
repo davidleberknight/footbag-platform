@@ -58,7 +58,7 @@ spinning osis,4,osis,compound,,Spinning-modified osis.
 ducking osis,4,osis,compound,,Ducking-modified osis.
 stepping osis,4,osis,compound,,Stepping-modified osis.
 tapping whirl,4,whirl,compound,,Tapping-modified whirl.
-barraging osis,5,osis,compound,baroque,Barraging-modified osis.
+furious osis,5,osis,compound,baroque|barraging osis,Furious-modified osis.
 atomic butterfly,4,butterfly,compound,leg beater|legbeater,Atomic-modified butterfly.
 ducking,,ducking,modifier,,body modifier; +1 ADD per occurrence (see trick_modifiers.csv)
 spinning,,spinning,modifier,,body modifier; +1 ADD universally

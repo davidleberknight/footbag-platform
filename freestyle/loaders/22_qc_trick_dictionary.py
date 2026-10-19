@@ -95,7 +95,7 @@ ALLOWLIST_COMPOSITIONAL_NAMED: frozenset[str] = frozenset({
     "atomic_butterfly",   # alias: legbeater (modifier-table note)
     "atomic_torque",      # alias: silo (Red pt4)
     "spinning_torque",    # alias: marius (row's inline aliases column)
-    "barraging_osis",     # alias: baroque (Red pt4 NEW_TRICK)
+    "furious_osis",     # alias: baroque (Red pt4 NEW_TRICK)
 })
 
 

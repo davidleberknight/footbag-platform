@@ -128,7 +128,7 @@ export const TRICK_ONTOLOGY_ROLE_ENTRIES: readonly TrickOntologyRole[] = [
     slug: 'osis',
     role: 'Spin-into-clipper canonical',
     prose:
-      "Osis is the foundational canonical for spin-into-clipper compounds. Its 3-ADD decomposition (body spin + cross-body clipper terminal) anchors a substantial family (torque, blender, paradox-osis, spinning-osis, ducking-osis, atomic-osis, pixie-osis, stepping-osis, twirl, aeon-flux, barraging-osis). Where mirage is the in-to-out dex anchor and whirl is the rotational dex anchor, osis is the spin-anchored canonical. The osis chassis composes naturally across all five movement-language axes and seeds two named compound-of-canonicals (torque via mirage; blender via whirl).",
+      "Osis is the foundational canonical for spin-into-clipper compounds. Its 3-ADD decomposition (body spin + cross-body clipper terminal) anchors a substantial family (torque, blender, paradox-osis, spinning-osis, ducking-osis, atomic-osis, pixie-osis, stepping-osis, twirl, aeon-flux, furious-osis). Where mirage is the in-to-out dex anchor and whirl is the rotational dex anchor, osis is the spin-anchored canonical. The osis chassis composes naturally across all five movement-language axes and seeds two named compound-of-canonicals (torque via mirage; blender via whirl).",
   },
 
   {
