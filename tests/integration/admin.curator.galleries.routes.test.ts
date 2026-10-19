@@ -759,6 +759,34 @@ describe('POST /admin/curator/galleries/:id/delete', () => {
     expect(still).toBeDefined();
   });
 
+  // Defect caught: an administrator's own member gallery is hard-deleted from the
+  // curated surface, which never lists it, with no owner check of the member route.
+  it("returns 404 for the administrator's own member gallery, deleting nothing and auditing nothing", async () => {
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    insertMemberGallery(db, {
+      id: 'gallery_admin_owned',
+      owner_member_id: ADMIN_ID,
+      name: 'Admin Own Set',
+    });
+    db.close();
+
+    const res = await request(createApp())
+      .post('/admin/curator/galleries/gallery_admin_owned/delete')
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ confirmed: '1' });
+    expect(res.status).toBe(404);
+
+    const check = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    const still = check.prepare('SELECT id, owner_member_id FROM member_galleries WHERE id = ?').get('gallery_admin_owned');
+    const audits = (check.prepare(
+      "SELECT COUNT(*) AS n FROM audit_entries WHERE entity_id = ? AND action_type LIKE 'media.%gallery_deleted'",
+    ).get('gallery_admin_owned') as { n: number }).n;
+    check.close();
+    expect(still).toEqual({ id: 'gallery_admin_owned', owner_member_id: ADMIN_ID });
+    expect(audits).toBe(0);
+  });
+
   it('redirects unauthenticated requests to login', async () => {
     const res = await request(createApp())
       .post(`/admin/curator/galleries/${GALLERY_A}/delete`);

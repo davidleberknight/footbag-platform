@@ -12,7 +12,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
 import { cachedGet } from '../fixtures/cachedGet';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember, insertEvent, insertClub, insertTag, insertMemberGallery, insertHistoricalPerson, createTestSessionJwt } from '../fixtures/factories';
+import { insertMember, insertEvent, insertClub, insertTag, insertMemberGallery, insertHistoricalPerson, insertFreestyleTrick, createTestSessionJwt } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3080');
 const ORIGIN = 'http://localhost:3080';
@@ -36,6 +36,11 @@ beforeAll(async () => {
 
   // A named gallery, so its detail URL appears in the sitemap.
   insertMemberGallery(db, { id: 'gallery_seo_test', owner_member_id: 'seo-member-1', name: 'SEO Test Gallery' });
+
+  // Two active trick rows: a real trick whose page renders, and a modifier row
+  // whose trick URL redirects to its modifier page.
+  insertFreestyleTrick(db, { slug: 'seo_butterfly', canonical_name: 'seo butterfly', adds: '3', category: 'compound' });
+  insertFreestyleTrick(db, { slug: 'spinning', canonical_name: 'spinning', category: 'modifier' });
 
   // Historical people covering each answer the detail page gives a signed-out
   // visitor: Hall of Fame and Big Add Posse records are public pages; an
@@ -138,6 +143,19 @@ describe('GET /sitemap.xml', () => {
       .map((m) => m[1]!);
     expect(modifierPaths.length).toBeGreaterThan(0);
     for (const p of modifierPaths) {
+      const detail = await request(createApp()).get(p);
+      expect(detail.status, `${p} -> ${detail.headers.location ?? ''}`).toBe(200);
+    }
+  });
+
+  // Defect caught: the sitemap offers crawlers trick URLs that only redirect
+  // (a modifier row's trick URL), so they index a hop instead of a page.
+  it('lists only freestyle trick pages that render rather than redirect', async () => {
+    const res = await page('/sitemap.xml');
+    const trickPaths = [...res.text.matchAll(new RegExp(`<loc>${ORIGIN}(/freestyle/tricks/[^<]+)</loc>`, 'g'))]
+      .map((m) => m[1]!);
+    expect(trickPaths).toContain('/freestyle/tricks/seo_butterfly');
+    for (const p of trickPaths) {
       const detail = await request(createApp()).get(p);
       expect(detail.status, `${p} -> ${detail.headers.location ?? ''}`).toBe(200);
     }

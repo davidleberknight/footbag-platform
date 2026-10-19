@@ -35,12 +35,23 @@
  *   - The modifier registry itself (new modifier rows are not created here), and
  *     the separate media-source registry.
  *
+ * Text cleaning: every curator-typed text field on every write path (trick names,
+ * prose, notations, alias texts and reasons, provenance notes, tip text, source
+ * labels and notes) is cleaned with the shared write-time text sanitizer before
+ * its own checks run, so required, length and uniqueness rules judge what will be
+ * stored, and an alias or published trick's slug is derived from the cleaned
+ * text. Notations use the notation shape, which keeps `<`, `>` and `[ ]` because
+ * they are syntax. The trick save's changed-field list compares each cleaned
+ * value with the stored value passed through the same cleaner.
+ *
  * Write discipline: updateTrickScalars validates the submitted fields for row
  * shape (canonical name required, ADD numeric/empty/"modifier", category and
  * review status within the existing allowed values, the active flag a boolean, the
  * browse sort position a whole number zero or greater with a
  * cleared field meaning the unset zero, each
- * editorial prose field within a length cap) plus two
+ * editorial prose field within a length cap, a non-empty base trick naming a
+ * dictionary row, and no change to the ADD of a modifier row, whose own ADD
+ * changes only through the operator reference and a reviewed migration) plus two
  * structural doctrine checks. The core-primitive column is not editable here: the
  * loaders write it and nothing reads it. When the ADD is numeric and the execution notation
  * carries scoring brackets, the scoring-bracket count must equal the ADD; rows
@@ -172,6 +183,39 @@ import {
 import { countScoringBrackets } from '../lib/freestyleNotation';
 import { config } from '../config/env';
 import { isSeededTestPersonaMemberId } from '../lib/personaGuards';
+import {
+  cleanUserText,
+  sanitizeUserText,
+  INVALID_TEXT_ENCODING_MESSAGE,
+  type TextShape,
+} from '../lib/textSanitizer';
+
+// One typed field, cleaned before any of its own checks run. Unreadable text is
+// recorded beside the form's other field errors and reads as empty, so the
+// caller's required and length checks skip it rather than replacing its message.
+function cleanField(
+  raw: string | undefined,
+  shape: TextShape,
+  field: string,
+  fieldErrors: Record<string, string>,
+): string {
+  const result = sanitizeUserText(raw ?? '', shape);
+  if (result.status === 'invalid_encoding') {
+    fieldErrors[field] = INVALID_TEXT_ENCODING_MESSAGE;
+    return '';
+  }
+  return result.text;
+}
+
+// A stored value read the way a cleaned submission is, so a comparison never
+// mistakes a value stored before cleaning existed for a different one. Text that
+// cannot be cleaned is compared as it stands; empty reads as null, as a cleared
+// field is stored.
+function comparableStored(stored: string | null, shape: TextShape): string | null {
+  const result = sanitizeUserText(stored ?? '', shape);
+  const text = result.status === 'ok' ? result.text : (stored ?? '');
+  return text === '' ? null : text;
+}
 
 // A pre-check rejects a duplicate before each insert, but two writers in separate
 // processes can both pass that check and race to the same key; the primary-key /
@@ -1391,8 +1435,12 @@ export const freestyleCurationService = {
 
     const fieldErrors: Record<string, string> = {};
 
-    const notation = (input.notation ?? '').trim();
-    if (!notation) {
+    // Notation brackets are syntax, so the notation is cleaned without the markup
+    // step that would take `<DEX>` for a tag.
+    const notation = cleanField(input.notation, 'notation', 'notation', fieldErrors);
+    if (fieldErrors.notation) {
+      // Already refused as unreadable.
+    } else if (!notation) {
       fieldErrors.notation = 'A movement notation is required.';
     } else if (notation.length > NOTATION_MAX) {
       fieldErrors.notation = `Notation must be ${NOTATION_MAX} characters or fewer.`;
@@ -1426,7 +1474,7 @@ export const freestyleCurationService = {
       fieldErrors.conventionId = 'A convention belongs only to a derivation.';
     }
 
-    const provenanceNote = (input.provenanceNote ?? '').trim();
+    const provenanceNote = cleanField(input.provenanceNote, 'multi_line', 'provenanceNote', fieldErrors);
     if (provenanceNote.length > PROSE_MAX) {
       fieldErrors.provenanceNote = `Provenance note must be ${PROSE_MAX} characters or fewer.`;
     }
@@ -1561,8 +1609,11 @@ export const freestyleCurationService = {
     const basis = draft.notation_evidence_basis ?? '';
 
     // 3. The name folds to a slug, under the same rule the trick editor applies.
-    const canonicalName = (input.canonicalName ?? '').trim();
-    if (!canonicalName) {
+    //    Cleaned first, so the slug is derived from what will be stored.
+    const canonicalName = cleanField(input.canonicalName, 'single_line', 'canonicalName', fieldErrors);
+    if (fieldErrors.canonicalName) {
+      // Already refused as unreadable.
+    } else if (!canonicalName) {
       fieldErrors.canonicalName = 'Canonical name is required.';
     } else if (canonicalName.length > CANONICAL_NAME_MAX) {
       fieldErrors.canonicalName = `Canonical name must be ${CANONICAL_NAME_MAX} characters or fewer.`;
@@ -1641,7 +1692,10 @@ export const freestyleCurationService = {
     const family = familyOverride || derivedFamily;
 
     // 8. Aliases: same rules the alias editor applies, checked before any write.
-    const aliasTexts = (input.aliases ?? '').split('|').map((a) => a.trim()).filter(Boolean);
+    //    Each text is cleaned before its slug is derived, so a slug never carries
+    //    markup the stored text does not.
+    const aliasTexts = cleanField(input.aliases, 'single_line', 'aliases', fieldErrors)
+      .split('|').map((a) => a.trim()).filter(Boolean);
     const aliasRows: { slug: string; text: string }[] = [];
     for (const text of aliasTexts) {
       const aliasSlug = trickNameToSlug(text);
@@ -1663,7 +1717,8 @@ export const freestyleCurationService = {
     // 9. Source links must match what the notation claims to rest on.
     const sourceId = (input.sourceId ?? '').trim();
     const sourceUrl = (input.sourceUrl ?? '').trim();
-    const assertedNotation = (input.sourceAssertedNotation ?? '').trim();
+    const assertedNotation = cleanField(
+      input.sourceAssertedNotation, 'notation', 'sourceAssertedNotation', fieldErrors);
     if (sourceId && !freestyleTrickSources.getById.get(sourceId)) {
       fieldErrors.sourceId = 'Choose a registered source.';
     }
@@ -1687,7 +1742,7 @@ export const freestyleCurationService = {
       }
     }
 
-    const description = emptyToNull(input.description);
+    const description = nullIfEmpty(cleanField(input.description, 'multi_line', 'description', fieldErrors));
     if (description && description.length > PROSE_MAX) {
       fieldErrors.description = `Description must be ${PROSE_MAX} characters or fewer.`;
     }
@@ -2130,8 +2185,10 @@ export const freestyleCurationService = {
 
     const fieldErrors: Record<string, string> = {};
 
-    const canonicalName = (input.canonicalName ?? '').trim();
-    if (!canonicalName) {
+    const canonicalName = cleanField(input.canonicalName, 'single_line', 'canonicalName', fieldErrors);
+    if (fieldErrors.canonicalName) {
+      // Already refused as unreadable.
+    } else if (!canonicalName) {
       fieldErrors.canonicalName = 'Canonical name is required.';
     } else if (canonicalName.length > CANONICAL_NAME_MAX) {
       fieldErrors.canonicalName = `Canonical name must be ${CANONICAL_NAME_MAX} characters or fewer.`;
@@ -2141,6 +2198,12 @@ export const freestyleCurationService = {
     const adds = addsRaw === '' ? null : addsRaw;
     if (adds !== null && adds !== 'modifier' && !/^\d+$/.test(adds)) {
       fieldErrors.adds = 'ADD must be empty, a whole number, or "modifier".';
+    } else if (current.category === 'modifier' && adds !== (current.adds ?? null)) {
+      // A modifier's own ADD is operator doctrine: the operator reference is its
+      // single authority and a reviewed migration its only write path, so an edit
+      // here would put the dictionary row out of step with the reference.
+      fieldErrors.adds =
+        "A modifier's own ADD is not changed here. It changes only through the operator reference and a reviewed database migration.";
     }
 
     const categoryRaw = (input.category ?? '').trim();
@@ -2171,20 +2234,31 @@ export const freestyleCurationService = {
       }
     }
 
-    const movementNotation  = emptyToNull(input.movementNotation);
-    const executionNotation = emptyToNull(input.executionNotation);
+    // Notation brackets are syntax, so both notations are cleaned without the
+    // markup step that would take `<DEX>` for a tag.
+    const movementNotation  = nullIfEmpty(cleanField(input.movementNotation, 'notation', 'movementNotation', fieldErrors));
+    const executionNotation = nullIfEmpty(cleanField(input.executionNotation, 'notation', 'executionNotation', fieldErrors));
     const family            = emptyToNull(input.family);
     const baseTrick         = emptyToNull(input.baseTrick);
 
+    // The base names a dictionary row, the same rule publication applies, because
+    // the family and a trick page's educational links are read from it.
+    if (baseTrick !== null && !freestyleTricks.getForCurationBySlug.get(baseTrick)) {
+      fieldErrors.baseTrick = `"${baseTrick}" is not a trick in the dictionary.`;
+    }
+
     // Editorial prose fields are free text; the only row-shape rule is a length
     // cap that rejects an oversized payload. Empty clears the field to null.
-    const description               = emptyToNull(input.description);
-    const shortDescription          = emptyToNull(input.shortDescription);
-    const executionSummary          = emptyToNull(input.executionSummary);
-    const learningNotes             = emptyToNull(input.learningNotes);
-    const prerequisiteNotes         = emptyToNull(input.prerequisiteNotes);
-    const pronunciation             = emptyToNull(input.pronunciation);
-    const operationalNotationSource = emptyToNull(input.operationalNotationSource);
+    const prose = (raw: string | undefined, field: string): string | null =>
+      nullIfEmpty(cleanField(raw, 'multi_line', field, fieldErrors));
+    const description               = prose(input.description, 'description');
+    const shortDescription          = prose(input.shortDescription, 'shortDescription');
+    const executionSummary          = prose(input.executionSummary, 'executionSummary');
+    const learningNotes             = prose(input.learningNotes, 'learningNotes');
+    const prerequisiteNotes         = prose(input.prerequisiteNotes, 'prerequisiteNotes');
+    const pronunciation             = prose(input.pronunciation, 'pronunciation');
+    const operationalNotationSource = nullIfEmpty(cleanField(
+      input.operationalNotationSource, 'notation', 'operationalNotationSource', fieldErrors));
     const proseFields: Array<[keyof FreestyleTrickScalarInput, string | null, string]> = [
       ['description', description, 'Description'],
       ['shortDescription', shortDescription, 'Short description'],
@@ -2218,7 +2292,10 @@ export const freestyleCurationService = {
     // Only when the name is otherwise sound: an empty name has already failed on
     // a plainer ground, and replacing that message with one about folding back to
     // a slug would answer a question the curator did not ask.
-    if (!fieldErrors.canonicalName && canonicalName !== current.canonical_name) {
+    // The stored name is read the way the submission was cleaned, so a stored
+    // name that merely predates cleaning is not mistaken for a change.
+    const nameChanged = canonicalName !== comparableStored(current.canonical_name, 'single_line');
+    if (!fieldErrors.canonicalName && nameChanged) {
       const naming = displayNameViolation(slug, canonicalName);
       if (naming) fieldErrors.canonicalName = naming;
     }
@@ -2227,24 +2304,27 @@ export const freestyleCurationService = {
       throw new ValidationError('Some fields need attention.', { fieldErrors });
     }
 
+    // Each cleaned text field is compared with its stored value passed through the
+    // same cleaner, so a value stored before cleaning existed does not read as an
+    // edit the curator never made.
     const changedFields: string[] = [];
-    if (canonicalName !== current.canonical_name)               changedFields.push('canonical_name');
+    if (nameChanged)                                            changedFields.push('canonical_name');
     if (adds !== (current.adds ?? null))                        changedFields.push('adds');
-    if (movementNotation !== (current.notation ?? null))        changedFields.push('notation');
-    if (executionNotation !== (current.operational_notation ?? null)) changedFields.push('operational_notation');
+    if (movementNotation !== comparableStored(current.notation, 'notation')) changedFields.push('notation');
+    if (executionNotation !== comparableStored(current.operational_notation, 'notation')) changedFields.push('operational_notation');
     if (family !== (current.trick_family ?? null))              changedFields.push('trick_family');
     if (baseTrick !== (current.base_trick ?? null))             changedFields.push('base_trick');
     if (category !== (current.category ?? null))                changedFields.push('category');
     if (isActive !== current.is_active)                         changedFields.push('is_active');
     if (sortOrder !== current.sort_order)                       changedFields.push('sort_order');
     if (reviewStatus !== current.review_status)                 changedFields.push('review_status');
-    if (description !== (current.description ?? null))          changedFields.push('description');
-    if (shortDescription !== (current.short_description ?? null)) changedFields.push('short_description');
-    if (executionSummary !== (current.execution_summary ?? null)) changedFields.push('execution_summary');
-    if (learningNotes !== (current.learning_notes ?? null))     changedFields.push('learning_notes');
-    if (prerequisiteNotes !== (current.prerequisite_notes ?? null)) changedFields.push('prerequisite_notes');
-    if (pronunciation !== (current.pronunciation ?? null))      changedFields.push('pronunciation');
-    if (operationalNotationSource !== (current.operational_notation_source ?? null)) changedFields.push('operational_notation_source');
+    if (description !== comparableStored(current.description, 'multi_line')) changedFields.push('description');
+    if (shortDescription !== comparableStored(current.short_description, 'multi_line')) changedFields.push('short_description');
+    if (executionSummary !== comparableStored(current.execution_summary, 'multi_line')) changedFields.push('execution_summary');
+    if (learningNotes !== comparableStored(current.learning_notes, 'multi_line')) changedFields.push('learning_notes');
+    if (prerequisiteNotes !== comparableStored(current.prerequisite_notes, 'multi_line')) changedFields.push('prerequisite_notes');
+    if (pronunciation !== comparableStored(current.pronunciation, 'multi_line')) changedFields.push('pronunciation');
+    if (operationalNotationSource !== comparableStored(current.operational_notation_source, 'notation')) changedFields.push('operational_notation_source');
 
     // The stored notation parse is derived from the row, so an edit to anything
     // the parser reads leaves it describing a row that no longer exists. Nothing
@@ -2308,7 +2388,9 @@ export const freestyleCurationService = {
     const trick = freestyleTricks.getForCurationBySlug.get(trickSlug) as CurationEditDbRow | undefined;
     if (!trick) throw new NotFoundError(`No freestyle trick "${trickSlug}"`);
 
-    const aliasText = (input.aliasText ?? '').trim();
+    // Cleaned before the slug is derived from it, so markup in the submitted text
+    // can neither reach the stored text nor shape the slug.
+    const aliasText = cleanUserText(input.aliasText ?? '', 'single_line', 'aliasText');
     if (!aliasText) {
       throw new ValidationError('Alias text is required.');
     }
@@ -2351,7 +2433,7 @@ export const freestyleCurationService = {
     if (sourceId !== null && !freestyleTrickSources.getById.get(sourceId)) {
       throw new ValidationError('Choose a source that exists, or none.');
     }
-    const provenanceNote = (input.provenanceNote ?? '').trim() || null;
+    const provenanceNote = cleanUserText(input.provenanceNote ?? '', 'multi_line', 'provenanceNote') || null;
     if ((provenanceNote ?? '').length > ALIAS_PROVENANCE_NOTE_MAX) {
       throw new ValidationError(
         `The provenance note must be ${ALIAS_PROVENANCE_NOTE_MAX} characters or fewer.`);
@@ -2414,7 +2496,7 @@ export const freestyleCurationService = {
     // a reason by convention, and this is where that convention becomes a rule,
     // because after cutover this surface is the only writer.
     const diverges = aliasDisplay !== displayDefaultForAliasType(aliasType);
-    const submittedReason = (input.divergenceReason ?? '').trim();
+    const submittedReason = cleanUserText(input.divergenceReason ?? '', 'multi_line', 'divergenceReason');
     // An existing reason still standing is the row's own explanation, so leaving
     // the field untouched on an unrelated edit is not an unexplained exception.
     const reason = submittedReason || (diverges ? (existing.display_reason ?? '').trim() : '');
@@ -2446,7 +2528,7 @@ export const freestyleCurationService = {
     }
     const provenanceNote = input.provenanceNote === undefined
       ? existing.provenance_note
-      : (input.provenanceNote.trim() || null);
+      : (cleanUserText(input.provenanceNote, 'multi_line', 'provenanceNote') || null);
     if ((provenanceNote ?? '').length > ALIAS_PROVENANCE_NOTE_MAX) {
       throw new ValidationError(
         `The provenance note must be ${ALIAS_PROVENANCE_NOTE_MAX} characters or fewer.`);
@@ -2753,7 +2835,7 @@ export const freestyleCurationService = {
     const tip = freestyleTrickTips.getByIdForModeration.get(tipId) as TipModerationDbRow | undefined;
     if (!tip) throw new NotFoundError(`No freestyle tip #${tipId}`);
 
-    const tipText = (tipTextInput ?? '').trim();
+    const tipText = cleanUserText(tipTextInput ?? '', 'multi_line', 'tipText');
     if (!tipText) {
       throw new ValidationError('Tip text is required.');
     }
@@ -2975,7 +3057,7 @@ export const freestyleCurationService = {
       throw new ValidationError('Choose a source type from the list.');
     }
 
-    const sourceLabel = (input.sourceLabel ?? '').trim();
+    const sourceLabel = cleanUserText(input.sourceLabel ?? '', 'single_line', 'sourceLabel');
     if (!sourceLabel) {
       throw new ValidationError('Source label is required.');
     }
@@ -2995,7 +3077,7 @@ export const freestyleCurationService = {
     if (sourceUrl.length > SOURCE_URL_MAX) {
       throw new ValidationError(`Source URL must be ${SOURCE_URL_MAX} characters or fewer.`);
     }
-    const notes = (input.notes ?? '').trim();
+    const notes = cleanUserText(input.notes ?? '', 'multi_line', 'notes');
     if (notes.length > SOURCE_NOTES_MAX) {
       throw new ValidationError(`Notes must be ${SOURCE_NOTES_MAX} characters or fewer.`);
     }
@@ -3025,4 +3107,9 @@ export const freestyleCurationService = {
 function emptyToNull(value: string | undefined): string | null {
   const trimmed = (value ?? '').trim();
   return trimmed === '' ? null : trimmed;
+}
+
+// A cleaned field already carries no edge whitespace; empty clears it to null.
+function nullIfEmpty(value: string): string | null {
+  return value === '' ? null : value;
 }

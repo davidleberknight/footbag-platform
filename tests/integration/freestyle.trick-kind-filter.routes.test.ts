@@ -8,7 +8,7 @@
  *   (ADD / family / set / modifier) must render
  *   ONLY rows whose `resolveTrickKind(slug)` returns 'trick'.
  *
- * Why this matters: rows like `pixie`, `atomic`, `paradox` exist in
+ * Why this matters: rows like `atomic`, `quantum`, `paradox` exist in
  * freestyle_tricks but are structurally primitives (set operators /
  * body modifiers), not compound tricks. Mixing them into the
  * difficulty ladder distorts the trick browse and breaks the
@@ -47,11 +47,12 @@ const page = cachedGet(() => createApp());
 // src/content/freestyleTrickKindOverrides.ts; the tests below treat that
 // module as the source of truth.
 const MODIFIER_SAMPLE   = 'paradox';
-const OPERATOR_SAMPLE   = 'pixie';
+const OPERATOR_SAMPLE   = 'atomic';
 const BODY_KICK_SAMPLE  = 'clipper';        // Clipper Kick: 1-ADD body kick, NOT filtered
 const PENDING_SAMPLE    = 'surging';
 const TRICK_SAMPLE      = 'ripwalk';        // canonical compound trick (control)
 const STALL_TRICK_SAMPLE = 'clipper-stall'; // legitimate 1-ADD stall trick (NOT filtered)
+const DUAL_ROLE_SAMPLES = ['pixie', 'fairy']; // sets that are also tricks (NOT filtered)
 
 const ALL_FILTERED_SAMPLES = [
   MODIFIER_SAMPLE,
@@ -75,11 +76,22 @@ beforeAll(async () => {
   });
   insertFreestyleTrick(db, {
     slug:           OPERATOR_SAMPLE,
-    canonical_name: 'pixie',
+    canonical_name: 'atomic',
     category:       'set',
     adds:           '2',
     is_active:      1,
   });
+  // Dual-role sets: category='set' like atomic, but each is also a trick in its
+  // own right, so the kind layer keeps them in the trick browse.
+  for (const slug of DUAL_ROLE_SAMPLES) {
+    insertFreestyleTrick(db, {
+      slug,
+      canonical_name: slug,
+      category:       'set',
+      adds:           '2',
+      is_active:      1,
+    });
+  }
   insertFreestyleTrick(db, {
     slug:           BODY_KICK_SAMPLE,
     canonical_name: 'Clipper Kick',
@@ -164,9 +176,7 @@ describe('resolveTrickKind() — content module discriminator', () => {
   });
 
   it('classifies set primitives as kind=operator', () => {
-    expect(resolveTrickKind('pixie')).toBe('operator');
     expect(resolveTrickKind('atomic')).toBe('operator');
-    expect(resolveTrickKind('fairy')).toBe('operator');
     expect(resolveTrickKind('quantum')).toBe('operator');
     // 0-ADD set primitives stay operator-kind, not 0-ADD trick.
     expect(resolveTrickKind('pogo')).toBe('operator');
@@ -250,6 +260,19 @@ describe('Trick-browse view filter — true tricks preserved', () => {
     const res = await page('/freestyle/tricks?view=add');
     expect(res.status).toBe(200);
     expect(res.text).toContain(`data-trick-slug="${STALL_TRICK_SAMPLE}"`);
+  });
+
+  // Defect caught: pixie and fairy, active canonical tricks that are also sets,
+  // are missing from the trick browse, so a visitor listing every trick by ADD
+  // never finds them. The atomic set row seeded beside them stays out, so the
+  // view still filters set primitives.
+  it('renders the dual-role sets pixie and fairy in the ADD view', async () => {
+    const res = await page('/freestyle/tricks?view=add');
+    expect(res.status).toBe(200);
+    for (const slug of DUAL_ROLE_SAMPLES) {
+      expect(res.text, slug).toContain(`data-trick-slug="${slug}"`);
+    }
+    expect(res.text).not.toContain(`data-trick-slug="${OPERATOR_SAMPLE}"`);
   });
 
   it('renders the Clipper Kick in the ADD view (body kick, ends in bag contact)', async () => {

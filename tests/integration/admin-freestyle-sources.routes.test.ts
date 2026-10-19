@@ -166,6 +166,16 @@ describe('POST /admin/freestyle/sources — successful creation', () => {
     expect(row!.notes).toBe('A note about this source.');
   });
 
+  // Defect caught: markup in a source label or notes is stored, and the label is
+  // served wherever a trick cites the source.
+  it('stores the label and notes without markup', async () => {
+    const res = await post('/admin/freestyle/sources', admin(), validBody({
+      id: 'created-clean', sourceLabel: '<b>Clean</b>   Label', notes: '<i>First</i> line\n\nSecond line',
+    }));
+    expect(res.status).toBe(303);
+    expect(sourceRow('created-clean')).toMatchObject({ source_label: 'Clean Label', notes: 'First line\n\nSecond line' });
+  });
+
   it('accepts an id with digits, hyphens, and underscores', async () => {
     const res = await post('/admin/freestyle/sources', admin(), validBody({ id: 'anz_trikz-2026' }));
     expect(res.status).toBe(303);
@@ -211,6 +221,16 @@ describe('POST /admin/freestyle/sources — validation and rollback', () => {
     expect(res.text).toContain('Source label is required.');
     expect(res.text).toContain('no-label');   // submitted value survives the re-render
     expect(sourceRow('no-label')).toBeUndefined();
+  });
+
+  // Defect caught: a label made only of markup passes the required check and a
+  // source with a blank label is registered.
+  it('refuses a label that is only markup and writes nothing', async () => {
+    const res = await post('/admin/freestyle/sources', admin(), validBody({ id: 'markup-label', sourceLabel: '<b></b>' }));
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Source label is required.');
+    expect(sourceRow('markup-label')).toBeUndefined();
+    expect(createdAudits('markup-label')).toHaveLength(0);
   });
 
   it('rejects a missing retrieval timestamp with 422 and writes nothing', async () => {

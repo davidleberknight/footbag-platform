@@ -7,20 +7,21 @@
   when the trick has no notation to count, and is plain text, since no view
   groups by dex count.
 
-  Hrefs are built here from literal path text + a single slug variable (per the
-  single-variable URL rule), so the query string is not entity-escaped.
+  Every href is service-shaped: a modifier link points at the page its route
+  settles on (a set-only slug lands on its set page), so no link hops through a
+  redirect.
 --}}
 {{#if content.structuralFacts}}
 <section class="content-section trick-structural-facts" aria-label="Structure at a glance">
   <dl class="trick-structural-facts-list">
     {{#if content.structuralFacts.familyBase}}
     <dt>Family base</dt>
-    <dd><span class="structural-fact"><a href="/freestyle/tricks/{{content.structuralFacts.familyBase.slug}}">{{content.structuralFacts.familyBase.name}}</a>{{#if content.structuralFacts.familyBase.note}} <span class="structural-fact-note">{{content.structuralFacts.familyBase.note}}</span>{{/if}}</span></dd>
+    <dd><span class="structural-fact"><a href="{{content.structuralFacts.familyBase.href}}">{{content.structuralFacts.familyBase.name}}</a>{{#if content.structuralFacts.familyBase.note}} <span class="structural-fact-note">{{content.structuralFacts.familyBase.note}}</span>{{/if}}</span></dd>
     {{/if}}
 
     {{#if content.structuralFacts.modifiers.length}}
     <dt>{{#if (gt content.structuralFacts.modifiers.length 1)}}Modifiers{{else}}Modifier{{/if}}</dt>
-    <dd>{{#each content.structuralFacts.modifiers}}<span class="structural-fact"><a href="/freestyle/modifier/{{slug}}">{{name}}</a>{{#if note}} <span class="structural-fact-note">{{note}}</span>{{/if}}</span>{{/each}}</dd>
+    <dd>{{#each content.structuralFacts.modifiers}}<span class="structural-fact"><a href="{{href}}">{{name}}</a>{{#if note}} <span class="structural-fact-note">{{note}}</span>{{/if}}</span>{{/each}}</dd>
     {{/if}}
 
     {{#if content.structuralFacts.dexterity}}

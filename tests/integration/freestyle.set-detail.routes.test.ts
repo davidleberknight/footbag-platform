@@ -592,6 +592,21 @@ describe('/freestyle/sets/:slug — formula provenance', () => {
   // it in the confusion pair that distinguishes the two sets. Both said the
   // relation was unsettled before the ruling, and a page that still says so
   // contradicts the dictionary it sits beside.
+  // Defect caught: the provenance footer on a set page names the rules expert's
+  // ruling and its relay channel ("Red ruling (curator-relayed, ...)"), internal
+  // curation vocabulary a visitor should never read. The footer still renders its
+  // outside source, so the absence is checked against a footer that is there.
+  it('renders the blazing and flailing citations without ruling identifiers', async () => {
+    for (const slug of ['blazing', 'flailing']) {
+      const res = await page(`/freestyle/sets/${slug}`);
+      expect(res.status, slug).toBe(200);
+      const footer = /<p class="set-detail-citation">([\s\S]*?)<\/p>/.exec(res.text);
+      expect(footer, `${slug} citation footer`).not.toBeNull();
+      expect(footer![1]!, slug).toContain('Holden compilation (2003)');
+      expect(res.text, slug).not.toMatch(/Red ruling|curator-relayed/i);
+    }
+  });
+
   it('states the settled side reference on the blazing page, beside the quoted formula', async () => {
     const res = await page('/freestyle/sets/blazing');
     expect(res.status).toBe(200);

@@ -66,6 +66,9 @@ describe('Foundations of Freestyle mosaic overlay metadata', () => {
       const slug = file.replace(/^mosaic-/, '').replace(/\.meta\.json$/, '').replace(/-/g, '_');
       expect(TRICKS_MOSAIC.map((a) => a.slug), `${file} is a mosaic atom`).toContain(slug);
       expect(meta.tags ?? [], `${file} trick tag`).toContain(`#${slug}`);
+      // A clip naming a trick is trick media, and every trick-media sidecar
+      // carries the #trick marker, the tag trick-media listings select on.
+      expect(meta.tags ?? [], `${file} trick-media marker`).toContain('#trick');
     });
   }
 

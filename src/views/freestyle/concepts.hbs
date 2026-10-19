@@ -931,13 +931,13 @@
       they are not family cards).
     </p>
     <p class="detail-muted glossary-family-roster">
-      {{#each content.firstClassFamilyRoster}}{{#unless @first}} &middot; {{/unless}}<a href="/freestyle/tricks?family={{slug}}">{{label}}</a>{{#if branches.length}} ({{#each branches}}{{#unless @first}}, {{/unless}}<a href="/freestyle/tricks?family={{slug}}">{{label}}</a>{{/each}}){{/if}}{{/each}}
+      {{#each content.firstClassFamilyRoster}}{{#unless @first}} &middot; {{/unless}}<a href="{{{href}}}">{{label}}</a>{{#if branches.length}} ({{#each branches}}{{#unless @first}}, {{/unless}}<a href="{{{href}}}">{{label}}</a>{{/each}}){{/if}}{{/each}}
     </p>
     <p class="detail-muted glossary-family-roster">
       <strong>Minor lineages</strong> ({{content.minorLineageRoster.length}}): conserved-terminal lineages
       that are not on the curated first-class roster. They remain real and browsable
       in the family view but do not have standalone family pages.
-      {{#each content.minorLineageRoster}}{{#unless @first}} &middot; {{/unless}}<a href="/freestyle/tricks?family={{slug}}">{{label}}</a>{{/each}}
+      {{#each content.minorLineageRoster}}{{#unless @first}} &middot; {{/unless}}<a href="{{{href}}}">{{label}}</a>{{/each}}
     </p>
     <p class="detail-muted">
       <strong>Foundational terminal surfaces.</strong> Clipper Stall and Toe Stall are excluded from

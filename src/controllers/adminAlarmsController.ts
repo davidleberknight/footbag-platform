@@ -2,7 +2,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { systemAlarmService } from '../services/systemAlarmService';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
 import { handleControllerError } from '../lib/controllerErrors';
-import { NotFoundError } from '../services/serviceErrors';
+import { NotFoundError, ValidationError } from '../services/serviceErrors';
 
 export const adminAlarmsController = {
   /** GET /admin/alarms */
@@ -51,6 +51,14 @@ export const adminAlarmsController = {
     } catch (err) {
       if (err instanceof NotFoundError) {
         res.status(404).render('admin/alarms/index', systemAlarmService.getAlarmsPage());
+        return;
+      }
+      // A note the service refuses goes back to that alarm's form with the
+      // reason, rather than to the not-found page a delegated error would show.
+      if (err instanceof ValidationError) {
+        res.status(422).render('admin/alarms/index', systemAlarmService.getAlarmsPage({
+          rejected: { alarmId, note: note ?? '', message: err.message },
+        }));
         return;
       }
       handleControllerError(err, res, next, 'admin alarms controller');

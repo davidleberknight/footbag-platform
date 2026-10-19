@@ -135,6 +135,19 @@ function dateIsPlaceholder(iso: string | null): boolean {
 }
 
 /**
+ * The achieved date cut to the precision it is known to. A month-precision date is
+ * stored as the first of its month and a year-precision one as the first of
+ * January, so showing the stored day would claim a day nobody recorded; the date
+ * formatter renders `YYYY-MM` as "June 2010" and `YYYY` as "2010". Day and
+ * approximate dates keep the full day.
+ */
+function achievedDateForPrecision(iso: string, precision: string): string {
+  if (precision === 'month') return iso.slice(0, 7);
+  if (precision === 'year') return iso.slice(0, 4);
+  return iso;
+}
+
+/**
  * Drop any video URL that is not an http(s) absolute URL before it reaches an
  * href. The source is migrated CSV / curator-writable, so a `javascript:` (or
  * other scheme) value would otherwise survive HTML-escaping inside the
@@ -182,8 +195,12 @@ export function shapeFreestyleRecord(
     sortName:        row.sort_name,
     addsCount:       row.adds_count,
     valueNumeric:    row.value_numeric,
-    achievedDate:    placeholderDate ? null : row.achieved_date,
-    dateApproximate: !placeholderDate && row.date_precision !== 'day',
+    achievedDate:    placeholderDate || !row.achieved_date
+      ? null
+      : achievedDateForPrecision(row.achieved_date, row.date_precision),
+    // A month or year date already says how much is known by what it shows, so
+    // only a date that is itself an estimate carries the approximate marker.
+    dateApproximate: !placeholderDate && row.date_precision === 'approximate',
     videoUrl:        safeVideoUrl(row.video_url),
     videoTimecode:   row.video_timecode,
     reviewNote,

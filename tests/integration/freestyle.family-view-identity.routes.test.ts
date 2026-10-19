@@ -64,7 +64,7 @@ const WHIRL_PILOTS = [
 ];
 
 // Non-trick samples that must NOT appear in any Family View bucket.
-const NON_TRICK_SAMPLES = ['paradox', 'spinning', 'pixie', 'clipper'];
+const NON_TRICK_SAMPLES = ['paradox', 'spinning', 'atomic', 'clipper'];
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -93,8 +93,8 @@ beforeAll(async () => {
     is_active:      1,
   });
   insertFreestyleTrick(db, {
-    slug:           'pixie',
-    canonical_name: 'pixie',
+    slug:           'atomic',
+    canonical_name: 'atomic',
     trick_family:   'whirl',           // would-be sweep target
     category:       'set',
     adds:           '2',

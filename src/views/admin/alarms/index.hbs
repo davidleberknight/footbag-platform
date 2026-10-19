@@ -49,7 +49,10 @@
         <form method="POST" action="{{this.acknowledgeHref}}" class="form-block">
           <div class="form-field">
             <label for="alarm_note_{{this.id}}">Response note (optional)</label>
-            <textarea id="alarm_note_{{this.id}}" name="note" rows="2" maxlength="500" placeholder="What you did about it"></textarea>
+            <textarea id="alarm_note_{{this.id}}" name="note" rows="2" maxlength="500" placeholder="What you did about it">{{this.submittedNote}}</textarea>
+            {{#if this.noteError}}
+              <p class="form-field-error" role="alert">{{this.noteError}}</p>
+            {{/if}}
           </div>
           <button type="submit" class="btn btn-outline btn-sm">Acknowledge</button>
         </form>

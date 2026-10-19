@@ -142,6 +142,16 @@ describe('GET /freestyle/modifier/spinning — happy path', () => {
     expect(res.text).toMatch(/the underlying dexterity unchanged/);
   });
 
+  // Defect caught: the teaching page carries no hashtag, while the stub and the
+  // operators index show the modifier's role-aware tag, so the same modifier
+  // reads with an identity on one surface and none on another.
+  it('carries the role-aware operator hashtag in the hero', async () => {
+    const res = await page('/freestyle/modifier/spinning');
+    expect(res.status).toBe(200);
+    const h1 = res.text.match(/<h1[^>]*>([\s\S]*?)<\/h1>/)?.[1] ?? '';
+    expect(h1).toContain('<span class="hero-hashtag">#operator_spinning</span>');
+  });
+
   it('renders the concept-first sections, teaching the concept before execution', async () => {
     const res = await page('/freestyle/modifier/spinning');
     expect(res.text).toContain('<h2>What it is</h2>');

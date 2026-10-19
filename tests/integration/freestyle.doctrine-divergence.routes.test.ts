@@ -123,8 +123,10 @@ describe('Doctrine-divergence rendering — trick-detail surface', () => {
     expect(res.status).toBe(200);
     // Section wrapper present with stable test class.
     expect(res.text).toContain('class="content-section trick-scoring-notes"');
-    // Heading present.
+    // Heading present, and a public note is never folded behind the disclosure
+    // reserved for advanced notes.
     expect(res.text).toMatch(/<h2 class="trick-scoring-notes-heading">Scoring notes<\/h2>/);
+    expect(res.text).not.toContain('trick-scoring-notes-details');
     // Provenance prose present (substring; just enough to anchor).
     expect(res.text).toContain('An outside source historically lists blurrage at 3 ADD');
     // Canonical value rendered.

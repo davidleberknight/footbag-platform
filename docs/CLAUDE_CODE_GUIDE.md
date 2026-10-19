@@ -245,7 +245,8 @@ The third premise in practice: the workflow for editing the harness itself. Its 
 - no harness file depends on a machine-local memory-store path;
 - the hook fixture suite passes, so a reopened bypass or a new over-block fails the build;
 - the machine-local `settings.local.json`, when present, carries only path-scoped permission rules, none of them with a destructive command head;
-- every agent-frontmatter hook resolves to an executable file, and an agent that has `Bash` declares exactly the `settings.json` Bash hook chain, so the two layers cannot drift apart silently.
+- every agent-frontmatter hook resolves to an executable file, and an agent that has `Bash` declares exactly the `settings.json` Bash hook chain, so the two layers cannot drift apart silently;
+- every project MCP server in `.mcp.json` starts with its committed config and answers the protocol handshake, so the browser tool is known to work in every session; a checkout without the server installed, such as the CI harness job, skips it with a printed note.
 
 It runs as the `harness` job in `.github/workflows/ci.yml` and locally via `bash scripts/ci/assert_claude_harness.sh`. Any temporary exception would be a commented, removable entry near the top of the script, never a silent skip.
 

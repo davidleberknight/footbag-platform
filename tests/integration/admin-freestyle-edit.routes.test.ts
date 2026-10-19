@@ -79,6 +79,33 @@ beforeAll(async () => {
   // but the pre-go-live guard must refuse it from every freestyle write path.
   insertMember(db, { id: PERSONA_ADMIN_ID, slug: 'fse_persona', display_name: 'FSE Persona', login_email: 'fse-persona@example.com', is_admin: 1 });
 
+  // The base tricks the save bodies name. A base trick must be a dictionary row,
+  // so the rows they point at exist here as they do in the real dictionary.
+  insertFreestyleTrick(db, {
+    slug: 'whirl', canonical_name: 'whirl', adds: '3', trick_family: 'whirl',
+    category: 'dex', review_status: 'curated', is_active: 1,
+  });
+  insertFreestyleTrick(db, {
+    slug: 'butterfly', canonical_name: 'butterfly', adds: '2', trick_family: 'butterfly',
+    category: 'dex', review_status: 'curated', is_active: 1,
+  });
+  // A modifier row: its own ADD is operator doctrine, never edited here.
+  insertFreestyleTrick(db, {
+    slug: 'mod_row', canonical_name: 'mod row', adds: '3',
+    category: 'modifier', review_status: 'curated', is_active: 1,
+  });
+  // Text-cleaning rows: one save target, and one whose description was stored
+  // before cleaning existed (a run of spaces the cleaner collapses).
+  insertFreestyleTrick(db, {
+    slug: 'clean_save', canonical_name: 'clean save', adds: '2', trick_family: 'whirl',
+    base_trick: 'whirl', category: 'compound', review_status: 'curated', is_active: 1,
+  });
+  insertFreestyleTrick(db, {
+    slug: 'clean_legacy', canonical_name: 'clean legacy', adds: '2', trick_family: 'whirl',
+    base_trick: 'whirl', category: 'compound', review_status: 'curated', is_active: 1,
+    description: 'Stored   before   cleaning.',
+  });
+
   insertFreestyleTrick(db, {
     slug: 'blurry_whirl',
     canonical_name: 'Blurry Whirl',
@@ -567,6 +594,91 @@ describe('POST /admin/freestyle/tricks/:slug/edit — validation', () => {
     expect(res.text).toContain('Review status must be');
     expect(auditRows('save_guard')).toHaveLength(0);
   });
+
+  // Defect caught: a base trick that names no dictionary row is stored, and the
+  // trick's family and its page's educational links are read from a row that
+  // does not exist.
+  it('refuses a base trick that is not in the dictionary and writes nothing', async () => {
+    const before = db.prepare('SELECT base_trick, updated_at FROM freestyle_tricks WHERE slug = ?').get('save_guard');
+    const res = await post('/admin/freestyle/tricks/save_guard/edit', admin(),
+      validBody({ canonicalName: 'Guard Row', baseTrick: 'no_such_trick' }));
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('&quot;no_such_trick&quot; is not a trick in the dictionary.');
+    expect(db.prepare('SELECT base_trick, updated_at FROM freestyle_tricks WHERE slug = ?').get('save_guard')).toEqual(before);
+    expect(auditRows('save_guard')).toHaveLength(0);
+  });
+});
+
+describe("POST /admin/freestyle/tricks/:slug/edit — a modifier's own ADD", () => {
+  const modBody = (overrides: Record<string, string>) => validBody({
+    canonicalName: 'mod row', category: 'modifier', movementNotation: '', executionNotation: '',
+    ...overrides,
+  });
+
+  // Defect caught: the editor rewrites a modifier's ADD, putting the dictionary
+  // row out of step with the operator reference that is its single authority.
+  it('refuses a change to a modifier row\'s ADD and writes nothing', async () => {
+    const before = db.prepare('SELECT adds, updated_at FROM freestyle_tricks WHERE slug = ?').get('mod_row');
+    const res = await post('/admin/freestyle/tricks/mod_row/edit', admin(), modBody({ adds: '4' }));
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('ADD is not changed here');
+    expect(db.prepare('SELECT adds, updated_at FROM freestyle_tricks WHERE slug = ?').get('mod_row')).toEqual(before);
+    expect(auditRows('mod_row')).toHaveLength(0);
+  });
+
+  // Defect caught: the guard over-reaches and locks a modifier row out of every
+  // edit, not only edits to its ADD.
+  it('still saves a modifier row whose ADD is unchanged while another field is edited', async () => {
+    const res = await post('/admin/freestyle/tricks/mod_row/edit', admin(),
+      modBody({ adds: '3', pronunciation: 'mod-row' }));
+    expect(res.status).toBe(303);
+    expect(trickRow('mod_row').adds).toBe('3');
+    expect(proseRow('mod_row').pronunciation).toBe('mod-row');
+  });
+});
+
+describe('POST /admin/freestyle/tricks/:slug/edit — typed text is cleaned before it is stored', () => {
+  // Defect caught: markup a curator pasted is stored and served to every reader of
+  // the trick page, and notation syntax is mistaken for markup and destroyed.
+  it('stores prose without markup while a notation keeps its angle and square brackets', async () => {
+    const res = await post('/admin/freestyle/tricks/clean_save/edit', admin(), validBody({
+      canonicalName: 'clean save',
+      adds: '',
+      description: '<script>bad()</script><b>Bold</b>   words',
+      movementNotation: '<DEX> [SPIN] > CLIP',
+    }));
+    expect(res.status).toBe(303);
+    const row = db.prepare('SELECT description, notation FROM freestyle_tricks WHERE slug = ?')
+      .get('clean_save') as { description: string; notation: string };
+    expect(row.description).toBe('bad()Bold words');
+    expect(row.notation).toBe('<DEX> [SPIN] > CLIP');
+  });
+
+  // Defect caught: a name made only of markup passes the required check and the
+  // row is saved with a blank display name.
+  it('refuses a canonical name that is only markup, and writes nothing', async () => {
+    const before = trickRow('save_guard');
+    const res = await post('/admin/freestyle/tricks/save_guard/edit', admin(),
+      validBody({ canonicalName: '<b></b>' }));
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Canonical name is required.');
+    expect(trickRow('save_guard')).toEqual(before);
+    expect(auditRows('save_guard')).toHaveLength(0);
+  });
+
+  // Defect caught: a value stored before cleaning existed reads as edited on every
+  // save, so the audit trail claims changes the curator never made.
+  it('does not report a stored value that only differs by what cleaning removes', async () => {
+    const res = await post('/admin/freestyle/tricks/clean_legacy/edit', admin(), validBody({
+      canonicalName: 'clean legacy',
+      description: 'Stored before cleaning.',
+      pronunciation: 'clean-legacy',
+    }));
+    expect(res.status).toBe(303);
+    const changed = (JSON.parse(auditRows('clean_legacy')[0].metadata_json) as { changedFields: string[] }).changedFields;
+    expect(changed).toContain('pronunciation');
+    expect(changed).not.toContain('description');
+  });
 });
 
 describe('POST /admin/freestyle/tricks/:slug/edit — scoring-bracket parity', () => {
@@ -1037,6 +1149,25 @@ describe('POST /admin/freestyle/tricks/:slug/aliases — add', () => {
     expect(auditByAction('dup_word', 'freestyle.trick_alias.created')).toHaveLength(1); // only the first
   });
 
+  // Defect caught: markup in an alias reaches the slug, so a tagged spelling of an
+  // existing alias slips past the collision check as a second, different alias.
+  it('cleans alias text before deriving its slug, so a tagged spelling collides with the clean alias', async () => {
+    const res = await post('/admin/freestyle/tricks/alias_host/aliases', admin(),
+      { aliasText: '<i>BW</i>', aliasType: 'common' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('another trick');
+    expect(aliasRow('i_bw_i')).toBeUndefined();
+    expect(auditByAction('i_bw_i', 'freestyle.trick_alias.created')).toHaveLength(0);
+  });
+
+  // Defect caught: an alias is stored with markup, and the trick page serves it.
+  it('stores a tagged alias as its clean text under the clean slug', async () => {
+    const res = await post('/admin/freestyle/tricks/alias_host/aliases', admin(),
+      { aliasText: '<em>Tag</em>   Walk', aliasType: 'common', provenanceNote: '<b>Seen</b> in a clip' });
+    expect(res.status).toBe(303);
+    expect(aliasRow('tag_walk')).toMatchObject({ alias_text: 'Tag Walk', provenance_note: 'Seen in a clip' });
+  });
+
   it('rejects empty alias text with 422 and preserves nothing', async () => {
     const res = await post('/admin/freestyle/tricks/alias_host/aliases', admin(),
       { aliasText: '   ', aliasType: 'common' });
@@ -1157,6 +1288,16 @@ describe('POST /admin/freestyle/tricks/:slug/aliases/:aliasSlug — reclassify',
     const res = await post('/admin/freestyle/tricks/alias_host/aliases/hidden_structural', admin(),
       { aliasType: 'structural', aliasDisplay: 'on', divergenceReason: 'because' });
     expect(res.status).toBe(422);
+  });
+
+  // Defect caught: markup pads a reason past the minimum length, so an exception
+  // is stored with an explanation too short to carry a judgement.
+  it('judges the reason by its cleaned text, so markup cannot pad it past the minimum', async () => {
+    const before = aliasRow('hidden_structural');
+    const res = await post('/admin/freestyle/tricks/alias_host/aliases/hidden_structural', admin(),
+      { aliasType: 'structural', aliasDisplay: 'on', divergenceReason: '<strong>because</strong>' });
+    expect(res.status).toBe(422);
+    expect(aliasRow('hidden_structural')).toEqual(before);
   });
 
   it('needs no reason when the publication state follows the class', async () => {

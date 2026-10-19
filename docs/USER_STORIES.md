@@ -3266,6 +3266,7 @@ Success Criteria, Validation (enforced at the write; a save that fails any check
 
 - The notation's scoring-bracket count equals the stored ADD value.
 - The editor never changes a modifier's or operator's own ADD: that changes only through the operator reference and a reviewed database migration.
+- A non-empty base trick names a trick in the dictionary.
 - The display-name-to-slug naming rule holds: the normalized canonical name reproduces the slug, honoring the curator-maintained genuine-hyphen exception list. This check applies to a name the admin changes; an existing row whose stored name predates the one-time name normalization stays editable in its other fields without the naming check blocking the save.
 - The naming rule is the one the freestyle content pipeline's quality gate applies, so a save that would fail that gate is refused in the application rather than accepted and reconciled later.
 

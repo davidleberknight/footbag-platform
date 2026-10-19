@@ -39,6 +39,7 @@ const PERSONA_ADMIN_ID = 'member_persona_fst_tips';
 // Distinct tip ids captured at seed time; each mutating test owns one row so its
 // assertions stay stable, and the guard/public-control rows are never mutated.
 let tipEdit: number;
+let tipClean: number;
 let tipHide: number;
 let tipPublicStays: number;
 let tipRestoreActive: number;
@@ -103,6 +104,7 @@ beforeAll(async () => {
   // whirl rows the other suites assert against.
   tipOrder          = insertFreestyleTrickTip(db, { trick_slug: 'blurry_whirl', tip_text: 'SENTINEL_ORDER advice.', status: 'published', display_order: 11 });
   tipOrderClear     = insertFreestyleTrickTip(db, { trick_slug: 'blurry_whirl', tip_text: 'SENTINEL_ORDER_CLEAR advice.', status: 'published', display_order: 12 });
+  tipClean          = insertFreestyleTrickTip(db, { trick_slug: 'blurry_whirl', tip_text: 'SENTINEL_CLEAN original.', status: 'published', display_order: 13 });
 
   createApp = await importApp();
 });
@@ -231,6 +233,26 @@ describe('POST /admin/freestyle/tips/:id/edit — edit text', () => {
   it('rejects empty text with 422 and writes nothing', async () => {
     const before = tipRow(tipGuard);
     const res = await post(`/admin/freestyle/tips/${tipGuard}/edit`, admin(), { tipText: '   ' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Tip text is required.');
+    expect(tipRow(tipGuard).tip_text).toBe(before.tip_text);
+    expect(auditByAction(String(tipGuard), 'freestyle.trick_tip.edited')).toHaveLength(0);
+  });
+
+  // Defect caught: markup pasted into a tip is stored and served on the public
+  // trick page.
+  it('stores edited tip text without markup, keeping its paragraph break', async () => {
+    const res = await post(`/admin/freestyle/tips/${tipClean}/edit`, admin(),
+      { tipText: '<p>Keep   the <b>hips</b> square.</p>\n\n\n\nThen lift.' });
+    expect(res.status).toBe(303);
+    expect(tipRow(tipClean).tip_text).toBe('Keep the hips square.\n\nThen lift.');
+  });
+
+  // Defect caught: a tip made only of markup passes the required check and an
+  // empty tip is published.
+  it('refuses tip text that is only markup and writes nothing', async () => {
+    const before = tipRow(tipGuard);
+    const res = await post(`/admin/freestyle/tips/${tipGuard}/edit`, admin(), { tipText: '<br><i></i>' });
     expect(res.status).toBe(422);
     expect(res.text).toContain('Tip text is required.');
     expect(tipRow(tipGuard).tip_text).toBe(before.tip_text);

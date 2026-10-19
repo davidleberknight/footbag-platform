@@ -22,9 +22,15 @@
  * Write discipline: updateRecord validates the submitted fields (record type one of
  * the existing types, source required, at least one of a linked person id or a free
  * text name present, a linked person id references a real historical person, date
- * precision and confidence within the column's allowed values, achieved date a valid
- * ISO day or empty, adds count an integer or empty, numeric value a number or empty,
- * and a superseded-by that references a real record other than the row itself). The
+ * precision and confidence within the column's allowed values, achieved date empty or
+ * a real calendar day in 1970 or later that claims no more than its precision (the
+ * first of the month for month precision, the first of January for year precision),
+ * adds count an integer or empty, numeric value a number or empty, and a
+ * superseded-by that references a real record other than the row itself). Every
+ * free-text field (holder name, trick and sort names, value text, source, video
+ * timecode, notes) is cleaned with the shared write-time text sanitizer before those
+ * checks run, and the changed-field list and the own-repeat check compare cleaned
+ * values. The
  * update and its one audit entry commit together in a single transaction; the record
  * id is not editable. createRecord runs that same field validation, generates the new
  * record id, inserts the row, and commits with its own audit entry in one transaction.
@@ -43,6 +49,11 @@ import { ForbiddenError, NotFoundError, ValidationError } from './serviceErrors'
 import { PageViewModel } from '../types/page';
 import { config } from '../config/env';
 import { isSeededTestPersonaMemberId } from '../lib/personaGuards';
+import {
+  sanitizeUserText,
+  INVALID_TEXT_ENCODING_MESSAGE,
+  type TextShape,
+} from '../lib/textSanitizer';
 
 interface FilterOption {
   value: string;
@@ -176,6 +187,61 @@ interface RecordBrowseDbRow {
 const CONFIDENCE_VALUES = ['verified', 'probable', 'provisional', 'disputed'];
 const DATE_PRECISION_VALUES = ['day', 'month', 'year', 'approximate'];
 const ISO_DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
+// Footbag did not exist before 1970, so an earlier year is a placeholder rather
+// than an achievement date; the public pages already show such a date as unknown.
+const EARLIEST_RECORD_YEAR = 1970;
+
+/**
+ * Why this achieved date cannot be stored at this precision, or null when it can.
+ * The date must be a real calendar day, checked by a UTC round trip so a day the
+ * month does not have is refused rather than rolled into the next month. A date
+ * known only to the month is stored as the first of that month and one known only
+ * to the year as the first of January, so the stored day never claims more than
+ * the precision does. `precision` is null when it is itself invalid, and then
+ * only the date's own shape is judged.
+ */
+function achievedDateProblem(iso: string, precision: string | null): string | null {
+  if (!ISO_DAY_RE.test(iso)) return 'Achieved date must be empty or a YYYY-MM-DD date.';
+  const [year, month, day] = iso.split('-').map(Number);
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (parsed.getUTCFullYear() !== year || parsed.getUTCMonth() !== month - 1 || parsed.getUTCDate() !== day) {
+    return 'Achieved date is not a real calendar date.';
+  }
+  if (year < EARLIEST_RECORD_YEAR) {
+    return `Achieved date must be in ${EARLIEST_RECORD_YEAR} or later.`;
+  }
+  if (precision === 'month' && day !== 1) {
+    return 'A date known only to the month is entered as the first of that month (YYYY-MM-01).';
+  }
+  if (precision === 'year' && (month !== 1 || day !== 1)) {
+    return 'A date known only to the year is entered as the first of January (YYYY-01-01).';
+  }
+  return null;
+}
+
+// One typed record field, cleaned before its own checks run. Unreadable text is
+// recorded beside the form's other field errors and reads as empty.
+function cleanRecordText(
+  raw: string | undefined,
+  shape: TextShape,
+  field: string,
+  fieldErrors: Record<string, string>,
+): string {
+  const result = sanitizeUserText(raw ?? '', shape);
+  if (result.status === 'invalid_encoding') {
+    fieldErrors[field] = INVALID_TEXT_ENCODING_MESSAGE;
+    return '';
+  }
+  return result.text;
+}
+
+// A stored record value read the way a cleaned submission is, so a value stored
+// before cleaning existed is not mistaken for a change. Empty reads as null.
+function comparableStored(stored: string | null, shape: TextShape): string | null {
+  const result = sanitizeUserText(stored ?? '', shape);
+  const text = result.status === 'ok' ? result.text : (stored ?? '');
+  return text === '' ? null : text;
+}
 
 function allowedRecordTypes(): string[] {
   return (freestyleRecords.listDistinctRecordTypes.all() as { record_type: string }[]).map((r) => r.record_type);
@@ -374,19 +440,21 @@ export const freestyleRecordCurationService = {
     const mark = (changed: boolean, name: string) => { if (changed) changedFields.push(name); };
     mark(v.recordType !== current.record_type, 'record_type');
     mark(v.personId !== (current.person_id ?? null), 'person_id');
-    mark(v.displayName !== (current.display_name ?? null), 'display_name');
-    mark(v.trickName !== (current.trick_name ?? null), 'trick_name');
-    mark(v.sortName !== (current.sort_name ?? null), 'sort_name');
+    // Cleaned text fields compare against the stored value passed through the same
+    // cleaner, so a value stored before cleaning existed is not reported as edited.
+    mark(v.displayName !== comparableStored(current.display_name, 'single_line'), 'display_name');
+    mark(v.trickName !== comparableStored(current.trick_name, 'single_line'), 'trick_name');
+    mark(v.sortName !== comparableStored(current.sort_name, 'single_line'), 'sort_name');
     mark(v.addsCount !== (current.adds_count ?? null), 'adds_count');
     mark(v.valueNumeric !== (current.value_numeric ?? null), 'value_numeric');
-    mark(v.valueText !== (current.value_text ?? null), 'value_text');
+    mark(v.valueText !== comparableStored(current.value_text, 'single_line'), 'value_text');
     mark(v.achievedDate !== (current.achieved_date ?? null), 'achieved_date');
     mark(v.datePrecision !== current.date_precision, 'date_precision');
-    mark(v.source !== current.source, 'source');
+    mark(v.source !== comparableStored(current.source, 'single_line'), 'source');
     mark(v.confidence !== current.confidence, 'confidence');
     mark(v.videoUrl !== (current.video_url ?? null), 'video_url');
-    mark(v.videoTimecode !== (current.video_timecode ?? null), 'video_timecode');
-    mark(v.notes !== (current.notes ?? null), 'notes');
+    mark(v.videoTimecode !== comparableStored(current.video_timecode, 'single_line'), 'video_timecode');
+    mark(v.notes !== comparableStored(current.notes, 'multi_line'), 'notes');
     mark(v.supersededBy !== (current.superseded_by ?? null), 'superseded_by');
 
     transaction(() => {
@@ -489,12 +557,24 @@ function validateRecordInput(input: FreestyleRecordScalarInput, selfId: string):
     fieldErrors.recordType = 'Record type must be one of the existing record types.';
   }
 
-  const source = (input.source ?? '').trim();
-  if (!source) fieldErrors.source = 'Source is required.';
+  // Every free-text field is cleaned first, so the required checks below and the
+  // caller's own-repeat check judge what will be stored.
+  const text = (raw: string | undefined, shape: TextShape, field: string): string | null => {
+    const cleaned = cleanRecordText(raw, shape, field, fieldErrors);
+    return cleaned === '' ? null : cleaned;
+  };
+  const source        = text(input.source, 'single_line', 'source') ?? '';
+  const displayName   = text(input.displayName, 'single_line', 'displayName');
+  const trickName     = text(input.trickName, 'single_line', 'trickName');
+  const sortName      = text(input.sortName, 'single_line', 'sortName');
+  const valueText     = text(input.valueText, 'single_line', 'valueText');
+  const videoTimecode = text(input.videoTimecode, 'single_line', 'videoTimecode');
+  const notes         = text(input.notes, 'multi_line', 'notes');
+
+  if (!source && !fieldErrors.source) fieldErrors.source = 'Source is required.';
 
   const personId = emptyToNull(input.personId);
-  const displayName = emptyToNull(input.displayName);
-  if (personId === null && displayName === null) {
+  if (personId === null && displayName === null && !fieldErrors.displayName) {
     fieldErrors.displayName = 'A record needs a linked person id or a display name.';
   }
   if (personId !== null && !historicalPersonLookup.personNameById.get(personId)) {
@@ -507,8 +587,10 @@ function validateRecordInput(input: FreestyleRecordScalarInput, selfId: string):
   }
 
   const achievedDate = emptyToNull(input.achievedDate);
-  if (achievedDate !== null && !ISO_DAY_RE.test(achievedDate)) {
-    fieldErrors.achievedDate = 'Achieved date must be empty or a YYYY-MM-DD date.';
+  if (achievedDate !== null) {
+    const problem = achievedDateProblem(
+      achievedDate, DATE_PRECISION_VALUES.includes(datePrecision) ? datePrecision : null);
+    if (problem) fieldErrors.achievedDate = problem;
   }
 
   const confidence = (input.confidence ?? '').trim();
@@ -545,18 +627,18 @@ function validateRecordInput(input: FreestyleRecordScalarInput, selfId: string):
     recordType,
     personId,
     displayName,
-    trickName:     emptyToNull(input.trickName),
-    sortName:      emptyToNull(input.sortName),
+    trickName,
+    sortName,
     addsCount,
     valueNumeric,
-    valueText:     emptyToNull(input.valueText),
+    valueText,
     achievedDate,
     datePrecision,
     source,
     confidence,
     videoUrl:      emptyToNull(input.videoUrl),
-    videoTimecode: emptyToNull(input.videoTimecode),
-    notes:         emptyToNull(input.notes),
+    videoTimecode,
+    notes,
     supersededBy,
   };
 }

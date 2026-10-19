@@ -46,6 +46,7 @@ export interface RecordsContent {
   milestones:        ConsecutiveGroup[];
   passbackRecords:   FreestyleRecordViewModel[];
   totalPassback:     number;
+  curatorReviewCount: number;
 }
 
 function formatScore(score: number | null): string {
@@ -103,6 +104,7 @@ export const recordsService = {
       freestyleRecords.listPublic.all() as FreestyleRecordRow[],
     );
     const resolveActiveSlug = buildActiveTrickSlugResolver();
+    const passbackRecords = passbackRows.map(r => shapeFreestyleRecord(r, resolveActiveSlug));
 
     return {
       seo:  { title: 'Records' },
@@ -117,8 +119,9 @@ export const recordsService = {
         highestScores:   groupBySubsection(highScoreRows),
         progression:     groupBySubsection(progressionRows),
         milestones:      groupBySubsection(milestoneRows),
-        passbackRecords: passbackRows.map(r => shapeFreestyleRecord(r, resolveActiveSlug)),
+        passbackRecords,
         totalPassback:   passbackRows.length,
+        curatorReviewCount: passbackRecords.filter(r => r.reviewNote != null).length,
       },
     };
   },

@@ -86,6 +86,17 @@ describe('GET /freestyle/tricks/:slug — records aggregate across canonical ali
     expect(res.text).toContain('17');
   });
 
+  // Defect caught: a record filed under a folk or variant name retitles the
+  // canonical trick in the page's meta description (search snippets read
+  // "records for Alpine PLO" on the Puck page).
+  it('the meta description names the canonical trick, never a record\'s alias spelling', async () => {
+    const res = await request(await createApp()).get('/freestyle/tricks/puck');
+    expect(res.status).toBe(200);
+    const meta = res.text.match(/<meta name="description" content="([^"]*)"/)?.[1] ?? '';
+    expect(meta).toContain('passback records for Puck.');
+    expect(meta).not.toMatch(/Alpine PLO|Weaving Magellan/);
+  });
+
   it('aggregates canonical and alias spellings, keeps superseded rows in progression, and never collapses distinct records', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/aggtrick');
     expect(res.status).toBe(200);

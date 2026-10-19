@@ -380,6 +380,30 @@ describe('what the form refuses', () => {
     expect(res.text).toContain('is not a registered modifier');
   });
 
+  // Defect caught: markup in an alias reaches the derived slug, so a tagged
+  // spelling of an existing trick's name slips past the collision check.
+  it('cleans an alias before deriving its slug, so a tagged spelling still collides', async () => {
+    const id = publishableDraft('pub-alias-tagged');
+    const tricksBefore = trickCount();
+    const res = await post(publishHref(id), validForm({ canonicalName: 'tagged alias attempt', aliases: '<i>occupied name</i>' }));
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('already a canonical trick slug');
+    expect(trickCount()).toBe(tricksBefore);
+    expect(publishAudits('tagged_alias_attempt')).toHaveLength(0);
+  });
+
+  // Defect caught: a name made only of markup passes the required check, so a
+  // trick is published with a blank display name.
+  it('refuses a canonical name that is only markup, and writes nothing', async () => {
+    const id = publishableDraft('pub-markup-name');
+    const tricksBefore = trickCount();
+    const res = await post(publishHref(id), validForm({ canonicalName: '<b></b>' }));
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Canonical name is required.');
+    expect(trickCount()).toBe(tricksBefore);
+    expect(ruling(id).published_trick_slug).toBeNull();
+  });
+
   it('writes nothing at all when one field fails', async () => {
     const id = publishableDraft('pub-atomic');
     const tricksBefore  = trickCount();
@@ -553,6 +577,25 @@ describe('a published trick', () => {
          WHERE trick_slug = ? ORDER BY apply_order`,
     ).all('attached_movement') as { modifier_slug: string; apply_order: number }[];
     expect(modifiers).toEqual([{ modifier_slug: 'pixie', apply_order: 1 }]);
+  });
+
+  // Defect caught: markup typed on the publication form reaches the new trick's
+  // name, description or aliases and is served publicly, or the source's notation
+  // loses its angle brackets to the markup step.
+  it('stores its name, description and aliases without markup and the asserted notation intact', async () => {
+    const id = publishableDraft('pub-cleaned');
+    const res = await post(publishHref(id), validForm({
+      canonicalName: '<b>cleaned</b>   movement',
+      description: '<i>Under</i>   the bag.',
+      aliases: '<em>tagged</em> nickname',
+      sourceAssertedNotation: '<DEX> [SPIN] > CLIP',
+    }));
+    expect(res.status).toBe(303);
+    expect(trick('cleaned_movement')).toMatchObject({ canonical_name: 'cleaned movement', description: 'Under the bag.' });
+    expect(db.prepare('SELECT alias_text FROM freestyle_trick_aliases WHERE alias_slug = ?').get('tagged_nickname'))
+      .toEqual({ alias_text: 'tagged nickname' });
+    expect(db.prepare('SELECT asserted_notation FROM freestyle_trick_source_links WHERE trick_slug = ?').get('cleaned_movement'))
+      .toEqual({ asserted_notation: '<DEX> [SPIN] > CLIP' });
   });
 });
 

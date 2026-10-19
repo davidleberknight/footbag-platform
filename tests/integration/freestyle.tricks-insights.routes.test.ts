@@ -540,10 +540,11 @@ describe('GET /freestyle/tricks/:slug — pathways cross-link block', () => {
     expect(res.text).toMatch(/<section id="passback-records"/);
   });
 
-  it('Family pathway links to the family filter when family has siblings', async () => {
+  it('Family pathway links to the family page when the family has one and siblings', async () => {
     const res = await page('/freestyle/tricks/whirl');
-    // Whirl family has siblings (spinning-whirl in fixtures); link should resolve.
-    expect(res.text).toMatch(/trick-pathway--family[^"]*"[\s\S]*?href="\/freestyle\/tricks\?family=whirl"/);
+    // Whirl family has siblings (spinning-whirl in fixtures) and a family page of
+    // its own, which owns same-family progression, so the link goes there.
+    expect(res.text).toMatch(/trick-pathway--family[^"]*"[\s\S]*?href="\/freestyle\/families\/whirl"/);
   });
 
   it('a pathway with nothing behind it is omitted rather than announcing its own emptiness', async () => {

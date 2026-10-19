@@ -56,6 +56,10 @@ beforeAll(async () => {
   insertFreestyleTrickModifierLink(db, 'ophist_a', 'spinning');
   insertFreestyleTrickModifierLink(db, 'ophist_b', 'spinning');
   insertFreestyleTrickModifierLink(db, 'ophist_c', 'spinning');
+  // ophist_c is a double-spinning trick: spinning linked at a second order, the
+  // shape the built dictionary holds for its double_spinning_* rows. It is still
+  // one trick carrying spinning, so the count stays 3.
+  insertFreestyleTrickModifierLink(db, 'ophist_c', 'spinning', 2);
   insertFreestyleTrickModifierLink(db, 'ophist_a', 'ducking');
   insertFreestyleTrickModifierLink(db, 'ophist_b', 'ducking');
   insertFreestyleTrickModifierLink(db, 'ophist_a', 'gyro');
@@ -88,8 +92,9 @@ describe('By the Numbers — modifier counts on the Body movements and Entry ele
   it('counts only public canonical tricks with explicit modifier links (no aliases, inactive, or modifier stubs)', async () => {
     const body = new Map(await cardBars('Body movements'));
     const entry = new Map(await cardBars('Entry elements'));
-    // spinning links a,b,c = 3; the inactive trick and the modifier stub also
-    // link spinning but are excluded, so the count is 3, not 5.
+    // spinning links a,b,c = 3 tricks; c's second-order link, the inactive trick
+    // and the modifier stub also link spinning but none adds a trick, so the
+    // count is 3, not 4 or 6.
     expect(body.get('spinning')).toBe(3);
     expect(body.get('ducking')).toBe(2);
     expect(body.get('gyro')).toBe(1);

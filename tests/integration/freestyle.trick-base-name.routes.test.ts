@@ -5,7 +5,9 @@
  * whose base is itself a compound has an underscore slug ("ducking_legover"),
  * and the page must read it as prose ("ducking legover"). A base with no
  * dictionary row falls back to the slug with separators read as spaces. The
- * slug itself stays the identity/lookup key (hrefs still carry it).
+ * slug itself stays the identity/lookup key (hrefs still carry it). The About
+ * section's base-trick row follows the same rule, a trick based on itself shows
+ * no base, and the page heading keeps a genuine compound-adjective hyphen.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
@@ -43,6 +45,25 @@ beforeAll(async () => {
     base_trick: 'ducking_legover', category: 'compound',
   });
 
+  // A compound on the compound base with no modifier links: no build path, so
+  // the About section names its base in a plain "Base trick" row.
+  insertFreestyleTrick(db, {
+    slug: 'linkless_compound', canonical_name: 'linkless compound', adds: '4',
+    base_trick: 'ducking_legover', category: 'compound',
+  });
+  // A multi-word trick whose base_trick is its own slug: it is a base trick.
+  insertFreestyleTrick(db, {
+    slug: 'self_based_stall', canonical_name: 'self based stall', adds: '1',
+    base_trick: 'self_based_stall', category: 'surface',
+    aliases_json: '["own stall"]',
+  });
+
+  // A trick whose name carries a genuine compound-adjective hyphen, as the built
+  // dictionary's cross_body_sole_stall row does.
+  insertFreestyleTrick(db, {
+    slug: 'cross_body_sole_stall', canonical_name: 'cross-body sole stall', adds: '2', category: 'surface',
+  });
+
   insertFreestyleTrickModifier(db, { slug: 'pixie', modifier_name: 'pixie', add_bonus: 1, modifier_type: 'set' });
   insertFreestyleTrickModifier(db, { slug: 'spinning', modifier_name: 'spinning', add_bonus: 1, modifier_type: 'body' });
   insertFreestyleTrickModifier(db, { slug: 'ducking', modifier_name: 'ducking', add_bonus: 1, modifier_type: 'body' });
@@ -74,6 +95,44 @@ describe('trick-page surfaces render the base display name, never the raw slug',
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('>double_leg_over</span>');
     expect(res.text).not.toContain('double_leg_over(');
+  });
+
+  // Defect caught: the About "Base trick" row prints the raw base_trick slug
+  // ("ducking_legover") instead of the base trick's name.
+  it('the About base-trick row names and links the base by its display name', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks/linkless_compound');
+    expect(res.status).toBe(200);
+    const about = res.text.slice(res.text.indexOf('<dt>Base trick</dt>'));
+    expect(about).toMatch(/^<dt>Base trick<\/dt>\s*<dd>\s*<a href="\/freestyle\/tricks\/ducking_legover">Ducking Legover<\/a>/);
+  });
+
+  // Defect caught: a base with no active row renders its raw slug as text.
+  it('an unlinked base still reads as words, never the slug', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks/phantom_compound');
+    expect(res.status).toBe(200);
+    const about = res.text.slice(res.text.indexOf('<dt>Base trick</dt>'), res.text.indexOf('<dt>Base trick</dt>') + 120);
+    expect(about).toContain('Double Leg Over');
+    expect(about).not.toContain('double_leg_over');
+  });
+
+  // Defect caught: a trick whose base is itself shows itself as its own base.
+  it('a trick based on itself shows no base-trick row', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks/self_based_stall');
+    expect(res.status).toBe(200);
+    // The About section still renders (its alias row), so the absence is real.
+    expect(res.text).toContain('own stall');
+    expect(res.text).not.toContain('<dt>Base trick</dt>');
+  });
+
+  // Defect caught: the heading folds every hyphen to a space, so a genuine
+  // compound adjective reads "Cross Body Sole Stall" instead of the approved
+  // "Cross-body Sole Stall".
+  it('the heading keeps a genuine compound-adjective hyphen', async () => {
+    const res = await request(createApp()).get('/freestyle/tricks/cross_body_sole_stall');
+    expect(res.status).toBe(200);
+    const h1 = res.text.match(/<h1[^>]*>([\s\S]*?)<\/h1>/)?.[1] ?? '';
+    expect(h1).toContain('Cross-body Sole Stall');
+    expect(res.text).not.toContain('Cross Body Sole Stall');
   });
 
   it('modifier-layering panel names the base by its canonical name', async () => {

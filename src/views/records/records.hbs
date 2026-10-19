@@ -149,6 +149,14 @@
   <section class="content-section">
     <h2>Freestyle Passback Records</h2>
     <p class="detail-muted">{{content.totalPassback}} per-trick consecutive records from the freestyle passback community.</p>
+    {{#if content.curatorReviewCount}}
+    <p class="text-muted fs-sm">
+      Records marked <span class="record-review-flag">Needs curator review</span>
+      are valid historical records whose name does not yet map to a settled trick
+      in the dictionary. They are kept exactly as recorded and are not linked to a
+      canonical trick until the identity is confirmed.
+    </p>
+    {{/if}}
     <div class="records-table-wrap" tabindex="0" role="region" aria-label="Freestyle Passback Records">
       <table class="records-table">
         <thead>
@@ -167,6 +175,10 @@
             <td>
               {{#if trickHref}}<a href="{{{trickHref}}}">{{trickName}}</a>{{else}}{{trickName}}{{/if}}
               {{#if sortName}}<span class="trick-sort-name">{{sortName}}</span>{{/if}}
+              {{#if reviewNote}}
+              <span class="record-review-flag">Needs curator review</span>
+              <span class="record-review-note">{{reviewNote}}</span>
+              {{/if}}
             </td>
             <td>{{#if addsCount}}{{addsCount}}{{else}}&mdash;{{/if}}</td>
             <td class="col-num">{{valueNumeric}}</td>

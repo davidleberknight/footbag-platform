@@ -368,6 +368,35 @@ else
   echo "[harness] agent frontmatter hooks resolve and mirror the settings Bash chain"
 fi
 
+# --- Check 13: every project MCP server starts with its committed config ---
+# A server that dies at startup shows only as "connection closed" in a
+# session, and every session after it loses the tool without anyone being
+# told. Start each server exactly as .mcp.json does and
+# require an answer to the MCP initialize handshake. A checkout without the
+# server installed (the CI harness job installs no packages) skips with a note.
+mcp_init='{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"harness","version":"1"}}}'
+mcp_bad=""
+for server in $(jq -r '.mcpServers | keys[]' .mcp.json); do
+  cmd=$(jq -r --arg s "$server" '.mcpServers[$s].command' .mcp.json)
+  if ! command -v "$cmd" >/dev/null 2>&1; then
+    echo "[harness] note: MCP server $server not installed here ($cmd); start check skipped"
+    continue
+  fi
+  mapfile -t args < <(jq -r --arg s "$server" '.mcpServers[$s].args[]?' .mcp.json)
+  mcp_reply=$(printf '%s\n' "$mcp_init" \
+    | timeout 30 "$cmd" "${args[@]}" 2>/dev/null || true)
+  if ! grep -q '"serverInfo"' <<< "$mcp_reply"; then
+    mcp_bad+="  $server did not answer the initialize handshake; start it by hand to see why"$'\n'
+  fi
+done
+if [ -n "$mcp_bad" ]; then
+  echo "[harness] FAIL: project MCP server(s) do not start:" >&2
+  printf '%s' "$mcp_bad" >&2
+  fail=1
+else
+  echo "[harness] project MCP servers start and answer"
+fi
+
 if [ "$fail" -ne 0 ]; then
   echo "[harness] FAIL: one or more harness checks failed." >&2
   exit 1

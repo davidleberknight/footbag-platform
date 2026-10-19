@@ -136,6 +136,14 @@ def test_column_field_map():
     assert r["legacy_board_underlying_paid_tier"] == ""
 
 
+def test_bio_is_published_as_plain_text_not_the_legacy_html_fragment():
+    # A claim copies this value into the member's bio, which is escaped on
+    # output: an unconverted fragment would show its tags and entity codes.
+    rows = [dict(ROWS[0], MemberComment="Played since 1995.<br />Hi &#1052;&#1080;&#1088;<p>&amp; more</p>")]
+    by_id, _ = _published(rows)
+    assert by_id["11983"]["bio"] == "Played since 1995.\nHi Мир\n& more"
+
+
 def test_three_email_handling():
     by_id, _ = _published()
     assert by_id["11983"]["legacy_email2"] == "steve2@example.com"

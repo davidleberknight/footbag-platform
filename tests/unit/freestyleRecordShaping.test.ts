@@ -56,9 +56,15 @@ describe('shapeFreestyleRecord', () => {
     expect(vm.dateApproximate).toBe(false);
   });
 
-  it('marks non-day precision as approximate when the date is real', () => {
-    const vm = shapeFreestyleRecord(makeRow({ achieved_date: '2015-06-01', date_precision: 'month' }));
-    expect(vm.dateApproximate).toBe(true);
+  // Defect caught: a date known to the month or year shows a day nobody recorded,
+  // or carries the approximate marker that belongs only to an estimated date.
+  it('cuts a month or year date to its precision and marks only an approximate date', () => {
+    const month = shapeFreestyleRecord(makeRow({ achieved_date: '2015-06-01', date_precision: 'month' }));
+    expect(month).toMatchObject({ achievedDate: '2015-06', dateApproximate: false });
+    const year = shapeFreestyleRecord(makeRow({ achieved_date: '2015-01-01', date_precision: 'year' }));
+    expect(year).toMatchObject({ achievedDate: '2015', dateApproximate: false });
+    const approx = shapeFreestyleRecord(makeRow({ achieved_date: '2015-06-14', date_precision: 'approximate' }));
+    expect(approx).toMatchObject({ achievedDate: '2015-06-14', dateApproximate: true });
   });
 
   it('does not mark a placeholder date as approximate (it is unknown, not fuzzy)', () => {

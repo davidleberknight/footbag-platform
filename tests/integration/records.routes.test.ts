@@ -21,7 +21,8 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
-import { insertConsecutiveKicksRecord } from '../fixtures/factories';
+import { insertConsecutiveKicksRecord, insertFreestyleRecord } from '../fixtures/factories';
+import { recordCuratorReviewNote } from '../../src/content/freestyleRecordCuratorReview';
 
 const { dbPath } = setTestEnv('3090');
 
@@ -111,11 +112,29 @@ beforeAll(async () => {
     score:      40000,
   });
 
+  // Passback records, one per shape the passback table renders differently: a
+  // name under curator review beside one that is not, and an achieved date at
+  // each precision plus a pre-1970 placeholder.
+  insertFreestyleRecord(db, { display_name: 'Review Holder', trick_name: 'Double Whip', achieved_date: '2015-03-03' });
+  insertFreestyleRecord(db, { display_name: 'Day Holder', trick_name: 'Day Trick', achieved_date: '2009-04-12', date_precision: 'day' });
+  insertFreestyleRecord(db, { display_name: 'Month Holder', trick_name: 'Month Trick', achieved_date: '2010-06-01', date_precision: 'month' });
+  insertFreestyleRecord(db, { display_name: 'Year Holder', trick_name: 'Year Trick', achieved_date: '2011-01-01', date_precision: 'year' });
+  insertFreestyleRecord(db, { display_name: 'Approx Holder', trick_name: 'Approx Trick', achieved_date: '2012-08-15', date_precision: 'approximate' });
+  insertFreestyleRecord(db, { display_name: 'Placeholder Holder', trick_name: 'Placeholder Trick', achieved_date: '1905-07-03' });
+
   db.close();
   createApp = await importApp();
 });
 
 afterAll(() => cleanupTestDb(dbPath));
+
+/** The one table row naming this holder, so an assertion reads that record alone. */
+function passbackRow(html: string, holder: string): string {
+  const rows = html.match(/<tr>[\s\S]*?<\/tr>/g) ?? [];
+  const matching = rows.filter((r) => r.includes(holder));
+  expect(matching, `exactly one row for ${holder}`).toHaveLength(1);
+  return matching[0];
+}
 
 // ---------------------------------------------------------------------------
 
@@ -183,6 +202,37 @@ describe('GET /records', () => {
   it('shows Milestone Firsts section', async () => {
     const res = await page('/records');
     expect(res.text).toContain('Singles milestone first');
+  });
+
+  // Defect caught: a passback record whose name is under curator review reads on
+  // /records as settled, though the freestyle records page flags it.
+  it('flags a passback record under curator review with its note, and only that record', async () => {
+    const res = await page('/records');
+    const reviewed = passbackRow(res.text, 'Review Holder');
+    expect(reviewed).toContain('Needs curator review');
+    expect(reviewed).toContain(recordCuratorReviewNote('Double Whip'));
+    expect(passbackRow(res.text, 'Day Holder')).not.toContain('Needs curator review');
+    // The flag is explained once above the table whenever a flagged record is listed.
+    expect(res.text).toContain('are valid historical records whose name does not yet map');
+  });
+
+  // Defect caught: a date known only to the month or year is shown with a day
+  // nobody recorded, an estimate loses its marker, or a placeholder year before
+  // footbag existed is shown as a real date.
+  it('shows each achieved date only as precisely as it is known', async () => {
+    const res = await page('/records');
+    expect(passbackRow(res.text, 'Day Holder')).toContain('12 April 2009');
+    const month = passbackRow(res.text, 'Month Holder');
+    expect(month).toContain('June 2010');
+    expect(month).not.toContain('1 June 2010');
+    expect(month).not.toContain('approx.');
+    const year = passbackRow(res.text, 'Year Holder');
+    expect(year).toMatch(/<td>\s*2011\s*<\/td>/);
+    expect(year).not.toContain('approx.');
+    expect(passbackRow(res.text, 'Approx Holder')).toContain('15 August 2012 <em>(approx.)</em>');
+    const placeholder = passbackRow(res.text, 'Placeholder Holder');
+    expect(placeholder).not.toContain('1905');
+    expect(placeholder).toContain('&mdash;');
   });
 
   it('returns 503 (not 500) when a records read hits database contention', async () => {

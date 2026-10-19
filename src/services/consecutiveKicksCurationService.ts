@@ -15,7 +15,10 @@
  * Write discipline: updateRow validates the submitted fields (section, subsection,
  * and discipline required; score and rank each empty or a whole number; the display
  * position a unique positive whole number, checked against the other rows before
- * the write with the column's UNIQUE constraint as the backstop). The update and
+ * the write with the column's UNIQUE constraint as the backstop). Every free-text
+ * field is cleaned with the shared write-time text sanitizer before those checks
+ * run (single-line for names, labels and dates, multi-line for the note), and the
+ * changed-field list and the own-repeat check compare cleaned values. The update and
  * its one audit entry commit together in a single transaction; the id is not
  * editable. Every write path first runs the pre-go-live persona guard, so a seeded
  * test persona cannot author record content in a developer checkout; in staging and
@@ -31,6 +34,35 @@ import { ForbiddenError, NotFoundError, ValidationError } from './serviceErrors'
 import { PageViewModel } from '../types/page';
 import { config } from '../config/env';
 import { isSeededTestPersonaMemberId } from '../lib/personaGuards';
+import {
+  sanitizeUserText,
+  INVALID_TEXT_ENCODING_MESSAGE,
+  type TextShape,
+} from '../lib/textSanitizer';
+
+// One typed field, cleaned before its own checks run. Unreadable text is recorded
+// beside the form's other field errors and reads as empty.
+function cleanRowText(
+  raw: string | undefined,
+  shape: TextShape,
+  field: string,
+  fieldErrors: Record<string, string>,
+): string {
+  const result = sanitizeUserText(raw ?? '', shape);
+  if (result.status === 'invalid_encoding') {
+    fieldErrors[field] = INVALID_TEXT_ENCODING_MESSAGE;
+    return '';
+  }
+  return result.text;
+}
+
+// A stored value read the way a cleaned submission is, so a value stored before
+// cleaning existed is not mistaken for a change. Empty reads as null.
+function comparableStored(stored: string | null, shape: TextShape): string | null {
+  const result = sanitizeUserText(stored ?? '', shape);
+  const text = result.status === 'ok' ? result.text : (stored ?? '');
+  return text === '' ? null : text;
+}
 
 // A pre-check rejects a duplicate display position before the insert, but two
 // writers in separate processes can both pass that check and race to the same
@@ -323,18 +355,20 @@ export const consecutiveKicksCurationService = {
     const changedFields: string[] = [];
     const mark = (changed: boolean, name: string) => { if (changed) changedFields.push(name); };
     mark(v.sortOrder !== current.sort_order, 'sort_order');
-    mark(v.section !== current.section, 'section');
-    mark(v.subsection !== current.subsection, 'subsection');
-    mark(v.discipline !== current.discipline, 'discipline');
-    mark(v.year !== (current.year ?? null), 'year');
+    // Cleaned text fields compare against the stored value passed through the same
+    // cleaner, so a value stored before cleaning existed is not reported as edited.
+    mark(v.section !== comparableStored(current.section, 'single_line'), 'section');
+    mark(v.subsection !== comparableStored(current.subsection, 'single_line'), 'subsection');
+    mark(v.discipline !== comparableStored(current.discipline, 'single_line'), 'discipline');
+    mark(v.year !== comparableStored(current.year, 'single_line'), 'year');
     mark(v.rank !== (current.rank ?? null), 'rank');
-    mark(v.player1 !== (current.player_1 ?? null), 'player_1');
-    mark(v.player2 !== (current.player_2 ?? null), 'player_2');
+    mark(v.player1 !== comparableStored(current.player_1, 'single_line'), 'player_1');
+    mark(v.player2 !== comparableStored(current.player_2, 'single_line'), 'player_2');
     mark(v.score !== (current.score ?? null), 'score');
-    mark(v.note !== (current.note ?? null), 'note');
-    mark(v.eventDate !== (current.event_date ?? null), 'event_date');
-    mark(v.eventName !== (current.event_name ?? null), 'event_name');
-    mark(v.location !== (current.location ?? null), 'location');
+    mark(v.note !== comparableStored(current.note, 'multi_line'), 'note');
+    mark(v.eventDate !== comparableStored(current.event_date, 'single_line'), 'event_date');
+    mark(v.eventName !== comparableStored(current.event_name, 'single_line'), 'event_name');
+    mark(v.location !== comparableStored(current.location, 'single_line'), 'location');
 
     transaction(() => {
       consecutiveKicksRecords.updateForCuration.run(
@@ -495,12 +529,26 @@ interface ValidatedConsecutive {
 function validateConsecutiveInput(input: ConsecutiveScalarInput, selfId: string): ValidatedConsecutive {
   const fieldErrors: Record<string, string> = {};
 
-  const section = (input.section ?? '').trim();
-  if (!section) fieldErrors.section = 'Section is required.';
-  const subsection = (input.subsection ?? '').trim();
-  if (!subsection) fieldErrors.subsection = 'Subsection is required.';
-  const discipline = (input.discipline ?? '').trim();
-  if (!discipline) fieldErrors.discipline = 'Discipline is required.';
+  // Every free-text field is cleaned first, so the required checks below and the
+  // own-repeat check judge what will be stored.
+  const text = (raw: string | undefined, shape: TextShape, field: string): string | null => {
+    const cleaned = cleanRowText(raw, shape, field, fieldErrors);
+    return cleaned === '' ? null : cleaned;
+  };
+  const section    = text(input.section, 'single_line', 'section') ?? '';
+  const subsection = text(input.subsection, 'single_line', 'subsection') ?? '';
+  const discipline = text(input.discipline, 'single_line', 'discipline') ?? '';
+  const year       = text(input.year, 'single_line', 'year');
+  const player1    = text(input.player1, 'single_line', 'player1');
+  const player2    = text(input.player2, 'single_line', 'player2');
+  const note       = text(input.note, 'multi_line', 'note');
+  const eventDate  = text(input.eventDate, 'single_line', 'eventDate');
+  const eventName  = text(input.eventName, 'single_line', 'eventName');
+  const location   = text(input.location, 'single_line', 'location');
+
+  if (!section && !fieldErrors.section) fieldErrors.section = 'Section is required.';
+  if (!subsection && !fieldErrors.subsection) fieldErrors.subsection = 'Subsection is required.';
+  if (!discipline && !fieldErrors.discipline) fieldErrors.discipline = 'Discipline is required.';
 
   const sortRaw = (input.sortOrder ?? '').trim();
   let sortOrder = 0;
@@ -526,15 +574,15 @@ function validateConsecutiveInput(input: ConsecutiveScalarInput, selfId: string)
     section,
     subsection,
     discipline,
-    year:      emptyToNull(input.year),
+    year,
     rank,
-    player1:   emptyToNull(input.player1),
-    player2:   emptyToNull(input.player2),
+    player1,
+    player2,
     score,
-    note:      emptyToNull(input.note),
-    eventDate: emptyToNull(input.eventDate),
-    eventName: emptyToNull(input.eventName),
-    location:  emptyToNull(input.location),
+    note,
+    eventDate,
+    eventName,
+    location,
   };
 }
 
@@ -551,9 +599,4 @@ function wholeOrNull(
     return null;
   }
   return parseInt(trimmed, 10);
-}
-
-function emptyToNull(value: string | undefined): string | null {
-  const trimmed = (value ?? '').trim();
-  return trimmed === '' ? null : trimmed;
 }

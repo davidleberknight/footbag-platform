@@ -3189,13 +3189,13 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
 
       authorizeGalleryActor(actorMemberId, actorIsAdmin, existing.owner_member_id);
 
-      // An administrator's reach on this path stops at the curated galleries and
-      // their own. The administrator flag alone authorized deleting anything,
-      // and the curated list never links a member-owned gallery, so a posted id
-      // was all it took to hard-delete a member's own gallery. A record that is
-      // neither curated nor theirs simply does not resolve, the same answer the
-      // sibling curated-media delete gives and the one the criteria require.
-      if (actorIsAdmin && existing.is_system !== 1 && existing.owner_member_id !== actorMemberId) {
+      // The curator delete route reaches the curated galleries and nothing else.
+      // The curated list never links a member-owned gallery, the administrator's
+      // own included, so a posted id that names one is not a curated delete: it
+      // simply does not resolve, the same answer the sibling curated-media delete
+      // gives. An administrator deletes a gallery of their own through the member
+      // route, which passes no administrator flag and keeps the owner checks.
+      if (actorIsAdmin && existing.is_system !== 1) {
         throw new NotFoundError(`gallery ${galleryId} not found`);
       }
 

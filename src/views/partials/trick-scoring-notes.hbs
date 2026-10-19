@@ -14,18 +14,17 @@
      contextualizes the divergence
    - forward-pointing when a Red question would resolve
 
-  Visibility:
-   - 'public'   — section always visible
-   - 'advanced' — collapsed by default via <details>; reveal on demand
-   - 'curator-only' — gated at the service layer; partial never sees it
+  Visibility (service-shaped as isAdvanced):
+   - public note   — section always visible
+   - advanced note — collapsed by default via <details>; reveal on demand
+   - curator-only  — gated at the service layer; partial never sees it
 
-  The partial is logic-light: branching is
-  on pre-shaped fields only (visibility, category).
+  The partial is logic-light: branching is on the pre-shaped isAdvanced flag.
 --}}
 
 {{#if content.scoringNote}}
 <section class="content-section trick-scoring-notes" aria-label="Scoring notes">
-  {{#if (eq content.scoringNote.visibility "advanced")}}
+  {{#if content.scoringNote.isAdvanced}}
   <details class="trick-scoring-notes-details">
     <summary class="trick-scoring-notes-summary">Scoring notes</summary>
     <div class="trick-scoring-notes-body">

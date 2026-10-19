@@ -93,5 +93,5 @@ If in doubt about a layout, flag it to the human rather than shipping something 
 
 - write the tests through the `write-tests` skill, which owns the layer choice, the case floor and the sweeps a new route already gets
 - verify per the Verification default in root `CLAUDE.md`
-- drive the changed page on the dev stack as the `write-tests` Drive step says; screenshots and visual review run only when the human asks (`browser-qa`)
+- before calling the change done, read and follow `.claude/skills/page-check/SKILL.md` over every impacted page and section. Screenshots and visual review run only when the human asks (`browser-qa`).
 - after changes, invoke `doc-sync` to check whether the owning service's file-header JSDoc or `.claude/rules/view-layer.md` needs updating

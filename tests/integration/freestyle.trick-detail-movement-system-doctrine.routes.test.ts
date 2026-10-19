@@ -80,10 +80,11 @@ describe('GET /freestyle/tricks/:slug — Miraging pages drop the stale set-upti
 
   it('a confirmed-set (atomic) trick lists its set as a modifier and renders no movement-system row', async () => {
     // Trick pages carry no movement-system row at all, since the dictionary
-    // has no movement-system view; the set still appears as a modifier.
+    // has no movement-system view; the set still appears as a modifier, linked
+    // straight to its set page.
     const { status, text } = await trick('atomic_butterfly');
     expect(status).toBe(200);
-    expect(text).toContain('href="/freestyle/modifier/atomic"');
+    expect(text).toContain('href="/freestyle/sets/atomic"');
     expect(text).not.toContain('Set / Uptime Systems');
   });
 });

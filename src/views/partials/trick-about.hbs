@@ -1,8 +1,10 @@
 {{!--
   About-this-trick section. Renders description + ADD composition + aliases + family note.
   Section header is sentence case (convention for all detail-page section headings).
+  The section is omitted whole when none of its rows has anything to show
+  (content.aboutHasContent), so no page carries an empty heading.
 --}}
-{{#if content.dictEntry}}
+{{#if content.aboutHasContent}}
 <section class="content-section">
   <div class="section-heading">
     <h2>About this trick</h2>
@@ -51,10 +53,10 @@
       {{#unless content.modifierLayering}}
       <dt>Base trick</dt>
       <dd>
-        {{#if content.dictEntry.baseTrickSlug}}
-          <a href="/freestyle/tricks/{{content.dictEntry.baseTrickSlug}}">{{content.dictEntry.baseTrick}}</a>
+        {{#if content.dictEntry.baseTrickHref}}
+          <a href="{{content.dictEntry.baseTrickHref}}">{{content.dictEntry.baseTrickName}}</a>
         {{else}}
-          {{content.dictEntry.baseTrick}}
+          {{content.dictEntry.baseTrickName}}
         {{/if}}
         {{#if content.dictEntry.baseTrickAdds}} ({{content.dictEntry.baseTrickAdds}} ADD){{/if}}
       </dd>

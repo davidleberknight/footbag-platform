@@ -351,6 +351,9 @@ function shapeSetHeader(args: {
 // A resolved ontology cross-link from a media tag to a canonical freestyle page.
 export interface MediaDestination {
   kind: 'trick' | 'set';
+  // The word the tile shows before the label, shaped here so the template never
+  // derives a label from the raw kind.
+  kindLabel: 'Trick' | 'Set';
   label: string;
   href: string;
 }
@@ -742,7 +745,7 @@ function setDestFromTagBody(body: string): MediaDestination | null {
   if (!slug) return null;
   const canonical = resolveCanonicalSetAlias(slug) ?? slug;
   const label = SET_DISPLAY_BY_SLUG.get(canonical);
-  return label ? { kind: 'set', label, href: `/freestyle/sets/${canonical}` } : null;
+  return label ? { kind: 'set', kindLabel: 'Set', label, href: `/freestyle/sets/${canonical}` } : null;
 }
 
 // A media tag name made readable for a cross-link label: underscores/hyphens to
@@ -773,7 +776,7 @@ function attachDestinations(items: GalleryItem[]): void {
       const trick = trickByBody.get(body);
       if (trick) {
         const href = `/freestyle/tricks/${trick.canonicalSlug}`;
-        if (!seen.has(href)) { dests.push({ kind: 'trick', label: titleizeTrickName(trick.canonicalName), href }); seen.add(href); }
+        if (!seen.has(href)) { dests.push({ kind: 'trick', kindLabel: 'Trick', label: titleizeTrickName(trick.canonicalName), href }); seen.add(href); }
       }
     }
     it.destinations = dests;

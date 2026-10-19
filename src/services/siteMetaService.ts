@@ -137,8 +137,11 @@ function collectPublicPaths(): string[] {
     paths.add(`/history/${row.person_id}`);
   }
 
-  // Freestyle: every active trick in the dictionary.
+  // Freestyle: every active trick page that renders directly. A row the trick
+  // route redirects (a modifier or operator row, sent to its modifier page) is
+  // left out, using the route's own redirect decision so the two cannot drift.
   for (const row of freestyleTricks.listAll.all() as Array<{ slug: string }>) {
+    if (freestyleService.trickRouteRedirectTarget(row.slug)) continue;
     paths.add(`/freestyle/tricks/${row.slug}`);
   }
 

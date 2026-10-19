@@ -130,6 +130,15 @@ describe('GET /freestyle/families/:slug — family detail page', () => {
     expect(res.status).toBe(404);
   });
 
+  // Defect caught: the family page carries its anchor trick's bare hashtag
+  // (#whirl), so the family identity reads as the single trick's tag.
+  it('carries the family-role hashtag, distinct from the anchor trick\'s tag', async () => {
+    const res = await page('/freestyle/families/whirl');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('<p class="hero-hashtag">#family_whirl</p>');
+    expect(res.text).not.toContain('<p class="hero-hashtag">#whirl</p>');
+  });
+
   it('renders the tier label and the shared-structure invariant', async () => {
     const res = await page('/freestyle/families/whirl');
     expect(res.text).toContain('Family Parent');
@@ -222,6 +231,16 @@ describe('GET /freestyle/families/down — umbrella family groups members by var
     expect(res.status).toBe(200);
     expect(res.text).toContain('Branch of the');
     expect(res.text).toContain('href="/freestyle/families/down"');
+  });
+
+  // Defect caught: the barfly notation note tells a visitor its bracket order
+  // was "curator-preserved", internal curation vocabulary that has no place in
+  // public prose. The note itself still renders, so the absence is not vacuous.
+  it('barfly explains its reversed bracket order without curation vocabulary', async () => {
+    const res = await page('/freestyle/families/barfly');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('OP CLIP [DEL] [XBD]');
+    expect(res.text).not.toMatch(/curator-preserved/i);
   });
 });
 

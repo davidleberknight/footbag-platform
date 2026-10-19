@@ -1,6 +1,8 @@
 import { FreestyleTrickRow } from '../db/db';
 import { slugToHashtag } from './freestyleRecordShaping';
 import { resolveTrickKind } from '../content/freestyleTrickKindOverrides';
+import { resolveFamilyOverride } from '../content/freestyleFamilyOverrides';
+import { resolveDisplayFamily } from '../content/freestylePublicFamilies';
 
 /**
  * Answers "does this trick have watchable media", for the panels that render a
@@ -548,6 +550,39 @@ function humanizeSlug(slug: string): string {
 }
 
 /**
+ * The public family a row renders under: a curator family override first, then
+ * the raw trick_family, folded to its display family. Null when the label is not
+ * a public family. This is the resolution the trick page's family ladder and the
+ * family browse use, so a raw sub-label never splits a family in two.
+ */
+export function effectiveFamilyOf(row: { slug: string; trick_family: string | null }): string | null {
+  const raw = resolveFamilyOverride(row.slug) ?? row.trick_family;
+  return raw ? resolveDisplayFamily(raw) : null;
+}
+
+/**
+ * The slugs the current trick's family ladder lists, the current trick included:
+ * every trick, compound or move (not a modifier, set or operator row) whose
+ * effective family is the current trick's. Empty when the trick has no public
+ * family, since then no ladder renders.
+ */
+export function familyLadderSlugs(
+  current: { slug: string; trick_family: string | null },
+  allRows: readonly FreestyleTrickRow[],
+): Set<string> {
+  const family = effectiveFamilyOf(current);
+  if (!family) return new Set();
+  return new Set(
+    allRows
+      .filter(r =>
+        r.category !== 'modifier' && r.category !== 'set' && r.category !== 'operator'
+        && effectiveFamilyOf(r) === family,
+      )
+      .map(r => r.slug),
+  );
+}
+
+/**
  * Build the ranked "similar tricks" list for a trick.
  *
  * Ranking (highest first), each with a plain-words reason:
@@ -558,6 +593,10 @@ function humanizeSlug(slug: string): string {
  *   4. meaningful established-operator overlap (two or more shared operators).
  * A candidate matching none of these is below threshold and is omitted. A
  * curated override, when present, replaces the ranked output for that page.
+ *
+ * A trick the family ladder already lists is never a structural relative, in
+ * the ranked output or a curated override: same-family progression belongs to
+ * the ladder, and the two sections do not repeat one another.
  *
  * `modifierLinks` are the (trick_slug, modifier_slug) rows for the whole
  * dictionary; the operator multiset per trick is derived from them.
@@ -580,14 +619,17 @@ export function buildStructuralRelatives(
     reason,
   });
 
+  const onLadder = familyLadderSlugs(current, allRows);
+
   // Curated override wins: pin the editorial relatives, dropping any whose target
-  // is not an active canonical row.
+  // is not an active canonical row or is already on the family ladder.
   const curated = CURATED_STRUCTURAL_RELATIVES[current.slug];
   if (curated) {
     const out: FreestyleStructuralRelative[] = [];
     for (const { slug, reason } of curated) {
       const row = rowBySlug.get(slug);
-      if (row && row.slug !== current.slug && resolveTrickKind(row.slug) === 'trick') {
+      if (row && row.slug !== current.slug && !onLadder.has(row.slug)
+          && resolveTrickKind(row.slug) === 'trick') {
         out.push(shapeRelative(row, reason));
       }
       if (out.length >= STRUCTURAL_RELATIVE_MAX) break;
@@ -604,7 +646,8 @@ export function buildStructuralRelatives(
   const currentMods = modsBySlug.get(current.slug) ?? [];
 
   const eligible = allRows.filter(
-    r => r.slug !== current.slug && r.category !== 'modifier' && resolveTrickKind(r.slug) === 'trick',
+    r => r.slug !== current.slug && !onLadder.has(r.slug)
+      && r.category !== 'modifier' && resolveTrickKind(r.slug) === 'trick',
   );
 
   const curAdd = current.adds == null ? 0 : Number.parseInt(current.adds, 10);

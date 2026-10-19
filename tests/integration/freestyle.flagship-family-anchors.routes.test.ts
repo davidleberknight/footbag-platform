@@ -258,9 +258,10 @@ describe('compact structural-fact block', () => {
     const block = blockOf(res.text);
     expect(block).not.toBe('');
     // atom-smasher operator is 'atomic + x-dex'; atomic is a registered modifier,
-    // x-dex is not, so only atomic surfaces.
+    // x-dex is not, so only atomic surfaces. Atomic is taught on its set page,
+    // so the link goes there directly rather than through the modifier redirect.
     expect(block).toContain('Modifier');
-    expect(block).toContain('href="/freestyle/modifier/atomic"');
+    expect(block).toContain('href="/freestyle/sets/atomic"');
     expect(block).not.toContain('href="/freestyle/modifier/x-dex"');
   });
 });

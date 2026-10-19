@@ -189,6 +189,23 @@ describe('POST /admin/alarms/:id/acknowledge', () => {
     expect(audits[0].reason_text).toBe('Restarted the worker.');
   });
 
+  // Defect caught: a note the platform cannot read sends the administrator to
+  // a not-found page instead of back to the alarm with the reason, and the
+  // alarm must stay untaken.
+  it('returns a note that arrived damaged to its alarm form with the reason, leaving the alarm open', async () => {
+    const id = withDb((db) => insertSystemAlarmEvent(db, { alarm_type: 'footbag-bad-note', status: 'active' }));
+    const res = await request(createApp())
+      .post(`/admin/alarms/${id}/acknowledge`)
+      .set('Cookie', cookieFor(ADMIN_ID))
+      .type('form')
+      .send({ note: 'Restarted � worker' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('could not be read');
+    expect(res.text).toMatch(new RegExp(`id="alarm_note_${id}"[^>]*>Restarted � worker</textarea>`));
+    expect(alarmRow(id).status).toBe('active');
+    expect(acknowledgeAudits().filter((a) => a.entity_id === id)).toHaveLength(0);
+  });
+
   it('accepts an acknowledgment with no note', async () => {
     const id = withDb((db) => insertSystemAlarmEvent(db, { alarm_type: 'footbag-no-note', status: 'active' }));
     const res = await request(createApp())

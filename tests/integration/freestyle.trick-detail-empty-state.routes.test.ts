@@ -34,6 +34,12 @@ beforeAll(async () => {
     operational_notation: 'CLIP > OP IN [DEX] > SAME CLIP [DEL]',
     review_status: 'expert_reviewed', is_active: 1,
   });
+  // A trick with nothing for its About section to say: no description, no
+  // distinct base, no aliases, no curated notes.
+  insertFreestyleTrick(db, {
+    slug: 'bare_stall', canonical_name: 'bare stall', adds: '1', category: 'surface',
+    review_status: 'expert_reviewed', is_active: 1,
+  });
   db.close();
   createApp = await importApp();
 });
@@ -64,5 +70,16 @@ describe('GET /freestyle/tricks/:slug — empty state (no records, no media)', (
     // The Media section (and its anchor target) renders only when reference
     // media exists, so no dangling #media anchor is left behind.
     expect(res.text).not.toContain('id="media"');
+  });
+
+  // Defect caught: a trick with nothing to say about itself still renders an
+  // "About this trick" heading over an empty section.
+  it('omits the About section when none of its rows has anything to show', async () => {
+    const withAbout = await page('/freestyle/tricks/whirl');
+    expect(withAbout.status).toBe(200);
+    expect(withAbout.text).toContain('<h2>About this trick</h2>');
+    const bare = await page('/freestyle/tricks/bare_stall');
+    expect(bare.status).toBe(200);
+    expect(bare.text).not.toContain('<h2>About this trick</h2>');
   });
 });

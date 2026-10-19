@@ -82,6 +82,22 @@ interface AlarmRowViewModel {
   acknowledgmentNote: string | null;
   canAcknowledge: boolean;
   acknowledgeHref: string;
+  submittedNote: string;
+  noteError: string | null;
+}
+
+/** A refused acknowledgement, carried back to the alarm's own form. */
+export interface RejectedAcknowledgement {
+  alarmId: string;
+  note: string;
+  message: string;
+}
+
+export interface AlarmsPageOptions {
+  acknowledgedFlag?: boolean;
+  alreadySettledFlag?: boolean;
+  page?: number;
+  rejected?: RejectedAcknowledgement;
 }
 
 export interface AlarmsContent {
@@ -155,7 +171,8 @@ function detailReason(detailsJson: string): string | null {
   }
 }
 
-function shapeAlarmRow(row: AlarmListRow): AlarmRowViewModel {
+function shapeAlarmRow(row: AlarmListRow, rejected?: RejectedAcknowledgement): AlarmRowViewModel {
+  const isRejected = rejected !== undefined && rejected.alarmId === row.id;
   const acknowledgedAt = tsDisplay(row.acknowledged_at);
   const who = row.acknowledged_by_name ?? row.acknowledged_by_slug;
   return {
@@ -174,6 +191,8 @@ function shapeAlarmRow(row: AlarmListRow): AlarmRowViewModel {
     acknowledgmentNote: row.acknowledgment_note,
     canAcknowledge: row.status === 'active',
     acknowledgeHref: `/admin/alarms/${row.id}/acknowledge`,
+    submittedNote: isRejected ? rejected.note : '',
+    noteError: isRejected ? rejected.message : null,
   };
 }
 
@@ -429,7 +448,7 @@ export const systemAlarmService = {
   },
 
   getAlarmsPage(
-    opts: { acknowledgedFlag?: boolean; alreadySettledFlag?: boolean; page?: number } = {},
+    opts: AlarmsPageOptions = {},
   ): PageViewModel<AlarmsContent> {
     // A contended database renders the standard temporarily-unavailable page
     // rather than falling to the generic handler, which shows the same page
@@ -438,7 +457,7 @@ export const systemAlarmService = {
   },
 
   readAlarmsPage(
-    opts: { acknowledgedFlag?: boolean; alreadySettledFlag?: boolean; page?: number } = {},
+    opts: AlarmsPageOptions = {},
   ): PageViewModel<AlarmsContent> {
     const page = opts.page && opts.page > 0 ? Math.floor(opts.page) : 1;
     const offset = (page - 1) * RECENT_ALARM_LIMIT;
@@ -451,7 +470,7 @@ export const systemAlarmService = {
       seo: { title: 'Platform Alarms', noindex: true },
       page: { sectionKey: 'admin', pageKey: 'admin_alarms', title: 'Platform Alarms' },
       content: {
-        alarms: rows.map(shapeAlarmRow),
+        alarms: rows.map((row) => shapeAlarmRow(row, opts.rejected)),
         hasAlarms: rows.length > 0,
         resultSummary: total === 0
           ? 'No alarms have been recorded.'

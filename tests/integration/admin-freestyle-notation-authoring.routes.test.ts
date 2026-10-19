@@ -95,7 +95,7 @@ function trickCount(): number {
   return (db.prepare('SELECT COUNT(*) AS n FROM freestyle_tricks').get() as { n: number }).n;
 }
 
-const CANDIDATES = ['ev-author-1', 'ev-author-2', 'ev-author-3', 'ev-author-4', 'ev-author-5'];
+const CANDIDATES = ['ev-author-1', 'ev-author-2', 'ev-author-3', 'ev-author-4', 'ev-author-5', 'ev-author-6'];
 const RESOLVED = 'ev-author-resolved';
 
 beforeAll(async () => {
@@ -331,6 +331,28 @@ describe('what else the save refuses', () => {
     const res = await post(`/admin/freestyle/notation-backlog/${CANDIDATES[3]}/author`, validForm({ evidenceBasis: 'vibes' }));
     expect(res.status).toBe(422);
     expect(res.text).toContain('Choose one of the listed answers.');
+  });
+
+  // Defect caught: notation syntax is mistaken for markup and destroyed, or a
+  // tagged provenance note is stored and later published in the citation line.
+  it('keeps a notation\'s angle and square brackets while cleaning the provenance note', async () => {
+    const res = await post(`/admin/freestyle/notation-backlog/${CANDIDATES[5]}/author`, validForm({
+      notation: '  <DEX> [SPIN] > CLIP  ',
+      provenanceNote: '<b>Copied</b>   from the source.',
+    }));
+    expect(res.status).toBe(303);
+    const row = ruling(CANDIDATES[5]);
+    expect(row.authored_notation).toBe('<DEX> [SPIN] > CLIP');
+    expect(row.notation_provenance_note).toBe('Copied from the source.');
+  });
+
+  // Defect caught: a notation made only of whitespace and control characters
+  // passes the required check because it was never cleaned.
+  it('refuses a notation that cleans to nothing', async () => {
+    const res = await post(`/admin/freestyle/notation-backlog/${CANDIDATES[3]}/author`,
+      validForm({ notation: '\u0000\u0007 \t' }));
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('A movement notation is required.');
   });
 
   it('writes nothing at all when it refuses', async () => {

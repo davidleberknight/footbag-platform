@@ -9,7 +9,7 @@
  * ---------------------
  * `freestyle_tricks` mixes structural roles in one table: true tricks (whirl,
  * ripwalk, mobius) alongside modifiers (spinning, paradox), set operators
- * (pixie, atomic, quantum), and catch surfaces (toe-stall, clipper-stall,
+ * (atomic, quantum), and catch surfaces (toe-stall, clipper-stall,
  * cloud-stall). The trick-browse surfaces (ADD / family / category /
  * component / topology) should render ONLY true tricks; modifiers /
  * operators / surfaces have their own homes (operator board, /freestyle/sets,
@@ -19,7 +19,7 @@
  *   - 'trick'           : true trick; ends in bag contact and has structural
  *                         depth (compound, dex, named structure)
  *   - 'modifier'        : body or set modifier; transforms a base trick
- *   - 'operator'        : set primitive that initiates a trick (pixie, atomic, ...)
+ *   - 'operator'        : set primitive that initiates a trick (atomic, quantum, ...)
  *   - 'surface'         : catch surface; structural primitive (toe-stall, ...)
  *   - 'pending-review'  : curator-flagged ambiguity; never on public surfaces
  *
@@ -89,7 +89,10 @@ const MODIFIER_SLUGS = new Set<string>([
   'spyro',
 ]);
 
-// All 10 slugs with category='set' in freestyle_tricks.
+// The slugs with category='set' in freestyle_tricks, except pixie and fairy.
+// Those two are dual-role: a set that also stands as a trick in its own right,
+// so they stay kind='trick' and list in the trick browse with every other
+// active canonical trick, while the set surfaces still carry their set role.
 // Includes pogo + rooted at adds=0 (curator-flagged: they are stationary
 // set primitives, not 0-ADD tricks). blazing is a whirling-chassis set that
 // the following trick is performed off of; its +1 is the set's scoring
@@ -97,9 +100,7 @@ const MODIFIER_SLUGS = new Set<string>([
 const OPERATOR_SLUGS = new Set<string>([
   'atomic',
   'blazing',
-  'fairy',
   'furious',
-  'pixie',
   'pogo',
   'quantum',
   'rooted',

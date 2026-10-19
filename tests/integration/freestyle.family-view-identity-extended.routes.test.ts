@@ -150,8 +150,8 @@ beforeAll(async () => {
     is_active:      1,
   });
   insertFreestyleTrick(db, {
-    slug:           'pixie',
-    canonical_name: 'pixie',
+    slug:           'atomic',
+    canonical_name: 'atomic',
     trick_family:   'butterfly',
     category:       'set',
     adds:           '2',
@@ -290,9 +290,9 @@ describe('Family View — non-trick filter regression guard', () => {
     expect(res.text).not.toContain('data-trick-slug="paradox"');
   });
 
-  it('pixie (operator) does NOT appear in family view even with trick_family=butterfly', async () => {
+  it('atomic (operator) does NOT appear in family view even with trick_family=butterfly', async () => {
     const res = await page('/freestyle/tricks?view=family');
     expect(res.status).toBe(200);
-    expect(res.text).not.toContain('data-trick-slug="pixie"');
+    expect(res.text).not.toContain('data-trick-slug="atomic"');
   });
 });

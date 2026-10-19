@@ -67,6 +67,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from refresh_support import is_credential_column  # noqa: E402
+from legacy_html import legacy_html_to_text  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 PRIVATE = REPO_ROOT / 'footbag_private_repo'
@@ -553,7 +554,9 @@ def map_record(rec: dict, cutover_epoch: int | None = None,
         "city":             _prefer_unicode(rec, "MemberCity", "MemberCityUnicode"),
         "region":           _prefer_unicode(rec, "MemberState", "MemberStateUnicode"),
         "country":          _prefer_unicode(rec, "MemberCountry", "MemberCountryUnicode"),
-        "bio":              _val(rec, "MemberComment"),
+        # The legacy comment is an HTML fragment; a claim copies it into the
+        # member's bio, which is plain text escaped on output.
+        "bio":              legacy_html_to_text(_val(rec, "MemberComment")),
         "birth_date":       _birth_date(rec),
         "street_address":   _street(rec),
         "postal_code":      _val(rec, "MemberZIP"),

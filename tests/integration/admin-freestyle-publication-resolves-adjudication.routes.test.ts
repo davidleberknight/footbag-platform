@@ -113,6 +113,13 @@ beforeAll(async () => {
     login_email: 'pub-admin@example.com', is_admin: 1,
   });
 
+  // The base trick every candidate and save body names. A saved base trick must
+  // be a dictionary row, so it exists here as it does in the real dictionary.
+  insertFreestyleTrick(db, {
+    slug: 'whirl', canonical_name: 'whirl', adds: '3', trick_family: 'whirl',
+    category: 'dex', review_status: 'curated', is_active: 1,
+  });
+
   // A linked candidate, exactly the shape the seed produced for the nine rulings
   // that named a trick row.
   insertCandidate('candidate_one', 'Candidate One');

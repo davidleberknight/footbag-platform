@@ -89,6 +89,24 @@ beforeAll(async () => {
     id: 'rec_guard', record_type: 'trick_consecutive', display_name: 'Guard Holder',
     trick_name: 'Guard Trick', value_numeric: 9, confidence: 'probable',
   });
+  // Save targets for the date-precision and text-cleaning cases, one per case.
+  insertFreestyleRecord(db, {
+    id: 'rec_month', record_type: 'trick_consecutive', display_name: 'Month Holder',
+    trick_name: 'Month Trick', value_numeric: 7, confidence: 'probable',
+  });
+  insertFreestyleRecord(db, {
+    id: 'rec_undated', record_type: 'trick_consecutive', display_name: 'Undated Holder',
+    trick_name: 'Undated Trick', value_numeric: 7, confidence: 'probable', achieved_date: '2020-02-02',
+  });
+  insertFreestyleRecord(db, {
+    id: 'rec_clean', record_type: 'trick_consecutive', display_name: 'Clean Holder',
+    trick_name: 'Clean Trick', value_numeric: 7, confidence: 'probable',
+  });
+  // Notes stored before cleaning existed: a run of spaces the cleaner collapses.
+  insertFreestyleRecord(db, {
+    id: 'rec_legacy_text', record_type: 'trick_consecutive', display_name: 'Legacy Holder',
+    trick_name: 'Legacy Trick', value_numeric: 7, confidence: 'probable', notes: 'Stored   before   cleaning.',
+  });
 
   createApp = await importApp();
 });
@@ -326,6 +344,106 @@ describe('POST /admin/freestyle/records/:id/edit — validation', () => {
   it('returns 404 saving an unknown record id', async () => {
     const res = await post('/admin/freestyle/records/nope_missing/edit', admin(), validBody());
     expect(res.status).toBe(404);
+  });
+});
+
+function storedRecord(id: string) {
+  return db.prepare('SELECT * FROM freestyle_records WHERE id = ?').get(id) as Record<string, unknown>;
+}
+
+describe('POST /admin/freestyle/records/:id/edit — the achieved date is a real day its precision can claim', () => {
+  // Defect caught: a date the calendar does not have, a day stored under a
+  // precision that only knows the month, or a placeholder year before footbag
+  // existed is saved and shown on the public records pages as a real date.
+  it('refuses an impossible date, a month-precision day other than the first, and a pre-1970 year, writing nothing', async () => {
+    const before = storedRecord('rec_guard');
+    const cases: Array<[Record<string, string>, string]> = [
+      [{ achievedDate: '2024-13-45' }, 'not a real calendar date'],
+      [{ achievedDate: '2024-02-30' }, 'not a real calendar date'],
+      [{ achievedDate: '2024-05-17', datePrecision: 'month' }, 'first of that month'],
+      [{ achievedDate: '2024-05-01', datePrecision: 'year' }, 'first of January'],
+      [{ achievedDate: '1905-07-03' }, 'in 1970 or later'],
+    ];
+    for (const [overrides, message] of cases) {
+      const res = await post('/admin/freestyle/records/rec_guard/edit', admin(), validBody(overrides));
+      expect(res.status, JSON.stringify(overrides)).toBe(422);
+      expect(res.text, JSON.stringify(overrides)).toContain(message);
+    }
+    expect(storedRecord('rec_guard')).toEqual(before);
+    expect(auditRows('rec_guard')).toHaveLength(0);
+  });
+
+  // Defect caught: the precision rule over-reaches and refuses the one form a
+  // month-precision date is meant to take.
+  it('saves a month-precision date entered as the first of the month', async () => {
+    const res = await post('/admin/freestyle/records/rec_month/edit', admin(),
+      validBody({ achievedDate: '2024-05-01', datePrecision: 'month' }));
+    expect(res.status).toBe(303);
+    expect(storedRecord('rec_month')).toMatchObject({ achieved_date: '2024-05-01', date_precision: 'month' });
+  });
+
+  // Defect caught: a record whose date is unknown can no longer be saved once a
+  // precision is chosen, so a placeholder date cannot be cleared.
+  it('allows an empty date whatever the precision', async () => {
+    const res = await post('/admin/freestyle/records/rec_undated/edit', admin(),
+      validBody({ achievedDate: '', datePrecision: 'year' }));
+    expect(res.status).toBe(303);
+    expect(storedRecord('rec_undated')).toMatchObject({ achieved_date: null, date_precision: 'year' });
+  });
+});
+
+describe('POST /admin/freestyle/records — typed text is cleaned before it is stored', () => {
+  // Defect caught: markup typed into a record's holder, trick or notes is stored
+  // and served on the public records pages.
+  it('stores the names, value text and notes without markup', async () => {
+    const res = await post('/admin/freestyle/records/rec_clean/edit', admin(), validBody({
+      displayName: '<b>Clean</b>   Holder',
+      trickName: '<i>Clean</i> Trick',
+      valueText: '<span>42 kicks</span>',
+      notes: '<p>First   note.</p>\n\n\n\nSecond note.',
+    }));
+    expect(res.status).toBe(303);
+    expect(storedRecord('rec_clean')).toMatchObject({
+      display_name: 'Clean Holder', trick_name: 'Clean Trick', value_text: '42 kicks',
+      notes: 'First note.\n\nSecond note.',
+    });
+  });
+
+  // Defect caught: a source made only of markup passes the required check, so a
+  // record is stored with no provenance.
+  it('refuses a source that is only markup, and writes nothing', async () => {
+    const before = storedRecord('rec_guard');
+    const res = await post('/admin/freestyle/records/rec_guard/edit', admin(), validBody({ source: '<b></b>' }));
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Source is required.');
+    expect(storedRecord('rec_guard')).toEqual(before);
+    expect(auditRows('rec_guard')).toHaveLength(0);
+  });
+
+  // Defect caught: a value stored before cleaning existed reads as edited on every
+  // save, so the audit trail claims changes the curator never made.
+  it('does not report a stored value that only differs by what cleaning removes', async () => {
+    const res = await post('/admin/freestyle/records/rec_legacy_text/edit', admin(), validBody({
+      displayName: 'Legacy Holder', trickName: 'Legacy Trick Renamed', notes: 'Stored before cleaning.',
+    }));
+    expect(res.status).toBe(303);
+    const changed = (JSON.parse(auditRows('rec_legacy_text')[0].metadata_json) as { changedFields: string[] }).changedFields;
+    expect(changed).toContain('trick_name');
+    expect(changed).not.toContain('notes');
+  });
+
+  // Defect caught: the own-repeat check compares the raw submission, so resending
+  // the same record with the markup already gone makes a duplicate record.
+  it('recognises a repeat of the admin\'s own create by its cleaned values', async () => {
+    const dirty = validBody({ displayName: '<b>Repeat</b> Holder', trickName: 'Repeat Trick Cleaned' });
+    const first = await post('/admin/freestyle/records', admin(), dirty);
+    expect(first.status).toBe(303);
+    const second = await post('/admin/freestyle/records', admin(),
+      validBody({ displayName: 'Repeat Holder', trickName: 'Repeat Trick Cleaned' }));
+    expect(second.status).toBe(303);
+    expect(second.headers.location).toBe(first.headers.location);
+    const rows = db.prepare('SELECT id FROM freestyle_records WHERE trick_name = ?').all('Repeat Trick Cleaned');
+    expect(rows).toHaveLength(1);
   });
 });
 

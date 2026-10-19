@@ -76,8 +76,11 @@ import {
   recordTrickNameToSlug,
   trickSurfaceHashtag,
   modifierSurfaceHashtag,
+  hashtagForRole,
 } from './freestyleRecordShaping';
 import { modifierHashtagRole } from '../content/freestyleHashtagRoles';
+import { GENUINE_HYPHEN_TOKENS } from '../content/freestyleDisplayNameExceptions';
+import { toTitleCase } from '../lib/titleCase';
 import { getResolvableTrickSlugs, buildActiveTrickSlugResolver } from './freestyleResolvableSlugs';
 import {
   NotationDisplay,
@@ -691,8 +694,14 @@ function buildFreestyleByNumbers(
   const trickKind = new Set(tricks.map(r => r.slug));
   const bodyMods = new Map<string, number>();
   const setSys = new Map<string, number>();
+  // A trick carrying one modifier at two orders (double spinning) has two link
+  // rows; each bar counts tricks, so a (trick, modifier) pair counts once.
+  const countedPairs = new Set<string>();
   for (const l of linkRows) {
     if (!trickKind.has(l.trick_slug)) continue;
+    const pairKey = `${l.trick_slug}|${l.modifier_slug}`;
+    if (countedPairs.has(pairKey)) continue;
+    countedPairs.add(pairKey);
     // Body = movement operators only; the set-system launchers belong to Entry,
     // so Body and Entry read as genuinely different lenses.
     if (MODIFIER_SET_SYSTEM_SLUGS.has(l.modifier_slug)) {
@@ -1101,6 +1110,17 @@ function shapeSetModifiers(board: OperatorBoardData): FreestyleSetModifierEntry[
 const operatorTitleCase = (slug: string): string =>
   slug.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 
+// Heading form of a canonical trick name: slug separators read as spaces and the
+// words take Title Case, except a compound adjective on the display-name
+// exception list, which keeps its genuine hyphen ("Cross-body Sole Stall").
+function trickDisplayName(canonicalName: string): string {
+  const words = canonicalName
+    .split(/[\s_]+/)
+    .filter(Boolean)
+    .flatMap(w => (GENUINE_HYPHEN_TOKENS.includes(w.toLowerCase()) ? [w] : w.split(/-+/).filter(Boolean)));
+  return toTitleCase(words.join(' '));
+}
+
 function operatorFeelCard(slug: string): ModifierFeelCard | undefined {
   return SET_MODIFIER_FEEL_CARDS.find(c => c.slug === slug)
     ?? BODY_MODIFIER_FEEL_CARDS.find(c => c.slug === slug)
@@ -1294,12 +1314,14 @@ function shapeTrickPathways(args: {
   recordCount: number;
   topRecordHolder: string | null;
   topRecordValue: number;
-  familySlug: string | null;
   familyName: string | null;
-  familyMemberCount: number;  // already-rendered-on-page family ladder size
+  // Where the family link goes and how many other tricks that destination
+  // lists, counted from the destination's own membership; null when the trick
+  // has no family.
+  familyLink: { href: string; siblingCount: number } | null;
 }): TrickPathways {
   const { tutorialCount, demoCount, recordCount, topRecordHolder, topRecordValue,
-          familySlug, familyName, familyMemberCount } = args;
+          familyName, familyLink } = args;
 
   // Learn pathway. Tutorial- and demo-tier counts surface separately so the
   // wording cannot conflate them. When only demos exist the user
@@ -1357,15 +1379,15 @@ function shapeTrickPathways(args: {
         hrefLabel: null,
       };
 
-  // Family pathway. familyMemberCount > 1 means the family ladder section
-  // actually renders below; only surface the link when there's somewhere to go.
-  const family: TrickPathwaySummary = familySlug && familyName && familyMemberCount > 1
+  // Family pathway. Surfaces only when the destination lists at least one other
+  // trick, and quotes the count that destination itself shows.
+  const family: TrickPathwaySummary = familyName && familyLink && familyLink.siblingCount > 0
     ? {
         available: true,
-        count: familyMemberCount - 1,  // siblings, not counting current trick
+        count: familyLink.siblingCount,
         primaryText: `Family: ${familyName}`,
-        secondaryText: `${familyMemberCount - 1} related trick${familyMemberCount - 1 === 1 ? '' : 's'}`,
-        href: `/freestyle/tricks?family=${familySlug}`,
+        secondaryText: `${familyLink.siblingCount} related trick${familyLink.siblingCount === 1 ? '' : 's'}`,
+        href: familyLink.href,
         hrefLabel: `Browse ${familyName} family`,
       }
     : {
@@ -1691,7 +1713,7 @@ export interface FreestyleTrickContent {
     sourceClaim:     number | null;
     canonicalValue:  number;
     provenanceNote:  string;
-    visibility:      'public' | 'advanced';
+    isAdvanced:      boolean;  // true: collapsed behind a disclosure; false: always visible
   } | null;
   // Primitive-note callout.
   // Populated only when the slug is one of the 12 core atoms (per
@@ -1815,6 +1837,9 @@ export interface FreestyleTrickContent {
   // service-shaped decomposition pill instead. DB row is NEVER
   // mutated — suppression is render-only.
   descriptionIsPlaceholder: boolean;
+  // True when the About section has at least one row to show; the section is
+  // omitted otherwise.
+  aboutHasContent: boolean;
 }
 
 // Re-export the equivalence-topology entry type so consumers of the
@@ -1890,8 +1915,9 @@ export interface FreestyleTrickDictEntry {
   category: string | null;
   description: string | null;
   aliases: string[];
-  baseTrick: string | null;
-  baseTrickSlug: string | null; // slug for linking to base trick page
+  baseTrick: string | null;     // the base trick's slug (identity / lookup key, never displayed)
+  baseTrickName: string | null; // the base trick's display name
+  baseTrickHref: string | null; // the base trick's detail page; null when it has no active row
   baseTrickAdds: string | null; // ADD value of the base trick, for composition display
   trickFamily: string | null;   // family grouping slug
   isBase: boolean;              // true when this trick IS the family base (trick_family == own slug)
@@ -3818,10 +3844,11 @@ export interface FreestyleConceptsContent {
   // the dictionary's "By family" browse (PUBLIC_DISPLAY_FAMILIES) so the
   // Concepts roster always matches the dictionary's. Not every entry has a
   // rich family card above; uncarded first-class families still appear here.
-  firstClassFamilyRoster: readonly { slug: string; label: string; branches: readonly { slug: string; label: string }[] }[];
+  // Each href is the family-filtered dictionary.
+  firstClassFamilyRoster: readonly { slug: string; label: string; href: string; branches: readonly { slug: string; label: string; href: string }[] }[];
   // Minor lineages: conserved-terminal families that are not first-class, shown
   // as a compact list under the roster.
-  minorLineageRoster: readonly { slug: string; label: string }[];
+  minorLineageRoster: readonly { slug: string; label: string; href: string }[];
   // §8 ADD Accounting worked-example cards. Five compact
   // educational cards illustrating how ADD math composes for compound
   // tricks. Pulled from the curator-authored ADD_WORKED_EXAMPLES module,
@@ -5828,13 +5855,13 @@ function buildOperatorRungLookup(
 // both buckets. A roster root with no direct member rows (the Down family,
 // whose members all carry a variant-branch trick_family) aggregates the
 // union of its branches' members. No trick_family data is overwritten.
-function buildFamilyMembershipMap(
-  activeRows: FreestyleTrickRowWithStatus[],
-): Map<string, FreestyleTrickRowWithStatus[]> {
-  const familyOf = (row: FreestyleTrickRowWithStatus): string | null =>
+function buildFamilyMembershipMap<T extends { slug: string; trick_family: string | null }>(
+  activeRows: T[],
+): Map<string, T[]> {
+  const familyOf = (row: T): string | null =>
     resolveFamilyOverride(row.slug) ?? row.trick_family;
 
-  const familyMap = new Map<string, FreestyleTrickRowWithStatus[]>();
+  const familyMap = new Map<string, T[]>();
   const addMembership = (families: string[], slug: string): void => {
     for (const f of familyWithAncestors(slug)) {
       if (!families.includes(f)) families.push(f);
@@ -5861,7 +5888,7 @@ function buildFamilyMembershipMap(
   // every variant keeps its own bucket and label.
   for (const fam of PUBLIC_DISPLAY_FAMILIES) {
     if (fam.parent || familyMap.has(fam.slug)) continue;
-    const aggregated: FreestyleTrickRowWithStatus[] = [];
+    const aggregated: T[] = [];
     const seen = new Set<string>();
     for (const branch of PUBLIC_DISPLAY_FAMILIES) {
       if (branch.parent !== fam.slug) continue;
@@ -5872,6 +5899,86 @@ function buildFamilyMembershipMap(
     if (aggregated.length > 0) familyMap.set(fam.slug, aggregated);
   }
   return familyMap;
+}
+
+// The trick page's family link. Family pages own same-family progression, so
+// the link goes to the family page when one exists and quotes that page's own
+// membership; otherwise it goes to the family-filtered dictionary and quotes
+// what that filter lists. Either way the count excludes the current trick, so
+// it never promises a number the destination does not show.
+function familyPathwayLink(
+  familySlug: string,
+  currentSlug: string,
+  activeRows: FreestyleTrickRow[],
+): { href: string; siblingCount: number } {
+  if (hasFamilyPage(familySlug)) {
+    const { cardSlugs } = familyPageMembership(familySlug, buildFamilyMembershipMap(activeRows));
+    return {
+      href: `/freestyle/families/${familySlug}`,
+      siblingCount: cardSlugs.filter(s => s !== currentSlug).length,
+    };
+  }
+  const { activeFamily, rows } = applyDictionaryFamilyFilter(activeRows, familySlug);
+  const listed = activeFamily
+    ? rows.filter(r => resolveTrickKind(r.slug) === 'trick' && r.slug !== currentSlug)
+    : [];
+  return {
+    href: `/freestyle/tricks?family=${encodeURIComponent(familySlug)}`,
+    siblingCount: listed.length,
+  };
+}
+
+// True when a family has a page of its own at /freestyle/families/:slug.
+function hasFamilyPage(familySlug: string): boolean {
+  return isOfficialFamilyParent(familySlug) && PUBLIC_FAMILY_LABEL.has(familySlug);
+}
+
+// The tricks a family page lists, one entry per rendered card. A normal family
+// lists its own bucket; an umbrella family (variant branches and no raw rows of
+// its own, such as Down) lists each variant branch's bucket in turn, so a trick
+// in two branches is two cards. The family page and every link that quotes its
+// size read this one shape, so the two cannot disagree.
+function familyPageMembership<T extends { slug: string; trick_family: string | null }>(
+  familySlug: string,
+  familyMap: ReadonlyMap<string, T[]>,
+): { memberRows: T[]; isUmbrella: boolean; variantBranches: typeof PUBLIC_DISPLAY_FAMILIES[number][]; cardSlugs: string[] } {
+  const memberRows = familyMap.get(familySlug) ?? [];
+  const variantBranches = PUBLIC_DISPLAY_FAMILIES.filter(f => f.parent === familySlug);
+  const isUmbrella = variantBranches.length > 0
+    && !memberRows.some(r => r.trick_family === familySlug);
+  const cardSlugs = isUmbrella
+    ? variantBranches.flatMap(b => (familyMap.get(b.slug) ?? []).map(r => r.slug))
+    : memberRows.map(r => r.slug);
+  return { memberRows, isUmbrella, variantBranches, cardSlugs };
+}
+
+// The rows the family-filtered dictionary (/freestyle/tricks?family=<slug>)
+// lists: the rows whose raw trick_family is the family, or for an umbrella root
+// with no raw rows of its own, the rows carrying any raw label its branches and
+// their sub-labels carry. activeFamily is null when the filter matches nothing,
+// and the dictionary then renders unfiltered.
+function applyDictionaryFamilyFilter<T extends { trick_family: string | null }>(
+  rows: T[],
+  family: string | undefined,
+): { activeFamily: string | null; rows: T[] } {
+  const umbrellaLabels = family && !rows.some(r => r.trick_family === family)
+    ? new Set(rawFamilyLabelsUnder(family))
+    : null;
+  const umbrellaActive = Boolean(
+    umbrellaLabels && umbrellaLabels.size > 1
+    && rows.some(r => r.trick_family && umbrellaLabels.has(r.trick_family)),
+  );
+  const activeFamily = family && (rows.some(r => r.trick_family === family) || umbrellaActive)
+    ? family
+    : null;
+  return {
+    activeFamily,
+    rows: activeFamily
+      ? rows.filter(r =>
+          r.trick_family === activeFamily
+          || (umbrellaActive && r.trick_family != null && umbrellaLabels!.has(r.trick_family)))
+      : rows,
+  };
 }
 
 // Map of family-slug → optional symbolic cross-link. Conservative: only
@@ -5991,16 +6098,21 @@ function shapeDictEntry(
   }
 
   const isModifier = row.category === 'modifier';
-  const hasBase    = !!(row.base_trick && row.base_trick !== row.canonical_name);
+  // base_trick holds a slug; a trick whose base is itself (toe_stall) is a base
+  // trick and shows no base of its own.
+  const hasBase    = !!(row.base_trick && row.base_trick !== row.slug && row.base_trick !== row.canonical_name);
   const isBase     = !hasBase && !isModifier;
   const isCompound = !!(hasBase && (row.category === 'compound' || row.category === 'dex'));
 
   const baseTrick     = hasBase ? row.base_trick! : null;
   const baseTrickSlug = baseTrick ? trickNameToSlug(baseTrick) : null;
 
-  // Look up base trick row for its ADD value
+  // Look up base trick row for its ADD value and display name. allTricks holds
+  // only active rows, so a base without one renders as plain text, not a link.
   const baseRow     = baseTrickSlug ? allTricks.find(t => t.slug === baseTrickSlug) : null;
   const baseTrickAdds = baseRow?.adds ?? null;
+  const baseTrickName = baseTrick ? trickDisplayName(baseRow?.canonical_name ?? baseTrick) : null;
+  const baseTrickHref = baseRow ? `/freestyle/tricks/${baseRow.slug}` : null;
   // Extract the applied modifiers (their count drives the modifier-link badge).
   const modifierMap = new Map(allModifiers.map(m => [m.slug, m]));
   let appliedModifiers: AppliedModifier[] = [];
@@ -6054,7 +6166,8 @@ function shapeDictEntry(
     description:      refinedDescription,
     aliases,
     baseTrick,
-    baseTrickSlug,
+    baseTrickName,
+    baseTrickHref,
     baseTrickAdds,
     trickFamily:      row.trick_family ?? null,
     isBase,
@@ -6283,7 +6396,8 @@ interface ModifierLinkInfo {
 
 export interface TrickStructuralFact {
   name: string;
-  slug: string;          // dynamic URL segment; the partial builds the href per row type
+  slug: string;
+  href: string;          // the page the link settles on, never a redirecting URL
   note: string | null;   // one-line beginner explanation; null when none is known
 }
 
@@ -6306,13 +6420,20 @@ function buildStructuralFacts(
   row: { slug: string; base_trick: string | null; trick_family: string | null; category: string | null; operational_notation: string | null },
   isBase: boolean,
   modifierLinks: ModifierLinkInfo[],
+  canonicalNameOf: (slug: string) => string | null,
 ): TrickStructuralFacts {
   // Family base — the family root; suppressed on the base's own page so it
-  // does not point at itself.
+  // does not point at itself. Named by the root trick's own canonical name, so
+  // a root such as around_the_world reads as the trick reads elsewhere.
   let familyBase: TrickStructuralFact | null = null;
   const familyRoot = resolveDisplayFamily(row.slug);
   if (familyRoot && !isBase && familyRoot !== row.slug) {
-    familyBase = { name: operatorTitleCase(familyRoot), slug: familyRoot, note: null };
+    familyBase = {
+      name: trickDisplayName(canonicalNameOf(familyRoot) ?? familyRoot),
+      slug: familyRoot,
+      href: `/freestyle/tricks/${familyRoot}`,
+      note: null,
+    };
   }
 
   // Modifier(s) — deduped by slug (a modifier can appear at multiple orders).
@@ -6325,6 +6446,7 @@ function buildStructuralFacts(
     modifiers.push({
       name: operatorTitleCase(link.slug),
       slug: link.slug,
+      href: modifierPageHref(link.slug),
       note: resolveModifierBeginnerNote(link.slug),
     });
   }
@@ -6599,6 +6721,51 @@ const RETIRED_SET_NICKNAME_REDIRECTS: ReadonlyMap<string, string> = new Map([
   ['barraging', 'furious'],
 ]);
 
+// A hand-authored modifier teaching page, carrying the modifier's role-aware
+// hashtag beside its authored content.
+export type ModifierTeachingPageContent = ModifierFamilyPageContent & { hashtag: string };
+
+// Canonical sets held out of the set-page redirects below while a curator ruling
+// on whether they remain trick entries is pending; their trick and modifier
+// routes keep resolving exactly as they would without those redirects.
+const SET_REDIRECT_PENDING_RULING: ReadonlySet<string> = new Set(['blazing', 'pogo', 'shooting']);
+
+// A canonical set with no active trick row: a set that migrated out of, or never
+// entered, the trick corpus, so its set page is its one home. Pixie and fairy are
+// active tricks as well as sets and keep both pages.
+function isSetWithoutActiveTrick(slug: string): boolean {
+  if (!findCanonicalSetBySlug(slug) || SET_REDIRECT_PENDING_RULING.has(slug)) return false;
+  const row = runSqliteRead('freestyleTricks.categoryBySlug', () =>
+    freestyleTricks.categoryBySlug.get(slug) as { category: string | null; is_active: number } | undefined,
+  );
+  return !(row && row.is_active === 1);
+}
+
+// Where /freestyle/modifier/:slug redirects, or null to render the modifier page.
+// A set is a launch system, not a modifier applied after launch, so its teaching
+// home is the Set Encyclopedia: a set with an authored set page, a retired set
+// nickname, and a set-only slug (a modifier registered in the set role with no
+// active trick row, such as railing) all land on the set page. A ducking set that
+// is registered as a body modifier (zulu, weaving) keeps its modifier page.
+function modifierRouteTarget(slug: string): string | null {
+  if (isSetFirstSlug(slug)) return `/freestyle/sets/${slug}`;
+  const retiredSet = RETIRED_SET_NICKNAME_REDIRECTS.get(slug);
+  if (retiredSet) return `/freestyle/sets/${retiredSet}`;
+  if (isSetWithoutActiveTrick(slug)) {
+    const row = runSqliteRead('freestyleTrickModifiers.getBySlug', () =>
+      freestyleTrickModifiers.getBySlug.get(slug) as FreestyleTrickModifierRow | undefined,
+    );
+    if (modifierHashtagRole(slug, row?.modifier_type) === 'set') return `/freestyle/sets/${slug}`;
+  }
+  return null;
+}
+
+// The href for a modifier link: the page its route settles on, so no link hops
+// through a redirect.
+function modifierPageHref(slug: string): string {
+  return modifierRouteTarget(slug) ?? `/freestyle/modifier/${slug}`;
+}
+
 // ---------------------------------------------------------------------------
 // Service
 // ---------------------------------------------------------------------------
@@ -6801,11 +6968,10 @@ export const freestyleService = {
     const matchSlugs = new Set<string>([slug, ...aliasSlugs]);
     const recordTrickName = publicRows.find(r => r.trick_name && matchSlugs.has(recordTrickNameToSlug(r.trick_name)))?.trick_name;
     // Display form of the canonical name for a dictionary trick (separators to
-    // spaces, then title-cased, so "clipper-stall" reads "Clipper Stall"); null
-    // for a record-only page that has no dictionary row.
-    const canonicalDisplayName = dictRow
-      ? dictRow.canonical_name.replace(/[-_\s]+/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
-      : null;
+    // spaces, then title-cased, so "clipper-stall" reads "Clipper Stall", while a
+    // genuine compound-adjective hyphen survives); null for a record-only page
+    // that has no dictionary row.
+    const canonicalDisplayName = dictRow ? trickDisplayName(dictRow.canonical_name) : null;
     const trickName = recordTrickName ?? canonicalDisplayName;
 
     if (!trickName) {
@@ -6952,9 +7118,11 @@ export const freestyleService = {
       && !isDescriptionStructuralPlaceholder(dictEntry.description)
         ? dictEntry.description
         : 'Freestyle footbag trick reference.';
+    // The meta description names the trick as the heading does: a matched
+    // record's folk or variant name (Infinity on butterfly) never retitles it.
     const seoDescription   = hasRecords
-      ? `Freestyle footbag passback records for ${trickName}. Current record: ${topValue} kicks.`
-      : `${trickName}: ${seoDescriptionBody}`;
+      ? `Freestyle footbag passback records for ${displayTrickName}. Current record: ${topValue} kicks.`
+      : `${displayTrickName}: ${seoDescriptionBody}`;
 
     return {
       seo: {
@@ -7096,9 +7264,8 @@ export const freestyleService = {
           recordCount: currentRows.length,
           topRecordHolder: currentRows[0]?.holder_name ?? null,
           topRecordValue: topValue,
-          familySlug,
           familyName,
-          familyMemberCount: familyMembers.length,
+          familyLink: familySlug ? familyPathwayLink(familySlug, slug, allDictRows) : null,
         });
 
         // "Modifiers on this trick" rows (one per distinct modifier link):
@@ -7273,8 +7440,8 @@ export const freestyleService = {
           };
         })();
 
-        return {
-          trickName,
+        const shaped = {
+          trickName: displayTrickName,
           sortName: heroSubtitle,
           slug,
           pronunciation: dictRow?.pronunciation ?? null,
@@ -7307,7 +7474,7 @@ export const freestyleService = {
               freestyleTrickModifiers.getBySlug.get(op) as FreestyleTrickModifierRow | undefined,
             );
             if (!isKnownModifier(op, opRow)) return null;
-            return { label: `${operatorTitleCase(op)} tricks`, href: `/freestyle/modifier/${op}` };
+            return { label: `${operatorTitleCase(op)} tricks`, href: modifierPageHref(op) };
           })(),
           relativeSideVariants: dictRow ? buildRelativeSideVariants(dictRow, allDictRows) : null,
           similarTricks:      dictRow ? buildStructuralRelatives(dictRow, allDictRows, allModifierLinks) : [],
@@ -7365,6 +7532,7 @@ export const freestyleService = {
               { slug: dictRow.slug, base_trick: dictRow.base_trick, trick_family: dictRow.trick_family, category: dictRow.category, operational_notation: dictRow.operational_notation },
               dictEntry?.isBase ?? false,
               modsForFacts,
+              s => allDictRows.find(r => r.slug === s)?.canonical_name ?? null,
             );
             return facts.hasAny ? facts : null;
           })(),
@@ -7823,10 +7991,30 @@ export const freestyleService = {
               sourceClaim:    entry.sourceClaim,
               canonicalValue: entry.canonicalValue,
               provenanceNote: entry.provenanceNote,
-              visibility:     entry.noteVisibility,
+              // An advanced note folds away behind a disclosure; a public one
+              // shows under its own heading.
+              isAdvanced:     entry.noteVisibility === 'advanced',
             };
           })(),
         };
+        // The About section renders only when one of its rows has something to
+        // show; each term mirrors one row of the About partial, so a trick with
+        // none of them (no displayed description, base, build path, aliases or
+        // notes) carries no empty heading.
+        const d = shaped.dictEntry;
+        const aboutHasContent = !!d && (
+          (!!d.description && !shaped.descriptionIsPlaceholder)
+          || (!d.description && !!shaped.structuralAbout)
+          || d.isModifier
+          || !!shaped.buildPath
+          || (!!d.baseTrick && !shaped.modifierLayering)
+          || d.aliases.length > 0
+          || !!shaped.aboutDerivatives
+          || (!!shaped.intuitionDelta && !shaped.intuition)
+          || !!d.familyNote
+          || !!shaped.relatedOperator
+        );
+        return { ...shaped, aboutHasContent };
       })(),
     };
   },
@@ -8026,21 +8214,7 @@ export const freestyleService = {
     // Apply optional family filter (driven by ?family= hashtag click). An
     // umbrella root with no raw rows of its own (the Down family) filters as
     // the set of raw labels its branches and their sub-labels carry.
-    const umbrellaLabels = family && !allRowsUnfiltered.some(r => r.trick_family === family)
-      ? new Set(rawFamilyLabelsUnder(family))
-      : null;
-    const umbrellaActive = Boolean(
-      umbrellaLabels && umbrellaLabels.size > 1
-      && allRowsUnfiltered.some(r => r.trick_family && umbrellaLabels.has(r.trick_family)),
-    );
-    const activeFamily = family && (allRowsUnfiltered.some(r => r.trick_family === family) || umbrellaActive)
-      ? family
-      : null;
-    const allRows = activeFamily
-      ? allRowsUnfiltered.filter(r =>
-          r.trick_family === activeFamily
-          || (umbrellaActive && r.trick_family != null && umbrellaLabels!.has(r.trick_family)))
-      : allRowsUnfiltered;
+    const { activeFamily, rows: allRows } = applyDictionaryFamilyFilter(allRowsUnfiltered, family);
 
     // Row-shaping context + modifier-link rows, via the builder shared with
     // the family-detail page.
@@ -8914,7 +9088,7 @@ export const freestyleService = {
    * teaching page. Pilot scope: spinning only.
    * Throws NotFoundError when no authored page exists for the requested slug.
    */
-  getModifierFamilyPage(slug: string): PageViewModel<ModifierFamilyPageContent> {
+  getModifierFamilyPage(slug: string): PageViewModel<ModifierTeachingPageContent> {
     if (!hasModifierFamilyPage(slug)) {
       throw new NotFoundError(`No modifier-family page for slug "${slug}"`);
     }
@@ -8926,8 +9100,13 @@ export const freestyleService = {
       throw new NotFoundError(`No modifier-family page for slug "${slug}"`);
     }
     const atom = baseAtomCrossLinkFor(slug);
-    const content: ModifierFamilyPageContent = {
+    const modifierRow = runSqliteRead('freestyleTrickModifiers.getBySlug', () =>
+      freestyleTrickModifiers.getBySlug.get(slug) as FreestyleTrickModifierRow | undefined,
+    );
+    const content: ModifierTeachingPageContent = {
       ...built,
+      // The same role-aware hashtag the stub and the operators index show.
+      hashtag:  modifierSurfaceHashtag(slug, modifierRow?.modifier_type),
       baseAtom: atom ? { label: `${operatorTitleCase(atom)} (base trick)`, href: `/freestyle/tricks/${atom}` } : null,
     };
     return {
@@ -9074,13 +9253,14 @@ export const freestyleService = {
           .map(root => ({
             slug:  root.slug,
             label: root.label,
+            href:  `/freestyle/tricks?family=${encodeURIComponent(root.slug)}`,
             branches: PUBLIC_DISPLAY_FAMILIES
               .filter(b => b.parent === root.slug)
-              .map(b => ({ slug: b.slug, label: b.label })),
+              .map(b => ({ slug: b.slug, label: b.label, href: `/freestyle/tricks?family=${encodeURIComponent(b.slug)}` })),
           })),
         minorLineageRoster: PUBLIC_DISPLAY_FAMILIES
           .filter(f => !f.parent && familyTier(f.slug) === 'minor-lineage')
-          .map(f => ({ slug: f.slug, label: f.label })),
+          .map(f => ({ slug: f.slug, label: f.label, href: `/freestyle/tricks?family=${encodeURIComponent(f.slug)}` })),
         addWorkedExamples: ADD_WORKED_EXAMPLES.map((ex) => ({
           ...ex,
           statusLabel:
@@ -9457,7 +9637,7 @@ export const freestyleService = {
   // page wins; any other known modifier falls back to a data-driven stub; an
   // unknown slug throws NotFound (404). No modifier dead-ends.
   getModifierDetail(slug: string):
-    | { kind: 'teaching'; vm: PageViewModel<ModifierFamilyPageContent> }
+    | { kind: 'teaching'; vm: PageViewModel<ModifierTeachingPageContent> }
     | { kind: 'stub';     vm: PageViewModel<ModifierStubContent> } {
     if (hasModifierFamilyPage(slug)) {
       return { kind: 'teaching', vm: this.getModifierFamilyPage(slug) };
@@ -9466,22 +9646,19 @@ export const freestyleService = {
   },
 
   // A set is a launch system, not a modifier applied after launch: its teaching
-  // home is the Set Encyclopedia. When a set has an authored set page, the old
-  // /freestyle/modifier/:slug path redirects there so the launch is taught in
-  // one place. Returns the set path, or null to let the modifier route render.
+  // home is the Set Encyclopedia, so a set's /freestyle/modifier/:slug path
+  // redirects there and the launch is taught in one place. Returns the set path,
+  // or null to let the modifier route render.
   modifierRouteRedirectTarget(slug: string): string | null {
-    if (isSetFirstSlug(slug)) return `/freestyle/sets/${slug}`;
-    const retiredSet = RETIRED_SET_NICKNAME_REDIRECTS.get(slug);
-    if (retiredSet) return `/freestyle/sets/${retiredSet}`;
-    return null;
+    return modifierRouteTarget(slug);
   },
 
   // Modifier and operator rows live in freestyle_tricks for decomposition and
   // ADD math, but they are not tricks: the trick-detail route redirects them to
   // their operator / modifier page so they never render as a trick-detail entry.
-  // Sets are deliberately not redirected here (pixie and fairy are dual-role
-  // tricks), except route-migrated first-class sets (whirling, swirling), which
-  // resolve to their set page rather than a modifier stub. Pure alias slugs
+  // A set with an active trick row is not redirected (pixie and fairy are
+  // dual-role tricks); a set with none (whirling, railing, atomic) resolves to
+  // its set page. Pure alias slugs
   // (a historical name or abbreviation with no canonical row of their own)
   // redirect to the canonical trick URL, keeping one canonical URL per trick.
   /**
@@ -9554,6 +9731,19 @@ export const freestyleService = {
         continue;
       }
 
+      // An operator slug with no trick row at all (backside, xdex) names a
+      // modifier, not a trick: send it to the page its modifier route settles
+      // on, in one hop.
+      if (!row) {
+        const modifierRow = runSqliteRead('freestyleTrickModifiers.getBySlug', () =>
+          freestyleTrickModifiers.getBySlug.get(current) as FreestyleTrickModifierRow | undefined,
+        );
+        if (isKnownModifier(current, modifierRow)) return modifierPageHref(current);
+      }
+
+      // A set that migrated out of the trick corpus has its set page as its home.
+      if (isSetWithoutActiveTrick(current)) return `/freestyle/sets/${current}`;
+
       // Dead end: unknown slug, or a retired row with no registered survivor.
       break;
     }
@@ -9575,7 +9765,9 @@ export const freestyleService = {
         slug: string; canonical_name: string; adds: number | null; trick_family: string | null;
       }[],
     );
-    const displayName = row?.modifier_name ?? operatorFeelCard(slug)?.name ?? operatorTitleCase(slug);
+    // The heading is chrome, so it takes the feel card's name or the Title Case
+    // slug, never the registry's lowercase modifier_name.
+    const displayName = operatorFeelCard(slug)?.name ?? operatorTitleCase(slug);
     const axis        = OPERATOR_INDEX_AXES.find(a => a.modifierSlugs.includes(slug));
     const typeLabel   = axis?.typeLabel
       ?? (row ? MODIFIER_TYPE_LABEL[row.modifier_type] ?? 'Modifier' : 'Modifier');
@@ -9706,7 +9898,7 @@ export const freestyleService = {
    * rows of its own) groups members by variant instead.
    */
   getFamilyDetailPage(slug: string): PageViewModel<FreestyleFamilyDetailContent> | null {
-    if (!isOfficialFamilyParent(slug) || !PUBLIC_FAMILY_LABEL.has(slug)) return null;
+    if (!hasFamilyPage(slug)) return null;
 
     const displayName =
       PUBLIC_FAMILY_LABEL.get(slug)
@@ -9723,7 +9915,7 @@ export const freestyleService = {
     const rungOf = buildOperatorRungLookup(modifierLinkRows);
     const familyMap = buildFamilyMembershipMap(allRows.filter(r => r.is_active === 1));
 
-    const memberRows = familyMap.get(slug) ?? [];
+    const { memberRows, isUmbrella, variantBranches } = familyPageMembership(slug, familyMap);
     const group = buildFamilyGroup(slug, memberRows, ctx, rungOf);
 
     const memberLinkOf = (card: DictionaryTrickCard): FamilyDetailMemberLink => ({
@@ -9736,9 +9928,6 @@ export const freestyleService = {
     // Umbrella family: a roster root with variant branches and no raw
     // trick_family rows of its own. Its members group by variant (the ruled
     // set-by-foot decomposition) instead of by operator depth alone.
-    const variantBranches = PUBLIC_DISPLAY_FAMILIES.filter(f => f.parent === slug);
-    const isUmbrella = variantBranches.length > 0
-      && !memberRows.some(r => r.trick_family === slug);
     const variantGroups: FamilyDetailVariantGroup[] = isUmbrella
       ? variantBranches
           .map(branch => {
@@ -9857,7 +10046,7 @@ export const freestyleService = {
         slug,
         displayName,
         displayArticle,
-        hashtag:              `#${slug}`,
+        hashtag:              hashtagForRole(slug, 'family'),
         tierLabel:            FAMILY_TIER_LABEL['family-parent'],
         descendantCountLabel: `${descendantCount} tricks in this family`,
         branchParent,

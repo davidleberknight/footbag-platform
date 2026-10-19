@@ -34,8 +34,8 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 beforeAll(async () => {
   const db = createTestDb(dbPath);
 
-  // The quantum set primitive — exists in DB but its aliases column
-  // should NO LONGER include toe-blur after the re-point.
+  // The quantum set primitive: an inactive trick row, as the built dictionary
+  // holds it, since quantum lives on its set page rather than as a trick.
   insertFreestyleTrick(db, {
     slug:                'quantum',
     canonical_name:      'quantum',
@@ -44,7 +44,7 @@ beforeAll(async () => {
     trick_family:        'quantum',
     category:            'set',
     review_status:       'expert_reviewed',
-    is_active:           1,
+    is_active:           0,
     aliases_json:        '["toe butterfly"]',  // toe-blur removed
   });
   // Quantum Mirage — receives the toe-blur alias.
@@ -81,17 +81,13 @@ describe('toe-blur alias re-pointing (Red equivalence ruling)', () => {
     expect(res.text).toMatch(/toe blur/i);
   });
 
-  it('quantum detail page does not surface "toe blur" as an alias (it points to quantum-mirage)', async () => {
+  // Defect caught: quantum, a set with no active trick row, dead-ends in a 404
+  // at its trick URL instead of reaching its set page, where the quantum launch
+  // is taught (and where no toe-blur claim is made).
+  it('quantum permanently redirects to the quantum set page', async () => {
     const res = await request(await createApp()).get('/freestyle/tricks/quantum');
-    expect(res.status).toBe(200);
-    // The quantum set primitive's "Also known as" row should NOT list
-    // toe-blur (the alias points to quantum-mirage). toe-butterfly may
-    // still appear (out of scope here).
-    // Find the "Also known as" block — assert toe-blur is not within it.
-    const aboutMatch = res.text.match(/Also known as[\s\S]{0,500}/i);
-    if (aboutMatch) {
-      expect(aboutMatch[0]).not.toMatch(/toe blur/i);
-    }
+    expect(res.status).toBe(301);
+    expect(res.headers['location']).toBe('/freestyle/sets/quantum');
   });
 });
 

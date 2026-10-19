@@ -2,7 +2,7 @@
   "browser": {
     "browserName": "chromium",
     "isolated": true,
-    "initScript": ["tests/e2e/helpers/renderedStyle.browser.js"],
+    "initScript": ["../../tests/e2e/helpers/renderedStyle.browser.js"],
     "launchOptions": {
       "headless": true,
       "args": ["--no-sandbox", "--disable-dev-shm-usage"]

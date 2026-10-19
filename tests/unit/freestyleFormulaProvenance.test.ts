@@ -114,16 +114,17 @@ describe('every displayed set formula says whose notation it is', () => {
 describe('the label follows the source of the formula, not the lead of the citation', () => {
   it('blazing credits the compilation, not the ruling its citation opens with', () => {
     const blazing = findCanonicalSetBySlug('blazing')!;
-    // The citation opens with the ruling. Taking that opening clause would put a
-    // ruling's name above a side component the ruling explicitly did not settle.
-    expect(blazing.sourceCitation.startsWith('Red ruling')).toBe(true);
+    // The citation opens with the ruling's statement, not the compilation. Taking
+    // that opening clause would credit the ruling above a side component it
+    // explicitly did not settle.
+    expect(blazing.sourceCitation.startsWith('Holden')).toBe(false);
     expect(labelFor('blazing')).toBe(HOLDEN);
     expect(labelFor('blazing')).not.toMatch(/Red/);
   });
 
   it('flailing credits the compilation for the same reason', () => {
     const flailing = findCanonicalSetBySlug('flailing')!;
-    expect(flailing.sourceCitation.startsWith('Red ruling')).toBe(true);
+    expect(flailing.sourceCitation.startsWith('Holden')).toBe(false);
     expect(labelFor('flailing')).toBe(HOLDEN);
     expect(labelFor('flailing')).not.toMatch(/Red/);
   });

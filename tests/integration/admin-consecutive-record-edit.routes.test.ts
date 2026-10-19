@@ -75,6 +75,10 @@ beforeAll(async () => {
   insertConsecutiveKicksRecord(db, { id: 'ck_del', sort_order: 888, section: 'Milestone Firsts', subsection: 'Firsts', discipline: 'Open Singles', player_1: 'Delete Player', score: 15000 });
   // The row the confirm-step tests show; never deleted.
   insertConsecutiveKicksRecord(db, { id: 'ck_confirm', sort_order: 777, section: 'Milestone Firsts', subsection: 'Firsts', discipline: 'Women Singles', player_1: 'Confirm Player', score: 12000 });
+  // Text-cleaning targets: one save row, and one whose note was stored before
+  // cleaning existed (a run of spaces the cleaner collapses).
+  insertConsecutiveKicksRecord(db, { id: 'ck_clean', sort_order: 661, section: 'Highest Official Scores', subsection: 'Singles 20K+', discipline: 'Open Singles', player_1: 'Clean Player', score: 21000 });
+  insertConsecutiveKicksRecord(db, { id: 'ck_legacy_text', sort_order: 662, section: 'Highest Official Scores', subsection: 'Singles 20K+', discipline: 'Open Singles', player_1: 'Legacy Player', score: 21000, note: 'Stored   before   cleaning.' });
 
   createApp = await importApp();
 });
@@ -215,6 +219,62 @@ describe('POST /admin/freestyle/consecutive-records/:id/edit — validation', ()
   it('returns 404 saving an unknown id', async () => {
     const res = await post('/admin/freestyle/consecutive-records/nope_missing/edit', admin(), bodyFor('5'));
     expect(res.status).toBe(404);
+  });
+});
+
+function storedCk(id: string) {
+  return db.prepare('SELECT * FROM consecutive_kicks_records WHERE id = ?').get(id) as Record<string, unknown>;
+}
+
+describe('consecutive-kicks records — typed text is cleaned before it is stored', () => {
+  // Defect caught: markup typed into a player, event or note is stored and served
+  // on the public records page.
+  it('stores the names, event and note without markup', async () => {
+    const res = await post('/admin/freestyle/consecutive-records/ck_clean/edit', admin(), bodyFor('661', {
+      player1: '<b>Clean</b>   Player',
+      eventName: '<i>Worlds</i> 2020',
+      location: '<span>Testville</span>',
+      note: '<p>First   line.</p>\n\n\n\nSecond line.',
+    }));
+    expect(res.status).toBe(303);
+    expect(storedCk('ck_clean')).toMatchObject({
+      player_1: 'Clean Player', event_name: 'Worlds 2020', location: 'Testville', note: 'First line.\n\nSecond line.',
+    });
+  });
+
+  // Defect caught: a section made only of markup passes the required check, so a
+  // row is grouped under a blank heading.
+  it('refuses a section that is only markup, and writes nothing', async () => {
+    const before = storedCk('ck_guard');
+    const res = await post('/admin/freestyle/consecutive-records/ck_guard/edit', admin(), bodyFor('102', { section: '<b></b>' }));
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Section is required.');
+    expect(storedCk('ck_guard')).toEqual(before);
+    expect(ckAudit('ck_guard')).toHaveLength(0);
+  });
+
+  // Defect caught: a value stored before cleaning existed reads as edited on every
+  // save, so the audit trail claims changes the curator never made.
+  it('does not report a stored value that only differs by what cleaning removes', async () => {
+    const res = await post('/admin/freestyle/consecutive-records/ck_legacy_text/edit', admin(), bodyFor('662', {
+      player1: 'Legacy Player Renamed', note: 'Stored before cleaning.',
+    }));
+    expect(res.status).toBe(303);
+    const changed = (JSON.parse(ckAudit('ck_legacy_text')[0].metadata_json) as { changedFields: string[] }).changedFields;
+    expect(changed).toContain('player_1');
+    expect(changed).not.toContain('note');
+  });
+
+  // Defect caught: the own-repeat check compares the raw submission, so resending
+  // the same row with the markup already gone is refused as a position clash.
+  it("recognises a repeat of the admin's own create by its cleaned values", async () => {
+    const first = await post('/admin/freestyle/consecutive-records', admin(),
+      bodyFor('254', { section: 'Milestone Firsts', player1: '<b>Repeat</b> Clean' }));
+    expect(first.status).toBe(303);
+    const repeat = await post('/admin/freestyle/consecutive-records', admin(),
+      bodyFor('254', { section: 'Milestone Firsts', player1: 'Repeat Clean' }));
+    expect(repeat.status).toBe(303);
+    expect(repeat.headers.location).toBe(first.headers.location);
   });
 });
 
