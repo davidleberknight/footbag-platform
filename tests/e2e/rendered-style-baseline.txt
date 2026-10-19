@@ -1,7 +1,5 @@
 # Known rendered-style findings: rule, view, viewport, count. The check lowers these itself as findings are fixed.
-axe-scrollable-region-focusable	freestyle/compositional-sets	1280	1
 box-outside-viewport	admin/club-cleanup	390	150
-box-outside-viewport	freestyle/compositional-sets	390	126
 capture-truncated	admin/emerging-vocabulary	1280	1
 capture-truncated	admin/emerging-vocabulary	390	1
 contrast-low	dev/persona-listing	1280	161
@@ -46,7 +44,6 @@ heading-not-outranking	freestyle/trick-shell	1280	2
 heading-not-outranking	freestyle/trick-shell	390	2
 heading-not-outranking	freestyle/tricks	1280	2
 heading-not-outranking	freestyle/tricks	390	2
-page-overflow	freestyle/compositional-sets	390	1
 prose-muted	admin/admin-roles/index	1280	1
 prose-muted	admin/admin-roles/index	390	1
 prose-muted	admin/alarms/index	1280	1

@@ -24,8 +24,8 @@
       <div class="section-heading"><h2>Suggested Matches</h2></div>
       <ul class="candidate-list">
         {{#each content.candidates}}
-          <li class="candidate-card">
-            <div class="candidate-card-name">{{this.displayName}}</div>
+          <li class="card card-static">
+            <div class="card-title">{{this.displayName}}</div>
             <div class="candidate-card-provenance">{{this.provenanceLabel}}</div>
             {{#if this.country}}<div class="candidate-card-meta">Country: {{this.country}}</div>{{/if}}
             {{#if this.firstYear}}<div class="candidate-card-meta">First competed: {{this.firstYear}}</div>{{/if}}

@@ -91,10 +91,8 @@ by-numbers-eyebrow
 by-numbers-footnote
 by-numbers-grid
 by-numbers-title
-candidate-card
 candidate-card-action
 candidate-card-meta
-candidate-card-name
 candidate-card-provenance
 candidate-list
 caption-mask-frame
@@ -314,7 +312,6 @@ event-header
 event-hero
 event-hero-art-img
 event-hero-art-link
-event-hero-cta
 event-hero-description
 event-hero-eyebrow
 event-hero-meta
@@ -773,7 +770,6 @@ profile-account-list
 profile-avatar-card
 profile-avatar-img
 profile-avatar-placeholder
-profile-edit-btn
 profile-identity-block
 profile-layout
 profile-main
@@ -969,7 +965,6 @@ text-secondary
 tier-explainer
 tier-explainer-benefits
 tier-explainer-head
-tier-explainer-item
 tier-explainer-price
 tracked-tag
 trick-add-analysis

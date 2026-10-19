@@ -18,7 +18,10 @@ work inside a fix or remediation batch.
 
 Bright line: if analysis makes the answer certain, DO NOT ASK, act on it or state it settled. If
 genuine doubt survives the sources, DO ASK, never guess or assume. Multi-step analysis is not
-grounds to ask; only genuine undeterminability is. Read-only investigation needs no permission:
+grounds to ask; only genuine undeterminability is. Before asking, apply this test: if the human
+answered "I don't know", would you still know what to do? If yes, the question is not theirs:
+decide it, state the decision and its grounds, and let them overrule. A design or implementation
+detail that precedent or the standard settles is never put to the human as a choice. Read-only investigation needs no permission:
 git reads, DB SELECTs, curl GETs, file listings, compile-checks. Run them, never ask.
 
 Ask only when materially different interpretations survive the sources, the code, a document

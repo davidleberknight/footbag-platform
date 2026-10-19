@@ -527,7 +527,7 @@ describe('declared-anchor matching in the wizard claim task', () => {
     const page = await request(createApp())
       .get('/register/wizard/legacy_claim')
       .set('Cookie', cookieFor(memberId));
-    const occurrences = page.text.split(`<div class="candidate-card-name">Dup Person ${stamp}</div>`).length - 1;
+    const occurrences = page.text.split(`<div class="card-title">Dup Person ${stamp}</div>`).length - 1;
     expect(occurrences).toBe(1);
   });
 });

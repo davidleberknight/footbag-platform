@@ -31,11 +31,11 @@ export class WizardPage {
 
   // One claim-step card, found by the name it shows.
   card(name: string): Locator {
-    return this.page.locator('li.candidate-card').filter({ hasText: name });
+    return this.page.locator('.candidate-list > li.card').filter({ hasText: name });
   }
 
   get cards(): Locator {
-    return this.page.locator('li.candidate-card');
+    return this.page.locator('.candidate-list > li.card');
   }
 
   claimButton(card: Locator): Locator {

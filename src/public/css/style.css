@@ -80,7 +80,6 @@
   --shadow-lg:   0 8px 24px rgba(0,0,0,0.10);
   --shadow-pop:  0 4px 12px rgba(0,0,0,0.1);
   --shadow-hero: 0 4px 20px rgba(0,0,0,0.15);
-  --shadow-cta:  0 2px 10px rgba(0,0,0,0.25);
   --shadow-deep: 0 6px 24px rgba(0,0,0,0.18);
   --shadow-focus: 0 0 0 3px rgba(27,179,107,0.12);
   --radius:      10px;
@@ -355,7 +354,6 @@ body {
   line-height: 1.6;
   color: var(--text);
   background: var(--bg);
-  overflow-x: hidden;
 }
 
 a { color: var(--primary-ink); text-decoration: none; }
@@ -835,12 +833,6 @@ th.sortable:hover { color: var(--primary-ink); }
   flex-direction: column;
   gap: 10px;
 }
-.tier-explainer-item {
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--bg);
-}
 .tier-explainer-head {
   display: flex;
   align-items: baseline;
@@ -1245,11 +1237,6 @@ th.sortable:hover { color: var(--primary-ink); }
 .browse-section-heading {
   margin: 0 0 10px;
 }
-.browse-tags-help {
-  padding: 16px 20px;
-  background: var(--bg-light);
-  border-radius: var(--radius-md);
-}
 .browse-tags-help h2 {
   margin: 0 0 8px;
   font-size: 1.25rem;
@@ -1299,13 +1286,7 @@ th.sortable:hover { color: var(--primary-ink); }
 }
 
 /* Editable tag filter for unnamed (dynamic) galleries. */
-.tag-filter-bar {
-  margin: 16px 0;
-  padding: 12px 14px;
-  border: 1px solid var(--gray-400);
-  border-radius: var(--radius-md);
-  background: var(--bg-light);
-}
+.tag-filter-bar { margin: 16px 0; padding: 0; }
 .tag-filter-active {
   display: flex;
   flex-wrap: wrap;
@@ -1715,13 +1696,9 @@ button.tag-suggestion {
   color: var(--white);
   margin: 0 0 22px 0;
 }
-.event-hero-cta {
-  align-self: flex-start;
-  font-weight: 600;
-  padding: 12px 22px;
-  font-size: 1rem;
-  box-shadow: var(--shadow-cta);
-}
+/* The panel is a flex column, so its call to action keeps its own width
+   instead of stretching across the panel. */
+.event-hero-panel > .btn { align-self: flex-start; }
 @media (max-width: 768px) {
   .event-hero-panel { padding: 24px 22px; }
   .event-hero-title { font-size: 1.5rem; }
@@ -2380,16 +2357,8 @@ section.home-media { padding-top: 0; }
 .club-members-heading { font-size: 1rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 12px; }
 .club-member-list { list-style: none; padding: 0; margin: 0; border-top: 1px solid var(--border); }
 .club-member-entry { padding: 8px 0; border-bottom: 1px solid var(--border); font-size: 1rem; color: var(--text); }
-.club-members-gate {
-  margin-top: 32px;
-  padding: 14px 18px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  font-size: 1rem;
-  color: var(--text-muted);
-}
-/* The gate is a sentence in a div, which the prose-link underline does not reach. */
-.club-members-gate a { text-decoration: underline; }
+.club-members-gate { margin-top: 32px; }
+.club-members-gate p { margin: 0; }
 .club-back-link {
   margin-top: 32px;
 }
@@ -2577,11 +2546,9 @@ section.home-media { padding-top: 0; }
   margin-top: 4px;
 }
 
-.profile-edit-btn {
-  width: 100%;
-  text-align: center;
-  margin-top: 16px;
-}
+/* The avatar card centres its contents, so its button sits centred under the
+   avatar rather than at the card's start edge. */
+.profile-avatar-card .btn { align-self: center; margin-top: 16px; }
 
 .profile-main {
   min-width: 0;
@@ -3200,10 +3167,6 @@ section.home-media { padding-top: 0; }
 
 /* ── Profile edit: identity block ──────────────────────────── */
 .profile-identity-block {
-  background: var(--surface-faint);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 20px 24px;
   margin-bottom: 24px;
   max-width: 560px;
 }
@@ -3480,13 +3443,6 @@ section.home-media { padding-top: 0; }
   flex-direction: column;
   gap: 10px;
 }
-.candidate-card {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  background: var(--bg);
-  padding: 12px 14px;
-}
-.candidate-card-name { font-weight: 600; }
 .candidate-card-meta { color: var(--text-muted); font-size: 0.9rem; }
 .candidate-card-provenance {
   color: var(--text-muted);
@@ -3727,7 +3683,7 @@ section.home-media { padding-top: 0; }
   .gallery-item-detail { max-width: 800px; }
   .profile-avatar-card { display: flex; flex-direction: row; align-items: center; gap: 20px; text-align: left; padding: 20px 24px; }
   .profile-avatar-placeholder { width: 80px; height: 80px; font-size: 2rem; margin: 0; flex-shrink: 0; }
-  .profile-edit-btn { width: auto; margin-top: 8px; }
+  .profile-avatar-card .btn { margin-top: 0; }
   .dashboard-profile-link { flex-wrap: wrap; }
   .search-box-section { flex-direction: column; align-items: stretch; }
   .search-box-form { flex-direction: column; }
@@ -3754,7 +3710,6 @@ section.home-media { padding-top: 0; }
   /* Profile edit: stack identity rows and avatar on narrow screens */
   .identity-row { flex-direction: column; gap: 2px; }
   .identity-row dt { min-width: 0; }
-  .profile-identity-block { padding: 16px; }
   .avatar-edit-row { flex-direction: column; align-items: flex-start; gap: 12px; }
   .results-table th, .results-table td { padding: 8px 6px; }
 
@@ -4629,10 +4584,6 @@ a.hashtag--media:hover {
   display: flex;
   gap: 16px;
   flex-wrap: wrap;
-  padding: 12px 16px;
-  background: var(--bg-light);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
   margin-bottom: 24px;
   font-size: 0.9rem;
 }
@@ -4785,6 +4736,9 @@ a.hashtag--media:hover {
   border-left: 3px solid var(--border);
   border-radius: var(--radius-xs);
   padding: 12px 14px;
+  /* A grid item otherwise grows to its widest content, so a long notation
+     string would push the card past a phone's edge. */
+  min-width: 0;
 }
 .compositional-set-card--canonical {
   border-left-color: var(--accent);
@@ -4817,8 +4771,7 @@ a.hashtag--media:hover {
   border-radius: var(--radius-2xs);
   font-size: 0.9rem;
   color: var(--text-secondary);
-  overflow-x: auto;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .compositional-set-card-note {
@@ -5184,15 +5137,10 @@ a.hashtag--media:hover {
   font-style: italic;
   color: var(--text-muted);
 }
-.rules-detail .rules-toc {
-  background: var(--bg-light);
-  border-left: 3px solid var(--primary);
-  padding: 12px 16px;
-  margin: 16px 0;
-}
-.rules-detail .rules-toc strong { display: block; margin-bottom: 6px; }
-.rules-detail .rules-toc ul { margin: 0; padding-left: 20px; }
-.rules-detail .rules-toc li { margin: 2px 0; }
+.rules-toc { margin: 16px 0; }
+.rules-toc strong { display: block; margin-bottom: 6px; }
+.rules-toc ul { margin: 0; padding-left: 20px; }
+.rules-toc li { margin: 2px 0; }
 .rules-detail .rules-footer-back { margin-top: 24px; }
 .rules-detail .markdown-body h1 {
   margin: 24px 0 8px;
@@ -11684,18 +11632,6 @@ a.by-numbers-card:hover {
   gap: 16px;
   align-items: stretch;
 }
-.media-hub-card {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  min-height: 150px;
-  padding: 16px 18px;
-  border-radius: var(--radius-md);
-  background: var(--bg-subtle);
-  box-shadow: var(--shadow-sm);
-}
-.media-hub-card p { margin: 0; flex: 1; color: var(--text-secondary); font-size: 0.9rem; }
-.media-hub-card .btn { align-self: flex-start; margin-top: 4px; }
 .media-hub-soon { margin-top: 4px; font-size: 0.9rem; font-weight: 600; color: var(--text-muted); }
 /* Browse-by-hashtag leads the grid with a distinct green fill at the same card
    size as its siblings, so it reads as the primary tag-driven entry point. */
@@ -11704,9 +11640,7 @@ a.by-numbers-card:hover {
   color: var(--white);
 }
 .media-hub-card--browse .card-title { color: var(--white); }
-.media-hub-card--browse p { color: rgba(255, 255, 255, 0.88); }
-.media-hub-card--browse .btn-outline { border-color: var(--white); color: var(--white); }
-.media-hub-card--browse .btn-outline:hover { background: var(--white); color: var(--primary-ink); }
+.media-hub-card--browse p { color: var(--white); }
 @media (max-width: 1024px) {
   .media-hub-grid { grid-template-columns: repeat(2, 1fr); }
 }
