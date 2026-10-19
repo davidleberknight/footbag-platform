@@ -66,7 +66,7 @@
 
 **Discipline**: One contested unit at an event: a game, an entry size (singles or doubles), a gender eligibility (open, women's or mixed) and a class (novice, intermediate, open or masters), shown by a generated name such as "Women's Singles Net". Entries, draws, results and records belong to a discipline. Text that classifies the sport uses this word only in this sense, and calls net, freestyle, golf and sideline categories; in running prose the word may keep its everyday sense of a practice or a self-imposed rule.
 
-**Division**: IFPA's term for a player bracket by class or gender, such as the Women's division, the Intermediate division, or Women's Intermediate. A division is part of a discipline, not a discipline: offering a Women's division means offering at least one discipline whose gender is women's.
+**Division**: IFPA's term for a player bracket by class or gender, such as the Women's division, the Intermediate division, or Women's Intermediate. A division is part of a discipline, not a discipline: offering a Women's division in a game and entry size means offering at least one discipline of that game and entry size whose gender is women's.
 
 **DKIM (DomainKeys Identified Mail)**: Email authentication method verifying sender identity using cryptographic signatures. Footbag.org has two signers and configures a key for each: AWS SES for the platform's own outbound, and Google Workspace for mail sent from a hosted role mailbox. Both improve deliverability and prevent spoofing, and a message signed by neither rests on the sender policy alone.
 
