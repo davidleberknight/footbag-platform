@@ -28,8 +28,8 @@ philosophy of naming that follows.
 - **Timing can block a merge.** Two names are not one operator merely because
   their dex structures or older names look related: a difference in timing (uptime
   vs downtime) individuates them. Atomic (uptime) and Illusioning (downtime) are
-  distinct, and Furious and Barraging are distinct on the same grounds. Both pairs
-  were once read as merges; those readings were superseded by the timing ruling.
+  distinct. The pair was once read as a merge; that reading was superseded by the
+  timing ruling.
   Older source usages that blurred the distinction are preserved in provenance or
   alias notes where appropriate, but the modern timing distinction controls the
   canon.
@@ -38,9 +38,8 @@ philosophy of naming that follows.
 
 1. **Timing as an identity axis: partially settled.** Timing — uptime versus
    downtime execution of the same dex sequence — is now ruled identity-bearing for
-   the operator pairs where it was tested: Atomic (uptime) is distinct from
-   Illusioning (downtime), and Furious is distinct from Barraging on the same
-   grounds. The record already leaned on timing (nuclear is defined as paradox
+   the operator pair where it was tested: Atomic (uptime) is distinct from
+   Illusioning (downtime). The record already leaned on timing (nuclear is defined as paradox
    plus a *downtime* illusion; a downtime miraging pickup did not match a quantum
    pickup in cross-source checking), and the ruling confirms it. What remains open
    is the general statement: does a timing difference individuate *every* dex
@@ -74,11 +73,9 @@ philosophy of naming that follows.
   canonical concept, not an old alias of Atomic, and older source usages that
   blurred the two are preserved in provenance or alias notes where appropriate. Any
   merger criterion must return "do not merge" here, on timing.
-- **Furious vs Barraging (settled distinct, illustrates timing).** Once read as
-  one two-dex set under two names; they are now distinct because one is uptime and
-  one is downtime. Older source usages that blurred the distinction are preserved in
-  provenance or alias notes where appropriate, but the modern timing distinction
-  controls the canon. The criterion must return "do not merge" here too.
+- **Furious and Barraging (settled the same).** One concept under two names, with
+  Furious the canonical and commonly used name (rules-expert ruling, 2026-10-18).
+  The criterion must return "merge" here.
 - **Quantum vs Miraging (working ruling).** Same dex token, same weight,
   near-identical compounds on two bases. Under the maintainer's working ruling they
   parallel Atomic/Illusioning — Quantum the uptime set, Miraging the downtime or
@@ -101,7 +98,7 @@ premises are already the basis of the alias architecture.
 
 Red owns the general timing rule and the merger criterion — these are
 movement-knowledge and rules-authority calls — and has already settled the
-Atomic/Illusioning and Furious/Barraging timing distinctions. Quantum/Miraging
+Atomic/Illusioning timing distinction. Quantum/Miraging
 sits under the maintainer's working ruling unless a source contradiction forces
 escalation. The admission test for new canonical rows is internal editorial
 doctrine, escalating to Red only for a genuinely novel structure with no attested

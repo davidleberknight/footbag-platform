@@ -93,13 +93,10 @@ silently reshaping either side.
   timing clarification settles the tested pairs: Atomic is an uptime set and
   Illusioning is a distinct downtime move, so they do not merge; hippy Atomic and
   leggy Atomic are execution styles of Atomic, not separate canonical tricks.
-  Furious and Barraging are also distinct by timing and are not globally merged.
-  This ruling supersedes the earlier merge readings for those pairs. The broader
+  This ruling supersedes the earlier merge reading for that pair. The broader
   rule — whether timing always individuates every dex sequence — remains an open
   Identity question unless separately ruled. Older terminology is preserved in
-  provenance or alias notes where it blurred the distinction; any historical
-  "Barraging" or "Furious" name is audited before a canonical rename or an alias
-  rewire, and nothing is rewired on the strength of this ruling alone.
+  provenance or alias notes where it blurred the distinction.
 - **The downs are one family** (Wave 3 follow-up, 2026-07-02): a single structural
   decomposition with set/foot variants. Full doctrine, grid, and the still-open
   embedded-base labeling half in `DOWN_FAMILY.md`. The earlier pt7 ruling that the
@@ -111,16 +108,17 @@ silently reshaping either side.
   whose base is unclear is deferred, never forced into a stall decomposition.
 - **Multiplicity is descriptive unless community usage stabilizes a name** (pt3).
   "Double / Triple X" describes repeated dexterity or body-spin events; it earns a
-  canonical row only on stabilized named identity (double-leg-over yes; Double
-  Fairy no). James-ratified identity/publication threshold: a count-prefixed form
+  canonical row only on stabilized named identity (double-leg-over yes).
+  James-ratified identity/publication threshold: a count-prefixed form
   earns its own canonical row only when evidence supports a stabilized trick
   identity rather than a literal instruction to repeat a movement — either stable
   community use of the count form as the trick's own independent name, or a
   structural reason it must be represented independently (anchoring a family or
   base, carrying established descendants, or resolving a decomposition ambiguity).
   Otherwise the count stays a descriptive multiplicity on the base and earns no
-  row; double-over-down, double-leg-over, the stabilized double-spinning forms, and
-  triple-mirage qualify, while records-only counts such as Double Dyno and Double
+  row; double-over-down, double-leg-over, Double Fairy (a valid set, rules-expert
+  ruling, 2026-10-18), the stabilized double-spinning forms, and triple-mirage
+  qualify, while records-only counts such as Double Dyno and Double
   Whip do not. This governs row identity only: descriptive-multiplicity rendering
   is handled separately, and the ADD treatment of an unregistered count prefix
   remains the Red-blocked count-quantifier scoring question.
@@ -129,17 +127,19 @@ silently reshaping either side.
 - **1-ADD delay and body tricks are included** in the dictionary; **Spyro is a
   trick, not a general modifier concept** (naming has largely shifted toward
   Inspin); **Gyro = spinning and dexing with the same foot that set the bag**.
-- **Whirling and Swirling are legitimate sets** (maintainer ruling). Both are
-  whirl-family launch sets; their taxonomic and reference home is the Set
-  Encyclopedia (subtype `whirl-swirl`), and their set-versus-modifier status is
-  settled, not pending. They are not first-class By-modifier browse groups.
-  Existing modifier-link relationships may remain available through secondary
-  tracked-group surfaces, and doing so does not reclassify them as modifiers.
-  Admission to the curated By Set browse roster is a separate browse-curation
-  decision, not settled by this ruling. The separately documented mid-chain
-  whirling operator reading (the injected rotational dex in the operator
-  reference) is unaffected. This ruling covers only whirling and swirling; it
-  reclassifies no other token.
+- **Swirling and Tapping are sets; Whirling is not** (rules-expert ruling,
+  2026-10-18). Swirling and Tapping are launch sets, and their set-versus-modifier
+  status is settled, not pending. Whirling is not a set: Blazing is the Whirling
+  set (see Blazing under Operator rulings in force), and whirling stays a body
+  modifier in the registry, with its mid-chain operator reading (the injected
+  rotational dex in the operator reference) unchanged. Neither set is a
+  first-class By-modifier browse group; existing modifier-link relationships may
+  remain available through secondary tracked-group surfaces without reclassifying
+  them. Admission to the curated By Set browse roster is a separate
+  browse-curation decision. This ruling reclassifies no other token.
+- **Railing, Surfing, Splicing and Floating are first-class named sets, even if
+  uncommon** (rules-expert ruling, 2026-10-18). Each keeps its composite definition
+  in the registry; being a composition does not make a named set any less a set.
 
 ## Operator rulings in force
 
@@ -153,14 +153,8 @@ Values for all of these live in `freestyleOperatorReference.ts` /
   earlier reading, while the STANDALONE pogo set keeps its 0-ADD identity (both
   halves recorded in the registry and the pogo row's provenance; evidence dossier
   at `exploration/pogo-add-doctrine-packet/CURATOR_PACKET.md`).
-- **Furious = barraging** (pt14): the same operator — a two-dex uptime set;
-  "Barraging is more explanative." **Superseded by the latest timing
-  clarification:** Red now holds that Furious and Barraging are distinct by timing
-  (one uptime, one downtime) and are not globally merged. The pt14 reading is
-  preserved as the earlier ruling; the replacement is the timing-individuates entry
-  under Structural doctrine in force. Any historical "Barraging" name whose
-  structure is uptime is audited before a canonical rename or alias rewire; no data
-  is rewired on this note alone.
+- **Furious = Barraging** (pt14; rules-expert ruling, 2026-10-18): the same
+  concept, with Furious the canonical and commonly used name.
 - **Inspinning** (pt14): any spin counts the same, so inspinning carries spinning's
   weight; it differs in rotation direction (front where spinning is back).
 - **Nuclear** (pt9, pt14): structurally a paradox dex plus a downtime illusioning
@@ -197,9 +191,9 @@ Values for all of these live in `freestyleOperatorReference.ts` /
   question; the +1 count is unchanged and remains the corpus-derived ruling in
   `OPERATOR_DERIVATIONS.md`, read now as the set's scoring contribution rather
   than a body-modifier bonus. Blazing is therefore a named whirl-chassis set, not
-  a body modifier and not an alias of whirling: Red did not address Holden's
-  blazing/whirling terminal-side distinction, and until that is ruled the two stay
-  distinct named sets. The registry stores count-bearing sets in the same table as
+  a body modifier and not an alias of whirling. The rules-expert ruling of
+  2026-10-18 confirms it as the uptime Whirling set at 1 ADD; whirling itself is
+  not a set. The registry stores count-bearing sets in the same table as
   modifiers, so blazing's `modifier_type=set` records it as a set within that
   shared storage model; the storage convention is not a claim that it modifies.
 - **Blazing and flailing side reference** (curator-relayed, 2026-09-17): the side

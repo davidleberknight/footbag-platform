@@ -83,9 +83,8 @@ the paper that owns its detail.
    difference in timing (uptime versus downtime) or in role is identity-bearing:
    two names are not one operator merely because their dex structures or older
    names look related. Atomic is an uptime set and Illusioning is a separate
-   downtime move, so they do not merge; Furious and Barraging are distinct on the
-   same timing grounds. Earlier readings that merged each pair were superseded by
-   the rules expert's later timing clarification. Older source usages that blurred
+   downtime move, so they do not merge. The earlier reading that merged them was
+   superseded by the rules expert's later timing clarification. Older source usages that blurred
    the distinction are preserved in provenance or alias notes where appropriate,
    but modern timing distinctions control the canon. (Identity.)
 
@@ -133,7 +132,7 @@ The series changes by supersession, never by silent overwrite.
    (premise 9) and the authority order (premise 8) carry the identity and scoring
    foundations the later papers assume; each is re-opened only by a deliberate,
    recorded amendment. Premise 9 is itself the product of one such amendment,
-   which superseded an earlier pair of merge readings on a timing ruling.
+   which superseded an earlier merge reading on a timing ruling.
 
 ## Open questions
 
@@ -147,12 +146,11 @@ The series changes by supersession, never by silent overwrite.
   governed for a time; it was superseded by "atomic is +1 flat, with a separate
   conditional X-Dex," and the change was recorded, the registry migrated, and the
   old reading marked superseded. This is the amendment rule working as intended.
-- **The merge readings superseded on timing.** Atomic and Illusioning were once
-  read as one operator under two names, and Furious and Barraging as one set under
-  two names. Both readings were superseded when the rules expert clarified that
-  timing individuates them: Atomic is an uptime set and Illusioning a separate
-  downtime move, and Furious and Barraging differ by timing in the same way. The
-  earlier merge readings are marked superseded, and older source usages that
+- **The merge reading superseded on timing.** Atomic and Illusioning were once
+  read as one operator under two names. That reading was superseded when the
+  rules expert clarified that timing individuates them: Atomic is an uptime set
+  and Illusioning a separate downtime move. The earlier merge reading is marked
+  superseded, and older source usages that
   blurred the distinction are preserved in provenance or alias notes where
   appropriate; Atomic and Illusioning remain distinct canonical concepts. This is
   the amendment rule reversing a premise deliberately and on the record, not a
