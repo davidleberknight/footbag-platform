@@ -20,6 +20,11 @@ import { rowPin, snapshotIds, oneRowAddedSince } from '../fixtures/rowPinning';
 
 const { dbPath } = setTestEnv('3062');
 
+// Built from code points so the decomposed and composed forms stay visibly
+// different in the source.
+const DECOMPOSED_E_ACUTE = `e${String.fromCodePoint(0x0301)}`;
+const COMPOSED_E_ACUTE = String.fromCodePoint(0x00e9);
+
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
@@ -348,25 +353,23 @@ describe('bio validation', () => {
 
   // Adversarial unicode: an RTL override (U+202E), a zero-width joiner
   // (U+200D), a Cyrillic homoglyph (U+0430), and an HTML/script payload.
-  // normalizeText only trims, so the interior control + homoglyph chars are
-  // stored verbatim; the profile view double-stashes {{content.bio}} so the
-  // script is HTML-escaped and never executes.
-  it('stores control/homoglyph chars verbatim and HTML-escapes the bio on render', async () => {
+  // Defect caught: the bio is stored with its script tags, so every surface
+  // that renders it leans on escaping alone, or the cleaning eats the words
+  // around the tags; or the profile renders a bio live. Formatting characters
+  // and homoglyphs are not markup, so they are kept as typed.
+  it('stores the bio without its tags, keeps the text, and renders it inert', async () => {
     const bio = 'pa\u202Eyback\u200D \u0430dmin <script>alert(1)</script>';
     const res = await postEdit({ bio });
     expect(res.status).toBe(303);
-    expect(readMember().bio).toBe(bio);
+    expect(readMember().bio).toBe('pa\u202Eyback\u200D \u0430dmin alert(1)');
 
     const view = await request(createApp())
       .get(`/members/${MEMBER_SLUG}`)
       .set('Cookie', ownCookie());
     expect(view.status).toBe(200);
-    // Script payload escaped, not live.
     expect(view.text).not.toContain('<script>alert(1)</script>');
-    expect(view.text).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
-    // Control + homoglyph chars survive into the rendered HTML verbatim.
+    expect(view.text).toContain('\u0430dmin alert(1)');
     expect(view.text).toContain('\u202E');
-    expect(view.text).toContain('\u0430');
   });
 });
 
@@ -697,5 +700,131 @@ describe('profile save submitted twice', () => {
     const another = await postTwice({ ...form, bio: 'One edit too many' });
     expect(another.status).toBe(429);
     expect(twiceState()).toEqual(afterLast);
+  });
+});
+
+// ── Typed text is cleaned before it is checked and stored ─────────────────────
+
+describe('profile text is cleaned at write time', () => {
+  // A member of their own, so the version and audit counts below belong to
+  // these cases alone.
+  const CLEAN_ID = 'edit-val-clean';
+  const CLEAN_SLUG = 'edit_val_clean';
+  const LINK_URL = 'https://93.184.216.34/';
+  const cleanForm = {
+    bio: 'First para\n\nSecond para', city: 'Old Town', region: 'OR', country: 'USA',
+    birthDay: '14', birthMonth: '3', birthYear: '1978',
+    phone: '555-0101', emailVisibility: 'members',
+    link_label: 'My site', link_url: LINK_URL,
+  };
+
+  function postClean(fields: Record<string, string>): Test {
+    return request(createApp())
+      .post(`/members/${CLEAN_SLUG}/edit`)
+      .set('Cookie', `__Host-footbag_session=${createTestSessionJwt({ memberId: CLEAN_ID })}`)
+      .type('form')
+      .send({ ...cleanForm, ...fields });
+  }
+
+  function cleanRow(): { version: number; bio: string; city: string; region: string; phone: string | null; whatsapp: string | null } {
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const row = db.prepare('SELECT version, bio, city, region, phone, whatsapp FROM members WHERE id = ?')
+      .get(CLEAN_ID) as ReturnType<typeof cleanRow>;
+    db.close();
+    return row;
+  }
+
+  function cleanAudits(): number {
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const n = (db.prepare(
+      `SELECT COUNT(*) AS n FROM audit_entries WHERE action_type = 'member.profile_updated' AND entity_id = ?`,
+    ).get(CLEAN_ID) as { n: number }).n;
+    db.close();
+    return n;
+  }
+
+  beforeAll(async () => {
+    const db = new BetterSqlite3(dbPath);
+    insertMember(db, { id: CLEAN_ID, slug: CLEAN_SLUG, display_name: 'Clean Saver', login_email: 'clean@example.com' });
+    db.close();
+    const onboarding = (await import('../../src/services/memberOnboardingService')).memberOnboardingService;
+    onboarding.completeTask(CLEAN_ID, 'personal_details');
+    onboarding.completeTask(CLEAN_ID, 'legacy_claim');
+    onboarding.completeTask(CLEAN_ID, 'club_affiliations');
+  });
+
+  // Defect caught: a field the member typed is stored with markup, a C1
+  // control character, Windows line endings or a decomposed accent, so the
+  // same words compare unequal and every reader of the row inherits the junk;
+  // or the bio loses the paragraph break the member meant.
+  it('stores bio, city, phone and WhatsApp as the cleaner leaves them', async () => {
+    const res = await postClean({
+      bio:      `Line one\r\n\r\n\r\nLine <b>two</b>\u0085 caf${DECOMPOSED_E_ACUTE}`,
+      city:     `Montr${DECOMPOSED_E_ACUTE}al <i>Nord</i>`,
+      phone:    '555\u0085-<b>0102</b>',
+      whatsapp: '+1 555 <b>0100</b>',
+    });
+    expect(res.status).toBe(303);
+    const row = cleanRow();
+    expect(row.bio).toBe(`Line one\n\nLine two caf${COMPOSED_E_ACUTE}`);
+    expect(row.city).toBe(`Montr${COMPOSED_E_ACUTE}al Nord`);
+    expect(row.phone).toBe('555-0102');
+    expect(row.whatsapp).toBe('+1 555 0100');
+  });
+
+  // Defect caught: a city that was only markup passes the required check
+  // because the check reads the raw text, and the profile is saved with an
+  // empty city.
+  it('refuses a city that is only markup and writes nothing', async () => {
+    const before = cleanRow();
+    const res = await postClean({ city: '<b></b>' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('City is required.');
+    expect(cleanRow()).toEqual(before);
+  });
+
+  // The administrator's correction form allows 40 characters for phone and
+  // WhatsApp, so that is the real ceiling the server holds as well.
+  // Defect caught: a phone longer than any form allows is stored, or the
+  // limit counts markup the cleaner removes and refuses a value that fits.
+  it('holds phone and WhatsApp to 40 characters, counted after cleaning', async () => {
+    const fits = await postClean({ phone: `${'5'.repeat(40)}<b></b>` });
+    expect(fits.status).toBe(303);
+    expect(cleanRow().phone).toBe('5'.repeat(40));
+
+    const before = cleanRow();
+    const longPhone = await postClean({ phone: '5'.repeat(41) });
+    expect(longPhone.status).toBe(422);
+    expect(longPhone.text).toContain('Phone must be 40 characters or fewer.');
+
+    const longWhatsapp = await postClean({ whatsapp: `+1 555 0100${'-'.repeat(30)}` });
+    expect(longWhatsapp.status).toBe(422);
+    expect(longWhatsapp.text).toContain('WhatsApp must be 40 characters or fewer.');
+    expect(cleanRow()).toEqual(before);
+  });
+
+  // Defect caught: a member whose bio, city or link label was saved before
+  // cleaning existed resubmits the form untouched, and the save compares the
+  // cleaned input with the raw stored value, so it reports changes nobody made
+  // and writes an audit row for them, or re-verifies a link they did not touch.
+  // The stored link's address is one verification now refuses (a private
+  // network address), so a re-verification shows as a refusal.
+  it('an untouched resubmission of values saved before cleaning records no change', async () => {
+    expect((await postClean({})).status).toBe(303);
+    const dirtyBio = 'First para\r\n\r\nSecond <b>para</b>';
+    const dirtyCity = 'Old <i>Town</i>';
+    const dirtyLabel = 'My <b>site</b>';
+    const storedUrl = 'https://10.0.0.5/';
+    const db = new BetterSqlite3(dbPath);
+    db.prepare('UPDATE members SET bio = ?, city = ? WHERE id = ?').run(dirtyBio, dirtyCity, CLEAN_ID);
+    db.prepare('UPDATE member_links SET label = ?, url = ? WHERE member_id = ?').run(dirtyLabel, storedUrl, CLEAN_ID);
+    db.close();
+    const before = cleanRow();
+    const audits = cleanAudits();
+
+    const res = await postClean({ bio: dirtyBio, city: dirtyCity, link_label: dirtyLabel, link_url: storedUrl });
+    expect(res.status).toBe(303);
+    expect(cleanAudits()).toBe(audits);
+    expect(cleanRow()).toEqual(before);
   });
 });

@@ -242,6 +242,26 @@ describe('assigning an organizer', () => {
     expect(organizersOf(eventId)).toHaveLength(0);
   });
 
+  // Defect caught: markup, a control character or a run of spaces typed into
+  // the reason reaches the audit trail as typed, or a reason that is only
+  // markup passes the required check and records an assignment with no reason.
+  it('records a cleaned reason, and refuses one that is only markup', async () => {
+    const member = makeMember('org_dirty_reason');
+    const eventId = withDb((db) => insertEvent(db, { title: 'Dirty Reason Open', start_date: '2099-09-10' }));
+
+    const refused = await assign(eventId, 'org_dirty_reason', '<script></script><b></b>');
+    expect(refused.status).toBe(422);
+    expect(organizersOf(eventId)).toHaveLength(0);
+
+    const res = await assign(eventId, 'org_dirty_reason', '<b>Volunteered</b> at\u0085 the   club\tmeeting.');
+    expect(res.status).toBe(303);
+    expect(organizersOf(eventId)).toEqual([{ member_id: member, role: 'organizer' }]);
+    const audit = withDb((db) => db.prepare(
+      "SELECT reason_text FROM audit_entries WHERE action_type = 'event.organizer_assigned' AND entity_id = ?",
+    ).all(eventId) as { reason_text: string }[]);
+    expect(audit).toEqual([{ reason_text: 'Volunteered at the club meeting.' }]);
+  });
+
   it('refuses a member nobody can find', async () => {
     const eventId = withDb((db) => insertEvent(db, { title: 'Ghost Assignment', start_date: '2099-10-10' }));
     const res = await assign(eventId, 'no_such_member', 'Trying an unknown slug.');

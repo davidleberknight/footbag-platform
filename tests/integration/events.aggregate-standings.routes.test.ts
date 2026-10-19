@@ -19,6 +19,7 @@ import {
   insertResultEntry,
   insertResultParticipant,
   insertHistoricalPerson,
+  createTestSessionJwt,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3483');
@@ -122,8 +123,11 @@ describe('event page', () => {
 describe('player history page', () => {
   it('counts no aggregate standing toward a sport and pairs no partner through one', async () => {
     // Defect caught: an overall placing shown as a net or freestyle win, or an
-    // overall standing's co-entrant shown as a playing partner.
-    const res = await request(createApp()).get(`/history/${PLAYER}`);
+    // overall standing's co-entrant shown as a playing partner. The career
+    // aggregates are member-only, so a member views the page.
+    const res = await request(createApp())
+      .get(`/history/${PLAYER}`)
+      .set('Cookie', `__Host-footbag_session=${createTestSessionJwt({ memberId: 'agg-uploader' })}`);
     expect(res.status).toBe(200);
     const row = (label: string) =>
       res.text.match(new RegExp(`<td>${label}</td>\\s*<td class="col-num">(\\d+)</td>\\s*<td class="col-num">(\\d+)</td>`));

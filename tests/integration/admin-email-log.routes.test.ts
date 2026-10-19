@@ -326,6 +326,26 @@ describe('POST /admin/email-log/:id/review', () => {
     expect(auditRows('el_rev_twice')).toHaveLength(1);
   });
 
+  // Defect caught: the review note carries markup, control characters or
+  // stacked blank lines onto the row and into the permanent ledger, or a note
+  // of markup alone passes the required check and settles the failed message
+  // with no explanation.
+  it('records the note cleaned, and refuses one that is only markup', async () => {
+    withDb((db) => insertOutboxEmail(db, { id: 'el_rev_clean', status: 'dead_letter' }));
+    const review = (note: string) => request(createApp())
+      .post('/admin/email-log/el_rev_clean/review')
+      .set('Cookie', adminCookie())
+      .type('form').send({ note });
+
+    expect((await review('<b> </b>')).status).toBe(422);
+    expect(outboxRow('el_rev_clean').reviewed_at).toBeNull();
+
+    expect((await review('First <i>para</i>\u009b Café\r\n\r\n\r\n\r\n\r\nSecond para')).status).toBe(303);
+    const cleaned = 'First para Café\n\nSecond para';
+    expect(outboxRow('el_rev_clean').review_note).toBe(cleaned);
+    expect(auditRows('el_rev_clean').map((a) => a.reason_text)).toEqual([cleaned]);
+  });
+
   it('refuses a review with no note', async () => {
     withDb((db) => insertOutboxEmail(db, { id: 'el_rev_nonote', status: 'dead_letter' }));
     const res = await request(createApp())

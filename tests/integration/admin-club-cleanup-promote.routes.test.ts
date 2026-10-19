@@ -445,13 +445,15 @@ describe('promotion carry-forward of candidate-keyed wizard flags', () => {
     expect(res.text).toContain('inactive per: Promote Voter One, Promote Voter Two');
   });
 
+  // Also catches the promotion reason being written to the ledger with live
+  // markup and control characters.
   it('admin promotion stamps the club id onto the flags, empties the flag group, and feeds the gates', async () => {
     const expectedClubId = stableClubId(FLAGGED_KEY);
     const res = await request(createApp())
       .post(`/admin/club-cleanup/candidates/${FLAGGED_CAND}/promote`)
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ reasonText: 'Real club; flags carry forward', region: 'Colorado' });
+      .send({ reasonText: 'Real <b>club</b>\u0085 flags carry forward', region: 'Colorado' });
     expect(res.status).toBe(303);
 
     const db = new BetterSqlite3(dbPath, { readonly: true });
@@ -465,9 +467,10 @@ describe('promotion carry-forward of candidate-keyed wizard flags', () => {
       }
 
       const audit = db.prepare(
-        "SELECT metadata_json FROM audit_entries WHERE action_type = 'admin.club_cleanup.promote' AND entity_id = ?",
-      ).get(expectedClubId) as { metadata_json: string };
+        "SELECT reason_text, metadata_json FROM audit_entries WHERE action_type = 'admin.club_cleanup.promote' AND entity_id = ?",
+      ).get(expectedClubId) as { reason_text: string; metadata_json: string };
       expect(JSON.parse(audit.metadata_json).viability_flags_stamped).toBe(2);
+      expect(audit.reason_text).toBe('Real club flags carry forward');
     } finally {
       db.close();
     }

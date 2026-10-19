@@ -202,6 +202,44 @@ describe('POST /admin/alarms/:id/acknowledge', () => {
     expect(row.acknowledgment_note).toBeNull();
   });
 
+  // Defect caught: the note carries markup, control characters or stacked
+  // blank lines onto the alarm and into the permanent ledger as typed.
+  it('records the note cleaned on the alarm and in the ledger', async () => {
+    const id = withDb((db) => insertSystemAlarmEvent(db, { alarm_type: 'footbag-clean-note', status: 'active' }));
+    const res = await request(createApp())
+      .post(`/admin/alarms/${id}/acknowledge`)
+      .set('Cookie', cookieFor(ADMIN_ID))
+      .type('form')
+      .send({ note: 'First <i>para</i>\u009b Café\r\n\r\n\r\n\r\n\r\nSecond para' });
+    expect(res.status).toBe(303);
+    const cleaned = 'First para Café\n\nSecond para';
+    expect(alarmRow(id).acknowledgment_note).toBe(cleaned);
+    expect(acknowledgeAudits().map((a) => a.reason_text)).toEqual([cleaned]);
+  });
+
+  // Defect caught: the 500-character cut lands on the raw text, so markup the
+  // cleaner would have removed eats into the note and what is stored is
+  // truncated, or a note of markup alone is stored as an empty note.
+  it('cuts the note to length after cleaning, and stores no note for markup alone', async () => {
+    const long = withDb((db) => insertSystemAlarmEvent(db, { alarm_type: 'footbag-long-note', status: 'active' }));
+    const words = 'x'.repeat(450);
+    expect((await request(createApp())
+      .post(`/admin/alarms/${long}/acknowledge`)
+      .set('Cookie', cookieFor(ADMIN_ID))
+      .type('form')
+      .send({ note: `${'<b></b>'.repeat(20)}${words}` })).status).toBe(303);
+    expect(alarmRow(long).acknowledgment_note).toBe(words);
+
+    const bare = withDb((db) => insertSystemAlarmEvent(db, { alarm_type: 'footbag-markup-note', status: 'active' }));
+    expect((await request(createApp())
+      .post(`/admin/alarms/${bare}/acknowledge`)
+      .set('Cookie', cookieFor(ADMIN_ID))
+      .type('form')
+      .send({ note: '<p> </p>' })).status).toBe(303);
+    expect(alarmRow(bare).status).toBe('acknowledged');
+    expect(alarmRow(bare).acknowledgment_note).toBeNull();
+  });
+
   it("a second acknowledgment leaves the first administrator's name and note in place", async () => {
     const id = withDb((db) => insertSystemAlarmEvent(db, { alarm_type: 'footbag-once', status: 'active' }));
     await request(createApp())

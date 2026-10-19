@@ -41,6 +41,9 @@
  *     the same transaction, so a settled item cannot leave a card behind.
  *   - Rate limiting per reporter comes from `media_flag_rate_limit_per_hour`.
  *   - Tier 1 benefits are required to report, checked here as well as at the route.
+ *   - The reporter's words and an administrator's reason are cleaned with the
+ *     shared sanitizer before validation, so the required and length checks
+ *     apply to what is stored.
  *
  * Invariants preserved:
  *   - The audit ledger and the work-queue row carry no member free text: the
@@ -88,6 +91,7 @@ import { readIntConfig } from './configReader';
 import { hasTier1Benefits } from './tierPredicates';
 import { appendAuditEntry } from './auditService';
 import { runSqliteRead } from './sqliteRetry';
+import { INVALID_TEXT_ENCODING_MESSAGE, sanitizeUserText, type TextShape } from '../lib/textSanitizer';
 import { emailService } from './emailService';
 import { workQueueService } from './workQueueService';
 import type { PageViewModel } from '../types/page';
@@ -309,8 +313,19 @@ function isFlagReasonCode(value: unknown): value is FlagReasonCode {
 }
 
 /** The detail a reporter may add: optional, capped, and required on 'other'. */
+// Cleans submitted text, refusing damaged input in the same details shape as
+// this service's other refusals, so the form shows it beside the same field.
+function cleanModerationText(raw: unknown, shape: TextShape, field: string): string {
+  if (typeof raw !== 'string') return '';
+  const result = sanitizeUserText(raw, shape);
+  if (result.status === 'invalid_encoding') {
+    throw new ValidationError(INVALID_TEXT_ENCODING_MESSAGE, { [field]: INVALID_TEXT_ENCODING_MESSAGE });
+  }
+  return result.text;
+}
+
 function validateDetail(raw: unknown, reasonCode: FlagReasonCode): string | null {
-  const text = typeof raw === 'string' ? raw.trim() : '';
+  const text = cleanModerationText(raw, 'multi_line', 'reasonText');
   if (text.length === 0) {
     if (reasonCode === 'other') {
       throw new ValidationError('Tell us what is wrong with this item.', {
@@ -329,7 +344,7 @@ function validateDetail(raw: unknown, reasonCode: FlagReasonCode): string | null
 
 /** An administrator's reason, required on every decision and on a flag they clear. */
 function validateDecisionReason(raw: unknown): string {
-  const text = typeof raw === 'string' ? raw.trim() : '';
+  const text = cleanModerationText(raw, 'single_line', 'reason');
   if (text.length === 0) {
     throw new ValidationError('A reason is required.', { reason: 'A reason is required.' });
   }

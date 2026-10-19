@@ -421,3 +421,95 @@ describe('club action notice', () => {
     expect(reloaded.text).not.toContain('Club updated.');
   });
 });
+
+// The typed club text is cleaned before it is checked and stored, and a stored
+// value is read the same way before it is compared with what was typed.
+describe('club content edit cleans the typed text', () => {
+  function edit(clubKey: string, leaderId: string, form: Record<string, string>) {
+    return request(createApp())
+      .post(`/clubs/${clubKey}/content/edit`)
+      .set('Cookie', cookieFor(leaderId))
+      .type('form')
+      .send(form);
+  }
+  function contentAuditCount(clubId: string): number {
+    return (db.prepare(
+      `SELECT COUNT(*) AS n FROM audit_entries WHERE action_type = 'club.content_edited' AND entity_id = ?`,
+    ).get(clubId) as { n: number }).n;
+  }
+
+  // Defect caught: an edited club is stored with live markup, a control
+  // character, CRLF line ends or a decomposed accent, and the audit row
+  // records that raw text as the new value.
+  it('stores and audits the cleaned name, description, city and region', async () => {
+    const { clubId, clubKey, leaderId, name } = seedClubWithLeader();
+    const res = await edit(clubKey, leaderId, fullForm(name, {
+      name: 'Clean <b>Edit</b>\u0085 Club',
+      description: 'Café <i>meets</i>\u0085 here\r\n\r\nSecond para',
+      city: '<b>Fresno</b>',
+      region: '<i>Oregon</i>',
+    }));
+    expect(res.status).toBe(303);
+    expect(clubRow(clubId)).toMatchObject({
+      name: 'Clean Edit Club',
+      description: 'Café meets here\n\nSecond para',
+      city: 'Fresno',
+      region: 'Oregon',
+    });
+    expect(auditChanges(clubId).name.after).toBe('Clean Edit Club');
+  });
+
+  // Defect caught: a markup-only name passes the required check and the club
+  // loses its visible name.
+  it('refuses a markup-only name and leaves the club untouched', async () => {
+    const { clubId, clubKey, leaderId, name } = seedClubWithLeader();
+    const res = await edit(clubKey, leaderId, fullForm(name, { name: '<b></b>' }));
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Club name is required');
+    expect(clubRow(clubId).name).toBe(name);
+  });
+
+  // Defect caught: the per-country duplicate-name block runs on the raw name,
+  // so a rename differing only by markup takes another club's visible name.
+  it('refuses a rename onto an existing name that differs only by markup', async () => {
+    seedClubWithLeader({ name: 'Taken Clean Name', country: 'USA' });
+    const { clubId, clubKey, leaderId, name } = seedClubWithLeader();
+    const res = await edit(clubKey, leaderId, fullForm(name, { name: '<b>Taken</b> Clean Name' }));
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('already exists in that country');
+    expect(clubRow(clubId).name).toBe(name);
+  });
+
+  // Defect caught: a description longer than the form allows is stored when
+  // posted around the browser's limit, or one exactly at the limit is refused.
+  // The edit form declares 2000 characters.
+  it('accepts a description of exactly 2000 characters and refuses 2001', async () => {
+    const { clubId, clubKey, leaderId, name } = seedClubWithLeader();
+    const atLimit = await edit(clubKey, leaderId, fullForm(name, { description: 'd'.repeat(2000) }));
+    expect(atLimit.status).toBe(303);
+    expect((clubRow(clubId).description as string).length).toBe(2000);
+
+    const over = await edit(clubKey, leaderId, fullForm(name, { description: 'e'.repeat(2001) }));
+    expect(over.status).toBe(422);
+    expect(over.text).toContain('Club description must be 2000 characters or fewer.');
+    expect(clubRow(clubId).description).toBe('d'.repeat(2000));
+  });
+
+  // Defect caught: a description stored before cleaning existed, posted back
+  // untouched, reads as a change: an untouched save writes an audit row for an
+  // edit nobody made, and an edit of another field rewrites the description
+  // and records it as changed.
+  it('an untouched older description is neither changed nor recorded', async () => {
+    const older = '<b>Old</b> description.';
+    const { clubId, clubKey, leaderId, name } = seedClubWithLeader({ description: older });
+
+    const untouched = await edit(clubKey, leaderId, fullForm(name, { description: older }));
+    expect(untouched.status).toBe(303);
+    expect(contentAuditCount(clubId)).toBe(0);
+
+    const cityOnly = await edit(clubKey, leaderId, fullForm(name, { description: older, city: 'Elsewhere' }));
+    expect(cityOnly.status).toBe(303);
+    expect(Object.keys(auditChanges(clubId))).toEqual(['city']);
+    expect(clubRow(clubId).description).toBe(older);
+  });
+});

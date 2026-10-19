@@ -334,6 +334,43 @@ describe('POST /admin/curator/media/:id/edit', () => {
     db.close();
   });
 
+  // Defect caught: a curator's upload or edit stores a caption with live
+  // markup, a control character, CRLF line ends or a decomposed accent.
+  it('a curator upload and a curator edit each store the cleaned caption', async () => {
+    const marker = `clean${Date.now()}`;
+    const res = await request(createApp())
+      .post('/admin/curator/upload')
+      .set('Cookie', adminCookie())
+      .field('mediaType', 'photo')
+      .field('newCategory', 'photos')
+      .field('caption', `Café <b>${marker}</b>\u0085 up\r\n\r\nnext`)
+      .field('tags', '')
+      .attach('mediaFile', await makeJpeg(), `${marker}.jpg`);
+    expect(res.status).toBeLessThan(400);
+    const uploadedCaption = `Café ${marker} up\n\nnext`;
+    const db = new BetterSqlite3(dbPath);
+    let mediaId: string;
+    try {
+      mediaId = theOnlyRow<{ id: string }>(db, rowPin('media_items', 'caption = ?', [uploadedCaption])).id;
+    } finally {
+      db.close();
+    }
+
+    const edit = await request(createApp())
+      .post(`/admin/curator/media/${mediaId}/edit`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ caption: `<script>x</script>Edited\u0085 ${marker}\r\n\r\nmore`, tags: '' });
+    expect(edit.status).toBe(303);
+    const after = new BetterSqlite3(dbPath, { readonly: true });
+    try {
+      const row = after.prepare('SELECT caption FROM media_items WHERE id = ?').get(mediaId) as { caption: string };
+      expect(row.caption).toBe(`xEdited ${marker}\n\nmore`);
+    } finally {
+      after.close();
+    }
+  });
+
   it('admin + unknown id -> 404', async () => {
     const app = createApp();
     const res = await request(app)

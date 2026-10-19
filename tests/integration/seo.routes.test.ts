@@ -107,24 +107,27 @@ describe('GET /sitemap.xml', () => {
     expect(res.text).toMatch(new RegExp(`<loc>${ORIGIN}/ifpa/[^<]+</loc>`));
   });
 
-  it('lists exactly the historical-person pages a signed-out visitor can read', async () => {
-    // Pinned by the page's own answer rather than by a list: every seeded
-    // record is listed exactly when its detail page answers 200 to a visitor,
-    // so a sitemap that points a crawler at a login prompt or a redirect fails.
+  it('lists the honoree historical-person pages only, each one a page a visitor can read', async () => {
+    // Every canonical record is a public page, but record pages are reached by
+    // link rather than offered as a directory: the sitemap lists the honorees
+    // and never an ordinary record, and never a page that does not answer 200
+    // to a visitor (a redirect or a login prompt).
     const res = await page('/sitemap.xml');
-    const ids = ['person-seo-hof', 'person-seo-bap', 'person-seo-unhonoured', 'person-seo-claimed'];
+    const listed = (id: string) => res.text.includes(`<loc>${ORIGIN}/history/${id}</loc>`);
     const statuses: Record<string, number> = {};
-    for (const id of ids) {
-      const detail = await request(createApp()).get(`/history/${id}`);
-      statuses[id] = detail.status;
-      expect(res.text.includes(`<loc>${ORIGIN}/history/${id}</loc>`), `${id} answers ${detail.status}`)
-        .toBe(detail.status === 200);
+    for (const id of ['person-seo-hof', 'person-seo-bap', 'person-seo-unhonoured', 'person-seo-claimed']) {
+      statuses[id] = (await request(createApp()).get(`/history/${id}`)).status;
     }
-    // Both sides are reached, so the relation above cannot hold vacuously.
     expect(statuses['person-seo-hof']).toBe(200);
     expect(statuses['person-seo-bap']).toBe(200);
-    expect(statuses['person-seo-unhonoured']).toBe(302);
+    expect(listed('person-seo-hof')).toBe(true);
+    expect(listed('person-seo-bap')).toBe(true);
+    // Public, yet not listed: the sitemap is not a list of every person.
+    expect(statuses['person-seo-unhonoured']).toBe(200);
+    expect(listed('person-seo-unhonoured')).toBe(false);
+    // A claimed honoree record redirects to the member profile, so it is not a page to list.
     expect(statuses['person-seo-claimed']).toBe(301);
+    expect(listed('person-seo-claimed')).toBe(false);
     // A record outside the canonical scope is never listed, honoured or not.
     expect(res.text).not.toContain(`<loc>${ORIGIN}/history/person-seo-noncanonical</loc>`);
   });

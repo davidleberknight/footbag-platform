@@ -222,6 +222,62 @@ describe('assign', () => {
   });
 });
 
+describe('the reasons are cleaned before they are checked', () => {
+  function assign(clubId: string, form: Record<string, string>) {
+    return request(createApp())
+      .post(`/admin/clubs/${clubId}/leadership/assign`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send(form);
+  }
+
+  // Defect caught: a reason that is only markup passes the required check, so
+  // a co-leader is assigned with nothing reviewable in the ledger; or a real
+  // reason is recorded with its markup and control characters.
+  it('refuses a markup-only reason, then records a real one cleaned', async () => {
+    const clubId = seedClub();
+    const memberId = seedMember();
+
+    const refused = await assign(clubId, { member_key: memberId, reason: '<b></b>' });
+    expect(refused.status).toBe(422);
+    expect(leaders(clubId)).toHaveLength(0);
+
+    const done = await assign(clubId, { member_key: memberId, reason: 'Gap <b>remediation</b>\u0085 now' });
+    expect(done.status).toBe(303);
+    const audit = db.prepare(
+      `SELECT reason_text FROM audit_entries WHERE action_type = 'club.admin_leader_assigned' AND entity_id = ?`,
+    ).all(clubId) as Array<{ reason_text: string }>;
+    expect(audit).toEqual([{ reason_text: 'Gap remediation now' }]);
+  });
+
+  // Defect caught: a cap-override reason that is only markup lifts the
+  // five-co-leader cap with no stated reason.
+  it('a markup-only cap-override reason does not lift the cap; a real one is recorded cleaned', async () => {
+    const clubId = seedClub();
+    for (let i = 0; i < 5; i++) {
+      expect((await assign(clubId, { member_key: seedMember(), reason: 'setup' })).status).toBe(303);
+    }
+    const sixth = seedMember();
+
+    const refused = await assign(clubId, { member_key: sixth, reason: 'growth', cap_override_reason: '<i></i>' });
+    expect(refused.status).toBe(422);
+    expect(leaders(clubId)).toHaveLength(5);
+
+    const assignAudit = rowPin(
+      'audit_entries',
+      `action_type = 'club.admin_leader_assigned' AND entity_id = ?`,
+      [clubId],
+    );
+    const before = snapshotIds(db, assignAudit);
+    const allowed = await assign(clubId, {
+      member_key: sixth, reason: 'growth', cap_override_reason: 'Board <b>approved</b>\u0085 it',
+    });
+    expect(allowed.status).toBe(303);
+    const audit = oneRowAddedSince<{ metadata_json: string }>(db, assignAudit, before);
+    expect(JSON.parse(audit.metadata_json).cap_override_reason).toBe('Board approved it');
+  });
+});
+
 describe('demote', () => {
   it('removal requires a reason; remove_affiliation strips the roster row too', async () => {
     const clubId = seedClub();

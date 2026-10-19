@@ -32,6 +32,8 @@ const RL_SLUG = 'don_route_rl';
 const REPEAT = `member_persona_${REPEAT_SLUG}`;
 const REPEAT_REC = `member_persona_${REPEAT_REC_SLUG}`;
 const RL = `member_persona_${RL_SLUG}`;
+const NOTE_SLUG = 'don_route_note';
+const NOTE_DONOR = `member_persona_${NOTE_SLUG}`;
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
@@ -75,6 +77,7 @@ beforeAll(async () => {
     [REPEAT_SLUG, 'one-time gift submitted twice'],
     [REPEAT_REC_SLUG, 'recurring gift submitted twice'],
     [RL_SLUG, 'repeated gifts against the hourly attempt limit'],
+    [NOTE_SLUG, 'gift whose typed note is cleaned before it is stored'],
   ] as const) {
     seedPersona(db, {
       slug,
@@ -239,6 +242,61 @@ function donationFootprint(memberId: string): {
     db.close();
   }
 }
+
+describe('the donor\'s typed note', () => {
+  const donate = (body: Record<string, string>) => request(createApp())
+    .post('/donate')
+    .set('Cookie', cookie(NOTE_DONOR))
+    .type('form')
+    .send(body);
+  const storedNotes = (amountCents: number): Array<string | null> => {
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    try {
+      return (db.prepare(
+        `SELECT donation_note FROM payments
+          WHERE member_id = ? AND payment_type = 'donation' AND amount_cents = ?`,
+      ).all(NOTE_DONOR, amountCents) as Array<{ donation_note: string | null }>)
+        .map((r) => r.donation_note);
+    } finally {
+      db.close();
+    }
+  };
+  // A tag, a C1 control character, a decomposed accent and a line break, each
+  // of which the write-time cleaner removes or repairs on a one-line field.
+  const DIRTY_NOTE = 'For the <b>youth</b>\u009b fund Café\r\nnow';
+  const CLEAN_NOTE = 'For the youth fund Café now';
+
+  // Defect caught: markup, control characters or a decomposed accent the donor
+  // typed are stored on the gift and sent to the provider as typed.
+  it('stores the note cleaned', async () => {
+    const res = await donate({ amountChoice: '2500', recurring: 'no', note: DIRTY_NOTE });
+    expect(res.status).toBe(303);
+    expect(storedNotes(2500)).toEqual([CLEAN_NOTE]);
+  });
+
+  // Defect caught: a note of markup alone is stored as an empty-looking note
+  // rather than as no note at all.
+  it('stores no note when the note is only markup', async () => {
+    const res = await donate({ amountChoice: '5000', recurring: 'no', note: '<b> </b>' });
+    expect(res.status).toBe(303);
+    expect(storedNotes(5000)).toEqual([null]);
+  });
+
+  // Defect caught: the repeat lookup compares the raw resubmission with the
+  // cleaned stored note, so a double-click whose text differs only in what the
+  // cleaner removes opens a second checkout the donor could also pay.
+  it('takes a resubmitted note that cleans to the stored note as the same gift', async () => {
+    const first = await donate({ amountChoice: '10000', recurring: 'no', note: DIRTY_NOTE });
+    expect(first.status).toBe(303);
+    const afterFirst = donationFootprint(NOTE_DONOR);
+    const second = await donate({
+      amountChoice: '10000', recurring: 'no', note: DIRTY_NOTE.replace('<b>', '<em>'),
+    });
+    expect(second.status).toBe(303);
+    expect(second.headers.location).toBe(first.headers.location);
+    expect(donationFootprint(NOTE_DONOR)).toEqual(afterFirst);
+  });
+});
 
 describe('a donation submitted twice', () => {
   const donate = (memberId: string, body: Record<string, string>) => request(createApp())

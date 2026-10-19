@@ -2,17 +2,20 @@
  * HistoryService -- public historical-person detail page (read-only).
  *
  * Serves:
- *   - GET /history/:personId: historical player detail. Public for canonical HoF/BAP persons;
- *     auth required otherwise, including for a non-canonical record carrying an honor flag (the service loads the person and checks honor flags, returning an action the
- *     controller acts on, such as redirecting an unauthenticated visitor to /login?returnTo=...
- *     for non-honored persons). There is no bare /history route.
+ *   - GET /history/:personId: historical player detail. Public for every canonical,
+ *     results-derived record, because these minimal pages are what make public results
+ *     intelligible. A provisional record or an unresolved-name placeholder is member-only,
+ *     whatever honor flag it carries. There is no bare /history route.
  *
  * Rendering contract:
  *   - getHistoricalPlayerPage() returns a discriminated HistoryDetailResult
  *     ({action:'redirect'} | {action:'requireAuth'} | {action:'render', vm:
  *     PageViewModel<HistoryDetailContent>}); the controller acts on the discriminant. A
- *     non-honored person viewed unauthenticated yields requireAuth (controller redirects to
+ *     non-canonical record viewed by a non-member yields requireAuth (controller redirects to
  *     /login?returnTo=...); an unknown person throws NotFoundError (404).
+ *   - The career summary and top partnerships are aggregates over imported results, which
+ *     are not public statistics without approval and caveats. They are shaped for a member
+ *     viewer only; a non-member gets the official results and records.
  *   - Result and partner links are pre-shaped in the service via personHref() (resolves to
  *     /members/{slug} for a claimed member, /history/{personId} otherwise, null when neither);
  *     templates render plain text when no link exists.
@@ -23,7 +26,7 @@
  *     contact fields and must not imply current-member capabilities or contactability.
  *   - The page offers no claim control. Linking a record to an account is done in the onboarding
  *     wizard's claim task and nowhere else, so this service reads public data only and takes no
- *     viewer identity beyond whether the request is authenticated.
+ *     viewer identity beyond whether the viewer is a member.
  */
 import { PublicPlayerResultRow, FreestyleRecordRow, PlayerCareerStatRow, PlayerPartnerRow,
          publicPlayers, freestyleRecords } from '../db/db';
@@ -73,7 +76,6 @@ export interface HistoryDetailContent {
   displayName: string;
   hofMember: boolean;
   bapMember: boolean;
-  avatarThumbUrl: string | null;
   heroData: PlayerHeroData;
   careerStats: CareerCategoryStat[];
   hasCareerStats: boolean;
@@ -93,7 +95,7 @@ export type HistoryDetailResult =
 export const historyService = {
   getHistoricalPlayerPage(
     personId: string,
-    isAuthenticated: boolean,
+    isMember: boolean,
   ): HistoryDetailResult {
     const row = runSqliteRead('getHistoricalPlayerById', () =>
       publicPlayers.getById.get(personId),
@@ -145,18 +147,15 @@ export const historyService = {
       return { action: 'redirect', href: memberHref };
     }
 
-    // Only a canonical, results-derived record is a public page. A provisional
+    // Every canonical, results-derived record is a public page. A provisional
     // record or an unresolved-name placeholder is never public, whatever honor
-    // flag it carries, matching the search and the sitemap; the member-visible
-    // rosters and result tables that link such records still resolve for a
-    // signed-in viewer.
+    // flag it carries; the member-visible rosters and result tables that link
+    // such records still resolve for a member.
     const isCanonical = p['source_scope'] === 'CANONICAL';
-    const isPublicHonor = isCanonical && (player.hofMember || player.bapMember);
-    if (!isPublicHonor && !isAuthenticated) {
+    if (!isCanonical && !isMember) {
       return { action: 'requireAuth' };
     }
-
-    const avatarThumbUrl: string | null = null;
+    const showAggregates = isMember;
 
     const heroData: PlayerHeroData = {
       displayName:       player.personName,
@@ -172,9 +171,11 @@ export const historyService = {
     const CATEGORY_LABELS: Record<string, string> = {
       freestyle: 'Freestyle', net: 'Net', golf: 'Golf', sideline: 'Sideline',
     };
-    const careerStatRows = runSqliteRead('listCareerStatsByCategory', () =>
-      publicPlayers.listCareerStatsByCategory.all(personId),
-    ) as PlayerCareerStatRow[];
+    const careerStatRows = showAggregates
+      ? runSqliteRead('listCareerStatsByCategory', () =>
+          publicPlayers.listCareerStatsByCategory.all(personId),
+        ) as PlayerCareerStatRow[]
+      : [];
     const careerStats: CareerCategoryStat[] = careerStatRows
       .filter(r => r.category && CATEGORY_LABELS[r.category])
       .map(r => ({
@@ -185,9 +186,11 @@ export const historyService = {
         podiums:     r.podiums,
       }));
 
-    const partnerRows = runSqliteRead('listTopPartnersByPersonId', () =>
-      publicPlayers.listTopPartnersByPersonId.all(personId),
-    ) as PlayerPartnerRow[];
+    const partnerRows = showAggregates
+      ? runSqliteRead('listTopPartnersByPersonId', () =>
+          publicPlayers.listTopPartnersByPersonId.all(personId),
+        ) as PlayerPartnerRow[]
+      : [];
     const partnerships: PartnershipViewModel[] = partnerRows.map(r => {
       const first = r.first_year;
       const last = r.last_year;
@@ -224,7 +227,6 @@ export const historyService = {
           displayName:   player.personName,
           hofMember:     player.hofMember,
           bapMember:     player.bapMember,
-          avatarThumbUrl,
           heroData,
           careerStats,
           hasCareerStats:        careerStats.length > 0,

@@ -195,6 +195,34 @@ describe('POST /admin/club-cleanup/:clubId/resolve', () => {
     }
   });
 
+  // Defect caught: an administrator's reason is stored, listed beside the
+  // parked club and written to the ledger with live markup and control
+  // characters; or a reason that is only markup is kept as an empty reason
+  // rather than none.
+  it('park stores the reason cleaned, and a markup-only reason as no reason', async () => {
+    const db = new BetterSqlite3(dbPath);
+    insertClub(db, { id: 'cleanup-club-clean-a', name: 'Clean Reason Club A' });
+    insertClub(db, { id: 'cleanup-club-clean-b', name: 'Clean Reason Club B' });
+    db.close();
+    const park = (clubId: string, reasonText: string) => request(createApp())
+      .post(`/admin/club-cleanup/${clubId}/resolve`)
+      .set('Cookie', adminCookie())
+      .send({ action: 'park', predicate: 'crowdsource_viability', reasonText });
+    expect((await park('cleanup-club-clean-a', 'Check <b>back</b>\u0085 later')).status).toBe(303);
+    expect((await park('cleanup-club-clean-b', '<b></b>')).status).toBe(303);
+
+    const testDb = new BetterSqlite3(dbPath, { readonly: true });
+    try {
+      const reasonOf = (clubId: string) => (testDb.prepare(
+        'SELECT reason_text FROM club_cleanup_resolutions WHERE club_id = ? AND predicate_name = ?',
+      ).get(clubId, 'crowdsource_viability') as { reason_text: string | null }).reason_text;
+      expect(reasonOf('cleanup-club-clean-a')).toBe('Check back later');
+      expect(reasonOf('cleanup-club-clean-b')).toBeNull();
+    } finally {
+      testDb.close();
+    }
+  });
+
   it('rejects a deadline-style action, so no caller can reintroduce a timed park', async () => {
     const res = await request(createApp())
       .post(`/admin/club-cleanup/${CLUB_ID}/resolve`)

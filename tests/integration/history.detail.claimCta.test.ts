@@ -161,25 +161,39 @@ describe('GET /history/:personId — no claim control', () => {
   });
 });
 
-describe('GET /history/:personId — auth gate', () => {
-  it('a record carrying no honor requires a signed-in viewer (302 to login when anonymous)', async () => {
+describe('GET /history/:personId — every canonical record is public', () => {
+  // A minimal historical-person page is part of the public official record:
+  // without it a public result names a player nobody can look up. The page
+  // must still read as a record, never as a member account.
+  it('renders a record carrying no honor for a signed-out visitor, as a record and not an account', async () => {
     const res = await request(createApp()).get(`/history/${HP_NON_HONOR}`);
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toContain('/login');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Pat Smith');
+    expect(res.text).toContain('It is not a current member account.');
+    expect(res.text).not.toContain(`/history/${HP_NON_HONOR}/claim`);
+    expect(res.text).not.toMatch(/href="\/members\//);
   });
 });
 
 describe('GET /history/:personId — only a canonical record is a public page', () => {
-  // The search and the sitemap read the canonical cohort only. An honor flag
-  // on a record outside it must not make that record a public page the sitemap
-  // never lists, while the member-visible club rosters and result tables that
-  // link such records keep resolving for a signed-in member.
+  // The search reads the canonical cohort only. An honor flag on a record
+  // outside it must not make that record a public page, while the
+  // member-visible club rosters and result tables that link such records keep
+  // resolving for a signed-in member.
   it('sends a signed-out visitor to log in for an honored non-canonical record', async () => {
     for (const id of [HP_PROVISIONAL_HOF, HP_STUB_BAP]) {
       const res = await request(createApp()).get(`/history/${id}`);
       expect(res.status, id).toBe(302);
       expect(res.headers.location, id).toBe(`/login?returnTo=${encodeURIComponent(`/history/${id}`)}`);
     }
+  });
+
+  it('treats a registrant part-way through signing up as a visitor, not a member, for that record', async () => {
+    const res = await request(createApp())
+      .get(`/history/${HP_PROVISIONAL_HOF}`)
+      .set('Cookie', cookieFor(VIEWER_MATCH));
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe(`/login?returnTo=${encodeURIComponent(`/history/${HP_PROVISIONAL_HOF}`)}`);
   });
 
   it('still renders that record for a signed-in member who follows a link to it', async () => {

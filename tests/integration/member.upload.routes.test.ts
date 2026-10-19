@@ -1279,3 +1279,70 @@ describe('POST /members/:memberKey/galleries (multipart, combined)', () => {
     expect(res.status).toBe(404);
   });
 });
+
+// ── Caption cleaning on upload ─────────────────────────────────────────────
+
+describe('a member upload caption is cleaned before it is stored', () => {
+  // Markup, a C1 control character, CRLF paragraph breaks and a decomposed
+  // accent, as a browser or a pasted document can send them.
+  const DIRTY_CAPTION = 'Café <b>trick</b>\u0085 line\r\n\r\nSecond para';
+  const CLEAN_CAPTION = 'Café trick line\n\nSecond para';
+
+  function storedCaption(where: string, value: string): string | null {
+    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    try {
+      const row = db.prepare(
+        `SELECT caption FROM media_items WHERE uploader_member_id = ? AND ${where} = ?`,
+      ).get(OWNER_ID, value) as { caption: string | null } | undefined;
+      return row?.caption ?? null;
+    } finally { db.close(); }
+  }
+
+  // Defect caught: a photo caption is stored with live markup, a control
+  // character, CRLF line ends or a decomposed accent, so every later render and
+  // comparison depends on escaping alone.
+  it('a photo upload stores the cleaned caption', async () => {
+    const res = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/media/upload`)
+      .set('Cookie', ownerCookie())
+      .field('mediaType', 'photo')
+      .field('caption', DIRTY_CAPTION)
+      .attach('photoFile', await makeJpeg(), 'clean-caption.jpg');
+    expect(res.status).toBe(303);
+    expect(storedCaption('source_filename', 'clean-caption.jpg')).toBe(CLEAN_CAPTION);
+  });
+
+  // Defect caught: a video submission skips the cleaning the photo path runs.
+  it('a video submission stores the cleaned caption', async () => {
+    const res = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/media/upload`)
+      .set('Cookie', ownerCookie())
+      .field('mediaType', 'video')
+      .field('videoPlatform', 'youtube')
+      .field('videoUrl', 'https://www.youtube.com/watch?v=cleancapvid')
+      .field('caption', DIRTY_CAPTION);
+    expect(res.status).toBe(303);
+    expect(storedCaption('video_id', 'cleancapvid')).toBe(CLEAN_CAPTION);
+  });
+
+  // Defect caught: the early repeat check compares the raw resubmitted caption
+  // with the cleaned one the first submit stored, so the same submission sent
+  // twice misses it and asks the video platform again before the write-time
+  // check catches the repeat.
+  it('the same video with the same dirty caption submitted twice asks the platform once', async () => {
+    const app = createApp();
+    const submit = () => request(app)
+      .post(`/members/${OWNER_SLUG}/media/upload`)
+      .set('Cookie', ownerCookie())
+      .field('mediaType', 'video')
+      .field('videoPlatform', 'youtube')
+      .field('videoUrl', 'https://www.youtube.com/watch?v=cleantwicev')
+      .field('caption', DIRTY_CAPTION);
+    expect((await submit()).status).toBe(303);
+    const callsAfterFirst = videoVerifierCalls;
+    const second = await submit();
+    expect(second.status, 'a repeated submission is not an error').toBe(303);
+    expect(videoVerifierCalls).toBe(callsAfterFirst);
+    expect(ownerVideoRows('cleantwicev')).toHaveLength(1);
+  });
+});

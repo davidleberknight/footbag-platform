@@ -26,6 +26,8 @@ GIT_DENY="HARD BLOCK: the human owns every change to this repository. Claude may
 
 GH_DENY="HARD BLOCK: the human owns every change to the GitHub repository. Claude may read GitHub and may operate issues in the maintainers' private tracker and the private bug-intake repository, and may never create or modify branches, pull requests, releases, workflow runs, keys, or repository settings."
 
+GH_ISSUE_API_DENY="HARD BLOCK: write to an issue with the gh issue subcommands, not gh api. Their repo-flag form is what the tracker permission rules grant, so rewrite the command rather than hand it back: a body, title, label or assignee change as gh issue edit -R \"\$FOOTBAG_PRIVATE_REPO\" <n> --body-file <file>; a new comment as gh issue comment -R \"\$FOOTBAG_PRIVATE_REPO\" <n> --body-file <file>; your own latest comment on that issue as the same comment command plus --edit-last; close or reopen as gh issue close or gh issue reopen -R \"\$FOOTBAG_PRIVATE_REPO\" <n>. Use \$FOOTBAG_DEVTESTER_REPO for the bug-intake repository. Another account's comment, or one that is not your latest, has no gh issue edit form: fold its live content into the body with gh issue edit."
+
 deny() {
   jq -n --arg reason "$1" '{
     hookSpecificOutput: {
@@ -154,20 +156,25 @@ judge_gh_graphql() {
 }
 
 judge_gh_api() {
-  local expect_method=0 a
+  local expect_method=0 a reason="$GH_DENY"
   if [ "$(first_subcommand "$@")" = "graphql" ]; then judge_gh_graphql "$@"; return 0; fi
+  # An issue write has a gh issue form the tracker permission rules grant, so the
+  # refusal names that rewrite instead of only refusing, as the cd guard does.
+  for a in "$@"; do
+    case "$a" in repos/*/issues*|/repos/*/issues*) reason="$GH_ISSUE_API_DENY" ;; esac
+  done
   for a in "$@"; do
     if [ "$expect_method" -eq 1 ]; then
       expect_method=0
-      case "$a" in GET|get|HEAD|head) continue ;; *) deny "$GH_DENY" ;; esac
+      case "$a" in GET|get|HEAD|head) continue ;; *) deny "$reason" ;; esac
     fi
     case "$a" in
       -X|--method) expect_method=1 ;;
       -XGET|-Xget|--method=GET|--method=get) : ;;
-      -X*|--method=*) deny "$GH_DENY" ;;
+      -X*|--method=*) deny "$reason" ;;
       # A field flag makes the request a POST even with no explicit method.
       -f|-F|--field|--raw-field|--input|-f*|-F*|--field=*|--raw-field=*|--input=*)
-        deny "$GH_DENY" ;;
+        deny "$reason" ;;
     esac
   done
 }

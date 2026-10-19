@@ -319,6 +319,46 @@ describe('the details preview writes nothing and reports what would move', () =>
   });
 });
 
+describe('the correction reason is cleaned before it is checked', () => {
+  const CLEAN_ID = 'club-test-ac-clean';
+
+  beforeAll(() => {
+    insertClub(conn, {
+      id: CLEAN_ID,
+      hashtag_tag_id: insertTag(conn, {
+        tag_normalized: '#club_ac_clean', tag_display: '#club_ac_clean', standard_type: 'club',
+      }),
+      name: 'Napier Footbag',
+      description: 'The original description.',
+      city: 'Napeir',
+      region: null,
+      country: 'New Zealand',
+    });
+  });
+
+  // Defect caught: a reason that is only markup passes as a reason, so a
+  // correction lands with nothing reviewable; or a real reason is stored in the
+  // ledger and mailed to the co-leaders with its markup and control characters.
+  it('refuses a markup-only reason, then records a real one cleaned', async () => {
+    const confirm = (reason: string) => request(createApp())
+      .post(`/admin/clubs/${CLEAN_ID}/content/confirm`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send(submission({ name: 'Napier Footbag', city: 'Napier', reason }));
+
+    const refused = await confirm('<b></b>');
+    expect(refused.status).toBe(422);
+    expect(refused.text).toContain('Enter the reason for this correction.');
+    expect(clubRow(CLEAN_ID).city).toBe('Napeir');
+
+    const done = await confirm('Misspelled <b>city</b>\u0085 fixed');
+    expect(done.status).toBe(303);
+    expect(clubRow(CLEAN_ID).city).toBe('Napier');
+    expect(auditRows('club.content_corrected', CLEAN_ID).map((a) => a.reason_text))
+      .toEqual(['Misspelled city fixed']);
+  });
+});
+
 describe('a confirmed details correction', () => {
   it('writes the club, records who did it and why, and tells every co-leader', async () => {
     const res = await request(createApp())

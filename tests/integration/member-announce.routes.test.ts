@@ -362,6 +362,33 @@ describe('sending an announcement', () => {
     expect(announceAuditCount()).toBe(auditAfterFirst);
   });
 
+  // Defect caught: an organizer's markup, control characters or stacked blank
+  // lines go out to the whole community as typed, or a re-post differing only
+  // in what the cleaner removes is refused as an edited announcement.
+  it('sends the announcement cleaned, and takes a re-post that cleans the same as the same send', async () => {
+    seedSubscribers();
+    const token = await formToken();
+    const post = (subject: string, bodyText: string) => request(createApp())
+      .post(ANNOUNCE).set('Cookie', organizerCookie()).type('form')
+      .send({ subject, bodyText, sendToken: token });
+
+    const first = await post('Club <b>night</b>\u009b Café', 'First <i>para</i>\r\n\r\n\r\n\r\n\r\nSecond para');
+    expect(first.status).toBe(303);
+    const queued = withDb((db) => db.prepare('SELECT subject, body_text FROM outbox_emails').all() as
+      Array<{ subject: string; body_text: string }>);
+    expect(queued).toHaveLength(2);
+    for (const row of queued) {
+      expect(row.subject).toBe('Club night Café');
+      expect(row.body_text).toBe('First para\n\nSecond para');
+    }
+
+    const second = await post('Club <em>night</em> Café', 'First para\n\n\nSecond para');
+    expect(second.status).toBe(303);
+    expect(flashValueOf(second)).toBe('announce_result:sent');
+    expect(outboxRows()).toHaveLength(2);
+    expect(archiveRows()).toHaveLength(1);
+  });
+
   it('refuses a send with no subject and keeps the text', async () => {
     seedSubscribers();
     const res = await request(createApp())

@@ -35,6 +35,8 @@
  *     transaction, rather than reported sent while nothing went out.
  *   - An archived list accepts no further sends, and a group-backed list is
  *     refused here rather than allowed to fail deep in the audience resolver.
+ *   - The subject and body are cleaned with the shared write-time sanitizer
+ *     before validation and before the send fingerprint is taken.
  *   - Bodies are plain text. The subject stored on the archive row is the
  *     subject that went out, prefix included, so the record shows what
  *     recipients actually saw.
@@ -59,6 +61,7 @@ import { getCommunicationService } from './communicationService';
 import { readIntConfig } from './configReader';
 import { hit as rateLimitHit } from './rateLimitService';
 import { NotFoundError, RateLimitedError, ValidationError } from './serviceErrors';
+import { INVALID_TEXT_ENCODING_MESSAGE, sanitizeUserText } from '../lib/textSanitizer';
 import type { PageViewModel } from '../types/page';
 import type { OutcomeTone } from '../lib/outcomeNotice';
 
@@ -86,14 +89,20 @@ interface ValidCompose {
 }
 
 function validateCompose(input: ComposeInput): ValidCompose {
-  const subject = (input.subject ?? '').trim();
-  const bodyText = (input.bodyText ?? '').replace(/\r\n/g, '\n').trim();
+  // Cleaned before every check and before the send fingerprint, so a resubmitted
+  // form whose text cleans to the same words is recognised as the same send.
+  const cleanSubject = sanitizeUserText(input.subject ?? '', 'single_line');
+  const cleanBody = sanitizeUserText(input.bodyText ?? '', 'multi_line');
+  const subject = cleanSubject.status === 'ok' ? cleanSubject.text : '';
+  const bodyText = cleanBody.status === 'ok' ? cleanBody.text : '';
   const sendToken = (input.sendToken ?? '').trim();
 
   const errors: Record<string, string> = {};
-  if (!subject) errors.subject = 'Subject: required.';
+  if (cleanSubject.status === 'invalid_encoding') errors.subject = INVALID_TEXT_ENCODING_MESSAGE;
+  else if (!subject) errors.subject = 'Subject: required.';
   else if (subject.length > SUBJECT_MAX) errors.subject = `Subject: at most ${SUBJECT_MAX} characters.`;
-  if (!bodyText) errors.bodyText = 'Message: required.';
+  if (cleanBody.status === 'invalid_encoding') errors.bodyText = INVALID_TEXT_ENCODING_MESSAGE;
+  else if (!bodyText) errors.bodyText = 'Message: required.';
   else if (bodyText.length > BODY_MAX) errors.bodyText = `Message: at most ${BODY_MAX} characters.`;
   if (!sendToken) {
     // Without it the send has no idempotency key, and a re-submitted form

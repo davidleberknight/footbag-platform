@@ -33,6 +33,7 @@ const UNCHANGED_ID = 'am_unchanged_001';
 const TIER_ID = 'am_tier_001';
 const AP_ID = 'am_ap_001';
 const AP_PAID_ID = 'am_ap_paid_001';
+const TIER_CLEAN_ID = 'am_tier_clean_001';
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
@@ -128,6 +129,13 @@ beforeAll(async () => {
     memberOverrides: {
       display_name: 'Tia Ered', real_name: 'Tia Ered', given_names: 'Tia', family_name: 'Ered',
       login_email: 'am-tia@example.com',
+    },
+  });
+  createMemberAtTier(conn, {
+    id: TIER_CLEAN_ID, slug: 'am_cleo_clean', tier: 'tier0',
+    memberOverrides: {
+      display_name: 'Cleo Clean', real_name: 'Cleo Clean', given_names: 'Cleo', family_name: 'Clean',
+      login_email: 'am-cleo@example.com',
     },
   });
   createMemberAtTier(conn, {
@@ -427,6 +435,48 @@ describe('the tier change', () => {
       .type('form')
       .send({ tier: 'tier1', reason: '' });
     expect(res.status).toBe(422);
+  });
+
+  // Defect caught: markup, a control character or a run of spaces typed into
+  // the reason reaches the confirmation step and the tier ledger as typed, or a
+  // reason that is only markup passes the required check and a tier change is
+  // previewed or written with no reason behind it.
+  it('carries a cleaned reason from the preview to the ledger, and refuses one that is only markup', async () => {
+    const tierOf = (): string | undefined => (db((conn) => conn.prepare(
+      'SELECT tier_status FROM member_tier_current WHERE member_id = ?',
+    ).get(TIER_CLEAN_ID)) as { tier_status: string } | undefined)?.tier_status;
+    const markupOnly = '<script></script><b></b>';
+
+    const refusedPreview = await request(createApp())
+      .post(`/admin/members/${TIER_CLEAN_ID}/tier`).set('Cookie', adminCookie())
+      .type('form').send({ tier: 'tier1', reason: markupOnly });
+    expect(refusedPreview.status).toBe(422);
+
+    const refused = await request(createApp())
+      .post(`/admin/members/${TIER_CLEAN_ID}/tier/confirm`).set('Cookie', adminCookie())
+      .type('form').send({ tier: 'tier1', reason: markupOnly });
+    expect(refused.status).toBe(422);
+    expect(tierOf()).toBe('tier0');
+    expect(readAudit('tier.admin_override', TIER_CLEAN_ID)).toHaveLength(0);
+
+    const dirty = '<b>Payment</b> fixed\u0085 at the   desk.';
+    const preview = await request(createApp())
+      .post(`/admin/members/${TIER_CLEAN_ID}/tier`).set('Cookie', adminCookie())
+      .type('form').send({ tier: 'tier1', reason: dirty });
+    expect(preview.status).toBe(200);
+    expect(preview.text).toContain('name="reason" value="Payment fixed at the desk."');
+
+    const res = await request(createApp())
+      .post(`/admin/members/${TIER_CLEAN_ID}/tier/confirm`).set('Cookie', adminCookie())
+      .type('form').send({ tier: 'tier1', reason: dirty });
+    expect(res.status).toBe(303);
+    expect(tierOf()).toBe('tier1');
+    expect(readAudit('tier.admin_override', TIER_CLEAN_ID).map((r) => r.reason_text))
+      .toEqual(['Payment fixed at the desk.']);
+    const ledger = db((conn) => conn.prepare(
+      "SELECT reason_text FROM member_tier_grants WHERE member_id = ? AND change_type = 'correct'",
+    ).all(TIER_CLEAN_ID)) as Array<{ reason_text: string | null }>;
+    expect(ledger).toEqual([{ reason_text: 'Payment fixed at the desk.' }]);
   });
 });
 

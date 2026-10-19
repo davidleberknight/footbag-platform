@@ -33,6 +33,7 @@ const PREVIEW_DUP = 'hg_preview_dup';
 const OTHER_T0 = 'hg_other_t0';
 const YEAR_T0 = 'hg_year_t0';
 const ADMIN2_ID = 'hg_admin_002';
+const BOARD_CLEAN = 'hg_board_clean';
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
@@ -65,6 +66,7 @@ beforeAll(async () => {
   t0(YEAR_T0, 'Yara Year');
   insertMember(db, { id: ADMIN2_ID, slug: 'hg_admin_two', display_name: 'Ben Admin', real_name: 'Ben Admin', login_email: 'hg-admin2@example.com', is_admin: 1 });
   createMemberAtTier(db, { id: BAP_T2, slug: BAP_T2, tier: 'tier2', memberOverrides: { display_name: 'Bap Two', real_name: 'Bap Two', login_email: 'hg-bap-t2@example.com' } });
+  createMemberAtTier(db, { id: BOARD_CLEAN, slug: BOARD_CLEAN, tier: 'tier1', memberOverrides: { display_name: 'Cleo Board', real_name: 'Cleo Board', login_email: 'hg-board-clean@example.com' } });
   createMemberAtTier(db, { id: PREVIEW_T2, slug: PREVIEW_T2, tier: 'tier2', memberOverrides: { display_name: 'Percy Two', real_name: 'Percy Two', login_email: 'hg-preview-t2@example.com' } });
   createMemberAtTier(db, { id: T3_MEMBER, slug: T3_MEMBER, tier: 'tier3', underlying_tier_status: 'tier1', memberOverrides: { display_name: 'Trey Three', real_name: 'Trey Three', login_email: 'hg-t3@example.com' } });
   db.close();
@@ -251,6 +253,43 @@ describe('POST /admin/honor-grants/grant/confirm (commit)', () => {
   it('non-admin actor → 403, no grant', async () => {
     const res = await grant(memberCookie(), PREVIEW_T2, 'hof');
     expect(res.status).toBe(403);
+  });
+});
+
+describe('the reason an administrator gives is stored cleaned', () => {
+  // Defect caught: markup, a control character or a run of spaces typed into
+  // the reason reaches the confirmation step and the audit trail as typed, or a
+  // reason that is only markup passes the required check and board standing is
+  // conferred with no reason on the record.
+  it('carries a cleaned board reason to the audit row, and refuses one that is only markup with nothing written', async () => {
+    const markupOnly = '<script></script><b></b>';
+    for (const path of ['/admin/honor-grants/board/set', '/admin/honor-grants/board/set/confirm']) {
+      const refused = await request(createApp())
+        .post(path).set('Cookie', adminCookie())
+        .type('form').send({ member_key: BOARD_CLEAN, reason: markupOnly });
+      expect(refused.status, path).toBe(422);
+    }
+    expect(readTier(BOARD_CLEAN)).toBe('tier1');
+    expect(countAudit('tier.governance_set', BOARD_CLEAN)).toBe(0);
+
+    const dirty = '<b>Elected</b> at\u0085 the   AGM.';
+    const preview = await request(createApp())
+      .post('/admin/honor-grants/board/set').set('Cookie', adminCookie())
+      .type('form').send({ member_key: BOARD_CLEAN, reason: dirty });
+    expect(preview.status).toBe(200);
+    expect(preview.text).toContain('name="reason" value="Elected at the AGM."');
+
+    const res = await request(createApp())
+      .post('/admin/honor-grants/board/set/confirm').set('Cookie', adminCookie())
+      .type('form').send({ member_key: BOARD_CLEAN, reason: dirty });
+    expect(res.status).toBe(303);
+    expect(readTier(BOARD_CLEAN)).toBe('tier3');
+    const db = new BetterSqlite3(dbPath);
+    const rows = db.prepare(
+      "SELECT reason_text FROM audit_entries WHERE action_type = 'tier.governance_set' AND entity_id = ?",
+    ).all(BOARD_CLEAN) as Array<{ reason_text: string | null }>;
+    db.close();
+    expect(rows).toEqual([{ reason_text: 'Elected at the AGM.' }]);
   });
 });
 

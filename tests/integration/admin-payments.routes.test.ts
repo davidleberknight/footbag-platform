@@ -407,6 +407,54 @@ describe('POST /admin/payments/reconciliation/:issueId/resolve', () => {
     }
   });
 
+  // Defect caught: the resolution note carries markup, control characters or
+  // stacked blank lines onto the issue and into the permanent ledger as typed.
+  it('records the resolution note cleaned on the issue and in the ledger', async () => {
+    const issueId = await seedOneIssue();
+    const res = await request(createApp())
+      .post(`/admin/payments/reconciliation/${issueId}/resolve`)
+      .set('Cookie', cookie(ADMIN))
+      .type('form')
+      .send({ notes: 'First <i>para</i>\u009b Café\r\n\r\n\r\n\r\n\r\nSecond para' });
+    expect(res.status).toBe(303);
+
+    const cleaned = 'First para Café\n\nSecond para';
+    const db = openDb();
+    try {
+      const row = db.prepare('SELECT resolution_notes FROM reconciliation_issues WHERE id = ?')
+        .get(issueId) as { resolution_notes: string };
+      expect(row.resolution_notes).toBe(cleaned);
+      const ledger = db.prepare(
+        `SELECT reason_text FROM audit_entries
+          WHERE action_type = 'payment.reconciliation_issue_resolved' AND entity_id = ?`,
+      ).all(issueId) as Array<{ reason_text: string }>;
+      expect(ledger).toEqual([{ reason_text: cleaned }]);
+    } finally {
+      db.close();
+    }
+  });
+
+  // Defect caught: a note of markup alone passes the required check on its raw
+  // length and closes a money discrepancy with no explanation.
+  it('refuses a resolution note that is only markup, and the issue stays outstanding', async () => {
+    const issueId = await seedOneIssue();
+    const res = await request(createApp())
+      .post(`/admin/payments/reconciliation/${issueId}/resolve`)
+      .set('Cookie', cookie(ADMIN))
+      .type('form')
+      .send({ notes: '<p> </p>\r\n<br>' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Explain what you did');
+    const db = openDb();
+    try {
+      const row = db.prepare('SELECT status FROM reconciliation_issues WHERE id = ?')
+        .get(issueId) as { status: string };
+      expect(row.status).toBe('outstanding');
+    } finally {
+      db.close();
+    }
+  });
+
   it('404s an unknown issue id', async () => {
     const res = await request(createApp())
       .post('/admin/payments/reconciliation/rec_nope/resolve')

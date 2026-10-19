@@ -9,12 +9,12 @@ function redirectToLogin(req: Request, res: Response): void {
 }
 
 export const historyController = {
-  /** GET /history/:personId -- service decides: redirect, require auth, or render. */
+  /** GET /history/:personId -- service decides: redirect, require a member sign-in, or render. */
   detail(req: Request, res: Response, next: NextFunction): void {
     try {
       const result = historyService.getHistoricalPlayerPage(
         req.params.personId,
-        req.isAuthenticated,
+        req.isMember,
       );
       switch (result.action) {
         case 'redirect':

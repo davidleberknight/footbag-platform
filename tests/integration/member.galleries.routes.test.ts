@@ -1701,3 +1701,147 @@ describe('the member Personal Gallery is protected from rename and deletion', ()
     expect(findGalleryIdByName(PERSONAL)).toBeUndefined();
   });
 });
+
+// Gallery text a person typed is cleaned before it is checked and stored:
+// tags and entities dropped, control characters removed, Unicode composed and
+// whitespace tidied, so limits, uniqueness and change detection all work on
+// what is actually stored.
+describe('gallery text is cleaned before it is checked and stored', () => {
+  beforeEach(async () => {
+    const rlMod = await import('../../src/services/rateLimitService');
+    rlMod.resetRateLimitForTests();
+  });
+
+  function galleryRow(id: string): { name: string; description: string } {
+    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    try {
+      return db.prepare('SELECT name, description FROM member_galleries WHERE id = ?')
+        .get(id) as { name: string; description: string };
+    } finally { db.close(); }
+  }
+
+  function galleryAuditCount(actionType: string, id: string): number {
+    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    try {
+      return (db.prepare(
+        'SELECT COUNT(*) AS n FROM audit_entries WHERE action_type = ? AND entity_id = ?',
+      ).get(actionType, id) as { n: number }).n;
+    } finally { db.close(); }
+  }
+
+  // Defect caught: a gallery name, description or link label is stored with
+  // live markup, a control character, CRLF line ends or a decomposed accent.
+  it('an edit stores the cleaned name, description and link label', async () => {
+    await createGalleryViaApi('Clean Target', '#cleanme');
+    const id = findGalleryIdByName('Clean Target')!;
+    const res = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/galleries/${id}/edit`)
+      .set('Cookie', ownerCookie())
+      .type('form')
+      .send({
+        name: 'Clean <b>Target</b>\u0085 Café',
+        description: '<i>First</i>\u0085 para\r\n\r\nSecond para',
+        sortOrder: 'upload_desc',
+        criteriaTags: '#cleanme',
+        excludeTags: '',
+        externalLinkLabel0: '<b>Project</b>\u0085 page',
+        externalLinkUrl0: 'https://example.com/project',
+      });
+    expect(res.status).toBe(303);
+    expect(galleryRow(id)).toEqual({
+      name: 'Clean Target Café',
+      description: 'First para\n\nSecond para',
+    });
+    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    try {
+      const labels = db.prepare('SELECT label FROM gallery_external_links WHERE gallery_id = ?')
+        .all(id) as Array<{ label: string }>;
+      expect(labels).toEqual([{ label: 'Project page' }]);
+    } finally { db.close(); }
+  });
+
+  // Defect caught: a markup-only name passes the required check and stores a
+  // gallery whose name is empty once rendered.
+  it('refuses a name that is only markup, and creates nothing', async () => {
+    const res = await createGalleryViaApi('<b></b>');
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Gallery name is required.');
+    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    try {
+      const n = db.prepare('SELECT COUNT(*) AS n FROM member_galleries WHERE owner_member_id = ?')
+        .get(OWNER_ID) as { n: number };
+      expect(n.n).toBe(0);
+    } finally { db.close(); }
+  });
+
+  // Defect caught: the per-owner unique-name check runs on the raw name, so a
+  // second gallery whose name differs only by markup is stored under the same
+  // visible name as the first.
+  it('a name that differs from an existing one only by markup collides with it', async () => {
+    expect((await createGalleryViaApi('Same Visible', '#first')).status).toBe(303);
+    const res = await createGalleryViaApi('<b>Same</b> Visible', '#second');
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('already exists for this owner');
+    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    try {
+      const rows = db.prepare('SELECT name FROM member_galleries WHERE owner_member_id = ?')
+        .all(OWNER_ID) as Array<{ name: string }>;
+      expect(rows).toEqual([{ name: 'Same Visible' }]);
+    } finally { db.close(); }
+  });
+
+  // Defect caught: an owner saving the form untouched over a description stored
+  // before cleaning existed is treated as a change, so it spends a slot and
+  // writes an audit row for an edit nobody made.
+  it('an untouched save over an older uncleaned description changes and records nothing', async () => {
+    await createGalleryViaApi('Older Text', '#older');
+    const id = findGalleryIdByName('Older Text')!;
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    try {
+      db.prepare('UPDATE member_galleries SET description = ? WHERE id = ?').run('<b>desc</b>', id);
+    } finally { db.close(); }
+
+    const res = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/galleries/${id}/edit`)
+      .set('Cookie', ownerCookie())
+      .type('form')
+      .send({
+        name: 'Older Text', description: '<b>desc</b>', sortOrder: 'upload_desc',
+        criteriaTags: '#older', excludeTags: '',
+      });
+    expect(res.status).toBe(303);
+    expect(galleryAuditCount('media.member_gallery_updated', id)).toBe(0);
+    expect(galleryRow(id).description).toBe('<b>desc</b>');
+  });
+
+  // Defect caught: an administrator's moderation reason that is only markup
+  // passes as a reason, or a real one is stored with its markup and control
+  // characters in the ledger and the owner's notice.
+  it('refuses a markup-only moderation reason and stores a real one cleaned', async () => {
+    await createGalleryViaApi('Moderated Clean');
+    const id = findGalleryIdByName('Moderated Clean')!;
+    const moderate = (reason: string) => request(createApp())
+      .post(`/admin/curator/galleries/${id}/edit`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({
+        name: 'Moderated Clean', description: '', sortOrder: 'upload_desc',
+        criteriaTags: '#tag1', excludeTags: '', clearName: '1', reason,
+      });
+
+    const refused = await moderate('<b></b>');
+    expect(refused.status).toBe(422);
+    expect(refused.text).toContain('Enter the reason');
+    expect(galleryRow(id).name).toBe('Moderated Clean');
+
+    const done = await moderate('Abusive <b>name</b>\u0085 here');
+    expect(done.status).toBe(303);
+    const db = new BetterSqlite3(TEST_DB_PATH, { readonly: true });
+    try {
+      const rows = db.prepare(
+        "SELECT reason_text FROM audit_entries WHERE action_type = 'media.member_gallery_moderated' AND entity_id = ?",
+      ).all(id) as Array<{ reason_text: string }>;
+      expect(rows).toEqual([{ reason_text: 'Abusive name here' }]);
+    } finally { db.close(); }
+  });
+});

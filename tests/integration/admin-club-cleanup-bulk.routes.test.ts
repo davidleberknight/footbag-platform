@@ -281,13 +281,16 @@ describe('bulk park per group', () => {
     expect(queue.text).toContain('Needs Leader (');
   });
 
-  it('stale_provisional: the grouped club parks under its own predicate', async () => {
+  // Also catches the shared bulk reason being stored with live markup and
+  // control characters on every parked row.
+  it('stale_provisional: the grouped club parks under its own predicate, with the reason cleaned', async () => {
     const res = await request(createApp())
       .post('/admin/club-cleanup/bulk-resolve')
       .set('Cookie', adminCookie())
-      .send({ group: 'stale_provisional', action: 'park' });
+      .send({ group: 'stale_provisional', action: 'park', reasonText: 'Stale <b>leader</b>\u0085 sweep' });
     expect(res.status).toBe(303);
     expect(readClubResolution(STALE_CLUB, 'stale_provisional')?.resolution).toBe('parked');
+    expect(readClubResolution(STALE_CLUB, 'stale_provisional')?.reason_text).toBe('Stale leader sweep');
 
     const queue = await request(createApp())
       .get('/admin/club-cleanup')

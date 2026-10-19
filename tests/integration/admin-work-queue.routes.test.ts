@@ -16,6 +16,12 @@ const MEMBER_ID   = 'wq_member_001';
 const MEMBER_SLUG = 'wq_member_one';
 const OTHER_ID    = 'wq_member_002';
 
+// Typed text carrying every class the write-time cleaner removes or repairs: a
+// tag, a C1 control character, a decomposed accent, and CRLF paragraph breaks
+// with four blank lines between them.
+const DIRTY_MULTI_LINE = 'First <i>para</i>\u009b Café\r\n\r\n\r\n\r\n\r\nSecond para';
+const CLEAN_MULTI_LINE = 'First para Café\n\nSecond para';
+
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 function adminCookie(): string {
@@ -382,6 +388,65 @@ describe('POST /admin/work-queue/:id/resolve', () => {
       .send({ decision_label: 'denied', resolution_note: '   ' });
     expect(res.status).toBe(422);
     expect(res.text).toContain('Resolution note is required');
+  });
+
+  // Defect caught: markup, control characters or stacked blank lines in the
+  // administrator's note are stored and mailed to the member as typed.
+  it('stores and mails the resolution note cleaned', async () => {
+    const app = createApp();
+    const queueId = await postOneOpenRequest(app, MEMBER_ID, MEMBER_SLUG);
+    const res = await request(app)
+      .post(`/admin/work-queue/${queueId}/resolve`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ decision_label: 'corrected', resolution_note: DIRTY_MULTI_LINE });
+    expect(res.status).toBe(303);
+    const db = new BetterSqlite3(dbPath);
+    const row = db.prepare('SELECT reason_text FROM work_queue_items WHERE id = ?')
+      .get(queueId) as { reason_text: string };
+    const mail = theOnlyRow<{ body_text: string }>(
+      db, rowPin('outbox_emails', 'idempotency_key = ?', [`contact-request-resolve:${queueId}`]),
+    );
+    db.close();
+    expect(row.reason_text).toBe(CLEAN_MULTI_LINE);
+    expect(mail.body_text).toContain(CLEAN_MULTI_LINE);
+    expect(mail.body_text).not.toContain('<i>');
+  });
+
+  // Defect caught: a note of markup alone passes the required check on its raw
+  // length and closes the request with an empty explanation.
+  it('refuses a resolution note that is only markup, and the item stays open', async () => {
+    const app = createApp();
+    const queueId = await postOneOpenRequest(app, MEMBER_ID, MEMBER_SLUG);
+    const res = await request(app)
+      .post(`/admin/work-queue/${queueId}/resolve`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ decision_label: 'denied', resolution_note: '<b> </b>' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Resolution note is required');
+    const db = new BetterSqlite3(dbPath);
+    const row = db.prepare('SELECT status FROM work_queue_items WHERE id = ?').get(queueId) as { status: string };
+    db.close();
+    expect(row.status).toBe('open');
+    expect(outboxCountForKey(`contact-request-resolve:${queueId}`)).toBe(0);
+  });
+
+  // Defect caught: the repeat check compares the raw re-post with the cleaned
+  // stored note, so a re-post differing only in what the cleaner removes is
+  // told the item is gone instead of seeing its own resolve.
+  it('recognises a re-posted note that cleans to the stored note as the same resolve', async () => {
+    const app = createApp();
+    const queueId = await postOneOpenRequest(app, MEMBER_ID, MEMBER_SLUG);
+    const send = (note: string) => request(app)
+      .post(`/admin/work-queue/${queueId}/resolve`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ decision_label: 'corrected', resolution_note: note });
+    expect((await send(DIRTY_MULTI_LINE)).status).toBe(303);
+    expect((await send(DIRTY_MULTI_LINE.replace('\r\n\r\n\r\n\r\n\r\n', '\n\n\n'))).status).toBe(303);
+    expect(resolveAuditCount(queueId)).toBe(1);
+    expect(outboxCountForKey(`contact-request-resolve:${queueId}`)).toBe(1);
   });
 
   it('resolution_note longer than 500 chars → 422', async () => {
@@ -1117,6 +1182,23 @@ describe('POST /admin/work-queue/:id/park', () => {
     expect(parkedRow(queueId)).toEqual(row);
   });
 
+  // Defect caught: the park reason is stored as typed, so markup and control
+  // characters reach the parked listing, and a reason of markup alone parks
+  // the item with no reason at all.
+  it('stores the park reason cleaned, and refuses one that is only markup', async () => {
+    const app = createApp();
+    const queueId = await seedLinkHelpItem(MEMBER_ID);
+    const park = (note: string) => request(app)
+      .post(`/admin/work-queue/${queueId}/park`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ note });
+    expect((await park('<b></b>')).status).toBe(422);
+    expect(parkedRow(queueId).parked_at).toBeNull();
+    expect((await park(DIRTY_MULTI_LINE)).status).toBe(303);
+    expect(parkedRow(queueId).park_reason).toBe(CLEAN_MULTI_LINE);
+  });
+
   it('drops the parked item from the digest and the escalation sweep', async () => {
     const app = createApp();
     const queueId = await seedLinkHelpItem(MEMBER_ID);
@@ -1376,6 +1458,24 @@ describe('POST /admin/work-queue/:id/dismiss — internal review item', () => {
     expect(ledger).toHaveLength(1);
     expect(`${String(ledger[0].metadata_json)} ${String(ledger[0].reason_text ?? '')}`)
       .not.toContain(note);
+  });
+
+  // Defect caught: the dismissal note is stored as typed, so markup and
+  // control characters reach the closed row an administrator reads later.
+  it('stores the dismissal note cleaned', async () => {
+    const app = createApp();
+    const queueId = await seedReviewItem(MEMBER_ID);
+    const res = await request(app)
+      .post(`/admin/work-queue/${queueId}/dismiss`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ note: DIRTY_MULTI_LINE });
+    expect(res.status).toBe(303);
+    const db = new BetterSqlite3(dbPath);
+    const row = db.prepare('SELECT reason_text FROM work_queue_items WHERE id = ?')
+      .get(queueId) as { reason_text: string | null };
+    db.close();
+    expect(row.reason_text).toBe(CLEAN_MULTI_LINE);
   });
 
   it('no member email is sent when a review item is dismissed', async () => {

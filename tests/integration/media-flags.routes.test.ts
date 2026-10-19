@@ -311,6 +311,42 @@ describe('POST /media/item/:mediaId/flag — what the form will not accept', () 
   });
 });
 
+describe('POST /media/item/:mediaId/flag — the reporter\'s words are cleaned', () => {
+  const CLEAN_ITEM_ID = 'media_mf_clean';
+
+  beforeAll(() => {
+    const db = new BetterSqlite3(dbPath);
+    insertMediaItem(db, { id: CLEAN_ITEM_ID, uploader_member_id: UPLOADER_ID, caption: 'Clean target', tags: ['#by_mf_uploader'] });
+    db.close();
+  });
+
+  // Defect caught: "Something else" with a description that is only markup
+  // passes the required check, recording a report that says nothing.
+  it('records nothing when "Something else" carries only markup', async () => {
+    const res = await request(createApp())
+      .post(`/media/item/${CLEAN_ITEM_ID}/flag`)
+      .set('Cookie', cookieFor(REPORTER_ID))
+      .type('form')
+      .send({ reason_code: 'other', reason_text: '<b></b>' });
+    expect(res.status).toBe(303);
+    expect(flagsFor(CLEAN_ITEM_ID)).toHaveLength(0);
+  });
+
+  // Defect caught: the reporter's description is stored with live markup, a
+  // control character, CRLF line ends or a decomposed accent, and the
+  // administrator's queue shows it raw.
+  it('stores the cleaned description', async () => {
+    const res = await request(createApp())
+      .post(`/media/item/${CLEAN_ITEM_ID}/flag`)
+      .set('Cookie', cookieFor(REPORTER_ID))
+      .type('form')
+      .send({ reason_code: 'other', reason_text: 'Café <b>spam</b>\u0085 here\r\n\r\nmore' });
+    expect(res.status).toBe(303);
+    const flags = flagsFor(CLEAN_ITEM_ID);
+    expect(flags.map((f) => f.reason_text)).toEqual(['Café spam here\n\nmore']);
+  });
+});
+
 describe('POST /media/item/:mediaId/flag — the rate limit', () => {
   it('refuses a member past the hourly ceiling with 429 and Retry-After', async () => {
     // The ceiling is two an hour in this fixture, and the buckets are cleared

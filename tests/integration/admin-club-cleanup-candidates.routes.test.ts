@@ -119,6 +119,27 @@ describe('POST /admin/club-cleanup/candidates/:candidateId/resolve', () => {
     }
   });
 
+  // Defect caught: a candidate's park reason is stored and listed with live
+  // markup and control characters.
+  it('parking stores the reason cleaned', async () => {
+    const db = new BetterSqlite3(dbPath);
+    insertLegacyClubCandidate(db, { id: 'cand-clean-001', display_name: 'Clean Reason Candidate', classification: 'onboarding_visible' });
+    db.close();
+    const res = await request(createApp())
+      .post('/admin/club-cleanup/candidates/cand-clean-001/resolve')
+      .set('Cookie', adminCookie())
+      .send({ action: 'park', reasonText: 'Waiting <b>on</b>\u0085 members' });
+    expect(res.status).toBe(303);
+    const read = new BetterSqlite3(dbPath, { readonly: true });
+    try {
+      const row = read.prepare('SELECT reason_text FROM candidate_cleanup_resolutions WHERE candidate_id = ?')
+        .get('cand-clean-001') as { reason_text: string };
+      expect(row.reason_text).toBe('Waiting on members');
+    } finally {
+      read.close();
+    }
+  });
+
   it('a second park upserts the same resolution row instead of stacking', async () => {
     const res = await request(createApp())
       .post(`/admin/club-cleanup/candidates/${CANDIDATE_ID}/resolve`)

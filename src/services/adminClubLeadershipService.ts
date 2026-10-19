@@ -30,6 +30,8 @@
  *   - Every action writes one audit row with actor_type='admin',
  *     before/after values, and reason text. The audit trail is the
  *     canonical history.
+ *   - The reason and the cap-override reason are cleaned with the shared
+ *     sanitizer before validation, so markup alone is no reason.
  *
  * Transaction discipline: every multi-row mutation (assign + affiliation +
  * supersede) is one transaction(() => ...).
@@ -45,6 +47,7 @@ import { randomUUID } from 'crypto';
 import { account, clubLeaders, clubs as clubsDb, memberClubAffiliations, transaction } from '../db/db';
 import { appendAuditEntry } from './auditService';
 import { NotFoundError, ValidationError } from './serviceErrors';
+import { cleanUserText } from '../lib/textSanitizer';
 import { PageViewModel } from '../types/page';
 
 const LEADERSHIP_CAP = 5;
@@ -151,7 +154,8 @@ function getClubLeadershipPage(
 }
 
 function requireReason(reason: string): string {
-  const trimmed = reason.trim();
+  // Cleaned first, so markup alone is no reason.
+  const trimmed = cleanUserText(reason, 'single_line', 'reason');
   if (!trimmed) throw new ValidationError('A reason is required.');
   return trimmed;
 }
@@ -216,7 +220,7 @@ function assignLeader(
   }
 
   const count = (clubLeaders.countByClubId.get(clubId) as { c: number }).c;
-  const capOverride = (capOverrideReason ?? '').trim();
+  const capOverride = cleanUserText(capOverrideReason ?? '', 'single_line', 'cap_override_reason');
   if (count >= LEADERSHIP_CAP && !capOverride) {
     throw new ValidationError(
       `This club already has ${count} co-leaders (cap ${LEADERSHIP_CAP}). Provide a cap-override reason to proceed.`,

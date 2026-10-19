@@ -284,6 +284,90 @@ describe('POST /admin/email-templates/:key/edit', () => {
     expect(templateRow('admin_loss_recruitment').is_enabled).toBe(0);
   });
 
+  // Defect caught: markup, a control character, stacked blank lines or a
+  // decomposed accent the administrator typed are stored and sent to every
+  // recipient of this email, or the cleaner eats the {token} merge fields.
+  it('stores the subject and body cleaned, keeping the merge fields', async () => {
+    const res = await request(createApp())
+      .post('/admin/email-templates/club_membership_leader_join/edit')
+      .set('Cookie', admin())
+      .type('form')
+      .send(validBody({
+        subjectTemplate: 'A <b>new</b>\u009b member joined {clubName}\r\ntoday',
+        bodyTemplate: 'Hi {leaderName}, <i>Café</i>\u009b\r\n\r\n\r\n\r\n\r\n{memberName} joined {clubName}.',
+      }));
+    expect(res.status).toBe(303);
+    const row = templateRow('club_membership_leader_join');
+    expect(row.subject_template).toBe('A new member joined {clubName} today');
+    expect(row.body_template).toBe('Hi {leaderName}, Café\n\n{memberName} joined {clubName}.');
+  });
+
+  // Defect caught: a subject of markup alone passes the required check on its
+  // raw length and saves a template whose emails go out with no subject.
+  it('refuses a subject that is only markup, leaving the row unchanged', async () => {
+    const before = templateRow('club_membership_leader_join');
+    const res = await request(createApp())
+      .post('/admin/email-templates/club_membership_leader_join/edit')
+      .set('Cookie', admin())
+      .type('form')
+      .send(validBody({
+        subjectTemplate: '<b> </b>',
+        bodyTemplate: 'Hi {leaderName}, {memberName} joined {clubName}.',
+      }));
+    expect(res.status).toBe(422);
+    expect(res.text).toMatch(/Subject: required/);
+    expect(templateRow('club_membership_leader_join')).toEqual(before);
+  });
+
+  // Defect caught: a template that arrived with broken encoding (the
+  // replacement character the body parser leaves for invalid bytes) is refused
+  // with a misleading "required" message, or saved with the damage in it.
+  it('refuses a subject or body with broken encoding, naming the encoding, and leaves the row unchanged', async () => {
+    const before = templateRow('club_membership_leader_join');
+    for (const over of [
+      { subjectTemplate: 'Joined � {clubName}', bodyTemplate: 'Hi {leaderName}, {memberName} joined {clubName}.' },
+      { subjectTemplate: 'Joined {clubName}', bodyTemplate: 'Hi {leaderName}, {memberName} � joined {clubName}.' },
+    ]) {
+      const res = await request(createApp())
+        .post('/admin/email-templates/club_membership_leader_join/edit')
+        .set('Cookie', admin())
+        .type('form')
+        .send(validBody(over));
+      expect(res.status, JSON.stringify(over)).toBe(422);
+      expect(res.text).toContain('could not be read');
+    }
+    expect(templateRow('club_membership_leader_join')).toEqual(before);
+  });
+
+  // Defect caught: a template stored before write-time cleaning existed is
+  // resubmitted unchanged, and the audit row reports the body as edited only
+  // because the cleaner tidied it, so the trail claims a change nobody made.
+  it('records no body change when a template saved before cleaning is resubmitted unchanged', async () => {
+    const stored = 'Hi {leaderName},   \n\n\n\n{clubName}: {whatChanged}.\n\nNote: {note}';
+    const db = new BetterSqlite3(dbPath);
+    db.prepare('UPDATE email_templates SET body_template = ? WHERE template_key = ?')
+      .run(stored, 'club_record_corrected');
+    db.close();
+    const current = templateRow('club_record_corrected');
+    // No other case saves this template, so the save below writes its only row.
+    expect(auditRowsFor('club_record_corrected')).toHaveLength(0);
+
+    const res = await request(createApp())
+      .post('/admin/email-templates/club_record_corrected/edit')
+      .set('Cookie', admin())
+      .type('form')
+      .send({
+        subjectTemplate: current.subject_template,
+        bodyTemplate: stored,
+        piiClassification: current.pii_classification,
+        isEnabled: current.is_enabled ? '1' : '',
+      });
+    expect(res.status).toBe(303);
+    const audits = auditRowsFor('club_record_corrected');
+    expect(audits).toHaveLength(1);
+    expect(JSON.parse(audits[0]!.metadata_json).changedFields).toEqual([]);
+  });
+
   it('ignores overposted privileged fields (key, id, version stay server-owned)', async () => {
     const before = templateRow('password_reset_confirm');
     const res = await request(createApp())

@@ -94,6 +94,8 @@
  *     POST is never added to that middleware's exemption list.
  *   - Every task page renders through the shared wizard layout primitive so all tasks present the
  *     same chrome.
+ *   - The club insight note, the free text this service writes itself, is cleaned with the
+ *     shared write-time sanitizer before its length is checked.
  *
  * Persistence:
  *   member_onboarding_tasks, club_viability_signals, club_insight_notes (and the tables the
@@ -125,6 +127,7 @@ import {
 } from '../db/db';
 import { appendAuditEntry, type AuditAppendInput } from './auditService';
 import { BirthDateParts } from '../lib/birthDate';
+import { INVALID_TEXT_ENCODING_MESSAGE, sanitizeUserText } from '../lib/textSanitizer';
 import { memberService } from './memberService';
 import { clubService } from './clubService';
 import { subdivisionsForCountry } from './countryUtils';
@@ -194,21 +197,22 @@ function writeViabilitySignal(
 // note inline without truncation logic.
 const MAX_INSIGHT_NOTE_LENGTH = 1000;
 
-// Free text a member typed goes in as typed, minus the characters that would
-// break the admin surface rendering it: control characters other than the
-// newlines and tabs a member legitimately types.
-function normalizeInsightNote(raw: unknown): string | null {
-  if (typeof raw !== 'string') return null;
-  const cleaned = raw
-    .split('')
-    .filter((ch) => {
-      const code = ch.charCodeAt(0);
-      if (ch === '\n' || ch === '\t') return true;
-      return code >= 32 && code !== 127;
-    })
-    .join('')
-    .trim();
-  return cleaned.length > 0 ? cleaned : null;
+type InsightNoteResult =
+  | { status: 'ok'; note: string | null }
+  | { status: 'invalid'; message: string };
+
+// The note is cleaned with the shared sanitizer before it is measured, so the
+// limit counts what is stored and a note that was only markup writes nothing.
+function normalizeInsightNote(raw: unknown): InsightNoteResult {
+  if (typeof raw !== 'string') return { status: 'ok', note: null };
+  const result = sanitizeUserText(raw, 'multi_line');
+  if (result.status === 'invalid_encoding') {
+    return { status: 'invalid', message: INVALID_TEXT_ENCODING_MESSAGE };
+  }
+  if (result.text.length > MAX_INSIGHT_NOTE_LENGTH) {
+    return { status: 'invalid', message: `Please keep your note under ${MAX_INSIGHT_NOTE_LENGTH} characters.` };
+  }
+  return { status: 'ok', note: result.text.length > 0 ? result.text : null };
 }
 
 // The wording of the insight question, shaped here with the rest of the
@@ -1626,14 +1630,11 @@ function processNoClubsAnswer(
   // The wrap-up landing is the one place a member with no suggested club can
   // tell us anything, so its note is keyed to no club: it is knowledge about
   // the member's area, read by area rather than by club.
-  const insightNote = normalizeInsightNote(rawInsightNote);
-  if (insightNote && insightNote.length > MAX_INSIGHT_NOTE_LENGTH) {
-    return {
-      kind:      'validation_error',
-      formState: null,
-      message:   `Please keep your note under ${MAX_INSIGHT_NOTE_LENGTH} characters.`,
-    };
+  const insight = normalizeInsightNote(rawInsightNote);
+  if (insight.status === 'invalid') {
+    return { kind: 'validation_error', formState: null, message: insight.message };
   }
+  const insightNote = insight.note;
 
   // Snapshot the remaining cards outside the transaction; the decline writes
   // below are the only mutations and they cannot add cards.
@@ -1961,14 +1962,11 @@ async function processClubAffiliationsSubmit(
   // The optional insight text is checked before the answer is recorded, so an
   // over-long note sends the member back to a card they can still fix rather
   // than resolving the card and dropping what they wrote.
-  const insightNote = normalizeInsightNote(body.insightNote);
-  if (insightNote && insightNote.length > MAX_INSIGHT_NOTE_LENGTH) {
-    return {
-      kind:      'validation_error',
-      formState: null,
-      message:   `Please keep your note under ${MAX_INSIGHT_NOTE_LENGTH} characters.`,
-    };
+  const insight = normalizeInsightNote(body.insightNote);
+  if (insight.status === 'invalid') {
+    return { kind: 'validation_error', formState: null, message: insight.message };
   }
+  const insightNote = insight.note;
 
   assertCandidateOwnership(memberId, candidateId, kindRaw);
 

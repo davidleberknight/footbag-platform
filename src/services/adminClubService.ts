@@ -28,6 +28,7 @@ import {
   type ClubWriteActor,
 } from './clubService';
 import { NotFoundError, ValidationError } from './serviceErrors';
+import { cleanUserText } from '../lib/textSanitizer';
 import { formatDateDisplay } from './dateFormat';
 import type { PageViewModel } from '../types/page';
 import type { OutcomeTone } from '../lib/outcomeNotice';
@@ -226,7 +227,8 @@ function stateLabelsFor(row: AdminClubRow): string[] {
 }
 
 function requireReason(raw: string): string {
-  const reason = raw.trim();
+  // Cleaned first, so markup alone is no reason and the cap counts what is stored.
+  const reason = cleanUserText(raw, 'single_line', 'reason');
   if (!reason) throw new ValidationError('Enter the reason for this correction.');
   // Capped here as well as at the write, so an over-long reason is refused
   // before an administrator is asked to confirm rather than after.

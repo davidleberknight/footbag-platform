@@ -287,6 +287,53 @@ describe('GET /admin/media-flags — the queue', () => {
   });
 });
 
+describe('POST /admin/media-flags/:mediaId/delete — the reason is cleaned', () => {
+  const ITEM_CLEAN_REASON = 'media_af_clean_reason';
+  // An uploader of its own, so the decision mail this sends never lands in
+  // another case's count of the main uploader's mail.
+  const CLEAN_UPLOADER_ID = 'eeeeeeee-0000-0000-0000-0000000af005';
+
+  beforeAll(() => {
+    const db = new BetterSqlite3(dbPath);
+    insertMember(db, {
+      id: CLEAN_UPLOADER_ID, slug: 'af_clean_uploader', display_name: 'AF Clean Uploader',
+      login_email: 'af-clean-uploader@example.com',
+    });
+    completeOnboarding(db, CLEAN_UPLOADER_ID);
+    insertMediaItem(db, {
+      id: ITEM_CLEAN_REASON, uploader_member_id: CLEAN_UPLOADER_ID, caption: 'Clean reason',
+      tags: ['#by_af_clean_uploader'],
+    });
+    insertMediaFlag(db, {
+      media_id: ITEM_CLEAN_REASON,
+      reporter_member_id: REPORTER_ID,
+      reason_code: 'illegal_or_harassing',
+      reason_text: 'Report on the clean-reason item',
+      reported_at: new Date().toISOString(),
+    });
+    db.close();
+  });
+
+  // Defect caught: a reason that is only markup passes the required check, so
+  // an item is removed with no stated reason; or a real reason is stored and
+  // mailed to the uploader with its markup and control characters.
+  it('refuses a markup-only reason, then stores a real one cleaned', async () => {
+    const decide = (reason: string) => request(createApp())
+      .post(`/admin/media-flags/${ITEM_CLEAN_REASON}/delete`)
+      .set('Cookie', admin())
+      .type('form')
+      .send({ reason });
+
+    const refused = await decide('<b></b>');
+    expect(refused.status).toBe(422);
+    expect(mediaRow(ITEM_CLEAN_REASON).moderation_status).toBe('active');
+
+    const done = await decide('Copyright <b>complaint</b>\u0085 upheld\r\nagain');
+    expect(done.status).toBe(303);
+    expect(mediaRow(ITEM_CLEAN_REASON).moderation_reason).toBe('Copyright complaint upheld again');
+  });
+});
+
 describe('POST /admin/media-flags/:mediaId/delete', () => {
   it('hides the item, closes its reports and card, audits it, and tells the uploader', async () => {
     const res = await request(createApp())

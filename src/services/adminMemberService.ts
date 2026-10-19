@@ -44,6 +44,7 @@ import { readIntConfig } from './configReader';
 import { formatDateDisplay } from './dateFormat';
 import type { PageViewModel } from '../types/page';
 import type { OutcomeTone } from '../lib/outcomeNotice';
+import { cleanUserText } from '../lib/textSanitizer';
 
 const LOOKUP_LIMIT = 25;
 const MIN_LOOKUP_QUERY = 2;
@@ -463,7 +464,9 @@ function deceasedGraceNote(): string {
 const MAX_REASON = 500;
 
 function requireReason(raw: string): string {
-  const reason = raw.trim();
+  // Cleaned before the checks, so a reason that is only markup counts as empty
+  // and the limit measures what the audit row will hold.
+  const reason = cleanUserText(raw, 'single_line', 'reason');
   if (!reason) throw new ValidationError('Enter the reason for this correction.');
   // Capped here as well as at the write, so an over-long reason is refused
   // before an administrator is asked to confirm rather than after.

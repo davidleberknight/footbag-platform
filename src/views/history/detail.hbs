@@ -2,12 +2,6 @@
 
 <div class="wrapper">
 
-  {{#if content.avatarThumbUrl}}
-  <div class="text-center mb-6">
-    <img src="{{content.avatarThumbUrl}}" alt="{{content.displayName}}" class="profile-avatar-img" />
-  </div>
-  {{/if}}
-
   {{! ── Career Summary ──────────────────────────────────────────── }}
   {{#if content.hasCareerStats}}
   <div class="records-table-wrap mb-6">
@@ -97,7 +91,7 @@
           <td>{{#if addsCount}}{{addsCount}}{{else}}&mdash;{{/if}}</td>
           <td>
             {{#if achievedDate}}
-              {{achievedDate}}{{#if dateApproximate}} <em>(approx.)</em>{{/if}}
+              {{formatDate achievedDate}}{{#if dateApproximate}} <em>(approx.)</em>{{/if}}
             {{else}}
               &mdash;
             {{/if}}

@@ -26,6 +26,9 @@ const T1_ID       = 'ar_t1_001';
 const T1_SLUG     = 'ar_t1_one';
 const MEMBER_ID   = 'ar_member_001';
 const MEMBER_SLUG = 'ar_member_one';
+// Granted only by the reason-cleaning case, so its audit count stays its own.
+const CLEAN_ID    = 'ar_clean_001';
+const CLEAN_SLUG  = 'ar_clean_one';
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
@@ -72,6 +75,7 @@ beforeAll(async () => {
   createMemberAtTier(db, { id: T2_ID, slug: T2_SLUG, tier: 'tier2', memberOverrides: { display_name: 'Tess Two', real_name: 'Tess Two', login_email: 'ar-t2@example.com' } });
   createMemberAtTier(db, { id: T1_ID, slug: T1_SLUG, tier: 'tier1', memberOverrides: { display_name: 'Una One',  real_name: 'Una One',  login_email: 'ar-t1@example.com' } });
   insertMember(db, { id: MEMBER_ID, slug: MEMBER_SLUG, display_name: 'Mo Member', real_name: 'Mo Member', login_email: 'ar-member@example.com' });
+  createMemberAtTier(db, { id: CLEAN_ID, slug: CLEAN_SLUG, tier: 'tier2', memberOverrides: { display_name: 'Cleo Clean', real_name: 'Cleo Clean', login_email: 'ar-clean@example.com' } });
   db.close();
   createApp = await importApp();
 });
@@ -301,6 +305,42 @@ describe('POST /admin/admin-roles/grant', () => {
       .send({ member_key: T2_SLUG, reason: '   ' });
     expect(res.status).toBe(422);
     expect(readMember(T2_ID).is_admin).toBe(0);
+  });
+
+  // Defect caught: markup, a control character or a run of spaces typed into
+  // the reason reaches the confirmation step and the audit trail as typed, or a
+  // reason that is only markup passes the required check and a member is made
+  // an administrator with no reason on the record.
+  it('carries a cleaned reason to the audit row, and refuses one that is only markup with nothing written', async () => {
+    const markupOnly = '<script></script><b></b>';
+    for (const path of ['/admin/admin-roles/grant', '/admin/admin-roles/grant/confirm']) {
+      const refused = await request(createApp())
+        .post(path).set('Cookie', adminCookie())
+        .type('form').send({ member_key: CLEAN_SLUG, reason: markupOnly });
+      expect(refused.status, path).toBe(422);
+    }
+    expect(readMember(CLEAN_ID).is_admin).toBe(0);
+    expect(countAudit('admin.role_granted', CLEAN_ID)).toBe(0);
+    expect(countOutboxFor(CLEAN_ID)).toBe(0);
+
+    const dirty = '<b>Joining</b> the\u0085 admin   team.';
+    const preview = await request(createApp())
+      .post('/admin/admin-roles/grant').set('Cookie', adminCookie())
+      .type('form').send({ member_key: CLEAN_SLUG, reason: dirty });
+    expect(preview.status).toBe(200);
+    expect(preview.text).toContain('name="reason" value="Joining the admin team."');
+
+    const res = await request(createApp())
+      .post('/admin/admin-roles/grant/confirm').set('Cookie', adminCookie())
+      .type('form').send({ member_key: CLEAN_SLUG, reason: dirty });
+    expect(res.status).toBe(303);
+    expect(readMember(CLEAN_ID).is_admin).toBe(1);
+    const db = new BetterSqlite3(dbPath);
+    const rows = db.prepare(
+      "SELECT reason_text FROM audit_entries WHERE action_type = 'admin.role_granted' AND entity_id = ?",
+    ).all(CLEAN_ID) as Array<{ reason_text: string | null }>;
+    db.close();
+    expect(rows).toEqual([{ reason_text: 'Joining the admin team.' }]);
   });
 
   it('non-admin actor → 403', async () => {

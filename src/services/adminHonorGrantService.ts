@@ -23,6 +23,7 @@ import { ValidationError } from './serviceErrors';
 import { PageViewModel } from '../types/page';
 import type { ActionEnding } from '../lib/actionOutcome';
 import type { OutcomeNoticeView } from '../lib/outcomeNotice';
+import { cleanUserText } from '../lib/textSanitizer';
 
 /** How a committed honor grant ended. The first submit and this admin's own
  *  repeat redirect silently; an honor another act left in place carries the
@@ -139,7 +140,8 @@ export interface HonorActionConfirmContent {
 }
 
 function requireReason(raw: string): string {
-  const reason = raw.trim();
+  // Cleaned before the check, so a reason that is only markup counts as empty.
+  const reason = cleanUserText(raw, 'single_line', 'reason');
   if (!reason) throw new ValidationError('Enter the reason for this change.');
   return reason;
 }

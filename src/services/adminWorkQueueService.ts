@@ -70,6 +70,9 @@
  *     freed as each is answered; the 4th open submission throws
  *     RateLimitedError. Items the platform raised about a member never count.
  *     Message body is capped at 2000 characters, the resolution note at 500.
+ *   - Human-authored text (the member's message, the administrator's resolution,
+ *     park and dismissal notes) is cleaned with the shared write-time sanitizer
+ *     before validation, so the length caps and repeat checks judge what is stored.
  *
  * Persistence:
  *   work_queue_items, audit_entries.
@@ -105,6 +108,7 @@ import {
 import { recordOperationalError } from './operationalErrors';
 import { runSqliteRead } from './sqliteRetry';
 import { NotFoundError, RateLimitedError, ValidationError } from './serviceErrors';
+import { cleanUserText } from '../lib/textSanitizer';
 import { PageViewModel } from '../types/page';
 
 export const CONTACT_CATEGORIES = [
@@ -992,7 +996,9 @@ export const adminWorkQueueService = {
    */
   submit(input: ContactRequestSubmitInput): { id: string } {
     const category = validateCategory(input.category);
-    const trimmed = (input.message ?? '').trim();
+    // Cleaned first, so the required and length checks, the summary, and the
+    // repeat lookup below all judge what is stored.
+    const trimmed = cleanUserText(input.message ?? '', 'multi_line', 'message');
     if (trimmed.length === 0) {
       throw new ValidationError('Message is required.');
     }
@@ -1104,7 +1110,7 @@ export const adminWorkQueueService = {
    * be resolved or probed here.
    */
   async resolve(input: WorkQueueResolveInput): Promise<{ status: 'resolved'; memberNotified: boolean }> {
-    const note = (input.resolutionNote ?? '').trim();
+    const note = cleanUserText(input.resolutionNote ?? '', 'multi_line', 'resolution_note');
     if (note.length === 0) {
       throw new ValidationError('Resolution note is required.');
     }
@@ -1497,7 +1503,7 @@ export const adminWorkQueueService = {
    * and reports the park again.
    */
   park(input: { queueItemId: string; adminMemberId: string; note: string }): void {
-    const reason = (input.note ?? '').trim();
+    const reason = cleanUserText(input.note ?? '', 'multi_line', 'note');
     if (reason.length === 0) {
       throw new ValidationError('A reason is required to park an item.');
     }
@@ -1547,7 +1553,7 @@ export const adminWorkQueueService = {
 
   dismiss(input: { queueItemId: string; adminMemberId: string; note: string }): void {
     enforceWorkQueueResolveLimit(input.adminMemberId);
-    const note = (input.note ?? '').trim();
+    const note = cleanUserText(input.note ?? '', 'multi_line', 'note');
     if (note.length > MAX_RESOLUTION_NOTE) {
       throw new ValidationError(`Note must be ${MAX_RESOLUTION_NOTE} characters or fewer.`);
     }

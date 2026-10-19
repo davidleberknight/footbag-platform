@@ -358,6 +358,29 @@ describe('POST /admin/system-parameters validation', () => {
     expect(res.text).toContain('say why the value is changing');
     expect(configRows('outbox_retention_days').length).toBe(before);
   });
+
+  // Defect caught: markup, a control character or a run of spaces typed into
+  // the reason reaches the configuration row and the audit trail as typed, or
+  // a reason that is only markup passes the required check and a value changes
+  // with no reason on the record.
+  it('stores a cleaned reason, and refuses one that is only markup with nothing written', async () => {
+    const refused = await request(createApp())
+      .post('/admin/system-parameters').set('Cookie', admin()).type('form')
+      .send(saveBody({ ballot_retention_days: '2600', reason: '<script></script><b></b>' }));
+    expect(refused.status).toBe(422);
+    expect(refused.text).toContain('say why the value is changing');
+    expect(configRows('ballot_retention_days').map((r) => r.value_json)).not.toContain('2600');
+    expect(auditRowsFor('ballot_retention_days')).toHaveLength(0);
+
+    const res = await request(createApp())
+      .post('/admin/system-parameters').set('Cookie', admin()).type('form')
+      .send(saveBody({ ballot_retention_days: '2600', reason: '<b>Longer</b> hold\u0085 for   recounts.' }));
+    expect(res.status).toBe(303);
+    expect(configRows('ballot_retention_days').filter((r) => r.value_json === '2600').map((r) => r.reason_text))
+      .toEqual(['Longer hold for recounts.']);
+    expect(auditRowsFor('ballot_retention_days').map((r) => r.reason_text))
+      .toEqual(['Longer hold for recounts.']);
+  });
 });
 
 describe('POST /admin/system-parameters/pricing', () => {
@@ -497,5 +520,32 @@ describe('POST /admin/system-parameters/pricing', () => {
 
     expect(res.status).toBe(303);
     expect(currentValue('tier2_price_cents')).toBe('6000');
+  });
+
+  // Defect caught: markup, a control character or a run of spaces typed into
+  // the reason reaches the price row and the audit trail as typed, or a reason
+  // that is only markup passes the required check and schedules a price with
+  // no reason on the record.
+  it('stores a cleaned reason, and refuses one that is only markup with nothing written', async () => {
+    const start = dayOffset(45);
+    const send = (reason: string) => request(createApp())
+      .post('/admin/system-parameters/pricing').set('Cookie', admin()).type('form')
+      .send({ priceKey: 'tier1_price_cents', amountUsd: '13.00', effectiveStartDate: start, reason });
+    const scheduledRows = () => configRows('tier1_price_cents')
+      .filter((r) => r.effective_start_at === `${start}T00:00:00.000Z`);
+    const auditsBefore = auditRowsFor('tier1_price_cents').length;
+
+    const refused = await send('<script></script><b></b>');
+    expect(refused.status).toBe(422);
+    expect(refused.text).toContain('say why the price is changing');
+    expect(scheduledRows()).toHaveLength(0);
+    expect(auditRowsFor('tier1_price_cents')).toHaveLength(auditsBefore);
+
+    const res = await send('<b>Board</b> vote\u0085 on   dues.');
+    expect(res.status).toBe(303);
+    expect(scheduledRows().map((r) => r.reason_text)).toEqual(['Board vote on dues.']);
+    const added = auditRowsFor('tier1_price_cents')
+      .filter((r) => JSON.parse(r.metadata_json).newValueCents === 1300);
+    expect(added.map((r) => r.reason_text)).toEqual(['Board vote on dues.']);
   });
 });

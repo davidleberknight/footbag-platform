@@ -37,6 +37,14 @@ const DECEASED_ID   = 'q-deceased-001';
 const DECEASED_SLUG = 'q_deceased';
 const LEGACY_ID  = 'q-legacy-001';
 
+// Typed text carrying every class the write-time cleaner removes or repairs: a
+// tag, a C1 control character, a decomposed accent, and (multi-line) CRLF
+// paragraph breaks with four blank lines between them.
+const DIRTY_SINGLE_LINE = 'Please <b>check</b>\u009b Café\r\nnow';
+const CLEAN_SINGLE_LINE = 'Please check Café now';
+const DIRTY_MULTI_LINE = 'First <i>para</i>\u009b Café\r\n\r\n\r\n\r\n\r\nSecond para';
+const CLEAN_MULTI_LINE = 'First para Café\n\nSecond para';
+
 function adminCookie(): string {
   return `__Host-footbag_session=${createTestSessionJwt({ memberId: ADMIN_ID, role: 'admin' })}`;
 }
@@ -332,6 +340,30 @@ describe('an administrator asks the member a question', () => {
     expect((await ask(itemId, { subject: '' })).status).toBe(422);
     expect((await ask(itemId, { body: '' })).status).toBe(422);
     expect((await ask(itemId, { expectedAnswerKind: 'whatever' })).status).toBe(422);
+  });
+
+  // Defect caught: markup, a control character or a decomposed accent in what
+  // the administrator typed is stored as typed and shown to the member mangled.
+  it('stores the subject and question cleaned', async () => {
+    const itemId = seedItem();
+    const res = await ask(itemId, { subject: DIRTY_SINGLE_LINE, body: DIRTY_MULTI_LINE });
+    expect(res.status).toBe(303);
+    const row = messageRow()!;
+    expect(row.subject).toBe(CLEAN_SINGLE_LINE);
+    expect(row.body_text).toBe(CLEAN_MULTI_LINE);
+  });
+
+  // Defect caught: a subject or question of markup alone passes the required
+  // check on its raw length and is stored empty once cleaned.
+  it('refuses a subject or question that is only markup, and writes nothing', async () => {
+    const itemId = seedItem();
+    expect((await ask(itemId, { subject: '<b> </b>' })).status).toBe(422);
+    expect((await ask(itemId, { body: '<p></p>\r\n<br>' })).status).toBe(422);
+    const conn = readDb();
+    const stored = (conn.prepare('SELECT COUNT(*) AS n FROM member_messages').get() as { n: number }).n;
+    conn.close();
+    expect(stored).toBe(0);
+    expect(outboxRows()).toHaveLength(0);
   });
 
   it('caps the question length', async () => {
@@ -697,23 +729,61 @@ describe('the member reads and answers', () => {
     expect(messageRow()!.status).toBe('sent');
   });
 
-  it('stores an adversarial note verbatim and escapes it on the admin surface', async () => {
+  // Defect caught: a script tag in the member's note reaches the stored row and
+  // is one template slip away from running in an administrator's browser.
+  it('strips markup from an adversarial note before storing it, and the admin surface stays safe', async () => {
     const itemId = seedItem();
     await ask(itemId);
     const messageId = messageRow()!.id as string;
-    const payload = '<script>alert(1)</script>';
-    await request(createApp())
+    const res = await request(createApp())
       .post(`/members/${MEMBER_SLUG}/questions/${messageId}/answer`)
       .set('Cookie', memberCookie())
       .type('form')
-      .send({ dateAnswer: 'confirm', note: payload });
-    expect(messageRow()!.note_text).toBe(payload);
+      .send({ dateAnswer: 'confirm', note: '<script>alert(1)</script>Thanks' });
+    expect(res.status).toBe(303);
+    expect(messageRow()!.note_text).toBe('alert(1)Thanks');
 
-    const res = await request(createApp())
+    const page = await request(createApp())
       .get('/admin/work-queue')
       .set('Cookie', adminCookie());
-    expect(res.text).not.toContain(payload);
-    expect(res.text).toContain('&lt;script&gt;');
+    expect(page.status).toBe(200);
+    expect(page.text).toContain('alert(1)Thanks');
+    expect(page.text).not.toContain('<script>alert');
+  });
+
+  // Defect caught: control characters, stacked blank lines or a decomposed
+  // accent in the note are stored as typed, so the administrator reads mangled
+  // text and an identical-looking note compares unequal.
+  it('stores the note cleaned: tags, control characters and blank-line runs removed, accents composed', async () => {
+    const itemId = seedItem();
+    await ask(itemId);
+    const messageId = messageRow()!.id as string;
+    const res = await request(createApp())
+      .post(`/members/${MEMBER_SLUG}/questions/${messageId}/answer`)
+      .set('Cookie', memberCookie())
+      .type('form')
+      .send({ dateAnswer: 'confirm', note: DIRTY_MULTI_LINE });
+    expect(res.status).toBe(303);
+    expect(messageRow()!.note_text).toBe(CLEAN_MULTI_LINE);
+  });
+
+  // Defect caught: the repeat check compares the raw resubmission with the
+  // cleaned stored note, so a re-post whose text differs only in what the
+  // cleaner removes is refused as a changed answer.
+  it('recognises a resubmitted note that cleans to the stored note as the same answer', async () => {
+    const itemId = seedItem();
+    await ask(itemId);
+    const messageId = messageRow()!.id as string;
+    const send = (note: string): Test => request(createApp())
+      .post(`/members/${MEMBER_SLUG}/questions/${messageId}/answer`)
+      .set('Cookie', memberCookie())
+      .type('form')
+      .send({ dateAnswer: 'confirm', note });
+    expect((await send(DIRTY_MULTI_LINE)).status).toBe(303);
+    const answered = messageRow();
+    const again = await send(DIRTY_MULTI_LINE.replace('\r\n\r\n\r\n\r\n\r\n', '\n\n\n'));
+    expect(again.status).toBe(303);
+    expect(messageRow()).toEqual(answered);
   });
 });
 

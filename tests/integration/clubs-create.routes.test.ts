@@ -688,3 +688,112 @@ describe('POST /clubs/create — the club country is the canonical name', () => 
     expect(res.text).toContain('<option value="New Zealand"');
   });
 });
+
+// The typed club text is cleaned before it is checked and stored: tags and
+// entities dropped, control characters removed, Unicode composed, whitespace
+// tidied.
+describe('POST /clubs/create — typed text is cleaned before it is checked', () => {
+  let seq = 0;
+  function seedCreator(): string {
+    seq += 1;
+    const id = `cc-clean-${seq}`;
+    const db = new BetterSqlite3(dbPath);
+    db.pragma('foreign_keys = ON');
+    createMemberAtTier(db, { id, slug: `cc_clean_${seq}`, tier: 'tier1' });
+    completeOnboarding(db, id);
+    db.close();
+    return id;
+  }
+  function storedClub(slug: string): Record<string, unknown> | undefined {
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    try {
+      return db.prepare(
+        `SELECT c.name, c.description, c.city, c.region FROM clubs c
+         JOIN tags t ON t.id = c.hashtag_tag_id WHERE t.tag_normalized = ?`,
+      ).get(`#club_${slug}`) as Record<string, unknown> | undefined;
+    } finally { db.close(); }
+  }
+
+  // Defect caught: a club is stored with live markup, a control character,
+  // CRLF line ends or a decomposed accent in its name, description, city or
+  // region; or the creator's own resubmission of that form is refused as
+  // though they already led another club, because the repeat check compares
+  // the raw form with the cleaned row.
+  it('stores the cleaned name, description, city and region, and recognises the repeat', async () => {
+    const creator = seedCreator();
+    const form = formData({
+      name: 'Clean <b>Kick</b>\u0085 Club',
+      description: 'Café <i>meets</i>\u0085 weekly\r\n\r\nBring a bag',
+      city: '<b>golden</b>',
+      region: '<i>Colorado</i>',
+      country: 'United States',
+      slug: 'clean_golden',
+    });
+    const post = () => request(createApp())
+      .post('/clubs/create')
+      .set('Cookie', authCookie(creator))
+      .type('form')
+      .send(form);
+    const first = await post();
+    expect(first.status).toBe(303);
+    expect(storedClub('clean_golden')).toEqual({
+      name: 'Clean Kick Club',
+      description: 'Café meets weekly\n\nBring a bag',
+      city: 'Golden',
+      region: 'Colorado',
+    });
+    const second = await post();
+    expect(second.status).toBe(303);
+    expect(second.headers.location).toBe(first.headers.location);
+  });
+
+  // Defect caught: a name that is only markup passes the required check and a
+  // club with an empty visible name is created.
+  it('refuses a markup-only name and creates nothing', async () => {
+    const res = await request(createApp())
+      .post('/clubs/create')
+      .set('Cookie', authCookie(seedCreator()))
+      .type('form')
+      .send(formData({ name: '<b></b>', slug: 'clean_markup_only' }));
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Club name is required');
+    expect(storedClub('clean_markup_only')).toBeUndefined();
+  });
+
+  // Defect caught: the per-country duplicate-name block runs on the raw name,
+  // so a second club differing only by markup takes the same visible name.
+  it('blocks a name that differs from an existing club only by markup', async () => {
+    const res = await request(createApp())
+      .post('/clubs/create')
+      .set('Cookie', authCookie(seedCreator()))
+      .type('form')
+      .send(formData({
+        name: '<b>Helsinki</b> Hackers', city: 'Espoo', region: '', country: 'Finland', slug: 'espoo_dup',
+      }));
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('already exists');
+    expect(storedClub('espoo_dup')).toBeUndefined();
+  });
+
+  // Defect caught: a description longer than the form allows is stored when
+  // posted around the browser's limit, or the limit refuses a description that
+  // is exactly at it. The forms declare 2000 characters.
+  it('accepts a description of exactly 2000 characters and refuses 2001', async () => {
+    const atLimit = await request(createApp())
+      .post('/clubs/create')
+      .set('Cookie', authCookie(seedCreator()))
+      .type('form')
+      .send(formData({ name: 'Limit Club', description: 'd'.repeat(2000), city: 'Aurora', slug: 'clean_limit' }));
+    expect(atLimit.status).toBe(303);
+    expect((storedClub('clean_limit')?.description as string).length).toBe(2000);
+
+    const over = await request(createApp())
+      .post('/clubs/create')
+      .set('Cookie', authCookie(seedCreator()))
+      .type('form')
+      .send(formData({ name: 'Over Club', description: 'd'.repeat(2001), city: 'Aurora', slug: 'clean_over' }));
+    expect(over.status).toBe(422);
+    expect(over.text).toContain('Club description must be 2000 characters or fewer.');
+    expect(storedClub('clean_over')).toBeUndefined();
+  });
+});

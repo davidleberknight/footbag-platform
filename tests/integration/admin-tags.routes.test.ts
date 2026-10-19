@@ -35,6 +35,8 @@ const ABUSE_TAG = 'tag-at-abuse';
 const KEEP_TAG  = 'tag-at-keep';
 const BY_TAG    = 'tag-at-by';
 const CURATED   = 'tag-at-curated';
+// Retired by the reason-cleaning case alone, so it shares no state with the rest.
+const CLEANED_TAG = 'tag-at-cleaned';
 
 const GALLERY_ID = 'gallery_at_one';
 
@@ -113,6 +115,9 @@ beforeAll(async () => {
   });
   insertFreeformTag(conn, {
     id: CURATED, tag_normalized: '#curated', tag_display: '#curated',
+  });
+  insertFreeformTag(conn, {
+    id: CLEANED_TAG, tag_normalized: '#cleaned_reason', tag_display: '#cleaned_reason',
   });
   // A club hashtag: standard, and the club's address rather than a member's word.
   insertClub(conn, {
@@ -401,5 +406,26 @@ describe('a retired hashtag cannot come back', () => {
     expect(countWhere(
       'SELECT COUNT(*) AS n FROM member_gallery_tags WHERE tag_id = ?', ABUSE_TAG,
     )).toBe(0);
+  });
+});
+
+describe('the retirement reason is stored cleaned', () => {
+  // Defect caught: markup, a control character or a run of spaces typed into
+  // the reason reaches the audit trail as typed, or a reason that is only
+  // markup passes the required check and retires the tag with no reason.
+  it('records a cleaned reason, and refuses one that is only markup', async () => {
+    const refused = await request(createApp())
+      .post('/admin/tags/retire/confirm').set('Cookie', adminCookie())
+      .type('form').send({ tag: '#cleaned_reason', reason: '<script></script><b></b>' });
+    expect(refused.status).toBe(422);
+    expect(tagRow(CLEANED_TAG).retired_at).toBeNull();
+    expect(auditRows(CLEANED_TAG)).toHaveLength(0);
+
+    const res = await request(createApp())
+      .post('/admin/tags/retire/confirm').set('Cookie', adminCookie())
+      .type('form').send({ tag: '#cleaned_reason', reason: '<b>Reported</b> as\u0085 a   slur.' });
+    expect(res.status).toBe(303);
+    expect(tagRow(CLEANED_TAG).retired_at).not.toBeNull();
+    expect(auditRows(CLEANED_TAG).map((r) => r.reason_text)).toEqual(['Reported as a slur.']);
   });
 });

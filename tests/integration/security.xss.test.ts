@@ -12,6 +12,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
+import BetterSqlite3 from 'better-sqlite3';
 import { hashTestPassword } from '../fixtures/hashTestPassword';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, createTestSessionJwt } from '../fixtures/factories';
@@ -64,9 +65,39 @@ afterAll(() => cleanupTestDb(dbPath));
 
 // ── Bio field renders on the profile edit form ────────────────────────────────
 
-describe('Bio field — XSS payloads escape on render', () => {
+// The bio is cleaned when it is saved: tags go, the words between them stay,
+// and text that is not markup is kept as typed. What is stored for each payload
+// is therefore fixed, and rendering it is still escaped as the second layer.
+const BIO_STORED_AS: Record<string, string> = {
+  '<script>alert(1)</script>':                   'alert(1)',
+  '<img src=x onerror="alert(1)">':              '',
+  '"><script>alert(1)</script>':                 '">alert(1)',
+  '<svg onload="alert(1)">':                     '',
+  'javascript:alert(1)':                         'javascript:alert(1)',
+  '<iframe src="javascript:alert(1)"></iframe>': '',
+};
+
+function readBio(): string {
+  const conn = new BetterSqlite3(dbPath, { readonly: true });
+  const row = conn.prepare('SELECT bio FROM members WHERE id = ?').get(MEMBER_ID) as { bio: string };
+  conn.close();
+  return row.bio;
+}
+
+// Handlebars' own escape set, so the rendered form of a stored value can be
+// predicted from the value itself.
+function escapeLikeHandlebars(text: string): string {
+  return text
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#x27;').replace(/`/g, '&#x60;').replace(/=/g, '&#x3D;');
+}
+
+describe('Bio field — XSS payloads are stored without tags and render inert', () => {
   for (const payload of XSS_PAYLOADS) {
-    it(`escapes: ${payload.slice(0, 32)}...`, async () => {
+    // Defect caught: a bio is stored with the tags it was submitted with, so
+    // every surface rendering it leans on escaping alone; or what survives
+    // cleaning is rendered live rather than escaped.
+    it(`stores without tags and escapes: ${payload.slice(0, 32)}...`, async () => {
       // Save the payload as bio.
       const app = createApp();
       const saveRes = await request(app)
@@ -84,7 +115,9 @@ describe('Bio field — XSS payloads escape on render', () => {
           firstCompetitionYear: '',
           showCompetitiveResults: 'on',
         });
-      expect(saveRes.status).toBeLessThan(500);
+      expect(saveRes.status).toBe(303);
+      const stored = readBio();
+      expect(stored).toBe(BIO_STORED_AS[payload]);
 
       // Fetch the profile edit form to see how the bio renders.
       const viewRes = await request(app)
@@ -97,14 +130,10 @@ describe('Bio field — XSS payloads escape on render', () => {
         expect(viewRes.text).not.toContain(fragment);
       }
 
-      // The raw `<` from the payload must have been escaped somewhere in the
-      // rendered HTML. `&lt;` is the canonical escape; `&amp;lt;` would mean
-      // double-escaping (acceptable but suspicious). Either proves Handlebars
-      // escaped it.
-      if (payload.includes('<')) {
-        expect(
-          viewRes.text.includes('&lt;') || viewRes.text.includes('&amp;lt;'),
-        ).toBe(true);
+      // What survived cleaning reaches the page, escaped: a stray quote and
+      // angle bracket left over from a broken tag render as entities.
+      if (stored !== '') {
+        expect(viewRes.text).toContain(escapeLikeHandlebars(stored));
       }
     });
   }

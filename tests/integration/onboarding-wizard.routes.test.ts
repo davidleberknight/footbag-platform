@@ -15,6 +15,11 @@ import { insertMember, insertHistoricalPerson, insertOnboardingTask, createTestS
 
 const { dbPath } = setTestEnv('3133');
 
+// Built from code points so the decomposed and composed forms stay visibly
+// different in the source.
+const DECOMPOSED_E_ACUTE = `e${String.fromCodePoint(0x0301)}`;
+const COMPOSED_E_ACUTE = String.fromCodePoint(0x00e9);
+
 let createApp: Awaited<ReturnType<typeof importApp>>;
 let testDb: BetterSqlite3.Database;
 
@@ -286,6 +291,48 @@ describe('POST /register/wizard/personal_details/submit — collects details and
     const row = testDb.prepare('SELECT birth_date FROM members WHERE id = ?')
       .get(memberId) as { birth_date: string | null };
     expect(row.birth_date).toBeNull();
+  });
+
+  // Defect caught: the city or region the registrant typed is stored with
+  // markup, a C1 control character or a decomposed accent, so the same place
+  // typed two ways compares unequal on the roster and in claim matching.
+  it('stores the city and region as the cleaner leaves them', async () => {
+    const stamp = Date.now();
+    const memberId = insertMember(testDb, { onboarding: 'none', slug: `wiz_pd_clean_${stamp}`, login_email: `wiz-pd-clean-${stamp}@example.com` });
+    const res = await request(createApp())
+      .post('/register/wizard/personal_details/submit')
+      .set('Cookie', cookieFor(memberId))
+      .type('form')
+      .send({
+        city: `Montr${DECOMPOSED_E_ACUTE}al <b>Nord</b>`,
+        region: 'Canter<i>bury</i>\u0085',
+        country: 'New Zealand',
+        birthDay: '5', birthMonth: '5', birthYear: '1990',
+      });
+    expect(res.status).toBe(303);
+    const row = testDb.prepare('SELECT city, region FROM members WHERE id = ?')
+      .get(memberId) as { city: string; region: string };
+    expect(row).toEqual({ city: `Montr${COMPOSED_E_ACUTE}al Nord`, region: 'Canterbury' });
+  });
+
+  // Defect caught: a city that was only markup passes the required check
+  // because it reads the raw text, and the task completes with no city.
+  it('refuses a city that is only markup, leaving the task open and the city untouched', async () => {
+    const stamp = Date.now();
+    const memberId = insertMember(testDb, { onboarding: 'none', slug: `wiz_pd_markup_${stamp}`, login_email: `wiz-pd-markup-${stamp}@example.com` });
+    const res = await request(createApp())
+      .post('/register/wizard/personal_details/submit')
+      .set('Cookie', cookieFor(memberId))
+      .type('form')
+      .send({
+        city: '<b></b>', region: 'OR', country: 'USA',
+        birthDay: '5', birthMonth: '5', birthYear: '1990',
+      });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('City is required.');
+    expect(getTaskState(memberId, 'personal_details')).toBe('pending');
+    const row = testDb.prepare('SELECT city FROM members WHERE id = ?').get(memberId) as { city: string };
+    expect(row.city).toBe('Testville');
   });
 
   it('refuses a re-submission against the already-completed task and stores none of it', async () => {

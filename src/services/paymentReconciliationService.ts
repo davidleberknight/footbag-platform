@@ -66,6 +66,8 @@
  *     transaction as the issue update and the audit row. The reconciliation
  *     page is the resolution surface for a discrepancy; the queue card is only a
  *     pointer to it and is never resolved on its own.
+ *   - The administrator's resolution note is cleaned with the shared write-time
+ *     sanitizer before validation.
  *   - A payment reaches its event through the registration that references it,
  *     never through a column on the payment. Only a registration fee has one, so
  *     the join is optional and a donation or membership shows no event.
@@ -173,6 +175,7 @@ import { config } from '../config/env';
 import { appendAuditEntry } from './auditService';
 import { readIntConfig } from './configReader';
 import { NotFoundError, ValidationError } from './serviceErrors';
+import { cleanUserText } from '../lib/textSanitizer';
 import { emailService } from './emailService';
 import { workQueueService } from './workQueueService';
 import {
@@ -660,7 +663,9 @@ export const paymentReconciliationService = {
     adminMemberId: string;
     notes: string;
   }): { status: 'resolved' } {
-    const notes = input.notes.trim();
+    // Cleaned before the checks, so markup alone is no explanation and the
+    // length counts what is stored.
+    const notes = cleanUserText(input.notes, 'multi_line', 'notes');
     if (notes === '') {
       throw new ValidationError('Explain what you did, so the next administrator can follow it.');
     }

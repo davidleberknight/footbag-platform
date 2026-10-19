@@ -26,6 +26,12 @@ const STRANGER_ID    = 'member_contact_stranger';
 const STRANGER_SLUG  = 'contact_stranger';
 const ADMIN_SUBSCRIBER_ID = 'admin_alerts_subscriber_1';
 
+// Typed text carrying every class the write-time cleaner removes or repairs: a
+// tag, a C1 control character, a decomposed accent, and CRLF paragraph breaks
+// with four blank lines between them.
+const DIRTY_MULTI_LINE = 'First <i>para</i>\u009b Café\r\n\r\n\r\n\r\n\r\nSecond para';
+const CLEAN_MULTI_LINE = 'First para Café\n\nSecond para';
+
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 function ownerCookie(): string {
@@ -299,27 +305,30 @@ describe('POST /members/:slug/contact-admin', () => {
     expect(res.headers.location).toMatch(/^\/login/);
   });
 
-  it('adversarial: raw message persists only in the mutable queue row; the audit row carries its length, not its text', async () => {
+  it('adversarial: the cleaned message persists only in the mutable queue row; the audit row carries its length, not its text', async () => {
     // The audit ledger is append-only and exempt from PII purge, so
     // member-authored free text (which can carry emails, phone numbers,
     // anything) must never land in it. The operational copy lives in the
-    // resolvable work-queue row.
+    // resolvable work-queue row, with its markup stripped before it is stored.
     const app = createApp();
-    const payload = '<script>alert(1)</script>';
+    const payload = '<script>alert(1)</script>Please help';
+    const cleaned = 'alert(1)Please help';
     const dbSnap = new BetterSqlite3(dbPath, { readonly: true });
     const beforeIds = snapshotIds(dbSnap, contactAudit(OWNER_ID));
     dbSnap.close();
-    await request(app)
+    const res = await request(app)
       .post(`/members/${OWNER_SLUG}/contact-admin`)
       .set('Cookie', ownerCookie())
       .type('form')
       .send({ category: 'other', message: payload });
+    expect(res.status).toBe(303);
     const db = new BetterSqlite3(dbPath);
     const queueRow = db
-      .prepare(`SELECT reason_text FROM work_queue_items WHERE entity_id = ? AND status = 'open' LIMIT 1`)
-      .get(OWNER_ID) as { reason_text: string } | undefined;
+      .prepare(`SELECT reason_text, detail_text FROM work_queue_items WHERE entity_id = ? AND status = 'open'`)
+      .get(OWNER_ID) as { reason_text: string; detail_text: string } | undefined;
     expect(queueRow).toBeDefined();
-    expect(queueRow!.reason_text).toContain(payload);
+    expect(queueRow!.detail_text).toBe(cleaned);
+    expect(queueRow!.reason_text).toBe(`Other: ${cleaned}`);
     const newRow = oneRowAddedSince<{ metadata_json: string }>(
       db,
       contactAudit(OWNER_ID),
@@ -327,10 +336,71 @@ describe('POST /members/:slug/contact-admin', () => {
     );
     expect(newRow).toBeDefined();
     const parsed = JSON.parse(newRow!.metadata_json);
-    expect(parsed.message_length).toBe(payload.length);
+    expect(parsed.message_length).toBe(cleaned.length);
     expect(parsed).not.toHaveProperty('message');
     expect(newRow!.metadata_json).not.toContain('alert(1)');
     db.close();
+
+    const adminCookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: ADMIN_SUBSCRIBER_ID, role: 'admin' })}`;
+    const page = await request(app).get('/admin/work-queue').set('Cookie', adminCookie);
+    expect(page.status).toBe(200);
+    expect(page.text).toContain(cleaned);
+    expect(page.text).not.toContain('<script>alert');
+  });
+
+  // Defect caught: control characters, stacked blank lines or a decomposed
+  // accent reach the stored request, or the queue summary is cut from the raw
+  // text and shows the administrator markup the stored message no longer has.
+  it('stores the message cleaned, and derives the queue summary from the cleaned text', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post(`/members/${OWNER_SLUG}/contact-admin`)
+      .set('Cookie', ownerCookie())
+      .type('form')
+      .send({ category: 'other', message: DIRTY_MULTI_LINE });
+    expect(res.status).toBe(303);
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const row = db
+      .prepare(`SELECT reason_text, detail_text FROM work_queue_items WHERE entity_id = ?`)
+      .get(OWNER_ID) as { reason_text: string; detail_text: string };
+    db.close();
+    expect(row.detail_text).toBe(CLEAN_MULTI_LINE);
+    expect(row.reason_text).toBe(`Other: ${CLEAN_MULTI_LINE}`);
+  });
+
+  // Defect caught: a message of markup alone passes the required check on its
+  // raw length and opens a request with nothing in it.
+  it('refuses a message that is only markup, and opens nothing', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post(`/members/${OWNER_SLUG}/contact-admin`)
+      .set('Cookie', ownerCookie())
+      .type('form')
+      .send({ category: 'other', message: '<p> </p>\r\n<br>' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Message is required');
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const n = (db.prepare(`SELECT COUNT(*) AS n FROM work_queue_items`).get() as { n: number }).n;
+    db.close();
+    expect(n).toBe(0);
+  });
+
+  // Defect caught: the repeat lookup compares the raw resubmission with the
+  // cleaned stored request, so a re-post differing only in what the cleaner
+  // removes opens a second copy for an administrator to work.
+  it('recognises a re-post that cleans to the same words as the same request', async () => {
+    const app = createApp();
+    const send = (message: string) => request(app)
+      .post(`/members/${OWNER_SLUG}/contact-admin`)
+      .set('Cookie', ownerCookie())
+      .type('form')
+      .send({ category: 'other', message });
+    expect((await send(DIRTY_MULTI_LINE)).status).toBe(303);
+    expect((await send(DIRTY_MULTI_LINE.replace('\r\n\r\n\r\n\r\n\r\n', '\n\n\n'))).status).toBe(303);
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const n = (db.prepare(`SELECT COUNT(*) AS n FROM work_queue_items WHERE entity_id = ?`).get(OWNER_ID) as { n: number }).n;
+    db.close();
+    expect(n).toBe(1);
   });
 
   // Defect caught: a double-click or back-button re-post opens a second copy of

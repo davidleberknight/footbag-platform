@@ -42,6 +42,8 @@
  *       - `ux_active_player_grants_vouch_once` (per vouch)
  *       - `ux_active_player_club_join_once` (per member, lifetime)
  *   - Self-vouch rejected at both DB (CHECK) and APP (service guard).
+ *   - A vouch or correction reason is cleaned with the shared text sanitizer
+ *     before it is validated, so markup alone never passes as a reason.
  *   - Vouch rate limit throws `RateLimitedError`; bucket size and window read
  *     from `system_config_current`.
  *   - `endOnTierUpgrade` and `endOnTier3Grant` execute in the same transaction
@@ -79,6 +81,7 @@ import { readIntConfig } from './configReader';
 import { RateLimitedError, ValidationError } from './serviceErrors';
 import { uuidv7Hex } from './uuidv7';
 import { laterStamp } from '../lib/ledgerStamp';
+import { cleanUserText } from '../lib/textSanitizer';
 import { formatDateDisplay } from './dateFormat';
 import {
   navigateTo,
@@ -293,15 +296,19 @@ function readLatestGrant(memberId: string): ActivePlayerGrantLatestRow | undefin
   return activePlayer.getLatestGrant.get(memberId) as ActivePlayerGrantLatestRow | undefined;
 }
 
-function validateReasonText(reasonText: string | null | undefined): string | null {
-  if (reasonText === null || reasonText === undefined) return null;
+// A person's reason, cleaned before the length check so the limit measures what
+// the ledger and audit rows hold. Text that cleans to nothing comes back null,
+// so a reason that was only markup reads as no reason at all.
+function validateReasonText(raw: string | null | undefined): string | null {
+  if (raw === null || raw === undefined) return null;
+  const reasonText = cleanUserText(raw, 'single_line', 'reason');
   if (reasonText.length > REASON_TEXT_MAX_LENGTH) {
     throw new ValidationError(
       `reason_text exceeds ${REASON_TEXT_MAX_LENGTH} characters`,
       { length: reasonText.length },
     );
   }
-  return reasonText;
+  return reasonText || null;
 }
 
 function durationDays(): number {
@@ -939,11 +946,10 @@ export function correctExpiry(
   newExpiresAt: string | null,
   reasonText: string,
 ): CorrectExpiryResult {
-  const reason = reasonText.trim();
+  const reason = validateReasonText(reasonText);
   if (!reason) {
     throw new ValidationError('Enter the reason for this correction.');
   }
-  validateReasonText(reason);
 
   const tier = readTier(memberId);
   if (tier && tier.tier_status !== 'tier0') {

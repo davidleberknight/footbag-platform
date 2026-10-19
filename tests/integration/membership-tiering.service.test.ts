@@ -841,6 +841,18 @@ describe('adminOverride', () => {
     expect(() => mts.adminOverride(ADMIN_ID, id, 'tier1', '   ')).toThrow(/required/);
   });
 
+  it('stores the reason cleaned, and refuses one that is only markup without writing', () => {
+    const id = freshMember();
+    mts.applyPurchaseGrant(id, id, freshPayment(id, 'tier1'), 'tier1');
+    const before = tierGrants(id).length;
+
+    expect(() => mts.adminOverride(ADMIN_ID, id, 'tier0', '<b></b> <br/>')).toThrow(/required/);
+    expect(tierGrants(id)).toHaveLength(before);
+
+    mts.adminOverride(ADMIN_ID, id, 'tier0', '<i>wrong</i>\u0085   grant');
+    expect(tierGrants(id).at(-1)!.reason_text).toBe('wrong grant');
+  });
+
   it('rejects an oversized reason text (1MB)', () => {
     const id = freshMember();
     const huge = 'x'.repeat(1_000_000);

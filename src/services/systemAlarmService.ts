@@ -20,6 +20,8 @@
  *     handling the incident, and the monitored condition is what ends it.
  *   - Acknowledgment is one-shot, enforced in the UPDATE's WHERE clause, so a
  *     resubmitted form cannot overwrite the first administrator's name or note.
+ *   - The acknowledgment note is cleaned with the shared write-time sanitizer
+ *     before it is cut to length and stored.
  *   - Severity is derived from the notification state, because the monitoring
  *     service's payload carries no severity of its own: a firing alarm is
  *     critical and a monitor that has lost its data is a warning.
@@ -46,6 +48,7 @@ import { systemAlarms, transaction } from '../db/db';
 import { runSqliteRead } from './sqliteRetry';
 import { appendAuditEntry } from './auditService';
 import { NotFoundError } from './serviceErrors';
+import { cleanUserText } from '../lib/textSanitizer';
 import { logger } from '../config/logger';
 import { safeSubscribeUrlForLog } from '../lib/snsSignature';
 import type { PageViewModel } from '../types/page';
@@ -397,7 +400,10 @@ export const systemAlarmService = {
     if (existing === undefined) {
       throw new NotFoundError('Alarm not found');
     }
-    const note = input.note && input.note.trim() ? input.note.trim().slice(0, 500) : null;
+    // Cleaned before the length cut, so the cut counts what is stored and a
+    // note of markup alone is no note at all.
+    const cleaned = input.note ? cleanUserText(input.note, 'multi_line', 'note') : '';
+    const note = cleaned ? cleaned.slice(0, 500) : null;
     const now = new Date().toISOString();
     let changed = 0;
     transaction(() => {

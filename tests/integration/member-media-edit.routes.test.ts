@@ -188,6 +188,23 @@ describe('member per-item media edit routes', () => {
     expect(findMediaExternalUrl(mediaId)).toBe('https://example.com/source');
   });
 
+  // Defect caught: an edited caption is stored with live markup, a control
+  // character, CRLF line ends or a decomposed accent.
+  it('POST owner edit stores the cleaned caption', async () => {
+    const mediaId = insertOwnerMedia('owner-edits-clean.jpg', 'before');
+    const res = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/media/${mediaId}/edit`)
+      .set('Cookie', cookieFor(OWNER_ID))
+      .type('form')
+      .send({
+        caption: 'Café <i>edit</i>\u0085 one\r\n\r\ntwo',
+        tags: '',
+        externalUrl: '',
+      });
+    expect(res.status).toBe(303);
+    expect(findMediaCaption(mediaId)).toBe('Café edit one\n\ntwo');
+  });
+
   it('POST non-owner slug → 404 (no write)', async () => {
     const mediaId = insertOwnerMedia('owner-nonowner-write.jpg', 'untouched');
     const res = await request(createApp())

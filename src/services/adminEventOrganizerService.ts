@@ -25,6 +25,8 @@
  *   - Both writes take a mandatory reason, as the sibling club-leadership
  *     surface does: an administrator changing who runs somebody else's event is
  *     reviewable only from a trail that says why.
+ *   - The reason is cleaned with the shared text sanitizer before it is
+ *     validated, so the length checks measure what is stored.
  *   - Assignment and removal each keep the work-queue item honest in the same
  *     transaction as the change, so the queue can never disagree with the event.
  *
@@ -42,6 +44,7 @@ import { appendAuditEntry } from './auditService';
 import { workQueueService } from './workQueueService';
 import { NotFoundError, ValidationError } from './serviceErrors';
 import { PageViewModel } from '../types/page';
+import { cleanUserText } from '../lib/textSanitizer';
 
 const NEEDS_ORGANIZER_TASK = 'needs_organizer';
 const REASON_MIN = 3;
@@ -88,7 +91,9 @@ export interface AdminEventOrganizerDetailContent {
 }
 
 function requireReason(reason: string): string {
-  const trimmed = reason.trim();
+  // Cleaned before the checks, so a reason that is only markup is too short and
+  // the limit measures what the audit row will hold.
+  const trimmed = cleanUserText(reason, 'single_line', 'reason');
   if (trimmed.length < REASON_MIN) {
     throw new ValidationError('Give a reason for this change; it is kept on the record.');
   }

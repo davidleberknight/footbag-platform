@@ -111,6 +111,7 @@ import {
 } from '../db/db';
 import { appendAuditEntry } from './auditService';
 import { NotFoundError, ValidationError } from './serviceErrors';
+import { cleanUserText } from '../lib/textSanitizer';
 import { clubService } from './clubService';
 import { emailService } from './emailService';
 import { logger } from '../config/logger';
@@ -1437,6 +1438,13 @@ function getBacklogBadge(): BacklogBadge {
 
 type ResolveAction = 'demote_inactive' | 'archive' | 'dismiss' | 'park';
 
+// An administrator's optional reason, cleaned before it is stored; one that
+// cleaning leaves empty is no reason at all.
+function cleanReason(reasonText: string | null): string | null {
+  if (reasonText === null) return null;
+  return cleanUserText(reasonText, 'single_line', 'reasonText') || null;
+}
+
 function resolveClub(
   adminMemberId: string,
   clubId: string,
@@ -1444,6 +1452,7 @@ function resolveClub(
   action: ResolveAction,
   reasonText: string | null,
 ): void {
+  reasonText = cleanReason(reasonText);
   const validActions: ReadonlySet<string> = new Set([
     'demote_inactive', 'archive', 'dismiss', 'park',
   ]);
@@ -1665,6 +1674,7 @@ function resolveCandidate(
   reasonText: string | null,
   predicate: string = PROMOTABLE_PREDICATE,
 ): CandidateResolveResult {
+  reasonText = cleanReason(reasonText);
   const validActions: ReadonlySet<string> = new Set([
     'park', 'dismiss',
     'demote', 'archive', 'confirm_junk', 'promote_dormant',
@@ -1765,6 +1775,7 @@ function delistUnconfirmedResidue(
   clubId: string,
   reasonText: string | null,
 ): { delistedCount: number } {
+  reasonText = cleanReason(reasonText);
   // An id for a club that does not exist stays the harmless no-op it has always
   // been, but it must not reach the ledger: writing a de-listing against a
   // fabricated entity puts a row about a thing that never existed into an
@@ -1813,6 +1824,7 @@ function bulkParkGroup(
   action: string,
   reasonText: string | null,
 ): { parkedCount: number } {
+  reasonText = cleanReason(reasonText);
   const validGroups: ReadonlySet<string> = new Set([
     'crowdsource_viability', 'leaderless_active', 'stale_provisional', 'candidate_flag',
   ]);
@@ -1907,7 +1919,7 @@ async function promoteCandidate(
 ): Promise<{ branch: 'promoted' | 'already_promoted'; clubId: string }> {
   const result = await clubService.promoteCandidate(candidateId, adminMemberId, {
     actorType: 'admin',
-    reasonText,
+    reasonText: cleanReason(reasonText),
     trigger: 'admin_queue',
     // The mirror the candidates came from carried no state or province, and a
     // club created without one flattens its country page's grouping, so the

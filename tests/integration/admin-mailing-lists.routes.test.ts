@@ -230,6 +230,43 @@ describe('creating a list through the surface', () => {
     expect(listRow('changed-fields')!.description).toBe('First version');
   });
 
+  // Defect caught: markup, a control character, stacked blank lines or a
+  // decomposed accent are stored on the list as typed, or the slug every
+  // subscription references is derived from the raw name and carries the
+  // markup's letters for good.
+  it('stores the name, description and subject prefix cleaned, and derives the slug from the cleaned name', async () => {
+    const res = await request(createApp())
+      .post('/admin/mailing-lists/new')
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({
+        name: 'Club <b>Night</b>\u009b Café',
+        description: 'First <i>para</i>\u009b\r\n\r\n\r\n\r\n\r\nSecond para',
+        subjectPrefix: '<b>IFPA</b>\u009b\r\nNews',
+      });
+
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/admin/mailing-lists/club-night-cafe');
+    const row = listRow('club-night-cafe')!;
+    expect(row.name).toBe('Club Night Café');
+    expect(row.description).toBe('First para\n\nSecond para');
+    expect(row.subject_prefix).toBe('IFPA News');
+  });
+
+  // Defect caught: a name of markup alone passes the required check on its raw
+  // length and creates a list named after the tag's letters.
+  it('refuses a name that is only markup, and creates nothing', async () => {
+    const before = withDb((db) => (db.prepare('SELECT COUNT(*) AS n FROM mailing_lists').get() as { n: number }).n);
+    const res = await request(createApp())
+      .post('/admin/mailing-lists/new')
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ name: '<b> </b>', description: 'x' });
+    expect(res.status).toBe(422);
+    expect(res.text).toMatch(/Name: required/);
+    expect(withDb((db) => (db.prepare('SELECT COUNT(*) AS n FROM mailing_lists').get() as { n: number }).n)).toBe(before);
+  });
+
   it('re-renders the form with the submitted values when the name is missing', async () => {
     const res = await request(createApp())
       .post('/admin/mailing-lists/new')
@@ -324,6 +361,29 @@ describe('editing a list through the surface', () => {
     expect(res.headers.location).toBe('/admin/mailing-lists/save-list');
     expect(flashValueOf(res)).toBe('mailing_list_result:saved');
     expect(listRow('save-list')!.description).toBe('Now described');
+  });
+
+  // Defect caught: a name stored before write-time cleaning existed is
+  // resubmitted unchanged, and the audit row reports it as edited only because
+  // the cleaner tidied it, so the trail claims a change nobody made.
+  it('records no name change when a value saved before cleaning is resubmitted unchanged', async () => {
+    const stored = 'Legacy   Name';
+    withDb((db) => insertMailingList(db, { slug: 'legacy-name', name: stored, is_member_manageable: 1 }));
+
+    // The manageability box is left unchecked, so the save records one real change.
+    const res = await request(createApp())
+      .post('/admin/mailing-lists/legacy-name/edit')
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ name: stored, description: '' });
+
+    expect(res.status).toBe(303);
+    const changed = withDb((db) => db.prepare(
+      `SELECT metadata_json FROM audit_entries
+        WHERE action_type = 'mailing_list.updated' AND entity_id = 'legacy-name'`,
+    ).all() as Array<{ metadata_json: string }>);
+    expect(changed).toHaveLength(1);
+    expect(JSON.parse(changed[0]!.metadata_json).changedFields).toEqual(['is_member_manageable']);
   });
 
   it('re-renders the form on a bad from-address and saves nothing', async () => {
@@ -433,6 +493,33 @@ describe('changing one member\'s subscription through the surface', () => {
     expect(res.status).toBe(422);
     expect(res.text).toMatch(/Reason: required/);
     expect(subscriptionStatus('no-reason', MEMBER_ID)).toBe('bounced');
+  });
+
+  // Defect caught: the reason recorded for a change made on a member's behalf
+  // carries markup and control characters into the ledger, which can never be
+  // corrected, or a reason of markup alone passes the required check.
+  it('records the reason cleaned, and refuses one that is only markup', async () => {
+    withDb((db) => {
+      insertMailingList(db, { slug: 'reason-list', name: 'Reason List' });
+      insertMailingListSubscription(db, { member_id: MEMBER_ID, list_slug: 'reason-list', status: 'bounced' });
+    });
+    const adjust = (reason: string) => request(createApp())
+      .post('/admin/mailing-lists/reason-list/subscriptions/adjust')
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ memberId: MEMBER_ID, status: 'subscribed', reason });
+
+    const refused = await adjust('<b></b>');
+    expect(refused.status).toBe(422);
+    expect(refused.text).toMatch(/Reason: required/);
+    expect(subscriptionStatus('reason-list', MEMBER_ID)).toBe('bounced');
+
+    expect((await adjust('Mailbox <i>fixed</i>\u009b Café\r\nnow')).status).toBe(303);
+    const ledger = withDb((db) => db.prepare(
+      `SELECT reason_text FROM audit_entries
+        WHERE action_type = 'mailing_list.subscription_adjusted' AND entity_id = 'reason-list'`,
+    ).all() as Array<{ reason_text: string }>);
+    expect(ledger).toEqual([{ reason_text: 'Mailbox fixed Café now' }]);
   });
 
   it('reports a member with no subscription on the list as having changed nothing', async () => {

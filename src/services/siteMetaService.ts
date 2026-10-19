@@ -127,10 +127,12 @@ function collectPublicPaths(): string[] {
     paths.add(`/net/teams/${row.team_id}`);
   }
 
-  // History: every historical person's detail page a signed-out visitor can
-  // read (the Hall of Fame and Big Add Posse records). Any other record asks a
-  // visitor to log in, and a record claimed by an honoured member redirects to
-  // the member profile, so neither is a public page to list.
+  // History: the Hall of Fame and Big Add Posse records only. Every canonical
+  // record is a public page, but these pages are reached by link from public
+  // results, not offered as a directory, so listing every person would turn
+  // the sitemap into the browse-all list the record pages are meant not to be.
+  // A record claimed by an honoured member redirects to the member profile and
+  // is left out too.
   for (const row of publicPlayers.listPublicDetailIds.all() as Array<{ person_id: string }>) {
     paths.add(`/history/${row.person_id}`);
   }

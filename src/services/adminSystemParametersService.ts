@@ -10,7 +10,8 @@
  *
  * Required patterns: `system_config` is append-only, so a change is a new row
  * superseding the old one and never an update, and the row carries the acting
- * administrator and the reason they gave. Every write appends one
+ * administrator and the reason they gave, cleaned with the shared text
+ * sanitizer before it is validated. Every write appends one
  * `audit_entries` row in the same transaction as the configuration row, so a
  * value that changed always carries its record. Validation refuses a value
  * outside the safe range for its key rather than storing it, because these
@@ -45,6 +46,7 @@ import { appendAuditEntry } from './auditService';
 import { ConflictError, ValidationError } from './serviceErrors';
 import { isUniqueConstraintError, runSqliteRead } from './sqliteRetry';
 import type { PageViewModel } from '../types/page';
+import { INVALID_TEXT_ENCODING_MESSAGE, sanitizeUserText } from '../lib/textSanitizer';
 
 const PAGE_HREF = '/admin/system-parameters';
 const PRICE_HREF = '/admin/system-parameters/pricing';
@@ -387,6 +389,26 @@ function currentNumber(rows: Map<string, SystemConfigRow>, spec: ParameterSpec):
   return parsed === null ? spec.defaultValue : parsed;
 }
 
+/**
+ * The administrator's reason, cleaned before it is checked so a reason that is
+ * only markup counts as empty and the limit measures what is stored. Any
+ * refusal is recorded beside the submission's other field errors rather than
+ * thrown, so the form shows every problem at once.
+ */
+function cleanReason(raw: string, errors: Record<string, string>, emptyMessage: string): string {
+  const cleaned = sanitizeUserText(raw, 'single_line');
+  if (cleaned.status === 'invalid_encoding') {
+    errors.reason = INVALID_TEXT_ENCODING_MESSAGE;
+    return '';
+  }
+  if (!cleaned.text) {
+    errors.reason = emptyMessage;
+  } else if (cleaned.text.length > REASON_MAX) {
+    errors.reason = `Reason: at most ${REASON_MAX} characters.`;
+  }
+  return cleaned.text;
+}
+
 function validateOne(spec: ParameterSpec, raw: string): { value: number } | { error: string } {
   const parsed = parseCountValue(raw);
   if (parsed === null) {
@@ -530,15 +552,11 @@ export const adminSystemParametersService = {
    * administrator never lands half of a set of related changes.
    */
   updateParameters(input: ParameterUpdateInput, actorMemberId: string): { changedKeys: string[] } {
-    const reason = input.reason.trim();
     const errors: Record<string, string> = {};
     const accepted = new Map<string, number>();
-
-    if (!reason) {
-      errors.reason = 'Reason: say why the value is changing. It is kept with the change.';
-    } else if (reason.length > REASON_MAX) {
-      errors.reason = `Reason: at most ${REASON_MAX} characters.`;
-    }
+    const reason = cleanReason(
+      input.reason, errors, 'Reason: say why the value is changing. It is kept with the change.',
+    );
 
     for (const key of EDITABLE_PARAMETER_KEYS) {
       const spec = SPEC_BY_KEY.get(key)!;
@@ -637,12 +655,10 @@ export const adminSystemParametersService = {
       }
     }
 
-    const reason = (input.reason ?? '').trim();
-    if (!reason) {
-      errors.reason = 'Reason: say why the price is changing, for example an IFPA rule change or a board decision.';
-    } else if (reason.length > REASON_MAX) {
-      errors.reason = `Reason: at most ${REASON_MAX} characters.`;
-    }
+    const reason = cleanReason(
+      input.reason ?? '', errors,
+      'Reason: say why the price is changing, for example an IFPA rule change or a board decision.',
+    );
 
     if (Object.keys(errors).length) {
       throw new ValidationError('The price change needs attention.', { fieldErrors: errors });

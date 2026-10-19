@@ -167,6 +167,11 @@
  *     registration refuses a blank one from that member, because neither random
  *     characters nor a machine romanisation should become the permanent public
  *     spelling of somebody's name.
+ *   - Human-authored text (member names, a declared former surname, a link-help
+ *     statement, an administrator's reason) is cleaned with the shared
+ *     write-time sanitizer before it is validated; the name rules then run on
+ *     the cleaned value. Imported legacy values carried through a claim are not
+ *     re-cleaned.
  *
  * Transaction discipline:
  *   - Multi-write paths (claim merge, password reset + version bump, register + audit)
@@ -258,6 +263,7 @@ import { applyDevStagingBootstrapAdmin } from '../dev-bootstrap/runtime';
 import { ConflictError, NotFoundError, RateLimitedError, ServiceUnavailableError, ValidationError } from './serviceErrors';
 import { createSessionJwt } from './jwtService';
 import { compareBirthDates, type RecordedBirthDateComparison } from '../lib/birthDate';
+import { cleanUserText } from '../lib/textSanitizer';
 import { isUniqueConstraintError } from './sqliteRetry';
 import { appendAuditEntry, findOwnLatestAudit } from './auditService';
 import { recordOperationalError } from './operationalErrors';
@@ -275,6 +281,9 @@ const MAX_PASSWORD_LENGTH = 128;
 const MIN_DISPLAY_NAME = 2;
 const MAX_NAME_PART = 35;
 const MAX_DISPLAY_NAME = 70;
+// The administrator's reason for rejecting a link-help request or upholding a
+// dispute, matching the length the work-queue form allows.
+const MAX_RESOLVE_REASON = 500;
 
 function normalizeEmail(email: string): string {
   return email.toLowerCase().trim();
@@ -764,7 +773,7 @@ interface NameRuleOptions {
 }
 
 /**
- * Trim, NFC-normalize, fix clearly careless capitalization (normalizeNameCase)
+ * Clean, NFC-normalize, fix clearly careless capitalization (normalizeNameCase)
  * and assemble a member's names into the shape the rules and the write both read.
  *
  * Deriving the assembled legal name and the surname key here, rather than at
@@ -777,14 +786,19 @@ function normalizeMemberNames(
   familyName: string,
   displayName: string,
 ): MemberNames {
-  const trimmedGivenNames = normalizeNameCase(givenNames.trim().normalize('NFC'));
-  const trimmedFamilyName = normalizeNameCase(familyName.trim().normalize('NFC'));
+  // Cleaned first, so markup and stray control characters are gone before the
+  // name rules read the value; the rules themselves still refuse what cleaning
+  // leaves, such as an invisible formatting character or a reserved word.
+  const cleanName = (raw: string, fieldName: string): string =>
+    cleanUserText(raw, 'single_line', fieldName).normalize('NFC');
+  const trimmedGivenNames = normalizeNameCase(cleanName(givenNames, 'givenNames'));
+  const trimmedFamilyName = normalizeNameCase(cleanName(familyName, 'familyName'));
   const realName = assembleFullName(trimmedGivenNames, trimmedFamilyName);
   return {
     givenNames:  trimmedGivenNames,
     familyName:  trimmedFamilyName,
     realName,
-    displayName: normalizeNameCase(displayName.trim().normalize('NFC')) || realName,
+    displayName: normalizeNameCase(cleanName(displayName, 'displayName')) || realName,
     // Both name rules key on the recorded family name rather than the last word
     // of the full name. A member whose only name is a given name is held to that
     // name, so neither rule becomes unsatisfiable for them.
@@ -2468,8 +2482,9 @@ function enforceHistoricalPersonClaimLimit(requestingMemberId: string, ip: strin
 // not pipeline-linked (scenario E). Email cannot be the anchor because
 // historical_persons carries no email, so the identity anchor is surname
 // reconciliation against the member's real_name. Flow:
-//   1. Member views /history/:personId (the HP detail page).
-//   2. If eligible, member clicks "Claim this identity".
+//   1. The onboarding wizard's claim task offers the HP as a candidate; the
+//      HP detail page itself carries no claim control.
+//   2. If eligible, the member chooses that record.
 //   3. Confirm page shows HP name + the first-name mismatch warning if any.
 //      Surname mismatch blocks the claim outright.
 //   4. On confirm, members.historical_person_id is set, HP fields are merged
@@ -3575,9 +3590,12 @@ function revertClaimForDispute(
   reason: string,
 ): DisputeRevertResult {
   enforceWorkQueueResolveLimit(adminMemberId);
-  const trimmed = reason.trim();
+  const trimmed = cleanUserText(reason, 'multi_line', 'reason');
   if (!trimmed) {
     throw new ValidationError('A dispute reason is required.');
+  }
+  if (trimmed.length > MAX_RESOLVE_REASON) {
+    throw new ValidationError(`The dispute reason must be ${MAX_RESOLVE_REASON} characters or fewer.`);
   }
   const legacyId = target.legacyMemberId?.trim() ?? '';
   const personId = target.historicalPersonId?.trim() ?? '';
@@ -3772,9 +3790,15 @@ function anchorChangeRateLimit(memberId: string): void {
   }
 }
 
-/** The form a declared anchor is stored and compared in. */
+/**
+ * The form a declared anchor is stored and compared in. A former surname is a
+ * name the member typed, so it is cleaned like one; an old address is a
+ * matching key and is only case-folded.
+ */
 function storedAnchorValue(anchorType: 'former_surname' | 'old_email', anchorValue: string): string {
-  return anchorType === 'old_email' ? anchorValue.trim().toLowerCase() : anchorValue.trim();
+  return anchorType === 'old_email'
+    ? anchorValue.trim().toLowerCase()
+    : cleanUserText(anchorValue, 'single_line', 'anchorValue');
 }
 
 function declareAnchor(
@@ -3934,7 +3958,7 @@ function submitLinkHelpRequest(
     );
   }
 
-  const statement = input.statement?.trim() ?? '';
+  const statement = cleanUserText(input.statement ?? '', 'multi_line', 'statement');
   if (!statement) {
     throw new ValidationError('Please describe the records you believe are yours.');
   }
@@ -4409,9 +4433,12 @@ function rejectLinkHelpRequest(
   reason: string,
 ): void {
   enforceWorkQueueResolveLimit(adminMemberId);
-  const trimmed = reason.trim();
+  const trimmed = cleanUserText(reason, 'multi_line', 'reason');
   if (!trimmed) {
     throw new ValidationError('A rejection reason is required.');
+  }
+  if (trimmed.length > MAX_RESOLVE_REASON) {
+    throw new ValidationError(`The rejection reason must be ${MAX_RESOLVE_REASON} characters or fewer.`);
   }
   const item = loadOpenLinkHelpItem(workQueueItemId);
   const now = new Date().toISOString();
@@ -4550,7 +4577,7 @@ function correctMemberNames(
 ): CorrectMemberNamesResult {
   const row = readNamesForCorrection(memberId);
 
-  const reason = reasonText.trim();
+  const reason = cleanUserText(reasonText, 'single_line', 'reason');
   if (!reason) {
     throw new ValidationError('Enter the reason for this correction.');
   }
@@ -4708,7 +4735,7 @@ function correctMemberSlug(
   if (!row) throw new NotFoundError('No member with that id.');
   assertNotErased(row.personal_data_purged_at);
 
-  const reason = reasonText.trim();
+  const reason = cleanUserText(reasonText, 'single_line', 'reason');
   if (!reason) throw new ValidationError('Enter the reason for this correction.');
   if (reason.length > MAX_CORRECTION_REASON) {
     throw new ValidationError(`The reason must be ${MAX_CORRECTION_REASON} characters or fewer.`);

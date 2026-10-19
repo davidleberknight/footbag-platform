@@ -69,6 +69,9 @@
  *     membership tier alone: a member may hold that tier for reasons unconnected
  *     to the honor, and a correction does not guess which.
  *   - Refund does not write a `revoke` row.
+ *   - An administrator's reason (tier override, honor removal, board change,
+ *     admin-role grant and revoke) is cleaned with the shared text sanitizer
+ *     before it is validated, so markup alone never passes as a reason.
  *   - A legacy-claim grant never lowers the member's tier: a member's claimed
  *     bases are evaluated together, so a lower later source never discards a
  *     higher tier an earlier claimed source conferred (a floor guard mirroring
@@ -146,6 +149,7 @@ import { readIntConfig } from './configReader';
 import { recordOperationalError } from './operationalErrors';
 import { uuidv7Hex } from './uuidv7';
 import { laterStamp } from '../lib/ledgerStamp';
+import { cleanUserText } from '../lib/textSanitizer';
 
 const REASON_TEXT_MAX_LENGTH = 4000;
 
@@ -217,15 +221,19 @@ function getCurrent(memberId: string): TierStatus {
   };
 }
 
-function validateReasonText(reasonText: string | null | undefined): string | null {
-  if (reasonText === null || reasonText === undefined) return null;
+// An administrator's reason, cleaned before the length check so the limit
+// measures what the ledger and audit rows hold. Text that cleans to nothing
+// comes back null, so a reason that was only markup reads as no reason at all.
+function validateReasonText(raw: string | null | undefined): string | null {
+  if (raw === null || raw === undefined) return null;
+  const reasonText = cleanUserText(raw, 'single_line', 'reason');
   if (reasonText.length > REASON_TEXT_MAX_LENGTH) {
     throw new ValidationError(
       `reason_text exceeds ${REASON_TEXT_MAX_LENGTH} characters`,
       { length: reasonText.length },
     );
   }
-  return reasonText;
+  return reasonText || null;
 }
 
 interface InsertGrantArgs {
@@ -360,7 +368,9 @@ function unsubscribeAdminAlertsInTx(memberId: string, now: string, source: strin
 }
 
 function requireAdminRoleReason(reason: string): string {
-  const trimmed = (reason ?? '').trim();
+  // Cleaned before the checks, so a reason that is only markup counts as empty
+  // and the limit measures what the audit row will hold.
+  const trimmed = cleanUserText(reason ?? '', 'single_line', 'reason');
   if (trimmed.length === 0) {
     throw new ValidationError('A reason is required.');
   }
@@ -1169,11 +1179,10 @@ export function removeHonorGrant(
   honor: 'hof' | 'bap',
   reasonText: string,
 ): RemoveHonorGrantResult {
-  const reason = reasonText.trim();
-  if (!reason) {
+  const validatedReason = validateReasonText(reasonText);
+  if (!validatedReason) {
     throw new ValidationError('Enter the reason this honour is being taken back.');
   }
-  const validatedReason = validateReasonText(reason);
 
   return transaction(() => {
     if (!holdsHonorNow(memberId, honor)) {
@@ -1434,7 +1443,7 @@ export function setGovernanceTier3(
   memberId: string,
   reasonText: string | null = null,
 ): { ok: true } {
-  const reason = validateReasonText(reasonText?.trim() || null);
+  const reason = validateReasonText(reasonText);
   return transaction(() => {
     const current = getCurrent(memberId);
     if (current.tier_status === 'tier3') {
@@ -1573,7 +1582,7 @@ export function removeGovernanceTier3(
   memberId: string,
   reasonText: string | null = null,
 ): { ok: true } {
-  const reason = validateReasonText(reasonText?.trim() || null);
+  const reason = validateReasonText(reasonText);
   return transaction(() => {
     const now = new Date().toISOString();
     const current = getCurrent(memberId);
@@ -1647,10 +1656,10 @@ export function adminOverride(
   newTier: MemberTier,
   reasonText: string,
 ): { ok: true } {
-  if (!reasonText || reasonText.trim() === '') {
+  const validatedReason = validateReasonText(reasonText);
+  if (!validatedReason) {
     throw new ValidationError('reason_text is required for admin override');
   }
-  const validatedReason = validateReasonText(reasonText);
 
   const result = transaction(() => {
     const now = new Date().toISOString();

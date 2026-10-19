@@ -106,6 +106,10 @@
  *     whatever the wizard refuses could otherwise be stored by editing the
  *     profile afterwards, and the Official IFPA Roster shows whatever
  *     lands.
+ *   - Human-authored text (bio, city, region, phone, WhatsApp, link labels) is
+ *     cleaned with the shared write-time sanitizer before it is validated, and
+ *     the profile's what-changed comparison cleans the stored value the same
+ *     way, so an unchanged resubmission is not reported as a change.
  *   - Max 3 external URLs per member; one avatar per member (partial UNIQUE
  *     index `ux_media_avatar_per_member`).
  *   - Avatar upload validates JPEG/PNG only with 5 MB size limit, processes to
@@ -143,6 +147,7 @@ import { randomUUID } from 'crypto';
 import { logger } from '../config/logger';
 import { account, publicPlayers, memberClubAffiliations, memberLinks, clubLeaders, clubs as clubsDb, clubInsightNotes, declaredAnchors, emailArchives, erasureLog, legacyMembers, mailingListSubscriptions, memberPurge, memberMessages, mediaFlags, outbox, recurringDonationSubscriptions, workQueue, transaction, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow } from '../db/db';
 import { validateExternalUrl } from '../lib/externalUrlValidator';
+import { cleanUserText, sanitizeUserText, type TextShape } from '../lib/textSanitizer';
 import {
   assembleBirthDate,
   splitBirthDateParts,
@@ -182,6 +187,9 @@ const MAX_BIO = 1000;
 const SEARCH_LIMIT = 20;
 const MAX_MEMBER_LINKS = 3;
 const MAX_LINK_LABEL = 80;
+// Matches the length the administrator's correction form allows for phone and
+// WhatsApp, so the server refuses what that form would never send.
+const MAX_PHONE = 40;
 
 // Records a forensic audit row for a member self-service profile/PII mutation.
 // Metadata carries the touched field names only (never the new values), so the
@@ -739,6 +747,21 @@ export interface ProfileEditInput {
 
 function normalizeText(val: unknown): string {
   return typeof val === 'string' ? val.trim() : '';
+}
+
+// Text a person typed is cleaned before any rule reads it, so a required check
+// refuses input that was only markup and a length limit counts what is stored.
+function cleanText(val: unknown, shape: TextShape, fieldName: string): string {
+  return typeof val === 'string' ? cleanUserText(val, shape, fieldName) : '';
+}
+
+// A stored value passed through the cleaner, for comparing against cleaned
+// input. Values saved before cleaning existed may still carry what it removes;
+// one the cleaner would refuse outright is compared as stored.
+function asCleaned(stored: string | null, shape: TextShape): string | null {
+  if (stored === null) return null;
+  const result = sanitizeUserText(stored, shape);
+  return result.status === 'ok' ? result.text : stored;
 }
 
 // WhatsApp is published as a chat link, and a wa.me address names its contact
@@ -1606,12 +1629,12 @@ export const memberService = {
     // administrator's correction carries the stored bio through untouched
     // rather than accepting one. Clearing it is its own act with its own
     // reason; there is no path here that puts new prose under their name.
-    const bio         = actor.kind === 'self' ? normalizeText(input.bio) : (row.bio ?? '');
-    const city        = normalizeText(input.city) || null;
-    const region      = normalizeText(input.region) || null;
+    const bio         = actor.kind === 'self' ? cleanText(input.bio, 'multi_line', 'bio') : (row.bio ?? '');
+    const city        = cleanText(input.city, 'single_line', 'city') || null;
+    const region      = cleanText(input.region, 'single_line', 'region') || null;
     const country     = normalizeText(input.country) || null;
-    const phone       = normalizeText(input.phone) || null;
-    const whatsapp    = normalizeText(input.whatsapp) || null;
+    const phone       = cleanText(input.phone, 'single_line', 'phone') || null;
+    const whatsapp    = cleanText(input.whatsapp, 'single_line', 'whatsapp') || null;
     const birthParts  = {
       day:   normalizeText(input.birthDay),
       month: normalizeText(input.birthMonth),
@@ -1663,6 +1686,12 @@ export const memberService = {
     if (bio.length > MAX_BIO) {
       throw new ValidationError(`Bio must be ${MAX_BIO} characters or fewer.`);
     }
+    if (phone && phone.length > MAX_PHONE) {
+      throw new ValidationError(`Phone must be ${MAX_PHONE} characters or fewer.`);
+    }
+    if (whatsapp && whatsapp.length > MAX_PHONE) {
+      throw new ValidationError(`WhatsApp must be ${MAX_PHONE} characters or fewer.`);
+    }
     // City and country are mandatory profile fields, re-checked here because
     // the onboarding form is not the only way they are written: the edit form
     // pre-fills both from the stored values, so a genuine save always carries
@@ -1697,7 +1726,8 @@ export const memberService = {
     // (network I/O) before the transaction; the write is sync.
     const submittedLinks = presentMemberLinks(input.links);
     const linksAsStored = submittedLinks.length === priorLinks.length
-      && submittedLinks.every((l, i) => l.label === priorLinks[i].label && l.url === priorLinks[i].url);
+      && submittedLinks.every((l, i) =>
+        l.label === asCleaned(priorLinks[i].label, 'single_line') && l.url === priorLinks[i].url);
     let validatedLinks: MemberLinkView[];
     if (linksAsStored) {
       validatedLinks = priorLinks;
@@ -1921,8 +1951,8 @@ export const memberService = {
    * rather than one calling the other. Validation throws before any write.
    */
   setPersonalDetailsInTx(memberId: string, input: PersonalDetailsInput): void {
-    const city = normalizeText(input.city) || null;
-    const region = normalizeText(input.region) || null;
+    const city = cleanText(input.city, 'single_line', 'city') || null;
+    const region = cleanText(input.region, 'single_line', 'region') || null;
     const country = normalizeText(input.country) || null;
     const dobParts = {
       day:   normalizeText(input.birthDay),
@@ -2536,12 +2566,20 @@ function profileFieldChanges(
   const compare = (name: string, before: unknown, after: unknown): void => {
     if (before !== after) changed.push({ field: name, before, after });
   };
-  compare('bio', row.bio ?? '', next.bio);
-  compare('city', row.city ?? null, next.city);
-  compare('region', row.region ?? null, next.region);
+  // Typed text is compared as the cleaner would store it, so resubmitting a
+  // value saved before cleaning existed is not reported as a change. The
+  // recorded before and after stay the values themselves.
+  const compareText = (name: string, before: string | null, after: string | null, shape: TextShape): void => {
+    if ((asCleaned(before, shape) || null) !== (asCleaned(after, shape) || null)) {
+      changed.push({ field: name, before, after });
+    }
+  };
+  compareText('bio', row.bio ?? '', next.bio, 'multi_line');
+  compareText('city', row.city ?? null, next.city, 'single_line');
+  compareText('region', row.region ?? null, next.region, 'single_line');
   compare('country', row.country ?? null, next.country);
-  compare('phone', row.phone ?? null, next.phone);
-  compare('whatsapp', row.whatsapp ?? null, next.whatsapp);
+  compareText('phone', row.phone ?? null, next.phone, 'single_line');
+  compareText('whatsapp', row.whatsapp ?? null, next.whatsapp, 'single_line');
   compare('birthDate', row.birth_date ?? null, next.birthDate);
   compare('emailVisibility', row.email_visibility, next.emailVisibility);
   compare('phoneVisible', row.phone_visible, next.phoneVisible);
@@ -2558,7 +2596,9 @@ function profileFieldChanges(
   // and URLs in the same slot order means nothing changed.
   const sameLinks =
     priorLinks.length === next.links.length &&
-    priorLinks.every((l, i) => l.label === next.links[i].label && l.url === next.links[i].url);
+    priorLinks.every((l, i) =>
+      asCleaned(l.label, 'single_line') === asCleaned(next.links[i].label, 'single_line')
+      && l.url === next.links[i].url);
   if (!sameLinks) {
     changed.push({
       field:  'links',
@@ -2629,12 +2669,12 @@ function buildMemberLinkSlots(memberId: string): MemberLinkView[] {
   return slots;
 }
 
-/** The submitted link rows the member filled in, trimmed, blank rows dropped. */
+/** The submitted link rows the member filled in, labels cleaned, blank rows dropped. */
 function presentMemberLinks(
   pairs: Array<{ label: string; url: string }>,
 ): Array<{ label: string; url: string }> {
   return pairs
-    .map((p) => ({ label: normalizeText(p.label), url: normalizeText(p.url) }))
+    .map((p) => ({ label: cleanText(p.label, 'single_line', 'links'), url: normalizeText(p.url) }))
     .filter((p) => p.label !== '' || p.url !== '');
 }
 

@@ -181,6 +181,31 @@ describe('POST /admin/club-cleanup/:clubId/delist-residue — authorization', ()
   });
 });
 
+describe('POST /admin/club-cleanup/:clubId/delist-residue — the reason is cleaned', () => {
+  // Defect caught: the de-listing's reason is written to the ledger with live
+  // markup and control characters.
+  it('records the reason cleaned', async () => {
+    const db = new BetterSqlite3(dbPath);
+    insertClub(db, { id: 'residue-club-clean', name: 'Residue Clean Club' });
+    db.close();
+    const res = await request(createApp())
+      .post(residueFormAction('residue-club-clean'))
+      .set('Cookie', adminCookie())
+      .send({ reasonText: 'Grace <b>elapsed</b>\u0085 now' });
+    expect(res.status).toBe(303);
+    const read = new BetterSqlite3(dbPath, { readonly: true });
+    try {
+      const rows = read.prepare(
+        `SELECT reason_text FROM audit_entries
+         WHERE action_type = 'admin.club_cleanup.delist_residue' AND entity_id = ?`,
+      ).all('residue-club-clean') as Array<{ reason_text: string }>;
+      expect(rows).toEqual([{ reason_text: 'Grace elapsed now' }]);
+    } finally {
+      read.close();
+    }
+  });
+});
+
 describe('POST /admin/club-cleanup/:clubId/delist-residue — happy path', () => {
   it('flips only the target club\'s pending rows to former_only', async () => {
     const app = createApp();

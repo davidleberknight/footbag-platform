@@ -16,6 +16,9 @@
  * `curated/email_templates/<key>.json`, after the transaction commits, so the
  * edit survives the next seeding; on a deployed host the database is the whole
  * write.
+ * The subject and body are cleaned with the shared write-time sanitizer before
+ * validation, and the stored text is passed through the same cleaner before the
+ * audit's changed-field comparison.
  * Validation enforces the template contract: non-empty subject and body,
  * logic-less single-brace `{token}` syntax, the token set exactly equal to
  * the variant's declared merge-field set (an omitted required token would
@@ -32,6 +35,9 @@ import { writeEmailTemplateSidecarFile } from '../lib/emailTemplateSidecar';
 import { resolveCuratedRootDir } from './curatorMediaService';
 import { appendAuditEntry } from './auditService';
 import { NotFoundError, ValidationError } from './serviceErrors';
+import {
+  INVALID_TEXT_ENCODING_MESSAGE, sanitizeUserText, type TextShape,
+} from '../lib/textSanitizer';
 import {
   emailTemplateMergeFields,
   type EmailPiiClass,
@@ -142,6 +148,11 @@ function validateTemplateText(
   }
 }
 
+function cleanedStored(stored: string, shape: TextShape): string {
+  const result = sanitizeUserText(stored, shape);
+  return result.status === 'ok' ? result.text : stored;
+}
+
 function shapeRow(row: EmailTemplateRow): EmailTemplateListRowViewModel {
   return {
     templateKey: row.template_key,
@@ -220,15 +231,21 @@ export const emailTemplateAdminService = {
     const current = emailTemplates.getByKey.get(templateKey) as EmailTemplateRow | undefined;
     if (!current) throw new NotFoundError(`No email template "${templateKey}"`);
 
-    const subject = (input.subjectTemplate ?? '').trim();
-    const body = (input.bodyTemplate ?? '').replace(/\r\n/g, '\n').trim();
+    // Cleaned before every check, so the brace and merge-field checks judge the
+    // text that is stored. The cleaner keeps single-brace {token} fields.
+    const cleanSubject = sanitizeUserText(input.subjectTemplate ?? '', 'single_line');
+    const cleanBody = sanitizeUserText(input.bodyTemplate ?? '', 'multi_line');
+    const subject = cleanSubject.status === 'ok' ? cleanSubject.text : '';
+    const body = cleanBody.status === 'ok' ? cleanBody.text : '';
     const classification = input.piiClassification ?? '';
     const isEnabled = input.isEnabled === true;
 
     const errors: Record<string, string> = {};
-    if (!subject) errors.subjectTemplate = 'Subject: required.';
+    if (cleanSubject.status === 'invalid_encoding') errors.subjectTemplate = INVALID_TEXT_ENCODING_MESSAGE;
+    else if (!subject) errors.subjectTemplate = 'Subject: required.';
     else if (subject.length > SUBJECT_MAX) errors.subjectTemplate = `Subject: at most ${SUBJECT_MAX} characters.`;
-    if (!body) errors.bodyTemplate = 'Body: required.';
+    if (cleanBody.status === 'invalid_encoding') errors.bodyTemplate = INVALID_TEXT_ENCODING_MESSAGE;
+    else if (!body) errors.bodyTemplate = 'Body: required.';
     else if (body.length > BODY_MAX) errors.bodyTemplate = `Body: at most ${BODY_MAX} characters.`;
     if (!CLASSIFICATIONS.includes(classification as EmailPiiClass)) {
       errors.piiClassification = 'Classification: choose one of the listed values.';
@@ -252,9 +269,12 @@ export const emailTemplateAdminService = {
       throw new ValidationError('Some fields need attention.', { fieldErrors: errors });
     }
 
+    // The stored text goes through the same cleaner before comparing, so an
+    // unchanged resubmission of a template saved before cleaning existed is not
+    // recorded as an edit merely because the cleaner tidied it.
     const changedFields: string[] = [];
-    if (subject !== current.subject_template) changedFields.push('subject_template');
-    if (body !== current.body_template) changedFields.push('body_template');
+    if (subject !== cleanedStored(current.subject_template, 'single_line')) changedFields.push('subject_template');
+    if (body !== cleanedStored(current.body_template, 'multi_line')) changedFields.push('body_template');
     if ((isEnabled ? 1 : 0) !== current.is_enabled) changedFields.push('is_enabled');
     if (classification !== current.pii_classification) changedFields.push('pii_classification');
 

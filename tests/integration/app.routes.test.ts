@@ -971,7 +971,7 @@ describe('POST /logout', () => {
     // page bounce). Flash cookie must survive and be cleared only by the
     // eventual page render.
     const redirectOnly = await request(app)
-      .get(`/history/${BOB_ID}`)
+      .get('/clubs/create')
       .set('Cookie', flashValue);
     expect(redirectOnly.status).toBe(302);
     const redirectCookies: string[] = Array.isArray(redirectOnly.headers['set-cookie'])
@@ -1054,17 +1054,27 @@ describe('GET /history/:personId', () => {
     expect(res.status).toBe(200);
   });
 
-  it('redirects unauthenticated visitor for non-HoF player', async () => {
+  it('shows a signed-out visitor a non-HoF player\'s results but not the derived career aggregates', async () => {
     const app = createApp();
     const res = await request(app).get(`/history/${BOB_ID}`);
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toContain('/login');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Shred30');
+    expect(res.text).not.toContain('Podiums');
   });
 
-  it('returns 200 for non-HoF player when authenticated', async () => {
+  it('shows a member the same player with the career aggregates', async () => {
     const app = createApp();
     const res = await request(app).get(`/history/${BOB_ID}`).set('Cookie', validAuthCookie());
     expect(res.status).toBe(200);
+    expect(res.text).toContain('Podiums');
+  });
+
+  it('hides the career aggregates on an honoree page from a signed-out visitor, keeping the results', async () => {
+    const app = createApp();
+    const res = await request(app).get(`/history/${ALICE_ID}`);
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('2025 Beaver Open');
+    expect(res.text).not.toContain('Podiums');
   });
 
   it('shows player name on detail page', async () => {

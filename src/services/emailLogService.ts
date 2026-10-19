@@ -36,6 +36,7 @@ import {
 import { emailTemplateClassification, listEmailTemplateKeys } from './emailService';
 import { appendAuditEntry } from './auditService';
 import { NotFoundError, ValidationError } from './serviceErrors';
+import { cleanUserText } from '../lib/textSanitizer';
 import { runSqliteRead } from './sqliteRetry';
 import type { PageViewModel } from '../types/page';
 import type { OutcomeTone } from '../lib/outcomeNotice';
@@ -263,7 +264,9 @@ export const emailLogService = {
    * action that issues a fresh one.
    */
   markReviewed(input: { outboxId: string; adminMemberId: string; note: unknown }): MarkReviewedResult {
-    const note = typeof input.note === 'string' ? input.note.trim() : '';
+    // Cleaned before the checks, so markup alone does not pass as a note and the
+    // length counts what is stored.
+    const note = typeof input.note === 'string' ? cleanUserText(input.note, 'multi_line', 'note') : '';
     if (note.length === 0) {
       throw new ValidationError('A note is required.', { note: 'A note is required.' });
     }

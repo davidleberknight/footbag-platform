@@ -606,6 +606,26 @@ describe('POST /admin/curator/upload/sign', () => {
     expect(row.tags).toBe('#demo_freestyle');
   });
 
+  it('stores the caption cleaned in the job row the status page reads, and refuses damaged text', async () => {
+    const app = createApp();
+    const res = await request(app)
+      .post('/admin/curator/upload/sign')
+      .set('Cookie', adminACookie())
+      .send(validBody({ caption: '<b>José</b>\u0085 clip\r\n\r\n\r\n\r\nend' }));
+    expect(res.status).toBe(200);
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const row = db.prepare('SELECT caption FROM media_jobs WHERE id = ?')
+      .get(res.body.jobId) as { caption: string };
+    db.close();
+    expect(row.caption).toBe('José clip\n\nend');
+
+    const refused = await request(app)
+      .post('/admin/curator/upload/sign')
+      .set('Cookie', adminACookie())
+      .send(validBody({ caption: 'broken � text' }));
+    expect(refused.status).toBe(400);
+  });
+
   it('names each stored source by its own file type, so a MOV and a PNG are not stored as MP4 and JPEG', async () => {
     const app = createApp();
     const res = await request(app)

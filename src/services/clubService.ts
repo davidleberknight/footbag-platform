@@ -49,6 +49,11 @@
  *     administrator correction, promotion) applies the member city casing
  *     rule: a city with no capital letter has each word capitalized, and any
  *     other city is stored as written.
+ *   - On creation and content edit, the typed name, description, city and
+ *     region are cleaned with the shared sanitizer before validation, so the
+ *     required, length, region-match and duplicate-name checks see what is
+ *     stored; a comparison with a stored value reads it cleaned too. A club
+ *     description is at most 2000 characters.
  *   - Every club row names a country: creation requires one, and promotion
  *     refuses a candidate that carries none, since nobody triggering it can
  *     supply one. The clubs index lists only countries that name a country
@@ -162,7 +167,7 @@ import { whatsappDigits } from './memberService';
 import { logger } from '../config/logger';
 import { ConflictError, NotFoundError, ValidationError } from './serviceErrors';
 import { validateExternalUrl } from '../lib/externalUrlValidator';
-import { normalizeLineEndings } from '../lib/multilineText';
+import { sanitizeUserText, INVALID_TEXT_ENCODING_MESSAGE } from '../lib/textSanitizer';
 import type { OutcomeNoticeView } from '../lib/outcomeNotice';
 import { appendAuditEntry, findOwnLatestAudit, findStandingOwnAct } from './auditService';
 import { applyClubJoinInTx as applyActivePlayerClubJoinInTx, getStatus as getActivePlayerStatus } from './activePlayerService';
@@ -220,6 +225,36 @@ export const CLUB_REGION_REQUIRED_MESSAGE =
   'State or province is required for clubs in the USA and Canada.';
 export const CLUB_REGION_NAME_MESSAGE =
   'Enter the full state or province name, such as Colorado or Ontario.';
+
+// The same limit the club forms declare, held here too because a form's limit
+// binds only a browser that honours it.
+const CLUB_DESCRIPTION_MAX_LEN = 2000;
+const CLUB_DESCRIPTION_TOO_LONG_MESSAGE =
+  `Club description must be ${CLUB_DESCRIPTION_MAX_LEN} characters or fewer.`;
+
+// One typed club field, cleaned. Unreadable text is recorded beside the form's
+// other field errors and reads as empty, so the caller's own checks skip it.
+function cleanClubText(
+  raw: string,
+  shape: 'single_line' | 'multi_line',
+  field: string,
+  fieldErrors: Record<string, string>,
+): string {
+  const result = sanitizeUserText(raw, shape);
+  if (result.status === 'invalid_encoding') {
+    fieldErrors[field] = INVALID_TEXT_ENCODING_MESSAGE;
+    return '';
+  }
+  return result.text;
+}
+
+// A stored club value read the way a cleaned submission is, so a comparison
+// never mistakes an older value stored before cleaning existed for a different
+// one. Text that cannot be cleaned is compared as it stands.
+function comparableClubText(stored: string | null, shape: 'single_line' | 'multi_line'): string {
+  const result = sanitizeUserText(stored ?? '', shape);
+  return result.status === 'ok' ? result.text : (stored ?? '');
+}
 
 export type ClubRegionResolution =
   | { status: 'ok'; region: string | null }
@@ -2311,20 +2346,29 @@ export class ClubService {
       confirmNearMatches?: boolean;
     },
   ): CreateClubResult {
-    const name = input.name.trim();
-    const description = input.description.trim();
-    const city = capitalizeLowercaseCity(input.city.trim());
-    const region = input.region.trim() || null;
+    // The typed text is cleaned before every check below, so a markup-only
+    // name fails the required check, the limits count what is stored, and the
+    // duplicate-name and near-match checks compare the stored form.
+    const fieldErrors: Record<string, string> = {};
+    const name = cleanClubText(input.name, 'single_line', 'name', fieldErrors);
+    const description = cleanClubText(input.description, 'multi_line', 'description', fieldErrors);
+    const city = capitalizeLowercaseCity(cleanClubText(input.city, 'single_line', 'city', fieldErrors));
+    const region = cleanClubText(input.region, 'single_line', 'region', fieldErrors) || null;
     // Stored as the picker's canonical name, the one spelling every club,
     // member and event row uses, so the club lands on the same country page and
     // in the same duplicate checks as its neighbours however it was typed.
     const submittedCountry = input.country.trim();
     const country = canonicalCountryName(submittedCountry) ?? '';
 
-    const fieldErrors: Record<string, string> = {};
-    if (!name) fieldErrors.name = 'Club name is required.';
-    else if (name.length > 150) fieldErrors.name = 'Club name must be 150 characters or fewer.';
-    if (!city) fieldErrors.city = 'City is required.';
+    // A field already refused for unreadable text keeps that message.
+    if (!fieldErrors.name) {
+      if (!name) fieldErrors.name = 'Club name is required.';
+      else if (name.length > 150) fieldErrors.name = 'Club name must be 150 characters or fewer.';
+    }
+    if (!fieldErrors.description && description.length > CLUB_DESCRIPTION_MAX_LEN) {
+      fieldErrors.description = CLUB_DESCRIPTION_TOO_LONG_MESSAGE;
+    }
+    if (!fieldErrors.city && !city) fieldErrors.city = 'City is required.';
     if (!submittedCountry) fieldErrors.country = 'Country is required.';
     else if (!country) fieldErrors.country = COUNTRY_CHOICE_MESSAGE;
 
@@ -2332,10 +2376,12 @@ export class ClubService {
     // in that country has one, so a single region-less club flattens the whole
     // country into one long list.
     const regionResolution = resolveClubRegion(country, region);
-    if (regionResolution.status === 'missing') {
-      fieldErrors.region = CLUB_REGION_REQUIRED_MESSAGE;
-    } else if (regionResolution.status === 'unrecognized') {
-      fieldErrors.region = CLUB_REGION_NAME_MESSAGE;
+    if (!fieldErrors.region) {
+      if (regionResolution.status === 'missing') {
+        fieldErrors.region = CLUB_REGION_REQUIRED_MESSAGE;
+      } else if (regionResolution.status === 'unrecognized') {
+        fieldErrors.region = CLUB_REGION_NAME_MESSAGE;
+      }
     }
     const storedRegion = regionResolution.status === 'ok' ? regionResolution.region : null;
 
@@ -2381,10 +2427,10 @@ export class ClubService {
       | undefined;
     if (
       sameClub
-      && sameClub.name === name
+      && comparableClubText(sameClub.name, 'single_line') === name
       && sameClub.country === country
-      && (sameClub.description ?? '') === description
-      && sameClub.city === city
+      && comparableClubText(sameClub.description, 'multi_line') === description
+      && comparableClubText(sameClub.city, 'single_line') === city
       && sameClub.region === storedRegion
       && sameClub.club_key === `club_${slug}`
       && clubLeaders.memberInClubLeadership.get(sameClub.club_id, actorMemberId)
@@ -2861,14 +2907,44 @@ export class ClubService {
 
     const fieldErrors: Record<string, string> = {};
 
-    const name = input.name?.trim();
-    if (name !== undefined) {
-      if (!name) fieldErrors.name = 'Club name is required.';
-      else if (name.length > 150) fieldErrors.name = 'Club name must be 150 characters or fewer.';
+    // The typed text is cleaned before every check below, as on creation. A
+    // field already refused for unreadable text keeps that message.
+    const cleanedName = input.name === undefined
+      ? undefined : cleanClubText(input.name, 'single_line', 'name', fieldErrors);
+    if (cleanedName !== undefined && !fieldErrors.name) {
+      if (!cleanedName) fieldErrors.name = 'Club name is required.';
+      else if (cleanedName.length > 150) fieldErrors.name = 'Club name must be 150 characters or fewer.';
     }
-    const trimmedCity = input.city?.trim();
-    if (trimmedCity !== undefined && !trimmedCity) fieldErrors.city = 'City is required.';
-    const city = trimmedCity === undefined ? undefined : capitalizeLowercaseCity(trimmedCity);
+    // Cleaning also collapses line endings, because a browser sends a
+    // textarea's line breaks as CRLF whatever value it was given while the
+    // column holds LF. Without that a multi-line description posted back with
+    // no edit never equals what is stored: the confirmation reports a change
+    // nobody made, committing it writes an audit row claiming a change no
+    // reader can see, and the "nothing to update" refusal cannot fire.
+    const cleanedDescription = input.description === undefined
+      ? undefined : cleanClubText(input.description, 'multi_line', 'description', fieldErrors);
+    if (
+      cleanedDescription !== undefined && !fieldErrors.description
+      && cleanedDescription.length > CLUB_DESCRIPTION_MAX_LEN
+    ) {
+      fieldErrors.description = CLUB_DESCRIPTION_TOO_LONG_MESSAGE;
+    }
+    const cleanedCity = input.city === undefined
+      ? undefined : cleanClubText(input.city, 'single_line', 'city', fieldErrors);
+    if (cleanedCity !== undefined && !fieldErrors.city && !cleanedCity) fieldErrors.city = 'City is required.';
+
+    // A field whose cleaned value matches the stored value read the same way
+    // keeps the stored value, so resubmitting an older value stored before
+    // cleaning existed is neither reported nor recorded as a change.
+    const keepIfSame = (
+      submitted: string | undefined, stored: string | null, shape: 'single_line' | 'multi_line',
+    ): string | null | undefined =>
+      submitted !== undefined && comparableClubText(stored, shape) === submitted ? stored : submitted;
+    const name = keepIfSame(cleanedName, club.name, 'single_line') as string | undefined;
+    const description = keepIfSame(cleanedDescription, club.description, 'multi_line');
+    const city = keepIfSame(
+      cleanedCity === undefined ? undefined : capitalizeLowercaseCity(cleanedCity), club.city, 'single_line',
+    ) as string | undefined;
     // A club does not move between countries, so its leaders cannot change the
     // country: it is set when the club is created. Only an administrator's
     // correction of a mistaken country reaches it, held to the country rule
@@ -2896,9 +2972,13 @@ export class ClubService {
     const effectiveCountry = country ?? club.country;
     let storedRegion: string | null | undefined;
     if (input.region !== undefined || country !== undefined) {
-      const submittedRegion = input.region !== undefined ? input.region.trim() || null : club.region;
+      const submittedRegion = input.region !== undefined
+        ? cleanClubText(input.region, 'single_line', 'region', fieldErrors) || null
+        : club.region;
       const regionResolution = resolveClubRegion(effectiveCountry, submittedRegion);
-      if (regionResolution.status === 'missing') {
+      if (fieldErrors.region) {
+        // Unreadable text, already refused; no region is resolved from it.
+      } else if (regionResolution.status === 'missing') {
         fieldErrors.region = CLUB_REGION_REQUIRED_MESSAGE;
       } else if (regionResolution.status === 'unrecognized') {
         fieldErrors.region = CLUB_REGION_NAME_MESSAGE;
@@ -2943,14 +3023,6 @@ export class ClubService {
         normalizedUrl = validated.normalizedUrl;
       }
     }
-    // Line endings are collapsed before the comparison below, because a browser
-    // sends a textarea's line breaks as CRLF whatever value it was given while
-    // the column holds LF. Without this a multi-line description posted back
-    // with no edit never equals what is stored: the confirmation reports a
-    // change nobody made, committing it writes an audit row claiming a change
-    // no reader can see, and the "nothing to update" refusal cannot fire.
-    const description = normalizeLineEndings(input.description)?.trim();
-
     // In the order the edit form presents them, because this list is what the
     // administrator's confirmation screen reads back before committing, and a
     // review screen whose rows arrive in an order nobody chose is harder to

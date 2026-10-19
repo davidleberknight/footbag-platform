@@ -42,6 +42,14 @@ const SEEDED_LISTS = [
   'event-notifications', 'technical-updates', 'active-player-reminders',
 ];
 
+// Typed text carrying every class the write-time cleaner removes or repairs: a
+// tag, a C1 control character, a decomposed accent, and (multi-line) CRLF
+// paragraph breaks with four blank lines between them.
+const DIRTY_SINGLE_LINE = 'Spring <b>news</b>\u009b Café\r\nopen';
+const CLEAN_SINGLE_LINE = 'Spring news Café open';
+const DIRTY_MULTI_LINE = 'First <i>para</i>\u009b Café\r\n\r\n\r\n\r\n\r\nSecond para';
+const CLEAN_MULTI_LINE = 'First para Café\n\nSecond para';
+
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 function adminCookie(): string {
@@ -307,6 +315,105 @@ describe('sending to a list', () => {
     expect(outboxRows()).toHaveLength(2);
     expect(archiveRows()).toHaveLength(1);
     expect(sendAuditCount('edited-list')).toBe(1);
+  });
+
+  // Defect caught: markup, a control character, stacked blank lines or a
+  // decomposed accent the administrator typed go out to every subscriber and
+  // into the archive as typed.
+  it('queues and archives the subject and message cleaned', async () => {
+    seedListWithSubscribers('clean-list', { name: 'Clean List' });
+    const form = await request(createApp())
+      .get('/admin/mailing-lists/clean-list/compose').set('Cookie', adminCookie());
+
+    const res = await request(createApp())
+      .post('/admin/mailing-lists/clean-list/compose')
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ subject: DIRTY_SINGLE_LINE, bodyText: DIRTY_MULTI_LINE, sendToken: tokenFrom(form.text) });
+
+    expect(res.status).toBe(303);
+    const rows = outboxRows();
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      expect(row.subject, row.recipient_email).toBe(CLEAN_SINGLE_LINE);
+      expect(row.body_text, row.recipient_email).toBe(CLEAN_MULTI_LINE);
+    }
+    const archives = archiveRows();
+    expect(archives).toHaveLength(1);
+    expect(archives[0]!.subject).toBe(CLEAN_SINGLE_LINE);
+    expect(archives[0]!.body_text).toBe(CLEAN_MULTI_LINE);
+  });
+
+  // Defect caught: a subject or message of markup alone passes the required
+  // check on its raw length and mails the list an empty subject or body.
+  it('refuses a subject or message that is only markup, and queues nothing', async () => {
+    seedListWithSubscribers('markup-list', { name: 'Markup List' });
+    const form = await request(createApp())
+      .get('/admin/mailing-lists/markup-list/compose').set('Cookie', adminCookie());
+    const token = tokenFrom(form.text);
+    const post = (subject: string, bodyText: string) => request(createApp())
+      .post('/admin/mailing-lists/markup-list/compose')
+      .set('Cookie', adminCookie()).type('form')
+      .send({ subject, bodyText, sendToken: token });
+
+    const noSubject = await post('<b> </b>', 'Body');
+    expect(noSubject.status).toBe(422);
+    expect(noSubject.text).toMatch(/Subject: required/);
+    const noBody = await post('Subject', '<p></p>\r\n<br>');
+    expect(noBody.status).toBe(422);
+    expect(noBody.text).toMatch(/Message: required/);
+    expect(outboxRows()).toHaveLength(0);
+    expect(archiveRows()).toHaveLength(0);
+    expect(sendAuditCount('markup-list')).toBe(0);
+  });
+
+  // Defect caught: text that arrived with broken encoding (the replacement
+  // character the body parser leaves for invalid bytes) is refused with a
+  // misleading "required" message, so the administrator cannot tell what to fix.
+  it('refuses a subject or message with broken encoding, naming the encoding, and queues nothing', async () => {
+    seedListWithSubscribers('encoding-list', { name: 'Encoding List' });
+    const form = await request(createApp())
+      .get('/admin/mailing-lists/encoding-list/compose').set('Cookie', adminCookie());
+    const token = tokenFrom(form.text);
+    const post = (subject: string, bodyText: string) => request(createApp())
+      .post('/admin/mailing-lists/encoding-list/compose')
+      .set('Cookie', adminCookie()).type('form')
+      .send({ subject, bodyText, sendToken: token });
+
+    for (const [subject, bodyText] of [['Bad � subject', 'Body'], ['Subject', 'Bad � body']]) {
+      const res = await post(subject!, bodyText!);
+      expect(res.status, `${subject} / ${bodyText}`).toBe(422);
+      expect(res.text).toContain('could not be read');
+    }
+    expect(outboxRows()).toHaveLength(0);
+    expect(archiveRows()).toHaveLength(0);
+  });
+
+  // Defect caught: the send fingerprint is taken over the raw text, so a
+  // re-post that differs only in what the cleaner removes is refused as an
+  // edited message, telling the administrator their send was not sent.
+  it('recognises a re-post whose text cleans to the same words as the same send', async () => {
+    seedListWithSubscribers('reclean-list', { name: 'Reclean List' });
+    const form = await request(createApp())
+      .get('/admin/mailing-lists/reclean-list/compose').set('Cookie', adminCookie());
+    const token = tokenFrom(form.text);
+    const post = (subject: string, bodyText: string) => request(createApp())
+      .post('/admin/mailing-lists/reclean-list/compose')
+      .set('Cookie', adminCookie()).type('form')
+      .send({ subject, bodyText, sendToken: token });
+
+    const first = await post(DIRTY_SINGLE_LINE, DIRTY_MULTI_LINE);
+    expect(first.status).toBe(303);
+    const second = await post(
+      DIRTY_SINGLE_LINE.replace('<b>', '<em>'),
+      DIRTY_MULTI_LINE.replace('\r\n\r\n\r\n\r\n\r\n', '\n\n\n'),
+    );
+    expect(second.status).toBe(303);
+    expect(second.headers.location).toBe(first.headers.location);
+    expect(flashValueOf(second)).toBe('mailing_list_result:sent');
+    expect(outboxRows()).toHaveLength(2);
+    expect(archiveRows()).toHaveLength(1);
+    expect(sendAuditCount('reclean-list')).toBe(1);
   });
 
   it('sends nothing and records nothing when the list resolves to nobody', async () => {

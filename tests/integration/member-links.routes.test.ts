@@ -27,6 +27,11 @@ const URL_B = 'https://198.51.100.7/';
 const URL_C = 'https://203.0.113.9/';
 const URL_D = 'https://192.0.2.5/';
 
+// Built from code points so the decomposed and composed forms stay visibly
+// different in the source.
+const DECOMPOSED_E_ACUTE = `e${String.fromCodePoint(0x0301)}`;
+const COMPOSED_E_ACUTE = String.fromCodePoint(0x00e9);
+
 const DISPLAY_ID   = 'mlink-display';
 const DISPLAY_SLUG = 'mlink_display';
 const VIEWER_ID    = 'mlink-viewer';
@@ -192,15 +197,40 @@ describe('external links display', () => {
     expect(res.text).toContain('value="https://example.org/"');
   });
 
-  it('HTML-escapes a malicious link label on render', async () => {
+  // Defect caught: a link label is stored with the tags it was submitted with,
+  // so the profile leans on escaping alone; or the cleaning drops the words
+  // around the tags; or the label renders live.
+  it('stores a malicious link label without its tags and renders it inert', async () => {
     const { id, slug } = seedWriter();
-    await postEdit(slug, id, { link_label: '<script>alert(1)</script>', link_url: URL_A });
+    const save = await postEdit(slug, id, { link_label: 'My <script>alert(1)</script>', link_url: URL_A });
+    expect(save.status).toBe(303);
+    expect(readLinks(id).map((l) => l.label)).toEqual(['My alert(1)']);
 
     const res = await request(createApp())
       .get(`/members/${slug}`)
       .set('Cookie', cookie(id));
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('<script>alert(1)</script>');
-    expect(res.text).toContain('&lt;script&gt;alert(1)&lt;/script&gt;');
+    expect(res.text).toContain('My alert(1)');
+  });
+
+  // Defect caught: the label is stored with a C1 control character or a
+  // decomposed accent, so the same label typed two ways compares unequal.
+  it('stores a label composed and stripped of control characters', async () => {
+    const { id, slug } = seedWriter();
+    const save = await postEdit(slug, id, { link_label: `Caf${DECOMPOSED_E_ACUTE}\u0085 Blog`, link_url: URL_A });
+    expect(save.status).toBe(303);
+    expect(readLinks(id).map((l) => l.label)).toEqual([`Caf${COMPOSED_E_ACUTE} Blog`]);
+  });
+
+  // Defect caught: a label that was only markup passes the label-required
+  // check because it reads the raw text, and a link is published with an
+  // empty label.
+  it('refuses a label that is only markup and writes no link', async () => {
+    const { id, slug } = seedWriter();
+    const res = await postEdit(slug, id, { link_label: '<b></b>', link_url: URL_A });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('Add a label for each link.');
+    expect(readLinks(id)).toEqual([]);
   });
 });

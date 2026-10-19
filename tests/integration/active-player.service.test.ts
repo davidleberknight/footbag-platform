@@ -851,3 +851,27 @@ describe('member_active_player_current — a wall clock stepping backward betwee
     expect(aps.getStatus(id)).toMatchObject({ is_active_player: 0, active_player_expires_at: null });
   });
 });
+
+describe("an administrator's correction reason is stored cleaned", () => {
+  // Defect caught: markup, a control character or a run of spaces typed into
+  // the reason reaches the ledger and the audit trail as typed, or a reason
+  // that is only markup passes the required check and moves a member's
+  // standing with no reason on the record.
+  it('writes the cleaned reason to the ledger and audit row, and refuses one that is only markup', () => {
+    const id = freshMember();
+
+    expect(() => aps.correctExpiry(ACTOR_ID, id, isoDaysFromNow(100), '<script></script><b></b>'))
+      .toThrow(/Enter the reason/);
+    expect(apGrants(id)).toHaveLength(0);
+    expect(auditCount(id, 'active_player.admin_correction')).toBe(0);
+
+    aps.correctExpiry(ACTOR_ID, id, isoDaysFromNow(100), '<b>Granted</b> in\u0085 error,   first pass.');
+    expect(apGrants(id).map((r) => r.reason_text)).toEqual(['Granted in error, first pass.']);
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const audit = db.prepare(
+      "SELECT reason_text FROM audit_entries WHERE entity_id = ? AND action_type = 'active_player.admin_correction'",
+    ).all(id) as Array<{ reason_text: string | null }>;
+    db.close();
+    expect(audit).toEqual([{ reason_text: 'Granted in error, first pass.' }]);
+  });
+});

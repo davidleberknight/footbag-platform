@@ -34,8 +34,10 @@
  *   - The member's surface is owner-only and slug-scoped. Ownership is part of
  *     the row lookup rather than a check afterwards, so another member's message
  *     id does not resolve at all.
- *   - Adversarial text in the member's note is stored verbatim in the purgeable
- *     column and escaped on render, matching the contact-request handling.
+ *   - Human-authored text (the subject, the body, the member's note) is cleaned
+ *     with the shared write-time sanitizer before validation, so markup and
+ *     control characters never reach the purgeable columns; render escaping
+ *     stays the second layer.
  *
  * Invariants preserved:
  *   - An answered row carries an outcome and an answered timestamp; an
@@ -68,6 +70,7 @@ import { memberOnboardingService } from './memberOnboardingService';
 import { NotFoundError, ValidationError } from './serviceErrors';
 import { PageViewModel } from '../types/page';
 import { BirthDateParts, assembleBirthDate, splitBirthDateParts } from '../lib/birthDate';
+import { cleanUserText, type TextShape } from '../lib/textSanitizer';
 import {
   navigateTo,
   urgentAction,
@@ -188,6 +191,11 @@ function normalizeText(val: unknown): string {
   return typeof val === 'string' ? val.trim() : '';
 }
 
+/** A typed field, cleaned before its own checks so they judge what is stored. */
+function cleanText(val: unknown, shape: TextShape, fieldName: string): string {
+  return typeof val === 'string' ? cleanUserText(val, shape, fieldName) : '';
+}
+
 /** Whether the entered parts name the stored date, however they were padded.
  *  Parts that do not make a date are refused as they would be on a first
  *  answer. */
@@ -211,8 +219,8 @@ export const memberMessageService = {
     body: unknown;
     expectedAnswerKind: unknown;
   }): { status: 'sent'; messageId: string } {
-    const subject = normalizeText(input.subject);
-    const body = normalizeText(input.body);
+    const subject = cleanText(input.subject, 'single_line', 'subject');
+    const body = cleanText(input.body, 'multi_line', 'body');
     const kind = normalizeText(input.expectedAnswerKind);
 
     if (!subject) throw new ValidationError('Give the question a subject.');
@@ -368,7 +376,9 @@ export const memberMessageService = {
     birth?: BirthDateParts;
     note: unknown;
   }): { status: 'answered' | 'own_repeat'; outcome: 'acknowledged' | 'confirmed' | 'corrected' } {
-    const note = normalizeText(input.note);
+    // Cleaned before the repeat check below, so a resubmitted note compares
+    // equal to the cleaned note the first answer stored.
+    const note = cleanText(input.note, 'multi_line', 'note');
     if (note.length > MAX_ANSWER_NOTE) {
       throw new ValidationError(`Note must be ${MAX_ANSWER_NOTE} characters or fewer.`);
     }

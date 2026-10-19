@@ -35,6 +35,8 @@
  *     the communication/outbox path for delivery; no template engine exists)
  *
  * Required patterns:
+ *   - The donor's typed note is cleaned with the shared write-time sanitizer
+ *     before validation.
  *   - Webhook signature: handleWebhook verifies the signature first
  *     (adapter.constructWebhookEvent), before any row is read or written; a bad
  *     signature throws WebhookSignatureError -> the controller returns 400.
@@ -338,6 +340,7 @@ import {
   RateLimitedError,
   ServiceUnavailableError,
 } from './serviceErrors';
+import { cleanUserText } from '../lib/textSanitizer';
 import { hit as rateLimitHit, refund as rateLimitRefund } from './rateLimitService';
 import {
   applyPurchaseGrantInTx,
@@ -715,7 +718,9 @@ const DONATION_NOTE_MAX_CHARS = 500;
 
 function normalizeDonationNote(raw: unknown): string | null {
   if (typeof raw !== 'string') return null;
-  const trimmed = raw.trim();
+  // Cleaned before the length check and before the repeat-gift lookup compares
+  // it, so both judge the note that is stored and sent to the provider.
+  const trimmed = cleanUserText(raw, 'single_line', 'note');
   if (trimmed === '') return null;
   if (trimmed.length > DONATION_NOTE_MAX_CHARS) {
     throw new ValidationError(

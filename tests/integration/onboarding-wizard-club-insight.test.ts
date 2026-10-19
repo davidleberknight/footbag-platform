@@ -24,6 +24,11 @@ import {
 
 const { dbPath } = setTestEnv('3199');
 
+// Built from code points so the decomposed and composed forms stay visibly
+// different in the source.
+const COMBINING_ACUTE = String.fromCodePoint(0x0301);
+const COMPOSED_E_ACUTE = String.fromCodePoint(0x00e9);
+
 let createApp: Awaited<ReturnType<typeof importApp>>;
 let testDb: BetterSqlite3.Database;
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
@@ -311,6 +316,8 @@ describe('the insight question is asked once per member', () => {
 });
 
 describe('the insight question is optional and bounded', () => {
+  // Defect caught: a note that was blank once cleaned (only whitespace or only
+  // markup) writes an empty evidence row that dilutes the admin queue.
   it('writes nothing when the member leaves it blank', async () => {
     const res = await request(createApp())
       .post('/register/wizard/club_affiliations/submit')
@@ -321,7 +328,7 @@ describe('the insight question is optional and bounded', () => {
         candidateId: blankAffId,
         userDecision: 'confirm',
         activitySignal: 'active',
-        insightNote: '   \n  ',
+        insightNote: '   \n <p></p> ',
       });
     expect(res.status).toBe(303);
     expect(readNotes(MEMBER_BLANK)).toHaveLength(0);
@@ -349,7 +356,10 @@ describe('the insight question is optional and bounded', () => {
     expect(affStatus.resolution_status).toBe('pending');
   });
 
-  it('strips control characters while keeping the newlines a member typed', async () => {
+  // Defect caught: the note is stored with markup, a C1 control character,
+  // Windows line endings or a decomposed accent, so the admin queue renders
+  // junk; or the paragraph break the member typed is lost.
+  it('cleans the note while keeping the paragraph break a member typed', async () => {
     const res = await request(createApp())
       .post('/register/wizard/club_affiliations/submit')
       .set('Cookie', cookieFor(MEMBER_CONTROL))
@@ -359,13 +369,13 @@ describe('the insight question is optional and bounded', () => {
         candidateId: controlAffId,
         userDecision: 'confirm',
         activitySignal: 'active',
-        insightNote: 'line one\nline two',
+        insightNote: 'line <i>one</i>\r\n\r\nline <b>two</b>\u0085 cafe' + COMBINING_ACUTE + '',
       });
     expect(res.status).toBe(303);
 
     const notes = readNotes(MEMBER_CONTROL);
     expect(notes).toHaveLength(1);
-    expect(notes[0].note_text).toBe('line one\nline two');
+    expect(notes[0].note_text).toBe('line one\n\nline two caf' + COMPOSED_E_ACUTE);
   });
 });
 

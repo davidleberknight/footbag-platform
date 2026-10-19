@@ -497,11 +497,11 @@ export const publicPlayers = {
     LIMIT ?
   `); },
 
-  // Every historical person whose detail page a signed-out visitor can read,
-  // for the sitemap. Scoped to CANONICAL exactly as the search read and the
-  // detail page's public gate are: a non-canonical row is never a public page,
-  // so there is nothing to point a crawler at. Only a canonical Hall of Fame or
-  // Big Add Posse record is public; any other record sends a visitor to log in. A record claimed by a live Hall of Fame or Big Add Posse member
+  // The historical persons the sitemap lists: canonical Hall of Fame and Big
+  // Add Posse records. Every canonical record is a public page, but record
+  // pages are reached by link rather than listed as a directory, so only the
+  // honorees are offered to crawlers; a non-canonical row is never a public
+  // page at all. A record claimed by a live Hall of Fame or Big Add Posse member
   // redirects to that member's profile, which the sitemap never lists, so it is
   // left out too. Ordered by id so the sitemap is stable between builds rather
   // than reshuffling on every regeneration.

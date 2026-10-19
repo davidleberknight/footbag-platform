@@ -41,6 +41,18 @@ expect() {
   fi
 }
 
+# expect_reason <hook-file> <command-string> <substring>: assert the decision
+# reason contains the substring, for a denial whose job is to name the rewrite.
+expect_reason() {
+  local hook="$1" cmd="$2" want="$3" reason
+  reason="$(printf '{"tool_input":{"command":%s}}' "$(printf '%s' "$cmd" | jq -Rs .)" \
+    | ".claude/hooks/$hook" | jq -r '.hookSpecificOutput.permissionDecisionReason // ""')"
+  case "$reason" in
+    *"$want"*) : ;;
+    *) echo "[hooks] FAIL ($hook): reason lacks '$want': $cmd" >&2; fail=1 ;;
+  esac
+}
+
 # expect_err2 <hook-file>: pipe malformed (non-JSON) stdin and assert the hook fails
 # closed with the PreToolUse block code 2 (never jq's own error code), pinning the
 # security gates' documented fail-closed contract.
@@ -304,6 +316,12 @@ expect "$H" 'gh api graphql -F query=@q.graphql' deny
 expect "$H" 'gh api graphql --input body.json' deny
 expect "$H" 'gh api graphql -f query="$(cat q.graphql)"' deny
 expect "$H" 'gh api graphql -f query=`cat q.graphql`' deny
+# An issue write over the API is still refused, and the refusal names the gh issue
+# rewrite the tracker permission rules grant; other API writes keep the plain refusal.
+expect "$H" 'gh api -X PATCH repos/o/r/issues/comments/9 -F body=@c.md' deny
+expect_reason "$H" 'gh api -X PATCH repos/o/r/issues/comments/9 -F body=@c.md' 'gh issue comment -R'
+expect_reason "$H" 'gh api repos/o/r/issues/5/comments -f body=x' 'gh issue comment -R'
+expect_reason "$H" 'gh api -X POST repos/o/r/git/refs' 'may never create or modify branches'
 
 H=guard-db-destructive.sh
 

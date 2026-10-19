@@ -18,7 +18,8 @@
  *     deliberate position that the platform imposes no taxonomy on freeform
  *     tags, so there is no rename and no merge here, only removal.
  *   - Every retirement takes a mandatory reason and is previewed before it is
- *     written, because it cannot be undone from the site.
+ *     written, because it cannot be undone from the site. The reason is
+ *     cleaned with the shared text sanitizer before it is validated.
  *   - The tag row is never deleted. It is stamped and left standing, which is
  *     what keeps its normalized form reserved against recreation.
  *
@@ -47,6 +48,7 @@ import { appendAuditEntry } from './auditService';
 import { NotFoundError, ValidationError } from './serviceErrors';
 import type { PageViewModel } from '../types/page';
 import type { OutcomeTone } from '../lib/outcomeNotice';
+import { cleanUserText } from '../lib/textSanitizer';
 
 const MAX_REASON = 500;
 const MIN_LOOKUP_QUERY = 2;
@@ -167,7 +169,9 @@ function barReasonFor(row: AdminTagRow): string | null {
 }
 
 function requireReason(raw: string): string {
-  const reason = raw.trim();
+  // Cleaned before the checks, so a reason that is only markup counts as empty
+  // and the limit measures what the audit row will hold.
+  const reason = cleanUserText(raw, 'single_line', 'reason');
   if (!reason) throw new ValidationError('Enter the reason for retiring this hashtag.');
   // Capped here as well as at the write, so an over-long reason is refused
   // before an administrator is asked to confirm rather than after.

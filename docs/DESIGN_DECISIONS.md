@@ -2196,7 +2196,7 @@ Sanitization steps (in order):
 3. HTML stripping: remove all HTML tags and entities (no `<tag>` patterns retained).
 4. Control character filtering: remove characters U+0000 to U+001F and U+007F to U+009F, except newlines (`\n`) and tabs (`\t`) where the field is multi-line.
 5. Length enforcement: truncate or reject based on the field-specific maximum from the route's validation contract (§3.14).
-6. Whitespace normalization: collapse consecutive whitespace and newline runs to a single instance.
+6. Whitespace normalization: in a single-line field, collapse every whitespace run to one space; in a multi-line field, collapse runs of spaces and tabs within a line, trim line ends, and keep at most one blank line between paragraphs.
 
 Output encoding:
 

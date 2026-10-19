@@ -109,6 +109,10 @@
  *   - Provenance ids are checked against `media_sources` before any write, so an
  *     unregistered id is a field-level validation error rather than a
  *     foreign-key failure surfacing as a server error.
+ *   - Human-authored text (captions and titles, gallery names, descriptions
+ *     and link labels, moderation reasons) is cleaned with the shared
+ *     sanitizer before validation, so limits and uniqueness apply to what is
+ *     stored; a comparison with a stored value cleans both sides.
  *   - Pre-go-live guardrail: where curated sidecar writes are on (dev, and the
  *     integration-test fixture, which set `config.allowCuratedSidecarWrites`), a
  *     curated/system write (curator photo/video/url-ref upload, edit, delete, and
@@ -208,7 +212,7 @@ import {
 import { writeSidecar } from '../lib/curatorSidecar';
 import { promises as fsp } from 'fs';
 import { validateExternalUrl } from '../lib/externalUrlValidator';
-import { normalizeLineEndings } from '../lib/multilineText';
+import { cleanUserText, INVALID_TEXT_ENCODING_MESSAGE, sanitizeUserText } from '../lib/textSanitizer';
 import { isSeededTestPersonaMemberId } from '../lib/personaGuards';
 import { ConflictError, ForbiddenError, NotFoundError, RateLimitedError, ValidationError } from './serviceErrors';
 import { hit as rateLimitHit, refund as rateLimitRefund } from './rateLimitService';
@@ -720,10 +724,24 @@ function slugifyGalleryName(name: string): string {
     : `g${randomUUID().replace(/-/g, '').slice(0, 8)}`;
 }
 
-function validateCaption(caption: string | null): void {
-  if (caption !== null && caption.length > CAPTION_MAX_LEN) {
+// Returns the caption as it is to be stored. Cleaned before the length check,
+// so the limit counts what is stored rather than markup that is dropped.
+function validateCaption(caption: string | null): string | null {
+  if (caption === null) return null;
+  const cleaned = cleanUserText(caption, 'multi_line', 'caption');
+  if (cleaned.length > CAPTION_MAX_LEN) {
     throw new ValidationError(`Caption must be ${CAPTION_MAX_LEN} characters or fewer.`);
   }
+  return cleaned;
+}
+
+// Text as a comparison with what is stored reads it: both sides cleaned, so an
+// older value stored before cleaning existed, posted back unedited, compares
+// equal to itself rather than reading as a change or a different submission.
+// Text that cannot be cleaned is compared as it stands.
+function comparableText(text: string | null, shape: 'single_line' | 'multi_line'): string {
+  const result = sanitizeUserText(text ?? '', shape);
+  return result.status === 'ok' ? result.text : (text ?? '');
 }
 
 // The single FH/admin uploader marker. Auto-applied by every curator
@@ -937,7 +955,10 @@ function storedItemMatches(
 ): boolean {
   const row = media.getMemberMediaItemById.get(mediaId, memberId) as
     | { caption: string | null; external_url: string | null } | undefined;
-  if (!row || (row.caption ?? '') !== (submitted.caption ?? '')) return false;
+  if (
+    !row
+    || comparableText(row.caption, 'multi_line') !== comparableText(submitted.caption, 'multi_line')
+  ) return false;
 
   const stored = queryCuratorMediaTags([mediaId]).map((r) => r.tag_normalized).sort();
   const wanted = [...new Set([
@@ -1549,7 +1570,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     async uploadPhoto(input: CuratorPhotoInput): Promise<CuratorUploadResult> {
       assertCuratorActorMayWriteCurated(input.adminMemberId);
       throttleCuratorWrite(input.adminMemberId);
-      validateCaption(input.caption);
+      input = { ...input, caption: validateCaption(input.caption) };
       validateTags(input.tags);
       const normalizedExternalUrl = await normalizeExternalUrlOrThrow(input.externalUrl);
 
@@ -1645,7 +1666,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     async uploadVideo(input: CuratorVideoInput): Promise<CuratorUploadResult> {
       assertCuratorActorMayWriteCurated(input.adminMemberId);
       throttleCuratorWrite(input.adminMemberId);
-      validateCaption(input.caption);
+      input = { ...input, caption: validateCaption(input.caption) };
       validateTags(input.tags);
       const normalizedExternalUrl = await normalizeExternalUrlOrThrow(input.externalUrl);
 
@@ -1802,7 +1823,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       assertCuratorActorMayWriteCurated(job.admin_member_id);
 
       const tags = parseTagList(job.tags);
-      validateCaption(job.caption);
+      const caption = validateCaption(job.caption);
       validateTags(tags);
 
       // Poster is small (cap 25 MB) and the worker container can hold it
@@ -1863,7 +1884,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         transaction(() => {
           media.insertCuratorVideo.run(
             mediaId, now, now,
-            systemMemberId, job.caption, now,
+            systemMemberId, caption, now,
             videoKey, thumbnailUrl,
             shaped.widthPx, shaped.heightPx,
             job.source_filename, videoMime,
@@ -1945,6 +1966,13 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         return { status: 'invalid', error: 'posterSizeBytes must be a positive integer.' };
       }
       if (posterSizeBytes > POSTER_MAX_BYTES) return { status: 'invalid', error: POSTER_TOO_LARGE_MESSAGE };
+      // The caption waits in the job row until the transcode finishes, and the
+      // job status page reads it from there, so it is cleaned before it is
+      // stored rather than only when the media row is written.
+      const cleanedCaption = sanitizeUserText(input.caption, 'multi_line');
+      if (cleanedCaption.status === 'invalid_encoding') {
+        return { status: 'invalid', error: INVALID_TEXT_ENCODING_MESSAGE };
+      }
 
       const jobId = `mediajob_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
       const prefix = config.mediaPendingUploadPrefix;
@@ -1958,7 +1986,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         storage.generatePresignedPutUrl(sourcePosterKey, posterContentType, ttl),
       ]);
 
-      const caption = input.caption.trim();
+      const caption = cleanedCaption.text;
       getMediaJobService().createPendingUploadJob({
         jobId,
         kind: 'curator_video',
@@ -2047,7 +2075,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       input: CuratorUrlReferenceInput,
     ): Promise<CuratorUrlReferenceResult> {
       assertCuratorActorMayWriteCurated(input.adminMemberId);
-      validateCaption(input.title);
+      input = { ...input, title: validateCaption(input.title) };
       validateTags(input.tags);
       const normalizedExternalUrl = await normalizeExternalUrlOrThrow(input.externalUrl);
       assertKnownSourceId(input.sourceId);
@@ -2226,7 +2254,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       assertCuratorActorMayWriteCurated(input.adminMemberId);
       throttleCuratorWrite(input.adminMemberId);
       if (input.caption !== undefined) {
-        validateCaption(input.caption);
+        input = { ...input, caption: validateCaption(input.caption) };
       }
       if (input.tags !== undefined) {
         validateTags(input.tags);
@@ -2830,7 +2858,9 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       // because their order is what the gallery shows.
       const storedLinks = media.listGalleryExternalLinks.all(galleryId) as Array<{ label: string; url: string }>;
       const sameLinkOrder = storedLinks.length === validated.externalLinks.length
-        && storedLinks.every((l, i) => l.label === validated.externalLinks[i].label && l.url === validated.externalLinks[i].url);
+        && storedLinks.every((l, i) =>
+          comparableText(l.label, 'single_line') === comparableText(validated.externalLinks[i].label, 'single_line')
+          && l.url === validated.externalLinks[i].url);
       if (sameLinkOrder && galleryChangesFor(galleryId, existing, validated).length === 0) {
         return;
       }
@@ -3311,7 +3341,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           'Upload rate limit reached.',
         );
       }
-      validateCaption(input.caption);
+      input = { ...input, caption: validateCaption(input.caption) };
       validateTags(input.tags);
       const normalizedExternalUrl = await normalizeExternalUrlOrThrow(input.externalUrl);
 
@@ -3466,7 +3496,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       }
       assertTier1Benefits(input.memberId);
       if (input.caption !== undefined) {
-        validateCaption(input.caption);
+        input = { ...input, caption: validateCaption(input.caption) };
       }
       if (input.tags !== undefined) {
         validateTags(input.tags);
@@ -3663,7 +3693,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           'Submission rate limit reached.',
         );
       }
-      validateCaption(input.caption);
+      input = { ...input, caption: validateCaption(input.caption) };
       validateTags(input.tags);
       const normalizedExternalUrl = await normalizeExternalUrlOrThrow(input.externalUrl);
 
@@ -3780,7 +3810,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     excludeTags: string[];
     externalLinks: Array<{ label: string; url: string }>;
   }> {
-    const name = updates.name.trim();
+    const name = cleanUserText(updates.name, 'single_line', 'name');
     if (!name) {
       const m = 'Gallery name is required.';
       throw new ValidationError(m, { fieldErrors: { name: m } });
@@ -3789,11 +3819,11 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
       const m = `Gallery name must be ${GALLERY_NAME_MAX_LEN} characters or fewer.`;
       throw new ValidationError(m, { fieldErrors: { name: m } });
     }
-    // Line endings collapsed before anything compares this against what is
-    // stored: a browser sends a textarea's line breaks as CRLF whatever value
-    // it was given, and the column holds LF, so a description posted back with
-    // no edit would otherwise read as a change the administrator did not make.
-    const description = normalizeLineEndings(updates.description ?? '').trim();
+    // Cleaning also collapses line endings before anything compares this
+    // against what is stored: a browser sends a textarea's line breaks as CRLF
+    // whatever value it was given, and the column holds LF, so a description
+    // posted back with no edit would otherwise read as a change nobody made.
+    const description = cleanUserText(updates.description ?? '', 'multi_line', 'description');
     if (description.length > GALLERY_DESCRIPTION_MAX_LEN) {
       const m = `Gallery description must be ${GALLERY_DESCRIPTION_MAX_LEN} characters or fewer.`;
       throw new ValidationError(m, { fieldErrors: { description: m } });
@@ -3852,7 +3882,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
     const validatedLinks: Array<{ label: string; url: string }> = [];
     for (let i = 0; i < submittedLinks.length; i++) {
       const link = submittedLinks[i];
-      const label = (link.label ?? '').trim();
+      const label = cleanUserText(link.label ?? '', 'single_line', `externalLinks[${i}].label`);
       const rawUrl = (link.url ?? '').trim();
       // Skip rows the user cleared (both empty). Empty label + empty url
       // is a no-op; the form may submit empty pairs for unfilled slots.
@@ -3921,7 +3951,7 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
 }
 
 function requireModerationReason(raw: string | undefined): string {
-  const reason = (raw ?? '').trim();
+  const reason = cleanUserText(raw ?? '', 'single_line', 'reason');
   if (!reason) {
     throw new ValidationError('Enter the reason for this change to a member\'s gallery.', {
       fieldErrors: { reason: 'Enter the reason for this change to a member\'s gallery.' },
@@ -3961,23 +3991,34 @@ function galleryChangesFor(
     .map((t) => t.tag_display);
   const priorExcludes = (media.listFhNamedGalleryExcludeTags.all(galleryId) as Array<{ tag_display: string }>)
     .map((t) => t.tag_display);
-  const priorLinks = (media.listGalleryExternalLinks.all(galleryId) as Array<{ label: string; url: string }>)
-    .map((l) => `${l.label} ${l.url}`);
+  const priorLinkRows = media.listGalleryExternalLinks.all(galleryId) as Array<{ label: string; url: string }>;
 
   const sorted = (values: string[]): string[] => [...values].sort();
   const linkText = (links: Array<{ label: string; url: string }>): string[] =>
     links.map((l) => `${l.label} ${l.url}`);
+  const comparableLinks = (links: Array<{ label: string; url: string }>): string[] =>
+    sorted(links.map((l) => `${comparableText(l.label, 'single_line')} ${l.url}`));
 
+  // Text is compared with both sides cleaned but recorded as it actually was:
+  // the stored value may predate cleaning, and a moderation that keeps the
+  // owner's words carries the stored value through unchanged, so neither is a
+  // change anybody made.
   const changed: GalleryFieldChange[] = [];
-  const note = (field: string, before: unknown, after: unknown): void => {
-    if (JSON.stringify(before) !== JSON.stringify(after)) changed.push({ field, before, after });
+  const note = (
+    field: string, before: unknown, after: unknown,
+    same = JSON.stringify(before) === JSON.stringify(after),
+  ): void => {
+    if (!same) changed.push({ field, before, after });
   };
-  note('name', existing.name, validated.name);
-  note('description', existing.description, validated.description);
+  note('name', existing.name, validated.name,
+    comparableText(existing.name, 'single_line') === comparableText(validated.name, 'single_line'));
+  note('description', existing.description, validated.description,
+    comparableText(existing.description, 'multi_line') === comparableText(validated.description, 'multi_line'));
   note('sortOrder', existing.sort_order, validated.sortOrder);
   note('criteriaTags', sorted(priorCriteria), sorted(validated.criteriaTags));
   note('excludeTags', sorted(priorExcludes), sorted(validated.excludeTags));
-  note('externalLinks', sorted(priorLinks), sorted(linkText(validated.externalLinks)));
+  note('externalLinks', sorted(linkText(priorLinkRows)), sorted(linkText(validated.externalLinks)),
+    JSON.stringify(comparableLinks(priorLinkRows)) === JSON.stringify(comparableLinks(validated.externalLinks)));
   return changed;
 }
 

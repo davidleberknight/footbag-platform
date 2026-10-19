@@ -27,6 +27,9 @@
  *   - A write that moves nothing writes no audit row: archiving an already
  *     archived list, or setting a subscription to the status it already holds,
  *     reports the no-op rather than recording a change that did not happen.
+ *   - The name, description, subject prefix and adjustment reason are cleaned
+ *     with the shared write-time sanitizer before validation; the slug derives
+ *     from the cleaned name.
  *   - The slug is derived once at creation and never rewritten. Subscriptions,
  *     outbox rows and broadcast archive rows all reference a list by slug, so a
  *     rewritten slug would orphan every one of them.
@@ -47,6 +50,9 @@ import {
 } from '../db/db';
 import { appendAuditEntry, findOwnLatestAudit } from './auditService';
 import { ConflictError, NotFoundError, ValidationError } from './serviceErrors';
+import {
+  INVALID_TEXT_ENCODING_MESSAGE, sanitizeUserText, type TextShape,
+} from '../lib/textSanitizer';
 import type { PageViewModel } from '../types/page';
 import type { OutcomeTone } from '../lib/outcomeNotice';
 
@@ -203,6 +209,11 @@ function shapeSummary(row: MailingListWithCountsRow): MailingListSummary {
   };
 }
 
+function cleanedStored(stored: string, shape: TextShape): string {
+  const result = sanitizeUserText(stored, shape);
+  return result.status === 'ok' ? result.text : stored;
+}
+
 /**
  * Shared field validation for creation and editing. Returns the cleaned values
  * alongside any per-field messages, so both paths apply one rule set.
@@ -218,17 +229,27 @@ function validateFields(input: MailingListInput): {
 } {
   const errors: Record<string, string> = {};
 
-  const name = (input.name ?? '').trim();
-  if (!name) errors.name = 'Name: required.';
+  // Each typed field is cleaned before its checks, and the name before the slug
+  // and the uniqueness check derive from it, so all of them judge what is stored.
+  const cleanName = sanitizeUserText(input.name ?? '', 'single_line');
+  const name = cleanName.status === 'ok' ? cleanName.text : '';
+  if (cleanName.status === 'invalid_encoding') errors.name = INVALID_TEXT_ENCODING_MESSAGE;
+  else if (!name) errors.name = 'Name: required.';
   else if (name.length > NAME_MAX) errors.name = `Name: at most ${NAME_MAX} characters.`;
 
-  const description = (input.description ?? '').trim();
-  if (description.length > DESCRIPTION_MAX) {
+  const cleanDescription = sanitizeUserText(input.description ?? '', 'multi_line');
+  const description = cleanDescription.status === 'ok' ? cleanDescription.text : '';
+  if (cleanDescription.status === 'invalid_encoding') {
+    errors.description = INVALID_TEXT_ENCODING_MESSAGE;
+  } else if (description.length > DESCRIPTION_MAX) {
     errors.description = `Description: at most ${DESCRIPTION_MAX} characters.`;
   }
 
-  const subjectPrefix = (input.subjectPrefix ?? '').trim();
-  if (subjectPrefix.length > SUBJECT_PREFIX_MAX) {
+  const cleanPrefix = sanitizeUserText(input.subjectPrefix ?? '', 'single_line');
+  const subjectPrefix = cleanPrefix.status === 'ok' ? cleanPrefix.text : '';
+  if (cleanPrefix.status === 'invalid_encoding') {
+    errors.subjectPrefix = INVALID_TEXT_ENCODING_MESSAGE;
+  } else if (subjectPrefix.length > SUBJECT_PREFIX_MAX) {
     errors.subjectPrefix = `Subject prefix: at most ${SUBJECT_PREFIX_MAX} characters.`;
   }
 
@@ -622,12 +643,15 @@ export const mailingListService = {
       throw new ValidationError('Some fields need attention.', { fieldErrors: fields.errors });
     }
 
+    // Stored text goes through the same cleaner before comparing, so an
+    // unchanged resubmission of a value saved before cleaning existed is not
+    // recorded as a change merely because the cleaner tidied it.
     const changedFields: string[] = [];
-    if (fields.name !== current.name) changedFields.push('name');
-    if (fields.description !== current.description) changedFields.push('description');
+    if (fields.name !== cleanedStored(current.name, 'single_line')) changedFields.push('name');
+    if (fields.description !== cleanedStored(current.description, 'multi_line')) changedFields.push('description');
     if (fields.isMemberManageable !== current.is_member_manageable) changedFields.push('is_member_manageable');
     if (fields.fromIdentity !== current.from_identity) changedFields.push('from_identity');
-    if (fields.subjectPrefix !== current.subject_prefix) changedFields.push('subject_prefix');
+    if (fields.subjectPrefix !== cleanedStored(current.subject_prefix, 'single_line')) changedFields.push('subject_prefix');
     if (fields.restrictedSending !== current.restricted_sending) changedFields.push('restricted_sending');
 
     const now = new Date().toISOString();
@@ -703,8 +727,10 @@ export const mailingListService = {
     if (!ADMIN_SETTABLE_SUBSCRIPTION_STATUSES.includes(status as AdminSettableSubscriptionStatus)) {
       errors.status = 'Status: choose one of the listed values.';
     }
-    const trimmedReason = (reason ?? '').trim();
-    if (!trimmedReason) errors.reason = 'Reason: required for a change made on a member\'s behalf.';
+    const cleanReason = sanitizeUserText(reason ?? '', 'single_line');
+    const trimmedReason = cleanReason.status === 'ok' ? cleanReason.text : '';
+    if (cleanReason.status === 'invalid_encoding') errors.reason = INVALID_TEXT_ENCODING_MESSAGE;
+    else if (!trimmedReason) errors.reason = 'Reason: required for a change made on a member\'s behalf.';
     else if (trimmedReason.length > REASON_MAX) errors.reason = `Reason: at most ${REASON_MAX} characters.`;
     if (Object.keys(errors).length) {
       throw new ValidationError('Some fields need attention.', { fieldErrors: errors });
