@@ -72,7 +72,7 @@
           {{#unless content.showCompetitiveResults}}
             <p class="text-muted fs-sm">Only you can see this. Public viewers do not see your competition results because "Show my competition results on my profile" is off.</p>
           {{/unless}}
-          {{> player-results eventGroups=content.eventGroups firstCompetitionYear=content.firstCompetitionYear showCompetingSince=content.showCompetingSince}}
+          {{> player-results eventGroups=content.eventGroups hasDetailColumn=content.resultsHaveDetail firstCompetitionYear=content.firstCompetitionYear showCompetingSince=content.showCompetingSince}}
         </div>
 
         {{> member-block-identity content.identity}}

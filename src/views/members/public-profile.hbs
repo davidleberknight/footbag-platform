@@ -81,7 +81,7 @@
       {{#if content.eventGroups.length}}
         <h2 class="profile-section-heading">Competitive Results <span class="section-count">{{content.eventGroups.length}} events</span></h2>
       {{/if}}
-      {{> player-results eventGroups=content.eventGroups firstCompetitionYear=content.firstCompetitionYear showCompetingSince=content.showCompetingSince}}
+      {{> player-results eventGroups=content.eventGroups hasDetailColumn=content.resultsHaveDetail firstCompetitionYear=content.firstCompetitionYear showCompetingSince=content.showCompetingSince}}
     </div>
     {{/if}}
 

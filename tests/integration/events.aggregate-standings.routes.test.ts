@@ -3,9 +3,9 @@
  * of an event's contests rather than in one contest. It is kept apart from the
  * sport families. A cross-sport standing carries no family; a standing over one
  * sport keeps its family. On the event page aggregates follow every contested
- * discipline. On a player's history page they count toward no sport's career
- * stats and make no partnership. The freestyle partnerships page counts
- * contested freestyle doubles only.
+ * discipline. A player's history page lists the standing among the player's
+ * results and publishes no career totals or partnership ranking built from it.
+ * The freestyle partnerships page counts contested freestyle doubles only.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -121,26 +121,35 @@ describe('event page', () => {
 });
 
 describe('player history page', () => {
-  it('counts no aggregate standing toward a sport and pairs no partner through one', async () => {
-    // Defect caught: an overall placing shown as a net or freestyle win, or an
-    // overall standing's co-entrant shown as a playing partner. The career
-    // aggregates are member-only, so a member views the page.
+  it('lists the standing among the results and publishes no career totals or partnership ranking', async () => {
+    // Defect caught: a historical-person page publishing derived statistics (wins
+    // and podiums per sport, ranked partners) with no caveat, or dropping the
+    // standing from the official results list. A member views the page, the
+    // viewer who once saw the aggregates.
     const res = await request(createApp())
       .get(`/history/${PLAYER}`)
       .set('Cookie', `__Host-footbag_session=${createTestSessionJwt({ memberId: 'agg-uploader' })}`);
     expect(res.status).toBe(200);
-    const row = (label: string) =>
-      res.text.match(new RegExp(`<td>${label}</td>\\s*<td class="col-num">(\\d+)</td>\\s*<td class="col-num">(\\d+)</td>`));
-    // Net: the one contested placing; the two overall wins are not net wins.
-    expect(row('Net')?.slice(1, 3)).toEqual(['1', '1']);
-    // Freestyle: the two routines placings only, no wins from the freestyle overall.
-    expect(row('Freestyle')?.slice(1, 3)).toEqual(['2', '0']);
-    // The results list still shows the standing with its co-entrant; only the
-    // partnerships table must leave it out.
-    const partnerships = res.text.slice(res.text.indexOf('Top Partnerships'));
-    expect(partnerships).toContain('Connie Contest');
-    expect(partnerships).not.toContain('Ollie Overall');
     expect(res.text).toContain('Ollie Overall');
+    expect(res.text).toContain('Connie Contest');
+    expect(res.text).not.toContain('Career Summary');
+    expect(res.text).not.toContain('Top Partnerships');
+  });
+
+  it('lists every result in one labelled table, each event spanning its own rows', async () => {
+    // Defect caught: a prolific player's page drawn as one table per event, a
+    // header row repeated for every event; or an event cell spanning the wrong
+    // number of rows, which shifts later results under the wrong event.
+    const res = await request(createApp()).get(`/history/${PLAYER}`);
+    expect(res.status).toBe(200);
+    expect(res.text.match(/<table\b/g)).toHaveLength(1);
+    expect(res.text).toMatch(/class="records-table-wrap" tabindex="0" role="region" aria-label="Competitive Results"/);
+    const span = (key: string) =>
+      new RegExp(`<td rowspan="(\\d+)"><a href="/events/${key}">`).exec(res.text)?.[1];
+    // 1995: overall, freestyle overall, net, routines. 1996: no net.
+    expect(span(EVENT_KEY)).toBe('4');
+    expect(span('event_1996_aggregate_standings_test')).toBe('3');
+    expect(res.text).toContain('<th>Details</th>');
   });
 });
 

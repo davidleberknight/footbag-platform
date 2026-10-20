@@ -88,7 +88,6 @@ export function groupPlayerResults(rows: PlayerResultRow[], opts: GroupResultsOp
         eventRegion:  row.event_region,
         eventCountry: row.event_country,
         results:      [],
-        hasDetailColumn: false,
       });
     }
 
@@ -139,11 +138,8 @@ export function groupPlayerResults(rows: PlayerResultRow[], opts: GroupResultsOp
 
   const groups = Array.from(eventMap.values());
   for (const g of groups) {
-    let hasDetail = false;
     for (const r of g.results) {
-      const hasTeammates = r.teammates.length > 0;
-      if (hasTeammates || r.scoreText) hasDetail = true;
-      if (!hasTeammates) continue;
+      if (r.teammates.length === 0) continue;
       if (r.isTie) {
         r.detailPrefix = 'Tied with: ';
       } else if (r.teammates.length > 1) {
@@ -152,8 +148,16 @@ export function groupPlayerResults(rows: PlayerResultRow[], opts: GroupResultsOp
         r.detailPrefix = 'With partner: ';
       }
     }
-    g.hasDetailColumn = hasDetail;
   }
   return groups;
+}
+
+/**
+ * Whether the one results table needs its partner-and-score column: true when
+ * any result names a teammate or carries a score. A singles-only career with no
+ * scores gets no empty column.
+ */
+export function resultsHaveDetail(groups: PlayerEventGroup[]): boolean {
+  return groups.some(g => g.results.some(r => r.teammates.length > 0 || r.scoreText));
 }
 

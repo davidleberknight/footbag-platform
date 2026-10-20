@@ -752,10 +752,6 @@ picker-grid
 picker-meta
 picker-tags
 placement-num
-player-event-block
-player-event-header
-player-event-meta
-player-event-title
 player-nickname
 profile-account-list
 profile-avatar-card

@@ -1062,11 +1062,12 @@ describe('GET /history/:personId', () => {
     expect(res.text).not.toContain('Podiums');
   });
 
-  it('shows a member the same player with the career aggregates', async () => {
+  it('shows a member the same results and no career aggregates either', async () => {
     const app = createApp();
     const res = await request(app).get(`/history/${BOB_ID}`).set('Cookie', validAuthCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Podiums');
+    expect(res.text).toContain('Shred30');
+    expect(res.text).not.toContain('Podiums');
   });
 
   it('hides the career aggregates on an honoree page from a signed-out visitor, keeping the results', async () => {

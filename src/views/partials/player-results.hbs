@@ -8,38 +8,38 @@
 {{#if eventGroups.length}}
 <p class="text-muted fs-xs mb-4">Published event results only. Historical records may be incomplete.</p>
 
-{{#each eventGroups}}
-  <div class="player-event-block">
-    <div class="player-event-header">
-      <a href="{{eventHref}}" class="player-event-title">{{eventTitle}}</a>
-      <span class="player-event-meta">{{formatDate startDate}} &middot; {{formatLocation city eventRegion eventCountry}}</span>
-    </div>
-    <div class="records-table-wrap" tabindex="0" role="region" aria-label="{{eventTitle}} results">
-    <table class="data-table">
-      <thead>
+{{! One table for the whole career: an event's name and year span its result
+    rows, so a player with many events reads one list, not a table per event. }}
+<div class="records-table-wrap" tabindex="0" role="region" aria-label="Competitive Results">
+<table class="data-table">
+  <thead>
+    <tr>
+      <th>Event</th>
+      <th>Year</th>
+      <th>Discipline</th>
+      <th class="col-num">Place</th>
+      {{#if hasDetailColumn}}<th>Details</th>{{/if}}
+    </tr>
+  </thead>
+  <tbody>
+    {{#each eventGroups}}
+      {{#each results}}
         <tr>
-          <th>Discipline</th>
-          <th>Place</th>
-          {{#if hasDetailColumn}}<th></th>{{/if}}
+          {{#if @first}}
+          <td rowspan="{{../results.length}}"><a href="{{../eventHref}}">{{../eventTitle}}</a></td>
+          <td rowspan="{{../results.length}}">{{yearFromDate ../startDate}}</td>
+          {{/if}}
+          <td>{{#if disciplineName}}{{disciplineName}}{{else}}&mdash;{{/if}}</td>
+          <td class="col-num placement-num {{#if (eq placement 1)}}gold{{else if (eq placement 2)}}silver{{else if (eq placement 3)}}bronze{{/if}}">{{placement}}</td>
+          {{#if ../../hasDetailColumn}}
+          <td>{{detailPrefix}}{{#each teammates}}{{#unless @first}}, {{/unless}}{{#if playerHref}}<a href="{{playerHref}}">{{name}}</a>{{else}}{{name}}{{/if}}{{/each}}{{#if scoreText}}{{#if teammates.length}} &middot; {{/if}}{{scoreText}}{{/if}}</td>
+          {{/if}}
         </tr>
-      </thead>
-      <tbody>
-        {{#each results}}
-          <tr>
-            <td>{{#if disciplineName}}{{disciplineName}}{{else}}<span class="text-muted">-</span>{{/if}}</td>
-            <td class="placement-num {{#if (eq placement 1)}}gold{{else if (eq placement 2)}}silver{{else if (eq placement 3)}}bronze{{/if}}">
-              {{placement}}
-            </td>
-            {{#if ../hasDetailColumn}}
-            <td>{{detailPrefix}}{{#each teammates}}{{#unless @first}}, {{/unless}}{{#if playerHref}}<a href="{{playerHref}}">{{name}}</a>{{else}}{{name}}{{/if}}{{/each}}{{#if scoreText}}{{#if teammates.length}} &middot; {{/if}}{{scoreText}}{{/if}}</td>
-            {{/if}}
-          </tr>
-        {{/each}}
-      </tbody>
-    </table>
-    </div>
-  </div>
-{{/each}}
+      {{/each}}
+    {{/each}}
+  </tbody>
+</table>
+</div>
 
 {{else}}
 <div class="empty-state mt-10">

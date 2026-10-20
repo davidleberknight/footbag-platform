@@ -10,11 +10,6 @@
     {{#if heroData.isBoard}}
       <p class="hero-subtitle">Member of the IFPA Board of Directors</p>
     {{/if}}
-    {{#if heroData.isHistoricalOnly}}
-      {{#unless heroData.isHof}}{{#unless heroData.isBap}}
-        <p class="hero-subtitle">Historical player record</p>
-      {{/unless}}{{/unless}}
-    {{/if}}
     {{#if (or heroData.city (or heroData.region heroData.country))}}<p class="hero-subtitle">{{#if heroData.city}}{{heroData.city}}{{#if heroData.region}}, {{heroData.region}}{{/if}}{{#if heroData.country}} · {{heroData.country}}{{/if}}{{else if heroData.region}}{{heroData.region}}{{#if heroData.country}} · {{heroData.country}}{{/if}}{{else}}{{heroData.country}}{{/if}}</p>{{/if}}
   </div>
 </div>

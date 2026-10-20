@@ -299,6 +299,17 @@ describe('GET /freestyle/records', () => {
     expect(res.text).toContain('Alice Shredder');
   });
 
+  // The records table is wider than a phone; unless its scroll box takes keyboard
+  // focus and has a name, a keyboard or screen-reader visitor cannot reach the
+  // right-hand columns.
+  it("puts a holder's freestyle records on their history page in a labelled, focusable scroll box", async () => {
+    const res = await page(`/history/${PERSON_ID}`);
+    expect(res.status).toBe(200);
+    const box = res.text.match(/<div class="records-table-wrap" tabindex="0" role="region" aria-label="Freestyle Records">([\s\S]*?)<\/div>/);
+    expect(box, 'labelled scroll box around the records table').not.toBeNull();
+    expect(box![1]).toContain('Torque');
+  });
+
   it('renders display_name as plain text when no person_id', async () => {
     const res = await page('/freestyle/records');
     expect(res.text).toContain('Unknown Player');

@@ -164,7 +164,7 @@ import { runSqliteRead } from './sqliteRetry';
 import { buildAvatarUrl } from './avatarService';
 import { emailService } from './emailService';
 import { PageViewModel, TierBenefitNotice } from '../types/page';
-import { groupPlayerResults } from './playerShaping';
+import { groupPlayerResults, resultsHaveDetail } from './playerShaping';
 import type { PlayerEventGroup, PlayerHeroData } from '../types/playerProfile';
 import { getTierStatus, tierBadgeShort, type MemberTier, type UnderlyingTier } from './membershipTieringService';
 import { getStatus as getActivePlayerStatus, applyVouch } from './activePlayerService';
@@ -392,6 +392,7 @@ export interface OwnProfileContent {
   profileBase?: string;
   avatarThumbUrl: string | null;
   eventGroups?: PlayerEventGroup[];
+  resultsHaveDetail?: boolean;
   /** Personal-home dashboard composition. Profile absorbs the dashboard. */
   /** What the platform is waiting on the member for, derived at page draw. */
   actions?: MemberActions;
@@ -664,6 +665,7 @@ export interface PublicProfileContent {
   showCompetingSince: boolean;
   heroData: PlayerHeroData;
   eventGroups: PlayerEventGroup[];
+  resultsHaveDetail: boolean;
   // Member-visible fields, null/false for the anonymous HoF/BAP render:
   // the login email when the owner opted in (email_visibility 'members' or
   // 'public'; contact fields never reach an unauthenticated page), and the
@@ -874,7 +876,6 @@ function buildMemberHeroData(row: MemberProfileRow): PlayerHeroData {
     city:                 row.city,
     region:               row.region,
     country:              row.country,
-    isHistoricalOnly: false,
     // No fallback to the linked historical record's first year. Clearing the
     // field is how a member hides the "Competing since" line, and the claim
     // merge has already copied the record's year onto their row, so a read-time
@@ -1284,6 +1285,7 @@ export const memberService = {
         heroData,
         profileBase: `/members/${slug}`,
         eventGroups,
+        resultsHaveDetail: resultsHaveDetail(eventGroups),
         actions:      memberActionService.collectFor({ memberId: row.id, slug }),
         membership:   buildTierStatusView(row.id, slug),
         identity:     buildIdentityLinkView(row.id, slug),
@@ -1413,6 +1415,7 @@ export const memberService = {
           row.show_first_competition_year !== 0 && row.first_competition_year != null,
         heroData,
         eventGroups,
+        resultsHaveDetail: resultsHaveDetail(eventGroups),
         contactEmail,
         contactPhone,
         contactWhatsapp,

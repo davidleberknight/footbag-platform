@@ -24,8 +24,6 @@ export interface PlayerEventGroup {
   eventRegion: string | null;
   eventCountry: string;
   results: PlayerResultEntry[];
-  /** True when at least one row has teammates or scoreText to display */
-  hasDetailColumn: boolean;
 }
 
 export interface PlayerHeroData {
@@ -40,7 +38,6 @@ export interface PlayerHeroData {
   city?: string | null;
   region?: string | null;
   country?: string | null;
-  isHistoricalOnly: boolean;
   firstCompetitionYear?: number | null;
   showFirstCompetitionYear?: boolean;
 }

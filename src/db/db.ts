@@ -180,27 +180,6 @@ export interface PublicPlayerResultRow {
   event_tag_normalized: string;
 }
 
-export interface PlayerCareerStatRow {
-  category:    string;
-  events:      number;
-  wins:        number;
-  podiums:     number;
-  appearances: number;
-}
-
-export interface PlayerPartnerRow {
-  partner_person_id:   string;
-  partner_name:        string;
-  partner_country:     string | null;
-  partner_member_slug: string | null;
-  category:            string;
-  appearances:         number;
-  wins:                number;
-  podiums:             number;
-  first_year:          number | null;
-  last_year:           number | null;
-}
-
 export interface HealthReadyRow {
   is_ready: number;
 }
@@ -611,57 +590,6 @@ export const publicPlayers = {
     WHERE legacy_member_id = ?
       AND source_scope = 'CANONICAL'
     LIMIT 1
-  `); },
-
-  /** Career stats by category for a person. An aggregate standing is a
-   *  ranking over contests, not a contest, so it counts toward no sport. */
-  get listCareerStatsByCategory() { return db.prepare(`
-    SELECT
-      ed.discipline_category AS category,
-      COUNT(DISTINCT ere.event_id) AS events,
-      SUM(CASE WHEN ere.placement = 1 AND erp.participant_order = 1 THEN 1 ELSE 0 END) AS wins,
-      SUM(CASE WHEN ere.placement <= 3 AND erp.participant_order = 1 THEN 1 ELSE 0 END) AS podiums,
-      COUNT(DISTINCT erp.result_entry_id) AS appearances
-    FROM event_result_entry_participants erp
-    JOIN event_result_entries ere ON ere.id = erp.result_entry_id
-    JOIN event_disciplines ed ON ed.id = ere.discipline_id
-    WHERE erp.historical_person_id = ?
-      AND ed.is_aggregate_standing = 0
-    GROUP BY ed.discipline_category
-    ORDER BY appearances DESC
-  `); },
-
-  /** Top partnerships (doubles) for a person across all disciplines. */
-  get listTopPartnersByPersonId() { return db.prepare(`
-    SELECT
-      hp_partner.person_id   AS partner_person_id,
-      hp_partner.person_name AS partner_name,
-      hp_partner.country     AS partner_country,
-      m_partner.slug         AS partner_member_slug,
-      ed.discipline_category AS category,
-      COUNT(DISTINCT erp_me.result_entry_id) AS appearances,
-      SUM(CASE WHEN ere.placement = 1 THEN 1 ELSE 0 END) AS wins,
-      SUM(CASE WHEN ere.placement <= 3 THEN 1 ELSE 0 END) AS podiums,
-      MIN(CAST(SUBSTR(e.start_date, 1, 4) AS INTEGER)) AS first_year,
-      MAX(CAST(SUBSTR(e.start_date, 1, 4) AS INTEGER)) AS last_year
-    FROM event_result_entry_participants erp_me
-    JOIN event_result_entries ere ON ere.id = erp_me.result_entry_id
-    JOIN event_disciplines ed ON ed.id = ere.discipline_id
-    JOIN events e ON e.id = ere.event_id
-    JOIN event_result_entry_participants erp_partner
-      ON erp_partner.result_entry_id = erp_me.result_entry_id
-      AND erp_partner.id != erp_me.id
-    JOIN historical_persons hp_partner ON hp_partner.person_id = erp_partner.historical_person_id
-    LEFT JOIN members m_partner
-      ON m_partner.historical_person_id = hp_partner.person_id
-      AND m_partner.deleted_at IS NULL
-    WHERE erp_me.historical_person_id = ?
-      AND ed.team_type = 'doubles'
-      AND ed.is_aggregate_standing = 0
-      AND hp_partner.person_name != 'Unknown'
-    GROUP BY hp_partner.person_id, ed.discipline_category, m_partner.slug
-    ORDER BY appearances DESC, wins DESC
-    LIMIT 15
   `); },
 };
 

@@ -2,32 +2,6 @@
 
 <div class="wrapper">
 
-  {{! ── Career Summary ──────────────────────────────────────────── }}
-  {{#if content.hasCareerStats}}
-  <div class="records-table-wrap mb-6" tabindex="0" role="region" aria-label="Career summary">
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th>Discipline</th>
-          <th class="col-num">Appearances</th>
-          <th class="col-num">Wins</th>
-          <th class="col-num">Podiums</th>
-        </tr>
-      </thead>
-      <tbody>
-        {{#each content.careerStats}}
-        <tr>
-          <td>{{label}}</td>
-          <td class="col-num">{{appearances}}</td>
-          <td class="col-num">{{wins}}</td>
-          <td class="col-num">{{podiums}}</td>
-        </tr>
-        {{/each}}
-      </tbody>
-    </table>
-  </div>
-  {{/if}}
-
   {{#unless content.hofMember}}{{#unless content.bapMember}}
   <div class="card mb-4">
     <p class="card-description">
@@ -50,16 +24,13 @@
         <span class="section-count">{{content.eventGroups.length}} events</span>
       </div>
     {{/if}}
-    {{> player-results eventGroups=content.eventGroups}}
+    {{> player-results eventGroups=content.eventGroups hasDetailColumn=content.resultsHaveDetail}}
   </section>
   {{/if}}
 
   {{#if content.freestyleRecords.length}}
   <section>
     <div class="section-heading"><h2>Freestyle Records</h2></div>
-    {{#unless content.hasCompetitionResults}}
-    <p class="detail-muted">This player is documented through freestyle records. No competition results are currently available.</p>
-    {{/unless}}
     <div class="records-table-wrap" tabindex="0" role="region" aria-label="Freestyle records">
     <table class="data-table">
       <thead>
@@ -106,37 +77,6 @@
       Records sourced from the freestyle passback video archive.
       <a href="/freestyle/records">View all freestyle records</a>
     </p>
-  </section>
-  {{/if}}
-
-  {{! ── Top Partnerships ────────────────────────────────────────── }}
-  {{#if content.hasPartnerships}}
-  <section>
-    <div class="section-heading"><h2>Top Partnerships</h2></div>
-    <div class="records-table-wrap" tabindex="0" role="region" aria-label="Top partnerships">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Partner</th>
-            <th>Discipline</th>
-            <th class="col-num">Together</th>
-            <th class="col-num">Wins</th>
-            <th>Years</th>
-          </tr>
-        </thead>
-        <tbody>
-          {{#each content.partnerships}}
-          <tr>
-            <td><a href="{{{partnerHref}}}">{{partnerName}}</a></td>
-            <td>{{categoryLabel}}</td>
-            <td class="col-num">{{appearances}}</td>
-            <td class="col-num">{{wins}}</td>
-            <td>{{#if yearSpan}}{{yearSpan}}{{else}}&mdash;{{/if}}</td>
-          </tr>
-          {{/each}}
-        </tbody>
-      </table>
-    </div>
   </section>
   {{/if}}
 

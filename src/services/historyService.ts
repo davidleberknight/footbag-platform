@@ -13,10 +13,10 @@
  *     PageViewModel<HistoryDetailContent>}); the controller acts on the discriminant. A
  *     non-canonical record viewed by a non-member yields requireAuth (controller redirects to
  *     /login?returnTo=...); an unknown person throws NotFoundError (404).
- *   - The career summary and top partnerships are aggregates over imported results, which
- *     are not public statistics without approval and caveats. They are shaped for a member
- *     viewer only; a non-member gets the official results and records.
- *   - Result and partner links are pre-shaped in the service via personHref() (resolves to
+ *   - The page publishes no derived statistic (career totals, partnership rankings): every
+ *     result is already listed, and an aggregate over imported results needs a caveat the
+ *     page would only repeat.
+ *   - Result links are pre-shaped in the service via personHref() (resolves to
  *     /members/{slug} for a claimed member, /history/{personId} otherwise, null when neither);
  *     templates render plain text when no link exists.
  *
@@ -28,13 +28,12 @@
  *     wizard's claim task and nowhere else, so this service reads public data only and takes no
  *     viewer identity beyond whether the viewer is a member.
  */
-import { PublicPlayerResultRow, FreestyleRecordRow, PlayerCareerStatRow, PlayerPartnerRow,
-         publicPlayers, freestyleRecords } from '../db/db';
+import { PublicPlayerResultRow, FreestyleRecordRow, publicPlayers, freestyleRecords } from '../db/db';
 import { NotFoundError } from './serviceErrors';
 import { personHref } from './personLink';
 import { runSqliteRead } from './sqliteRetry';
 import { PageViewModel } from '../types/page';
-import { groupPlayerResults } from './playerShaping';
+import { groupPlayerResults, resultsHaveDetail } from './playerShaping';
 import type { PlayerEventGroup, PlayerHeroData } from '../types/playerProfile';
 import { FreestyleRecordViewModel, shapeFreestyleRecord } from './freestyleRecordShaping';
 import { buildActiveTrickSlugResolver } from './freestyleResolvableSlugs';
@@ -53,38 +52,17 @@ interface HistoricalPlayer {
   eventGroups: PlayerEventGroup[];
 }
 
-interface CareerCategoryStat {
-  category: string;
-  label: string;
-  appearances: number;
-  wins: number;
-  podiums: number;
-}
-
-interface PartnershipViewModel {
-  partnerName: string;
-  partnerHref: string | null;
-  category: string;
-  categoryLabel: string;
-  appearances: number;
-  wins: number;
-  yearSpan: string | null;
-}
-
 export interface HistoryDetailContent {
   personId: string;
   displayName: string;
   hofMember: boolean;
   bapMember: boolean;
   heroData: PlayerHeroData;
-  careerStats: CareerCategoryStat[];
-  hasCareerStats: boolean;
   hasCompetitionResults: boolean;
   hasRecords: boolean;
   eventGroups: PlayerEventGroup[];
+  resultsHaveDetail: boolean;
   freestyleRecords: FreestyleRecordViewModel[];
-  partnerships: PartnershipViewModel[];
-  hasPartnerships: boolean;
 }
 
 export type HistoryDetailResult =
@@ -155,7 +133,6 @@ export const historyService = {
     if (!isCanonical && !isMember) {
       return { action: 'requireAuth' };
     }
-    const showAggregates = isMember;
 
     const heroData: PlayerHeroData = {
       displayName:       player.personName,
@@ -165,49 +142,7 @@ export const historyService = {
       hofInductionYear:  player.hofInductionYear ?? undefined,
       bapInductionYear:  player.bapInductionYear ?? undefined,
       country:           player.country,
-      isHistoricalOnly: true,
     };
-
-    const CATEGORY_LABELS: Record<string, string> = {
-      freestyle: 'Freestyle', net: 'Net', golf: 'Golf', sideline: 'Sideline',
-    };
-    const careerStatRows = showAggregates
-      ? runSqliteRead('listCareerStatsByCategory', () =>
-          publicPlayers.listCareerStatsByCategory.all(personId),
-        ) as PlayerCareerStatRow[]
-      : [];
-    const careerStats: CareerCategoryStat[] = careerStatRows
-      .filter(r => r.category && CATEGORY_LABELS[r.category])
-      .map(r => ({
-        category:    r.category,
-        label:       CATEGORY_LABELS[r.category] ?? r.category,
-        appearances: r.appearances,
-        wins:        r.wins,
-        podiums:     r.podiums,
-      }));
-
-    const partnerRows = showAggregates
-      ? runSqliteRead('listTopPartnersByPersonId', () =>
-          publicPlayers.listTopPartnersByPersonId.all(personId),
-        ) as PlayerPartnerRow[]
-      : [];
-    const partnerships: PartnershipViewModel[] = partnerRows.map(r => {
-      const first = r.first_year;
-      const last = r.last_year;
-      let yearSpan: string | null = null;
-      if (first !== null && last !== null) {
-        yearSpan = first === last ? String(first) : `${first}–${last}`;
-      }
-      return {
-        partnerName:   r.partner_name,
-        partnerHref:   personHref(r.partner_member_slug, r.partner_person_id),
-        category:      r.category,
-        categoryLabel: CATEGORY_LABELS[r.category] ?? r.category,
-        appearances:   r.appearances,
-        wins:          r.wins,
-        yearSpan,
-      };
-    });
 
     const resolveActiveSlug = buildActiveTrickSlugResolver();
     return {
@@ -228,14 +163,11 @@ export const historyService = {
           hofMember:     player.hofMember,
           bapMember:     player.bapMember,
           heroData,
-          careerStats,
-          hasCareerStats:        careerStats.length > 0,
           hasCompetitionResults: player.eventGroups.length > 0,
           hasRecords:            freestyleRows.length > 0,
           eventGroups:           player.eventGroups,
+          resultsHaveDetail:     resultsHaveDetail(player.eventGroups),
           freestyleRecords:      freestyleRows.map(r => shapeFreestyleRecord(r, resolveActiveSlug)),
-          partnerships,
-          hasPartnerships:       partnerships.length > 0,
         },
       },
     };

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { groupPlayerResults, PlayerResultRow } from '../../src/services/playerShaping';
+import { groupPlayerResults, resultsHaveDetail, PlayerResultRow } from '../../src/services/playerShaping';
 
 function makeRow(overrides: Partial<PlayerResultRow> = {}): PlayerResultRow {
   return {
@@ -276,5 +276,39 @@ describe('groupPlayerResults', () => {
       expect(result[0].results[0].teammates).toHaveLength(1);
       expect(result[0].results[0].teammates[0].name).toBe('Performer Beta');
     });
+  });
+});
+
+describe('resultsHaveDetail', () => {
+  const self = { selfPersonId: 'person-alice' };
+
+  it('drops the partner-and-score column for a singles career with no scores', () => {
+    // Defect caught: an empty column on every row of a singles player's one
+    // results table.
+    const groups = groupPlayerResults([
+      makeRow({ event_tag_normalized: '#event_2025_a' }),
+      makeRow({ event_tag_normalized: '#event_2025_b' }),
+    ], self);
+    expect(resultsHaveDetail(groups)).toBe(false);
+  });
+
+  it('keeps the column when a later event has the only score or partner', () => {
+    // Defect caught: the column decided from the first event alone, so a score
+    // or partner further down the one table has no column to sit in.
+    const scored = groupPlayerResults([
+      makeRow({ event_tag_normalized: '#event_2025_a' }),
+      makeRow({ event_tag_normalized: '#event_2025_b', score_text: '42.5' }),
+    ], self);
+    expect(resultsHaveDetail(scored)).toBe(true);
+
+    const partnered = groupPlayerResults([
+      makeRow({ event_tag_normalized: '#event_2025_a' }),
+      makeRow({ event_tag_normalized: '#event_2025_b', team_type: 'doubles' }),
+      makeRow({
+        event_tag_normalized: '#event_2025_b', team_type: 'doubles',
+        participant_display_name: 'Bob', participant_person_id: 'person-bob',
+      }),
+    ], self);
+    expect(resultsHaveDetail(partnered)).toBe(true);
   });
 });

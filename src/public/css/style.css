@@ -679,29 +679,6 @@ section { margin-top: var(--space-2xl); }
 }
 .back-link:hover { color: var(--primary-ink); text-decoration: none; }
 
-/* ── Player event blocks ────────────────────────────────────── */
-.player-event-block {
-  margin-bottom: var(--space-2xl);
-}
-.player-event-header {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-md);
-  flex-wrap: wrap;
-  margin-bottom: var(--space-md);
-  padding-bottom: var(--space-sm);
-  border-bottom: 2px solid var(--primary);
-}
-.player-event-title {
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--text);
-}
-.player-event-title:hover { color: var(--primary-ink); text-decoration: none; }
-.player-event-meta {
-  font-size: 0.9rem;
-  color: var(--text-muted);
-}
 /* ── Sortable table headers ─────────────────────────────────── */
 th.sortable {
   cursor: pointer;
