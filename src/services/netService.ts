@@ -41,7 +41,7 @@ import { VideoMedia, expandYouTubeVideo } from './videoMedia';
 // Evidence disclaimer, always rendered on net pages (not conditioned on data)
 // ---------------------------------------------------------------------------
 export const TEAM_DISCLAIMER =
-  'Team identities are algorithmically constructed from placement data and may not reflect official partnerships.';
+  'Teams are worked out from results lists, so some pairings may be wrong.';
 
 // ---------------------------------------------------------------------------
 // View-model types
@@ -190,7 +190,6 @@ interface NetTeamStatsViewModel {
 interface NetTeamDetailContent {
   team:         NetTeamViewModel;
   summary:      NetTeamStatsViewModel;
-  appearances:  NetAppearanceViewModel[];   // timeline asc
   byYear:       NetAppearanceYearGroup[];   // grouped desc
   disclaimer:   string;
 }
@@ -324,8 +323,16 @@ const GROUP_LABELS: Record<string, string> = {
 
 export function disciplineLabel(disciplineName: string, canonicalGroup: string | null, conflictFlag: number): string {
   // If conflict_flag=1 or no canonical_group, use the raw discipline name
-  if (conflictFlag || !canonicalGroup) return disciplineName;
-  return GROUP_LABELS[canonicalGroup] || disciplineName;
+  if (conflictFlag || !canonicalGroup) return withoutNetSuffix(disciplineName);
+  return GROUP_LABELS[canonicalGroup] || withoutNetSuffix(disciplineName);
+}
+
+// Every page this label appears on is about net, so a trailing "Net" or
+// "Footbag Net" on a raw discipline name says nothing ("Open Mixed Doubles Net"
+// reads as "Open Mixed Doubles"). A name that is only the suffix stays as it is.
+function withoutNetSuffix(name: string): string {
+  const rest = /^(.*?)\s+(?:footbag\s+)?net$/i.exec(name)?.[1];
+  return rest && !/^footbag$/i.test(rest) ? rest : name;
 }
 
 function shapeTeam(row: NetTeamSummaryRow): NetTeamViewModel {
@@ -618,10 +625,8 @@ export const netService = {
     const appearanceRows = netTeams.listAppearancesByTeamId.all(teamId) as NetTeamAppearanceRow[];
     const shaped = appearanceRows.map(shapeAppearance);
 
-    // Timeline view: ascending by year, then placement
-    const timeline = [...shaped].sort((a, b) => a.eventYear - b.eventYear || a.placement - b.placement);
-
-    // By-year view: descending groups
+    // One results listing, grouped by year descending; a second flat timeline
+    // would show every appearance twice.
     const byYear = groupAppearancesByYear(shaped);
 
     // Compute summary from appearances
@@ -645,7 +650,6 @@ export const netService = {
           podiumCount,
           yearSpan: yearSpan(teamRow.first_year, teamRow.last_year),
         },
-        appearances: timeline,
         byYear,
         disclaimer:  TEAM_DISCLAIMER,
       },

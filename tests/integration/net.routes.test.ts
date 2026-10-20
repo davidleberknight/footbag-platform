@@ -9,8 +9,8 @@
  *   - 200 for valid routes, 404 for unknown teamId
  *   - Teams ordered by appearance_count DESC
  *   - Team name and partner names visible
- *   - Year grouping on detail page
- *   - conflict_flag=1 renders raw discipline name instead of canonical group label
+ *   - Year grouping on detail page, each appearance listed once, with the inferred-pairing caveat
+ *   - conflict_flag=1 renders raw discipline name instead of canonical group label, less a trailing "Net"
  *   - Appearances with evidence_class != 'canonical_only' do NOT appear
  *   - No rankings, win/loss, or head-to-head stats appear
  */
@@ -129,6 +129,15 @@ function setupDb(db: BetterSqlite3.Database): void {
   insertNetTeamMember(db, { team_id: TEAM_2_ID, person_id: PERSON_B2, position: 'b' });
 
   insertNetTeamAppearance(db, { team_id: TEAM_2_ID, event_id: event3, discipline_id: disc3, result_entry_id: entry4, placement: 1, event_year: 2012 });
+
+  // A conflict-flagged discipline whose raw name ends in "Net", the shape most
+  // raw labels in the built database take ("Open Mixed Doubles Net").
+  const disc4 = insertDiscipline(db, event3, { id: 'disc-net-test-mixed-2012', name: 'Open Mixed Doubles Net', discipline_category: 'net', team_type: 'doubles' });
+  insertNetDisciplineGroup(db, 'disc-net-test-mixed-2012', {
+    canonical_group: 'mixed_doubles', match_method: 'pattern', review_needed: 1, conflict_flag: 1,
+  });
+  const entry6 = insertResultEntry(db, event3, upload3, disc4, { id: 'entry-net-test-06', placement: 3 });
+  insertNetTeamAppearance(db, { team_id: TEAM_2_ID, event_id: event3, discipline_id: disc4, result_entry_id: entry6, placement: 3, event_year: 2012 });
 }
 
 beforeAll(async () => {
@@ -373,18 +382,18 @@ describe('GET /net/teams/:teamId', () => {
     expect(res.text).toContain('2 podiums');
   });
 
-  it('shows competitive timeline', async () => {
+  // A second listing of the same appearances would show every result twice.
+  it('lists each appearance exactly once', async () => {
     const res = await page(`/net/teams/${TEAM_1_ID}`);
-    expect(res.text).toContain('Net Open 2010');
-    expect(res.text).toContain('Net Open 2015');
+    for (const title of ['Net Open 2010', 'Net Open 2015']) {
+      expect(res.text.split(`>${title}</a>`).length - 1, title).toBe(1);
+    }
   });
 
-  it('orders timeline by year ascending', async () => {
+  // Team identities are inferred, so the page publishes them only with a caveat.
+  it('states that the team pairings are inferred', async () => {
     const res = await page(`/net/teams/${TEAM_1_ID}`);
-    const idx2010 = res.text.indexOf('Net Open 2010');
-    const idx2015 = res.text.indexOf('Net Open 2015');
-    expect(idx2010).toBeGreaterThan(0);
-    expect(idx2015).toBeGreaterThan(idx2010);
+    expect(res.text).toMatch(/<p class="source-note">[^<]*pairings[^<]*<\/p>/);
   });
 
   it('renders a Competition History section grouped by year, descending', async () => {
@@ -400,6 +409,13 @@ describe('GET /net/teams/:teamId', () => {
     const res = await page(`/net/teams/${TEAM_2_ID}`);
     // disc3 has conflict_flag=1; raw name is 'Footbag Net: Singles'
     expect(res.text).toContain('Footbag Net: Singles');
+  });
+
+  // Every net page is about net, so a raw label keeps its meaning without the suffix.
+  it('drops a trailing "Net" from a raw discipline name', async () => {
+    const res = await page(`/net/teams/${TEAM_2_ID}`);
+    expect(res.text).toContain('<td>Open Mixed Doubles</td>');
+    expect(res.text).not.toContain('Open Mixed Doubles Net');
   });
 
   it('shows placement labels (1st, 2nd)', async () => {

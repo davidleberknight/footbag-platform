@@ -67,12 +67,6 @@ prose-muted	freestyle/set-detail	1280	4
 prose-muted	freestyle/set-detail	390	4
 prose-muted	members/announce	1280	1
 prose-muted	members/announce	390	1
-prose-muted	net/events	1280	1
-prose-muted	net/events	390	1
-prose-muted	net/team-detail	1280	1
-prose-muted	net/team-detail	390	1
-prose-muted	net/teams	1280	1
-prose-muted	net/teams	390	1
 prose-muted	records/records	1280	1
 prose-muted	records/records	390	1
 prose-muted	register/wizard/club-affiliations	1280	1

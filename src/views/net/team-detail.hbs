@@ -22,35 +22,7 @@
 
   <p class="source-note">{{content.disclaimer}}</p>
 
-  {{#if content.appearances.length}}
-  <section class="content-section">
-    <div class="section-heading">
-      <h2>Competitive Timeline</h2>
-    </div>
-    <div class="records-table-wrap" tabindex="0" role="region" aria-label="Competitive timeline">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Year</th>
-            <th>Event</th>
-            <th>Discipline</th>
-            <th class="col-rank">Place</th>
-          </tr>
-        </thead>
-        <tbody>
-          {{#each content.appearances}}
-          <tr>
-            <td>{{eventYear}}</td>
-            <td><a href="{{{eventHref}}}">{{eventTitle}}</a></td>
-            <td>{{disciplineLabel}}</td>
-            <td class="col-rank">{{placementLabel}}</td>
-          </tr>
-          {{/each}}
-        </tbody>
-      </table>
-    </div>
-  </section>
-
+  {{#if content.byYear.length}}
   <section class="content-section">
     <div class="section-heading">
       <h2>Competition History</h2>
