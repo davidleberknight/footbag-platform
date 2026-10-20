@@ -19,7 +19,10 @@
 import { deceasedMarking } from '../db/db';
 import { deceasedMarkingService } from './deceasedMarkingService';
 import { NotFoundError } from './serviceErrors';
+import { findStandingOwnAct } from './auditService';
 import type { PageViewModel } from '../types/page';
+import type { OutcomeNoticeView } from '../lib/outcomeNotice';
+import type { ActionEnding } from '../lib/actionOutcome';
 
 const LOOKUP_LIMIT = 25;
 const MIN_LOOKUP_QUERY = 2;
@@ -55,6 +58,8 @@ export interface AdminHistoricalRecordsContent {
   hasResults: boolean;
   resultSummary: string;
   hasMore: boolean;
+  /** The result of the last mark or revert, carried across its redirect. */
+  notice: OutcomeNoticeView | null;
   errorMessage?: string;
 }
 
@@ -105,7 +110,7 @@ export const adminHistoricalRecordService = {
   /** The lookup, by exact record id or part of the name. */
   getHistoricalRecordsPage(
     rawQuery: string,
-    opts: { errorMessage?: string } = {},
+    opts: { notice?: OutcomeNoticeView | null; errorMessage?: string } = {},
   ): PageViewModel<AdminHistoricalRecordsContent> {
     const query = rawQuery.trim();
     const title = 'Historical Records';
@@ -144,6 +149,7 @@ export const adminHistoricalRecordService = {
         hasResults: results.length > 0,
         resultSummary,
         hasMore,
+        notice: opts.notice ?? null,
         errorMessage,
       },
     };
@@ -180,22 +186,36 @@ export const adminHistoricalRecordService = {
     };
   },
 
-  /** Commit the change through the service that owns the flag. */
+  /**
+   * Commit the change through the service that owns the flag, and say how it
+   * ended. A record already in the asked-for state is a repeat: this admin's
+   * own standing change reports the first submit's success, and a state
+   * someone else left reports that nothing changed.
+   */
   applyDeceasedChange(
     actorId: string,
     personId: string,
     marking: boolean,
-  ): string {
+  ): { ending: Exclude<ActionEnding, 'refused'>; text: string } {
     const result = deceasedMarkingService.setHistoricalPersonDeceased(
       actorId, personId, marking,
     );
-    if (result.status === 'unchanged') {
-      return marking
-        ? 'That record was already marked, so nothing changed.'
-        : 'That record carried no marking, so nothing changed.';
-    }
-    return marking
+    const changedText = marking
       ? `${result.personName} is recorded as deceased, and the change is in the audit log.`
       : `The marking on ${result.personName} has been removed, and the change is in the audit log.`;
+    if (result.status === 'unchanged') {
+      const act = marking ? 'member.deceased_marked' : 'member.deceased_reverted';
+      const reversal = marking ? 'member.deceased_reverted' : 'member.deceased_marked';
+      if (findStandingOwnAct(actorId, act, reversal, 'historical_person', personId)) {
+        return { ending: 'own_repeat', text: changedText };
+      }
+      return {
+        ending: 'already_held',
+        text: marking
+          ? 'That record was already marked, so nothing changed.'
+          : 'That record carried no marking, so nothing changed.',
+      };
+    }
+    return { ending: 'advance', text: changedText };
   },
 };

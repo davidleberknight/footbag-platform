@@ -64,7 +64,7 @@ describe('GET /freestyle/sets — route + envelope', () => {
   it('returns 200 and renders the Set Encyclopedia page', async () => {
     const res = await page('/freestyle/sets');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('class="wrapper sets-encyclopedia"');
+    expect(res.text).toContain('class="sets-encyclopedia-head"');
     expect(res.text).toContain('Set Encyclopedia');
   });
 

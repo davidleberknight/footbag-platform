@@ -210,7 +210,7 @@ describe('rule page titles and orientation', () => {
 
   it('introduces every category group on the index', async () => {
     const res = await page('/rules');
-    const groups = [...res.text.matchAll(/<section class="content-section rules-group" id="([^"]+)">([\s\S]*?)<\/section>/g)];
+    const groups = [...res.text.matchAll(/<section class="content-section" id="([^"]+)">([\s\S]*?)<\/section>/g)];
     expect(groups.length).toBeGreaterThan(0);
     for (const [, id, body] of groups) {
       // A bare heading over a link list says nothing about what the group covers.
@@ -220,7 +220,7 @@ describe('rule page titles and orientation', () => {
 
   it('anchors each index group on the category its rule links open under', async () => {
     const res = await page('/rules');
-    const groups = [...res.text.matchAll(/<section class="content-section rules-group" id="([^"]*)">([\s\S]*?)<\/section>/g)];
+    const groups = [...res.text.matchAll(/<section class="content-section" id="([^"]*)">([\s\S]*?)<\/section>/g)];
     expect(groups.length).toBeGreaterThan(0);
     for (const [, id, body] of groups) {
       // A group anchor that drifts from the URL segment breaks a bookmarked

@@ -21,9 +21,7 @@
   </p>
 
   <form method="POST" action="{{content.formAction}}" class="form-block">
-    {{#if content.errorMessage}}
-      <div class="form-error-banner" role="alert">{{content.errorMessage}}</div>
-    {{/if}}
+    {{> outcome-notice text=content.errorMessage tone='no'}}
 
     <div class="form-field">
       <label for="idSlug">Gallery ID</label>

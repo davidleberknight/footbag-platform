@@ -13,7 +13,8 @@
  * Each rule names the design requirement it enforces in plain words. Numbers
  * come from the site standard: nothing below 0.9rem (14.4px at the 16px
  * root), a 55ch prose measure, a 24x24 minimum target, 4.5:1 text contrast
- * (3:1 for large text), and phone fit at 390px.
+ * (3:1 for large text), phone fit at 390px, and a spacing rhythm of 4, 8, 12,
+ * 16, 24 and 32px (24px at most on a phone).
  */
 
 export const CAPTURE_SCHEMA = 1 as const;
@@ -86,6 +87,8 @@ export interface ElementRecord {
   cls: string;
   attrs: {
     hidden?: true;
+    /** A disclosure showing its content; a closed one still lays that content out off screen. */
+    open?: true;
     ariaHidden?: true;
     disabled?: true;
     href?: true;
@@ -144,6 +147,7 @@ export type RuleId =
   | 'hidden-but-displayed'
   | 'field-without-visible-label'
   | 'empty-state-leaks-code'
+  | 'spacing-off-rhythm'
   // Findings the browser check adds beside the rules: something the browser
   // refused or reported while the page loaded, a URL that rendered another view
   // than the one it was meant to measure, and an axe violation by rule id.
@@ -296,6 +300,12 @@ export class CaptureView {
     if (el.rect.w <= 1 || el.rect.h <= 1) return false;
     const clip = this.style(el, 'clip-path');
     if (clip.startsWith('inset(50%') || clip.startsWith('inset(100%')) return false;
+    // A closed disclosure still lays out what it hides; only its summary is drawn.
+    let child = el;
+    for (const a of this.ancestors(el)) {
+      if (a.tag === 'details' && !a.attrs.open && child.tag !== 'summary') return false;
+      child = a;
+    }
     for (const a of this.ancestors(el)) {
       const d = this.style(a, 'display');
       if (d === 'none') return false;
@@ -448,6 +458,132 @@ function overflowCulprits(v: CaptureView): ElementRecord[] {
     for (const d of v.descendants(el)) if (reported.has(d.i)) return false;
     return true;
   });
+}
+
+// The spacing steps a gap may land on; a phone drops the widest. The slack
+// absorbs a 1px border correction and sub-pixel rounding.
+const SPACING_STEPS = [4, 8, 12, 16, 24, 32];
+const PHONE_SPACING_MAX = 24;
+const SPACING_SLACK_PX = 1.5;
+// Elements that draw something with no text node of their own.
+const DRAWN_TAGS = new Set(['img', 'svg', 'video', 'iframe', 'canvas', 'hr', 'table', 'input', 'select', 'textarea', 'button', 'progress', 'meter']);
+const OUT_OF_FLOW = new Set(['absolute', 'fixed']);
+
+/** Draws its own box: a fill, a border, or a shadow. */
+function paintsBox(v: CaptureView, el: ElementRecord): boolean {
+  const bg = parseColor(v.style(el, 'background-color'));
+  if (bg && bg.a > 0) return true;
+  const image = v.style(el, 'background-image');
+  if (image !== '' && image !== 'none') return true;
+  const shadow = v.style(el, 'box-shadow');
+  if (shadow !== '' && shadow !== 'none') return true;
+  return (['top', 'right', 'bottom', 'left'] as const)
+    .some((s) => v.px(el, `border-${s}-width`) > 0 && !['none', 'hidden'].includes(v.style(el, `border-${s}-style`)));
+}
+
+/** Draws a closed box around what it holds: a fill, a shadow or a border on every side, not a lone divider line. */
+function encloses(v: CaptureView, el: ElementRecord): boolean {
+  const bg = parseColor(v.style(el, 'background-color'));
+  if (bg && bg.a > 0) return true;
+  const image = v.style(el, 'background-image');
+  if (image !== '' && image !== 'none') return true;
+  const shadow = v.style(el, 'box-shadow');
+  if (shadow !== '' && shadow !== 'none') return true;
+  return (['top', 'right', 'bottom', 'left'] as const)
+    .every((s) => v.px(el, `border-${s}-width`) > 0 && !['none', 'hidden'].includes(v.style(el, `border-${s}-style`)));
+}
+
+/** Children in flow, looking through wrappers that draw no box of their own. */
+function flowChildren(v: CaptureView, el: ElementRecord): ElementRecord[] {
+  const out: ElementRecord[] = [];
+  for (const c of v.childrenOf(el)) {
+    if (v.style(c, 'display') === 'contents') out.push(...flowChildren(v, c));
+    else if (!OUT_OF_FLOW.has(v.style(c, 'position'))) out.push(c);
+  }
+  return out;
+}
+
+/**
+ * A block that sets text in lines, such as a heading wrapping a link: the line
+ * height spaces what is inside it, so its lines are what the reader sees, not
+ * the tighter boxes of the words.
+ */
+function holdsLines(v: CaptureView, el: ElementRecord): boolean {
+  if (v.style(el, 'display').startsWith('inline')) return false;
+  const kids = flowChildren(v, el).filter((c) => v.isPainted(c));
+  return kids.some((c) => v.style(c, 'display') === 'inline')
+    || (kids.length > 0 && kids.every((c) => v.style(c, 'display').startsWith('inline')));
+}
+
+/** The box inside the padding: where the lines of an unboxed text block start and end. */
+function contentBox(v: CaptureView, el: ElementRecord): Rect {
+  const top = v.px(el, 'padding-top') + v.px(el, 'border-top-width');
+  const bottom = v.px(el, 'padding-bottom') + v.px(el, 'border-bottom-width');
+  return { x: el.rect.x, y: el.rect.y + top, w: el.rect.w, h: Math.max(0, el.rect.h - top - bottom) };
+}
+
+/** The lower box has no top edge of its own and hangs from the edge the upper one draws: one control in two parts. */
+function joined(v: CaptureView, upper: ElementRecord, lower: ElementRecord): boolean {
+  const edge = (el: ElementRecord, side: 'top' | 'bottom') =>
+    v.px(el, `border-${side}-width`) > 0 && !['none', 'hidden'].includes(v.style(el, `border-${side}-style`));
+  const hung = (el: ElementRecord): boolean => {
+    if (edge(el, 'top')) return false;
+    if (paintsBox(v, el)) return true;
+    const first = flowChildren(v, el).find((c) => v.isPainted(c));
+    return !!first && hung(first);
+  };
+  return edge(upper, 'bottom') && hung(lower);
+}
+
+/** Lays its children out in a row that wraps, or in several grid columns, so one item stacked over another is a new row, not a gap. */
+function laysOutRows(v: CaptureView, el: ElementRecord): boolean {
+  const display = v.style(el, 'display');
+  if (/flex$/.test(display)) return !v.style(el, 'flex-direction').startsWith('column');
+  if (/grid$/.test(display)) return v.style(el, 'grid-template-columns').trim().split(/\s+(?![^(]*\))/).length > 1;
+  return false;
+}
+
+/**
+ * What a reader sees of an element: its own box where it draws one, otherwise
+ * the union of what its children draw, so an invisible wrapper's padding or an
+ * empty div never counts as space. Null when nothing is drawn.
+ */
+function inkOf(v: CaptureView, el: ElementRecord, memo: Map<number, Rect | null>): Rect | null {
+  const known = memo.get(el.i);
+  if (known !== undefined) return known;
+  let ink: Rect | null = null;
+  if (v.isPainted(el) || v.style(el, 'display') === 'contents') {
+    if (DRAWN_TAGS.has(el.tag) || paintsBox(v, el)) ink = el.rect;
+    // Lines of text, plus any control or image set in them, which can hang
+    // past the line box, as a checkbox does below its label.
+    else if (el.textLen > 0 || holdsLines(v, el)) {
+      ink = unionOf([contentBox(v, el), ...[...v.descendants(el)].filter((d) => DRAWN_TAGS.has(d.tag) && v.isPainted(d)).map((d) => d.rect)]);
+    }
+    // A row of items, such as a bar of links, spans its items' own boxes,
+    // padding included; the text inside each one does not mark the row's edges.
+    else if (laysOutRows(v, el)) ink = unionOf(flowChildren(v, el).filter((c) => v.isPainted(c)).map((c) => c.rect));
+    else ink = unionOf(flowChildren(v, el).map((c) => inkOf(v, c, memo)));
+  }
+  memo.set(el.i, ink);
+  return ink;
+}
+
+/** The smallest box holding every given box; null when there are none. */
+function unionOf(rects: Array<Rect | null>): Rect | null {
+  let out: Rect | null = null;
+  for (const r of rects) {
+    if (!r) continue;
+    if (!out) { out = r; continue; }
+    const x = Math.min(out.x, r.x);
+    const y = Math.min(out.y, r.y);
+    out = { x, y, w: Math.max(out.x + out.w, r.x + r.w) - x, h: Math.max(out.y + out.h, r.y + r.h) - y };
+  }
+  return out;
+}
+
+function offRhythm(gap: number, width: number): boolean {
+  const steps = width <= 480 ? SPACING_STEPS.filter((s) => s <= PHONE_SPACING_MAX) : SPACING_STEPS;
+  return !steps.some((s) => Math.abs(gap - s) <= SPACING_SLACK_PX);
 }
 
 function bodyProseSize(v: CaptureView): number {
@@ -742,6 +878,63 @@ export const RULES: readonly Rule[] = [
         const words = parts.join(' ').match(/[a-z][a-z0-9_]*/g) ?? [];
         const leaked = words.find((w) => ctx.tableNames.has(w));
         if (leaked) out.push({ el, measured: `names table ${leaked}` });
+      }
+      return out;
+    },
+  },
+  {
+    id: 'spacing-off-rhythm',
+    applies: 'any',
+    requirement: 'Every gap between two stacked blocks, and the space inside a drawn box, is a spacing step (4, 8, 12, 16, 24 or 32px; 24px at most on a phone): never zero, never larger, never in between.',
+    check(v) {
+      const memo = new Map<number, Rect | null>();
+      const out: Array<{ el: ElementRecord; measured: string }> = [];
+      for (const box of v.elements) {
+        if (!v.isPainted(box) || box.tag === 'head') continue;
+        if (['table', 'pre', 'svg', 'select', 'button'].some((t) => box.tag === t || v.within(box, t))) continue;
+        if (v.style(box, 'display').startsWith('inline') || holdsLines(v, box)) continue;
+        // A word or link inside a run of text sits on a line, which the line
+        // height spaces; only boxes that start a line of their own are blocks.
+        const kids = flowChildren(v, box)
+          .filter((c) => v.style(c, 'display') !== 'inline')
+          .map((c) => ({ c, ink: inkOf(v, c, memo) }))
+          .filter((k): k is { c: ElementRecord; ink: Rect } => k.ink !== null);
+        const rows = laysOutRows(v, box);
+        // A column stretched to its row's height, such as a card in a grid,
+        // pins its last item to the bottom so actions line up across the row;
+        // the gap above that item then grows with the tallest neighbour.
+        const parent = v.boxParentOf(box);
+        const stretched = v.style(box, 'display') === 'flex' && v.style(box, 'flex-direction') === 'column'
+          && !!parent && /^(grid|flex)$/.test(v.style(parent, 'display'));
+        for (let k = 1; k < kids.length && !rows; k++) {
+          const a = kids[k - 1].ink;
+          const b = kids[k].ink;
+          const stacked = b.y >= a.y + a.h - 0.5 && b.x < a.x + a.w && a.x < b.x + b.w;
+          if (!stacked) continue;
+          const gap = b.y - (a.y + a.h);
+          if (stretched && k === kids.length - 1 && gap >= SPACING_STEPS[0] - SPACING_SLACK_PX) continue;
+          // A box drawn without a top edge, hung from the one above it, is the
+          // second half of one joined control, such as a tab panel under its tabs.
+          if (Math.abs(gap) <= SPACING_SLACK_PX && joined(v, kids[k - 1].c, kids[k].c)) continue;
+          if (offRhythm(gap, v.width)) out.push({ el: kids[k].c, measured: `${fmt(gap)}px below ${v.findingSelector(kids[k - 1].c).split('>').pop()}` });
+        }
+        // Space inside a drawn box, from its edge to what it holds.
+        if (kids.length === 0 || box.textLen > 0 || DRAWN_TAGS.has(box.tag) || !encloses(v, box)) continue;
+        const first = kids.reduce((m, k) => (k.ink.y < m.ink.y ? k : m));
+        const last = kids.reduce((m, k) => (k.ink.y + k.ink.h > m.ink.y + m.ink.h ? k : m));
+        const top = first.ink.y - box.rect.y - v.px(box, 'border-top-width');
+        const bottom = box.rect.y + box.rect.h - v.px(box, 'border-bottom-width') - (last.ink.y + last.ink.h);
+        // An image, video or filled panel running to the box's edge is a full
+        // bleed, and content past the edge is clipped or scrolled; neither is spacing.
+        const judged = (inset: number, edge: ElementRecord) =>
+          inset >= -0.5 && !(inset <= SPACING_SLACK_PX && (DRAWN_TAGS.has(edge.tag) || encloses(v, edge)));
+        if (judged(top, first.c) && offRhythm(top, v.width)) out.push({ el: box, measured: `${fmt(top)}px inside the top edge` });
+        // A box in a row or grid stretches to its tallest neighbour, so only
+        // its top inset is set by spacing; below its content it can only be
+        // judged for touching the edge.
+        const inRow = !!parent && laysOutRows(v, parent);
+        const bottomOff = inRow ? bottom < SPACING_STEPS[0] - SPACING_SLACK_PX : offRhythm(bottom, v.width);
+        if (judged(bottom, last.c) && bottomOff) out.push({ el: box, measured: `${fmt(bottom)}px inside the bottom edge` });
       }
       return out;
     },

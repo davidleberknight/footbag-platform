@@ -537,6 +537,66 @@ describe('the convention gate: rules about src/', () => {
   });
 });
 
+describe('the convention gate: one renderer for an action result', () => {
+  // The outcome-notice partial as it ships: the one file allowed to write the
+  // three outcome classes.
+  const PARTIAL = [
+    '{{#if (eq tone \'ok\')}}<div class="form-success-banner" role="status">{{text}}</div>',
+    '{{else if (eq tone \'no\')}}<div class="form-error-banner" role="alert">{{text}}</div>',
+    '{{else}}<p class="form-notice" role="status">{{text}}</p>{{/if}}',
+  ].join('\n');
+  const SCRIPT = 'document.title = "ready";\n';
+
+  it('refuses a template that writes an outcome class itself', () => {
+    // Defect caught: a page drawing its own green banner, a second renderer
+    // that drifts from the partial until one outcome reads two ways.
+    const res = inFixtureRepo({
+      'src/views/partials/outcome-notice.hbs': PARTIAL,
+      'src/views/page.hbs': '<div class="form-success-banner" role="status">Saved.</div>\n',
+      'src/public/js/page.js': SCRIPT,
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('src/views/page.hbs');
+    expect(res.stderr).toContain('renders through the outcome-notice partial');
+  });
+
+  it('refuses a script that writes an outcome class into the page', () => {
+    // Defect caught: a client-side banner, which no template check can see.
+    const res = inFixtureRepo({
+      'src/views/partials/outcome-notice.hbs': PARTIAL,
+      'src/views/page.hbs': '{{> outcome-notice text=message tone=\'no\'}}\n',
+      'src/public/js/page.js': 'el.innerHTML = \'<p class="form-error-banner">Failed.</p>\';\n',
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('src/public/js/page.js');
+  });
+
+  it('refuses the confirm-page caution on a page that is not a confirm page', () => {
+    // Defect caught: the caution class borrowed for a standing caveat, which is
+    // a callout and takes the callout primitive.
+    const res = inFixtureRepo({
+      'src/views/partials/outcome-notice.hbs': PARTIAL,
+      'src/views/clubs/detail.hbs': '<p class="notice notice-warn">This club is inactive.</p>\n',
+      'src/public/js/page.js': SCRIPT,
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('src/views/clubs/detail.hbs');
+    expect(res.stderr).toContain('confirm page only');
+  });
+
+  it('accepts the partial, a page calling it, and the caution on confirm pages', () => {
+    const res = inFixtureRepo({
+      'src/views/partials/outcome-notice.hbs': PARTIAL,
+      'src/views/page.hbs': '{{> outcome-notice text=message tone=\'ok\'}}\n',
+      'src/views/clubs/leave-confirm.hbs': '<p class="notice notice-warn" role="alert">Leaving.</p>\n',
+      'src/views/members/delete-account.hbs': '<p class="notice notice-warn" role="alert">Permanent.</p>\n',
+      'src/public/js/page.js': SCRIPT,
+    });
+    expect(res.exitCode, res.stderr).toBe(0);
+    expectCheckRan(res, 'outcome message classes outside the outcome-notice partial');
+  });
+});
+
 describe('the convention gate: rules about templates and the stylesheet', () => {
   it('refuses an inline style attribute, which the page policy blocks in production', () => {
     const res = inFixtureRepo({
@@ -635,6 +695,101 @@ describe('the convention gate: rules about templates and the stylesheet', () => 
     const res = inFixtureRepo({ 'src/public/css/style.css': PLAIN_CSS });
     expect(res.exitCode, res.stderr).toBe(0);
     expectCheckRan(res, 'raw hex color outside :root in style.css');
+  });
+
+  // An overlay written as rgba() or a named colour is the same off-palette
+  // one-off as a hex literal; only the hex spelling was ever refused.
+  it('refuses rgb(), hsl() and named colours in a rule, and accepts them in :root', () => {
+    for (const declaration of ['color: rgba(0, 0, 0, 0.5);', 'background: hsl(120, 50%, 50%);', 'border: 1px solid white;']) {
+      const res = inFixtureRepo({
+        'src/public/css/style.css': `${PLAIN_CSS}.intro {\n  ${declaration}\n}\n`,
+      });
+      expect(res.exitCode, declaration).toBe(1);
+      expect(res.stderr, declaration).toContain('rgb(), hsl() and named colours belong only in the :root token block');
+    }
+    const res = inFixtureRepo({
+      'src/public/css/style.css':
+        ':root {\n  --overlay: rgba(0, 0, 0, 0.5);\n  --paper: white;\n}\n' +
+        '.intro {\n  color: var(--overlay);\n  background: transparent;\n  white-space: nowrap;\n}\n',
+    });
+    expect(res.exitCode, res.stderr).toBe(0);
+    expectCheckRan(res, 'rgb, hsl or named colour outside :root in style.css');
+  });
+
+  // The allowlist holds the rules not yet moved onto tokens. It must excuse
+  // exactly what it names, and a line left behind after its rule moved would
+  // otherwise excuse the literal's return.
+  it('excuses only an allowlisted rule, and refuses a stale allowlist line', () => {
+    const css = `${PLAIN_CSS}.veil {\n  background: rgba(0, 0, 0, 0.5);\n}\n`;
+    // A scripts/ directory brings the shell-script checks into scope, and they
+    // refuse a scope with nothing in it, so the fixture carries one script.
+    const listed = {
+      'scripts/ci/colour-literal-allowlist.txt': '# header\n.veil | background: rgba(0, 0, 0, 0.5);\n',
+      'scripts/thing.sh': '#!/usr/bin/env bash\n',
+    };
+    const allowed = inFixtureRepo({
+      'src/public/css/style.css': css,
+      ...listed,
+    });
+    expect(allowed.exitCode, allowed.stderr).toBe(0);
+
+    const otherRule = inFixtureRepo({
+      'src/public/css/style.css': `${css}.shade {\n  background: rgba(0, 0, 0, 0.5);\n}\n`,
+      ...listed,
+    });
+    expect(otherRule.exitCode).toBe(1);
+    expect(otherRule.stderr).toContain('.shade | background: rgba(0, 0, 0, 0.5);');
+
+    const stale = inFixtureRepo({
+      'src/public/css/style.css': PLAIN_CSS,
+      ...listed,
+    });
+    expect(stale.exitCode).toBe(1);
+    expect(stale.stderr).toContain('lists a rule that no longer carries a colour literal');
+  });
+
+  // A raw margin, padding or gap is how one page drifts to a different density
+  // from the next; the rhythm holds only if a raw length fails the build.
+  it('refuses a raw spacing length, and accepts tokens, zero, auto, percentages and a 1px correction', () => {
+    for (const declaration of ['margin: 10px 0;', 'padding-top: 1.5rem;', 'gap: 6px 12px;', 'column-gap: 0.4em;']) {
+      const res = inFixtureRepo({
+        'src/public/css/style.css': `${PLAIN_CSS}.intro {\n  ${declaration}\n}\n`,
+      });
+      expect(res.exitCode, declaration).toBe(1);
+      expect(res.stderr, declaration).toContain('margin, padding and gap take a --space-* token');
+    }
+    const res = inFixtureRepo({
+      'src/public/css/style.css':
+        ':root {\n  --space-md: 12px;\n}\n' +
+        '.intro {\n  margin: var(--space-md) auto 0;\n  padding: 0 5%;\n  margin-top: -1px;\n' +
+        '  gap: calc(-1 * var(--space-md));\n  max-width: 40ch;\n  border-width: 3px;\n}\n',
+    });
+    expect(res.exitCode, res.stderr).toBe(0);
+    expectCheckRan(res, 'raw spacing length outside :root in style.css');
+  });
+
+  // The list holds the rules not yet on the role tokens. It must excuse exactly
+  // what it names, including a rule whose selector is an id, and a line left
+  // behind after its rule moved would otherwise excuse the length's return.
+  it('excuses only a listed spacing rule, and refuses a stale list line', () => {
+    const css = `${PLAIN_CSS}#map {\n  margin: 10px 0;\n}\n`;
+    const listed = {
+      'scripts/ci/spacing-literal-allowlist.txt': '# header\n#map | margin: 10px 0;\n',
+      'scripts/thing.sh': '#!/usr/bin/env bash\n',
+    };
+    const allowed = inFixtureRepo({ 'src/public/css/style.css': css, ...listed });
+    expect(allowed.exitCode, allowed.stderr).toBe(0);
+
+    const otherRule = inFixtureRepo({
+      'src/public/css/style.css': `${css}.panel {\n  margin: 10px 0;\n}\n`,
+      ...listed,
+    });
+    expect(otherRule.exitCode).toBe(1);
+    expect(otherRule.stderr).toContain('.panel | margin: 10px 0;');
+
+    const stale = inFixtureRepo({ 'src/public/css/style.css': PLAIN_CSS, ...listed });
+    expect(stale.exitCode).toBe(1);
+    expect(stale.stderr).toContain('spacing-literal-allowlist.txt lists a rule that no longer carries a raw spacing length');
   });
 
   // A section that widens its own prose cap is how lines drifted to 85 and 95

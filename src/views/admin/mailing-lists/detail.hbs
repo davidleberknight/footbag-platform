@@ -7,11 +7,7 @@
 
 <div class="wrapper">
   {{> outcome-notice text=content.savedNotice tone=content.savedNoticeTone}}
-  {{#if content.hasErrors}}
-  <div class="form-error-banner" role="alert">
-    {{#each content.errorList}}<p>{{this}}</p>{{/each}}
-  </div>
-  {{/if}}
+  {{> outcome-notice lines=content.errorList tone='no'}}
 
   <section>
     <div class="section-heading"><h2>The List</h2></div>

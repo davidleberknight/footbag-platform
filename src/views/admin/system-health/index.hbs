@@ -13,15 +13,15 @@
     </div>
 
     {{#if content.outbox.sendingPaused}}
-      <p class="form-notice" role="status">Sending is paused. Messages are still being queued and will go out when sending resumes.</p>
+      <p class="notice-card notice-card--warn">Sending is paused. Messages are still being queued and will go out when sending resumes.</p>
     {{/if}}
 
     {{#if content.pacing.bulkPaused}}
-      <p class="form-notice" role="status">{{content.pacing.bulkPausedNote}}</p>
+      <p class="notice-card notice-card--warn">{{content.pacing.bulkPausedNote}}</p>
     {{/if}}
 
     {{#if content.pacing.bulkHalted}}
-      <p class="form-notice" role="status">{{content.pacing.bulkHaltNote}}</p>
+      <p class="notice-card notice-card--warn">{{content.pacing.bulkHaltNote}}</p>
     {{/if}}
 
     <p class="card-meta">
@@ -98,7 +98,7 @@
       </tbody>
     </table>
     {{#unless content.delivery.hasSendVolume}}
-      <p class="text-muted">Nothing was sent in this window, so there is no share to report against. The counts are the feedback that arrived during it, which can include replies to mail sent earlier.</p>
+      <p>Nothing was sent in this window, so there is no share to report against. The counts are the feedback that arrived during it, which can include replies to mail sent earlier.</p>
     {{/unless}}
   </section>
 

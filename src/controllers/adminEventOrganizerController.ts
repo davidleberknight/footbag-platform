@@ -2,6 +2,9 @@ import { Request, Response, NextFunction } from 'express';
 import { adminEventOrganizerService } from '../services/adminEventOrganizerService';
 import { NotFoundError, ValidationError } from '../services/serviceErrors';
 import { handleControllerError, renderNotFound } from '../lib/controllerErrors';
+import { FLASH_KIND, readFlash, clearFlash } from '../lib/flashCookie';
+import { outcomeNotice, type OutcomeNoticeView } from '../lib/outcomeNotice';
+import { redirectWithOutcome } from '../lib/actionOutcome';
 
 // A failed write is answered on the event's own page, which means loading the
 // event again. When the event is the thing that does not exist, that reload
@@ -39,9 +42,15 @@ export const adminEventOrganizerController = {
   /** GET /admin/events/:eventId/organizers */
   detail(req: Request, res: Response, next: NextFunction): void {
     try {
+      const flash = readFlash(req);
+      let notice: OutcomeNoticeView | null = null;
+      if (flash?.kind === FLASH_KIND.EVENT_ORGANIZER_OUTCOME) {
+        notice = outcomeNotice(flash.payload);
+        clearFlash(res, req);
+      }
       res.render(
         'admin/event-organizers/detail',
-        adminEventOrganizerService.getEventOrganizersPage(req.params.eventId ?? ''),
+        adminEventOrganizerService.getEventOrganizersPage(req.params.eventId ?? '', { notice }),
       );
     } catch (err) {
       handleControllerError(err, res, next, 'admin event organizer controller');
@@ -52,13 +61,18 @@ export const adminEventOrganizerController = {
   assign(req: Request, res: Response, next: NextFunction): void {
     const eventId = req.params.eventId ?? '';
     try {
-      adminEventOrganizerService.assignOrganizer(
+      const outcome = adminEventOrganizerService.assignOrganizer(
         req.user!.userId,
         eventId,
         String(req.body.member_key ?? ''),
         String(req.body.reason ?? ''),
       );
-      res.redirect(303, `/admin/events/${eventId}/organizers`);
+      redirectWithOutcome(req, res, {
+        flash: FLASH_KIND.EVENT_ORGANIZER_OUTCOME,
+        to: `/admin/events/${eventId}/organizers`,
+        ending: outcome.ending,
+        text: outcome.text,
+      });
     } catch (err) {
       if (err instanceof ValidationError || err instanceof NotFoundError) {
         renderDetailError(res, next, eventId, err);
@@ -72,13 +86,18 @@ export const adminEventOrganizerController = {
   remove(req: Request, res: Response, next: NextFunction): void {
     const eventId = req.params.eventId ?? '';
     try {
-      adminEventOrganizerService.removeOrganizer(
+      const outcome = adminEventOrganizerService.removeOrganizer(
         req.user!.userId,
         eventId,
         String(req.body.member_id ?? ''),
         String(req.body.reason ?? ''),
       );
-      res.redirect(303, `/admin/events/${eventId}/organizers`);
+      redirectWithOutcome(req, res, {
+        flash: FLASH_KIND.EVENT_ORGANIZER_OUTCOME,
+        to: `/admin/events/${eventId}/organizers`,
+        ending: outcome.ending,
+        text: outcome.text,
+      });
     } catch (err) {
       if (err instanceof ValidationError || err instanceof NotFoundError) {
         renderDetailError(res, next, eventId, err);

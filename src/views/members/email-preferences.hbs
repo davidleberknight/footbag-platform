@@ -7,7 +7,7 @@
 
 <div class="wrapper">
   {{#if content.hasError}}
-  <div class="form-error-banner" role="alert"><p>{{content.errorMessage}}</p></div>
+  {{> outcome-notice text=content.errorMessage tone='no'}}
   {{/if}}
   {{> outcome-notice text=content.notice tone=content.noticeTone}}
 

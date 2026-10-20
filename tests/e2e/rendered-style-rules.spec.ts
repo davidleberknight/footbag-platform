@@ -147,16 +147,44 @@ const CASES: Case[] = [
     red: ['<main><div class="empty-state"><p>No vote_options rows.</p></div></main>'],
     green: '<main><div class="empty-state"><p>No options have been added to this vote yet.</p></div></main>',
   },
+  {
+    rule: 'spacing-off-rhythm',
+    viewport: DESKTOP,
+    red: [
+      '<main><p style="margin:0">First block.</p><p style="margin:0">Second block, touching the first.</p></main>',
+      '<main><p style="margin:0 0 20px">First block.</p><p>Second block, between two steps.</p></main>',
+    ],
+    green: '<main><p>First block of text.</p><p>Second block, one paragraph gap below.</p></main>',
+  },
 ];
 
-test('a block wider than the phone is reported even though the stylesheet clips the page sideways', async ({ page }) => {
-  // The body clips sideways overflow, so the reader cannot scroll to what is past the edge;
+test('a block wider than the phone is reported even when the page clips sideways', async ({ page }) => {
+  // A clipped body hides what is past the edge, so the reader cannot scroll to it;
   // the document still reports its full width, which is what lets the page rule see it.
-  const cap = await plant(page, '<main><div style="width:600px">A block wider than the phone</div></main>', PHONE);
+  await plant(page, '<main><div style="width:600px">A block wider than the phone</div></main>', PHONE);
+  await page.addStyleTag({ content: 'body { overflow-x: hidden; }' });
+  const cap = await capture(page, 'planted');
   await page.evaluate(() => window.scrollTo(500, 0));
   expect(await page.evaluate(() => window.scrollX), 'the page scrolled sideways, so the clipping premise no longer holds').toBe(0);
   const found = evaluate(cap, ctx, new Set<RuleId>(['page-overflow']));
   expect(found.map((f) => f.measured)).toEqual([expect.stringContaining('culprits: body>main>div')]);
+});
+
+test.describe('shared components meet the standard whatever the data', () => {
+  test('a first-place number in a results table is readable against the page', async ({ page }) => {
+    // A low-vision visitor could not read a winner's place if the medal colour fell under 4.5:1.
+    const body = '<main><table class="data-table"><tbody><tr><td class="placement-num gold">1</td><td>A player</td></tr></tbody></table></main>';
+    expect(await hits(page, 'contrast-low', body, PHONE)).toEqual([]);
+  });
+
+  test('a filter bar with a long option stays inside a phone screen', async ({ page }) => {
+    // A select sizes itself to its longest option; unchecked, one long label makes the whole
+    // listing page scroll sideways on a phone.
+    const option = 'Intermediate Singles and Doubles Combined Division (1234 appearances)';
+    const body = `<main><form class="filter-bar"><label>Discipline <select name="d"><option>All Disciplines</option><option>${option}</option></select></label><button type="submit">Filter</button></form></main>`;
+    const cap = await plant(page, body, PHONE);
+    expect(evaluate(cap, ctx, new Set<RuleId>(['box-outside-viewport', 'page-overflow']))).toEqual([]);
+  });
 });
 
 test.describe('rendered-style rules on planted pages', () => {

@@ -20,6 +20,7 @@ import {
   type MemberTier,
 } from './membershipTieringService';
 import { ValidationError } from './serviceErrors';
+import { findStandingOwnAct } from './auditService';
 import { PageViewModel } from '../types/page';
 import type { ActionEnding } from '../lib/actionOutcome';
 import type { OutcomeNoticeView } from '../lib/outcomeNotice';
@@ -34,6 +35,8 @@ export interface HonorGrantOutcome {
 }
 
 const ALREADY_HELD_NOTICE = 'This member already holds that honor, so nothing was changed.';
+const ALREADY_ON_BOARD_NOTICE = 'This member is already on the board.';
+const NOT_ON_BOARD_NOTICE = 'This member is not on the board.';
 
 type Honor = 'hof' | 'bap';
 
@@ -330,10 +333,10 @@ export const adminHonorGrantService = {
     const tier = getTierStatus(member.id);
 
     if (setting && tier.tier_status === 'tier3') {
-      throw new ValidationError('This member is already on the board.');
+      throw new ValidationError(ALREADY_ON_BOARD_NOTICE);
     }
     if (!setting && tier.tier_status !== 'tier3') {
-      throw new ValidationError('This member is not on the board.');
+      throw new ValidationError(NOT_ON_BOARD_NOTICE);
     }
 
     // Entering from Tier 0 or Tier 1 reverts to Tier 1; entering from Tier 2, or
@@ -375,14 +378,29 @@ export const adminHonorGrantService = {
     );
   },
 
-  /** Commit the board change through the service that owns governance standing. */
-  applyBoardChange(actorId: string, memberKey: string, setting: boolean, rawReason: string): void {
+  /**
+   * Commit the board change through the service that owns governance standing.
+   * A member already in the asked-for standing is a repeat and writes nothing:
+   * this admin's own standing change ends as the first submit did, and a
+   * standing another act left carries the informational sentence.
+   */
+  applyBoardChange(actorId: string, memberKey: string, setting: boolean, rawReason: string): HonorGrantOutcome {
     const member = resolveMember(memberKey);
     const reason = requireReason(rawReason);
+    const onBoard = getTierStatus(member.id).tier_status === 'tier3';
+    if (onBoard === setting) {
+      const act = setting ? 'tier.governance_set' : 'tier.governance_removed';
+      const reversal = setting ? 'tier.governance_removed' : 'tier.governance_set';
+      if (findStandingOwnAct(actorId, act, reversal, 'member', member.id)) {
+        return { ending: 'own_repeat', notice: null };
+      }
+      return { ending: 'already_held', notice: setting ? ALREADY_ON_BOARD_NOTICE : NOT_ON_BOARD_NOTICE };
+    }
     if (setting) {
       setGovernanceTier3(actorId, member.id, reason);
-      return;
+    } else {
+      removeGovernanceTier3(actorId, member.id, reason);
     }
-    removeGovernanceTier3(actorId, member.id, reason);
+    return { ending: 'advance', notice: null };
   },
 };

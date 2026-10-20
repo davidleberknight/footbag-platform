@@ -11,9 +11,9 @@
 
   {{#if content.worldRecords}}
   <section class="content-section">
-    <h2>Current World Records</h2>
+    <div class="section-heading"><h2>Current World Records</h2></div>
     <div class="records-table-wrap" tabindex="0" role="region" aria-label="Current World Records">
-      <table class="records-table consecutive-wr-table">
+      <table class="data-table">
         <thead>
           <tr>
             <th>Discipline</th>
@@ -45,11 +45,11 @@
 
   {{#if content.highestScores}}
   <section class="content-section">
-    <h2>Highest Official Scores</h2>
+    <div class="section-heading"><h2>Highest Official Scores</h2></div>
     {{#each content.highestScores}}
     <h3 class="content-subheading">{{subsection}}</h3>
     <div class="records-table-wrap" tabindex="0" role="region" aria-label="{{subsection}}">
-      <table class="records-table consecutive-scores-table">
+      <table class="data-table">
         <thead>
           <tr>
             <th class="col-rank">#</th>
@@ -80,11 +80,11 @@
 
   {{#if content.progression}}
   <section class="content-section">
-    <h2>World Record Progression</h2>
+    <div class="section-heading"><h2>World Record Progression</h2></div>
     {{#each content.progression}}
     <h3 class="content-subheading">{{subsection}}</h3>
     <div class="records-table-wrap" tabindex="0" role="region" aria-label="{{subsection}}">
-      <table class="records-table consecutive-progression-table">
+      <table class="data-table">
         <thead>
           <tr>
             <th class="col-year">Year</th>
@@ -113,12 +113,12 @@
 
   {{#if content.milestones}}
   <section class="content-section">
-    <h2>Milestone Firsts</h2>
+    <div class="section-heading"><h2>Milestone Firsts</h2></div>
     <p class="section-desc">First player to reach each milestone kick count.</p>
     {{#each content.milestones}}
     <h3 class="content-subheading">{{subsection}}</h3>
     <div class="records-table-wrap" tabindex="0" role="region" aria-label="{{subsection}}">
-      <table class="records-table consecutive-milestones-table">
+      <table class="data-table">
         <thead>
           <tr>
             <th>Player(s)</th>
@@ -147,7 +147,7 @@
 
   {{#if content.passbackRecords.length}}
   <section class="content-section">
-    <h2>Freestyle Passback Records</h2>
+    <div class="section-heading"><h2>Freestyle Passback Records</h2></div>
     <p class="detail-muted">{{content.totalPassback}} per-trick consecutive records from the freestyle passback community.</p>
     {{#if content.curatorReviewCount}}
     <p class="text-muted fs-sm">

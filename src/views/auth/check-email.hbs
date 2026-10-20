@@ -11,13 +11,12 @@
         register, and reading "Registration successful!" under a red error
         banner tells them the opposite of what happened. }}
     {{#if content.error}}
-      <div class="form-error-banner" role="alert">
-        {{content.error}}
-      </div>
+      {{> outcome-notice text=content.error tone='no'}}
     {{else if content.resent}}
-      <div class="form-success-banner" role="status">
-        If an unverified account exists for that email, a new verification link has been sent.
-      </div>
+      {{! The wording cannot say whether anything was sent without telling a
+          stranger whether the address has an account, so it claims no change
+          and reads neutral. }}
+      {{> outcome-notice text="If an unverified account exists for that email, a new verification link has been sent." tone='info'}}
     {{else}}
       <p>
         Registration successful! Please check your email to verify your account.

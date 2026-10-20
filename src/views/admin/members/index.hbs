@@ -5,13 +5,11 @@
 </div>
 
 <div class="wrapper">
-  {{#if content.errorMessage}}
-    <div class="form-error-banner" role="alert">{{content.errorMessage}}</div>
-  {{/if}}
+  {{> outcome-notice text=content.errorMessage tone='no'}}
 
   <section>
     <div class="section-heading"><h2>Find a Member</h2></div>
-    <p class="text-muted fs-sm">This lookup reads every member account, including those held back from member search, those inside the deletion grace period, and those marked deceased.</p>
+    <p class="fs-sm">This lookup reads every member account, including those held back from member search, those inside the deletion grace period, and those marked deceased.</p>
     <div class="search-box-section">
       <form method="GET" action="/admin/members" class="search-box-form" role="search">
         <input type="text" name="q" maxlength="200"
@@ -24,7 +22,7 @@
     </div>
 
     {{#if content.hasQuery}}
-      <p class="text-muted">{{content.resultSummary}}</p>
+      <p>{{content.resultSummary}}</p>
       {{#if content.hasResults}}
         <div class="search-box-results">
           {{#each content.results}}
@@ -37,7 +35,7 @@
         </div>
       {{/if}}
     {{else}}
-      <p class="text-muted">{{content.resultSummary}}</p>
+      <p>{{content.resultSummary}}</p>
     {{/if}}
   </section>
 

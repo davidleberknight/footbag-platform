@@ -470,7 +470,9 @@ export interface AccountDeletionContent {
   /** An administrator is refused, and told where the role is handed over. */
   isAdministrator: boolean;
   adminRolesHref: string;
-  errorMessage: string | null;
+  /** Why the last attempt came back here, in its tone: a refusal, or an
+   *  account already on its way out, which changed nothing and refused nothing. */
+  notice: OutcomeNoticeView | null;
 }
 
 /** The page a member lands on once the deletion has gone through. */
@@ -1498,7 +1500,12 @@ export const memberService = {
         hasRecurringDonation,
         isAdministrator,
         adminRolesHref: '/admin/admin-roles',
-        errorMessage:   opts.notice ? ACCOUNT_DELETION_NOTICES[opts.notice] : null,
+        notice: opts.notice
+          ? {
+            text: ACCOUNT_DELETION_NOTICES[opts.notice],
+            tone: opts.notice === 'already_deleted' ? 'info' : 'no',
+          }
+          : null,
       },
     };
   },

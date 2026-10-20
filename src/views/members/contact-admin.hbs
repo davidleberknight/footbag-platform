@@ -11,12 +11,10 @@
     {{/each}}
 
     {{#if content.successFlag}}
-      <p class="form-success-banner" role="status">Your request has been sent to the IFPA administrator. We will reply by email.</p>
+      {{> outcome-notice text="Your request has been sent to the IFPA administrator. We will reply by email." tone='ok'}}
     {{/if}}
 
-    {{#if content.errorMessage}}
-      <div class="form-error-banner" role="alert">{{content.errorMessage}}</div>
-    {{/if}}
+    {{> outcome-notice text=content.errorMessage tone='no'}}
 
     <p>Use this form for anything you cannot change yourself: name corrections, profile URL corrections, tier-status questions, and linking or correcting your old footbag.org account or competition record, which an administrator does for you once you have finished signing up. If you hold a Hall of Fame or Big Add Posse honor that your account does not show, request a review here. The IFPA administrator will see your request in the admin work queue and reply by email.</p>
 

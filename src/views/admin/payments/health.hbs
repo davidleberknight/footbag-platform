@@ -13,10 +13,10 @@
     </div>
 
     {{#if content.credential.hasModeDisagreement}}
-      <p class="form-notice" role="status">{{content.credential.disagreementNote}}</p>
+      <p class="notice-card notice-card--warn">{{content.credential.disagreementNote}}</p>
     {{/if}}
     {{#if content.credential.paused}}
-      <p class="form-notice" role="status">{{content.credential.pausedNote}}</p>
+      <p class="notice-card notice-card--warn">{{content.credential.pausedNote}}</p>
     {{/if}}
 
     <table class="data-table">
@@ -47,7 +47,7 @@
         </tr>
       </tbody>
     </table>
-    <p class="card-meta">No key identifier, key fragment or key age is shown here. Key rotation is a System Administrator responsibility, tracked against the provider's own key records.</p>
+    <p class="fs-sm">No key identifier, key fragment or key age is shown here. Key rotation is a System Administrator responsibility, tracked against the provider's own key records.</p>
   </section>
 
   <section>
@@ -57,7 +57,7 @@
     </div>
 
     {{#if content.webhooks.isSilent}}
-      <p class="form-notice" role="status">{{content.webhooks.silenceNote}}</p>
+      <p class="notice-card notice-card--warn">{{content.webhooks.silenceNote}}</p>
     {{/if}}
 
     <p class="card-meta">

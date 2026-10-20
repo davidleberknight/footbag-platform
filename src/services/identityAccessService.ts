@@ -400,6 +400,9 @@ export interface PasswordResetContent {
   /** The link already reset the password: a repeat, reported as the first
    *  outcome with a sign-in prompt rather than as an error. */
   alreadyReset?: boolean;
+  /** The reset landed but the sign-in after it failed. The password did
+   *  change, so this reports a success, never an error. */
+  resetButSignedOut?: string;
   turnstileSiteKey?: string | null;
   captchaStubbed?: boolean;
 }
@@ -538,8 +541,10 @@ export interface LinkHistoryContent {
   birthMonth?: string;
   birthYear?: string;
   birthMonthOptions?: SelectOption[];
-  /** Set after a correction lands, so the member sees the re-check happened. */
+  /** Set after a correction is submitted, so the member sees the re-check happened. */
   birthDateSavedNotice?: boolean;
+  /** Success when the date changed; informational when the same date came back. */
+  birthDateNoticeTone?: 'ok' | 'info';
   /** Where "carry on" goes: the member's next outstanding task. */
   continueHref?: string;
   /** Always-rendered "Back to dashboard" link, points at `/members`. */

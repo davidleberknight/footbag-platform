@@ -36,11 +36,7 @@
     {{/if}}
     {{/each}}
 
-    {{#if content.hasPriceErrors}}
-    <div class="form-error-banner" role="alert">
-      {{#each content.priceErrorList}}<p>{{this}}</p>{{/each}}
-    </div>
-    {{/if}}
+    {{> outcome-notice lines=content.priceErrorList tone='no'}}
 
     <form method="POST" action="{{content.priceFormAction}}" class="form-block">
       <div class="form-field">
@@ -103,8 +99,8 @@
   </section>
 
   {{#if content.hasErrors}}
-  <div class="form-error-banner mt-8" role="alert">
-    {{#each content.errorList}}<p>{{this}}</p>{{/each}}
+  <div class="mt-8">
+    {{> outcome-notice lines=content.errorList tone='no'}}
   </div>
   {{/if}}
 

@@ -56,8 +56,12 @@ describe('renderedStyle.browser.js', () => {
     document.body.innerHTML =
       '<div id="w" tabindex="0" role="region" aria-label="Results"></div>' +
       '<div id="u" aria-labelledby="missing"></div>' +
-      '<input type="Checkbox" disabled hidden><a href="/x">x</a><a>y</a>';
-    const [w, u, input, link, bare] = (await measure()).elements;
+      '<input type="Checkbox" disabled hidden><a href="/x">x</a><a>y</a>' +
+      '<details open><summary>s</summary></details><details><summary>t</summary></details>';
+    const [w, u, input, link, bare, opened, , closed] = (await measure()).elements;
+    // A closed disclosure recorded as open would have its hidden content judged as if a reader saw it.
+    expect(opened.attrs.open).toBe(true);
+    expect(closed.attrs.open).toBeUndefined();
     expect(w.attrs).toEqual({ tabindex: '0', role: 'region', named: true });
     expect(u.attrs.named).toBeUndefined();
     expect(input.attrs).toMatchObject({ type: 'checkbox', disabled: true, hidden: true });

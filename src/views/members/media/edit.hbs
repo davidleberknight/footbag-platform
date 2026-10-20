@@ -18,9 +18,7 @@
     are system-managed and rejected as input.
   </p>
 
-  {{#if content.errorMessage}}
-    <div class="form-error-banner" role="alert">{{content.errorMessage}}</div>
-  {{/if}}
+  {{> outcome-notice text=content.errorMessage tone='no'}}
 
   <form action="{{content.formAction}}" method="POST" class="form-block">
     <div class="form-field">

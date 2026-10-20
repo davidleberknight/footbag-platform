@@ -30,11 +30,7 @@
       {{/if}}
     </form>
 
-    {{#if content.error}}
-    <div class="form-error-banner" role="alert">
-      <p>{{content.error}}</p>
-    </div>
-    {{/if}}
+    {{> outcome-notice text=content.error tone='no'}}
 
     {{#if content.hasRows}}
       <div class="records-table-wrap mt-2" tabindex="0" role="region" aria-label="Community tips">

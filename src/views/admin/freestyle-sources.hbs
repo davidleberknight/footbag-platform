@@ -9,11 +9,7 @@
   <section>
     <h2 class="section-heading">New Source</h2>
 
-    {{#if content.error}}
-    <div class="form-error-banner" role="alert">
-      <p>{{content.error}}</p>
-    </div>
-    {{/if}}
+    {{> outcome-notice text=content.error tone='no'}}
 
     <form method="POST" action="/admin/freestyle/sources" class="form-block">
       <div class="form-field">

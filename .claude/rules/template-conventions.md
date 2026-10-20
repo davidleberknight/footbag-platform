@@ -55,7 +55,7 @@ Class names live in `src/public/css/style.css`. Every class used in a template m
 - Actions: `.btn`, `.btn-primary`, `.btn-outline`, `.btn-inverse`, `.btn-sm`, `.action-link`, `.tag-chip`.
 - Forms: `.form-block`, `.form-field`, `.form-hint`, `.form-fieldset`, `.form-actions`, `.filter-bar`.
 - Messages and notices: the `outcome-notice` partial for an action's result; `.notice notice-warn` for a caution on a confirm page.
-- Spacing utilities (1 unit = 4px): `.mt-1` through `.mt-10`, `.mb-2` through `.mb-8`.
+- Spacing utilities (`.mt-1` through `.mt-10`, `.mb-0` through `.mb-10`) take their values from the `--space-*` role tokens. They are not a tuning tool: a gap belongs to the shared component that owns it and is never adjusted per template (the Spacing Rhythm design decision).
 - Text utilities: `.text-muted` (metadata, hints and captions only, never prose), `.text-center`, `.fs-sm`, `.fw-600`.
 
 Per-section vocabularies (clubs, members, events, freestyle, etc.) live in `src/public/css/style.css`, the source of truth for class definitions; `.claude/rules/view-layer.md` covers the vocabulary structure.

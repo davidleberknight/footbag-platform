@@ -13,6 +13,7 @@ import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, insertClub, createTestSessionJwt, insertClubBootstrapLeader } from '../fixtures/factories';
 import { rowPin, snapshotIds, oneRowAddedSince } from '../fixtures/rowPinning';
+import { flashCookieOf } from '../fixtures/flashCookie';
 
 const { dbPath } = setTestEnv('3081');
 
@@ -26,6 +27,7 @@ let ServiceUnavailableError: typeof import('../../src/services/serviceErrors').S
 beforeAll(async () => {
   db = createTestDb(dbPath);
   insertMember(db, { id: 'acl-admin', slug: 'acl_admin', login_email: 'acl-admin@example.com', is_admin: 1 });
+  insertMember(db, { id: 'acl-admin2', slug: 'acl_admin2', login_email: 'acl-admin2@example.com', is_admin: 1 });
   createApp = await importApp();
   ({ adminClubLeadershipService: leadershipService } = await import(
     '../../src/services/adminClubLeadershipService'
@@ -39,6 +41,90 @@ afterAll(() => {
 });
 
 const adminCookie = () => `__Host-footbag_session=${createTestSessionJwt({ memberId: 'acl-admin', role: 'admin' })}`;
+const admin2Cookie = () => `__Host-footbag_session=${createTestSessionJwt({ memberId: 'acl-admin2', role: 'admin' })}`;
+
+/** Follow a post-redirect-get the way a browser does, carrying the flash back. */
+async function landedOn(res: { headers: Record<string, string>; get(h: string): string[] | string | undefined }, cookie: string) {
+  return request(createApp())
+    .get(res.headers.location)
+    .set('Cookie', [cookie, flashCookieOf(res)].filter(Boolean).join('; '));
+}
+
+function assignAuditCount(clubId: string): number {
+  return (db.prepare(
+    "SELECT COUNT(*) AS c FROM audit_entries WHERE entity_id = ? AND action_type = 'club.admin_leader_assigned'",
+  ).get(clubId) as { c: number }).c;
+}
+
+describe('reporting the outcome', () => {
+  it('an assign says the co-leader was added, and a second assign by the same admin says it again without writing', async () => {
+    // Defect caught: the admin lands back on the page with no word that the
+    // assign happened, or a double submit is drawn as a red refusal.
+    const clubId = seedClub();
+    const m = seedMember();
+    const first = await request(createApp())
+      .post(`/admin/clubs/${clubId}/leadership/assign`)
+      .set('Cookie', adminCookie()).type('form')
+      .send({ member_key: m, reason: 'Leadership gap remediation.' });
+    expect(first.status).toBe(303);
+    const shown = await landedOn(first, adminCookie());
+    expect(shown.status).toBe(200);
+    expect(shown.text).toContain('<div class="form-success-banner" role="status">Co-leader added.</div>');
+
+    const again = await request(createApp())
+      .post(`/admin/clubs/${clubId}/leadership/assign`)
+      .set('Cookie', adminCookie()).type('form')
+      .send({ member_key: m, reason: 'Leadership gap remediation.' });
+    expect(again.status).toBe(303);
+    const shownAgain = await landedOn(again, adminCookie());
+    expect(shownAgain.text).toContain('<div class="form-success-banner" role="status">Co-leader added.</div>');
+    expect(leaders(clubId)).toHaveLength(1);
+    expect(assignAuditCount(clubId)).toBe(1);
+  });
+
+  it('a member another admin already made co-leader reads as informational, and nothing is written', async () => {
+    // Defect caught: another admin's earlier act painted as this admin's
+    // refusal, or claimed as this admin's own success.
+    const clubId = seedClub();
+    const m = seedMember();
+    await request(createApp())
+      .post(`/admin/clubs/${clubId}/leadership/assign`)
+      .set('Cookie', adminCookie()).type('form')
+      .send({ member_key: m, reason: 'Leadership gap remediation.' });
+    const res = await request(createApp())
+      .post(`/admin/clubs/${clubId}/leadership/assign`)
+      .set('Cookie', admin2Cookie()).type('form')
+      .send({ member_key: m, reason: 'Also noticed the gap.' });
+    expect(res.status).toBe(303);
+    const shown = await landedOn(res, admin2Cookie());
+    expect(shown.text).toContain('<p class="form-notice" role="status">That member already co-leads this club.</p>');
+    expect(shown.text).not.toContain('Co-leader added.');
+    expect(assignAuditCount(clubId)).toBe(1);
+  });
+
+  it('a demote says which of the two things it did', async () => {
+    // Defect caught: the two demote modes report the same sentence, so an
+    // admin cannot tell from the page whether the member left the club.
+    for (const [mode, sentence] of [
+      ['to_member', 'Leader stepped down to member.'],
+      ['remove_affiliation', 'Leader removed from the club.'],
+    ] as const) {
+      const clubId = seedClub();
+      const m = seedMember();
+      await request(createApp())
+        .post(`/admin/clubs/${clubId}/leadership/assign`)
+        .set('Cookie', adminCookie()).type('form')
+        .send({ member_key: m, reason: 'setup' });
+      const res = await request(createApp())
+        .post(`/admin/clubs/${clubId}/leadership/demote/confirm`)
+        .set('Cookie', adminCookie()).type('form')
+        .send({ member_id: m, mode, reason: 'Unreachable for a year.' });
+      expect(res.status).toBe(303);
+      const shown = await landedOn(res, adminCookie());
+      expect(shown.text, mode).toContain(`<div class="form-success-banner" role="status">${sentence}</div>`);
+    }
+  });
+});
 
 let _n = 0;
 function seedClub(): string {

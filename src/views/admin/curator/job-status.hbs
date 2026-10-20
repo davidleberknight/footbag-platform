@@ -10,10 +10,10 @@
 
 <div class="wrapper">
   {{#if content.notFound}}
-    <p class="form-error-banner" role="alert">
+    {{#> outcome-notice tone='no'}}
       No curator upload job with id <code>{{content.jobId}}</code> exists, or it
       belongs to a different admin.
-    </p>
+    {{/outcome-notice}}
     <p><a href="{{content.uploadHref}}">Back to upload</a></p>
   {{else}}
     <section>
@@ -37,24 +37,22 @@
         <p>Transcoding now. This usually takes one to three minutes for a typical curator clip.</p>
       {{/if}}
       {{#if content.job.isSucceeded}}
-        <p class="form-success-banner" role="status">
+        {{#> outcome-notice tone='ok'}}
           Transcode succeeded.
           {{#if content.job.mediaEditHref}}
             <a href="{{content.job.mediaEditHref}}">Open the new media item.</a>
           {{/if}}
-        </p>
+        {{/outcome-notice}}
       {{/if}}
       {{#if content.job.isFailed}}
-        <p class="form-error-banner" role="alert">
+        {{#> outcome-notice tone='no'}}
           Transcode failed{{#if content.job.errorMessage}}: {{content.job.errorMessage}}{{/if}}.
           Re-upload the file to try again.
-        </p>
+        {{/outcome-notice}}
         <p><a href="{{content.uploadHref}}">Back to upload</a></p>
       {{/if}}
       {{#if content.job.isAbandoned}}
-        <p class="form-error-banner" role="alert">
-          The upload session expired before finalizing. Re-upload to try again.
-        </p>
+        {{> outcome-notice text="The upload session expired before finalizing. Re-upload to try again." tone='no'}}
         <p><a href="{{content.uploadHref}}">Back to upload</a></p>
       {{/if}}
     </section>

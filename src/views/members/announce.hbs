@@ -7,17 +7,13 @@
 
 <div class="wrapper">
   <section>
-    {{#if content.hasErrors}}
-    <div class="form-error-banner" role="alert">
-      {{#each content.errorList}}<p>{{this}}</p>{{/each}}
-    </div>
-    {{/if}}
+    {{> outcome-notice lines=content.errorList tone='no'}}
     {{> outcome-notice text=content.notice tone=content.noticeTone}}
 
     {{#if content.hasRecipients}}
     <p class="text-muted">{{content.recipientCount}} members currently receive these.</p>
     {{else}}
-    <p class="notice notice-warn">Nobody is subscribed to community announcements at the moment, so a message sent now would reach no one.</p>
+    <p class="notice-card notice-card--warn">Nobody is subscribed to community announcements at the moment, so a message sent now would reach no one.</p>
     {{/if}}
 
     <form method="POST" action="{{content.formAction}}" class="form-block">

@@ -30,6 +30,10 @@
  *   - Every action writes one audit row with actor_type='admin',
  *     before/after values, and reason text. The audit trail is the
  *     canonical history.
+ *   - Assigning a member who already co-leads this club is a repeat and writes
+ *     nothing: this admin's own standing assignment of them ends as the first
+ *     submit did, and one someone else made ends informational. Assign and
+ *     demote each return their ending and the sentence that reports it.
  *   - The reason and the cap-override reason are cleaned with the shared
  *     sanitizer before validation, so markup alone is no reason.
  *
@@ -45,10 +49,12 @@
  */
 import { randomUUID } from 'crypto';
 import { account, clubLeaders, clubs as clubsDb, memberClubAffiliations, transaction } from '../db/db';
-import { appendAuditEntry } from './auditService';
+import { appendAuditEntry, findStandingOwnAct } from './auditService';
 import { NotFoundError, ValidationError } from './serviceErrors';
 import { cleanUserText } from '../lib/textSanitizer';
 import { PageViewModel } from '../types/page';
+import type { OutcomeNoticeView } from '../lib/outcomeNotice';
+import type { ActionEnding } from '../lib/actionOutcome';
 
 const LEADERSHIP_CAP = 5;
 
@@ -61,8 +67,6 @@ interface QueueClubRow {
 
 export interface LeadershipQueueContent {
   needsLeader: Array<{ clubId: string; name: string; location: string; manageHref: string }>;
-  notice: string | null;
-  errorMessage: string | null;
 }
 
 export interface ClubLeadershipContent {
@@ -78,26 +82,34 @@ export interface ClubLeadershipContent {
   }>;
   leadershipCount: number;
   capReached: boolean;
-  notice: string | null;
+  /** The result of the last assign or demote, carried across its redirect. */
+  notice: OutcomeNoticeView | null;
   errorMessage: string | null;
 }
+
+/** How an assign or a demote ended, and the sentence that reports it. */
+export interface LeadershipChangeOutcome {
+  ending: Exclude<ActionEnding, 'refused'>;
+  text: string;
+}
+
+const ASSIGNED_NOTICE = 'Co-leader added.';
+const ALREADY_LEADS_NOTICE = 'That member already co-leads this club.';
+const DEMOTED_TO_MEMBER_NOTICE = 'Leader stepped down to member.';
+const REMOVED_FROM_CLUB_NOTICE = 'Leader removed from the club.';
 
 function locationOf(r: QueueClubRow): string {
   return [r.city, r.country].filter(Boolean).join(', ') || 'Unknown location';
 }
 
-function getLeadershipQueuePage(opts: { notice?: string; errorMessage?: string } = {}): PageViewModel<LeadershipQueueContent> {
+function getLeadershipQueuePage(): PageViewModel<LeadershipQueueContent> {
   const needsLeader = (clubLeaders.listClubsNeedingLeader.all() as QueueClubRow[]).map((r) => ({
     clubId: r.id, name: r.name, location: locationOf(r), manageHref: `/admin/clubs/${r.id}/leadership`,
   }));
   return {
     seo:  { title: 'Club Leadership Remediation' },
     page: { sectionKey: '', pageKey: 'admin_club_leadership_queue', title: 'Club Leadership Remediation' },
-    content: {
-      needsLeader,
-      notice: opts.notice ?? null,
-      errorMessage: opts.errorMessage ?? null,
-    },
+    content: { needsLeader },
   };
 }
 
@@ -111,7 +123,7 @@ function loadClub(clubId: string): { id: string; name: string; status: string } 
 
 function getClubLeadershipPage(
   clubId: string,
-  opts: { notice?: string; errorMessage?: string } = {},
+  opts: { notice?: OutcomeNoticeView | null; errorMessage?: string } = {},
 ): PageViewModel<{ club: ClubLeadershipContent }> {
   const club = loadClub(clubId);
   const leaders = (clubLeaders.listLeadersWithNames.all(clubId) as Array<{
@@ -188,6 +200,10 @@ function audit(
  * who already co-leads another club is refused with direction (remove them
  * there first). Exceeding the five-co-leader cap requires an explicit
  * cap-override reason.
+ *
+ * A member who already co-leads this club is a repeat, not an error: this
+ * admin's own standing assignment of them reports the first submit's success,
+ * and a row someone else made reports that nothing changed. Neither writes.
  */
 function assignLeader(
   adminMemberId: string,
@@ -195,7 +211,7 @@ function assignLeader(
   memberKey: string,
   reason: string,
   capOverrideReason?: string,
-): void {
+): LeadershipChangeOutcome {
   const trimmedReason = requireReason(reason);
   const club = loadClub(clubId);
   const member = clubLeaders.findMemberByKeyForAdmin.get(memberKey.trim(), memberKey.trim()) as
@@ -207,7 +223,14 @@ function assignLeader(
     | { id: string; role: string }
     | undefined;
   if (existingRow) {
-    throw new ValidationError('That member already co-leads this club.');
+    const own = findStandingOwnAct(
+      adminMemberId, 'club.admin_leader_assigned', 'club.admin_leader_demoted', 'club', clubId,
+    );
+    const ownIsThisMember = own !== null
+      && (JSON.parse(own.metadata_json) as { member_id?: string }).member_id === member.id;
+    return ownIsThisMember
+      ? { ending: 'own_repeat', text: ASSIGNED_NOTICE }
+      : { ending: 'already_held', text: ALREADY_LEADS_NOTICE };
   }
 
   // A member co-leads at most one club; the existingRow check above already
@@ -275,6 +298,7 @@ function assignLeader(
       leadership_count_before: count,
     });
   });
+  return { ending: 'advance', text: ASSIGNED_NOTICE };
 }
 
 /** The two records a demotion is about, and what it will do, before it does it. */
@@ -349,7 +373,7 @@ function demoteLeader(
   memberId: string,
   mode: 'to_member' | 'remove_affiliation',
   reason: string,
-): void {
+): LeadershipChangeOutcome {
   const trimmedReason = requireReason(reason);
   loadClub(clubId);
   const row = clubLeaders.findLeaderRow.get(clubId, memberId) as { id: string; role: string } | undefined;
@@ -386,6 +410,10 @@ function demoteLeader(
       affiliation_ended: affiliationEnded,
     });
   });
+  return {
+    ending: 'advance',
+    text: mode === 'remove_affiliation' ? REMOVED_FROM_CLUB_NOTICE : DEMOTED_TO_MEMBER_NOTICE,
+  };
 }
 
 export const adminClubLeadershipService = {

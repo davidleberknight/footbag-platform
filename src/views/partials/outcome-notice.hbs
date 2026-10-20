@@ -1,8 +1,15 @@
-{{! The one way this site reports what just happened. Takes the message text
-    and its tone, and renders the treatment and the aria role the view-layer
-    rule fixes for that tone: green where the act happened, neutral where
-    nothing needed changing, red where it was refused. A notice with no tone
-    reports no outcome and reads neutral. }}
+{{!-- The one way this site reports what just happened. Takes the message and
+    its tone, and renders the treatment and the aria role the view-layer rule
+    fixes for that tone: green where the act happened, neutral where nothing
+    needed changing, red where it was refused. A notice with no tone reports no
+    outcome and reads neutral.
+
+    The message comes in one of three shapes. `text` is one sentence. `lines`
+    is several sentences, one paragraph each, for a form refused on more than
+    one field. A block call carries a message that needs markup of its own, a
+    link or a code span, which an escaped sentence cannot hold:
+    `{{#> outcome-notice tone='ok'}}...{{/outcome-notice}}`. The tone picks the
+    treatment in every shape, so no caller ever writes the classes itself. --}}
 {{#if text}}
   {{#if (eq tone 'ok')}}
     <div class="form-success-banner" role="status">{{text}}</div>
@@ -11,4 +18,15 @@
   {{else}}
     <p class="form-notice" role="status">{{text}}</p>
   {{/if}}
+{{else if (or lines.length @partial-block)}}
+  {{#if (eq tone 'ok')}}
+    <div class="form-success-banner" role="status">
+  {{else if (eq tone 'no')}}
+    <div class="form-error-banner" role="alert">
+  {{else}}
+    <div class="form-notice" role="status">
+  {{/if}}
+  {{#each lines}}<p>{{this}}</p>{{/each}}
+  {{#if @partial-block}}{{> @partial-block}}{{/if}}
+    </div>
 {{/if}}

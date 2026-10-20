@@ -4,8 +4,8 @@
 
   {{! ── Career Summary ──────────────────────────────────────────── }}
   {{#if content.hasCareerStats}}
-  <div class="records-table-wrap mb-6">
-    <table class="records-table records-table-sm">
+  <div class="records-table-wrap mb-6" tabindex="0" role="region" aria-label="Career summary">
+    <table class="data-table">
       <thead>
         <tr>
           <th>Discipline</th>
@@ -44,10 +44,6 @@
 
   {{#if content.hasCompetitionResults}}
   <section>
-    {{#each navigation.contextLinks}}
-      <a href="{{href}}" class="back-link">{{label}}</a>
-    {{/each}}
-
     {{#if content.eventGroups.length}}
       <div class="section-heading">
         <h2>Competitive Results</h2>
@@ -56,21 +52,16 @@
     {{/if}}
     {{> player-results eventGroups=content.eventGroups}}
   </section>
-  {{else}}
-  <section>
-    {{#each navigation.contextLinks}}
-      <a href="{{href}}" class="back-link">{{label}}</a>
-    {{/each}}
-  </section>
   {{/if}}
 
   {{#if content.freestyleRecords.length}}
   <section>
-    <h2 class="section-heading">Freestyle Records</h2>
+    <div class="section-heading"><h2>Freestyle Records</h2></div>
     {{#unless content.hasCompetitionResults}}
     <p class="detail-muted">This player is documented through freestyle records. No competition results are currently available.</p>
     {{/unless}}
-    <table class="results-table">
+    <div class="records-table-wrap" tabindex="0" role="region" aria-label="Freestyle records">
+    <table class="data-table">
       <thead>
         <tr>
           <th>Trick</th>
@@ -110,6 +101,7 @@
         {{/each}}
       </tbody>
     </table>
+    </div>
     <p class="source-note">
       Records sourced from the freestyle passback video archive.
       <a href="/freestyle/records">View all freestyle records</a>
@@ -119,10 +111,10 @@
 
   {{! ── Top Partnerships ────────────────────────────────────────── }}
   {{#if content.hasPartnerships}}
-  <section class="content-section">
-    <h2 class="section-heading">Top Partnerships</h2>
-    <div class="records-table-wrap">
-      <table class="records-table records-table-sm">
+  <section>
+    <div class="section-heading"><h2>Top Partnerships</h2></div>
+    <div class="records-table-wrap" tabindex="0" role="region" aria-label="Top partnerships">
+      <table class="data-table">
         <thead>
           <tr>
             <th>Partner</th>
@@ -147,5 +139,11 @@
     </div>
   </section>
   {{/if}}
+
+  <section>
+    {{#each navigation.contextLinks}}
+      <a href="{{href}}" class="back-link">{{label}}</a>
+    {{/each}}
+  </section>
 
 </div>

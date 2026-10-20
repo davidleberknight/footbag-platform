@@ -1138,15 +1138,34 @@ describe('POST /admin/freestyle/tricks/:slug/aliases — add', () => {
     expect(aliasRow('bw')!.trick_slug).toBe('blurry_whirl'); // unchanged
   });
 
-  it('rejects a duplicate alias on the same trick', async () => {
+  it('a curator adding the same alias twice gets the first add back, and nothing is written twice', async () => {
+    // Defect caught: a double-submitted add draws a red refusal for an alias
+    // the curator's own first submit just made.
     const first = await post('/admin/freestyle/tricks/alias_host/aliases', admin(),
       { aliasText: 'Dup Word', aliasType: 'common' });
     expect(first.status).toBe(303);
     const second = await post('/admin/freestyle/tricks/alias_host/aliases', admin(),
       { aliasText: 'Dup Word', aliasType: 'common' });
-    expect(second.status).toBe(422);
-    expect(second.text).toContain('already an alias of this trick');
+    expect(second.status).toBe(303);
+    expect(second.headers.location).toBe(first.headers.location);
+    expect(flashCookieOf(second)).toBeUndefined();
     expect(auditByAction('dup_word', 'freestyle.trick_alias.created')).toHaveLength(1); // only the first
+  });
+
+  it('an alias another curator already added reads as informational, not as a refusal', async () => {
+    // Defect caught: an alias already in place from someone else's act is
+    // painted red, claiming the request was refused when nothing needed doing.
+    const first = await post('/admin/freestyle/tricks/alias_host/aliases', admin(),
+      { aliasText: 'Other Hand', aliasType: 'common' });
+    expect(first.status).toBe(303);
+    const second = await post('/admin/freestyle/tricks/alias_host/aliases', admin2(),
+      { aliasText: 'Other Hand', aliasType: 'common' });
+    expect(second.status).toBe(303);
+    const shown = await get(second.headers.location as string, `${admin2()}; ${flashCookieOf(second)}`);
+    expect(shown.status).toBe(200);
+    expect(shown.text).toMatch(/class="form-notice" role="status">&quot;other_hand&quot; is already an alias of this trick\./);
+    expect(shown.text).not.toContain('form-error-banner');
+    expect(auditByAction('other_hand', 'freestyle.trick_alias.created')).toHaveLength(1);
   });
 
   // Defect caught: markup in an alias reaches the slug, so a tagged spelling of an
@@ -1575,11 +1594,15 @@ describe('POST /admin/freestyle/tricks/:slug/sources — attach', () => {
     expect(shown.text).toContain('Source A');
   });
 
-  it('rejects a duplicate link on the same trick and writes nothing', async () => {
+  it('a source link already in place reads as informational and writes nothing', async () => {
+    // Defect caught: an existing link is drawn as a refusal when the state the
+    // curator asked for already held.
     const res = await post('/admin/freestyle/tricks/source_host/sources', admin(),
       { sourceId: 'src_a' }); // already linked
-    expect(res.status).toBe(422);
-    expect(res.text).toContain('already linked');
+    expect(res.status).toBe(303);
+    const shown = await get(res.headers.location as string, `${admin()}; ${flashCookieOf(res)}`);
+    expect(shown.status).toBe(200);
+    expect(shown.text).toMatch(/class="form-notice" role="status">This trick is already linked to &quot;/);
     expect(auditByAction('source_host:src_a', 'freestyle.trick_source_link.created')).toHaveLength(0);
   });
 
@@ -1705,11 +1728,15 @@ describe('POST /admin/freestyle/tricks/:slug/modifiers — attach', () => {
     expect(modifierLink('mod_host', 'ducking', 2)).toBeDefined(); // original untouched
   });
 
-  it('rejects the exact (trick, modifier, apply order) triple already linked and writes nothing', async () => {
+  it('the exact (trick, modifier, apply order) triple already linked reads as informational and writes nothing', async () => {
+    // Defect caught: a link already in place is drawn as a refusal, when the
+    // state the curator asked for already held.
     const res = await post('/admin/freestyle/tricks/mod_host/modifiers', admin(),
       { modifierSlug: 'ducking', applyOrder: '2' }); // already linked
-    expect(res.status).toBe(422);
-    expect(res.text).toContain('already linked at apply order 2');
+    expect(res.status).toBe(303);
+    const shown = await get(res.headers.location as string, `${admin()}; ${flashCookieOf(res)}`);
+    expect(shown.status).toBe(200);
+    expect(shown.text).toMatch(/class="form-notice" role="status">&quot;Ducking&quot; is already linked at apply order 2\./i);
     expect(auditByAction('mod_host:ducking:2', 'freestyle.trick_modifier_link.created')).toHaveLength(0);
   });
 

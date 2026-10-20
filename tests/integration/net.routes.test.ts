@@ -434,6 +434,23 @@ describe('GET /net/teams/:teamId', () => {
     expect(res.status).toBe(404);
   });
 
+  it('keeps the hero to its title and puts the players and summary numbers in the body strip', async () => {
+    const res = await page(`/net/teams/${TEAM_1_ID}`);
+    expect(res.status).toBe(200);
+    // A visitor would otherwise meet links and statistics crammed into the
+    // page title band, which the site reserves for eyebrow, title and subtitle.
+    const heroStart = res.text.indexOf('class="hero hero-sm"');
+    const hero = res.text.slice(heroStart, res.text.indexOf('class="event-meta-row"', heroStart));
+    expect(hero).toContain('<h1>');
+    expect(hero).not.toContain('hero-stats');
+    expect(hero).not.toContain('<a href="/history/');
+    expect(hero).toContain('<h1>Alice Net / Bob Net</h1>');
+    const strip = res.text.slice(res.text.indexOf('class="event-meta-row"'));
+    expect(strip.indexOf(`<a href="/history/${PERSON_A1}">Alice Net</a>`)).toBeGreaterThan(-1);
+    expect(strip.indexOf(`<a href="/history/${PERSON_B1}">Bob Net</a>`)).toBeGreaterThan(-1);
+    expect(strip.indexOf('2 appearances')).toBeLessThan(strip.indexOf('Competition History'));
+  });
+
   it('shows breadcrumb back to teams list', async () => {
     const res = await page(`/net/teams/${TEAM_1_ID}`);
     // The page's own URL already contains /net/teams, so the assertion is on

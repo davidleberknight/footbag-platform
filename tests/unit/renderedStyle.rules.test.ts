@@ -19,7 +19,7 @@ import {
   type RuleId,
   type StyleProp,
 } from '../e2e/helpers/renderedStyle';
-import { buildCapture, el } from '../fixtures/renderedStyleCapture';
+import { buildCapture, el, type NodeSpec } from '../fixtures/renderedStyleCapture';
 
 const NO_TABLES = { tableNames: new Set<string>() };
 const PHONE = 390;
@@ -217,6 +217,21 @@ describe('tap-target-small', () => {
   });
 });
 
+describe('closed disclosures', () => {
+  it('judges nothing a closed disclosure hides, and judges the same content once it is open', () => {
+    // The browser still lays hidden content out, so a closed panel's wide table would be reported as overflowing a phone it never appears on.
+    const page = (open: boolean) => buildCapture(
+      el('details', { rect: { w: PHONE, h: 40 }, attrs: open ? { open: true } : {} },
+        el('summary', { rect: { w: PHONE, h: 40 }, text: 'Show the table' }),
+        el('table', { rect: { y: 40, w: 600, h: 100 } }),
+      ),
+      { width: PHONE },
+    );
+    expect(hits(page(false), 'box-outside-viewport')).toEqual([]);
+    expect(hits(page(true), 'box-outside-viewport').map((f) => f.selector)).toEqual(['body>details>table']);
+  });
+});
+
 describe('display:contents wrappers', () => {
   it('still judges what sits inside a wrapper that draws no box of its own', () => {
     // The header navigation is display:contents; treating its 0x0 box as hiding its links exempted them from every rule.
@@ -390,6 +405,165 @@ describe('empty-state-leaks-code', () => {
   it('counts only compound table names as leaks', () => {
     // A one-word table such as "members" is ordinary English; treating it as a leak would flag every friendly sentence.
     expect([...ctx.tableNames]).toEqual(['member_tier_grants']);
+  });
+});
+
+describe('spacing-off-rhythm', () => {
+  // Two paragraphs stacked with the given gap between them.
+  const pair = (gap: number, width = DESKTOP) => buildCapture(el('main', { rect: { h: 200 } },
+    el('p', { rect: { y: 0, h: 20 }, text: 'First block' }),
+    el('p', { rect: { y: 20 + gap, h: 20 }, text: 'Second block' }),
+  ), { width });
+
+  it('reports a gap between steps, a zero gap and one past the widest step, and accepts a step', () => {
+    // A gap of 20px or 0px is the drift the rhythm exists to remove: blocks read as crowded or as pasted together.
+    expect(hits(pair(20), 'spacing-off-rhythm').map((f) => f.measured)).toEqual(['20px below p']);
+    expect(hits(pair(0), 'spacing-off-rhythm')).toHaveLength(1);
+    expect(hits(pair(48), 'spacing-off-rhythm')).toHaveLength(1);
+    expect(hits(pair(16), 'spacing-off-rhythm')).toEqual([]);
+    expect(hits(pair(16.8), 'spacing-off-rhythm')).toEqual([]);
+  });
+
+  it('holds a phone to the narrower set, where the widest step steps down', () => {
+    // A 32px gap on a phone leaves the screen reading as half empty.
+    expect(hits(pair(32), 'spacing-off-rhythm')).toEqual([]);
+    expect(hits(pair(32, PHONE), 'spacing-off-rhythm')).toHaveLength(1);
+    expect(hits(pair(24, PHONE), 'spacing-off-rhythm')).toEqual([]);
+  });
+
+  it('measures what is drawn, so an invisible wrapper\'s padding counts as the space a reader sees', () => {
+    // Judging the wrapper's box would pass a 16px margin plus 10px of padding that reads as a 26px gap.
+    const c = buildCapture(el('main', { rect: { h: 200 } },
+      el('p', { rect: { y: 0, h: 20 }, text: 'Before' }),
+      el('div', { rect: { y: 36, h: 40 } }, el('p', { rect: { y: 46, h: 20 }, text: 'Inside a padded wrapper' })),
+    ));
+    expect(hits(c, 'spacing-off-rhythm').map((f) => f.measured)).toEqual(['26px below p']);
+  });
+
+  it('judges the space inside a filled box, and not inside a box drawn only by a divider line', () => {
+    // A card whose padding drifts to 18px sits beside 16px cards and reads as a different component.
+    const card = (inset: number, style: NodeSpec['style']) => buildCapture(el('main', { rect: { h: 300 } },
+      el('div', { rect: { y: 0, h: 20 + inset * 2 }, style }, el('p', { rect: { y: inset, h: 20 }, text: 'Card text' })),
+    ));
+    const filled = { 'background-color': 'rgb(255, 255, 255)' };
+    expect(hits(card(18, filled), 'spacing-off-rhythm').map((f) => f.measured)).toEqual(['18px inside the top edge', '18px inside the bottom edge']);
+    expect(hits(card(16, filled), 'spacing-off-rhythm')).toEqual([]);
+    const divider = { 'border-top-width': '1px', 'border-top-style': 'solid' };
+    expect(hits(card(18, divider), 'spacing-off-rhythm')).toEqual([]);
+  });
+
+  it('lets a stretched column pin its last item to the bottom, and nothing else', () => {
+    // Cards in one row keep their buttons aligned; the gap above the button grows with the tallest card by design.
+    const column = (parentDisplay: string) => buildCapture(el('main', { rect: { h: 300 }, style: { display: parentDisplay } },
+      el('div', { rect: { y: 0, h: 120 }, style: { display: 'flex', 'flex-direction': 'column' } },
+        el('p', { rect: { y: 0, h: 20 }, text: 'Card text' }),
+        el('button', { rect: { y: 60, h: 30 }, text: 'Open' }),
+      ),
+    ));
+    expect(hits(column('grid'), 'spacing-off-rhythm')).toEqual([]);
+    expect(hits(column('block'), 'spacing-off-rhythm').map((f) => f.measured)).toEqual(['40px below p']);
+  });
+
+  it('measures a heading that wraps a link by its line, not by the tighter box of the link', () => {
+    // A link's box sits a few pixels inside its line, which would report a 16px card padding as 19px.
+    const c = buildCapture(el('main', { rect: { h: 300 } },
+      el('div', { rect: { y: 0, h: 58 }, style: { 'background-color': 'rgb(255, 255, 255)' } },
+        el('h3', { rect: { y: 16, h: 26 } }, el('a', { rect: { y: 19, h: 20 }, text: 'Card title' })),
+      ),
+    ));
+    expect(hits(c, 'spacing-off-rhythm')).toEqual([]);
+  });
+
+  it('leaves the rows of a wrapping row or a multi-column grid alone, and a picture filling its frame', () => {
+    // A wrapped chip or a grid cell under a taller neighbour is a new row, and a full-bleed image has no padding to judge.
+    const wrapped = buildCapture(el('main', { rect: { h: 100 }, style: { display: 'flex', 'flex-direction': 'row' } },
+      el('span', { rect: { y: 0, h: 20 }, style: { display: 'block' }, text: 'Chip one' }),
+      el('span', { rect: { y: 50, h: 20 }, style: { display: 'block' }, text: 'Chip two' }),
+    ));
+    expect(hits(wrapped, 'spacing-off-rhythm')).toEqual([]);
+    const tile = buildCapture(el('main', { rect: { h: 200 } },
+      el('div', { rect: { y: 0, h: 120 }, style: { 'background-color': 'rgb(255, 255, 255)' } }, el('img', { rect: { y: 0, h: 120 } })),
+    ));
+    expect(hits(tile, 'spacing-off-rhythm')).toEqual([]);
+  });
+
+  it('lets a card in a row stretch below its content, but not run its content into its edge', () => {
+    // Cards in one grid row share the tallest card's height, so a shorter card's bottom space grows by design.
+    const row = (bottomInset: number) => buildCapture(el('main', { rect: { h: 300 }, style: { display: 'grid', 'grid-template-columns': '300px 300px' } },
+      el('div', { rect: { y: 0, h: 36 + bottomInset }, style: { 'background-color': 'rgb(255, 255, 255)' } },
+        el('p', { rect: { y: 16, h: 20 }, text: 'Short card' }),
+      ),
+    ));
+    expect(hits(row(50), 'spacing-off-rhythm')).toEqual([]);
+    expect(hits(row(0), 'spacing-off-rhythm').map((f) => f.measured)).toEqual(['0px inside the bottom edge']);
+  });
+
+  it('ignores what a closed disclosure hides, and judges what an open one shows', () => {
+    // Hidden content laid out under a closed summary is not on screen, so it has no gap a reader sees.
+    // A closed disclosure stretched by its grid row still holds its hidden content inside its box.
+    const disclosure = (open: boolean) => buildCapture(el('main', { rect: { h: 300 } },
+      el('details', { rect: { y: 0, h: 120 }, attrs: open ? { open: true } : {} },
+        el('summary', { rect: { y: 0, h: 20 }, text: 'Show more' }),
+        el('p', { rect: { y: 20, h: 20 }, text: 'Revealed text' }),
+      ),
+    ));
+    expect(hits(disclosure(false), 'spacing-off-rhythm')).toEqual([]);
+    expect(hits(disclosure(true), 'spacing-off-rhythm').map((f) => f.measured)).toEqual(['0px below summary']);
+    // Hidden content nested deeper than the disclosure's own children is just as hidden.
+    const nested = buildCapture(el('main', { rect: { h: 300 } },
+      el('details', { rect: { y: 0, h: 20 } },
+        el('summary', { rect: { y: 0, h: 20 }, text: 'Show more' }),
+        el('div', { rect: { y: 20, h: 60 } },
+          el('p', { rect: { y: 20, h: 20 }, text: 'Hidden one' }),
+          el('p', { rect: { y: 40, h: 20 }, text: 'Hidden two' }),
+        ),
+      ),
+    ));
+    expect(hits(nested, 'spacing-off-rhythm')).toEqual([]);
+  });
+
+  it('measures a text block by the lines inside its padding when it draws no box', () => {
+    // An unboxed summary padded 12px reads as 12px further from the line above, not as touching it.
+    const c = buildCapture(el('main', { rect: { h: 300 } },
+      el('p', { rect: { y: 0, h: 20 }, text: 'Before' }),
+      el('div', { rect: { y: 20, h: 44 }, style: { 'padding-top': '12px', 'padding-bottom': '12px' }, text: 'Padded line' }),
+    ));
+    expect(hits(c, 'spacing-off-rhythm')).toEqual([]);
+  });
+
+  it('accepts a panel hung without a top edge from the tab bar above it, and not two boxes merely touching', () => {
+    // Tabs and their panel are one control drawn in two parts; two cards touching are two blocks with no gap.
+    const pair = (lowerTop: string) => buildCapture(el('main', { rect: { h: 300 } },
+      el('div', { rect: { y: 0, h: 40 }, style: { 'border-bottom-width': '2px', 'border-bottom-style': 'solid' } },
+        el('span', { rect: { y: 0, h: 38 }, style: { display: 'block' }, text: 'Photo' }),
+      ),
+      el('div', { rect: { y: 40, h: 100 }, style: { 'background-color': 'rgb(255, 255, 255)', 'border-top-width': lowerTop, 'border-top-style': 'solid' } },
+        el('p', { rect: { y: 56, h: 20 }, text: 'Panel' }),
+      ),
+    ));
+    expect(hits(pair('0px'), 'spacing-off-rhythm').filter((f) => f.measured.includes('below'))).toEqual([]);
+    expect(hits(pair('1px'), 'spacing-off-rhythm').filter((f) => f.measured.includes('below')).map((f) => f.measured)).toEqual(['0px below div']);
+  });
+
+  it('measures a checkbox that hangs below its label line, not just the line', () => {
+    // A form ending in a checkbox would otherwise read 4px further from the next block than it is.
+    const c = buildCapture(el('main', { rect: { h: 300 } },
+      el('label', { rect: { y: 0, h: 24 }, style: { display: 'block' } },
+        el('input', { rect: { y: 4, h: 24 }, attrs: { type: 'checkbox' }, style: { display: 'inline-block' } }),
+        el('span', { rect: { y: 2, h: 20 }, text: 'Show my email' }),
+      ),
+      el('p', { rect: { y: 44, h: 20 }, text: 'Next block' }),
+    ));
+    expect(hits(c, 'spacing-off-rhythm')).toEqual([]);
+  });
+
+  it('leaves blocks set side by side alone', () => {
+    // Two columns in one row have no vertical gap between them to judge.
+    const c = buildCapture(el('main', { rect: { h: 100 } },
+      el('p', { rect: { x: 0, y: 0, w: 200, h: 20 }, text: 'Left' }),
+      el('p', { rect: { x: 220, y: 5, w: 200, h: 20 }, text: 'Right' }),
+    ));
+    expect(hits(c, 'spacing-off-rhythm')).toEqual([]);
   });
 });
 

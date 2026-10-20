@@ -6,19 +6,15 @@
 
 <div class="wrapper">
   {{#if content.notFound}}
-    <p class="form-error-banner" role="alert">
+    {{#> outcome-notice tone='no'}}
       No curator media item with id <code>{{content.mediaId}}</code> exists.
-    </p>
+    {{/outcome-notice}}
     <p><a href="{{content.cancelHref}}">Back to list</a></p>
   {{else}}
-    {{#if content.errorMessage}}
-      <div class="form-error-banner" role="alert">{{content.errorMessage}}</div>
-    {{/if}}
+    {{> outcome-notice text=content.errorMessage tone='no'}}
 
     {{#if content.media.thumbnailUrl}}
-      <p>
-        <img src="{{content.media.thumbnailUrl}}" alt="" class="curator-thumb" width="200">
-      </p>
+      <img src="{{content.media.thumbnailUrl}}" alt="" class="curator-thumb" width="200">
     {{/if}}
 
     <p>
@@ -29,7 +25,7 @@
       &middot;
       Media id: <code>{{content.media.mediaId}}</code>
     </p>
-    <p class="text-muted fs-sm">
+    <p class="fs-sm">
       The <code>#curated</code> tag is auto-applied and not editable here.
       {{#if content.media.isSidecarBacked}}
         {{#if content.sidecarWritesEnabled}}

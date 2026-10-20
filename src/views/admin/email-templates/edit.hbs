@@ -10,11 +10,7 @@
     {{#if content.saved}}
     {{> outcome-notice text="Saved. The next send of this email uses the new wording." tone='ok'}}
     {{/if}}
-    {{#if content.hasErrors}}
-    <div class="form-error-banner" role="alert">
-      {{#each content.errorList}}<p>{{this}}</p>{{/each}}
-    </div>
-    {{/if}}
+    {{> outcome-notice lines=content.errorList tone='no'}}
 
     {{#if content.hasMergeFields}}
     <p class="text-muted">Merge fields this template must use: {{#each content.mergeFieldList}}<code>{{this}}</code> {{/each}}</p>

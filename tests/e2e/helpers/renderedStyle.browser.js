@@ -151,6 +151,7 @@
       var text = ownText(el);
       var attrs = {};
       if (el.hasAttribute('hidden')) attrs.hidden = true;
+      if (tag === 'details' && el.open) attrs.open = true;
       if (el.getAttribute('aria-hidden') === 'true') attrs.ariaHidden = true;
       if (el.disabled === true || el.hasAttribute('disabled')) attrs.disabled = true;
       if (tag === 'a' && el.hasAttribute('href')) attrs.href = true;

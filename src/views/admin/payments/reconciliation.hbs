@@ -8,12 +8,10 @@
 <div class="wrapper">
   <section>
     {{#if content.resolvedFlag}}
-      <p class="form-success-banner" role="status">Issue resolved. Your note is recorded against it.</p>
+      {{> outcome-notice text="Issue resolved. Your note is recorded against it." tone='ok'}}
     {{/if}}
 
-    {{#if content.errorMessage}}
-      <div class="form-error-banner" role="alert">{{content.errorMessage}}</div>
-    {{/if}}
+    {{> outcome-notice text=content.errorMessage tone='no'}}
 
     {{#if content.oldestOutstandingLine}}
       {{!-- Led with rather than left to be discovered. On a newest-first list a

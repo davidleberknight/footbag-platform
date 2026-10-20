@@ -7,21 +7,11 @@
 
 <div class="wrapper">
   <section>
-    {{#if content.resolvedNotice}}
-      <p class="form-success-banner" role="status">
-        {{content.resolvedNotice.message}}
-      </p>
-    {{/if}}
+    {{> outcome-notice text=content.resolvedNotice.message tone='ok'}}
 
-    {{#if content.capHitNotice}}
-      <p class="form-notice" role="status">
-        {{content.capHitNotice.message}}
-      </p>
-    {{/if}}
+    {{> outcome-notice text=content.capHitNotice.message tone='info'}}
 
-    {{#if content.formError}}
-      <p class="form-error-banner" role="alert">{{content.formError}}</p>
-    {{/if}}
+    {{> outcome-notice text=content.formError tone='no'}}
 
     {{#if content.continueHref}}
       {{! The capped answer finished this step, so the club cards and the

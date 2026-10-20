@@ -159,6 +159,8 @@ import {
 import { appendAuditEntry, findStandingOwnAct } from './auditService';
 import { ForbiddenError, NotFoundError, ValidationError } from './serviceErrors';
 import { PageViewModel } from '../types/page';
+import type { OutcomeNoticeView } from '../lib/outcomeNotice';
+import type { ActionEnding } from '../lib/actionOutcome';
 import { checkAddMatchesScoringBrackets } from '../lib/freestyleNotation';
 import { trickNameToSlug } from './freestyleRecordShaping';
 import {
@@ -386,6 +388,9 @@ export interface FreestyleTrickEditContent {
   hasModifierLinks: boolean;
   backHref: string;
   saved: boolean;
+  /** The trick was just published from the notation backlog onto this page. */
+  published: boolean;
+  outcome: OutcomeNoticeView | null;
   fieldErrors: Record<string, string>;
   errorList: string[];
   hasErrors: boolean;
@@ -473,9 +478,36 @@ export interface FreestyleTrickScalarInput {
   operationalNotationSource?: string;
 }
 
+/**
+ * How an attach on the trick edit page ended. A link that already exists is a
+ * repeat and writes nothing: the curator's own standing attach returns to the
+ * page as the first submit did, and one someone else made carries the
+ * informational sentence the page shows.
+ */
+export interface CurationLinkOutcome {
+  ending: Exclude<ActionEnding, 'refused'>;
+  notice: string | null;
+}
+
+function linkRepeat(
+  actorMemberId: string,
+  createdAction: string,
+  deletedAction: string,
+  entityType: string,
+  entityId: string,
+  heldText: string,
+): CurationLinkOutcome {
+  return findStandingOwnAct(actorMemberId, createdAction, deletedAction, entityType, entityId)
+    ? { ending: 'own_repeat', notice: null }
+    : { ending: 'already_held', notice: heldText };
+}
+
 /** Options for re-rendering the edit page after a save or a validation failure. */
 export interface EditPageOptions {
   saved?: boolean;
+  published?: boolean;
+  /** An attach that found its link already in place, carried across the redirect. */
+  outcome?: OutcomeNoticeView | null;
   submitted?: FreestyleTrickScalarInput;
   fieldErrors?: Record<string, string>;
   aliasError?: string;
@@ -2141,6 +2173,8 @@ export const freestyleCurationService = {
         hasModifierLinks: modifierLinks.length > 0,
         backHref:         '/admin/freestyle/tricks',
         saved:            opts.saved === true,
+        published:        opts.published === true,
+        outcome:          opts.outcome ?? null,
         fieldErrors,
         errorList,
         hasErrors:        errorList.length > 0,
@@ -2383,7 +2417,7 @@ export const freestyleCurationService = {
   // trick slug (checked across every row regardless of status), nor an existing
   // alias slug (the global primary key). The insert and its audit entry commit in
   // one transaction. source_id and notes are left unset in this surface.
-  addAlias(trickSlug: string, input: FreestyleAliasInput, actorMemberId: string): void {
+  addAlias(trickSlug: string, input: FreestyleAliasInput, actorMemberId: string): CurationLinkOutcome {
     assertActorMayCurateFreestyle(actorMemberId);
     const trick = freestyleTricks.getForCurationBySlug.get(trickSlug) as CurationEditDbRow | undefined;
     if (!trick) throw new NotFoundError(`No freestyle trick "${trickSlug}"`);
@@ -2418,7 +2452,10 @@ export const freestyleCurationService = {
     const existing = freestyleTrickAliases.getByAliasSlug.get(aliasSlug) as FullAliasDbRow | undefined;
     if (existing) {
       if (existing.trick_slug === trickSlug) {
-        throw new ValidationError(`"${aliasSlug}" is already an alias of this trick.`);
+        return linkRepeat(
+          actorMemberId, 'freestyle.trick_alias.created', 'freestyle.trick_alias.deleted',
+          'freestyle_trick_alias', aliasSlug, `"${aliasSlug}" is already an alias of this trick.`,
+        );
       }
       throw new ValidationError(`"${aliasSlug}" is already an alias of another trick ("${existing.trick_slug}").`);
     }
@@ -2460,6 +2497,7 @@ export const freestyleCurationService = {
       }
       throw err;
     }
+    return { ending: 'advance', notice: null };
   },
 
   // Set an existing alias's semantic class and its public-display state. Both
@@ -2612,7 +2650,7 @@ export const freestyleCurationService = {
   // blank; external_ref, asserted_notation, asserted_category, and notes stay unset
   // in this surface. The insert and its audit entry commit in one transaction.
   // Creating new registry sources is not part of this surface.
-  attachSource(trickSlug: string, input: FreestyleSourceLinkInput, actorMemberId: string): void {
+  attachSource(trickSlug: string, input: FreestyleSourceLinkInput, actorMemberId: string): CurationLinkOutcome {
     assertActorMayCurateFreestyle(actorMemberId);
     const trick = freestyleTricks.getForCurationBySlug.get(trickSlug) as CurationEditDbRow | undefined;
     if (!trick) throw new NotFoundError(`No freestyle trick "${trickSlug}"`);
@@ -2624,7 +2662,11 @@ export const freestyleCurationService = {
     }
 
     if (freestyleTrickSourceLinks.getLink.get(trickSlug, sourceId)) {
-      throw new ValidationError(`This trick is already linked to "${source.source_label}".`);
+      return linkRepeat(
+        actorMemberId, 'freestyle.trick_source_link.created', 'freestyle.trick_source_link.deleted',
+        'freestyle_trick_source_link', `${trickSlug}:${sourceId}`,
+        `This trick is already linked to "${source.source_label}".`,
+      );
     }
 
     const externalUrl = emptyToNull(input.externalUrl);
@@ -2653,6 +2695,7 @@ export const freestyleCurationService = {
       }
       throw err;
     }
+    return { ending: 'advance', notice: null };
   },
 
   // Detach one source link from a trick. getLink is keyed on both the trick and
@@ -2701,7 +2744,7 @@ export const freestyleCurationService = {
   // modifier, apply order) is already linked. The same modifier at a different
   // apply order is allowed. The insert and its audit entry commit in one
   // transaction. The modifier registry itself is not edited here.
-  attachModifier(trickSlug: string, input: FreestyleModifierLinkInput, actorMemberId: string): void {
+  attachModifier(trickSlug: string, input: FreestyleModifierLinkInput, actorMemberId: string): CurationLinkOutcome {
     assertActorMayCurateFreestyle(actorMemberId);
     const trick = freestyleTricks.getForCurationBySlug.get(trickSlug) as CurationEditDbRow | undefined;
     if (!trick) throw new NotFoundError(`No freestyle trick "${trickSlug}"`);
@@ -2723,7 +2766,11 @@ export const freestyleCurationService = {
     }
 
     if (freestyleTrickModifierLinks.getLink.get(trickSlug, modifierSlug, applyOrder)) {
-      throw new ValidationError(`"${modifier.modifier_name}" is already linked at apply order ${applyOrder}.`);
+      return linkRepeat(
+        actorMemberId, 'freestyle.trick_modifier_link.created', 'freestyle.trick_modifier_link.deleted',
+        'freestyle_trick_modifier_link', `${trickSlug}:${modifierSlug}:${applyOrder}`,
+        `"${modifier.modifier_name}" is already linked at apply order ${applyOrder}.`,
+      );
     }
 
     try {
@@ -2745,6 +2792,7 @@ export const freestyleCurationService = {
       }
       throw err;
     }
+    return { ending: 'advance', notice: null };
   },
 
   // Detach one modifier link from a trick. Keyed on the full triple (trick,
@@ -2973,9 +3021,9 @@ export const freestyleCurationService = {
     if (target.is_active !== 1) {
       throw new ValidationError(`"${targetSlug}" is not an active trick, so a tip cannot be remapped to it.`);
     }
-    if (targetSlug === tip.trick_slug) {
-      throw new ValidationError('This tip is already mapped to that trick.');
-    }
+    // Already mapped there: a repeat, so nothing is written and the moderator
+    // returns to the list exactly as a remap does, which reports no message.
+    if (targetSlug === tip.trick_slug) return;
 
     const fromSlug = tip.trick_slug;
     transaction(() => {

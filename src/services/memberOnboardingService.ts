@@ -1415,30 +1415,33 @@ function processLegacyClaimBirthDate(
     // The count lives on the claim step's row, so the row is made sure of
     // first: without it the increment would change nothing and the cap would
     // never be reached. The cap is read in the same transaction as the change.
-    const capped = transaction(() => {
+    const outcome = transaction((): 'capped' | 'changed' | 'unchanged' => {
       ensureTaskRow(memberId, 'legacy_claim');
       const counters = memberOnboarding.findLegacyClaimCounters.get(memberId) as
         | { birth_date_changes: number | null } | undefined;
-      if ((counters?.birth_date_changes ?? 0) >= max) return true;
+      if ((counters?.birth_date_changes ?? 0) >= max) return 'capped';
       if (memberService.correctOwnBirthDateInTx(slug, parts)) {
         memberOnboarding.incrementBirthDateChanges.run(new Date().toISOString(), memberId, memberId);
+        return 'changed';
       }
-      return false;
+      return 'unchanged';
     });
-    if (capped) {
+    if (outcome === 'capped') {
       return {
         kind: 'validation_error',
         formState: null,
         message: 'Your date of birth cannot be changed again while you are signing up. You can correct it from your profile once you have finished.',
       };
     }
+    // The same date submitted again changed nothing, so the page says so in the
+    // informational tone rather than claiming a save.
+    return { kind: 'retry_same', flash: null, query: outcome === 'changed' ? 'birth_date=saved' : 'birth_date=unchanged' };
   } catch (err) {
     if (err instanceof ValidationError) {
       return { kind: 'validation_error', formState: null, message: err.message };
     }
     throw err;
   }
-  return { kind: 'retry_same', flash: null, query: 'birth_date=saved' };
 }
 
 /**

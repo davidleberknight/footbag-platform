@@ -588,8 +588,20 @@ describe('POST /register/wizard/:taskType/skip — 303 advance to next task', ()
     expect(saved.headers.location).toBe('/register/wizard/legacy_claim?birth_date=saved');
 
     const page = await request(createApp()).get(saved.headers.location).set('Cookie', cookie);
-    expect(page.text).toContain('checked again for matches');
+    expect(page.text).toMatch(/class="form-success-banner" role="status">Saved\. We checked again for matches/);
     expect(page.text).toContain('value="1984"');
+
+    // The same date sent again changed nothing: the page still confirms the
+    // re-check, but in the informational tone rather than claiming a save.
+    const same = await request(createApp())
+      .post('/register/wizard/legacy_claim/birth-date')
+      .set('Cookie', cookie).type('form')
+      .send({ birthDay: '9', birthMonth: '4', birthYear: '1984' });
+    expect(same.status).toBe(303);
+    expect(same.headers.location).toBe('/register/wizard/legacy_claim?birth_date=unchanged');
+    const samePage = await request(createApp()).get(same.headers.location).set('Cookie', cookie);
+    expect(samePage.text).toMatch(/class="form-notice" role="status">Saved\. We checked again for matches/);
+    expect(samePage.text).not.toContain('form-success-banner');
 
     const bad = await request(createApp())
       .post('/register/wizard/legacy_claim/birth-date')

@@ -6,12 +6,28 @@ import { memberMessageService } from '../services/memberMessageService';
 import { ConflictError, NotFoundError, RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { handleControllerError } from '../lib/controllerErrors';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
+import { outcomeNotice, type OutcomeNoticeView } from '../lib/outcomeNotice';
+import { redirectWithOutcome } from '../lib/actionOutcome';
 
 // The resolve methods rate-limit in-service (shared per-admin bucket; admin
 // role does not bypass). This controller only maps the error to HTTP.
 function sendRateLimited(res: Response, err: RateLimitedError): void {
   if (err.retryAfterSeconds) res.setHeader('Retry-After', String(err.retryAfterSeconds));
   res.status(429).type('text/plain').send(err.message);
+}
+
+/**
+ * A dispute revert that finds nobody holding the record changed nothing and was
+ * not refused, so it returns to the queue saying so in the informational tone
+ * rather than drawing an error page.
+ */
+function redirectAlreadySettled(req: Request, res: Response, text: string): void {
+  redirectWithOutcome(req, res, {
+    flash: FLASH_KIND.WORK_QUEUE_OUTCOME,
+    to: queueReturnPath(req),
+    ending: 'already_held',
+    text,
+  });
 }
 
 /**
@@ -41,6 +57,7 @@ export const adminWorkQueueController = {
       let parkedFlag = false;
       let unparkedFlag = false;
       let claimRevertedFlag = false;
+      let outcome: OutcomeNoticeView | null = null;
       if (flash?.kind === FLASH_KIND.WORK_QUEUE_RESOLVED) {
         // A payments-task resolve (and a contact resolve with no member email)
         // notified nobody, so the page confirms it without the email banner.
@@ -66,6 +83,9 @@ export const adminWorkQueueController = {
         claimedFlag = flash.payload === 'claimed';
         claimNoopFlag = flash.payload !== 'claimed';
         clearFlash(res, req);
+      } else if (flash?.kind === FLASH_KIND.WORK_QUEUE_OUTCOME) {
+        outcome = outcomeNotice(flash.payload);
+        clearFlash(res, req);
       }
       res.render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({
         adminMemberId: req.user!.userId,
@@ -78,6 +98,7 @@ export const adminWorkQueueController = {
         parkedFlag,
         unparkedFlag,
         claimRevertedFlag,
+        outcome,
         // The deep link the story specifies: a matter that needs the member's
         // own answer names itself here, and its composer opens already drafted.
         askItemId: typeof req.query.ask === 'string' ? req.query.ask : null,
@@ -321,7 +342,7 @@ export const adminWorkQueueController = {
         historicalPersonId: targetHistoricalPersonId,
       }, reason);
       if (result.status === 'nothing_to_revert') {
-        res.status(422).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: 'Nobody currently holds that record, so there is no claim to revert.' }));
+        redirectAlreadySettled(req, res, 'Nobody currently holds that record, so there is no claim to revert.');
         return;
       }
       writeFlash(res, req, FLASH_KIND.WORK_QUEUE_CLAIM_REVERTED, '');

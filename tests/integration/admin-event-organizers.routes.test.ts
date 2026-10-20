@@ -15,6 +15,7 @@ import BetterSqlite3 from 'better-sqlite3';
 import request from '../fixtures/supertestWithOrigin';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { expectCsrfReject } from '../fixtures/expectCsrfReject';
+import { flashCookieOf } from '../fixtures/flashCookie';
 import {
   insertMember,
   insertEvent,
@@ -79,6 +80,19 @@ async function assign(eventId: string, memberKey: string, reason: string) {
     .set('Cookie', adminCookie())
     .type('form')
     .send({ member_key: memberKey, reason });
+}
+
+/** Follow a post-redirect-get the way a browser does, carrying the flash back. */
+async function landedOn(res: { headers: Record<string, string>; get(h: string): string[] | string | undefined }) {
+  return request(createApp())
+    .get(res.headers.location)
+    .set('Cookie', [adminCookie(), flashCookieOf(res)].filter(Boolean).join('; '));
+}
+
+function auditCount(eventId: string, actionType: string): number {
+  return withDb((db) => (db.prepare(
+    'SELECT COUNT(*) AS c FROM audit_entries WHERE entity_id = ? AND action_type = ?',
+  ).get(eventId, actionType) as { c: number }).c);
 }
 
 async function remove(eventId: string, memberId: string, reason: string) {
@@ -269,15 +283,38 @@ describe('assigning an organizer', () => {
     expect(organizersOf(eventId)).toHaveLength(0);
   });
 
-  it('refuses someone who already organizes the event', async () => {
+  it('an assignment says the organizer was added, and the same admin submitting it again gets the same answer with nothing written', async () => {
+    // Defect caught: the page gives no word that the assign happened, or a
+    // double submit is drawn as a red refusal of the admin's own act.
     makeMember('org_dupe');
     const eventId = withDb((db) => insertEvent(db, { title: 'Duplicate Assignment', start_date: '2099-11-11' }));
-    await assign(eventId, 'org_dupe', 'First assignment.');
+    const first = await assign(eventId, 'org_dupe', 'First assignment.');
+    expect(first.status).toBe(303);
+    const shown = await landedOn(first);
+    expect(shown.text).toContain('<div class="form-success-banner" role="status">Organizer added.</div>');
 
     const res = await assign(eventId, 'org_dupe', 'Second assignment.');
-    expect(res.status).toBe(422);
-    expect(res.text).toContain('already organizes');
+    expect(res.status).toBe(303);
+    expect((await landedOn(res)).text)
+      .toContain('<div class="form-success-banner" role="status">Organizer added.</div>');
     expect(organizersOf(eventId)).toHaveLength(1);
+    expect(auditCount(eventId, 'event.organizer_assigned')).toBe(1);
+  });
+
+  it('someone already organizing from another act reads as informational, not as a refusal', async () => {
+    // Defect caught: a state that already held, painted red as if this
+    // admin's request had been refused.
+    const member = makeMember('org_already');
+    const eventId = withDb((db) => {
+      const e = insertEvent(db, { title: 'Already Covered', start_date: '2099-11-12' });
+      insertEventOrganizer(db, e, member);
+      return e;
+    });
+    const res = await assign(eventId, 'org_already', 'Covering the gap.');
+    expect(res.status).toBe(303);
+    const shown = await landedOn(res);
+    expect(shown.text).toContain('<p class="form-notice" role="status">That member already organizes this event.</p>');
+    expect(auditCount(eventId, 'event.organizer_assigned')).toBe(0);
   });
 });
 
@@ -326,11 +363,34 @@ describe('removing an organizer', () => {
     expect(openQueueItems(eventId)).toHaveLength(1);
   });
 
-  it('refuses to remove someone who does not organize the event', async () => {
+  it('removing someone who does not organize the event changes nothing and says so', async () => {
+    // Defect caught: a removal with nothing to remove drawn as an error page
+    // rather than as a state that already held.
     const stranger = makeMember('org_stranger');
     const eventId = withDb((db) => insertEvent(db, { title: 'Not Theirs', start_date: '2100-02-02' }));
     const res = await remove(eventId, stranger, 'Trying anyway.');
-    expect(res.status).toBe(404);
+    expect(res.status).toBe(303);
+    const shown = await landedOn(res);
+    expect(shown.text).toContain('<p class="form-notice" role="status">That member does not organize this event.</p>');
+    expect(auditCount(eventId, 'event.organizer_removed')).toBe(0);
+  });
+
+  it('a removal says so, and the same admin submitting it again gets the same answer with nothing written', async () => {
+    // Defect caught: a double-submitted removal answered as if the member had
+    // never organized the event.
+    const member = makeMember('org_twice_removed');
+    makeMember('org_keeps_running');
+    const eventId = withDb((db) => insertEvent(db, { title: 'Removed Twice', start_date: '2100-02-03' }));
+    await assign(eventId, 'org_twice_removed', 'First organizer.');
+    await assign(eventId, 'org_keeps_running', 'Second organizer.');
+    const first = await remove(eventId, member, 'Stepped down.');
+    expect((await landedOn(first)).text)
+      .toContain('<div class="form-success-banner" role="status">Organizer removed.</div>');
+    const again = await remove(eventId, member, 'Stepped down.');
+    expect(again.status).toBe(303);
+    expect((await landedOn(again)).text)
+      .toContain('<div class="form-success-banner" role="status">Organizer removed.</div>');
+    expect(auditCount(eventId, 'event.organizer_removed')).toBe(1);
   });
 });
 

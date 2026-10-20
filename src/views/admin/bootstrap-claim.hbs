@@ -7,14 +7,14 @@
 <div class="wrapper">
   <section>
     {{#if content.isGranted}}
-      <p class="form-success-banner" role="status">Administrator access granted. The bootstrap token has been consumed.</p>
+      {{> outcome-notice text="Administrator access granted. The bootstrap token has been consumed." tone='ok'}}
       <p><a href="/admin" class="btn btn-primary">Go to the Admin Dashboard</a></p>
     {{else}}
       {{#if content.isInvalid}}
-        <p class="form-error-banner" role="alert">That token was not accepted.</p>
+        {{> outcome-notice text="That token was not accepted." tone='no'}}
       {{/if}}
       {{#if content.isRateLimited}}
-        <p class="form-error-banner" role="alert">Too many attempts in a short time. Your token was not read. Please wait a little and try again.</p>
+        {{> outcome-notice text="Too many attempts in a short time. Your token was not read. Please wait a little and try again." tone='no'}}
       {{/if}}
       <p>If a System Administrator provisioned a bootstrap token for you, enter it below. The token works exactly once.</p>
       <form method="POST" action="/admin/bootstrap-claim" class="login-form">

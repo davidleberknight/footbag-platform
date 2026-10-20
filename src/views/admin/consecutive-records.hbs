@@ -11,7 +11,7 @@
 
     {{#if content.hasRows}}
       {{#each content.sections}}
-        <h2 class="section-heading">{{this.section}}</h2>
+        <div class="section-heading"><h2>{{this.section}}</h2></div>
         {{#each this.disciplines}}
           <h3>{{this.discipline}}</h3>
           <div class="records-table-wrap" tabindex="0" role="region" aria-label="{{this.discipline}}">

@@ -6,13 +6,11 @@
 
 <div class="wrapper">
   {{> outcome-notice text=page.notice tone=page.noticeTone}}
-  {{#if content.errorMessage}}
-    <div class="form-error-banner" role="alert">{{content.errorMessage}}</div>
-  {{/if}}
+  {{> outcome-notice text=content.errorMessage tone='no'}}
 
   <section>
     <div class="section-heading"><h2>Find a Hashtag</h2></div>
-    <p class="text-muted fs-sm">Members invent their own hashtags and the platform imposes no vocabulary on them. This surface is for taking an abusive one out of circulation, not for tidying the words members chose.</p>
+    <p class="fs-sm">Members invent their own hashtags and the platform imposes no vocabulary on them. This surface is for taking an abusive one out of circulation, not for tidying the words members chose.</p>
     <div class="search-box-section">
       <form method="GET" action="/admin/tags" class="search-box-form" role="search">
         <input type="text" name="q" maxlength="200"
@@ -25,7 +23,7 @@
     </div>
 
     {{#if content.resultSummary}}
-      <p class="text-muted">{{content.resultSummary}}</p>
+      <p>{{content.resultSummary}}</p>
     {{/if}}
   </section>
 
@@ -44,7 +42,7 @@
       {{#if content.tag.canRetire}}
         <details class="admin-action-disclosure">
           <summary>Retire This Hashtag</summary>
-          <p class="text-muted fs-sm">Retiring takes the hashtag off every photo, video and gallery that names it, and stops anybody applying it again. The items themselves are untouched, and so is everything their owners wrote about them. Nothing on the site can undo this.</p>
+          <p class="fs-sm">Retiring takes the hashtag off every photo, video and gallery that names it, and stops anybody applying it again. The items themselves are untouched, and so is everything their owners wrote about them. Nothing on the site can undo this.</p>
           <form method="POST" action="{{content.retireAction}}" class="form-block">
             <input type="hidden" name="tag" value="{{content.tag.normalized}}" />
             <div class="form-field">
@@ -55,7 +53,7 @@
           </form>
         </details>
       {{else}}
-        <p class="form-notice" role="status">{{content.tag.barMessage}}</p>
+        <p class="notice-card notice-card--info">{{content.tag.barMessage}}</p>
       {{/if}}
     </section>
   {{/if}}

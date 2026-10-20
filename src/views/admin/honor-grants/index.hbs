@@ -5,14 +5,12 @@
 </div>
 
 <div class="wrapper">
-  {{#if content.errorMessage}}
-    <div class="form-error-banner" role="alert">{{content.errorMessage}}</div>
-  {{/if}}
+  {{> outcome-notice text=content.errorMessage tone='no'}}
   {{> outcome-notice text=page.notice tone=page.noticeTone}}
 
   <section>
     <div class="section-heading"><h2>Grant a Hall of Fame or Big Add Posse Tier</h2></div>
-    <p class="text-muted fs-sm">Grants Tier 2 from the honor and records the honor provenance. Hall of Fame and Big Add Posse are independent, so a member may hold one of each; the same honor is granted only once.</p>
+    <p class="fs-sm">Grants Tier 2 from the honor and records the honor provenance. Hall of Fame and Big Add Posse are independent, so a member may hold one of each; the same honor is granted only once.</p>
     <form method="POST" action="/admin/honor-grants/grant" class="form-block">
       <div class="form-field">
         <label for="grant_member">Member id or slug</label>
@@ -35,7 +33,7 @@
 
   <section>
     <div class="section-heading"><h2>Take Back a Grant Made in Error</h2></div>
-    <p class="text-muted fs-sm">This corrects the platform's record of a grant that should not have been made. It clears the badge and its induction year and leaves the membership tier alone. It does not revoke the honour itself, which is not the platform's to revoke.</p>
+    <p class="fs-sm">This corrects the platform's record of a grant that should not have been made. It clears the badge and its induction year and leaves the membership tier alone. It does not revoke the honour itself, which is not the platform's to revoke.</p>
     <form method="POST" action="/admin/honor-grants/remove" class="form-block">
       <div class="form-field">
         <label for="remove_member">Member id or slug</label>
@@ -58,7 +56,7 @@
 
   <section>
     <div class="section-heading"><h2>Put a Director on the Board</h2></div>
-    <p class="text-muted fs-sm">Board standing is Tier 3 and is set one director at a time, as each sitting director claims their account. It is temporary: on leaving the board the member returns to the tier recorded when they joined it.</p>
+    <p class="fs-sm">Board standing is Tier 3 and is set one director at a time, as each sitting director claims their account. It is temporary: on leaving the board the member returns to the tier recorded when they joined it.</p>
     <form method="POST" action="/admin/honor-grants/board/set" class="form-block">
       <div class="form-field">
         <label for="board_set_member">Member id or slug</label>
@@ -74,7 +72,7 @@
 
   <section>
     <div class="section-heading"><h2>Take a Director Off the Board</h2></div>
-    <p class="text-muted fs-sm">The board badge goes and the member returns to the tier recorded when they joined the board.</p>
+    <p class="fs-sm">The board badge goes and the member returns to the tier recorded when they joined the board.</p>
     <form method="POST" action="/admin/honor-grants/board/remove" class="form-block">
       <div class="form-field">
         <label for="board_remove_member">Member id or slug</label>

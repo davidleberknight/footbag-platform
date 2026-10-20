@@ -2595,7 +2595,7 @@ Impact:
 
 Decision:
 
-A CI gate (`scripts/ci/assert_conventions.sh`) statically enforces the visual-token disciplines at merge time: colors come from `:root` design tokens (no raw hex in rule bodies), border-radius uses `--radius*` tokens (no raw px), and media queries use only the canonical breakpoints. The same script enforces the template restrictions (no inline style or script, no nested forms).
+A CI gate (`scripts/ci/assert_conventions.sh`) statically enforces the visual-token disciplines at merge time: colors come from `:root` design tokens (no colour literal in rule bodies), border-radius uses `--radius*` tokens (no raw px), spacing uses the `--space-*` tokens, and media queries use only the canonical breakpoints. The same script enforces the template restrictions (no inline style or script, no nested forms).
 
 Rationale:
 
@@ -2617,7 +2617,7 @@ Trade-offs:
 
 Impact:
 
-- Stylesheet changes that introduce raw hex, raw-px radius, or non-canonical breakpoints fail CI and must be expressed through the token system.
+- Stylesheet changes that introduce a colour literal, raw-px radius, a raw spacing length, or a non-canonical breakpoint fail CI and must be expressed through the token system.
 
 ## 4.9 One Public Rendering Standard
 
@@ -2644,7 +2644,7 @@ Trade-offs:
 
 Impact:
 
-- The cross-cutting view standard lives in the path-scoped `.claude/rules/view-layer.md`; each page's rendering contract, audience, and sensitive-page invariants live in the owning service's file-header JSDoc; the visual disciplines are mechanically enforced in three places, by the convention gate `scripts/ci/assert_conventions.sh` (see "Stylesheet Convention Gates") for the checks a shell script can express, by conformance tests under `tests/unit/` for the checks better expressed in TypeScript over the template tree (asset fingerprinting, profile section systems, interface-chrome casing), and by the rendered-style check for what the browser actually draws (sizes, contrast, fit, labels). The casing gate additionally imports the rule it enforces from `src/lib/titleCase.ts`, so that rule and its gate cannot drift apart.
+- The cross-cutting view standard lives in the path-scoped `.claude/rules/view-layer.md`; each page's rendering contract, audience, and sensitive-page invariants live in the owning service's file-header JSDoc; the visual disciplines are mechanically enforced in three places, by the convention gate `scripts/ci/assert_conventions.sh` (see "Stylesheet Convention Gates") for the checks a shell script can express, by conformance tests under `tests/unit/` for the checks better expressed in TypeScript over the template tree (asset fingerprinting, profile section systems, interface-chrome casing), and by the rendered-style check for what the browser actually draws (sizes, spacing, contrast, fit, labels). The casing gate additionally imports the rule it enforces from `src/lib/titleCase.ts`, so that rule and its gate cannot drift apart.
 
 ## 4.10 Search-engine and Crawler Readiness
 
@@ -2892,6 +2892,53 @@ Trade-offs:
 Impact:
 
 - The class baseline test refuses a retired control class if a template reintroduces it.
+
+## 4.17 Spacing Rhythm
+
+Decision:
+
+Spacing comes from six role tokens, each with one job, applied by the shared components rather than by pages:
+
+| Token | Value | Job |
+|---|---|---|
+| `--space-xs` | 4px | Inside one line or control: a label to its control, list item to list item, chip and icon gaps |
+| `--space-sm` | 8px | Within a group: a card title to its metadata, buttons in a row |
+| `--space-md` | 12px | Paragraph to paragraph; a heading to the content under it |
+| `--space-lg` | 16px | Form field to form field; card to card; card padding on a phone |
+| `--space-xl` | 24px | Between blocks inside a section (a table, a card grid, a form and what follows it); card padding on a wider screen |
+| `--space-2xl` | 32px | Between sections; the hero to the first block; the last block to the footer; a hero's own padding |
+
+Rationale:
+
+- Left to each component, one job drifts to very different distances: section to section from 33 to 105 pixels, a heading to its content from 6 to 40, the last block to the footer from 40 to 92. A reader moving between pages meets a different density on each.
+
+- Large gaps come from two components each adding their own margin where they meet. Spacing owned once, by the shared component, is what stops gaps adding up.
+
+- Thirty-two pixels is the widest gap running layout needs; more leaves a phone screen reading as half empty, and less than four lets lines and controls touch.
+
+- One role per distance makes choosing spacing a question about what the gap separates, not how big it should look, and a closed set is checkable by a machine.
+
+Requirements:
+
+- Every margin, padding and gap in the stylesheet is a spacing token, `0`, `auto`, or a percentage; a 1px border correction is the one raw length.
+
+- No gap between two content blocks is zero, and none exceeds `--space-2xl`.
+
+- Spacing is set once, on the shared component: the hero, section, section heading, card, form field, table wrapper, notice and footer. A page does not add its own margin or padding to adjust the rhythm, and template spacing classes are not a tuning tool; a gap that looks wrong is fixed in the shared component, for every page.
+
+- Where two components meet, one of them owns the gap; their margins never stack.
+
+- On a phone the two widest roles step down one: `--space-2xl` to `--space-xl`, and `--space-xl` to `--space-lg`.
+
+Trade-offs:
+
+- A page cannot be tuned by eye, and some pages tighten noticeably: section headings sit closer to their content, and the extra space above the footer goes.
+
+Impact:
+
+- The convention gate rejects a raw spacing length, so the rhythm stays closed without depending on review.
+
+- The rendered-style check measures, on every page view at phone and desktop width, the gap between every pair of stacked blocks and the space inside every drawn box, and fails any that is zero, wider than the widest role, or between two roles.
 
 # 5. Back-End Services and Patterns
 

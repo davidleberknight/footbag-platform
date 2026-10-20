@@ -7,16 +7,12 @@
 
 <div class="wrapper">
   <section>
-    {{#if content.hasErrors}}
-    <div class="form-error-banner" role="alert">
-      {{#each content.errorList}}<p>{{this}}</p>{{/each}}
-    </div>
-    {{/if}}
+    {{> outcome-notice lines=content.errorList tone='no'}}
 
     {{#if content.hasRecipients}}
-    <p class="form-notice">{{content.recipientCount}} members are subscribed. The exact set is worked out when you send, so anyone whose address has since bounced is left out.</p>
+    <p class="notice-card notice-card--info">{{content.recipientCount}} members are subscribed. The exact set is worked out when you send, so anyone whose address has since bounced is left out.</p>
     {{else}}
-    <p class="notice notice-warn">Nobody is subscribed to this list. Sending now would reach no one and record nothing.</p>
+    <p class="notice-card notice-card--warn">Nobody is subscribed to this list. Sending now would reach no one and record nothing.</p>
     {{/if}}
 
     {{#if content.hasSubjectPrefix}}

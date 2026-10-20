@@ -10,11 +10,7 @@
       <a href="{{href}}" class="back-link">{{label}}</a>
     {{/each}}
 
-    {{#if content.error}}
-      <div class="form-error-banner" role="alert">
-        {{content.error}}
-      </div>
-    {{/if}}
+    {{> outcome-notice text=content.error tone='no'}}
 
     {{!-- Read-only identity block --}}
     <div class="card card-static profile-identity-block">
@@ -47,9 +43,7 @@
       {{#if content.avatarError}}
         <p class="form-field-error" role="alert">{{content.avatarError}}</p>
       {{/if}}
-      {{#if content.avatarSuccess}}
-        <p class="form-success-banner" role="status">{{content.avatarSuccess}}</p>
-      {{/if}}
+      {{> outcome-notice text=content.avatarSuccess tone='ok'}}
 
       <div class="avatar-edit-row">
         {{#if content.avatarThumbUrl}}
@@ -205,7 +199,7 @@
 
       <fieldset class="form-fieldset">
         <legend>Gender (competition eligibility)</legend>
-        <p class="text-muted fs-sm">Private by default: visible only to you and IFPA administrators unless you choose below to show it. Used only for gender-based event-category eligibility.</p>
+        <p class="fs-sm">Private by default: visible only to you and IFPA administrators unless you choose below to show it. Used only for gender-based event-category eligibility.</p>
         <div class="form-field">
           <label>
             <input type="radio" name="gender" value="male" {{#if (eq content.gender "male")}}checked{{/if}} />
@@ -233,7 +227,7 @@
 
       <fieldset class="form-fieldset">
         <legend>Privacy &amp; Contact</legend>
-        <p class="text-muted fs-sm">Contact details are never shown to the public. When you opt in, they are visible to logged-in members only.</p>
+        <p class="fs-sm">Contact details are never shown to the public. When you opt in, they are visible to logged-in members only.</p>
 
         <div class="form-field">
           <label for="phone">Phone (optional)</label>
@@ -296,7 +290,7 @@
 
       <fieldset class="form-fieldset">
         <legend>External links</legend>
-        <p class="form-hint">Add up to 3 links (personal site, social media). Each link is checked before it appears on your profile.</p>
+        <p class="fs-sm">Add up to 3 links (personal site, social media). Each link is checked before it appears on your profile.</p>
         {{#each content.linkSlots}}
           <div class="form-row-2col">
             <div class="form-field">

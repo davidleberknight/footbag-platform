@@ -3,6 +3,8 @@ import { adminHistoricalRecordService } from '../services/adminHistoricalRecordS
 import { NotFoundError, ValidationError, ConflictError } from '../services/serviceErrors';
 import { FLASH_KIND, readFlash, clearFlash } from '../lib/flashCookie';
 import { handleControllerError } from '../lib/controllerErrors';
+import { outcomeNotice, type OutcomeNoticeView } from '../lib/outcomeNotice';
+import { redirectWithOutcome } from '../lib/actionOutcome';
 
 const CONTEXT = 'admin historical record controller';
 
@@ -33,11 +35,15 @@ export const adminHistoricalRecordController = {
   index(req: Request, res: Response, next: NextFunction): void {
     try {
       const flash = readFlash(req);
-      if (flash?.kind === FLASH_KIND.MEMBER_RECORD_CORRECTED) clearFlash(res, req);
+      let notice: OutcomeNoticeView | null = null;
+      if (flash?.kind === FLASH_KIND.HISTORICAL_RECORD_OUTCOME) {
+        notice = outcomeNotice(flash.payload);
+        clearFlash(res, req);
+      }
       const query = typeof req.query['q'] === 'string' ? req.query['q'] : '';
       res.render(
         'admin/historical-records/index',
-        adminHistoricalRecordService.getHistoricalRecordsPage(query),
+        adminHistoricalRecordService.getHistoricalRecordsPage(query, { notice }),
       );
     } catch (err) {
       handleControllerError(err, res, next, CONTEXT);
@@ -68,12 +74,17 @@ export const adminHistoricalRecordController = {
   confirm(marking: boolean) {
     return (req: Request, res: Response, next: NextFunction): void => {
       try {
-        adminHistoricalRecordService.applyDeceasedChange(
+        const outcome = adminHistoricalRecordService.applyDeceasedChange(
           req.user!.userId,
           req.params['personId'] ?? '',
           marking,
         );
-        res.redirect(303, '/admin/historical-records');
+        redirectWithOutcome(req, res, {
+          flash: FLASH_KIND.HISTORICAL_RECORD_OUTCOME,
+          to: '/admin/historical-records',
+          ending: outcome.ending,
+          text: outcome.text,
+        });
       } catch (err) {
         if (isHandled(err)) { renderError(res, err, next); return; }
         handleControllerError(err, res, next, CONTEXT);

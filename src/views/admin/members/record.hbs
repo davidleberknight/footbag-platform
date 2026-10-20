@@ -6,9 +6,7 @@
 
 <div class="wrapper">
   {{> outcome-notice text=page.notice tone=page.noticeTone}}
-  {{#if content.errorMessage}}
-    <div class="form-error-banner" role="alert">{{content.errorMessage}}</div>
-  {{/if}}
+  {{> outcome-notice text=content.errorMessage tone='no'}}
 
   <div class="event-meta-row">
     {{#each content.identifyingFacts}}<span>{{this}}</span>{{/each}}
@@ -16,7 +14,7 @@
   </div>
 
   {{#if content.isSystemAccount}}
-    <p class="text-muted fs-sm">This is the platform's own account. Its display name is the uploader attribution shown on curated media, and it is the one account allowed to carry a reserved site word in its name.</p>
+    <p class="fs-sm">This is the platform's own account. Its display name is the uploader attribution shown on curated media, and it is the one account allowed to carry a reserved site word in its name.</p>
   {{/if}}
 
   {{#if content.profileHref}}
@@ -52,7 +50,7 @@
 
   <section>
     <div class="section-heading"><h2>Contact Details</h2></div>
-    <p class="text-muted fs-sm">These fields are private to the member and to administrators. Members edit them themselves.</p>
+    <p class="fs-sm">These fields are private to the member and to administrators. Members edit them themselves.</p>
     <dl class="trick-structural-facts-list">
       {{#each content.contact}}
         <dt>{{label}}</dt><dd>{{value}}</dd>
@@ -73,11 +71,11 @@
 
   <section>
     <div class="section-heading"><h2>Corrections</h2></div>
-    <p class="text-muted fs-sm">Every correction is shown for review before anything is written and is recorded in this member's audit history. Those with more than one possible motive also take a reason.</p>
+    <p class="fs-sm">Every correction is shown for review before anything is written and is recorded in this member's audit history. Those with more than one possible motive also take a reason.</p>
 
     <details class="admin-action-disclosure">
       <summary>Correct the Name</summary>
-      <p class="text-muted fs-sm">A corrected name is held to every rule a name is held to at registration. The profile URL is left alone, because correcting one is a separate action.</p>
+      <p class="fs-sm">A corrected name is held to every rule a name is held to at registration. The profile URL is left alone, because correcting one is a separate action.</p>
       <form method="POST" action="{{content.nameAction}}" class="form-block">
         <div class="form-field">
           <label for="given_names">Given names</label>
@@ -101,7 +99,7 @@
 
     <details class="admin-action-disclosure">
       <summary>Correct the Profile URL</summary>
-      <p class="text-muted fs-sm">The member's uploader tag moves with them, so their media and galleries keep resolving. The old URL stops working and nothing redirects from it, so any link they have already shared will lead nowhere.</p>
+      <p class="fs-sm">The member's uploader tag moves with them, so their media and galleries keep resolving. The old URL stops working and nothing redirects from it, so any link they have already shared will lead nowhere.</p>
       <form method="POST" action="{{content.slugAction}}" class="form-block">
         <div class="form-field">
           <label for="slug">Profile URL</label>
@@ -117,7 +115,7 @@
 
     <details class="admin-action-disclosure">
       <summary>Change the Membership Tier</summary>
-      <p class="text-muted fs-sm">The member is emailed when their membership status changes. Active Player standing is managed separately, and director standing is set on the honour and board page, because it carries a badge and a record of the tier the member returns to.</p>
+      <p class="fs-sm">The member is emailed when their membership status changes. Active Player standing is managed separately, and director standing is set on the honour and board page, because it carries a badge and a record of the tier the member returns to.</p>
       <form method="POST" action="{{content.tierAction}}" class="form-block">
         <div class="form-field">
           <label for="tier">Membership tier</label>
@@ -137,7 +135,7 @@
 
     <details class="admin-action-disclosure">
       <summary>Correct the Active Player Expiry</summary>
-      <p class="text-muted fs-sm">Active Player is a Tier 0 standing. Leave the date blank to end the standing, which is how one granted in error is taken back. The member is emailed that their standing was corrected, and told the reason you give.</p>
+      <p class="fs-sm">Active Player is a Tier 0 standing. Leave the date blank to end the standing, which is how one granted in error is taken back. The member is emailed that their standing was corrected, and told the reason you give.</p>
       <form method="POST" action="{{content.activePlayerAction}}" class="form-block">
         <div class="form-field">
           <label for="expires_on">Runs to the end of this date</label>
@@ -154,7 +152,7 @@
     {{#if content.canCorrectProfile}}
     <details class="admin-action-disclosure">
       <summary>Correct the Profile Details</summary>
-      <p class="text-muted fs-sm">The member's own profile is the ordinary path for these fields. Use this when they cannot: a data bug, a member who has died, or an account whose holder can no longer reach it. Every value passes the same rules their own form applies, and the whole set is written, so leave a field as it stands unless you mean to change it. Their written biography is not shown here, because it is their words.</p>
+      <p class="fs-sm">The member's own profile is the ordinary path for these fields. Use this when they cannot: a data bug, a member who has died, or an account whose holder can no longer reach it. Every value passes the same rules their own form applies, and the whole set is written, so leave a field as it stands unless you mean to change it. Their written biography is not shown here, because it is their words.</p>
       <form method="POST" action="{{content.profileAction}}" class="form-block">
         <div class="form-field">
           <label for="p_city">City</label>
@@ -254,7 +252,7 @@
     {{#if content.hasAvatar}}
       <details class="admin-action-disclosure">
         <summary>Remove the Profile Picture</summary>
-        <p class="text-muted fs-sm">The picture comes off the profile and its stored files are deleted. The account, the membership and everything else on the record are untouched, and the member is emailed the reason you give. They can upload another.</p>
+        <p class="fs-sm">The picture comes off the profile and its stored files are deleted. The account, the membership and everything else on the record are untouched, and the member is emailed the reason you give. They can upload another.</p>
         <form method="POST" action="{{content.avatarRemoveAction}}" class="form-block">
           <div class="form-field">
             <label for="avatar_reason">Reason (required)</label>
@@ -268,7 +266,7 @@
     {{#if content.isDeceasedMarked}}
       <details class="admin-action-disclosure">
         <summary>Remove the Deceased Marking</summary>
-        <p class="text-muted fs-sm">{{content.deceasedGraceNote}}</p>
+        <p class="fs-sm">{{content.deceasedGraceNote}}</p>
         <form method="POST" action="{{content.deceasedRevertAction}}" class="form-block">
           <button type="submit" class="btn btn-outline">Review Removing the Marking</button>
         </form>
@@ -276,8 +274,8 @@
     {{else}}
       <details class="admin-action-disclosure">
         <summary>Mark the Member Deceased</summary>
-        <p class="text-muted fs-sm">Honours, uploaded media, competition results and club history are all preserved. A linked historical record is marked to match, the member is withdrawn from events that have not happened yet, and the platform sends them nothing.</p>
-        <p class="text-muted fs-sm">The next screen names the member and asks you to confirm.</p>
+        <p class="fs-sm">Honours, uploaded media, competition results and club history are all preserved. A linked historical record is marked to match, the member is withdrawn from events that have not happened yet, and the platform sends them nothing.</p>
+        <p class="fs-sm">The next screen names the member and asks you to confirm.</p>
         <form method="POST" action="{{content.deceasedMarkAction}}" class="form-block">
           <button type="submit" class="btn btn-outline">Review Marking as Deceased</button>
         </form>

@@ -1,0 +1,6 @@
+# Rules in src/public/css/style.css whose margin, padding or gap still carries
+# a raw length instead of a --space-* role token, one per line as
+# "<selector line> | <declaration line>", whitespace trimmed.
+# Read by scripts/ci/assert_conventions.sh. A comment line starts with "# ".
+# The list only shrinks: moving a rule onto the role tokens removes its line in
+# the same change, and a new raw spacing length is refused rather than added.

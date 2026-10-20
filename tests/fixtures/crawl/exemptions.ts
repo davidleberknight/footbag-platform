@@ -65,13 +65,6 @@ export const CRAWL_FINDING_EXEMPTIONS: readonly FindingExemption[] = [
   },
   {
     oracle: 'markup', reason: 'known-defect',
-    url: /^\/admin\/club-cleanup$/,
-    problem: /^input-missing-label /,
-    why: 'The club cleanup queue renders its per-row selects and inputs with no associated label, '
-      + 'so a screen reader announces unnamed controls.',
-  },
-  {
-    oracle: 'markup', reason: 'known-defect',
     url: /^\/admin\/freestyle\/consecutive-records$/,
     problem: /^unique-landmark /,
     why: 'The consecutive-records admin page renders two landmarks of the same kind with no '

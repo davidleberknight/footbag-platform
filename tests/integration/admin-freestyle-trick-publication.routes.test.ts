@@ -17,6 +17,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
+import { flashCookieOf } from '../fixtures/flashCookie';
 
 import {
   setTestEnv,
@@ -371,6 +372,23 @@ describe('what the form refuses', () => {
     }));
     expect(res.status).toBe(303);
     expect(trick('footage_movement')).toBeDefined();
+  });
+
+  it('says the trick was published on the page the publish lands on, and only there', async () => {
+    // Defect caught: a publish lands on the trick's edit page with no word that
+    // anything happened, so the curator cannot tell a publish from a cancel.
+    const id = publishableDraft('pub-announced', {
+      notation_evidence_basis: 'footage', notation_derivation_method: 'reconstruction',
+    });
+    const res = await post(publishHref(id), validForm({
+      canonicalName: 'announced movement', sourceId: '', sourceUrl: '', sourceAssertedNotation: '',
+    }));
+    expect(res.status).toBe(303);
+    const shown = await get(res.headers.location as string, `${admin()}; ${flashCookieOf(res)}`);
+    expect(shown.status).toBe(200);
+    expect(shown.text).toContain('<div class="form-success-banner" role="status">Trick published.</div>');
+    const bare = await get(res.headers.location as string, admin());
+    expect(bare.text).not.toContain('Trick published.');
   });
 
   it('refuses a modifier that is not registered', async () => {

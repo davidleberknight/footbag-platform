@@ -18,7 +18,7 @@
     {{> outcome-notice text=content.actionNotice.text tone=content.actionNotice.tone}}
 
     {{#if content.club.isInactive}}
-    <p class="notice notice-warn">This club is inactive. It stays reachable by direct link but does not appear in the club directory. A co-leader can reactivate it at any time.</p>
+    <p class="notice-card notice-card--warn">This club is inactive. It stays reachable by direct link but does not appear in the club directory. A co-leader can reactivate it at any time.</p>
     {{/if}}
 
     <dl class="club-detail-meta">
@@ -48,9 +48,7 @@
     <section class="mt-4">
       <div class="section-heading"><h2>Edit Club Details</h2></div>
       {{#if content.club.editForm.hasErrors}}
-      <div class="form-error-banner" role="alert">
-        <p>Please fix the errors below.</p>
-      </div>
+      {{> outcome-notice text="Please fix the errors below." tone='no'}}
       {{/if}}
       <form method="POST" action="{{content.club.contentEditHref}}" class="form-block">
         <div class="form-field">

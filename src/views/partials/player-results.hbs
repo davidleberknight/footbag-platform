@@ -14,7 +14,8 @@
       <a href="{{eventHref}}" class="player-event-title">{{eventTitle}}</a>
       <span class="player-event-meta">{{formatDate startDate}} &middot; {{formatLocation city eventRegion eventCountry}}</span>
     </div>
-    <table class="results-table player-results-table">
+    <div class="records-table-wrap" tabindex="0" role="region" aria-label="{{eventTitle}} results">
+    <table class="data-table">
       <thead>
         <tr>
           <th>Discipline</th>
@@ -36,6 +37,7 @@
         {{/each}}
       </tbody>
     </table>
+    </div>
   </div>
 {{/each}}
 

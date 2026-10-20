@@ -6,21 +6,19 @@
       <a href="/net/teams">Teams</a> <span class="breadcrumb-sep">/</span>
       <span>{{page.title}}</span>
     </nav>
-    <h1>
-      <a href="{{{content.team.hrefA}}}">{{content.team.personNameA}}</a>
-      <span class="detail-muted"> / </span>
-      <a href="{{{content.team.hrefB}}}">{{content.team.personNameB}}</a>
-    </h1>
-    <div class="hero-stats">
-      <span>{{content.summary.appearanceCount}} appearances</span>
-      <span>{{content.summary.winCount}} wins</span>
-      <span>{{content.summary.podiumCount}} podiums</span>
-      {{#if content.summary.yearSpan}}<span>{{content.summary.yearSpan}}</span>{{/if}}
-    </div>
+    <h1>{{page.title}}</h1>
   </div>
 </div>
 
 <div class="wrapper">
+
+  <div class="event-meta-row">
+    <span><a href="{{{content.team.hrefA}}}">{{content.team.personNameA}}</a> / <a href="{{{content.team.hrefB}}}">{{content.team.personNameB}}</a></span>
+    <span>{{content.summary.appearanceCount}} appearances</span>
+    <span>{{content.summary.winCount}} wins</span>
+    <span>{{content.summary.podiumCount}} podiums</span>
+    {{#if content.summary.yearSpan}}<span>{{content.summary.yearSpan}}</span>{{/if}}
+  </div>
 
   <p class="source-note">{{content.disclaimer}}</p>
 
@@ -29,8 +27,8 @@
     <div class="section-heading">
       <h2>Competitive Timeline</h2>
     </div>
-    <div class="records-table-wrap">
-      <table class="records-table">
+    <div class="records-table-wrap" tabindex="0" role="region" aria-label="Competitive timeline">
+      <table class="data-table">
         <thead>
           <tr>
             <th>Year</th>
@@ -59,7 +57,7 @@
     </div>
     {{#each content.byYear}}
     <h3 class="year-heading">{{year}}</h3>
-    <table class="records-table">
+    <table class="data-table">
       <thead>
         <tr>
           <th>Event</th>

@@ -20,9 +20,7 @@
     and cannot be set by hand; <code>#curated</code> is similarly reserved.
   </p>
 
-  {{#if content.errorMessage}}
-    <div class="form-error-banner" role="alert">{{content.errorMessage}}</div>
-  {{/if}}
+  {{> outcome-notice text=content.errorMessage tone='no'}}
 
   <form action="{{content.formAction}}" method="POST" enctype="multipart/form-data" class="upload-form form-block">
 

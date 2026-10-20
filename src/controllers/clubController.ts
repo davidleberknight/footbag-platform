@@ -136,13 +136,17 @@ export const clubController = {
 
       const club = { name, description, city, region, country, slug, confirmNearMatches };
 
-      const renderForm = (status: number, errorMessage: string, fieldErrors?: Record<string, string>, extra?: Record<string, unknown>) => {
+      // A near match holds the club back for a second look rather than
+      // refusing it, so that one prompt reads neutral; every other branch
+      // refuses the create.
+      const renderForm = (status: number, errorMessage: string, fieldErrors?: Record<string, string>, extra?: Record<string, unknown>, errorTone: OutcomeTone = 'no') => {
         res.status(status).render('clubs/create', {
           seo: { title: 'Create a Club' },
           page: { sectionKey: 'clubs', pageKey: 'clubs_create', title: 'Create a Club' },
           formAction: '/clubs/create',
           cancelHref: '/clubs',
           errorMessage,
+          errorTone,
           fieldErrors,
           club,
           countryOptions: locationPickers(country, '').countryOptions,
@@ -182,7 +186,7 @@ export const clubController = {
         case 'near_matches_found':
           renderForm(422, 'A similarly named club may already exist in that country. Review the matches below; if your club is distinct, confirm and submit again.', undefined, {
             nearMatches: result.nearMatches,
-          });
+          }, 'info');
           return;
         case 'tag_conflict':
           renderForm(422, `The hashtag ${result.tagNormalized} is already taken. Try adding something that sets your club apart, such as a neighbourhood or part of the club name.`);

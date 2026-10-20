@@ -148,12 +148,21 @@ export const adminHonorGrantsController = {
   boardConfirm(setting: boolean) {
     return (req: Request, res: Response, next: NextFunction): void => {
       try {
-        adminHonorGrantService.applyBoardChange(
+        const outcome = adminHonorGrantService.applyBoardChange(
           req.user!.userId,
           String(req.body.member_key ?? ''),
           setting,
           String(req.body.reason ?? ''),
         );
+        if (outcome.notice) {
+          redirectWithOutcome(req, res, {
+            flash: FLASH_KIND.HONOR_GRANT_OUTCOME,
+            to: '/admin/honor-grants',
+            ending: outcome.ending,
+            text: outcome.notice,
+          });
+          return;
+        }
         res.redirect(303, '/admin/honor-grants');
       } catch (err) {
         if (err instanceof NotFoundError || err instanceof ValidationError || err instanceof ConflictError) {

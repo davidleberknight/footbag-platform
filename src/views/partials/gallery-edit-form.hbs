@@ -29,9 +29,7 @@
 --}}
 <form method="POST" action="{{formAction}}" class="form-block"
       enctype="multipart/form-data">
-  {{#if errorMessage}}
-    <div class="form-error-banner" role="alert">{{errorMessage}}</div>
-  {{/if}}
+  {{> outcome-notice text=errorMessage tone='no'}}
 
   {{#if moderation}}
     {{! The name and the description belong to the member who wrote them, so
@@ -93,7 +91,7 @@
 
   <details class="gallery-advanced"{{#if (or fieldErrors.criteriaTags (or fieldErrors.excludeTags fieldErrors.sortOrder))}} open{{/if}}>
     <summary>Advanced: which items appear, and their order</summary>
-    <p class="form-hint">These settings use hashtags to choose what the gallery collects, and how its items are ordered. They are separate from the gallery's name, which is only its title and its web address.</p>
+    <p class="fs-sm">These settings use hashtags to choose what the gallery collects, and how its items are ordered. They are separate from the gallery's name, which is only its title and its web address.</p>
 
     <div class="form-field">
       <label for="gallery-sort-order">Sort order</label>

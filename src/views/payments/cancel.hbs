@@ -8,7 +8,7 @@
   <section>
     <div class="card">
       <h2>{{content.message}}</h2>
-      <div class="mt-6">
+      <div class="card-actions">
         {{#if content.tryAgain}}
           <form method="POST" action="{{content.tryAgain.action}}" class="membership-upgrade-form">
             <input type="hidden" name="tier" value="{{content.tryAgain.tier}}" />
@@ -16,7 +16,7 @@
             <button type="submit" class="btn btn-primary">Try Again</button>
           </form>
         {{/if}}
-        <a href="{{content.continueHref}}" class="btn btn-outline ml-2">Continue</a>
+        <a href="{{content.continueHref}}" class="btn btn-outline">Continue</a>
       </div>
     </div>
   </section>

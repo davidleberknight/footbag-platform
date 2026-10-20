@@ -560,6 +560,11 @@ describe('POST /clubs/create — near-match duplicate warning', () => {
     expect(warned.text).toContain('similarly named club');
     expect(warned.text).toContain('Tampere Kickers');
     expect(warned.text).toContain('confirm_near_matches');
+    // A near match holds the create back for a second look rather than refusing
+    // it, so the prompt reads neutral; red would tell the creator they cannot
+    // make the club at all.
+    expect(warned.text).toMatch(/class="form-notice" role="status">\s*<p>A similarly named club/);
+    expect(warned.text).not.toContain('form-error-banner');
 
     const confirmed = await request(app)
       .post('/clubs/create')

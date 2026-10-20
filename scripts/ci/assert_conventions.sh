@@ -639,6 +639,37 @@ if [ -n "$message_class_hits" ]; then
 fi
 fi
 
+# Rule: only the outcome-notice partial writes the success, informational and
+# refusal classes, and the warning caution appears only on a confirm page.
+# Reason: the message vocabulary in .claude/rules/view-layer.md makes that
+# partial the one renderer of an action's result. A template or script that
+# writes the classes itself is a second renderer, which is how the same kind of
+# outcome came to be drawn green on one page and neutral on another. The check
+# above stops a fifth treatment; this one stops a second renderer of the four.
+# Allowlisted exceptions: the warning caution on a confirm page, the files named
+# *confirm*.hbs plus the account-deletion page, which is that flow's confirm
+# step, because a caution before an act reports no outcome.
+if check "outcome message classes outside the outcome-notice partial" src/views src/public/js; then
+outcome_class_hits=$(grep -rnE --include='*.hbs' --include='*.js' \
+    'form-success-banner|form-error-banner|form-notice([^-a-z]|$)' src/views/ src/public/js/ \
+  | grep -v '^src/views/partials/outcome-notice\.hbs:' \
+  || true)
+caution_class_hits=$(grep -rn --include='*.hbs' --include='*.js' 'notice-warn' src/views/ src/public/js/ \
+  | grep -vE '^src/views/[^:]*confirm[^:/]*\.hbs:' \
+  | grep -v '^src/views/members/delete-account\.hbs:' \
+  || true)
+if [ -n "$outcome_class_hits" ]; then
+  echo "$outcome_class_hits" >&2
+  echo "  FAIL: an action's result renders through the outcome-notice partial, never by writing its class; see the message vocabulary in .claude/rules/view-layer.md" >&2
+  violations=$((violations + 1))
+fi
+if [ -n "$caution_class_hits" ]; then
+  echo "$caution_class_hits" >&2
+  echo "  FAIL: notice-warn is the caution on a confirm page only; a standing caveat elsewhere is a callout (notice-card)" >&2
+  violations=$((violations + 1))
+fi
+fi
+
 # Rule: every font-family declaration in style.css resolves through the
 # --font-body / --font-mono tokens (or inherits), except inside @font-face
 # blocks, which by nature name the typeface they register.
@@ -675,6 +706,114 @@ hex_hits=$(awk '
 if [ -n "$hex_hits" ]; then
   echo "$hex_hits" >&2
   echo "  FAIL: colors must use :root tokens; raw hex belongs only in the :root token block" >&2
+  violations=$((violations + 1))
+fi
+fi
+
+# Rule: no rgb(), rgba(), hsl(), hsla() or named colour in a rule body either.
+# Reason: the hex check is the floor of the token rule, not its extent; an rgba
+# overlay or a named colour is the same untracked one-off in another spelling.
+# The rules still carrying one are listed, one per line as
+# "<selector line> | <declaration line>", in colour-literal-allowlist.txt. The
+# list only shrinks: a listed rule that no longer carries its literal fails too,
+# so moving a rule onto a token removes its line in the same change.
+if check "rgb, hsl or named colour outside :root in style.css" src/public/css/style.css; then
+colour_names='aliceblue|antiquewhite|aqua|aquamarine|azure|beige|bisque|black|blanchedalmond|blue|blueviolet|brown|burlywood|cadetblue|chartreuse|chocolate|coral|cornflowerblue|cornsilk|crimson|cyan|darkblue|darkcyan|darkgoldenrod|darkgray|darkgreen|darkgrey|darkkhaki|darkmagenta|darkolivegreen|darkorange|darkorchid|darkred|darksalmon|darkseagreen|darkslateblue|darkslategray|darkslategrey|darkturquoise|darkviolet|deeppink|deepskyblue|dimgray|dimgrey|dodgerblue|firebrick|floralwhite|forestgreen|fuchsia|gainsboro|ghostwhite|gold|goldenrod|gray|green|greenyellow|grey|honeydew|hotpink|indianred|indigo|ivory|khaki|lavender|lavenderblush|lawngreen|lemonchiffon|lightblue|lightcoral|lightcyan|lightgoldenrodyellow|lightgray|lightgreen|lightgrey|lightpink|lightsalmon|lightseagreen|lightskyblue|lightslategray|lightslategrey|lightsteelblue|lightyellow|lime|limegreen|linen|magenta|maroon|mediumaquamarine|mediumblue|mediumorchid|mediumpurple|mediumseagreen|mediumslateblue|mediumspringgreen|mediumturquoise|mediumvioletred|midnightblue|mintcream|mistyrose|moccasin|navajowhite|navy|oldlace|olive|olivedrab|orange|orangered|orchid|palegoldenrod|palegreen|paleturquoise|palevioletred|papayawhip|peachpuff|peru|pink|plum|powderblue|purple|rebeccapurple|red|rosybrown|royalblue|saddlebrown|salmon|sandybrown|seagreen|seashell|sienna|silver|skyblue|slateblue|slategray|slategrey|snow|springgreen|steelblue|tan|teal|thistle|tomato|turquoise|violet|wheat|white|whitesmoke|yellow|yellowgreen'
+colour_hits=$(awk -v names="$colour_names" '
+  BEGIN { named = "(^|[^A-Za-z0-9_-])(" names ")([^A-Za-z0-9_-]|$)" }
+  /:root/ { inroot = 1 }
+  inroot { if (/}/) inroot = 0; next }
+  {
+    line = $0; gsub(/\/\*.*\*\//, "", line)
+    body = line
+    if (index(line, "{") > 0) {
+      selector = substr(line, 1, index(line, "{") - 1)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", selector)
+      body = substr(line, index(line, "{") + 1)
+    }
+    if (body ~ /,[[:space:]]*$/) next
+    gsub(/var\(--[A-Za-z0-9_-]+/, "", body)
+    gsub(/url\([^)]*\)/, "", body)
+    gsub(/"[^"]*"|\047[^\047]*\047/, "", body)
+    n = split(body, decls, ";")
+    hit = 0
+    for (i = 1; i <= n; i++) {
+      if (decls[i] !~ /^[[:space:]]*-?[a-z][a-z-]*[[:space:]]*:/) continue
+      value = decls[i]; sub(/^[^:]*:/, "", value)
+      if (value ~ /(rgba?|hsla?)\(/ || tolower(value) ~ named) hit = 1
+    }
+    if (hit) {
+      key = line; gsub(/^[[:space:]]+|[[:space:]]+$/, "", key)
+      print selector " | " key
+    }
+  }
+' src/public/css/style.css || true)
+colour_allowed=""
+[ -f scripts/ci/colour-literal-allowlist.txt ] \
+  && colour_allowed=$(grep -vE '^[[:space:]]*(# |#$|$)' scripts/ci/colour-literal-allowlist.txt || true)
+colour_new=$(printf '%s\n' "$colour_hits" | grep -vxFf <(printf '%s\n' "$colour_allowed") | grep -v '^$' || true)
+colour_stale=$(printf '%s\n' "$colour_allowed" | grep -vxFf <(printf '%s\n' "$colour_hits") | grep -v '^$' || true)
+if [ -n "$colour_new" ]; then
+  echo "$colour_new" >&2
+  echo "  FAIL: rgb(), hsl() and named colours belong only in the :root token block; use a token" >&2
+  violations=$((violations + 1))
+fi
+if [ -n "$colour_stale" ]; then
+  echo "$colour_stale" >&2
+  echo "  FAIL: colour-literal-allowlist.txt lists a rule that no longer carries a colour literal; delete its line" >&2
+  violations=$((violations + 1))
+fi
+fi
+
+# Rule: margin, padding and gap take a --space-* role token, never a raw length.
+# Reason: spacing left to each component drifts to a different density on
+# every page, and gaps open where two components each add their own margin;
+# one role per distance, applied by the shared components, keeps the rhythm
+# the same site-wide. 0, auto, a percentage and a 1px border correction are not
+# spacing lengths. Rules still carrying one are listed, one per line as
+# "<selector line> | <declaration line>", in spacing-literal-allowlist.txt; the
+# list only shrinks, and a listed rule that no longer needs its line fails too.
+if check "raw spacing length outside :root in style.css" src/public/css/style.css; then
+spacing_hits=$(awk '
+  /:root/ { inroot = 1 }
+  inroot { if (/}/) inroot = 0; next }
+  {
+    line = $0; gsub(/\/\*.*\*\//, "", line)
+    body = line
+    if (index(line, "{") > 0) {
+      selector = substr(line, 1, index(line, "{") - 1)
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", selector)
+      body = substr(line, index(line, "{") + 1)
+    }
+    if (body ~ /,[[:space:]]*$/) next
+    gsub(/var\(--[A-Za-z0-9_-]+\)/, "", body)
+    n = split(body, decls, ";")
+    hit = 0
+    for (i = 1; i <= n; i++) {
+      if (decls[i] !~ /^[[:space:]]*(margin|padding|gap|row-gap|column-gap)(-[a-z-]+)?[[:space:]]*:/) continue
+      value = decls[i]; sub(/^[^:]*:/, "", value)
+      gsub(/(^|[^0-9.])-?1px/, " ", value)
+      if (value ~ /[0-9.]+(px|rem|em|ch|vh|vw)/) hit = 1
+    }
+    if (hit) {
+      key = line; gsub(/^[[:space:]]+|[[:space:]]+$/, "", key)
+      print selector " | " key
+    }
+  }
+' src/public/css/style.css || true)
+spacing_allowed=""
+[ -f scripts/ci/spacing-literal-allowlist.txt ] \
+  && spacing_allowed=$(grep -vE '^[[:space:]]*(# |#$|$)' scripts/ci/spacing-literal-allowlist.txt || true)
+spacing_new=$(printf '%s\n' "$spacing_hits" | grep -vxFf <(printf '%s\n' "$spacing_allowed") | grep -v '^$' || true)
+spacing_stale=$(printf '%s\n' "$spacing_allowed" | grep -vxFf <(printf '%s\n' "$spacing_hits") | grep -v '^$' || true)
+if [ -n "$spacing_new" ]; then
+  echo "$spacing_new" >&2
+  echo "  FAIL: margin, padding and gap take a --space-* token; a raw length breaks the one spacing rhythm" >&2
+  violations=$((violations + 1))
+fi
+if [ -n "$spacing_stale" ]; then
+  echo "$spacing_stale" >&2
+  echo "  FAIL: spacing-literal-allowlist.txt lists a rule that no longer carries a raw spacing length; delete its line" >&2
   violations=$((violations + 1))
 fi
 fi

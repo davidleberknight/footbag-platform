@@ -5,6 +5,13 @@
  * server-rendered status section as state events arrive. Without JS the page
  * still works on first paint; refresh to re-poll. With JS, no polling — every
  * update is push-driven from the worker via web's /ipc/job-events bus.
+ *
+ * In-progress states are redrawn here as plain status lines. A terminal state
+ * (succeeded, failed, abandoned) is an outcome, and outcomes are drawn only by
+ * the server's shared notice, so the script reloads the page for it instead of
+ * writing a second copy of that markup. A page that arrives already terminal
+ * has nothing left to wait for and opens no stream, which also keeps the reload
+ * from looping.
  */
 (function () {
   'use strict';
@@ -13,7 +20,7 @@
     return (root || document).querySelector(selector);
   }
 
-  function setSectionState(section, state, mediaId, errorMessage) {
+  function setSectionState(section, state, errorMessage) {
     section.dataset.state = state || '';
     var html = '';
     if (state === 'pending_upload') {
@@ -25,25 +32,12 @@
     } else if (state === 'retrying') {
       var retryPart = errorMessage ? ': ' + escapeHtml(errorMessage) : '';
       html = '<p>Transcode hit a temporary error' + retryPart + '. Retrying now.</p>';
-    } else if (state === 'succeeded') {
-      var link = mediaId
-        ? ' <a href="/admin/curator/media/' + encodeURIComponent(mediaId) + '/edit">Open the new media item.</a>'
-        : '';
-      html =
-        '<p class="form-success-banner" role="status">Transcode succeeded.' + link + '</p>';
-    } else if (state === 'failed') {
-      var msgPart = errorMessage ? ': ' + escapeHtml(errorMessage) : '';
-      html =
-        '<p class="form-error-banner" role="alert">Transcode failed' +
-        msgPart +
-        '. Re-upload the file to try again.</p>' +
-        '<p><a href="/admin/curator/upload">Back to upload</a></p>';
-    } else if (state === 'abandoned') {
-      html =
-        '<p class="form-error-banner" role="alert">The upload session expired before finalizing. Re-upload to try again.</p>' +
-        '<p><a href="/admin/curator/upload">Back to upload</a></p>';
     }
     if (html) section.innerHTML = html;
+  }
+
+  function isTerminal(state) {
+    return state === 'succeeded' || state === 'failed' || state === 'abandoned';
   }
 
   function escapeHtml(s) {
@@ -59,6 +53,7 @@
     var hint = $('[data-events-url]');
     var section = $('[data-job-status]');
     if (!hint || !section) return;
+    if (isTerminal(section.dataset.state)) return;
     var url = hint.getAttribute('data-events-url');
     if (!url || typeof EventSource === 'undefined') return;
 
@@ -67,12 +62,14 @@
       var data = null;
       try { data = JSON.parse(ev.data); } catch (e) { return; }
       if (!data || typeof data.state !== 'string') return;
-      setSectionState(section, data.state, data.mediaId, data.errorMessage);
-      if (data.state === 'succeeded' || data.state === 'failed' || data.state === 'abandoned') {
-        // Terminal: stop reconnecting. EventSource auto-reconnects on close
-        // unless we close from the client side.
+      if (isTerminal(data.state)) {
+        // Close first: EventSource reconnects on its own unless the client
+        // closes it, and the reloaded page draws the outcome.
         src.close();
+        window.location.reload();
+        return;
       }
+      setSectionState(section, data.state, data.errorMessage);
     });
     src.addEventListener('heartbeat', function () { /* keep connection warm */ });
     src.onerror = function () {

@@ -11,9 +11,7 @@
       <div class="card-title">Your Details</div>
       <p>Tell us where you live now and when you were born. These fields come first because we use them to find your old footbag.org records in the next step. The fields marked (required) must be filled in to save.</p>
 
-      {{#if content.error}}
-        <p class="form-error-banner" role="alert">{{content.error}}</p>
-      {{/if}}
+      {{> outcome-notice text=content.error tone='no'}}
 
       <form method="POST" action="/register/wizard/personal_details/submit" class="form-block">
         <div class="form-field">
@@ -78,7 +76,7 @@
 
         <fieldset class="form-fieldset">
           <legend>Gender (competition eligibility) <span class="text-muted">(optional)</span></legend>
-          <p class="text-muted fs-sm">Private by default: visible only to you and IFPA administrators. You can choose later, in your profile settings, to show it to signed-in members on your profile, in member search, and on club rosters. Used only for gender-based event-category eligibility. Choose 'Prefer not to say' to keep it undisclosed; you can record your gender anytime to enter women's or mixed-doubles draws.</p>
+          <p class="fs-sm">Private by default: visible only to you and IFPA administrators. You can choose later, in your profile settings, to show it to signed-in members on your profile, in member search, and on club rosters. Used only for gender-based event-category eligibility. Choose 'Prefer not to say' to keep it undisclosed; you can record your gender anytime to enter women's or mixed-doubles draws.</p>
           <div class="form-field">
             <label>
               <input type="radio" name="gender" value="male" {{#if (eq content.gender "male")}}checked{{/if}} />

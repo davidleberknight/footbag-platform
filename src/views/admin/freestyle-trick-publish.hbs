@@ -13,14 +13,10 @@
 <div class="wrapper">
 
   {{#unless content.publishable}}
-  <p class="notice notice-warn">{{content.refusal}}</p>
+  <p class="notice-card notice-card--warn">{{content.refusal}}</p>
   {{/unless}}
 
-  {{#if content.hasErrors}}
-  <div class="form-error-banner" role="alert">
-    {{#each content.errorList}}<p>{{this}}</p>{{/each}}
-  </div>
-  {{/if}}
+  {{> outcome-notice lines=content.errorList tone='no'}}
 
   <section class="content-section">
     <div class="section-heading">

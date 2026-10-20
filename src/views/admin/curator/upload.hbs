@@ -20,24 +20,22 @@
 <div class="wrapper">
   <p>Upload curated photos, videos, or URL references (YouTube / Vimeo). Content is attributed to the system member account (Footbag Hacky).</p>
 
-  {{#if content.errorMessage}}
-    <div class="form-error-banner" role="alert">{{content.errorMessage}}</div>
-  {{/if}}
+  {{> outcome-notice text=content.errorMessage tone='no'}}
 
   {{#if content.savedFlag}}
-    <div class="form-success-banner" role="status">
+    {{#> outcome-notice tone='ok'}}
       {{#if content.sidecarWritesEnabled}}
         Sidecar saved under <code>/curated/</code>. Run the curator seeder
         (<code>python scripts/seed_fh_curator.py</code>) to update the platform DB.
       {{else}}
         Uploaded.
       {{/if}}
-    </div>
+    {{/outcome-notice}}
   {{/if}}
 
   {{#if content.asyncEnabled}}
     <noscript>
-      <div class="form-error-banner" role="alert">
+      <div class="notice-card notice-card--warn">
         JavaScript is required to upload videos in this environment.
         Photo and URL-reference uploads work without it.
       </div>
@@ -137,7 +135,7 @@
     {{#if content.sidecarWritesEnabled}}
     <fieldset class="form-fieldset">
       <legend>Category</legend>
-      <p class="text-muted fs-sm">Required for every upload. Determines which subdirectory of <code>/curated/</code> the upload lands in. Tick exactly one existing category, or type a new category name to create a new subdirectory.</p>
+      <p class="fs-sm">Required for every upload. Determines which subdirectory of <code>/curated/</code> the upload lands in. Tick exactly one existing category, or type a new category name to create a new subdirectory.</p>
       {{#if content.hasExistingCategories}}
         <div class="form-field">
           {{#each content.existingCategories}}

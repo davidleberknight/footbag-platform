@@ -110,6 +110,7 @@ import { runSqliteRead } from './sqliteRetry';
 import { NotFoundError, RateLimitedError, ValidationError } from './serviceErrors';
 import { cleanUserText } from '../lib/textSanitizer';
 import { PageViewModel } from '../types/page';
+import type { OutcomeNoticeView } from '../lib/outcomeNotice';
 
 export const CONTACT_CATEGORIES = [
   'display_name_correction',
@@ -522,6 +523,9 @@ export interface WorkQueueContent {
    *  a revert resolves nothing and answers nobody: the request is still open,
    *  waiting on an approval or a rejection, and the banner has to say so. */
   claimRevertedFlag: boolean;
+  /** An action that found its item already settled by another act, carried
+   *  across the redirect with its informational tone. */
+  outcome: OutcomeNoticeView | null;
   /**
    * The kinds of answer a question can ask for, as value-and-label pairs.
    *
@@ -1391,6 +1395,7 @@ export const adminWorkQueueService = {
     parkedFlag?: boolean;
     unparkedFlag?: boolean;
     claimRevertedFlag?: boolean;
+    outcome?: OutcomeNoticeView | null;
     /** A deep link naming the item whose composer should open already drafted. */
     askItemId?: string | null;
     /** Show one category alone. An unknown value shows the whole queue. */
@@ -1414,6 +1419,7 @@ export const adminWorkQueueService = {
     parkedFlag?: boolean;
     unparkedFlag?: boolean;
     claimRevertedFlag?: boolean;
+    outcome?: OutcomeNoticeView | null;
     /** A deep link naming the item whose composer should open already drafted. */
     askItemId?: string | null;
     /** Show one category alone. An unknown value shows the whole queue. */
@@ -1476,6 +1482,7 @@ export const adminWorkQueueService = {
         claimNoopFlag: opts.claimNoopFlag ?? false,
         memberAskedFlag: opts.memberAskedFlag ?? false,
         claimRevertedFlag: opts.claimRevertedFlag ?? false,
+        outcome: opts.outcome ?? null,
         answerKindOptions: ANSWER_KIND_OPTIONS,
         errorMessage: opts.errorMessage ?? null,
       },

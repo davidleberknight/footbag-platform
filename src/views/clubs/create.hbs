@@ -13,7 +13,7 @@
     <p class="fs-sm">You become the club's first leader. Before creating, check the <a href="/clubs">clubs page</a> to see whether your club is already listed.</p>
 
     {{#if errorMessage}}
-      <div class="form-error-banner" role="alert">
+      {{#> outcome-notice tone=errorTone}}
         <p>{{errorMessage}}</p>
         {{#if existingClubHref}}
           <p><a href="{{existingClubHref}}">View {{existingClubName}}</a></p>
@@ -25,7 +25,7 @@
             {{/each}}
           </ul>
         {{/if}}
-      </div>
+      {{/outcome-notice}}
     {{/if}}
 
     <form method="POST" action="{{formAction}}" class="login-form">

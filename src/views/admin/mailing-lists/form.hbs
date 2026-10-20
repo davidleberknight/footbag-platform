@@ -11,11 +11,7 @@
 
 <div class="wrapper">
   <section>
-    {{#if content.hasErrors}}
-    <div class="form-error-banner" role="alert">
-      {{#each content.errorList}}<p>{{this}}</p>{{/each}}
-    </div>
-    {{/if}}
+    {{> outcome-notice lines=content.errorList tone='no'}}
 
     <form method="POST" action="{{content.formAction}}" class="form-block">
       <div class="form-field">

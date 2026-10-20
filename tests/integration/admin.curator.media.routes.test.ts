@@ -681,6 +681,11 @@ describe('admin curator media routes — sidecar-backed (URL reference)', () => 
     expect(res.status).toBe(200);
     expect(res.text).toContain('Saved.');
     expect(res.text).toContain('seed_fh_curator.py');
+    // The message carries a code span, so it goes through the notice's block
+    // form: the success treatment wraps the markup rather than escaping it.
+    expect(res.text).toMatch(
+      /<div class="form-success-banner" role="status">\s*Saved\.[^]*?<code>python scripts\/seed_fh_curator\.py<\/code>[^]*?<\/div>/,
+    );
   });
 
   it('GET list after a POST delete renders the success banner from flash cookie', async () => {

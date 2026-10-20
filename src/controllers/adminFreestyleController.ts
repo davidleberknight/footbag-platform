@@ -8,6 +8,7 @@ import {
   FreestyleModifierLinkInput,
   FreestyleSourceInput,
   FreestyleTrickPublicationInput,
+  type CurationLinkOutcome,
 } from '../services/freestyleCurationService';
 import {
   freestyleRecordCurationService,
@@ -20,6 +21,8 @@ import {
 import { NotFoundError, ValidationError } from '../services/serviceErrors';
 import { renderNotFound } from '../lib/controllerErrors';
 import { FLASH_KIND, takeFlash, writeFlash } from '../lib/flashCookie';
+import { outcomeNotice } from '../lib/outcomeNotice';
+import { redirectWithOutcome } from '../lib/actionOutcome';
 
 /** Redirect to an edit page after a save, carrying the confirmation in the
  *  one-shot flash keyed to that page's own path. */
@@ -31,6 +34,20 @@ function redirectSaved(req: Request, res: Response, editPath: string): void {
 /** Whether this edit page is the one a save just landed on. */
 function savedHere(req: Request, res: Response, editPath: string): boolean {
   return takeFlash(req, res, FLASH_KIND.ADMIN_SAVED) === editPath;
+}
+
+/** Return to the trick edit page after an attach. The first attach and the
+ *  curator's own repeat return as they always have; a link someone else had
+ *  already made says so in the informational tone. */
+function redirectAfterAttach(req: Request, res: Response, slug: string, outcome: CurationLinkOutcome): void {
+  const editPath = `/admin/freestyle/tricks/${slug}/edit`;
+  if (outcome.notice) {
+    redirectWithOutcome(req, res, {
+      flash: FLASH_KIND.FREESTYLE_EDIT_OUTCOME, to: editPath, ending: outcome.ending, text: outcome.notice,
+    });
+    return;
+  }
+  res.redirect(303, editPath);
 }
 
 export const adminFreestyleController = {
@@ -141,7 +158,9 @@ export const adminFreestyleController = {
       const slug = freestyleCurationService.publishCanonicalTrick(
         candidateId, submitted, req.user!.userId,
       );
-      res.redirect(303, `/admin/freestyle/tricks/${slug}/edit`);
+      const editPath = `/admin/freestyle/tricks/${slug}/edit`;
+      writeFlash(res, req, FLASH_KIND.TRICK_PUBLISHED, editPath);
+      res.redirect(303, editPath);
     } catch (err) {
       if (err instanceof ValidationError) {
         const vm = freestyleCurationService.getTrickPublicationPage(candidateId, {
@@ -182,8 +201,11 @@ export const adminFreestyleController = {
   edit(req: Request, res: Response, next: NextFunction): void {
     try {
       const slug = String(req.params.slug);
+      const editPath = `/admin/freestyle/tricks/${slug}/edit`;
       const vm = freestyleCurationService.getTrickEditPage(slug, {
-        saved: savedHere(req, res, `/admin/freestyle/tricks/${slug}/edit`),
+        saved: savedHere(req, res, editPath),
+        published: takeFlash(req, res, FLASH_KIND.TRICK_PUBLISHED) === editPath,
+        outcome: outcomeNotice(takeFlash(req, res, FLASH_KIND.FREESTYLE_EDIT_OUTCOME)),
       });
       if (!vm) {
         renderNotFound(res);
@@ -258,8 +280,7 @@ export const adminFreestyleController = {
     };
 
     try {
-      freestyleCurationService.addAlias(slug, input, req.user!.userId);
-      res.redirect(303, `/admin/freestyle/tricks/${slug}/edit`);
+      redirectAfterAttach(req, res, slug, freestyleCurationService.addAlias(slug, input, req.user!.userId));
     } catch (err) {
       if (err instanceof ValidationError) {
         const vm = freestyleCurationService.getTrickEditPage(slug, {
@@ -351,8 +372,7 @@ export const adminFreestyleController = {
     };
 
     try {
-      freestyleCurationService.attachSource(slug, input, req.user!.userId);
-      res.redirect(303, `/admin/freestyle/tricks/${slug}/edit`);
+      redirectAfterAttach(req, res, slug, freestyleCurationService.attachSource(slug, input, req.user!.userId));
     } catch (err) {
       if (err instanceof ValidationError) {
         const vm = freestyleCurationService.getTrickEditPage(slug, {
@@ -402,8 +422,7 @@ export const adminFreestyleController = {
     };
 
     try {
-      freestyleCurationService.attachModifier(slug, input, req.user!.userId);
-      res.redirect(303, `/admin/freestyle/tricks/${slug}/edit`);
+      redirectAfterAttach(req, res, slug, freestyleCurationService.attachModifier(slug, input, req.user!.userId));
     } catch (err) {
       if (err instanceof ValidationError) {
         const vm = freestyleCurationService.getTrickEditPage(slug, {

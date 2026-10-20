@@ -505,7 +505,7 @@ async function postPasswordReset(req: Request, res: Response, next: NextFunction
         page: { sectionKey: '', pageKey: 'password_reset', title: 'Set a New Password' },
         content: {
           token: undefined,
-          error:
+          resetButSignedOut:
             'Your password was reset, but we could not sign you in. ' +
             'Please go to the login page and sign in with your new password.',
         },

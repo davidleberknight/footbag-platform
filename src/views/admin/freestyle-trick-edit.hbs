@@ -7,14 +7,14 @@
 
 <div class="wrapper">
   <section>
+    {{#if content.published}}
+    {{> outcome-notice text="Trick published." tone='ok'}}
+    {{/if}}
+    {{> outcome-notice text=content.outcome.text tone=content.outcome.tone}}
     {{#if content.saved}}
     {{> outcome-notice text="Saved." tone='ok'}}
     {{/if}}
-    {{#if content.hasErrors}}
-    <div class="form-error-banner" role="alert">
-      {{#each content.errorList}}<p>{{this}}</p>{{/each}}
-    </div>
-    {{/if}}
+    {{> outcome-notice lines=content.errorList tone='no'}}
 
     <form method="POST" action="/admin/freestyle/tricks/{{content.slug}}/edit" class="form-block">
       <fieldset class="form-fieldset">
@@ -97,9 +97,7 @@
 
     <h2 class="section-heading">Aliases</h2>
     {{#if content.hasAliasError}}
-    <div class="form-error-banner" role="alert">
-      <p>{{content.aliasError}}</p>
-    </div>
+    {{> outcome-notice text=content.aliasError tone='no'}}
     {{/if}}
     {{#if content.hasAliases}}
     <ul class="freestyle-edit-list">
@@ -181,9 +179,7 @@
 
     <h2 class="section-heading">Sources</h2>
     {{#if content.hasSourceError}}
-    <div class="form-error-banner" role="alert">
-      <p>{{content.sourceError}}</p>
-    </div>
+    {{> outcome-notice text=content.sourceError tone='no'}}
     {{/if}}
     {{#if content.hasSources}}
     <ul class="freestyle-edit-list">
@@ -225,9 +221,7 @@
 
     <h2 class="section-heading">Modifier Links</h2>
     {{#if content.hasModifierError}}
-    <div class="form-error-banner" role="alert">
-      <p>{{content.modifierError}}</p>
-    </div>
+    {{> outcome-notice text=content.modifierError tone='no'}}
     {{/if}}
     {{#if content.hasModifierLinks}}
     <ul class="freestyle-edit-list">

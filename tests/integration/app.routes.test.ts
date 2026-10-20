@@ -1104,6 +1104,22 @@ describe('GET /history/:personId', () => {
     expect(res.text).toContain('Shred30');
   });
 
+  it('ends the page with one back link, after the results, under one section-heading system', async () => {
+    const app = createApp();
+    const res = await request(app).get(`/history/${ALICE_ID}`);
+    expect(res.status).toBe(200);
+    // A visitor would otherwise meet the way out before the results, or twice.
+    const backLinks = res.text.match(/class="back-link"/g) ?? [];
+    expect(backLinks).toHaveLength(1);
+    expect(res.text.indexOf('class="back-link"')).toBeGreaterThan(res.text.indexOf('<h2>Competitive Results</h2>'));
+    // Every section heading sits in the shared wrapper, so headings on this
+    // page share one size and rhythm.
+    const h2s = res.text.match(/<h2[^>]*>/g) ?? [];
+    expect(h2s.length).toBeGreaterThan(0);
+    expect(res.text).not.toMatch(/<h2 class=/);
+    expect(res.text.match(/<div class="section-heading">\s*<h2>/g) ?? []).toHaveLength(h2s.length);
+  });
+
   it('returns 404 for non-existent player', async () => {
     const app = createApp();
     const res = await request(app).get('/history/person-does-not-exist');

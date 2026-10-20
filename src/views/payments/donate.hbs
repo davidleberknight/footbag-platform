@@ -7,12 +7,10 @@
 
 <div class="wrapper">
   <section>
-    {{#if content.formError}}
-      <div class="form-error-banner" role="alert">{{content.formError}}</div>
-    {{/if}}
+    {{> outcome-notice text=content.formError tone='no'}}
 
     {{#if content.hasActiveRecurring}}
-      <p class="form-notice" role="status">
+      <p class="notice-card notice-card--info">
         You already have a recurring donation running. You can review or cancel it on your
         <a href="{{content.paymentHistoryHref}}">payment history</a> page. Setting up another one
         here will run alongside it.

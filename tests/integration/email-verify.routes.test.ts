@@ -423,6 +423,10 @@ describe('POST /verify — session reissue failure', () => {
     expect(res.text).toContain('email is verified');
     expect(res.text).toContain('could not sign you in');
     expect(res.text).toContain('Sign In');
+    // The verification landed, so the sentence carries the success treatment;
+    // red would tell the member the link failed when it worked.
+    expect(res.text).toMatch(/class="form-success-banner" role="status">Your email is verified, but/);
+    expect(res.text).not.toContain('form-error-banner');
 
     const cookies = res.get('Set-Cookie');
     const sessionCookieIssued = cookies?.some((c) =>
@@ -505,6 +509,10 @@ describe('POST /verify/resend', () => {
     // Identical response (200 check-email) either way — anti-enumeration.
     expect(blocked.status).toBe(200);
     expect(countOutboxTo('resend@example.com')).toBe(4);
+    // The same sentence answers a resend that mailed and one that did not, so it
+    // cannot claim a change: it reads neutral, never as a success.
+    expect(blocked.text).toMatch(/class="form-notice" role="status">If an unverified account exists for that email/);
+    expect(blocked.text).not.toContain('form-success-banner');
   });
 
   // Defect caught: a double click or re-post of the resend form mails a second

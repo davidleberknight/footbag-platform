@@ -12,24 +12,24 @@
   </p>
 
   {{#if content.savedWasEdit}}
-    <div class="form-success-banner" role="status">
+    {{#> outcome-notice tone='ok'}}
       {{#if content.sidecarWritesEnabled}}
         Saved. If this was a URL-reference (YouTube/Vimeo) item, the sidecar under <code>/curated/</code> was rewritten;
         run <code>python scripts/seed_fh_curator.py</code> to fully resync the platform DB.
       {{else}}
         Saved.
       {{/if}}
-    </div>
+    {{/outcome-notice}}
   {{/if}}
   {{#if content.savedWasDelete}}
-    <div class="form-success-banner" role="status">
+    {{#> outcome-notice tone='ok'}}
       {{#if content.sidecarWritesEnabled}}
         Deleted. If this was a URL-reference (YouTube/Vimeo) item, the sidecar under <code>/curated/</code> was removed;
         run <code>python scripts/seed_fh_curator.py</code> to fully resync the platform DB.
       {{else}}
         Deleted.
       {{/if}}
-    </div>
+    {{/outcome-notice}}
   {{/if}}
 
   <form method="GET" action="{{content.listHref}}" class="curator-list-filter">

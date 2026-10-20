@@ -26,6 +26,7 @@
       {{#if href}}<a class="by-numbers-card" href="{{{href}}}">{{else}}<div class="by-numbers-card">{{/if}}
         <span class="by-numbers-eyebrow">{{eyebrow}}</span>
         <span class="by-numbers-title">{{title}}</span>
+        {{#if bars.length}}
         <span class="by-numbers-bars">
           {{#each bars}}
           <span class="by-numbers-bar">
@@ -35,12 +36,13 @@
           </span>
           {{/each}}
         </span>
+        {{/if}}
         {{#if footnote}}<span class="by-numbers-footnote">{{footnote}}</span>{{/if}}
         {{#if href}}<span class="by-numbers-cta">Browse</span>
       </a>{{else}}</div>{{/if}}
       {{/each}}
     </div>
-    <p class="text-muted fs-sm mt-4">{{content.note}}</p>
+    <p class="text-muted fs-sm">{{content.note}}</p>
   </section>
 
 </div>

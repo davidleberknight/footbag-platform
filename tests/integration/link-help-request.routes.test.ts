@@ -13,6 +13,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
+import { flashCookieOf } from '../fixtures/flashCookie';
 import { insertMember, insertLegacyMember, insertHistoricalPerson, insertAuditEntry, insertWorkQueueItem, createTestSessionJwt } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3089');
@@ -990,7 +991,15 @@ describe('admin review: separation of duties', () => {
       .type('form')
       .send({ target_historical_person_id: personId, reason: 'Nobody holds it now.' });
 
-    expect(res.status).toBe(422);
+    // Nothing needed reverting and nothing was refused, so the queue says so in
+    // the informational tone rather than drawing an error page.
+    expect(res.status).toBe(303);
+    const shown = await request(createApp())
+      .get(res.headers.location as string)
+      .set('Cookie', [adminCookie(), flashCookieOf(res)].filter(Boolean).join('; '));
+    expect(shown.text).toContain(
+      '<p class="form-notice" role="status">Nobody currently holds that record, so there is no claim to revert.</p>',
+    );
     expect(openItems(requesterId)[0].status).toBe('open');
     // No forensic pair is written for a revert that did not happen.
     expect(audits(holderId, 'claim.dispute_opened')).toHaveLength(0);

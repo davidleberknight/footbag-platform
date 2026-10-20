@@ -407,10 +407,14 @@ describe('POST /admin/freestyle/tips/:id/remap — remap to an active canonical 
     expect(res.text).toContain('not an active trick');
   });
 
-  it('rejects remapping to the trick the tip already points at with 422', async () => {
+  it('remapping to the trick the tip already points at is a repeat: back to the list, nothing written', async () => {
+    // Defect caught: a double-submitted remap draws a red refusal for a mapping
+    // the moderator's own first submit made.
+    const before = tipRow(tipGuard);
     const res = await post(`/admin/freestyle/tips/${tipGuard}/remap`, admin(), { targetSlug: 'whirl' });
-    expect(res.status).toBe(422);
-    expect(res.text).toContain('already mapped');
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toMatch(/^\/admin\/freestyle\/tips/);
+    expect(tipRow(tipGuard)).toEqual(before);
   });
 
   it('returns 403 for a non-admin and 302 for an anonymous visitor, writing nothing', async () => {

@@ -5,9 +5,8 @@
 </div>
 
 <div class="wrapper">
-  {{#if content.errorMessage}}
-    <div class="form-error-banner" role="alert">{{content.errorMessage}}</div>
-  {{/if}}
+  {{> outcome-notice text=content.errorMessage tone='no'}}
+  {{> outcome-notice text=content.notice.text tone=content.notice.tone}}
 
   <section>
     {{#if content.needsOrganizer}}<p class="badge">No organizer</p>{{/if}}

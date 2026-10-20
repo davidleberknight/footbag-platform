@@ -29,6 +29,10 @@
  *     validated, so the length checks measure what is stored.
  *   - Assignment and removal each keep the work-queue item honest in the same
  *     transaction as the change, so the queue can never disagree with the event.
+ *   - Assigning someone who already organizes the event, or removing someone
+ *     who no longer does, is a repeat and writes nothing: this admin's own
+ *     standing act ends as the first submit did, and a state someone else left
+ *     ends informational. Both writes return their ending and its sentence.
  *
  * Persistence: event_organizers, work_queue_items, audit_entries.
  *
@@ -40,11 +44,13 @@
  */
 import { randomUUID } from 'crypto';
 import { eventOrganizers, clubLeaders, workQueue, transaction } from '../db/db';
-import { appendAuditEntry } from './auditService';
+import { appendAuditEntry, findStandingOwnAct } from './auditService';
 import { workQueueService } from './workQueueService';
 import { NotFoundError, ValidationError } from './serviceErrors';
 import { PageViewModel } from '../types/page';
 import { cleanUserText } from '../lib/textSanitizer';
+import type { OutcomeNoticeView } from '../lib/outcomeNotice';
+import type { ActionEnding } from '../lib/actionOutcome';
 
 const NEEDS_ORGANIZER_TASK = 'needs_organizer';
 const REASON_MIN = 3;
@@ -87,7 +93,31 @@ export interface AdminEventOrganizerDetailContent {
   assignHref: string;
   removeHref: string;
   queueHref: string;
+  /** The result of the last assign or remove, carried across its redirect. */
+  notice: OutcomeNoticeView | null;
   errorMessage: string | null;
+}
+
+/** How an assign or a remove ended, and the sentence that reports it. */
+export interface OrganizerChangeOutcome {
+  ending: Exclude<ActionEnding, 'refused'>;
+  text: string;
+}
+
+const ASSIGNED_NOTICE = 'Organizer added.';
+const ALREADY_ORGANIZES_NOTICE = 'That member already organizes this event.';
+const REMOVED_NOTICE = 'Organizer removed.';
+const NOT_ORGANIZER_NOTICE = 'That member does not organize this event.';
+
+/** This admin's own standing act on this organizer of this event, if any. */
+function ownStandingAct(
+  adminMemberId: string, eventId: string, memberId: string,
+  act: 'event.organizer_assigned' | 'event.organizer_removed',
+): boolean {
+  const reversal = act === 'event.organizer_assigned' ? 'event.organizer_removed' : 'event.organizer_assigned';
+  const own = findStandingOwnAct(adminMemberId, act, reversal, 'event', eventId);
+  return own !== null
+    && (JSON.parse(own.metadata_json) as { organizer_member_id?: string }).organizer_member_id === memberId;
 }
 
 function requireReason(reason: string): string {
@@ -143,7 +173,7 @@ export const adminEventOrganizerService = {
 
   getEventOrganizersPage(
     eventId: string,
-    opts: { errorMessage?: string } = {},
+    opts: { notice?: OutcomeNoticeView | null; errorMessage?: string } = {},
   ): PageViewModel<AdminEventOrganizerDetailContent> {
     const event = loadEvent(eventId);
     const organizers = shapeOrganizers(eventId);
@@ -168,6 +198,7 @@ export const adminEventOrganizerService = {
         assignHref:    `/admin/events/${event.id}/organizers/assign`,
         removeHref:    `/admin/events/${event.id}/organizers/remove`,
         queueHref:     '/admin/events/organizers',
+        notice:        opts.notice ?? null,
         errorMessage:  opts.errorMessage ?? null,
       },
     };
@@ -177,8 +208,12 @@ export const adminEventOrganizerService = {
    * Give an event an organizer. Any open work-queue item saying it had none is
    * closed in the same transaction, so the queue cannot go on asking for
    * something that has been done.
+   *
+   * A member who already organizes the event is a repeat and writes nothing:
+   * this admin's own standing assignment reports the first submit's success,
+   * and one someone else made reports that nothing changed.
    */
-  assignOrganizer(adminMemberId: string, eventId: string, memberKey: string, reason: string): void {
+  assignOrganizer(adminMemberId: string, eventId: string, memberKey: string, reason: string): OrganizerChangeOutcome {
     const trimmedReason = requireReason(reason);
     const event = loadEvent(eventId);
     const key = memberKey.trim();
@@ -188,7 +223,9 @@ export const adminEventOrganizerService = {
     if (!member) throw new NotFoundError('No active member with that id or slug.');
 
     if (eventOrganizers.findRow.get(eventId, member.id)) {
-      throw new ValidationError('That member already organizes this event.');
+      return ownStandingAct(adminMemberId, eventId, member.id, 'event.organizer_assigned')
+        ? { ending: 'own_repeat', text: ASSIGNED_NOTICE }
+        : { ending: 'already_held', text: ALREADY_ORGANIZES_NOTICE };
     }
 
     const now = new Date().toISOString();
@@ -215,18 +252,26 @@ export const adminEventOrganizerService = {
         metadata:      { organizer_member_id: member.id, event_title: event.title },
       });
     });
+    return { ending: 'advance', text: ASSIGNED_NOTICE };
   },
 
   /**
    * Take an organizer off an event. If that was the last one, the event is
    * queued for an administrator in the same transaction, because an event
    * silently left with nobody is the state this whole surface exists to prevent.
+   *
+   * A member who no longer organizes the event is a repeat and writes nothing,
+   * reported the same way as a repeated assignment.
    */
-  removeOrganizer(adminMemberId: string, eventId: string, memberId: string, reason: string): void {
+  removeOrganizer(adminMemberId: string, eventId: string, memberId: string, reason: string): OrganizerChangeOutcome {
     const trimmedReason = requireReason(reason);
     const event = loadEvent(eventId);
     const existing = eventOrganizers.findRow.get(eventId, memberId) as { id: string } | undefined;
-    if (!existing) throw new NotFoundError('That member does not organize this event.');
+    if (!existing) {
+      return ownStandingAct(adminMemberId, eventId, memberId, 'event.organizer_removed')
+        ? { ending: 'own_repeat', text: REMOVED_NOTICE }
+        : { ending: 'already_held', text: NOT_ORGANIZER_NOTICE };
+    }
 
     transaction(() => {
       eventOrganizers.deleteRow.run(eventId, memberId);
@@ -254,5 +299,6 @@ export const adminEventOrganizerService = {
         metadata:      { organizer_member_id: memberId, event_title: event.title },
       });
     });
+    return { ending: 'advance', text: REMOVED_NOTICE };
   },
 };

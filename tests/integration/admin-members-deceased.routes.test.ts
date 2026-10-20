@@ -24,6 +24,7 @@ import {
   insertSystemConfig, insertEventOrganizer,
 } from '../fixtures/factories';
 import { expectLoggedError } from '../setup-env';
+import { flashCookieOf } from '../fixtures/flashCookie';
 
 const { dbPath } = setTestEnv('3431');
 process.env.PAYMENT_ADAPTER = 'stub';
@@ -323,6 +324,42 @@ describe('the same flag on a record nobody has claimed', () => {
       `SELECT is_deceased FROM historical_persons WHERE person_id = ?`,
     ).get(UNLINKED_PERSON_ID)) as { is_deceased: number };
     expect(person.is_deceased).toBe(0);
+  });
+
+  it('says what was recorded, and the same admin submitting it again gets the same answer with nothing written', async () => {
+    // Defect caught: the administrator lands back on the lookup with no word
+    // that the marking happened, or a double submit reads as nothing changing.
+    const personId = db((conn) => insertHistoricalPerson(conn, { person_name: 'Reported Legend' }));
+    const post = () => request(createApp())
+      .post(`/admin/historical-records/${personId}/deceased/confirm`)
+      .set('Cookie', adminCookie()).type('form').send({});
+    const land = (res: Awaited<ReturnType<typeof post>>) => request(createApp())
+      .get(res.headers.location as string)
+      .set('Cookie', [adminCookie(), flashCookieOf(res)].filter(Boolean).join('; '));
+    const success = '<div class="form-success-banner" role="status">Reported Legend is recorded as deceased, and the change is in the audit log.</div>';
+
+    const first = await post();
+    expect(first.status).toBe(303);
+    expect((await land(first)).text).toContain(success);
+    const again = await post();
+    expect(again.status).toBe(303);
+    expect((await land(again)).text).toContain(success);
+    expect(auditCount('member.deceased_marked', personId)).toBe(1);
+  });
+
+  it('a record another act already marked reads as informational, and nothing is written', async () => {
+    // Defect caught: a state that already held reported as this admin's
+    // success, claiming a change nobody made.
+    const personId = db((conn) => insertHistoricalPerson(conn, { person_name: 'Already Gone', is_deceased: 1 }));
+    const res = await request(createApp())
+      .post(`/admin/historical-records/${personId}/deceased/confirm`)
+      .set('Cookie', adminCookie()).type('form').send({});
+    expect(res.status).toBe(303);
+    const shown = await request(createApp())
+      .get(res.headers.location as string)
+      .set('Cookie', [adminCookie(), flashCookieOf(res)].filter(Boolean).join('; '));
+    expect(shown.text).toContain('<p class="form-notice" role="status">That record was already marked, so nothing changed.</p>');
+    expect(auditCount('member.deceased_marked', personId)).toBe(0);
   });
 
   it('refuses a direct request against a record somebody holds', async () => {

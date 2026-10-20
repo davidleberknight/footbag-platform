@@ -267,6 +267,11 @@ describe('POST /admin/email-templates/:key/edit', () => {
     expect(res.status).toBe(422);
     expect(res.text).toContain('Subject: required.');
     expect(res.text).toContain('Classification: choose one of the listed values.');
+    // Both refusals sit in the one refusal banner, a paragraph each, so neither
+    // is lost and neither reads as anything but a refusal.
+    expect(res.text).toMatch(
+      /<div class="form-error-banner" role="alert">\s*<p>[^<]*<\/p><p>[^<]*<\/p>\s*<\/div>/,
+    );
   });
 
   it('an unchecked enabled box disables the template', async () => {

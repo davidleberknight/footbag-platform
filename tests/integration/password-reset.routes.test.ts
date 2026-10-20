@@ -676,6 +676,10 @@ describe('POST /password/reset/:token — session reissue failure', () => {
     expect(res.text).toContain('Your password was reset');
     expect(res.text).toContain('could not sign you in');
     expect(res.text).toContain('login page');
+    // The reset happened, so the sentence carries the success treatment; red
+    // would tell the member their new password did not take.
+    expect(res.text).toMatch(/class="form-success-banner" role="status">Your password was reset/);
+    expect(res.text).not.toContain('form-error-banner');
 
     const cookies = res.get('Set-Cookie');
     const sessionCookieIssued = cookies?.some((c) =>

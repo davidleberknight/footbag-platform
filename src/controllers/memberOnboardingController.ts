@@ -135,7 +135,8 @@ async function renderLegacyClaim(
   // until they hold an account or a record. The date on file is offered for
   // correction because the matcher runs on it.
   data.sharpenNotice = !data.showNoLinkAnswers && memberOnboardingService.lastAttemptOpen(memberId);
-  data.birthDateSavedNotice = req.query.birth_date === 'saved';
+  data.birthDateSavedNotice = req.query.birth_date === 'saved' || req.query.birth_date === 'unchanged';
+  data.birthDateNoticeTone = req.query.birth_date === 'saved' ? 'ok' : 'info';
   if (data.sharpenNotice || data.birthDateSavedNotice) {
     const parts = memberService.getBirthDateParts(memberId);
     data.birthDay = parts.day;

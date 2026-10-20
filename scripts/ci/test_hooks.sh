@@ -494,6 +494,129 @@ expect_script $'#!/usr/bin/env bash\nsource /dev/null; aws s3 ls # aws-isolation
 expect_script $'#!/usr/bin/env bash\nsource "$(aws s3 ls)/aws-isolation.sh"\naws_isolate_self "$@"' ask
 expect_script $'#!/usr/bin/env bash\nset $(aws s3 ls)\nsource scripts/lib/aws-isolation.sh\naws_isolate_self "$@"' ask
 
+# A script path inside another command's quoted argument is data, not a run:
+# feeding a hook a test command that names a script must not prompt.
+expect "$H" "jq -n '{c:\"bash scripts/test-smoke.sh\"}' | bash scripts/ci/test_hooks.sh" defer
+expect "$H" "echo 'bash scripts/test-smoke.sh' > /dev/null" defer
+# ...while every way the shell really runs one still asks: a quoted operand, a
+# script fed on stdin, an operand after `--`, a subshell, and a path the guard
+# cannot read statically.
+expect "$H" 'bash "scripts/test-smoke.sh"' ask
+expect "$H" 'echo "scripts/test-smoke.sh" | sh' ask
+expect "$H" 'bash < scripts/test-smoke.sh' ask
+expect "$H" 'bash -- scripts/test-smoke.sh' ask
+expect "$H" 'true && (bash scripts/test-smoke.sh)' ask
+expect "$H" 'bash $(echo scripts/test-smoke.sh)' ask
+
+# A script body is read as code: a regex, a printed message or a fixture string
+# naming the CLI is data, including inside an isolated script, whose trust a
+# fixture spelling out a credential override must not cost it...
+expect_script $'#!/usr/bin/env bash\nRE=\'a|aws s3 ls|b\'\ngrep -E "$RE" f' defer
+expect_script $'#!/usr/bin/env bash\necho "next: bash scripts/test-smoke.sh"' defer
+expect_script $'#!/usr/bin/env bash\nprintf \'%s\\n\' "x; aws s3 ls"' defer
+expect_script "${ISOLATED_HEAD}"$'\nexpect_script $\'true; AWS_CONFIG_FILE=/x aws s3 ls\' ask' defer
+# ...until something turns the string back into code: ssh, eval, an
+# interpreter's -c, a variable run as a command, a function forwarding its
+# argument to ssh, a command substitution inside quotes, a heredoc fed to a
+# shell, and a quote an ssh line leaves open.
+expect_script $'#!/usr/bin/env bash\nssh host "cd /x && aws s3 ls"' ask
+expect_script $'#!/usr/bin/env bash\neval "true; aws s3 ls"' ask
+expect_script $'#!/usr/bin/env bash\nbash -c "true; aws s3 ls"' ask
+expect_script $'#!/usr/bin/env bash\ncmd="true; aws s3 ls"\n$cmd' ask
+expect_script $'#!/usr/bin/env bash\nremote() { ssh host "$1"; }\nremote "cd /x && aws s3 ls"' ask
+expect_script $'#!/usr/bin/env bash\necho "$(aws sts get-caller-identity)"' ask
+expect_script $'#!/usr/bin/env bash\nbash <<EOF\naws s3 ls\nEOF' ask
+expect_script $'#!/usr/bin/env bash\nssh host "\naws s3 ls\n"' ask
+# An isolated script that evaluates a string could put a credential back
+# inside it, so it is read as usual.
+expect_script "${ISOLATED_HEAD}"$'\neval "export AWS_PROFILE=p"\naws s3 ls' ask
+expect_script "${ISOLATED_HEAD}"$'\nbash -c "export AWS_PROFILE=p; aws s3 ls"' ask
+
+# Runner words, option arguments, a variable operand and a line continuation
+# in front of the script still run it; a commit message or a diff that names a
+# script beside a command substitution or heredoc runs nothing.
+expect "$H" 'timeout 5 bash scripts/backup-db.sh' ask
+expect "$H" 'nice -n 5 bash scripts/backup-db.sh' ask
+expect "$H" 's=scripts/backup-db.sh; bash "$s"' ask
+expect "$H" 'bash -O extglob scripts/backup-db.sh' ask
+expect "$H" $'FOO=1 \\\nbash scripts/backup-db.sh' ask
+expect "$H" $'bash \\\n  scripts/backup-db.sh' ask
+expect "$H" 'bash scripts/internal/take-pre-cutover-snapshot-remote.sh' ask
+expect "$H" 'npm test -- scripts/backup-db.sh' defer
+expect "$H" 'git diff --stat $(git merge-base HEAD main) -- scripts/backup-db.sh' defer
+expect "$H" $'git commit -m "$(cat <<\'EOF\'\nfix scripts/backup-db.sh\nEOF\n)"' defer
+
+# A script body that runs a second script: stored in a variable, behind a
+# control word, under find -exec or a runner word, after an arithmetic shift,
+# or hidden by a case pattern inside a quoted substitution. The helper writes
+# inner.sh, which calls aws, beside the probe.
+expect_pair() {
+  local body="$1" want="$2" dir out decision
+  dir="$(mktemp -d)"
+  printf '%s\n' "$body" > "$dir/probe.sh"
+  printf '%s\n' '#!/usr/bin/env bash' 'aws s3 ls' > "$dir/inner.sh"
+  out="$(cd "$dir" && printf '{"tool_input":{"command":"bash probe.sh"}}' \
+    | "$HOOKS_ROOT/.claude/hooks/guard-aws-reach.sh")"
+  rm -rf "$dir"
+  if [ -z "$out" ]; then decision="defer"; else decision="$(jq -r '.hookSpecificOutput.permissionDecision' <<<"$out")"; fi
+  if [ "$decision" != "$want" ]; then
+    echo "[hooks] FAIL (guard-aws-reach.sh): want $want, got $decision for probe beside inner.sh: ${body//$'\n'/ \\n }" >&2
+    fail=1
+  fi
+}
+expect_pair $'X=inner.sh\nbash "$X"' ask
+expect_pair $'LIB=inner.sh\nsource "$LIB"' ask
+expect_pair 'if ./inner.sh; then :; fi' ask
+expect_pair 'true; if true; then ./inner.sh; fi' ask
+expect_pair 'timeout 5 ./inner.sh' ask
+expect_pair 'find . -exec ./inner.sh {} \;' ask
+expect_pair $'x=$((1 << n))\n./inner.sh' ask
+expect_pair 'x="$(case $y in a) true; aws s3 ls;; esac)"' ask
+expect_pair 'echo "then run ./inner.sh"' defer
+# Strings run by an inline program, a shell fed by pipe or process
+# substitution, or sourced from stdin, are code.
+expect_script $'#!/usr/bin/env bash\nX=\'true; aws s3 ls\'\nprintf %s "$X" | /bin/sh' ask
+expect_script $'#!/usr/bin/env bash\npython3 -c \'import os; os.system("true; aws s3 ls")\'' ask
+expect_script $'#!/usr/bin/env bash\nawk \'BEGIN{system("true; aws s3 ls")}\'' ask
+expect_script "${ISOLATED_HEAD}"$'\nsource <(echo "x; export AWS_PROFILE=p")\naws s3 ls' ask
+
+# The guard fails closed: if its reader cannot run, a script it cannot read asks.
+stub_dir="$(mktemp -d)"
+printf '%s\n' '#!/bin/sh' 'exit 2' > "$stub_dir/awk"
+chmod +x "$stub_dir/awk"
+stub_out="$(printf '{"tool_input":{"command":"bash scripts/backup-db.sh"}}' \
+  | PATH="$stub_dir:$PATH" .claude/hooks/guard-aws-reach.sh || true)"
+rm -rf "$stub_dir"
+if [ "$(jq -r '.hookSpecificOutput.permissionDecision // "defer"' <<<"${stub_out:-{\}}")" != ask ]; then
+  echo "[hooks] FAIL (guard-aws-reach.sh): want ask when awk fails" >&2
+  fail=1
+fi
+
+# A script under a dot directory is run like any other, so it is read too.
+dot_dir="$(mktemp -d)"
+mkdir "$dot_dir/.hidden"
+printf '%s\n' '#!/usr/bin/env bash' 'aws s3 ls' > "$dot_dir/.hidden/probe.sh"
+dot_out="$(cd "$dot_dir" && printf '{"tool_input":{"command":"bash .hidden/probe.sh"}}' \
+  | "$HOOKS_ROOT/.claude/hooks/guard-aws-reach.sh")"
+rm -rf "$dot_dir"
+if [ "$(jq -r '.hookSpecificOutput.permissionDecision // "defer"' <<<"${dot_out:-{\}}")" != ask ]; then
+  echo "[hooks] FAIL (guard-aws-reach.sh): want ask for a script under a dot directory" >&2
+  fail=1
+fi
+
+# A binary held in a variable is the call, wherever the variable is run from,
+# including a quoted command substitution inside a quoted assignment.
+expect_script $'#!/usr/bin/env bash\nAWS_BIN="${X_AWS_BIN:-aws}"\nout="$("$AWS_BIN" sts get-caller-identity)"' ask
+
+# The real tree: scripts that only print, test or pattern-match the CLI do not
+# prompt; the deploy still does, and so does a script whose AWS calls live in a
+# library it sources through a directory variable.
+expect "$H" 'bash scripts/test-targets.sh src/app.ts' defer
+expect "$H" 'bash scripts/ci/assert_conventions.sh' defer
+expect "$H" 'bash scripts/ci/test_hooks.sh' defer
+expect "$H" 'bash scripts/deploy-to-aws.sh' ask
+expect "$H" 'bash scripts/rotate-operator-key.sh' ask
+
 H=guard-readonly-bash.sh
 
 # Writes hidden behind read-only command heads must gate; a redirect into the working

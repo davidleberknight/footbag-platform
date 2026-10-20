@@ -2,6 +2,9 @@ import { Request, Response, NextFunction } from 'express';
 import { adminClubLeadershipService } from '../services/adminClubLeadershipService';
 import { NotFoundError, ValidationError } from '../services/serviceErrors';
 import { handleControllerError, renderNotFound } from '../lib/controllerErrors';
+import { FLASH_KIND, readFlash, clearFlash } from '../lib/flashCookie';
+import { outcomeNotice, type OutcomeNoticeView } from '../lib/outcomeNotice';
+import { redirectWithOutcome } from '../lib/actionOutcome';
 
 // The detail page is rebuilt to carry the error, which means loading the club
 // again -- and when the club is the thing that does not exist, that load throws
@@ -47,7 +50,13 @@ export const adminClubLeadershipController = {
   /** GET /admin/clubs/:clubId/leadership */
   detail(req: Request, res: Response, next: NextFunction): void {
     try {
-      res.render('admin/club-leadership/detail', adminClubLeadershipService.getClubLeadershipPage(req.params.clubId ?? ''));
+      const flash = readFlash(req);
+      let notice: OutcomeNoticeView | null = null;
+      if (flash?.kind === FLASH_KIND.CLUB_LEADERSHIP_OUTCOME) {
+        notice = outcomeNotice(flash.payload);
+        clearFlash(res, req);
+      }
+      res.render('admin/club-leadership/detail', adminClubLeadershipService.getClubLeadershipPage(req.params.clubId ?? '', { notice }));
     } catch (err) {
       handleControllerError(err, res, next, 'admin club leadership controller');
     }
@@ -57,14 +66,19 @@ export const adminClubLeadershipController = {
   assign(req: Request, res: Response, next: NextFunction): void {
     const clubId = req.params.clubId ?? '';
     try {
-      adminClubLeadershipService.assignLeader(
+      const outcome = adminClubLeadershipService.assignLeader(
         req.user!.userId,
         clubId,
         String(req.body.member_key ?? ''),
         String(req.body.reason ?? ''),
         String(req.body.cap_override_reason ?? ''),
       );
-      res.redirect(303, `/admin/clubs/${clubId}/leadership`);
+      redirectWithOutcome(req, res, {
+        flash: FLASH_KIND.CLUB_LEADERSHIP_OUTCOME,
+        to: `/admin/clubs/${clubId}/leadership`,
+        ending: outcome.ending,
+        text: outcome.text,
+      });
     } catch (err) {
       if (err instanceof ValidationError || err instanceof NotFoundError) {
         renderDetailError(res, next, clubId, err);
@@ -113,14 +127,19 @@ export const adminClubLeadershipController = {
         renderDetailError(res, next, clubId, new ValidationError('Choose how to demote the leader.'));
         return;
       }
-      adminClubLeadershipService.demoteLeader(
+      const outcome = adminClubLeadershipService.demoteLeader(
         req.user!.userId,
         clubId,
         String(req.body.member_id ?? ''),
         mode,
         String(req.body.reason ?? ''),
       );
-      res.redirect(303, `/admin/clubs/${clubId}/leadership`);
+      redirectWithOutcome(req, res, {
+        flash: FLASH_KIND.CLUB_LEADERSHIP_OUTCOME,
+        to: `/admin/clubs/${clubId}/leadership`,
+        ending: outcome.ending,
+        text: outcome.text,
+      });
     } catch (err) {
       if (err instanceof ValidationError || err instanceof NotFoundError) {
         renderDetailError(res, next, clubId, err);

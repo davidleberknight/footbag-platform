@@ -5,12 +5,8 @@
 </div>
 
 <div class="wrapper">
-  {{#if content.club.errorMessage}}
-    <div class="form-error-banner" role="alert">{{content.club.errorMessage}}</div>
-  {{/if}}
-  {{#if content.club.notice}}
-    <p class="form-success-banner" role="status">{{content.club.notice}}</p>
-  {{/if}}
+  {{> outcome-notice text=content.club.errorMessage tone='no'}}
+  {{> outcome-notice text=content.club.notice.text tone=content.club.notice.tone}}
 
   <section>
     {{#if content.club.needsLeader}}<p class="badge">No co-leader yet</p>{{/if}}
@@ -67,7 +63,7 @@
         the club's own roster answers it for most cases. Anyone else is found in
         the member lookup, which the form never named. }}
     {{#if content.club.affiliatedMembers.length}}
-      <p class="mt-4 text-muted fs-sm">Members of this club who are not co-leaders. Any member can be assigned, not only these.</p>
+      <p class="mt-4 fs-sm">Members of this club who are not co-leaders. Any member can be assigned, not only these.</p>
       {{#each content.club.affiliatedMembers}}
         <div class="card">
           <div class="card-title">{{displayName}} <span class="text-muted fs-sm">{{memberId}}</span></div>
@@ -76,9 +72,9 @@
         </div>
       {{/each}}
     {{else}}
-      <p class="mt-4 text-muted fs-sm">No member of this club is available to assign. Any member can be assigned, not only members of the club.</p>
+      <p class="mt-4 fs-sm">No member of this club is available to assign. Any member can be assigned, not only members of the club.</p>
     {{/if}}
-    <p class="text-muted fs-sm"><a href="/admin/members">Find a member</a> to get the id or profile URL this form takes.</p>
+    <p class="fs-sm"><a href="/admin/members">Find a member</a> to get the id or profile URL this form takes.</p>
   </section>
 
   <p class="mt-4"><a href="/admin/clubs/leadership">Back to the remediation queue</a></p>

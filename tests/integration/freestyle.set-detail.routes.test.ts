@@ -276,7 +276,7 @@ describe('/freestyle/sets routes render directly', () => {
     const res = await page('/freestyle/sets');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Set Encyclopedia');
-    expect(res.text).toContain('class="wrapper sets-encyclopedia"');
+    expect(res.text).toContain('class="sets-encyclopedia-head"');
   });
 
   it('/freestyle/sets/reference renders the flat Holden reference table directly', async () => {

@@ -13,7 +13,7 @@
     </p>
 
     {{#if content.isFailed}}
-      <div class="form-error-banner" role="alert">This run did not complete: {{content.failureText}}</div>
+      <div class="notice-card notice-card--warn">This run did not complete: {{content.failureText}}</div>
       <p class="text-muted">No comparison was recorded for this run. The next daily pass produces the next report.</p>
     {{/if}}
 

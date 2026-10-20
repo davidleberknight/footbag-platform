@@ -39,6 +39,9 @@ export const FLASH_KIND = {
   // An item set aside, or taken back out of the parked listing. The payload
   // distinguishes the two so one banner kind covers both directions.
   WORK_QUEUE_PARKED: 'work_queue_parked',
+  // An action that found its item already settled by another act. The payload
+  // is the sentence and its tone.
+  WORK_QUEUE_OUTCOME: 'work_queue_outcome',
   MEMBER_QUESTION_ANSWERED: 'member_question_answered',
   CLUB_ACTION: 'club_action',
   // A Tier 2 or Tier 3 member's vouch for Active Player status. The payload is
@@ -66,6 +69,17 @@ export const FLASH_KIND = {
   // tone, so the list page reports that nothing was changed.
   ADMIN_ROLE_OUTCOME: 'admin_role_outcome',
   HONOR_GRANT_OUTCOME: 'honor_grant_outcome',
+  // An administrator's change to a club's co-leaders, an event's organizers, a
+  // historical person's deceased marking, or a freestyle trick's publication.
+  // The payload is the sentence and its tone, so the page reports what was done,
+  // or that nothing needed changing.
+  CLUB_LEADERSHIP_OUTCOME: 'club_leadership_outcome',
+  EVENT_ORGANIZER_OUTCOME: 'event_organizer_outcome',
+  HISTORICAL_RECORD_OUTCOME: 'historical_record_outcome',
+  TRICK_PUBLISHED: 'trick_published',
+  // An attach on the freestyle trick edit page that found its link already in
+  // place. The payload is the sentence and its tone.
+  FREESTYLE_EDIT_OUTCOME: 'freestyle_edit_outcome',
   ALARM_ACKNOWLEDGED: 'alarm_acknowledged',
   // A second administrator submitting the same acknowledgment, or one submitting
   // it after the condition cleared, changed nothing and must not be told they

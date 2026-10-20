@@ -79,6 +79,7 @@ export type CorrectionOutcome =
   | 'slug_unchanged'
   | 'avatar_removed'
   | 'avatar_removed_storage_pending'
+  | 'avatar_already_removed'
   | 'profile_corrected'
   | 'profile_unchanged';
 
@@ -111,6 +112,7 @@ const OUTCOME_NOTICE: Record<CorrectionOutcome, [OutcomeTone, string]> = {
   profile_corrected:
     ['ok', "The member's profile details have been corrected, and every changed value is recorded in the audit log."],
   profile_unchanged: ['info', 'Those are the details the record already held, so nothing changed.'],
+  avatar_already_removed: ['info', 'That picture has already been taken down.'],
   avatar_removed_storage_pending:
     ['ok', 'The profile picture has been removed and the member has been told. Its stored files could not be deleted and the failure is logged for an operator; the member\'s next upload writes over them.'],
 };
@@ -1333,9 +1335,9 @@ export const adminMemberService = {
       adminMemberId: actorId,
       reason,
     });
-    if (result.status !== 'decided') {
-      throw new ValidationError('That picture has already been taken down.');
-    }
+    // Another administrator's takedown of the same picture landed first, so this
+    // one changed nothing and was not refused.
+    if (result.status !== 'decided') return 'avatar_already_removed';
     return result.storageRemoved ? 'avatar_removed' : 'avatar_removed_storage_pending';
   },
 

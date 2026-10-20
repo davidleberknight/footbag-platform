@@ -26,9 +26,7 @@
   </p>
 
   {{#if content.savedFlag}}
-    <div class="form-success-banner" role="status">
-      Saved.
-    </div>
+    {{> outcome-notice text="Saved." tone='ok'}}
   {{/if}}
 
   {{#if content.emptyState}}

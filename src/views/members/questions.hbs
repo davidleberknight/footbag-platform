@@ -11,12 +11,10 @@
     {{/each}}
 
     {{#if content.answered}}
-      <p class="form-success-banner" role="status">Thank you. Your answer has been sent to the IFPA administrators.</p>
+      {{> outcome-notice text="Thank you. Your answer has been sent to the IFPA administrators." tone='ok'}}
     {{/if}}
 
-    {{#if content.error}}
-      <div class="form-error-banner" role="alert">{{content.error}}</div>
-    {{/if}}
+    {{> outcome-notice text=content.error tone='no'}}
 
     {{#if content.hasQuestions}}
       <p>An IFPA administrator has asked you something about your account. Your answer is read only by IFPA administrators, and none of it is sent by email.</p>

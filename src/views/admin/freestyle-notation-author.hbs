@@ -18,13 +18,9 @@
   {{! A resolved ruling states why in place of the form; its banner would only
       repeat the same sentence. }}
   {{#unless content.authorable}}
-  <p class="notice notice-warn">{{content.refusal}}</p>
+  <p class="notice-card notice-card--warn">{{content.refusal}}</p>
   {{else}}
-  {{#if content.hasErrors}}
-  <div class="form-error-banner" role="alert">
-    {{#each content.errorList}}<p>{{this}}</p>{{/each}}
-  </div>
-  {{/if}}
+  {{> outcome-notice lines=content.errorList tone='no'}}
   {{/unless}}
 
   <section class="content-section">

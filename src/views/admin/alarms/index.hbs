@@ -7,17 +7,17 @@
 
 <div class="wrapper">
   {{#if content.showAcknowledgedNotice}}
-    <p class="form-success-banner" role="status">Alarm acknowledged.</p>
+    {{> outcome-notice text="Alarm acknowledged." tone='ok'}}
   {{/if}}
   {{#if content.showAlreadySettledNotice}}
-    <p class="form-notice" role="status">That alarm was already handled. Nothing was changed.</p>
+    {{> outcome-notice text="That alarm was already handled. Nothing was changed." tone='info'}}
   {{/if}}
 
   <p class="text-muted">{{content.resultSummary}}</p>
 
   {{#unless content.hasAlarms}}
     <section>
-      <p class="text-muted">Nothing has been reported yet. Alarms appear here as the monitoring service raises them.</p>
+      <p>Nothing has been reported yet. Alarms appear here as the monitoring service raises them.</p>
     </section>
   {{/unless}}
 

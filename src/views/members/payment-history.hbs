@@ -7,10 +7,7 @@
 <div class="wrapper">
   <section>
     {{#if content.cancelConfirmed}}
-      <p class="form-success-banner" role="status">
-        Your recurring donation has been cancelled. You will not be charged again, and the period
-        you have already given still counts. A confirmation goes to the address on your account.
-      </p>
+      {{> outcome-notice text="Your recurring donation has been cancelled. You will not be charged again, and the period you have already given still counts. A confirmation goes to the address on your account." tone='ok'}}
     {{/if}}
 
     {{#if content.hasRecurring}}
@@ -87,7 +84,7 @@
       <p>No payments yet.</p>
     {{/if}}
 
-    <p class="text-muted fs-sm mt-4">
+    <p class="fs-sm mt-4">
       Payment records here cannot be edited. If something looks wrong, contact the IFPA
       administrator from your profile and quote the reference shown against the entry.
     </p>

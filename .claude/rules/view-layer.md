@@ -157,10 +157,14 @@ message is chosen and travels with it. Across a redirect that means the flash co
 `outcomePayload` and `outcomeNotice` in `src/lib/outcomeNotice.ts` encode and decode; on a page
 that renders its own outcome it means a tone field beside the sentence, either on the page
 envelope as `PageMeta.noticeTone` or on the content shape. Either way the page draws it through
-the `outcome-notice` partial, which is the one piece of markup that renders an action result. A
-template that writes its own branch on the tone is a second renderer of the same vocabulary, and
-two renderers are how two surfaces drift apart. The warning tone is the exception, because it
-reports no outcome: a caution before an act is written directly on the confirm page that shows it.
+the `outcome-notice` partial, which is the one piece of markup that renders an action result. It
+takes one sentence as `text`, several as `lines`, or a message carrying a link or code span as a
+block call. A template that writes its own branch on the tone is a second renderer of the same
+vocabulary, and two renderers are how two surfaces drift apart. The warning tone is the exception,
+because it reports no outcome: a caution before an act is written directly on the confirm page that
+shows it. A standing caveat anywhere else is a callout, not a message. The convention gate fails
+any template or script outside the partial that writes the three outcome classes, and the caution
+class outside a confirm page.
 
 The aria role is correctness, not a guarantee. A message rendered server-side is present before page
 load completes, and screen readers do not announce a live region that was already there, so the role
@@ -291,7 +295,8 @@ The durable visual decisions live in the design document's front-end part and ar
 enforced by `scripts/ci/assert_conventions.sh`: one type system with body-font notation, canonical
 breakpoints 480 / 768 / 1024, accessible responsive HTML-first design, and the
 stylesheet / template convention gates — colors from `:root` tokens (no colour literal of any
-form in rule bodies; the gate's hex check is the floor), `--radius*` tokens for corners,
+form in rule bodies), `--radius*` tokens for corners, `--space-*` role tokens for margin, padding
+and gap (the Spacing Rhythm design decision),
 `--font-body` / `--font-mono` only, no inline `style` or `script`, no nested `<form>`, and
 template-class-to-`style.css` correspondence. What the browser draws is enforced by the
 rendered-style check (`npm run test:rendered-style`): every page view at 390px and 1280px against

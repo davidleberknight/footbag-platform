@@ -7,18 +7,18 @@
 <div class="wrapper">
   <section>
     {{#if content.alreadyVerified}}
-    <div class="form-success-banner" role="status">Your email is verified. Log in to continue.</div>
+    {{> outcome-notice text="Your email is verified. Log in to continue." tone='ok'}}
     <div class="form-actions">
       <a href="/login" class="btn btn-primary">Sign In</a>
     </div>
     {{else}}
-    <div class="form-error-banner" role="alert">
-      {{#if content.signInPrompt}}
-        Your email is verified, but we could not sign you in. Please sign in with your email and password.
-      {{else}}
-        This verification link is invalid, expired, or already used.
-      {{/if}}
-    </div>
+    {{! The verification itself landed when only the sign-in after it failed,
+        so that message is a success; a bad link is a refusal. }}
+    {{#if content.signInPrompt}}
+      {{> outcome-notice text="Your email is verified, but we could not sign you in. Please sign in with your email and password." tone='ok'}}
+    {{else}}
+      {{> outcome-notice text="This verification link is invalid, expired, or already used." tone='no'}}
+    {{/if}}
     {{#if content.signInPrompt}}
       <div class="form-actions">
         <a href="/login" class="btn btn-primary">Sign In</a>

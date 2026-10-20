@@ -5,9 +5,7 @@
 </div>
 
 <div class="wrapper">
-  {{#if content.errorMessage}}
-    <div class="form-error-banner" role="alert">{{content.errorMessage}}</div>
-  {{/if}}
+  {{> outcome-notice text=content.errorMessage tone='no'}}
   {{> outcome-notice text=page.notice tone=page.noticeTone}}
 
   <section>
@@ -37,7 +35,7 @@
 
   <section>
     <div class="section-heading"><h2>Grant the Admin Role</h2></div>
-    <p class="text-muted fs-sm">Granting the admin role also grants Tier 2 membership if the member does not already hold it.</p>
+    <p class="fs-sm">Granting the admin role also grants Tier 2 membership if the member does not already hold it.</p>
     <form method="POST" action="/admin/admin-roles/grant" class="form-block">
       <div class="form-field">
         <label for="grant_member">Member id or slug</label>

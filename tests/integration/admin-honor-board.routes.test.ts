@@ -300,6 +300,29 @@ describe('board standing', () => {
     expect(honourRow(BOARD_T2_ID).is_board).toBe(0);
   });
 
+  it('a board change submitted twice by the same admin lands once and answers as the first did', async () => {
+    // Defect caught: the second confirm of a double submit drew an error page
+    // quoting an internal member id, for a change the admin's own first submit made.
+    const first = await post('/admin/honor-grants/board/set/confirm', {
+      member_key: BOARD_T2_ID, reason: 'elected at the spring meeting',
+    });
+    expect(first.status).toBe(303);
+    const again = await post('/admin/honor-grants/board/set/confirm', {
+      member_key: BOARD_T2_ID, reason: 'elected at the spring meeting',
+    });
+    expect(again.status).toBe(303);
+    expect(tierOf(BOARD_T2_ID)).toBe('tier3');
+    const sets = db((conn) => conn.prepare(
+      `SELECT COUNT(*) AS c FROM audit_entries
+       WHERE action_type = 'tier.governance_set' AND entity_id = ? AND reason_text = ?`,
+    ).get(BOARD_T2_ID, 'elected at the spring meeting')) as { c: number };
+    expect(sets.c).toBe(1);
+    // Leave the member as the other cases found them.
+    expect((await post('/admin/honor-grants/board/remove/confirm', {
+      member_key: BOARD_T2_ID, reason: 'term ended',
+    })).status).toBe(303);
+  });
+
   it('refuses a board change with no reason', async () => {
     const res = await post('/admin/honor-grants/board/set/confirm', {
       member_key: BOARD_T0_ID, reason: '  ',

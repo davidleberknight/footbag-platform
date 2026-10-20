@@ -13,39 +13,38 @@
     </p>
   {{/if}}
   {{#if content.resolvedFlag}}
-    <p class="form-success-banner" role="status">Item resolved and email reply dispatched.</p>
+    {{> outcome-notice text="Item resolved and email reply dispatched." tone='ok'}}
   {{/if}}
   {{#if content.resolvedQuietFlag}}
-    <p class="form-success-banner" role="status">Item resolved.</p>
+    {{> outcome-notice text="Item resolved." tone='ok'}}
   {{/if}}
   {{! A revert strips a wrongly-held claim and settles nothing else: the
       requester's own link is still undecided, so the item stays open and
       nobody has been written to. The banner says both, rather than borrowing
       the resolve message and claiming a resolution and an email. }}
   {{#if content.claimRevertedFlag}}
-    <p class="form-success-banner" role="status">Claim reverted. This request is still open, and still needs you to approve or reject the link.</p>
+    {{> outcome-notice text="Claim reverted. This request is still open, and still needs you to approve or reject the link." tone='ok'}}
   {{/if}}
   {{#if content.reviewedFlag}}
-    <p class="form-success-banner" role="status">Item marked reviewed.</p>
+    {{> outcome-notice text="Item marked reviewed." tone='ok'}}
   {{/if}}
   {{#if content.memberAskedFlag}}
-    <p class="form-success-banner" role="status">Question recorded, and it goes to the member by email where their address is deliverable. The item stays here until they answer.</p>
+    {{> outcome-notice text="Question recorded, and it goes to the member by email where their address is deliverable. The item stays here until they answer." tone='ok'}}
   {{/if}}
   {{#if content.claimedFlag}}
-    <p class="form-success-banner" role="status">Item claimed. It is now off the other admins' digest.</p>
+    {{> outcome-notice text="Item claimed. It is now off the other admins' digest." tone='ok'}}
   {{/if}}
   {{#if content.claimNoopFlag}}
-    <p class="form-notice" role="status">That item was already claimed or is no longer open.</p>
+    {{> outcome-notice text="That item was already claimed or is no longer open." tone='info'}}
   {{/if}}
   {{#if content.parkedFlag}}
-    <p class="form-success-banner" role="status">Item parked. It is out of the queue, the digests and the escalation sweep until the member answers or you take it back.</p>
+    {{> outcome-notice text="Item parked. It is out of the queue, the digests and the escalation sweep until the member answers or you take it back." tone='ok'}}
   {{/if}}
   {{#if content.unparkedFlag}}
-    <p class="form-success-banner" role="status">Item back in the queue.</p>
+    {{> outcome-notice text="Item back in the queue." tone='ok'}}
   {{/if}}
-  {{#if content.errorMessage}}
-    <div class="form-error-banner" role="alert">{{content.errorMessage}}</div>
-  {{/if}}
+  {{> outcome-notice text=content.outcome.text tone=content.outcome.tone}}
+  {{> outcome-notice text=content.errorMessage tone='no'}}
 
   {{#unless content.groups.length}}
     <section>
@@ -284,7 +283,7 @@
         <h2>Parked</h2>
         <span class="section-count">{{content.parked.length}}</span>
       </div>
-      <p class="text-muted fs-sm">Set aside with no deadline. Each comes back on its own when the member answers a question on it, and anyone can take one back sooner.</p>
+      <p class="fs-sm">Set aside with no deadline. Each comes back on its own when the member answers a question on it, and anyone can take one back sooner.</p>
       {{#each content.parked}}
         <div class="card work-queue-item">
           <div class="card-title">{{this.taskTypeLabel}}</div>
