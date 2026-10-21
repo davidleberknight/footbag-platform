@@ -856,7 +856,8 @@ export function insertConsecutiveKicksRecord(
     o.rank       ?? null,
     o.player_1   ?? 'Test Player',
     o.player_2   ?? null,
-    o.score      ?? 1000,
+    // An explicit null is kept: the pipeline loads a milestone row with no count.
+    o.score === undefined ? 1000 : o.score,
     o.note       ?? null,
     o.event_date ?? null,
     o.event_name ?? null,

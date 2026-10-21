@@ -154,7 +154,6 @@ col-adds
 col-date
 col-holder
 col-message
-col-note
 col-num
 col-rank
 col-year
@@ -773,7 +772,6 @@ radio-label
 record-indicator
 record-review-flag
 record-review-note
-record-world
 records-group
 records-table
 records-table-sm

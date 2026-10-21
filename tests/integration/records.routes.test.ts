@@ -10,6 +10,8 @@
  *   - progression section renders
  *   - milestone section renders
  *   - player names and scores appear correctly
+ *   - notes are said once under a table, not in a mostly empty column
+ *   - the freestyle passback records are linked, not repeated
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import request from 'supertest';
@@ -22,7 +24,6 @@ import {
   importApp,
 } from '../fixtures/testDb';
 import { insertConsecutiveKicksRecord, insertFreestyleRecord } from '../fixtures/factories';
-import { recordCuratorReviewNote } from '../../src/content/freestyleRecordCuratorReview';
 
 const { dbPath } = setTestEnv('3090');
 
@@ -112,29 +113,40 @@ beforeAll(async () => {
     score:      40000,
   });
 
-  // Passback records, one per shape the passback table renders differently: a
-  // name under curator review beside one that is not, and an achieved date at
-  // each precision plus a pre-1970 placeholder.
-  insertFreestyleRecord(db, { display_name: 'Review Holder', trick_name: 'Double Whip', achieved_date: '2015-03-03' });
-  insertFreestyleRecord(db, { display_name: 'Day Holder', trick_name: 'Day Trick', achieved_date: '2009-04-12', date_precision: 'day' });
-  insertFreestyleRecord(db, { display_name: 'Month Holder', trick_name: 'Month Trick', achieved_date: '2010-06-01', date_precision: 'month' });
-  insertFreestyleRecord(db, { display_name: 'Year Holder', trick_name: 'Year Trick', achieved_date: '2011-01-01', date_precision: 'year' });
-  insertFreestyleRecord(db, { display_name: 'Approx Holder', trick_name: 'Approx Trick', achieved_date: '2012-08-15', date_precision: 'approximate' });
-  insertFreestyleRecord(db, { display_name: 'Placeholder Holder', trick_name: 'Placeholder Trick', achieved_date: '1905-07-03' });
+  // A progression where two runs were ended on purpose and one was not: the
+  // real data carries that fact as a note on six of 77 progression rows.
+  insertConsecutiveKicksRecord(db, {
+    sort_order: 601, section: 'World Record Progression', subsection: 'Open Doubles Consecutive',
+    discipline: 'Open Doubles', year: '1985', player_1: 'Jim Caveney', player_2: 'Gary Lautt',
+    score: 33333, note: 'Intentionally ended on that number',
+  });
+  insertConsecutiveKicksRecord(db, {
+    sort_order: 602, section: 'World Record Progression', subsection: 'Open Doubles Consecutive',
+    discipline: 'Open Doubles', year: '1987', player_1: 'Ted Martin', player_2: 'Andy Linder',
+    score: 64792,
+  });
+  insertConsecutiveKicksRecord(db, {
+    sort_order: 603, section: 'World Record Progression', subsection: 'Open Doubles Consecutive',
+    discipline: 'Open Doubles', year: '1988', player_1: 'Jim Caveney', player_2: 'Gary Lautt',
+    score: 75000, note: 'Intentionally ended on that number',
+  });
+
+  // A milestone row with no count: the real data's one such row exists only to
+  // carry its note.
+  insertConsecutiveKicksRecord(db, {
+    sort_order: 1310, section: 'Milestone Firsts', subsection: 'Singles milestone first',
+    discipline: "Women's Singles", player_1: 'Tricia George', player_2: null, score: null,
+    note: 'Tricia George was the first woman to reach each singles milestone through 20000',
+  });
+
+  // A public passback record, which /freestyle/records lists and this page must not repeat.
+  insertFreestyleRecord(db, { display_name: 'Passback Holder', trick_name: 'Passback Trick', achieved_date: '2009-04-12' });
 
   db.close();
   createApp = await importApp();
 });
 
 afterAll(() => cleanupTestDb(dbPath));
-
-/** The one table row naming this holder, so an assertion reads that record alone. */
-function passbackRow(html: string, holder: string): string {
-  const rows = html.match(/<tr>[\s\S]*?<\/tr>/g) ?? [];
-  const matching = rows.filter((r) => r.includes(holder));
-  expect(matching, `exactly one row for ${holder}`).toHaveLength(1);
-  return matching[0];
-}
 
 // ---------------------------------------------------------------------------
 
@@ -204,35 +216,32 @@ describe('GET /records', () => {
     expect(res.text).toContain('Singles milestone first');
   });
 
-  // Defect caught: a passback record whose name is under curator review reads on
-  // /records as settled, though the freestyle records page flags it.
-  it('flags a passback record under curator review with its note, and only that record', async () => {
+  // Defect caught: a note column empty in most rows comes back, or the fact it
+  // carried for a few rows is lost when the column goes.
+  it('names the runs ended on purpose once under their progression, with no note column', async () => {
     const res = await page('/records');
-    const reviewed = passbackRow(res.text, 'Review Holder');
-    expect(reviewed).toContain('Needs curator review');
-    expect(reviewed).toContain(recordCuratorReviewNote('Double Whip'));
-    expect(passbackRow(res.text, 'Day Holder')).not.toContain('Needs curator review');
-    // The flag is explained once above the table whenever a flagged record is listed.
-    expect(res.text).toContain('are valid historical records whose name does not yet map');
+    expect(res.text).not.toContain('<th>Note</th>');
+    expect(res.text).toContain('<p class="mt-2">The runs of 33,333 and 75,000 were stopped on purpose.</p>');
+    // The run that was not ended on purpose stays out of the sentence.
+    expect(res.text).not.toMatch(/64,792[^<]*stopped on purpose/);
   });
 
-  // Defect caught: a date known only to the month or year is shown with a day
-  // nobody recorded, an estimate loses its marker, or a placeholder year before
-  // footbag existed is shown as a real date.
-  it('shows each achieved date only as precisely as it is known', async () => {
+  // Defect caught: a milestone row with no count renders as an empty-milestone
+  // row, or its note disappears with the note column.
+  it('turns a milestone row with no count into a sentence under the milestones', async () => {
     const res = await page('/records');
-    expect(passbackRow(res.text, 'Day Holder')).toContain('12 April 2009');
-    const month = passbackRow(res.text, 'Month Holder');
-    expect(month).toContain('June 2010');
-    expect(month).not.toContain('1 June 2010');
-    expect(month).not.toContain('approx.');
-    const year = passbackRow(res.text, 'Year Holder');
-    expect(year).toMatch(/<td>\s*2011\s*<\/td>/);
-    expect(year).not.toContain('approx.');
-    expect(passbackRow(res.text, 'Approx Holder')).toContain('15 August 2012 <em>(approx.)</em>');
-    const placeholder = passbackRow(res.text, 'Placeholder Holder');
-    expect(placeholder).not.toContain('1905');
-    expect(placeholder).toContain('&mdash;');
+    expect(res.text).toContain(
+      '<p class="mt-2">Tricia George was the first woman to reach each singles milestone through 20000.</p>',
+    );
+    expect(res.text).not.toContain('<td class="col-num">—</td>');
+  });
+
+  // Defect caught: /records repeats the freestyle passback records that
+  // /freestyle/records already lists, or loses its way to them.
+  it('links to the freestyle trick records instead of repeating them', async () => {
+    const res = await page('/records');
+    expect(res.text).not.toContain('Passback Holder');
+    expect(res.text).toContain('<a href="/freestyle/records" class="action-link">See All Trick Records</a>');
   });
 
   it('returns 503 (not 500) when a records read hits database contention', async () => {

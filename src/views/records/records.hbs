@@ -56,24 +56,23 @@
             <th>Player(s)</th>
             <th>Discipline</th>
             <th class="col-num">Kicks</th>
-            <th>Note</th>
           </tr>
         </thead>
         <tbody>
           {{#each rows}}
-          <tr{{#if isWorldRecord}} class="record-world"{{/if}}>
+          <tr>
             <td class="col-rank">{{rank}}</td>
             <td class="col-holder">
               {{player_1}}{{#if player_2}} &amp; {{player_2}}{{/if}}
             </td>
             <td>{{discipline}}</td>
             <td class="col-num">{{scoreFormatted}}</td>
-            <td class="col-note">{{#if note}}{{note}}{{else}}&mdash;{{/if}}</td>
           </tr>
           {{/each}}
         </tbody>
       </table>
     </div>
+    {{#each footnotes}}<p class="mt-2">{{this}}</p>{{/each}}
     {{/each}}
   </section>
   {{/if}}
@@ -90,7 +89,6 @@
             <th class="col-year">Year</th>
             <th>Holder(s)</th>
             <th class="col-num">Kicks</th>
-            <th>Note</th>
           </tr>
         </thead>
         <tbody>
@@ -101,12 +99,12 @@
               {{player_1}}{{#if player_2}} &amp; {{player_2}}{{/if}}
             </td>
             <td class="col-num">{{scoreFormatted}}</td>
-            <td class="col-note">{{#if note}}{{note}}{{else}}&mdash;{{/if}}</td>
           </tr>
           {{/each}}
         </tbody>
       </table>
     </div>
+    {{#each footnotes}}<p class="mt-2">{{this}}</p>{{/each}}
     {{/each}}
   </section>
   {{/if}}
@@ -124,7 +122,6 @@
             <th>Player(s)</th>
             <th>Discipline</th>
             <th class="col-num">Milestone</th>
-            <th>Note</th>
           </tr>
         </thead>
         <tbody>
@@ -134,76 +131,25 @@
               {{player_1}}{{#if player_2}} &amp; {{player_2}}{{/if}}
             </td>
             <td>{{discipline}}</td>
-            <td class="col-num">{{#if score}}{{scoreFormatted}}{{else}}&mdash;{{/if}}</td>
-            <td class="col-note">{{#if note}}{{note}}{{else}}&mdash;{{/if}}</td>
+            <td class="col-num">{{scoreFormatted}}</td>
           </tr>
           {{/each}}
         </tbody>
       </table>
     </div>
+    {{#each footnotes}}<p class="mt-2">{{this}}</p>{{/each}}
     {{/each}}
   </section>
   {{/if}}
 
-  {{#if content.passbackRecords.length}}
+  {{! The passback records live on the freestyle records page; repeating them
+      here would put the same 160-odd rows on two pages. }}
   <section class="content-section">
     <div class="section-heading"><h2>Freestyle Passback Records</h2></div>
-    <p class="detail-muted">{{content.totalPassback}} per-trick consecutive records from the freestyle passback community.</p>
-    {{#if content.curatorReviewCount}}
-    <p class="text-muted fs-sm">
-      Records marked <span class="record-review-flag">Needs curator review</span>
-      are valid historical records whose name does not yet map to a settled trick
-      in the dictionary. They are kept exactly as recorded and are not linked to a
-      canonical trick until the identity is confirmed.
-    </p>
-    {{/if}}
-    <div class="records-table-wrap" tabindex="0" role="region" aria-label="Freestyle Passback Records">
-      <table class="records-table">
-        <thead>
-          <tr>
-            <th>Trick</th>
-            <th>Adds</th>
-            <th class="col-num">Count</th>
-            <th>Holder</th>
-            <th>Date</th>
-            <th>Video</th>
-          </tr>
-        </thead>
-        <tbody>
-          {{#each content.passbackRecords}}
-          <tr>
-            <td>
-              {{#if trickHref}}<a href="{{{trickHref}}}">{{trickName}}</a>{{else}}{{trickName}}{{/if}}
-              {{#if sortName}}<span class="trick-sort-name">{{sortName}}</span>{{/if}}
-              {{#if reviewNote}}
-              <span class="record-review-flag">Needs curator review</span>
-              <span class="record-review-note">{{reviewNote}}</span>
-              {{/if}}
-            </td>
-            <td>{{#if addsCount}}{{addsCount}}{{else}}&mdash;{{/if}}</td>
-            <td class="col-num">{{valueNumeric}}</td>
-            <td>
-              {{#if holderHref}}<a href="{{{holderHref}}}">{{holderName}}</a>{{else}}{{holderName}}{{/if}}
-            </td>
-            <td>
-              {{#if achievedDate}}{{formatDate achievedDate}}{{#if dateApproximate}} <em>(approx.)</em>{{/if}}{{else}}&mdash;{{/if}}
-            </td>
-            <td>
-              {{#if videoUrl}}
-                <a href="{{videoUrl}}" class="video-link" target="_blank" rel="noopener noreferrer">▶{{#if videoTimecode}} {{videoTimecode}}{{/if}}</a>
-              {{else}}&mdash;{{/if}}
-            </td>
-          </tr>
-          {{/each}}
-        </tbody>
-      </table>
-    </div>
+    <p>The record for each freestyle trick is listed with the trick records.</p>
+    <a href="/freestyle/records" class="action-link">See All Trick Records</a>
   </section>
-  {{/if}}
 
-  <p class="source-note">
-    Consecutive kicks records sanctioned by the World Footbag Association (WFA).
-    Passback records sourced from the freestyle passback video archive.
-  </p>
+  <p class="source-note">Consecutive kicks records sanctioned by the World Footbag Association (WFA).</p>
 
 </div>

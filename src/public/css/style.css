@@ -3476,7 +3476,6 @@ main fieldset > :not(:has(~ :not([type="hidden"]))) { margin-bottom: 0; }
 .records-table-sm th,
 .records-table-sm td { padding: var(--space-sm) var(--space-md); }
 .section-desc { color: var(--text-muted); margin: var(--space-xs) 0 var(--space-lg); }
-.col-note { color: var(--text-muted); font-size: 0.9rem; }
 .year-heading { margin: var(--space-xl) 0 var(--space-sm); }
 
 /* ── Internal QC: review vocabulary ─────────────────────────── */
@@ -4949,10 +4948,6 @@ a.hashtag--media:hover {
   width: 4rem;
   white-space: nowrap;
 }
-.record-world {
-  font-weight: 600;
-}
-
 /* ── Filter bar (partnerships, etc.) ─────────────────────────────────────── */
 .filter-bar {
   display: flex;

@@ -6,17 +6,16 @@
  *
  * Rendering contract:
  *   - getRecordsPage() returns PageViewModel<RecordsContent>.
- *   - Aggregates consecutive-kicks world records, highest scores, progression, milestones, and
- *     freestyle passback records into one view-model.
+ *   - Aggregates consecutive-kicks world records, highest scores, progression and milestones into
+ *     one view-model. The freestyle passback records are not repeated here; the page links to
+ *     /freestyle/records, which lists them.
  *
  * Visibility:
  *   - Public official historical records only. Derived aggregates carry a scope caveat or are
  *     suppressed when source coverage is partial; official results and record listings outrank
  *     inferred aggregates.
  */
-import { consecutiveKicksRecords, ConsecutiveKicksRow, freestyleRecords, FreestyleRecordRow } from '../db/db';
-import { FreestyleRecordViewModel, shapeFreestyleRecord } from './freestyleRecordShaping';
-import { buildActiveTrickSlugResolver } from './freestyleResolvableSlugs';
+import { consecutiveKicksRecords, ConsecutiveKicksRow } from '../db/db';
 import { runSqliteRead } from './sqliteRetry';
 import { PageViewModel } from '../types/page';
 
@@ -26,8 +25,6 @@ export interface ConsecutiveRecordViewModel {
   player_2:   string | null;
   score:      number | null;
   scoreFormatted: string;
-  note:       string | null;
-  isWorldRecord: boolean;
   eventDate:  string | null;
   eventName:  string | null;
   location:   string | null;
@@ -37,6 +34,8 @@ export interface ConsecutiveRecordViewModel {
 export interface ConsecutiveGroup {
   subsection: string;
   rows:       ConsecutiveRecordViewModel[];
+  /** Sentences said once under the table, in place of a mostly empty note column. */
+  footnotes:  string[];
 }
 
 export interface RecordsContent {
@@ -44,9 +43,6 @@ export interface RecordsContent {
   highestScores:     ConsecutiveGroup[];
   progression:       ConsecutiveGroup[];
   milestones:        ConsecutiveGroup[];
-  passbackRecords:   FreestyleRecordViewModel[];
-  totalPassback:     number;
-  curatorReviewCount: number;
 }
 
 function formatScore(score: number | null): string {
@@ -54,17 +50,19 @@ function formatScore(score: number | null): string {
   return score.toLocaleString('en-US');
 }
 
+/** "a", "a and b", "a, b and c". */
+function joinList(items: string[]): string {
+  if (items.length <= 1) return items.join('');
+  return `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+}
+
 function shapeRow(r: ConsecutiveKicksRow): ConsecutiveRecordViewModel {
-  const noteText = r.note ?? '';
-  const isWorldRecord = noteText.includes('World Record') && !noteText.includes('Former');
   return {
     discipline:     r.discipline,
     player_1:       r.player_1,
     player_2:       r.player_2,
     score:          r.score,
     scoreFormatted: formatScore(r.score),
-    note:           r.note,
-    isWorldRecord,
     eventDate:      r.event_date,
     eventName:      r.event_name,
     location:       r.location,
@@ -72,15 +70,35 @@ function shapeRow(r: ConsecutiveKicksRow): ConsecutiveRecordViewModel {
   };
 }
 
+/**
+ * Group rows by subsection. A note column empty in most rows is replaced by
+ * sentences under the table: a row with no score is a note rather than a
+ * record, so its note becomes a sentence and the row is dropped; runs ended on
+ * purpose are named together in one sentence.
+ */
 function groupBySubsection(rows: ConsecutiveKicksRow[]): ConsecutiveGroup[] {
   const groups: ConsecutiveGroup[] = [];
+  const endedOnPurpose = new Map<ConsecutiveGroup, string[]>();
   let current: ConsecutiveGroup | null = null;
   for (const r of rows) {
     if (!current || current.subsection !== r.subsection) {
-      current = { subsection: r.subsection, rows: [] };
+      current = { subsection: r.subsection, rows: [], footnotes: [] };
       groups.push(current);
     }
+    if (r.score === null) {
+      if (r.note) current.footnotes.push(r.note.endsWith('.') ? r.note : `${r.note}.`);
+      continue;
+    }
+    if (r.note && /intentionally ended/i.test(r.note)) {
+      const scores = endedOnPurpose.get(current) ?? [];
+      scores.push(formatScore(r.score));
+      endedOnPurpose.set(current, scores);
+    }
     current.rows.push(shapeRow(r));
+  }
+  for (const [group, scores] of endedOnPurpose) {
+    const runs = scores.length === 1 ? 'The run of' : 'The runs of';
+    group.footnotes.push(`${runs} ${joinList(scores)} ${scores.length === 1 ? 'was' : 'were'} stopped on purpose.`);
   }
   return groups;
 }
@@ -100,12 +118,6 @@ export const recordsService = {
       consecutiveKicksRecords.listMilestones.all() as ConsecutiveKicksRow[],
     );
 
-    const passbackRows = runSqliteRead('freestyleRecords.listPublic', () =>
-      freestyleRecords.listPublic.all() as FreestyleRecordRow[],
-    );
-    const resolveActiveSlug = buildActiveTrickSlugResolver();
-    const passbackRecords = passbackRows.map(r => shapeFreestyleRecord(r, resolveActiveSlug));
-
     return {
       seo:  { title: 'Records' },
       page: {
@@ -119,9 +131,6 @@ export const recordsService = {
         highestScores:   groupBySubsection(highScoreRows),
         progression:     groupBySubsection(progressionRows),
         milestones:      groupBySubsection(milestoneRows),
-        passbackRecords,
-        totalPassback:   passbackRows.length,
-        curatorReviewCount: passbackRecords.filter(r => r.reviewNote != null).length,
       },
     };
   },
