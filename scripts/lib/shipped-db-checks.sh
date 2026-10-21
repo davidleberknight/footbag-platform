@@ -18,6 +18,8 @@
 #   - the real-data invariants;
 #   - the club candidate, bootstrap leader and name variant gates;
 #   - the showcase event and its system member;
+#   - a safety verdict on every gallery external link, since an unverified link
+#     is hidden from the public;
 #   - the residue audit (test personas, developer grants, developer settings);
 #   - the honours flags traced to the rosters;
 #   - the member-data audits against the figures audited for the delivery.
@@ -97,6 +99,7 @@ shipped_db_checks() {
   _sdc_run "bootstrap leaders" "$root" "$db" bash "${scripts}/validate-bootstrap-leaders.sh"
   _sdc_run "name variants" "$root" "$db" bash "${scripts}/validate-name-variants.sh"
   _sdc_run "showcase presence" "$root" "$db" bash "${scripts}/validate-showcase-presence.sh"
+  _sdc_run "gallery link verdicts" "$root" "$db" bash "${scripts}/validate-gallery-link-verdicts.sh"
   _sdc_run "development residue" "$root" "$db" bash "${scripts}/audit-dev-shortcuts.sh"
   if py="$(footbag_python pipeline fail)"; then
     _sdc_run "honours flags" "$root" "$db" "$py" "${mds}/validate_legacy_honors.py" \

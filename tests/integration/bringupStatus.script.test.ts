@@ -11,6 +11,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 import { chmodSync, mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -68,6 +69,7 @@ const ALL_DONE_PRODUCTION = [
   'SSM_STRIPE_KEY=live',
   'SSM_BOOTSTRAP_TOKEN=absent',
   'CW_BACKUP_METRIC=flowing',
+  'ORIGIN_HOP=encrypted',
 ];
 
 describe('bringup-status.sh — argument validation', () => {
@@ -242,6 +244,56 @@ describe('bringup-status.sh — pending steps name their next command', () => {
     const result = runScript(['--target', 'production', '--probe-file', probe]);
     expect(result.stdout).toMatch(/3\. Payments\s+PENDING\s+PAYMENTS_ARMED: armed, SSM key: placeholder/);
     expect(result.stdout).toMatch(/scripts\/activate-payments\.sh --target production/);
+  });
+
+  // Defect caught: the operator reads a green bring-up while the origin hop is
+  // still plaintext, and only learns of it when going live is refused.
+  it('reports a plaintext origin hop on production as pending, naming what it blocks', () => {
+    const plaintext = runScript(['--target', 'production', '--probe-file',
+      writeProbeFile(['ORIGIN_HOP=plaintext (http-only)'])]);
+    expect(plaintext.stdout).toMatch(/10\. Origin TLS\s+PENDING\s+plaintext \(http-only\); going live and a live Stripe key are refused/);
+    expect(plaintext.stdout).toMatch(/next: put origin TLS in place after the zone move/);
+
+    const encrypted = runScript(['--target', 'production', '--probe-file',
+      writeProbeFile(['ORIGIN_HOP=encrypted'])]);
+    expect(encrypted.stdout).toMatch(/10\. Origin TLS\s+DONE\s+the distribution reaches its origin https-only/);
+
+    const unread = runScript(['--target', 'production', '--probe-file', writeProbeFile([])]);
+    expect(unread.stdout).toMatch(/10\. Origin TLS\s+UNKNOWN/);
+
+    const staging = runScript(['--target', 'staging', '--probe-file', writeProbeFile([])]);
+    expect(staging.stdout).toMatch(/10\. Origin TLS\s+N-A/);
+  });
+
+  // Defect caught: the live probe misreads what CloudFront reports, so a
+  // plaintext hop shows as unknown, or an unreadable one as plaintext.
+  it('classifies the origin protocol the live probe reads from the distribution', () => {
+    const probeWith = (policy: string | null) => {
+      const caseDir = mkdtempSync(join(tmpDir, 'origin-probe-'));
+      const bin = join(caseDir, 'bin');
+      mkdirSync(bin, { recursive: true });
+      const exe = (name: string, lines: string[]) => {
+        writeFileSync(join(bin, name), ['#!/usr/bin/env bash', ...lines].join('\n') + '\n');
+        chmodSync(join(bin, name), 0o755);
+      };
+      // Every other aws read in the probe answers nothing, so those rows stay unknown.
+      exe('aws', ['exit 1']);
+      exe('terraform', [
+        'if [[ "$*" == *"output -raw cloudfront_distribution_id"* ]]; then echo E2TESTDIST; exit 0; fi',
+        'exit 1',
+      ]);
+      exe('cloudfront', [policy === null ? 'exit 255' : `echo ${policy}`]);
+      return runScript(['--target', 'production', '--skip-remote', '--skip-terraform', '--profile', 'footbag-operator'], {
+        ...process.env,
+        ...awsIdentityStubEnv(caseDir),
+        PATH: `${bin}:${process.env.PATH ?? ''}`,
+        TF_OUTPUT_BIN: join(bin, 'terraform'),
+        ORIGIN_TLS_AWS_BIN: join(bin, 'cloudfront'),
+      });
+    };
+    expect(probeWith('http-only').stdout).toMatch(/10\. Origin TLS\s+PENDING\s+plaintext \(http-only\)/);
+    expect(probeWith('https-only').stdout).toMatch(/10\. Origin TLS\s+DONE/);
+    expect(probeWith(null).stdout).toMatch(/10\. Origin TLS\s+UNKNOWN/);
   });
 
   it('a backup timer active but metric missing advises waiting, not reinstalling', () => {

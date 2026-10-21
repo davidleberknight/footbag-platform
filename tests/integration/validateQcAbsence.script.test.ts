@@ -30,7 +30,10 @@ beforeAll(() => {
     path.join(bin, 'docker'),
     [
       '#!/usr/bin/env bash',
-      'if [[ "$1 $2" == "image inspect" ]]; then [[ -d "$FAKE_IMAGE_DIR" ]]; exit; fi',
+      'if [[ "$1 $2" == "image inspect" ]]; then',
+      '  [[ -n "${FAKE_INSPECT_LOG:-}" ]] && printf "%s\\n" "$3" >> "$FAKE_INSPECT_LOG"',
+      '  [[ -d "$FAKE_IMAGE_DIR" ]]; exit',
+      'fi',
       'if [[ "$1" == "run" ]]; then',
       '  cmd="${@: -1}"',
       '  cd "$FAKE_IMAGE_DIR" && exec sh -c "$cmd"',
@@ -54,12 +57,26 @@ function image(files: Record<string, string>): string {
   return dir;
 }
 
-function gate(imageDir: string, args: string[] = []) {
-  return spawnSync('bash', [SCRIPT, ...args], {
-    encoding: 'utf-8',
-    env: { ...process.env, PATH: `${bin}:${process.env.PATH ?? ''}`, FAKE_IMAGE_DIR: imageDir },
-    ...SPAWN_GUARD,
-  });
+function gate(imageDir: string, args: string[] = [], extraEnv: Record<string, string> = {}) {
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    PATH: `${bin}:${process.env.PATH ?? ''}`,
+    FAKE_IMAGE_DIR: imageDir,
+    ...extraEnv,
+  };
+  delete env.FOOTBAG_PROD_IMAGE;
+  return spawnSync('bash', [SCRIPT, ...args], { encoding: 'utf-8', env, ...SPAWN_GUARD });
+}
+
+/** The images the deploy sends to the host, read from its own `docker save` line. */
+function shippedImages(): string[] {
+  const transfer = fs.readFileSync(
+    path.resolve(__dirname, '..', '..', 'scripts', 'lib', 'image-transfer.sh'),
+    'utf-8',
+  );
+  const save = /;\s*docker save ([\w\s-]+);/.exec(transfer);
+  if (!save) throw new Error('image-transfer.sh no longer carries a docker save line');
+  return save[1].trim().split(/\s+/);
 }
 
 describe('validate-qc-absence.sh', () => {
@@ -67,6 +84,18 @@ describe('validate-qc-absence.sh', () => {
     const res = gate(image({}));
     expect(res.status, res.stderr).toBe(0);
     expect(res.stdout).toContain('GATE: QC-ABSENCE PASS');
+  });
+
+  it('inspects, by default, the web image the deploy actually ships to the host', () => {
+    // A default naming an image nothing builds makes the gate fail on every run
+    // or read a stale image, so the operator learns to ignore it.
+    const log = path.join(root, 'inspected.log');
+    const res = gate(image({}), [], { FAKE_INSPECT_LOG: log });
+    expect(res.status, res.stderr).toBe(0);
+    const inspected = fs.readFileSync(log, 'utf-8').trim().replace(/:latest$/, '');
+    const shipped = shippedImages();
+    expect(shipped, `inspected '${inspected}', shipped ${shipped.join(', ')}`).toContain(inspected);
+    expect(inspected).toMatch(/web/);
   });
 
   it('reports mock mode as skipped, never as a pass', () => {

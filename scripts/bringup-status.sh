@@ -132,6 +132,7 @@ declare -A P=(
   [SSM_STRIPE_KEY]=unknown
   [SSM_BOOTSTRAP_TOKEN]=unknown
   [CW_BACKUP_METRIC]=unknown
+  [ORIGIN_HOP]=unknown
 )
 
 if [[ -n "$PROBE_FILE" ]]; then
@@ -307,13 +308,25 @@ else
       if [[ "$DATAPOINTS" =~ ^[0-9]+$ ]]; then
         (( DATAPOINTS > 0 )) && P[CW_BACKUP_METRIC]=flowing || P[CW_BACKUP_METRIC]=missing
       fi
+
+      # Origin hop: read from the live distribution by the same check that
+      # refuses going live and a live Stripe key while the hop is plaintext.
+      if [[ "$TARGET" == "production" ]]; then
+        # shellcheck source=lib/origin-tls.sh
+        source "$SCRIPT_DIR/lib/origin-tls.sh"
+        if AWS_PROFILE="$AWS_PROFILE_ARG" origin_hop_encrypted "$SCRIPT_DIR/../terraform/$TARGET" "${AWS_REGION:-us-east-1}" 2>/dev/null; then
+          P[ORIGIN_HOP]=encrypted
+        elif [[ -n "$ORIGIN_TLS_POLICY" && "$ORIGIN_TLS_POLICY" != "None" ]]; then
+          P[ORIGIN_HOP]="plaintext ($ORIGIN_TLS_POLICY)"
+        fi
+      fi
     fi
   fi
   PROBES_RUN="${PROBES_RUN:-none}"
 fi
 
 # -----------------------------------------------------------------------------
-# Render the eight steps.
+# Render the steps.
 # -----------------------------------------------------------------------------
 row() {
   printf " %s. %-24s %-8s %s\n" "$1" "$2" "$3" "$4"
@@ -487,6 +500,25 @@ elif [[ "${P[DEPLOYED_EMAIL_TEMPLATES]}" == "$LOCAL_EMAIL_TEMPLATES" ]]; then
 else
   row 9 "Email wording" PENDING "the host was seeded from different sidecar text; a code-only deploy will not change it"
   next_cmd "change the wording in the admin email-template editor, or reseed with a full-rebuild deploy"
+fi
+
+# 10. Origin TLS. Until the CloudFront-to-origin hop is https-only, going live
+# and installing a live Stripe key are both refused by their scripts.
+if [[ "$TARGET" != "production" ]]; then
+  row 10 "Origin TLS" N-A "staging has no custom domain, so its hop stays plaintext by design"
+else
+  case "${P[ORIGIN_HOP]}" in
+    encrypted)
+      row 10 "Origin TLS" DONE "the distribution reaches its origin https-only"
+      ;;
+    plaintext*)
+      row 10 "Origin TLS" PENDING "${P[ORIGIN_HOP]}; going live and a live Stripe key are refused until it is https-only"
+      next_cmd "put origin TLS in place after the zone move (origin.footbag.org, its scoped CAA, the certificate, the 443 listener, then https-only)"
+      ;;
+    *)
+      row 10 "Origin TLS" UNKNOWN "the distribution's origin protocol was not read (pass --profile)"
+      ;;
+  esac
 fi
 
 echo ""

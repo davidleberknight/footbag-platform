@@ -261,9 +261,10 @@ resource "aws_cloudfront_distribution" "main" {
   # operator exercise the real distribution before the apex flip. The alias and
   # its certificate SAN exist from the certificate's first issuance, because ACM
   # replaces the whole certificate when a SAN is added later; the DNS record
-  # itself is gated separately and is retired in a separate later apply, after
-  # the watch window, not at cutover: it is the reversal path while the public
-  # names serve the notice.
+  # itself is gated separately and is removed in the launch apply. Until then it
+  # is the route to the platform while the public names serve the notice. The
+  # name stays on the certificate, where it serves nothing once its record is
+  # gone, because removing it would force a certificate replacement.
   aliases = var.enable_platform_custom_domain ? [
     var.domain_name, "www.${var.domain_name}", "preview.${var.domain_name}"
   ] : []

@@ -180,10 +180,12 @@ lightsail_origin_dns = "TODO-origin.footbag.org"
 # is a site whose published contact addresses do not arrive. The zone and the
 # apex mail records are needed together and changed separately.
 #
-# enable_cloudfront is the master gate for the distribution, its ACM certificate
-# and the certificate's DNS validation records. False for the first apply; true
-# on the second, once the registrar has delegated the domain to the zone this
-# configuration creates and lightsail_origin_dns resolves.
+# enable_cloudfront creates the distribution on its own cloudfront.net name,
+# which needs no domain, zone or certificate. False for the first apply; true on
+# the second, once lightsail_origin_dns resolves. The certificate, its DNS
+# validation records and the aliases ride enable_platform_custom_domain, which
+# waits for the registrar to delegate the domain to the zone this configuration
+# creates.
 #
 # enable_preview_record creates the preview.<domain> alias records for the
 # pre-cutover exercises and for the cutover window itself, when preview is the

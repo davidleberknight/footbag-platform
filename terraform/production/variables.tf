@@ -117,7 +117,9 @@ variable "lightsail_origin_dns" {
 # ── Phased-apply feature gates ───────────────────────────────────────────────
 # Production mirrors the staging gates so apply can land in phases:
 #   pass 1: infra-only, CloudFront/ACM/DNS and alarms/dashboard/backup-alarm off
-#   pass 2: enable CloudFront once the zone is delegated and an origin A record exists
+#   pass 2: enable CloudFront on its own cloudfront.net name once a resolvable
+#           origin hostname exists; the custom domain waits for the zone to be
+#           delegated
 #   pass 3: enable CW agent alarms once the agent is installed and emitting
 #   pass 4: enable backup alarm once the snapshot job emits BackupAgeMinutes
 # Without these gates, alarms fire INSUFFICIENT_DATA or breaching from the

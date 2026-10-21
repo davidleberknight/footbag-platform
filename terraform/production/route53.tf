@@ -65,8 +65,9 @@ output "route53_zone_id" {
 #
 # Route 53 creates this record set together with the hosted zone, at a TTL of
 # 172800 -- two days -- and that TTL is what bounds a reversal of the delegation
-# change. Arriving at Route 53 converges in about 75 minutes, bounded by the
-# registry's 3600 and the legacy zone's 720. Leaving again is bounded by this
+# change. Arriving at Route 53 converges in about an hour for most resolvers,
+# bounded by the registry's 3600, and in up to about 25 hours for a resolver
+# that keeps the legacy zone's own NS set at its 86400. Leaving again is bounded by this
 # record instead: a resolver that took the nameserver set from this zone rather
 # than from the registry holds it for two days, so a revert made shortly after
 # the move would take that long to reach everyone. Lowering it ahead of the move
@@ -507,14 +508,13 @@ resource "aws_route53_record" "www_aaaa" {
 # instead, and those are a separate change on a separate day. Both are required
 # before the site is fully exercisable. Verified against the live
 # zone before creation (the name must have no record of any type there) and
-# retired in a separate later apply, NOT at cutover. Gated separately from the
-# apex flip so it can exist through the whole pre-cutover window and past it:
-# once the apex and www serve the migration notice, this name is the only route
-# an operator has to the platform, so it is what a reversal depends on. Removing
-# it in the launch apply would delete the reversal path at the moment the watch
-# window begins. It retires once the launch is settled and the watch has run.
+# removed in the launch apply: from go-live the only names served are the apex,
+# www and archive, so no hostname outlives the cutover that nobody needs. Gated
+# separately from the apex flip so it can exist through the whole pre-cutover
+# window and the freeze: once the apex and www serve the migration notice, this
+# name is the only route an operator has to the platform until launch.
 variable "enable_preview_record" {
-  description = "Create the preview.<domain> alias records to CloudFront for the pre-cutover exercises. On after the zone move once the name is re-verified absent from the zone snapshot. It stays on past the cutover: while the public names serve the migration notice this is the only hostname reaching the platform, so it is the reversal path. Retired in a separate later apply once the launch is settled and the watch window has run, never in the launch apply itself."
+  description = "Create the preview.<domain> alias records to CloudFront for the pre-cutover exercises. On after the zone move once the name is re-verified absent from the zone snapshot. It stays on through the freeze: while the public names serve the migration notice this is the only hostname reaching the platform. Turned off in the launch apply, because from go-live the only names served are the apex, www and archive."
   type        = bool
   default     = false
 }

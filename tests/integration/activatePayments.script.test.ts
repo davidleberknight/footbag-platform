@@ -590,6 +590,20 @@ describe('activate-payments.sh — prompts never read the credential stream', ()
     });
   });
 
+  it('checks the origin hop for a live production key before any secret is written', () => {
+    // Defect caught: a live Stripe key goes in, and real money starts moving,
+    // while webhook deliveries still cross the CloudFront-to-origin hop in clear.
+    // The run that reaches this point needs a terminal for the key prompt, so the
+    // wiring is pinned in the source: the check sits behind the live-key
+    // condition and comes before the first parameter write.
+    const guard = /if \[\[ "\$TARGET" == "production" && "\$STRIPE_KEY" == sk_live_\* && -z "\$ENV_FILE_OVERRIDE" \]\]; then[\s\S]*?origin_hop_encrypted[\s\S]*?origin_hop_refusal "install a live Stripe key"[\s\S]*?exit 1/;
+    const match = guard.exec(source);
+    expect(match, 'live-key origin-hop guard not found').not.toBeNull();
+    const firstWrite = source.indexOf('put_ssm_secret "$SSM_PARAM" "$STRIPE_KEY"');
+    expect(firstWrite).toBeGreaterThan(0);
+    expect(match!.index).toBeLessThan(firstWrite);
+  });
+
   it('routes both typed confirmations through the terminal helper', () => {
     // Both say APPLY: one word for every confirmation in the tree, so an operator
     // has one thing to type and no phrase to look up. What matters here is that

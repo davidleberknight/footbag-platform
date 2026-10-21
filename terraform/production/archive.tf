@@ -52,7 +52,7 @@ variable "archive_require_signed_cookies" {
 }
 
 variable "archive_platform_url" {
-  description = "Base URL of the platform the archive's login redirect and gate pages point back to, without a trailing slash. Empty derives https://<domain_name>, which is right wherever the platform runs on its own domain; an environment whose platform is reachable only on a default CloudFront URL supplies that URL here."
+  description = "Base URL of the platform the archive's login redirect and gate pages point back to, without a trailing slash. Empty derives https://www.<domain_name>, which is right only once www serves the platform rather than the legacy site; an environment whose platform is reachable only on a default CloudFront URL supplies that URL here."
   type        = string
   default     = ""
 

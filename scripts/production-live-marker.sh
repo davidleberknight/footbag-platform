@@ -22,6 +22,10 @@
 # The marker is a plain String parameter (no KMS): it is a state flag, not a
 # secret, and the deploy guards read it with the host's own runtime profile.
 #
+# REFUSED: going live while the CloudFront-to-origin hop is not https-only, read
+# from the live distribution (scripts/lib/origin-tls.sh), because going live is
+# what lets real member data onto production.
+#
 # Usage:
 #   scripts/production-live-marker.sh --status --profile <prod-profile>
 #   scripts/production-live-marker.sh --set live     --profile <prod-profile>
@@ -110,7 +114,8 @@ if (( DRY_RUN )); then
     if [[ "$WANT_VALUE" == "true" ]]; then
       echo ""
       echo "Going live forbids the database-replacing deploy permanently and makes the"
-      echo "runtime refuse a Stripe test-mode key at the next payment use."
+      echo "runtime refuse a Stripe test-mode key at the next payment use. It is refused"
+      echo "unless the CloudFront-to-origin hop is https-only."
     else
       echo ""
       echo "Returning to pre-live re-arms the database-replacing deploy paths."
@@ -154,6 +159,22 @@ if [[ "$CURRENT" == "$WANT_VALUE" ]]; then
   echo ""
   echo "Already $DESIRED; nothing to do."
   exit 0
+fi
+
+# Going live is what lets real member data and real money onto production, so it
+# waits until the CloudFront-to-origin hop is encrypted. Checked before the
+# confirmation so the operator is not asked to confirm an act that would be
+# refused. Returning to pre-live carries no such risk and is not gated.
+if [[ "$WANT_VALUE" == "true" ]]; then
+  REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+  export AWS_PROFILE="$AWS_PROFILE_ARG"
+  # shellcheck source=lib/origin-tls.sh
+  source "$REPO_ROOT/scripts/lib/origin-tls.sh"
+  if ! origin_hop_encrypted "$REPO_ROOT/terraform/$TARGET" "$AWS_REGION_ARG"; then
+    origin_hop_refusal "take production live"
+    exit 1
+  fi
+  echo "Origin hop: https-only, so production may go live."
 fi
 
 # The confirmation below is read from stdin, and this script expects stdin to be

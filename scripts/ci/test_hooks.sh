@@ -321,6 +321,27 @@ expect "$H" 'gh api graphql -f query=`cat q.graphql`' deny
 expect "$H" 'gh api -X PATCH repos/o/r/issues/comments/9 -F body=@c.md' deny
 expect_reason "$H" 'gh api -X PATCH repos/o/r/issues/comments/9 -F body=@c.md' 'gh issue comment -R'
 expect_reason "$H" 'gh api repos/o/r/issues/5/comments -f body=x' 'gh issue comment -R'
+# Editing one comment on the private tracker, its body from a file, is the one issue
+# write with no gh issue form, so exactly that shape passes; every variation is still
+# refused, and with no tracker configured the shape itself is refused.
+(
+  export FOOTBAG_PRIVATE_REPO=o/p
+  expect "$H" 'gh api -X PATCH repos/o/p/issues/comments/9 -F body=@c.md' defer
+  expect "$H" 'gh api -X PATCH repos/o/r/issues/comments/9 -F body=@c.md' deny
+  expect "$H" 'gh api -X DELETE repos/o/p/issues/comments/9' deny
+  expect "$H" 'gh api -X PATCH repos/o/p/issues/9 -F body=@c.md' deny
+  expect "$H" 'gh api -X PATCH repos/o/p/issues/comments/9 -F body=@c.md -F x=y' deny
+  expect "$H" 'gh api -X PATCH repos/o/p/issues/comments/9 -f body=x' deny
+  expect "$H" 'gh api -X PATCH repos/o/p/issues/comments/$ID -F body=@c.md' deny
+  expect "$H" 'gh api -X PATCH repos/o/p/issues/comments/9 -F body=@$F' deny
+  expect "$H" 'gh api -X PATCH repos/o/p/pulls/comments/9 -F body=@c.md' deny
+  exit "$fail"
+) || fail=1
+(
+  unset FOOTBAG_PRIVATE_REPO
+  expect "$H" 'gh api -X PATCH repos/o/p/issues/comments/9 -F body=@c.md' deny
+  exit "$fail"
+) || fail=1
 expect_reason "$H" 'gh api -X POST repos/o/r/git/refs' 'may never create or modify branches'
 
 H=guard-db-destructive.sh

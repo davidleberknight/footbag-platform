@@ -36,13 +36,13 @@ set -euo pipefail
 # shellcheck source=lib/host-env-remote.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/host-env-remote.sh"
 
-# Canonical transactional sender. Overridable with --sender because the sender
-# identity is not always the canonical one: it must be an address SES has
-# verified, and the canonical address cannot be verified until mail for the
-# domain is reachable. While production sends under an interim identity, this
-# script has to send under the same one or it proves nothing about the running
-# configuration.
-SENDER="noreply@footbag.org"
+# The sender production is configured to send as, read from the production
+# tree's ses_sender_identity output unless --sender names another. It is not the
+# canonical address by default: until the sender moves onto the domain identity,
+# production sends under an interim address, and a check sending under any other
+# address proves nothing about the running configuration. An output that cannot
+# be read is refused rather than replaced with a guess.
+SENDER=""
 REGION="us-east-1"             # SES identity region
 SIMULATOR="success@simulator.amazonses.com"
 BOUNCE_SIMULATOR="bounce@simulator.amazonses.com"
@@ -76,6 +76,20 @@ done
 if [[ -z "$PROFILE" ]]; then
   echo "ERROR: --profile <production-runtime-profile> is required" >&2; exit 2
 fi
+
+if [[ -z "$SENDER" ]]; then
+  # shellcheck source=lib/terraform-output.sh
+  source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/terraform-output.sh"
+  PROD_TF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)/terraform/production"
+  if ! tf_output_read "$PROD_TF_DIR" ses_sender_identity || [[ -z "$TF_OUTPUT_VALUE" ]]; then
+    echo "ERROR: could not read the sender production sends as (the ses_sender_identity output)." >&2
+    tf_output_explain "$PROD_TF_DIR" ses_sender_identity
+    echo "       Or name it explicitly with --sender <address>." >&2
+    exit 2
+  fi
+  SENDER="$TF_OUTPUT_VALUE"
+fi
+echo "Sender: $SENDER"
 
 # The outbox leg opens a privileged remote session, so its credential is read
 # from stdin before anything else runs: a failure here should cost nothing.

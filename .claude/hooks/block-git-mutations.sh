@@ -26,7 +26,7 @@ GIT_DENY="HARD BLOCK: the human owns every change to this repository. Claude may
 
 GH_DENY="HARD BLOCK: the human owns every change to the GitHub repository. Claude may read GitHub and may operate issues in the maintainers' private tracker and the private bug-intake repository, and may never create or modify branches, pull requests, releases, workflow runs, keys, or repository settings."
 
-GH_ISSUE_API_DENY="HARD BLOCK: write to an issue with the gh issue subcommands, not gh api. Their repo-flag form is what the tracker permission rules grant, so rewrite the command rather than hand it back: a body, title, label or assignee change as gh issue edit -R \"\$FOOTBAG_PRIVATE_REPO\" <n> --body-file <file>; a new comment as gh issue comment -R \"\$FOOTBAG_PRIVATE_REPO\" <n> --body-file <file>; your own latest comment on that issue as the same comment command plus --edit-last; close or reopen as gh issue close or gh issue reopen -R \"\$FOOTBAG_PRIVATE_REPO\" <n>. Use \$FOOTBAG_DEVTESTER_REPO for the bug-intake repository. Another account's comment, or one that is not your latest, has no gh issue edit form: fold its live content into the body with gh issue edit."
+GH_ISSUE_API_DENY="HARD BLOCK: write to an issue with the gh issue subcommands, not gh api. Their repo-flag form is what the tracker permission rules grant, so rewrite the command rather than hand it back: a body, title, label or assignee change as gh issue edit -R \"\$FOOTBAG_PRIVATE_REPO\" <n> --body-file <file>; a new comment as gh issue comment -R \"\$FOOTBAG_PRIVATE_REPO\" <n> --body-file <file>; your own latest comment on that issue as the same comment command plus --edit-last; close or reopen as gh issue close or gh issue reopen -R \"\$FOOTBAG_PRIVATE_REPO\" <n>. Use \$FOOTBAG_DEVTESTER_REPO for the bug-intake repository. A comment that is not your latest is edited with gh api -X PATCH repos/\$FOOTBAG_PRIVATE_REPO/issues/comments/<id> -F body=@<file>, exactly that shape and nothing else."
 
 deny() {
   jq -n --arg reason "$1" '{
@@ -163,6 +163,17 @@ judge_gh_api() {
   for a in "$@"; do
     case "$a" in repos/*/issues*|/repos/*/issues*) reason="$GH_ISSUE_API_DENY" ;; esac
   done
+  # One issue write has no gh issue form: editing a comment that is not the caller's
+  # latest. Exactly that shape is let through, on the private tracker only, with the
+  # body read from a named file; any other method, path, flag or repository is judged
+  # as before.
+  if [ -n "${FOOTBAG_PRIVATE_REPO:-}" ] && [ "$#" -eq 5 ] \
+     && [ "$1" = "-X" ] && [ "$2" = "PATCH" ] \
+     && [ "$3" = "repos/${FOOTBAG_PRIVATE_REPO}/issues/comments/${3##*/}" ] \
+     && [[ "${3##*/}" =~ ^[0-9]+$ ]] \
+     && [ "$4" = "-F" ] && [[ "$5" =~ ^body=@[A-Za-z0-9._/-]+$ ]]; then
+    return 0
+  fi
   for a in "$@"; do
     if [ "$expect_method" -eq 1 ]; then
       expect_method=0

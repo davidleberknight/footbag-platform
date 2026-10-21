@@ -38,6 +38,7 @@ const BASH_CHECKS = [
   'validate-bootstrap-leaders.sh',
   'validate-name-variants.sh',
   'validate-showcase-presence.sh',
+  'validate-gallery-link-verdicts.sh',
   'audit-dev-shortcuts.sh',
 ];
 const PY_CHECKS = ['validate_legacy_honors.py', 'audit_member_data.py'];

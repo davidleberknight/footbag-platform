@@ -8,7 +8,10 @@
 # than against the source tree, because the image is what ships.
 #
 # Env:
-#   FOOTBAG_PROD_IMAGE   Image tag to inspect (default: footbag-web:latest)
+#   FOOTBAG_PROD_IMAGE   Image tag to inspect (default: docker-web:latest, the
+#                        web image the deploy builds, checks and sends to the
+#                        host; a default naming any other image inspects
+#                        something that never ships)
 # Flags:
 #   --mock               Skip docker entirely, so the aggregator can be exercised
 #                        without an image. Reports SKIPPED, never PASS: the run
@@ -16,7 +19,7 @@
 #                        a gate never looked is worse than no checklist.
 set -euo pipefail
 
-IMAGE="${FOOTBAG_PROD_IMAGE:-footbag-web:latest}"
+IMAGE="${FOOTBAG_PROD_IMAGE:-docker-web:latest}"
 
 # Tables the retirement dropped. A compiled bundle naming one of these means QC
 # code came back, whatever directory it landed in.

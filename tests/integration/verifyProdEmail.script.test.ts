@@ -30,6 +30,7 @@ import * as fs from 'node:fs';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
+import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const SCRIPT = path.join(REPO_ROOT, 'scripts', 'verify-prod-email.sh');
@@ -93,10 +94,32 @@ function writeFakeAws(
   );
 }
 
+/**
+ * A terraform stand-in answering the production tree's sender output, or failing
+ * as an uninitialised tree does when `sender` is null.
+ */
+let terraformStubs = 0;
+function writeFakeTerraform(sender: string | null): string {
+  const p = path.join(dir, `terraform-stub-${++terraformStubs}.sh`);
+  fs.writeFileSync(p, [
+    '#!/usr/bin/env bash',
+    sender === null
+      ? 'echo "Error: No outputs found" >&2; exit 1'
+      : `if [[ "$*" == *"output -raw ses_sender_identity"* ]]; then echo ${JSON.stringify(sender)}; exit 0; fi; exit 1`,
+  ].join('\n'), { mode: 0o755 });
+  return p;
+}
+
 function run(args: string[], extraEnv: Record<string, string> = {}): ReturnType<typeof spawnSync> {
   return spawnSync('bash', [SCRIPT, ...args], {
     encoding: 'utf8',
-    env: { ...process.env, PATH: `${fakeBin}:${process.env.PATH ?? ''}`, ...extraEnv },
+    env: {
+      ...process.env,
+      ...awsIdentityStubEnv(dir),
+      TF_OUTPUT_BIN: writeFakeTerraform('noreply@footbag.org'),
+      PATH: `${fakeBin}:${process.env.PATH ?? ''}`,
+      ...extraEnv,
+    },
     ...SPAWN_GUARD,
   });
 }
@@ -144,6 +167,33 @@ describe('verify-prod-email.sh refusals', () => {
     const r = run(['--profile', 'p', '--yes', '--send-everything']);
     expect(r.status).toBe(2);
     expect(r.stderr).toMatch(/unknown arg/);
+  });
+
+  // Defect caught: before the sender cutover, the check sends as the canonical
+  // address production does not use, so a green run proves nothing about the
+  // interim sender that real mail goes out under.
+  it('sends as the sender production is configured with, not the canonical address', () => {
+    const r = run(['--profile', 'footbag-production', '--yes'], {
+      TF_OUTPUT_BIN: writeFakeTerraform('noreply@interim.example'),
+    });
+    expect(r.status, String(r.stderr)).toBe(0);
+    expect(r.stdout).toContain('Sender: noreply@interim.example');
+    expect(sends().length).toBeGreaterThan(0);
+    expect(sends().every((l) => l.includes('--from noreply@interim.example'))).toBe(true);
+  });
+
+  // Defect caught: an unreadable output silently falls back to a guessed sender.
+  it('refuses when the configured sender cannot be read, and names --sender', () => {
+    const r = run(['--profile', 'footbag-production', '--yes'], { TF_OUTPUT_BIN: writeFakeTerraform(null) });
+    expect(r.status).toBe(2);
+    expect(r.stderr).toMatch(/could not read the sender production sends as/);
+    expect(r.stderr).toMatch(/--sender <address>/);
+    expect(sends()).toEqual([]);
+
+    const named = run(['--profile', 'footbag-production', '--sender', 'noreply@footbag.org', '--yes'], {
+      TF_OUTPUT_BIN: writeFakeTerraform(null),
+    });
+    expect(named.status, String(named.stderr)).toBe(0);
   });
 
   it('refuses a profile that does not resolve to a production identity', () => {
@@ -199,7 +249,7 @@ describe('verify-prod-email.sh outbox leg', () => {
     const cred = path.join(dir, 'credential.txt');
     fs.writeFileSync(cred, 'stub-sudo-pass\nSECOND-LINE-MARKER\n', { mode: 0o600 });
 
-    const r = spawnSync('bash', [SCRIPT, '--profile', 'footbag-production', '--outbox', '--yes'], {
+    const r = spawnSync('bash', [SCRIPT, '--profile', 'footbag-production', '--sender', 'noreply@footbag.org', '--outbox', '--yes'], {
       encoding: 'utf8',
       input: fs.readFileSync(cred),
       env: {

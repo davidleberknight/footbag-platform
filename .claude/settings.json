@@ -350,7 +350,13 @@
       "Bash(gh gpg-key*)",
       "Bash(gh alias set*)",
       "Bash(gh extension install*)",
-      "Bash(gh api -X*)",
+      "Bash(gh api -X POST*)",
+      "Bash(gh api -X PUT*)",
+      "Bash(gh api -X DELETE*)",
+      "Bash(gh api -XPOST*)",
+      "Bash(gh api -XPUT*)",
+      "Bash(gh api -XDELETE*)",
+      "Bash(gh api -XPATCH*)",
       "Bash(gh api --method*)"
     ]
   },

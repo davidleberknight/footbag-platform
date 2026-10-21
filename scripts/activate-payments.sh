@@ -41,7 +41,9 @@
 # pre-cutover test-mode exercise); the live key (sk_live_) takes over from
 # the live canary onward, and the runtime refuses a mismatched key at first
 # use. The webhook secret must be a real whsec_ value; the stub adapter's
-# whsec_stub prefix is rejected.
+# whsec_stub prefix is rejected. A live key is refused while the
+# CloudFront-to-origin hop is not https-only, read from the live distribution
+# (lib/origin-tls.sh), because real money must not cross a plaintext hop.
 #
 # The host env file is read and written through the shared wire in
 # lib/host-env-remote.sh: the sudo password is line one of the ssh stdin stream
@@ -140,7 +142,7 @@ STRIPE_API_VERSION="2026-07-29.dahlia"
 # dispatcher handles. Reused by the dry-run summary and the activation pause so
 # the operator sees one authoritative list.
 print_endpoint_requirements() {
-  echo "  - endpoint URL: the environment's PUBLIC_BASE_URL + /payments/webhook"
+  echo "  - endpoint URL: the distribution's own cloudfront.net address + /payments/webhook"
   echo "  - endpoint API version: exactly $STRIPE_API_VERSION"
   echo "  - subscribed events:"
   local evt
@@ -379,7 +381,8 @@ if (( DRY_RUN )); then
         echo "     The signing secret is taken from the response and never displayed."
       else
         echo "  2. Pause: create the webhook endpoint in the Stripe Dashboard"
-        echo "     (PUBLIC_BASE_URL + /payments/webhook), then prompt (silent) for its whsec_ secret"
+        echo "     (the distribution's cloudfront.net address + /payments/webhook), then prompt"
+        echo "     (silent) for its whsec_ secret"
         echo "     (--create-endpoint does this step through the API instead, with no copy-paste)"
       fi
       echo "  3. Read $HOST_ENV_PATH down from $SSH_ALIAS over the shared wire"
@@ -557,6 +560,20 @@ if [[ "$MODE" == "activate" ]]; then
     echo "NOTICE: test-mode key supplied. Production accepts it only while the production-live"
     echo "        marker (/footbag/production/app/production_live) reads pre-live; the runtime"
     echo "        refuses a test key at first payment use once the marker flips at go-live."
+  fi
+  # A live key takes real money, and its webhook deliveries cross the
+  # CloudFront-to-origin hop, so it waits until that hop is encrypted. Checked
+  # here, straight after the key is read and before anything is written or the
+  # operator is sent to the Dashboard. The synthetic env-file mode reaches no AWS
+  # and is not gated.
+  if [[ "$TARGET" == "production" && "$STRIPE_KEY" == sk_live_* && -z "$ENV_FILE_OVERRIDE" ]]; then
+    _ap_repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+    # shellcheck source=lib/origin-tls.sh
+    source "$_ap_repo_root/scripts/lib/origin-tls.sh"
+    if ! origin_hop_encrypted "$_ap_repo_root/terraform/$TARGET" "${AWS_REGION:-us-east-1}"; then
+      origin_hop_refusal "install a live Stripe key"
+      exit 1
+    fi
   fi
 fi
 
