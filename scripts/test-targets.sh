@@ -62,7 +62,7 @@
 # untracked files. Output lines:
 #   VITEST: the one vitest command to run
 #   CHECK:  each extra check, once
-#   NOTE:   what the targeted set cannot prove, and why
+#   NOTE:   what the targeted set cannot prove, and why; and how to run it
 
 set -euo pipefail
 
@@ -548,6 +548,7 @@ done
 if [ "${#TESTS[@]}" -gt 0 ]; then
   mapfile -t TESTS < <(printf '%s\n' "${TESTS[@]}" | sort -u)
   echo "VITEST: npx vitest run --reporter=dot ${TESTS[*]}"
+  echo "NOTE: run the VITEST command in the background with its output in the scratchpad, and keep working until it finishes"
 fi
 if [ "${#SPECS[@]}" -gt 0 ]; then
   mapfile -t SPECS < <(printf '%s\n' "${SPECS[@]}" | sort -u)

@@ -50,10 +50,6 @@ export type SesFeedbackResult =
     reason: 'transient_bounce' | 'not_spam_feedback' | 'unknown_type' | 'malformed';
   };
 
-function maskEmail(email: string): string {
-  return email.replace(/^(.).*(@.*)$/, '$1***$2');
-}
-
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
 }
@@ -220,8 +216,9 @@ function applyStatus(
         entityType:    'system',
         entityId:      'ses_feedback',
         reasonText:    null,
+        // No form of the address, masked or hashed: the ledger outlives an
+        // erasure, and the member's own email status already records the bounce.
         metadata: {
-          masked_email:    maskEmail(normalized),
           member_matched:  res.changes > 0,
           outbox_email_id: outboxEmailId,
         },

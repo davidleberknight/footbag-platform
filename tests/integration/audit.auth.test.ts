@@ -10,7 +10,6 @@
 import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import { hashTestPassword } from '../fixtures/hashTestPassword';
-import { createHash } from 'crypto';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, createTestSessionJwt } from '../fixtures/factories';
@@ -24,6 +23,10 @@ const OWN_SLUG      = 'audit_owner';
 const OWN_EMAIL     = 'audit-owner@example.com';
 const OLD_PASSWORD  = 'AuditOld!1';
 const NEW_PASSWORD  = 'AuditNew!2';
+const LOCKED_ID      = 'audit-locked-001';
+const LOCKED_EMAIL   = 'audit-locked@example.com';
+const PROSPECT_EMAIL = 'audit-prospect@example.com';
+const DELETED_EMAIL  = 'audit-deleted@example.com';
 
 function ownCookie(passwordVersion = 1): string {
   return `__Host-footbag_session=${createTestSessionJwt({ memberId: OWN_ID, passwordVersion })}`;
@@ -67,6 +70,15 @@ beforeAll(async () => {
     login_email: OWN_EMAIL,
     display_name: 'Audit Owner',
     password_hash: hash,
+  });
+  insertMember(db, { id: LOCKED_ID, slug: 'audit_locked', login_email: LOCKED_EMAIL, password_hash: hash });
+  insertMember(db, {
+    id: 'audit-prospect-001', slug: 'audit_prospect', login_email: PROSPECT_EMAIL,
+    password_hash: hash, onboarding: 'none',
+  });
+  insertMember(db, {
+    id: 'audit-deleted-001', slug: 'audit_deleted', login_email: DELETED_EMAIL,
+    password_hash: hash, deleted_at: '2026-01-01T00:00:00.000Z',
   });
   db.close();
   createApp = await importApp();
@@ -215,37 +227,50 @@ describe('audit_entries — password reset', () => {
 });
 
 describe('audit_entries — login rate-limit', () => {
-  it('login attempts that exceed the bucket → auth.login_rate_limited row with hashed email, no member actor', async () => {
-    const app = createApp();
-    const attackEmail = 'attacker@example.com';
-    const expectedHash = createHash('sha256').update(attackEmail).digest('hex');
-
-    // Default login_rate_limit_max_attempts is 10. Exhaust, then one more.
+  // Default login_rate_limit_max_attempts is 10: ten failures fill the
+  // bucket and the eleventh is refused.
+  async function exhaustLoginBucket(app: ReturnType<typeof createApp>, email: string) {
     for (let i = 0; i < 10; i++) {
-      await request(app).post('/login').type('form').send({ email: attackEmail, password: 'wrong' });
+      await request(app).post('/login').type('form').send({ email, password: 'wrong' });
     }
-    expect(readAudits({ action_type: 'auth.login_rate_limited' })).toHaveLength(0);
+    return request(app).post('/login').type('form').send({ email, password: 'wrong' });
+  }
 
-    const blocked = await request(app).post('/login').type('form').send({ email: attackEmail, password: 'wrong' });
+  it("a lockout on a member's address → one auth.login_rate_limited row naming the member by id", async () => {
+    const app = createApp();
+    const before = readAudits({ action_type: 'auth.login_rate_limited' }).length;
+
+    const blocked = await exhaustLoginBucket(app, LOCKED_EMAIL);
     expect(blocked.status).toBe(429);
 
-    const rows = readAudits({ action_type: 'auth.login_rate_limited' });
-    expect(rows.length).toBeGreaterThanOrEqual(1);
+    const rows = readAudits({ action_type: 'auth.login_rate_limited', entity_id: LOCKED_ID });
+    expect(rows).toHaveLength(1);
+    expect(readAudits({ action_type: 'auth.login_rate_limited' })).toHaveLength(before + 1);
     const r = rows[0];
     expect(r.category).toBe('auth');
     expect(r.actor_type).toBe('system');
     expect(r.actor_member_id).toBeNull();
-    expect(r.entity_type).toBe('login_attempt');
-    expect(r.entity_id).toBe(expectedHash);
-    expect(r.entity_id).toMatch(/^[0-9a-f]{64}$/);
-    const meta = JSON.parse(r.metadata_json) as {
-      retryAfterSeconds: number;
-      windowMinutes: number;
-      maxAttempts: number;
-    };
+    expect(r.entity_type).toBe('member');
+    const meta = JSON.parse(r.metadata_json) as Record<string, unknown>;
+    // No form of the address rides along in the metadata.
+    expect(Object.keys(meta).sort()).toEqual(['bucket', 'maxAttempts', 'retryAfterSeconds', 'windowMinutes']);
     expect(meta.maxAttempts).toBe(10);
-    expect(meta.windowMinutes).toBeGreaterThan(0);
-    expect(meta.retryAfterSeconds).toBeGreaterThan(0);
+    // The per-address-and-IP bucket filled first; a row naming the other bucket
+    // would send a reviewer looking for a distributed attack that never happened.
+    expect(meta.bucket).toBe('email_ip');
+  });
+
+  it('a lockout on an address that belongs to no member is refused the same way and writes no row', async () => {
+    const app = createApp();
+    // An unknown address, a prospective member still onboarding, and a deleted
+    // account: none is a member, so none is a person the ledger may hold.
+    for (const email of ['nobody-here@example.com', PROSPECT_EMAIL, DELETED_EMAIL]) {
+      const before = readAudits({ action_type: 'auth.login_rate_limited' }).length;
+      const blocked = await exhaustLoginBucket(app, email);
+      expect(blocked.status, email).toBe(429);
+      expect(blocked.text, email).toContain('Too many failed login attempts');
+      expect(readAudits({ action_type: 'auth.login_rate_limited' }).length, email).toBe(before);
+    }
   });
 
   it('audit row never contains plaintext email or IP', async () => {

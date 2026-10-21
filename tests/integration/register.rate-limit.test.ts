@@ -11,7 +11,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { rowPin, theOnlyRow } from '../fixtures/rowPinning';
+import { rowPin, snapshotIds, rowsAddedSince } from '../fixtures/rowPinning';
 import { insertSystemConfig } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3092');
@@ -45,7 +45,7 @@ function registerBody(n: number) {
 }
 
 describe('POST /register — rate limiting', () => {
-  it('blocks with 429 + Retry-After after the configured cap, and audits the block', async () => {
+  it('blocks with 429 + Retry-After after the configured cap, and writes no audit row', async () => {
     const app = createApp();
 
     // First two attempts from this IP are under the cap (not rate-limited).
@@ -55,27 +55,29 @@ describe('POST /register — rate limiting', () => {
     }
 
     // Third attempt from the same IP is throttled before any processing.
+    const auditPin = rowPin('audit_entries', '1 = 1');
+    const before = (() => {
+      const db = new BetterSqlite3(dbPath, { readonly: true });
+      const ids = snapshotIds(db, auditPin);
+      db.close();
+      return ids;
+    })();
     const blocked = await request(app).post('/register').type('form').send(registerBody(3));
     expect(blocked.status).toBe(429);
     expect(blocked.headers['retry-after']).toBeDefined();
     expect(blocked.text).toContain('Too many registration attempts');
 
-    // The block is recorded for operator visibility.
     const db = new BetterSqlite3(dbPath, { readonly: true });
-    // One throttle event in this file, so the action type identifies the row.
-    const auditRow = theOnlyRow<{ action_type: string; category: string; actor_type: string }>(
-      db,
-      rowPin('audit_entries', `action_type = 'auth.register_rate_limited'`),
-    );
+    // Someone registering is not yet a member, so the refused attempt leaves
+    // nothing about them in the ledger.
+    const added = rowsAddedSince(db, auditPin, before);
     // The throttled email must NOT have produced a member row.
     const blockedMember = db.prepare(
       'SELECT id FROM members WHERE login_email = ?',
     ).get('reg-3@example.com') as { id: string } | undefined;
     db.close();
 
-    expect(auditRow).toBeDefined();
-    expect(auditRow!.category).toBe('auth');
-    expect(auditRow!.actor_type).toBe('system');
+    expect(added).toEqual([]);
     expect(blockedMember).toBeUndefined();
   });
 });

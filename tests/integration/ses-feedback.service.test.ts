@@ -19,6 +19,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
 import { insertMailingListSubscription, insertMember, insertOutboxEmail } from '../fixtures/factories';
+import { rowPin, snapshotIds, oneRowAddedSince } from '../fixtures/rowPinning';
 
 const { dbPath } = setTestEnv('3083');
 
@@ -99,11 +100,10 @@ function typedComplaintBody(
   }, messageId);
 }
 
-function bounceAuditsFor(maskedEmail: string): number {
-  const rows = db.prepare(
-    `SELECT metadata_json FROM audit_entries WHERE action_type = 'email.bounce_recorded'`,
-  ).all() as Array<{ metadata_json: string }>;
-  return rows.filter((r) => (JSON.parse(r.metadata_json) as { masked_email?: string }).masked_email === maskedEmail).length;
+function bounceAuditCount(): number {
+  return (db.prepare(
+    `SELECT COUNT(*) AS n FROM audit_entries WHERE action_type = 'email.bounce_recorded'`,
+  ).get() as { n: number }).n;
 }
 
 function statusOf(id: string): string {
@@ -111,19 +111,19 @@ function statusOf(id: string): string {
 }
 
 describe('bounce and complaint notifications', () => {
-  it('a synthetic permanent bounce marks the member bounced with an audit row', async () => {
+  it('a synthetic permanent bounce marks the member bounced with an audit row holding no form of the address', async () => {
+    const pin = rowPin('audit_entries', `action_type = 'email.bounce_recorded'`);
+    const before = snapshotIds(db, pin);
     feedback.processSnsMessage(bounceBody(['Bouncer@Example.com']));
     expect(statusOf('sf-1')).toBe('bounced');
-    const audits = db.prepare(
-      `SELECT metadata_json FROM audit_entries WHERE action_type = 'email.bounce_recorded'`,
-    ).all() as Array<{ metadata_json: string }>;
-    expect(audits.length).toBeGreaterThanOrEqual(1);
-    const meta = JSON.parse(audits[audits.length - 1].metadata_json) as Record<string, unknown>;
-    expect(meta.masked_email).toBe('b***@example.com');
+    // Exactly one permanent bounce was sent, so exactly one row was added.
+    const audit = oneRowAddedSince<{ metadata_json: string }>(db, pin, before);
+    const meta = JSON.parse(audit.metadata_json) as Record<string, unknown>;
     expect(meta.member_matched).toBe(true);
-    // Exactly one permanent bounce was sent for this address, so exactly one
-    // bounce-recorded audit row should exist for it.
-    expect(bounceAuditsFor('b***@example.com')).toBe(1);
+    // The ledger outlives an erasure, so neither the address nor a masked or
+    // partial form of it may be written there.
+    expect(Object.keys(meta).sort()).toEqual(['member_matched', 'outbox_email_id']);
+    expect(audit.metadata_json.toLowerCase()).not.toMatch(/bouncer|\*\*\*|@example\.com/);
   });
 
   it("a permanent bounce flips the member's subscribed mailing-list rows to bounced", async () => {
@@ -215,15 +215,16 @@ describe('bounce and complaint notifications', () => {
     insertMember(db, { id: 'sf-dup', slug: 'sf_dup', login_email: 'dup@example.com' });
     const body = bounceBody(['dup@example.com'], 'Permanent', 'sns-msg-dup-1');
 
+    const beforeFirst = bounceAuditCount();
     const first = feedback.processSnsMessage(body);
     expect(statusOf('sf-dup')).toBe('bounced');
-    expect(bounceAuditsFor('d***@example.com')).toBe(1);
+    expect(bounceAuditCount()).toBe(beforeFirst + 1);
 
     // Redelivery of the identical message: status already bounced, and the
     // dedupe must prevent a second audit row.
     const second = feedback.processSnsMessage(body);
     expect(statusOf('sf-dup')).toBe('bounced');
-    expect(bounceAuditsFor('d***@example.com')).toBe(1);
+    expect(bounceAuditCount()).toBe(beforeFirst + 1);
 
     const events = db.prepare(`SELECT COUNT(*) AS n FROM ses_events WHERE message_id = 'sns-msg-dup-1'`)
       .get() as { n: number };

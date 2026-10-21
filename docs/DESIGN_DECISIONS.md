@@ -1103,7 +1103,7 @@ Member personal data: retained for a configurable grace period (Administrator-co
 
 - Media, news items, and events without published results: hard-deleted under the hard-delete pattern above, with no grace period; events with published results are never deleted. Deleted media persists in backups until backup retention expiry (operational constraint).
 
-- Audit logs: retained 7 years; entries include authenticated actor identity (member id) and event metadata, and intentionally exclude IP address.
+- Audit logs: purged after 7 years; entries name people by id and exclude IP addresses, under Immutable Audit Logs with Privacy-safe Fields.
 
 - Financial records: retained as required for reconciliation/compliance, but after deletion windows, personal identifiers are removed/anonymized where feasible while keeping transaction integrity.
 
@@ -1165,7 +1165,19 @@ Rationale:
 
 Decision:
 
-Security and governance-sensitive actions (elections, payments, admin actions, account deletion, configuration changes, etc.) produce immutable, append-only audit log entries that include: actor’s member id, timestamps, action type, entity IDs, reason provided.
+The audit log (`audit_entries`) is the accountability record of governance- and security-significant changes: what changed, who did it, when and why. One policy governs it.
+
+- What is audited: a state change that an administrator, a member or the system makes to a member's account, standing, money or content, to a club or curated record, or to the platform's configuration, where the trail is needed to reconstruct who did what, when and why: grants, overrides, role changes, deletions, claims, disputes, payments, corrections, moderation, configuration.
+
+- What is not: a read (Every GET Is Read-only); an act that changed nothing (a repeat, a no-op, a prompt, a pending state); a fact a dedicated table already records, unless a named reader needs the audit row; anything concerning a person who is not a member. A prospective member's onboarding answers, claim evidence included, are written in the transaction that completes onboarding, so they enter the log only once the person is a member; a prospective member's own bookkeeping rows show by account id only. A scheduled job's trail is its `system_job_runs` row.
+
+- Fields: when it happened, actor type and actor member id, action type, entity type and id, a category derived from the action type through one map, an optional reason, and metadata.
+
+- Personal data: people are named by member or entity id. No row holds an IP address, a user agent, a name, a raw or masked email address, a secret, or free text a member typed while acting on their own record. Two deliberate exceptions: an administrator's correction of another person's record keeps each changed field's value before and after, because a correction made on someone's behalf is reviewable and reversible only from what the value was; and account-claim evidence names an email address only as a keyed hash. An administrator's stated reason for an act is kept as the row's reason. An operational-failure row records the error's class, never its message.
+
+- Retention: the daily cleanup deletes rows older than `audit_retention_days` (default 2555 days, seven years); nothing else updates or deletes a row, and account erasure does not reach a row inside that window.
+
+- Reading: administrators read the log through the viewer, its monthly summary and its export. The export takes a required date window of at most 90 days and returns every row in it. A member's own data export lists their own actions by type and time.
 
 Rationale:
 
@@ -1174,19 +1186,23 @@ Rationale:
 - Member IDs are necessary for administrative reconciliation and dispute resolution.  
   Audit logs intentionally exclude IP data; actor identity is recorded via authenticated account context (member id) rather than network identifiers.
 
+- Naming people by id keeps a row meaningful after erasure clears the name everywhere else.
+
+- Leaving out non-events and duplicates keeps the log a record of change, so the viewer, summary and export stay readable and complete.
+
 Trade-offs:
 
-- 7-year retention increases storage costs (acceptable for compliance).
+- Seven-year retention increases storage costs (acceptable for compliance).
 
-- Immutability is enforced at the application-code boundary: no service method issues UPDATE or DELETE against `audit_entries`. Database-level tampering by an actor with direct SQLite write access (for example a Lightsail host compromise) is a residual risk bounded by the SSH access posture (§7.2) and backup retention (§9.4). Off-host, the audit log is preserved inside the encrypted database snapshot backups, which the cross-region DR bucket protects with S3 Object Lock (WORM).
+- Immutability is enforced by database triggers that refuse every update and every delete except the retention purge. Database-level tampering by an actor with direct SQLite write access (for example a Lightsail host compromise) is a residual risk bounded by the SSH access posture and backup retention set out in the security and backup decisions. Off-host, the log is preserved inside the encrypted database snapshot backups, which the cross-region disaster-recovery bucket protects with S3 Object Lock (write once, read many).
+
+- Values kept under the correction exception outlive an erasure for up to seven years: the accepted cost of a reviewable correction.
 
 Impact:
 
-- All state-changing operations generate audit entries.
+- Every change the policy names as audited writes an entry; the policy lists what does not.
 
 - Audit schema includes full actor context for investigations.
-
-- Compliance procedures rely on audit log immutability.
 
 - Audit log display surfaces must render the 'reason' field (and any free-form admin-authored text) with Handlebars default escaping. Raw HTML rendering (triple-stache, SafeString, or client-side innerHTML) of admin-authored audit content is forbidden.
 

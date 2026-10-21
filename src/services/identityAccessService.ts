@@ -151,6 +151,9 @@
  *     registration conflict prompt.
  *   - No name, date of birth or raw address is written to the ledger by a
  *     claim-step write: records are named by id and addresses by a keyed hash.
+ *   - A login lockout is audited only for a member's address, naming the
+ *     member by id; an address that belongs to no member, and a registration
+ *     lockout, write no row.
  *   - A soft-deleted member is refused sign-in exactly as an unknown address is,
  *     inside the grace period and after it. The platform offers no restore: a
  *     member who deleted in error asks IFPA out of band, and an administrator
@@ -696,22 +699,27 @@ async function attemptLogin(
   const accountWindowMinutes = readIntConfig('login_account_rate_limit_window_minutes', 60);
   const accountRl = rateLimitHit(`login-account:${normalized}`, accountMaxAttempts, accountWindowMinutes);
   if (!rl.allowed || !accountRl.allowed) {
-    const emailHash = createHash('sha256').update(normalized).digest('hex');
     const retryAfterSeconds = Math.max(rl.retryAfterSeconds ?? 0, accountRl.retryAfterSeconds ?? 0);
-    appendAuditEntry({
-      actionType: 'auth.login_rate_limited',
-      category: 'auth',
-      actorType: 'system',
-      actorMemberId: null,
-      entityType: 'login_attempt',
-      entityId: emailHash,
-      metadata: {
-        retryAfterSeconds,
-        bucket: !rl.allowed ? 'email_ip' : 'account',
-        windowMinutes: !rl.allowed ? windowMinutes : accountWindowMinutes,
-        maxAttempts: !rl.allowed ? maxAttempts : accountMaxAttempts,
-      },
-    });
+    // Audited only when the address is a member's, and then by id: a typed
+    // address that names no member is not a person the ledger should hold.
+    // The caller's response is the same either way.
+    const member = auth.findOnboardedMemberIdByEmail.get(normalized) as { id: string } | undefined;
+    if (member) {
+      appendAuditEntry({
+        actionType: 'auth.login_rate_limited',
+        category: 'auth',
+        actorType: 'system',
+        actorMemberId: null,
+        entityType: 'member',
+        entityId: member.id,
+        metadata: {
+          retryAfterSeconds,
+          bucket: !rl.allowed ? 'email_ip' : 'account',
+          windowMinutes: !rl.allowed ? windowMinutes : accountWindowMinutes,
+          maxAttempts: !rl.allowed ? maxAttempts : accountMaxAttempts,
+        },
+      });
+    }
     throw new RateLimitedError(
       'Too many failed login attempts. Please try again later.',
       retryAfterSeconds,
@@ -1052,20 +1060,6 @@ async function registerMember(
   const windowMinutes = readIntConfig('register_rate_limit_window_minutes', 15);
   const rl = rateLimitHit(`register:${ip}`, maxAttempts, windowMinutes);
   if (!rl.allowed) {
-    const ipHash = createHash('sha256').update(ip).digest('hex');
-    appendAuditEntry({
-      actionType: 'auth.register_rate_limited',
-      category: 'auth',
-      actorType: 'system',
-      actorMemberId: null,
-      entityType: 'registration_attempt',
-      entityId: ipHash,
-      metadata: {
-        retryAfterSeconds: rl.retryAfterSeconds,
-        windowMinutes,
-        maxAttempts,
-      },
-    });
     throw new RateLimitedError(
       'Too many registration attempts. Please try again later.',
       rl.retryAfterSeconds,

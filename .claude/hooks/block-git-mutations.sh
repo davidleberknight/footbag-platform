@@ -203,8 +203,9 @@ judge_gh() {
   sub="$(first_subcommand "$@")"
   case "$cmd" in
     api) judge_gh_api "$@" ;;
-    # Tracker operations stay open; destroying or moving a card does not.
-    issue) case "$sub" in delete|transfer) deny "$GH_DENY" ;; esac ;;
+    # Tracker operations stay open; destroying or moving a card, or creating a branch from
+    # one, does not.
+    issue) case "$sub" in delete|transfer|develop) deny "$GH_DENY" ;; esac ;;
     # `gh pr checkout` creates a local branch, so it sits with the write forms.
     pr) case "$sub" in list|view|diff|checks|status) : ;; *) deny "$GH_DENY" ;; esac ;;
     repo) case "$sub" in list|view|clone|license|gitignore) : ;; *) deny "$GH_DENY" ;; esac ;;

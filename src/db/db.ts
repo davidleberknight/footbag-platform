@@ -5111,6 +5111,13 @@ export const auth = {
       AND is_deceased = 0
   `); },
 
+  // A member's id by login address, for naming the member in a login lockout
+  // row. Reads the onboarded view so a prospective member or a deleted account
+  // is not a member here.
+  get findOnboardedMemberIdByEmail() { return db.prepare(`
+    SELECT id FROM members_onboarded WHERE login_email_normalized = ?
+  `); },
+
   get findMemberByEmail() { return db.prepare(`
     SELECT
       m.id,

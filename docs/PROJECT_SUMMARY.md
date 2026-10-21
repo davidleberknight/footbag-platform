@@ -668,7 +668,7 @@ The legacy videos that have been hosted on footbag.org for decades are hosted on
 
 - Deleted member personal data: 90-day grace period (configurable), then PII permanently purged from primary storage; anonymized row retained for referential integrity. Deleted data may persist in historical backups until they age out, and any restore re-applies the recorded erasures before serving.
 - Financial/audit records: anonymized after 90-day member deletion grace period, transaction IDs retained 7 years for compliance.
-- Audit logs retain actorMemberId and entity IDs only, for traceability, and do not store email addresses or hashed emails.
+- Audit logs identify people by member and entity IDs only, for traceability, and never store an IP address or a name. An email address appears only in account-claim evidence, and there only as a keyed hash that a copy of the log alone cannot reverse.
 - Photos and video links: indefinite while member active; immediately and permanently deleted on member request.
 - News items: immediately and permanently deleted on admin action; no grace period.
 - Events: immediately and permanently deleted by organizer if no published results; permanently preserved if results have been published.

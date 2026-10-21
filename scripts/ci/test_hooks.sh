@@ -292,6 +292,7 @@ expect "$H" 'gh secret set FOO' deny
 expect "$H" 'gh api -X POST repos/o/r/git/refs' deny
 expect "$H" 'gh api repos/o/r/git/refs -f ref=refs/heads/x' deny
 expect "$H" 'gh issue delete 5' deny
+expect "$H" 'gh issue develop 5' deny
 expect "$H" 'gh pr list --state open' defer
 expect "$H" 'gh pr view 5' defer
 expect "$H" 'gh run view 34899558882' defer

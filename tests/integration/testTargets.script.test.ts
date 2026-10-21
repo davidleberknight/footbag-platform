@@ -17,6 +17,8 @@ import { listFiles, scanSource } from '../fixtures/sourceTree';
 import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
 
 const SCRIPT = join(process.cwd(), 'scripts/test-targets.sh');
+const RUN_NOTE =
+  'run the VITEST command in the background with its output in the scratchpad, and keep working until it finishes';
 
 function run(args: string[], script = SCRIPT, cwd = process.cwd()) {
   const res = spawnSync('bash', [script, ...args], { cwd, encoding: 'utf8', ...SPAWN_GUARD });
@@ -143,7 +145,23 @@ describe('test-targets.sh — application source', () => {
   it('maps a browser script to the suite naming it rather than reporting it untested', () => {
     const r = run(['src/public/js/video-facade.js']);
     expect(r.tests).toContain('tests/unit/videoFacade.test.ts');
-    expect(r.notes).toEqual([]);
+    expect(r.notes.filter((n) => n !== RUN_NOTE)).toEqual([]);
+  });
+});
+
+describe('test-targets.sh — how to run the targeted set', () => {
+  // A targeted set runs for a minute or more; run in the foreground it blocks
+  // every other piece of work until it ends.
+  it('tells the reader to run the vitest command in the background whenever it prints one', () => {
+    const r = run(['src/public/js/video-facade.js']);
+    expect(r.tests.length).toBeGreaterThan(0);
+    expect(r.notes).toContain(RUN_NOTE);
+  });
+
+  it('prints no run note when there is no vitest command to run', () => {
+    const r = run(['database/README.md']);
+    expect(r.tests).toEqual([]);
+    expect(r.notes).not.toContain(RUN_NOTE);
   });
 });
 
@@ -249,7 +267,7 @@ describe('test-targets.sh — non-test checks and limits', () => {
     expect(files).toHaveLength(40);
     const r = run(files);
     expect([...r.tests].sort()).toEqual([...files].sort());
-    expect(r.notes).toEqual([]);
+    expect(r.notes.filter((n) => n !== RUN_NOTE)).toEqual([]);
   });
 });
 

@@ -782,7 +782,7 @@ Success Criteria:
 - Member sees clear error message for failed login: "Invalid email or password. Please try again.".
 - Member sees success confirmation after login.
 - On successful login, the system issues the authenticated session (HttpOnly, Secure, SameSite=Lax session cookie).
-- Individual failed login attempts are not persisted to the audit log. When the login rate limit threshold is crossed, a single audit log entry is created recording that the threshold was exceeded for the given account identifier (no IP address stored). This preserves the privacy-first audit log design while retaining security traceability.
+- Individual failed login attempts are not persisted to the audit log. When the login rate limit threshold is crossed for a member's address, a single audit log entry is created recording that the threshold was exceeded for that member's id (no IP address stored); an address that belongs to no member writes no audit row. This preserves the privacy-first audit log design while retaining security traceability.
 
 ### M_Verify_Email
 
