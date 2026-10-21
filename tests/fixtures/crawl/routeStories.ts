@@ -226,6 +226,7 @@ export const ROUTE_STORIES: Readonly<Record<string, RouteStory>> = {
   'POST /admin/work-queue/:id/link-help/approve/confirm': { stories: ['A_Review_Member_Link_Help_Requests'] },
   'POST /admin/work-queue/:id/link-help/approve': { stories: ['A_Review_Member_Link_Help_Requests'] },
   'POST /admin/work-queue/:id/link-help/reject': { stories: ['A_Review_Member_Link_Help_Requests'] },
+  'POST /admin/work-queue/:id/link-help/dispute-revert/confirm': { stories: ['A_Review_Member_Link_Help_Requests'] },
   'POST /admin/work-queue/:id/link-help/dispute-revert': { stories: ['A_Review_Member_Link_Help_Requests'] },
   'GET /admin/payments': { stories: ['A_Reconcile_Payments'] },
   'GET /admin/payments/health': { stories: ['A_View_Stripe_Config_And_Payments'] },

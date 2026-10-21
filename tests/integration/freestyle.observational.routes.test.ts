@@ -161,7 +161,7 @@ describe('GET /freestyle/observational — four-section lifecycle surface', () =
       const rows = evidence.match(/<li>[\s\S]*?<\/li>/g) ?? [];
       expect(rows.length).toBeGreaterThan(0);
       for (const row of rows) {
-        expect(row, 'an evidence row without the missing evidence').toMatch(/<span class="text-muted">\s*\S/);
+        expect(row, 'an evidence row without the missing evidence').toMatch(/tracked-tag">[^<]*<\/span>\s*<span>\s*[^<\s]/);
       }
     }
   });

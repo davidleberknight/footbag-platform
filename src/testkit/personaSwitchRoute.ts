@@ -17,6 +17,7 @@ import { Request, Response, NextFunction } from 'express';
 import { auth as authDb } from '../db/db';
 import { createSessionJwt } from '../services/jwtService';
 import { issueSessionCookie } from '../lib/sessionCookie';
+import { memberOnboardingService } from '../services/memberOnboardingService';
 import { appendAuditEntry } from '../services/auditService';
 import { PERSONA_SWITCH_AUDIT_ACTION_TYPE } from './personaFactory';
 
@@ -51,7 +52,9 @@ export async function getDevSwitch(
 
     const role = row.is_admin ? 'admin' : 'member';
     const cookieValue = await createSessionJwt(row.id, role, row.password_version);
-    issueSessionCookie(res, cookieValue, req);
+    issueSessionCookie(res, cookieValue, req, {
+      archiveAccess: memberOnboardingService.isOnboardingComplete(row.id),
+    });
 
     appendAuditEntry({
       actionType: PERSONA_SWITCH_AUDIT_ACTION_TYPE,

@@ -1,8 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import {
-  identityAccessService,
-  LinkHistoryContent,
-} from '../services/identityAccessService';
+import { LinkHistoryContent } from '../services/identityAccessService';
 import {
   memberOnboardingService,
   TASK_CATALOG,
@@ -81,6 +78,7 @@ interface PersonalDetailsContent {
 interface WizardCompleteContent {
   dashboardHref: string;
   capHitNotice: { message: string; manageClubsHref: string } | null;
+  claimNotAppliedNotice: string | null;
 }
 
 function dashboardHrefFor(req: Request): string {
@@ -117,13 +115,13 @@ async function renderLegacyClaim(
   validationMessage?: string,
 ): Promise<void> {
   const memberId = req.user!.userId;
-  const data = await identityAccessService.getLinkHistoryViewForWizard(memberId);
+  const { view: data, declaredAnchors } = memberOnboardingService.getLinkHistoryView(memberId);
   if (!data) {
     renderNotFound(res);
     return;
   }
   data.dashboardHref = dashboardHrefFor(req);
-  data.declaredAnchors = identityAccessService.listDeclaredAnchors(memberId);
+  data.declaredAnchors = declaredAnchors;
   data.anchorSavedNotice = req.query.anchor === 'saved' ? 'saved' : null;
   // A decision is offered only while the task still needs one. Once it is
   // answered the form would submit into a silent no-op, which reads to the
@@ -221,7 +219,8 @@ function renderClubAffiliationsCard(
   opts: { formError?: string | null; statusOverride?: number; continueHref?: string | null } = {},
 ): void {
   const memberId = req.user!.userId;
-  const cards = memberOnboardingService.listWizardCardsForMember(memberId);
+  const { cards, isWrapUp, hadSuggestionMaterial, hasLeftInsight } =
+    memberOnboardingService.getClubAffiliationsView(memberId);
   const resolvedFlash = readClubResolvedFlash(req, res);
   // Banner text is service-shaped so the template never branches on the
   // decision code and the wording lives with the rest of the wizard copy.
@@ -238,8 +237,6 @@ function renderClubAffiliationsCard(
   const cardsRemaining = cards.length;
   const cardsTotal     = resolvedNotice ? cardsRemaining + 1 : cardsRemaining;
 
-  const stage = memberOnboardingService.getClubAffiliationStage(memberId);
-
   res.status(opts.statusOverride ?? 200).render('register/wizard/club-affiliations', {
     seo:  { title: 'Club Affiliations' },
     page: { sectionKey: 'members', pageKey: 'onboarding_club_affiliations', title: 'Club Affiliations' },
@@ -254,9 +251,8 @@ function renderClubAffiliationsCard(
       resolvedNotice,
       capHitNotice,
       formError:      opts.formError ?? null,
-      isWrapUp:       stage === 'wrap_up',
-      noLegacyAffiliationFound:
-        stage === 'wrap_up' && !memberOnboardingService.memberHadClubSuggestionMaterial(memberId),
+      isWrapUp,
+      noLegacyAffiliationFound: isWrapUp && !hadSuggestionMaterial,
       // Asked once per member. On the wrap-up landing when the member has no
       // cards at all, otherwise on the last card they have left; a member who
       // answers it on their final card is not asked again on the landing. A
@@ -264,7 +260,7 @@ function renderClubAffiliationsCard(
       insightPrompt:
         opts.continueHref || cardsRemaining > 1
           ? null
-          : memberOnboardingService.memberHasLeftClubInsight(memberId)
+          : hasLeftInsight
             ? null
             : memberOnboardingService.buildClubInsightPrompt(cards.length === 0),
     },
@@ -298,7 +294,15 @@ function renderComplete(req: Request, res: Response): void {
   res.status(200).render('register/wizard/complete', {
     seo:  { title: 'Onboarding Complete' },
     page: { sectionKey: 'members', pageKey: 'onboarding_complete', title: 'Onboarding Complete' },
-    content: { dashboardHref: dashboardHrefFor(req), capHitNotice: capHitNoticeFrom(req, res) },
+    content: {
+      dashboardHref: dashboardHrefFor(req),
+      capHitNotice: capHitNoticeFrom(req, res),
+      // The record the member chose to link was taken or closed while their
+      // answer was held, so completing onboarding could not apply it.
+      claimNotAppliedNotice: memberOnboardingService.claimNotAppliedAtCompletion(req.user!.userId)
+        ? memberOnboardingService.CLAIM_NOT_APPLIED_NOTICE
+        : null,
+    },
   } satisfies PageViewModel<WizardCompleteContent>);
 }
 

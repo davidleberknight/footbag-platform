@@ -7,7 +7,7 @@
 
 <div class="wrapper">
   {{#if content.isFiltered}}
-    <p class="card-meta">
+    <p class="fs-sm">
       Showing {{content.filterLabel}} only, out of {{content.wholeQueueTotal}} open across the whole queue.
       <a href="/admin/work-queue">Show every category</a>
     </p>
@@ -87,7 +87,7 @@
           {{#if isClaimed}}
             <p class="card-meta">{{#if claimedByMe}}Claimed by you.{{else}}Claimed by {{claimedByName}}.{{/if}}</p>
           {{else if lapsedClaimByName}}
-            <p class="card-meta">{{lapsedClaimByName}} claimed this earlier and has not closed it. It is open to anyone again.</p>
+            <p class="fs-sm">{{lapsedClaimByName}} claimed this earlier and has not closed it. It is open to anyone again.</p>
             <form method="POST" action="/admin/work-queue/{{id}}/claim" class="form-block">
               <input type="hidden" name="category" value="{{@root.content.filterCategory}}" />
               <button type="submit" class="btn btn-outline btn-sm">Claim</button>
@@ -100,7 +100,7 @@
           {{/if}}
 
           {{#if askBlockedReason}}
-            <p class="card-meta">{{askBlockedReason}}</p>
+            <p class="fs-sm">{{askBlockedReason}}</p>
           {{/if}}
 
           {{#if canAskMember}}
@@ -122,7 +122,7 @@
             {{/each}}
 
             {{#if awaitingMemberSince}}
-              <p class="card-meta">Waiting on the member since {{awaitingMemberSince}}. Nothing to do here until they answer.</p>
+              <p class="fs-sm">Waiting on the member since {{awaitingMemberSince}}. Nothing to do here until they answer.</p>
             {{else}}
               <details class="queue-ask-member" {{#if askOpen}}open{{/if}}>
                 <summary>Ask the member</summary>
@@ -171,18 +171,18 @@
                       {{this.outcomeLabel}}{{#if this.targetLabel}}: {{this.targetLabel}}{{/if}}{{#if this.dataOriginLabel}} <span class="badge">{{this.dataOriginLabel}}</span>{{/if}}
                     </p>
                     <p class="card-meta">{{this.whenDisplay}}</p>
-                    <p class="card-meta{{#if this.isContradicted}} claim-evidence-contradicted{{/if}}">{{this.comparisonLabel}}</p>
+                    <p class="fs-sm{{#if this.isContradicted}} claim-evidence-contradicted{{/if}}">{{this.comparisonLabel}}</p>
                     {{#if this.recordBirthDate}}
                       <p class="card-meta claim-evidence-revealed">Date on that record: <strong>{{this.recordBirthDate}}</strong></p>
                     {{/if}}
                     {{#if this.evidenceLabel}}
-                      <p class="card-meta">{{this.evidenceLabel}}</p>
+                      <p class="fs-sm">{{this.evidenceLabel}}</p>
                     {{/if}}
                   </li>
                 {{/each}}
               </ul>
             {{else}}
-              <p class="card-meta">This member has not attempted a claim, so there is no evidence on file yet.</p>
+              <p class="fs-sm">This member has not attempted a claim, so there is no evidence on file yet.</p>
             {{/if}}
 
             {{! What the platform can already see for this member, with the ids
@@ -190,7 +190,7 @@
                 type an identifier the admin interface never showed them. }}
             <div class="section-heading"><h3>What the Platform Can See for Them</h3></div>
             {{#if evidence.candidates.hasLegacyAccounts}}
-              <p class="card-meta">Old accounts their evidence reaches:</p>
+              <p class="fs-sm">Old accounts their evidence reaches:</p>
               <ul class="claim-evidence-list">
                 {{#each evidence.candidates.legacyAccounts}}
                   <li class="claim-evidence-item">
@@ -204,30 +204,30 @@
               </ul>
             {{/if}}
             {{#if evidence.candidates.hasHistoricalPersons}}
-              <p class="card-meta">Competition records with no old account behind them that their evidence reaches:</p>
-              <ul class="card-meta">
+              <p class="fs-sm">Competition records with no old account behind them that their evidence reaches:</p>
+              <ul>
                 {{#each evidence.candidates.historicalPersons}}
                   <li>{{this.personName}} ({{this.personId}}){{#if this.matchNote}} &middot; {{this.matchNote}}{{/if}}</li>
                 {{/each}}
               </ul>
             {{/if}}
             {{#each evidence.candidates.ambiguousNotes}}
-              <p class="card-meta">{{this}}</p>
+              <p class="fs-sm">{{this}}</p>
             {{/each}}
             {{#unless evidence.candidates.hasAny}}
-              <p class="card-meta">Nothing on file reaches an old account or a competition record for this member.</p>
+              <p class="fs-sm">Nothing on file reaches an old account or a competition record for this member.</p>
             {{/unless}}
             <p class="card-meta"><a href="{{evidence.candidates.lookupHref}}">Search the unclaimed legacy accounts</a></p>
             {{#if evidence.linkHelp.isDispute}}
               {{#if evidence.linkHelp.hasDisputedRecords}}
-                <p class="card-meta">Records this dispute named when it was filed:</p>
-                <ul class="card-meta">
+                <p class="fs-sm">Records this dispute named when it was filed:</p>
+                <ul>
                   {{#each evidence.linkHelp.disputedRecords}}
                     <li>{{this.kindLabel}}: {{this.recordId}}</li>
                   {{/each}}
                 </ul>
               {{else}}
-                <p class="card-meta">This dispute named no records, so no revert can be applied to it.</p>
+                <p class="fs-sm">This dispute named no records, so no revert can be applied to it.</p>
               {{/if}}
             {{/if}}
           {{/if}}
@@ -267,7 +267,7 @@
                     <textarea id="{{this.note.inputId}}" name="{{this.note.name}}" rows="2" maxlength="{{this.note.maxLength}}" {{#if this.note.required}}required{{/if}} placeholder="{{this.note.placeholder}}"></textarea>
                   </div>
                 {{/if}}
-                {{#if this.hint}}<p class="card-meta">{{this.hint}}</p>{{/if}}
+                {{#if this.hint}}<p class="fs-sm">{{this.hint}}</p>{{/if}}
                 <button type="submit" class="{{this.buttonClass}}">{{this.label}}</button>
               </form>
             {{/if}}

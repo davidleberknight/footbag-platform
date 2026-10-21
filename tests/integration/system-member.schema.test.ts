@@ -29,6 +29,7 @@ function insertSystemMember(o: {
   loginEmail?: string | null;
   passwordHash?: string | null;
   personalDataPurgedAt?: string | null;
+  slug?: string | null;
 }): void {
   // factory-cannot-express: the member factory enforces the same three-branch
   // credential invariant in code, so it cannot emit the malformed combinations
@@ -47,7 +48,7 @@ function insertSystemMember(o: {
               0, ?, 0, 0, 0, 1, NULL, ?, 1, ?, 'seed', ?, 'seed', 1)
   `).run(
     o.id,
-    `slug-${o.id}`,
+    o.slug === undefined ? `slug-${o.id}` : o.slug,
     o.loginEmail ?? null,
     o.loginEmail ? o.loginEmail.toLowerCase() : null,
     o.loginEmail ? TS : null,
@@ -103,6 +104,16 @@ describe('ux_members_system partial UNIQUE', () => {
     expect(() => {
       insertSystemMember({ id: 'sys-second', isSystem: 1 });
     }).toThrowError(/UNIQUE constraint failed/);
+  });
+});
+
+describe('members.slug NOT NULL', () => {
+  it('rejects a member row with no slug, which would leave no profile URL to link', () => {
+    // A member without a slug renders as a /members/null link wherever a page
+    // names them; the database refuses the row so no page can meet one.
+    expect(() => {
+      insertSystemMember({ id: 'no-slug', isSystem: 0, loginEmail: 'noslug@example.com', passwordHash: 'x', slug: null });
+    }).toThrowError(/NOT NULL constraint failed: members\.slug/);
   });
 });
 

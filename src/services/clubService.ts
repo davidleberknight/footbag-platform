@@ -12,8 +12,11 @@
  *   - The club's hashtag move, which only an administrator makes: the hashtag
  *     is the club's permanent handle and its address, so no co-leader moves it.
  *   - Candidate promotion: a legacy club candidate becomes a live clubs row
- *     (admin override or wizard confirmation; ClubCleanupService and
- *     MemberOnboardingService delegate here)
+ *     (admin override, or a wizard confirmation applied when onboarding
+ *     completes; ClubCleanupService and MemberOnboardingService delegate here).
+ *     The checks and the web-address validation (network I/O) run in
+ *     preparePromotion, before any transaction; the writes run in
+ *     promoteCandidateInTx inside the caller's transaction
  *   - Co-leader management: a flat, equal set of co-leaders (creator is the
  *     first; self-volunteer adds more; step-down and leave
  *     remove one's own)
@@ -157,6 +160,7 @@ import {
   countGalleryItemsByCriteria,
   memberClubAffiliations,
   clubContent,
+  savepoint,
   transaction,
   type ClubBootstrapLeaderRow,
   type LegacyClubCandidateRow,
@@ -291,6 +295,74 @@ export function resolveClubRegion(country: string, region: string | null): ClubR
     (s) => s.label.toLowerCase() === wanted || s.code.toLowerCase() === wanted,
   );
   return match ? { status: 'ok', region: match.label } : { status: 'unrecognized' };
+}
+
+// Every refusal a promotion makes, and what it would create, read from the
+// candidate as it stands now. Shared by the check made where the member is asked
+// and the re-check made inside the transaction that writes the club.
+function planPromotion(
+  candidateId: string,
+  region: string | null,
+):
+  | { branch: 'already_promoted'; clubId: string }
+  | {
+      branch: 'promotable';
+      candidate: LegacyClubCandidateRow;
+      promotedCountry: string;
+      promotedRegion: string | null;
+      clubId: string;
+    } {
+  const candidate = legacyClubCandidates.findById.get(candidateId) as
+    | LegacyClubCandidateRow | undefined;
+  if (!candidate) {
+    throw new NotFoundError('Candidate not found.');
+  }
+  if (candidate.classification === 'junk') {
+    throw new ValidationError('Junk candidates cannot be promoted.');
+  }
+  // Archiving a candidate is terminal. The guard sits here rather than only
+  // on the listings so it holds for every route into promotion at once: the
+  // admin action, a page an admin left open before archiving, and the
+  // member's own wizard confirmation.
+  if (candidate.lifecycle_state === 'archived') {
+    throw new ValidationError(
+      'This club record was archived and cannot be promoted. Create a new club instead.',
+    );
+  }
+  if (candidate.mapped_club_id) {
+    return { branch: 'already_promoted', clubId: candidate.mapped_club_id };
+  }
+  // A live club names its country, as the create form requires: the clubs
+  // index groups and links every club by it, so a club created without one
+  // renders a nameless link. Promotion creates a club row and holds the same
+  // rule; nobody triggering it can supply a country, so it refuses.
+  if (!candidate.country || !candidate.country.trim()) {
+    throw new ValidationError('Country is required.');
+  }
+  // The new club carries the canonical name, as every club row does. A
+  // curated country no spelling of which the picker knows is kept as
+  // written rather than refused, because nobody triggering a promotion can
+  // supply another.
+  const promotedCountry = canonicalCountryName(candidate.country) ?? candidate.country.trim();
+  // The candidate's own region wins where it has one: it descends from the
+  // curated club seed, and curated data outranks anything supplied later.
+  // Where it has none and the country requires one, the caller must supply
+  // it, because a club created without it flattens the country page's
+  // grouping for every other club in that country.
+  const regionResolution = resolveClubRegion(promotedCountry, candidate.region ?? region ?? null);
+  if (regionResolution.status === 'missing') {
+    throw new ValidationError(CLUB_REGION_REQUIRED_MESSAGE);
+  }
+  if (regionResolution.status === 'unrecognized') {
+    throw new ValidationError(CLUB_REGION_NAME_MESSAGE);
+  }
+  return {
+    branch: 'promotable',
+    candidate,
+    promotedCountry,
+    promotedRegion: regionResolution.region,
+    clubId: stableClubId(candidate.legacy_club_key),
+  };
 }
 
 // The heading shows the spelling most of the region's clubs use, so one mistyped
@@ -2145,67 +2217,67 @@ export class ClubService {
       region?: string | null;
     },
   ): Promise<{ branch: 'promoted' | 'already_promoted'; clubId: string }> {
-    const candidate = legacyClubCandidates.findById.get(candidateId) as
-      | LegacyClubCandidateRow | undefined;
-    if (!candidate) {
-      throw new NotFoundError('Candidate not found.');
+    const prepared = await this.preparePromotion(candidateId, opts.region ?? null);
+    if (prepared.branch === 'already_promoted') {
+      return { branch: 'already_promoted', clubId: prepared.clubId };
     }
-    if (candidate.classification === 'junk') {
-      throw new ValidationError('Junk candidates cannot be promoted.');
-    }
-    // Archiving a candidate is terminal. The guard sits here rather than only
-    // on the listings so it holds for every route into promotion at once: the
-    // admin action, a page an admin left open before archiving, and the
-    // member's own wizard confirmation.
-    if (candidate.lifecycle_state === 'archived') {
-      throw new ValidationError(
-        'This club record was archived and cannot be promoted. Create a new club instead.',
-      );
-    }
-    if (candidate.mapped_club_id) {
-      return { branch: 'already_promoted', clubId: candidate.mapped_club_id };
-    }
-    // A live club names its country, as the create form requires: the clubs
-    // index groups and links every club by it, so a club created without one
-    // renders a nameless link. Promotion creates a club row and holds the same
-    // rule; nobody triggering it can supply a country, so it refuses.
-    if (!candidate.country || !candidate.country.trim()) {
-      throw new ValidationError('Country is required.');
-    }
-    // The new club carries the canonical name, as every club row does. A
-    // curated country no spelling of which the picker knows is kept as
-    // written rather than refused, because nobody triggering a promotion can
-    // supply another.
-    const promotedCountry = canonicalCountryName(candidate.country) ?? candidate.country.trim();
+    return transaction(() => this.promoteCandidateInTx(candidateId, actorId, {
+      ...opts,
+      externalUrl: prepared.externalUrl,
+    }));
+  }
 
-    // The candidate's own region wins where it has one: it descends from the
-    // curated club seed, and curated data outranks anything supplied later.
-    // Where it has none and the country requires one, the caller must supply
-    // it, because a club created without it flattens the country page's
-    // grouping for every other club in that country.
-    const regionResolution = resolveClubRegion(
-      promotedCountry,
-      candidate.region ?? opts.region ?? null,
-    );
-    if (regionResolution.status === 'missing') {
-      throw new ValidationError(CLUB_REGION_REQUIRED_MESSAGE);
-    }
-    if (regionResolution.status === 'unrecognized') {
-      throw new ValidationError(CLUB_REGION_NAME_MESSAGE);
-    }
-    const promotedRegion = regionResolution.region;
-
-    const clubId = stableClubId(candidate.legacy_club_key);
-
-    // External I/O stays outside the transaction: validate the candidate's
-    // URL (DNS, Safe Browsing, reachability) before any write begins.
+  /**
+   * The part of a promotion that cannot run inside a transaction: every
+   * refusal a promotion would make, checked now so the caller can show it on
+   * the step that asked, and the candidate's web address validated (DNS, Safe
+   * Browsing, reachability), which is network I/O. The validated address is
+   * handed to promoteCandidateInTx, which re-checks everything else.
+   */
+  async preparePromotion(
+    candidateId: string,
+    region: string | null,
+  ): Promise<
+    | { branch: 'already_promoted'; clubId: string }
+    | { branch: 'promotable'; externalUrl: string | null }
+  > {
+    const plan = planPromotion(candidateId, region);
+    if (plan.branch === 'already_promoted') return plan;
     let externalUrl: string | null = null;
-    if (candidate.external_url) {
-      const validated = await validateExternalUrl(candidate.external_url);
+    if (plan.candidate.external_url) {
+      const validated = await validateExternalUrl(plan.candidate.external_url);
       if (validated.valid && validated.normalizedUrl) {
         externalUrl = validated.normalizedUrl;
       }
     }
+    return { branch: 'promotable', externalUrl };
+  }
+
+  /**
+   * The writes of a promotion, inside the caller's transaction, given the web
+   * address preparePromotion validated. Re-checks every refusal, because the
+   * candidate can be archived, junked or promoted between the two; a
+   * concurrent or out-of-band creation of the same club converges rather than
+   * failing. The onboarding wizard calls this from the transaction that
+   * completes onboarding, so a club confirmed by someone who never finishes
+   * is never created.
+   */
+  promoteCandidateInTx(
+    candidateId: string,
+    actorId: string,
+    opts: {
+      actorType: 'member' | 'admin';
+      reasonText?: string | null;
+      trigger?: 'stage1' | 'admin_queue';
+      excludeAffiliationId?: string;
+      region?: string | null;
+      externalUrl: string | null;
+    },
+  ): { branch: 'promoted' | 'already_promoted'; clubId: string } {
+    const plan = planPromotion(candidateId, opts.region ?? null);
+    if (plan.branch === 'already_promoted') return plan;
+    const { candidate, promotedCountry, promotedRegion, clubId } = plan;
+    const externalUrl = opts.externalUrl;
 
     const tagNormalized = deriveClubTag(
       candidate.display_name,
@@ -2218,29 +2290,7 @@ export class ClubService {
     const tagId = `tag_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
 
     try {
-      transaction(() => {
-        // The terminal-state guards above ran before the URL validation, which
-        // is network I/O and takes real time. An admin can archive or junk the
-        // candidate inside that window, and the mapped-club guard alone would
-        // not notice: it refuses only a candidate already promoted. Re-reading
-        // here closes the window, because this read and every write below sit
-        // in one synchronous transaction with no interleaving point between
-        // them. A candidate promoted concurrently still converges through the
-        // constraint-violation path below rather than failing.
-        const current = legacyClubCandidates.findById.get(candidateId) as
-          | LegacyClubCandidateRow | undefined;
-        if (!current) {
-          throw new NotFoundError('Candidate not found.');
-        }
-        if (current.classification === 'junk') {
-          throw new ValidationError('Junk candidates cannot be promoted.');
-        }
-        if (current.lifecycle_state === 'archived') {
-          throw new ValidationError(
-            'This club record was archived and cannot be promoted. Create a new club instead.',
-          );
-        }
-
+      savepoint(() => {
         mediaTags.insertStandardTag.run(
           tagId, now, 'club_service', now, 'club_service',
           tagNormalized, tagNormalized, 'club',

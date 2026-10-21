@@ -61,7 +61,7 @@
         <details class="cleanup-group">
           <summary>{{this.label}} ({{this.count}})</summary>
           {{#if this.isOpportunity}}
-            <p class="text-muted fs-sm mt-2">These clubs could use a leader. Leaderless is a tolerated state, not a problem: nothing here needs remediation, and a club leaves this list by itself the moment anyone becomes a co-leader. Demotion is driven only by member-reported inactivity signals, never by this list.</p>
+            <p class="fs-sm mt-2">These clubs could use a leader. Leaderless is a tolerated state, not a problem: nothing here needs remediation, and a club leaves this list by itself the moment anyone becomes a co-leader. Demotion is driven only by member-reported inactivity signals, never by this list.</p>
           {{/if}}
           <form method="POST" action="/admin/club-cleanup/bulk-resolve" class="cleanup-action-form mt-2">
             <input type="hidden" name="group" value="{{this.predicate}}" />
@@ -139,7 +139,7 @@
   <section class="mt-8">
     <details class="cleanup-group">
     <summary>Wizard Flags by Candidate ({{content.candidateFlags.length}})</summary>
-    <p class="text-muted fs-sm">Activity answers members left about club candidates that have no live club row yet, so the viability gates cannot evaluate them. One vote per member; a member's latest answer wins. Dismiss is terminal; parked flags wait without a deadline and stay listed with who parked them. Promoting the candidate moves its votes to the live club's viability evaluation.</p>
+    <p class="fs-sm">Activity answers members left about club candidates that have no live club row yet, so the viability gates cannot evaluate them. One vote per member; a member's latest answer wins. Dismiss is terminal; parked flags wait without a deadline and stay listed with who parked them. Promoting the candidate moves its votes to the live club's viability evaluation.</p>
     <form method="POST" action="/admin/club-cleanup/bulk-resolve" class="cleanup-action-form mt-2">
       <input type="hidden" name="group" value="candidate_flag" />
       <label>Action <select name="action" class="cleanup-action-select">
@@ -201,7 +201,7 @@
   <section class="mt-8">
     <details class="cleanup-group">
     <summary>Unconfirmed legacy residue ({{content.residue.length}})</summary>
-    <p class="text-muted fs-sm">Live clubs still showing legacy affiliations that no one has confirmed in onboarding. De-listing marks them as former-only so they stop rendering as possible members. The oldest-age column is an advisory grace signal; nothing is retired automatically.</p>
+    <p class="fs-sm">Live clubs still showing legacy affiliations that no one has confirmed in onboarding. De-listing marks them as former-only so they stop rendering as possible members. The oldest-age column is an advisory grace signal; nothing is retired automatically.</p>
     <div class="records-table-wrap mt-2" tabindex="0" role="region" aria-label="Unconfirmed legacy residue">
     <table class="cleanup-queue-table">
       <thead>
@@ -248,7 +248,7 @@
   <section class="mt-8">
     <details class="cleanup-group">
     <summary>Promotable Candidates ({{content.candidates.length}})</summary>
-    <p class="text-muted fs-sm">Legacy club candidates with no live club row yet. Promoting creates the live club and carries its unconfirmed legacy affiliations forward; members can also trigger promotion by confirming these clubs in onboarding. Demote moves an onboarding-visible candidate to dormant; archive is terminal.</p>
+    <p class="fs-sm">Legacy club candidates with no live club row yet. Promoting creates the live club and carries its unconfirmed legacy affiliations forward; members can also trigger promotion by confirming these clubs in onboarding. Demote moves an onboarding-visible candidate to dormant; archive is terminal.</p>
     <div class="records-table-wrap mt-2" tabindex="0" role="region" aria-label="Promotable candidates">
     <table class="cleanup-queue-table">
       <thead>
@@ -308,7 +308,7 @@
   <section class="mt-8">
     <details class="cleanup-group">
     <summary>Junk-flagged Candidates ({{content.junkCandidates.length}})</summary>
-    <p class="text-muted fs-sm">Candidates the classifier marked junk. Junk never renders on any public surface. Confirm the verdict (terminal), or promote to dormant to return the candidate to normal evaluation.</p>
+    <p class="fs-sm">Candidates the classifier marked junk. Junk never renders on any public surface. Confirm the verdict (terminal), or promote to dormant to return the candidate to normal evaluation.</p>
     <div class="records-table-wrap mt-2" tabindex="0" role="region" aria-label="Junk-flagged candidates">
     <table class="cleanup-queue-table">
       <thead>
@@ -353,7 +353,7 @@
   <section class="mt-8">
     <details>
       <summary class="section-heading">What members told us about their area ({{content.areaInsights.length}})</summary>
-      <p class="text-muted fs-sm">Notes members left during onboarding about clubs near them, rather
+      <p class="fs-sm">Notes members left during onboarding about clubs near them, rather
         than about one club we asked about. They belong to no queue row, so read them when a decision
         above is close.</p>
       <ul class="mt-4">
@@ -371,7 +371,7 @@
   <section>
     <details>
       <summary class="section-heading">Parked ({{content.parkedCount}})</summary>
-      <p class="text-muted fs-sm">Parked items wait without a deadline. Any club whose members
+      <p class="fs-sm">Parked items wait without a deadline. Any club whose members
         answer a card or leave a note after it was parked returns to the queue above on its own.</p>
       <div class="records-table-wrap mt-2" tabindex="0" role="region" aria-label="Parked">
       <table class="cleanup-queue-table">

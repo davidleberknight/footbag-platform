@@ -19,13 +19,29 @@
  * data being seeded.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import fs from 'fs';
 import path from 'path';
 import os from 'os';
-import { createTestDb } from '../fixtures/testDb';
-import { insertMember } from '../fixtures/factories';
+import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
+import {
+  insertClub,
+  insertClubLeader,
+  insertEvent,
+  insertEventOrganizer,
+  insertLegacyClubCandidate,
+  insertLegacyMember,
+  insertLegacyPersonClubAffiliation,
+  insertMember,
+  insertMemberTierGrant,
+  insertOnboardingTask,
+} from '../fixtures/factories';
+
+// The held-answer case below drives the onboarding service, which opens the
+// database this sets before any module import; the schema cases each build
+// their own throwaway database.
+const { dbPath: serviceDbPath } = setTestEnv('3248');
 
 const TASK_TYPES = [
   'personal_details',
@@ -202,23 +218,125 @@ describe('member_onboarding_tasks schema', () => {
     }).toThrow(/FOREIGN KEY constraint failed/);
   });
 
-  it('the member-search view counts the same number of tasks the catalog defines', () => {
-    // members_searchable excludes a pending account by requiring every task
+  it('the onboarded-member view counts the same number of tasks the catalog defines', () => {
+    // members_onboarded excludes a pending account by requiring every task
     // completed, and it spells that as a literal count. Extending the catalog
     // without updating the view inverts the predicate: a member who completes
-    // the new task exceeds the count and vanishes from search, while one who
-    // has not yet answered it still matches. Nothing else pins the two
-    // together, so this does.
+    // the new task exceeds the count and vanishes from every member surface,
+    // while one who has not yet answered it still appears. Nothing else pins
+    // the two together, so this does.
     const viewSql = fs.readFileSync(
       path.join(process.cwd(), 'database', 'schema.sql'),
       'utf8',
     );
     const definition = viewSql.slice(
-      viewSql.indexOf('CREATE VIEW members_searchable'),
-      viewSql.indexOf(';', viewSql.indexOf('CREATE VIEW members_searchable')),
+      viewSql.indexOf('CREATE VIEW members_onboarded'),
+      viewSql.indexOf(';', viewSql.indexOf('CREATE VIEW members_onboarded')),
     );
     const counted = definition.match(/state = 'completed'\s*\)\s*=\s*(\d+)/);
-    expect(counted, 'members_searchable must gate on a completed-task count').not.toBeNull();
+    expect(counted, 'members_onboarded must gate on a completed-task count').not.toBeNull();
     expect(Number(counted![1])).toBe(TASK_TYPES.length);
+  });
+
+  it('a prospective member is absent from every member view while a finished member beside them is present', () => {
+    // A prospective member is not a member. If any of these views reaches one,
+    // a half-registered person shows up in member search, as a club's leader,
+    // as an event's organizer or on the Official IFPA Roster, and a club or
+    // event they alone hold reads as led or run by someone who cannot act.
+    const member = insertMember(db, { slug: 'finished-member', login_email: 'finished@example.com' });
+    const pending = insertMember(db, {
+      slug: 'pending-registrant', login_email: 'pending@example.com', onboarding: 'none',
+    });
+    // Two of three steps done is still pending: membership needs every one.
+    const partway = insertMember(db, {
+      slug: 'partway-registrant', login_email: 'partway@example.com', onboarding: 'none',
+    });
+    insertOnboardingTask(db, partway, 'personal_details', 'completed');
+    insertOnboardingTask(db, partway, 'legacy_claim', 'completed');
+    insertOnboardingTask(db, partway, 'club_affiliations', 'pending');
+    const club = insertClub(db);
+    const otherClub = insertClub(db);
+    const thirdClub = insertClub(db);
+    const event = insertEvent(db);
+    for (const [memberId, clubId] of [[member, club], [pending, otherClub], [partway, thirdClub]] as const) {
+      insertClubLeader(db, { club_id: clubId, member_id: memberId });
+      insertEventOrganizer(db, event, memberId);
+      insertMemberTierGrant(db, { member_id: memberId, new_tier_status: 'tier1' });
+    }
+
+    const views: Array<[string, string]> = [
+      ['members_onboarded', 'id'],
+      ['members_searchable', 'id'],
+      ['club_leaders_current', 'member_id'],
+      ['event_organizers_current', 'member_id'],
+      ['official_ifpa_roster_current', 'member_id'],
+    ];
+    for (const [view, column] of views) {
+      const ids = (db.prepare(`SELECT ${column} AS id FROM ${view}`).all() as { id: string }[])
+        .map((r) => r.id);
+      expect(ids, `${view} must include the finished member`).toContain(member);
+      expect(ids, `${view} must exclude the prospective member`).not.toContain(pending);
+      expect(ids, `${view} must exclude a registrant partway through onboarding`).not.toContain(partway);
+    }
+  });
+});
+
+describe('member_onboarding_tasks.answer_json once onboarding completes', () => {
+  let db: BetterSqlite3.Database;
+  // eslint-disable-next-line @typescript-eslint/consistent-type-imports
+  let svc: typeof import('../../src/services/memberOnboardingService').memberOnboardingService;
+
+  beforeAll(async () => {
+    db = createTestDb(serviceDbPath);
+    svc = (await import('../../src/services/memberOnboardingService')).memberOnboardingService;
+  });
+
+  afterAll(() => {
+    db.close();
+    cleanupTestDb(serviceDbPath);
+  });
+
+  it('is NULL on every task row of a member who finished through the wizard', async () => {
+    // Defect caught: completion writes the held claim and club answers but
+    // leaves them on the task rows, so a member keeps answers that a later
+    // replay would apply a second time, and personal answers outlive the
+    // purpose they were held for.
+    const email = 'held-schema-claimant@example.com';
+    const legacyId = insertLegacyMember(db, { real_name: 'Ada Heldschema', legacy_email: email });
+    const club = insertClub(db, { city: 'Iotaville' });
+    const candidate = insertLegacyClubCandidate(db, { classification: 'pre_populate', mapped_club_id: club });
+    const card = insertLegacyPersonClubAffiliation(db, {
+      legacy_member_id: legacyId, legacy_club_candidate_id: candidate, inferred_role: 'member',
+    });
+    const memberId = insertMember(db, {
+      onboarding: 'none', real_name: 'Ada Heldschema', login_email: email, birth_date: '1975-06-12',
+    });
+    insertOnboardingTask(db, memberId, 'personal_details', 'completed');
+
+    const heldRows = () => (db.prepare(
+      'SELECT task_type FROM member_onboarding_tasks WHERE member_id = ? AND answer_json IS NOT NULL ORDER BY task_type',
+    ).all(memberId) as { task_type: string }[]).map((r) => r.task_type);
+
+    expect(svc.processClaimCandidate(memberId, { accountId: legacyId, recordId: null }, '10.8.0.1', false).kind)
+      .toBe('advance');
+    // The claim is held while the member is still signing up: the positive
+    // control that the column carries answers before completion.
+    expect(heldRows()).toEqual(['legacy_claim']);
+
+    const last = await svc.processClubAffiliationsSubmit(memberId, {
+      kind: 'membership', candidateId: card, userDecision: 'confirm', activitySignal: 'active',
+    });
+    expect(last.kind).toBe('advance');
+    expect(svc.isOnboardingComplete(memberId)).toBe(true);
+    // The answers landed, so their release is not an answer thrown away.
+    expect((db.prepare('SELECT legacy_member_id FROM members WHERE id = ?').get(memberId) as {
+      legacy_member_id: string | null;
+    }).legacy_member_id).toBe(legacyId);
+
+    const rows = db.prepare(
+      'SELECT task_type, answer_json FROM member_onboarding_tasks WHERE member_id = ? ORDER BY task_type',
+    ).all(memberId) as { task_type: string; answer_json: string | null }[];
+    expect(rows.map((r) => r.task_type)).toEqual(['club_affiliations', 'legacy_claim', 'personal_details']);
+    expect(heldRows()).toEqual([]);
   });
 });

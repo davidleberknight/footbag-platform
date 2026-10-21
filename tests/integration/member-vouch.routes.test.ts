@@ -232,13 +232,14 @@ describe('the vouch control on a member profile', () => {
     expect(res.text).not.toContain('Vouch for Active Player Status');
   });
 
-  it('withholds it on the profile of an account still in the wizard', async () => {
-    // An administrator is the one viewer who reaches a pending account's page.
+  it('offers no profile, and so no vouch, for an account still in the wizard, even to an admin', async () => {
+    // A pending account is not somebody a vouch can be given to, and no
+    // viewer, an administrator included, reaches its page at all.
     const res = await request(createApp())
       .get(`/members/${SLUG(TARGET_PENDING)}`)
       .set('Cookie', adminCookieFor(ADMIN_T2));
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(404);
     expect(res.text).not.toContain('Vouch for Active Player Status');
   });
 

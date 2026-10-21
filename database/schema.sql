@@ -2210,7 +2210,7 @@ LEFT JOIN member_active_player_current ap ON ap.member_id = m.id;
 --   - Tier 1, Tier 2, Tier 3 members
 --   - Tier 0 members with current Active Player status
 -- Excludes:
---   - Soft-deleted members (via members_active)
+--   - Soft-deleted members and prospective members (via members_onboarded)
 --   - Deceased members (operational roster; HoF/BAP memorial visibility is
 --     handled separately at the profile layer)
 --   - Tier 0 members without current Active Player status
@@ -2233,7 +2233,7 @@ SELECT
   m.is_hof                    AS is_hof,
   m.is_bap                    AS is_bap,
   m.is_board                  AS is_board
-FROM members_active m
+FROM members_onboarded m
 JOIN member_membership_status_current s ON s.member_id = m.id
 WHERE s.is_official_roster_member = 1
   AND m.is_deceased = 0;
@@ -2265,7 +2265,10 @@ WHERE s.is_official_roster_member = 1
 -- Soft-delete (deleted_at); PII purge nullifies credential and contact fields.
 CREATE TABLE members (
   id         TEXT PRIMARY KEY,
-  slug       TEXT,
+  -- Required: every member has a profile URL from registration on, and a PII
+  -- purge rewrites it to a placeholder rather than clearing it, so a page can
+  -- always link a member it may name.
+  slug       TEXT NOT NULL,
   created_at TEXT NOT NULL,
   created_by TEXT NOT NULL,
   updated_at TEXT NOT NULL,
@@ -2467,6 +2470,21 @@ CREATE INDEX idx_members_historical_person_id
 CREATE VIEW members_active AS
   SELECT * FROM members WHERE deleted_at IS NULL;
 
+-- members_onboarded: the live accounts that are members. Membership is an
+-- authorization level: an account is pending from email verification until
+-- every onboarding task completes, and a prospective member is not yet a
+-- member, so no surface that lists, counts, links, finds or mails other people
+-- may reach one. Every such read selects from here (or from a view built on
+-- it); only the person's own account, session, wizard and claim flows read
+-- members_active. Mirrors the service-layer isOnboardingComplete predicate (all
+-- three catalog tasks completed). The system member owns the curated content
+-- and is a member without ever onboarding, so it is included on is_system.
+CREATE VIEW members_onboarded AS
+  SELECT * FROM members_active
+  WHERE members_active.is_system = 1
+     OR (SELECT COUNT(*) FROM member_onboarding_tasks t
+          WHERE t.member_id = members_active.id AND t.state = 'completed') = 3;
+
 -- members_all: all rows including soft-deleted; use for admin queries
 CREATE VIEW members_all AS
   SELECT * FROM members;
@@ -2494,25 +2512,19 @@ CREATE VIEW members_of_record AS
                              AND el.erasure_kind = 'account_pii_purge'));
 
 -- members_searchable: the ONLY view that should be queried by the member search
--- endpoint. Filters five conditions that must exclude a member from search:
--- soft-deleted, deceased, opted-out (searchable=0), PII-purged, and unverified
--- (email_verified_at IS NULL). The last condition is the primary enforcement
--- preventing imported placeholder rows from appearing in search results;
--- searchable=0 is defense-in-depth. Do not add extra WHERE clauses on top of
--- members or the bare table.
+-- endpoint. Built on members_onboarded, so soft-deleted accounts and pending
+-- registrants never appear, then filters four more conditions that must exclude
+-- a member from search: deceased, opted-out (searchable=0), PII-purged, and
+-- unverified (email_verified_at IS NULL). The last condition is the primary
+-- enforcement preventing imported placeholder rows from appearing in search
+-- results; searchable=0 is defense-in-depth. Do not add extra WHERE clauses on
+-- top of members or the bare table.
 CREATE VIEW members_searchable AS
-  SELECT * FROM members
-  WHERE deleted_at IS NULL
-    AND is_deceased = 0
+  SELECT * FROM members_onboarded
+  WHERE is_deceased = 0
     AND searchable = 1
     AND personal_data_purged_at IS NULL
-    AND email_verified_at IS NOT NULL
-    -- Membership is an authorization level: an account is pending until every
-    -- onboarding task completes, and a pending registrant is not yet a member,
-    -- so they never appear in member search. Mirrors the service-layer
-    -- isOnboardingComplete predicate (all three catalog tasks completed).
-    AND (SELECT COUNT(*) FROM member_onboarding_tasks t
-          WHERE t.member_id = members.id AND t.state = 'completed') = 3;
+    AND email_verified_at IS NOT NULL;
 
 -- =============================================================================
 -- SECTION 15: MEMBER LINKS
@@ -3016,19 +3028,19 @@ CREATE UNIQUE INDEX ux_club_leaders               ON club_leaders(club_id, membe
 -- idx_club_leaders_member dropped (left-prefix redundant with the member_id unique below)
 CREATE UNIQUE INDEX ux_one_club_leader_per_member  ON club_leaders(member_id);
 
--- Leadership a club can actually rely on: rows whose member still has a live,
--- non-deceased account. A leadership row outlives the member's account by
--- design, so historical leadership stays attributable, which means the raw
--- table answers "who has ever led this club" and this view answers "who leads
--- it now". Every read that means the second one selects from here; without it a
--- club whose only co-leader has died or deleted their account still reads as
--- led, by someone who cannot act, and never reaches the needs-leader list.
+-- Leadership a club can actually rely on: rows whose member is a live,
+-- non-deceased member who has finished onboarding. A leadership row outlives
+-- the member's account by design, so historical leadership stays attributable,
+-- which means the raw table answers "who has ever led this club" and this view
+-- answers "who leads it now". Every read that means the second one selects from
+-- here, the five-leader cap included; without it a club whose only co-leader
+-- has died, deleted their account or not yet finished onboarding still reads
+-- as led, by someone who cannot act, and never reaches the needs-leader list.
 CREATE VIEW club_leaders_current AS
 SELECT cl.*
 FROM club_leaders AS cl
-JOIN members AS m ON m.id = cl.member_id
-WHERE m.deleted_at IS NULL
-  AND m.is_deceased = 0;
+JOIN members_onboarded AS m ON m.id = cl.member_id
+WHERE m.is_deceased = 0;
 
 -- Event organizer assignments: a flat set of equal organizers per event (max 5
 -- total; application-enforced). There is no primary organizer; every row is
@@ -3053,20 +3065,19 @@ CREATE TABLE event_organizers (
 CREATE UNIQUE INDEX ux_event_organizers        ON event_organizers(event_id, member_id);
 -- idx_event_organizers_event dropped (left-prefix redundant with ux_event_organizers)
 
--- Organizers an event can actually rely on: rows whose member still has a live,
--- non-deceased account. An organizer row outlives the member's account by
--- design, so historical organizing stays attributable, which means the raw
--- table answers "who has ever organized this event" and this view answers "who
--- runs it now". Every read that means the second one selects from here; without
--- it an event whose only organizer has died or deleted their account still
--- reads as run, by someone who cannot act, and never reaches the
--- needs-organizer queue.
+-- Organizers an event can actually rely on: rows whose member is a live,
+-- non-deceased member who has finished onboarding. An organizer row outlives
+-- the member's account by design, so historical organizing stays attributable,
+-- which means the raw table answers "who has ever organized this event" and
+-- this view answers "who runs it now". Every read that means the second one
+-- selects from here; without it an event whose only organizer has died,
+-- deleted their account or not yet finished onboarding still reads as run, by
+-- someone who cannot act, and never reaches the needs-organizer queue.
 CREATE VIEW event_organizers_current AS
 SELECT eo.*
 FROM event_organizers AS eo
-JOIN members AS m ON m.id = eo.member_id
-WHERE m.deleted_at IS NULL
-  AND m.is_deceased = 0;
+JOIN members_onboarded AS m ON m.id = eo.member_id
+WHERE m.is_deceased = 0;
 
 -- Member registration for an event (competitor or attendee/supporter).
 -- Tracks registration type, payment, status lifecycle, and optional attendance
@@ -4412,6 +4423,13 @@ CREATE TABLE member_onboarding_tasks (
   -- attempt stays open until the member holds an account or a record or
   -- onboarding completes. NULL means it was never opened.
   last_attempt_opened_at TEXT,
+  -- legacy_claim and club_affiliations rows. The answers this step holds that
+  -- reach beyond the member's own account (a claim; club cards, activity
+  -- answers and notes), kept here as JSON until the last onboarding task is
+  -- answered, when one transaction writes them all. A prospective member is
+  -- not a member, so nothing they answer may land in a shared table before
+  -- then. Cleared when applied. NULL means nothing is held.
+  answer_json TEXT,
 
   UNIQUE(member_id, task_type)
 );

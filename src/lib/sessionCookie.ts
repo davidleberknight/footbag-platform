@@ -44,6 +44,10 @@ export function issueSessionCookie(
   res: Response,
   cookieValue: string,
   req: Request,
+  // Whether the session belongs to a member. The archive is a member
+  // capability, so a prospective member gets the session
+  // cookie and no archive grant; every caller states which it is.
+  opts: { archiveAccess: boolean },
 ): void {
   res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private');
   res.setHeader('Pragma', 'no-cache');
@@ -65,7 +69,7 @@ export function issueSessionCookie(
   });
 
   const signer = getCloudFrontSigningAdapter();
-  if (signer && config.archiveUrl) {
+  if (opts.archiveAccess && signer && config.archiveUrl) {
     const expiresEpochSeconds = Math.floor(
       (Date.now() + maxAgeMs) / 1000,
     );

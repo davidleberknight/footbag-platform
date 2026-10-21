@@ -363,6 +363,7 @@ describe('admin gate — POST (every state-changing admin route sits behind the 
     '/admin/work-queue/ph/link-help/approve/confirm',
     '/admin/work-queue/ph/link-help/reject',
     '/admin/work-queue/ph/link-help/dispute-revert',
+    '/admin/work-queue/ph/link-help/dispute-revert/confirm',
     '/admin/payments/reconciliation/ph/resolve',
     '/admin/clubs/ph/content',
     '/admin/clubs/ph/content/confirm',

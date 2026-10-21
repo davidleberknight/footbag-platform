@@ -9,13 +9,13 @@
     {{#if content.alreadyGranted}}
       <div class="card mb-6">
         <p class="m-0 fw-500">{{content.displayName}} already holds a {{content.honorLabel}} honor grant.</p>
-        <p class="m-0 mt-1 text-muted">Current membership: {{content.tierLabel}}. A second {{content.honorLabel}} grant is not written.</p>
+        <p class="m-0 mt-1">Current membership: {{content.tierLabel}}. A second {{content.honorLabel}} grant is not written.</p>
       </div>
       <p class="mt-4"><a href="{{content.cancelHref}}">Back to honor grants</a></p>
     {{else}}
       <div class="card mb-6">
         <p class="m-0 fw-500">Grant the {{content.honorLabel}} honor tier to {{content.displayName}} <span class="text-muted fs-sm">{{content.slug}}</span>?</p>
-        <p class="m-0 mt-1 text-muted">Current membership: {{content.tierLabel}} &rarr; Tier 2 (honor).</p>
+        <p class="m-0 mt-1">Current membership: {{content.tierLabel}} &rarr; Tier 2 (honor).</p>
         <p class="m-0 mt-1 text-muted">Induction year: {{content.inductionYearLabel}}.</p>
       </div>
 

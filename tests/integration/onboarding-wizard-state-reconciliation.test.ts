@@ -11,7 +11,7 @@ import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import {
   insertMember, insertHistoricalPerson, insertOnboardingTask, insertClub, insertMemberClubAffiliation,
-  createTestSessionJwt,
+  insertLegacyMember, setOnboardingHeldAnswer, createTestSessionJwt,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3160');
@@ -51,6 +51,14 @@ let probe: BetterSqlite3.Database | null = null;
 function dataVersion(): number {
   probe ??= new BetterSqlite3(dbPath, { readonly: true });
   return probe.pragma('data_version', { simple: true }) as number;
+}
+
+// A claim held on the member's claim step, as a prospective member holds one
+// until onboarding completes, with the step itself left as the case sets it.
+function seedHeldClaim(memberId: string, target: { accountId: string | null; recordId: string | null }): void {
+  setOnboardingHeldAnswer(testDb, memberId, 'legacy_claim', {
+    claim: { target, withSurname: false, heldAt: '2026-01-01T00:00:00.000Z' },
+  });
 }
 
 function getTaskState(memberId: string, taskType: string): string | null {
@@ -172,7 +180,7 @@ describe('opening a wizard page writes nothing and completes no task', () => {
     expect(dataVersion()).toBe(before);
   });
 
-  it('a member already holding a record whose claim step is pending sees the step, and the page completes nothing', async () => {
+  it('a member holding a claim of a record whose claim step is pending sees the step, and the page completes nothing', async () => {
     const stamp = Date.now();
     const personId = insertHistoricalPerson(testDb, { person_name: 'L Five' });
     const memberId = insertMember(testDb, { onboarding: 'none',
@@ -180,10 +188,11 @@ describe('opening a wizard page writes nothing and completes no task', () => {
       login_email: `state-l5-${stamp}@example.com`,
       real_name:   'L Five',
     });
-    // The MemberOverrides factory does not surface historical_person_id.
-    testDb.prepare(`UPDATE members SET historical_person_id = ? WHERE id = ?`).run(personId, memberId);
     seedPendingTasks(memberId);
     svc.completeTask(memberId, 'personal_details');
+    // A prospective member never holds a written link; what they hold is the
+    // claim waiting on their claim step for onboarding to complete.
+    seedHeldClaim(memberId, { accountId: null, recordId: personId });
 
     const before = dataVersion();
     const res = await request(createApp())
@@ -250,9 +259,9 @@ describe('the claim answer completes the claim step when the member already hold
       real_name:   `Held ${tag}`,
       birth_date:  '1980-01-01',
     });
-    testDb.prepare(`UPDATE members SET historical_person_id = ? WHERE id = ?`).run(personId, memberId);
     seedPendingTasks(memberId);
     svc.completeTask(memberId, 'personal_details');
+    seedHeldClaim(memberId, { accountId: null, recordId: personId });
     return { memberId, personId };
   }
 
@@ -269,21 +278,23 @@ describe('the claim answer completes the claim step when the member already hold
   });
 
   it('through a card naming only the record of an old account the member already holds', async () => {
-    // The member holds the old account the record belongs to but not the
-    // record itself, so the match, not the held-target shortcut, finds the
-    // card already theirs.
+    // The member holds a claim of the old account the record belongs to but
+    // not of the record itself, so the match, not the held-target shortcut,
+    // finds the card already theirs.
     const stamp = Date.now();
     const legacyId = `LM-HELD-${stamp}`;
+    const email = `state-held-acct-${stamp}@example.com`;
+    insertLegacyMember(testDb, { legacy_member_id: legacyId, legacy_email: email, real_name: 'Held Account' });
     const memberId = insertMember(testDb, { onboarding: 'none',
       slug: `state_held_acct_${stamp}`,
-      login_email: `state-held-acct-${stamp}@example.com`,
+      login_email: email,
       real_name:   'Held Account',
       birth_date:  '1980-01-01',
-      legacy_member_id: legacyId,
     });
     const personId = insertHistoricalPerson(testDb, { person_name: 'Held Account', legacy_member_id: legacyId });
     seedPendingTasks(memberId);
     svc.completeTask(memberId, 'personal_details');
+    seedHeldClaim(memberId, { accountId: legacyId, recordId: null });
 
     const res = await request(createApp())
       .post('/register/wizard/legacy_claim/claim')

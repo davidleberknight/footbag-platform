@@ -14,7 +14,7 @@
 
     {{#if content.isFailed}}
       <div class="notice-card notice-card--warn">This run did not complete: {{content.failureText}}</div>
-      <p class="text-muted">No comparison was recorded for this run. The next daily pass produces the next report.</p>
+      <p>No comparison was recorded for this run. The next daily pass produces the next report.</p>
     {{/if}}
 
     {{#if content.report}}
@@ -61,7 +61,7 @@
           {{/each}}
         </ul>
       {{else}}
-        <p class="text-muted">Nothing new. Everything this run compared agreed, or was already on the queue.</p>
+        <p>Nothing new. Everything this run compared agreed, or was already on the queue.</p>
       {{/if}}
 
       <div class="section-heading mt-8">
@@ -81,7 +81,7 @@
           {{/each}}
         </ul>
       {{else}}
-        <p class="text-muted">Nothing was resolved in that period.</p>
+        <p>Nothing was resolved in that period.</p>
       {{/if}}
 
       <div class="section-heading mt-8">
@@ -113,13 +113,13 @@
           </tbody>
         </table>
       {{else}}
-        <p class="text-muted">No real money settled in this window.</p>
+        <p>No real money settled in this window.</p>
       {{/if}}
       {{#if content.report.hasTotalsExclusion}}
-        <p class="text-muted fs-sm">{{content.report.totalsExclusionLine}}</p>
+        <p class="fs-sm">{{content.report.totalsExclusionLine}}</p>
       {{/if}}
     {{/if}}
 
-    <p class="text-muted fs-sm">{{content.providerBoundaryLine}}</p>
+    <p class="fs-sm">{{content.providerBoundaryLine}}</p>
   </section>
 </div>

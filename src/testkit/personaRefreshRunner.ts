@@ -260,13 +260,19 @@ export function refreshAllPersonas(
         ...candidateClubIds,
         ...resolvedClubIds,
       ]);
-      // Keep only persona-seeded clubs (deterministic id prefix). A real club a
-      // persona merely joined must survive: deleting it would destroy shared
-      // data, and the persona's membership rows are removed separately anyway.
+      // Keep only persona-made clubs: those seeded with the deterministic id
+      // prefix, and those a persona's onboarding created by promoting a
+      // persona-seeded candidate, whose id derives from the candidate's key. A
+      // real club a persona merely joined must survive: deleting it would
+      // destroy shared data, and the persona's membership rows are removed
+      // separately anyway.
       clubIds = clubIds.length
         ? col(
             `SELECT id FROM clubs
-              WHERE id IN (${placeholders(clubIds.length)}) AND id LIKE 'club-test-%'`,
+              WHERE id IN (${placeholders(clubIds.length)})
+                AND (id LIKE 'club-test-%'
+                     OR id IN (SELECT mapped_club_id FROM legacy_club_candidates
+                                WHERE id LIKE 'lcc-test-%' AND mapped_club_id IS NOT NULL))`,
             clubIds,
           )
         : [];

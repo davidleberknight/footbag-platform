@@ -239,9 +239,14 @@ describe('personal_details is a prerequisite for the legacy-claim step', () => {
       .get('/register/wizard/legacy_claim')
       .set('Cookie', cookieFor(memberId));
     expect(bounce.headers.location).toBe('/register/wizard/personal_details');
-    const member = db.prepare('SELECT historical_person_id FROM members WHERE id = ?')
-      .get(memberId) as { historical_person_id: string | null };
-    expect(member.historical_person_id).toBeNull();
+    // A registrant's links stay empty even after an accepted claim, so only the
+    // claim step shows the bounce held nothing: no claim waiting for
+    // completion to write, and the step still unanswered.
+    const step = db.prepare(
+      `SELECT state, answer_json FROM member_onboarding_tasks WHERE member_id = ? AND task_type = 'legacy_claim'`,
+    ).get(memberId) as { state: string; answer_json: string | null } | undefined;
+    expect(step?.answer_json ?? null).toBeNull();
+    expect(step?.state ?? 'pending').toBe('pending');
   });
 });
 

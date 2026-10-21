@@ -442,6 +442,8 @@ main :where(details[open]) > :where(summary) { margin-bottom: var(--space-sm); }
    still wins. A list carrying a class is a component and sizes its own items;
    an outcome message (it carries a role) is a banner that spans its column. */
 main :where(p:not([role]), dd, blockquote, figcaption, ol:not([class]) > li, ul:not([class]) > li) { max-width: 55ch; }
+/* Classed lists whose items are sentences of prose take the same measure. */
+:is(.add-analysis-edge-cases, .combo-analysis-example-why, .combo-analysis-caveats, .related-modifiers-list) > li { max-width: 55ch; }
 /* A capped paragraph inside a centred block stays centred under its heading. */
 main :is(.hero, .empty-state, .error-page, .text-center, .player-search-empty, .observational-empty-state) :where(p) { margin-inline: auto; }
 
@@ -918,6 +920,9 @@ th.sortable:hover { color: var(--primary-ink); }
 .card-static:hover { transform: none; box-shadow: var(--shadow-sm); }
 
 .card-title { margin-bottom: var(--space-sm); font-weight: 600; font-size: 1rem; }
+/* A card title that is a real heading takes the card-title step of the ramp,
+   so it outranks the body text under it. */
+:is(h2, h3).card-title { font-size: 1.25rem; }
 .card-title a { color: var(--text); font-weight: 600; font-size: 1rem; }
 .card-title a:hover { color: var(--primary-ink); text-decoration: none; }
 
@@ -3567,7 +3572,9 @@ main fieldset > :not(:has(~ :not([type="hidden"]))) { margin-bottom: 0; }
 /* A block of its own, so a thumbnail that fails to load leaves no empty line
    of text behind it. */
 .curator-thumb { display: block; border-radius: var(--radius-sm); height: auto; aspect-ratio: 16 / 9; object-fit: cover; margin-bottom: var(--space-md); }
-.work-queue-item { margin-bottom: var(--space-lg); }
+/* A card names records by their ids, which have no break points; they wrap
+   rather than push the page sideways on a phone. */
+.work-queue-item { margin-bottom: var(--space-lg); overflow-wrap: anywhere; }
 
 /* ── Admin: dashboard queue rows and navigation groups ───────── */
 /* A queue on the admin home page is a row, not a card. The page carries one
@@ -3623,7 +3630,6 @@ main fieldset > :not(:has(~ :not([type="hidden"]))) { margin-bottom: 0; }
   gap: var(--space-md) var(--space-xl);
 }
 .admin-goto-group h3 {
-  font-size: 1rem;
   margin-bottom: var(--space-xs);
 }
 .admin-goto-group ul {
@@ -4110,7 +4116,6 @@ a.hashtag--media:hover {
   padding: 0;
 }
 .trick-pathway-title {
-  font-size: 1rem;
   font-weight: 600;
   margin: 0 0 var(--space-xs);
   color: var(--text);
@@ -4287,8 +4292,10 @@ a.hashtag--media:hover {
   grid-template-columns: max-content 1fr;
   column-gap: var(--space-lg);
   row-gap: var(--space-xs);
-  margin: 0;
 }
+/* Clears the browser's list margins at zero specificity, so a spacing
+   utility on the list still places it. */
+:where(.trick-structural-facts-list) { margin: 0; }
 .trick-structural-facts-list dt {
   font-weight: 600;
   color: var(--text-muted);
@@ -4354,7 +4361,7 @@ a.hashtag--media:hover {
   text-transform: lowercase;
 }
 /* Sequence operators. >> is slightly heavier weight than > (major boundary). */
-.op-token--sequence-op-minor { color: var(--gray-500); }                     /* neutral-400 */
+.op-token--sequence-op-minor { color: var(--text-muted); }
 .op-token--sequence-op-major { color: var(--gray-700); font-weight: 600; }   /* neutral-600 */
 /* Unknown: no role colour, so a curator can still spot a token that fell
  * outside the closed vocabulary. It takes the same case as every other token
@@ -5329,7 +5336,6 @@ a.hashtag--media:hover {
    meaning rather than decoration, so it takes the accent colour and sits tight
    to the heading it qualifies. */
 .data-table .sort-indicator {
-  font-size: 0.9em;
   margin-left: var(--space-xs);
   color: var(--accent);
 }
@@ -5879,7 +5885,6 @@ a.hashtag--media:hover {
 }
 .trick-family-evolution-axis {
   margin: 0 0 var(--space-xs);
-  font-size: 1rem;
   color: var(--text-strong);
 }
 .trick-family-evolution-prose {
@@ -7679,7 +7684,7 @@ a.trick-hero-meta-chip--media:hover {
   align-items: center;
   justify-content: center;
   border-radius: var(--radius-full);
-  background: var(--primary);
+  background: var(--primary-ink);
   color: var(--white);
   font-weight: 700;
   font-size: 0.9rem;
@@ -7906,7 +7911,7 @@ a.trick-hero-meta-chip--media:hover {
   line-height: 1.45;
 }
 .operator-example-input { color: var(--gray-700); }
-.operator-example-arrow { color: var(--gray-500); padding: 0 var(--space-xs); }
+.operator-example-arrow { color: var(--text-muted); padding: 0 var(--space-xs); }
 .operator-example-result {
   color: var(--text);
   font-weight: 700;
@@ -8809,11 +8814,11 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 }
 .family-rung-header {
   margin: var(--space-lg) 0 var(--space-sm) 0;
-  font-size: 0.9rem;
+  font-size: 1.25rem;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--text-muted);
+  color: var(--text);
 }
 
 @media (max-width: 480px) {
@@ -9984,7 +9989,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 .combo-analysis-topology-list dd {
   margin-left: 0;
   margin-top: var(--space-xs);
-  color: var(--text-secondary);
 }
 
 .combo-analysis-worked-examples {
@@ -10001,7 +10005,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 }
 .combo-analysis-example-heading {
   margin: 0 0 var(--space-sm) 0;
-  font-size: 1rem;
 }
 .combo-analysis-example-diagram {
   background: var(--white);
@@ -10050,7 +10053,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 }
 .combo-analysis-caveats li {
   margin: var(--space-sm) 0;
-  color: var(--text-secondary);
 }
 
 .combo-analysis-cross-links {
@@ -10700,7 +10702,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   font-weight: 500;
 }
 .set-card-audit--aligned    { background: var(--green-pale); color: var(--fern-600); }
-.set-card-audit--partial    { background: var(--orange-soft); color: var(--warn-muted); }
+.set-card-audit--partial    { background: var(--orange-soft); color: var(--warn-text); }
 .set-card-audit--conflict   { background: var(--red-pale); color: var(--danger-text); }
 .set-card-audit--holden-only{ background: var(--hover-tint); color: var(--doctrine-plum); }
 .set-card-citation {
@@ -11013,12 +11015,10 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 }
 .set-detail-examples-empty {
   font-style: italic;
-  color: var(--text-secondary);
   margin: 0;
 }
 .set-detail-component-note {
   font-size: 0.9rem;
-  color: var(--text-secondary);
   margin: var(--space-sm) 0 0;
   line-height: 1.4;
 }
@@ -11301,7 +11301,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
    display and margin resets are what let a real heading element carry the
    title, which is how the glossary chapters avoid repeating the chapter name
    as the first line inside the card. */
-.dict-tile-title { display: inline; margin: 0; font-weight: 700; font-size: 1rem; }
+.dict-tile-title { display: inline; margin: 0; font-weight: 700; font-size: 1.25rem; }
 .dict-tile-hint  { display: block; font-size: 0.9rem; color: var(--text-muted); }
 .dict-tile-body  { padding: var(--space-md) var(--space-lg); }
 /* Inside a tile the blocks stack tight: the tile's own padding carries the
@@ -11513,9 +11513,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 .set-detail-examples-section {
   margin-top: var(--space-lg);
 }
-.set-detail-examples-section--empty {
-  color: var(--text-muted);
-}
 
 /* Prose notes and framing paragraphs. */
 .add-analysis-derivation-line {
@@ -11549,13 +11546,14 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 
 /* Dev-only persona harness listing (/dev/personas; development + staging).
    Cards compose from the shared .card / .card-grid primitives; these rules add
-   only the harness-specific bits: the coverage-note list, the special-persona
-   note callout, and the muted treatment for blocked / unseeded cards. */
+   only the harness-specific bits: the coverage-note list and the
+   special-persona note callout. A blocked or unseeded card says so in its
+   badge and note rather than by fading, which would put its text below a
+   readable contrast. */
 .dev-persona-coverage {
   margin: var(--space-xs) 0 var(--space-md);
   padding-left: var(--space-lg);
   font-size: 0.9rem;
-  color: var(--text-secondary);
 }
 .dev-persona-note {
   border-left: 3px solid var(--primary);
@@ -11566,9 +11564,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 }
 .dev-persona-special {
   border-color: var(--primary);
-}
-.dev-persona-muted {
-  opacity: 0.6;
 }
 
 /* "Freestyle by the Numbers": the gateway histogram cards. Cards differ a lot
@@ -11581,6 +11576,9 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   column-gap: var(--space-md);
   margin-bottom: var(--space-md);
 }
+/* The last card keeps its own bottom margin inside the column flow, so the
+   note under the grid adds none above it. */
+.by-numbers-grid + .source-note { margin-top: 0; }
 .by-numbers-card {
   display: flex;
   flex-direction: column;

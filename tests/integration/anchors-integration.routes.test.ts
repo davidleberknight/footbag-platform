@@ -138,6 +138,15 @@ describe('an old email address is a matching key only', () => {
       memberId, { accountId: 'LM-oldproof', recordId: 'HP-oldproof' }, '203.0.113.7', false,
     );
     expect(ok.kind).toBe('advance');
+    // The member is still onboarding, so the confirmed claim is held: nothing
+    // links, the old account stays unclaimed and no claim is recorded yet.
+    expect(linkedId()).toBeNull();
+    expect((db.prepare('SELECT claimed_by_member_id FROM legacy_members WHERE legacy_member_id = ?')
+      .get('LM-oldproof') as { claimed_by_member_id: string | null }).claimed_by_member_id).toBeNull();
+    expect(audits(memberId, 'claim.legacy_account')).toHaveLength(0);
+
+    // Answering the last onboarding step completes onboarding and lands it.
+    expect(onboarding.memberOnboardingService.processNoClubsAnswer(memberId).kind).toBe('advance');
     expect(linkedId()).toBe('HP-oldproof');
 
     // The address was asserted, not proven, so the claim is recorded at the

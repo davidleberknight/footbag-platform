@@ -80,6 +80,48 @@ function otherCookie(): string {
   return `__Host-footbag_session=${createTestSessionJwt({ memberId: OTHER_ID })}`;
 }
 
+// A claimant is still a prospective member when they confirm, so the claim is
+// held on their own claim-step row and nothing shared changes: no link, no
+// claimed marker on the old account, no tier grant and no claim audit row.
+// Anything landing here early would hand a prospective member another
+// person's record and honors before they ever finished joining.
+function expectClaimHeldNotLanded(memberId: string, personId: string, legacyId: string | null): void {
+  const member = testDb.prepare(
+    'SELECT historical_person_id, legacy_member_id FROM members WHERE id = ?',
+  ).get(memberId) as { historical_person_id: string | null; legacy_member_id: string | null };
+  expect(member.historical_person_id).toBeNull();
+  expect(member.legacy_member_id).toBeNull();
+  if (legacyId !== null) {
+    const lm = testDb.prepare('SELECT claimed_by_member_id FROM legacy_members WHERE legacy_member_id = ?')
+      .get(legacyId) as { claimed_by_member_id: string | null };
+    expect(lm.claimed_by_member_id).toBeNull();
+  }
+  const grants = testDb.prepare(
+    `SELECT COUNT(*) AS c FROM member_tier_grants WHERE member_id = ? AND reason_code = 'legacy.claim_tier_grant'`,
+  ).get(memberId) as { c: number };
+  expect(grants.c).toBe(0);
+  const claimAudits = testDb.prepare(
+    `SELECT COUNT(*) AS c FROM audit_entries WHERE actor_member_id = ? AND action_type LIKE 'claim.%'
+        AND action_type <> 'claim.refused'`,
+  ).get(memberId) as { c: number };
+  expect(claimAudits.c).toBe(0);
+  const task = testDb.prepare(
+    `SELECT state, answer_json FROM member_onboarding_tasks WHERE member_id = ? AND task_type = 'legacy_claim'`,
+  ).get(memberId) as { state: string; answer_json: string | null };
+  expect(task.state).toBe('completed');
+  expect(JSON.parse(task.answer_json ?? 'null')?.claim?.target?.recordId).toBe(personId);
+}
+
+// The club step is the last onboarding answer for these claimants. Answering
+// it through the wizard completes onboarding, which is the moment a held
+// claim is written.
+async function finishOnboarding(cookie: string): Promise<void> {
+  const res = await request(createApp())
+    .post('/register/wizard/club_affiliations/none')
+    .set('Cookie', cookie).type('form').send({});
+  expect(res.status).toBe(303);
+}
+
 beforeAll(async () => {
   testDb = createTestDb(dbPath);
   insertMember(testDb, { id: CLAIMER_ID, slug: CLAIMER_SLUG,
@@ -195,6 +237,15 @@ describe('GET /history/:personId/claim', () => {
     expect(res.text).toContain('David Mockingbird');
     expect(res.text).toContain('Link the Record');
     expect(res.text).toContain('NZ'); // country surfaced
+  });
+
+  it('Cancel on the confirm form returns to the wizard\'s claim step, the only way into a claim', async () => {
+    // Sending a registrant back to the record instead strands them on a page
+    // that offers no claim, outside the wizard they still have to finish.
+    const res = await request(createApp()).get(`/history/${HP_NO_LEGACY}/claim`).set('Cookie', claimerCookie());
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('<a href="/register/wizard/legacy_claim">Cancel</a>');
+    expect(res.text).not.toContain(`<a href="/history/${HP_NO_LEGACY}">Cancel</a>`);
   });
 
   // Anti-enumeration: every failure mode on /history/:personId/claim must
@@ -334,13 +385,18 @@ describe('claiming is closed once onboarding is complete (wizard-bounded)', () =
 });
 
 describe('POST /history/:personId/claim/confirm — scenario D (HP-only)', () => {
-  it('successful HP-only claim sets historical_person_id and merges HP fields', async () => {
+  it('successful HP-only claim is held until onboarding completes, then sets historical_person_id and merges HP fields', async () => {
     const app = createApp();
     const res = await request(app)
       .post(`/history/${HP_NO_LEGACY}/claim/confirm`)
       .set('Cookie', claimerCookie()).type('form').send({});
     expect(res.status).toBe(303);
-    expect(res.headers.location).toBe(`/members/${CLAIMER_SLUG}`);
+    // The claimant is still onboarding, so the confirmation carries them to
+    // the step they have left, not to a member profile they do not yet have.
+    expect(res.headers.location).toBe('/register/wizard/club_affiliations');
+    expectClaimHeldNotLanded(CLAIMER_ID, HP_NO_LEGACY, null);
+
+    await finishOnboarding(claimerCookie());
 
     const row = testDb.prepare(
       `SELECT historical_person_id, legacy_member_id, country, is_hof, is_bap,
@@ -367,11 +423,10 @@ describe('POST /history/:personId/claim/confirm — scenario D (HP-only)', () =>
   });
 
   it('claimer who already linked one record is routed to admin link help and keeps that link', async () => {
-    // CLAIMER linked from the previous test, which completed the claim step;
-    // answering the club question finishes onboarding, which closes the
-    // self-serve claim surface: a second attempt routes to the admin
-    // link-request form and the original link is left untouched.
-    insertOnboardingTask(testDb, CLAIMER_ID, 'club_affiliations', 'completed');
+    // CLAIMER linked in the previous test, which answered the club question
+    // and so finished onboarding. That closes the self-serve claim surface: a
+    // second attempt routes to the admin link-request form and the original
+    // link is left untouched.
     const secondHp = 'hp-second-for-claimer';
     insertHistoricalPerson(testDb, {
       person_id: secondHp, person_name: 'David Mockingbird',
@@ -390,7 +445,7 @@ describe('POST /history/:personId/claim/confirm — scenario D (HP-only)', () =>
 });
 
 describe('POST /history/:personId/claim/confirm — scenario E (HP + unclaimed legacy)', () => {
-  it('transitive legacy_members claim: HP claim also marks legacy row claimed', async () => {
+  it('transitive legacy_members claim: HP claim, once onboarding completes, also marks legacy row claimed', async () => {
     const scenarioEClaimerId = insertMember(testDb, {
       slug: 'scenario_e', real_name: 'David Mockingbird', display_name: 'David Mockingbird',
       login_email: 'scenario-e@example.com', country: null,
@@ -409,6 +464,10 @@ describe('POST /history/:personId/claim/confirm — scenario E (HP + unclaimed l
       .post(`/history/${HP_WITH_LM}/claim/confirm`)
       .set('Cookie', scenarioECookie).type('form').send({});
     expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/register/wizard/club_affiliations');
+    expectClaimHeldNotLanded(scenarioEClaimerId, HP_WITH_LM, LM_FOR_HP_E);
+
+    await finishOnboarding(scenarioECookie);
 
     const memberRow = testDb.prepare(
       'SELECT historical_person_id, legacy_member_id, country, is_hof, is_bap FROM members WHERE id = ?',
@@ -771,6 +830,9 @@ describe('POST /history/:personId/claim/confirm — claim audit metadata', () =>
       .set('Cookie', `__Host-footbag_session=${createTestSessionJwt({ memberId })}`)
       .type('form').send({});
     expect(res.status).toBe(303);
+    // The claim audit row is written when the held claim lands, which is when
+    // onboarding completes.
+    await finishOnboarding(`__Host-footbag_session=${createTestSessionJwt({ memberId })}`);
 
     const meta = claimAuditMetadata(memberId);
     expect(meta.person_id).toBe(hp);
@@ -789,6 +851,9 @@ describe('POST /history/:personId/claim/confirm — claim audit metadata', () =>
       .set('Cookie', `__Host-footbag_session=${createTestSessionJwt({ memberId })}`)
       .type('form').send({});
     expect(res.status).toBe(303);
+    // The claim audit row is written when the held claim lands, which is when
+    // onboarding completes.
+    await finishOnboarding(`__Host-footbag_session=${createTestSessionJwt({ memberId })}`);
 
     const meta = claimAuditMetadata(memberId);
     expect(meta.person_id).toBe(hp);

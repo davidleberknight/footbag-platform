@@ -39,7 +39,8 @@ subsystem) ----` so it is removed when that subsystem retires.
 For multi-condition filters, define a SQL view and select from it. Services read from views, never `WHERE` on top of bare tables for filters the view already encodes. Common views:
 
 - `members_active` -- `deleted_at IS NULL`.
-- `members_searchable` -- `members_active` minus deceased, opted-out, PII-purged, unverified.
+- `members_onboarded` -- `members_active` minus registrants still onboarding (the system member is included); the read surface for anyone other than the account's own owner.
+- `members_searchable` -- `members_onboarded` minus deceased, opted-out, PII-purged, unverified.
 - `clubs_open` -- `status IN ('active','inactive')`; `clubs_all` adds archived (clubs use status-archive, no `deleted_at` column).
 - `email_templates_enabled` -- `is_enabled = 1`.
 - `recurring_donation_subscriptions_active` -- `status NOT IN ('canceled', 'incomplete')`; query the bare table when canceled or unconfirmed rows are needed.

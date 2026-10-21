@@ -1188,6 +1188,24 @@ export function insertOnboardingTask(
   }
 }
 
+// The answers a prospective member's step holds until onboarding completes,
+// written onto that step's existing task row in the shape the onboarding
+// service stores: { claim } on legacy_claim, { answers } on club_affiliations.
+export function setOnboardingHeldAnswer(
+  db: BetterSqlite3.Database,
+  memberId: string,
+  taskType: OnboardingTaskType,
+  value: unknown,
+): void {
+  const changed = db.prepare(`
+    UPDATE member_onboarding_tasks SET answer_json = ?, updated_at = ?, version = version + 1
+     WHERE member_id = ? AND task_type = ?
+  `).run(JSON.stringify(value), TS, memberId, taskType).changes;
+  if (changed !== 1) {
+    throw new Error(`Held-answer seed did not land: no ${taskType} task row for ${memberId}.`);
+  }
+}
+
 export function completeOnboarding(db: BetterSqlite3.Database, memberId: string): void {
   insertOnboardingTask(db, memberId, 'personal_details', 'completed');
   insertOnboardingTask(db, memberId, 'legacy_claim', 'completed');

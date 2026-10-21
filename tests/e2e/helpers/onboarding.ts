@@ -19,6 +19,7 @@ import {
   insertLegacyClubCandidate,
   insertLegacyPersonClubAffiliation,
   insertOnboardingTask,
+  setOnboardingHeldAnswer,
   createMemberAtTier,
   createTestSessionJwt,
   insertSystemConfig,
@@ -101,6 +102,28 @@ export function countTierGrants(db: BetterSqlite3.Database, memberId: string, re
   return (db.prepare(
     'SELECT COUNT(*) AS c FROM member_tier_grants WHERE member_id = ? AND reason_code = ?',
   ).get(memberId, reasonCode) as { c: number }).c;
+}
+
+// What a step holds for a prospective member until onboarding completes, read
+// from its task row: { claim } on legacy_claim, { answers } on
+// club_affiliations, or null when nothing is held.
+export function getHeldAnswer(db: BetterSqlite3.Database, memberId: string, taskType: string): Record<string, unknown> | null {
+  const row = db.prepare(
+    'SELECT answer_json FROM member_onboarding_tasks WHERE member_id = ? AND task_type = ?',
+  ).get(memberId, taskType) as { answer_json: string | null } | undefined;
+  return row?.answer_json ? JSON.parse(row.answer_json) as Record<string, unknown> : null;
+}
+
+export function countMemberAudit(db: BetterSqlite3.Database, actionType: string, memberId: string): number {
+  return (db.prepare(
+    "SELECT COUNT(*) AS c FROM audit_entries WHERE action_type = ? AND entity_type = 'member' AND entity_id = ?",
+  ).get(actionType, memberId) as { c: number }).c;
+}
+
+export function countClubMemberships(db: BetterSqlite3.Database, memberId: string, clubId: string): number {
+  return (db.prepare(
+    'SELECT COUNT(*) AS c FROM member_club_affiliations WHERE member_id = ? AND club_id = ?',
+  ).get(memberId, clubId) as { c: number }).c;
 }
 
 export function getAffiliationStatus(db: BetterSqlite3.Database, affiliationId: string): string | null {
@@ -293,29 +316,55 @@ export function seedMemberInLastAttempt(db: BetterSqlite3.Database): Persona {
 
 // ── Persona composition helpers ──────────────────────────────────────────────
 
+// A prospective member on the club step reaches their club cards through the
+// claim they hold, not one already written: the claim lands only when the last
+// onboarding task is answered. So the old account and its linked record are
+// left unclaimed, the claim step is complete and holds the account, and the
+// account is one the member's own login address and name reach, so the held
+// claim is accepted when onboarding completes.
+function seedHeldAccountClaimant(
+  db: BetterSqlite3.Database,
+  prefix: string,
+  opts: { memberId: string; slug: string; tier: 'tier0' | 'tier1' },
+): { legacyMemberId: string; personId: string } {
+  const legacyMemberId = `LM-${prefix.toUpperCase()}-${rand().toUpperCase()}`;
+  const loginEmail = uniqueEmail(prefix).toLowerCase();
+  const name = `${nameWord()} ${nameWord()}`;
+
+  insertLegacyMember(db, { legacy_member_id: legacyMemberId, legacy_email: loginEmail, real_name: name, country: 'US' });
+  const personId = insertHistoricalPerson(db, {
+    person_id: `hp-${prefix}-${rand()}`,
+    legacy_member_id: legacyMemberId,
+    person_name: name,
+    country: 'US',
+  });
+
+  createMemberAtTier(db, {
+    id: opts.memberId,
+    slug: opts.slug,
+    tier: opts.tier,
+    // Mid-wizard on the club step, so the factory's member-by-default task
+    // rows are suppressed; the two preceding tasks are seeded here.
+    memberOverrides: { onboarding: 'none', login_email: loginEmail, real_name: name },
+  });
+
+  insertOnboardingTask(db, opts.memberId, 'personal_details', 'completed');
+  insertOnboardingTask(db, opts.memberId, 'legacy_claim', 'completed');
+  setOnboardingHeldAnswer(db, opts.memberId, 'legacy_claim', {
+    claim: { target: { accountId: legacyMemberId, recordId: null }, withSurname: false, heldAt: '2026-01-01T00:00:00.000Z' },
+  });
+  return { legacyMemberId, personId };
+}
+
 export function seedMemberWithClubCards(
   db: BetterSqlite3.Database,
   opts: { slug?: string; clubCount?: number; withCoLeader?: boolean; city?: string } = {},
-): Persona & { candidateIds: string[]; affiliationIds: string[]; clubIds: string[] } {
+): Persona & { candidateIds: string[]; affiliationIds: string[]; clubIds: string[]; legacyMemberId: string; personId: string } {
   const memberId = `clubs-${rand()}`;
   const slug = opts.slug ?? `clubs_${rand()}`;
-  const legacyMemberId = `LM-CLUBS-${rand().toUpperCase()}`;
   const count = opts.clubCount ?? 2;
 
-  createMemberAtTier(db, {
-    id: memberId,
-    slug,
-    tier: 'tier0',
-    // Mid-wizard on the club step, so the factory's member-by-default task
-    // rows are suppressed; the two preceding tasks are seeded below.
-    memberOverrides: { onboarding: 'none', login_email: uniqueEmail('clubs'), legacy_member_id: legacyMemberId },
-  });
-
-  const personId = insertHistoricalPerson(db, {
-    person_id: `hp-clubs-${rand()}`,
-    legacy_member_id: legacyMemberId,
-    person_name: 'Club Member',
-  });
+  const { legacyMemberId, personId } = seedHeldAccountClaimant(db, 'clubs', { memberId, slug, tier: 'tier0' });
 
   const candidateIds: string[] = [];
   const affiliationIds: string[] = [];
@@ -360,11 +409,6 @@ export function seedMemberWithClubCards(
     affiliationIds.push(affiliationId);
   }
 
-  // Pre-complete personal_details and legacy_claim so the wizard starts at
-  // club_affiliations (both precede it and gate its rendering).
-  insertOnboardingTask(db, memberId, 'personal_details', 'completed');
-  insertOnboardingTask(db, memberId, 'legacy_claim', 'completed');
-
   return {
     memberId,
     slug,
@@ -374,6 +418,8 @@ export function seedMemberWithClubCards(
     candidateIds,
     affiliationIds,
     clubIds,
+    legacyMemberId,
+    personId,
   };
 }
 
@@ -383,23 +429,11 @@ export function seedMemberWithLeadershipCard(
 ): Persona & { candidateId: string; clubId: string } {
   const memberId = `ldr-${rand()}`;
   const slug = opts.slug ?? `ldr_${rand()}`;
-  const legacyMemberId = `LM-LDR-${rand().toUpperCase()}`;
 
   const ldrTagId = insertTag(db, { id: `tag-ldr-${rand()}`, tag_normalized: `#club_e2e_ldr_${rand()}`, standard_type: 'club' });
   const clubId = insertClub(db, { id: `club-ldr-${rand()}`, hashtag_tag_id: ldrTagId, name: 'Leader Club' });
 
-  createMemberAtTier(db, {
-    id: memberId,
-    slug,
-    tier: 'tier1',
-    memberOverrides: { onboarding: 'none', login_email: uniqueEmail('ldr'), legacy_member_id: legacyMemberId },
-  });
-
-  insertHistoricalPerson(db, {
-    person_id: `hp-ldr-${rand()}`,
-    legacy_member_id: legacyMemberId,
-    person_name: 'Leader Person',
-  });
+  const { legacyMemberId } = seedHeldAccountClaimant(db, 'ldr', { memberId, slug, tier: 'tier1' });
 
   const candidateId = insertClubBootstrapLeader(db, {
     id: `cbl-ldr-${rand()}`,
@@ -420,11 +454,6 @@ export function seedMemberWithLeadershipCard(
     signal_type: 'affiliation',
     is_present: 1,
   });
-
-  // Pre-complete personal_details and legacy_claim so the wizard starts at
-  // club_affiliations (both precede it and gate its rendering).
-  insertOnboardingTask(db, memberId, 'personal_details', 'completed');
-  insertOnboardingTask(db, memberId, 'legacy_claim', 'completed');
 
   return {
     memberId,

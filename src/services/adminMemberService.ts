@@ -21,7 +21,9 @@
  * The lookup reads the whole member population rather than a visibility view,
  * because the record exists to reach exactly the members those views exclude:
  * someone who opted out of member search, someone inside the deletion grace
- * period, and someone marked deceased whose flag may need reversing.
+ * period, and someone marked deceased whose flag may need reversing. The one
+ * exclusion is a prospective member: they are not a member, so the
+ * lookup never finds them and their record answers as an unknown id.
  *
  * Reading a record writes nothing. The corrections each write one audit row
  * through their owning service.
@@ -37,6 +39,7 @@ import {
 import { identityAccessService } from './identityAccessService';
 import { memberService, type ProfileEditInput } from './memberService';
 import { deceasedMarkingService } from './deceasedMarkingService';
+import { memberOnboardingService } from './memberOnboardingService';
 import { buildAvatarUrl } from './avatarService';
 import { getDefaultMediaModerationService } from './mediaModerationService';
 import { NotFoundError, ValidationError } from './serviceErrors';
@@ -360,7 +363,11 @@ function recordHref(memberId: string): string {
 
 function readMember(memberId: string): AdminMemberRow {
   const row = account.findMemberForAdminRecord.get(memberId) as AdminMemberRow | undefined;
-  if (!row) throw new NotFoundError('No member with that id.');
+  // A prospective member is not a member and has no admin record, so
+  // the record and every correction reached from it answer as for an unknown id.
+  if (!row || !memberOnboardingService.isOnboardingComplete(row.id)) {
+    throw new NotFoundError('No member with that id.');
+  }
   return row;
 }
 

@@ -76,6 +76,8 @@ beforeAll(async () => {
   createMemberAtTier(db, { id: T1_ID, slug: T1_SLUG, tier: 'tier1', memberOverrides: { display_name: 'Una One',  real_name: 'Una One',  login_email: 'ar-t1@example.com' } });
   insertMember(db, { id: MEMBER_ID, slug: MEMBER_SLUG, display_name: 'Mo Member', real_name: 'Mo Member', login_email: 'ar-member@example.com' });
   createMemberAtTier(db, { id: CLEAN_ID, slug: CLEAN_SLUG, tier: 'tier2', memberOverrides: { display_name: 'Cleo Clean', real_name: 'Cleo Clean', login_email: 'ar-clean@example.com' } });
+  // An administrator who has not finished onboarding, as a bootstrap admin can be.
+  insertMember(db, { id: 'ar_prospect_admin', slug: 'ar_prospect_admin', display_name: 'Pia Prospect', real_name: 'Pia Prospect', login_email: 'ar-prospect@example.com', is_admin: 1, onboarding: 'none' });
   db.close();
   createApp = await importApp();
 });
@@ -150,6 +152,8 @@ describe('GET /admin/admin-roles', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('Ada Admin');
     expect(res.text).toContain('Ben Admin');
+    // An admin still onboarding is not yet a member, so is not named to anyone.
+    expect(res.text).not.toContain('Pia Prospect');
   });
 });
 

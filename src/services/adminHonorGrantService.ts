@@ -179,14 +179,17 @@ export const adminHonorGrantService = {
       occurred_at: string;
       action_type: string;
       member_id: string;
-      display_name: string | null;
-      slug: string | null;
+      display_name: string;
+      slug: string;
       data_origin: string;
+      is_nameable: 0 | 1;
     }>;
     const recent: RecentHonorGrant[] = rows.map((r) => ({
       honorLabel: r.action_type === 'tier.hof_grant' ? HONOR_LABEL.hof : HONOR_LABEL.bap,
-      displayName: r.display_name ?? '(unknown member)',
-      slug: r.slug ?? r.member_id,
+      // A prospective member is never named on an admin page: the
+      // grant stays in the accountability list under their id.
+      displayName: r.is_nameable ? r.display_name : r.member_id,
+      slug: r.is_nameable ? r.slug : r.member_id,
       occurredAt: r.occurred_at,
       dataOriginLabel: r.data_origin === 'live'
         ? null

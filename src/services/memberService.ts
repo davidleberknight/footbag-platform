@@ -82,10 +82,9 @@
  *     where nothing needed changing, red where the rate limit refused.
  *   - A profile page exists only once its owner is a member. An account is
  *     pending until every onboarding task completes; getMemberProfilePage
- *     returns null for a pending target (indistinguishable from an unknown
- *     slug, so pending accounts are not enumerable), except for an admin
- *     viewer, whose operational surfaces reference pending accounts by
- *     profile link. The pending owner is routed to their next wizard task by
+ *     returns null for a pending target for every viewer, admins included
+ *     (indistinguishable from an unknown slug, so pending accounts are not
+ *     enumerable). The pending owner is routed to their next wizard task by
  *     the controller instead of a render.
  *   - Privacy gate is fail-closed: getMemberProfilePage returns null for an
  *     unauthenticated or pending viewer viewing a non-HoF/BAP member, which the
@@ -127,6 +126,7 @@
  *   work_queue_items (every queue row about the member has its free text redacted on PII purge and deceased scrub, whatever the task type),
  *   member_messages (every question addressed to the member has its subject, body and note redacted on PII purge and deceased scrub),
  *   club_insight_notes (note text cleared on PII purge and deceased scrub; the row stays so the club evidence trail keeps its shape),
+ *   member_onboarding_tasks (answers still held from an unfinished wizard cleared on PII purge and deceased scrub),
  *   outbox (recipient address, subject and rendered body scrubbed on PII purge and deceased scrub),
  *   email_archives (the sender's member id cleared on PII purge only; the subject, the body and the identity it was sent under are the record of what went out in IFPA's name and are never touched, and a deceased member's account still exists so the deceased scrub leaves the link alone),
  *   historical_persons (read-only; surfaced in member search via the public-player
@@ -145,7 +145,7 @@
  */
 import { randomUUID } from 'crypto';
 import { logger } from '../config/logger';
-import { account, publicPlayers, memberClubAffiliations, memberLinks, clubLeaders, clubs as clubsDb, clubInsightNotes, declaredAnchors, emailArchives, erasureLog, legacyMembers, mailingListSubscriptions, memberPurge, memberMessages, mediaFlags, outbox, recurringDonationSubscriptions, workQueue, transaction, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow } from '../db/db';
+import { account, publicPlayers, memberClubAffiliations, memberLinks, clubLeaders, clubs as clubsDb, clubInsightNotes, declaredAnchors, emailArchives, erasureLog, legacyMembers, mailingListSubscriptions, memberPurge, memberMessages, mediaFlags, memberOnboarding, outbox, recurringDonationSubscriptions, workQueue, transaction, MemberProfileRow, MemberResultRow, MemberSearchRow, HistoricalPersonSearchRow, IdentityLinksRow } from '../db/db';
 import { validateExternalUrl } from '../lib/externalUrlValidator';
 import { cleanUserText, sanitizeUserText, type TextShape } from '../lib/textSanitizer';
 import {
@@ -1110,6 +1110,8 @@ function purgeAccountPII(memberId: string): PurgeAccountPIIResult {
     // member-authored free text too. The text clears; the row stays, so the
     // club evidence trail keeps its shape without keeping their words.
     const insightNotes = clubInsightNotes.clearNotesForMember.run(memberId);
+    // Answers still held from an unfinished wizard can carry a note too.
+    memberOnboarding.clearHeldAnswersForMember.run(now, 'operations_purge', memberId);
     // Anything they broadcast in IFPA's name stays exactly as it was sent,
     // subject, body and sending identity alike: it is a record of what went out,
     // and a group-backed list's archive is the group's own discussion, which a
@@ -1199,6 +1201,7 @@ function scrubDeceasedMemberPII(memberId: string): ScrubDeceasedMemberPIIResult 
     // Same treatment for the wizard's club insight notes: the words go, the
     // evidence row stays.
     const insightNotes = clubInsightNotes.clearNotesForMember.run(memberId);
+    memberOnboarding.clearHeldAnswersForMember.run(now, 'operations_purge', memberId);
     // Outbound mail is contact data: the address it was sent to and the body
     // that was rendered for them. This scrub keeps identity, but nothing about
     // identity requires keeping their mailbox or the messages sent to it.
@@ -1327,18 +1330,15 @@ export const memberService = {
    */
   getMemberProfilePage(
     slug: string,
-    viewer: { authenticated: boolean; admin?: boolean; memberId?: string | null },
+    viewer: { authenticated: boolean; memberId?: string | null },
     opts?: { vouchOutcome?: VouchOutcome },
   ): PageViewModel<PublicProfileContent> | null {
     const row = fetchMemberBySlug(slug);
     // A profile page exists only once its owner is a member: an account still
-    // pending in the onboarding wizard has no profile for any member or
-    // visitor, and the null return is indistinguishable from an unknown slug,
-    // so pending accounts are not enumerable here. Admin viewers are exempt:
-    // operational surfaces (the audit log, the work queue) reference pending
-    // accounts by profile link, and admin oversight of an account is not a
-    // member capability of its owner.
-    if (!viewer.admin && !memberOnboardingService.isOnboardingComplete(row.id)) return null;
+    // pending in the onboarding wizard has no profile for any viewer, admins
+    // included, and the null return is indistinguishable from an unknown slug,
+    // so pending accounts are not enumerable here.
+    if (!memberOnboardingService.isOnboardingComplete(row.id)) return null;
     const isHof = Boolean(row.is_hof);
     const isBap = Boolean(row.is_bap);
     if (!viewer.authenticated && !isHof && !isBap) return null;
@@ -1379,14 +1379,12 @@ export const memberService = {
     // Who may vouch, and for whom: a signed-in Tier 2 or Tier 3 member, for a
     // Tier 0 member other than themselves. Active Player status applies to
     // Tier 0 alone, so offering the control anywhere else would promise a
-    // change the vouch would refuse to make. The onboarding check is not
-    // redundant with the one above: an admin viewer is exempt from that early
-    // return and does reach a pending account's profile, and a pending account
-    // is not somebody a vouch can be given to.
+    // change the vouch would refuse to make. A pending account never reaches
+    // here, because the early return above gives it no profile at all.
     const viewerMemberId = viewer.authenticated ? (viewer.memberId ?? null) : null;
     const vouch: VouchActionView | null =
       viewerMemberId && viewerMemberId !== row.id
-        && tierStatus === 'tier0' && memberOnboardingService.isOnboardingComplete(row.id)
+        && tierStatus === 'tier0'
         && holdsVouchingTier(viewerMemberId)
         ? {
           href: `/members/${encodeURIComponent(slug)}/vouch`,

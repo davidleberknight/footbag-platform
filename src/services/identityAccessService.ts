@@ -14,7 +14,8 @@
  *     and display name: the registration write and an administrator's
  *     correction both reach them through one shared validator, so a correction
  *     cannot take a name registration would refuse
- *   - Legacy archive passthrough JWT
+ *   - Legacy archive passthrough JWT (archive access is a member capability: the
+ *     session issue grants it only to an account whose onboarding is complete)
  *   - The claim step's writes, each deciding through LegacyMatchingService
  *     (which alone decides what a member's evidence reaches and what they may
  *     do with it) and writing nothing it did not decide:
@@ -57,6 +58,8 @@
  *     record) with admin-vetted evidence and resolves the item atomically;
  *     admin-vetted evidence bypasses the self-serve surname gate, never the
  *     deceased or already-claimed integrity gates; reject records the reason.
+ *     Only a member files a help request, and every admin action on one
+ *     refuses a subject who is a prospective member.
  *     The approval is previewed before it is applied: the preview runs the same
  *     refusals in the same order and reports the two records about to be bound,
  *     so a mistyped opaque id is caught by the administrator reading a name
@@ -98,8 +101,15 @@
  *     its equality test would match nothing and strand the record's personal
  *     data on the member row. Street address and postal code are deliberately
  *     not copied onto the member row at all; they stay on the archival
- *     legacy_members snapshot. A revert that empties a field the
- *     personal-details task requires re-opens that task.
+ *     legacy_members snapshot. Each claim records the names of the member
+ *     fields its merges filled (field names only, in its audit metadata). A
+ *     revert clears only those fields, unioned over every claim that took a
+ *     record it unlinks, and only where each still holds the claimed value, so
+ *     a value the member entered survives even when it equals the record's.
+ *     A revert acts on a full member and never re-opens onboarding.
+ *   - The dispute revert applies only behind a confirm page that rehearses the
+ *     real revert in a rolled-back transaction and lists what it would remove,
+ *     so the page cannot drift from what the revert does.
  *
  * Does not own:
  *   - Member profile CRUD (MemberService)
@@ -201,8 +211,14 @@
  *     token's email is seconds old issues nothing more; the bucket still
  *     counts every request.
  *   - In-tx variants (claimLegacyAccountInTx, claimHistoricalPersonInTx) accept a
- *     caller-owned transaction so the wizard orchestrator can merge the claim and the
- *     member_onboarding_tasks row transition inside one transaction.
+ *     caller-owned transaction. The onboarding wizard runs a prospective member's claim
+ *     through them twice: rehearsed and rolled back when the member answers, and applied
+ *     in the transaction that completes onboarding, with every other held answer.
+ *   - A claim records on its audit row the names of the member fields its fill-if-empty
+ *     merge filled (never their values). An administrator's dispute revert clears those
+ *     fields and no others, and only where they still hold the old record's value, so a
+ *     value the member entered survives; the person stays a member and no onboarding
+ *     step is reopened.
  *
  * Persistence:
  *   members, members_active, legacy_members, historical_persons (read for
@@ -246,7 +262,7 @@ import argon2 from 'argon2';
 import { hashPassword } from '../lib/passwordHash';
 import { auth, registration, legacyClaim, legacyMembers, account, memberOnboarding, workQueue, declaredAnchors, MemberAuthRow, LegacyMemberRow, AlreadyClaimedRow, HistoricalPersonClaimRow } from '../db/db';
 import { legacyMatchingService, type Candidate, type Confidence } from './legacyMatchingService';
-import { transaction, auditEntries } from '../db/db';
+import { transaction, rehearse, auditEntries } from '../db/db';
 import { accountTokenService } from './accountTokenService';
 import { emailService } from './emailService';
 import { workQueueService } from './workQueueService';
@@ -1929,12 +1945,15 @@ function adminStatusLabel(c: Candidate): string {
     ?? ADMIN_STATUS_LABELS[c.status] ?? c.status;
   if (c.refusal !== 'held_by_other' || !c.heldBy) return label;
   // A held record is shown as a conflict naming its holder, never as something
-  // to approve: the administrator must see who already has it.
+  // to approve: the administrator must see who already has it. A holder still
+  // onboarding is not yet a member and is never named on an admin page, so the
+  // conflict stands with their id alone.
   const holder = legacyClaim.findHolderForAdmin.get(c.heldBy) as
-    | { id: string; slug: string | null; display_name: string | null } | undefined;
-  return holder
-    ? `Held by another member: ${holder.display_name ?? holder.id} (/members/${holder.slug ?? holder.id}).`
-    : label;
+    | { id: string; slug: string; display_name: string; is_nameable: 0 | 1 } | undefined;
+  if (!holder) return label;
+  return holder.is_nameable
+    ? `Held by another member: ${holder.display_name} (/members/${holder.slug}).`
+    : `Held by another member: ${holder.id}.`;
 }
 
 function adminFoundThrough(c: Candidate): string {
@@ -2178,51 +2197,54 @@ function claimLegacyAccountInTxInner(
   // curated historical record beats the legacy dump. Both merge statements are
   // fill-if-empty, so the ladder is enforced by write order: the curated
   // historical fields land BEFORE the legacy transfer, and a column the member
-  // already filled is never touched by either.
-  if (hp) {
-    // The link write is WHERE historical_person_id IS NULL; a 0-row result means
-    // this member already holds an HP link (e.g. from a prior direct-HP claim
-    // that left legacy_member_id NULL, which checkAlreadyClaimed does not catch).
-    // Roll the whole claim back rather than proceeding with a stale link.
-    const linked = legacyMembers.setMemberHistoricalPersonId.run(hp.person_id, now, requestingMemberId);
-    if (linked.changes === 0) {
-      throw new ValidationError('Your account is already linked to a historical player record.');
+  // already filled is never touched by either. Both merges are recorded, so a
+  // revert can clear what either filled.
+  const filledFields = recordingFilledFields(requestingMemberId, () => {
+    if (hp) {
+      // The link write is WHERE historical_person_id IS NULL; a 0-row result means
+      // this member already holds an HP link (e.g. from a prior direct-HP claim
+      // that left legacy_member_id NULL, which checkAlreadyClaimed does not catch).
+      // Roll the whole claim back rather than proceeding with a stale link.
+      const linked = legacyMembers.setMemberHistoricalPersonId.run(hp.person_id, now, requestingMemberId);
+      if (linked.changes === 0) {
+        throw new ValidationError('Your account is already linked to a historical player record.');
+      }
+      legacyClaim.mergeHistoricalPersonFields.run(
+        normalizeImportedLocation({ city: null, region: null, country: hp.country }).country,
+        hp.hof_member,
+        hp.bap_member,
+        hp.hof_induction_year,
+        hp.first_year,
+        now,
+        requestingMemberId,
+      );
     }
-    legacyClaim.mergeHistoricalPersonFields.run(
-      normalizeImportedLocation({ city: null, region: null, country: hp.country }).country,
-      hp.hof_member,
-      hp.bap_member,
-      hp.hof_induction_year,
-      hp.first_year,
+
+    // The legacy record's location is held to the same rules the member's own
+    // forms apply, except that nothing here refuses: a value that will not
+    // normalise is dropped and the member supplies it on the personal-details
+    // step, because a typo in twenty-year-old data must never fail a claim.
+    const legacyLocation = normalizeImportedLocation({
+      city: row.city, region: row.region, country: row.country,
+    });
+
+    legacyClaim.transferLegacyFields.run(
+      row.legacy_member_id,
+      row.legacy_user_id,
+      row.legacy_email,
+      row.bio ?? '',
+      row.birth_date,
+      legacyLocation.city,
+      legacyLocation.region,
+      legacyLocation.country,
+      row.ifpa_join_date,
+      row.is_hof,
+      row.is_bap,
+      row.first_competition_year,
       now,
       requestingMemberId,
     );
-  }
-
-  // The legacy record's location is held to the same rules the member's own
-  // forms apply, except that nothing here refuses: a value that will not
-  // normalise is dropped and the member supplies it on the personal-details
-  // step, because a typo in twenty-year-old data must never fail a claim.
-  const legacyLocation = normalizeImportedLocation({
-    city: row.city, region: row.region, country: row.country,
   });
-
-  legacyClaim.transferLegacyFields.run(
-    row.legacy_member_id,
-    row.legacy_user_id,
-    row.legacy_email,
-    row.bio ?? '',
-    row.birth_date,
-    legacyLocation.city,
-    legacyLocation.region,
-    legacyLocation.country,
-    row.ifpa_join_date,
-    row.is_hof,
-    row.is_bap,
-    row.first_competition_year,
-    now,
-    requestingMemberId,
-  );
 
   // Single tier grant per legacy claim; grants never stack. Maps the legacy
   // standing to a tier: honors (HoF or BAP, from the legacy row or the transitive
@@ -2269,9 +2291,24 @@ function claimLegacyAccountInTxInner(
       transitive_hp_id:   hp?.person_id ?? null,
       evidence_strength:  evidenceStrength,
       dob_comparison:     dobComparison,
+      filled_fields:      filledFields,
       ...(evidence ? { evidence } : {}),
     },
   });
+}
+
+// Run a claim's fill-if-empty merge and return the names of the member fields
+// it filled. A revert clears those fields and no others, so a value the member
+// entered themselves survives even when it happens to equal the old record's.
+// Names only: the values stay out of the audit ledger, which erasure cannot
+// reach.
+function recordingFilledFields(memberId: string, merge: () => unknown): string[] {
+  const empty = (v: unknown) => v === null || v === undefined || v === '';
+  const before = legacyMembers.findLegacyMergeSnapshot.get(memberId) as Record<string, unknown> | undefined;
+  merge();
+  const after = legacyMembers.findLegacyMergeSnapshot.get(memberId) as Record<string, unknown> | undefined;
+  if (!before || !after) return [];
+  return Object.keys(after).filter((k) => empty(before[k]) && !empty(after[k]));
 }
 
 /**
@@ -2758,62 +2795,65 @@ function claimHistoricalPersonInTxInner(
   // order: the curated historical fields (country / HoF / BAP /
   // hof_inducted_year / first_competition_year) land BEFORE the transitive
   // legacy transfer. Write order settles nothing ACROSS transactions, which is
-  // what the re-assert below is for.
+  // what the re-assert below is for. Every merge here is recorded, so a revert
+  // can clear what any of them filled.
   const curatedCountry =
     normalizeImportedLocation({ city: null, region: null, country: hp.country }).country;
-  legacyClaim.mergeHistoricalPersonFields.run(
-    curatedCountry,
-    hp.hof_member,
-    hp.bap_member,
-    hp.hof_induction_year,
-    hp.first_year,
-    now,
-    requestingMemberId,
-  );
-
-  // The member linked a legacy account in an earlier transaction, so the
-  // columns the two sources share are already filled from the dump and the
-  // fill-if-empty merge above could not reach them. Put the curated record back
-  // on top of exactly what the dump wrote, and nothing else.
-  if (member.legacy_member_id) {
-    const priorLegacy = legacyMembers.findByLegacyMemberId.get(member.legacy_member_id) as
-      | LegacyMemberRow
-      | undefined;
-    if (priorLegacy) {
-      const priorLocation = normalizeImportedLocation({
-        city: priorLegacy.city, region: priorLegacy.region, country: priorLegacy.country,
-      });
-      legacyClaim.reassertCuratedOverLegacyFields.run(
-        curatedCountry, priorLocation.country, curatedCountry,
-        hp.first_year, priorLegacy.first_competition_year, hp.first_year,
-        now, requestingMemberId,
-      );
-    }
-  }
-
-  if (transitiveLegacyRow) {
-    const transitiveLocation = normalizeImportedLocation({
-      city:    transitiveLegacyRow.city,
-      region:  transitiveLegacyRow.region,
-      country: transitiveLegacyRow.country,
-    });
-    legacyClaim.transferLegacyFields.run(
-      transitiveLegacyRow.legacy_member_id,
-      transitiveLegacyRow.legacy_user_id,
-      transitiveLegacyRow.legacy_email,
-      transitiveLegacyRow.bio ?? '',
-      transitiveLegacyRow.birth_date,
-      transitiveLocation.city,
-      transitiveLocation.region,
-      transitiveLocation.country,
-      transitiveLegacyRow.ifpa_join_date,
-      transitiveLegacyRow.is_hof,
-      transitiveLegacyRow.is_bap,
-      transitiveLegacyRow.first_competition_year,
+  const filledFields = recordingFilledFields(requestingMemberId, () => {
+    legacyClaim.mergeHistoricalPersonFields.run(
+      curatedCountry,
+      hp.hof_member,
+      hp.bap_member,
+      hp.hof_induction_year,
+      hp.first_year,
       now,
       requestingMemberId,
     );
-  }
+
+    // The member linked a legacy account in an earlier transaction, so the
+    // columns the two sources share are already filled from the dump and the
+    // fill-if-empty merge above could not reach them. Put the curated record back
+    // on top of exactly what the dump wrote, and nothing else.
+    if (member.legacy_member_id) {
+      const priorLegacy = legacyMembers.findByLegacyMemberId.get(member.legacy_member_id) as
+        | LegacyMemberRow
+        | undefined;
+      if (priorLegacy) {
+        const priorLocation = normalizeImportedLocation({
+          city: priorLegacy.city, region: priorLegacy.region, country: priorLegacy.country,
+        });
+        legacyClaim.reassertCuratedOverLegacyFields.run(
+          curatedCountry, priorLocation.country, curatedCountry,
+          hp.first_year, priorLegacy.first_competition_year, hp.first_year,
+          now, requestingMemberId,
+        );
+      }
+    }
+
+    if (transitiveLegacyRow) {
+      const transitiveLocation = normalizeImportedLocation({
+        city:    transitiveLegacyRow.city,
+        region:  transitiveLegacyRow.region,
+        country: transitiveLegacyRow.country,
+      });
+      legacyClaim.transferLegacyFields.run(
+        transitiveLegacyRow.legacy_member_id,
+        transitiveLegacyRow.legacy_user_id,
+        transitiveLegacyRow.legacy_email,
+        transitiveLegacyRow.bio ?? '',
+        transitiveLegacyRow.birth_date,
+        transitiveLocation.city,
+        transitiveLocation.region,
+        transitiveLocation.country,
+        transitiveLegacyRow.ifpa_join_date,
+        transitiveLegacyRow.is_hof,
+        transitiveLegacyRow.is_bap,
+        transitiveLegacyRow.first_competition_year,
+        now,
+        requestingMemberId,
+      );
+    }
+  });
 
   // Single tier grant per legacy claim; grants never stack. Direct HP claim
   // takes the same `legacy.claim_tier_grant` reason and the same mapping: honors
@@ -2859,34 +2899,30 @@ function claimHistoricalPersonInTxInner(
       transitive_legacy_id:   hp.legacy_member_id ?? null,
       evidence_strength:      evidenceStrength,
       dob_comparison:         dobComparison,
+      filled_fields:          filledFields,
       ...(evidence ? { evidence } : {}),
     },
   });
 }
 
-// A claim revert clears every field that still matches what the claim copied
-// in, and city, country and date of birth are fields the personal-details step
-// requires. A member who happened to type the same city as their linked record
-// therefore loses it on a revert, while the step stays completed: nothing
-// re-asks them, and the Official IFPA Roster shows the blank. Putting
-// the step back in front of them is the honest repair -- the same posture the
-// platform takes elsewhere with unresolved legacy residue, which is labelled
-// and re-asked rather than quietly carried.
-//
-// Runs inside the revert transaction, so the task state and the scrub commit
-// together.
-function reopenPersonalDetailsIfIncomplete(
+// The member fields any claim that took one of these records recorded filling.
+// A claim with no such record filled nothing a revert may clear, so a value is
+// never cleared on a guess.
+function fieldsTheClaimsFilled(
   memberId: string,
-  now: string,
-  actorMemberId: string,
-): void {
-  const row = account.findPersonalDetails.get(memberId) as
-    | { city: string | null; country: string | null; birth_date: string | null }
-    | undefined;
-  if (!row) return;
-  const incomplete = !row.city || !row.country || !row.birth_date;
-  if (!incomplete) return;
-  memberOnboarding.reopenCompletedTask.run(now, actorMemberId, memberId, 'personal_details');
+  legacyMemberId: string | null,
+  historicalPersonId: string | null,
+): Set<string> {
+  const rows = legacyMembers.listClaimFilledFieldsForRecords.all(
+    memberId, legacyMemberId, historicalPersonId, historicalPersonId, legacyMemberId,
+  ) as { filled_fields: string | null }[];
+  const fields = new Set<string>();
+  for (const row of rows) {
+    const filled: unknown = row.filled_fields ? JSON.parse(row.filled_fields) : null;
+    if (!Array.isArray(filled)) continue;
+    for (const f of filled) if (typeof f === 'string') fields.add(f);
+  }
+  return fields;
 }
 
 /** The claim with its own transaction, for a caller that does not already hold one. */
@@ -3311,7 +3347,7 @@ async function completePasswordReset(
  * reaches and the step may show, strongest first, plus the conflict prompt.
  * Reads only; showing the cards records nothing.
  */
-async function getLinkHistoryViewForWizard(memberId: string): Promise<LinkHistoryContent | null> {
+function getLinkHistoryViewForWizard(memberId: string): LinkHistoryContent | null {
   const member = legacyClaim.findClaimingMember.get(memberId) as ClaimingMemberRow | undefined;
   const evidence = legacyMatchingService.readMemberEvidence(memberId);
   if (!member || !evidence) return null;
@@ -3429,39 +3465,55 @@ function revertAutoLinkInTx(
     if (legacyMemberId !== null) {
       legacyMembers.clearMemberLegacyLink.run(now, actor.actorMemberId, memberId);
       legacyMembers.clearClaim.run(legacyMemberId);
-      // Un-linking alone would strand the linked record's PII (birth date,
-      // address, bio, join date) on the member row. The legacy_members row
-      // still holds the values the claim merge copied, so pass them in and
-      // clear only the fields that still match -- data the member entered
-      // themselves is preserved.
-      const legacyRow = legacyMembers.findByLegacyMemberId.get(legacyMemberId) as LegacyMemberRow | undefined;
-      if (legacyRow) {
-        // The scrub clears a field only where it still equals what the claim
-        // copied in, so it must be handed the values the merge actually wrote,
-        // not the raw ones it read. Comparing against the raw spelling after
-        // the merge stored a normalised one would match nothing and strand the
-        // linked record's personal data on the member row.
-        const claimedLocation = normalizeImportedLocation({
-          city: legacyRow.city, region: legacyRow.region, country: legacyRow.country,
-        });
-        legacyMembers.scrubClaimedLegacyFields.run(
-          legacyRow.legacy_user_id,
-          legacyRow.legacy_email,
-          legacyRow.bio ?? '',
-          legacyRow.birth_date,
-          legacyRow.street_address,
-          legacyRow.postal_code,
-          claimedLocation.city,
-          claimedLocation.region,
-          claimedLocation.country,
-          legacyRow.ifpa_join_date,
-          legacyRow.first_competition_year,
-          now,
-          actor.actorMemberId,
-          memberId,
-        );
-        reopenPersonalDetailsIfIncomplete(memberId, now, actor.actorMemberId);
-      }
+    }
+    // Un-linking alone would strand the linked records' PII (birth date,
+    // address, bio, join date) on the member row. The legacy_members row and
+    // the historical record still hold the values the claim merges copied, so
+    // pass them in and clear only the fields that still match.
+    //
+    // The scrub must be handed the values the merges actually wrote, not the
+    // raw ones they read: comparing against the raw spelling after a merge
+    // stored a normalised one would match nothing. Where both records fed a
+    // field, the historical record's value is the one that landed, because
+    // curated data outranks the dump. A field gets a value only when a claim on
+    // these records recorded filling it; every other field gets null, which
+    // matches nothing, so a value the member entered themselves is never
+    // cleared even when it equals the old record's. The member stays a member:
+    // nothing here reopens onboarding.
+    const clearedRecordId = clearedHp ? member.historical_person_id : null;
+    const filled = fieldsTheClaimsFilled(memberId, legacyMemberId, clearedRecordId);
+    if (filled.size > 0) {
+      const legacyRow = legacyMemberId
+        ? legacyMembers.findByLegacyMemberId.get(legacyMemberId) as LegacyMemberRow | undefined
+        : undefined;
+      const record = clearedRecordId
+        ? legacyClaim.findHistoricalPersonById.get(clearedRecordId) as
+            | { country: string | null; first_year: number | null } | undefined
+        : undefined;
+      const claimedLocation = normalizeImportedLocation({
+        city: legacyRow?.city ?? null, region: legacyRow?.region ?? null, country: legacyRow?.country ?? null,
+      });
+      const recordCountry = normalizeImportedLocation({
+        city: null, region: null, country: record?.country ?? null,
+      }).country;
+      const ifFilled = <T>(field: string, value: T | null | undefined): T | null =>
+        (filled.has(field) ? value ?? null : null);
+      legacyMembers.scrubClaimedLegacyFields.run(
+        ifFilled('legacy_user_id', legacyRow?.legacy_user_id),
+        ifFilled('legacy_email', legacyRow?.legacy_email),
+        ifFilled('bio', legacyRow ? legacyRow.bio ?? '' : null),
+        ifFilled('birth_date', legacyRow?.birth_date),
+        ifFilled('street_address', legacyRow?.street_address),
+        ifFilled('postal_code', legacyRow?.postal_code),
+        ifFilled('city', claimedLocation.city),
+        ifFilled('region', claimedLocation.region),
+        ifFilled('country', recordCountry ?? claimedLocation.country),
+        ifFilled('ifpa_join_date', legacyRow?.ifpa_join_date),
+        ifFilled('first_competition_year', record?.first_year ?? legacyRow?.first_competition_year),
+        now,
+        actor.actorMemberId,
+        memberId,
+      );
     }
     // Marking a member deceased cascades the flag onto the record they hold.
     // When the claim that linked that record is reverted, the record was never
@@ -3595,6 +3647,29 @@ function revertClaimForDispute(
   reason: string,
 ): DisputeRevertResult {
   enforceWorkQueueResolveLimit(adminMemberId);
+  const resolved = resolveDisputeRevert(adminMemberId, workQueueItemId, target, reason);
+  if (resolved.status === 'nothing_to_revert') return resolved;
+  return transaction(() => applyDisputeRevertInTx(adminMemberId, resolved));
+}
+
+type ResolvedDisputeRevert = {
+  status: 'resolved';
+  trimmed: string;
+  itemId: string;
+  targetMemberId: string;
+  originalClaimId: string | null;
+  personId: string;
+  disputedRecordId: string;
+};
+
+// Every check a dispute revert makes, and who and what it reverts. Writes
+// nothing, so the confirmation page and the revert itself share it.
+function resolveDisputeRevert(
+  adminMemberId: string,
+  workQueueItemId: string,
+  target: LinkHelpApproveTarget,
+  reason: string,
+): ResolvedDisputeRevert | { status: 'nothing_to_revert' } {
   const trimmed = cleanUserText(reason, 'multi_line', 'reason');
   if (!trimmed) {
     throw new ValidationError('A dispute reason is required.');
@@ -3667,7 +3742,23 @@ function revertClaimForDispute(
   const originalClaim = legacyClaim.findClaimAuditForRecord.get(
     targetMemberId, disputedRecordId, disputedRecordId, disputedRecordId, disputedRecordId,
   ) as { id: string } | undefined;
-  return transaction(() => {
+  return {
+    status: 'resolved',
+    trimmed,
+    itemId: item.id,
+    targetMemberId,
+    originalClaimId: originalClaim?.id ?? null,
+    personId,
+    disputedRecordId,
+  };
+}
+
+// The revert's writes, inside the caller's transaction.
+function applyDisputeRevertInTx(adminMemberId: string, r: ResolvedDisputeRevert): DisputeRevertResult {
+  const { trimmed, targetMemberId, personId } = r;
+  const item = { id: r.itemId };
+  const originalClaim = r.originalClaimId ? { id: r.originalClaimId } : undefined;
+  {
     const actor = { actorType: 'admin' as const, actorMemberId: adminMemberId };
     // The revert runs before either audit row is written. The database wrapper
     // commits whatever the callback did unless it throws, so appending the
@@ -3710,7 +3801,96 @@ function revertClaimForDispute(
       },
     });
     return { status: 'reverted' as const, originalClaimAuditId: originalClaim?.id ?? null };
+  }
+}
+
+export interface DisputeRevertPreview {
+  holder: { memberId: string; displayName: string };
+  record: { id: string; name: string };
+  removesAccountId: string | null;
+  removesRecordName: string | null;
+  removesTierGrant: boolean;
+  removesHof: boolean;
+  removesBap: boolean;
+  clearsRecordDeceasedMark: boolean;
+  clearedFields: string[];
+  reason: string;
+}
+
+// The member fields a revert can clear, by column, in the words the
+// confirmation page shows.
+const REVERT_FIELD_LABELS: Record<string, string> = {
+  legacy_user_id: 'Old site username',
+  legacy_email: 'Old site email',
+  bio: 'Bio',
+  birth_date: 'Date of birth',
+  street_address: 'Street address',
+  postal_code: 'Postal code',
+  city: 'City',
+  region: 'State or region',
+  country: 'Country',
+  ifpa_join_date: 'IFPA join date',
+  first_competition_year: 'First competition year',
+};
+
+/**
+ * What an upheld dispute's revert would remove, for the page an administrator
+ * confirms before it applies. The revert itself runs inside a transaction that
+ * is rolled back and the holder's record is compared before and after, so the
+ * page lists exactly what the revert does and can never drift from it.
+ */
+function previewClaimDisputeRevert(
+  adminMemberId: string,
+  workQueueItemId: string,
+  target: LinkHelpApproveTarget,
+  reason: string,
+): DisputeRevertPreview | { status: 'nothing_to_revert' } {
+  const resolved = resolveDisputeRevert(adminMemberId, workQueueItemId, target, reason);
+  if (resolved.status === 'nothing_to_revert') return resolved;
+  // The record the member holds now, whose deceased mark the revert may clear.
+  const heldRecordId = (legacyMembers.findRevertSnapshot.get(resolved.targetMemberId) as
+    | { historical_person_id: string | null } | undefined)?.historical_person_id ?? null;
+  const snapshot = () => ({
+    member: legacyMembers.findRevertSnapshot.get(resolved.targetMemberId) as Record<string, unknown> | undefined,
+    tier: (account.findTierStatusById.get(resolved.targetMemberId) as { tier_status: string } | undefined)?.tier_status ?? null,
+    recordDeceased: heldRecordId
+      ? (legacyClaim.findHistoricalPersonById.get(heldRecordId) as { is_deceased: number } | undefined)?.is_deceased ?? 0
+      : 0,
   });
+  const diff = rehearse(() => {
+    const before = snapshot();
+    const outcome = applyDisputeRevertInTx(adminMemberId, resolved);
+    const after = snapshot();
+    return { before, after, outcome };
+  });
+  if (diff.outcome.status === 'nothing_to_revert') return { status: 'nothing_to_revert' };
+  const was = diff.before.member ?? {};
+  const now = diff.after.member ?? {};
+  const emptied = (k: string) => was[k] !== null && was[k] !== '' && (now[k] === null || now[k] === '');
+  const holder = account.findContactInfoById.get(resolved.targetMemberId) as { display_name: string } | undefined;
+  const recordName = (id: string | null): string | null => {
+    if (!id) return null;
+    const hp = legacyClaim.findHistoricalPersonById.get(id) as { person_name?: string } | undefined;
+    return hp?.person_name ?? id;
+  };
+  return {
+    holder: { memberId: resolved.targetMemberId, displayName: holder?.display_name ?? resolved.targetMemberId },
+    record: {
+      id: resolved.disputedRecordId,
+      name: resolved.personId
+        ? (recordName(resolved.personId) ?? resolved.personId)
+        : (legacyMembers.findByLegacyMemberId.get(resolved.disputedRecordId) as LegacyMemberRow | undefined)?.real_name
+          ?? resolved.disputedRecordId,
+    },
+    removesAccountId: emptied('legacy_member_id') ? String(was['legacy_member_id']) : null,
+    removesRecordName: emptied('historical_person_id') ? recordName(String(was['historical_person_id'])) : null,
+    removesTierGrant: diff.before.tier !== diff.after.tier,
+    removesHof: was['is_hof'] === 1 && now['is_hof'] === 0,
+    removesBap: was['is_bap'] === 1 && now['is_bap'] === 0,
+    clearsRecordDeceasedMark: diff.before.recordDeceased === 1 && diff.after.recordDeceased === 0,
+    clearedFields: Object.keys(REVERT_FIELD_LABELS).filter(emptied).map((k) => REVERT_FIELD_LABELS[k]!),
+    reason: resolved.trimmed,
+  };
 }
 
 /**
@@ -4111,6 +4291,13 @@ function loadOpenLinkHelpItem(workQueueItemId: string): { id: string; entity_id:
     | undefined;
   if (!row || row.task_type !== 'member_link_help_request' || row.status !== 'open') {
     throw new NotFoundError('Help request not found or already resolved.');
+  }
+  // Only a member can file a help request, so its subject is one. A subject
+  // who is a prospective member is someone no administrator may act on, so
+  // the item answers as one with nobody behind it.
+  const subject = account.findContactInfoById.get(row.entity_id) as { is_nameable: 0 | 1 } | undefined;
+  if (subject && !subject.is_nameable) {
+    throw new NotFoundError('That member no longer exists.');
   }
   return row;
 }
@@ -4841,4 +5028,4 @@ async function verifyHumanChallenge(token: string, remoteIp?: string): Promise<b
   return (await getCaptchaAdapter().verify(token, remoteIp)).ok;
 }
 
-export const identityAccessService = { verifyHumanChallenge, attemptLogin, registerMember, lookupLegacyAccount, claimLegacyAccount, lookupHistoricalPersonForClaim, claimHistoricalPerson, claimHistoricalPersonInTx, claimCandidateInTx, claimWithFormerSurnameInTx, recordClaimRefused, recordClaimStepAnswered, changePassword, verifyEmailByToken, wasVerifiedByToken, resendVerifyEmail, requestAddressRecovery, requestPasswordReset, completePasswordReset, recognisesResetRepeat, getLinkHistoryViewForWizard, revertAutoLink, revertClaimForDispute, listClaimedLegacyIdentities, declareAnchor, listDeclaredAnchors, submitLinkHelpRequest, approveLinkHelpRequest, rejectLinkHelpRequest, enforceHistoricalPersonClaimLimit, getClaimEvidenceForMember, getLinkCandidatesForAdmin, previewLinkHelpApproval, previewMemberNames, correctMemberNames, previewMemberSlug, correctMemberSlug };
+export const identityAccessService = { verifyHumanChallenge, attemptLogin, registerMember, lookupLegacyAccount, claimLegacyAccount, lookupHistoricalPersonForClaim, claimHistoricalPerson, claimHistoricalPersonInTx, claimCandidateInTx, claimWithFormerSurnameInTx, recordClaimRefused, recordClaimStepAnswered, changePassword, verifyEmailByToken, wasVerifiedByToken, resendVerifyEmail, requestAddressRecovery, requestPasswordReset, completePasswordReset, recognisesResetRepeat, getLinkHistoryViewForWizard, revertAutoLink, revertClaimForDispute, previewClaimDisputeRevert, listClaimedLegacyIdentities, declareAnchor, listDeclaredAnchors, submitLinkHelpRequest, approveLinkHelpRequest, rejectLinkHelpRequest, enforceHistoricalPersonClaimLimit, getClaimEvidenceForMember, getLinkCandidatesForAdmin, previewLinkHelpApproval, previewMemberNames, correctMemberNames, previewMemberSlug, correctMemberSlug };

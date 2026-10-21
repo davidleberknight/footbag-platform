@@ -10,7 +10,7 @@
 
   <section>
     <div class="section-heading"><h2>Membership and Pricing</h2></div>
-    <p class="text-muted fs-sm">{{content.priceHelpText}}</p>
+    <p class="fs-sm">{{content.priceHelpText}}</p>
 
     {{#each content.priceProducts}}
     <h3>{{this.label}}</h3>
@@ -65,7 +65,7 @@
       <div class="form-field">
         <label for="priceReason">Reason</label>
         <input type="text" id="priceReason" name="reason" value="{{content.priceFields.reason}}" maxlength="{{content.reasonMax}}" />
-        <p class="text-muted fs-sm">Kept with the price for as long as the record lasts, so write it for whoever reads it later.</p>
+        <small class="form-hint">Kept with the price for as long as the record lasts, so write it for whoever reads it later.</small>
         {{#if content.priceFieldErrors.reason}}
         <p class="form-field-error" role="alert">{{content.priceFieldErrors.reason}}</p>
         {{/if}}
@@ -76,7 +76,7 @@
 
   <section class="mt-8">
     <div class="section-heading"><h2>Donations and Payments</h2></div>
-    <p class="text-muted fs-sm">These three switches stop money or mail during an incident. They are set by a system administrator running a script on the host, never from this screen, so that stopping live payments stays a deliberate act with a record of who ran it.</p>
+    <p class="section-intro">These three switches stop money or mail during an incident. They are set by a system administrator running a script on the host, never from this screen, so that stopping live payments stays a deliberate act with a record of who ran it.</p>
 
     <div class="records-table-wrap" tabindex="0" role="region" aria-label="Donations and payments">
       <table class="data-table">
@@ -86,7 +86,7 @@
         <tbody>
           {{#each content.switches}}
           <tr>
-            <td>{{this.label}}<p class="text-muted fs-sm">{{this.helpText}}</p></td>
+            <td>{{this.label}}<p class="fs-sm">{{this.helpText}}</p></td>
             <td><span class="badge{{#unless this.isPaused}} badge-muted{{/unless}}">{{this.stateLabel}}</span></td>
             <td>{{this.sinceLabel}}</td>
             <td>{{#if this.hasReason}}{{this.reasonText}}{{/if}}</td>
@@ -108,13 +108,14 @@
     {{#each content.sections}}
     <section class="mt-8">
       <div class="section-heading"><h2>{{this.title}}</h2></div>
-      <p class="text-muted fs-sm">{{this.intro}}</p>
+      <p class="section-intro">{{this.intro}}</p>
 
       {{#each this.fields}}
       <div class="form-field">
         <label for="{{this.key}}">{{this.label}}{{#if this.hasDisposition}} <span class="badge">{{this.dispositionLabel}}</span>{{/if}}</label>
         <input type="text" id="{{this.key}}" name="{{this.key}}" value="{{this.value}}" inputmode="numeric" />
-        <p class="text-muted fs-sm">{{this.helpText}} Measured in {{this.unit}}. Default {{this.defaultValue}}.</p>
+        <p class="fs-sm">{{this.helpText}}</p>
+        <small class="form-hint">Measured in {{this.unit}}. Default {{this.defaultValue}}.</small>
         {{#if this.hasError}}
         <p class="form-field-error" role="alert">{{this.errorMessage}}</p>
         {{/if}}

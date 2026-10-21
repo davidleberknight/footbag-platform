@@ -10,9 +10,9 @@
  *     required to become a full member, and each completes only by a recorded explicit answer,
  *     never by a bare page render: personal_details by saving its fields, legacy_claim by the
  *     claim decision (a claim, or one of the two continue-without-linking answers: never had
- *     an old-site account, or had one and cannot find it), and club_affiliations by a written
+ *     an old-site account, or had one and cannot find it), and club_affiliations by a confirmed
  *     club affiliation or the explicit no-club
- *     answer, which also declines every remaining suggestion card in the same transaction. The
+ *     answer, which also declines every remaining suggestion card when it is applied. The
  *     club task also invites optional free-text insight about the club on the member's last card,
  *     or about clubs in their area on the wrap-up landing, stored as admin-only evidence for the
  *     club cleanup queue; leaving it blank writes nothing and never blocks the answer. The
@@ -20,12 +20,14 @@
  *     skip, no dismissal, and no detour; the wizard carries no outward links. The
  *     results-visibility preference (show_competitive_results) is collected within the
  *     personal_details task, not as a separate task.
- *   - The membership-completion predicate isOnboardingComplete (all three tasks completed).
+ *   - The membership-completion predicate isOnboardingComplete (all three tasks completed, or
+ *     the system member, which owns the curated content and never onboards).
  *     Membership is an authorization level: an account is pending from registration until the
- *     predicate turns true, and a pending registrant holds a session but no member
+ *     predicate turns true, and a prospective member holds a session but no member
  *     authorization. The auth middleware derives req.isMember from this predicate and the
- *     requireMember route guard routes a pending request to its next wizard task, so a pending
- *     registrant reaches only public browse, the wizard and its claim affordances, and logout.
+ *     requireMember route guard routes a pending request to its next wizard task, so a
+ *     prospective member reaches only public browse, the wizard and its claim affordances, and
+ *     logout.
  *     A wizard.complete audit row is emitted exactly once, on the transition that makes the
  *     predicate true.
  *
@@ -48,10 +50,29 @@
  *     transient notice; a 422 re-render on validation error; a 429 with Retry-After on rate-limit.
  *   - The wizard never reveals whether the member has a plausible legacy match beyond the existing
  *     anti-enumeration contract.
- *   - Per-task answers persist on submit; completing a task advances the sequence.
- *   - Opening a wizard page writes nothing. Each task completes in the transaction of the
- *     answer that settles it (the personal-details save, the claim or the non-claiming
- *     answer, the club card or the no-club answer), never on a later page load.
+ *   - A prospective member is not a member, so nothing they answer that reaches beyond
+ *     their own account lands in a shared table before the last task is answered. The
+ *     claim and the club answers (cards, activity answers, notes, the no-club answer) are
+ *     held as JSON on their step's task row; personal details, date of birth and declared
+ *     anchors are written to the account as they go. The transaction that completes the
+ *     last task writes every held answer, in the order given: the claim first, then the
+ *     club answers, each under its own savepoint. An answer that can no longer be
+ *     applied, whether the rules now refuse it or its replay faults, is dropped alone,
+ *     recorded (wizard.held_answer.dropped, with the reason) and logged at warn, so it
+ *     never locks the member in the wizard; a busy or failing database aborts the
+ *     request instead, to be retried. A dropped claim takes the club answers with it
+ *     except the no-club answer, and the completion page says that the claim could not
+ *     be applied. The same grouped-card answer submitted twice is held once.
+ *   - A member's club answer, given after onboarding, is written at once: nothing is
+ *     held for a member, because nothing would ever apply it.
+ *   - Until then the wizard reads the state the held answers imply by replaying them
+ *     through the same writers inside a transaction that is rolled back, once per page,
+ *     and checks a new answer the same way before holding it. Opening a wizard page
+ *     persists nothing, and a page whose replay fails outright renders the state as
+ *     written.
+ *   - Each task completes in the transaction of the answer that settles it (the
+ *     personal-details save, the claim or the non-claiming answer, the club card or the
+ *     no-club answer), never on a later page load.
  *   - A completing answer is given once and not again. Each of the three -- the
  *     personal_details save, the club task's no-club answer, and the claim task's
  *     continue-without-linking decision -- refuses once its task is completed and bounces
@@ -62,8 +83,9 @@
  *     and still take card-level actions in their completed state, for the reasons their
  *     render exceptions record (an open candidate card, a linkage still missing, a
  *     cap-hit answer that must be read beside the step that produced it).
- *   - A membership card whose club has no live clubs row yet promotes its candidate on
- *     confirmation, which creates the club. Where that club's country writes its
+ *   - A membership card whose club has no live clubs row yet promotes its candidate when
+ *     onboarding completes, which creates the club; every refusal is checked and the
+ *     candidate's web address validated when the member answers. Where that club's country writes its
  *     addresses with states or provinces and the candidate carries none, the card asks
  *     the member for one and promotion refuses without it, because a region-less club
  *     flattens the grouping on its country's page for every other club there. A
@@ -98,8 +120,9 @@
  *     shared write-time sanitizer before its length is checked.
  *
  * Persistence:
- *   member_onboarding_tasks, club_viability_signals, club_insight_notes (and the tables the
- *   delegated services own).
+ *   member_onboarding_tasks (state, and the held answers in answer_json),
+ *   club_viability_signals and club_insight_notes (written at completion), and the tables the
+ *   delegated services own, also written at completion.
  *
  * Side effects:
  *   - audit_entries append.
@@ -117,6 +140,9 @@ import {
   legacyPersonClubAffiliations,
   memberClubAffiliations,
   memberOnboarding,
+  inTransaction,
+  rehearse,
+  savepoint,
   transaction,
   type ClubBootstrapLeaderRow,
   type ClubBootstrapLeaderSignalRow,
@@ -126,6 +152,7 @@ import {
   type WizardLeadershipCardRow,
 } from '../db/db';
 import { appendAuditEntry, type AuditAppendInput } from './auditService';
+import { logger } from '../config/logger';
 import { BirthDateParts } from '../lib/birthDate';
 import { INVALID_TEXT_ENCODING_MESSAGE, sanitizeUserText } from '../lib/textSanitizer';
 import { memberService } from './memberService';
@@ -428,8 +455,12 @@ function nextOutstandingTaskType(memberId: string): OnboardingTaskType | null {
 // claim" completion), and the club_affiliations answer (a written club
 // affiliation, or the explicit no-club answer). Only completed satisfies
 // this: a residual skipped, paused, or inapplicable row is unanswered, not
-// done. Zero task rows (never entered the wizard) reads as incomplete.
+// done. Zero task rows (never entered the wizard) reads as incomplete. The
+// system member is the one exception: it owns the curated content and is a
+// member without ever onboarding.
 function isOnboardingComplete(memberId: string): boolean {
+  const system = memberOnboarding.findIsSystem.get(memberId) as { is_system: number } | undefined;
+  if (system?.is_system === 1) return true;
   return getTaskState(memberId, 'personal_details') === 'completed'
       && getTaskState(memberId, 'legacy_claim') === 'completed'
       && getTaskState(memberId, 'club_affiliations') === 'completed';
@@ -486,9 +517,19 @@ function prerequisiteTaskFor(
  * before at most one completing transition per member and true after it.
  */
 function completeTask(memberId: string, taskType: string): void {
+  // A replay re-runs held answers through the writers that apply them; it
+  // never moves a task, because the step that held the answer already did.
+  if (replayMode !== 'off') return;
+  // The task transition, the held answers it releases and the completion row
+  // commit together, so a member never exists without what they answered.
+  if (!inTransaction()) {
+    transaction(() => completeTask(memberId, taskType));
+    return;
+  }
   const wasComplete = isOnboardingComplete(memberId);
   transitionTask(memberId, taskType, 'completed', 'wizard.task.completed');
   if (!wasComplete && isOnboardingComplete(memberId)) {
+    const { claimNotApplied } = applyHeldAnswersOnCompletion(memberId);
     appendAuditEntry({
       actionType:    'wizard.complete',
       category:      'onboarding',
@@ -496,10 +537,249 @@ function completeTask(memberId: string, taskType: string): void {
       actorMemberId: memberId,
       entityType:    'member',
       entityId:      memberId,
-      metadata: { completing_task: taskType },
+      metadata: { completing_task: taskType, claim_not_applied: claimNotApplied },
     });
   }
 }
+
+// ---------------------------------------------------------------------------
+// Held answers. A prospective member is not a member until the last onboarding
+// task is answered, so nothing they answer that reaches beyond their own
+// account lands in a shared table before then. The claim and the club answers
+// are held on their step's own task row as JSON and written by the transaction
+// that completes onboarding. Until then the wizard reads them by replaying them
+// through the same writers that will apply them, inside a transaction that is
+// rolled back: one set of rules, and nothing persisted.
+// ---------------------------------------------------------------------------
+
+interface HeldClaim {
+  target: ClaimTarget;
+  withSurname: boolean;
+  heldAt: string;
+}
+
+// What a confirmed card needs to create its club when the candidate has none
+// yet: the region the member gave and the web address validated when they
+// answered, since that check is network I/O and cannot run at completion.
+interface HeldPromotion {
+  region: string | null;
+  externalUrl: string | null;
+}
+
+type HeldClubAnswer =
+  | {
+      kind: 'card';
+      card: 'membership' | 'leadership';
+      candidateId: string;
+      userDecision: 'confirm' | 'correct' | 'decline';
+      activitySignal: ActivitySignal;
+      insightNote: string | null;
+      promotion: HeldPromotion | null;
+      heldAt: string;
+    }
+  | { kind: 'disambiguation'; selectedId: string | null; allIds: string[]; heldAt: string }
+  | { kind: 'no_clubs'; insightNote: string | null; heldAt: string };
+
+function readHeld<T>(memberId: string, taskType: OnboardingTaskType): T | null {
+  const row = memberOnboarding.findHeldAnswer.get(memberId, taskType) as
+    | { answer_json: string | null } | undefined;
+  return row?.answer_json ? JSON.parse(row.answer_json) as T : null;
+}
+
+function writeHeld(memberId: string, taskType: OnboardingTaskType, value: unknown): void {
+  ensureTaskRow(memberId, taskType);
+  memberOnboarding.setHeldAnswer.run(
+    value === null ? null : JSON.stringify(value),
+    new Date().toISOString(), 'onboarding_service', memberId, taskType,
+  );
+}
+
+function readHeldClaim(memberId: string): HeldClaim | null {
+  return readHeld<{ claim: HeldClaim }>(memberId, 'legacy_claim')?.claim ?? null;
+}
+
+function readHeldClubAnswers(memberId: string): HeldClubAnswer[] {
+  return readHeld<{ answers: HeldClubAnswer[] }>(memberId, 'club_affiliations')?.answers ?? [];
+}
+
+function holdsAnything(memberId: string): boolean {
+  return readHeldClaim(memberId) !== null || readHeldClubAnswers(memberId).length > 0;
+}
+
+function holdClaim(memberId: string, claim: HeldClaim): void {
+  writeHeld(memberId, 'legacy_claim', { claim });
+}
+
+function holdClubAnswer(memberId: string, answer: HeldClubAnswer): void {
+  writeHeld(memberId, 'club_affiliations', { answers: [...readHeldClubAnswers(memberId), answer] });
+}
+
+type ReplayMode = 'off' | 'rehearse' | 'apply';
+let replayMode: ReplayMode = 'off';
+
+// A held claim the claim rules now refuse: the record was taken by someone who
+// finished first, or marked deceased, while the answer was held.
+class HeldClaimUnavailable extends Error {}
+
+function errorCode(err: unknown): string | null {
+  const code = (err as { code?: unknown } | null)?.code;
+  return typeof code === 'string' ? code : null;
+}
+
+// Held answers are append-only, so one the rules now refuse, or one whose
+// replay faults, would otherwise fail every later page and the completion
+// itself, leaving the member stuck in the wizard for good. Every failure
+// therefore drops that one answer, except a busy or failing database: that
+// says nothing about the answer, so the request fails and can be retried.
+function isDroppable(err: unknown): boolean {
+  const code = errorCode(err);
+  return !(code?.startsWith('SQLITE_BUSY') || code?.startsWith('SQLITE_IOERR'));
+}
+
+function dropReason(err: unknown): string {
+  if (err === null) return 'claim_not_applied';
+  if (err instanceof HeldClaimUnavailable) return 'claim_refused';
+  return errorCode(err) ?? (err instanceof Error ? err.name : 'unknown');
+}
+
+// A drop is recorded and logged at warn, the level production shows, because
+// an answer the member gave that never landed is something an operator must
+// be able to see without reading the audit log.
+function recordHeldAnswerDropped(memberId: string, taskType: OnboardingTaskType, answerKind: string, err: unknown): void {
+  const reason = dropReason(err);
+  logger.warn('held onboarding answer dropped at completion', {
+    member_id: memberId, task_type: taskType, answer_kind: answerKind, reason,
+  });
+  appendAuditEntry({
+    actionType:    'wizard.held_answer.dropped',
+    category:      'onboarding',
+    actorType:     'member',
+    actorMemberId: memberId,
+    entityType:    'member',
+    entityId:      memberId,
+    metadata: { task_type: taskType, answer_kind: answerKind, reason },
+  });
+}
+
+function applyHeldClaim(memberId: string, claim: HeldClaim): void {
+  const outcome = claim.withSurname
+    ? identityAccessService.claimWithFormerSurnameInTx(memberId, claim.target)
+    : identityAccessService.claimCandidateInTx(memberId, claim.target);
+  if (outcome.status === 'refused') throw new HeldClaimUnavailable();
+}
+
+function applyHeldClubAnswer(memberId: string, answer: HeldClubAnswer): void {
+  if (answer.kind === 'card') {
+    applyClubCard(memberId, answer);
+  } else if (answer.kind === 'disambiguation') {
+    applyDisambiguation(memberId, answer.selectedId, answer.allIds);
+  } else {
+    applyNoClubs(memberId, answer.insightNote);
+  }
+}
+
+/**
+ * Re-run every answer the member holds through the writers that apply it, in
+ * the order they were given: the claim first, because the club cards derive
+ * from the identity it gives, then the club answers. Each runs under its own
+ * savepoint, so an answer the rules now refuse is dropped alone. A dropped
+ * claim takes every club answer with it except the no-club answer, because
+ * those answers were about an identity the member did not get. In 'apply'
+ * mode the caller's transaction commits the result and each drop is recorded;
+ * in 'rehearse' mode the caller rolls everything back.
+ */
+function replayHeldAnswers(memberId: string, mode: 'rehearse' | 'apply'): { claimNotApplied: boolean } {
+  const previous = replayMode;
+  replayMode = mode;
+  try {
+    let claimNotApplied = false;
+    const claim = readHeldClaim(memberId);
+    if (claim) {
+      try {
+        savepoint(() => applyHeldClaim(memberId, claim));
+      } catch (err) {
+        if (!isDroppable(err)) throw err;
+        claimNotApplied = true;
+        if (mode === 'apply') recordHeldAnswerDropped(memberId, 'legacy_claim', 'claim', err);
+      }
+    }
+    for (const answer of readHeldClubAnswers(memberId)) {
+      if (claimNotApplied && answer.kind !== 'no_clubs') {
+        if (mode === 'apply') recordHeldAnswerDropped(memberId, 'club_affiliations', answer.kind, null);
+        continue;
+      }
+      try {
+        savepoint(() => applyHeldClubAnswer(memberId, answer));
+      } catch (err) {
+        if (!isDroppable(err)) throw err;
+        if (mode === 'apply') recordHeldAnswerDropped(memberId, 'club_affiliations', answer.kind, err);
+      }
+    }
+    return { claimNotApplied };
+  } finally {
+    replayMode = previous;
+  }
+}
+
+// Inside the transaction that completes onboarding: write every held answer
+// and release the holds.
+function applyHeldAnswersOnCompletion(memberId: string): { claimNotApplied: boolean } {
+  if (!holdsAnything(memberId)) return { claimNotApplied: false };
+  const outcome = replayHeldAnswers(memberId, 'apply');
+  writeHeld(memberId, 'legacy_claim', null);
+  writeHeld(memberId, 'club_affiliations', null);
+  return outcome;
+}
+
+/**
+ * Run `work` on top of the member's held answers, in a transaction that is
+ * rolled back. The whole body runs as a rehearsal, so an answer that would
+ * finish the club step only reports that; the caller completes the step for
+ * real in its own transaction rather than running completion inside this one.
+ */
+function rehearseOnHeld<T>(memberId: string, work: () => T): T {
+  return rehearse(() => {
+    const previous = replayMode;
+    replayMode = 'rehearse';
+    try {
+      replayHeldAnswers(memberId, 'rehearse');
+      return work();
+    } finally {
+      replayMode = previous;
+    }
+  });
+}
+
+/**
+ * Read wizard state as the member's held answers would leave it. Inside a
+ * transaction the caller has already arranged the state it wants read; with
+ * nothing held there is nothing to replay; otherwise the answers are replayed
+ * and rolled back around the read. A replay that fails outright falls back to
+ * the state as written, so a page the member needs still renders.
+ */
+function withHeldAnswers<T>(memberId: string, read: () => T): T {
+  if (inTransaction() || !holdsAnything(memberId)) return read();
+  try {
+    return rehearseOnHeld(memberId, read);
+  } catch (err) {
+    logger.warn('wizard read fell back to unreplayed state', {
+      member_id: memberId, reason: dropReason(err),
+    });
+    return read();
+  }
+}
+
+// Whether the member's last completion left a held claim unapplied, so the
+// page they land on can say so once.
+function claimNotAppliedAtCompletion(memberId: string): boolean {
+  const row = memberOnboarding.findCompletionAudit.get(memberId) as
+    | { metadata_json: string | null } | undefined;
+  if (!row?.metadata_json) return false;
+  return (JSON.parse(row.metadata_json) as { claim_not_applied?: boolean }).claim_not_applied === true;
+}
+
+const CLAIM_NOT_APPLIED_NOTICE =
+  "We couldn't link the old footbag.org record you chose, because it is no longer available. You can ask the IFPA administrator to look into it with the Contact IFPA admin link on your profile.";
 
 
 /**
@@ -924,11 +1204,13 @@ function maybeCompleteClubAffiliationsTask(memberId: string): 'in_progress' | 'c
   // resolved without a confirmed club stays 'in_progress' so the wrap-up
   // landing renders and waits for the explicit no-club answer, the only other
   // way the task completes.
+  // Inside a replay this only reports the outcome; the step that holds the
+  // answer completes the task in its own transaction.
   const remaining = listWizardCardsForMember(memberId);
   if (remaining.length > 0) return 'in_progress';
   const current = (memberClubAffiliations.countCurrentByMemberId.get(memberId) as { c: number }).c;
   if (current === 0) return 'in_progress';
-  completeTask(memberId, 'club_affiliations');
+  if (replayMode === 'off') completeTask(memberId, 'club_affiliations');
   return 'completed';
 }
 
@@ -1142,9 +1424,6 @@ function submitLeadershipResponse(
 function submitClubAffiliationsResponse(
   memberId: string,
   body: Record<string, unknown>,
-  // Writes that belong to the same answer (the optional insight note) and so
-  // commit with it, given the result they key on.
-  alsoInTx?: (result: ClubAffiliationsResult) => void,
 ): ClubAffiliationsResult {
   // Body shape: { kind: 'membership' | 'leadership' (default 'leadership'),
   //               candidateId, userDecision, activitySignal? }. `kind` is
@@ -1184,23 +1463,92 @@ function submitClubAffiliationsResponse(
   }
   const activitySignal = rawSignal as ActivitySignal;
 
-  // Ownership is asserted here as well as in the controller-facing wrapper, so
-  // the check travels with the transition rather than with one caller. The
-  // card reads are anchor-scoped, but the write transitions resolve a row by
-  // id alone: without this, any caller holding another member's affiliation id
-  // could confirm that club onto themselves or reject the card its owner has
-  // not answered yet.
-  assertCandidateOwnership(memberId, candidateId, kindRaw);
+  // A member's answer is written at once; a prospective member's is held and
+  // lands with the rest when the last onboarding task is answered. Either way
+  // the card's ownership is asserted with the transition, and the step's
+  // completion commits with the answer that finishes it.
+  return holdClubCardAnswer(memberId, {
+    kind: 'card',
+    card: kindRaw,
+    candidateId,
+    userDecision,
+    activitySignal,
+    insightNote: null,
+    promotion: null,
+    heldAt: new Date().toISOString(),
+  }).result;
+}
 
-  // The card's answer and, when it is the last one, the step's completion
-  // commit together, so the step never completes on a later page load.
-  return transaction(() => {
-    const result = kindRaw === 'membership'
-      ? submitMembershipResponse(memberId, candidateId, userDecision, activitySignal)
-      : submitLeadershipResponse(memberId, candidateId, userDecision, activitySignal);
-    alsoInTx?.(result);
-    return result;
-  });
+/**
+ * Apply one club card answer: create the club first when the confirmed card's
+ * candidate has none, then record the answer, then the optional note. Runs
+ * inside a transaction, both when the wizard rehearses an answer and when
+ * completion applies it. Returns the outcome and the club name the card showed.
+ */
+function applyClubCard(
+  memberId: string,
+  answer: Extract<HeldClubAnswer, { kind: 'card' }>,
+): { result: ClubAffiliationsResult; clubName: string } {
+  const { candidateId, card, userDecision, activitySignal, insightNote } = answer;
+  assertCandidateOwnership(memberId, candidateId, card);
+  if (card === 'membership' && userDecision === 'confirm' && answer.promotion) {
+    promoteIfUnmappedInTx(memberId, candidateId, answer.promotion);
+  }
+  const resolvedCard = listWizardCardsForMember(memberId).find(
+    (c): c is WizardMembershipCard | WizardLeadershipCard =>
+      c.kind !== 'disambiguation' && c.candidateId === candidateId,
+  );
+  const clubName = resolvedCard?.clubName ?? 'that club';
+  const result = card === 'membership'
+    ? submitMembershipResponse(memberId, candidateId, userDecision, activitySignal)
+    : submitLeadershipResponse(memberId, candidateId, userDecision, activitySignal);
+  // The note is invited once per member and stored with the answer, keyed to
+  // the club the answer resolved to; a membership answer on a candidate with no
+  // live club yet keys it to the candidate, stamped with the club id if the
+  // candidate is ever promoted. An answer already given carries no note.
+  if (result.branch !== 'idempotent' && insightNote && !memberHasLeftClubInsight(memberId)) {
+    const resolvedClubId = result.resolvedClubId ?? resolvedCard?.clubId ?? null;
+    if (resolvedClubId) {
+      writeInsightNote(memberId, resolvedClubId, 'onboarding_club_card', insightNote, null, null);
+    } else {
+      const affiliation = legacyPersonClubAffiliations.findById.get(candidateId) as
+        | LegacyPersonClubAffiliationRow
+        | undefined;
+      writeInsightNote(
+        memberId,
+        null,
+        'onboarding_club_card',
+        insightNote,
+        affiliation ? 'legacy_club_candidate' : null,
+        affiliation ? affiliation.legacy_club_candidate_id : null,
+      );
+    }
+  }
+  return { result, clubName };
+}
+
+/**
+ * A card answer. A member's is written at once, as any member's club answer
+ * is. A prospective member's is rehearsed on top of what they already hold,
+ * and held when it is a new answer. When it is the answer that finishes the
+ * club step, the step completes in the same transaction, and if that completes
+ * onboarding every held answer is written there too.
+ */
+function holdClubCardAnswer(
+  memberId: string,
+  answer: Extract<HeldClubAnswer, { kind: 'card' }>,
+): { result: ClubAffiliationsResult; clubName: string } {
+  if (isOnboardingComplete(memberId)) {
+    return transaction(() => applyClubCard(memberId, answer));
+  }
+  const outcome = rehearseOnHeld(memberId, () => applyClubCard(memberId, answer));
+  if (outcome.result.branch !== 'idempotent') {
+    transaction(() => {
+      holdClubAnswer(memberId, answer);
+      if (outcome.result.taskState === 'completed') completeTask(memberId, 'club_affiliations');
+    });
+  }
+  return outcome;
 }
 
 function submitTaskResponse(memberId: string, taskType: string, response: unknown): void {
@@ -1321,6 +1669,11 @@ function claimStepTakesAnswers(memberId: string): boolean {
 }
 
 function memberHoldsTarget(memberId: string, target: ClaimTarget): boolean {
+  const held = readHeldClaim(memberId);
+  if (held && (
+    (target.accountId !== null && held.target.accountId === target.accountId)
+    || (target.recordId !== null && held.target.recordId === target.recordId)
+  )) return true;
   const links = account.findLegacyAndHpIdsById.get(memberId) as
     | { legacy_member_id: string | null; historical_person_id: string | null } | undefined;
   return (target.accountId !== null && links?.legacy_member_id === target.accountId)
@@ -1331,6 +1684,8 @@ function lastAttemptOpen(memberId: string): boolean {
   const counters = memberOnboarding.findLegacyClaimCounters.get(memberId) as
     | { last_attempt_opened_at: string | null } | undefined;
   if (!counters?.last_attempt_opened_at) return false;
+  // A claim held during the last attempt answers it, as a landed one does.
+  if (readHeldClaim(memberId)) return false;
   const links = account.findLegacyAndHpIdsById.get(memberId) as
     | { legacy_member_id: string | null; historical_person_id: string | null } | undefined;
   return !links?.legacy_member_id && !links?.historical_person_id;
@@ -1366,33 +1721,48 @@ function processClaimCandidate(
   }
   const limited = claimConfirmRateLimited(memberId, ip, target.recordId ?? target.accountId ?? undefined);
   if (limited) return limited;
-  let refused: { candidate: Candidate | null } | null = null;
+  const refusal = rehearseClaim(memberId, target, withSurname);
+  if (refusal) return { kind: 'validation_error', formState: null, message: refusal };
+  holdClaimAndAnswerStep(memberId, target, withSurname);
+  return advanceAfter(memberId, 'legacy_claim');
+}
+
+/**
+ * Check a claim exactly as completion will apply it, on top of what the member
+ * already holds, and keep none of it. Returns the refusal to show, or null when
+ * the claim stands. A refusal by the claim rules is recorded after the
+ * rehearsal's rollback, so it survives.
+ */
+function rehearseClaim(memberId: string, target: ClaimTarget, withSurname: boolean): string | null {
+  let refused: { candidate: Candidate | null } | null = null as { candidate: Candidate | null } | null;
   try {
-    transaction(() => {
+    rehearseOnHeld(memberId, () => {
       const outcome = withSurname
         ? identityAccessService.claimWithFormerSurnameInTx(memberId, target)
         : identityAccessService.claimCandidateInTx(memberId, target);
-      if (outcome.status === 'refused') {
-        refused = { candidate: outcome.candidate };
-        throw new ClaimRefusedSignal();
-      }
-      // Claimed now, or already the member's own: either way the step is answered.
-      completeTaskIfOutstanding(memberId, 'legacy_claim');
+      if (outcome.status === 'refused') refused = { candidate: outcome.candidate };
     });
   } catch (err) {
-    if (err instanceof ClaimRefusedSignal && refused) {
-      identityAccessService.recordClaimRefused(memberId, target, (refused as { candidate: Candidate | null }).candidate);
-      return { kind: 'validation_error', formState: null, message: CLAIM_NO_LONGER_AVAILABLE };
-    }
-    // A concurrent claimant won the conditional update after the re-check
-    // passed: the member was just shown a claimable card, so they are told
-    // plainly it is someone else's, and nothing partial persists.
-    if (err instanceof ConflictError || err instanceof ValidationError) {
-      return { kind: 'validation_error', formState: null, message: err.message };
-    }
+    // A concurrent claimant holds the record already: the member was just shown
+    // a claimable card, so they are told plainly it is someone else's.
+    if (err instanceof ConflictError || err instanceof ValidationError) return err.message;
     throw err;
   }
-  return advanceAfter(memberId, 'legacy_claim');
+  if (refused) {
+    identityAccessService.recordClaimRefused(memberId, target, refused.candidate);
+    return CLAIM_NO_LONGER_AVAILABLE;
+  }
+  return null;
+}
+
+// The claim is held, not written: it lands with everything else the member
+// answered when the last onboarding task is answered. Holding it answers the
+// claim step.
+function holdClaimAndAnswerStep(memberId: string, target: ClaimTarget, withSurname: boolean): void {
+  transaction(() => {
+    holdClaim(memberId, { target, withSurname, heldAt: new Date().toISOString() });
+    completeTaskIfOutstanding(memberId, 'legacy_claim');
+  });
 }
 
 /**
@@ -1466,10 +1836,6 @@ function processAddAnchor(memberId: string, anchorType: string, anchorValue: str
   }
   return { kind: 'retry_same', flash: null, query: 'anchor=saved' };
 }
-
-// Thrown inside a claim transaction to roll back an anchor the surname claim
-// added before its re-check refused; caught at once by the caller.
-class ClaimRefusedSignal extends Error {}
 
 function processPersonalDetailsSubmit(
   memberId: string,
@@ -1639,29 +2005,32 @@ function processNoClubsAnswer(
   }
   const insightNote = insight.note;
 
-  // Snapshot the remaining cards outside the transaction; the decline writes
-  // below are the only mutations and they cannot add cards.
-  const remaining = listWizardCardsForMember(memberId);
+  // The answer is held and completes the step; when that completes onboarding,
+  // the declines and the note are written with every other held answer.
   transaction(() => {
-    for (const card of remaining) {
-      if (card.kind === 'membership') {
-        bulkDeclineMembership(memberId, card.candidateId);
-      } else if (card.kind === 'leadership') {
-        bulkDeclineLeadership(memberId, card.candidateId);
-      } else {
-        for (const club of card.clubs) {
-          bulkDeclineMembership(memberId, club.candidateId);
-        }
-      }
-    }
-    // The note is invited once per member, so a member who already left one on
-    // a card answers the wrap-up without a second note being stored.
-    if (insightNote && !memberHasLeftClubInsight(memberId)) {
-      writeInsightNote(memberId, null, 'onboarding_club_wrapup', insightNote, null, null);
-    }
+    holdClubAnswer(memberId, { kind: 'no_clubs', insightNote, heldAt: new Date().toISOString() });
     completeTask(memberId, 'club_affiliations');
   });
   return advanceAfter(memberId, 'club_affiliations');
+}
+
+// The no-club answer applied: every card still open is declined, and the note
+// is stored when the member left none on a card.
+function applyNoClubs(memberId: string, insightNote: string | null): void {
+  for (const card of listWizardCardsForMember(memberId)) {
+    if (card.kind === 'membership') {
+      bulkDeclineMembership(memberId, card.candidateId);
+    } else if (card.kind === 'leadership') {
+      bulkDeclineLeadership(memberId, card.candidateId);
+    } else {
+      for (const club of card.clubs) {
+        bulkDeclineMembership(memberId, club.candidateId);
+      }
+    }
+  }
+  if (insightNote && !memberHasLeftClubInsight(memberId)) {
+    writeInsightNote(memberId, null, 'onboarding_club_wrapup', insightNote, null, null);
+  }
 }
 
 // The two bulk-decline writers mirror the per-card decline paths exactly
@@ -1743,24 +2112,9 @@ function claimHistoricalPersonAndCompleteTask(
     throw new ValidationError(CLAIM_NO_LONGER_AVAILABLE);
   }
   identityAccessService.enforceHistoricalPersonClaimLimit(memberId, ip, personId);
-  let refused: Candidate | null | undefined;
-  try {
-    transaction(() => {
-      const outcome = identityAccessService.claimCandidateInTx(memberId, target);
-      if (outcome.status === 'refused') {
-        refused = outcome.candidate;
-        throw new ClaimRefusedSignal();
-      }
-      completeTaskIfOutstanding(memberId, 'legacy_claim');
-    });
-  } catch (err) {
-    if (err instanceof ClaimRefusedSignal) {
-      // Recorded after the rollback so the refusal survives the failed claim.
-      identityAccessService.recordClaimRefused(memberId, target, refused ?? null);
-      throw new ValidationError(CLAIM_NO_LONGER_AVAILABLE);
-    }
-    throw err;
-  }
+  const refusal = rehearseClaim(memberId, target, false);
+  if (refusal) throw new ValidationError(refusal);
+  holdClaimAndAnswerStep(memberId, target, false);
 }
 
 // ---------------------------------------------------------------------------
@@ -1822,29 +2176,50 @@ function assertCandidateOwnership(
   }
 }
 
+// The grouped card resolves which club, if any, the member belonged to: it
+// declines only the clubs the member did NOT pick and leaves the chosen row
+// pending, so the next render presents that club's standard card and its
+// activity question. Confirming here would consume the pending row the
+// standard card renders from, and the activity signal would never be
+// collected. Runs inside a transaction, rehearsed or applied.
+function applyDisambiguation(
+  memberId: string,
+  selectedId: string | null,
+  allIds: string[],
+): 'in_progress' | 'completed' {
+  for (const id of allIds) {
+    assertCandidateOwnership(memberId, id, 'membership');
+  }
+  for (const id of allIds) {
+    if (id === selectedId) continue;
+    submitMembershipResponse(memberId, id, 'decline', null);
+  }
+  return selectedId !== null ? 'in_progress' : maybeCompleteClubAffiliationsTask(memberId);
+}
+
 function submitDisambiguationResponse(
   memberId: string,
   selectedId: string | null,
   allIds: string[],
 ): ClubAffiliationsResult {
-  for (const id of allIds) {
-    assertCandidateOwnership(memberId, id, 'membership');
-  }
-  // The grouped card resolves which club, if any, the member belonged to: it
-  // declines only the clubs the member did NOT pick and leaves the chosen row
-  // pending, so the next render presents that club's standard card and its
-  // activity question. Confirming here would consume the pending row the
-  // standard card renders from, and the activity signal would never be
-  // collected.
-  const taskState = transaction(() => {
-    for (const id of allIds) {
-      if (id === selectedId) continue;
-      submitMembershipResponse(memberId, id, 'decline', null);
+  let taskState: 'in_progress' | 'completed';
+  if (isOnboardingComplete(memberId)) {
+    // A member's answer is written at once, as any member's club answer is.
+    taskState = transaction(() => applyDisambiguation(memberId, selectedId, allIds));
+  } else {
+    taskState = rehearseOnHeld(memberId, () => applyDisambiguation(memberId, selectedId, allIds));
+    // The same answer submitted again is already held: holding it twice would
+    // replay it twice, so the repeat reports the first outcome and holds nothing.
+    const repeat = readHeldClubAnswers(memberId).some((held) =>
+      held.kind === 'disambiguation' && held.selectedId === selectedId
+      && held.allIds.length === allIds.length && held.allIds.every((id) => allIds.includes(id)));
+    if (!repeat) {
+      transaction(() => {
+        holdClubAnswer(memberId, { kind: 'disambiguation', selectedId, allIds, heldAt: new Date().toISOString() });
+        if (taskState === 'completed') completeTask(memberId, 'club_affiliations');
+      });
     }
-    return selectedId !== null
-      ? ('in_progress' as const)
-      : maybeCompleteClubAffiliationsTask(memberId);
-  });
+  }
   return {
     branch:         selectedId !== null ? 'confirmed' : 'declined',
     classification: 'none',
@@ -1860,24 +2235,45 @@ function submitDisambiguationResponse(
 // 'promoted' carry-forward so it records the member's answer. Junk
 // candidates are skipped here; the confirm path then 404s on them exactly
 // like a missing row.
-async function promoteCandidateIfUnmapped(
-  memberId: string,
+function unmappedCandidateFor(
   affiliationId: string,
-  region: string | null,
-): Promise<void> {
+): { id: string; mapped_club_id: string | null; classification: string } | null {
   const affiliation = legacyPersonClubAffiliations.findById.get(affiliationId) as
     | LegacyPersonClubAffiliationRow
     | undefined;
-  if (!affiliation || affiliation.resolution_status !== 'pending') return;
+  if (!affiliation || affiliation.resolution_status !== 'pending') return null;
   const candidate = legacyClubCandidates.findById.get(affiliation.legacy_club_candidate_id) as
     | { id: string; mapped_club_id: string | null; classification: string }
     | undefined;
-  if (!candidate || candidate.mapped_club_id || candidate.classification === 'junk') return;
-  await clubService.promoteCandidate(candidate.id, memberId, {
+  if (!candidate || candidate.mapped_club_id || candidate.classification === 'junk') return null;
+  return candidate;
+}
+
+// When the member answers: what creating the club will need, with every
+// refusal checked now. Null when the card's candidate needs no club created.
+async function prepareCardPromotion(
+  affiliationId: string,
+  region: string | null,
+): Promise<HeldPromotion | null> {
+  const candidate = unmappedCandidateFor(affiliationId);
+  if (!candidate) return null;
+  const prepared = await clubService.preparePromotion(candidate.id, region);
+  return prepared.branch === 'promotable' ? { region, externalUrl: prepared.externalUrl } : null;
+}
+
+// Inside a transaction: create the club the confirmed card's candidate lacks.
+// Runs before the confirm transition so it sees a mapped candidate; the
+// confirming member's own affiliation row is excluded from the bulk
+// 'promoted' carry-forward so it records the member's answer.
+function promoteIfUnmappedInTx(memberId: string, affiliationId: string, promotion: HeldPromotion): void {
+  const candidate = unmappedCandidateFor(affiliationId);
+  if (!candidate) return;
+  clubService.promoteCandidateInTx(candidate.id, memberId, {
     actorType: 'member',
     trigger:   'stage1',
     excludeAffiliationId: affiliationId,
-    region,
+    region:    promotion.region,
+    externalUrl: promotion.externalUrl,
   });
 }
 
@@ -1907,9 +2303,6 @@ async function processClubAffiliationsSubmit(
     const selectedId = selectedIds.length === 1 && allIds.includes(selectedIds[0])
       ? selectedIds[0]
       : null;
-    for (const id of allIds) {
-      assertCandidateOwnership(memberId, id, 'membership');
-    }
     const result = submitDisambiguationResponse(memberId, selectedId, allIds);
     if (result.taskState === 'completed') {
       return advanceAfter(memberId, 'club_affiliations');
@@ -1971,15 +2364,20 @@ async function processClubAffiliationsSubmit(
   }
   const insightNote = insight.note;
 
-  assertCandidateOwnership(memberId, candidateId, kindRaw);
-
-  if (kindRaw === 'membership' && userDecision === 'confirm') {
-    // Only offered, and only required, when the card asked for it; promotion
-    // refuses a blank where the club's country needs one, and that refusal
-    // surfaces as a validation error on the card the member is looking at.
+  // A confirmed card whose candidate has no club yet creates one at
+  // completion. Every refusal that creation would make is checked now, so it
+  // shows on the card the member is looking at, and the candidate's web
+  // address is validated now, because that is network I/O. The region is only
+  // offered, and only required, when the card asked for it.
+  // A card already answered keeps its first answer, so a repeat skips the
+  // check: it would only spend a network call on an answer that is not used.
+  const alreadyHeld = readHeldClubAnswers(memberId).some((held) =>
+    held.kind === 'card' && held.candidateId === candidateId);
+  let promotion: HeldPromotion | null = null;
+  if (kindRaw === 'membership' && userDecision === 'confirm' && !alreadyHeld) {
     const clubRegion = typeof body.clubRegion === 'string' ? body.clubRegion.trim() : '';
     try {
-      await promoteCandidateIfUnmapped(memberId, candidateId, clubRegion || null);
+      promotion = await prepareCardPromotion(candidateId, clubRegion || null);
     } catch (err) {
       if (err instanceof ValidationError) {
         return { kind: 'validation_error', formState: null, message: err.message };
@@ -1988,49 +2386,28 @@ async function processClubAffiliationsSubmit(
     }
   }
 
-  const cardsBefore = listWizardCardsForMember(memberId);
-  const resolvedCard = cardsBefore.find(
-    (c): c is WizardMembershipCard | WizardLeadershipCard =>
-      c.kind !== 'disambiguation' && c.candidateId === candidateId,
-  );
-  const clubName = resolvedCard?.clubName ?? 'that club';
-
-  // The note is stored with the answer, in its transaction, so it keys to the
-  // club the answer resolved to and never survives an answer that rolled back,
-  // nor is lost behind one that committed. A membership answer on a candidate
-  // with no live club yet has no club id to key on, so the note follows the
-  // candidate and is stamped with the club id if that candidate is ever
-  // promoted, exactly as the activity signal is.
-  // The note is invited once per member and is never required, so a member who
-  // has already left one writes no second note. Without this a repeated submit
-  // of the same card (a double-click reaches the endpoint twice, and neither
-  // the route nor the service checks the wizard step) lands a duplicate on the
-  // admin evidence surface. An idempotent result means the card was already
-  // answered, so this post is not an answer and carries no note: a completed
-  // answer is given once, and a stale tab or crafted re-post must not attach a
-  // note to it afterwards.
-  const result = submitClubAffiliationsResponse(memberId, body, (answered) => {
-    if (answered.branch === 'idempotent') return;
-    if (!insightNote || memberHasLeftClubInsight(memberId)) return;
-    const resolvedClubId = answered.resolvedClubId
-      ?? (resolvedCard?.kind === 'leadership' ? resolvedCard.clubId : resolvedCard?.clubId)
-      ?? null;
-    if (resolvedClubId) {
-      writeInsightNote(memberId, resolvedClubId, 'onboarding_club_card', insightNote, null, null);
-    } else {
-      const affiliation = legacyPersonClubAffiliations.findById.get(candidateId) as
-        | LegacyPersonClubAffiliationRow
-        | undefined;
-      writeInsightNote(
-        memberId,
-        null,
-        'onboarding_club_card',
-        insightNote,
-        affiliation ? 'legacy_club_candidate' : null,
-        affiliation ? affiliation.legacy_club_candidate_id : null,
-      );
+  // The answer is rehearsed on top of what the member already holds and then
+  // held; a repeat of an answer already given (an idempotent outcome) holds
+  // nothing new and carries no note.
+  let held: { result: ClubAffiliationsResult; clubName: string };
+  try {
+    held = holdClubCardAnswer(memberId, {
+      kind: 'card',
+      card: kindRaw,
+      candidateId,
+      userDecision,
+      activitySignal: rawSignal as ActivitySignal,
+      insightNote,
+      promotion,
+      heldAt: new Date().toISOString(),
+    });
+  } catch (err) {
+    if (err instanceof ValidationError) {
+      return { kind: 'validation_error', formState: null, message: err.message };
     }
-  });
+    throw err;
+  }
+  const { result, clubName } = held;
 
   if (result.branch === 'cap_hit') {
     // At the two-current-club cap the card still resolves, but what was
@@ -2067,31 +2444,47 @@ async function processClubAffiliationsSubmit(
 // landing, which explains that clubs are joined or created from the clubs
 // pages after onboarding and waits for the explicit no-club answer. The
 // landing carries no outward links: joining and creating are member
-// capabilities, fenced until onboarding completes.
+// capabilities, fenced until onboarding completes. The member is on the
+// landing exactly when no card remains.
 // ---------------------------------------------------------------------------
-
-export type ClubAffiliationStage = 'stage1' | 'wrap_up';
-
-function getClubAffiliationStage(memberId: string): ClubAffiliationStage {
-  return listWizardCardsForMember(memberId).length > 0 ? 'stage1' : 'wrap_up';
-}
 
 export type { ClubAffiliationsBranch, ClubAffiliationsResult };
 
 
+// The reads a wizard page makes, each as the member's held answers would leave
+// the state, so a prospective member sees the cards and links their answers
+// imply although none of them is written yet.
 export const memberOnboardingService = {
   nextOutstandingTaskType,
   completeTask,
   completeTaskIfOutstanding,
-  memberHadClubSuggestionMaterial,
   buildClubCapHitNoticeMessage,
   buildClubInsightPrompt,
-  memberHasLeftClubInsight,
   buildClubResolvedNoticeMessage,
   submitTaskResponse,
   submitClubAffiliationsResponse,
   processClubAffiliationsSubmit,
-  listWizardCardsForMember,
+  listWizardCardsForMember: (memberId: string): WizardCard[] =>
+    withHeldAnswers(memberId, () => listWizardCardsForMember(memberId)),
+  // Everything the club step's page reads, in one replay of the held answers.
+  getClubAffiliationsView: (memberId: string) =>
+    withHeldAnswers(memberId, () => {
+      const cards = listWizardCardsForMember(memberId);
+      return {
+        cards,
+        isWrapUp: cards.length === 0,
+        hadSuggestionMaterial: memberHadClubSuggestionMaterial(memberId),
+        hasLeftInsight: memberHasLeftClubInsight(memberId),
+      };
+    }),
+  // Everything the claim step's page reads, in one replay of the held answers.
+  getLinkHistoryView: (memberId: string) =>
+    withHeldAnswers(memberId, () => ({
+      view: identityAccessService.getLinkHistoryViewForWizard(memberId),
+      declaredAnchors: identityAccessService.listDeclaredAnchors(memberId),
+    })),
+  claimNotAppliedAtCompletion,
+  CLAIM_NOT_APPLIED_NOTICE,
   processPersonalDetailsSubmit,
   processClaimCandidate,
   processLegacyClaimBirthDate,
@@ -2106,5 +2499,4 @@ export const memberOnboardingService = {
   prerequisiteTaskFor,
   isOnboardingComplete,
   hasOtherOutstandingTasks,
-  getClubAffiliationStage,
 };

@@ -15,6 +15,7 @@ import {
   insertMember, insertLegacyMember, insertHistoricalPerson,
   insertOutboxEmail, insertMediaItem,
   insertPayment, insertRecurringDonationSubscription, insertMemberDeclaredAnchor,
+  insertOnboardingTask, setOnboardingHeldAnswer,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3201');
@@ -157,6 +158,33 @@ describe('memberService.scrubDeceasedMemberPII', () => {
     d.close();
     expect(memberService.scrubDeceasedMemberPII('scrub-living').status).toBe('not_deceased');
     expect(memberService.scrubDeceasedMemberPII('no-such-member').status).toBe('not_found');
+  });
+
+  it('clears the answers an unfinished wizard still holds, and no one else\'s', () => {
+    // Defect caught: a club note the person wrote in the wizard, held until
+    // onboarding completes, outlives the scrub meant to clear their own words.
+    const d = db();
+    const held = { answers: [{ kind: 'no_clubs', insightNote: 'my own words', heldAt: '2026-01-01T00:00:00.000Z' }] };
+    for (const [id, deceased] of [['scrub-held', 1], ['scrub-held-bystander', 0]] as const) {
+      insertMember(d, {
+        id, slug: id.replace(/-/g, '_'), login_email: `${id}@example.com`, onboarding: 'none', is_deceased: deceased,
+      });
+      insertOnboardingTask(d, id, 'club_affiliations', 'pending');
+      setOnboardingHeldAnswer(d, id, 'club_affiliations', held);
+    }
+    d.close();
+
+    expect(memberService.scrubDeceasedMemberPII('scrub-held').status).toBe('scrubbed');
+
+    const r = new BetterSqlite3(dbPath, { readonly: true });
+    const answer = (id: string) => (r.prepare(
+      "SELECT answer_json FROM member_onboarding_tasks WHERE member_id = ? AND task_type = 'club_affiliations'",
+    ).get(id) as { answer_json: string | null }).answer_json;
+    const erased = answer('scrub-held');
+    const bystander = answer('scrub-held-bystander');
+    r.close();
+    expect(erased).toBeNull();
+    expect(bystander).toContain('my own words');
   });
 
   it('is idempotent: a second scrub is a no-op', () => {

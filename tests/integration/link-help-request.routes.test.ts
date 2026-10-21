@@ -851,7 +851,7 @@ describe('admin review: separation of duties', () => {
     const item = openItems('admin-lh2')[0];
 
     const res = await request(createApp())
-      .post(`/admin/work-queue/${item.id}/link-help/dispute-revert`)
+      .post(`/admin/work-queue/${item.id}/link-help/dispute-revert/confirm`)
       .set('Cookie', `__Host-footbag_session=${createTestSessionJwt({ memberId: 'admin-lh2', role: 'admin' })}`)
       .type('form')
       .send({ target_historical_person_id: personId, reason: 'Upholding my own dispute.' });
@@ -880,7 +880,7 @@ describe('admin review: separation of duties', () => {
     const item = openItems(requesterId)[0];
 
     const res = await request(createApp())
-      .post(`/admin/work-queue/${item.id}/link-help/dispute-revert`)
+      .post(`/admin/work-queue/${item.id}/link-help/dispute-revert/confirm`)
       .set('Cookie', adminCookie())
       .type('form')
       .send({ target_historical_person_id: personId, reason: 'Evidence favours the requester.' });
@@ -915,7 +915,7 @@ describe('admin review: separation of duties', () => {
     const item = openItems(requesterId)[0];
 
     const res = await request(createApp())
-      .post(`/admin/work-queue/${item.id}/link-help/dispute-revert`)
+      .post(`/admin/work-queue/${item.id}/link-help/dispute-revert/confirm`)
       .set('Cookie', adminCookie())
       .type('form')
       .send({ target_historical_person_id: personId, reason: 'Evidence favours the requester.' });
@@ -953,7 +953,7 @@ describe('admin review: separation of duties', () => {
 
     // A payload naming an arbitrary member whose claim to strip.
     const res = await request(createApp())
-      .post(`/admin/work-queue/${item.id}/link-help/dispute-revert`)
+      .post(`/admin/work-queue/${item.id}/link-help/dispute-revert/confirm`)
       .set('Cookie', adminCookie())
       .type('form')
       .send({ holder_member_id: bystanderId, reason: 'Naming the victim directly.' });
@@ -986,7 +986,7 @@ describe('admin review: separation of duties', () => {
     db.prepare('UPDATE members SET historical_person_id = NULL WHERE id = ?').run(holderId);
 
     const res = await request(createApp())
-      .post(`/admin/work-queue/${item.id}/link-help/dispute-revert`)
+      .post(`/admin/work-queue/${item.id}/link-help/dispute-revert/confirm`)
       .set('Cookie', adminCookie())
       .type('form')
       .send({ target_historical_person_id: personId, reason: 'Nobody holds it now.' });
@@ -1097,7 +1097,7 @@ describe('admin review: separation of duties', () => {
     expect(payload.disputed_historical_person_ids).toContain(personId);
 
     const res = await request(createApp())
-      .post(`/admin/work-queue/${items[0].id}/link-help/dispute-revert`)
+      .post(`/admin/work-queue/${items[0].id}/link-help/dispute-revert/confirm`)
       .set('Cookie', adminCookie())
       .type('form')
       .send({ target_historical_person_id: personId, reason: 'Dispute upheld.' });
@@ -1136,7 +1136,7 @@ describe('admin review: separation of duties', () => {
     const item = openItems(requesterId)[0];
 
     const res = await request(createApp())
-      .post(`/admin/work-queue/${item.id}/link-help/dispute-revert`)
+      .post(`/admin/work-queue/${item.id}/link-help/dispute-revert/confirm`)
       .set('Cookie', adminCookie())
       .type('form')
       .send({ target_historical_person_id: personId, reason: 'Impersonation upheld.' });
@@ -1146,5 +1146,84 @@ describe('admin review: separation of duties', () => {
       .get(holderId) as Record<string, unknown>;
     expect(holder.historical_person_id).toBeNull();
     expect(audits(holderId, 'claim.revert_applied')).toHaveLength(1);
+  });
+
+  // The confirm page is the admin's only look at what a revert removes before
+  // it applies, so it must list everything, change nothing, and carry the
+  // admin's reason through to the confirmation.
+  it('previews a revert without applying it, listing the honor it removes, and applies it once on confirm', async () => {
+    const holderId = seedRequester('Honor Holder');
+    const requesterId = seedRequester('Rival Holder');
+    const personId = insertHistoricalPerson(db, {
+      person_id: 'hp-honor-preview', person_name: 'Honor Holder', hof_member: 1, country: 'New Zealand',
+    });
+    // A real claim, so the claim records the one field it filled: the country.
+    db.prepare('UPDATE members SET country = NULL, region = NULL WHERE id = ?').run(holderId);
+    const { identityAccessService } = await import('../../src/services/identityAccessService');
+    identityAccessService.claimHistoricalPerson(holderId, personId);
+    await request(createApp())
+      .post(`/members/${slugFor(requesterId)}/contact-admin`)
+      .set('Cookie', cookieFor(requesterId))
+      .type('form')
+      .send({ category: 'identity_link_issue', message: 'That record is mine.' });
+    const item = openItems(requesterId)[0];
+    const form = { target_historical_person_id: personId, reason: 'Upheld after review.' };
+
+    const preview = await request(createApp())
+      .post(`/admin/work-queue/${item.id}/link-help/dispute-revert`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send(form);
+    expect(preview.status).toBe(200);
+    expect(preview.text).toContain('Their Hall of Fame membership and induction year, which came from this claim');
+    expect(preview.text).not.toContain('Big Add Posse membership');
+    // Exactly the field the claim filled, and none the member holds otherwise.
+    expect(preview.text).toContain('These details the claim filled in: Country</li>');
+    expect(preview.text).toContain('value="Upheld after review."');
+    const untouched = db.prepare('SELECT historical_person_id, is_hof FROM members WHERE id = ?')
+      .get(holderId) as Record<string, unknown>;
+    expect(untouched).toEqual({ historical_person_id: personId, is_hof: 1 });
+    expect(audits(holderId, 'claim.revert_applied')).toHaveLength(0);
+
+    const confirm = () => request(createApp())
+      .post(`/admin/work-queue/${item.id}/link-help/dispute-revert/confirm`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send(form);
+    expect((await confirm()).status).toBe(303);
+    expect((await confirm()).status).toBe(303);
+    const after = db.prepare('SELECT historical_person_id, is_hof FROM members WHERE id = ?')
+      .get(holderId) as Record<string, unknown>;
+    expect(after).toEqual({ historical_person_id: null, is_hof: 0 });
+    expect(audits(holderId, 'claim.revert_applied')).toHaveLength(1);
+  });
+
+  // An admin confirming the revert of an old account must see whose account it
+  // is, not only an identifier they cannot check against anything on the page.
+  it('names a disputed old account by its name on the confirm page', async () => {
+    const holderId = seedRequester('Account Holder');
+    const requesterId = seedRequester('Account Rival');
+    const accountId = 'LM-named-dispute';
+    insertLegacyMember(db, {
+      legacy_member_id: accountId, real_name: 'Named Old Account',
+      claimed_by_member_id: holderId, claimed_at: '2026-01-01T00:00:00.000Z',
+    });
+    db.prepare('UPDATE members SET legacy_member_id = ? WHERE id = ?').run(accountId, holderId);
+    const itemId = insertWorkQueueItem(db, {
+      entity_id: requesterId, created_by: requesterId,
+      reason_text: JSON.stringify({
+        statement: 'That old account was mine.', is_dispute: true,
+        disputed_legacy_member_ids: [accountId], disputed_historical_person_ids: [],
+        disputed_record_holders: { [accountId]: holderId },
+      }),
+    });
+
+    const preview = await request(createApp())
+      .post(`/admin/work-queue/${itemId}/link-help/dispute-revert`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ target_legacy_member_id: accountId, reason: 'Upheld after review.' });
+    expect(preview.status).toBe(200);
+    expect(preview.text).toMatch(/<p class="m-0 fw-600">Named Old Account<\/p>\s*<p[^>]*>LM-named-dispute<\/p>/);
   });
 });

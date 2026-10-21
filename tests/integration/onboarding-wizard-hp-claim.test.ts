@@ -84,10 +84,46 @@ function countAuditEntries(memberId: string, actionType: string): number {
   ).get(memberId, actionType) as { c: number }).c;
 }
 
+// A claimant confirming a record is still a prospective member, so the claim
+// is held on their own claim-step row: the step is answered, but no link, tier
+// grant or claim audit row exists yet. One landing early would give a
+// prospective member another person's record before they finished joining.
+function expectClaimHeld(memberId: string, personId: string): void {
+  const member = getMember(memberId)!;
+  expect(member.historical_person_id).toBeNull();
+  expect(member.legacy_member_id).toBeNull();
+  expect(getTierGrants(memberId).filter((g) => g.reason_code === 'legacy.claim_tier_grant')).toHaveLength(0);
+  expect(countAuditEntries(memberId, 'claim.historical_person')).toBe(0);
+  expect(getTaskState(memberId, 'legacy_claim')).toBe('completed');
+  const held = db.prepare(
+    "SELECT answer_json FROM member_onboarding_tasks WHERE member_id = ? AND task_type = 'legacy_claim'",
+  ).get(memberId) as { answer_json: string | null };
+  expect(JSON.parse(held.answer_json ?? 'null')?.claim?.target?.recordId).toBe(personId);
+}
+
+// Confirm a record, which holds the claim, then answer the last onboarding
+// step through the wizard, which completes onboarding and lands the claim.
+async function claimThroughOnboarding(memberId: string, personId: string): Promise<void> {
+  const res = await request(createApp())
+    .post(`/history/${personId}/claim/confirm`)
+    .set('Cookie', cookieFor(memberId))
+    .type('form')
+    .send({});
+  expect(res.status).toBe(303);
+  expect(res.headers.location).toBe('/register/wizard/club_affiliations');
+  expectClaimHeld(memberId, personId);
+  const done = await request(createApp())
+    .post('/register/wizard/club_affiliations/none')
+    .set('Cookie', cookieFor(memberId))
+    .type('form')
+    .send({});
+  expect(done.status).toBe(303);
+}
+
 // ── Direct HP claim with surname match ───────────────────────────────────────
 
 describe('direct HP claim: surname match succeeds', () => {
-  it('POST /history/:personId/claim/confirm sets historical_person_id and emits audit', async () => {
+  it('POST /history/:personId/claim/confirm holds the claim, which sets historical_person_id and emits audit once onboarding completes', async () => {
     const stamp = Date.now();
     const memberId = insertMemberReady(db, {
       slug: `hp_ok_${stamp}`,
@@ -101,17 +137,11 @@ describe('direct HP claim: surname match succeeds', () => {
       first_year: 2003,
     });
 
-    const res = await request(createApp())
-      .post(`/history/${personId}/claim/confirm`)
-      .set('Cookie', cookieFor(memberId))
-      .type('form')
-      .send({});
-
-    expect(res.status).toBe(303);
+    await claimThroughOnboarding(memberId, personId);
 
     const member = getMember(memberId)!;
     expect(member.historical_person_id).toBe(personId);
-    expect(countAuditEntries(memberId, 'claim.historical_person')).toBeGreaterThanOrEqual(1);
+    expect(countAuditEntries(memberId, 'claim.historical_person')).toBe(1);
     expect(getTaskState(memberId, 'legacy_claim')).toBe('completed');
   });
 
@@ -129,11 +159,7 @@ describe('direct HP claim: surname match succeeds', () => {
       country: 'NZ',
     });
 
-    await request(createApp())
-      .post(`/history/${personId}/claim/confirm`)
-      .set('Cookie', cookieFor(memberId))
-      .type('form')
-      .send({});
+    await claimThroughOnboarding(memberId, personId);
 
     const member = getMember(memberId)!;
     // The record spells the country as an ISO code; the claim merge holds
@@ -156,11 +182,7 @@ describe('direct HP claim: surname match succeeds', () => {
       hof_member: 1,
     });
 
-    await request(createApp())
-      .post(`/history/${personId}/claim/confirm`)
-      .set('Cookie', cookieFor(memberId))
-      .type('form')
-      .send({});
+    await claimThroughOnboarding(memberId, personId);
 
     const member = getMember(memberId)!;
     expect(member.is_hof).toBe(1);
@@ -185,11 +207,7 @@ describe('direct HP claim: surname match succeeds', () => {
       first_year: 1998,
     });
 
-    await request(createApp())
-      .post(`/history/${personId}/claim/confirm`)
-      .set('Cookie', cookieFor(memberId))
-      .type('form')
-      .send({});
+    await claimThroughOnboarding(memberId, personId);
 
     const member = getMember(memberId)!;
     expect(member.first_competition_year).toBe(1998);
@@ -209,11 +227,7 @@ describe('direct HP claim: surname match succeeds', () => {
       first_year: 1995,
     });
 
-    await request(createApp())
-      .post(`/history/${personId}/claim/confirm`)
-      .set('Cookie', cookieFor(memberId))
-      .type('form')
-      .send({});
+    await claimThroughOnboarding(memberId, personId);
 
     const member = getMember(memberId)!;
     expect(member.first_competition_year).toBe(2010);
@@ -254,13 +268,8 @@ describe('first-name variant warning', () => {
       person_name: 'Robert Smith',
     });
 
-    const res = await request(createApp())
-      .post(`/history/${personId}/claim/confirm`)
-      .set('Cookie', cookieFor(memberId))
-      .type('form')
-      .send({});
+    await claimThroughOnboarding(memberId, personId);
 
-    expect(res.status).toBe(303);
     const member = getMember(memberId)!;
     expect(member.historical_person_id).toBe(personId);
   });
@@ -316,7 +325,7 @@ describe('surname mismatch rejected', () => {
 // ── HP already claimed by another member ─────────────────────────────────────
 
 describe('HP already claimed', () => {
-  it('second member claiming same HP is rejected', async () => {
+  it('second member claiming an HP another member has claimed is rejected', async () => {
     const stamp = Date.now();
     const personId = insertHistoricalPerson(db, { person_name: 'Shared Person' });
 
@@ -326,11 +335,7 @@ describe('HP already claimed', () => {
       login_email: `hp-first-${stamp}@example.com`,
       real_name: 'Shared Person',
     });
-    await request(createApp())
-      .post(`/history/${personId}/claim/confirm`)
-      .set('Cookie', cookieFor(firstId))
-      .type('form')
-      .send({});
+    await claimThroughOnboarding(firstId, personId);
     expect(getMember(firstId)!.historical_person_id).toBe(personId);
 
     const secondId = insertMemberReady(db, {
@@ -364,18 +369,13 @@ describe('member already linked to an HP', () => {
       login_email: `hp-double-${stamp}@example.com`,
       real_name: 'First Hp',
     });
-    await request(createApp())
-      .post(`/history/${firstHp}/claim/confirm`)
-      .set('Cookie', cookieFor(memberId))
-      .type('form')
-      .send({});
-    expect(getMember(memberId)!.historical_person_id).toBe(firstHp);
-
     // Claiming the first record answers the claim step; answering the club
-    // question finishes onboarding, which closes the self-serve claim surface:
-    // a second attempt is routed to the admin link-help flow and the member
-    // stays linked to the original record, never switched to another.
-    insertOnboardingTask(db, memberId, 'club_affiliations', 'completed');
+    // question finishes onboarding, which lands the claim and closes the
+    // self-serve claim surface: a second attempt is routed to the admin
+    // link-help flow and the member stays linked to the original record,
+    // never switched to another.
+    await claimThroughOnboarding(memberId, firstHp);
+    expect(getMember(memberId)!.historical_person_id).toBe(firstHp);
     db.prepare("UPDATE members SET real_name = 'Second Hp' WHERE id = ?").run(memberId);
     const res = await request(createApp())
       .post(`/history/${secondHp}/claim/confirm`)
@@ -444,11 +444,7 @@ describe('transitive legacy claim through HP back-link', () => {
       real_name: 'Backlink Target',
     });
 
-    await request(createApp())
-      .post(`/history/${personId}/claim/confirm`)
-      .set('Cookie', cookieFor(memberId))
-      .type('form')
-      .send({});
+    await claimThroughOnboarding(memberId, personId);
 
     const member = getMember(memberId)!;
     expect(member.historical_person_id).toBe(personId);

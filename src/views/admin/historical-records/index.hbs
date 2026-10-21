@@ -31,7 +31,7 @@
         </div>
         <p class="m-0 text-muted fs-sm">{{#each facts}}{{this}} &middot; {{/each}}</p>
         {{#if isClaimed}}
-          <p class="m-0 mt-1 text-muted fs-sm">{{claimedNote}}</p>
+          <p class="m-0 mt-1 fs-sm">{{claimedNote}}</p>
           <p class="m-0 mt-1"><a href="{{claimedHref}}">Open that member record</a></p>
         {{else if isDeceased}}
           <form method="POST" action="{{revertAction}}" class="form-block">

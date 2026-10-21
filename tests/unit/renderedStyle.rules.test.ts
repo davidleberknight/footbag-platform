@@ -152,6 +152,18 @@ describe('table-overflows-container', () => {
     expect(hits(table(900), 'table-overflows-container')).toHaveLength(1);
     expect(hits(table(800), 'table-overflows-container')).toEqual([]);
   });
+
+  it('allows a wide table inside the labelled scroll wrapper, and only that one', () => {
+    // A wide admin table scrolls inside its wrapper by design; one that a keyboard
+    // reader cannot reach or name must still be reported.
+    const wrapped = (attrs: ElementRecord['attrs']) => buildCapture(
+      el('div', { cls: 'records-table-wrap', attrs, rect: { w: 800 } }, el('table', { rect: { w: 900 } })),
+      { width: DESKTOP },
+    );
+    expect(hits(wrapped({ tabindex: '0', role: 'region', named: true }), 'table-overflows-container')).toEqual([]);
+    expect(hits(wrapped({ tabindex: '0', role: 'region' }), 'table-overflows-container')).toHaveLength(1);
+    expect(hits(wrapped({ role: 'region', named: true }), 'table-overflows-container')).toHaveLength(1);
+  });
 });
 
 describe('table-columns-misaligned', () => {
@@ -292,6 +304,17 @@ describe('grey text', () => {
     const para = (color: string) => buildCapture(el('p', { text: LONG, style: { color } }));
     expect(hits(para('rgb(102, 102, 102)'), 'prose-muted')).toHaveLength(1);
     expect(hits(para('rgb(51, 51, 51)'), 'prose-muted')).toEqual([]);
+  });
+
+  it('lets long metadata stay grey on its own metadata class, and nothing else', () => {
+    // A source note or byline may be long and grey; prose merely sitting inside
+    // a metadata block is still prose a reader has to read.
+    const grey = { color: 'rgb(102, 102, 102)' };
+    for (const cls of ['source-note', 'set-detail-citation', 'form-hint', 'card-meta']) {
+      expect(hits(buildCapture(el('p', { cls, text: LONG, style: grey })), 'prose-muted'), cls).toEqual([]);
+    }
+    expect(hits(buildCapture(el('p', { cls: 'section-desc', text: LONG, style: grey })), 'prose-muted')).toHaveLength(1);
+    expect(hits(buildCapture(el('div', { cls: 'card-meta' }, el('p', { text: LONG, style: grey }))), 'prose-muted')).toHaveLength(1);
   });
 
   it('reports the subtle grey on text and not on an element without text', () => {

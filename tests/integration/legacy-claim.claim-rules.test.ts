@@ -193,11 +193,17 @@ describe('repeating a confirmation that already succeeded', () => {
     insertHistoricalPerson(db, { person_id: `${t}_hp`, person_name: name, legacy_member_id: `${t}_leg` });
     const memberId = registrant(t, name, email);
 
+    const heldClaim = () => (db.prepare(
+      `SELECT answer_json FROM member_onboarding_tasks WHERE member_id = ? AND task_type = 'legacy_claim'`,
+    ).get(memberId) as { answer_json: string | null }).answer_json;
+
     const first = await request(createApp())
       .post('/register/wizard/legacy_claim/claim')
       .set('Cookie', cookieFor(memberId))
       .type('form')
       .send({ accountId: `${t}_leg`, recordId: `${t}_hp` });
+    const heldAfterFirst = heldClaim();
+    expect(JSON.parse(heldAfterFirst ?? 'null')?.claim?.target).toEqual({ accountId: `${t}_leg`, recordId: `${t}_hp` });
     const second = await request(createApp())
       .post('/register/wizard/legacy_claim/claim')
       .set('Cookie', cookieFor(memberId))
@@ -214,10 +220,19 @@ describe('repeating a confirmation that already succeeded', () => {
       landing = hop.headers.location;
     }
     expect(landing).toBe(first.headers.location);
-    const claims = db.prepare(
+    // The repeat holds nothing new: the held claim is the first press's,
+    // untouched, and nothing has landed while the member is still onboarding.
+    expect(heldClaim()).toBe(heldAfterFirst);
+    const claims = () => (db.prepare(
       `SELECT COUNT(*) AS c FROM audit_entries WHERE entity_id = ? AND action_type = 'claim.legacy_account'`,
-    ).get(memberId) as { c: number };
-    expect(claims.c).toBe(1);
+    ).get(memberId) as { c: number }).c;
+    expect(claims()).toBe(0);
+    expect(memberLinks(memberId).historical_person_id).toBeNull();
+
+    // Completing onboarding lands the claim exactly once.
+    expect(onboarding.processNoClubsAnswer(memberId).kind).toBe('advance');
+    expect(claims()).toBe(1);
+    expect(memberLinks(memberId).historical_person_id).toBe(`${t}_hp`);
   });
 });
 

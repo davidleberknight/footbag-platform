@@ -1,12 +1,12 @@
 /**
  * Membership authorization (requireMember). Membership is an authorization
  * level above authentication: an account is pending from registration until
- * all three onboarding tasks are completed, and a pending registrant holds a
+ * all three onboarding tasks are completed, and a prospective member holds a
  * session but no member authorization. A pending request to any member
  * capability is routed to its next outstanding wizard task; public browse,
  * the wizard and its claim affordances, and logout are all a pending
  * registrant can reach. A pending account also has no profile page for any
- * non-admin viewer and never appears in member search.
+ * viewer, administrators included, and never appears in member search.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
@@ -110,7 +110,7 @@ describe('requireMember — membership authorization gate', () => {
     expect(res.headers.location ?? '').not.toContain('/register/wizard/');
   });
 
-  it('donations are a member capability: GET /donate redirects a pending registrant to the wizard', async () => {
+  it('donations are a member capability: GET /donate redirects a prospective member to the wizard', async () => {
     const memberId = insertPendingMember('gate_donate_fenced');
     const res = await request(createApp())
       .get('/donate')
@@ -119,7 +119,7 @@ describe('requireMember — membership authorization gate', () => {
     expect(res.headers.location).toContain('/register/wizard/');
   });
 
-  it('POST /donate is likewise denied to a pending registrant', async () => {
+  it('POST /donate is likewise denied to a prospective member', async () => {
     const memberId = insertPendingMember('gate_donate_post');
     const res = await request(createApp())
       .post('/donate')
@@ -130,7 +130,7 @@ describe('requireMember — membership authorization gate', () => {
     expect(res.headers.location).toContain('/register/wizard/');
   });
 
-  it('the payment return pages are member-only: GET /payments/success redirects a pending registrant', async () => {
+  it('the payment return pages are member-only: GET /payments/success redirects a prospective member', async () => {
     const memberId = insertPendingMember('gate_pay_success');
     const res = await request(createApp())
       .get('/payments/success')
@@ -139,7 +139,7 @@ describe('requireMember — membership authorization gate', () => {
     expect(res.headers.location).toContain('/register/wizard/');
   });
 
-  it('profile edit is a member capability: a pending registrant is routed to the wizard', async () => {
+  it('profile edit is a member capability: a prospective member is routed to the wizard', async () => {
     const memberId = insertPendingMember('gate_edit_fenced');
     const res = await request(createApp())
       .get('/members/gate_edit_fenced/edit')
@@ -148,7 +148,7 @@ describe('requireMember — membership authorization gate', () => {
     expect(res.headers.location).toContain('/register/wizard/');
   });
 
-  it('contact-admin is a member capability: a pending registrant is routed to the wizard', async () => {
+  it('contact-admin is a member capability: a prospective member is routed to the wizard', async () => {
     const memberId = insertPendingMember('gate_contact_fenced');
     const res = await request(createApp())
       .get('/members/gate_contact_fenced/contact-admin')
@@ -184,7 +184,7 @@ describe('requireMember — membership authorization gate', () => {
     expect(queued.n).toBe(0);
   });
 
-  it('offers a pending registrant no affordance for writing to an administrator', async () => {
+  it('offers a prospective member no affordance for writing to an administrator', async () => {
     const memberId = insertPendingMember('gate_help_hidden');
     // The claim task only draws once the details it matches on are on file.
     insertOnboardingTask(testDb, memberId, 'personal_details', 'completed');
@@ -331,13 +331,21 @@ describe('a pending account has no profile page and is not searchable', () => {
     expect(unknownRes.status).toBe(404);
   });
 
-  it('an admin can still open a pending account profile (operational oversight)', async () => {
+  it('an admin finds no profile for a pending account either, while a member beside it opens', async () => {
+    // A prospective member is not a member, so no viewer, an administrator
+    // included, may reach a profile for them; an admin page linking one would
+    // otherwise expose a half-registered person's name and details.
     insertPendingMember('pending_admin_target');
+    insertMember(testDb, { slug: 'finished_admin_target' });
     const adminId = insertMember(testDb, { slug: 'pending_admin_viewer', is_admin: 1 });
-    const res = await request(createApp())
+    const pending = await request(createApp())
       .get('/members/pending_admin_target')
       .set('Cookie', cookieFor(adminId));
-    expect(res.status).toBe(200);
+    expect(pending.status).toBe(404);
+    const finished = await request(createApp())
+      .get('/members/finished_admin_target')
+      .set('Cookie', cookieFor(adminId));
+    expect(finished.status).toBe(200);
   });
 
   it('members_searchable excludes a pending account and admits it on completion', async () => {

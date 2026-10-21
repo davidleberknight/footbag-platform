@@ -10,7 +10,7 @@
 
   {{#unless content.hasItems}}
     <section>
-      <p class="text-muted">{{content.emptyMessage}}</p>
+      <p>{{content.emptyMessage}}</p>
     </section>
   {{/unless}}
 
@@ -20,13 +20,13 @@
         <h2>Files Still to Remove</h2>
         <span class="section-count">{{content.pendingRemoval.length}}</span>
       </div>
-      <p class="text-muted fs-sm">{{content.pendingRemovalNote}}</p>
+      <p class="fs-sm">{{content.pendingRemovalNote}}</p>
       {{#each content.pendingRemoval}}
         <div class="card">
           <div class="card-title">{{#if caption}}{{caption}}{{else}}Untitled item{{/if}}</div>
           <p class="card-meta">
             Removed {{removedAtDisplay}} &middot; uploaded by
-            <a href="{{uploaderHref}}">{{uploaderDisplay}}</a>
+            {{#if uploaderHref}}<a href="{{uploaderHref}}">{{uploaderDisplay}}</a>{{else}}{{uploaderDisplay}}{{/if}}
           </p>
           {{#if decisionReason}}<p class="text-secondary">{{decisionReason}}</p>{{/if}}
           <form method="POST" action="{{retryHref}}" class="form-block">
@@ -43,7 +43,7 @@
         <div class="card-title">{{#if caption}}{{caption}}{{else}}Untitled item{{/if}}</div>
         <p class="card-meta">
           {{flagCountLabel}} &middot; {{statusLabel}} &middot; Uploaded by
-          <a href="{{uploaderHref}}">{{uploaderDisplay}}</a> &middot;
+          {{#if uploaderHref}}<a href="{{uploaderHref}}">{{uploaderDisplay}}</a>{{else}}{{uploaderDisplay}}{{/if}} &middot;
           <a href="{{mediaHref}}">Open the item page</a>
         </p>
 
@@ -55,7 +55,7 @@
           <div class="card">
             <p class="card-meta">
               {{reasonLabel}} &middot; reported {{reportedAtDisplay}} by
-              <a href="{{reporterHref}}">{{reporterDisplay}}</a>
+              {{#if reporterHref}}<a href="{{reporterHref}}">{{reporterDisplay}}</a>{{else}}{{reporterDisplay}}{{/if}}
             </p>
             {{#if detail}}<p class="text-secondary">{{detail}}</p>{{/if}}
             {{#if patternNote}}<p class="card-meta">{{patternNote}}</p>{{/if}}

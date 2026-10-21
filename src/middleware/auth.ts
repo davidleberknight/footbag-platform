@@ -40,16 +40,10 @@ declare global {
       isAuthenticated: boolean;
       // Membership is an authorization level above authentication: an account
       // is pending from registration until every onboarding task completes,
-      // and a pending registrant holds a session but no member authorization.
+      // and a prospective member holds a session but no member authorization.
       // True only when the session belongs to a member whose onboarding is
       // complete; auth-enhanced surfaces key member privileges off this, so a
-      // pending registrant reads public pages as an anonymous visitor.
-      //
-      // The historical-person detail page is the one deliberate exception, and
-      // it keys off `isAuthenticated` instead. A registrant has to be able to
-      // reach a record in order to claim it, and the claim task is the only
-      // surface where claiming happens, so that page opens to a session rather
-      // than to membership. Nothing else does.
+      // prospective member reads public pages as an anonymous visitor.
       isMember: boolean;
       user: SessionUser | null;
     }
@@ -147,7 +141,7 @@ export function authMiddleware() {
               row.is_admin ? 'admin' : 'member',
               row.password_version,
             );
-            issueSessionCookie(res, fresh, req);
+            issueSessionCookie(res, fresh, req, { archiveAccess: req.isMember });
           } catch {
             // Signing hiccup (KMS blip): keep serving on the still-valid token.
           }
@@ -224,10 +218,10 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
 
 /**
  * Member-capability route guard. An account is pending from registration until
- * every onboarding task completes; a pending registrant holds a session but no
+ * every onboarding task completes; a prospective member holds a session but no
  * member authorization, so every member-capability route requires this guard
  * and a pending request is routed to its next outstanding wizard task. Bare
- * requireAuth remains only on the surfaces a pending registrant legitimately
+ * requireAuth remains only on the surfaces a prospective member legitimately
  * uses: the wizard routes and the historical-record claim routes (claiming is
  * part of finishing onboarding). A conformance test pins that allowlist.
  */
@@ -272,7 +266,7 @@ export function requireWizardOpen(req: Request, res: Response, next: NextFunctio
 }
 
 /**
- * The pending registrant's next stop. With nothing outstanding, route to the
+ * The prospective member's next stop. With nothing outstanding, route to the
  * wizard complete page, which re-checks and redirects onward if a task is in
  * fact still pending; falling back to a specific task here would loop if that
  * task were ever non-completable.

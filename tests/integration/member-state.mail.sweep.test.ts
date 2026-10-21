@@ -123,7 +123,7 @@ function seedAdmin(prefix: string): string {
 }
 
 const BULK_EXCLUDED: MemberState[] = [
-  'deceased', 'softDeleted', 'purged', 'unverified', 'bounced', 'complained',
+  'deceased', 'softDeleted', 'purged', 'unverified', 'bounced', 'complained', 'pending',
 ];
 
 /** What the enqueue gate refuses for any non-strict send naming a member. */

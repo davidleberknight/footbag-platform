@@ -4,7 +4,8 @@
  * site standard says to build it. The unit tests prove the rules over
  * synthetic numbers; this proves the capture script measures what a browser
  * actually draws (boxes, overflow, fonts, label visibility, inherited link
- * styling), so a rule that passes a real page is evidence.
+ * styling), so a rule that passes a real page is evidence. It also proves the
+ * check's form submit refuses a form it cannot find exactly as listed.
  *
  * Planted pages are set content, not routes, so this file needs no seeded
  * data and judges the stylesheet alone.
@@ -14,6 +15,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { evaluate, tableNamesFromSchema, type RuleId } from './helpers/renderedStyle';
 import { capture, DESKTOP, PHONE } from './helpers/renderedStyleCapture';
+import { submitForm } from './helpers/submitForm';
 
 const STYLESHEET = path.resolve(__dirname, '../../src/public/css/style.css');
 const ctx = { tableNames: tableNamesFromSchema(fs.readFileSync(path.resolve(__dirname, '../../database/schema.sql'), 'utf8')) };
@@ -168,6 +170,28 @@ test('a block wider than the phone is reported even when the page clips sideways
   expect(await page.evaluate(() => window.scrollX), 'the page scrolled sideways, so the clipping premise no longer holds').toBe(0);
   const found = evaluate(cap, ctx, new Set<RuleId>(['page-overflow']));
   expect(found.map((f) => f.measured)).toEqual([expect.stringContaining('culprits: body>main>div')]);
+});
+
+test('long metadata may stay grey on a metadata class, and long grey prose may not', async ({ page }) => {
+  // A source note is grey by design at any length; the same grey on a paragraph is prose a reader struggles with.
+  const text = LONG.slice(0, 120);
+  expect(await hits(page, 'prose-muted', `<main><p class="source-note">${text}</p></main>`, DESKTOP)).toEqual([]);
+  expect((await hits(page, 'prose-muted', `<main><p style="color:var(--text-muted)">${text}</p></main>`, DESKTOP)).length).toBeGreaterThan(0);
+});
+
+test('a wide table may scroll inside the labelled table wrapper, and not inside an unlabelled one', async ({ page }) => {
+  // The standard lets a wide admin table scroll in its wrapper, but only one a keyboard reader can reach and name.
+  const inWrap = (attrs: string) => `<main><div ${attrs} style="width:800px"><table style="width:900px"><tr><td>Row</td></tr></table></div></main>`;
+  expect(await hits(page, 'table-overflows-container', inWrap(WRAP_OK), DESKTOP)).toEqual([]);
+  expect((await hits(page, 'table-overflows-container', inWrap('class="records-table-wrap" role="region" aria-label="Results"'), DESKTOP)).length).toBeGreaterThan(0);
+});
+
+test('the check refuses to submit a form that moved or lost a field, rather than measuring another page', async ({ page }) => {
+  // A confirm page the check reaches through its form would silently go unmeasured if a renamed
+  // action or field let the submit land somewhere else.
+  await plant(page, '<main><form method="POST" action="/admin/thing/grant"><label for="r">Reason</label><input id="r" name="reason"><button type="submit">Go</button></form></main>', DESKTOP);
+  await expect(submitForm(page, { action: '/admin/thing/moved' })).rejects.toThrow('expected one form posting to /admin/thing/moved');
+  await expect(submitForm(page, { action: '/admin/thing/grant', fields: { why: 'x' } })).rejects.toThrow('has no field named why');
 });
 
 test.describe('shared components meet the standard whatever the data', () => {

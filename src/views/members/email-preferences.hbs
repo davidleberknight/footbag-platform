@@ -29,7 +29,7 @@
     <div class="card-title">{{name}}</div>
     {{#if description}}<p class="card-description">{{description}}</p>{{/if}}
     <p class="card-meta">{{stateLabel}}</p>
-    <p class="text-muted fs-sm">{{stateExplanation}}</p>
+    <p class="fs-sm">{{stateExplanation}}</p>
     {{#unless isLocked}}
     <form method="POST" action="{{../content.formAction}}" class="form-block">
       <input type="hidden" name="slug" value="{{slug}}" />
@@ -45,7 +45,7 @@
   </div>
   {{/each}}
   {{else}}
-  <p class="text-muted">There are no mailings to choose from at the moment.</p>
+  <p>There are no mailings to choose from at the moment.</p>
   {{/if}}
 
   <p class="mt-4"><a href="{{content.backHref}}" class="btn btn-outline">Back to My Profile</a></p>

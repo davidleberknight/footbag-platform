@@ -1,7 +1,7 @@
 <div class="hero hero-sm">
   <div>
     <h1>Edit Email Template</h1>
-    <p class="text-muted">Editing <code>{{content.templateKey}}</code>. Plain text only; merge fields are filled at send time.</p>
+    <p>Editing <code>{{content.templateKey}}</code>. Plain text only; merge fields are filled at send time.</p>
   </div>
 </div>
 
@@ -13,9 +13,9 @@
     {{> outcome-notice lines=content.errorList tone='no'}}
 
     {{#if content.hasMergeFields}}
-    <p class="text-muted">Merge fields this template must use: {{#each content.mergeFieldList}}<code>{{this}}</code> {{/each}}</p>
+    <p>Merge fields this template must use: {{#each content.mergeFieldList}}<code>{{this}}</code> {{/each}}</p>
     {{else}}
-    <p class="text-muted">This template has no merge fields; the message is fixed text.</p>
+    <p>This template has no merge fields; the message is fixed text.</p>
     {{/if}}
 
     <form method="POST" action="{{content.formAction}}" class="form-block">

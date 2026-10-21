@@ -37,7 +37,7 @@
           {{#if content.bio}}
             <p>{{content.bio}}</p>
           {{else}}
-            <p class="text-muted">No bio yet. <a href="{{content.profileBase}}/edit">Edit your profile</a> to tell people about yourself.</p>
+            <p>No bio yet. <a href="{{content.profileBase}}/edit">Edit your profile</a> to tell people about yourself.</p>
           {{/if}}
           {{#if content.links.length}}
             <ul>
@@ -70,7 +70,7 @@
             <h2 class="profile-section-heading">Competitive Results <span class="section-count">{{content.eventGroups.length}} events</span></h2>
           {{/if}}
           {{#unless content.showCompetitiveResults}}
-            <p class="text-muted fs-sm">Only you can see this. Public viewers do not see your competition results because "Show my competition results on my profile" is off.</p>
+            <p class="fs-sm">Only you can see this. Public viewers do not see your competition results because "Show my competition results on my profile" is off.</p>
           {{/unless}}
           {{> player-results eventGroups=content.eventGroups hasDetailColumn=content.resultsHaveDetail firstCompetitionYear=content.firstCompetitionYear showCompetingSince=content.showCompetingSince}}
         </div>

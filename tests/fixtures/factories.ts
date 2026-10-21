@@ -19,6 +19,7 @@ import { signJwtLocalSync } from './signJwt';
 // `../fixtures/factories` keep resolving unchanged.
 import {
   insertMember,
+  setOnboardingHeldAnswer,
   insertTag,
   insertFreeformTag,
   attachMediaTag,
@@ -61,6 +62,7 @@ import {
 
 export {
   insertMember,
+  setOnboardingHeldAnswer,
   insertTag,
   insertFreeformTag,
   attachMediaTag,
@@ -143,7 +145,7 @@ export type {
   ClubCleanupResolutionOverrides,
 } from '../../src/testkit/personaRowBuilders';
 
-const TS  = '2025-01-01T00:00:00.000Z';
+const TS  ='2025-01-01T00:00:00.000Z';
 const SYS = 'system';
 
 let _counter = 0;

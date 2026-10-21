@@ -18,6 +18,7 @@ import {
   insertMember, insertLegacyMember, insertHistoricalPerson, insertOutboxEmail,
   insertPayment, insertRecurringDonationSubscription, insertMediaItem, insertMediaFlag,
   insertMemberDeclaredAnchor, insertWorkQueueItem, insertEmailArchive, insertMailingListSubscription,
+  insertOnboardingTask, setOnboardingHeldAnswer,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3092');
@@ -299,6 +300,31 @@ describe('memberService.purgeAccountPII', () => {
     expect(row.reason_code).toBe('other');
     expect(row.status).toBe('open');
     expect(row.updated_by).toBe('operations_purge');
+  });
+
+  it('clears the answers an unfinished wizard still holds, and no one else\'s', () => {
+    // Defect caught: a club note the person wrote in the wizard, held until
+    // onboarding completes, outlives the erasure of the account that wrote it.
+    const d = db();
+    const held = { answers: [{ kind: 'no_clubs', insightNote: 'my own words', heldAt: '2026-01-01T00:00:00.000Z' }] };
+    for (const id of ['purge-held', 'purge-held-bystander']) {
+      insertMember(d, { id, login_email: `${id}@example.com`, onboarding: 'none' });
+      insertOnboardingTask(d, id, 'club_affiliations', 'pending');
+      setOnboardingHeldAnswer(d, id, 'club_affiliations', held);
+    }
+    d.close();
+
+    expect(memberService.purgeAccountPII('purge-held').status).toBe('purged');
+
+    const r = new BetterSqlite3(dbPath, { readonly: true });
+    const answer = (id: string) => (r.prepare(
+      "SELECT answer_json FROM member_onboarding_tasks WHERE member_id = ? AND task_type = 'club_affiliations'",
+    ).get(id) as { answer_json: string | null }).answer_json;
+    const erased = answer('purge-held');
+    const bystander = answer('purge-held-bystander');
+    r.close();
+    expect(erased).toBeNull();
+    expect(bystander).toContain('my own words');
   });
 
   it('is idempotent and anti-revealing on unknown ids', () => {

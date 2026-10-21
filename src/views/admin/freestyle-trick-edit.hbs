@@ -106,7 +106,7 @@
         <code>{{this.slug}}</code> {{this.text}} <span class="badge">{{this.displayLabel}}</span>
         <form method="POST" action="{{this.updateHref}}" class="form-block">
           <div class="form-field">
-            <label for="alias-{{this.slug}}-type" class="visually-hidden">Type</label>
+            <label for="alias-{{this.slug}}-type">Type</label>
             <select id="alias-{{this.slug}}-type" name="aliasType">
               {{#each this.typeOptions}}<option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>{{/each}}
             </select>
@@ -217,7 +217,7 @@
         <button type="submit" class="btn btn-primary btn-sm">Attach Source</button>
       </div>
     </form>
-    {{else}}<p class="text-muted">All registry sources are linked.</p>{{/if}}
+    {{else}}<p>All registry sources are linked.</p>{{/if}}
 
     <h2 class="section-heading">Modifier Links</h2>
     {{#if content.hasModifierError}}

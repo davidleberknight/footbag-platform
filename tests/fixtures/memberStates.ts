@@ -30,6 +30,7 @@ export const MEMBER_STATES = [
   'unverified',
   'bounced',
   'complained',
+  'pending',
 ] as const;
 
 export type MemberState = typeof MEMBER_STATES[number];
@@ -58,6 +59,9 @@ export function seedMemberStateMatrix(
     unverified:  { email_verified_at: null },
     bounced:     { email_status: 'bounced' },
     complained:  { email_status: 'complained' },
+    // A registrant still in the onboarding wizard: a live, verified account
+    // that is not yet a member.
+    pending:     { onboarding: 'none' },
   };
 
   const matrix = {} as MemberStateMatrix;

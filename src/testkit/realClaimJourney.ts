@@ -197,35 +197,70 @@ export async function buildRealClaimJourney(legacyMemberId: string): Promise<Bui
   });
   memberOnboardingService.completeTaskIfOutstanding(memberId, 'personal_details');
 
-  // 5. Link the real legacy record by its id, as an administrator does when
-  //    applying a link on vetted evidence: a synthetic login address reaches no
-  //    real record through the claim step's own matching, so the link is applied
-  //    the way the administrator's path applies it. The claim grants whatever
-  //    tier the record earns and links its historical-person record; that legacy
-  //    link is what surfaces any pending club membership candidate below.
-  identityAccessService.claimLegacyAccount(memberId, id, 'admin_vetted_evidence');
-  memberOnboardingService.completeTaskIfOutstanding(memberId, 'legacy_claim');
+  // 5. Claim the real legacy record through the claim step, as a person does:
+  //    the registrant carries the record's own name, which reaches an old
+  //    account that holds no email or date of birth; where the account does hold
+  //    an old address, it is declared first so the account is corroborated. The
+  //    claim is held, not written, until onboarding completes, and the held
+  //    claim is what surfaces the record's club cards below.
+  const legacyRow = db
+    .prepare('SELECT legacy_email FROM legacy_members WHERE legacy_member_id = ?')
+    .get(id) as { legacy_email: string | null } | undefined;
+  if (legacyRow?.legacy_email) {
+    memberOnboardingService.processAddAnchor(memberId, 'old_email', legacyRow.legacy_email);
+  }
+  const claimed = memberOnboardingService.processClaimCandidate(
+    memberId, { accountId: id, recordId: null }, '127.0.0.1', false,
+  );
+  // Only an advance means the claim is held; anything else, a step bounce
+  // included, would leave the journey walking a member who claimed nothing.
+  if (claimed.kind !== 'advance') {
+    throw new Error(`buildRealClaimJourney: the claim step did not take account ${id}: ${claimed.kind}`);
+  }
 
-  // 6. Confirm any pending club membership candidate the legacy link surfaced,
-  //    then advance the step. Records with no club affiliation simply have no
-  //    membership card, and the step completes empty. Each answer goes through
-  //    the wizard's own submit, which first turns a club the old site never made
-  //    real into a club record; confirming such a card any other way is refused.
-  //    Where that club's country groups by state and the old site recorded none,
-  //    the card asks for one, and the journey answers with the first offered,
-  //    since the record carries no state to give.
-  for (const card of memberOnboardingService.listWizardCardsForMember(memberId)) {
-    if (card.kind === 'membership') {
-      const answer = await memberOnboardingService.processClubAffiliationsSubmit(memberId, {
-        kind: 'membership', candidateId: card.candidateId, userDecision: 'confirm', activitySignal: 'active',
-        clubRegion: card.needsRegion ? (card.regionOptions[0]?.value ?? '') : '',
-      });
-      if (answer.kind === 'validation_error') {
-        throw new Error(`buildRealClaimJourney: confirming club card ${card.candidateId} was refused: ${answer.message}`);
+  // 6. Answer every club card the held claim surfaces, one at a time, through
+  //    the wizard's own submit: Yes to each membership and leadership card, and
+  //    the first club of a grouped card. A club the old site never made real is
+  //    created when onboarding completes; where its country groups by state and
+  //    the old site recorded none, the card asks for one, and the journey answers
+  //    with the first offered. A record with no cards ends on the no-club answer.
+  //    Answering the last card, or the no-club answer, completes onboarding,
+  //    which writes the claim and every club answer in one transaction.
+  const MAX_CARDS = 25;
+  for (let answered = 0; ; answered += 1) {
+    const card = memberOnboardingService.listWizardCardsForMember(memberId)[0];
+    if (!card) break;
+    if (answered === MAX_CARDS) {
+      throw new Error(`buildRealClaimJourney: account ${id} still shows club cards after ${MAX_CARDS} answers`);
+    }
+    const body: Record<string, unknown> = card.kind === 'disambiguation'
+      ? {
+        kind: 'disambiguation',
+        allCandidateIds: card.clubs.map((c) => c.candidateId),
+        selectedCandidateIds: [card.clubs[0]!.candidateId],
       }
+      : card.kind === 'leadership'
+        ? { kind: 'leadership', candidateId: card.candidateId, userDecision: 'confirm', activitySignal: 'active' }
+        : {
+          kind: 'membership', candidateId: card.candidateId, userDecision: 'confirm', activitySignal: 'active',
+          clubRegion: card.needsRegion ? (card.regionOptions[0]?.value ?? '') : '',
+        };
+    const answer = await memberOnboardingService.processClubAffiliationsSubmit(memberId, body);
+    if (answer.kind === 'validation_error') {
+      throw new Error(`buildRealClaimJourney: answering club card ${card.kind} was refused: ${answer.message}`);
     }
   }
-  memberOnboardingService.completeTaskIfOutstanding(memberId, 'club_affiliations');
+  if (memberOnboardingService.getTaskState(memberId, 'club_affiliations') !== 'completed') {
+    memberOnboardingService.processNoClubsAnswer(memberId);
+  }
+  // Completion applies the held claim; one it dropped would leave a member
+  // linked to nothing, and every surface the journey exists to walk empty.
+  const linked = db
+    .prepare('SELECT legacy_member_id FROM members WHERE id = ?')
+    .get(memberId) as { legacy_member_id: string | null } | undefined;
+  if (linked?.legacy_member_id !== id) {
+    throw new Error(`buildRealClaimJourney: completing onboarding did not link account ${id}`);
+  }
 
   // 7. Author the About through the real edit-profile use case so the profile
   //    carries the test-persona disclaimer, and re-affirm the public detail

@@ -27,6 +27,7 @@ import {
   insertClubBootstrapLeader,
   insertClubBootstrapLeaderSignal,
   insertMemberClubAffiliation,
+  insertOnboardingTask,
   type ClubBootstrapLeaderSignalType,
 } from '../fixtures/factories';
 
@@ -65,6 +66,7 @@ interface AuditRow {
 interface TaskRow {
   state: string;
   completed_at: string | null;
+  answer_json: string | null;
 }
 
 function readBootstrapLeader(id: string): BootstrapLeaderRow {
@@ -117,12 +119,18 @@ function readOnboardingTask(memberId: string, taskType: string): TaskRow | undef
   const db = new BetterSqlite3(dbPath, { readonly: true });
   const row = db
     .prepare(
-      `SELECT state, completed_at FROM member_onboarding_tasks
+      `SELECT state, completed_at, answer_json FROM member_onboarding_tasks
         WHERE member_id = ? AND task_type = ?`,
     )
     .get(memberId, taskType) as TaskRow | undefined;
   db.close();
   return row;
+}
+
+// The club answers a prospective member holds until onboarding completes.
+function readHeldClubAnswers(memberId: string): Array<Record<string, unknown>> {
+  const json = readOnboardingTask(memberId, 'club_affiliations')?.answer_json;
+  return json ? (JSON.parse(json) as { answers: Array<Record<string, unknown>> }).answers : [];
 }
 
 /**
@@ -214,13 +222,17 @@ beforeAll(async () => {
   const db = createTestDb(dbPath);
 
   // 9-cell matrix: distinct member + club per cell. Matrix members are
-  // mid-onboarding (the wizard is where these submissions happen), so the
-  // completion transition the promoted cells assert is genuinely observable.
+  // prospective members on the last onboarding step (the wizard is where
+  // these submissions happen), so the completion transition the promoted
+  // cells assert is genuinely observable, and the declined cells show the
+  // answer held until the explicit no-club answer completes onboarding.
   for (const cell of MATRIX_CELLS) {
     const memberId = `member-${cell.key}`;
     // The member carries the same legacy anchor the candidate below names: a
     // card is answerable only by the member whose own anchor its row matches.
     insertMember(db, { id: memberId, slug: memberId.replace(/-/g, '_'), login_email: `${memberId}@example.com`, onboarding: 'none', legacy_member_id: `lm-${cell.key}` });
+    insertOnboardingTask(db, memberId, 'personal_details', 'completed');
+    insertOnboardingTask(db, memberId, 'legacy_claim', 'completed');
     const clubId = insertClub(db, { name: `Club ${cell.key}` });
     const candidateId = seedCandidate(db, {
       clubId,
@@ -304,13 +316,27 @@ describe('memberOnboardingService.submitClubAffiliationsResponse — 9-cell matr
 
       const task = readOnboardingTask(state.memberId, 'club_affiliations');
       if (cell.expectedBranch === 'promoted_co_leader') {
-        // Confirm writes a club affiliation, so the task completes.
+        // Confirm writes a club affiliation, so the task completes; it is the
+        // last onboarding step, so the held answer lands in that transaction
+        // and nothing stays held.
         expect(task?.state).toBe('completed');
         expect(task?.completed_at).toBeTruthy();
+        expect(readHeldClubAnswers(state.memberId)).toEqual([]);
       } else {
         // Decline leaves the member club-less; the task stays open so the
         // find-or-create-your-club guidance screen renders before it ends.
         expect(task?.state).not.toBe('completed');
+        // Still a prospective member, so the answer is held on their own step
+        // and no shared row or audit entry exists yet.
+        expect(readHeldClubAnswers(state.memberId)).toEqual([
+          expect.objectContaining({ kind: 'card', candidateId: state.candidateId, userDecision: 'decline' }),
+        ]);
+        expect(readBootstrapLeader(state.candidateId).status).toBe('provisional');
+        expect(readClubAffiliationsAudits(state.memberId)).toHaveLength(0);
+
+        // The explicit no-club answer completes onboarding and writes the hold.
+        expect(svc.processNoClubsAnswer(state.memberId).kind).toBe('advance');
+        expect(readHeldClubAnswers(state.memberId)).toEqual([]);
       }
 
       const leader = readBootstrapLeader(state.candidateId);

@@ -122,19 +122,19 @@
     {{else}}
       <a title="{{content.navSection.viewTitles.add}}" href="/freestyle/tricks?view=add">By ADD</a>
     {{/if}}
-    <span class="trick-view-toggle-sep">·</span>
+    <span class="trick-view-toggle-sep" aria-hidden="true">·</span>
     {{#if (eq content.activeView "family")}}
       <span title="{{content.navSection.viewTitles.family}}" aria-current="page" class="trick-view-toggle-active">By family</span>
     {{else}}
       <a title="{{content.navSection.viewTitles.family}}" href="/freestyle/tricks?view=family">By family</a>
     {{/if}}
-    <span class="trick-view-toggle-sep">·</span>
+    <span class="trick-view-toggle-sep" aria-hidden="true">·</span>
     {{#if (eq content.activeView "set")}}
       <span title="{{content.navSection.viewTitles.set}}" aria-current="page" class="trick-view-toggle-active">By set</span>
     {{else}}
       <a title="{{content.navSection.viewTitles.set}}" href="/freestyle/tricks?view=set">By set</a>
     {{/if}}
-    <span class="trick-view-toggle-sep">·</span>
+    <span class="trick-view-toggle-sep" aria-hidden="true">·</span>
     {{#if (eq content.activeView "modifier")}}
       <span title="{{content.navSection.viewTitles.modifier}}" aria-current="page" class="trick-view-toggle-active">By modifier</span>
     {{else}}
@@ -155,11 +155,11 @@
     <span class="dict-nav-label">{{content.navSection.sortLabel}}</span>
     {{#if (eq content.addSort "alpha")}}
       <a href="{{{content.addSortToggle.familyHref}}}">By family</a>
-      <span class="trick-view-toggle-sep">·</span>
+      <span class="trick-view-toggle-sep" aria-hidden="true">·</span>
       <span aria-current="true" class="trick-view-toggle-active">Alphabetical</span>
     {{else}}
       <span aria-current="true" class="trick-view-toggle-active">By family</span>
-      <span class="trick-view-toggle-sep">·</span>
+      <span class="trick-view-toggle-sep" aria-hidden="true">·</span>
       <a href="{{{content.addSortToggle.alphaHref}}}">Alphabetical</a>
     {{/if}}
   </nav>

@@ -144,15 +144,35 @@ describe('a historical-record-only claimant sees their club cards', () => {
       });
     expect(res.status).toBe(303);
 
-    const aff = testDb.prepare(
+    const readStatus = (): string => (testDb.prepare(
       'SELECT resolution_status FROM legacy_person_club_affiliations WHERE id = ?',
-    ).get(hpOnlyAffId) as { resolution_status: string };
-    expect(aff.resolution_status).toBe('rejected');
-
-    const signal = testDb.prepare(
+    ).get(hpOnlyAffId) as { resolution_status: string }).resolution_status;
+    const readSignal = (): string | undefined => (testDb.prepare(
       'SELECT activity_signal FROM club_viability_signals WHERE member_id = ?',
-    ).get(HP_ONLY_MEMBER) as { activity_signal: string } | undefined;
-    expect(signal?.activity_signal).toBe('not_active');
+    ).get(HP_ONLY_MEMBER) as { activity_signal: string } | undefined)?.activity_signal;
+    const readHeld = (): string | null => (testDb.prepare(
+      "SELECT answer_json FROM member_onboarding_tasks WHERE member_id = ? AND task_type = 'club_affiliations'",
+    ).get(HP_ONLY_MEMBER) as { answer_json: string | null }).answer_json;
+
+    // Still a prospective member, so the answer is held on their own club
+    // step: the shared card and the viability evidence are unchanged.
+    expect(readStatus()).toBe('pending');
+    expect(readSignal()).toBeUndefined();
+    expect(JSON.parse(readHeld() ?? '{}').answers).toEqual([
+      expect.objectContaining({ kind: 'card', candidateId: hpOnlyAffId, userDecision: 'decline' }),
+    ]);
+
+    // The no-club answer finishes the last onboarding step, and the held
+    // answer lands with it on the historical-record anchor.
+    const finish = await request(createApp())
+      .post('/register/wizard/club_affiliations/none')
+      .set('Cookie', cookieFor(HP_ONLY_MEMBER))
+      .type('form')
+      .send({});
+    expect(finish.status).toBe(303);
+    expect(readStatus()).toBe('rejected');
+    expect(readSignal()).toBe('not_active');
+    expect(readHeld()).toBeNull();
   });
 });
 

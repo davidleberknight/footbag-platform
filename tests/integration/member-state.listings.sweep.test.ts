@@ -40,7 +40,7 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 // cannot have joined a club or paid, and the state in which a registrant does
 // hold a club affiliation (mid-way through the onboarding wizard) is a
 // reachability question this sweep does not settle.
-const EXCLUDED: MemberState[] = ['deceased', 'softDeleted', 'purged'];
+const EXCLUDED: MemberState[] = ['deceased', 'softDeleted', 'purged', 'pending'];
 const VIEWER = 'listing-viewer';
 const EVENT_KEY = 'event_2026_listing_sweep';
 

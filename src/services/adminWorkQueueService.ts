@@ -22,7 +22,8 @@
  *   - Admin work-queue page shaping (open items grouped by category, optionally
  *     narrowed to one category, plus the unfiltered parked listing), rendering
  *     each card from its type's declaration: one skeleton, one evidence block,
- *     one list of actions
+ *     one list of actions. A subject who is a prospective member is
+ *     shown by id, never named or linked
  *   - The admin dashboard's two work-queue reads: the per-category open counts,
  *     and how much of the queue the viewing administrator is holding, decided by
  *     the digest's own claim rule so the page and the digest email agree
@@ -181,6 +182,8 @@ export interface ContactRequestRow {
    *  names a record of theirs. Null where no member is behind it at all, which
    *  is every provider-side row. */
   subjectMemberId: string | null;
+  /** False for a prospective member, who has no admin record to link. */
+  subjectIsNameable: boolean;
   reasonText: string | null;
   detailText: string | null;
   claimedByMemberId: string | null;
@@ -364,6 +367,22 @@ export interface LinkCandidatesView {
   hasAny: boolean;
   /** Where an administrator goes when none of this is enough. */
   lookupHref: string;
+}
+
+/** What an upheld dispute's revert removes, shown before it applies. */
+export interface DisputeRevertConfirmContent {
+  summary: string;
+  holder: { displayName: string; recordHref: string };
+  record: { id: string; name: string };
+  removes: string[];
+  unchangedNote: string;
+  confirmAction: string;
+  confirmLabel: string;
+  cancelHref: string;
+  legacyMemberId: string;
+  historicalPersonId: string;
+  reason: string;
+  filterCategory: string;
 }
 
 /** The two records a link-help approval is about to bind, shown before it is. */
@@ -767,7 +786,7 @@ function shapeWorkQueueItem(
     entityId: raw.entityId,
     entityHref: raw.entityHref,
     entityDisplayName: raw.entityDisplayName,
-    memberRecordHref: raw.subjectMemberId ? `/admin/members/${raw.subjectMemberId}` : null,
+    memberRecordHref: raw.subjectMemberId && raw.subjectIsNameable ? `/admin/members/${raw.subjectMemberId}` : null,
     entityReference,
     evidence,
     actions: shapeActions(raw.id, raw.taskType, evidence.linkHelp),
@@ -1210,6 +1229,69 @@ export const adminWorkQueueService = {
   },
 
   /**
+   * The page an administrator confirms before an upheld dispute's revert
+   * applies: who holds the record, which record, and exactly what the revert
+   * removes, read from the revert itself rehearsed and rolled back. Null when
+   * nobody holds the record any more, so there is nothing to revert.
+   */
+  getDisputeRevertConfirmPage(opts: {
+    adminMemberId: string;
+    queueItemId: string;
+    legacyMemberId: string;
+    historicalPersonId: string;
+    reason: string;
+    category?: string | null;
+  }): PageViewModel<DisputeRevertConfirmContent> | null {
+    const preview = identityAccessService.previewClaimDisputeRevert(
+      opts.adminMemberId,
+      opts.queueItemId,
+      { legacyMemberId: opts.legacyMemberId, historicalPersonId: opts.historicalPersonId },
+      opts.reason,
+    );
+    if ('status' in preview) return null;
+    const removes: string[] = [];
+    if (preview.removesAccountId) removes.push(`The link to the old footbag.org account ${preview.removesAccountId}`);
+    if (preview.removesRecordName) removes.push(`The link to the competition record ${preview.removesRecordName}`);
+    if (preview.removesTierGrant) removes.push('The tier grant the claim gave');
+    if (preview.removesHof) {
+      removes.push('Their Hall of Fame membership and induction year, which came from this claim');
+    }
+    if (preview.removesBap) {
+      removes.push('Their Big Add Posse membership and induction year, which came from this claim');
+    }
+    if (preview.clearsRecordDeceasedMark) {
+      removes.push('The deceased mark their account placed on the disputed record');
+    }
+    if (preview.clearedFields.length > 0) {
+      removes.push(`These details the claim filled in: ${preview.clearedFields.join(', ')}`);
+    }
+    const title = 'Confirm: Revert a Disputed Claim';
+    return {
+      seo:  { title, noindex: true },
+      page: { sectionKey: 'admin', pageKey: 'admin_dispute_revert_confirm', title },
+      content: {
+        summary: 'Upholding this dispute takes the record away from the member who holds it. '
+          + 'Check what the revert removes before you confirm.',
+        holder: {
+          displayName: preview.holder.displayName,
+          recordHref:  `/admin/members/${preview.holder.memberId}`,
+        },
+        record: preview.record,
+        removes,
+        unchangedNote: 'Nothing else changes: they stay a member, and details they entered '
+          + 'themselves stay as they are.',
+        confirmAction: `/admin/work-queue/${opts.queueItemId}/link-help/dispute-revert/confirm`,
+        confirmLabel:  'Revert the Claim',
+        cancelHref:    '/admin/work-queue',
+        legacyMemberId:     opts.legacyMemberId,
+        historicalPersonId: opts.historicalPersonId,
+        reason:             preview.reason,
+        filterCategory:     opts.category ?? '',
+      },
+    };
+  },
+
+  /**
    * The items an administrator has set aside, newest park first. Read apart from
    * the working queue so a parked item stays visible without counting as work
    * waiting on anyone.
@@ -1228,9 +1310,12 @@ export const adminWorkQueueService = {
       parked_by_name: string | null;
     }>;
     return rows.map((r) => {
-      const member = r.entity_type === 'member'
-        ? account.findContactInfoById.get(r.entity_id) as { slug: string; display_name: string } | undefined
+      // A prospective member is never named or linked on an admin page.
+      const found = r.entity_type === 'member'
+        ? account.findContactInfoById.get(r.entity_id) as
+          | { slug: string; display_name: string; is_nameable: 0 | 1 } | undefined
         : undefined;
+      const member = found && found.is_nameable ? found : undefined;
       // A link-help payload is JSON in the same column, so the parked row says
       // what it is by its type label rather than printing the payload.
       const isStructured = workQueueDescriptorFor(r.task_type)?.evidence.kind === 'structured';
@@ -1283,11 +1368,16 @@ export const adminWorkQueueService = {
         const p = payments.findById.get(r.entity_id) as { member_id: string } | undefined;
         subjectMemberId = p?.member_id ?? null;
       }
+      // A prospective member is not a member: never named or linked on
+      // an admin page, so the item shows them by id with no profile or record
+      // link.
+      let subjectIsNameable = false;
       if (subjectMemberId) {
         const m = account.findContactInfoById.get(subjectMemberId) as
-          | { slug: string; display_name: string }
+          | { slug: string; display_name: string; is_nameable: 0 | 1 }
           | undefined;
-        if (m) {
+        if (m && m.is_nameable) {
+          subjectIsNameable = true;
           entityHref = `/members/${m.slug}`;
           entityDisplayName = m.display_name;
         }
@@ -1302,6 +1392,7 @@ export const adminWorkQueueService = {
         entityHref,
         entityDisplayName,
         subjectMemberId,
+        subjectIsNameable,
         reasonText: r.reason_text,
         detailText: r.detail_text,
         claimedByMemberId: r.claimed_by_member_id,

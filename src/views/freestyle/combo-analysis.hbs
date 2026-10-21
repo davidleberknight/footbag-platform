@@ -104,12 +104,12 @@
           {{/each}}
         </ul>
         {{#if conceptsSurfaced.length}}
-        <p class="combo-analysis-example-concepts">
+        <p class="combo-analysis-example-concepts source-note">
           <strong>Concepts surfaced:</strong>
           {{#each conceptsSurfaced}}<a href="#{{anchorId}}">{{label}}</a>{{#unless @last}}; {{/unless}}{{/each}}.
         </p>
         {{/if}}
-        <p class="combo-analysis-example-corpus"><em>{{corpusNote}}</em></p>
+        <p class="combo-analysis-example-corpus source-note"><em>{{corpusNote}}</em></p>
       </li>
       {{/each}}
     </ol>

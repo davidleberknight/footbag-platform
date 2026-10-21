@@ -73,6 +73,15 @@ const PUBLIC_FREESTYLE_RECORD_CONFIDENCE_SQL = PUBLIC_FREESTYLE_RECORD_CONFIDENC
   .map((c) => `'${c}'`)
   .join(', ');
 
+// The member aliased `alias` is not a prospective member. For reads
+// that must keep soft-deleted rows (admin oversight of past leadership,
+// evidence a since-deleted member left behind) but must never show a pending
+// registrant, who is not yet a member; reads that need live members only join
+// members_onboarded instead.
+function notPendingSql(alias: string): string {
+  return `(${alias}.deleted_at IS NOT NULL OR EXISTS (SELECT 1 FROM members_onboarded mo WHERE mo.id = ${alias}.id))`;
+}
+
 const ARCHIVE_YEAR_SQL = `CAST(substr(e.start_date, 1, 4) AS INTEGER)`;
 
 export interface PublicEventSummaryRow {
@@ -427,10 +436,10 @@ export const publicEvents = {
       ON ed.id = ere.discipline_id
     INNER JOIN event_result_entry_participants AS erp
       ON erp.result_entry_id = ere.id
-    LEFT JOIN members AS m_linked
+    LEFT JOIN members_onboarded AS m_linked
       ON m_linked.id = erp.member_id
       AND m_linked.deleted_at IS NULL
-    LEFT JOIN members AS m_via_hp
+    LEFT JOIN members_onboarded AS m_via_hp
       ON m_via_hp.historical_person_id = erp.historical_person_id
       AND m_via_hp.deleted_at IS NULL
     WHERE
@@ -490,7 +499,7 @@ export const publicPlayers = {
     WHERE hp.source_scope = 'CANONICAL'
       AND (hp.hof_member = 1 OR hp.bap_member = 1)
       AND NOT EXISTS (
-        SELECT 1 FROM members AS m
+        SELECT 1 FROM members_onboarded AS m
         WHERE m.historical_person_id = hp.person_id
           AND m.deleted_at IS NULL
           AND (m.is_hof = 1 OR m.is_bap = 1)
@@ -554,10 +563,10 @@ export const publicPlayers = {
       ON ed.id = ere.discipline_id
     JOIN event_result_entry_participants AS erp_co
       ON erp_co.result_entry_id = ere.id
-    LEFT JOIN members AS m_co_linked
+    LEFT JOIN members_onboarded AS m_co_linked
       ON m_co_linked.id = erp_co.member_id
       AND m_co_linked.deleted_at IS NULL
-    LEFT JOIN members AS m_co_via_hp
+    LEFT JOIN members_onboarded AS m_co_via_hp
       ON m_co_via_hp.historical_person_id = erp_co.historical_person_id
       AND m_co_via_hp.deleted_at IS NULL
     WHERE erp_me.historical_person_id = ?
@@ -570,7 +579,7 @@ export const publicPlayers = {
   `); },
   get findLinkedMemberSlug() { return db.prepare(`
     SELECT m.slug, m.is_hof, m.is_bap
-    FROM members AS m
+    FROM members_onboarded AS m
     WHERE m.deleted_at IS NULL
       AND m.historical_person_id = ?
     LIMIT 1
@@ -796,7 +805,7 @@ export const clubs = {
       FROM legacy_club_candidates AS lcc
       INNER JOIN legacy_person_club_affiliations AS lpca
         ON lpca.legacy_club_candidate_id = lcc.id
-      LEFT JOIN members_active AS m
+      LEFT JOIN members_onboarded AS m
         ON m.historical_person_id = lpca.historical_person_id
       WHERE
         lcc.country IS NOT NULL AND lcc.country != ''
@@ -810,7 +819,7 @@ export const clubs = {
       FROM member_club_affiliations AS mca
       INNER JOIN clubs AS c
         ON c.id = mca.club_id
-      INNER JOIN members_active AS m2
+      INNER JOIN members_onboarded AS m2
         ON m2.id = mca.member_id
       WHERE
         mca.is_current = 1
@@ -912,7 +921,7 @@ export const clubs = {
       mtc.tier_status AS member_tier_status,
       mapc.is_active_player AS member_is_active_player
     FROM member_club_affiliations AS mca
-    INNER JOIN members_active AS m
+    INNER JOIN members_onboarded AS m
       ON m.id = mca.member_id
     LEFT JOIN members_searchable AS ms
       ON ms.id = m.id
@@ -983,7 +992,7 @@ export const clubs = {
       FROM legacy_person_club_affiliations AS lpca
       INNER JOIN legacy_club_candidates AS lcc
         ON lcc.id = lpca.legacy_club_candidate_id
-      LEFT JOIN members_active AS m
+      LEFT JOIN members_onboarded AS m
         ON m.historical_person_id = lpca.historical_person_id
       WHERE
         lpca.resolution_status IN ('confirmed_current', 'promoted', 'pending')
@@ -995,7 +1004,7 @@ export const clubs = {
         mca.club_id AS club_id,
         m2.id       AS person_key
       FROM member_club_affiliations AS mca
-      INNER JOIN members_active AS m2
+      INNER JOIN members_onboarded AS m2
         ON m2.id = mca.member_id
       WHERE mca.is_current = 1
     )
@@ -1623,7 +1632,7 @@ export const clubLeaders = {
     SELECT l.member_id, l.role, l.added_at, m.display_name, m.slug
     FROM club_leaders l
     JOIN members m ON m.id = l.member_id
-    WHERE l.club_id = ?
+    WHERE l.club_id = ? AND ${notPendingSql('m')}
     ORDER BY l.role, m.display_name
   `); },
 
@@ -1655,7 +1664,7 @@ export const clubLeaders = {
     SELECT a.member_id, m.display_name, m.slug,
            EXISTS (SELECT 1 FROM club_leaders_current l WHERE l.club_id = a.club_id AND l.member_id = a.member_id) AS is_leader
     FROM member_club_affiliations a
-    JOIN members_active m ON m.id = a.member_id
+    JOIN members_onboarded m ON m.id = a.member_id
     WHERE a.club_id = ? AND a.is_current = 1
     ORDER BY m.display_name
   `); },
@@ -1665,7 +1674,7 @@ export const clubLeaders = {
   get listCurrentMemberContactsForClub() { return db.prepare(`
     SELECT m.id, m.display_name, m.login_email
     FROM member_club_affiliations a
-    JOIN members_active m ON m.id = a.member_id
+    JOIN members_onboarded m ON m.id = a.member_id
     WHERE a.club_id = ? AND a.is_current = 1
     ORDER BY m.display_name COLLATE NOCASE
   `); },
@@ -1692,7 +1701,7 @@ export const clubLeaders = {
   // needs-leader list while that member's single co-leadership slot is occupied
   // by somebody who cannot act.
   get findMemberByKeyForAdmin() { return db.prepare(`
-    SELECT id, display_name, slug FROM members_active
+    SELECT id, display_name, slug FROM members_onboarded
     WHERE (slug = ? OR id = ?) AND is_deceased = 0
   `); },
 
@@ -1940,7 +1949,7 @@ export const clubViabilitySignals = {
     SELECT m.display_name, l.activity_signal
     FROM latest AS l
     INNER JOIN members AS m ON m.id = l.member_id
-    WHERE l.rn = 1 AND l.activity_signal = 'not_active'
+    WHERE l.rn = 1 AND l.activity_signal = 'not_active' AND ${notPendingSql('m')}
     ORDER BY m.display_name COLLATE NOCASE
   `); },
 
@@ -2024,7 +2033,7 @@ export const clubViabilitySignals = {
     SELECT m.display_name, l.activity_signal
     FROM latest AS l
     INNER JOIN members AS m ON m.id = l.member_id
-    WHERE l.rn = 1 AND l.activity_signal = 'not_active'
+    WHERE l.rn = 1 AND l.activity_signal = 'not_active' AND ${notPendingSql('m')}
     ORDER BY m.display_name COLLATE NOCASE
   `); },
 
@@ -2066,7 +2075,7 @@ export const clubInsightNotes = {
            m.display_name AS author_display_name
     FROM club_insight_notes AS n
     INNER JOIN members AS m ON m.id = n.member_id
-    WHERE n.club_id = ? AND n.note_text IS NOT NULL
+    WHERE n.club_id = ? AND n.note_text IS NOT NULL AND ${notPendingSql('m')}
     ORDER BY n.created_at DESC, n.id DESC
   `); },
 
@@ -2080,6 +2089,7 @@ export const clubInsightNotes = {
       AND n.source_entity_type = 'legacy_club_candidate'
       AND n.source_entity_id = ?
       AND n.note_text IS NOT NULL
+      AND ${notPendingSql('m')}
     ORDER BY n.created_at DESC, n.id DESC
   `); },
 
@@ -2097,6 +2107,7 @@ export const clubInsightNotes = {
     WHERE n.club_id IS NULL
       AND n.source_entity_id IS NULL
       AND n.note_text IS NOT NULL
+      AND ${notPendingSql('m')}
     ORDER BY n.created_at DESC, n.id DESC
   `); },
 
@@ -2175,7 +2186,7 @@ export const freestyleRecords = {
     FROM freestyle_records AS fr
     LEFT JOIN historical_persons AS hp
       ON hp.person_id = fr.person_id
-    LEFT JOIN members AS m
+    LEFT JOIN members_onboarded AS m
       ON m.historical_person_id = fr.person_id
       AND m.deleted_at IS NULL
     WHERE fr.confidence IN (${PUBLIC_FREESTYLE_RECORD_CONFIDENCE_SQL})
@@ -2216,7 +2227,7 @@ export const freestyleRecords = {
     FROM freestyle_records AS fr
     LEFT JOIN historical_persons AS hp
       ON hp.person_id = fr.person_id
-    LEFT JOIN members AS m
+    LEFT JOIN members_onboarded AS m
       ON m.historical_person_id = fr.person_id
       AND m.deleted_at IS NULL
     WHERE fr.person_id = ?
@@ -2243,7 +2254,7 @@ export const freestyleRecords = {
     FROM freestyle_records AS fr
     LEFT JOIN historical_persons AS hp
       ON hp.person_id = fr.person_id
-    LEFT JOIN members AS m
+    LEFT JOIN members_onboarded AS m
       ON m.historical_person_id = fr.person_id
       AND m.deleted_at IS NULL
     WHERE fr.confidence IN (${PUBLIC_FREESTYLE_RECORD_CONFIDENCE_SQL})
@@ -2273,7 +2284,7 @@ export const freestyleRecords = {
     FROM freestyle_records AS fr
     LEFT JOIN historical_persons AS hp
       ON hp.person_id = fr.person_id
-    LEFT JOIN members AS m
+    LEFT JOIN members_onboarded AS m
       ON m.historical_person_id = fr.person_id
       AND m.deleted_at IS NULL
     WHERE fr.trick_name = ?
@@ -2304,7 +2315,7 @@ export const freestyleRecords = {
     FROM freestyle_records AS fr
     LEFT JOIN historical_persons AS hp
       ON hp.person_id = fr.person_id
-    LEFT JOIN members AS m
+    LEFT JOIN members_onboarded AS m
       ON m.historical_person_id = fr.person_id
       AND m.deleted_at IS NULL
     WHERE fr.trick_name = ?
@@ -2338,7 +2349,7 @@ export const freestyleRecords = {
     FROM freestyle_records AS fr
     LEFT JOIN historical_persons AS hp
       ON hp.person_id = fr.person_id
-    LEFT JOIN members AS m
+    LEFT JOIN members_onboarded AS m
       ON m.historical_person_id = fr.person_id
       AND m.deleted_at IS NULL
     WHERE fr.confidence IN (${PUBLIC_FREESTYLE_RECORD_CONFIDENCE_SQL})
@@ -2366,7 +2377,7 @@ export const freestyleRecords = {
     FROM freestyle_records AS fr
     LEFT JOIN historical_persons AS hp
       ON hp.person_id = fr.person_id
-    LEFT JOIN members AS m
+    LEFT JOIN members_onboarded AS m
       ON m.historical_person_id = fr.person_id
       AND m.deleted_at IS NULL
     WHERE fr.confidence IN (${PUBLIC_FREESTYLE_RECORD_CONFIDENCE_SQL})
@@ -3428,10 +3439,10 @@ export const freestylePartnerships = {
     JOIN event_result_entry_participants p2 ON p2.result_entry_id = re.id AND p2.participant_order = 2
     JOIN historical_persons pa ON pa.person_id = p1.historical_person_id
     JOIN historical_persons pb ON pb.person_id = p2.historical_person_id
-    LEFT JOIN members ma
+    LEFT JOIN members_onboarded ma
       ON ma.historical_person_id = pa.person_id
       AND ma.deleted_at IS NULL
-    LEFT JOIN members mb
+    LEFT JOIN members_onboarded mb
       ON mb.historical_person_id = pb.person_id
       AND mb.deleted_at IS NULL
     WHERE ed.discipline_category = 'freestyle'
@@ -3522,7 +3533,7 @@ export const freestyleCompetition = {
     JOIN events e ON e.id = ere.event_id
     JOIN event_result_entry_participants erep ON erep.result_entry_id = ere.id
     JOIN historical_persons hp ON hp.person_id = erep.historical_person_id
-    LEFT JOIN members m ON m.historical_person_id = hp.person_id AND m.deleted_at IS NULL
+    LEFT JOIN members_onboarded m ON m.historical_person_id = hp.person_id AND m.deleted_at IS NULL
     WHERE lower(ed.name) LIKE '%freestyle%'
       AND lower(ed.name) NOT LIKE '%doubles%'
       AND lower(ed.name) NOT LIKE '%team%'
@@ -3736,10 +3747,10 @@ export const netTeams = {
     FROM net_team t
     JOIN historical_persons pa ON pa.person_id = t.person_id_a
     JOIN historical_persons pb ON pb.person_id = t.person_id_b
-    LEFT JOIN members ma
+    LEFT JOIN members_onboarded ma
       ON ma.historical_person_id = pa.person_id
       AND ma.deleted_at IS NULL
-    LEFT JOIN members mb
+    LEFT JOIN members_onboarded mb
       ON mb.historical_person_id = pb.person_id
       AND mb.deleted_at IS NULL
     WHERE t.team_id = ?
@@ -3792,10 +3803,10 @@ export const netTeams = {
     JOIN historical_persons pa ON pa.person_id = t.person_id_a
     JOIN historical_persons pb ON pb.person_id = t.person_id_b
     JOIN net_team_appearance_canonical a ON a.team_id = t.team_id
-    LEFT JOIN members ma
+    LEFT JOIN members_onboarded ma
       ON ma.historical_person_id = pa.person_id
       AND ma.deleted_at IS NULL
-    LEFT JOIN members mb
+    LEFT JOIN members_onboarded mb
       ON mb.historical_person_id = pb.person_id
       AND mb.deleted_at IS NULL
     WHERE pa.person_name != 'Unknown' AND pb.person_name != 'Unknown'
@@ -3825,10 +3836,10 @@ export const netTeams = {
     JOIN historical_persons pa ON pa.person_id = t.person_id_a
     JOIN historical_persons pb ON pb.person_id = t.person_id_b
     JOIN net_team_appearance_canonical a ON a.team_id = t.team_id
-    LEFT JOIN members ma
+    LEFT JOIN members_onboarded ma
       ON ma.historical_person_id = pa.person_id
       AND ma.deleted_at IS NULL
-    LEFT JOIN members mb
+    LEFT JOIN members_onboarded mb
       ON mb.historical_person_id = pb.person_id
       AND mb.deleted_at IS NULL
     WHERE pa.person_name != 'Unknown' AND pb.person_name != 'Unknown'
@@ -3881,10 +3892,10 @@ export const netTeams = {
     JOIN historical_persons pa ON pa.person_id = t.person_id_a
     JOIN historical_persons pb ON pb.person_id = t.person_id_b
     JOIN net_team_appearance_canonical a ON a.team_id = t.team_id
-    LEFT JOIN members ma
+    LEFT JOIN members_onboarded ma
       ON ma.historical_person_id = pa.person_id
       AND ma.deleted_at IS NULL
-    LEFT JOIN members mb
+    LEFT JOIN members_onboarded mb
       ON mb.historical_person_id = pb.person_id
       AND mb.deleted_at IS NULL
     WHERE pa.person_name != 'Unknown' AND pb.person_name != 'Unknown'
@@ -3955,10 +3966,10 @@ export function queryFilteredTeams(
     JOIN historical_persons pa ON pa.person_id = t.person_id_a
     JOIN historical_persons pb ON pb.person_id = t.person_id_b
     JOIN net_team_appearance_canonical a ON a.team_id = t.team_id
-    LEFT JOIN members ma
+    LEFT JOIN members_onboarded ma
       ON ma.historical_person_id = pa.person_id
       AND ma.deleted_at IS NULL
-    LEFT JOIN members mb
+    LEFT JOIN members_onboarded mb
       ON mb.historical_person_id = pb.person_id
       AND mb.deleted_at IS NULL
     ${joins}
@@ -4100,10 +4111,10 @@ export const netEvents = {
     JOIN historical_persons pb ON pb.person_id = t.person_id_b
     JOIN event_disciplines ed  ON ed.id        = a.discipline_id
     LEFT JOIN net_discipline_group dg ON dg.discipline_id = a.discipline_id
-    LEFT JOIN members ma
+    LEFT JOIN members_onboarded ma
       ON ma.historical_person_id = pa.person_id
       AND ma.deleted_at IS NULL
-    LEFT JOIN members mb
+    LEFT JOIN members_onboarded mb
       ON mb.historical_person_id = pb.person_id
       AND mb.deleted_at IS NULL
     WHERE a.event_id = ?
@@ -4292,7 +4303,7 @@ export const netHome = {
     FROM historical_persons hp
     JOIN net_team_member nm ON nm.person_id = hp.person_id
     JOIN net_team_appearance_canonical a ON a.team_id = nm.team_id
-    LEFT JOIN members m
+    LEFT JOIN members_onboarded m
       ON m.historical_person_id = hp.person_id
       AND m.deleted_at IS NULL
     WHERE hp.person_name NOT IN ('Unknown', '__NON_PERSON__', '[UNKNOWN PARTNER]', '__UNKNOWN_PARTNER__')
@@ -4393,6 +4404,11 @@ export interface IdentityLinksRow {
 }
 
 export const account = {
+  // The member's current membership tier. Param: (memberId).
+  get findTierStatusById() { return db.prepare(`
+    SELECT tier_status FROM member_tier_current WHERE member_id = ?
+  `); },
+
   // Every profile read resolves through here, so it reads the rows whose record
   // still stands: live accounts, a deceased member whose contact scrub kept the
   // record honoring them, and an honoree, whose record is permanent and outlives
@@ -4493,11 +4509,13 @@ export const account = {
   `); },
 
   // Used by support-flow email replies: fetch the member's login email + slug
-  // for resolution notifications. Excludes purged members.
+  // for resolution notifications. Excludes purged members. It also reaches a
+  // prospective member, whose own request mail must arrive; an admin
+  // page reading it names and links the person only when is_nameable is 1.
   get findContactInfoById() { return db.prepare(`
-    SELECT id, slug, display_name, login_email
-    FROM members_active
-    WHERE id = ? AND personal_data_purged_at IS NULL
+    SELECT m.id, m.slug, m.display_name, m.login_email, ${notPendingSql('m')} AS is_nameable
+    FROM members_active AS m
+    WHERE m.id = ? AND m.personal_data_purged_at IS NULL
   `); },
 
   // Recipient lookup for automated member notifications (tier change, honor
@@ -4536,17 +4554,20 @@ export const account = {
 
   // Current admins for the admin-roles management page: id plus the fields the
   // page renders (display name and the profile slug), ordered for a stable list.
+  // An admin still onboarding is not yet a member, so is not named here.
   get listAdminsForDisplay() { return db.prepare(`
-    SELECT id, slug, display_name FROM members_active
+    SELECT id, slug, display_name FROM members_onboarded
     WHERE is_admin = 1
       AND personal_data_purged_at IS NULL
     ORDER BY display_name COLLATE NOCASE
   `); },
 
   // Resolve an admin-entered member key (slug or id) to an active member, for
-  // admin tooling that names a target by either handle.
+  // admin tooling that names a target by either handle, and for the member's
+  // own questions page, which only a member reaches. A registrant still
+  // onboarding is not a member, so the key resolves to nothing for them.
   get findActiveMemberByKey() { return db.prepare(`
-    SELECT id, slug, display_name FROM members_active WHERE slug = ? OR id = ?
+    SELECT id, slug, display_name FROM members_onboarded WHERE slug = ? OR id = ?
   `); },
 
   // The recorded name parts, for the surname gate. Reads members rather than a
@@ -4639,11 +4660,12 @@ export const account = {
   // admin-only surface and a payment can belong to a since-departed member.
   // Params: (idOrSlug, idOrSlug, normalizedEmail, escapedNameFragment, limit).
   get findMemberIdsForAdminSearch() { return db.prepare(`
-    SELECT id FROM members
-    WHERE id = ?
+    SELECT id FROM members AS m
+    WHERE (id = ?
        OR slug = ?
        OR login_email_normalized = ?
-       OR display_name_normalized LIKE '%' || ? || '%' ESCAPE '\\'
+       OR display_name_normalized LIKE '%' || ? || '%' ESCAPE '\\')
+      AND ${notPendingSql('m')}
     ORDER BY display_name_normalized
     LIMIT ?
   `); },
@@ -4697,10 +4719,10 @@ export const account = {
       ON ed.id = ere.discipline_id
     JOIN event_result_entry_participants AS erp_co
       ON erp_co.result_entry_id = ere.id
-    LEFT JOIN members AS m_co_linked
+    LEFT JOIN members_onboarded AS m_co_linked
       ON m_co_linked.id = erp_co.member_id
       AND m_co_linked.deleted_at IS NULL
-    LEFT JOIN members AS m_co_via_hp
+    LEFT JOIN members_onboarded AS m_co_via_hp
       ON m_co_via_hp.historical_person_id = erp_co.historical_person_id
       AND m_co_via_hp.deleted_at IS NULL
     WHERE erp_me.member_id = ?
@@ -4743,10 +4765,10 @@ export const account = {
       ON ed.id = ere.discipline_id
     JOIN event_result_entry_participants AS erp_co
       ON erp_co.result_entry_id = ere.id
-    LEFT JOIN members AS m_co_linked
+    LEFT JOIN members_onboarded AS m_co_linked
       ON m_co_linked.id = erp_co.member_id
       AND m_co_linked.deleted_at IS NULL
-    LEFT JOIN members AS m_co_via_hp
+    LEFT JOIN members_onboarded AS m_co_via_hp
       ON m_co_via_hp.historical_person_id = erp_co.historical_person_id
       AND m_co_via_hp.deleted_at IS NULL
     WHERE hp.legacy_member_id = ?
@@ -4807,10 +4829,10 @@ export const account = {
       ON ed.id = ere.discipline_id
     JOIN event_result_entry_participants AS erp_co
       ON erp_co.result_entry_id = ere.id
-    LEFT JOIN members AS m_co_linked
+    LEFT JOIN members_onboarded AS m_co_linked
       ON m_co_linked.id = erp_co.member_id
       AND m_co_linked.deleted_at IS NULL
-    LEFT JOIN members AS m_co_via_hp
+    LEFT JOIN members_onboarded AS m_co_via_hp
       ON m_co_via_hp.historical_person_id = erp_co.historical_person_id
       AND m_co_via_hp.deleted_at IS NULL
     WHERE erp_me.historical_person_id = ?
@@ -5484,11 +5506,12 @@ export function queryAuditLog(filters: AuditLogFilters, limit: number, offset: n
       am.display_name AS actor_display_name, am.slug AS actor_slug,
       em.display_name AS entity_display_name, em.slug AS entity_slug
     FROM audit_entries a
-    -- Join through members_active so a soft-deleted member resolves to no
-    -- display name or slug: the viewer then shows their id with no profile
-    -- link, rather than a /members/<slug> link that 404s for deleted accounts.
-    LEFT JOIN members_active am ON am.id = a.actor_member_id
-    LEFT JOIN members_active em ON em.id = a.entity_id AND a.entity_type = 'member'
+    -- Join through members_onboarded so a soft-deleted member or a registrant
+    -- still onboarding resolves to no display name or slug: the viewer then
+    -- shows their id with no profile link, rather than a name an admin page
+    -- must not show or a /members/<slug> link that 404s.
+    LEFT JOIN members_onboarded am ON am.id = a.actor_member_id
+    LEFT JOIN members_onboarded em ON em.id = a.entity_id AND a.entity_type = 'member'
     ${sql}
     ORDER BY a.occurred_at DESC, a.id DESC
     LIMIT ? OFFSET ?
@@ -5581,10 +5604,11 @@ export function queryOutboxLog(filters: OutboxLogFilters, limit: number, offset:
       am.display_name AS reviewed_by_display_name,
       fb.event_type AS feedback_event_type, fb.created_at AS feedback_created_at
     FROM outbox_emails o
-    -- Join through members_active so a soft-deleted recipient resolves to no
-    -- slug: the viewer then shows the stored email with no profile link, rather
-    -- than a /members/<slug> link that 404s for a deleted account.
-    LEFT JOIN members_active rm ON rm.id = o.recipient_member_id
+    -- Join through members_onboarded so a soft-deleted recipient or a
+    -- prospective member resolves to no slug: the viewer then shows the
+    -- stored email with no profile link, rather than a /members/<slug> link
+    -- that 404s because neither has a profile.
+    LEFT JOIN members_onboarded rm ON rm.id = o.recipient_member_id
     -- The reviewing administrator is named from the live members table rather
     -- than stored on the row, so a rename follows and a deleted account leaves
     -- the disposition standing with no name rather than a stale one.
@@ -6596,7 +6620,10 @@ export const media = {
            m.slug         AS owner_slug
     FROM member_galleries g
     JOIN members m ON m.id = g.owner_member_id
+    -- The owner must be a member, so a prospective member's gallery stays off
+    -- the public media hub.
     WHERE g.is_default = 0
+      AND EXISTS (SELECT 1 FROM members_onboarded mo WHERE mo.id = m.id)
     ORDER BY m.is_system DESC, g.name
   `); },
 
@@ -6609,7 +6636,7 @@ export const media = {
     SELECT g.id, g.name, g.description, g.created_at,
            m.slug AS owner_slug, m.display_name AS owner_display_name
     FROM member_galleries g
-    JOIN members m ON m.id = g.owner_member_id
+    JOIN members_onboarded m ON m.id = g.owner_member_id
     WHERE g.is_default = 0 AND m.is_system = 0
     ORDER BY g.created_at ASC, g.id ASC
   `); },
@@ -7262,7 +7289,7 @@ export function queryMemberDisplayNamesBySlugs(slugs: string[]): MemberByTagRow[
   return db.prepare(`
     SELECT m.slug, m.display_name, m.is_hof, m.is_bap, m.is_board,
            s.tier_status, s.is_active_player
-    FROM members_active m
+    FROM members_onboarded m
     LEFT JOIN member_membership_status_current s ON s.member_id = m.id
     WHERE m.slug IN (${placeholders})
       AND m.personal_data_purged_at IS NULL
@@ -7428,10 +7455,15 @@ export const mediaFlags = {
            f.reporter_member_id,
            r.display_name AS reporter_display_name,
            r.slug         AS reporter_slug,
+           -- A prospective member is never named on an admin page;
+           -- the flag itself stays in the queue.
+           ${notPendingSql('r')} AS reporter_is_nameable,
            mi.media_type, mi.caption, mi.s3_key_thumb, mi.thumbnail_url,
            mi.moderation_status,
+           u.id           AS uploader_member_id,
            u.display_name AS uploader_display_name,
-           u.slug         AS uploader_slug
+           u.slug         AS uploader_slug,
+           ${notPendingSql('u')} AS uploader_is_nameable
     FROM media_flags f
     JOIN members r     ON r.id = f.reporter_member_id
     JOIN media_items mi ON mi.id = f.media_id
@@ -7446,8 +7478,10 @@ export const mediaFlags = {
   get listMediaAwaitingStorageRemoval() { return db.prepare(`
     SELECT mi.id, mi.caption, mi.moderation_reason, mi.updated_at AS removed_at,
            w.id AS queue_item_id, w.opened_at,
+           u.id           AS uploader_member_id,
            u.display_name AS uploader_display_name,
-           u.slug         AS uploader_slug
+           u.slug         AS uploader_slug,
+           ${notPendingSql('u')} AS uploader_is_nameable
     FROM work_queue_items w
     JOIN media_items mi ON mi.id = w.entity_id
     JOIN members u      ON u.id = mi.uploader_member_id
@@ -8205,7 +8239,8 @@ export const legacyClaim = {
 
   // Who holds a record, as an administrator adjudicating a link reads it.
   get findHolderForAdmin() { return db.prepare(`
-    SELECT id, slug, display_name FROM members WHERE id = ?
+    SELECT m.id, m.slug, m.display_name, ${notPendingSql('m')} AS is_nameable
+    FROM members AS m WHERE m.id = ?
   `); },
 
   // Everything the claim step's matching reads from the member's own row: the
@@ -8382,14 +8417,50 @@ export const legacyMembers = {
     WHERE id = ?
   `); },
 
-  // Undo the personal fields the claim merge copied from the claimed
-  // legacy_members row when a claim is reverted, so a disputed or mistaken
-  // link leaves none of the linked record's PII (birth date, address, bio,
-  // join date) on the member row. The merge is fill-if-empty, so a field is
-  // cleared only where it still equals the value copied from the legacy row
-  // (passed as parameters); a value the member entered themselves is left
-  // untouched. HoF/BAP honors are deliberately preserved -- the honor record
-  // outlives the personal data.
+  // The member fields a claim's merge may fill, read before and after the
+  // merge so the claim can record which ones it filled. Param: (memberId).
+  get findLegacyMergeSnapshot() { return db.prepare(`
+    SELECT legacy_user_id, legacy_email, bio, birth_date, street_address, postal_code,
+           city, region, country, ifpa_join_date, first_competition_year
+      FROM members WHERE id = ?
+  `); },
+
+  // The member's identity links and the fields a claim revert can clear, read
+  // before and after a rehearsed revert so its confirmation page lists exactly
+  // what it removes. Param: (memberId).
+  get findRevertSnapshot() { return db.prepare(`
+    SELECT legacy_member_id, historical_person_id, legacy_user_id, legacy_email, bio, birth_date,
+           street_address, postal_code, city, region, country, ifpa_join_date, first_competition_year,
+           is_hof, is_bap
+      FROM members WHERE id = ?
+  `); },
+
+  // The fields each of the member's claims recorded filling, for every claim
+  // that took the legacy account or the historical record a revert unlinks,
+  // directly or transitively. A member can hold an account and a record from
+  // two separate claims, so a revert unions them rather than trusting one row.
+  // A null id matches nothing. Params: (memberId, legacyId, recordId,
+  // recordId, legacyId).
+  get listClaimFilledFieldsForRecords() { return db.prepare(`
+    SELECT json_extract(metadata_json, '$.filled_fields') AS filled_fields
+      FROM audit_entries
+     WHERE entity_type = 'member' AND entity_id = ?
+       AND (
+         (action_type = 'claim.legacy_account'
+           AND (json_extract(metadata_json, '$.legacy_member_id') = ?
+             OR json_extract(metadata_json, '$.transitive_hp_id') = ?))
+         OR (action_type = 'claim.historical_person'
+           AND (json_extract(metadata_json, '$.person_id') = ?
+             OR json_extract(metadata_json, '$.transitive_legacy_id') = ?))
+       )
+  `); },
+
+  // Undo the personal fields a claim merge copied onto the member row when the
+  // claim is reverted, so a disputed or mistaken link leaves none of the linked
+  // record's PII (birth date, address, bio, join date) behind. The merge is
+  // fill-if-empty, so a field is cleared only where it still equals the value
+  // the claim copied (passed as parameters); a value the member entered
+  // themselves is left untouched. HoF/BAP honors are decided separately.
   get scrubClaimedLegacyFields() { return db.prepare(`
     UPDATE members
     SET
@@ -8603,19 +8674,51 @@ export const memberOnboarding = {
        AND last_attempt_opened_at IS NULL
   `); },
 
-  // Put a completed task back in front of the member. The caller decides when
-  // that is warranted; this only performs it, and only on a task that is
-  // currently completed, so re-running it cannot disturb one already pending.
-  get reopenCompletedTask() { return db.prepare(`
+  // Whether the account is the system member, which is a member without ever
+  // onboarding. Param: (memberId).
+  get findIsSystem() { return db.prepare(`
+    SELECT is_system FROM members WHERE id = ?
+  `); },
+
+  // The answers a step holds until onboarding completes, as stored JSON, or
+  // NULL when it holds none. Params: (memberId, taskType).
+  get findHeldAnswer() { return db.prepare(`
+    SELECT answer_json FROM member_onboarding_tasks
+     WHERE member_id = ? AND task_type = ?
+  `); },
+
+  // The member's onboarding-completion audit row, whose metadata says whether a
+  // held claim could not be applied. Param: (memberId).
+  get findCompletionAudit() { return db.prepare(`
+    SELECT metadata_json FROM audit_entries
+     WHERE actor_member_id = ? AND action_type = 'wizard.complete'
+     ORDER BY occurred_at DESC, id DESC
+     LIMIT 1
+  `); },
+
+  // Replace the answers a step holds; NULL clears them. The row must exist,
+  // which the caller makes sure of. Params: (answerJson, updatedAt, updatedBy,
+  // memberId, taskType).
+  get setHeldAnswer() { return db.prepare(`
     UPDATE member_onboarding_tasks
-       SET state        = 'pending',
-           completed_at = NULL,
+       SET answer_json  = ?,
            updated_at   = ?,
            updated_by   = ?,
            version      = version + 1
      WHERE member_id = ?
-       AND task_type  = ?
-       AND state      = 'completed'
+       AND task_type = ?
+  `); },
+
+  // Erasure: drop every answer the member still holds, since a held club note
+  // is their own free text. Params: (updatedAt, updatedBy, memberId).
+  get clearHeldAnswersForMember() { return db.prepare(`
+    UPDATE member_onboarding_tasks
+       SET answer_json  = NULL,
+           updated_at   = ?,
+           updated_by   = ?,
+           version      = version + 1
+     WHERE member_id = ?
+       AND answer_json IS NOT NULL
   `); },
 
 };
@@ -8954,9 +9057,11 @@ export const memberTier = {
   // from the audit trail (the HoF/BAP grant actions), newest first.
   get listRecentHonorGrants() { return db.prepare(`
     SELECT a.occurred_at, a.action_type, a.actor_member_id,
-           a.entity_id AS member_id, m.display_name, m.slug, a.data_origin
+           a.entity_id AS member_id, m.display_name, m.slug, a.data_origin,
+           ${notPendingSql('m')} AS is_nameable
     FROM audit_entries a
-    LEFT JOIN members m ON m.id = a.entity_id
+    -- A member row is never hard-deleted, so every grant finds its member.
+    JOIN members m ON m.id = a.entity_id
     WHERE a.action_type IN ('tier.hof_grant', 'tier.bap_grant')
     ORDER BY a.occurred_at DESC, a.id DESC
     LIMIT ?
@@ -8970,21 +9075,21 @@ export const memberTier = {
   // erased account is not a current holder of anything.
   get listCurrentHofHolders() { return db.prepare(`
     SELECT id, display_name, slug, hof_inducted_year AS inducted_year
-    FROM members_active
+    FROM members_onboarded
     WHERE is_hof = 1
     ORDER BY display_name COLLATE NOCASE
   `); },
 
   get listCurrentBapHolders() { return db.prepare(`
     SELECT id, display_name, slug, bap_inducted_year AS inducted_year
-    FROM members_active
+    FROM members_onboarded
     WHERE is_bap = 1
     ORDER BY display_name COLLATE NOCASE
   `); },
 
   get listCurrentBoardMembers() { return db.prepare(`
     SELECT id, display_name, slug
-    FROM members_active
+    FROM members_onboarded
     WHERE is_board = 1
     ORDER BY display_name COLLATE NOCASE
   `); },
@@ -9330,7 +9435,7 @@ export const mailingListSubscriptions = {
       m.login_email,
       s.mailing_list_id
     FROM mailing_list_subscriptions AS s
-    INNER JOIN members_active AS m ON m.id = s.member_id
+    INNER JOIN members_onboarded AS m ON m.id = s.member_id
     INNER JOIN mailing_lists AS ml ON ml.slug = s.mailing_list_id
     WHERE s.mailing_list_id = ?
       AND s.status = 'subscribed'
@@ -9352,7 +9457,7 @@ export const mailingListSubscriptions = {
       r.member_id,
       m.login_email
     FROM registrations AS r
-    INNER JOIN members_active AS m ON m.id = r.member_id
+    INNER JOIN members_onboarded AS m ON m.id = r.member_id
     WHERE r.event_id = ?
       AND r.status = 'confirmed'
       AND m.email_verified_at IS NOT NULL
@@ -10079,7 +10184,8 @@ export const deceasedMarking = {
   // independently of them.
   get findHistoricalPerson() { return db.prepare(`
     SELECT hp.person_id, hp.person_name, hp.is_deceased,
-           m.id AS claimed_by_member_id, m.display_name AS claimed_by_display_name
+           m.id AS claimed_by_member_id, m.display_name AS claimed_by_display_name,
+           ${notPendingSql('m')} AS claimed_by_is_nameable
     FROM historical_persons AS hp
     LEFT JOIN members AS m ON m.historical_person_id = hp.person_id
     WHERE hp.person_id = ?
@@ -10095,7 +10201,8 @@ export const deceasedMarking = {
   get searchHistoricalPersons() { return db.prepare(`
     SELECT hp.person_id, hp.person_name, hp.country, hp.first_year, hp.last_year,
            hp.is_deceased,
-           m.id AS claimed_by_member_id, m.display_name AS claimed_by_display_name
+           m.id AS claimed_by_member_id, m.display_name AS claimed_by_display_name,
+           ${notPendingSql('m')} AS claimed_by_is_nameable
     FROM historical_persons AS hp
     LEFT JOIN members AS m
       ON m.historical_person_id = hp.person_id
@@ -10422,10 +10529,11 @@ export const officialRoster = {
 
   // "Total Registered Accounts" comparison count for the dashboard. Includes
   // Tier 0 members without current Active Player status, which are excluded
-  // from the roster view itself. Excludes purged accounts.
+  // from the roster view itself. Excludes purged accounts and registrants still
+  // onboarding, because a count shown to anyone counts members only.
   get totalRegisteredAccounts() { return db.prepare(`
     SELECT COUNT(*) AS n
-    FROM members_active
+    FROM members_onboarded
     WHERE personal_data_purged_at IS NULL
   `); },
 };
@@ -11468,7 +11576,10 @@ export function queryAdminPayments(
 ): Record<string, unknown>[] {
   const { where, params } = buildAdminPaymentClauses(filters);
   return db.prepare(`
-    SELECT p.*, m.slug AS member_slug,
+    SELECT p.*,
+           -- No payer link for a payment with no member, or for a payer still
+           -- onboarding, who is never named on an admin page.
+           CASE WHEN ${notPendingSql('m')} THEN m.slug END AS member_slug,
            ev.id AS event_id, ev.title AS event_title, evt.tag_normalized AS event_tag
     FROM payments p
     LEFT JOIN members m ON m.id = p.member_id
@@ -11497,7 +11608,8 @@ export function listAdminPaymentEventOptions(): Record<string, unknown>[] {
  *  collides with another row's provider id to the wrong payment. */
 export function findAdminPaymentById(paymentId: string): Record<string, unknown> | undefined {
   return db.prepare(`
-    SELECT p.*, m.slug AS member_slug,
+    SELECT p.*,
+           CASE WHEN ${notPendingSql('m')} THEN m.slug END AS member_slug,
            ev.id AS event_id, ev.title AS event_title, evt.tag_normalized AS event_tag
     FROM payments p
     LEFT JOIN members m ON m.id = p.member_id
@@ -11930,4 +12042,60 @@ export function transaction<T>(work: () => T, timeoutMs = TRANSACTION_TIMEOUT_MS
 
     throw error;
   }
+}
+
+/**
+ * Run `work` inside a transaction that is always rolled back, and return what
+ * it computed. For reading the state a set of writes would produce without
+ * keeping any of them: the onboarding wizard replays the answers a prospective
+ * member holds through the same writers that will apply them at completion,
+ * reads the result, and leaves the database as it was. Nothing persists,
+ * whether `work` returns or throws.
+ */
+export function rehearse<T>(work: () => T): T {
+  if (helperTransactionOpen) {
+    throw new Error('Nested transactions are not supported by the db.ts transaction helper.');
+  }
+  db.exec('BEGIN IMMEDIATE');
+  helperTransactionOpen = true;
+  try {
+    const result = work();
+    if (isThenable(result)) {
+      throw new TypeError(
+        'db.ts rehearse callbacks must be synchronous and must not return a Promise.',
+      );
+    }
+    return result;
+  } finally {
+    rollbackHelperTransaction();
+  }
+}
+
+let savepointSeq = 0;
+
+/**
+ * Run `work` under a savepoint inside the open helper transaction: a throw
+ * undoes only what `work` wrote, then propagates, and the surrounding
+ * transaction carries on. Lets one step of a larger transaction fail alone.
+ */
+export function savepoint<T>(work: () => T): T {
+  if (!helperTransactionOpen) {
+    throw new Error('savepoint() must run inside an open transaction.');
+  }
+  const name = `sp_${++savepointSeq}`;
+  db.exec(`SAVEPOINT ${name}`);
+  try {
+    const result = work();
+    db.exec(`RELEASE ${name}`);
+    return result;
+  } catch (error) {
+    db.exec(`ROLLBACK TO ${name}`);
+    db.exec(`RELEASE ${name}`);
+    throw error;
+  }
+}
+
+/** Whether the db.ts transaction helper currently has a transaction open. */
+export function inTransaction(): boolean {
+  return helperTransactionOpen;
 }

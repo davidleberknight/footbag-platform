@@ -564,7 +564,6 @@ describe('the Active Player expiry correction', () => {
         city: null,
         region: null,
         country: null,
-        onboarding: 'none',
       });
       // A grant written the way an organic one is: a mid-day moment, not an
       // end-of-day one.

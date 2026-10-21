@@ -97,7 +97,7 @@
         {{/each}}
       </tbody>
     </table>
-    <p class="card-meta">{{content.webhooks.providerLogNote}}</p>
+    <p class="fs-sm">{{content.webhooks.providerLogNote}}</p>
   </section>
 
   <section>
@@ -124,12 +124,12 @@
         </tbody>
       </table>
     {{else}}
-      <p class="text-muted">Nothing settled in this window.</p>
+      <p>Nothing settled in this window.</p>
     {{/if}}
     {{#if content.volume.hasExclusion}}
-      <p class="text-muted fs-sm">{{content.volume.exclusionLine}}</p>
+      <p class="fs-sm">{{content.volume.exclusionLine}}</p>
     {{/if}}
-    <p class="text-muted fs-sm">{{content.volume.providerBoundaryLine}}</p>
+    <p class="fs-sm">{{content.volume.providerBoundaryLine}}</p>
   </section>
 
   <section>
@@ -140,7 +140,7 @@
     {{#if content.reconciliation.hasOutstanding}}
       <p>{{content.reconciliation.outstandingCount}} discrepancy{{#unless (eq content.reconciliation.outstandingCount 1)}} records{{/unless}} nobody has resolved yet.</p>
     {{else}}
-      <p class="text-muted">The nightly comparison against the provider found nothing outstanding.</p>
+      <p>The nightly comparison against the provider found nothing outstanding.</p>
     {{/if}}
     <p>
       <a href="{{content.links.allPaymentsHref}}" class="action-link">Go to All Payments</a>

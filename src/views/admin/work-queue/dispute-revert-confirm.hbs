@@ -1,0 +1,43 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  <section>
+    <p class="notice notice-warn" role="alert">{{content.summary}}</p>
+
+    <div class="card mb-6">
+      <div class="card-title">The member who holds the record</div>
+      <p class="m-0 fw-600">{{content.holder.displayName}}</p>
+      <p class="m-0 mt-1"><a href="{{content.holder.recordHref}}">Open their member record</a></p>
+    </div>
+
+    <div class="card mb-6">
+      <div class="card-title">The disputed record</div>
+      <p class="m-0 fw-600">{{content.record.name}}</p>
+      <p class="m-0 mt-1 text-muted fs-sm">{{content.record.id}}</p>
+    </div>
+
+    <div class="card mb-6">
+      <div class="card-title">What the revert removes</div>
+      <ul>
+        {{#each content.removes}}
+          <li>{{this}}</li>
+        {{/each}}
+      </ul>
+      <p class="m-0 mt-1">{{content.unchangedNote}}</p>
+    </div>
+
+    <form method="POST" action="{{content.confirmAction}}">
+      <input type="hidden" name="target_legacy_member_id" value="{{content.legacyMemberId}}" />
+      <input type="hidden" name="target_historical_person_id" value="{{content.historicalPersonId}}" />
+      <input type="hidden" name="reason" value="{{content.reason}}" />
+      <input type="hidden" name="category" value="{{content.filterCategory}}" />
+      <button type="submit" class="btn btn-primary">{{content.confirmLabel}}</button>
+    </form>
+
+    <p class="mt-4"><a href="{{content.cancelHref}}">Cancel</a></p>
+  </section>
+</div>

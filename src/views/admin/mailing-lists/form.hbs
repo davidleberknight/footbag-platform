@@ -2,9 +2,9 @@
   <div>
     <h1>{{page.title}}</h1>
     {{#if content.isNew}}
-    <p class="text-muted">A new list takes its recipients from its own subscribers. A list backed by a group's roster is created by enabling that group's mail, not here.</p>
+    <p>A new list takes its recipients from its own subscribers. A list backed by a group's roster is created by enabling that group's mail, not here.</p>
     {{else}}
-    <p class="text-muted">The list's web address is fixed when it is created, because every subscription and every past send refers to it.</p>
+    <p>The list's web address is fixed when it is created, because every subscription and every past send refers to it.</p>
     {{/if}}
   </div>
 </div>
@@ -31,11 +31,11 @@
       <div class="form-field">
         <label for="subjectPrefix">Subject prefix</label>
         <input type="text" id="subjectPrefix" name="subjectPrefix" value="{{content.fields.subjectPrefix}}" maxlength="{{content.subjectPrefixMax}}" />
-        <p class="text-muted fs-sm">Prepended in square brackets to every subject sent to this list. Leave empty for none.</p>
+        <small class="form-hint">Prepended in square brackets to every subject sent to this list. Leave empty for none.</small>
       </div>
       <div class="form-field">
         <label><input type="checkbox" name="isMemberManageable" value="1" {{#if content.fields.isMemberManageable}}checked{{/if}} /> Members may subscribe and unsubscribe themselves</label>
-        <p class="text-muted fs-sm">Leave this off for an operational list administrators must not be able to leave. Only a list members can manage carries an unsubscribe control on its mail.</p>
+        <p class="fs-sm">Leave this off for an operational list administrators must not be able to leave. Only a list members can manage carries an unsubscribe control on its mail.</p>
       </div>
       {{#if content.isNew}}
       <button type="submit" class="btn btn-primary">Create the List</button>

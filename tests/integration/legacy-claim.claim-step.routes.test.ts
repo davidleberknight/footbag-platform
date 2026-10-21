@@ -85,6 +85,49 @@ function page(memberId: string) {
   return request(createApp()).get(CLAIM_STEP).set('Cookie', cookieFor(memberId));
 }
 
+function heldClaimJson(memberId: string): string | null {
+  const row = db.prepare(
+    `SELECT answer_json FROM member_onboarding_tasks WHERE member_id = ? AND task_type = 'legacy_claim'`,
+  ).get(memberId) as { answer_json: string | null } | undefined;
+  return row?.answer_json ?? null;
+}
+
+// A registrant who confirms a claim is still a prospective member, so the
+// claim is held on their own claim-step row and nothing shared changes: no
+// link, no claimed marker on the old account, no tier grant and no claim
+// ledger row. Anything landing early would hand someone else's account and
+// honors to a person who has not finished joining.
+function expectClaimHeld(memberId: string, target: { accountId: string | null; recordId: string | null }): void {
+  expect(links(memberId)).toEqual({ legacy_member_id: null, historical_person_id: null });
+  if (target.accountId !== null) {
+    expect(count(`SELECT COUNT(*) AS n FROM legacy_members
+                  WHERE legacy_member_id = ? AND claimed_by_member_id IS NOT NULL`, target.accountId)).toBe(0);
+  }
+  expect(count(`SELECT COUNT(*) AS n FROM member_tier_grants
+                WHERE member_id = ? AND reason_code = 'legacy.claim_tier_grant'`, memberId)).toBe(0);
+  expect(count(`SELECT COUNT(*) AS n FROM audit_entries
+                WHERE entity_id = ? AND action_type IN ('claim.legacy_account', 'claim.historical_person')`, memberId)).toBe(0);
+  expect(count(`SELECT COUNT(*) AS n FROM member_onboarding_tasks
+                WHERE member_id = ? AND task_type = 'legacy_claim' AND state = 'completed'`, memberId)).toBe(1);
+  expect(JSON.parse(heldClaimJson(memberId) ?? 'null')?.claim?.target).toEqual(target);
+}
+
+// A refused claim leaves the step as it was: no claim held for completion to
+// write, and the step still waiting for an answer. A prospective member's
+// links stay empty even after an accepted claim, so they cannot show this.
+function expectNothingHeld(memberId: string): void {
+  expect(heldClaimJson(memberId)).toBeNull();
+  expect(count(`SELECT COUNT(*) AS n FROM member_onboarding_tasks
+                WHERE member_id = ? AND task_type = 'legacy_claim' AND state = 'completed'`, memberId)).toBe(0);
+}
+
+// Answer the last onboarding step through the wizard, which completes
+// onboarding and so writes every held answer.
+async function finishOnboarding(memberId: string): Promise<void> {
+  const res = await post('/register/wizard/club_affiliations/none', memberId, {});
+  expect(res.status).toBe(303);
+}
+
 describe('claiming a card', () => {
   // Defect caught: a corroborated old account is not claimed whole with the
   // record the pipeline linked to it, the step stays open, or the ledger lacks
@@ -103,9 +146,10 @@ describe('claiming a card', () => {
     const res = await post(`${CLAIM_STEP}/claim`, m, { accountId: account, recordId: record });
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/wizard/club_affiliations');
+    expectClaimHeld(m, { accountId: account, recordId: record });
+
+    await finishOnboarding(m);
     expect(links(m)).toEqual({ legacy_member_id: account, historical_person_id: record });
-    expect(count(`SELECT COUNT(*) AS n FROM member_onboarding_tasks
-                  WHERE member_id = ? AND task_type = 'legacy_claim' AND state = 'completed'`, m)).toBe(1);
 
     const [claimRow] = auditRows(m, 'claim.legacy_account');
     const meta = JSON.parse(claimRow.metadata_json) as Record<string, unknown>;
@@ -130,6 +174,8 @@ describe('claiming a card', () => {
 
     const res = await post(`${CLAIM_STEP}/claim`, m, { accountId: account, recordId: '' });
     expect(res.status).toBe(303);
+    expectClaimHeld(m, { accountId: account, recordId: null });
+    await finishOnboarding(m);
     expect(links(m).legacy_member_id).toBe(account);
     const meta = JSON.parse(auditRows(m, 'claim.legacy_account')[0].metadata_json) as Record<string, unknown>;
     expect(meta.evidence_strength).toBe('declared_anchor_only');
@@ -150,7 +196,7 @@ describe('claiming a card', () => {
     const res = await post(`${CLAIM_STEP}/claim`, m, { accountId: account, recordId: '' });
     expect(res.status).toBe(422);
     expect(res.text).toContain(NO_LONGER_AVAILABLE);
-    expect(links(m)).toEqual({ legacy_member_id: null, historical_person_id: null });
+    expectNothingHeld(m);
     const refused = auditRows(m, 'claim.refused');
     expect(refused).toHaveLength(1);
     expect(JSON.parse(refused[0].metadata_json)).toMatchObject({ account_id: account, refusal: 'uncorroborated' });
@@ -173,6 +219,9 @@ describe('claiming a card', () => {
 
     const res = await post(`/history/${record}/claim/confirm`, m, {});
     expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/register/wizard/club_affiliations');
+    expectClaimHeld(m, { accountId: null, recordId: record });
+    await finishOnboarding(m);
     expect(links(m)).toEqual({ legacy_member_id: account, historical_person_id: record });
     const meta = JSON.parse(auditRows(m, 'claim.legacy_account')[0].metadata_json) as Record<string, unknown>;
     expect(meta.evidence_strength).toBe('declared_anchor_only');
@@ -194,6 +243,8 @@ describe('claiming a card', () => {
 
     const res = await post(`${CLAIM_STEP}/claim`, m, { accountId: account, recordId: '' });
     expect(res.status).toBe(303);
+    expectClaimHeld(m, { accountId: account, recordId: null });
+    await finishOnboarding(m);
     expect(links(m).legacy_member_id).toBe(account);
     const meta = JSON.parse(auditRows(m, 'claim.legacy_account')[0].metadata_json) as Record<string, unknown>;
     expect(meta.evidence_strength).toBe('declared_anchor_only');
@@ -206,11 +257,12 @@ describe('claiming a card', () => {
     const res = await post(`${CLAIM_STEP}/claim`, m, { accountId: 'lm-does-not-exist', recordId: 'hp-nope' });
     expect(res.status).toBe(422);
     expect(res.text).toContain(NO_LONGER_AVAILABLE);
-    expect(links(m)).toEqual({ legacy_member_id: null, historical_person_id: null });
+    expectNothingHeld(m);
   });
 
-  // Defect caught: a double click after a claim landed shows a refusal or
-  // writes the claim and its tier grant twice.
+  // Defect caught: a double click after a claim was accepted shows a refusal,
+  // holds the claim a second time, or writes the claim and its tier grant
+  // twice when onboarding completes.
   it('treats a repeated claim after success as the success it already was', async () => {
     const sn = surname();
     const email = `cs-twice-${sn}@example.com`.toLowerCase();
@@ -219,10 +271,16 @@ describe('claiming a card', () => {
 
     const first = await post(`${CLAIM_STEP}/claim`, m, { accountId: account, recordId: '' });
     expect(first.status).toBe(303);
+    const heldAfterFirst = heldClaimJson(m);
     const second = await post(`${CLAIM_STEP}/claim`, m, { accountId: account, recordId: '' });
     // The repeat lands exactly where the first claim did.
     expect(second.status).toBe(303);
     expect(second.headers.location).toBe(first.headers.location);
+    // The repeat holds nothing new: the held claim is still the first press's.
+    expect(heldClaimJson(m)).toBe(heldAfterFirst);
+    expectClaimHeld(m, { accountId: account, recordId: null });
+
+    await finishOnboarding(m);
     expect(auditRows(m, 'claim.legacy_account')).toHaveLength(1);
     expect(count(`SELECT COUNT(*) AS n FROM member_tier_grants
                   WHERE member_id = ? AND reason_code = 'legacy.claim_tier_grant'`, m)).toBe(1);
@@ -238,9 +296,14 @@ describe('claiming a card', () => {
     const path = `/history/${record}/claim/confirm`;
     const first = await post(path, m, {});
     expect(first.status).toBe(303);
+    const heldAfterFirst = heldClaimJson(m);
     const second = await post(path, m, {});
     expect(second.status).toBe(303);
     expect(second.headers.location).toBe(first.headers.location);
+    expect(heldClaimJson(m)).toBe(heldAfterFirst);
+    expectClaimHeld(m, { accountId: null, recordId: record });
+
+    await finishOnboarding(m);
     expect(auditRows(m, 'claim.historical_person')).toHaveLength(1);
     expect(auditRows(m, 'claim.refused')).toHaveLength(0);
   });
@@ -262,8 +325,9 @@ describe('claiming a card', () => {
 });
 
 describe('two members claiming one account', () => {
-  // Defect caught: two members racing for one account both link it, or the
-  // loser keeps a partial claim or a tier grant.
+  // Defect caught: two members racing for one account both link it, the
+  // loser keeps a partial claim or a tier grant, or the loser's dropped claim
+  // goes unrecorded so neither they nor an operator can learn it never landed.
   it('lets exactly one win when both post at once', async () => {
     const sn = surname();
     const email = `cs-race-${sn}@example.com`.toLowerCase();
@@ -277,13 +341,35 @@ describe('two members claiming one account', () => {
       post(`${CLAIM_STEP}/claim`, a, { accountId: account, recordId: '' }),
       post(`${CLAIM_STEP}/claim`, b, { accountId: account, recordId: '' }),
     ]);
-    const winners = [ra, rb].filter((r) => r.status === 303);
-    expect(winners).toHaveLength(1);
-    const loser = ra.status === 303 ? b : a;
+    // Neither is a member yet, so neither claim is written and neither sees the
+    // other's: both are accepted and held.
+    expect([ra.status, rb.status]).toEqual([303, 303]);
+    expectClaimHeld(a, { accountId: account, recordId: null });
+    expectClaimHeld(b, { accountId: account, recordId: null });
+
+    // Whoever finishes onboarding first lands the claim; the other's held
+    // claim is refused at completion and dropped on the record.
+    await Promise.all([finishOnboarding(a), finishOnboarding(b)]);
+    expect(count('SELECT COUNT(*) AS n FROM members WHERE legacy_member_id = ?', account)).toBe(1);
+    const winner = [a, b].find((id) => links(id).legacy_member_id === account)!;
+    const loser = winner === a ? b : a;
     expect(links(loser).legacy_member_id).toBeNull();
     expect(count(`SELECT COUNT(*) AS n FROM member_tier_grants
                   WHERE member_id = ? AND reason_code = 'legacy.claim_tier_grant'`, loser)).toBe(0);
-    expect(count('SELECT COUNT(*) AS n FROM members WHERE legacy_member_id = ?', account)).toBe(1);
+    expect(count(`SELECT COUNT(*) AS n FROM legacy_members
+                  WHERE legacy_member_id = ? AND claimed_by_member_id = ?`, account, winner)).toBe(1);
+    // One wizard.complete row per member, so the only row is the completion.
+    const completion = (id: string) => {
+      const rows = auditRows(id, 'wizard.complete');
+      expect(rows).toHaveLength(1);
+      return JSON.parse(rows[0].metadata_json) as { claim_not_applied: boolean };
+    };
+    expect(completion(winner).claim_not_applied).toBe(false);
+    expect(auditRows(winner, 'wizard.held_answer.dropped')).toHaveLength(0);
+    expect(completion(loser).claim_not_applied).toBe(true);
+    const dropped = auditRows(loser, 'wizard.held_answer.dropped')
+      .map((r) => JSON.parse(r.metadata_json) as Record<string, unknown>);
+    expect(dropped).toEqual([{ task_type: 'legacy_claim', answer_kind: 'claim', reason: 'claim_refused' }]);
   });
 
   // Defect caught: a claim that passed its re-check and then lost the write
@@ -311,6 +397,48 @@ describe('two members claiming one account', () => {
   });
 });
 
+describe('two members claiming one competition record', () => {
+  // Defect caught: two people signing up under one name both confirm the
+  // same competition record and both end up holding it, or the one who
+  // finishes second keeps a partial link, or never learns and no operator can
+  // see that their claim did not land.
+  it('lets exactly the first to finish signing up hold it, and records the other as not applied', async () => {
+    const sn = surname();
+    const record = insertHistoricalPerson(db, { person_name: `Ivo ${sn}` });
+    const first = registrant({ real_name: `Ivo ${sn}` });
+    const second = registrant({ real_name: `Ivo ${sn}` });
+    const path = `/history/${record}/claim/confirm`;
+
+    // Neither is a member yet, so neither claim is written and both are held.
+    const [ra, rb] = await Promise.all([post(path, first, {}), post(path, second, {})]);
+    expect([ra.status, rb.status]).toEqual([303, 303]);
+    expectClaimHeld(first, { accountId: null, recordId: record });
+    expectClaimHeld(second, { accountId: null, recordId: record });
+
+    await finishOnboarding(first);
+    await finishOnboarding(second);
+
+    expect(count('SELECT COUNT(*) AS n FROM members WHERE historical_person_id = ?', record)).toBe(1);
+    expect(links(first).historical_person_id).toBe(record);
+    expect(links(second)).toEqual({ legacy_member_id: null, historical_person_id: null });
+    expect(auditRows(first, 'claim.historical_person')).toHaveLength(1);
+    expect(auditRows(second, 'claim.historical_person')).toHaveLength(0);
+
+    const completion = (id: string) => {
+      const rows = auditRows(id, 'wizard.complete');
+      expect(rows).toHaveLength(1);
+      return JSON.parse(rows[0].metadata_json) as { claim_not_applied: boolean };
+    };
+    expect(completion(first).claim_not_applied).toBe(false);
+    expect(auditRows(first, 'wizard.held_answer.dropped')).toHaveLength(0);
+    expect(completion(second).claim_not_applied).toBe(true);
+    const dropped = auditRows(second, 'wizard.held_answer.dropped')
+      .map((r) => JSON.parse(r.metadata_json) as Record<string, unknown>);
+    expect(dropped).toEqual([{ task_type: 'legacy_claim', answer_kind: 'claim', reason: 'claim_refused' }]);
+    expect(heldClaimJson(second)).toBeNull();
+  });
+});
+
 describe('claiming under the surname a card carries', () => {
   // Defect caught: a member whose name changed cannot claim their own old
   // account in one step, or the surname they used is not recorded, or it is
@@ -327,6 +455,10 @@ describe('claiming under the surname a card carries', () => {
 
     const res = await post(`${CLAIM_STEP}/claim-with-surname`, m, { accountId: account, recordId: '' });
     expect(res.status).toBe(303);
+    expectClaimHeld(m, { accountId: account, recordId: null });
+    expect(JSON.parse(heldClaimJson(m)!).claim.withSurname).toBe(true);
+
+    await finishOnboarding(m);
     expect(links(m).legacy_member_id).toBe(account);
     const anchors = db.prepare(
       `SELECT anchor_type, anchor_value FROM member_declared_anchors WHERE member_id = ?`,
@@ -413,6 +545,9 @@ describe('a differing-surname candidate only a declared old address reaches', ()
 
     const res = await post(`${CLAIM_STEP}/claim-with-surname`, m, { accountId: account, recordId: '' });
     expect(res.status).toBe(303);
+    expectClaimHeld(m, { accountId: account, recordId: null });
+
+    await finishOnboarding(m);
     expect(claimState(m, account)).toEqual({
       links: { legacy_member_id: account, historical_person_id: null },
       grants: 1, accountClaimed: 1, formerSurnames: 1,
@@ -466,6 +601,9 @@ describe('a differing-surname candidate only a declared old address reaches', ()
 
     const res = await post(`${CLAIM_STEP}/claim`, m, { accountId: account, recordId: record });
     expect(res.status).toBe(303);
+    expectClaimHeld(m, { accountId: account, recordId: record });
+
+    await finishOnboarding(m);
     expect(claimState(m, account)).toEqual({
       links: { legacy_member_id: account, historical_person_id: record },
       grants: 1, accountClaimed: 1, formerSurnames: 1,
@@ -639,11 +777,15 @@ describe('the two non-claiming answers', () => {
 
     const claimed = await post(`${CLAIM_STEP}/claim`, m, { accountId: account, recordId: '' });
     expect(claimed.status).toBe(303);
-    expect(links(m).legacy_member_id).toBe(account);
+    expectClaimHeld(m, { accountId: account, recordId: null });
 
+    // The held claim answers the last attempt, so the step closes at once.
     const closed = await page(m);
     expect(closed.status).toBe(303);
     expect(closed.headers.location).not.toBe(CLAIM_STEP);
+
+    await finishOnboarding(m);
+    expect(links(m).legacy_member_id).toBe(account);
   });
 
   // Defect caught: the date of birth can be changed without limit while
@@ -682,6 +824,10 @@ describe('answers the step no longer takes', () => {
 
     const claim = await post(`${CLAIM_STEP}/claim`, m, { accountId: account, recordId: '' });
     expect(claim.status).toBe(303);
+    // A claim is held, not linked, while onboarding, so the refusal shows as
+    // no held claim, and finishing onboarding lands nothing.
+    expect(heldClaimJson(m)).toBeNull();
+    await finishOnboarding(m);
     expect(links(m).legacy_member_id).toBeNull();
   });
 
@@ -696,6 +842,8 @@ describe('answers the step no longer takes', () => {
     const claim = await post(`${CLAIM_STEP}/claim`, m, { accountId: account, recordId: '' });
     expect(claim.status).toBe(303);
     expect(links(m).legacy_member_id).toBeNull();
+    // Nothing is held either, which is where an accepted claim would be.
+    expect(heldClaimJson(m)).toBeNull();
   });
 
   // Defect caught: claim attempts are unlimited, so a member can script

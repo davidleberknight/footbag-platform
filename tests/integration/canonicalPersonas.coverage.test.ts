@@ -278,8 +278,16 @@ describe('canonical persona catalog', () => {
       // wizard requires one before anyone becomes a member, and the profile
       // edit form requires it on save. A persona seeded without one is not a
       // reachable state, and exploring their profile would hit a validation
-      // error no real member could meet.
-      expect(member!.birth_date, `${spec.slug} birth date`).toBeTruthy();
+      // error no real member could meet. Registration collects none of the
+      // personal details, so a persona that has not answered that step holds
+      // no date of birth, exactly as a real one does.
+      const personalDetailsAnswered = spec.onboardingTasks === undefined
+        || spec.onboardingTasks.personal_details === 'completed';
+      if (personalDetailsAnswered) {
+        expect(member!.birth_date, `${spec.slug} birth date`).toBeTruthy();
+      } else {
+        expect(member!.birth_date, `${spec.slug} has no birth date before answering`).toBeNull();
+      }
       if (spec.legacy?.birthDate) {
         expect(member!.birth_date, `${spec.slug} declared birth date`).toBe(spec.legacy.birthDate);
       }
@@ -296,7 +304,18 @@ describe('canonical persona catalog', () => {
         expect(member!.email_verified_at, `${spec.slug} unverified`).toBeNull();
       }
       if (spec.deletionState) expect(member!.deleted_at, `${spec.slug} soft-deleted`).not.toBeNull();
-      if (spec.legacy?.linked) {
+      const prospective = spec.onboardingTasks !== undefined
+        && (['personal_details', 'legacy_claim', 'club_affiliations'] as const)
+          .some((t) => spec.onboardingTasks?.[t] !== 'completed');
+      if (spec.legacy?.linked && prospective) {
+        // A prospective member's claim is held on the claim step's task row and
+        // nothing is linked on the member row until onboarding completes.
+        expect(member!.legacy_member_id, `${spec.slug} links nothing while onboarding`).toBeNull();
+        const held = db.prepare(
+          `SELECT answer_json FROM member_onboarding_tasks WHERE member_id = ? AND task_type = 'legacy_claim'`,
+        ).get(id) as { answer_json: string | null } | undefined;
+        expect(held?.answer_json, `${spec.slug} claim held`).toContain('"accountId"');
+      } else if (spec.legacy?.linked) {
         expect(member!.legacy_member_id, `${spec.slug} legacy linked`).not.toBeNull();
         // A real claim takes the account and its linked record together, so a
         // linked pair persona holding only the account is a state no claim

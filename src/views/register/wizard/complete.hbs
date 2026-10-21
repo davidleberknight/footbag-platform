@@ -12,6 +12,9 @@
         <a href="{{content.capHitNotice.manageClubsHref}}">Manage your clubs</a>
       {{/outcome-notice}}
     {{/if}}
+    {{#if content.claimNotAppliedNotice}}
+      {{> outcome-notice tone='info' text=content.claimNotAppliedNotice}}
+    {{/if}}
 
     <p>Your onboarding is complete. Welcome! Your profile is ready to use, and clubs, events, and everything else are open to you.</p>
 

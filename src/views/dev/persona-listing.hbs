@@ -9,7 +9,7 @@
 </div>
 
 <div class="wrapper">
-  <p class="text-muted fs-sm mb-4">
+  <p class="fs-sm mb-4">
     Each persona below is a seeded member you can act as, grouped by the authorization axis
     it exercises. Every seeded persona is validated end to end by the catalog coverage tests,
     switched in the route crawl, and run through the authorization matrix, so the list doubles
@@ -20,12 +20,12 @@
   <section class="card card-static mb-8">
     <div class="card-title">Switch to a Real Member</div>
     <p class="card-description mb-2">
-      Enter a real migrated legacy record's member id to build and act as its claimed account.
+      <label for="dev-build-claim-as">Enter a real migrated legacy record's member id to build and act as its claimed account.</label>
     </p>
     <form method="get" action="/dev/build-claim" class="search-box-form">
-      <input type="text" name="as" required
+      <input type="text" id="dev-build-claim-as" name="as" required
              pattern="[A-Za-z0-9_-]{1,64}" autocomplete="off"
-             placeholder="Legacy member ID" aria-label="Legacy member ID"
+             placeholder="Legacy member ID"
              class="search-box-input" />
       <button type="submit" class="btn btn-primary">Switch</button>
     </form>
@@ -40,7 +40,7 @@
       <h2 class="section-heading">{{dimension}}</h2>
       <div class="card-grid">
         {{#each personas}}
-          <div class="card{{#unless backed}} dev-persona-muted{{/unless}}">
+          <div class="card">
             <div class="card-title">{{displayName}}</div>
             <div class="card-meta">
               <code class="font-mono">{{slug}}</code>
@@ -59,7 +59,7 @@
             {{/if}}
 
             {{#unless backed}}
-              <p class="fs-sm text-muted">
+              <p class="fs-sm">
                 {{#if blockedBy}}Blocked: {{blockedBy}}{{#if userStory}} ({{userStory}}){{/if}}{{else}}No seed data{{/if}}
               </p>
             {{/unless}}

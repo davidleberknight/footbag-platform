@@ -51,6 +51,7 @@
     <p class="text-muted">{{content.resultSummary}}</p>
 
     {{#if content.hasRows}}
+      <div class="records-table-wrap" tabindex="0" role="region" aria-label="Nightly reports">
       <table class="data-table">
         <thead>
           <tr>
@@ -75,11 +76,12 @@
           {{/each}}
         </tbody>
       </table>
+      </div>
     {{else}}
       <p>No nightly comparison has run yet. The first report appears the morning after the first pass.</p>
     {{/if}}
 
-    <p class="text-muted fs-sm">{{content.providerBoundaryLine}}</p>
+    <p class="fs-sm">{{content.providerBoundaryLine}}</p>
 
     <p class="mt-6">
       {{#if content.prevPageHref}}<a href="{{content.prevPageHref}}" class="btn btn-outline">Previous</a>{{/if}}

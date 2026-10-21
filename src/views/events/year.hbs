@@ -16,13 +16,13 @@
       {{#if navigation.siblings.previous}}
         <a href="{{navigation.siblings.previous.href}}" class="hero-year-arrow">&#8592; {{navigation.siblings.previous.label}}</a>
       {{else}}
-        <span class="hero-year-arrow hero-year-arrow--disabled">&#8592;</span>
+        <span class="hero-year-arrow hero-year-arrow--disabled" aria-hidden="true">&#8592;</span>
       {{/if}}
 
       {{#if navigation.siblings.next}}
         <a href="{{navigation.siblings.next.href}}" class="hero-year-arrow">{{navigation.siblings.next.label}} &#8594;</a>
       {{else}}
-        <span class="hero-year-arrow hero-year-arrow--disabled">&#8594;</span>
+        <span class="hero-year-arrow hero-year-arrow--disabled" aria-hidden="true">&#8594;</span>
       {{/if}}
     </div>
 
@@ -44,7 +44,7 @@
         {{/each}}
       </div>
     {{else}}
-      <p class="text-muted">No completed events for {{content.year}} yet.</p>
+      <p>No completed events for {{content.year}} yet.</p>
     {{/if}}
 
   </section>

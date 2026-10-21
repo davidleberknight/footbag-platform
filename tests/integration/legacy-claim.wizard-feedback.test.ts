@@ -80,9 +80,15 @@ function matchFixture(opts: { memberName: string; personName: string }): {
 
 const NO_LONGER_AVAILABLE = 'This record is no longer available to claim.';
 
-function memberLinks(memberId: string): { historical_person_id: string | null; legacy_member_id: string | null } {
-  return db.prepare('SELECT historical_person_id, legacy_member_id FROM members WHERE id = ?')
-    .get(memberId) as { historical_person_id: string | null; legacy_member_id: string | null };
+// A refused claim leaves the step as it was: no claim held for completion to
+// write, and the step still unanswered. A prospective member's links stay
+// empty even after an accepted claim, so they cannot show a refusal held.
+function expectNothingHeld(memberId: string): void {
+  const row = db.prepare(
+    `SELECT state, answer_json FROM member_onboarding_tasks WHERE member_id = ? AND task_type = 'legacy_claim'`,
+  ).get(memberId) as { state: string; answer_json: string | null } | undefined;
+  expect(row?.answer_json ?? null).toBeNull();
+  expect(row?.state ?? 'pending').toBe('pending');
 }
 
 describe('what a claim the member cannot make shows them', () => {
@@ -106,7 +112,7 @@ describe('what a claim the member cannot make shows them', () => {
       .send({ accountId: f.legacyId, recordId: f.personId });
     expect(res.status).toBe(422);
     expect(res.text).toContain(NO_LONGER_AVAILABLE);
-    expect(memberLinks(f.memberId)).toEqual({ historical_person_id: null, legacy_member_id: null });
+    expectNothingHeld(f.memberId);
   });
 
   // Defect caught: a record another member claimed after the page was drawn is
@@ -134,7 +140,7 @@ describe('what a claim the member cannot make shows them', () => {
     expect(res.status).toBe(422);
     expect(res.text).toContain(NO_LONGER_AVAILABLE);
     expect(res.text).not.toContain('claimed by another');
-    expect(memberLinks(f.memberId)).toEqual({ historical_person_id: null, legacy_member_id: null });
+    expectNothingHeld(f.memberId);
   });
 
   // Defect caught: an id the member's evidence never reached gets a different

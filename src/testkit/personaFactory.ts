@@ -60,6 +60,7 @@ import {
   insertLegacyClubCandidate,
   insertLegacyPersonClubAffiliation,
   insertPersonaNamedGallery,
+  setOnboardingHeldAnswer,
 } from './personaRowBuilders';
 import type {
   OnboardingTaskType,
@@ -243,6 +244,14 @@ export interface PersonaLegacyClubCandidateSpec {
    * disambiguation card, so two candidates sharing a city model that card.
    */
   city?: string;
+  /**
+   * Country and state on the candidate. A candidate with no live club yet is
+   * created as a club when its card is confirmed, which needs a country and,
+   * where the country is divided, a state; without them the card can only be
+   * declined.
+   */
+  country?: string;
+  region?: string;
   /** legacy_club_candidates.classification; default 'onboarding_visible'. */
   classification?: LegacyClubCandidateClassification;
   /** legacy_person_club_affiliations.resolution_status; default 'pending'. */
@@ -399,12 +408,24 @@ export interface PersonaSpec {
    */
   adminQuestion?: PersonaAdminQuestionSpec;
   /**
-   * Seed an open link-help request with no question on it, for the case where
-   * the platform refuses to put one: the member has not finished signing up, so
-   * the page a question is read on is closed to them. Implied by
-   * `adminQuestion`, since a question always hangs off one of these.
+   * Seed an open link-help request with no question on it. Only a member files
+   * one, so this needs a completed onboarding. Implied by `adminQuestion`,
+   * since a question always hangs off one of these.
    */
   linkHelpRequest?: boolean;
+  /**
+   * A prospective member holding a claim on another persona's old account, by
+   * that account's legacy id. When the other persona already holds the account,
+   * completing onboarding cannot apply the claim, which is the case that shows
+   * the completion page's not-applied notice.
+   */
+  heldClaimOnAccount?: string;
+  /**
+   * Leadership cards for a prospective legacy-linked persona: a live club, and a
+   * provisional bootstrap-leader row naming the persona's old account, which the
+   * club step offers as a leadership card. Loader data, not a member-held row.
+   */
+  legacyLeadershipCandidates?: { clubName: string }[];
   mailingList?: PersonaMailingListSpec | PersonaMailingListSpec[];
   /** Testing dimensions this persona exercises. Must be non-empty. */
   coverageNotes: string[];
@@ -555,6 +576,23 @@ export function seedPersona(
     }
   }
 
+  // A persona whose onboarding is not complete is a prospective member, who
+  // holds nothing in a shared table: a claim and club answers are held on the
+  // onboarding task rows, as the wizard holds them, and a club or leadership row
+  // is a state no prospective member can be in.
+  const prospective = spec.onboardingTasks !== undefined
+    && (['personal_details', 'legacy_claim', 'club_affiliations'] as const)
+      .some((t) => spec.onboardingTasks?.[t] !== 'completed');
+  if (prospective && (spec.club || spec.clubs?.length)) {
+    throw new Error(
+      `persona '${spec.slug}': a prospective member holds no club or leadership rows; `
+      + 'express club answers as legacyClubCandidates instead',
+    );
+  }
+  const linkedNow = Boolean(spec.legacy?.linked) && !prospective;
+  const personalDetailsAnswered = spec.onboardingTasks === undefined
+    || spec.onboardingTasks.personal_details === 'completed';
+
   insertMember(db, {
     id: memberId,
     slug: spec.slug,
@@ -581,17 +619,22 @@ export function seedPersona(
     // it on save. A persona seeded without one is not a state a real member can
     // be in, and exploring their profile would hit a validation error that no
     // member would ever meet. Personas that exercise the matching anchor set
-    // their own; the rest get a plausible default.
-    birth_date: spec.legacy?.birthDate ?? '1985-07-21',
+    // their own; the rest get a plausible default. Registration collects none
+    // of the personal details, so a persona that has not yet answered that
+    // step holds no date of birth and no location, as a real one does.
+    ...(personalDetailsAnswered
+      ? { birth_date: spec.legacy?.birthDate ?? '1985-07-21' }
+      : { birth_date: null, city: null, region: null, country: null }),
     // A real claim takes the account and the record the pipeline linked to it
-    // together, so a linked persona holds both.
-    ...(spec.legacy?.linked && legacyMemberId ? { legacy_member_id: legacyMemberId } : {}),
-    ...(spec.legacy?.linked && personId ? { historical_person_id: personId } : {}),
+    // together, so a linked persona holds both. A prospective member's claim is
+    // held instead, below.
+    ...(linkedNow && legacyMemberId ? { legacy_member_id: legacyMemberId } : {}),
+    ...(linkedNow && personId ? { historical_person_id: personId } : {}),
   });
 
   // Complete the account claim now that the member exists (upsert updates the
   // existing legacy_members row in place).
-  if (spec.legacy?.linked && legacyMemberId) {
+  if (linkedNow && spec.legacy && legacyMemberId) {
     const legacyEmail = spec.legacy.legacyEmailIsLogin ? memberLoginEmail : spec.legacy.legacyEmail;
     insertLegacyMember(db, {
       legacy_member_id: legacyMemberId,
@@ -767,16 +810,21 @@ export function seedPersona(
     });
   }
 
+  // A prospective member's answered cards are held answers on the club step,
+  // in the order the spec lists them; the suggestion rows themselves stay
+  // pending, because nothing is written until onboarding completes.
+  const heldCardAnswers: unknown[] = [];
   for (const cand of spec.legacyClubCandidates ?? []) {
     if (!personId && !legacyMemberId) {
       throw new Error(
         `persona '${spec.slug}': legacyClubCandidates require a legacy identity (set legacy)`,
       );
     }
-    const resolution = cand.resolutionStatus ?? 'pending';
+    const answered = cand.resolutionStatus ?? 'pending';
+    const resolution = prospective ? 'pending' : answered;
     // confirmed_current must carry a resolved_club_id (schema CHECK), so a
     // resolved card implies a mapped club regardless of the `mapped` flag.
-    const needsClub = cand.mapped === true || resolution === 'confirmed_current';
+    const needsClub = cand.mapped === true || answered === 'confirmed_current';
     const mappedClubId = needsClub
       ? insertClub(db, {
           name: cand.clubName ?? 'Legacy Club Candidate',
@@ -789,9 +837,11 @@ export function seedPersona(
       display_name: cand.clubName ?? 'Legacy Club Candidate',
       classification: cand.classification ?? 'onboarding_visible',
       ...(cand.city ? { city: cand.city } : {}),
+      ...(cand.country ? { country: cand.country } : {}),
+      ...(cand.region ? { region: cand.region } : {}),
       ...(mappedClubId ? { mapped_club_id: mappedClubId } : {}),
     });
-    insertLegacyPersonClubAffiliation(db, {
+    const affiliationId = insertLegacyPersonClubAffiliation(db, {
       legacy_club_candidate_id: candidateId,
       ...(personId ? { historical_person_id: personId } : { legacy_member_id: legacyMemberId }),
       resolution_status: resolution,
@@ -799,6 +849,66 @@ export function seedPersona(
         ? { resolved_club_id: mappedClubId }
         : {}),
       display_name: cand.clubName ?? 'Legacy Club Candidate',
+    });
+    if (prospective && answered !== 'pending') {
+      heldCardAnswers.push({
+        kind: 'card',
+        card: 'membership',
+        candidateId: affiliationId,
+        userDecision: answered === 'confirmed_current' ? 'confirm' : 'decline',
+        activitySignal: 'active',
+        insightNote: null,
+        promotion: null,
+        heldAt: '2025-01-01T00:00:00.000Z',
+      });
+    }
+  }
+
+  // The prospective member's held answers, on the task rows seeded above.
+  if (prospective && spec.legacy?.linked && legacyMemberId) {
+    setOnboardingHeldAnswer(db, memberId, 'legacy_claim', {
+      claim: {
+        target: { accountId: legacyMemberId, recordId: null },
+        withSurname: false,
+        heldAt: '2025-01-01T00:00:00.000Z',
+      },
+    });
+  }
+  if (heldCardAnswers.length > 0) {
+    setOnboardingHeldAnswer(db, memberId, 'club_affiliations', { answers: heldCardAnswers });
+  }
+  if (spec.heldClaimOnAccount) {
+    if (!prospective) {
+      throw new Error(`persona '${spec.slug}': heldClaimOnAccount needs an incomplete onboarding`);
+    }
+    setOnboardingHeldAnswer(db, memberId, 'legacy_claim', {
+      claim: {
+        target: { accountId: spec.heldClaimOnAccount, recordId: null },
+        withSurname: false,
+        heldAt: '2025-01-01T00:00:00.000Z',
+      },
+    });
+  }
+  for (const lead of spec.legacyLeadershipCandidates ?? []) {
+    if (!prospective || !legacyMemberId) {
+      throw new Error(
+        `persona '${spec.slug}': legacyLeadershipCandidates need a prospective, legacy-linked persona`,
+      );
+    }
+    const leadClubId = insertClub(db, {
+      name: lead.clubName,
+      publiclyVisible: true,
+      ...PERSONA_CLUB_LOCATION,
+    });
+    const bootstrapLeaderId = insertClubBootstrapLeader(db, {
+      club_id: leadClubId,
+      legacy_member_id: legacyMemberId,
+      status: 'provisional',
+    });
+    insertClubBootstrapLeaderSignal(db, {
+      bootstrap_leader_id: bootstrapLeaderId,
+      signal_type: 'listed_contact',
+      is_present: 1,
     });
   }
 

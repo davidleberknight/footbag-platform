@@ -39,7 +39,7 @@ export const memberVouchController = {
         res.set('Retry-After', String(err.retryAfterSeconds));
         const vm = memberService.getMemberProfilePage(
           targetKey,
-          { authenticated: true, admin: req.user?.role === 'admin', memberId: req.user!.userId },
+          { authenticated: true, memberId: req.user!.userId },
           { vouchOutcome: 'rate_limited' },
         );
         if (!vm) {

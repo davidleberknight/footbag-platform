@@ -169,6 +169,16 @@ function readAffiliationStatus(id: string): string {
   return row?.resolution_status ?? '';
 }
 
+// The club answers a prospective member's wizard holds until onboarding
+// completes, as stored on their own club step.
+function readHeldClubAnswers(memberId: string): Array<Record<string, unknown>> {
+  const row = testDb
+    .prepare("SELECT answer_json FROM member_onboarding_tasks WHERE member_id = ? AND task_type = 'club_affiliations'")
+    .get(memberId) as { answer_json: string | null } | undefined;
+  if (!row?.answer_json) return [];
+  return (JSON.parse(row.answer_json) as { answers: Array<Record<string, unknown>> }).answers;
+}
+
 function readTaskState(memberId: string): string | null {
   const row = testDb
     .prepare("SELECT state FROM member_onboarding_tasks WHERE member_id = ? AND task_type = 'club_affiliations'")
@@ -266,13 +276,21 @@ describe('POST /register/wizard/club_affiliations/submit — disambiguation', ()
       });
     expect(res.status).toBe(303);
 
-    // The chosen club is NOT confirmed here: its row stays pending so the
-    // next render presents its standard card, which is where the membership
-    // confirmation and the activity signal are collected.
+    // A prospective member is not yet a member, so the answer is held on
+    // their own club step and no shared row changes until onboarding
+    // completes.
     expect(readAffiliationStatus(sameCityAffA)).toBe('pending');
-    expect(readAffiliationStatus(sameCityAffB)).toBe('rejected');
-    expect(readAffiliationStatus(sameCityAffC)).toBe('rejected');
+    expect(readAffiliationStatus(sameCityAffB)).toBe('pending');
+    expect(readAffiliationStatus(sameCityAffC)).toBe('pending');
+    const held = readHeldClubAnswers(MEMBER_SAME_CITY);
+    expect(held).toHaveLength(1);
+    expect(held[0]).toMatchObject({ kind: 'disambiguation', selectedId: sameCityAffA });
+    expect([...(held[0].allIds as string[])].sort()).toEqual([sameCityAffA, sameCityAffB, sameCityAffC].sort());
 
+    // The next render reads as if the held answer had landed: the chosen club
+    // is NOT confirmed by the grouped card, so its standard card follows,
+    // which is where the membership confirmation and the activity signal are
+    // collected.
     const followUp = await request(app)
       .get('/register/wizard/club_affiliations')
       .set('Cookie', cookieFor(MEMBER_SAME_CITY));
@@ -280,6 +298,26 @@ describe('POST /register/wizard/club_affiliations/submit — disambiguation', ()
     expect(followUp.text).toContain('Portland Alpha');
     expect(followUp.text).toContain('still active?');
     expect(followUp.text).not.toContain('Which of these clubs in Portland');
+
+    // Confirming the chosen club's own card finishes the club step, the last
+    // onboarding step, so every held answer lands together: the other two are
+    // declined and the chosen one is confirmed.
+    const confirm = await request(app)
+      .post('/register/wizard/club_affiliations/submit')
+      .set('Cookie', cookieFor(MEMBER_SAME_CITY))
+      .type('form')
+      .send({
+        kind: 'membership',
+        candidateId: sameCityAffA,
+        userDecision: 'confirm',
+        activitySignal: 'active',
+      });
+    expect(confirm.status).toBe(303);
+    expect(readTaskState(MEMBER_SAME_CITY)).toBe('completed');
+    expect(readAffiliationStatus(sameCityAffA)).toBe('confirmed_current');
+    expect(readAffiliationStatus(sameCityAffB)).toBe('rejected');
+    expect(readAffiliationStatus(sameCityAffC)).toBe('rejected');
+    expect(readHeldClubAnswers(MEMBER_SAME_CITY)).toHaveLength(0);
   });
 
   it('selecting none declines all', async () => {
@@ -294,8 +332,13 @@ describe('POST /register/wizard/club_affiliations/submit — disambiguation', ()
       });
     expect(res.status).toBe(303);
 
-    expect(readAffiliationStatus(mixedPortlandAffA)).toBe('rejected');
-    expect(readAffiliationStatus(mixedPortlandAffB)).toBe('rejected');
+    // Held, not written: the rows stay pending until onboarding completes,
+    // which the find-or-create wrap-up case below carries through.
+    expect(readAffiliationStatus(mixedPortlandAffA)).toBe('pending');
+    expect(readAffiliationStatus(mixedPortlandAffB)).toBe('pending');
+    expect(readHeldClubAnswers(MEMBER_MIXED)).toEqual([
+      expect.objectContaining({ kind: 'disambiguation', selectedId: null }),
+    ]);
   });
 
   it('missing allCandidateIds returns validation error', async () => {
@@ -312,10 +355,12 @@ describe('POST /register/wizard/club_affiliations/submit — disambiguation', ()
   });
 
   it('anti-enumeration: POST with another members candidateIds returns 404', async () => {
+    // Sent by a member still in the wizard, whose answers are held rather
+    // than written, so the ownership check is proven on the held path.
     const app = createApp();
     const res = await request(app)
       .post('/register/wizard/club_affiliations/submit')
-      .set('Cookie', cookieFor(MEMBER_SAME_CITY))
+      .set('Cookie', cookieFor(MEMBER_NO_CITY))
       .type('form')
       .send({
         kind: 'disambiguation',
@@ -325,6 +370,7 @@ describe('POST /register/wizard/club_affiliations/submit — disambiguation', ()
     expect(res.status).toBe(404);
 
     expect(readAffiliationStatus(f1AffId)).toBe('pending');
+    expect(readHeldClubAnswers(MEMBER_NO_CITY)).toHaveLength(0);
   });
 
   it('resolving every card without a confirmed club leaves the task open for the find-or-create wrap-up', async () => {
@@ -344,10 +390,25 @@ describe('POST /register/wizard/club_affiliations/submit — disambiguation', ()
     // All cards resolved, no club confirmed: the wrap-up landing renders and
     // waits for the explicit no-club answer instead of auto-completing.
     expect(readTaskState(MEMBER_MIXED)).not.toBe('completed');
+    expect(readAffiliationStatus(mixedDenverAff)).toBe('pending');
     const wrapUp = await request(app)
       .get('/register/wizard/club_affiliations')
       .set('Cookie', cookieFor(MEMBER_MIXED));
     expect(wrapUp.status).toBe(200);
     expect(wrapUp.text).toContain('Finish Without a Club');
+
+    // The no-club answer is the last onboarding step, so every held decline
+    // lands with it: the grouped card's two and the Denver card's one.
+    const finish = await request(app)
+      .post('/register/wizard/club_affiliations/none')
+      .set('Cookie', cookieFor(MEMBER_MIXED))
+      .type('form')
+      .send({});
+    expect(finish.status).toBe(303);
+    expect(readTaskState(MEMBER_MIXED)).toBe('completed');
+    expect(readAffiliationStatus(mixedPortlandAffA)).toBe('rejected');
+    expect(readAffiliationStatus(mixedPortlandAffB)).toBe('rejected');
+    expect(readAffiliationStatus(mixedDenverAff)).toBe('rejected');
+    expect(readHeldClubAnswers(MEMBER_MIXED)).toHaveLength(0);
   });
 });

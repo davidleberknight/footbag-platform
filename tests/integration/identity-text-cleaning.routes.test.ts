@@ -289,7 +289,7 @@ describe('a dispute revert reason is cleaned before it is recorded', () => {
 
   function revert(itemId: string, personId: string, reason: string) {
     return request(createApp())
-      .post(`/admin/work-queue/${itemId}/link-help/dispute-revert`)
+      .post(`/admin/work-queue/${itemId}/link-help/dispute-revert/confirm`)
       .set('Cookie', adminCookie())
       .type('form')
       .send({ target_historical_person_id: personId, reason });

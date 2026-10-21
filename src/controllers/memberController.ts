@@ -64,7 +64,7 @@ export const memberController = {
   /** GET /members/:memberKey: own profile, any member profile for a
    * member viewer, or the HoF/BAP public read-only exception for
    * anonymous visitors (others redirect to login). A profile page exists only
-   * once its owner is a member: a pending registrant is routed to their next
+   * once its owner is a member: a prospective member is routed to their next
    * wizard task in place of their own page. An unknown, erased or pending slug
    * answers exactly as a real non-honoree's does: a signed-out visitor is sent
    * to sign in, and a signed-in viewer gets not-found. */
@@ -121,15 +121,12 @@ export const memberController = {
         clearFlash(res, req);
       }
       // Member enhancement keys off membership, not bare authentication: a
-      // pending registrant reads this page as an anonymous visitor. The admin
-      // flag lets operational surfaces keep linking to a pending account's
-      // profile, which is otherwise not-found for every viewer. The viewer's
-      // member id decides only whether this page offers them the vouch.
+      // prospective member reads this page as an anonymous visitor. The
+      // viewer's member id decides only whether this page offers them the vouch.
       const publicVm = memberService.getMemberProfilePage(
         memberKey,
         {
           authenticated: req.isMember,
-          admin: req.user?.role === 'admin',
           memberId: req.user?.userId ?? null,
         },
         vouchOutcome ? { vouchOutcome } : undefined,
@@ -432,7 +429,7 @@ export const memberController = {
       // the change itself: then it carries the session for the version the
       // change committed, because the browser may keep this response's cookies
       // rather than the change's.
-      if (result.sessionJwt) issueSessionCookie(res, result.sessionJwt, req);
+      if (result.sessionJwt) issueSessionCookie(res, result.sessionJwt, req, { archiveAccess: req.isMember });
       writeFlash(res, req, FLASH_KIND.PASSWORD_CHANGED);
       res.redirect(303, `/members/${encodeURIComponent(req.params.memberKey)}/edit/password`);
     } catch (err) {

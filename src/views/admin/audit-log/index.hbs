@@ -49,8 +49,8 @@
         {{actorType}}: {{#if actorHref}}<a href="{{actorHref}}">{{actorLabel}}</a>{{else}}{{actorLabel}}{{/if}}
         &middot; on {{#if entityHref}}<a href="{{entityHref}}">{{entityLabel}}</a>{{else}}{{entityLabel}}{{/if}}
       </p>
-      {{#if reasonText}}<p class="card-meta">Reason: {{reasonText}}</p>{{/if}}
-      {{#if metadataPreview}}<p class="card-meta fs-sm text-muted">{{metadataPreview}}</p>{{/if}}
+      {{#if reasonText}}<p>Reason: {{reasonText}}</p>{{/if}}
+      {{#if metadataPreview}}<p class="card-meta">{{metadataPreview}}</p>{{/if}}
     </div>
   {{/each}}
 

@@ -386,6 +386,22 @@ function readBootstrapStatus(id: string): string {
   return row?.status ?? '';
 }
 
+// The club answers a prospective member's wizard holds until onboarding
+// completes, as stored on their own club step.
+function readHeldClubAnswers(memberId: string): Array<Record<string, unknown>> {
+  const row = testDb
+    .prepare(`SELECT answer_json FROM member_onboarding_tasks WHERE member_id = ? AND task_type = 'club_affiliations'`)
+    .get(memberId) as { answer_json: string | null } | undefined;
+  if (!row?.answer_json) return [];
+  return (JSON.parse(row.answer_json) as { answers: Array<Record<string, unknown>> }).answers;
+}
+
+function readLeaderClubIds(memberId: string): string[] {
+  return (testDb
+    .prepare(`SELECT club_id FROM club_leaders WHERE member_id = ?`)
+    .all(memberId) as Array<{ club_id: string }>).map((r) => r.club_id);
+}
+
 // A missing row reads as pending, as the wizard itself reads it.
 function readTaskState(memberId: string, taskType: string = 'club_affiliations'): string {
   const row = testDb
@@ -699,8 +715,15 @@ describe('POST /register/wizard/club_affiliations/submit — per-card flow', () 
     expect(first.status).toBe(303);
     expect(first.headers.location).toBe('/register/wizard/club_affiliations');
     expect(readTaskState(MEMBER_MULTI)).not.toBe('completed');
-    expect(readBootstrapStatus(multiCblBeta)).toBe('claimed');
+    // A prospective member cannot lead a club yet: the claim is held on their
+    // own club step and the shared leadership rows are untouched.
+    expect(readBootstrapStatus(multiCblBeta)).toBe('provisional');
+    expect(readLeaderClubIds(MEMBER_MULTI)).toEqual([]);
+    expect(readHeldClubAnswers(MEMBER_MULTI)).toEqual([
+      expect.objectContaining({ kind: 'card', card: 'leadership', candidateId: multiCblBeta, userDecision: 'confirm' }),
+    ]);
 
+    // The next render reads the held claim as landed, so the Beta card is gone.
     const next = await request(createApp())
       .get('/register/wizard/club_affiliations')
       .set('Cookie', cookieFor(MEMBER_MULTI));
@@ -717,6 +740,12 @@ describe('POST /register/wizard/club_affiliations/submit — per-card flow', () 
     expect(second.status).toBe(303);
     expect(second.headers.location).toBe('/register/wizard/complete');
     expect(readTaskState(MEMBER_MULTI)).toBe('completed');
+
+    // That answer completed onboarding, so both held answers landed with it.
+    expect(readBootstrapStatus(multiCblBeta)).toBe('claimed');
+    expect(readLeaderClubIds(MEMBER_MULTI)).toEqual([multiClubBeta]);
+    expect(readAffiliationStatus(multiAffAlpha)).toBe('confirmed_current');
+    expect(readHeldClubAnswers(MEMBER_MULTI)).toEqual([]);
   });
 
   it('Tier 1+ member confirming a first affiliation gets no club-join grant (Active Player is a Tier 0 benefit)', async () => {
@@ -918,7 +947,12 @@ describe('POST /register/wizard/club_affiliations/submit — unpromoted-candidat
     expect(res.status).toBe(303);
 
     expect(readCandidate(nopromoteCandId).mapped_club_id).toBeNull();
-    expect(readAffiliationStatus(nopromoteAffId)).toBe('rejected');
+    // Held on the prospective member's own step until onboarding completes;
+    // the wrap-up case below carries it through and sees it land.
+    expect(readAffiliationStatus(nopromoteAffId)).toBe('pending');
+    expect(readHeldClubAnswers(MEMBER_NOPROMOTE)).toEqual([
+      expect.objectContaining({ kind: 'card', candidateId: nopromoteAffId, userDecision: 'decline', promotion: null }),
+    ]);
     expect(readTaskState(MEMBER_NOPROMOTE)).not.toBe('completed');
   });
 
@@ -940,6 +974,10 @@ describe('POST /register/wizard/club_affiliations/submit — unpromoted-candidat
       .set('Cookie', cookieFor(MEMBER_NOPROMOTE));
     expect(answer.status).toBe(303);
     expect(readTaskState(MEMBER_NOPROMOTE)).toBe('completed');
+
+    // Completing onboarding writes the held decline, and still creates no club.
+    expect(readAffiliationStatus(nopromoteAffId)).toBe('rejected');
+    expect(readCandidate(nopromoteCandId).mapped_club_id).toBeNull();
   });
 });
 
@@ -1143,27 +1181,55 @@ describe('POST /register/wizard/club_affiliations/submit — activity-signal emi
 
 describe('club_affiliations answer guards and the grouped card', () => {
   it('the grouped card leaves the chosen club pending for its own card, and declines the rest', async () => {
+    const grouped = {
+      kind: 'disambiguation',
+      allCandidateIds: [disambigCapAffX, disambigCapAffY],
+      selectedCandidateIds: disambigCapAffX,
+    };
     const res = await request(createApp())
       .post('/register/wizard/club_affiliations/submit')
       .set('Cookie', cookieFor(MEMBER_DISAMBIG_CAP))
       .type('form')
-      .send({
-        kind: 'disambiguation',
-        allCandidateIds: [disambigCapAffX, disambigCapAffY],
-        selectedCandidateIds: disambigCapAffX,
-      });
+      .send(grouped);
     expect(res.status).toBe(303);
-    // Choosing on the grouped card resolves WHICH club, not the membership
-    // itself: the chosen row stays pending so its standard card can ask the
-    // membership and activity questions.
+    // A prospective member's answer is held, so neither shared row moves yet.
     expect(readAffiliationStatus(disambigCapAffX)).toBe('pending');
-    expect(readAffiliationStatus(disambigCapAffY)).toBe('rejected');
+    expect(readAffiliationStatus(disambigCapAffY)).toBe('pending');
+    expect(readHeldClubAnswers(MEMBER_DISAMBIG_CAP)).toHaveLength(1);
 
+    // The same grouped answer sent twice is held once: holding it again would
+    // replay the declines twice at completion.
+    const again = await request(createApp())
+      .post('/register/wizard/club_affiliations/submit')
+      .set('Cookie', cookieFor(MEMBER_DISAMBIG_CAP))
+      .type('form')
+      .send(grouped);
+    expect(again.status).toBe(303);
+    expect(readHeldClubAnswers(MEMBER_DISAMBIG_CAP)).toHaveLength(1);
+
+    // Choosing on the grouped card resolves WHICH club, not the membership
+    // itself: the chosen club's standard card asks the membership and
+    // activity questions next.
     const getRes = await request(createApp())
       .get('/register/wizard/club_affiliations')
       .set('Cookie', cookieFor(MEMBER_DISAMBIG_CAP));
     expect(getRes.status).toBe(200);
+    expect(getRes.text).toContain('Boston X');
     expect(getRes.text).toContain('still active?');
+
+    // Answering that card finishes the last onboarding step, so the held
+    // answers land: the unchosen club is declined and the chosen one is
+    // recorded, as a former membership because the member is at the cap.
+    const confirm = await request(createApp())
+      .post('/register/wizard/club_affiliations/submit')
+      .set('Cookie', cookieFor(MEMBER_DISAMBIG_CAP))
+      .type('form')
+      .send({ kind: 'membership', candidateId: disambigCapAffX, userDecision: 'confirm', activitySignal: 'active' });
+    expect(confirm.status).toBe(303);
+    expect(readTaskState(MEMBER_DISAMBIG_CAP)).toBe('completed');
+    expect(readAffiliationStatus(disambigCapAffY)).toBe('rejected');
+    expect(readAffiliationStatus(disambigCapAffX)).toBe('former_only');
+    expect(readHeldClubAnswers(MEMBER_DISAMBIG_CAP)).toEqual([]);
   });
 
   it('the no-club answer on an already-answered club task leaves it completed', async () => {

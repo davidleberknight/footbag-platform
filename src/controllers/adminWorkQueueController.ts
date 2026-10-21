@@ -328,6 +328,40 @@ export const adminWorkQueueController = {
 
   /** POST /admin/work-queue/:id/link-help/dispute-revert
    *
+   * Shows what upholding the dispute would remove from the record's holder.
+   * Writes nothing: a revert loses data, so it applies only from the
+   * confirmation this page posts. */
+  linkHelpDisputeRevertPreview(req: Request, res: Response, next: NextFunction): void {
+    const queueItemId = req.params['id'] ?? '';
+    try {
+      const vm = adminWorkQueueService.getDisputeRevertConfirmPage({
+        adminMemberId:      req.user!.userId,
+        queueItemId,
+        legacyMemberId:     String(req.body?.target_legacy_member_id ?? ''),
+        historicalPersonId: String(req.body?.target_historical_person_id ?? ''),
+        reason:             String(req.body?.reason ?? ''),
+        category:           typeof req.body?.category === 'string' ? req.body.category : null,
+      });
+      if (!vm) {
+        redirectAlreadySettled(req, res, 'Nobody currently holds that record, so there is no claim to revert.');
+        return;
+      }
+      res.render('admin/work-queue/dispute-revert-confirm', vm);
+    } catch (err) {
+      if (err instanceof ValidationError) {
+        res.status(422).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: err.message }));
+        return;
+      }
+      if (err instanceof NotFoundError) {
+        res.status(404).render('admin/work-queue/index', adminWorkQueueService.getAdminWorkQueuePage({ adminMemberId: req.user!.userId, errorMessage: 'No member with that id.' }));
+        return;
+      }
+      handleControllerError(err, res, next, 'admin work queue controller');
+    }
+  },
+
+  /** POST /admin/work-queue/:id/link-help/dispute-revert/confirm
+   *
    * Upheld dispute: reverts the current HOLDER's confirmed claim. Leaves
    * the queue item open so the admin can then approve the requester's link
    * (which resolves the item) or reject it. */

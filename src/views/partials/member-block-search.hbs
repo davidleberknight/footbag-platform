@@ -13,16 +13,16 @@
 
     {{#if hasQuery}}
       {{#if rateLimited}}
-        <p class="text-muted">Too many searches just now. Please wait a moment and try again.</p>
+        <p>Too many searches just now. Please wait a moment and try again.</p>
       {{else if tooShort}}
-        <p class="text-muted">Please enter at least 2 characters.</p>
+        <p>Please enter at least 2 characters.</p>
       {{else if results.length}}
         <div class="search-box-card-results-head">
           <strong>Results</strong>
           <span class="section-count">{{results.length}}{{#if hasMore}}+{{/if}}</span>
         </div>
         {{#if hasMore}}
-          <p class="text-muted">Too many results. Please refine your search.</p>
+          <p>Too many results. Please refine your search.</p>
         {{/if}}
         <div class="search-box-results">
           {{#each results}}
@@ -40,7 +40,7 @@
           {{/each}}
         </div>
       {{else}}
-        <p class="text-muted">No members found matching "{{query}}".</p>
+        <p>No members found matching "{{query}}".</p>
       {{/if}}
     {{/if}}
 </div>

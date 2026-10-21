@@ -65,7 +65,7 @@
         </div>
         {{/if}}
         <div class="club-meta-row club-meta-row--{{vitality.statusLabelKebab}}">
-          {{#each vitality.metaChips}}<span class="club-meta-chip">{{this}}</span>{{#unless @last}}<span class="club-meta-sep"> · </span>{{/unless}}{{/each}}
+          {{#each vitality.metaChips}}<span class="club-meta-chip">{{this}}</span>{{#unless @last}}<span class="club-meta-sep" aria-hidden="true"> · </span>{{/unless}}{{/each}}
         </div>
       </li>
       {{/each}}

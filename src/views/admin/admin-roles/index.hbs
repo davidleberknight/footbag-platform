@@ -13,13 +13,13 @@
       <h2>Current Administrators ({{content.admins.length}})</h2>
     </div>
     {{#unless content.admins.length}}
-      <p class="text-muted">No administrators.</p>
+      <p>No administrators.</p>
     {{/unless}}
     {{#each content.admins}}
       <div class="card">
         <div class="card-title"><a href="{{profileHref}}">{{displayName}}</a> <span class="text-muted fs-sm">{{slug}}</span></div>
         {{#if isSelf}}
-          <p class="text-muted fs-sm">You cannot revoke your own admin role.</p>
+          <p class="fs-sm">You cannot revoke your own admin role.</p>
         {{else}}
           <form method="POST" action="/admin/admin-roles/{{memberId}}/revoke" class="form-block">
             <div class="form-field">

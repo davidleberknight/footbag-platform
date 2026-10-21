@@ -5,10 +5,10 @@
 </div>
 
 <div class="wrapper">
-  <p class="text-muted">{{content.note}}</p>
+  <p>{{content.note}}</p>
 
   {{#unless content.messages.length}}
-    <p class="text-muted">No captured messages.</p>
+    <p>No captured messages.</p>
   {{/unless}}
   {{#each content.messages}}
     <div class="card">

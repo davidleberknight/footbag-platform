@@ -37,7 +37,7 @@
       {{/if}}
     </p>
 
-    <p class="card-meta">
+    <p class="fs-sm">
       Release rate: {{content.pacing.throughputNote}}
     </p>
 
@@ -107,6 +107,7 @@
       <h2>Scheduled Jobs</h2>
     </div>
     {{#if content.jobs.hasSummaries}}
+      <div class="records-table-wrap" tabindex="0" role="region" aria-label="Scheduled jobs">
       <table class="data-table">
         <thead>
           <tr>
@@ -135,12 +136,14 @@
           {{/each}}
         </tbody>
       </table>
+      </div>
     {{else}}
-      <p class="text-muted">No scheduled job has run yet.</p>
+      <p>No scheduled job has run yet.</p>
     {{/if}}
 
     {{#if content.jobs.hasRecentRuns}}
       <h3 class="mt-6">Recent Runs</h3>
+      <div class="records-table-wrap" tabindex="0" role="region" aria-label="Recent runs">
       <table class="data-table">
         <thead>
           <tr>
@@ -164,6 +167,7 @@
           {{/each}}
         </tbody>
       </table>
+      </div>
     {{/if}}
   </section>
 
@@ -175,7 +179,7 @@
     {{#if content.alarms.hasActive}}
       <p>{{content.alarms.activeCount}} alarm{{#unless (eq content.alarms.activeCount 1)}}s{{/unless}} nobody has picked up yet.</p>
     {{else}}
-      <p class="text-muted">No alarm is waiting for an administrator.</p>
+      <p>No alarm is waiting for an administrator.</p>
     {{/if}}
     <p><a href="{{content.alarms.href}}" class="action-link">Go to Platform Alarms</a></p>
   </section>

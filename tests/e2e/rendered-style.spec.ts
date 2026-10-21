@@ -4,11 +4,12 @@
  *
  * One page per view: the check seeds the crawl corpus, walks the site by links
  * as each viewer and keeps the first page that names each view in its
- * development-only response header; views no link reaches are listed by URL or
- * exempted with a reason, and a view in none of those fails the check. Each
- * page is then rendered at 390px and 1280px, captured, and judged by the
- * rendered-style rules, with axe's automated accessibility rules at desktop
- * width (colour contrast is left to the rules, which composite real
+ * development-only response header; views no link reaches are listed by URL,
+ * and a view that answers a form is listed by the page carrying the form, which
+ * the check fills and submits as a visitor would. A view in none of those fails
+ * the check. Each page is then rendered at 390px and 1280px, captured, and
+ * judged by the rendered-style rules, with axe's automated accessibility rules
+ * at desktop width (colour contrast is left to the rules, which composite real
  * backgrounds) and anything the browser refused or reported while loading.
  *
  * Findings that exist today are listed in the known-findings baseline by rule,
@@ -29,13 +30,16 @@ import { watchPageProblems } from './helpers/pageProblems';
 import { scanWcagAa } from './helpers/axe';
 import { openLiveDb } from './helpers/liveDb';
 import { seedCrawlWorld } from '../fixtures/crawl/seedCrawlFixture';
+import { submitForm } from './helpers/submitForm';
 import {
-  insertClub, insertCuratorVideo, insertEvent, insertFreestyleTrick, insertFreestyleTrickAlias,
-  insertHistoricalPerson, insertMediaItem, insertMediaJob,
-  insertMemberGallery, insertNetTeam, insertPayment, insertRecurringDonationSubscription, insertTag,
+  insertClub, insertClubLeader, insertCuratorVideo, insertEmailArchive, insertEvent, insertFreeformTag,
+  insertFreestyleEvAdjudication, insertFreestyleTrick, insertFreestyleTrickAlias,
+  insertHistoricalPerson, insertLegacyMember, insertMediaItem, insertMediaJob, insertMember,
+  insertMemberClubAffiliation, insertMemberGallery, insertNetTeam, insertPayment,
+  insertRecurringDonationSubscription, insertSystemJobRun, insertTag, insertWorkQueueItem,
 } from '../fixtures/factories';
 import {
-  EXEMPT, REACH, REACH_ROWS, STRESS, VIEWERS, listPageTemplates,
+  EXEMPT, REACH, REACH_ROWS, STRESS, VIEWERS, forMember, listPageTemplates,
   STRESS_CLUB_KEY, STRESS_CLUB_NAME, STRESS_CLUB_URL,
   STRESS_TRICK_NAME, STRESS_TRICK_NOTATION, STRESS_TRICK_SLUG,
   type Reach,
@@ -61,7 +65,7 @@ test.beforeAll(() => {
   const member = 'member_persona_t1_paid';
   const eventTag = insertTag(db, { standard_type: 'event', tag_normalized: `#${REACH_ROWS.eventKey}`, tag_display: `#${REACH_ROWS.eventKey}` });
   insertEvent(db, { id: REACH_ROWS.eventId, hashtag_tag_id: eventTag, title: 'Rendered Style Open' });
-  const playerA = insertHistoricalPerson(db, { person_name: 'Rendered Style Player A' });
+  const playerA = insertHistoricalPerson(db, { person_id: REACH_ROWS.playerAId, person_name: 'Rendered Style Player A' });
   const playerB = insertHistoricalPerson(db, { person_name: 'Rendered Style Player B' });
   insertNetTeam(db, { team_id: REACH_ROWS.netTeamId, person_id_a: playerA, person_id_b: playerB });
   insertMemberGallery(db, { id: REACH_ROWS.memberGalleryId, owner_member_id: member, created_by: member, name: 'Rendered Style Gallery', description: '', is_default: 0 });
@@ -70,6 +74,43 @@ test.beforeAll(() => {
   insertRecurringDonationSubscription(db, { member_id: member, stripe_subscription_id: REACH_ROWS.recurringSubscriptionId, status: 'active', amount_cents: 2500 });
   insertCuratorVideo(db, { uploaderMemberId: 'crawl-fh-system', sourceFilename: 'rendered-style.mp4', slotTag: '#rendered_style_demo', mediaId: REACH_ROWS.curatorMediaId });
   insertMediaJob(db, { id: REACH_ROWS.curatorJobId, admin_member_id: 'member_persona_admin_t2' });
+  insertEmailArchive(db, { id: REACH_ROWS.broadcastId, sender_member_id: 'member_persona_admin_t2', recipient_count: 12 });
+  insertSystemJobRun(db, { id: REACH_ROWS.reconciliationRunId, job_name: 'SYS_Reconcile_Payments_Nightly' });
+  insertFreestyleEvAdjudication(db, { candidate_id: REACH_ROWS.backlogCandidateId, submitted_name: 'Rendered Style Backlog Candidate', blocker_id: 'D1' });
+  insertFreeformTag(db, { tag_normalized: `#${REACH_ROWS.retirableTag}`, tag_display: `#${REACH_ROWS.retirableTag}` });
+
+  // A dispute: another member's claim took the old account the requester says is theirs.
+  insertMember(db, { id: REACH_ROWS.disputeHolderId, real_name: 'Rendered Style Holder', legacy_member_id: REACH_ROWS.disputedLegacyId });
+  insertLegacyMember(db, { legacy_member_id: REACH_ROWS.disputedLegacyId, real_name: 'Rendered Style Holder', claimed_by_member_id: REACH_ROWS.disputeHolderId, claimed_at: '2026-01-01T00:00:00.000Z' });
+  insertMember(db, { id: REACH_ROWS.disputeRequesterId, real_name: 'Rendered Style Disputer' });
+  insertWorkQueueItem(db, {
+    id: REACH_ROWS.disputeItemId, entity_id: REACH_ROWS.disputeRequesterId, created_by: REACH_ROWS.disputeRequesterId,
+    reason_text: JSON.stringify({
+      statement: 'That old account was mine before it was claimed by someone else.',
+      is_dispute: true,
+      disputed_legacy_member_ids: [REACH_ROWS.disputedLegacyId],
+      disputed_historical_person_ids: [],
+      disputed_record_holders: { [REACH_ROWS.disputedLegacyId]: REACH_ROWS.disputeHolderId },
+    }),
+  });
+  // A plain request to link an old account nobody holds.
+  insertLegacyMember(db, { legacy_member_id: REACH_ROWS.linkHelpLegacyId, real_name: 'Rendered Style Requester' });
+  insertMember(db, { id: REACH_ROWS.linkHelpRequesterId, real_name: 'Rendered Style Requester' });
+  insertWorkQueueItem(db, {
+    id: REACH_ROWS.linkHelpItemId, entity_id: REACH_ROWS.linkHelpRequesterId, created_by: REACH_ROWS.linkHelpRequesterId,
+    reason_text: JSON.stringify({ statement: 'Please link my old footbag.org account.' }),
+  });
+
+  const leaderTag = insertTag(db, { standard_type: 'club', tag_normalized: `#${REACH_ROWS.leaderClubKey}`, tag_display: `#${REACH_ROWS.leaderClubKey}` });
+  insertClub(db, { id: REACH_ROWS.leaderClubId, hashtag_tag_id: leaderTag, name: 'Rendered Style Leaders Club' });
+  insertMember(db, { id: REACH_ROWS.leaderMemberId, slug: REACH_ROWS.leaderSlug, real_name: 'Rendered Style Leader' });
+  insertMemberClubAffiliation(db, REACH_ROWS.leaderMemberId, REACH_ROWS.leaderClubId, { is_current: 1, is_primary: 1 });
+  insertClubLeader(db, { club_id: REACH_ROWS.leaderClubId, member_id: REACH_ROWS.leaderMemberId });
+
+  // A record another member already holds, for the claim conflict page.
+  insertHistoricalPerson(db, { person_id: REACH_ROWS.heldPersonId, person_name: 'Rendered Style Held Record' });
+  insertMember(db, { real_name: 'Rendered Style Record Holder', historical_person_id: REACH_ROWS.heldPersonId });
+  for (const slug of [REACH_ROWS.deletePhoneSlug, REACH_ROWS.deleteDesktopSlug]) insertMember(db, { slug, real_name: 'Rendered Style Departing' });
   db.close();
 });
 
@@ -143,38 +184,69 @@ test('every page view meets the layout standard at phone and desktop width', asy
   // Measure each page at both widths.
   const findings: Finding[] = [];
   const visited = new Set<string>();
-  for (const target of targets) {
-    const context = contexts.get(target.viewer)!;
+  const origin = new URL(baseURL!).origin;
+  async function openWatched(context: BrowserContext) {
     const page = await context.newPage();
     // The seeded rows name media files the throwaway stack's store does not
     // hold, and the check navigates on before videos and event streams finish.
-    const problems = await watchPageProblems(page, new URL(baseURL!).origin, {
+    const problems = await watchPageProblems(page, origin, {
       ignoreDocumentStatus: true,
       ignoreAborted: true,
       ignoreUrl: (u) => new URL(u).pathname.startsWith('/media-store/'),
     });
-    for (const viewport of [PHONE, DESKTOP]) {
-      await page.setViewportSize(viewport);
-      const res = await page.goto(target.url, { waitUntil: 'load' });
-      const rendered = res?.headers()[VIEW_HEADER] ?? null;
-      const base = { template: target.template, url: target.url, viewport: viewport.width };
-      if (rendered !== target.template) {
-        findings.push({ ...base, rule: 'wrong-view', selector: 'document', measured: `rendered ${rendered ?? 'no view'} (HTTP ${res?.status() ?? 'none'}), not ${target.template}` });
-        continue;
-      }
-      visited.add(measuredKey(target.template, viewport.width));
-      visited.add(measuredKey(target.template, 0));
-      findings.push(...evaluate(await capture(page, target.template), ctx));
-      if (viewport === DESKTOP) {
-        for (const v of await scanWcagAa(page, { disableRules: ['color-contrast'] })) {
-          findings.push({ ...base, rule: `axe-${v.id}`, selector: v.sampleTargets[0] ?? 'document', measured: `${v.nodes} node(s): ${v.help}` });
+    return { page, problems };
+  }
+  for (const target of targets) {
+    // A target signed in per width gets its own session at each width;
+    // every other target shares its viewer's session across both.
+    const shared = target.signInPerWidth ? null : await openWatched(contexts.get(target.viewer)!);
+    const problemLines: string[] = [];
+    for (const [i, viewport] of [PHONE, DESKTOP].entries()) {
+      const slug = target.signInPerWidth?.[i] ?? null;
+      const own = slug ? await viewerContext(browser, baseURL!, slug) : null;
+      const { page, problems } = shared ?? await openWatched(own!);
+      const url = forMember(target.url, slug);
+      const base = { template: target.template, url, viewport: viewport.width };
+      try {
+        await page.setViewportSize(viewport);
+        let res = await page.goto(url, { waitUntil: 'load' });
+        if (target.submit) {
+          // A form that moved or changed shape is reported like a wrong
+          // view, which the baseline can never accept.
+          try {
+            res = await submitForm(page, { ...target.submit, action: forMember(target.submit.action, slug) });
+          } catch (err) {
+            findings.push({ ...base, rule: 'wrong-view', selector: 'form', measured: `submit failed: ${(err as Error).message}` });
+            continue;
+          }
+        }
+        const rendered = res?.headers()[VIEW_HEADER] ?? null;
+        if (rendered !== target.template) {
+          findings.push({ ...base, rule: 'wrong-view', selector: 'document', measured: `rendered ${rendered ?? 'no view'} (HTTP ${res?.status() ?? 'none'}), not ${target.template}` });
+          continue;
+        }
+        visited.add(measuredKey(target.template, viewport.width));
+        visited.add(measuredKey(target.template, 0));
+        findings.push(...evaluate(await capture(page, target.template), ctx));
+        if (viewport === DESKTOP) {
+          for (const v of await scanWcagAa(page, { disableRules: ['color-contrast'] })) {
+            findings.push({ ...base, rule: `axe-${v.id}`, selector: v.sampleTargets[0] ?? 'document', measured: `${v.nodes} node(s): ${v.help}` });
+          }
+        }
+      } finally {
+        if (own) {
+          problemLines.push(...problems.list);
+          await own.close();
         }
       }
     }
-    for (const p of new Set(problems.list.map((m) => normalisePageProblem(m, new URL(baseURL!).origin)))) {
+    if (shared) {
+      problemLines.push(...shared.problems.list);
+      await shared.page.close();
+    }
+    for (const p of new Set(problemLines.map((m) => normalisePageProblem(m, origin)))) {
       findings.push({ template: target.template, url: target.url, viewport: 0, rule: 'page-problem', selector: 'document', measured: p });
     }
-    await page.close();
   }
   for (const c of contexts.values()) await c.close();
 

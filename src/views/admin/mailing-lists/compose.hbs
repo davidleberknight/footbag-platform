@@ -1,7 +1,7 @@
 <div class="hero hero-sm">
   <div>
     <h1>{{page.title}}</h1>
-    <p class="text-muted">To {{content.listName}}, from {{content.fromIdentityDisplay}}.</p>
+    <p>To {{content.listName}}, from {{content.fromIdentityDisplay}}.</p>
   </div>
 </div>
 
@@ -16,7 +16,7 @@
     {{/if}}
 
     {{#if content.hasSubjectPrefix}}
-    <p class="text-muted fs-sm">Every subject on this list goes out with <code>[{{content.subjectPrefixDisplay}}]</code> in front of it. Write the subject without it.</p>
+    <p class="fs-sm">Every subject on this list goes out with <code>[{{content.subjectPrefixDisplay}}]</code> in front of it. Write the subject without it.</p>
     {{/if}}
 
     <form method="POST" action="{{content.formAction}}" class="form-block">
@@ -28,7 +28,7 @@
       <div class="form-field">
         <label for="bodyText">Message</label>
         <textarea id="bodyText" name="bodyText" rows="16" maxlength="{{content.bodyMax}}" required>{{content.bodyText}}</textarea>
-        <p class="text-muted fs-sm">Plain text only. Do not write an unsubscribe line: the platform attaches the control mail clients use, on the sends that carry one.</p>
+        <p class="fs-sm">Plain text only. Do not write an unsubscribe line: the platform attaches the control mail clients use, on the sends that carry one.</p>
       </div>
       <button type="submit" class="btn btn-primary">Send to the List</button>
     </form>

@@ -40,7 +40,7 @@
 
     {{#if content.club.descriptionGated}}
     <div class="club-detail-description">
-      <p class="text-muted">This club has an imported historical description that names individual people. It is shown to logged-in members only.</p>
+      <p>This club has an imported historical description that names individual people. It is shown to logged-in members only.</p>
     </div>
     {{/if}}
 
@@ -148,7 +148,7 @@
     <section class="mt-4">
       <div class="section-heading"><h2>Leadership</h2></div>
       {{#if content.club.isLeaderless}}
-        <p class="text-muted">This club has no co-leader yet. If you are a member, you can step up.</p>
+        <p>This club has no co-leader yet. If you are a member, you can step up.</p>
       {{/if}}
       {{#if content.club.viewerCanVolunteer}}
         <form method="POST" action="{{content.club.volunteerHref}}">
@@ -156,7 +156,7 @@
         </form>
       {{/if}}
       {{#if content.club.volunteerBlockedNote}}
-        <p class="text-muted">{{content.club.volunteerBlockedNote}}</p>
+        <p>{{content.club.volunteerBlockedNote}}</p>
       {{/if}}
     </section>
     {{/if}}

@@ -240,7 +240,7 @@ describe('GET /history/:personId — claimed-record dispatch', () => {
       hof_member: 1,
       country: 'US',
     });
-    insertMember(db, { onboarding: 'none',
+    insertMember(db, {
       id: 'mem-hof-claimant',
       slug: 'hof_claimant',
       display_name: 'Hofie Claimant',
@@ -255,5 +255,32 @@ describe('GET /history/:personId — claimed-record dispatch', () => {
     // Canonical-identity redirect (permanent).
     expect(res.status).toBe(301);
     expect(res.headers.location).toBe('/members/hof_claimant');
+  });
+
+  it('an honor HP held by a prospective member stays on the history page, never redirecting to a profile that does not exist', async () => {
+    // A prospective member has no profile page for any viewer, so a redirect to
+    // their slug would send every visitor of an honoree's record to a dead page.
+    const db = new BetterSqlite3(dbPath);
+    const hpId = insertHistoricalPerson(db, {
+      person_id: 'hp-pending-honor',
+      person_name: 'Pendie Honoree',
+      hof_member: 1,
+      country: 'US',
+    });
+    insertMember(db, { onboarding: 'none',
+      id: 'mem-hof-pending',
+      slug: 'hof_pending',
+      display_name: 'Pendie Registrant',
+      login_email: 'hof-pending@example.com',
+      is_hof: 1,
+    });
+    db.prepare('UPDATE members SET historical_person_id = ? WHERE id = ?')
+      .run(hpId, 'mem-hof-pending');
+    db.close();
+
+    const res = await request(createApp()).get(`/history/${hpId}`);
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Pendie Honoree');
+    expect(res.text).not.toContain('/members/hof_pending');
   });
 });

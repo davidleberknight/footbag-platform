@@ -22,6 +22,7 @@ import { identityAccessService } from '../services/identityAccessService';
 import { RateLimitedError } from '../services/serviceErrors';
 import { createSessionJwt } from '../services/jwtService';
 import { issueSessionCookie } from '../lib/sessionCookie';
+import { memberOnboardingService } from '../services/memberOnboardingService';
 import { appendAuditEntry } from '../services/auditService';
 import { PERSONA_LOGIN_AUDIT_ACTION_TYPE } from './personaFactory';
 
@@ -93,7 +94,9 @@ export async function getDevLogin(
 
     const role = member.is_admin ? 'admin' : 'member';
     const cookieValue = await createSessionJwt(member.id, role, member.password_version);
-    issueSessionCookie(res, cookieValue, req);
+    issueSessionCookie(res, cookieValue, req, {
+      archiveAccess: memberOnboardingService.isOnboardingComplete(member.id),
+    });
     res.redirect(302, `/members/${member.slug ?? member.id}`);
   } catch (err) {
     next(err);

@@ -51,6 +51,17 @@ function taskState(memberId: string): string | undefined {
   ).get(memberId) as { state: string } | undefined)?.state;
 }
 
+// Answer the last onboarding step through the wizard, which completes
+// onboarding and so writes every held answer.
+async function finishOnboarding(memberId: string): Promise<void> {
+  const res = await request(createApp())
+    .post('/register/wizard/club_affiliations/none')
+    .set('Cookie', cookieFor(memberId))
+    .type('form')
+    .send({});
+  expect(res.status).toBe(303);
+}
+
 // A surname no other case uses, letters only so the name fold keeps it whole.
 let seq = 0;
 function surname(): string {
@@ -99,10 +110,15 @@ describe('a claimable card', () => {
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/wizard/club_affiliations');
 
-    const mem = db.prepare('SELECT legacy_member_id, historical_person_id FROM members WHERE id = ?')
+    // Held, not written, until the last onboarding step is answered.
+    const links = () => db.prepare('SELECT legacy_member_id, historical_person_id FROM members WHERE id = ?')
       .get(t.memberId) as Record<string, unknown>;
-    expect(mem).toEqual({ legacy_member_id: t.legacyId, historical_person_id: t.personId });
+    expect(links()).toEqual({ legacy_member_id: null, historical_person_id: null });
     expect(taskState(t.memberId)).toBe('completed');
+    expect(auditRows(t.memberId, 'claim.legacy_account')).toHaveLength(0);
+    await finishOnboarding(t.memberId);
+
+    expect(links()).toEqual({ legacy_member_id: t.legacyId, historical_person_id: t.personId });
     const grants = db.prepare(`SELECT COUNT(*) AS c FROM member_tier_grants WHERE member_id = ? AND reason_code = 'legacy.claim_tier_grant'`)
       .get(t.memberId) as { c: number };
     expect(grants.c).toBe(1);
@@ -127,6 +143,8 @@ describe('a claimable card', () => {
     expect((await post()).status).toBe(303);
     const again = await post();
     expect(again.status).toBe(303);
+    expect(again.headers.location).toBe('/register/wizard/club_affiliations');
+    await finishOnboarding(t.memberId);
     expect(auditRows(t.memberId, 'claim.legacy_account')).toHaveLength(1);
   });
 });
@@ -179,8 +197,14 @@ describe('a claim the step does not offer', () => {
       .send({ recordId: 'HP-not-offered' });
     expect(res.status).toBe(422);
     expect(res.text).toContain('This record is no longer available to claim.');
-    const mem = db.prepare('SELECT historical_person_id FROM members WHERE id = ?').get(t.memberId) as Record<string, unknown>;
-    expect(mem.historical_person_id).toBeNull();
+    // A prospective member's links stay empty even after an accepted claim, so
+    // only the step itself shows the refusal held nothing: no claim waiting
+    // for completion to write, and the step still unanswered.
+    const held = db.prepare(
+      `SELECT answer_json FROM member_onboarding_tasks WHERE member_id = ? AND task_type = 'legacy_claim'`,
+    ).get(t.memberId) as { answer_json: string | null } | undefined;
+    expect(held?.answer_json ?? null).toBeNull();
+    expect(taskState(t.memberId)).not.toBe('completed');
     const refused = auditRows(t.memberId, 'claim.refused');
     expect(refused).toHaveLength(1);
     expect(JSON.parse(refused[0].metadata_json)).toMatchObject({ record_id: 'HP-not-offered', refusal: 'not_reached' });

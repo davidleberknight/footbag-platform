@@ -13,7 +13,7 @@
  *     status='already_reverted' without changing state.
  *   - unrecognized member returns status='not_found' (anti-enumeration).
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
 import {
@@ -615,8 +615,8 @@ describe('identityAccessService.revertClaimForDispute (queue-item binding)', () 
     expect(claimed.street_address).toBeNull();
     expect(claimed.postal_code).toBeNull();
 
-    // A claimed row may still carry both, and the revert must clear them, so
-    // the scrub is exercised against a row that has them.
+    // The member then enters the record's own address themselves. The claim
+    // did not write it, so the revert must leave it, equal values or not.
     const dbSeed = open();
     dbSeed.prepare('UPDATE members SET street_address = ?, postal_code = ? WHERE id = ?')
       .run('1 Old Road', 'A1B2C3', memberId);
@@ -640,14 +640,14 @@ describe('identityAccessService.revertClaimForDispute (queue-item binding)', () 
     expect(after.legacy_email).toBeNull();
     expect(after.bio).toBe('');
     expect(after.birth_date).toBeNull();
-    expect(after.street_address).toBeNull();
-    expect(after.postal_code).toBeNull();
     expect(after.region).toBeNull();
     expect(after.ifpa_join_date).toBeNull();
     expect(after.first_competition_year).toBeNull();
-    // Member-entered values survive.
+    // Member-entered values survive, including ones equal to the record's.
     expect(after.city).toBe('Testville');
     expect(after.country).toBe('US');
+    expect(after.street_address).toBe('1 Old Road');
+    expect(after.postal_code).toBe('A1B2C3');
     // Honor flags came from the reverted claim (no other honored link remains),
     // so they are dropped -- the disputed record's HoF/BAP status must not
     // linger on this member (and keep their profile publicly visible).
@@ -660,25 +660,24 @@ describe('identityAccessService.revertClaimForDispute (queue-item binding)', () 
     expect(meta.cleared_derived_honors).toBe(true);
   });
 
-  // The scrub clears every field still matching what the claim copied in, and
-  // the personal-details step requires city, country and date of birth. A
-  // member left short of one of those is a full member on paper carrying an
-  // incomplete row, which the Official IFPA Roster shows as a blank cell, so
-  // the step goes back in front of them rather than staying silently
-  // completed.
-  it('re-opens the personal-details step when the scrub clears a field that step requires', () => {
-    const { memberId, legacyId } = setupClaimed({ withHpBackLink: false });
-
+  // A revert acts on a full member. It removes only what the claim added, so a
+  // city the member typed themselves stays even when it equals the record's,
+  // and onboarding is never put back in front of them.
+  it('keeps a city the member typed that equals the record\'s, and never re-opens onboarding', () => {
+    const memberId = nextId('mem');
+    const legacyId = nextId('legmem');
     const db = open();
-    // The member typed the same city as their linked record, so the scrub's
-    // equality test will clear it, and the step is complete before the revert.
-    const legacyCity = db
-      .prepare('SELECT city FROM legacy_members WHERE legacy_member_id = ?')
-      .get(legacyId) as { city: string | null };
-    db.prepare('UPDATE members SET city = ?, country = ?, birth_date = ? WHERE id = ?')
-      .run(legacyCity.city, 'United States', '1990-01-01', memberId);
+    // The claim fills the empty bio, so the revert does scrub, and the city is
+    // the one thing equal on both sides that the claim did not write.
+    insertMember(db, {
+      id: memberId, login_email: `${memberId}@example.com`, real_name: 'Same Player', city: 'Oldtown', bio: '',
+    });
+    insertLegacyMember(db, {
+      legacy_member_id: legacyId, real_name: 'Same Player', city: 'Oldtown', bio: 'account bio',
+    });
     markPersonalDetailsCompleted(db, memberId);
     db.close();
+    svc.claimLegacyAccount(memberId, legacyId);
 
     svc.revertAutoLink(memberId, 'audit-reopen-1', {
       actorType: 'member',
@@ -687,14 +686,15 @@ describe('identityAccessService.revertClaimForDispute (queue-item binding)', () 
 
     const db2 = open();
     const task = db2
-      .prepare('SELECT state, completed_at FROM member_onboarding_tasks WHERE member_id = ? AND task_type = ?')
-      .get(memberId, 'personal_details') as { state: string; completed_at: string | null };
-    const after = db2.prepare('SELECT city FROM members WHERE id = ?').get(memberId) as { city: string | null };
+      .prepare('SELECT state FROM member_onboarding_tasks WHERE member_id = ? AND task_type = ?')
+      .get(memberId, 'personal_details') as { state: string };
+    const after = db2.prepare('SELECT city, bio FROM members WHERE id = ?').get(memberId) as
+      { city: string | null; bio: string };
     db2.close();
 
-    expect(after.city).toBeNull();
-    expect(task.state).toBe('pending');
-    expect(task.completed_at).toBeNull();
+    expect(after.city).toBe('Oldtown');
+    expect(after.bio).toBe('');
+    expect(task.state).toBe('completed');
   });
 
   it('leaves the personal-details step completed when the member keeps every required field', () => {
@@ -720,6 +720,117 @@ describe('identityAccessService.revertClaimForDispute (queue-item binding)', () 
     db2.close();
 
     expect(task.state).toBe('completed');
+  });
+
+  it('clears what an earlier account claim filled when the upheld dispute names a later record claim', () => {
+    // Defect caught: the revert unlinks the old account along with the
+    // disputed record but reads only the record claim's filled fields, which
+    // are none, so the account's birth date and bio stay on the member.
+    seedAdmin();
+    const memberId = nextId('mem');
+    const legacyId = nextId('legmem');
+    const hpId = nextId('hp');
+    const db = open();
+    insertMember(db, {
+      id: memberId, login_email: `${memberId}@example.com`, real_name: 'Union Player',
+      birth_date: null, bio: '',
+    });
+    insertLegacyMember(db, {
+      legacy_member_id: legacyId, real_name: 'Union Player',
+      birth_date: '1977-03-03', bio: 'old account bio',
+    });
+    insertHistoricalPerson(db, { person_id: hpId, person_name: 'Una Player' });
+    markPersonalDetailsCompleted(db, memberId);
+    db.close();
+    svc.claimLegacyAccount(memberId, legacyId);
+    svc.claimHistoricalPerson(memberId, hpId);
+    expect(memberRow(memberId).birth_date).toBe('1977-03-03');
+
+    const requesterId = nextId('req');
+    const db2 = open();
+    insertMember(db2, { id: requesterId, login_email: `${requesterId}@example.com` });
+    db2.close();
+    const itemId = insertQueueItem({ entityId: requesterId, isDispute: true, disputedHistoricalPersonIds: [hpId] });
+
+    expect(svc.revertClaimForDispute(ADMIN_ID, itemId, { historicalPersonId: hpId }, 'upheld').status)
+      .toBe('reverted');
+
+    const after = memberRow(memberId);
+    expect(after.legacy_member_id).toBeNull();
+    expect(after.historical_person_id).toBeNull();
+    expect(after.birth_date).toBeNull();
+    expect(after.bio).toBe('');
+    // Clearing a field the personal-details step requires still leaves the
+    // member a member: nothing re-opens onboarding.
+    const db3 = open();
+    const task = db3.prepare(
+      "SELECT state FROM member_onboarding_tasks WHERE member_id = ? AND task_type = 'personal_details'",
+    ).get(memberId) as { state: string };
+    db3.close();
+    expect(task.state).toBe('completed');
+  });
+
+  it('clears what the historical record filled, and keeps a filled field the member has since changed', () => {
+    // Defect caught: the claim recorded only what the old account's transfer
+    // filled, so the country and first year the record itself filled stayed
+    // on the member after the record was taken away from them.
+    seedAdmin();
+    const memberId = nextId('mem');
+    const hpId = nextId('hp');
+    const db = open();
+    insertMember(db, {
+      id: memberId, login_email: `${memberId}@example.com`, real_name: 'Rec Player',
+      country: null, region: null, first_competition_year: null,
+    });
+    insertHistoricalPerson(db, {
+      person_id: hpId, person_name: 'Rec Player', country: 'New Zealand', first_year: 1998,
+    });
+    db.close();
+    svc.claimHistoricalPerson(memberId, hpId);
+    expect(memberRow(memberId).country).toBe('New Zealand');
+    // The member then corrects the first year the record filled.
+    const dbEdit = open();
+    dbEdit.prepare('UPDATE members SET first_competition_year = ? WHERE id = ?').run(2001, memberId);
+    dbEdit.close();
+
+    const requesterId = nextId('req');
+    const db2 = open();
+    insertMember(db2, { id: requesterId, login_email: `${requesterId}@example.com` });
+    db2.close();
+    const itemId = insertQueueItem({ entityId: requesterId, isDispute: true, disputedHistoricalPersonIds: [hpId] });
+    svc.revertClaimForDispute(ADMIN_ID, itemId, { historicalPersonId: hpId }, 'upheld');
+
+    const after = memberRow(memberId);
+    expect(after.historical_person_id).toBeNull();
+    expect(after.country).toBeNull();
+    expect(after.first_competition_year).toBe(2001);
+  });
+
+  it('a revert that fails partway leaves the claim exactly as it was', async () => {
+    // Defect caught: the account is unlinked and freed for another claimant
+    // while the record link, the tier and the audit trail never change,
+    // leaving the member half-reverted with nothing recording why.
+    seedAdmin();
+    const { memberId, legacyId, hpId } = setupClaimed({ withHpBackLink: true });
+    const requesterId = nextId('req');
+    const db = open();
+    insertMember(db, { id: requesterId, login_email: `${requesterId}@example.com` });
+    db.close();
+    const itemId = insertQueueItem({ entityId: requesterId, isDispute: true, disputedLegacyMemberIds: [legacyId] });
+
+    const dbMod = await import('../../src/db/db');
+    const spy = vi.spyOn(dbMod.legacyMembers, 'clearMemberHistoricalPersonId', 'get').mockReturnValue({
+      run: () => { throw new Error('forced revert failure'); },
+    } as never);
+    expect(() => svc.revertClaimForDispute(ADMIN_ID, itemId, { legacyMemberId: legacyId }, 'upheld'))
+      .toThrow('forced revert failure');
+    spy.mockRestore();
+
+    const after = memberRow(memberId);
+    expect(after.legacy_member_id).toBe(legacyId);
+    expect(after.historical_person_id).toBe(hpId);
+    expect(legacyMemberRow(legacyId).claimed_by_member_id).toBe(memberId);
+    expect(listAuditEntries(memberId, 'claim.revert_applied')).toHaveLength(0);
   });
 
   it('binds a dispute revert to the claim that took the disputed record, not the member\'s latest claim', () => {

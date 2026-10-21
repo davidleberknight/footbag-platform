@@ -379,6 +379,14 @@ const UNLABELLED_INPUT_TYPES = new Set(['hidden', 'submit', 'button', 'reset', '
 // Input types that draw no text of their own, so their font size shows nothing.
 const TEXTLESS_INPUT_TYPES = new Set(['hidden', 'checkbox', 'radio', 'range', 'color', 'image']);
 const MESSAGE_CLASSES = ['empty-state', 'form-notice', 'form-error-banner', 'form-success-banner', 'notice'];
+// The standard's metadata treatments, which may stay grey at any length:
+// source and provenance notes, citations, form hints and card bylines.
+const METADATA_CLASSES = ['source-note', 'set-detail-citation', 'form-hint', 'card-meta'];
+
+/** A scroll box the standard allows: keyboard-focusable, a region, and named. */
+function isSanctionedScrollRegion(el: ElementRecord): boolean {
+  return el.attrs.tabindex === '0' && el.attrs.role === 'region' && !!el.attrs.named;
+}
 
 function isInteractive(el: ElementRecord): boolean {
   if (el.tag === 'a') return !!el.attrs.href;
@@ -629,7 +637,7 @@ export const RULES: readonly Rule[] = [
     check(v) {
       return v.elements
         .filter((el) => v.isPainted(el) && v.isScrollBox(el))
-        .filter((el) => el.attrs.tabindex !== '0' || el.attrs.role !== 'region' || !el.attrs.named)
+        .filter((el) => !isSanctionedScrollRegion(el))
         .map((el) => ({ el, measured: `tabindex=${el.attrs.tabindex ?? 'none'} role=${el.attrs.role ?? 'none'} named=${el.attrs.named ? 'yes' : 'no'}` }));
     },
   },
@@ -653,11 +661,15 @@ export const RULES: readonly Rule[] = [
   {
     id: 'table-overflows-container',
     applies: 'desktop',
-    requirement: 'A table fits its column at desktop width.',
+    requirement: 'A table fits its column at desktop width, unless it scrolls inside the standard\'s labelled table wrapper.',
     check(v) {
       const out: Array<{ el: ElementRecord; measured: string }> = [];
       for (const el of v.elements) {
         if (el.tag !== 'table' || !v.isPainted(el)) continue;
+        // A wide admin table may scroll inside the one wrapper the standard
+        // names, provided a keyboard reader can reach and name it.
+        const wrap = [...v.ancestors(el)].find((a) => v.hasClass(a, 'records-table-wrap'));
+        if (wrap && isSanctionedScrollRegion(wrap)) continue;
         const container = v.boxParentOf(el);
         if (!container) continue;
         const room = container.rect.w;
@@ -770,6 +782,7 @@ export const RULES: readonly Rule[] = [
       if (muted.length === 0) return [];
       return v.elements
         .filter((el) => PROSE_TAGS.has(el.tag) && el.textLen >= 80 && v.isPainted(el) && !v.within(el, 'figcaption'))
+        .filter((el) => !METADATA_CLASSES.some((c) => v.hasClass(el, c)))
         .filter((el) => muted.includes(normalizeColor(v.style(el, 'color'))))
         .map((el) => ({ el, measured: `${el.textLen} characters in ${normalizeColor(v.style(el, 'color'))}` }));
     },

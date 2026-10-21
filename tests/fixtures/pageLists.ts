@@ -5,8 +5,10 @@
  * by links as each viewer below, and keeps the first page that names each view
  * in its development-only response header. A view the walk cannot reach (a page
  * that exists only after a form posts, or one a link never points at) is listed
- * in REACH with the URL that renders it, or in EXEMPT with the reason it is not
- * measured. A page view that is in none of the three fails the check, so a new
+ * in REACH with the URL that renders it; a view that exists only as the answer
+ * to a form is listed by the URL of the page carrying that form, with the form
+ * to submit. EXEMPT names a view that cannot be measured at all, with the
+ * reason. A page view that is in none of the three fails the check, so a new
  * view cannot ship unmeasured.
  */
 import fs from 'node:fs';
@@ -42,10 +44,62 @@ export const REACH_ROWS = {
   curatorMediaId: 'media-curator-rs',
   curatorJobId: 'mj-rs',
   checkoutSessionId: 'cs_rs_member',
+  playerAId: 'person-rs-player-a',
+  // A dispute over an old account another member's claim took, and a plain
+  // link-help request naming an account nobody holds.
+  disputeItemId: 'wq-rs-dispute',
+  disputedLegacyId: 'legmem_rs_disputed',
+  disputeHolderId: 'member-rs-dispute-holder',
+  disputeRequesterId: 'member-rs-dispute-requester',
+  linkHelpItemId: 'wq-rs-link-help',
+  linkHelpLegacyId: 'legmem_rs_unclaimed',
+  linkHelpRequesterId: 'member-rs-link-requester',
+  // A club with one co-leader of its own, so leaving, stepping down and an
+  // administrator's demotion all have a seat to act on.
+  leaderClubId: 'club-rs-leaders',
+  leaderClubKey: 'club_rs_leaders',
+  leaderMemberId: 'member-rs-club-leader',
+  leaderSlug: 'rs_club_leader',
+  retirableTag: 'rs_retirable',
+  // Deleting an account ends its session, so each width deletes its own.
+  deletePhoneSlug: 'rs_delete_phone',
+  deleteDesktopSlug: 'rs_delete_desktop',
+  heldPersonId: 'person-rs-held',
+  broadcastId: 'emailarchive-rs',
+  reconciliationRunId: 'jobrun_rs_reconcile',
+  backlogCandidateId: 'ev-rs-backlog',
 } as const;
 
-/** A view the walk cannot reach, with the viewer and URL that render it. */
-export interface Reach { template: string; viewer: string; url: string; why: string }
+/**
+ * A form on the listed page, submitted to reach the view it answers with:
+ * `action` is the form's exact action attribute and `fields` the visible
+ * fields to fill, by name. Hidden inputs post as the page rendered them.
+ */
+export interface FormSubmit { action: string; fields?: Readonly<Record<string, string>> }
+
+/**
+ * A view the walk cannot reach, with the viewer and URL that render it, and the
+ * form to submit there when the view is a form's answer. A submit that ends its
+ * own session (deleting the account), or a page belonging to one seeded member,
+ * names the member to sign in as at each width, phone then desktop, in place of
+ * the shared session; the viewer still says which kind of visitor that member
+ * is. MEMBER in the URL or action stands for that member's slug.
+ */
+export interface Reach {
+  template: string;
+  viewer: string;
+  url: string;
+  why: string;
+  submit?: FormSubmit;
+  signInPerWidth?: readonly [phone: string, desktop: string];
+}
+
+export const MEMBER = '{member}';
+
+/** The URL or form action for the member signed in at one width. */
+export function forMember(text: string, slug: string | null): string {
+  return slug ? text.split(MEMBER).join(slug) : text;
+}
 
 const R = REACH_ROWS;
 export const REACH: readonly Reach[] = [
@@ -75,6 +129,36 @@ export const REACH: readonly Reach[] = [
   { template: 'admin/event-organizers/detail', viewer: 'admin', url: `/admin/events/${R.eventId}/organizers`, why: 'linked from the organizer queue' },
   { template: 'admin/curator/edit', viewer: 'admin', url: `/admin/curator/media/${R.curatorMediaId}/edit`, why: 'linked from curated media the walk groups together' },
   { template: 'admin/curator/job-status', viewer: 'admin', url: `/admin/curator/upload/jobs/${R.curatorJobId}`, why: 'reached by redirect after an upload starts' },
+  { template: 'admin/broadcasts/detail', viewer: 'admin', url: `/admin/broadcasts/${R.broadcastId}`, why: 'linked from the broadcast list only once a message was sent' },
+  { template: 'admin/payments/report', viewer: 'admin', url: `/admin/payments/reports/${R.reconciliationRunId}`, why: 'linked only once the reconciliation job has run' },
+  { template: 'admin/freestyle-notation-author', viewer: 'admin', url: `/admin/freestyle/notation-backlog/${R.backlogCandidateId}/author`, why: 'linked from the notation backlog per candidate' },
+  { template: 'admin/freestyle-trick-publish', viewer: 'admin', url: `/admin/freestyle/notation-backlog/${R.backlogCandidateId}/publish`, why: 'linked from the notation backlog per candidate' },
+  { template: 'history/claim-hp-conflict', viewer: 'registrant-claim', url: `/history/${R.heldPersonId}/claim`, why: 'shown for a claim link whose record another member holds' },
+  { template: 'history/claim-hp-confirm', viewer: 'registrant-claim', url: '/history/person_persona_claim_record_only_rec/claim', why: 'reached from a claim card on the wizard\'s claim step', signInPerWidth: ['claim_record_only', 'claim_record_only'] },
+
+  // The answers to a form. Every administrator action posts to a preview that
+  // writes nothing and commits only from its confirm page, and the member
+  // leave and step-down posts ask for confirmation before acting, so these
+  // submits change no state.
+  { template: 'admin/admin-roles/grant-confirm', viewer: 'admin', url: '/admin/admin-roles', why: 'answers the grant form', submit: { action: '/admin/admin-roles/grant', fields: { member_key: 't1_paid', reason: 'Rendered style check grant preview.' } } },
+  { template: 'admin/admin-roles/revoke-confirm', viewer: 'admin', url: '/admin/admin-roles', why: 'answers a revoke form', submit: { action: '/admin/admin-roles/member_persona_admin_b/revoke', fields: { reason: 'Rendered style check revoke preview.' } } },
+  { template: 'admin/honor-grants/grant-confirm', viewer: 'admin', url: '/admin/honor-grants', why: 'answers the honor grant form', submit: { action: '/admin/honor-grants/grant', fields: { member_key: 't1_paid', honor: 'hof' } } },
+  { template: 'admin/honor-grants/action-confirm', viewer: 'admin', url: '/admin/honor-grants', why: 'answers the board seat form', submit: { action: '/admin/honor-grants/board/set', fields: { member_key: 't1_paid', reason: 'Rendered style check board preview.' } } },
+  { template: 'admin/members/confirm', viewer: 'admin', url: '/admin/members/member_persona_t1_paid', why: 'answers the tier correction form', submit: { action: '/admin/members/member_persona_t1_paid/tier', fields: { tier: 'tier2', reason: 'Rendered style check tier preview.' } } },
+  { template: 'admin/clubs/confirm', viewer: 'admin', url: '/admin/clubs/club-crawlville-real', why: 'answers the hashtag correction form', submit: { action: '/admin/clubs/club-crawlville-real/hashtag', fields: { hashtag_slug: 'club_crawlville_renamed', reason: 'Rendered style check hashtag preview.' } } },
+  { template: 'admin/club-leadership/demote-confirm', viewer: 'admin', url: `/admin/clubs/${R.leaderClubId}/leadership`, why: 'answers the demote form', submit: { action: `/admin/clubs/${R.leaderClubId}/leadership/demote`, fields: { reason: 'Rendered style check demote preview.' } } },
+  { template: 'admin/historical-records/confirm', viewer: 'admin', url: '/admin/historical-records?q=Rendered%20Style%20Player%20A', why: 'answers the mark-deceased form', submit: { action: `/admin/historical-records/${R.playerAId}/deceased` } },
+  { template: 'admin/tags/confirm', viewer: 'admin', url: `/admin/tags?q=${R.retirableTag}`, why: 'answers the retire form', submit: { action: '/admin/tags/retire', fields: { reason: 'Rendered style check retire preview.' } } },
+  { template: 'admin/work-queue/link-help-confirm', viewer: 'admin', url: '/admin/work-queue?category=membership', why: 'answers the link-help approve form', submit: { action: `/admin/work-queue/${R.linkHelpItemId}/link-help/approve`, fields: { target_legacy_member_id: R.linkHelpLegacyId } } },
+  { template: 'admin/work-queue/dispute-revert-confirm', viewer: 'admin', url: '/admin/work-queue?category=membership', why: 'answers the dispute revert form', submit: { action: `/admin/work-queue/${R.disputeItemId}/link-help/dispute-revert`, fields: { target_legacy_member_id: R.disputedLegacyId, reason: 'Rendered style check revert preview.' } } },
+  { template: 'clubs/leave-confirm', viewer: 'club-leader', url: `/members/${R.leaderSlug}`, why: 'answers the leave form', submit: { action: `/clubs/${R.leaderClubKey}/leave` }, signInPerWidth: [R.leaderSlug, R.leaderSlug] },
+  { template: 'clubs/step-down-confirm', viewer: 'club-leader', url: `/members/${R.leaderSlug}`, why: 'answers the step-down form', submit: { action: `/clubs/${R.leaderClubKey}/step-down` }, signInPerWidth: [R.leaderSlug, R.leaderSlug] },
+  // An unknown address writes nothing and gets the same page a known one does.
+  { template: 'auth/password-forgot-sent', viewer: 'anonymous', url: '/password/forgot', why: 'answers the reset request form', submit: { action: '/password/forgot', fields: { email: 'rendered-style-nobody@example.com' } } },
+  { template: 'auth/verify-result', viewer: 'anonymous', url: '/verify/rendered-style-unknown-token', why: 'answers the verify form; an unknown token is refused', submit: { action: '/verify' } },
+  // A stub checkout session lives only in the running server, so only the real donate post makes one.
+  { template: 'payments/checkout', viewer: 'member', url: '/donate', why: 'the donate form redirects to it', submit: { action: '/donate', fields: { amountChoice: 'custom', customAmount: '25.00' } } },
+  { template: 'members/delete-account-done', viewer: 'member', url: `/members/${MEMBER}/delete`, why: 'answers the delete form, which ends the account', submit: { action: `/members/${MEMBER}/delete` }, signInPerWidth: [R.deletePhoneSlug, R.deleteDesktopSlug] },
 ];
 
 /**
@@ -104,31 +188,7 @@ export const STRESS_TRICK_NOTATION = 'SET > STEPPING [BOD] > PARADOX [BOD] > BLU
   .slice(0, STRESS_LENGTHS.notation);
 
 /** Views the check does not measure, each with its reason. */
-const POSTED = 'rendered only as the answer to a form post, which the read-only walk never sends';
-export const EXEMPT: Readonly<Record<string, string>> = {
-  'admin/admin-roles/grant-confirm': POSTED,
-  'admin/admin-roles/revoke-confirm': POSTED,
-  'admin/club-leadership/demote-confirm': POSTED,
-  'admin/clubs/confirm': POSTED,
-  'admin/historical-records/confirm': POSTED,
-  'admin/honor-grants/action-confirm': POSTED,
-  'admin/honor-grants/grant-confirm': POSTED,
-  'admin/members/confirm': POSTED,
-  'admin/tags/confirm': POSTED,
-  'admin/work-queue/link-help-confirm': POSTED,
-  'auth/password-forgot-sent': POSTED,
-  'auth/verify-result': POSTED,
-  'clubs/leave-confirm': POSTED,
-  'clubs/step-down-confirm': POSTED,
-  'members/delete-account-done': POSTED,
-  'payments/checkout': 'needs a checkout session, which only the donate form post creates',
-  'history/claim-hp-confirm': 'needs a registrant whose claim lookup matches a historical record; the legacy-claim browser spec drives it',
-  'history/claim-hp-conflict': 'needs a historical record another member has already claimed; the claim route tests cover it',
-  'admin/broadcasts/detail': 'needs a sent broadcast, which only the compose form send creates and no row factory builds',
-  'admin/payments/report': 'needs a reconciliation run, which only the scheduled reconciliation job writes',
-  'admin/freestyle-notation-author': 'needs a notation-backlog candidate derived from the full freestyle dictionary',
-  'admin/freestyle-trick-publish': 'needs a notation-backlog candidate derived from the full freestyle dictionary',
-};
+export const EXEMPT: Readonly<Record<string, string>> = {};
 
 /** Every page view on disk, as the name a controller renders it by: partials and layouts are not pages. */
 export function listPageTemplates(): string[] {

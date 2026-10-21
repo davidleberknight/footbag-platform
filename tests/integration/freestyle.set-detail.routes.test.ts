@@ -161,8 +161,7 @@ describe('GET /freestyle/sets/:slug — set detail page', () => {
 
   it('renders example-tricks empty state for holden-only sets with no linked tricks', async () => {
     const res = await page('/freestyle/sets/bubba');
-    expect(res.text).toContain('set-detail-examples-section--empty');
-    expect(res.text).toContain('No tricks are linked to this set yet');
+    expect(res.text).toMatch(/class="set-detail-examples-empty">No tricks are linked to this set yet/);
   });
 
   it('renders cross-links to the encyclopedia, compositional hub, and the set\'s dictionary section', async () => {

@@ -162,7 +162,10 @@ const DECISIONS: Record<string, Decision> = {
     erasure: { cleared: 'memberMessages.scrubTextForMember', on: 'purge' },
   },
   'member_messages.sender_admin_member_id': ACTOR,
-  'member_onboarding_tasks.member_id': { export: { withheld: OPERATIONAL }, erasure: { unruled: NO_ERASURE_RULE } },
+  'member_onboarding_tasks.member_id': {
+    export: { withheld: OPERATIONAL },
+    erasure: { cleared: 'memberOnboarding.clearHeldAnswersForMember', on: 'purge' },
+  },
   'member_tier_grants.actor_member_id': ACTOR,
   'member_tier_grants.member_id': {
     export: { exported: 'memberTier.getCurrent', reads: 'member_tier_current' },

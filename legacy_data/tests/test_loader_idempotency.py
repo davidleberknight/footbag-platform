@@ -335,9 +335,9 @@ def _seed_app_data(db: Path) -> dict:
         )
         conn.execute(
             "INSERT INTO members (id, created_at, created_by, updated_at, updated_by, "
-            "real_name, display_name, display_name_normalized, is_system) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)",
-            (member, ts, member, ts, member, "App Member", "App Member", "app member"),
+            "real_name, display_name, display_name_normalized, slug, is_system) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)",
+            (member, ts, member, ts, member, "App Member", "App Member", "app member", member),
         )
         conn.execute(
             "INSERT INTO events (id, created_at, created_by, updated_at, updated_by, "
@@ -426,8 +426,8 @@ def test_mvfp_loader_aborts_on_app_row_on_canonical_event(tmp_path: Path) -> Non
         ).fetchone()[0]
         conn.execute(
             "INSERT INTO members (id, created_at, created_by, updated_at, updated_by, "
-            "real_name, display_name, display_name_normalized, is_system) "
-            "VALUES ('m_guard', ?, 'm_guard', ?, 'm_guard', 'M', 'M', 'm', 1)", (ts, ts),
+            "real_name, display_name, display_name_normalized, slug, is_system) "
+            "VALUES ('m_guard', ?, 'm_guard', ?, 'm_guard', 'M', 'M', 'm', 'm_guard', 1)", (ts, ts),
         )
         conn.execute(
             "INSERT INTO registrations (id, created_at, created_by, updated_at, "
@@ -1180,9 +1180,9 @@ def _add_member_claim(conn, pid: str, member_id: str) -> None:
     # CHECK; this mirrors the real system-account -> historical_person link.
     conn.execute(
         "INSERT INTO members (id, created_at, created_by, updated_at, updated_by, "
-        "real_name, display_name, display_name_normalized, is_system, historical_person_id) "
-        "VALUES (?, ?, ?, ?, ?, 'Claim Member', 'Claim Member', 'claim member', 1, ?)",
-        (member_id, TS08, member_id, TS08, member_id, pid),
+        "real_name, display_name, display_name_normalized, slug, is_system, historical_person_id) "
+        "VALUES (?, ?, ?, ?, ?, 'Claim Member', 'Claim Member', 'claim member', ?, 1, ?)",
+        (member_id, TS08, member_id, TS08, member_id, member_id, pid),
     )
 
 

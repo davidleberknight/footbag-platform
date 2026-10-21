@@ -71,7 +71,7 @@
           <option value="">Choose one</option>
           {{#each content.basisOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
         </select>
-        <ul class="form-hint" id="evidenceBasis-hint">
+        <ul id="evidenceBasis-hint">
           {{#each content.basisHelp}}<li><strong>{{label}}</strong> &mdash; {{help}}</li>{{/each}}
         </ul>
       </div>
@@ -82,7 +82,7 @@
           <option value="">Choose one</option>
           {{#each content.methodOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
         </select>
-        <ul class="form-hint" id="derivationMethod-hint">
+        <ul id="derivationMethod-hint">
           {{#each content.methodHelp}}<li><strong>{{label}}</strong> &mdash; {{help}}</li>{{/each}}
         </ul>
       </div>
@@ -93,7 +93,7 @@
           <option value="">None &mdash; it was not derived under a convention</option>
           {{#each content.conventionOptions}}<option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>{{/each}}
         </select>
-        <ul class="form-hint" id="conventionId-hint">
+        <ul id="conventionId-hint">
           {{#each content.conventionSummaries}}<li><strong>{{title}}</strong> &mdash; {{summary}}</li>{{/each}}
         </ul>
       </div>

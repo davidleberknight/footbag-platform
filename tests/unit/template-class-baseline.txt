@@ -837,7 +837,6 @@ set-detail-equivalent-note
 set-detail-equivalent-structural
 set-detail-examples-empty
 set-detail-examples-section
-set-detail-examples-section--empty
 set-detail-formula
 set-detail-link-list
 set-detail-movement

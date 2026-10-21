@@ -36,6 +36,9 @@ interface HistoricalRecordRow {
   is_deceased: number;
   claimed_by_member_id: string | null;
   claimed_by_display_name: string | null;
+  // 0 when the holder is a prospective member, who is never named on
+  // an admin page and has no admin record to link.
+  claimed_by_is_nameable: 0 | 1;
 }
 
 interface RecordResultView {
@@ -90,9 +93,11 @@ function shapeRow(row: HistoricalRecordRow): RecordResultView {
     isDeceased: row.is_deceased === 1,
     isClaimed:  claimed,
     claimedNote: claimed
-      ? `Held by ${row.claimed_by_display_name ?? 'a member'}, so this is recorded on their member record.`
+      ? `Held by ${row.claimed_by_is_nameable ? row.claimed_by_display_name : row.claimed_by_member_id}, so this is recorded on their member record.`
       : null,
-    claimedHref: row.claimed_by_member_id ? `/admin/members/${row.claimed_by_member_id}` : null,
+    claimedHref: row.claimed_by_member_id && row.claimed_by_is_nameable
+      ? `/admin/members/${row.claimed_by_member_id}`
+      : null,
     markAction:   `/admin/historical-records/${row.person_id}/deceased`,
     revertAction: `/admin/historical-records/${row.person_id}/deceased/revert`,
   };

@@ -34,9 +34,10 @@
   ];
 
   var DEFAULT_TOKENS = ['--text', '--text-muted', '--text-subtle', '--bg', '--primary-ink', '--secondary', '--border'];
-  // Above the largest page on the site (an admin vocabulary table near 6,000
-  // elements), so no page is judged on a part of itself.
-  var DEFAULT_CAP = 15000;
+  // Well above the largest page on the site, the admin emerging-vocabulary
+  // table (about 910 rows of 16 cells, near 15,500 elements on the seeded
+  // stack), so no page is judged on a part of itself.
+  var DEFAULT_CAP = 40000;
   var SKIP_TAGS = { script: 1, style: 1, template: 1, noscript: 1, link: 1, meta: 1 };
   var FIELD_TAGS = { input: 1, select: 1, textarea: 1 };
   // Text this long might be prose; only then is the "0" width worth measuring.

@@ -4,7 +4,9 @@
  *
  * Owns:
  *   - Member and administrator flagging of a media item (`media_flags`)
- *   - The takedown queue page-model an administrator decides from
+ *   - The takedown queue page-model an administrator decides from; a reporter
+ *     or uploader who is a prospective member is shown by id, never
+ *     named or linked
  *   - The two decisions, Delete and No Action, and the clearing of a single flag
  *   - `media_items.moderation_status`, which nothing else in the application writes
  *   - Detaching a decided profile picture from its member. A profile picture is
@@ -219,7 +221,7 @@ export interface FlaggedReportViewModel {
   reportedAtIso: string;
   reportedAtDisplay: string;
   reporterDisplay: string;
-  reporterHref: string;
+  reporterHref: string | null;
   patternNote: string | null;
   clearHref: string;
 }
@@ -230,7 +232,7 @@ export interface FlaggedMediaViewModel {
   thumbHref: string | null;
   mediaHref: string;
   uploaderDisplay: string;
-  uploaderHref: string;
+  uploaderHref: string | null;
   isHidden: boolean;
   statusLabel: string;
   flagCountLabel: string;
@@ -244,7 +246,7 @@ export interface PendingRemovalViewModel {
   mediaId: string;
   caption: string | null;
   uploaderDisplay: string;
-  uploaderHref: string;
+  uploaderHref: string | null;
   removedAtDisplay: string;
   decisionReason: string | null;
   retryHref: string;
@@ -286,8 +288,11 @@ interface AwaitingRemovalRow {
   removed_at: string;
   queue_item_id: string;
   opened_at: string;
+  uploader_member_id: string;
   uploader_display_name: string;
   uploader_slug: string;
+  // 0 for a prospective member, who is never named on an admin page.
+  uploader_is_nameable: 0 | 1;
 }
 
 interface OpenFlagRow {
@@ -299,13 +304,28 @@ interface OpenFlagRow {
   reporter_member_id: string;
   reporter_display_name: string;
   reporter_slug: string;
+  // 0 for a prospective member, who is never named on an admin page.
+  reporter_is_nameable: 0 | 1;
   media_type: string;
   caption: string | null;
   s3_key_thumb: string | null;
   thumbnail_url: string | null;
   moderation_status: string;
+  uploader_member_id: string;
   uploader_display_name: string;
   uploader_slug: string;
+  uploader_is_nameable: 0 | 1;
+}
+
+// A person the page may name gets their name and a profile link; one it may
+// not (a prospective member) is shown by id with no link, the same
+// treatment the audit log gives a member it cannot name.
+function adminPersonRef(
+  id: string, displayName: string, slug: string, isNameable: 0 | 1,
+): { display: string; href: string | null } {
+  return isNameable
+    ? { display: displayName, href: `/members/${slug}` }
+    : { display: id, href: null };
 }
 
 function isFlagReasonCode(value: unknown): value is FlagReasonCode {
@@ -887,8 +907,8 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
             caption:   r.caption,
             thumbHref: thumbHrefFor(r),
             mediaHref: `/media/item/${r.media_id}`,
-            uploaderDisplay: r.uploader_display_name,
-            uploaderHref:    `/members/${r.uploader_slug}`,
+            uploaderDisplay: adminPersonRef(r.uploader_member_id, r.uploader_display_name, r.uploader_slug, r.uploader_is_nameable).display,
+            uploaderHref:    adminPersonRef(r.uploader_member_id, r.uploader_display_name, r.uploader_slug, r.uploader_is_nameable).href,
             isHidden:    r.moderation_status !== 'active',
             statusLabel: r.moderation_status === 'active' ? 'Visible' : 'Hidden',
             flagCountLabel: '',
@@ -905,8 +925,8 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
           detail:      r.reason_text,
           reportedAtIso:     r.reported_at,
           reportedAtDisplay: r.reported_at.slice(0, 10),
-          reporterDisplay: r.reporter_display_name,
-          reporterHref:    `/members/${r.reporter_slug}`,
+          reporterDisplay: adminPersonRef(r.reporter_member_id, r.reporter_display_name, r.reporter_slug, r.reporter_is_nameable).display,
+          reporterHref:    adminPersonRef(r.reporter_member_id, r.reporter_display_name, r.reporter_slug, r.reporter_is_nameable).href,
           patternNote: recent > 1
             ? `${recent} reports from this member in the last ${PATTERN_WINDOW_DAYS} days`
             : null,
@@ -927,8 +947,8 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
       const pendingRemoval: PendingRemovalViewModel[] = awaiting.map((r) => ({
         mediaId:         r.id,
         caption:         r.caption,
-        uploaderDisplay: r.uploader_display_name,
-        uploaderHref:    `/members/${r.uploader_slug}`,
+        uploaderDisplay: adminPersonRef(r.uploader_member_id, r.uploader_display_name, r.uploader_slug, r.uploader_is_nameable).display,
+        uploaderHref:    adminPersonRef(r.uploader_member_id, r.uploader_display_name, r.uploader_slug, r.uploader_is_nameable).href,
         removedAtDisplay: r.removed_at.slice(0, 10),
         decisionReason:  r.moderation_reason,
         retryHref:       `/admin/media-flags/${r.id}/retry-removal`,

@@ -6,7 +6,12 @@ import {
 import { memberOnboardingService } from '../services/memberOnboardingService';
 import { ConflictError, RateLimitedError, ValidationError } from '../services/serviceErrors';
 import { logger } from '../config/logger';
+import { nextPendingWizardHref } from '../middleware/auth';
 import { PageViewModel } from '../types/page';
+
+// The wizard's claim step: the only way into a claim, so the confirm page's
+// Cancel returns there rather than to the record.
+const CLAIM_STEP_HREF = '/register/wizard/legacy_claim';
 
 const HP_FORM_VM = {
   seo:  { title: 'Claim Historical Record' },
@@ -121,7 +126,7 @@ export const claimController = {
           bioExcerpt:       result.bioExcerpt,
           clubAffiliations: result.clubAffiliations,
           eventsAttended:   result.eventsAttended,
-          cancelHref:       `/history/${encodeURIComponent(result.personId)}`,
+          cancelHref:       CLAIM_STEP_HREF,
         },
       } satisfies PageViewModel<ClaimHpConfirmContent>);
     } catch (err) {
@@ -135,7 +140,7 @@ export const claimController = {
             content: {
               personId,
               error: err.message,
-              cancelHref: `/history/${encodeURIComponent(personId)}`,
+              cancelHref: CLAIM_STEP_HREF,
             },
           } satisfies PageViewModel<ClaimHpConfirmContent>);
         return;
@@ -172,13 +177,15 @@ export const claimController = {
     if (!personId) {
       res.status(422).render('history/claim-hp-confirm', {
         ...HP_FORM_VM,
-        content: { error: 'Invalid claim request.', cancelHref: '/' },
+        content: { error: 'Invalid claim request.', cancelHref: CLAIM_STEP_HREF },
       } satisfies PageViewModel<ClaimHpConfirmContent>);
       return;
     }
     try {
       memberOnboardingService.claimHistoricalPersonAndCompleteTask(req.user!.userId, personId, req.ip ?? 'unknown');
-      res.redirect(303, `/members/${req.user!.slug}`);
+      // The claimant is still onboarding, so they go on to the wizard's next
+      // step; a profile is a member page and would only bounce them there.
+      res.redirect(303, nextPendingWizardHref(req.user!.userId));
     } catch (err) {
       if (err instanceof RateLimitedError) {
         res.status(429)
@@ -188,7 +195,7 @@ export const claimController = {
             content: {
               personId,
               error: err.message,
-              cancelHref: `/history/${encodeURIComponent(personId)}`,
+              cancelHref: CLAIM_STEP_HREF,
             },
           } satisfies PageViewModel<ClaimHpConfirmContent>);
         return;
@@ -201,7 +208,7 @@ export const claimController = {
           content: {
             personId,
             error: err.message,
-            cancelHref: `/history/${encodeURIComponent(personId)}`,
+            cancelHref: CLAIM_STEP_HREF,
           },
         } satisfies PageViewModel<ClaimHpConfirmContent>);
         return;

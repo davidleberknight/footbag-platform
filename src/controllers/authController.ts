@@ -86,7 +86,9 @@ async function postLogin(req: Request, res: Response, next: NextFunction): Promi
       const role = member.is_admin ? 'admin' : 'member';
       const memberSlug = member.slug ?? member.id;
       const cookieValue = await createSessionJwt(member.id, role, member.password_version);
-      issueSessionCookie(res, cookieValue, req);
+      issueSessionCookie(res, cookieValue, req, {
+        archiveAccess: memberOnboardingService.isOnboardingComplete(member.id),
+      });
       // The banner on the page we redirect to is the member's confirmation that
       // the sign-in worked, the counterpart of the one logout already shows.
       writeFlash(res, req, FLASH_KIND.LOGIN);
@@ -295,7 +297,9 @@ async function postVerify(req: Request, res: Response, next: NextFunction): Prom
       } satisfies PageViewModel<VerifyResultContent>);
       return;
     }
-    issueSessionCookie(res, cookieValue, req);
+    issueSessionCookie(res, cookieValue, req, {
+      archiveAccess: memberOnboardingService.isOnboardingComplete(result.memberId),
+    });
     // Land on the first outstanding task in the wizard sequence rather than a
     // fixed step, so the personal-details-first order governs where a verified
     // member starts.
@@ -512,7 +516,9 @@ async function postPasswordReset(req: Request, res: Response, next: NextFunction
       } satisfies PageViewModel<PasswordResetContent>);
       return;
     }
-    issueSessionCookie(res, cookieValue, req);
+    issueSessionCookie(res, cookieValue, req, {
+      archiveAccess: memberOnboardingService.isOnboardingComplete(result.memberId),
+    });
     // Redirect to the member's own profile to match the login and verify flows.
     res.redirect(303, `/members/${encodeURIComponent(result.slug)}`);
   } catch (err) {

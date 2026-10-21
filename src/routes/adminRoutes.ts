@@ -105,7 +105,8 @@ adminRouter.post('/work-queue/:id/ask-member', adminWorkQueueController.askMembe
 adminRouter.post('/work-queue/:id/link-help/approve/confirm', adminWorkQueueController.linkHelpApprove);
 adminRouter.post('/work-queue/:id/link-help/approve', adminWorkQueueController.linkHelpApprovePreview);
 adminRouter.post('/work-queue/:id/link-help/reject',  adminWorkQueueController.linkHelpReject);
-adminRouter.post('/work-queue/:id/link-help/dispute-revert', adminWorkQueueController.linkHelpDisputeRevert);
+adminRouter.post('/work-queue/:id/link-help/dispute-revert/confirm', adminWorkQueueController.linkHelpDisputeRevert);
+adminRouter.post('/work-queue/:id/link-help/dispute-revert', adminWorkQueueController.linkHelpDisputeRevertPreview);
 // Inbound payments, the retained nightly reports, and the reconciliation queue.
 // Order matters: the literal `health`, `reports` and `reconciliation` paths must
 // precede `/payments/:paymentId`, or a payment id of "reconciliation" would be

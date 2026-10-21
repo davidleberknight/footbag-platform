@@ -292,8 +292,18 @@ describe('the insight question is asked once per member', () => {
         insightNote: 'That club folded years ago.',
       });
     expect(card.status).toBe(303);
-    expect(readNotes(MEMBER_TWICE)).toHaveLength(1);
+    // Still a prospective member: the note is held with the card answer and
+    // written only when onboarding completes.
+    expect(readNotes(MEMBER_TWICE)).toHaveLength(0);
+    const held = testDb
+      .prepare(`SELECT answer_json FROM member_onboarding_tasks WHERE member_id = ? AND task_type = 'club_affiliations'`)
+      .get(MEMBER_TWICE) as { answer_json: string | null };
+    expect(JSON.parse(held.answer_json ?? '{}').answers).toEqual([
+      expect.objectContaining({ kind: 'card', candidateId: twiceAffId, insightNote: 'That club folded years ago.' }),
+    ]);
 
+    // The no-club answer completes onboarding, so both held answers land in
+    // order and only the first note is kept.
     const wrapUp = await request(createApp())
       .post('/register/wizard/club_affiliations/none')
       .set('Cookie', cookieFor(MEMBER_TWICE))

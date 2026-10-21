@@ -189,6 +189,7 @@ export const ROUTE_EXEMPTIONS: readonly RouteExemption[] = [
       'POST /admin/historical-records/:personId/deceased', 'POST /admin/historical-records/:personId/deceased/revert',
       'POST /admin/work-queue/:id/resolve', 'POST /admin/work-queue/:id/dismiss', 'POST /admin/work-queue/:id/unpark',
       'POST /admin/work-queue/:id/link-help/dispute-revert',
+      'POST /admin/work-queue/:id/link-help/dispute-revert/confirm',
       'GET /admin/payments/reports/:runId', 'POST /admin/payments/reconciliation/:issueId/resolve',
       'POST /admin/email-log/:id/review', 'POST /admin/alarms/:id/acknowledge', 'GET /admin/broadcasts/:id',
       'GET /admin/events/organizers', 'GET /admin/events/:eventId/organizers',

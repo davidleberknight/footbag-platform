@@ -286,7 +286,8 @@ describe('memberOnboardingService completion audit row', () => {
     svc.completeTask(memberId, 'legacy_claim');
     const rows = readCompletionAudits(memberId);
     expect(rows).toHaveLength(1);
-    expect(JSON.parse(rows[0].metadata_json)).toEqual({ completing_task: 'legacy_claim' });
+    // Nothing was held, so no held claim failed to land at completion.
+    expect(JSON.parse(rows[0].metadata_json)).toEqual({ completing_task: 'legacy_claim', claim_not_applied: false });
   });
 });
 
