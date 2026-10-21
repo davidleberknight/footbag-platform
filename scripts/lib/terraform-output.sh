@@ -40,12 +40,18 @@ TF_OUTPUT_BIN="${TF_OUTPUT_BIN:-terraform}"
 # meaningful after any call; the error is empty when the read succeeded.
 TF_OUTPUT_VALUE=""
 TF_OUTPUT_ERROR=""
+# The form the last read asked for, so the reproduce line below repeats it.
+TF_OUTPUT_FORM="-raw"
 
-# tf_output_read <terraform-dir> <output-name>
+# tf_output_read <terraform-dir> <output-name> [--json]
 #
 # Sets TF_OUTPUT_VALUE and TF_OUTPUT_ERROR. Returns terraform's exit status. An
 # output that exists but is empty is a successful read of an empty value, and is
 # reported as such rather than as a failure.
+#
+# --json reads the output as JSON instead of as a raw string. Terraform refuses
+# a list or a map in the raw form, so a list output such as the zone's name
+# servers can only be read this way.
 #
 # It sets a variable rather than printing, which looks like the wrong shape for
 # a shell function and is the right one here. `value="$(f)"` runs f in a
@@ -57,6 +63,8 @@ tf_output_read() {
 
   TF_OUTPUT_VALUE=""
   TF_OUTPUT_ERROR=""
+  TF_OUTPUT_FORM="-raw"
+  [[ "${3:-}" == "--json" ]] && TF_OUTPUT_FORM="-json"
 
   # A read with no identity behind it fails inside terraform, which reports it
   # as its own problem. Settle the identity first so the operator gets the
@@ -81,7 +89,7 @@ tf_output_read() {
   # shellcheck disable=SC2064
   trap "rm -f -- '${errfile}'; trap - RETURN" RETURN
 
-  TF_OUTPUT_VALUE="$("$TF_OUTPUT_BIN" -chdir="$dir" output -raw "$name" 2>"$errfile")" || rc=$?
+  TF_OUTPUT_VALUE="$("$TF_OUTPUT_BIN" -chdir="$dir" output "$TF_OUTPUT_FORM" "$name" 2>"$errfile")" || rc=$?
 
   if [[ "$rc" -ne 0 ]]; then
     TF_OUTPUT_VALUE=""
@@ -105,7 +113,7 @@ tf_output_explain() {
   fi
   echo "" >&2
   echo "       Reproduce it directly:" >&2
-  echo "         terraform -chdir=${dir} output -raw ${name}" >&2
+  echo "         terraform -chdir=${dir} output ${TF_OUTPUT_FORM} ${name}" >&2
   echo "" >&2
   echo "       Three causes look identical here, so check all three:" >&2
   echo "         - the tree has not been initialised (terraform -chdir=${dir} init);" >&2

@@ -12,7 +12,7 @@ import { spawnSync } from 'node:child_process';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { awsIdentityStubEnv } from '../fixtures/awsIdentityStub';
-import { chmodSync, mkdirSync, mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -63,6 +63,8 @@ const ALL_DONE_PRODUCTION = [
   'TIMER_ACTIVE=active',
   'CONTAINERS=footbag-web Up, footbag-nginx Up, footbag-worker Up',
   'TF_PLAN=insync',
+  'TF_PLAN_SHARED=insync',
+  'TF_PLAN_IDENTITY=insync',
   'TF_BACKUP_ALARM=present',
   'TF_CUTOVER_ALARM=absent',
   'TF_SES_SUBSCRIPTION=present',
@@ -194,10 +196,10 @@ describe('bringup-status.sh — pending steps name their next command', () => {
     // is not.
     expect(result.stdout).toMatch(/scripts\/set-host-env\.sh --target staging/);
     expect(result.stdout).toMatch(/2\. Terraform\s+PENDING/);
-    // The Terraform row points at the wrapper, which reviews the plan and
-    // applies it, and never at a hand-typed import: a resource made outside
-    // Terraform is taken in by an import block through the wrapper's own plan.
-    expect(result.stdout).toMatch(/scripts\/terraform-apply\.sh --target staging/);
+    // The Terraform row points at the command that applies every tree the
+    // environment stands on, and never at a hand-typed import: a resource made
+    // outside Terraform is taken in by an import block through a reviewed plan.
+    expect(result.stdout).toMatch(/scripts\/terraform-apply-all\.sh --target staging/);
     expect(result.stdout).not.toMatch(/terraform import/);
     expect(result.stdout).toMatch(/4\. Backup pipeline\s+PENDING/);
     expect(result.stdout).toMatch(/scripts\/install-backup-timer\.sh --target staging/);
@@ -318,6 +320,55 @@ describe('bringup-status.sh — pending steps name their next command', () => {
     ]);
     const result = runScript(['--target', 'staging', '--probe-file', probe]);
     expect(result.stdout).toMatch(/enable_backup_alarm = true in terraform\/staging\/terraform\.tfvars/);
+  });
+});
+
+describe('bringup-status.sh — the Terraform row covers every tree the environment stands on', () => {
+  it('a change pending only in an account tree reads as pending, naming that tree', () => {
+    // An operator told the infrastructure is done would never apply a change
+    // committed to the shared or identity tree.
+    const probe = writeProbeFile(ALL_DONE_PRODUCTION.map((l) => (l === 'TF_PLAN_SHARED=insync' ? 'TF_PLAN_SHARED=drift' : l)));
+    const result = runScript(['--target', 'production', '--probe-file', probe]);
+    expect(result.stdout).toMatch(/2\. Terraform\s+PENDING\s+pending changes in: shared\b/);
+    expect(result.stdout).toMatch(/scripts\/terraform-apply-all\.sh --target production/);
+  });
+
+  it('an account tree it could not read is unknown, never done', () => {
+    const probe = writeProbeFile(ALL_DONE_PRODUCTION.filter((l) => !l.startsWith('TF_PLAN_IDENTITY=')));
+    const result = runScript(['--target', 'production', '--probe-file', probe]);
+    expect(result.stdout).toMatch(/2\. Terraform\s+UNKNOWN\s+plan not run or failed for: identity\b/);
+  });
+
+  it('plans all three trees by their real paths when started outside the repository root', () => {
+    // Run from elsewhere, a relative tree path finds nothing and every plan
+    // reads as unknown, which an operator takes for a bring-up not yet done.
+    const binDir = join(tmpDir, 'terraform-bin');
+    const callLog = join(tmpDir, 'terraform-calls.log');
+    mkdirSync(binDir, { recursive: true });
+    writeFileSync(join(binDir, 'terraform'), [
+      '#!/usr/bin/env bash',
+      `echo "$*" >> "${callLog}"`,
+      'exit 0',
+    ].join('\n'));
+    chmodSync(join(binDir, 'terraform'), 0o755);
+    const elsewhere = join(tmpDir, 'elsewhere');
+    mkdirSync(elsewhere, { recursive: true });
+    const result = spawnSync(
+      'bash',
+      [SCRIPT, '--target', 'production', '--skip-remote', '--skip-aws'],
+      {
+        cwd: elsewhere,
+        env: { ...process.env, ...awsIdentityStubEnv(tmpDir), PATH: `${binDir}:${process.env.PATH ?? ''}` },
+        encoding: 'utf-8',
+        ...SPAWN_GUARD,
+      },
+    );
+    expect(result.stdout, result.stderr).toMatch(/2\. Terraform\s+DONE\s+plan reports no changes in shared, identity or production/);
+    const planned = readFileSync(callLog, 'utf-8')
+      .split('\n')
+      .filter((l) => / plan /.test(l))
+      .map((l) => l.match(/-chdir=(\S+)\/terraform\/(\w+)/)?.[2]);
+    expect(planned.sort()).toEqual(['identity', 'production', 'shared']);
   });
 });
 

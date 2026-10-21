@@ -51,6 +51,8 @@
 #   scripts/terraform-apply.sh --target staging --break-stale-lock --i-killed-that-run
 #   scripts/terraform-apply.sh --target staging --firewall-only --firewall-add 203.0.113.7/32
 #   scripts/terraform-apply.sh --target staging --require-empty-plan
+#   scripts/terraform-apply.sh --target production --dns-records-only
+#   scripts/terraform-apply.sh --target shared --init --skip-empty-plan
 #   scripts/terraform-apply.sh --target production --replace random_id.origin_verify_secret
 #
 # --replace plans with Terraform's -replace for one resource address, through
@@ -68,6 +70,20 @@
 # run when proving the job role and by every deploy (scripts/lib/infra-sync.sh),
 # on staging or production, applies nothing and refuses unless there is nothing
 # to apply. Either refuses any other change as drift it did not come to apply.
+#
+# --dns-records-only, run by scripts/resync-zone-mirror.sh on production only,
+# applies only when every change in the plan creates a Route 53 record or updates
+# one in place. A replacement or a destroy is refused even on a record: either
+# takes a name out of the zone for a moment, and a name the legacy zone dropped is
+# a decision for a person, not something a re-sync carries along. Anything that is
+# not a record, the unapplied backlog of the tree included, is refused as drift; a
+# plain production apply clears that first. Both typed confirmations still follow.
+#
+# --skip-empty-plan, run by scripts/terraform-apply-all.sh on every tree it
+# sweeps, ends a plain run with exit 0 and no prompt when the plan changes
+# nothing. A word typed to apply nothing is a word that stops being read, and a
+# sweep over trees that are mostly clean would ask for it on each one. A plan
+# with anything in it is shown and confirmed exactly as without the flag.
 #
 # --firewall-only also takes each SSH address the caller is adding
 # (--firewall-add <cidr>) and each it is removing (--firewall-remove <cidr>),
@@ -92,8 +108,9 @@
 #
 #   ... --yes   answers the typed confirmation where one is asked and the flag is
 #               accepted: the shared tree's apply, and a staging lock break. A
-#               production apply refuses it outright, because a confirmation a flag
-#               can supply in advance is not one, and so does breaking the lock on
+#               production or identity apply refuses it outright, because a
+#               confirmation a flag can supply in advance is not one, and so does
+#               breaking the lock on
 #               production, the shared tree or the roster, because removing a live
 #               lock lets two runs write state at once. Kept rather than rejected so
 #               that reaching for it in a place it does not carry fails loudly
@@ -145,6 +162,9 @@ STALE_LOCK_MIN_AGE_SECS=1800
 # "firewall-only" for a dev-and-tester address change, "empty" for proving the
 # job role can plan staging. Empty means no restriction, which is every other run.
 PLAN_SHAPE=""
+# Set by --skip-empty-plan: a plan with nothing in it ends the run without a
+# prompt, for the caller that sweeps several trees and expects most to be clean.
+SKIP_EMPTY=0
 # The resource addresses --replace may name, and the only list of them. Each is
 # a value whose rotation is a Terraform replacement by design: the origin-verify
 # secret, and the JWT signing key, which the design rotates as a whole new key.
@@ -334,6 +354,14 @@ while [[ $# -gt 0 ]]; do
       PLAN_SHAPE="empty"
       shift
       ;;
+    --dns-records-only)
+      PLAN_SHAPE="dns-records-only"
+      shift
+      ;;
+    --skip-empty-plan)
+      SKIP_EMPTY=1
+      shift
+      ;;
     --replace)
       REPLACE_ADDR="${2:-}"
       shift 2 || { echo "ERROR: --replace requires a resource address" >&2; exit 2; }
@@ -389,7 +417,7 @@ if [[ -n "$REPLACE_ADDR" ]]; then
     exit 2
   fi
   if [[ -n "$PLAN_SHAPE" ]] || (( BREAK_LOCK )); then
-    echo "ERROR: --replace does not combine with --firewall-only, --require-empty-plan or --break-stale-lock." >&2
+    echo "ERROR: --replace does not combine with --firewall-only, --require-empty-plan, --dns-records-only or --break-stale-lock." >&2
     exit 2
   fi
   PLAN_EXTRA_ARGS=("-replace=${REPLACE_ADDR}")
@@ -407,8 +435,20 @@ if [[ "$PLAN_SHAPE" == "empty" && "$TARGET" != "staging" && "$TARGET" != "produc
   echo "ERROR: --require-empty-plan applies to staging or production only." >&2
   exit 2
 fi
+# The records-only shape exists for the production hosted zone, the only tree
+# that holds one.
+if [[ "$PLAN_SHAPE" == "dns-records-only" && "$TARGET" != "production" ]]; then
+  echo "ERROR: --dns-records-only applies to production only." >&2
+  exit 2
+fi
+# Each plan shape already ends an empty plan its own way, and a replacement or a
+# lock break is never empty by intent, so the flag belongs to the plain run.
+if (( SKIP_EMPTY )) && { [[ -n "$PLAN_SHAPE" || -n "$REPLACE_ADDR" ]] || (( BREAK_LOCK )); }; then
+  echo "ERROR: --skip-empty-plan goes with a plain apply, not with a plan shape, --replace or --break-stale-lock." >&2
+  exit 2
+fi
 if [[ -n "$PLAN_SHAPE" ]] && (( BREAK_LOCK )); then
-  echo "ERROR: --firewall-only and --require-empty-plan do not combine with --break-stale-lock." >&2
+  echo "ERROR: --firewall-only, --require-empty-plan and --dns-records-only do not combine with --break-stale-lock." >&2
   exit 2
 fi
 # A firewall-only apply names the address it changes, so the plan can be held to
@@ -482,6 +522,14 @@ if (( DRY_RUN )); then
   elif [[ "$TARGET" == "production" || "$TARGET" == "shared" || "$TARGET" == "identity" ]]; then
     echo "  2. terraform -chdir=terraform/$TARGET plan into a mode-600 file shredded on"
     echo "     every exit path, show it, take a typed APPLY, then apply that exact plan."
+    if [[ "$PLAN_SHAPE" == "dns-records-only" ]]; then
+      echo "     Before any confirmation, refuse unless every change creates a Route 53"
+      echo "     record or updates one in place; stop with nothing applied when the plan"
+      echo "     is empty."
+    fi
+    if (( SKIP_EMPTY )); then
+      echo "     An empty plan stops there with nothing applied and no prompt."
+    fi
   else
     echo "  2. terraform -chdir=terraform/$TARGET plan into a mode-600 file shredded on"
     echo "     every exit path, show it, then apply that exact plan. No typed"
@@ -740,7 +788,7 @@ if (( BREAK_LOCK )); then
   exit 0
 fi
 
-# --yes does not carry a production apply.
+# --yes does not carry a production or identity apply.
 #
 # The confirmation below is what stands between a typed decision and replacing
 # what the public is served, and a flag that supplies it in advance is not a
@@ -755,11 +803,18 @@ fi
 # there. The shared tree stops for the typed word too, but accepts the flag in
 # answer to it: it changes about once a year, it serves nobody directly, and the
 # lock-breaking refusal above already covers the operation on it that is
-# irreversible. Every other environment applies without a confirmation at all, so
-# the flag is simply unnecessary there rather than doing anything.
-if [[ "$TARGET" == "production" && "$ASSUME_YES" == "yes" ]]; then
-  echo "ERROR: --yes does not carry a production apply." >&2
-  echo "       This plan reaches what the public is served, so the confirmation is" >&2
+# irreversible. The identity tree is refused like production: its plan is what
+# every dev-and-tester may do, and a statement widened by a flag passed in advance
+# hands everybody something nobody read. Staging applies without a confirmation at
+# all, so the flag is simply unnecessary there rather than doing anything.
+if [[ ( "$TARGET" == "production" || "$TARGET" == "identity" ) && "$ASSUME_YES" == "yes" ]]; then
+  if [[ "$TARGET" == "identity" ]]; then
+    echo "ERROR: --yes does not carry an identity apply." >&2
+    echo "       This plan is what every dev-and-tester may do, so the confirmation" >&2
+  else
+    echo "ERROR: --yes does not carry a production apply." >&2
+    echo "       This plan reaches what the public is served, so the confirmation is" >&2
+  fi
   echo "       typed every time and is never supplied in advance by a flag." >&2
   echo "       Re-run without --yes, read the plan, and answer it." >&2
   echo "       Use --dry-run --yes to see what the run would do, changing nothing." >&2
@@ -1037,12 +1092,74 @@ fi
 # ── A caller that knows what the plan may contain ────────────────────────────
 #
 # A dev-and-tester address change touches the firewall resource and nothing
-# else, and proving the job role can plan staging touches nothing at all. In
-# either case anything else in the plan is drift somebody did not come here to
+# else, proving the job role can plan staging touches nothing at all, and
+# re-syncing the zone mirror creates or updates records and nothing else. In
+# every case anything else in the plan is drift somebody did not come here to
 # apply, so it is refused rather than carried along. Read from the plan's JSON
 # only: the text fallback over-matches by design, which is right for a warning
 # and wrong for a refusal, so without jq these modes do not run.
-if [[ -n "$PLAN_SHAPE" ]]; then
+#
+# The records-only shape is judged on type and actions together, change by
+# change: a record address alone does not say whether it is being replaced, and
+# a replacement is exactly what that shape exists to keep out.
+if [[ "$PLAN_SHAPE" == "dns-records-only" ]]; then
+  if ! command -v jq >/dev/null 2>&1 || [[ -z "${PLAN_JSON:-}" ]]; then
+    echo "ERROR: --dns-records-only needs the plan read as JSON, and jq is not installed." >&2
+    echo "       Nothing has been applied." >&2
+    exit 1
+  fi
+  if ! NOT_RECORD_EDITS="$(printf '%s' "$PLAN_JSON" | jq -r '
+      .resource_changes[]?
+      | select(.change.actions != ["no-op"] and .change.actions != ["read"])
+      | select(.type != "aws_route53_record"
+               or (.change.actions != ["create"] and .change.actions != ["update"]))
+      | "  \(.change.actions | join("+"))  \(.address)"
+    ')" || ! RECORD_EDITS="$(printf '%s' "$PLAN_JSON" | jq -r '
+      .resource_changes[]?
+      | select(.change.actions != ["no-op"] and .change.actions != ["read"])
+      | .address
+    ')"; then
+    echo "ERROR: could not read the saved plan to check what it changes. Nothing has been applied." >&2
+    exit 1
+  fi
+  if [[ -n "$NOT_RECORD_EDITS" ]]; then
+    echo "ERROR: this records-only apply would also make changes that are not a" >&2
+    echo "       Route 53 record being created or updated in place:" >&2
+    printf '%s\n' "$NOT_RECORD_EDITS" >&2
+    echo "       Nothing has been applied. Clear anything else pending with a plain" >&2
+    echo "       scripts/terraform-apply.sh --target production first, and decide a" >&2
+    echo "       record replacement or removal there, by reading its plan." >&2
+    exit 1
+  fi
+  if [[ -z "$RECORD_EDITS" ]]; then
+    echo "The zone records already match the values file. Nothing to apply."
+    exit 0
+  fi
+fi
+
+# An empty plan under --skip-empty-plan ends here, read from the plan's JSON for
+# the same reason the shapes are: without jq the flag does not run at all.
+if (( SKIP_EMPTY )); then
+  if ! command -v jq >/dev/null 2>&1 || [[ -z "${PLAN_JSON:-}" ]]; then
+    echo "ERROR: --skip-empty-plan needs the plan read as JSON, and jq is not installed." >&2
+    echo "       Nothing has been applied." >&2
+    exit 1
+  fi
+  if ! PENDING_CHANGES="$(printf '%s' "$PLAN_JSON" | jq -r '
+      .resource_changes[]?
+      | select(.change.actions != ["no-op"] and .change.actions != ["read"])
+      | .address
+    ')"; then
+    echo "ERROR: could not read the saved plan to check what it changes. Nothing has been applied." >&2
+    exit 1
+  fi
+  if [[ -z "$PENDING_CHANGES" ]]; then
+    echo "Nothing pending in terraform/${TARGET}. Nothing to apply."
+    exit 0
+  fi
+fi
+
+if [[ -n "$PLAN_SHAPE" && "$PLAN_SHAPE" != "dns-records-only" ]]; then
   if ! command -v jq >/dev/null 2>&1 || [[ -z "${PLAN_JSON:-}" ]]; then
     echo "ERROR: --${PLAN_SHAPE/empty/require-empty-plan} needs the plan read as JSON, and jq is not installed." >&2
     echo "       Nothing has been applied." >&2

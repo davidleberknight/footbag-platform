@@ -126,6 +126,8 @@ declare -A P=(
   [TIMER_ACTIVE]=unknown
   [CONTAINERS]=unknown
   [TF_PLAN]=unknown
+  [TF_PLAN_SHARED]=unknown
+  [TF_PLAN_IDENTITY]=unknown
   [TF_BACKUP_ALARM]=unknown
   [TF_CUTOVER_ALARM]=unknown
   [TF_SES_SUBSCRIPTION]=unknown
@@ -224,17 +226,30 @@ else
     # shellcheck source=lib/aws-profile.sh
     source "${SCRIPT_DIR}/lib/aws-profile.sh"
     aws_profile_ensure || exit 1
-    TF_DIR="terraform/$TARGET"
-    if [[ -d "$TF_DIR" ]]; then
+    # Anchored on this script, so a run started outside the repository root
+    # still reads the trees rather than reporting every one as unknown.
+    TF_ROOT="$SCRIPT_DIR/../terraform"
+    TF_DIR="$TF_ROOT/$TARGET"
+    # The environment stands on the two account trees as well as its own: the
+    # shared tree holds every tree's state, and staging's runtime trust names the
+    # role the identity tree declares. A change committed to either and never
+    # applied is pending work for this environment like any of its own.
+    for tf_tree in "$TARGET" shared identity; do
+      key=TF_PLAN
+      [[ "$tf_tree" == shared ]] && key=TF_PLAN_SHARED
+      [[ "$tf_tree" == identity ]] && key=TF_PLAN_IDENTITY
+      [[ -d "$TF_ROOT/$tf_tree" ]] || continue
       set +e
-      terraform -chdir="$TF_DIR" plan -detailed-exitcode -input=false -lock=false >/dev/null 2>&1
+      terraform -chdir="$TF_ROOT/$tf_tree" plan -detailed-exitcode -input=false -lock=false >/dev/null 2>&1
       rc=$?
       set -e
       case "$rc" in
-        0) P[TF_PLAN]=insync ;;
-        2) P[TF_PLAN]=drift ;;
-        *) P[TF_PLAN]=unknown ;;
+        0) P[$key]=insync ;;
+        2) P[$key]=drift ;;
+        *) P[$key]=unknown ;;
       esac
+    done
+    if [[ -d "$TF_DIR" ]]; then
       STATE_LIST="$(terraform -chdir="$TF_DIR" state list 2>/dev/null || true)"
       if [[ -n "$STATE_LIST" ]]; then
         grep -q 'aws_cloudwatch_metric_alarm\.db_backup_age' <<< "$STATE_LIST" \
@@ -356,19 +371,31 @@ else
 fi
 
 # 2. Terraform
-case "${P[TF_PLAN]}" in
-  insync)
-    row 2 "Terraform" DONE "plan reports no changes"
-    ;;
-  drift)
-    row 2 "Terraform" PENDING "plan reports pending changes"
-    next_cmd "bash scripts/terraform-apply.sh --target $TARGET   (review the plan; take any Console-created resource in with an import block, never delete it)"
-    ;;
-  *)
-    row 2 "Terraform" UNKNOWN "plan not run or failed (credentials? init?)"
-    next_cmd "terraform -chdir=terraform/$TARGET plan"
-    ;;
-esac
+# One row for the three trees the environment stands on, in apply order, so a
+# pending change in an account tree reads as pending work rather than as done.
+TF_PENDING=()
+TF_UNREAD=()
+for tf_tree in shared identity "$TARGET"; do
+  key=TF_PLAN
+  [[ "$tf_tree" == shared ]] && key=TF_PLAN_SHARED
+  [[ "$tf_tree" == identity ]] && key=TF_PLAN_IDENTITY
+  case "${P[$key]}" in
+    insync) ;;
+    drift) TF_PENDING+=("$tf_tree") ;;
+    *) TF_UNREAD+=("$tf_tree") ;;
+  esac
+done
+if (( ${#TF_PENDING[@]} > 0 )); then
+  TF_DETAIL="pending changes in: ${TF_PENDING[*]}"
+  (( ${#TF_UNREAD[@]} > 0 )) && TF_DETAIL+="; not read: ${TF_UNREAD[*]}"
+  row 2 "Terraform" PENDING "$TF_DETAIL"
+  next_cmd "bash scripts/terraform-apply-all.sh --target $TARGET   (review each plan; take any Console-created resource in with an import block, never delete it)"
+elif (( ${#TF_UNREAD[@]} > 0 )); then
+  row 2 "Terraform" UNKNOWN "plan not run or failed for: ${TF_UNREAD[*]} (credentials? init?)"
+  next_cmd "terraform -chdir=terraform/${TF_UNREAD[0]} init, then re-run this report"
+else
+  row 2 "Terraform" DONE "plan reports no changes in shared, identity or $TARGET"
+fi
 
 # 3. Payments activation
 ROTATION_NOTE=""

@@ -366,6 +366,19 @@ describe('terraform-apply.sh: argument handling', () => {
     expect(res.stderr).toMatch(/--yes does not carry a production apply/);
   });
 
+  it('refuses --yes on an identity apply too, while the shared tree still accepts it', () => {
+    // The identity plan is what every dev-and-tester may do: a widened statement
+    // accepted by a flag passed in advance hands everybody access nobody read.
+    writeTerraformStub();
+    const identity = run(['--target', 'identity', '--yes']);
+    expect(identity.exitCode).toBe(2);
+    expect(identity.stderr).toMatch(/--yes does not carry an identity apply/);
+    expect(identity.stderr).toMatch(/what every dev-and-tester may do/);
+    expect(calls(), 'terraform was never invoked').toBe('');
+    const shared = run(['--target', 'shared', '--yes']);
+    expect(shared.stderr).not.toMatch(/--yes does not carry/);
+  });
+
   it('refuses it before planning, so no copy of state is written to disk at all', () => {
     // The saved plan is a zip holding every resolved value in the clear. A
     // refusal at the prompt would still have produced one; this one lands first.
@@ -690,6 +703,110 @@ describe('terraform-apply.sh: a caller that knows what the plan may contain', ()
     const res = run(['--target', 'production', '--require-empty-plan']);
     expect(res.exitCode).toBe(1);
     expect(res.stderr).toMatch(/required to be empty, and it changes:\n\s+aws_iam_role_policy\.runtime/);
+    expect(calls()).not.toMatch(/ apply \//);
+  });
+
+  // The zone-mirror re-sync: record creates and in-place updates only, so the
+  // tree's unapplied backlog, or a record replaced or removed, never rides along
+  // with a change made to keep the copy of the legacy zone current.
+  const SPF = { type: 'aws_route53_record', address: 'aws_route53_record.spf', actions: ['update'] };
+  const DKIM = { type: 'aws_route53_record', address: 'aws_route53_record.google_dkim[0]', actions: ['create'] };
+
+  it('refuses the records-only mode on any tree but production, before terraform runs', () => {
+    writeTerraformStub();
+    for (const target of ['staging', 'shared', 'identity']) {
+      const res = run(['--target', target, '--dns-records-only']);
+      expect(res.exitCode, target).toBe(2);
+      expect(res.stderr, target).toMatch(/--dns-records-only applies to production only/);
+    }
+    for (const extra of [['--break-stale-lock'], ['--replace', 'random_id.origin_verify_secret']]) {
+      const res = run(['--target', 'production', '--dns-records-only', ...extra]);
+      expect(res.exitCode, extra[0]).toBe(2);
+      expect(res.stderr, extra[0]).toMatch(/do(es)? not combine with/);
+    }
+    expect(calls()).toBe('');
+  });
+
+  it('refuses a records-only plan carrying anything but a record created or updated in place', () => {
+    const offenders = [
+      { type: 'aws_cloudwatch_metric_alarm', address: 'aws_cloudwatch_metric_alarm.break_glass', actions: ['create'] },
+      { type: 'aws_route53_record', address: 'aws_route53_record.www', actions: ['delete', 'create'] },
+      { type: 'aws_route53_record', address: 'aws_route53_record.legacy_mirror_a["old"]', actions: ['delete'] },
+    ];
+    for (const offender of offenders) {
+      writeTerraformStub({ planResourceChanges: [SPF, offender] });
+      const res = run(['--target', 'production', '--dns-records-only']);
+      expect(res.exitCode, offender.address).toBe(1);
+      expect(res.stderr, offender.address).toContain(`${offender.actions.join('+')}  ${offender.address}`);
+      expect(res.stderr, offender.address).not.toContain('update  aws_route53_record.spf');
+      expect(calls(), offender.address).not.toMatch(/ apply \//);
+    }
+  });
+
+  it('applies nothing when the records already match', () => {
+    writeTerraformStub({ planResourceChanges: [{ ...SPF, actions: ['no-op'] }] });
+    const res = run(['--target', 'production', '--dns-records-only']);
+    expect(res.exitCode, res.stderr).toBe(0);
+    expect(res.stdout).toMatch(/already match the values file/);
+    expect(calls()).not.toMatch(/ apply \//);
+  });
+
+  // The sweep across every tree: a clean tree ends without the word, and a tree
+  // with anything in it is confirmed exactly as a plain apply is.
+  it('ends an empty plan without a prompt only when asked to, on every confirming tree', () => {
+    // A data source re-read on every plan is not a change: counting it as one
+    // would make every clean tree ask for the word.
+    writeTerraformStub({
+      planResourceChanges: [
+        { ...SPF, actions: ['no-op'] },
+        { type: 'aws_iam_policy_document', address: 'data.aws_iam_policy_document.trust', actions: ['read'] },
+      ],
+    });
+    for (const target of ['production', 'shared', 'identity']) {
+      const skipped = run(['--target', target, '--skip-empty-plan']);
+      expect(skipped.exitCode, `${target}: ${skipped.stderr}`).toBe(0);
+      expect(skipped.stdout, target).toContain(`Nothing pending in terraform/${target}. Nothing to apply.`);
+      expect(skipped.stderr, target).not.toMatch(/no terminal to confirm on/);
+      expect(calls(), target).not.toMatch(/ apply \//);
+    }
+    // Without the flag the same empty plan still stops for the word, so the
+    // flag is what ends it rather than an emptiness check every run makes.
+    const plain = run(['--target', 'production']);
+    expect(plain.exitCode).toBe(1);
+    expect(plain.stderr).toMatch(/no terminal to confirm on/);
+  });
+
+  it('still stops for the typed word when the plan under --skip-empty-plan changes anything', () => {
+    writeTerraformStub({ planResourceChanges: [{ type: 'aws_iam_role_policy', address: 'aws_iam_role_policy.app_jwt_ses', actions: ['update'] }] });
+    const res = run(['--target', 'production', '--skip-empty-plan']);
+    expect(res.exitCode).toBe(1);
+    expect(res.stdout).not.toMatch(/Nothing pending/);
+    expect(res.stderr).toMatch(/no terminal to confirm on/);
+    expect(calls()).not.toMatch(/ apply \//);
+  });
+
+  it('refuses --skip-empty-plan beside a plan shape, a replacement or a lock break, before terraform runs', () => {
+    writeTerraformStub();
+    for (const extra of [
+      ['--require-empty-plan'],
+      ['--dns-records-only'],
+      ['--replace', 'random_id.origin_verify_secret'],
+      ['--break-stale-lock'],
+    ]) {
+      const res = run(['--target', 'production', '--skip-empty-plan', ...extra]);
+      expect(res.exitCode, extra[0]).toBe(2);
+      expect(res.stderr, extra[0]).toMatch(/--skip-empty-plan goes with a plain apply|do(es)? not combine with/);
+    }
+    expect(calls()).toBe('');
+  });
+
+  it('lets record creates and updates through to the typed confirmation, which still stands', () => {
+    writeTerraformStub({ planResourceChanges: [SPF, DKIM] });
+    const res = run(['--target', 'production', '--dns-records-only']);
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).not.toMatch(/records-only apply would also/);
+    expect(res.stdout).toMatch(/THIS PLAN CHANGES DNS/);
+    expect(res.stderr).toMatch(/no terminal to confirm on/);
     expect(calls()).not.toMatch(/ apply \//);
   });
 });
