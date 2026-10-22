@@ -8269,7 +8269,11 @@ export const legacyClaim = {
   // Whether marking this member deceased cascaded the flag onto this record.
   // Parameters: member id, record id.
   // The marking that cascaded onto the record, when it still stands: a marking
-  // removed as an error since did not leave the flag there.
+  // removed as an error since did not leave the flag there. A revert in the
+  // same millisecond as its marking counts as after it, since a revert can
+  // only follow a marking and audit rows carry no finer order; reading the tie
+  // the other way clears a flag set on the record for its own reasons, and a
+  // dead player reads as living.
   get findDeceasedCascadeOntoRecord() { return db.prepare(`
     SELECT m.id FROM audit_entries m
     WHERE m.action_type = 'member.deceased_marked'
@@ -8280,7 +8284,7 @@ export const legacyClaim = {
         SELECT 1 FROM audit_entries r
         WHERE r.action_type = 'member.deceased_reverted'
           AND r.entity_type = 'member' AND r.entity_id = m.entity_id
-          AND r.occurred_at > m.occurred_at
+          AND r.occurred_at >= m.occurred_at
       )
     LIMIT 1
   `); },

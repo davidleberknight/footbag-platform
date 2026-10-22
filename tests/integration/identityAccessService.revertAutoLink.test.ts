@@ -931,8 +931,16 @@ describe('identityAccessService.revertClaimForDispute (queue-item binding)', () 
     seedAdmin();
     const { memberId, hpId } = setupClaimed({ withHpBackLink: true });
     const { deceasedMarkingService } = await import('../../src/services/deceasedMarkingService');
-    await deceasedMarkingService.markDeceased(ADMIN_ID, memberId);
-    deceasedMarkingService.revertDeceased(ADMIN_ID, memberId);
+    // The marking and its revert land in the same millisecond, as they do on a
+    // fast machine; a revert that ties its marking must still read as after it.
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-07-01T12:00:00.000Z'));
+    try {
+      await deceasedMarkingService.markDeceased(ADMIN_ID, memberId);
+      deceasedMarkingService.revertDeceased(ADMIN_ID, memberId);
+    } finally {
+      vi.useRealTimers();
+    }
     // The record is flagged again on its own evidence, not by the member's marking.
     open().prepare('UPDATE historical_persons SET is_deceased = 1 WHERE person_id = ?').run(hpId!);
 
