@@ -584,7 +584,14 @@ staging DB is untouched); `--from-csv` / `--soup-to-nuts` opt into a DB
 rebuild + staging replace, prompting before each destructive step.
 The mirror-driven `--soup-to-nuts` path regenerates committed
 `canonical_input/`, `name_variants.csv`, and `seed/` files; review with
-`git status` before pushing.
+`git status` before pushing. A regenerated `seed/clubs.csv` can carry a club
+website with no safety verdict, which the public club page then hides, so
+before committing re-run the URL verifier (`AWS_PROFILE=footbag-operator
+SAFE_BROWSING_ADAPTER=live HTTP_REACHABILITY_ADAPTER=live npm run
+verify:seed-urls -- --safe-browsing-key-from production`) and commit
+`seed/clubs_url_verdicts.csv` with the seed. It reuses every existing verdict
+and checks only new or changed links; `tests/integration/seedExternalUrls.shape.test.ts`
+fails any push that skips it.
 
 ---
 

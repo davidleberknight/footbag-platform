@@ -102,6 +102,55 @@ describe('committed seed external URLs are possible web addresses', () => {
     expect(rejections(gallerySidecarUrls())).toEqual([]);
   });
 
+  it('every club seed URL carries a committed safety verdict', () => {
+    // Same failure as the galleries below: the club loader stamps a link from the
+    // committed verdicts and leaves an uncovered one unverified, which the public
+    // club page hides, and no ship gate checks clubs at all.
+    const file = path.join(REPO_ROOT, 'legacy_data', 'seed', 'clubs_url_verdicts.csv');
+    const records = fs.existsSync(file) ? parseCsvRecords(fs.readFileSync(file, 'utf8')) : [];
+    const header = records[0] ?? [];
+    const [k, u, v, q] = ['legacy_club_key', 'external_url', 'validated_at', 'quarantine_reason'].map((c) =>
+      header.indexOf(c),
+    );
+    const verdicted = new Set(
+      records
+        .slice(1)
+        .filter((r) => (r[v!] ?? '') !== '' || (r[q!] ?? '') !== '')
+        .map((r) => `club ${(r[k!] ?? '').trim()}|${(r[u!] ?? '').trim()}`),
+    );
+    const missing = clubSeedUrls()
+      .filter((s) => !verdicted.has(`${s.source}|${s.url}`))
+      .map((s) => `${s.source}: ${s.url}`);
+    expect(
+      missing,
+      'run: npm run verify:seed-urls -- --safe-browsing-key-from production, then commit legacy_data/seed/clubs_url_verdicts.csv',
+    ).toEqual([]);
+  });
+
+  it('every curator gallery sidecar URL carries a committed safety verdict', () => {
+    // The curator seed reads the committed verdicts file and loads any link it
+    // does not cover with no verdict, which the public gallery page hides. The
+    // only check on the built database is the production ship gate, so a link
+    // added without running the verifier stayed invisible until a production
+    // deploy refused the database. Checking coverage here moves that failure to
+    // the push that added the link. A quarantine is a verdict; only a missing
+    // entry, or an entry with neither field set, fails.
+    const file = path.join(GALLERY_DIR, GALLERY_VERDICTS);
+    const verdicts: Record<string, Record<string, { validated_at?: string | null; quarantine_reason?: string | null }>> =
+      fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {};
+    const missing = gallerySidecarUrls()
+      .filter((u) => {
+        const id = u.source.replace(/^gallery /, '');
+        const v = verdicts[id]?.[u.url];
+        return !v || (!v.validated_at && !v.quarantine_reason);
+      })
+      .map((u) => `${u.source}: ${u.url}`);
+    expect(
+      missing,
+      'run: npm run verify:seed-urls -- --galleries-only --safe-browsing-key-from production, then commit curated/galleries/url_verdicts.json',
+    ).toEqual([]);
+  });
+
   it('the gate rejects the shapes that reached public pages, so it demonstrably bites', () => {
     const wouldHaveCaught = [
       { source: 'regression', url: 'http://Coming' },
