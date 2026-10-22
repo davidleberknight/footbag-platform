@@ -44,6 +44,7 @@ export const REACH_ROWS = {
   curatorMediaId: 'media-curator-rs',
   curatorJobId: 'mj-rs',
   checkoutSessionId: 'cs_rs_member',
+  paymentId: 'pay-rs-member',
   playerAId: 'person-rs-player-a',
   // A dispute over an old account another member's claim took, and a plain
   // link-help request naming an account nobody holds.
@@ -131,6 +132,7 @@ export const REACH: readonly Reach[] = [
   { template: 'admin/curator/job-status', viewer: 'admin', url: `/admin/curator/upload/jobs/${R.curatorJobId}`, why: 'reached by redirect after an upload starts' },
   { template: 'admin/broadcasts/detail', viewer: 'admin', url: `/admin/broadcasts/${R.broadcastId}`, why: 'linked from the broadcast list only once a message was sent' },
   { template: 'admin/payments/report', viewer: 'admin', url: `/admin/payments/reports/${R.reconciliationRunId}`, why: 'linked only once the reconciliation job has run' },
+  { template: 'admin/payments/detail', viewer: 'admin', url: `/admin/payments/${R.paymentId}`, why: 'the payments list opens on month to date, so a payment from an earlier month is linked only after a date search' },
   { template: 'admin/freestyle-notation-author', viewer: 'admin', url: `/admin/freestyle/notation-backlog/${R.backlogCandidateId}/author`, why: 'linked from the notation backlog per candidate' },
   { template: 'admin/freestyle-trick-publish', viewer: 'admin', url: `/admin/freestyle/notation-backlog/${R.backlogCandidateId}/publish`, why: 'linked from the notation backlog per candidate' },
   { template: 'history/claim-hp-conflict', viewer: 'registrant-claim', url: `/history/${R.heldPersonId}/claim`, why: 'shown for a claim link whose record another member holds' },
@@ -170,7 +172,14 @@ export const REACH: readonly Reach[] = [
 export const STRESS: readonly Reach[] = [
   { template: 'clubs/detail', viewer: 'anonymous', url: '/clubs/club_stress_longest', why: 'longest club name and website address' },
   { template: 'freestyle/trick-shell', viewer: 'anonymous', url: '/freestyle/tricks/stress_surging_ducking_paradox_symposium_whirls', why: 'longest unbreakable slug, name and notation' },
+  { template: 'admin/audit-log/index', viewer: 'admin', url: '/admin/audit-log?entityType=member&entityId=member-stress-audit-metadata', why: 'longest unbreakable metadata preview' },
 ];
+
+// The audit viewer's metadata preview is cut at 240 characters, and an object
+// value renders as compact JSON with no space in it, so one unbroken run of 240
+// characters is what a row can put on a phone-width card.
+export const STRESS_AUDIT_ENTITY_ID = 'member-stress-audit-metadata';
+export const STRESS_AUDIT_METADATA = { stress_object: { work_queue_item_id: 'wq_'.padEnd(260, '6cf7cba781334932b6e94447') } };
 
 // The longest real values in the migrated data, measured from the built
 // database: a club website address of 136 characters, mostly without break

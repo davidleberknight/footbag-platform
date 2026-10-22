@@ -4,14 +4,13 @@
  * Owns the processing of SNS-delivered SES feedback notifications: permanent
  * bounces mark the matching member's email_status 'bounced', complaints mark
  * it 'complained', the member's currently-subscribed mailing-list rows are
- * flipped to the matching 'bounced'/'complained' status, and every processed
- * notification appends an audit row.
+ * flipped to the matching 'bounced'/'complained' status, and each reported
+ * address that belongs to a member appends an audit row naming that member.
  * Escalation-only writes: an admin-set 'suppressed' status is never
- * overwritten, and a complaint outranks a bounce. Subscription-confirmation
- * messages append a token-free audit row and surface the one-time SubscribeURL
- * on the operator log line for out-of-band confirmation; the URL is never
- * persisted in the audit trail (it is a bearer token, and the trail is
- * admin-exportable and exempt from erasure) and never auto-fetched
+ * overwritten, and a complaint outranks a bounce. A subscription-confirmation
+ * message changes nothing on the platform, so it writes no audit row: it
+ * surfaces the one-time SubscribeURL on the operator log line for out-of-band
+ * confirmation, and the URL, a bearer token, is never auto-fetched
  * (auto-confirm would fetch an attacker-supplied URL). The log is not a void:
  * it ships to CloudWatch and is retained, so the distinction being drawn is
  * which surface holds the token, not whether it is written down at all.
@@ -36,7 +35,7 @@
  * Transport auth (the shared-secret query key plus SNS signature verification
  * on the webhook request) is the IPC controller's concern, not this service's.
  */
-import { sesFeedback, mailingListSubscriptions, sesEvents, outbox, transaction } from '../db/db';
+import { auth, sesFeedback, mailingListSubscriptions, sesEvents, outbox, transaction } from '../db/db';
 import { appendAuditEntry } from './auditService';
 import { logger } from '../config/logger';
 import { safeSubscribeUrlForLog } from '../lib/snsSignature';
@@ -63,10 +62,8 @@ function processSnsMessage(rawBody: string): SesFeedbackResult {
   }
 
   if (envelope.Type === 'SubscriptionConfirmation') {
-    // Claim the message id first, exactly as the notification path does. Without
-    // it every repeat of one confirmation writes another row into an
-    // append-only ledger that nothing can prune, which is a flooding primitive
-    // for anyone able to reach this endpoint.
+    // Claim the message id first, exactly as the notification path does, so a
+    // repeat of one confirmation logs nothing a second time.
     const confirmationId = typeof envelope.MessageId === 'string' ? envelope.MessageId : null;
     const seenAt = new Date().toISOString();
     let outcome: SesFeedbackResult = { status: 'subscription_pending' };
@@ -80,21 +77,9 @@ function processSnsMessage(rawBody: string): SesFeedbackResult {
           return;
         }
       }
-      appendAuditEntry({
-        actionType:    'email.sns_subscription_pending',
-        category:      'system',
-        actorType:     'system',
-        actorMemberId: null,
-        entityType:    'system',
-        entityId:      'ses_feedback',
-        reasonText:    'SNS subscription confirmation received; operator confirms the subscription out-of-band.',
-        metadata: {
-          topic_arn:     typeof envelope.TopicArn === 'string' ? envelope.TopicArn : null,
-        },
-      });
-      // The one-time SubscribeURL is a bearer confirmation token, so it stays out
-      // of the admin-exportable, erasure-exempt audit trail and is surfaced on
-      // this operator log line instead. It is also attacker-chosen on a forged
+      // A pending subscription changes nothing on the platform, so it writes no
+      // audit row; this operator log line is its whole trail. The one-time
+      // SubscribeURL is a bearer confirmation token. It is also attacker-chosen on a forged
       // confirmation, so it is logged only when it is genuinely an SNS endpoint
       // and within a length bound; the token is single-use and expires, which is
       // what makes the log an acceptable home for it.
@@ -208,21 +193,22 @@ function applyStatus(
       } else {
         mailingListSubscriptions.markComplainedForEmail.run(now, now, 'SES complaint', normalized);
       }
-      appendAuditEntry({
-        actionType:    kind === 'bounce' ? 'email.bounce_recorded' : 'email.complaint_recorded',
-        category:      'system',
-        actorType:     'system',
-        actorMemberId: null,
-        entityType:    'system',
-        entityId:      'ses_feedback',
-        reasonText:    null,
-        // No form of the address, masked or hashed: the ledger outlives an
-        // erasure, and the member's own email status already records the bounce.
-        metadata: {
-          member_matched:  res.changes > 0,
-          outbox_email_id: outboxEmailId,
-        },
-      });
+      // Audited only when it moved a member's email status, and then naming the
+      // member by id: the log holds nothing about an address no member holds,
+      // no repeat of a status already set, and no form of the address itself,
+      // because it outlives an erasure.
+      const member = auth.findOnboardedMemberIdByEmail.get(normalized) as { id: string } | undefined;
+      if (member && res.changes > 0) {
+        appendAuditEntry({
+          actionType:    kind === 'bounce' ? 'email.bounce_recorded' : 'email.complaint_recorded',
+          actorType:     'system',
+          actorMemberId: null,
+          entityType:    'member',
+          entityId:      member.id,
+          reasonText:    null,
+          metadata:      { outbox_email_id: outboxEmailId },
+        });
+      }
     }
   });
   if (duplicate) {

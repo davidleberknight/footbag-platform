@@ -16,6 +16,7 @@ import {
   insertSystemAlarmEvent,
   createTestSessionJwt,
 } from '../fixtures/factories';
+import { HOUR_MS, isoDaysFromNow, isoFromNow, isoHoursAgo } from '../fixtures/clock';
 
 const { dbPath } = setTestEnv('4069');
 
@@ -96,7 +97,7 @@ describe('GET /admin/alarms', () => {
   it('says so plainly when nothing has been reported', async () => {
     const res = await request(createApp()).get('/admin/alarms').set('Cookie', cookieFor(ADMIN_ID));
     expect(res.status).toBe(200);
-    expect(res.text).toContain('No alarms have been recorded.');
+    expect(res.text).toContain('No alarms in the last 30 days.');
   });
 
   it('lists an alarm with its severity, state and the reason given, and offers the acknowledge control', async () => {
@@ -117,13 +118,13 @@ describe('GET /admin/alarms', () => {
 
   it('offers no acknowledge control on an alarm that has already been taken or has cleared', async () => {
     const acked = withDb((db) => insertSystemAlarmEvent(db, {
-      alarm_type: 'footbag-acked', status: 'acknowledged',
+      alarm_type: 'footbag-acked', status: 'acknowledged', raised_at: isoHoursAgo(5),
       acknowledged_by_member_id: ADMIN_ID,
-      acknowledged_at: '2026-01-02T03:04:05.000Z',
+      acknowledged_at: isoHoursAgo(4),
       acknowledgment_note: 'Raised with the mail provider.',
     }));
     const cleared = withDb((db) => insertSystemAlarmEvent(db, {
-      alarm_type: 'footbag-cleared', status: 'cleared', cleared_at: '2026-01-02T04:00:00.000Z',
+      alarm_type: 'footbag-cleared', status: 'cleared', raised_at: isoHoursAgo(5), cleared_at: isoHoursAgo(3),
     }));
     const res = await request(createApp()).get('/admin/alarms').set('Cookie', cookieFor(ADMIN_ID));
     expect(res.status).toBe(200);
@@ -135,32 +136,41 @@ describe('GET /admin/alarms', () => {
 });
 
 // Acknowledging is reachable only from a rendered row, so an active alarm that
-// falls off the end of the list is counted by the dashboard badge and cannot be
-// acted on at all.
-describe('reaching alarms past the first page', () => {
-  it('offers a way forward and the older active alarm can still be acknowledged there', async () => {
+// falls off the list is counted by the dashboard badge and cannot be acted on.
+describe('which alarms the page shows, and in what order', () => {
+  it('keeps an old active alarm at the top, ahead of a page of recent cleared ones, and pages the rest', async () => {
     const oldest = withDb((db) => insertSystemAlarmEvent(db, {
-      alarm_type: 'footbag-oldest', status: 'active',
-      raised_at: '2026-01-01T00:00:00.000Z',
+      alarm_type: 'footbag-oldest', status: 'active', raised_at: isoDaysFromNow(-200),
     }));
     withDb((db) => {
       for (let i = 0; i < 100; i += 1) {
         insertSystemAlarmEvent(db, {
           alarm_type: `footbag-filler-${i}`, status: 'cleared',
-          raised_at: `2026-02-${String(i + 1).padStart(2, '0')}T00:00:00.000Z`,
-          cleared_at: '2026-03-01T00:00:00.000Z',
+          raised_at: isoFromNow(-(i + 1) * HOUR_MS), cleared_at: isoFromNow(-i * HOUR_MS),
         });
       }
     });
 
     const first = await request(createApp()).get('/admin/alarms').set('Cookie', cookieFor(ADMIN_ID));
     expect(first.status).toBe(200);
-    expect(first.text).not.toContain(`action="/admin/alarms/${oldest}/acknowledge"`);
+    expect(first.text).toContain(`action="/admin/alarms/${oldest}/acknowledge"`);
+    expect(first.text.indexOf('Footbag oldest')).toBeLessThan(first.text.indexOf('Footbag filler 0'));
     expect(first.text).toContain('>Next</a>');
+  });
 
-    const second = await request(createApp()).get('/admin/alarms?page=2').set('Cookie', cookieFor(ADMIN_ID));
-    expect(second.status).toBe(200);
-    expect(second.text).toContain(`action="/admin/alarms/${oldest}/acknowledge"`);
+  // Defect caught: a long-ago cleared alarm buries this month's, or a re-raised
+  // alarm sorts by when it first fired while showing its latest time.
+  it('shows cleared alarms from the last 30 days, latest raise first, and none older', async () => {
+    withDb((db) => {
+      insertSystemAlarmEvent(db, { alarm_type: 'footbag-month-old', status: 'cleared', raised_at: isoDaysFromNow(-40) });
+      insertSystemAlarmEvent(db, { alarm_type: 'footbag-earlier', status: 'cleared', raised_at: isoDaysFromNow(-3) });
+      insertSystemAlarmEvent(db, { alarm_type: 'footbag-later', status: 'cleared', raised_at: isoDaysFromNow(-1) });
+    });
+    const res = await request(createApp()).get('/admin/alarms').set('Cookie', cookieFor(ADMIN_ID));
+    expect(res.text).not.toContain('Footbag month old');
+    // ordering-is-the-contract: latest raise first.
+    expect(res.text.indexOf('Footbag later')).toBeLessThan(res.text.indexOf('Footbag earlier'));
+    expect(res.text.indexOf('Footbag earlier')).toBeGreaterThan(-1);
   });
 });
 

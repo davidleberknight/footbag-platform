@@ -1,6 +1,7 @@
 # Asking rule
 
-Single home for putting questions to the human. Skills link here, never restate.
+Single home for putting questions to the human and for approving documentation edits. Skills link
+here, never restate.
 
 ## Resolve before asking
 
@@ -16,16 +17,17 @@ ratifies text you drafted is not primary grounding: trace any new surface (route
 to a user story, a governance document, or an explicit human decision, and never build feature-scale
 work inside a fix or remediation batch.
 
-Bright line: if analysis makes the answer certain, DO NOT ASK, act on it or state it settled. If
-genuine doubt survives the sources, DO ASK, never guess or assume. Multi-step analysis is not
+Bright line: if analysis makes the answer certain, do not ask; act on it or state it settled. If
+genuine doubt survives the sources, ask; never guess or assume. Multi-step analysis is not
 grounds to ask; only genuine undeterminability is. Before asking, apply this test: if the human
 answered "I don't know", would you still know what to do? If yes, the question is not theirs:
 decide it, state the decision and its grounds, and let them overrule. A design or implementation
 detail that precedent or the standard settles is never put to the human as a choice. Read-only investigation needs no permission:
-git reads, DB SELECTs, curl GETs, file listings, compile-checks. Run them, never ask.
+git reads, DB SELECTs, HTTP GETs through WebFetch, file listings, compile-checks. Run them, never ask.
+Screenshots and other heavy browser-tool reads are the exception: take them only when the human asks.
 
-Ask only when materially different interpretations survive the sources, the code, a document
-and the intent disagree and working from the intent down leaves it unclear, or the call needs an
+Ask only when materially different interpretations survive the sources, a conflict stays unclear
+after the design-intent skill's resolution, or the call needs an
 external fact, an IFPA or governance authority, a human preference the design does not determine,
 or the task would create or choose a canonical artifact the design does not already fix: a new
 document, the single home for a body of content, or the relocation or consolidation of content
@@ -50,12 +52,12 @@ Before any message containing "?":
 6. Explain before any approval prompt; never spring a bare approval.
 7. Structure it so a bare "y" or "go" means take the recommended answer: exactly one recommendation to affirm, never an ambiguous "y".
 8. State the load-bearing assumptions behind the recommendation, so a wrong one can be corrected before you act.
-9. Propose any surgical edit as literal BEFORE/AFTER text, verbatim with enough surrounding context to locate it, never an abstract description.
-10. When presenting a doc or canonical-text draft, show only the literal text plus a one-line approval prompt, with no trailing style or conformance commentary.
+9. Propose any surgical edit as literal BEFORE/AFTER text, verbatim with enough surrounding context to locate it, never an abstract description. A documentation edit follows Documentation edits below instead.
+10. When showing literal doc or canonical text, before or after applying it, show the text itself with no trailing style or conformance commentary.
 11. In a multi-question pass, present exactly one question per message, headed "Question N of M: " plus a short bold title.
 
-A Stop hook (`.claude/hooks/guard-question-quality.sh`) blocks a question still carrying a section
-sign, a state number, a documentation-file pointer, or a code used as a bare label. It is a
+A Stop hook (`.claude/hooks/guard-question-quality.sh`) blocks a question still carrying, outside fenced
+literal text, a section sign, a state number, a documentation-file pointer, or a code used as a bare label. It is a
 backstop, not the standard.
 
 ## Subagents
@@ -65,14 +67,37 @@ human-owned ambiguity by silently picking an interpretation. It returns the ques
 options, and its recommended answer, as a clearly marked item in its report, and the main agent
 raises it under this rule.
 
+## Documentation edits
+
+Covers documentation, `.github/` and the harness (`.claude/`, every `CLAUDE.md`), the files root
+`CLAUDE.md` rule 1 names.
+
+- Approval is explicit. Any reasonable affirmation counts; silence, a bare Enter, plan approval and
+  approval of a different edit do not.
+- One ask may cover a whole batch: every doc edit for a task, a card or a doc-sync pass. It is one
+  decision. It opens with what Claude wants to edit and why, the point and the big picture, then a
+  concise summary of each edit: the document and section in words, and what changes. The literal
+  text need not be in the ask, except for a harness edit; show it first if the human asks.
+- The human may pre-approve doc edits for a scope they name ("the doc edits for this card", at
+  most "this session"). Within it, Claude applies surgical edits without a further ask, opening the
+  message with the same what-and-why summary. The pre-approval lapses when its scope ends.
+- A pre-approval never covers a change of meaning or design, IFPA governing documents, public UI
+  wording, `.github/` or the harness, unless the human names that class. Each of those gets its own
+  ask; a harness ask carries the literal before/after, under the harness governance rule. A
+  tool-level "allow edits to .claude this session" answer is not a pre-approval.
+- Every applied edit is surgical: the smallest change, untouched text left as it was. In the same
+  turn that applies them, show every applied edit in the message itself as literal BEFORE/AFTER,
+  with the document and enough context to locate it; never a summary, a file or a link. A change or
+  revert the human then asks for is applied and shown the same way.
+
 ## During execution
 
 Run an approved plan to completion; do not pause for continuation or trivial review. Re-gate only
 for a real reason:
 
 - A new material decision the plan did not anticipate, or a finding that contradicts the plan's premise or makes the work materially larger or different than approved.
-- Finished UI work: run `./run_dev.sh` and have the human review the new or changed UI visually; discuss significant visual changes before building them.
+- Finished UI work: have the human review the new or changed UI visually, giving them `./run_dev.sh` to start it (or starting it if they ask); discuss significant visual changes before building them.
 - Destructive, irreversible, or outward-facing actions (deleting data, overwriting, retiring resources, sending mail, deploying), behind ONE consolidated approval per batch, never many prompts. Exception: when a plan or runbook names its own per-step approval points (an arming table's approver column, a phase marked "each its own approval"), those override the batch default; ask at each named point, and never treat one go for a sequence as consent to every irreversible step inside it.
-- Editing canonical docs, `.claude`, `.github`, or public UI wording.
+- Editing canonical docs, `.claude` or `.github` (under Documentation edits above, so an edit a pre-approval in force covers needs no re-gate), or public UI wording.
 - A design, redesign, or remediation task starts with diagnosis: establish the current state and get the problem set ratified before proposing fixes. Plan approval is not blanket consent to mutate canonical docs.
 - On a review or audit punch-list, apply the best fix and show the diff without asking per item; pause only for a genuine design choice, a destructive or outward-facing action, a scope change, or anything touching AWS or production.

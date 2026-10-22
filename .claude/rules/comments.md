@@ -8,6 +8,13 @@ paths:
   - "freestyle/loaders/**"
   - "freestyle/scripts/**"
   - "freestyle/tools/**"
+  - "legacy_data/**/*.py"
+  - "legacy_data/**/*.sh"
+  - "freestyle/*.sh"
+  - "*.sh"
+  - "terraform/**"
+  - "docker/**"
+  - "database/schema.sql"
 ---
 
 # Code comment & human-readable-text rules

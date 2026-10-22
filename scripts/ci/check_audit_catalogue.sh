@@ -27,13 +27,19 @@
 # fixture beside it. The default below is the only path that ever matters in
 # practice, and every suite run exercises it against the real repository.
 #
+# It also holds every action type, written or catalogued, to the one topic map
+# in src/services/auditTopics.ts. The write path throws on an action type the
+# map does not cover, so an unmapped name is an audit row that fails at runtime;
+# finding it here moves that failure to the build.
+#
 # To diagnose locally:  bash scripts/ci/check_audit_catalogue.sh
 set -euo pipefail
 ROOT="$(git rev-parse --show-toplevel)"
 cd "$ROOT"
 
 AUDIT_CATALOGUE_DOC="${AUDIT_CATALOGUE_DOC:-docs/DATA_MODEL.md}"
-export AUDIT_CATALOGUE_DOC
+AUDIT_TOPIC_MAP_SRC="src/services/auditTopics.ts"
+export AUDIT_CATALOGUE_DOC AUDIT_TOPIC_MAP_SRC
 
 python3 - <<'PY'
 import os, re, pathlib, sys
@@ -62,6 +68,24 @@ for line in section.splitlines():
     for value in re.findall(r'`([a-z0-9_.]+)`', rest):
         documented.add(f'{namespace}.{value}')
 
+map_path = pathlib.Path(os.environ['AUDIT_TOPIC_MAP_SRC'])
+if not map_path.is_file():
+    print(f'[audit-catalogue] {map_path} not found; the gate cannot check topics',
+          file=sys.stderr)
+    sys.exit(1)
+topic_keys = re.findall(r"^\s*\['([a-z0-9_.]+)',\s*'[a-z]+'\],\s*$",
+                        map_path.read_text(encoding='utf-8'), re.M)
+if not topic_keys:
+    print(f'[audit-catalogue] no topic map entries found in {map_path}; '
+          'the gate cannot check topics', file=sys.stderr)
+    sys.exit(1)
+
+def has_topic(action_type):
+    return any(action_type.startswith(k) for k in topic_keys)
+
+unmapped = [f"{doc_path}: catalogued action_type '{v}' has no topic in {map_path}"
+            for v in sorted(documented) if not has_topic(v)]
+
 root = pathlib.Path('src')
 pats = [
     re.compile(r"actionType\s*[:=]\s*'([^']+)'"),
@@ -77,12 +101,21 @@ for f in sorted(root.rglob('*.ts')):
                 if m.group(1) not in documented:
                     undocumented.append(f"{f}:{i}: audit action_type '{m.group(1)}' "
                                         f"is not in the data model's action_type catalogue")
+                if not has_topic(m.group(1)):
+                    unmapped.append(f"{f}:{i}: audit action_type '{m.group(1)}' "
+                                    f"has no topic in {map_path}")
 
 if undocumented:
     for hit in undocumented:
         print(hit, file=sys.stderr)
     print(f'  FAIL: add the action_type to the catalogue in {doc_path} '
           'as part of this change', file=sys.stderr)
+if unmapped:
+    for hit in unmapped:
+        print(hit, file=sys.stderr)
+    print(f'  FAIL: give the action_type a topic in {map_path} '
+          'as part of this change', file=sys.stderr)
+if undocumented or unmapped:
     sys.exit(1)
 
 print(f'[audit-catalogue] pass ({literals} literals in src/, {len(documented)} catalogued)')

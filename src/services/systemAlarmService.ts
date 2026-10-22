@@ -30,12 +30,11 @@
  * (idempotency claim), members (read, to name the acknowledging admin).
  *
  * Side effects:
- *   - audit_entries append (alarm.raised, alarm.cleared, alarm.acknowledged, and
- *     alarm.subscription_pending when the notification service asks for a
- *     subscription to be confirmed)
- *   - logger.warn carrying the one-time confirmation URL, which is a bearer
- *     token and so is deliberately kept out of the admin-exportable,
- *     erasure-exempt audit trail. The log ships to CloudWatch and is retained,
+ *   - audit_entries append (alarm.acknowledged only: a raise and a clear are
+ *     recorded on system_alarm_events, which already holds when each happened)
+ *   - logger.warn when the notification service asks for a subscription to be
+ *     confirmed, carrying the one-time confirmation URL, which is a bearer
+ *     token. The log ships to CloudWatch and is retained,
  *     so this chooses which surface holds the token rather than avoiding
  *     writing it down; the token is single-use and expires. It is logged only
  *     when it is genuinely an HTTPS SNS endpoint and within a length bound,
@@ -54,6 +53,8 @@ import { safeSubscribeUrlForLog } from '../lib/snsSignature';
 import type { PageViewModel } from '../types/page';
 
 const RECENT_ALARM_LIMIT = 100;
+/** The alarms page's default span, ending now; an active alarm shows whatever its age. */
+const ALARM_WINDOW_DAYS = 30;
 
 export type AlarmIngestResult =
   | { status: 'processed'; kind: 'raised' | 'cleared'; alarmType: string }
@@ -252,16 +253,6 @@ function applyStateChange(
         id, now, now, alarmName, severity, raisedAt, JSON.stringify(details),
       );
     }
-    appendAuditEntry({
-      actionType:    'alarm.raised',
-      category:      'system',
-      actorType:     'system',
-      actorMemberId: null,
-      entityType:    'system_alarm',
-      entityId:      id,
-      reasonText:    null,
-      metadata:      { alarm_type: alarmName, severity },
-    });
   });
   return outcome;
 }
@@ -296,16 +287,6 @@ function applyClear(
         throw new NothingToClearSignal();
       }
       systemAlarms.markCleared.run(clearedAt, now, prior.id);
-      appendAuditEntry({
-        actionType:    'alarm.cleared',
-        category:      'system',
-        actorType:     'system',
-        actorMemberId: null,
-        entityType:    'system_alarm',
-        entityId:      prior.id,
-        reasonText:    null,
-        metadata:      { alarm_type: alarmName },
-      });
     });
   } catch (err) {
     if (!(err instanceof NothingToClearSignal)) throw err;
@@ -323,10 +304,8 @@ function processSnsMessage(rawBody: string): AlarmIngestResult {
   }
 
   if (envelope.Type === 'SubscriptionConfirmation') {
-    // Claim the message id first, exactly as the notification path does. Without
-    // it every repeat of one confirmation writes another row into an
-    // append-only ledger that nothing can prune, which is a flooding primitive
-    // for anyone able to reach this endpoint.
+    // Claim the message id first, exactly as the notification path does, so a
+    // repeat of one confirmation logs nothing a second time.
     const confirmationId = typeof envelope.MessageId === 'string' ? envelope.MessageId : null;
     const seenAt = new Date().toISOString();
     let outcome: AlarmIngestResult = { status: 'subscription_pending' };
@@ -340,24 +319,13 @@ function processSnsMessage(rawBody: string): AlarmIngestResult {
           return;
         }
       }
-      // The one-time confirmation URL is a bearer token, so it stays out of the
-      // durable audit trail and appears only on this transient operator line for
-      // immediate out-of-band confirmation. It is also attacker-chosen on a
-      // forged confirmation, so it is logged only when it is genuinely an SNS
-      // endpoint.
+      // A pending subscription changes nothing on the platform, so it writes no
+      // audit row; this operator line is its whole trail. The one-time
+      // confirmation URL is a bearer token and is attacker-chosen on a forged
+      // confirmation, so it is logged only when it is genuinely an SNS endpoint.
       logger.warn('alarm_feed.subscription_confirmation_pending', {
         topicArn:     envelope.TopicArn,
         subscribeUrl: safeSubscribeUrlForLog(envelope.SubscribeURL),
-      });
-      appendAuditEntry({
-        actionType:    'alarm.subscription_pending',
-        category:      'system',
-        actorType:     'system',
-        actorMemberId: null,
-        entityType:    'system',
-        entityId:      'alarm_feed',
-        reasonText:    'Alarm-topic subscription confirmation received; operator confirms out-of-band.',
-        metadata:      { topic_arn: typeof envelope.TopicArn === 'string' ? envelope.TopicArn : null },
       });
     });
     return outcome;
@@ -433,7 +401,6 @@ export const systemAlarmService = {
       if (changed === 0) return;
       appendAuditEntry({
         actionType:    'alarm.acknowledged',
-        category:      'system',
         actorType:     'admin',
         actorMemberId: input.adminMemberId,
         entityType:    'system_alarm',
@@ -461,8 +428,11 @@ export const systemAlarmService = {
   ): PageViewModel<AlarmsContent> {
     const page = opts.page && opts.page > 0 ? Math.floor(opts.page) : 1;
     const offset = (page - 1) * RECENT_ALARM_LIMIT;
-    const rows = systemAlarms.listRecent.all(RECENT_ALARM_LIMIT, offset) as AlarmListRow[];
-    const total = (systemAlarms.countAll.get() as { n: number }).n;
+    // The last 30 days ending now, plus every alarm still active however old,
+    // so a long-running condition never sinks out of view.
+    const cutoff = new Date(Date.now() - ALARM_WINDOW_DAYS * 86_400_000).toISOString();
+    const rows = systemAlarms.listRecent.all(cutoff, RECENT_ALARM_LIMIT, offset) as AlarmListRow[];
+    const total = (systemAlarms.countRecent.get(cutoff) as { n: number }).n;
     const activeCount = this.countActiveUnacknowledged();
     const firstShown = total === 0 ? 0 : offset + 1;
     const lastShown = offset + rows.length;
@@ -473,7 +443,7 @@ export const systemAlarmService = {
         alarms: rows.map((row) => shapeAlarmRow(row, opts.rejected)),
         hasAlarms: rows.length > 0,
         resultSummary: total === 0
-          ? 'No alarms have been recorded.'
+          ? `No alarms in the last ${ALARM_WINDOW_DAYS} days.`
           : `Showing ${firstShown} to ${lastShown} of ${total} alarm${total === 1 ? '' : 's'}.`,
         activeCount,
         showAcknowledgedNotice: opts.acknowledgedFlag === true,

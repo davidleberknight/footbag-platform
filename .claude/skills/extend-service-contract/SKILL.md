@@ -20,8 +20,6 @@ Use this skill (not general editing) when a task does any of the following:
 
 ## Step 1: Load authoritative docs before touching code
 
-Read only the section relevant to this task. For large documents, locate the section by heading or keyword before reading. Do not load entire files into context.
-
 1. **The maintainers' private tracker** (`gh issue list -R "$FOOTBAG_PRIVATE_REPO" --state open`; if unwired, note it in one line and proceed with the human's instruction as given): confirm an open issue covers the service change. Note any tracked deviations from target patterns.
 2. **`docs/USER_STORIES.md`**: locate the relevant user story by feature name, then read only that story's success criteria.
 3. **`docs/DATA_GOVERNANCE.md`**: when the service touches members, historical persons, search, contact fields, exports, stats, auth, or privacy boundaries, read the relevant section before proceeding.
@@ -31,7 +29,7 @@ Read only the section relevant to this task. For large documents, locate the sec
    - the required patterns the service must follow
    - the invariants and transaction discipline it preserves
    - the persistence and side-effect categories it produces
-6. **Code, types, tests, and `database/schema.sql`**: authoritative for current shapes (method signatures, return types, error class shape, exact column names, nullable vs required, enum values, FK relationships, indices, triggers). When current code disagrees with the owning service's JSDoc and no tracker issue records the gap, resolve it per the `design-intent` skill: settled and reported when the intent makes it clear, a question for the human when not. Always follow existing code patterns and naming conventions if similar features have already been implemented; if no good pattern exists, ask the human before introducing a new one. Questions to the human follow `.claude/rules/asking.md`.
+6. **Code, types, tests and `database/schema.sql`** show current shapes (signatures, return types, error class shape, columns, nullability, enums, keys, triggers). A disagreement with the owning JSDoc goes through the `design-intent` skill. Follow an existing pattern where one exists; with none, ask before introducing one.
 7. **`docs/DATA_MODEL.md`**: understand entity relationships, soft-delete conventions (`deleted_at`), audit patterns, and data invariants the service-layer change must preserve.
 
 ## Step 2: Inspect current code

@@ -116,14 +116,27 @@ describe('bounce and complaint notifications', () => {
     const before = snapshotIds(db, pin);
     feedback.processSnsMessage(bounceBody(['Bouncer@Example.com']));
     expect(statusOf('sf-1')).toBe('bounced');
-    // Exactly one permanent bounce was sent, so exactly one row was added.
-    const audit = oneRowAddedSince<{ metadata_json: string }>(db, pin, before);
+    // Exactly one permanent bounce was sent, so exactly one row was added, and
+    // it names the member by id.
+    const audit = oneRowAddedSince<{ metadata_json: string; entity_type: string; entity_id: string }>(db, pin, before);
+    expect([audit.entity_type, audit.entity_id]).toEqual(['member', 'sf-1']);
     const meta = JSON.parse(audit.metadata_json) as Record<string, unknown>;
-    expect(meta.member_matched).toBe(true);
     // The ledger outlives an erasure, so neither the address nor a masked or
     // partial form of it may be written there.
-    expect(Object.keys(meta).sort()).toEqual(['member_matched', 'outbox_email_id']);
+    expect(Object.keys(meta).sort()).toEqual(['outbox_email_id']);
     expect(audit.metadata_json.toLowerCase()).not.toMatch(/bouncer|\*\*\*|@example\.com/);
+  });
+
+  it('a bounce on an address no member holds, or a registrant still onboarding holds, writes no audit row', async () => {
+    // The audit log holds rows about members only.
+    insertMember(db, {
+      id: 'sf-prospect', slug: 'sf_prospect', login_email: 'prospect-bounce@example.com', onboarding: 'none',
+    });
+    const before = bounceAuditCount();
+    feedback.processSnsMessage(bounceBody(['nobody-holds-this@example.com']));
+    feedback.processSnsMessage(bounceBody(['prospect-bounce@example.com']));
+    expect(statusOf('sf-prospect')).toBe('bounced');
+    expect(bounceAuditCount()).toBe(before);
   });
 
   it("a permanent bounce flips the member's subscribed mailing-list rows to bounced", async () => {
@@ -231,22 +244,19 @@ describe('bounce and complaint notifications', () => {
     expect(events.n).toBe(1);
   });
 
-  it('a subscription confirmation is recorded for the operator, never auto-fetched', async () => {
-    feedback.processSnsMessage(JSON.stringify({
+  it('a subscription confirmation is left for the operator: no audit row, never auto-fetched', async () => {
+    // A pending subscription changes nothing, and the one-time SubscribeURL is a
+    // bearer token that must never reach the durable audit trail.
+    const before = (db.prepare('SELECT COUNT(*) AS n FROM audit_entries').get() as { n: number }).n;
+    const result = feedback.processSnsMessage(JSON.stringify({
         Type: 'SubscriptionConfirmation',
         TopicArn: 'arn:aws:sns:us-east-1:000:t',
         SubscribeURL: 'https://sns.us-east-1.amazonaws.com/confirm?token=abc',
       }));
-    const audits = db.prepare(
-      `SELECT metadata_json FROM audit_entries WHERE action_type = 'email.sns_subscription_pending'`,
-    ).all() as Array<{ metadata_json: string }>;
-    expect(audits).toHaveLength(1);
-    const metadata = JSON.parse(audits[0].metadata_json);
-    // The topic is recorded for the operator; the one-time SubscribeURL is a
-    // bearer token and must never be persisted in the durable audit trail.
-    expect(metadata.topic_arn).toBe('arn:aws:sns:us-east-1:000:t');
-    expect(metadata.subscribe_url).toBeUndefined();
-    expect(audits[0].metadata_json).not.toContain('sns.us-east-1.amazonaws.com');
+    expect(result).toEqual({ status: 'subscription_pending' });
+    const after = db.prepare('SELECT metadata_json, reason_text FROM audit_entries').all();
+    expect(after).toHaveLength(before);
+    expect(JSON.stringify(after)).not.toContain('sns.us-east-1.amazonaws.com');
   });
 
   it('a not-spam report leaves the mailbox deliverable', () => {

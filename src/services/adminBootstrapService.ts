@@ -102,7 +102,6 @@ async function claimBootstrapAdmin(
   } catch (err) {
     recordOperationalError({
       actionType: 'admin.bootstrap_token_delete_failed',
-      category:   'admin',
       entityType: 'member',
       entityId:   memberId,
       reasonText: 'Bootstrap admin granted but the SSM token parameter could not be deleted; delete it manually.',

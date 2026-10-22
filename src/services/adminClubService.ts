@@ -28,6 +28,7 @@ import {
   type ClubWriteActor,
 } from './clubService';
 import { NotFoundError, ValidationError } from './serviceErrors';
+import { auditHistoryHref } from './auditLogService';
 import { cleanUserText } from '../lib/textSanitizer';
 import { formatDateDisplay } from './dateFormat';
 import type { PageViewModel } from '../types/page';
@@ -122,6 +123,8 @@ export interface AdminClubRecordContent {
   name: string;
   hashtagLabel: string;
   publicHref: string;
+  /** The club's history in the audit log: rows on it and on what names it. */
+  auditHistoryHref: string;
   /**
    * The identifying strip under the hero: which club this is and what state it
    * is in, before the administrator reads anything else or acts on anything.
@@ -408,6 +411,7 @@ export const adminClubService = {
         name:         row.name,
         hashtagLabel: row.tag_normalized,
         publicHref:   `/clubs/${clubKey}`,
+        auditHistoryHref: auditHistoryHref('club', row.id),
         identifyingFacts: [
           row.tag_normalized,
           [row.city, row.region, row.country].filter(Boolean).join(', '),

@@ -120,7 +120,7 @@ Visual aids for understanding the system design. Six diagrams cover production i
 ║  • Call db.ts prepared statements for reads and writes              ║
 ║  • Wrap multi-step writes in  transaction()  helper                 ║
 ║  • INSERT into outbox within same transaction as the write          ║
-║  • INSERT into audit_entries on every state-changing action         ║
+║  • INSERT into audit_entries on each audited state change           ║
 ║  • Never touches  req / res / cookies / HTTP headers                ║
 ╚═════════════════════════════════════════════════════════════════════╝
 
@@ -191,13 +191,6 @@ Visual aids for understanding the system design. Six diagrams cover production i
 │  Set-Cookie: __Host-footbag_session=<JWT>                           │
 │    HttpOnly · Secure · SameSite=Lax · Max-Age: same lifetime        │
 └─────────────────────────────────────────────────────────────────────┘
-  ↓
-┌─────────────────────────────────────────────────────────────────────┐
-│  Audit log  (INSERT into audit_entries — append-only)               │
-│    event_type: 'auth.login' · actor_id: memberId                    │
-│    timestamp: ISO-8601 UTC · result: 'success'                      │
-│    (no IP address stored — privacy-safe audit log policy)           │
-└─────────────────────────────────────────────────────────────────────┘
 
   Browser: 303 → /members/{slug}   +   session cookie set
 
@@ -232,7 +225,7 @@ Visual aids for understanding the system design. Six diagrams cover production i
 │         passwordVersion: member.passwordVersion + 1,  ← KEY         │
 │         updatedAt:       now,                                       │
 │       }, memberId)                                                  │
-│       queries.insertAuditLog.run('auth.passwordChange', ...)        │
+│       appendAuditEntry({ actionType: 'auth.password_change' })      │
 │     })                                                              │
 │  4. Issue fresh JWT for current device  (new passwordVersion)       │
 │     Set-Cookie: session=<new JWT>  (HttpOnly, Secure, SameSite=Lax) │
@@ -406,7 +399,7 @@ Visual aids for understanding the system design. Six diagrams cover production i
 │  3. Validate business rules (date logic, status transitions…)       │
 │  4. transaction(() => {                                             │
 │       queries.updateEvent.run(newData, eventId)                     │
-│       queries.insertAuditLog.run('event.update', actorId, …)        │
+│       appendAuditEntry({ actionType: 'event.update', … })           │
 │       queries.insertOutbox.run(notification)  // if needed          │
 │     })  // COMMIT; async ops (S3 etc.) run after commit             │
 └─────────────────────────────────────────────────────────────────────┘

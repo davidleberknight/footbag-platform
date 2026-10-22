@@ -198,7 +198,7 @@ authoring status, no accounting prose). Update it when a change affects what a r
 - Verify per the Verification default in root `CLAUDE.md`; the targets always include the view's
   own suite, the shared row-contract guard and the cross-view rendering suite.
 - A view change is UI work: run `./run_dev.sh` and read the view in a browser beside a neighbouring
-  view at desktop and at 480px, confirming row rhythm, heading weight, count-chip treatment and the
+  view at desktop and at 390px (the phone width page-check measures), confirming row rhythm, heading weight, count-chip treatment and the
   controls all match. The stylesheet is read once at boot and memoized, so a CSS edit needs a restart
   to be visible.
 - List the changed files for the human to stage. Claude never stages, commits or pushes.

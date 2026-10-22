@@ -6,7 +6,7 @@
  *   POST /register        — valid registration, duplicate email, short password,
  *                           mismatched passwords, missing display name
  */
-import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
 import { expectLoggedError } from '../setup-env';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
@@ -199,17 +199,13 @@ describe('POST /register', () => {
       `SELECT idempotency_key FROM outbox_emails
          WHERE recipient_member_id = ? AND template_key = 'account_exists_notice'`,
     ).all('member-existing-001') as Array<{ idempotency_key: string }>).map((r) => r.idempotency_key);
-    const attempts = (db.prepare(
-      `SELECT id FROM audit_entries
-         WHERE action_type = 'auth.register_duplicate_email' AND entity_id = ?`,
-    ).all('member-existing-001') as Array<{ id: string }>).map((r) => r.id);
     db.close();
 
-    // This attempt and the one in the case above.
-    expect(attempts).toHaveLength(2);
-    expect(keys.sort()).toEqual(
-      attempts.map((id) => `account_exists_notice:member-existing-001:${id}`).sort(),
-    );
+    // This attempt and the one in the case above: one notice each, each key its
+    // own attempt's, so neither swallows the other.
+    expect(keys).toHaveLength(2);
+    expect(new Set(keys).size).toBe(2);
+    for (const k of keys) expect(k).toMatch(/^account_exists_notice:member-existing-001:./);
   });
 
   it('short password → 422 with error', async () => {
@@ -886,26 +882,10 @@ describe('POST /register — verify-email enqueue failure', () => {
       | { id: string; slug: string; login_email_normalized: string;
           password_hash: string | null; email_verified_at: string | null }
       | undefined;
-    // The address is unique to this case, so its member registers once: the
-    // member and action type identify each row without an ordering.
-    const auditRow = theOnlyRow<{
-      action_type: string; category: string; actor_type: string; entity_id: string;
-    }>(
-      db,
-      rowPin(
-        'audit_entries',
-        `entity_id = ? AND action_type = 'auth.register_notification_failed'`,
-        [member?.id ?? ''],
-      ),
-    );
-    const registerAudit = theOnlyRow<{ action_type: string }>(
-      db,
-      rowPin(
-        'audit_entries',
-        `entity_id = ? AND action_type = 'auth.register'`,
-        [member?.id ?? ''],
-      ),
-    );
+    // A registrant is not a member, so nothing about them reaches the audit log;
+    // the failure reaches the operator as an alarm line instead.
+    const auditRows = db.prepare('SELECT action_type FROM audit_entries WHERE entity_id = ?')
+      .all(member?.id ?? '');
     const outboxRows = db.prepare(
       `SELECT id FROM outbox_emails WHERE recipient_email = ?`,
     ).all(targetEmail) as Array<{ id: string }>;
@@ -917,16 +897,10 @@ describe('POST /register — verify-email enqueue failure', () => {
     expect(member!.password_hash).toBeTruthy();
     expect(member!.email_verified_at).toBeNull();
 
-    // High-priority audit row was written from the catch block.
-    expect(auditRow).toBeDefined();
-    expect(auditRow!.action_type).toBe('auth.register_notification_failed');
-    expect(auditRow!.category).toBe('auth');
-    expect(auditRow!.actor_type).toBe('system');
-    expect(auditRow!.entity_id).toBe(member!.id);
-
-    // The canonical auth.register row is written before the verify-email enqueue,
-    // so the registration stays auditable even when the notification path fails.
-    expect(registerAudit).toBeDefined();
+    expect(auditRows).toEqual([]);
+    const { logger } = await import('../../src/config/logger');
+    expect(vi.mocked(logger.error).mock.calls.map((args) => String(args[0])))
+      .toContain('audit: auth.register_notification_failed');
 
     // The strict helper threw before any outbox row was committed.
     expect(outboxRows).toHaveLength(0);

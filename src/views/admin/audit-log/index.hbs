@@ -6,9 +6,12 @@
 </div>
 
 <div class="wrapper">
+  {{> outcome-notice text=page.notice tone=page.noticeTone}}
   <form method="GET" action="/admin/audit-log" class="mb-6">
     <p>
       <label>Member id <input type="text" name="member" value="{{content.filters.member}}"></label>
+      <label>Entity type <input type="text" name="entityType" value="{{content.filters.entityType}}"></label>
+      <label>Entity id <input type="text" name="entityId" value="{{content.filters.entityId}}"></label>
       <label>Action type <input type="text" name="actionType" value="{{content.filters.actionType}}"></label>
       <label>Category
         <select name="category">
@@ -38,7 +41,11 @@
   </form>
 
   <p class="text-muted">{{content.resultSummary}}</p>
-  <p class="fs-sm">Export this view: <a href="{{content.exportCsvHref}}">CSV</a> &middot; <a href="{{content.exportJsonHref}}">JSON</a></p>
+  {{#if content.exportCsvHref}}
+    <p class="fs-sm">Export this view: <a href="{{content.exportCsvHref}}">CSV</a> &middot; <a href="{{content.exportJsonHref}}">JSON</a></p>
+  {{else}}
+    <p class="fs-sm">{{content.exportRule}}</p>
+  {{/if}}
   <p class="fs-sm"><a href="{{content.summaryHref}}">Monthly summary of this view</a></p>
 
   {{#each content.entries}}

@@ -1528,7 +1528,6 @@ export const freestyleCurationService = {
       );
       appendAuditEntry({
         actionType:    'freestyle.adjudication_notation.authored',
-        category:      'content',
         actorType:     'admin',
         actorMemberId,
         entityType:    'freestyle_ev_adjudication',
@@ -1822,7 +1821,6 @@ export const freestyleCurationService = {
 
       appendAuditEntry({
         actionType:    'freestyle.trick.published',
-        category:      'content',
         actorType:     'admin',
         actorMemberId,
         entityType:    'freestyle_trick',
@@ -1948,7 +1946,6 @@ export const freestyleCurationService = {
 
       appendAuditEntry({
         actionType:    'freestyle.adjudication.reconciled',
-        category:      'content',
         actorType:     'admin',
         actorMemberId,
         entityType:    'freestyle_ev_adjudication',
@@ -2392,7 +2389,6 @@ export const freestyleCurationService = {
         : null;
       appendAuditEntry({
         actionType:    'freestyle.trick.updated',
-        category:      'content',
         actorType:     'admin',
         actorMemberId,
         entityType:    'freestyle_trick',
@@ -2483,7 +2479,6 @@ export const freestyleCurationService = {
           sourceId, provenanceNote);
         appendAuditEntry({
           actionType:    'freestyle.trick_alias.created',
-          category:      'content',
           actorType:     'admin',
           actorMemberId,
           entityType:    'freestyle_trick_alias',
@@ -2578,7 +2573,6 @@ export const freestyleCurationService = {
         aliasSlug, trickSlug);
       appendAuditEntry({
         actionType:    'freestyle.trick_alias.updated',
-        category:      'content',
         actorType:     'admin',
         actorMemberId,
         entityType:    'freestyle_trick_alias',
@@ -2628,7 +2622,6 @@ export const freestyleCurationService = {
       freestyleTrickAliases.deleteForTrick.run(aliasSlug, trickSlug);
       appendAuditEntry({
         actionType:    'freestyle.trick_alias.deleted',
-        category:      'content',
         actorType:     'admin',
         actorMemberId,
         entityType:    'freestyle_trick_alias',
@@ -2681,7 +2674,6 @@ export const freestyleCurationService = {
         freestyleTrickSourceLinks.insert.run(trickSlug, sourceId, externalUrl, assertedAdds);
         appendAuditEntry({
           actionType:    'freestyle.trick_source_link.created',
-          category:      'content',
           actorType:     'admin',
           actorMemberId,
           entityType:    'freestyle_trick_source_link',
@@ -2721,7 +2713,6 @@ export const freestyleCurationService = {
       freestyleTrickSourceLinks.deleteForTrick.run(trickSlug, sourceId);
       appendAuditEntry({
         actionType:    'freestyle.trick_source_link.deleted',
-        category:      'content',
         actorType:     'admin',
         actorMemberId,
         entityType:    'freestyle_trick_source_link',
@@ -2778,7 +2769,6 @@ export const freestyleCurationService = {
         freestyleTrickModifierLinks.insert.run(trickSlug, modifierSlug, applyOrder);
         appendAuditEntry({
           actionType:    'freestyle.trick_modifier_link.created',
-          category:      'content',
           actorType:     'admin',
           actorMemberId,
           entityType:    'freestyle_trick_modifier_link',
@@ -2810,7 +2800,6 @@ export const freestyleCurationService = {
       freestyleTrickModifierLinks.deleteForTrick.run(trickSlug, modifierSlug, applyOrder);
       appendAuditEntry({
         actionType:    'freestyle.trick_modifier_link.deleted',
-        category:      'content',
         actorType:     'admin',
         actorMemberId,
         entityType:    'freestyle_trick_modifier_link',
@@ -2895,7 +2884,6 @@ export const freestyleCurationService = {
       freestyleTrickTips.updateText.run(tipText, tipId);
       appendAuditEntry({
         actionType:    'freestyle.trick_tip.edited',
-        category:      'content',
         actorType:     'admin',
         actorMemberId,
         entityType:    'freestyle_trick_tip',
@@ -2928,7 +2916,6 @@ export const freestyleCurationService = {
       freestyleTrickTips.updateDisplayOrder.run(displayOrder, tipId);
       appendAuditEntry({
         actionType:    'freestyle.trick_tip.reordered',
-        category:      'content',
         actorType:     'admin',
         actorMemberId,
         entityType:    'freestyle_trick_tip',
@@ -2954,7 +2941,6 @@ export const freestyleCurationService = {
       freestyleTrickTips.updateStatus.run('hidden', tipId);
       appendAuditEntry({
         actionType:    'freestyle.trick_tip.hidden',
-        category:      'content',
         actorType:     'admin',
         actorMemberId,
         entityType:    'freestyle_trick_tip',
@@ -2987,7 +2973,6 @@ export const freestyleCurationService = {
       freestyleTrickTips.updateStatus.run('published', tipId);
       appendAuditEntry({
         actionType:    'freestyle.trick_tip.restored',
-        category:      'content',
         actorType:     'admin',
         actorMemberId,
         entityType:    'freestyle_trick_tip',
@@ -3030,7 +3015,6 @@ export const freestyleCurationService = {
       freestyleTrickTips.remap.run(targetSlug, tipId);
       appendAuditEntry({
         actionType:    'freestyle.trick_tip.remapped',
-        category:      'content',
         actorType:     'admin',
         actorMemberId,
         entityType:    'freestyle_trick_tip',
@@ -3135,7 +3119,6 @@ export const freestyleCurationService = {
         freestyleTrickSources.insert.run(id, sourceType, sourceLabel, sourceUrl || null, retrievedAt, notes || null);
         appendAuditEntry({
           actionType:    'freestyle.trick_source.created',
-          category:      'content',
           actorType:     'admin',
           actorMemberId,
           entityType:    'freestyle_trick_source',

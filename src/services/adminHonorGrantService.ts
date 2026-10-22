@@ -68,6 +68,8 @@ function readHolders(rows: unknown[]): HolderRow[] {
 
 interface RecentHonorGrant {
   honorLabel: string;
+  /** True for a grant taken back, which the list shows beside the grants. */
+  isRemoval: boolean;
   displayName: string;
   slug: string;
   occurredAt: string;
@@ -185,7 +187,8 @@ export const adminHonorGrantService = {
       is_nameable: 0 | 1;
     }>;
     const recent: RecentHonorGrant[] = rows.map((r) => ({
-      honorLabel: r.action_type === 'tier.hof_grant' ? HONOR_LABEL.hof : HONOR_LABEL.bap,
+      honorLabel: r.action_type.startsWith('tier.hof_') ? HONOR_LABEL.hof : HONOR_LABEL.bap,
+      isRemoval: r.action_type.endsWith('_removed'),
       // A prospective member is never named on an admin page: the
       // grant stays in the accountability list under their id.
       displayName: r.is_nameable ? r.display_name : r.member_id,

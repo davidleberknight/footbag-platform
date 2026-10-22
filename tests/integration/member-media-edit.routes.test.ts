@@ -203,6 +203,14 @@ describe('member per-item media edit routes', () => {
       });
     expect(res.status).toBe(303);
     expect(findMediaCaption(mediaId)).toBe('Café edit one\n\ntwo');
+    // The audit row names the fields the owner changed, never their words.
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const audit = db.prepare(
+      "SELECT metadata_json FROM audit_entries WHERE entity_id = ? AND action_type = 'media.member_edited'",
+    ).get(mediaId) as { metadata_json: string };
+    db.close();
+    expect(JSON.parse(audit.metadata_json).fields).toContain('caption');
+    expect(audit.metadata_json).not.toContain('Café');
   });
 
   it('POST non-owner slug → 404 (no write)', async () => {

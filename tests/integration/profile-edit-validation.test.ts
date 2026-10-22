@@ -492,7 +492,7 @@ describe('profile update writes an audit row', () => {
     db.close();
 
     expect(row).toBeDefined();
-    expect(row!.category).toBe('profile_change');
+    expect(row!.category).toBe('membership');
     expect(row!.actor_type).toBe('member');
     expect(row!.actor_member_id).toBe(MEMBER_ID);
     expect(row!.entity_type).toBe('member');

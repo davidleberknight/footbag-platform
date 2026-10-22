@@ -4,8 +4,8 @@ The implementation lane's brief, read by the subagent that sweeps deployed code 
 
 ## Contents
 
-- Bug categories, catalog (4.4.1 to 4.4.54): the security and correctness sweep classes, and the UI/UX lane's method (4.4.54)
-- Design-pattern divergence and hygiene (4.4B.1 to 4.4B.8): code against the rules and contracts that govern it
+- Bug categories, catalog (4.4.1 to 4.4.54; 4.4.38, 4.4.39 and 4.4.41 retired): the security and correctness sweep classes, and the UI/UX lane's method (4.4.54)
+- Design-pattern divergence and hygiene (4.4B.1 to 4.4B.8; 4.4B.7 retired): code against the rules and contracts that govern it
 - Cross-cutting observations
 - External security calibration references
 - High-signal static search recipes
@@ -44,7 +44,7 @@ The numbers are stable category identifiers cited in `BUGS.md` finding `Class` f
 #### 4.4.4 Auth gate misses
 
 - Every route in `src/routes/publicRoutes.ts` that touches member-only data must traverse `requireAuth`.
-- Every route in `adminRoutes.ts` already passes `requireAuth + requireAdmin` (mount-level); verify no per-route override skips it. `internalRoutes.ts` likewise.
+- Every route in `adminRoutes.ts` already passes `requireAuth + requireAdmin` (mount-level); verify no per-route override skips it.
 - `/ipc/job-events` (ipcRoutes.ts) uses shared-secret auth in the `requireInternalSecret` route middleware, not a session; verify the route mounts that middleware ahead of the controller.
 
 #### 4.4.5 Authorization gate misses
@@ -292,7 +292,7 @@ Found by measuring, never by screenshot. The rendered-style check (`npm run test
 
 ### 4.4B Design-pattern divergence and hygiene (secondary sweep)
 
-A separate, lower-priority sweep after 4.4, with its own `BUGS.md` group. Most findings are Low or Medium; escalate to High only when the divergence produces a behavioral or security failure (a template branching on a raw `role` that exposes an admin control). Ground every finding in the canonical pattern it violates: `.claude/rules/{controller-conventions,template-conventions,view-layer,service-layer,db-layer}.md` or the service file-header JSDoc, and cite it.
+A separate, lower-priority sweep after 4.4, with its own `BUGS.md` group. Most findings are Low or Medium; escalate to High only when the divergence produces a behavioral or security failure (a template branching on a raw `role` that exposes an admin control). Ground every finding in the canonical pattern it violates: `.claude/rules/{controller-conventions,view-layer,service-layer,db-layer}.md` or the service file-header JSDoc, and cite it.
 
 The drift direction is not always code-violates-rule. A rule or skill clause whose stated behavior or identifier the code has outgrown is itself a divergence finding. For every behavior or identifier a change moved, grep `.claude/rules/*` and `.claude/skills/*` for the superseded term; a stale sentence buried in a current rule drifts silently.
 

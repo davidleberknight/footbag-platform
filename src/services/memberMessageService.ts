@@ -273,7 +273,6 @@ export const memberMessageService = {
       );
       appendAuditEntry({
         actionType:    'member_message.sent',
-        category:      'support',
         actorType:     'admin',
         actorMemberId: input.adminMemberId,
         entityType:    'member',
@@ -473,7 +472,6 @@ export const memberMessageService = {
       workQueue.unparkItem.run(now, input.memberId, waiting.work_queue_item_id);
       appendAuditEntry({
         actionType:    'member_message.answered',
-        category:      'support',
         actorType:     'member',
         actorMemberId: input.memberId,
         entityType:    'member',

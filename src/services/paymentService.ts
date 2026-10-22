@@ -859,7 +859,6 @@ function releaseClosedCheckout(payment: PaymentRow, memberId: string): void {
     });
     appendAuditEntry({
       actionType: 'payment.canceled',
-      category: 'payment',
       actorType: 'member',
       actorMemberId: memberId,
       entityType: 'payment',
@@ -1111,7 +1110,6 @@ async function startMembershipPurchase(
 
   appendAuditEntry({
     actionType: 'payment.checkout_started',
-    category: 'payment',
     actorType: 'member',
     actorMemberId: memberId,
     entityType: 'payment',
@@ -1581,7 +1579,6 @@ function handlePaymentIntentSucceeded(event: StripeWebhookEvent): WebhookOutcome
     }
     appendAuditEntry({
       actionType: 'payment.succeeded',
-      category: 'payment',
       actorType: 'system',
       actorMemberId: null,
       entityType: 'payment',
@@ -1653,7 +1650,6 @@ function handlePaymentIntentFailed(event: StripeWebhookEvent): WebhookOutcome {
       // ordinary donor-side event, not a platform fault for an operator to act on,
       // so it must not travel the operational-error path that raises the alarm.
       actionType: 'payment.attempt_declined',
-      category: 'payment',
       actorType: 'system',
       actorMemberId: null,
       entityType: 'payment',
@@ -1791,7 +1787,6 @@ function handleChargeRefunded(event: StripeWebhookEvent): WebhookOutcome {
     const recorded = runNoopSideEffectOnce(event, () => {
       appendAuditEntry({
         actionType: 'payment.partially_refunded',
-        category: 'payment',
         actorType: 'system',
         actorMemberId: null,
         entityType: 'payment',
@@ -1873,7 +1868,6 @@ function handleChargeRefunded(event: StripeWebhookEvent): WebhookOutcome {
     });
     appendAuditEntry({
       actionType: 'payment.refunded',
-      category: 'payment',
       actorType: 'system',
       actorMemberId: null,
       entityType: 'payment',
@@ -1965,7 +1959,6 @@ function handleChargeDispute(event: StripeWebhookEvent): WebhookOutcome {
   const recorded = runNoopSideEffectOnce(event, () => {
     appendAuditEntry({
       actionType: stage.actionType,
-      category: 'payment',
       actorType: 'system',
       actorMemberId: null,
       entityType: 'stripe_dispute',
@@ -2097,7 +2090,6 @@ function handleRefundOutcome(event: StripeWebhookEvent): WebhookOutcome {
   const recorded = runNoopSideEffectOnce(event, () => {
     appendAuditEntry({
       actionType: 'payment.refund_not_returned',
-      category: 'payment',
       actorType: 'system',
       actorMemberId: null,
       // Attributed to the payment when one is known, so the failure shows on
@@ -2186,7 +2178,6 @@ function handlePayoutFailed(event: StripeWebhookEvent): WebhookOutcome {
       // transfer, which an administrator repairs in the account details, and it
       // must not travel the operational-error path that raises the alarm.
       actionType: 'payment.payout_rejected',
-      category: 'payment',
       actorType: 'system',
       actorMemberId: null,
       entityType: 'stripe_payout',
@@ -2260,7 +2251,6 @@ function handleRecurringCheckoutExpired(
     });
     appendAuditEntry({
       actionType: 'payment.recurring_donation_checkout_abandoned',
-      category: 'payment',
       actorType: 'system',
       actorMemberId: null,
       entityType: 'recurring_donation_subscription',
@@ -2336,7 +2326,6 @@ function handleCheckoutExpired(event: StripeWebhookEvent): WebhookOutcome {
     });
     appendAuditEntry({
       actionType: 'payment.canceled',
-      category: 'payment',
       actorType: 'system',
       actorMemberId: null,
       entityType: 'payment',
@@ -2411,7 +2400,6 @@ function enqueueReceiptEmail(payment: PaymentRow, outcome: 'succeeded' | 'failed
     // carries no address and no body, only that the platform sent one.
     appendAuditEntry({
       actionType: 'payment.receipt_sent',
-      category: 'payment',
       actorType: 'system',
       actorMemberId: null,
       entityType: 'payment',
@@ -2702,7 +2690,6 @@ function handleSubscriptionCreated(event: StripeWebhookEvent): WebhookOutcome {
     );
     appendAuditEntry({
       actionType: 'payment.recurring_donation_activated',
-      category: 'payment',
       actorType: 'system',
       actorMemberId: null,
       entityType: 'recurring_donation_subscription',
@@ -2769,7 +2756,6 @@ function restateRecordedInvoiceCharge(
     );
     appendAuditEntry({
       actionType: 'payment.recurring_charge_amount_updated',
-      category: 'payment',
       actorType: 'system',
       actorMemberId: null,
       entityType: 'payment',
@@ -2814,32 +2800,14 @@ function handleInvoicePaymentSucceeded(event: StripeWebhookEvent): WebhookOutcom
   const chargePaymentIntentId = invoicePaymentIntentId(obj);
 
   // An invoice that collected nothing moved no money, so there is no charge to
-  // book and no receipt to send. It is recorded rather than retried, because
-  // the payload cannot improve, and rather than booked, because a zero-value
-  // payment row with a receipt would tell the member they gave when they did
-  // not. The subscription itself is left where the provider's status events put
-  // it.
+  // book, no receipt to send and nothing to audit. The event is claimed rather
+  // than retried, because the payload cannot improve, and not booked, because a
+  // zero-value payment row with a receipt would tell the member they gave when
+  // they did not. The subscription itself is left where the provider's status
+  // events put it.
   if (typeof obj.amount_paid === 'number' && obj.amount_paid <= 0) {
-    const recorded = runNoopSideEffectOnce(event, () => {
-      appendAuditEntry({
-        actionType: 'payment.recurring_charge_zero_amount',
-        category: 'payment',
-        actorType: 'system',
-        actorMemberId: null,
-        entityType: 'recurring_donation_subscription',
-        entityId: sub.id,
-        reasonText: null,
-        metadata: {
-          member_id: sub.member_id,
-          stripe_event_id: event.id,
-          stripe_event_type: event.type,
-          stripe_invoice_id: invoiceId,
-          stripe_subscription_id: stripeSubscriptionId,
-          amount_paid_cents: obj.amount_paid,
-        },
-      });
-    });
-    return { outcome: recorded ? 'ignored' : 'duplicate' };
+    const claimed = transaction(() => claimEvent(event));
+    return { outcome: claimed ? 'ignored' : 'duplicate' };
   }
 
   const amountCents =
@@ -2974,7 +2942,6 @@ function handleInvoicePaymentSucceeded(event: StripeWebhookEvent): WebhookOutcom
     }
     appendAuditEntry({
       actionType: 'payment.recurring_charge_succeeded',
-      category: 'payment',
       actorType: 'system',
       actorMemberId: null,
       entityType: 'payment',
@@ -3052,7 +3019,6 @@ function handleInvoicePaymentFailed(event: StripeWebhookEvent): WebhookOutcome {
     const recorded = runNoopSideEffectOnce(event, () => {
       appendAuditEntry({
         actionType: 'payment.recurring_charge_declined',
-        category: 'payment',
         actorType: 'system',
         actorMemberId: null,
         entityType: 'recurring_donation_subscription',
@@ -3094,7 +3060,6 @@ function handleInvoicePaymentFailed(event: StripeWebhookEvent): WebhookOutcome {
       // platform fault for an operator to act on, so it must not travel the
       // operational-error path that raises the error alarm.
       actionType: 'payment.recurring_charge_declined',
-      category: 'payment',
       actorType: 'system',
       actorMemberId: null,
       entityType: 'recurring_donation_subscription',
@@ -3178,7 +3143,6 @@ function handleSubscriptionDeleted(event: StripeWebhookEvent): WebhookOutcome {
     });
     appendAuditEntry({
       actionType: 'payment.recurring_donation_canceled',
-      category: 'payment',
       actorType: 'system',
       actorMemberId: null,
       entityType: 'recurring_donation_subscription',
@@ -3259,7 +3223,6 @@ function handleSubscriptionUpdated(event: StripeWebhookEvent): WebhookOutcome {
     const recorded = runNoopSideEffectOnce(event, () => {
       appendAuditEntry({
         actionType: 'payment.recurring_donation_updated',
-        category: 'payment',
         actorType: 'system',
         actorMemberId: null,
         entityType: 'recurring_donation_subscription',
@@ -3340,7 +3303,6 @@ function handleSubscriptionUpdated(event: StripeWebhookEvent): WebhookOutcome {
     });
     appendAuditEntry({
       actionType: 'payment.recurring_donation_updated',
-      category: 'payment',
       actorType: 'system',
       actorMemberId: null,
       entityType: 'recurring_donation_subscription',
@@ -3979,7 +3941,6 @@ async function startDonation(
 
       appendAuditEntry({
         actionType: 'payment.donation_checkout_started',
-        category: 'payment',
         actorType: 'member',
         actorMemberId: memberId,
         entityType: 'recurring_donation_subscription',
@@ -4035,7 +3996,6 @@ async function startDonation(
 
     appendAuditEntry({
       actionType: 'payment.donation_checkout_started',
-      category: 'payment',
       actorType: 'member',
       actorMemberId: memberId,
       entityType: 'payment',
@@ -4144,7 +4104,6 @@ async function cancelRecurringDonation(
 
   appendAuditEntry({
     actionType: 'payment.recurring_cancel_requested',
-    category: 'payment',
     actorType: byAdmin ? 'admin' : 'member',
     actorMemberId: byAdmin ? byAdmin.adminMemberId : memberId,
     entityType: 'recurring_donation_subscription',

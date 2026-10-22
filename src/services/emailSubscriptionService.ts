@@ -170,7 +170,6 @@ export async function liftOwnAddressSuppression(memberId: string, address: strin
   } catch (err) {
     recordOperationalError({
       actionType: 'email.suppression_lift_failed',
-      category: 'system',
       entityType: 'member',
       entityId: memberId,
       actorType: 'member',
@@ -198,7 +197,6 @@ export function recoverBouncedAddressInTx(memberId: string, nowIso: string): voi
   );
   appendAuditEntry({
     actionType: 'email.address_recovered',
-    category: 'system',
     actorType: 'member',
     actorMemberId: memberId,
     entityType: 'member',
@@ -272,7 +270,6 @@ export const emailSubscriptionService = {
       if (result.changes > 0) {
         appendAuditEntry({
           actionType:    'email.unsubscribed_one_click',
-          category:      'system',
           // The member performed this, by clicking their mail client's control.
           // The token is what authorizes it in place of a session.
           actorType:     'member',
@@ -393,7 +390,6 @@ export const emailSubscriptionService = {
         if (complaintWithdrawn) {
           appendAuditEntry({
             actionType: 'email.complaint_withdrawn',
-            category: 'system',
             actorType: 'member',
             actorMemberId: memberId,
             entityType: 'member',
@@ -422,7 +418,6 @@ export const emailSubscriptionService = {
       if (changed > 0 && subscribe) {
         appendAuditEntry({
           actionType: 'mailing_list.subscribed',
-          category: 'system',
           actorType: 'member',
           actorMemberId: memberId,
           entityType: 'mailing_list',
@@ -432,7 +427,6 @@ export const emailSubscriptionService = {
       } else if (changed > 0) {
         appendAuditEntry({
           actionType: 'mailing_list.unsubscribed',
-          category: 'system',
           actorType: 'member',
           actorMemberId: memberId,
           entityType: 'mailing_list',

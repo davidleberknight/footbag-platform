@@ -171,6 +171,11 @@ expect_file "$H" "$CLAUDE_PROJECT_DIR/src/app.ts" defer
 expect_file "$H" "$CLAUDE_PROJECT_DIR/docs/README.md" defer
 expect_file "$H" "/etc/passwd" defer
 expect "$H" 'cat .env' defer
+# A .env file is judged by its name wherever it sits: nested, or in the companion
+# checkout outside the project; its nested placeholder template still defers.
+expect_file "$H" "$CLAUDE_PROJECT_DIR/src/x/.env" deny
+expect_file "$H" "$CLAUDE_PROJECT_DIR/../footbag-ops/.env.local" deny
+expect_file "$H" "$CLAUDE_PROJECT_DIR/src/x/.env.example" defer
 
 H=block-git-mutations.sh
 
@@ -253,6 +258,17 @@ expect "$H" 'git rev-parse HEAD' defer
 # guessed, which is the fail-closed direction for a security gate.
 expect "$H" 'bash -c "git commit -m x"' deny
 expect "$H" 'sh -c "git push"' deny
+# Separators split where the shell splits: inside quotes they are text, but a shell
+# string, eval, or a command substitution (even inside double quotes) runs commands.
+expect "$H" 'bash -c "a; git push"' deny
+expect "$H" 'eval "a; git push"' deny
+expect "$H" "sh -c 'true && git add -A'" deny
+expect "$H" 'echo "$(git commit -m x)"' deny
+expect "$H" 'echo "$(a; git push) tail"' deny
+expect "$H" 'echo "`git push`"' deny
+expect "$H" 'grep -E "(git push|x)" f' defer
+expect "$H" 'echo "a; git commit"' defer
+expect "$H" 'echo "$(date) git push"' defer
 expect "$H" 'xargs git commit' deny
 expect "$H" '/usr/bin/git push' deny
 expect "$H" 'command git commit -m x' deny
@@ -356,6 +372,17 @@ expect "$H" "sqlite3 -readonly database/footbag.db \"ATTACH DATABASE 'other.db' 
 expect "$H" 'rm database/footbag.db' ask
 expect "$H" 'sqlite3 -readonly database/footbag.db "SELECT COUNT(*) FROM members"' defer
 expect "$H" 'sqlite3 -readonly database/footbag.db ".tables"' defer
+
+# Running rm or sqlite3 asks wherever it sits in the command; a grep or git log that
+# only names them alongside SQL defers.
+expect "$H" 'echo "DROP TABLE x;" | sqlite3 database/footbag.db' ask
+expect "$H" '/usr/bin/sqlite3 db "DELETE FROM t"' ask
+expect "$H" 'cd database && sqlite3 footbag.db "UPDATE t SET a=1"' ask
+expect "$H" 'sudo rm -f database/footbag.db-wal' ask
+expect "$H" 'grep -rn sqlite3 scripts | grep "DROP TABLE"' defer
+expect "$H" 'grep -rni "sqlite3.*update the" docs' defer
+expect "$H" 'cat notes | grep "rm footbag.db"' defer
+expect "$H" 'git log -S "DELETE FROM" -- legacy_data' defer
 
 # Executing the reset script asks; merely naming its path to a read-only command defers.
 expect "$H" 'bash scripts/reset-local-db.sh' ask
@@ -1446,6 +1473,21 @@ expect_q 'Should I open a follow-up for the ledger tiebreak, yes or no?' defer
 expect_q "We could fold this into ${gate} later; ship the fix now?" defer
 expect_q 'Should the S3 bucket stay private?' defer
 expect_q 'I applied the fix and verified it end to end.' defer
+# Literal text quoted in a fenced block is shown material, not checked; the
+# question's own wording outside the fence still is.
+expect_q $'Apply this batch?\n```\nBEFORE: see docs/SOME_PLAN.md and the part marked \xc2\xa74\n```' defer
+expect_q $'Should I read docs/SOME_PLAN.md first?\n```\nAFTER: plain text\n```' block
+# The final message in the hook input wins over a transcript that lacks it.
+tr="$(mktemp)"
+jq -cn '{type:"assistant",message:{content:[{type:"text",text:"All done."}]}}' > "$tr"
+ev="$(jq -cn --arg p "$tr" --arg m 'Should I read docs/SOME_PLAN.md first?' \
+  '{transcript_path:$p,stop_hook_active:false,last_assistant_message:$m}')"
+out="$(printf '%s' "$ev" | ".claude/hooks/$Q")"
+if ! grep -q '"block"' <<< "$out"; then
+  echo "[hooks] FAIL ($Q): last_assistant_message was not checked" >&2
+  fail=1
+fi
+rm -f "$tr"
 # Not a question at all: never enforced.
 expect_q 'State 4 is where the cutover lands.' defer
 
@@ -1475,6 +1517,45 @@ expect_err2 guard-shell-loop.sh
 expect_err2 guard-process-substitution.sh
 expect_err2 guard-aws-reach.sh
 expect_err2 guard-interpreter-writes.sh
+expect_err2 guard-memory-write.sh
+
+# expect_memory <file-path> <transcript-jsonl> <deny|defer>: feed the memory guard a
+# write event whose transcript holds the given entries, from a throwaway file.
+expect_memory() {
+  local path="$1" transcript="$2" want="$3" tfile out decision rc
+  tfile="$(mktemp)"
+  printf '%s\n' "$transcript" > "$tfile"
+  out="$(jq -n --arg p "$path" --arg t "$tfile" '{tool_input: {file_path: $p}, transcript_path: $t}' \
+    | .claude/hooks/guard-memory-write.sh)"
+  rc=$?
+  rm -f "$tfile"
+  if [ "$rc" -ne 0 ]; then
+    echo "[hooks] FAIL (guard-memory-write.sh): errored (exit $rc) on: $path" >&2
+    fail=1
+    return
+  fi
+  if [ -z "$out" ]; then
+    decision="defer"
+  else
+    decision="$(printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecision // "defer"')"
+  fi
+  if [ "$decision" != "$want" ]; then
+    echo "[hooks] FAIL (guard-memory-write.sh): want $want, got $decision: $path" >&2
+    fail=1
+  fi
+}
+
+# A memory write passes only when the assistant announced the audit after the human's
+# last message; an audit from an earlier turn, or none, is denied.
+MEM="$HOME/.claude/projects/-x/memory/note.md"
+USER_TURN='{"type":"user","message":{"content":"remember this"}}'
+AUDITED='{"type":"assistant","message":{"content":[{"type":"text","text":"Memory audit: lesson = x; class = machine-local; checked entries a; no overlap; not in exclusion list."}]}}'
+PLAIN='{"type":"assistant","message":{"content":[{"type":"text","text":"Saving it now."}]}}'
+expect_memory "$MEM" "$USER_TURN"$'\n'"$AUDITED" defer
+expect_memory "$MEM" "$USER_TURN"$'\n'"$PLAIN" deny
+expect_memory "$MEM" "$USER_TURN"$'\n'"$AUDITED"$'\n'"$USER_TURN"$'\n'"$PLAIN" deny
+expect_memory "$MEM" "" deny
+expect_memory "$CLAUDE_PROJECT_DIR/src/app.ts" "" defer
 
 if [ "$fail" -ne 0 ]; then
   echo "[hooks] FAIL: one or more hook fixtures failed." >&2

@@ -6,10 +6,6 @@ description: Run a bounded adversarial bug hunt over the freestyle dictionary, i
 
 # Freestyle Bug Hunt — domain-invariant audit of the freestyle dictionary and curated media
 
-> **Invoke ONLY on explicit request.** Run this skill exclusively when the user asks for a
-> "freestyle bug hunt" or "freestyle bug sweep" by name. Do NOT infer it from "bug hunt"
-> (that is the general skill), "review the freestyle pages", or any general review phrasing.
-> When in doubt, ask before invoking.
 
 This skill is the standing prompt for an adversarial audit of the freestyle domain: the
 public dictionary surfaces, the admin curation surfaces that change freestyle data after
@@ -48,7 +44,9 @@ rule stays here.
 
 1. **Plan mode, findings-only, main session.** The hunt runs read-only in plan mode. The
    orchestrator stays in the main session — only it can ask the human — and dispatches the
-   category sweeps to read-only subagents, verifying their leads itself. No code, doc, data,
+   category sweeps to read-only subagents, verifying their leads itself. Each subagent brief
+   says: "You cannot ask the human: return any question in your report with its context and
+   your recommended answer." No code, doc, data,
    sidecar, CSV, or content-module edits, and no rebuild or server start: those are the
    maintainer's preconditions below. The only write allowed is the findings write to
    `BUGS.md` (Freestyle group), after the finalized plan is approved.
@@ -176,13 +174,13 @@ with no deterministic check is handed there as a named defect class, never recor
 3. The maintainers' private tracker: list the open `freestyle` and `pipeline` issues, then
    read every one in full (body and every comment, in order) with the detail form in
    `.claude/skills/tracker-ops/SKILL.md`, plus every card a doctrine file cites, plus the
-   local gitignored `BUGS.md`. Build the tracked-work exclusion list fresh from them
+   `footbag_private_repo/BUGS.md`. Build the tracked-work exclusion list fresh from them
    (REFERENCE.md describes how); never trust a title, a description elsewhere, or a
    remembered list.
 4. The four freestyle-domain skills named above — they carry the invariants.
 5. The path-scoped rules: enumerate `.claude/rules/` fresh and read every rule that
    governs a surface this run touches (at minimum `view-layer.md` for the hashtag and
-   dictionary-filter link rules, `template-conventions.md`, `testing.md`, `comments.md`).
+   dictionary-filter link rules and template mechanics, `testing.md`, `comments.md`).
 6. `docs/FREESTYLE.md` (the maintainer guide, including its publication gate and
    terminology sections), the freestyle user stories in `docs/USER_STORIES.md` (public,
    admin curation, and the freestyle content source-of-truth story), and the freestyle
@@ -261,7 +259,8 @@ with no deterministic check is handed there as a named defect class, never recor
 
 ## Output specification
 
-Single sink: `BUGS.md` at the repo root — the same file bug-hunt uses.
+Single sink: the same `BUGS.md` bug-hunt uses (`footbag_private_repo/BUGS.md`, or the session
+scratchpad without that checkout).
 Freestyle findings go in a dedicated **Freestyle bugs (domain invariants)** group, placed
 after the bug-hunt skill's groups and before Leads. The group follows the established
 discipline:

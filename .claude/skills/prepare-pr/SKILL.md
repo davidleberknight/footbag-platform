@@ -1,6 +1,6 @@
 ---
 name: prepare-pr
-description: Prepare a human-reviewable PR summary for the current work without creating commits, pushing, or mutating git history.
+description: Prepare a human-reviewable PR summary of the current work. Use when the human asks for a PR description, a merge summary, or "prepare a PR". Never commits, pushes or mutates git history.
 ---
 
 # Prepare PR
@@ -45,3 +45,7 @@ Include:
 - rewrite git history
 - run `git add` (staging is always human-run; the harness hard-denies it)
 - claim verification that did not happen
+
+## Stop when
+
+The summary is shown to the human; nothing is committed or pushed.

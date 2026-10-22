@@ -354,8 +354,8 @@ const RAW_DERIVATION_PILOT_ENTRIES: readonly RawDerivationPanelEntry[] = [
 
 /**
  * Public export: raw entries augmented with derived `hasDeepRungs`.
- * Templates branch on `hasDeepRungs` per `template-conventions` rule
- * "branching only on pre-shaped data".
+ * Templates branch on `hasDeepRungs` because a template branches only on
+ * pre-shaped data, never on raw entries.
  */
 export const DERIVATION_PILOT_ENTRIES: readonly DerivationPanelEntry[] =
   RAW_DERIVATION_PILOT_ENTRIES.map(entry => ({

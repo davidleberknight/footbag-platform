@@ -10,6 +10,10 @@ input="$(cat)"
 # Avoid loops: if we already blocked once this turn, let it through.
 printf '%s' "$input" | grep -q '"stop_hook_active":[[:space:]]*true' && exit 0
 
+# The final message arrives in the input; the transcript file may not hold it yet at
+# Stop time, so it is only the fallback.
+msg="$(printf '%s' "$input" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("last_assistant_message") or "")' 2>/dev/null || true)"
+if [ -z "$msg" ]; then
 transcript="$(printf '%s' "$input" | python3 -c 'import sys,json;print(json.load(sys.stdin).get("transcript_path",""))' 2>/dev/null || true)"
 [ -n "$transcript" ] && [ -f "$transcript" ] || exit 0
 
@@ -34,7 +38,12 @@ for line in open(sys.argv[1]):
 print(last)
 PY
 )"
+fi
 [ -n "$msg" ] || exit 0
+
+# Quoted literal text in fenced blocks (a BEFORE/AFTER under approval) is shown
+# material, not the question's own wording: check only the text outside fences.
+msg="$(printf '%s' "$msg" | python3 -c 'import re,sys;print(re.sub(r"```.*?```","",sys.stdin.read(),flags=re.S))' 2>/dev/null || printf '%s' "$msg")"
 
 # Only enforce on messages that ask the human something.
 printf '%s' "$msg" | grep -q '?' || exit 0

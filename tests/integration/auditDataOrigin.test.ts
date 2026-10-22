@@ -27,7 +27,6 @@ function lastOrigin(): string {
 function append(actionType: string): void {
   appendAuditEntry({
     actionType,
-    category: 'general',
     actorType: 'system',
     actorMemberId: null,
     entityType: 'audit_log',
@@ -50,13 +49,13 @@ afterAll(() => {
 describe('audit ledger data-origin stamp', () => {
   it('stamps a row written while the platform is proving itself as test data', () => {
     dataOrigin.__setDataOriginForTests('test');
-    append('audit.viewed');
+    append('config.updated');
     expect(lastOrigin()).toBe('test');
   });
 
   it('stamps a row written after go-live as live', () => {
     dataOrigin.__setDataOriginForTests('live');
-    append('audit.viewed');
+    append('config.updated');
     expect(lastOrigin()).toBe('live');
   });
 
@@ -64,7 +63,7 @@ describe('audit ledger data-origin stamp', () => {
     // A process that skipped the boot resolution, or whose parameter-store read
     // failed, must not have its rows read later as real member activity.
     dataOrigin.__setDataOriginForTests(undefined);
-    append('audit.viewed');
+    append('config.updated');
     expect(lastOrigin()).toBe('unknown');
   });
 
@@ -91,7 +90,7 @@ describe('audit ledger data-origin stamp', () => {
 
   it('keeps the stamp immutable once written', () => {
     dataOrigin.__setDataOriginForTests('test');
-    append('audit.viewed');
+    append('config.updated');
     expect(() =>
       db.prepare("UPDATE audit_entries SET data_origin = 'live'").run(),
     ).toThrow();

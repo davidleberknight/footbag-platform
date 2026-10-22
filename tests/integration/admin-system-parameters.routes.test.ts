@@ -248,7 +248,7 @@ describe('POST /admin/system-parameters', () => {
     expect(rows.length).toBe(1);
     const entry = rows[0]!;
     expect(entry.action_type).toBe('config.updated');
-    expect(entry.category).toBe('system');
+    expect(entry.category).toBe('configuration');
     expect(entry.actor_member_id).toBe(ADMIN_ID);
     expect(entry.reason_text).toBe('Provider throttling us more than usual.');
     expect(JSON.parse(entry.metadata_json)).toMatchObject({ previousValue: 5, newValue: 7 });
@@ -330,6 +330,21 @@ describe('POST /admin/system-parameters validation', () => {
     expect(res.status).toBe(422);
     expect(res.text).toContain('2555 is the lowest value allowed');
     expect(configRows('payment_retention_days').length).toBe(before);
+  });
+
+  // Defect caught: the screen accepts a shorter audit retention that the purge
+  // then silently ignores, so the setting shown is not the one in force.
+  it('refuses an audit retention window below the seven-year floor the purge enforces', async () => {
+    const before = configRows('audit_retention_days').length;
+    const res = await request(createApp())
+      .post('/admin/system-parameters')
+      .set('Cookie', admin())
+      .type('form')
+      .send(saveBody({ audit_retention_days: '365' }));
+
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('2555 is the lowest value allowed');
+    expect(configRows('audit_retention_days').length).toBe(before);
   });
 
   it('refuses a second Active Player reminder that does not fall closer to expiry than the first', async () => {

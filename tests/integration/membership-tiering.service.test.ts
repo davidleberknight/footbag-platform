@@ -971,7 +971,7 @@ describe('audit log', () => {
     expect(rows).toHaveLength(1);
     expect(rows[0]).toMatchObject({
       action_type: 'tier.admin_override',
-      category: 'tier_change',
+      category: 'membership',
       actor_type: 'admin',
       actor_member_id: ADMIN_ID,
       entity_id: id,
@@ -979,7 +979,7 @@ describe('audit log', () => {
     });
   });
 
-  it('writes a governance_change audit entry on setGovernanceTier3', () => {
+  it('files the governance tier grant under the membership topic', () => {
     const id = freshMember();
     mts.setGovernanceTier3(ADMIN_ID, id);
 
@@ -992,7 +992,7 @@ describe('audit log', () => {
       .all(id) as Array<{ category: string; action_type: string }>;
     dbh.close();
     expect(rows).toHaveLength(1);
-    expect(rows[0].category).toBe('governance_change');
+    expect(rows[0].category).toBe('membership');
   });
 });
 

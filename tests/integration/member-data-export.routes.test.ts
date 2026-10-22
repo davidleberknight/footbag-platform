@@ -246,7 +246,7 @@ describe('what the document carries', () => {
       });
       insertAuditEntry(db, {
         actor_type: 'system', actor_member_id: null,
-        action_type: 'system.subject_only_sweep', entity_type: 'member', entity_id: id,
+        action_type: 'member.pii_purged', entity_type: 'member', entity_id: id,
       });
     });
 
@@ -261,10 +261,32 @@ describe('what the document carries', () => {
     ]);
     for (const leak of [
       'own-reason-text-leak', 'own-metadata-leak', 'club-exp-audit', other,
-      'admin.subject_only_correction', 'system.subject_only_sweep',
+      'admin.subject_only_correction', 'member.pii_purged',
     ]) {
       expect(res.text, `export leaked ${leak}`).not.toContain(leak);
     }
+  });
+
+  // Defect caught: a long-active member's copy stops at a fixed count and keeps
+  // their oldest actions, silently dropping everything they did recently.
+  it('carries every one of the member’s own actions, the newest included', async () => {
+    const slug = 'exp_audit_many';
+    const id = makeMember(slug);
+    withDb((db) => {
+      const seed = db.transaction(() => {
+        for (let i = 0; i < 5001; i += 1) {
+          insertAuditEntry(db, {
+            actor_type: 'member', actor_member_id: id,
+            action_type: 'member.profile_updated', entity_type: 'member', entity_id: id,
+            occurred_at: new Date(Date.UTC(2025, 0, 1) + i * 60_000).toISOString(),
+          });
+        }
+      });
+      seed();
+    });
+    const doc = JSON.parse((await download(slug, id)).text);
+    expect(doc.ownActions).toHaveLength(5001);
+    expect(doc.ownActions.at(-1).occurred_at).toBe(new Date(Date.UTC(2025, 0, 1) + 5000 * 60_000).toISOString());
   });
 
   it('carries nothing about another member', async () => {

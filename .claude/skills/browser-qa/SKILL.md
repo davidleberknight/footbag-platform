@@ -1,12 +1,12 @@
 ---
 name: browser-qa
 disable-model-invocation: true
-description: Browser automation for visual layout review or QA verification. Use only when the human explicitly names a page or check to run. Never run unsolicited or assume a broad test suite is wanted.
+description: Screenshot-based visual review, or a QA pass on pages the human names. Use only when the human asks; routine checking after a change is page-check.
 ---
 
 # Browser QA / Visual Layout
 
-Use this skill only when the human explicitly asks to look at a page, check a layout, or verify rendered output. Do not run it speculatively, do not expand scope beyond what was named, and do not take screenshots unless specifically useful for the stated goal.
+Use this skill only when the human asks for a screenshot, a visual review or a named QA pass. Routine driving after a change is the page-check skill. Do not expand scope beyond what was named, and do not take screenshots unless specifically useful for the stated goal.
 
 This skill is for ad-hoc human-driven browser review. The standing Playwright suite (`tests/e2e/`) is described in the Playwright strategy section of `docs/TESTING.md` and is a separate concern from this skill.
 
@@ -34,7 +34,7 @@ This skill is for ad-hoc human-driven browser review. The standing Playwright su
 **Never let screenshots land in the repo root.** `mcp__playwright__browser_take_screenshot` writes its `filename` argument relative to the current working directory, which is the repo root by default. A bare `filename: "events.png"` will pollute the project tree.
 
 Rules:
-- Always pass an explicit `filename` that points into `.playwright-mcp/` (already gitignored), e.g. `filename: ".playwright-mcp/events-desktop.png"`.
+- Always pass an explicit `filename` that points into `.playwright-mcp/` (already gitignored), e.g. `filename: ".playwright-mcp/events-desktop.png"`. It is the Playwright server's own output folder, and the server refuses any path outside it, so the session scratchpad is not an option.
 - After the requested check is reported, delete any screenshots created during the run unless the human explicitly asked to keep them.
 - The repo root has a defensive `/*.png` rule in `.gitignore`, but do not rely on it. Place files correctly the first time.
 

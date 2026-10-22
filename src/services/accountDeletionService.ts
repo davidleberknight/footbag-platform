@@ -265,7 +265,6 @@ export function createAccountDeletionService(deps: AccountDeletionServiceDeps) {
         }
         appendAuditEntry({
           actionType:    'auth.account_deleted',
-          category:      'member',
           actorType:     'member',
           actorMemberId: input.memberId,
           entityType:    'member',

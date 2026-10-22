@@ -133,7 +133,7 @@
     {{#each content.recent}}
       <div class="card">
         <div class="card-title">{{displayName}} <span class="text-muted fs-sm">{{slug}}</span></div>
-        <p class="m-0 text-muted fs-sm">{{honorLabel}} &middot; {{occurredAt}}{{#if dataOriginLabel}} <span class="badge">{{dataOriginLabel}}</span>{{/if}}</p>
+        <p class="m-0 text-muted fs-sm">{{honorLabel}}{{#if isRemoval}} <span class="badge">Removed</span>{{/if}} &middot; {{occurredAt}}{{#if dataOriginLabel}} <span class="badge">{{dataOriginLabel}}</span>{{/if}}</p>
       </div>
     {{/each}}
   </section>

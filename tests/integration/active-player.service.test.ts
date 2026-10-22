@@ -150,6 +150,16 @@ function vouchRows(targetId: string): Array<{
   return rows;
 }
 
+/** Every audit row on the entity, whatever its action type. */
+function allAuditCount(entityId: string): number {
+  const db = new BetterSqlite3(dbPath, { readonly: true });
+  const row = db
+    .prepare('SELECT COUNT(*) AS n FROM audit_entries WHERE entity_id = ?')
+    .get(entityId) as { n: number };
+  db.close();
+  return row.n;
+}
+
 function auditCount(entityId: string, actionType: string): number {
   const db = new BetterSqlite3(dbPath, { readonly: true });
   const row = db
@@ -344,11 +354,14 @@ describe('applyAttendance', () => {
     const r2 = buildRegistration(e2, id);
 
     aps.applyAttendance(ACTOR_ID, id, r1, '2027-06-03');
+    const auditBefore = allAuditCount(id);
     const result = aps.applyAttendance(ACTOR_ID, id, r2, '2026-06-03');
 
     expect(result).toEqual({ status: 'noop', reason: 'no_shorten' });
     expect(apGrants(id)).toHaveLength(1);
-    expect(auditCount(id, 'active_player.attendance_noop')).toBe(1);
+    // An act that changed nothing leaves no audit row, or the log fills with
+    // non-events an administrator has to read past.
+    expect(allAuditCount(id)).toBe(auditBefore);
   });
 
   it('per-registration idempotency: second call for same registrationId is a no-op', () => {
@@ -363,17 +376,18 @@ describe('applyAttendance', () => {
     expect(apGrants(id)).toHaveLength(1);
   });
 
-  it('Tier 1+ member: returns no-op and writes only the audit entry', () => {
+  it('Tier 1+ member: returns no-op and writes nothing, the audit log included', () => {
     const id = freshMember();
     setMemberTier(id, 'tier1');
     const { eventId } = buildEvent();
     const regId = buildRegistration(eventId, id);
+    const auditBefore = allAuditCount(id);
 
     const result = aps.applyAttendance(ACTOR_ID, id, regId, '2026-06-03');
 
     expect(result).toEqual({ status: 'noop', reason: 'tier1_plus_no_op' });
     expect(apGrants(id)).toHaveLength(0);
-    expect(auditCount(id, 'active_player.attendance_noop')).toBe(1);
+    expect(allAuditCount(id)).toBe(auditBefore);
   });
 
   it('rejects an unknown registrationId', () => {
@@ -458,17 +472,18 @@ describe('applyVouch', () => {
     );
   });
 
-  it('target Tier 1+: returns no-op (no vouch row, no AP row, audit-only)', () => {
+  it('target Tier 1+: returns no-op and writes nothing (no vouch row, no AP row, no audit row)', () => {
     const voucher = buildVoucher('tier2');
     const target = freshMember();
     setMemberTier(target, 'tier1');
+    const auditBefore = allAuditCount(target);
 
     const result = aps.applyVouch(voucher, target, 'try');
 
     expect(result).toEqual({ status: 'noop', reason: 'tier1_plus_no_op' });
     expect(apGrants(target)).toHaveLength(0);
     expect(vouchRows(target)).toHaveLength(0);
-    expect(auditCount(target, 'active_player.vouch_noop')).toBe(1);
+    expect(allAuditCount(target)).toBe(auditBefore);
   });
 
   it('rejects self-vouch at the service layer (DB CHECK is the backstop)', () => {
@@ -495,6 +510,23 @@ describe('applyVouch', () => {
 
     expect(vouchRows(target)[0].reason_text).toBe(sneaky);
     expect(apGrants(target)[0].reason_text).toBe(sneaky);
+  });
+
+  // Defect caught: the voucher's note, text a member typed, is copied into the
+  // audit log, which no erasure can reach.
+  it('keeps the voucher note on the vouch and grant rows and out of the audit row', () => {
+    const voucher = buildVoucher('tier2');
+    const target = freshMember();
+    aps.applyVouch(voucher, target, 'Saw them at the regional jam.');
+
+    expect(apGrants(target)[0].reason_text).toBe('Saw them at the regional jam.');
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const row = db.prepare(
+      "SELECT reason_text, metadata_json FROM audit_entries WHERE entity_id = ? AND action_type = 'active_player.grant'",
+    ).get(target) as { reason_text: string | null; metadata_json: string };
+    db.close();
+    expect(row.reason_text).toBeNull();
+    expect(row.metadata_json).not.toContain('regional jam');
   });
 
   it('rate-limit: 6th vouch within window throws RateLimitedError', async () => {

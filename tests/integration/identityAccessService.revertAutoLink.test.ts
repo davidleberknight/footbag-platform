@@ -923,4 +923,22 @@ describe('identityAccessService.revertClaimForDispute (queue-item binding)', () 
     // claim it; left flagged it would be unclaimable for good.
     expect(flag()).toBe(0);
   });
+
+  // Defect caught: a marking removed as an error still reads as the cascade
+  // behind the record's flag, so a later claim revert clears a flag that was
+  // set on the record for its own reasons, and a dead player reads as living.
+  it('a marking reverted as an error does not stand behind a flag set on the record since', async () => {
+    seedAdmin();
+    const { memberId, hpId } = setupClaimed({ withHpBackLink: true });
+    const { deceasedMarkingService } = await import('../../src/services/deceasedMarkingService');
+    await deceasedMarkingService.markDeceased(ADMIN_ID, memberId);
+    deceasedMarkingService.revertDeceased(ADMIN_ID, memberId);
+    // The record is flagged again on its own evidence, not by the member's marking.
+    open().prepare('UPDATE historical_persons SET is_deceased = 1 WHERE person_id = ?').run(hpId!);
+
+    svc.revertAutoLink(memberId, 'audit-cascade-reverted', { actorType: 'admin', actorMemberId: ADMIN_ID });
+
+    expect((open().prepare('SELECT is_deceased FROM historical_persons WHERE person_id = ?')
+      .get(hpId!) as { is_deceased: number }).is_deceased).toBe(1);
+  });
 });

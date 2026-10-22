@@ -16,6 +16,8 @@ function parseQuery(req: Request): EmailLogQuery {
     recipient: str(req.query.recipient),
     templateKey: str(req.query.template),
     status: str(req.query.status),
+    fromDate: str(req.query.from),
+    toDate: str(req.query.to),
     page: Number.isFinite(pageRaw) && pageRaw > 0 ? pageRaw : 1,
   };
 }
@@ -27,6 +29,8 @@ function returnPath(req: Request): string {
   if (q.recipient) p.set('recipient', q.recipient);
   if (q.templateKey) p.set('template', q.templateKey);
   if (q.status) p.set('status', q.status);
+  if (q.fromDate) p.set('from', q.fromDate);
+  if (q.toDate) p.set('to', q.toDate);
   if (q.page && q.page > 1) p.set('page', String(q.page));
   const qs = p.toString();
   return qs ? `/admin/email-log?${qs}` : '/admin/email-log';

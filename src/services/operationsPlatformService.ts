@@ -18,6 +18,8 @@
  *     compliance-retention window (ballots are out of scope: destroying IFPA
  *     vote records is the IFPA secretary's decision, not an operator job), plus
  *     deleting delivered outbox copies past the outbound-copy retention window
+ *   - The audit retention purge: deleting audit rows past audit_retention_days,
+ *     never less than seven years; the delete trigger refuses anything younger
  *
  * Does not own:
  *   - The delegated job bodies (ActivePlayerExpiryService, CommunicationService drain,
@@ -49,6 +51,7 @@
  *     payments-health page can say since when the declared mode has held)
  *   - outbox_emails delete (delivered copies past the retention window)
  *   - payments anonymize-write (compliance-retention cleanup)
+ *   - audit_entries delete (the retention purge, rows past the window only)
  *   - audit_entries append (pii_erasure_failed, payment.compliance_anonymize_failed, and
  *     email.outbox_retention_cleanup_failed operational errors; the per-row
  *     erasure audit rows belong to MemberService)
@@ -59,7 +62,11 @@
  */
 import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import { accountTokens, health, systemJobRuns, systemConfig, memberPurge, outbox, payments } from '../db/db';
+import { accountTokens, auditEntries, health, systemJobRuns, systemConfig, memberPurge, outbox, payments } from '../db/db';
+
+// Seven years: the audit log's retention never drops below it, whatever the
+// setting says, so lowering the setting cannot erase recent history.
+const AUDIT_RETENTION_FLOOR_DAYS = 2555;
 import { runSqliteRead } from './sqliteRetry';
 import { memberService } from './memberService';
 import { hashtagDiscoveryService } from './hashtagDiscoveryService';
@@ -409,6 +416,31 @@ export class OperationsPlatformService {
     }, startTime);
   }
 
+  /**
+   * SYS_Purge_Audit_Entries daily entry point. Deletes audit rows older than the
+   * retention window: audit_retention_days, never less than seven years. The
+   * job-run row is its trail; the purge writes no audit row about itself. No
+   * cadence gate: the delete is cheap and idempotent. The delete trigger
+   * refuses anything inside the window, so a wrong cutoff here fails loudly
+   * rather than erasing recent history.
+   */
+  async runAuditRetentionPurge(
+    startTime?: Date,
+  ): Promise<{ deleted: number; retentionDays: number; oldestRemainingAgeDays: number | null }> {
+    return this.recordJobRun('SYS_Purge_Audit_Entries', () => {
+      const now = startTime ?? new Date();
+      const retentionDays = Math.max(AUDIT_RETENTION_FLOOR_DAYS, readIntConfig('audit_retention_days', AUDIT_RETENTION_FLOOR_DAYS));
+      const cutoff = new Date(now.getTime() - retentionDays * 86_400_000).toISOString();
+      const deleted = auditEntries.deleteOlderThan.run(cutoff).changes;
+      const oldest = auditEntries.oldestOccurredAt.get() as { oldest: string | null };
+      const oldestRemainingAgeDays = oldest.oldest
+        ? Math.floor((now.getTime() - Date.parse(oldest.oldest)) / 86_400_000)
+        : null;
+      logger.info('audit retention purge', { deleted, retentionDays, oldestRemainingAgeDays });
+      return { deleted, retentionDays, oldestRemainingAgeDays };
+    }, startTime);
+  }
+
   async runHashtagStatsRebuild(
     startTime?: Date,
   ): Promise<{ rowsUpserted: number }> {
@@ -669,7 +701,6 @@ export class OperationsPlatformService {
           deleted.errors.push({ memberId: id, error: err instanceof Error ? err.message : String(err) });
           recordOperationalError({
             actionType: 'member.pii_erasure_failed',
-            category:   'member',
             entityType: 'member',
             entityId:   id,
             reasonText: 'PII purge scan: full purge of a grace-expired soft-deleted account failed',
@@ -695,7 +726,6 @@ export class OperationsPlatformService {
           deceased.errors.push({ memberId: id, error: err instanceof Error ? err.message : String(err) });
           recordOperationalError({
             actionType: 'member.pii_erasure_failed',
-            category:   'member',
             entityType: 'member',
             entityId:   id,
             reasonText: 'PII purge scan: contact scrub of a grace-expired deceased account failed',
@@ -723,7 +753,6 @@ export class OperationsPlatformService {
           paymentsResult.errors.push({ paymentId: id, error: err instanceof Error ? err.message : String(err) });
           recordOperationalError({
             actionType: 'payment.compliance_anonymize_failed',
-            category:   'payments',
             entityType: 'payment',
             entityId:   id,
             reasonText: 'PII purge scan: compliance-retention anonymization of an aged payment failed',
@@ -750,7 +779,6 @@ export class OperationsPlatformService {
         outboxCopies.errors.push({ error: err instanceof Error ? err.message : String(err) });
         recordOperationalError({
           actionType: 'email.outbox_retention_cleanup_failed',
-          category:   'system',
           entityType: 'system',
           entityId:   'outbox_retention',
           reasonText: 'PII purge scan: deletion of delivered outbox copies past the retention window failed',

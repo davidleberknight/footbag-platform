@@ -24,6 +24,7 @@ import {
   insertClub,
   insertClubLeader,
   insertMemberClubAffiliation,
+  insertAuditEntry,
   createMemberAtTier,
   createTier0WithActivePlayer,
   completeOnboarding,
@@ -292,6 +293,30 @@ describe('POST /clubs/:key/step-down', () => {
       'SELECT is_current FROM member_club_affiliations WHERE member_id = ? AND club_id = ?',
     ).get(m, clubId) as { is_current: number };
     expect(aff.is_current).toBe(1);
+  });
+
+  // Defect caught: a member who stepped down, was given a seat again and then
+  // lost it another way posts a stale step-down form and is told "Stepped down"
+  // as if their own act still stood, when they are simply not a co-leader.
+  it('an old step-down undone by a later seat is not taken for a repeat', async () => {
+    const { clubId, clubKey } = seedClub();
+    const m = tier1Actor(`s-again-${_n}`, `s_again_${_n}`);
+    insertClubLeader(db, { club_id: clubId, member_id: m });
+    insertMemberClubAffiliation(db, m, clubId);
+    const first = await request(createApp())
+      .post(`/clubs/${clubKey}/step-down`).set('Cookie', cookieFor(m)).type('form').send({ confirmed: '1' });
+    expect(first.status).toBe(303);
+    expect(await landedOn(m, first)).toContain('Stepped down from co-leading this club.');
+
+    // An administrator assigns them again, then demotes them.
+    insertAuditEntry(db, {
+      action_type: 'club.admin_leader_assigned', actor_type: 'admin', entity_type: 'club', entity_id: clubId,
+      metadata: { member_id: m }, occurred_at: new Date(Date.now() + 1000).toISOString(),
+    });
+
+    const stale = await request(createApp())
+      .post(`/clubs/${clubKey}/step-down`).set('Cookie', cookieFor(m)).type('form').send({ confirmed: '1' });
+    expect(await landedOn(m, stale)).toContain('You are not a co-leader of this club.');
   });
 
   it('the last co-leader stepping down leaves the club leaderless, not blocked', async () => {

@@ -73,6 +73,16 @@ function getTaskState(memberId: string, taskType: string): string {
   return row?.state ?? 'pending';
 }
 
+// A prospective member's claim evidence, held on their claim-step row until the
+// transaction that makes them a member writes it to the audit log.
+function countHeldAuditEntries(memberId: string, actionType: string): number {
+  const row = testDb.prepare(
+    "SELECT answer_json FROM member_onboarding_tasks WHERE member_id = ? AND task_type = 'legacy_claim'",
+  ).get(memberId) as { answer_json: string | null } | undefined;
+  const held = row?.answer_json ? JSON.parse(row.answer_json) as { audit?: Array<{ actionType: string }> } : {};
+  return (held.audit ?? []).filter((e) => e.actionType === actionType).length;
+}
+
 function countAuditEntries(memberId: string, actionType: string): number {
   return (testDb.prepare(
     "SELECT COUNT(*) AS c FROM audit_entries WHERE actor_member_id = ? AND action_type = ?",
@@ -209,6 +219,10 @@ describe('POST /register/wizard/personal_details/submit — collects details and
     expect(row.gender).toBe('male');
     expect(row.first_competition_year).toBe(2010);
     expect(row.show_competitive_results).toBe(1);
+    // The registrant is not a member yet, so the audit log records nothing of
+    // their edits to their own details.
+    expect(testDb.prepare('SELECT action_type FROM audit_entries WHERE entity_id = ? OR actor_member_id = ?')
+      .all(memberId, memberId)).toEqual([]);
   });
 
   it('stores the checked results-visibility box when the form submits the hidden default alongside it', async () => {
@@ -346,8 +360,6 @@ describe('POST /register/wizard/personal_details/submit — collects details and
       login_email: `wiz-pd-done-${stamp}@example.com`,
       city: 'Eugene', region: 'OR', country: 'USA', birth_date: '1990-05-05',
     });
-    const before = countAuditEntries(memberId, 'wizard.task.completed');
-
     const res = await request(createApp())
       .post('/register/wizard/personal_details/submit')
       .set('Cookie', cookieFor(memberId))
@@ -375,7 +387,6 @@ describe('POST /register/wizard/personal_details/submit — collects details and
     expect(row.country).toBe('USA');
     expect(row.birth_date).toBe('1990-05-05');
     expect(row.gender).not.toBe('female');
-    expect(countAuditEntries(memberId, 'wizard.task.completed')).toBe(before);
   });
 
   it('sends the refused re-submission on to whatever the member still owes', async () => {
@@ -467,7 +478,6 @@ describe('POST /register/wizard/:taskType/skip — 303 advance to next task', ()
     await request(createApp())
       .get('/register/wizard/legacy_claim')
       .set('Cookie', cookieFor(memberId));
-    const beforeAudits = countAuditEntries(memberId, 'wizard.task.completed');
     // Continuing without linking requires the attestation that the member never
     // held an old-site account; it completes legacy_claim and advances.
     const res = await request(createApp())
@@ -480,7 +490,6 @@ describe('POST /register/wizard/:taskType/skip — 303 advance to next task', ()
     // legacy_claim is a required decision: the "nothing to claim" control
     // completes it rather than leaving it skipped.
     expect(getTaskState(memberId, 'legacy_claim')).toBe('completed');
-    expect(countAuditEntries(memberId, 'wizard.task.completed')).toBe(beforeAudits + 1);
     // Member has no legacy_member_id linkage -> listWizardCardsForMember
     // returns []; club_affiliations is universal, so the GET renders the
     // find-or-create-your-club wrap-up landing and the task stays pending.
@@ -536,29 +545,41 @@ describe('POST /register/wizard/:taskType/skip — 303 advance to next task', ()
       .post('/register/wizard/legacy_claim/continue-without-linking')
       .set('Cookie', neverCookie).type('form').send({ no_link_answer: 'whatever' });
     expect(refused.status).toBe(422);
-    expect(countAuditEntries(neverId, NEVER)).toBe(0);
-    expect(countAuditEntries(neverId, CANNOT)).toBe(0);
+    expect(countHeldAuditEntries(neverId, NEVER)).toBe(0);
+    expect(countHeldAuditEntries(neverId, CANNOT)).toBe(0);
 
     await request(createApp())
       .post('/register/wizard/legacy_claim/continue-without-linking')
       .set('Cookie', neverCookie).type('form').send({ no_link_answer: 'never_had_one' });
     expect(getTaskState(neverId, 'legacy_claim')).toBe('completed');
-    expect(countAuditEntries(neverId, NEVER)).toBe(1);
-    expect(countAuditEntries(neverId, CANNOT)).toBe(0);
+    expect(countHeldAuditEntries(neverId, NEVER)).toBe(1);
+    expect(countHeldAuditEntries(neverId, CANNOT)).toBe(0);
 
     // A replayed POST is refused by the completed task, so it cannot add a
     // second answer to a question already settled.
     await request(createApp())
       .post('/register/wizard/legacy_claim/continue-without-linking')
       .set('Cookie', neverCookie).type('form').send({ no_link_answer: 'cannot_find_it' });
-    expect(countAuditEntries(neverId, NEVER)).toBe(1);
-    expect(countAuditEntries(neverId, CANNOT)).toBe(0);
+    expect(countHeldAuditEntries(neverId, NEVER)).toBe(1);
+    expect(countHeldAuditEntries(neverId, CANNOT)).toBe(0);
 
     const cannotId = insertClaimReadyMember({ slug: `wiz_ans_cannot_${stamp}`, login_email: `wiz-ans-cannot-${stamp}@example.com` });
     await request(createApp())
       .post('/register/wizard/legacy_claim/continue-without-linking')
       .set('Cookie', cookieFor(cannotId)).type('form').send({ no_link_answer: 'cannot_find_it' });
     expect(getTaskState(cannotId, 'legacy_claim')).toBe('completed');
+    expect(countHeldAuditEntries(cannotId, CANNOT)).toBe(1);
+    expect(countHeldAuditEntries(cannotId, NEVER)).toBe(0);
+
+    // Finishing onboarding makes each a member and writes the held answer.
+    for (const id of [neverId, cannotId]) {
+      const done = await request(createApp())
+        .post('/register/wizard/club_affiliations/none')
+        .set('Cookie', cookieFor(id)).type('form').send({});
+      expect(done.status).toBe(303);
+    }
+    expect(countAuditEntries(neverId, NEVER)).toBe(1);
+    expect(countAuditEntries(neverId, CANNOT)).toBe(0);
     expect(countAuditEntries(cannotId, CANNOT)).toBe(1);
     expect(countAuditEntries(cannotId, NEVER)).toBe(0);
 

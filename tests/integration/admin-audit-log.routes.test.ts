@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 
@@ -13,6 +13,32 @@ const MEMBER_ID   = 'al_member_001';
 const MEMBER_SLUG = 'al_member_one';
 const OTHER_ID    = 'al_member_002';
 const OTHER_SLUG  = 'al_member_two';
+
+// Real, recent dates, as live rows carry: the readers default to windows
+// ending now, so seeded rows sit where real ones would.
+const DAY_MS = 86_400_000;
+const dateOnly = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
+const TODAY = dateOnly(Date.now());
+/** An export window covering the last 30 days, ending today. */
+const WINDOW = `from=${dateOnly(Date.now() - 30 * DAY_MS)}&to=${TODAY}`;
+
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+/** A UTC instant in the calendar month `back` months before this one. */
+function inMonthsAgo(back: number, day: number): { iso: string; month: string; label: string } {
+  const now = new Date();
+  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - back, day, 10));
+  const month = d.toISOString().slice(0, 7);
+  return { iso: d.toISOString(), month, label: `${MONTH_NAMES[d.getUTCMonth()]} ${d.getUTCFullYear()}` };
+}
+// The summary's two months: the earlier one and the later one, both complete.
+const EARLIER = (day: number) => inMonthsAgo(2, day);
+const LATER = (day: number) => inMonthsAgo(1, day);
+/** From the start of three months ago to the end of last month's 28th. */
+const SUMMARY_RANGE = { fromDate: inMonthsAgo(3, 1).iso.slice(0, 10), toDate: LATER(28).iso.slice(0, 10) };
+const SUMMARY_QUERY = `from=${SUMMARY_RANGE.fromDate}&to=${SUMMARY_RANGE.toDate}`;
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
@@ -79,7 +105,7 @@ describe('GET /admin/audit-log', () => {
   it('admin, with entries → 200 listing action type and a member profile link', async () => {
     withDb((db) => insertAuditEntry(db, {
       actor_type: 'member', actor_member_id: MEMBER_ID,
-      action_type: 'tier.purchase_grant', entity_type: 'member', entity_id: MEMBER_ID, category: 'tier_change',
+      action_type: 'tier.purchase_grant', entity_type: 'member', entity_id: MEMBER_ID,
     }));
     const app = createApp();
     const res = await request(app).get('/admin/audit-log').set('Cookie', adminCookie());
@@ -91,11 +117,11 @@ describe('GET /admin/audit-log', () => {
   it('member filter narrows to rows where the member is the actor OR the affected entity', async () => {
     withDb((db) => {
       // MEMBER as actor.
-      insertAuditEntry(db, { actor_type: 'member', actor_member_id: MEMBER_ID, action_type: 'tier.purchase_grant', entity_type: 'member', entity_id: MEMBER_ID, category: 'tier_change' });
+      insertAuditEntry(db, { actor_type: 'member', actor_member_id: MEMBER_ID, action_type: 'tier.purchase_grant', entity_type: 'member', entity_id: MEMBER_ID });
       // MEMBER as entity, admin as actor (an override on the member).
-      insertAuditEntry(db, { actor_type: 'admin', actor_member_id: ADMIN_ID, action_type: 'tier.admin_override', entity_type: 'member', entity_id: MEMBER_ID, category: 'tier_change' });
+      insertAuditEntry(db, { actor_type: 'admin', actor_member_id: ADMIN_ID, action_type: 'tier.admin_override', entity_type: 'member', entity_id: MEMBER_ID });
       // OTHER member, unrelated.
-      insertAuditEntry(db, { actor_type: 'member', actor_member_id: OTHER_ID, action_type: 'auth.login', entity_type: 'member', entity_id: OTHER_ID, category: 'auth' });
+      insertAuditEntry(db, { actor_type: 'member', actor_member_id: OTHER_ID, action_type: 'auth.login', entity_type: 'member', entity_id: OTHER_ID });
     });
     const app = createApp();
     const res = await request(app).get(`/admin/audit-log?member=${MEMBER_ID}`).set('Cookie', adminCookie());
@@ -122,13 +148,15 @@ describe('GET /admin/audit-log', () => {
   // the database reaches on its own: with no tiebreaker this listing returns
   // the block in the reverse of the order asserted here.
   it('orders entries sharing one timestamp by identifier, newest first', async () => {
+    // One instant shared by all three, a day ago, so only the id can order them.
+    const tie = new Date(Date.now() - DAY_MS).toISOString();
     withDb((db) => {
-      insertAuditEntry(db, { id: 'al_tie_c', occurred_at: '2026-04-01T00:00:00.000Z', actor_type: 'member', actor_member_id: MEMBER_ID, action_type: 'auth.login', entity_type: 'member', entity_id: MEMBER_ID, category: 'auth' });
-      insertAuditEntry(db, { id: 'al_tie_b', occurred_at: '2026-04-01T00:00:00.000Z', actor_type: 'member', actor_member_id: MEMBER_ID, action_type: 'tier.purchase_grant', entity_type: 'member', entity_id: MEMBER_ID, category: 'tier_change' });
-      insertAuditEntry(db, { id: 'al_tie_a', occurred_at: '2026-04-01T00:00:00.000Z', actor_type: 'admin', actor_member_id: ADMIN_ID, action_type: 'tier.admin_override', entity_type: 'member', entity_id: MEMBER_ID, category: 'tier_change' });
+      insertAuditEntry(db, { id: 'al_tie_c', occurred_at: tie, actor_type: 'member', actor_member_id: MEMBER_ID, action_type: 'auth.login', entity_type: 'member', entity_id: MEMBER_ID });
+      insertAuditEntry(db, { id: 'al_tie_b', occurred_at: tie, actor_type: 'member', actor_member_id: MEMBER_ID, action_type: 'tier.purchase_grant', entity_type: 'member', entity_id: MEMBER_ID });
+      insertAuditEntry(db, { id: 'al_tie_a', occurred_at: tie, actor_type: 'admin', actor_member_id: ADMIN_ID, action_type: 'tier.admin_override', entity_type: 'member', entity_id: MEMBER_ID });
     });
     const app = createApp();
-    const res = await request(app).get('/admin/audit-log').set('Cookie', adminCookie());
+    const res = await request(app).get(`/admin/audit-log?from=${dateOnly(Date.now() - 2 * DAY_MS)}&to=${TODAY}`).set('Cookie', adminCookie());
     expect(res.status).toBe(200);
 
     const idC = res.text.indexOf('auth.login');
@@ -142,7 +170,7 @@ describe('GET /admin/audit-log', () => {
   it('escapes HTML in reason text (no stored XSS)', async () => {
     withDb((db) => insertAuditEntry(db, {
       actor_type: 'admin', actor_member_id: ADMIN_ID,
-      action_type: 'tier.admin_override', entity_type: 'member', entity_id: MEMBER_ID, category: 'tier_change',
+      action_type: 'tier.admin_override', entity_type: 'member', entity_id: MEMBER_ID,
       reason_text: '<script>alert(1)</script>',
     }));
     const app = createApp();
@@ -153,20 +181,49 @@ describe('GET /admin/audit-log', () => {
   });
 });
 
+// Defect caught: a club's or a member's history in the viewer leaves out the
+// rows about something of theirs (a co-leader seat, a payment), which name
+// them in metadata rather than as the row's entity, so the history an
+// administrator reads is silently incomplete.
+describe('entity and member history', () => {
+  it('a club history holds the rows on the club and those naming it; a member history those naming the member', () => {
+    withDb((db) => {
+      insertAuditEntry(db, { id: 'hist-club-own', action_type: 'club.marked_inactive', entity_type: 'club', entity_id: 'club-h1' });
+      insertAuditEntry(db, {
+        id: 'hist-club-seat', action_type: 'club.coleader_volunteered', entity_type: 'club_leader', entity_id: 'cl-9',
+        metadata: { club_id: 'club-h1' },
+      });
+      insertAuditEntry(db, { id: 'hist-club-other', action_type: 'club.marked_inactive', entity_type: 'club', entity_id: 'club-h2' });
+      insertAuditEntry(db, {
+        id: 'hist-member-pay', action_type: 'payment.succeeded', entity_type: 'payment', entity_id: 'pay-h1',
+        metadata: { member_id: OTHER_ID },
+      });
+    });
+    const ids = (q: Parameters<typeof auditLogService.getAuditLogPage>[0]) =>
+      auditLogService.getAuditLogPage(q).content.entries.map((e) => e.entityLabel);
+
+    const club = ids({ entityType: 'club', entityId: 'club-h1' });
+    expect(club).toEqual(expect.arrayContaining(['club:club-h1', 'club_leader:cl-9']));
+    expect(club).not.toContain('club:club-h2');
+    expect(ids({ memberId: OTHER_ID })).toContain('payment:pay-h1');
+  });
+});
+
+
 describe('GET /admin/audit-log/export', () => {
   it('non-admin → 403', async () => {
     const app = createApp();
-    const res = await request(app).get('/admin/audit-log/export?format=csv').set('Cookie', memberCookie());
+    const res = await request(app).get(`/admin/audit-log/export?format=csv&${WINDOW}`).set('Cookie', memberCookie());
     expect(res.status).toBe(403);
   });
 
   it('CSV export → 200 text/csv attachment with header and rows', async () => {
     withDb((db) => insertAuditEntry(db, {
       actor_type: 'member', actor_member_id: MEMBER_ID,
-      action_type: 'tier.purchase_grant', entity_type: 'member', entity_id: MEMBER_ID, category: 'tier_change',
+      action_type: 'tier.purchase_grant', entity_type: 'member', entity_id: MEMBER_ID,
     }));
     const app = createApp();
-    const res = await request(app).get('/admin/audit-log/export?format=csv').set('Cookie', adminCookie());
+    const res = await request(app).get(`/admin/audit-log/export?format=csv&${WINDOW}`).set('Cookie', adminCookie());
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toContain('text/csv');
     expect(res.headers['content-disposition']).toContain('attachment');
@@ -189,56 +246,89 @@ describe('GET /admin/audit-log/export', () => {
       insertAuditEntry(db, {
         actor_type: 'member', actor_member_id: hostileId,
         action_type: 'tier.purchase_grant', entity_type: 'member', entity_id: hostileId,
-        category: 'tier_change',
       });
     });
     const app = createApp();
-    const res = await request(app).get('/admin/audit-log/export?format=csv').set('Cookie', adminCookie());
+    const res = await request(app).get(`/admin/audit-log/export?format=csv&${WINDOW}`).set('Cookie', adminCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain(`'=HYPERLINK`);
     expect(res.text).not.toMatch(/(^|[,\n"])=HYPERLINK/);
   });
 
-  // The export is capped. A handoff that silently drops its oldest rows reads as
-  // the complete set, which is the same failure mode the reconciliation digest
-  // already refuses to have.
-  it('says on the file itself when the export was capped, and stays silent when it was not', async () => {
-    withDb((db) => insertAuditEntry(db, {
-      actor_type: 'member', actor_member_id: MEMBER_ID,
-      action_type: 'tier.purchase_grant', entity_type: 'member', entity_id: MEMBER_ID,
-      category: 'tier_change',
-    }));
-    const app = createApp();
-    const whole = await request(app).get('/admin/audit-log/export?format=csv').set('Cookie', adminCookie());
-    expect(whole.text.split('\n')[0]).toMatch(/^occurred_at,/);
-    expect(whole.text).not.toContain('Narrow the filters');
-
-    // Past the export cap of 5000.
+  // A handoff that silently drops rows reads as the complete set. The window,
+  // not a row cap, bounds the file, so it holds every row of its dates, and it
+  // is plain RFC 4180: the header first, one record per line, CRLF endings.
+  it('returns every row of its window, past any former cap, as valid CSV', async () => {
     withDb((db) => {
       const many = db.transaction(() => {
         for (let i = 0; i < 5100; i += 1) {
           insertAuditEntry(db, {
             actor_type: 'member', actor_member_id: MEMBER_ID,
             action_type: 'tier.purchase_grant', entity_type: 'member', entity_id: MEMBER_ID,
-            category: 'tier_change',
           });
         }
       });
       many();
     });
+    const inWindow = withDb((db) => (db.prepare(
+      'SELECT COUNT(*) AS n FROM audit_entries WHERE occurred_at >= ? AND occurred_at <= ?',
+    ).get(dateOnly(Date.now() - 30 * DAY_MS), `${TODAY}T23:59:59.999Z`) as { n: number }).n);
 
-    const capped = await request(app).get('/admin/audit-log/export?format=csv').set('Cookie', adminCookie());
-    expect(capped.text.split('\n')[0]).toContain('Narrow the filters to export the rest.');
-    expect(capped.text).toContain('Showing the newest 5000 of 5101 matching entries.');
+    const res = await request(createApp()).get(`/admin/audit-log/export?format=csv&${WINDOW}`).set('Cookie', adminCookie());
+    expect(res.status).toBe(200);
+    const lines = res.text.split('\r\n');
+    expect(lines[0]).toMatch(/^occurred_at,/);
+    expect(lines.at(-1)).toBe('');
+    expect(lines.length - 2).toBe(inWindow);
+    expect(inWindow).toBeGreaterThan(5000);
+  });
+
+  it('refuses a missing, reversed or over-long window, saying what it needs', async () => {
+    const app = createApp();
+    for (const q of ['', 'from=2025-01-01', 'from=2025-02-01&to=2025-01-01', 'from=2025-01-01&to=2025-04-02']) {
+      const res = await request(app).get(`/admin/audit-log/export?format=csv&${q}`).set('Cookie', adminCookie());
+      expect(res.status, q).toBe(422);
+      expect(res.text, q).toContain('To export, choose From and To dates no more than 90 days apart.');
+    }
+    const ninety = await request(app).get('/admin/audit-log/export?format=csv&from=2025-01-01&to=2025-04-01')
+      .set('Cookie', adminCookie());
+    expect(ninety.status).toBe(200);
+  });
+
+  // Defect caught: a browse with no dates either lists all history, burying
+  // what changed this week, or ends before today and misses the latest rows.
+  it('browses the last 90 days ending today by default, shown in the form, and exports that window', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(new Date('2026-05-20T12:00:00.000Z'));
+      const vm = auditLogService.getAuditLogPage({});
+      expect([vm.content.filters.fromDate, vm.content.filters.toDate]).toEqual(['2026-02-19', '2026-05-20']);
+      expect(vm.content.exportCsvHref).toContain('from=2026-02-19');
+      expect(vm.content.exportCsvHref).toContain('to=2026-05-20');
+      // A member's or an entity's history is a lookup and keeps its whole span.
+      const history = auditLogService.getAuditLogPage({ memberId: MEMBER_ID });
+      expect([history.content.filters.fromDate, history.content.filters.toDate]).toEqual(['', '']);
+    } finally {
+      vi.useRealTimers();
+    }
+
+    const app = createApp();
+    const chosenFrom = dateOnly(Date.now() - 10 * DAY_MS);
+    expect(auditLogService.getAuditLogPage({ fromDate: chosenFrom, toDate: TODAY }).content.exportCsvHref)
+      .toContain(`from=${chosenFrom}`);
+
+    const tooLong = await request(app).get('/admin/audit-log?from=2024-01-01&to=2025-01-01').set('Cookie', adminCookie());
+    expect(tooLong.text).toContain('To export, choose From and To dates no more than 90 days apart.');
+    expect(tooLong.text).not.toContain('/admin/audit-log/export?');
   });
 
   it('JSON export → 200 application/json array', async () => {
     withDb((db) => insertAuditEntry(db, {
       actor_type: 'member', actor_member_id: MEMBER_ID,
-      action_type: 'tier.purchase_grant', entity_type: 'member', entity_id: MEMBER_ID, category: 'tier_change',
+      action_type: 'tier.purchase_grant', entity_type: 'member', entity_id: MEMBER_ID,
     }));
     const app = createApp();
-    const res = await request(app).get('/admin/audit-log/export?format=json').set('Cookie', adminCookie());
+    const res = await request(app).get(`/admin/audit-log/export?format=json&${WINDOW}`).set('Cookie', adminCookie());
     expect(res.status).toBe(200);
     expect(res.headers['content-type']).toContain('application/json');
     expect(Array.isArray(res.body)).toBe(true);
@@ -246,9 +336,9 @@ describe('GET /admin/audit-log/export', () => {
   });
 
   it('exporting the log writes nothing to it', async () => {
-    withDb((db) => insertAuditEntry(db, { actor_type: 'member', actor_member_id: MEMBER_ID, action_type: 'auth.login', entity_type: 'member', entity_id: MEMBER_ID, category: 'auth' }));
+    withDb((db) => insertAuditEntry(db, { actor_type: 'member', actor_member_id: MEMBER_ID, action_type: 'auth.login', entity_type: 'member', entity_id: MEMBER_ID }));
     const app = createApp();
-    const res = await request(app).get(`/admin/audit-log/export?format=csv&member=${MEMBER_ID}`).set('Cookie', adminCookie());
+    const res = await request(app).get(`/admin/audit-log/export?format=csv&${WINDOW}&member=${MEMBER_ID}`).set('Cookie', adminCookie());
     expect(res.status).toBe(200);
     const count = withDb((db) => db.prepare('SELECT COUNT(*) AS c FROM audit_entries').get() as { c: number });
     expect(count.c).toBe(1);
@@ -257,11 +347,11 @@ describe('GET /admin/audit-log/export', () => {
   it('CSV quotes a cell containing commas, quotes, and newlines (RFC 4180)', async () => {
     withDb((db) => insertAuditEntry(db, {
       actor_type: 'admin', actor_member_id: ADMIN_ID,
-      action_type: 'tier.admin_override', entity_type: 'member', entity_id: MEMBER_ID, category: 'tier_change',
+      action_type: 'tier.admin_override', entity_type: 'member', entity_id: MEMBER_ID,
       reason_text: 'has, comma "quote"',
     }));
     const app = createApp();
-    const res = await request(app).get(`/admin/audit-log/export?format=csv&member=${MEMBER_ID}`).set('Cookie', adminCookie());
+    const res = await request(app).get(`/admin/audit-log/export?format=csv&${WINDOW}&member=${MEMBER_ID}`).set('Cookie', adminCookie());
     expect(res.status).toBe(200);
     expect(res.text).toContain('"has, comma ""quote"""');
   });
@@ -277,22 +367,37 @@ describe('GET /admin/audit-log/summary', () => {
     withDb((db) => {
       insertAuditEntry(db, {
         actor_type: 'admin', actor_member_id: ADMIN_ID, action_type: 'tier.admin_override',
-        entity_id: MEMBER_ID, category: 'tier_change', occurred_at: '2026-07-04T10:00:00.000Z',
+        entity_id: MEMBER_ID, occurred_at: EARLIER(4).iso, data_origin: 'live',
       });
       insertAuditEntry(db, {
         actor_type: 'admin', actor_member_id: ADMIN_ID, action_type: 'tier.admin_override',
-        entity_id: OTHER_ID, category: 'tier_change', occurred_at: '2026-07-19T10:00:00.000Z',
+        entity_id: OTHER_ID, occurred_at: EARLIER(19).iso, data_origin: 'live',
       });
       insertAuditEntry(db, {
         actor_type: 'admin', actor_member_id: ADMIN_ID, action_type: 'tier.admin_override',
-        entity_id: MEMBER_ID, category: 'tier_change', occurred_at: '2026-08-11T10:00:00.000Z',
+        entity_id: MEMBER_ID, occurred_at: LATER(11).iso, data_origin: 'live',
       });
       insertAuditEntry(db, {
         actor_type: 'admin', actor_member_id: ADMIN_ID, action_type: 'admin.role_granted',
-        entity_id: MEMBER_ID, category: 'admin_role', occurred_at: '2026-08-02T10:00:00.000Z',
+        entity_id: MEMBER_ID, occurred_at: LATER(2).iso, data_origin: 'live',
+      });
+      // A rehearsal row in the same month, which a count of real activity omits.
+      insertAuditEntry(db, {
+        actor_type: 'admin', actor_member_id: ADMIN_ID, action_type: 'tier.admin_override',
+        entity_id: MEMBER_ID, occurred_at: EARLIER(5).iso, data_origin: 'test',
       });
     });
   }
+
+  // Defect caught: a To date alone is ignored and the window runs back from
+  // today, so a report on a past period comes back empty or clipped.
+  it('honours a To date alone, counting back from it', () => {
+    seedTwoMonths();
+    const vm = auditLogService.getAuditLogSummaryPage({ toDate: EARLIER(28).iso.slice(0, 10) });
+    expect(vm.content.months.map((m) => m.month)).toEqual([EARLIER(1).month]);
+    // The rehearsal row in July is not real activity and is not counted.
+    expect(vm.content.months[0].total).toBe(2);
+  });
 
   it('refuses a non-admin and redirects an unauthenticated visitor', async () => {
     const app = createApp();
@@ -305,23 +410,23 @@ describe('GET /admin/audit-log/summary', () => {
   it('counts entries per category within each month, not across them', async () => {
     seedTwoMonths();
 
-    const vm = auditLogService.getAuditLogSummaryPage({ fromDate: '2026-01-01' });
+    const vm = auditLogService.getAuditLogSummaryPage(SUMMARY_RANGE);
 
     // Newest month first, so the period anyone is reporting on leads.
-    expect(vm.content.months.map((m) => m.month)).toEqual(['2026-08', '2026-07']);
+    expect(vm.content.months.map((m) => m.month)).toEqual([LATER(1).month, EARLIER(1).month]);
 
-    const july = vm.content.months.find((m) => m.month === '2026-07')!;
-    expect(july.monthLabel).toBe('July 2026');
-    expect(july.total).toBe(2);
-    expect(july.rows).toEqual([{ category: 'tier_change', count: 2 }]);
+    const earlier = vm.content.months.find((m) => m.month === EARLIER(1).month)!;
+    expect(earlier.monthLabel).toBe(EARLIER(1).label);
+    expect(earlier.total).toBe(2);
+    expect(earlier.rows).toEqual([{ category: 'membership', count: 2 }]);
 
     // The same category in the other month keeps its own count. One figure
     // spanning both months would be a different, less useful report.
-    const august = vm.content.months.find((m) => m.month === '2026-08')!;
-    expect(august.total).toBe(2);
-    expect(august.rows).toEqual([
-      { category: 'admin_role', count: 1 },
-      { category: 'tier_change', count: 1 },
+    const later = vm.content.months.find((m) => m.month === LATER(1).month)!;
+    expect(later.total).toBe(2);
+    expect(later.rows).toEqual([
+      { category: 'auth', count: 1 },
+      { category: 'membership', count: 1 },
     ]);
   });
 
@@ -329,29 +434,29 @@ describe('GET /admin/audit-log/summary', () => {
     seedTwoMonths();
 
     const res = await request(createApp())
-      .get('/admin/audit-log/summary?from=2026-01-01')
+      .get(`/admin/audit-log/summary?${SUMMARY_QUERY}`)
       .set('Cookie', adminCookie());
 
     expect(res.status).toBe(200);
-    expect(res.text).toContain('July 2026');
-    expect(res.text).toContain('August 2026');
-    expect(res.text).toContain('tier_change');
-    expect(res.text).toContain('admin_role');
+    expect(res.text).toContain(EARLIER(1).label);
+    expect(res.text).toContain(LATER(1).label);
+    expect(res.text).toContain('<td>membership</td>');
+    expect(res.text).toContain('<td>auth</td>');
   });
 
   it('carries the filters the reader was already using', async () => {
     seedTwoMonths();
 
     const res = await request(createApp())
-      .get('/admin/audit-log/summary?from=2026-01-01&category=admin_role')
+      .get(`/admin/audit-log/summary?${SUMMARY_QUERY}&category=auth`)
       .set('Cookie', adminCookie());
 
     expect(res.status).toBe(200);
     // The summary is the filtered view aggregated, not a second question with
     // a scope of its own, so a reader who narrowed the list keeps that narrowing.
-    expect(res.text).toContain('admin_role');
-    expect(res.text).not.toContain('tier_change');
-    expect(res.text).not.toContain('July 2026');
+    expect(res.text).toContain('<td>auth</td>');
+    expect(res.text).not.toContain('<td>membership</td>');
+    expect(res.text).not.toContain(EARLIER(1).label);
   });
 
   it('reading the summary writes nothing, like the list', async () => {

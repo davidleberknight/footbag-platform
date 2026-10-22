@@ -79,10 +79,11 @@
  *   work_queue_items, audit_entries.
  *
  * Side effects:
- *   - audit_entries append (support.contact_request_submitted on submit, plus the
- *     event the acting action names: support.contact_request_resolved,
+ *   - audit_entries append (the event the acting action names on resolution:
+ *     support.contact_request_resolved,
  *     payment.queue_item_resolved, or the dismissal event each internal-review
- *     type names for itself)
+ *     type names for itself; work_queue.parked and work_queue.unparked when an
+ *     administrator sets an item aside or takes it back)
  *   - outbox_emails enqueue (member notification only where the acting action
  *     says the member is answered; a submitted contact request reaches
  *     administrators through the queue digest, never a per-request alert;
@@ -930,7 +931,6 @@ async function resolveDecidedItem(
     }
     appendAuditEntry({
       actionType:    action.auditActionType,
-      category:      action.auditCategory,
       actorType:     'admin',
       actorMemberId: input.adminMemberId,
       entityType:    row.entity_type,
@@ -994,7 +994,6 @@ async function resolveDecidedItem(
   } catch (err) {
     recordOperationalError({
       actionType:    'support.contact_request_resolve_notification_failed',
-      category:      'support',
       actorType:     'admin',
       actorMemberId: input.adminMemberId,
       entityType:    'member',
@@ -1081,38 +1080,17 @@ export const adminWorkQueueService = {
       return { id: result.workQueueItemId };
     }
 
-    // The work_queue_items INSERT and the submission audit row commit in one
-    // transaction, so a rollback cannot leave a queue item without its
-    // audit-trail entry or an entry recording a request that does not exist.
-    const { id } = transaction(() => {
-      const { id } = workQueueService.enqueue({
-        actorId:       input.requestingMemberId,
-        queueCategory: 'membership',
-        taskType:      TASK_TYPE,
-        entityType:    'member',
-        entityId:      input.requestingMemberId,
-        priority:      5,
-        reasonText,
-        detailText:    trimmed,
-      });
-      appendAuditEntry({
-        actionType:    'support.contact_request_submitted',
-        category:      'support',
-        actorType:     'member',
-        actorMemberId: input.requestingMemberId,
-        entityType:    'member',
-        entityId:      input.requestingMemberId,
-        reasonText:    categoryLabel,
-        // The audit ledger is append-only and exempt from PII purge, so the
-        // member-authored free text stays out of it; the mutable work-queue
-        // row (queue_item_id) carries the message.
-        metadata:      {
-          queue_item_id: id,
-          category,
-          message_length: trimmed.length,
-        },
-      });
-      return { id };
+    // The work-queue row is the record of the request, carrying who sent it,
+    // when, and the message, so the submission writes no audit row.
+    const { id } = workQueueService.enqueue({
+      actorId:       input.requestingMemberId,
+      queueCategory: 'membership',
+      taskType:      TASK_TYPE,
+      entityType:    'member',
+      entityId:      input.requestingMemberId,
+      priority:      5,
+      reasonText,
+      detailText:    trimmed,
     });
 
     return { id };
@@ -1627,13 +1605,26 @@ export const adminWorkQueueService = {
       throw new NotFoundError(`Open work-queue item not found: ${input.queueItemId}`);
     }
     const nowIso = new Date().toISOString();
-    const result = workQueue.parkItem.run(
-      nowIso, input.adminMemberId, reason, nowIso, input.adminMemberId, input.queueItemId,
-    );
-    if (result.changes === 0) {
-      // Already parked, or closed between the read and the write.
-      throw new NotFoundError(`Open work-queue item not found: ${input.queueItemId}`);
-    }
+    transaction(() => {
+      const result = workQueue.parkItem.run(
+        nowIso, input.adminMemberId, reason, nowIso, input.adminMemberId, input.queueItemId,
+      );
+      if (result.changes === 0) {
+        // Already parked, or closed between the read and the write.
+        throw new NotFoundError(`Open work-queue item not found: ${input.queueItemId}`);
+      }
+      // The item row keeps only its current park, so the audit row is the one
+      // lasting record of who set work aside, when and why.
+      appendAuditEntry({
+        actionType:    'work_queue.parked',
+        actorType:     'admin',
+        actorMemberId: input.adminMemberId,
+        entityType:    'work_queue_item',
+        entityId:      input.queueItemId,
+        reasonText:    reason,
+        metadata:      { task_type: row!.task_type },
+      });
+    });
   },
 
   /**
@@ -1643,10 +1634,19 @@ export const adminWorkQueueService = {
    */
   unpark(input: { queueItemId: string; adminMemberId: string }): void {
     const nowIso = new Date().toISOString();
-    const result = workQueue.unparkItem.run(nowIso, input.adminMemberId, input.queueItemId);
-    if (result.changes === 0) {
-      throw new NotFoundError(`Parked work-queue item not found: ${input.queueItemId}`);
-    }
+    transaction(() => {
+      const result = workQueue.unparkItem.run(nowIso, input.adminMemberId, input.queueItemId);
+      if (result.changes === 0) {
+        throw new NotFoundError(`Parked work-queue item not found: ${input.queueItemId}`);
+      }
+      appendAuditEntry({
+        actionType:    'work_queue.unparked',
+        actorType:     'admin',
+        actorMemberId: input.adminMemberId,
+        entityType:    'work_queue_item',
+        entityId:      input.queueItemId,
+      });
+    });
   },
 
   dismiss(input: { queueItemId: string; adminMemberId: string; note: string }): void {
@@ -1677,7 +1677,6 @@ export const adminWorkQueueService = {
       }
       appendAuditEntry({
         actionType:    closeAction.auditActionType,
-        category:      closeAction.auditCategory,
         actorType:     'admin',
         actorMemberId: input.adminMemberId,
         entityType:    row!.entity_type,

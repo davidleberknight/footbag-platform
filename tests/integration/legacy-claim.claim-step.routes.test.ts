@@ -85,11 +85,22 @@ function page(memberId: string) {
   return request(createApp()).get(CLAIM_STEP).set('Cookie', cookieFor(memberId));
 }
 
-function heldClaimJson(memberId: string): string | null {
+function heldStep(memberId: string): { claim?: unknown; audit?: Array<{ actionType: string; metadata?: Record<string, unknown> }> } {
   const row = db.prepare(
     `SELECT answer_json FROM member_onboarding_tasks WHERE member_id = ? AND task_type = 'legacy_claim'`,
   ).get(memberId) as { answer_json: string | null } | undefined;
-  return row?.answer_json ?? null;
+  return row?.answer_json ? JSON.parse(row.answer_json) : {};
+}
+
+function heldClaimJson(memberId: string): string | null {
+  const claim = heldStep(memberId).claim;
+  return claim === undefined ? null : JSON.stringify({ claim });
+}
+
+// A prospective member's claim evidence waits on their claim-step row, never in
+// the audit log, until the transaction that makes them a member writes it.
+function heldAudit(memberId: string, actionType: string): Array<{ metadata?: Record<string, unknown> }> {
+  return (heldStep(memberId).audit ?? []).filter((e) => e.actionType === actionType);
 }
 
 // A registrant who confirms a claim is still a prospective member, so the
@@ -197,9 +208,16 @@ describe('claiming a card', () => {
     expect(res.status).toBe(422);
     expect(res.text).toContain(NO_LONGER_AVAILABLE);
     expectNothingHeld(m);
+    // The refusal is held while they are not a member, then written once they are.
+    expect(auditRows(m, 'claim.refused')).toHaveLength(0);
+    expect(heldAudit(m, 'claim.refused')).toHaveLength(1);
+    await post(`${CLAIM_STEP}/continue-without-linking`, m, { no_link_answer: 'cannot_find_it' });
+    await finishOnboarding(m);
     const refused = auditRows(m, 'claim.refused');
     expect(refused).toHaveLength(1);
     expect(JSON.parse(refused[0].metadata_json)).toMatchObject({ account_id: account, refusal: 'uncorroborated' });
+    expect(JSON.parse(refused[0].metadata_json).held_at).toEqual(expect.any(String));
+    expect(heldStep(m)).toEqual({});
   });
 
   // Defect caught: a competition record reached by name, with an old account
@@ -258,6 +276,50 @@ describe('claiming a card', () => {
     expect(res.status).toBe(422);
     expect(res.text).toContain(NO_LONGER_AVAILABLE);
     expectNothingHeld(m);
+  });
+
+  // Defect caught: a prospective member's claim evidence is lost, reordered or
+  // misdated on its way to the audit log: holding a later claim overwrites the
+  // rows held before it, a later hold keeps only itself, the rows are written
+  // in the wrong order, or held_at records completion instead of the act.
+  it('writes every held evidence row at completion, in the order and with the time they happened', async () => {
+    const sn = surname();
+    const email = `cs-evidence-${sn}@example.com`.toLowerCase();
+    const account = insertLegacyMember(db, { real_name: `Ada ${sn}`, legacy_email: email });
+    const m = registrant({ real_name: `Ada ${sn}`, login_email: email });
+
+    expect((await post(`${CLAIM_STEP}/anchors/add`, m, { anchorType: 'former_surname', anchorValue: `Old${sn}` })).status).toBe(303);
+    expect((await post(`${CLAIM_STEP}/claim`, m, { accountId: 'lm-does-not-exist', recordId: '' })).status).toBe(422);
+    expect((await post(`${CLAIM_STEP}/claim`, m, { accountId: account, recordId: '' })).status).toBe(303);
+    expect(heldAudit(m, 'legacy.anchor_declared')).toHaveLength(1);
+    expect(heldAudit(m, 'claim.refused')).toHaveLength(1);
+    const beforeFinish = new Date().toISOString();
+
+    await finishOnboarding(m);
+    // ordering-is-the-contract: rows are written in the order the acts happened.
+    const rows = db.prepare(
+      `SELECT action_type, metadata_json FROM audit_entries
+        WHERE entity_id = ? AND action_type IN ('legacy.anchor_declared', 'claim.refused', 'claim.legacy_account')
+        ORDER BY rowid`,
+    ).all(m) as Array<{ action_type: string; metadata_json: string }>;
+    expect(rows.map((r) => r.action_type)).toEqual(['legacy.anchor_declared', 'claim.refused', 'claim.legacy_account']);
+    for (const r of rows.slice(0, 2)) {
+      expect(JSON.parse(r.metadata_json).held_at < beforeFinish, `${r.action_type} held_at`).toBe(true);
+    }
+    expect(links(m).legacy_member_id).toBe(account);
+    expect(heldStep(m)).toEqual({});
+  });
+
+  // Defect caught: when the claim step is the last one answered and nothing
+  // else is held, the held answer row is never written, so the one record that
+  // the member could not find their old account is lost.
+  it('writes the held answer when the claim step is the step that completes onboarding', async () => {
+    const m = registrant({ real_name: `Ida ${surname()}` });
+    insertOnboardingTask(db, m, 'club_affiliations', 'completed');
+    const res = await post(`${CLAIM_STEP}/continue-without-linking`, m, { no_link_answer: 'cannot_find_it' });
+    expect(res.status).toBe(303);
+    expect(auditRows(m, 'wizard.legacy_claim.cannot_find_record')).toHaveLength(1);
+    expect(heldStep(m)).toEqual({});
   });
 
   // Defect caught: a double click after a claim was accepted shows a refusal,
@@ -320,7 +382,8 @@ describe('claiming a card', () => {
     expect(second.status).toBe(303);
     expect(second.headers.location).toBe(first.headers.location);
     expect(count('SELECT COUNT(*) AS n FROM member_declared_anchors WHERE member_id = ?', m)).toBe(1);
-    expect(auditRows(m, 'legacy.anchor_declared')).toHaveLength(1);
+    expect(heldAudit(m, 'legacy.anchor_declared')).toHaveLength(1);
+    expect(auditRows(m, 'legacy.anchor_declared')).toHaveLength(0);
   });
 });
 
@@ -661,7 +724,7 @@ describe('declaring an anchor', () => {
       expect((await add(m, 'former_surname', repeat)).status).toBe(303);
     }
     expect(count('SELECT COUNT(*) AS n FROM member_declared_anchors WHERE member_id = ?', m)).toBe(anchorLimit);
-    expect(auditRows(m, 'legacy.anchor_declared')).toHaveLength(anchorLimit);
+    expect(heldAudit(m, 'legacy.anchor_declared')).toHaveLength(anchorLimit);
     // A further genuine add is refused because the real adds filled the
     // bucket, not because the repeats did.
     const over = await add(m, 'former_surname', surname());
@@ -746,7 +809,9 @@ describe('the two non-claiming answers', () => {
     const res = await post(`${CLAIM_STEP}/continue-without-linking`, m, { no_link_answer: 'never_had_one' });
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/wizard/club_affiliations');
-    const [answered] = auditRows(m, 'legacy.claim_step_answered');
+    expect(heldAudit(m, 'wizard.legacy_claim.never_had_account')).toHaveLength(1);
+    await finishOnboarding(m);
+    const [answered] = auditRows(m, 'wizard.legacy_claim.never_had_account');
     const meta = JSON.parse(answered.metadata_json) as { answer: string; shown: Array<{ record_id: string | null }> };
     expect(meta.answer).toBe('never_had_one');
     expect(meta.shown.map((s) => s.record_id)).toContain(record);

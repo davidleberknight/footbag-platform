@@ -57,7 +57,30 @@ export interface EmailLogQuery {
   recipient?: string | null;
   templateKey?: string | null;
   status?: string | null;
+  fromDate?: string | null;
+  toDate?: string | null;
   page?: number;
+}
+
+/** The email log's default span, ending today: a delivery problem this week is what an operator is looking for. */
+const EMAIL_LOG_WINDOW_DAYS = 7;
+
+// A browse with no dates chosen covers the last week ending today, so the latest
+// message is always in it, with the dates filled into the form. A lookup by
+// recipient keeps its whole span.
+function withDefaultWindow(q: EmailLogQuery, nowMs: number): EmailLogQuery {
+  if (q.fromDate || q.toDate || q.recipient) return q;
+  return {
+    ...q,
+    fromDate: new Date(nowMs - EMAIL_LOG_WINDOW_DAYS * 86_400_000).toISOString().slice(0, 10),
+    toDate: new Date(nowMs).toISOString().slice(0, 10),
+  };
+}
+
+// A bare calendar date as the upper bound includes that whole day.
+function expandToDate(d: string | null | undefined): string | null {
+  if (!d) return null;
+  return /^\d{4}-\d{2}-\d{2}$/.test(d) ? `${d}T23:59:59.999Z` : d;
 }
 
 interface EmailLogEntryViewModel {
@@ -98,6 +121,8 @@ export interface EmailLogContent {
     recipient: string;
     templateKey: string;
     status: string;
+    fromDate: string;
+    toDate: string;
   };
   templateKeyOptions: string[];
   statusOptions: string[];
@@ -112,6 +137,8 @@ function normalize(q: EmailLogQuery): { filters: OutboxLogFilters; page: number 
       recipient: q.recipient || null,
       templateKey: q.templateKey || null,
       status: q.status || null,
+      fromDate: q.fromDate || null,
+      toDate: expandToDate(q.toDate),
     },
   };
 }
@@ -121,6 +148,8 @@ function filterParams(q: EmailLogQuery): URLSearchParams {
   if (q.recipient) p.set('recipient', q.recipient);
   if (q.templateKey) p.set('template', q.templateKey);
   if (q.status) p.set('status', q.status);
+  if (q.fromDate) p.set('from', q.fromDate);
+  if (q.toDate) p.set('to', q.toDate);
   return p;
 }
 
@@ -209,9 +238,10 @@ export const emailLogService = {
    * caller knows which of the review's endings it is reporting.
    */
   getEmailLogPage(
-    q: EmailLogQuery,
+    requested: EmailLogQuery,
     notice?: [OutcomeTone, string],
   ): PageViewModel<EmailLogContent> {
+    const q = withDefaultWindow(requested, Date.now());
     const { filters, page } = normalize(q);
     const total = countOutboxLog(filters);
     const offset = (page - 1) * PAGE_SIZE;
@@ -242,6 +272,8 @@ export const emailLogService = {
           recipient: q.recipient ?? '',
           templateKey: q.templateKey ?? '',
           status: q.status ?? '',
+          fromDate: q.fromDate ?? '',
+          toDate: q.toDate ?? '',
         },
         templateKeyOptions: listEmailTemplateKeys(),
         statusOptions: [...STATUS_OPTIONS],
@@ -292,7 +324,6 @@ export const emailLogService = {
 
       appendAuditEntry({
         actionType: 'email.dead_letter_reviewed',
-        category:   'email',
         actorType:  'admin',
         actorMemberId: input.adminMemberId,
         entityType: 'outbox_email',

@@ -1405,7 +1405,7 @@ describe('period totals and export', () => {
       });
       insertAuditEntry(db, {
         action_type: 'payment.refunded',
-        category: 'payment', actor_type: 'system',
+        actor_type: 'system',
         entity_type: 'payment', entity_id: 'pay-rehearsal-refunded',
         metadata: { refunded_amount_cents: 8000, currency: 'USD' },
       });
@@ -1429,7 +1429,6 @@ describe('period totals and export', () => {
       });
       insertAuditEntry(db, {
         action_type: 'payment.partially_refunded',
-        category: 'payment',
         actor_type: 'system',
         entity_type: 'payment',
         entity_id: 'pay-net',
@@ -1455,13 +1454,13 @@ describe('period totals and export', () => {
       });
       insertAuditEntry(db, {
         action_type: 'payment.partially_refunded',
-        category: 'payment', actor_type: 'system',
+        actor_type: 'system',
         entity_type: 'payment', entity_id: 'pay-cumulative',
         metadata: { refunded_amount_cents: 4000, currency: 'USD' },
       });
       insertAuditEntry(db, {
         action_type: 'payment.refunded',
-        category: 'payment', actor_type: 'system',
+        actor_type: 'system',
         entity_type: 'payment', entity_id: 'pay-cumulative',
         metadata: { refunded_amount_cents: 10000, currency: 'USD' },
       });

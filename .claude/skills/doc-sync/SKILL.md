@@ -54,7 +54,7 @@ So when current code or infra disagrees with a canonical doc, **the default is N
 
 This applies to design intent and target architecture. Purely descriptive facts a derived doc mirrors from code (a renamed identifier, a changed method signature, a schema column) still follow the code and are normal case-1 fixes.
 
-Never silently pick. After verifying each gap, present it with its classification and the passages behind it: where the intent makes the case clear, report the case as settled; where it does not, ask, recommending a case. Either way, a doc edit lands only once the human approves its literal text. Editing a final-design doc to match a current shortcut destroys the design of record.
+Never silently pick. After verifying each gap, present it with its classification and the passages behind it: where the intent makes the case clear, report the case as settled; where it does not, ask, recommending a case. Either way, a doc edit lands only under the documentation-edit approval in `.claude/rules/asking.md`. Editing a final-design doc to match a current shortcut destroys the design of record.
 
 ## Read first
 
@@ -137,7 +137,7 @@ Requirements:
 - do not propose to rewrite entire sections when a few lines will do
 - the edit must not introduce a banned stale-language token (`Last updated:`, `as of <date>`, `currently`, sprint/slice labels) or a broken internal reference, and where it cites another section, prefer that section's durable title over a bare number, which rots on renumber (per `.claude/rules/doc-governance.md`)
 
-For each proposed edit, provide:
+For each edit, have ready (the ask and the applied record follow the documentation-edit rule in `.claude/rules/asking.md`):
 - file path
 - section or location
 - why the edit is required or recommended, plus important context
@@ -145,10 +145,10 @@ For each proposed edit, provide:
 - precise after text
 
 ### 6) Human-in-the-loop requirement
-Never edit documentation unless the human explicitly approves. Any reasonable affirmation counts; silence, a bare Enter, and approval of a different earlier edit do not. Offer the option to approve all edits in the session. If the human declines an edit, ask why and adjust. If approval is missing or ambiguous, stop after presenting the findings.
+Edit documentation only under the documentation-edit rule in `.claude/rules/asking.md`: one batch ask for the pass, or a pre-approval in force. If the human declines an edit, ask why and adjust. If approval is missing or ambiguous, stop after presenting the findings.
 
 ### 7) Apply only what was approved
-Change only the approved text: no opportunistic cleanup, no adjacent rewriting, no unrelated docs in the same pass. When a file is done, re-read the modified text for layout, formatting, and numbered-heading damage.
+Change only the approved edits, or under a pre-approval only the edits this pass found: no opportunistic cleanup, no adjacent rewriting, no unrelated docs in the same pass. When a file is done, re-read the modified text for layout, formatting, and numbered-heading damage, then show every applied edit as the documentation-edit rule requires.
 
 ## Guardrails
 Do not:

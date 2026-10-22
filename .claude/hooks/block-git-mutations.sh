@@ -233,7 +233,7 @@ analyze() {
   # command through.
   while [ $# -gt 0 ]; do
     case "$1" in
-      env|command|builtin|exec|eval|sudo|doas|nohup|time|timeout|nice|ionice \
+      env|command|builtin|exec|sudo|doas|nohup|time|timeout|nice|ionice \
       |stdbuf|setsid|script|flock|xargs) shift ;;
       [A-Za-z_]*=*) shift ;;
       -*) shift ;;
@@ -244,12 +244,13 @@ analyze() {
   [ $# -gt 0 ] || return 0
   bin="$1"; shift
   case "$bin" in
-    bash|sh|zsh|dash|*/bash|*/sh|*/zsh|*/dash)
-      # A shell wrapper hides the real command among its own arguments; judge that.
+    bash|sh|zsh|dash|*/bash|*/sh|*/zsh|*/dash|eval)
+      # A shell wrapper or eval hides the real commands in its string argument,
+      # which may hold separators of its own; split and judge that string.
       while [ $# -gt 0 ]; do
         case "$1" in -c|-lc|-e|-x|--) shift ;; *) break ;; esac
       done
-      analyze "$@"
+      judge_all "$*"
       return 0 ;;
     gh|*/gh)
       judge_gh "$@"
@@ -300,18 +301,67 @@ analyze() {
   esac
 }
 
-# One potential invocation per line: a real command sits at the start of a segment,
-# while the same words inside an echo or a grep pattern do not.
-set -f
-while IFS= read -r segment; do
-  case "$segment" in
-    *[![:space:]]*) ;;
-    *) continue ;;
-  esac
-  # shellcheck disable=SC2086
-  analyze $segment
-done <<EOF
-$(printf '%s' "$COMMAND" | tr -d '"'"'" | sed -E 's/(&&|\|\||\$\(|[;&|`(){}])/\n/g')
+# split_commands <command text>: print one potential invocation per line, splitting
+# only where the shell would. A separator inside quotes is text; a $( or backtick
+# opens a command even inside double quotes, and its body is parsed afresh; text
+# after it closes inside quotes is still that string's text. Quote characters are
+# dropped, so the tokens read as the shell would pass them.
+split_commands() {
+  local LC_ALL=C s="$1" out="" c q="" stack="" i n=${#1}
+  for ((i = 0; i < n; i++)); do
+    c="${s:i:1}"
+    if [ "$q" = "'" ]; then
+      if [ "$c" = "'" ]; then q=""; else out+="$c"; fi
+      continue
+    fi
+    if [ "$c" = '\' ]; then out+="${s:i+1:1}"; i=$((i + 1)); continue; fi
+    if [ "$c" = '$' ] && [ "${s:i+1:1}" = "(" ]; then
+      stack+="${q:-_}("; q=""; out+=$'\n'; i=$((i + 1)); continue
+    fi
+    if [ "$c" = '`' ]; then
+      if [ "${stack: -1}" = '`' ] && [ -z "$q" ]; then
+        q="${stack: -2:1}"; [ "$q" = _ ] && q=""; stack="${stack%??}"
+        if [ -n "$q" ]; then out+=' '; else out+=$'\n'; fi
+      else
+        stack+="${q:-_}\`"; q=""; out+=$'\n'
+      fi
+      continue
+    fi
+    if [ "$q" = '"' ]; then
+      if [ "$c" = '"' ]; then q=""; else out+="$c"; fi
+      continue
+    fi
+    case "$c" in
+      "'"|'"') q="$c" ;;
+      ')')
+        if [ "${stack: -1}" = '(' ]; then
+          q="${stack: -2:1}"; [ "$q" = _ ] && q=""; stack="${stack%??}"
+        fi
+        if [ -n "$q" ]; then out+=' '; else out+=$'\n'; fi ;;
+      ';'|'('|'{'|'}'|'&'|'|'|$'\n') out+=$'\n' ;;
+      *) out+="$c" ;;
+    esac
+  done
+  printf '%s\n' "$out"
+}
+
+# judge_all <command text>: a real command sits at the start of a segment, while the
+# same words inside an echo or a grep pattern do not.
+judge_all() {
+  local segment
+  while IFS= read -r segment; do
+    case "$segment" in
+      *[![:space:]]*) ;;
+      *) continue ;;
+    esac
+    # shellcheck disable=SC2086
+    analyze $segment
+  done <<EOF
+$(split_commands "$1")
 EOF
+}
+
+set -f
+judge_all "$COMMAND"
 
 exit 0

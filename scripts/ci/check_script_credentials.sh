@@ -11,37 +11,50 @@
 #      form for a reason: -k ignores any cached sudo timestamp, so sudo always
 #      consumes exactly the one password line the pipe supplies. Without it, a
 #      host whose operator recently used sudo consumes nothing and the password
-#      falls through to whatever reads stdin next.
+#      falls through to whatever reads stdin next. `-S` is refused only inside
+#      sudo's own run of flags, the one place it means "read the password from
+#      stdin": `sudo passwd -S <account>` asks a password's status and passes.
+#      `--stdin` stays a whole-line match, because it never means anything benign.
 #   3b. `sudo -S` feeding a stdin-consuming file writer (tee/cat/dd, a -c shell,
 #      or anything reading /dev/stdin): with cached credentials the password on
 #      stdin flows straight through into the target file. Piping `sudo -S ... bash`
 #      with the password as the first stdin line is the accepted remote-exec
 #      pattern and is not flagged.
+#   3c. A bare `cat` forwarding the whole credential file into the remote root
+#      shell. File-level, because the sudo pipe and the `cat` sit on different
+#      lines; see the section comment below.
 #   4. `ssh -t` anywhere in scope: a remote PTY exists to let sudo prompt a
 #      human, which is the pattern the canonical wire form replaces. An
 #      interactive prompt cannot be driven by a test, it makes the operator hold
 #      a step in their head, and a tree carrying both forms drifts back to the
-#      weaker one. Comments count: a comment describing the interactive flow is
-#      how the superseded doctrine survived a revert and got cited back as
-#      though it were the rule.
+#      weaker one. Comments count: a comment describing the interactive flow
+#      gets cited back as though it were the rule.
 #   5. An operator prompt reading stdin in a script with no terminal guard. This
 #      is the reverse of the rule above and bites the caller rather than the
 #      author: the script never asks for a credential, so nothing stops someone
 #      invoking it with one redirected in, and `read` then consumes the password
 #      as the answer to a confirmation prompt.
 #
-# THREE PROPERTIES THIS GATE MUST KEEP, each of which it once lacked:
+# PROPERTIES THIS GATE MUST KEEP:
 #
 #   * No line can exempt itself. Exclusions are applied to the file list, by
-#     path, never to the matched output by content. Filtering the output meant a
-#     line whose text merely mentioned an excluded path was dropped, so any
-#     violation could be waved through with a trailing comment.
+#     path, never to the matched output by content: filtering the output would
+#     let any violation through with a trailing comment naming an excluded path.
+#     The one filter that reads a matched line (letting data plumbing through
+#     rather than reporting it as an operator prompt) reads its code only, with
+#     comments cut away and its words required to stand as shell tokens.
 #   * It fails closed. A grep that errors, a file list that comes back empty, or
-#     a missing tool is a failure, not a pass. A gate that reports success
-#     because it scanned nothing is worse than no gate.
+#     a missing tool is a failure, not a pass, and a successful run prints the
+#     number of files scanned so a silently shrinking scope is visible.
 #   * It covers the scripts that actually carry credentials, including the
 #     repository-root operator wrapper, which receives the operator credential
 #     file and forwards it to the leaf deploys.
+#   * A file-level exemption for a prompt requires a terminal guard present as
+#     code, with comments, heredoc bodies and quoted strings stripped first, so a
+#     file cannot describe a guard it does not have. That search reads a
+#     here-string, never a pipe into `grep -q`: its early exit would SIGPIPE the
+#     stripper and, under pipefail, read a guard near the top of a long file as
+#     no guard at all.
 
 set -euo pipefail
 
@@ -352,8 +365,7 @@ fi
 # A bare `cat` in its place forwards every remaining line of whatever the
 # operator redirected in, which is a credential file that may hold a second
 # credential, a comment, or a stray note, and each such line executes as root on
-# a deployed host. Three scripts in this tree carried that form while a fourth
-# had been corrected, which is the shape of a fix that did not travel.
+# a deployed host.
 #
 # File-level, because the two halves sit on different lines: a bare `cat` is
 # only a hazard in a file that pipes a credential into sudo. A bare `cat` with

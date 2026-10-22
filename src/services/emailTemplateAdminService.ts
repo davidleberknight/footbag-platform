@@ -285,7 +285,6 @@ export const emailTemplateAdminService = {
       );
       appendAuditEntry({
         actionType: 'email_template.updated',
-        category: 'content',
         actorType: 'admin',
         actorMemberId,
         entityType: 'email_template',

@@ -61,6 +61,15 @@ function readAudits(filter: { action_type?: string; entity_id?: string } = {}): 
   return rows;
 }
 
+function countNotices(): number {
+  const db = new BetterSqlite3(dbPath, { readonly: true });
+  const row = db.prepare(
+    "SELECT COUNT(*) AS n FROM outbox_emails WHERE idempotency_key LIKE 'account_exists_notice:%'",
+  ).get() as { n: number };
+  db.close();
+  return row.n;
+}
+
 beforeAll(async () => {
   const db = createTestDb(dbPath);
   const hash = await hashTestPassword(OLD_PASSWORD);
@@ -97,10 +106,11 @@ beforeEach(async () => {
   db.close();
 });
 
+// A registrant is not a member, and the audit log holds rows about members only:
+// registering, or trying to register an address already held, writes none.
 describe('audit_entries — register', () => {
-  it('successful POST /register → auth.register row, actor_type=system, entity=new member', async () => {
+  it('successful POST /register creates the account and writes no audit row about it', async () => {
     const app = createApp();
-    const before = readAudits({ action_type: 'auth.register' }).length;
     const res = await request(app)
       .post('/register')
       .type('form')
@@ -113,28 +123,20 @@ describe('audit_entries — register', () => {
       });
     expect(res.status).toBe(303);
 
-    const rows = readAudits({ action_type: 'auth.register' });
-    expect(rows.length).toBe(before + 1);
-    const r = rows[rows.length - 1];
-    expect(r.category).toBe('auth');
-    expect(r.actor_type).toBe('system');
-    expect(r.actor_member_id).toBeNull();
-    expect(r.entity_type).toBe('member');
-    expect(r.entity_id).toMatch(/^member_/);
-    expect(r.created_by).toBe('system');
-    expect(r.reason_text).toBeNull();
-    expect(JSON.parse(r.metadata_json)).toEqual({});
-
     const db = new BetterSqlite3(dbPath, { readonly: true });
-    const exists = db.prepare('SELECT 1 AS ok FROM members WHERE id = ?').get(r.entity_id) as { ok: number } | undefined;
+    const created = db.prepare("SELECT id FROM members WHERE login_email = 'newcomer@example.com'")
+      .get() as { id: string } | undefined;
+    const rows = db.prepare('SELECT action_type FROM audit_entries WHERE entity_id = ? OR actor_member_id = ?')
+      .all(created?.id, created?.id);
     db.close();
-    expect(exists?.ok).toBe(1);
+    expect(created).toBeDefined();
+    expect(rows).toEqual([]);
   });
 
-  it('duplicate-email POST /register → enumeration-safe 303, no auth.register row, one auth.register_duplicate_email row', async () => {
+  it('duplicate-email POST /register → enumeration-safe 303, the notice queued for the holder, and no audit row', async () => {
     const app = createApp();
-    const beforeRegister = readAudits({ action_type: 'auth.register' }).length;
-    const beforeDuplicate = readAudits({ action_type: 'auth.register_duplicate_email' }).length;
+    const beforeAudit = readAudits({}).length;
+    const beforeNotices = countNotices();
     const res = await request(app)
       .post('/register')
       .type('form')
@@ -148,10 +150,10 @@ describe('audit_entries — register', () => {
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/register/check-email');
     expect(res.text).not.toContain('already exists');
-    // No new account was created, so no auth.register row; the duplicate attempt
-    // is recorded under its own action_type against the existing member.
-    expect(readAudits({ action_type: 'auth.register' }).length).toBe(beforeRegister);
-    expect(readAudits({ action_type: 'auth.register_duplicate_email' }).length).toBe(beforeDuplicate + 1);
+    // The attempt changed nothing on the existing account; the outbox row is the
+    // record that the holder was told.
+    expect(countNotices()).toBe(beforeNotices + 1);
+    expect(readAudits({}).length).toBe(beforeAudit);
   });
 });
 

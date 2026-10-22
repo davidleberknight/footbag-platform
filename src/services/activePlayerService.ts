@@ -32,7 +32,8 @@
  *     web app and the worker both write). Only the stamp moves:
  *     expiry dates, the vouch row and the audit row keep the true time.
  *   - Active Player applies to Tier 0 only. Tier 1+ vouches and attendances are
- *     no-ops with audit-log only.
+ *     no-ops that write nothing, the audit log included, because they change
+ *     nothing.
  *   - No-shorten rule: an older event, vouch, or club-join must not shorten an
  *     existing later expiry. An administrator's `correctExpiry` is the single
  *     entry point exempt from it, because taking back a standing granted in
@@ -189,7 +190,6 @@ function writeEndRow(ctx: EndContext): { ok: boolean; ended: boolean } {
   });
   appendAuditEntry({
     actionType: 'active_player.end',
-    category: 'active_player_change',
     actorType: ctx.actorType,
     actorMemberId: ctx.actorId,
     entityType: 'member',
@@ -345,7 +345,7 @@ export function getStatus(memberId: string): ActivePlayerStatus {
 /**
  * Mark a Tier 0 member as Active Player from event attendance.
  *
- * Tier 1+ members no-op (audit-log only); attendance does not extend their
+ * Tier 1+ members no-op and nothing is written; attendance does not extend their
  * already-Tier-1+ benefits. Tier 0 members get a `grant` (no prior AP rows)
  * or `extend` (prior rows exist) with the no-shorten rule: the new expiry
  * must be strictly later than the latest row's new_active_player_expires_at,
@@ -379,20 +379,6 @@ export function applyAttendance(
     throw new ValidationError(`member ${memberId} not found`);
   }
   if (tier.tier_status !== 'tier0') {
-    appendAuditEntry({
-      actionType: 'active_player.attendance_noop',
-      category: 'active_player_change',
-      actorType: 'system',
-      actorMemberId: actorId,
-      entityType: 'member',
-      entityId: memberId,
-      reasonText: null,
-      metadata: {
-        reason: 'tier1_plus_no_op',
-        tier: tier.tier_status,
-        registration_id: registrationId,
-      },
-    });
     return { status: 'noop', reason: 'tier1_plus_no_op' };
   }
 
@@ -413,21 +399,6 @@ export function applyAttendance(
     // than the latest row's. Returns noop without erroring (caller can retry
     // a later attendance later).
     if (oldExpires && newExpiresAt <= oldExpires) {
-      appendAuditEntry({
-        actionType: 'active_player.attendance_noop',
-        category: 'active_player_change',
-        actorType: 'system',
-        actorMemberId: actorId,
-        entityType: 'member',
-        entityId: memberId,
-        reasonText: null,
-        metadata: {
-          reason: 'no_shorten',
-          new_candidate: newExpiresAt,
-          existing: oldExpires,
-          registration_id: registrationId,
-        },
-      });
       return { status: 'noop' as const, reason: 'no_shorten' };
     }
 
@@ -456,7 +427,6 @@ export function applyAttendance(
 
     appendAuditEntry({
       actionType: isExtend ? 'active_player.extend' : 'active_player.grant',
-      category: 'active_player_change',
       actorType: 'system',
       actorMemberId: actorId,
       entityType: 'member',
@@ -548,7 +518,7 @@ function vouchAlreadyHolds(
  * Tier 2 / Tier 3 member vouches for a Tier 0 target to grant or extend AP.
  *
  * - Self-vouch is rejected (ValidationError; DB CHECK is the backstop).
- * - Target Tier 1+ is a no-op (audit-only; no vouch row, no AP row).
+ * - Target Tier 1+ is a no-op that writes nothing (no vouch row, no AP row, no audit row).
  * - Voucher must be Tier 2 or Tier 3; else ValidationError.
  * - Per-voucher rate limit (vouch_rate_limit_max_per_hour /
  *   vouch_rate_limit_window_minutes from system_config_current); exceeding
@@ -584,19 +554,6 @@ export function applyVouch(
     throw new ValidationError(`target ${targetId} not found`);
   }
   if (targetTier.tier_status !== 'tier0') {
-    appendAuditEntry({
-      actionType: 'active_player.vouch_noop',
-      category: 'active_player_change',
-      actorType: 'member',
-      actorMemberId: voucherId,
-      entityType: 'member',
-      entityId: targetId,
-      reasonText: validatedReason,
-      metadata: {
-        reason: 'tier1_plus_no_op',
-        target_tier: targetTier.tier_status,
-      },
-    });
     return { status: 'noop', reason: 'tier1_plus_no_op' };
   }
 
@@ -631,25 +588,12 @@ export function applyVouch(
   const result = transaction(() => {
     const nowIso = now.toISOString();
     // Defensive re-check inside the transaction: the target's tier may have
-    // upgraded between the pre-tx read at line 382 and now (concurrent
-    // applyPurchaseGrant from another worker, etc.). Without this check, a
-    // race window would write a spurious AP grant for a tier1+ member,
-    // consume the voucher's rate-limit slot, and leave an audit ghost.
+    // upgraded between the read above and now (concurrent applyPurchaseGrant
+    // from another worker, etc.). Without this check, a race window would
+    // write a spurious AP grant for a tier1+ member, consume the voucher's
+    // rate-limit slot, and leave an audit ghost.
     const targetTierInTx = readTier(targetId);
     if (!targetTierInTx || targetTierInTx.tier_status !== 'tier0') {
-      appendAuditEntry({
-        actionType: 'active_player.vouch_noop',
-        category: 'active_player_change',
-        actorType: 'member',
-        actorMemberId: voucherId,
-        entityType: 'member',
-        entityId: targetId,
-        reasonText: validatedReason,
-        metadata: {
-          reason: 'tier_upgraded_in_race',
-          target_tier: targetTierInTx?.tier_status ?? 'unknown',
-        },
-      });
       return { status: 'noop' as const, reason: 'tier_upgraded_in_race' };
     }
     const heldInTx = vouchAlreadyHolds(voucherId, targetId, now);
@@ -658,20 +602,6 @@ export function applyVouch(
     const oldExpires = latest?.new_active_player_expires_at ?? null;
 
     if (oldExpires && newExpiresAt <= oldExpires) {
-      appendAuditEntry({
-        actionType: 'active_player.vouch_noop',
-        category: 'active_player_change',
-        actorType: 'member',
-        actorMemberId: voucherId,
-        entityType: 'member',
-        entityId: targetId,
-        reasonText: validatedReason,
-        metadata: {
-          reason: 'no_shorten',
-          new_candidate: newExpiresAt,
-          existing: oldExpires,
-        },
-      });
       return { status: 'noop' as const, reason: 'no_shorten' };
     }
 
@@ -705,12 +635,13 @@ export function applyVouch(
 
     appendAuditEntry({
       actionType: isExtend ? 'active_player.extend' : 'active_player.grant',
-      category: 'active_player_change',
       actorType: 'member',
       actorMemberId: voucherId,
       entityType: 'member',
       entityId: targetId,
-      reasonText: validatedReason,
+      // The voucher's note is member-typed text; it lives on the vouch and
+      // grant rows this names, not in the audit log, which outlives erasure.
+      reasonText: null,
       metadata: {
         reason_code: 'tier2_vouch_active_player',
         vouch_id: vouchId,
@@ -763,20 +694,6 @@ function applyClubJoinCore(
     throw new ValidationError(`member ${memberId} not found`);
   }
   if (tier.tier_status !== 'tier0') {
-    appendAuditEntry({
-      actionType: 'active_player.club_join_noop',
-      category: 'active_player_change',
-      actorType: 'system',
-      actorMemberId: actorId,
-      entityType: 'member',
-      entityId: memberId,
-      reasonText: null,
-      metadata: {
-        reason: 'tier1_plus_no_op',
-        tier: tier.tier_status,
-        club_affiliation_id: clubAffiliationId,
-      },
-    });
     return { status: 'noop', reason: 'tier1_plus_no_op' };
   }
 
@@ -784,19 +701,6 @@ function applyClubJoinCore(
     | { exists_flag: number }
     | undefined;
   if (priorRow && priorRow.exists_flag === 1) {
-    appendAuditEntry({
-      actionType: 'active_player.club_join_noop',
-      category: 'active_player_change',
-      actorType: 'system',
-      actorMemberId: actorId,
-      entityType: 'member',
-      entityId: memberId,
-      reasonText: null,
-      metadata: {
-        reason: 'already_active_player_history',
-        club_affiliation_id: clubAffiliationId,
-      },
-    });
     return { status: 'noop', reason: 'already_active_player_history' };
   }
 
@@ -828,7 +732,6 @@ function applyClubJoinCore(
 
   appendAuditEntry({
     actionType: 'active_player.grant',
-    category: 'active_player_change',
     actorType: 'system',
     actorMemberId: actorId,
     entityType: 'member',
@@ -896,7 +799,6 @@ export function applyExpiry(memberId: string, now?: Date): { ok: true; expired: 
     });
     appendAuditEntry({
       actionType: 'active_player.expire',
-      category: 'active_player_change',
       actorType: 'system',
       actorMemberId: null,
       entityType: 'member',
@@ -981,7 +883,6 @@ export function correctExpiry(
     });
     appendAuditEntry({
       actionType:    'active_player.admin_correction',
-      category:      'active_player_change',
       actorType:     'admin',
       actorMemberId: actorId,
       entityType:    'member',

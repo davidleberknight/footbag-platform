@@ -123,7 +123,9 @@ describe('recording alarm state changes', () => {
     expect(rows[0].status).toBe('active');
     expect(rows[0].cleared_at).toBeNull();
     expect(JSON.parse(rows[0].details_json).reason).toBe('CPU above 85% for 3 minutes');
-    expect(auditCount('alarm.raised')).toBe(1);
+    // The alarm table is the record; a second copy in the audit log would only
+    // bury the administrator's acknowledgements among machine events.
+    expect(auditCount('alarm.raised')).toBe(0);
   });
 
   it('records a lost-data state as a warning rather than a critical alarm', () => {
@@ -195,7 +197,7 @@ describe('clearing an alarm', () => {
     expect(backlog.status).toBe('cleared');
     expect(backlog.cleared_at).not.toBeNull();
     expect(rows.find((r) => r.id === other)!.status).toBe('active');
-    expect(auditCount('alarm.cleared')).toBe(1);
+    expect(auditCount('alarm.cleared')).toBe(0);
   });
 
   it('clears an alarm an administrator had already acknowledged, since the condition is what ends it', async () => {
@@ -212,7 +214,6 @@ describe('clearing an alarm', () => {
   it('accepts a return-to-normal for an alarm it never recorded, writing nothing', () => {
     deliver(stateChange('footbag-prod-unknown', 'OK', { messageId: 'clear-3' }));
     expect(alarms()).toHaveLength(0);
-    expect(auditCount('alarm.cleared')).toBe(0);
   });
 });
 
@@ -221,15 +222,17 @@ describe('processing each notification exactly once', () => {
     deliver(stateChange('footbag-prod-dup', 'ALARM', { messageId: 'dup-1' }));
     deliver(stateChange('footbag-prod-dup', 'ALARM', { messageId: 'dup-1' }));
     expect(alarms()).toHaveLength(1);
-    expect(auditCount('alarm.raised')).toBe(1);
     expect(claimedMessageIds()).toEqual(['dup-1']);
   });
 
   it('a redelivered return-to-normal does not clear a second time', () => {
     deliver(stateChange('footbag-prod-dupclear', 'ALARM', { messageId: 'dupc-raise' }));
     deliver(stateChange('footbag-prod-dupclear', 'OK', { messageId: 'dupc-clear' }));
+    const firstClear = alarms().find((r) => r.alarm_type === 'footbag-prod-dupclear')!.cleared_at;
     deliver(stateChange('footbag-prod-dupclear', 'OK', { messageId: 'dupc-clear' }));
-    expect(auditCount('alarm.cleared')).toBe(1);
+    const rows = alarms().filter((r) => r.alarm_type === 'footbag-prod-dupclear');
+    expect(rows).toHaveLength(1);
+    expect(rows[0].cleared_at).toBe(firstClear);
   });
 
   it('a genuine recurrence under a new message id is recorded afresh', () => {
@@ -276,24 +279,21 @@ describe('payloads the service declines to act on', () => {
     expect(alarms()).toHaveLength(0);
   });
 
-  it('records a subscription confirmation for out-of-band confirmation without storing its one-time URL', () => {
+  it('accepts a subscription confirmation without writing it, or its one-time URL, to the audit log', () => {
+    // A pending subscription changes nothing; an audit row for it would also be
+    // a row anyone able to reach the endpoint could add.
+    const before = withDb((db) => (db.prepare('SELECT COUNT(*) AS n FROM audit_entries').get() as { n: number }).n);
     deliver(JSON.stringify({
       Type: 'SubscriptionConfirmation',
       TopicArn: 'arn:aws:sns:us-east-1:000:alarms',
       SubscribeURL: 'https://sns.example.com/confirm?token=secret-bearer-token',
     }));
-    expect(auditCount('alarm.subscription_pending')).toBe(1);
-    const stored = withDb((db) => (db.prepare(
-      `SELECT metadata_json, reason_text FROM audit_entries WHERE action_type = 'alarm.subscription_pending'`,
-    ).get() as { metadata_json: string; reason_text: string }));
-    expect(stored.metadata_json).not.toContain('secret-bearer-token');
-    expect(stored.reason_text).not.toContain('secret-bearer-token');
+    const after = withDb((db) => db.prepare('SELECT metadata_json, reason_text FROM audit_entries').all());
+    expect(after).toHaveLength(before);
+    expect(JSON.stringify(after)).not.toContain('secret-bearer-token');
   });
 
-  it('records one subscription confirmation however often it is redelivered', async () => {
-    // Defect caught: a confirmation path that writes an audit row per delivery
-    // with no idempotency lets anyone able to reach the endpoint flood a
-    // ledger that is append-only by trigger and has no sweep.
+  it('claims a redelivered subscription confirmation once', async () => {
     const confirmation = JSON.stringify({
       Type: 'SubscriptionConfirmation',
       TopicArn: 'arn:aws:sns:us-east-1:000:alarms',
@@ -303,7 +303,6 @@ describe('payloads the service declines to act on', () => {
     for (const _ of [1, 2, 3]) {
       deliver(confirmation);
     }
-    expect(auditCount('alarm.subscription_pending')).toBe(1);
     expect(claimedMessageIds()).toEqual(['confirm-repeat-1']);
   });
 });

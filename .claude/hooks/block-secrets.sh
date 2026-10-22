@@ -8,6 +8,21 @@ INPUT="$(cat)"
 FILE_PATH="$(printf '%s' "$INPUT" | jq -r '.tool_input.file_path // empty')"
 
 [ -n "$FILE_PATH" ] || exit 0
+
+# A .env file carries secrets wherever it sits, nested or in a companion checkout.
+case "${FILE_PATH##*/}" in
+  .env.example|.env.sample|.env.template) ;;
+  .env|.env.*)
+    jq -n --arg file "$FILE_PATH" '{
+      hookSpecificOutput: {
+        hookEventName: "PreToolUse",
+        permissionDecision: "deny",
+        permissionDecisionReason: ("HARD BLOCK: Claude must never edit secret-bearing or private-local files.\nFile: " + $file)
+      }
+    }'
+    exit 0 ;;
+esac
+
 [ -n "${CLAUDE_PROJECT_DIR:-}" ] || exit 0
 
 case "$FILE_PATH" in

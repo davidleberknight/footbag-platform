@@ -61,7 +61,7 @@ Rule of thumb: if deferral points to another section or document as the home for
 - **No refs to gitignored / local-only files** from any committed doc, code comment, script, or Terraform. State the underlying fact inline; name the fact, never the local-only file (the operator's AWS specifics such as account IDs, IPs, secrets, and Lightsail constraints; personal permission-setup notes).
 - **No refs to temporary / sprint-scoped files** from canonical docs, even when both are committed. Temp files have short lifespans; pointing canonical docs at them creates broken references.
 - **No dedicated "Cross-references" sections** or trailing "Cross-references:" bullets in DD, DATA_MODEL, or other long-term docs. Inline refs in prose are fine when they're load-bearing for comprehension. AI routing between docs is handled via CLAUDE.md and skill triggers, not in-doc navigation.
-- **Refs to committed `.claude/rules/*` and `.claude/skills/*` are allowed** as sources of truth, and preferred over restating their content. Pointing a canonical doc (or a service JSDoc) at the committed, stable rule, skill, or contract that owns a detail is more AI-efficient and drift-resistant than duplicating it.
+- **Refs to committed `.claude/rules/*` and `.claude/skills/*` are allowed** as sources of truth, and preferred over restating their content. Pointing a canonical doc at the committed, stable rule, skill, or contract that owns a detail is more AI-efficient and drift-resistant than duplicating it.
 
 ## Plain words, not bare codes
 

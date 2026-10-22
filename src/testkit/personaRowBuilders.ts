@@ -21,6 +21,7 @@
  */
 import BetterSqlite3 from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
+import { auditTopicFor } from '../services/auditTopics';
 
 const TS  = '2025-01-01T00:00:00.000Z';
 const SYS = 'system';
@@ -1229,9 +1230,12 @@ export interface AuditEntryOverrides {
   action_type: string;
   entity_type?: string;
   entity_id: string;
-  category?: string;
   reason_text?: string | null;
   metadata?: Record<string, unknown>;
+  /** Whether the row records real business. Left unset it takes the column's
+   *  default, 'unknown', the value a process that cannot read the go-live
+   *  marker stamps; a reader that counts real activity needs 'live'. */
+  data_origin?: 'live' | 'test' | 'unknown';
   /** When the event happened, for a reader that groups or filters by period.
    *  Defaults to the shared fixture timestamp, so a suite that does not care
    *  about time gets the same row it always did. */
@@ -1378,19 +1382,22 @@ export function insertMemberMessage(
 export function insertAuditEntry(db: BetterSqlite3.Database, o: AuditEntryOverrides): string {
   const id = o.id ?? `audit-test-${uid()}`;
   const metadataJson = o.metadata_json_raw ?? JSON.stringify(o.metadata ?? {});
+  // Stamped now, as the write path stamps a row, so a seeded row sits where a
+  // real one would: inside the recent windows the audit readers default to.
+  const now = new Date().toISOString();
   db.prepare(`
     INSERT INTO audit_entries (
       id, created_at, created_by,
       occurred_at, actor_type, actor_member_id,
       action_type, entity_type, entity_id,
-      category, reason_text, metadata_json
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      category, reason_text, metadata_json, data_origin
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
-    id, TS, o.created_by ?? SYS,
-    o.occurred_at ?? TS, o.actor_type ?? 'system', o.actor_member_id ?? null,
+    id, now, o.created_by ?? SYS,
+    o.occurred_at ?? now, o.actor_type ?? 'system', o.actor_member_id ?? null,
     o.action_type, o.entity_type ?? 'member', o.entity_id,
-    o.category ?? 'identity', o.reason_text ?? null,
-    metadataJson,
+    auditTopicFor(o.action_type), o.reason_text ?? null,
+    metadataJson, o.data_origin ?? 'unknown',
   );
   return id;
 }

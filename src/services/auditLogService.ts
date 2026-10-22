@@ -6,18 +6,25 @@
  * the list, so it is the filtered view aggregated rather than a second question
  * with a scope of its own. Does not own: writing domain audit rows (that is
  * each owning service via `appendAuditEntry`), or any mutation of
- * `audit_entries` (the table is append-only and immutable).
+ * `audit_entries` (the table is append-only; only the retention purge, owned by
+ * the operations platform service, deletes rows past the seven-year window).
+ *
+ * A browse with no dates shows the last 90 days ending today; a member's or an
+ * entity's history keeps its whole span. The export takes a required window of
+ * at most 90 days and streams every row in it. The summary counts live rows.
  *
  * Audience: admin only (Sensitivity 4). The page is read-only; it never edits
  * or deletes entries. Content is shown as logged: domain rows already exclude
- * secrets and raw PII at write time (sensitive lookups are hashed; members are
- * referenced by id), so the viewer needs no read-time redaction.
+ * secrets and personal data at write time (people are named by id; claim
+ * evidence names an email only as a keyed hash), so the viewer needs no
+ * read-time redaction.
  *
  * Side effects: none. Every method is a read; reading or exporting the log
  * records nothing, because a GET changes no stored state.
  */
 import {
   queryAuditLog,
+  iterateAuditLog,
   countAuditLog,
   listAuditLogCategories,
   summarizeAuditLogByMonthAndCategory,
@@ -25,14 +32,24 @@ import {
   type AuditLogQueryRow,
 } from '../db/db';
 import { runSqliteRead } from './sqliteRetry';
+import { ValidationError } from './serviceErrors';
 import type { PageViewModel } from '../types/page';
 
 const PAGE_SIZE = 50;
-const EXPORT_CAP = 5000;
 const ACTOR_TYPES = ['admin', 'member', 'system'] as const;
+
+/**
+ * The export takes a required date window of at most this many days and
+ * returns every row in it. The window, not a row cap, is what keeps a file a
+ * manageable size, so the file is always the complete set for its dates.
+ */
+const EXPORT_MAX_WINDOW_DAYS = 90;
+const EXPORT_WINDOW_RULE = 'To export, choose From and To dates no more than 90 days apart.';
 
 export interface AuditLogQuery {
   memberId?: string | null;
+  entityType?: string | null;
+  entityId?: string | null;
   actionType?: string | null;
   category?: string | null;
   actorType?: string | null;
@@ -66,6 +83,8 @@ export interface AuditLogContent {
   nextPageHref: string | null;
   filters: {
     member: string;
+    entityType: string;
+    entityId: string;
     actionType: string;
     category: string;
     actorType: string;
@@ -75,8 +94,10 @@ export interface AuditLogContent {
   };
   categoryOptions: string[];
   actorTypeOptions: string[];
-  exportCsvHref: string;
-  exportJsonHref: string;
+  /** Null when the filters carry no valid export window; exportRule says why. */
+  exportCsvHref: string | null;
+  exportJsonHref: string | null;
+  exportRule: string;
   summaryHref: string;
 }
 
@@ -119,6 +140,8 @@ function normalize(q: AuditLogQuery): { filters: AuditLogFilters; page: number }
     page,
     filters: {
       memberId: q.memberId || null,
+      entityType: q.entityType || null,
+      entityId: q.entityId || null,
       actionType: q.actionType || null,
       category: q.category || null,
       actorType: q.actorType || null,
@@ -132,6 +155,10 @@ function normalize(q: AuditLogQuery): { filters: AuditLogFilters; page: number }
 function filterParams(q: AuditLogQuery): URLSearchParams {
   const p = new URLSearchParams();
   if (q.memberId) p.set('member', q.memberId);
+  if (q.entityType && q.entityId) {
+    p.set('entityType', q.entityType);
+    p.set('entityId', q.entityId);
+  }
   if (q.actionType) p.set('actionType', q.actionType);
   if (q.category) p.set('category', q.category);
   if (q.actorType) p.set('actorType', q.actorType);
@@ -148,10 +175,47 @@ function hrefFor(q: AuditLogQuery, page: number): string {
   return qs ? `/admin/audit-log?${qs}` : '/admin/audit-log';
 }
 
-function exportHref(q: AuditLogQuery, format: 'csv' | 'json'): string {
+// A browse of the log with no dates chosen shows the most recent window, ending
+// today so the latest rows are always in it, with the dates filled into the
+// form so the reader sees what they are looking at; it is also the window the
+// export takes. A member's or an entity's history is a lookup, not a browse,
+// and keeps its whole span unless the reader narrows it.
+function withDefaultWindow(q: AuditLogQuery, nowMs: number): AuditLogQuery {
+  if (q.fromDate || q.toDate || q.memberId || (q.entityType && q.entityId)) return q;
+  const to = new Date(nowMs).toISOString().slice(0, 10);
+  const from = new Date(nowMs - EXPORT_MAX_WINDOW_DAYS * DAY_MS).toISOString().slice(0, 10);
+  return { ...q, fromDate: from, toDate: to };
+}
+
+function exportHref(q: AuditLogQuery, format: 'csv' | 'json'): string | null {
+  if (!exportWindowValid(q)) return null;
   const p = filterParams(q);
   p.set('format', format);
   return `/admin/audit-log/export?${p.toString()}`;
+}
+
+const DAY_MS = 86_400_000;
+
+function calendarDate(d: string | null | undefined): number | null {
+  if (!d || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return null;
+  const ms = Date.parse(`${d}T00:00:00.000Z`);
+  return Number.isNaN(ms) ? null : ms;
+}
+
+// Both dates given, in order, and no more than the maximum window apart.
+function exportWindowValid(q: AuditLogQuery): boolean {
+  const from = calendarDate(q.fromDate);
+  const to = calendarDate(q.toDate);
+  return from !== null && to !== null && to >= from && (to - from) / DAY_MS <= EXPORT_MAX_WINDOW_DAYS;
+}
+
+/**
+ * The link to an entity's audit history in the viewer: the rows on it and the
+ * rows on related entities that name it.
+ */
+export function auditHistoryHref(entityType: string, entityId: string): string {
+  const p = new URLSearchParams({ entityType, entityId });
+  return `/admin/audit-log?${p.toString()}`;
 }
 
 function summaryHref(q: AuditLogQuery): string {
@@ -254,7 +318,8 @@ export const auditLogService = {
     return runSqliteRead('admin audit log page', () => this.readAuditLogPage(q));
   },
 
-  readAuditLogPage(q: AuditLogQuery): PageViewModel<AuditLogContent> {
+  readAuditLogPage(requested: AuditLogQuery): PageViewModel<AuditLogContent> {
+    const q = withDefaultWindow(requested, Date.now());
     const { filters, page } = normalize(q);
     const total = countAuditLog(filters);
     const offset = (page - 1) * PAGE_SIZE;
@@ -280,6 +345,8 @@ export const auditLogService = {
         nextPageHref: page < totalPages ? hrefFor(q, page + 1) : null,
         filters: {
           member: q.memberId ?? '',
+          entityType: q.entityType ?? '',
+          entityId: q.entityId ?? '',
           actionType: q.actionType ?? '',
           category: q.category ?? '',
           actorType: q.actorType ?? '',
@@ -291,6 +358,7 @@ export const auditLogService = {
         actorTypeOptions: [...ACTOR_TYPES],
         exportCsvHref: exportHref(q, 'csv'),
         exportJsonHref: exportHref(q, 'json'),
+        exportRule: EXPORT_WINDOW_RULE,
         summaryHref: summaryHref(q),
       },
     };
@@ -308,9 +376,15 @@ export const auditLogService = {
 
   readAuditLogSummaryPage(q: AuditLogQuery): PageViewModel<AuditLogSummaryContent> {
     const { filters } = normalize(q);
+    // A To date alone sets the end of the window, and the default span runs
+    // back from it rather than from today, so a past period is never clipped
+    // or emptied. Rehearsal and unknown-origin rows are left out: a summary of
+    // activity reports real activity.
+    const windowEnd = filters.toDate ? Date.parse(filters.toDate) : Date.now();
     const windowed: AuditLogFilters = {
       ...filters,
-      fromDate: filters.fromDate ?? defaultSummaryFrom(Date.now()),
+      liveOnly: true,
+      fromDate: filters.fromDate ?? defaultSummaryFrom(Number.isNaN(windowEnd) ? Date.now() : windowEnd),
     };
     const rows = summarizeAuditLogByMonthAndCategory(windowed);
 
@@ -334,7 +408,7 @@ export const auditLogService = {
       content: {
         months,
         hasMonths: months.length > 0,
-        rangeSummary: filters.fromDate === null
+        rangeSummary: filters.fromDate === null && filters.toDate === null
           ? `Counts per category for the last ${SUMMARY_DEFAULT_MONTHS} months.`
           : 'Counts per category over the dates you selected.',
         backHref: hrefFor(q, 1),
@@ -343,54 +417,58 @@ export const auditLogService = {
   },
 
   /**
-   * Serialize the filtered audit set (capped) as CSV or JSON for IR handoff.
-   * Returns the body plus its content type and download filename.
+   * Every row of the filtered set inside its required date window, as CSV or
+   * JSON for incident handoff, produced a piece at a time so the caller can
+   * stream it. Refuses a missing, reversed or over-long window. CSV follows
+   * RFC 4180: a header row, then one record per row, CRLF line endings. JSON is
+   * a bare array of entries.
    */
-  getAuditLogExportBody(
+  getAuditLogExport(
     q: AuditLogQuery,
     format: 'csv' | 'json',
-  ): { contentType: string; filename: string; body: string; count: number } {
+  ): { contentType: string; filename: string; chunks: Iterable<string> } {
+    if (!exportWindowValid(q)) {
+      throw new ValidationError(EXPORT_WINDOW_RULE);
+    }
     const { filters } = normalize(q);
-    const rows = queryAuditLog(filters, EXPORT_CAP, 0);
-    // The export is capped, and an incident handoff that silently loses its
-    // oldest rows reads as the complete set. Both formats say so on their face
-    // when the cap was reached, so the reader narrows the filters rather than
-    // drawing conclusions from a partial file.
-    const total = countAuditLog(filters);
-    const truncated = total > rows.length;
-    // JSON stays a bare array of entries, which is what a consumer parses; the
-    // truncation is recorded on the audit-of-audit row instead, so it is
-    // discoverable without changing the document's shape.
     if (format === 'json') {
       return {
         contentType: 'application/json',
         filename: 'audit-log.json',
-        body: JSON.stringify(rows, null, 2),
-        count: rows.length,
+        chunks: jsonChunks(iterateAuditLog(filters)),
       };
-    }
-    const header = [
-      'occurred_at', 'actor_type', 'actor_member_id', 'actor_name', 'action_type',
-      'category', 'entity_type', 'entity_id', 'entity_name', 'reason_text', 'metadata_json',
-      'data_origin',
-    ];
-    const lines: string[] = [];
-    if (truncated) {
-      lines.push(`# Showing the newest ${rows.length} of ${total} matching entries. Narrow the filters to export the rest.`);
-    }
-    lines.push(header.join(','));
-    for (const r of rows) {
-      lines.push([
-        r.occurred_at, r.actor_type, r.actor_member_id, r.actor_display_name, r.action_type,
-        r.category, r.entity_type, r.entity_id, r.entity_display_name, r.reason_text, r.metadata_json,
-        r.data_origin,
-      ].map(csvCell).join(','));
     }
     return {
       contentType: 'text/csv',
       filename: 'audit-log.csv',
-      body: lines.join('\n'),
-      count: rows.length,
+      chunks: csvChunks(iterateAuditLog(filters)),
     };
   },
 };
+
+const CSV_HEADER = [
+  'occurred_at', 'actor_type', 'actor_member_id', 'actor_name', 'action_type',
+  'category', 'entity_type', 'entity_id', 'entity_name', 'reason_text', 'metadata_json',
+  'data_origin',
+];
+
+function* csvChunks(rows: Iterable<AuditLogQueryRow>): Generator<string> {
+  yield `${CSV_HEADER.join(',')}\r\n`;
+  for (const r of rows) {
+    yield `${[
+      r.occurred_at, r.actor_type, r.actor_member_id, r.actor_display_name, r.action_type,
+      r.category, r.entity_type, r.entity_id, r.entity_display_name, r.reason_text, r.metadata_json,
+      r.data_origin,
+    ].map(csvCell).join(',')}\r\n`;
+  }
+}
+
+function* jsonChunks(rows: Iterable<AuditLogQueryRow>): Generator<string> {
+  yield '[';
+  let first = true;
+  for (const r of rows) {
+    yield `${first ? '' : ','}\n${JSON.stringify(r)}`;
+    first = false;
+  }
+  yield '\n]\n';
+}

@@ -41,7 +41,6 @@ export async function postDevPersonasRefresh(
 
     appendAuditEntry({
       actionType: PERSONA_REFRESH_AUDIT_ACTION_TYPE,
-      category: 'identity',
       actorType: 'system',
       actorMemberId: null,
       entityType: 'system',

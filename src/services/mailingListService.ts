@@ -609,7 +609,6 @@ export const mailingListService = {
         );
         appendAuditEntry({
           actionType: 'mailing_list.created',
-          category: 'system',
           actorType: 'admin',
           actorMemberId,
           entityType: 'mailing_list',
@@ -664,7 +663,6 @@ export const mailingListService = {
         );
         appendAuditEntry({
           actionType: 'mailing_list.updated',
-          category: 'system',
           actorType: 'admin',
           actorMemberId,
           entityType: 'mailing_list',
@@ -697,7 +695,6 @@ export const mailingListService = {
       mailingLists.archiveList.run(now, slug);
       appendAuditEntry({
         actionType: 'mailing_list.archived',
-        category: 'system',
         actorType: 'admin',
         actorMemberId,
         entityType: 'mailing_list',
@@ -758,7 +755,6 @@ export const mailingListService = {
       if (changed > 0) {
         appendAuditEntry({
           actionType: 'mailing_list.subscription_adjusted',
-          category: 'system',
           actorType: 'admin',
           actorMemberId,
           entityType: 'mailing_list',

@@ -3,8 +3,8 @@
 The method for the `doc-sync` skill's explicit full-audit mode: the mechanical hygiene
 detectors across the entire committed documentation universe, run read-only, every
 survivor confirmed by inspection, and the result presented for approval under the skill's
-change-driven rules (smallest fix, literal before and after, no edit without the human's
-word). It finds stale tokens, broken references, locator rot and forbidden reference
+change-driven rules (smallest fix, approved and shown under the documentation-edit rule
+in `.claude/rules/asking.md`). It finds stale tokens, broken references, locator rot and forbidden reference
 patterns. It does not judge whether code and a document disagree about behavior: that is
 the `bug-hunt` skill's discrepancy lane, and a hit of that kind is a hand-off.
 
@@ -107,7 +107,7 @@ to current infra.
 `.claude/skills/*` procedures and the contract-bearing rules are audited against the docs
 that govern the same activity, in both directions: a rule or skill may neither contradict
 nor silently drop a doc mandate, and a doc mandate no rule or skill carries is drift.
-`testing.md` and `write-tests` against `docs/TESTING.md`; `template-conventions`,
+`testing.md` and `write-tests` against `docs/TESTING.md`;
 `view-layer`, `controller-conventions` and `add-public-page` against the UI intent in the
 stories and decisions; `service-layer`, `db-layer`, `extend-service-contract` and
 `add-browse-view` against the contracts in the decisions and data model. For every

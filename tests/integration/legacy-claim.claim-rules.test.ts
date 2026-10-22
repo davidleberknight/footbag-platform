@@ -122,6 +122,13 @@ describe('the two no-account answers are different facts', () => {
       .type('form')
       .send({ no_link_answer: 'cannot_find_it' });
     expect(res.status).toBe(303);
+    // Held until the registrant is a member, then written by the completion.
+    const finish = await request(createApp())
+      .post('/register/wizard/club_affiliations/none')
+      .set('Cookie', cookieFor(memberId))
+      .type('form')
+      .send({});
+    expect(finish.status).toBe(303);
 
     // The ledger is permanent; recording the opposite answer could never be undone.
     const actions = (db.prepare(
@@ -129,7 +136,7 @@ describe('the two no-account answers are different facts', () => {
     ).all(memberId) as Array<{ action_type: string; metadata_json: string }>);
     expect(actions.map((a) => a.action_type)).toContain('wizard.legacy_claim.cannot_find_record');
     expect(actions.map((a) => a.action_type)).not.toContain('wizard.legacy_claim.never_had_account');
-    const answered = actions.find((a) => a.action_type === 'legacy.claim_step_answered');
+    const answered = actions.find((a) => a.action_type === 'wizard.legacy_claim.cannot_find_record');
     expect(JSON.parse(answered!.metadata_json).answer).toBe('cannot_find_it');
   });
 });

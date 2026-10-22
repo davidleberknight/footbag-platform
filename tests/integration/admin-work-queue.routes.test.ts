@@ -1148,6 +1148,37 @@ describe('POST /admin/work-queue/:id/park', () => {
     expect(page.text).not.toContain(`action="/admin/work-queue/${queueId}/link-help/approve"`);
   });
 
+  // Defect caught: the item row keeps only its current park, so a park and its
+  // undoing leave no trail of who set the work aside, when, or why; or a
+  // repeated park is recorded twice.
+  it('audits each park, with its reason, and each unpark, once', async () => {
+    const app = createApp();
+    const queueId = await seedLinkHelpItem(MEMBER_ID);
+    const auditRows = () => {
+      const db = new BetterSqlite3(dbPath, { readonly: true });
+      try {
+        return db.prepare(
+          `SELECT action_type, actor_member_id, reason_text FROM audit_entries
+            WHERE entity_type = 'work_queue_item' AND entity_id = ? ORDER BY rowid`,
+        ).all(queueId) as Array<{ action_type: string; actor_member_id: string; reason_text: string | null }>;
+      } finally { db.close(); }
+    };
+    const park = () => request(app)
+      .post(`/admin/work-queue/${queueId}/park`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ note: 'Waiting on the member.' });
+    expect((await park()).status).toBe(303);
+    expect((await park()).status).toBe(303);
+    expect((await request(app).post(`/admin/work-queue/${queueId}/unpark`).set('Cookie', adminCookie())).status).toBe(303);
+
+    // ordering-is-the-contract: the park precedes its undoing.
+    expect(auditRows()).toEqual([
+      { action_type: 'work_queue.parked', actor_member_id: ADMIN_ID, reason_text: 'Waiting on the member.' },
+      { action_type: 'work_queue.unparked', actor_member_id: ADMIN_ID, reason_text: null },
+    ]);
+  });
+
   it('a repeated park by the same admin reports the first park: 303, the item stays parked', async () => {
     // Defect caught: a re-posted park shows "cannot be parked" for an item this admin just parked.
     const app = createApp();

@@ -1908,7 +1908,6 @@ export class ClubService {
       clubs.updateStatus.run('active', now, 'onboarding_service', clubId);
       appendAuditEntry({
         actionType:    'club.revived_by_leadership_claim',
-        category:      'club_lifecycle',
         actorType:     'member',
         actorMemberId,
         entityType:    'club',
@@ -2140,7 +2139,6 @@ export class ClubService {
         clubs.updateStatus.run('active', now, 'onboarding_service', resolvedClubId);
         appendAuditEntry({
           actionType:    'club.revived_by_affiliation',
-          category:      'club_lifecycle',
           actorType:     'member',
           actorMemberId,
           entityType:    'club',
@@ -2336,7 +2334,6 @@ export class ClubService {
           actionType: opts.actorType === 'admin'
             ? 'admin.club_cleanup.promote'
             : 'club.promoted_from_candidate',
-          category: opts.actorType === 'admin' ? 'admin' : 'club_lifecycle',
           actorType: opts.actorType,
           actorMemberId: actorId,
           entityType: 'club',
@@ -2548,7 +2545,6 @@ export class ClubService {
         );
         appendAuditEntry({
           actionType: 'club.created',
-          category: 'club_lifecycle',
           actorType: 'member',
           actorMemberId,
           entityType: 'club',
@@ -2651,7 +2647,6 @@ export class ClubService {
       if (affiliationId) {
         appendAuditEntry({
           actionType: 'club.member_joined',
-          category: 'club_membership',
           actorType: 'member',
           actorMemberId,
           entityType: 'member_club_affiliation',
@@ -2668,7 +2663,6 @@ export class ClubService {
           clubs.updateStatus.run('active', now, 'club_service', clubId);
           appendAuditEntry({
             actionType:    'club.revived_by_affiliation',
-            category:      'club_lifecycle',
             actorType:     'member',
             actorMemberId,
             entityType:    'club',
@@ -2788,7 +2782,6 @@ export class ClubService {
 
       appendAuditEntry({
         actionType: 'club.member_left',
-        category: 'club_membership',
         actorType: 'member',
         actorMemberId,
         entityType: 'member_club_affiliation',
@@ -2858,7 +2851,6 @@ export class ClubService {
 
       appendAuditEntry({
         actionType: 'club.primary_swapped',
-        category: 'club_membership',
         actorType: 'member',
         actorMemberId,
         entityType: 'member',
@@ -3119,15 +3111,14 @@ export class ClubService {
           normalizedUrl ?? null, normalizedUrl ? now : null, now, actorMemberId, clubId,
         );
       }
-      // A club's details carry no personal data and a club row is never erased,
-      // so both doors record each changed field's value before and after. What
-      // separates them is authority: an administrator acting on somebody else's
-      // club says so in the ledger and says why, and a correction with no
-      // reason on it cannot be reviewed afterwards.
+      // An administrator correcting somebody else's club records each changed
+      // field's value before and after, with the reason, because a correction
+      // made on someone's behalf is reviewable only from what the value was. A
+      // co-leader's own edit records the field names alone: the text is what a
+      // member typed, and the audit log outlives an erasure.
       auditId = appendAuditEntry(actor.kind === 'administrator'
         ? {
           actionType:    'club.content_corrected',
-          category:      'club',
           actorType:     'admin',
           actorMemberId,
           entityType:    'club',
@@ -3137,13 +3128,12 @@ export class ClubService {
         }
         : {
           actionType:    'club.content_edited',
-          category:      'club',
           actorType:     'member',
           actorMemberId,
           entityType:    'club',
           entityId:      clubId,
           reasonText:    null,
-          metadata:      { changes },
+          metadata:      { fields: changed.map((c) => c.field) },
         });
     });
 
@@ -3267,7 +3257,6 @@ export class ClubService {
         );
         appendAuditEntry({
           actionType: 'club.coleader_volunteered',
-          category:   'club_leadership',
           actorType:  'member',
           actorMemberId,
           entityType: 'club_leader',
@@ -3280,7 +3269,6 @@ export class ClubService {
           clubs.updateStatus.run('active', now, 'club_service', clubId);
           appendAuditEntry({
             actionType: 'club.revived_by_leadership_claim',
-            category:   'club_lifecycle',
             actorType:  'member',
             actorMemberId,
             entityType: 'club',
@@ -3330,8 +3318,8 @@ export class ClubService {
       | { id: string; role: 'co-leader' } | undefined;
     if (!leadership) {
       // The seat row goes with the act, so a repeated step-down is traced to
-      // the member's own audit row naming this club.
-      if (auditEntries.findLatestOwnForClub.get(actorMemberId, 'club.coleader_stepped_down', clubId)) {
+      // the member's own audit row naming this club, if no later seat undid it.
+      if (auditEntries.findStandingOwnStepDown.get(actorMemberId, clubId)) {
         return { branch: 'own_repeat' };
       }
       return { branch: 'not_leader' };
@@ -3356,7 +3344,6 @@ export class ClubService {
 
       appendAuditEntry({
         actionType: 'club.coleader_stepped_down',
-        category: 'club_leadership',
         actorType: 'member',
         actorMemberId,
         entityType: 'club_leader',
@@ -3394,7 +3381,6 @@ export class ClubService {
 
       appendAuditEntry({
         actionType: 'club.marked_inactive',
-        category: 'club_lifecycle',
         actorType: 'member',
         actorMemberId,
         entityType: 'club',
@@ -3432,7 +3418,6 @@ export class ClubService {
 
       appendAuditEntry({
         actionType: 'club.reactivated',
-        category: 'club_lifecycle',
         actorType: 'member',
         actorMemberId,
         entityType: 'club',
@@ -3506,7 +3491,6 @@ export class ClubService {
 
       auditId = appendAuditEntry({
         actionType: 'club.hashtag_corrected',
-        category: 'club_lifecycle',
         actorType: 'admin',
         actorMemberId,
         entityType: 'club',

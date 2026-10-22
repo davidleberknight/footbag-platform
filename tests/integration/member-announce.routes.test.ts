@@ -314,6 +314,14 @@ describe('sending an announcement', () => {
 
     expect(res.text).toContain('Visible to admins');
     expect(res.text).toContain('Community announcements');
+    // The subject is the member's own words: the archive holds it, the audit
+    // log, which outlives an erasure, does not.
+    const audit = withDb((db) => db.prepare(
+      `SELECT metadata_json FROM audit_entries
+        WHERE action_type = 'mailing_list.broadcast_sent' AND actor_member_id = ?`,
+    ).all(ORGANIZER)) as Array<{ metadata_json: string }>;
+    expect(audit.length).toBeGreaterThan(0);
+    expect(JSON.stringify(audit)).not.toContain('Visible to admins');
   });
 
   // Defect caught: a double click on Send mails the list twice, or tells the

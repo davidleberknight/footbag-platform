@@ -244,7 +244,6 @@ export const deceasedMarkingService = {
 
       appendAuditEntry({
         actionType:    'member.deceased_marked',
-        category:      'member',
         actorType:     'admin',
         actorMemberId: actorId,
         entityType:    'member',
@@ -341,7 +340,6 @@ export const deceasedMarkingService = {
 
       appendAuditEntry({
         actionType:    'member.deceased_reverted',
-        category:      'member',
         actorType:     'admin',
         actorMemberId: actorId,
         entityType:    'member',
@@ -406,7 +404,6 @@ export const deceasedMarkingService = {
       deceasedMarking.setHistoricalPersonDeceased.run(target, personId);
       appendAuditEntry({
         actionType:    isDeceased ? 'member.deceased_marked' : 'member.deceased_reverted',
-        category:      'member',
         actorType:     'admin',
         actorMemberId: actorId,
         entityType:    'historical_person',

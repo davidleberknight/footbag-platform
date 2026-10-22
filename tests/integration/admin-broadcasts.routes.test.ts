@@ -27,6 +27,7 @@ import {
   insertMember,
   insertMailingList,
   insertMailingListSubscription,
+  insertEmailArchive,
   createTestSessionJwt,
 } from '../fixtures/factories';
 
@@ -533,6 +534,30 @@ describe('sending to a list', () => {
 });
 
 describe('the broadcast archive', () => {
+  // Defect caught: the archive stops at a fixed count of the newest sends and
+  // everything older can no longer be reached from any page.
+  it('pages the whole history, newest first, so the oldest send is still reachable', async () => {
+    const now = Date.now();
+    withDb((db) => {
+      const seed = db.transaction(() => {
+        for (let i = 0; i < 101; i += 1) {
+          insertEmailArchive(db, {
+            subject: `Paged send ${String(i).padStart(3, '0')}`,
+            sent_at: new Date(now - (i + 1) * 3_600_000).toISOString(),
+          });
+        }
+      });
+      seed();
+    });
+    const first = await request(createApp()).get('/admin/broadcasts').set('Cookie', adminCookie());
+    expect(first.text).toContain('Paged send 000');
+    expect(first.text).not.toContain('Paged send 100');
+    expect(first.text.replace(/&#x3D;/g, '=')).toContain('href="/admin/broadcasts?page=2"');
+
+    const second = await request(createApp()).get('/admin/broadcasts?page=2').set('Cookie', adminCookie());
+    expect(second.text).toContain('Paged send 100');
+  });
+
   it('lists a send and links to it, naming no recipient', async () => {
     seedListWithSubscribers('archived-send', { name: 'Archived Send' });
     const form = await request(createApp())

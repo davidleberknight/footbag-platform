@@ -38,6 +38,18 @@ function cookieFor(memberId: string): string {
   return `__Host-footbag_session=${createTestSessionJwt({ memberId })}`;
 }
 
+// What the claim step holds for a prospective member until completion: the
+// claim, and the evidence rows the audit log takes once they are a member.
+function heldStep(memberId: string): {
+  claim?: unknown;
+  audit?: Array<{ actionType: string; metadata?: Record<string, unknown> }>;
+} {
+  const row = db.prepare(
+    `SELECT answer_json FROM member_onboarding_tasks WHERE member_id = ? AND task_type = 'legacy_claim'`,
+  ).get(memberId) as { answer_json: string | null } | undefined;
+  return row?.answer_json ? JSON.parse(row.answer_json) : {};
+}
+
 function auditRows(memberId: string, actionType: string): Array<{ metadata_json: string }> {
   return db.prepare(
     `SELECT metadata_json FROM audit_entries
@@ -161,13 +173,17 @@ describe('the non-claiming answers', () => {
       .send({ no_link_answer: 'never_had_one' });
     expect(res.status).toBe(303);
     expect(taskState(t.memberId)).toBe('completed');
-    const answered = auditRows(t.memberId, 'legacy.claim_step_answered');
+    // Held while they are not a member, written by the completion. One row
+    // carries both the answer, as its action type, and the cards shown.
+    expect(auditRows(t.memberId, 'wizard.legacy_claim.never_had_account')).toHaveLength(0);
+    await finishOnboarding(t.memberId);
+    const answered = auditRows(t.memberId, 'wizard.legacy_claim.never_had_account');
     expect(answered).toHaveLength(1);
     const meta = JSON.parse(answered[0].metadata_json);
     expect(meta.answer).toBe('never_had_one');
     expect(meta.shown).toHaveLength(1);
     expect(meta.shown[0]).toMatchObject({ account_id: t.legacyId, record_id: t.personId });
-    expect(auditRows(t.memberId, 'wizard.legacy_claim.never_had_account')).toHaveLength(1);
+    expect(auditRows(t.memberId, 'legacy.claim_step_answered')).toHaveLength(0);
   });
 
   // Defect caught: a missing answer completes the step anyway.
@@ -179,7 +195,8 @@ describe('the non-claiming answers', () => {
       .type('form')
       .send({});
     expect(taskState(t.memberId)).not.toBe('completed');
-    expect(auditRows(t.memberId, 'legacy.claim_step_answered')).toHaveLength(0);
+    expect(auditRows(t.memberId, 'wizard.legacy_claim.never_had_account')).toHaveLength(0);
+    expect(auditRows(t.memberId, 'wizard.legacy_claim.cannot_find_record')).toHaveLength(0);
   });
 });
 
@@ -200,13 +217,13 @@ describe('a claim the step does not offer', () => {
     // A prospective member's links stay empty even after an accepted claim, so
     // only the step itself shows the refusal held nothing: no claim waiting
     // for completion to write, and the step still unanswered.
-    const held = db.prepare(
-      `SELECT answer_json FROM member_onboarding_tasks WHERE member_id = ? AND task_type = 'legacy_claim'`,
-    ).get(t.memberId) as { answer_json: string | null } | undefined;
-    expect(held?.answer_json ?? null).toBeNull();
+    // The refusal is evidence, held on the same row while they are not a member.
+    const held = heldStep(t.memberId);
+    expect(held.claim).toBeUndefined();
     expect(taskState(t.memberId)).not.toBe('completed');
-    const refused = auditRows(t.memberId, 'claim.refused');
+    expect(auditRows(t.memberId, 'claim.refused')).toHaveLength(0);
+    const refused = (held.audit ?? []).filter((e) => e.actionType === 'claim.refused');
     expect(refused).toHaveLength(1);
-    expect(JSON.parse(refused[0].metadata_json)).toMatchObject({ record_id: 'HP-not-offered', refusal: 'not_reached' });
+    expect(refused[0].metadata).toMatchObject({ record_id: 'HP-not-offered', refusal: 'not_reached' });
   });
 });

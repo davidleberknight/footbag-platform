@@ -283,7 +283,7 @@ The following key solution architecture decisions define how the new Footbag.org
 - Server-rendered web application: The site is a traditional multi-page web application. HTML pages are rendered on the server using Handlebars templates. Client-side JavaScript is used for validation, autocomplete (optional), media previews, and similar conveniences.
 - Four-layer software architecture: The code is organized into Services (business logic), Middleware (cross-cutting HTTP concerns such as authentication and origin pinning), Controllers (per-route HTTP glue), and Adapters (external services), with Handlebars views rendered by the controllers.
 - JWT-based sessions with per-request validation: Members authenticate via short-lived JSON Web Tokens stored in secure cookies, including a passwordVersion field so password changes immediately invalidate old tokens, like this: per-request validation compares JWT passwordVersion claim with the current passwordVersion datum; a password change increments passwordVersion, immediately invalidating all sessions across all devices. Authorization decisions (tier/role) are evaluated against the current database state on each request, not only JWT claims.
-- Immutable audit logs: All state-changing actions are recorded in append-only immutable audit table.
+- Immutable audit logs: Governance- and security-significant changes are recorded in an append-only immutable audit table, kept for seven years.
 - Single Lightsail origin with CloudFront CDN: A single Docker-based application instance on AWS Lightsail handles dynamic requests behind an AWS CloudFront distribution.
 - Archive.footbag.org: The legacy Footbag.org site is preserved as a static HTML mirror in a dedicated S3 bucket and delivered via CloudFront at archive.footbag.org.
 
@@ -667,23 +667,24 @@ The legacy videos that have been hosted on footbag.org for decades are hosted on
 **Data Retention Policy:** Active member data: indefinite until deletion requested.
 
 - Deleted member personal data: 90-day grace period (configurable), then PII permanently purged from primary storage; anonymized row retained for referential integrity. Deleted data may persist in historical backups until they age out, and any restore re-applies the recorded erasures before serving.
-- Financial/audit records: anonymized after 90-day member deletion grace period, transaction IDs retained 7 years for compliance.
+- Financial records: anonymized after 90-day member deletion grace period, transaction IDs retained 7 years for compliance.
+- Audit logs: rows older than the retention period (default and minimum 7 years) are deleted by a daily job.
 - Audit logs identify people by member and entity IDs only, for traceability, and never store an IP address or a name. An email address appears only in account-claim evidence, and there only as a keyed hash that a copy of the log alone cannot reverse.
 - Photos and video links: indefinite while member active; immediately and permanently deleted on member request.
 - News items: immediately and permanently deleted on admin action; no grace period.
 - Events: immediately and permanently deleted by organizer if no published results; permanently preserved if results have been published.
 
-This policy supports GDPR privacy requirements while retaining required financial and audit records in anonymized form.
+This policy supports GDPR privacy requirements while retaining required financial records in anonymized form and audit records for seven years.
 
 ## 6.6 Audit Logging
 
-**Immutable Append-Only Logs:** Every state-changing action appends an entry to an audit log database table. Immutability and privacy are enforced at the application and infrastructure level.
+**Immutable Append-Only Logs:** Every governance- or security-significant change appends an entry to an audit log database table; a read, an act that changed nothing, or anything concerning a person who is not yet a member appends none. Database triggers refuse every update and every delete except the daily purge of rows past the retention period (default and minimum seven years).
 
-**What Gets Logged:** Authentication events, profile changes, club membership, event operations, photo and video actions, payment transactions, admin decisions, event-organizer/club-leader additions and acceptances, URL validation results, membership tier changes, price edits and price change events, Board add and remove, election creation, ballot tallying operations, results publication, cancellation, event sanction approvals and denials, administrator overrides and batch operations, announce-list sends, event results publication, login failures over threshold, email template edits, election settings edits after creation, organizer assignment or removal on events, ClubLeader set or unset, archive access policy changes, payment gateway keys and webhook URL changes, ballot encryption key rotations.
+**What Gets Logged:** Authentication events, profile changes, club membership, event operations, photo and video actions, payment transactions, admin decisions, event-organizer/club-leader additions and acceptances, membership tier changes, price edits and price change events, Board add and remove, election creation, ballot tallying operations, results publication, cancellation, event sanction approvals and denials, administrator overrides and batch operations, announce-list sends, event results publication, login failures over threshold, email template edits, election settings edits after creation, organizer assignment or removal on events, ClubLeader set or unset, archive access policy changes.
 
 Administrators may edit member data (as permitted by rules), and all such actions are audit-logged. Where an action has several possible motives, such as a tier correction, the administrator's reason is recorded with it, the point being that the admin can manually apply BAP and HoF flags, fix Tier status or other data problems. Note that this includes the case where a member dies; the admin can set a deceased flag for the member, which takes a confirmation rather than a reason.
 
-Each log entry includes: timestamp (ISO-8601 UTC), event type, actor ID, resource affected, action details, result, request correlation ID. Audit logs are privacy-safe, so they do not store IP addresses or network identifiers.
+Each log entry records when it happened, the actor type and actor member id, the action type, the entity type and id, a category derived from the action type, an optional reason, and metadata. Audit logs are privacy-safe: they name people by id and store no IP address, user agent, name or raw email address.
 
 This design creates complete accountability trail. Disputes resolved definitively. Security incidents enable forensic investigation. Transparent governance through verifiable history.
 

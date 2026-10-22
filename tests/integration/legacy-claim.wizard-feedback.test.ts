@@ -82,12 +82,15 @@ const NO_LONGER_AVAILABLE = 'This record is no longer available to claim.';
 
 // A refused claim leaves the step as it was: no claim held for completion to
 // write, and the step still unanswered. A prospective member's links stay
-// empty even after an accepted claim, so they cannot show a refusal held.
+// empty even after an accepted claim, so they cannot show a refusal held. The
+// refusal itself is evidence, held on the same row until they are a member.
 function expectNothingHeld(memberId: string): void {
   const row = db.prepare(
     `SELECT state, answer_json FROM member_onboarding_tasks WHERE member_id = ? AND task_type = 'legacy_claim'`,
   ).get(memberId) as { state: string; answer_json: string | null } | undefined;
-  expect(row?.answer_json ?? null).toBeNull();
+  const held = row?.answer_json ? JSON.parse(row.answer_json) as { claim?: unknown; audit?: Array<{ actionType: string }> } : {};
+  expect(held.claim).toBeUndefined();
+  expect((held.audit ?? []).map((e) => e.actionType)).toEqual(['claim.refused']);
   expect(row?.state ?? 'pending').toBe('pending');
 }
 

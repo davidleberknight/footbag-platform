@@ -67,9 +67,12 @@ export const adminBroadcastController = {
     }
   },
 
-  index(_req: Request, res: Response, next: NextFunction): void {
+  index(req: Request, res: Response, next: NextFunction): void {
     try {
-      res.render('admin/broadcasts/index', broadcastService.getBroadcastIndexPage());
+      const pageRaw = parseInt(String(req.query.page ?? '1'), 10);
+      res.render('admin/broadcasts/index', broadcastService.getBroadcastIndexPage(
+        Number.isFinite(pageRaw) && pageRaw > 0 ? pageRaw : 1,
+      ));
     } catch (err) {
       next(err);
     }

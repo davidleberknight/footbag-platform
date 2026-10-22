@@ -29,6 +29,7 @@ const DAILY_TICK_JOBS = [
   'runPaymentReconciliation',
   'runReconciliationDigest',
   'runReconciliationIssuePurge',
+  'runAuditRetentionPurge',
 ] as const;
 
 describe('worker daily tick', () => {

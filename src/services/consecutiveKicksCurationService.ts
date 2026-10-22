@@ -377,7 +377,6 @@ export const consecutiveKicksCurationService = {
       );
       appendAuditEntry({
         actionType:    'freestyle.consecutive_record.updated',
-        category:      'content',
         actorType:     'admin',
         actorMemberId,
         entityType:    'freestyle_consecutive_record',
@@ -407,7 +406,6 @@ export const consecutiveKicksCurationService = {
         );
         appendAuditEntry({
           actionType:    'freestyle.consecutive_record.created',
-          category:      'content',
           actorType:     'admin',
           actorMemberId,
           entityType:    'freestyle_consecutive_record',
@@ -440,7 +438,6 @@ export const consecutiveKicksCurationService = {
       consecutiveKicksRecords.deleteById.run(id);
       appendAuditEntry({
         actionType:    'freestyle.consecutive_record.deleted',
-        category:      'content',
         actorType:     'admin',
         actorMemberId,
         entityType:    'freestyle_consecutive_record',

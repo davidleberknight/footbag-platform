@@ -203,10 +203,10 @@ export interface BroadcastRowViewModel {
 
 export interface BroadcastIndexContent {
   rows: BroadcastRowViewModel[];
-  totalCount: number;
   hasRows: boolean;
-  isCapped: boolean;
-  pageSize: number;
+  resultSummary: string;
+  prevPageHref: string | null;
+  nextPageHref: string | null;
 }
 
 export interface BroadcastDetailContent {
@@ -384,14 +384,14 @@ export const broadcastService = {
 
       appendAuditEntry({
         actionType: 'mailing_list.broadcast_sent',
-        category: 'system',
         actorType: opts.actorType ?? 'admin',
         actorMemberId,
         entityType: 'mailing_list',
         entityId: list.slug,
+        // The subject and body live on the archive row this names; the audit
+        // log keeps no typed text, which a member announcement would carry.
         metadata: {
           archiveId,
-          subject: sentSubject,
           recipients: enqueued.recipients,
           enqueued: enqueued.enqueued,
           suppressed: enqueued.suppressed,
@@ -467,9 +467,17 @@ export const broadcastService = {
     });
   },
 
-  /** The send history, newest first. */
-  getBroadcastIndexPage(): PageViewModel<BroadcastIndexContent> {
-    const rows = (emailArchives.listRecent.all(ARCHIVE_PAGE_SIZE) as ArchiveRowWithList[]).map((row) => ({
+  /**
+   * The send history, newest first, a page at a time, so every send stays
+   * reachable however long the history grows.
+   */
+  getBroadcastIndexPage(requestedPage = 1): PageViewModel<BroadcastIndexContent> {
+    const page = requestedPage > 0 ? Math.floor(requestedPage) : 1;
+    const total = (emailArchives.countAll.get() as { n: number }).n;
+    const offset = (page - 1) * ARCHIVE_PAGE_SIZE;
+    const totalPages = Math.max(1, Math.ceil(total / ARCHIVE_PAGE_SIZE));
+    const pageHref = (p: number) => (p > 1 ? `/admin/broadcasts?page=${p}` : '/admin/broadcasts');
+    const rows = (emailArchives.listRecent.all(ARCHIVE_PAGE_SIZE, offset) as ArchiveRowWithList[]).map((row) => ({
       id: row.id,
       subject: row.subject,
       audienceLabel: audienceLabelOf(row),
@@ -483,12 +491,10 @@ export const broadcastService = {
       page: { sectionKey: 'admin', pageKey: 'admin_broadcasts', title: 'Broadcasts' },
       content: {
         rows,
-        totalCount: rows.length,
         hasRows: rows.length > 0,
-        // The page shows the most recent sends rather than every one ever made;
-        // saying so is what stops a full page reading as the whole history.
-        isCapped: rows.length === ARCHIVE_PAGE_SIZE,
-        pageSize: ARCHIVE_PAGE_SIZE,
+        resultSummary: `Showing ${total === 0 ? 0 : offset + 1} to ${offset + rows.length} of ${total} send${total === 1 ? '' : 's'}.`,
+        prevPageHref: page > 1 ? pageHref(page - 1) : null,
+        nextPageHref: page < totalPages ? pageHref(page + 1) : null,
       },
     };
   },

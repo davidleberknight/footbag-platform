@@ -156,9 +156,9 @@ describe('admin surfaces never find or name a prospective member', () => {
   });
 
   it('the audit log names the member and shows the prospective member by id only', () => {
-    insertAuditEntry(db, { action_type: 'test.pending_probe', entity_type: 'member', entity_id: MEMBER.id });
-    insertAuditEntry(db, { action_type: 'test.pending_probe', entity_type: 'member', entity_id: PENDING.id });
-    const rows = dbMod.queryAuditLog({ actionType: 'test.pending_probe' }, 50, 0);
+    insertAuditEntry(db, { action_type: 'member.name_corrected', entity_type: 'member', entity_id: MEMBER.id });
+    insertAuditEntry(db, { action_type: 'member.name_corrected', entity_type: 'member', entity_id: PENDING.id });
+    const rows = dbMod.queryAuditLog({ actionType: 'member.name_corrected' }, 50, 0);
     const byEntity = new Map(rows.map((r) => [r.entity_id, r]));
     expect(byEntity.get(MEMBER.id)?.entity_display_name).toBe(`Name ${MEMBER.slug}`);
     expect(byEntity.get(PENDING.id)?.entity_display_name ?? null).toBeNull();
@@ -167,14 +167,14 @@ describe('admin surfaces never find or name a prospective member', () => {
 
   it('the audit log names a member actor and shows a pending actor by id only', () => {
     insertAuditEntry(db, {
-      action_type: 'test.pending_actor', actor_type: 'member', actor_member_id: MEMBER.id,
+      action_type: 'club.content_edited', actor_type: 'member', actor_member_id: MEMBER.id,
       entity_type: 'club', entity_id: 'club-a',
     });
     insertAuditEntry(db, {
-      action_type: 'test.pending_actor', actor_type: 'member', actor_member_id: PENDING.id,
+      action_type: 'club.content_edited', actor_type: 'member', actor_member_id: PENDING.id,
       entity_type: 'club', entity_id: 'club-b',
     });
-    const rows = dbMod.queryAuditLog({ actionType: 'test.pending_actor' }, 50, 0);
+    const rows = dbMod.queryAuditLog({ actionType: 'club.content_edited' }, 50, 0);
     const byActor = new Map(rows.map((r) => [r.actor_member_id, r]));
     expect(byActor.get(MEMBER.id)?.actor_display_name).toBe(`Name ${MEMBER.slug}`);
     expect(byActor.get(PENDING.id)?.actor_display_name ?? null).toBeNull();

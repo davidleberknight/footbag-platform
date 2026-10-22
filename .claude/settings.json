@@ -88,7 +88,6 @@
       "mcp__playwright__browser_select_option",
       "mcp__playwright__browser_wait_for",
       "mcp__playwright__browser_console_messages",
-      "mcp__playwright__browser_network_requests",
       "mcp__playwright__browser_resize",
       "mcp__playwright__browser_tabs",
       "mcp__playwright__browser_close"
@@ -179,15 +178,18 @@
       "Bash(docker compose pull*)",
       "Bash(git branch -D*)",
       "Edit(./.claude/settings.local.json)",
-      "mcp__playwright__browser_take_screenshot"
+      "mcp__playwright__browser_take_screenshot",
+      "mcp__playwright__browser_network_requests"
     ],
     "deny": [
       "Edit(./footbag_legacy_repo/**)",
       "Edit(./footbag_legacy_repo_original_data/**)",
-      "Edit(./.env)",
-      "Edit(./.env.local)",
-      "Edit(./.env.production)",
-      "Edit(./.env.staging)",
+      "Edit(//**/.env)",
+      "Edit(//**/.env.local)",
+      "Edit(//**/.env.production)",
+      "Edit(//**/.env.staging)",
+      "Edit(//**/.env.development)",
+      "Edit(//**/.env.test)",
       "Edit(./secrets/**)",
       "Edit(./.secrets/**)",
       "Edit(./**/*.pem)",
@@ -369,6 +371,10 @@
           {
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/block-secrets.sh"
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-memory-write.sh"
           }
         ]
       },

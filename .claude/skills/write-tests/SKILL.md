@@ -60,28 +60,20 @@ For the high-risk areas (auth and session, member privacy, payments, identity cl
 
 For a bug fix, write down why the existing suite missed it and name the bug's class before writing the case: a member state a sender or listing forgets, a failure after an earlier step committed, an enumeration leak on a lookup, or a check that can never fail. Where that class has a sweep, the regression test is a new row of the sweep, so the fix also covers every sibling path; a one-off test is right only when no sweep exists for the class.
 
-State each planned case with the one sentence naming the defect it catches (the rule's name-the-defect mandate). Then check every case against this list and drop or rewrite any that fails it:
+State each planned case with the one sentence naming the defect it catches (the rule's name-the-defect mandate). Then check every case against the testing rule's anti-patterns and the items below, and drop or rewrite any that fails:
 
 - Could only a deliberate edit to copy or a table make it fail? Then it is a change-detector; drop it. Word assertions survive only in the four kept shapes: a negative naming a wrong statement a regression could restore; a relation between two independently maintained things; a branch asserted on both sides; wording an external authority fixes.
-- Does it assert a content module contains its own entries? Assert what the module drives instead.
 - Does it assert something is absent? The same case shows it present where it should be (a live member beside the deceased one); an absence over an empty fixture passes by construction.
 - Does it hold two lists that must agree (fields a parser reads and a save clears, jobs a gate waits for and its verdict reads)? Derive one from the other in the test and fail on any difference.
-- Was it written to restore coverage? It still needs its defect sentence; without one, report the uncovered line to the maintainer instead.
-- Is it an `.each` row that runs the same path as its neighbours? Fold it into one case.
-- Is it a `typeof` the types guarantee, bare truthiness, or a standalone `returns 200`? Assert the status inside the case that checks the body.
 - Does a read-only suite request the same page in several cases? Share one response through `cachedGet` (`tests/fixtures/cachedGet.ts`) and seed in `beforeAll`. Never write inside a case of a `cachedGet` suite: seed both states up front, or put the write-then-read case in its own file with plain requests (or mark the file `cachedGet-writes:` with the reason).
-- Does the verdict depend on ordering, a clock, a listing, a sleep, or a size smaller than the real input? Fix it per the rule.
-
 ## Step 5: Write the tests
 
 Follow the shapes in `EXAMPLES.md`, and these instructions:
 
 - Import `../fixtures/supertestWithOrigin`, not plain `supertest`, whenever the suite issues any POST, PUT, PATCH or DELETE: those verbs are refused with 403 before the controller runs unless they carry a matching `Origin`.
-- Assert the status inside the case that checks the body, never in a standalone case.
 - Assert on rows the test seeded, not on template copy, so the assertion ties the render to the data.
-- Seed only through the factories; `insertMember()` overrides cover member edge cases (`is_hof`, `is_deceased`, `personal_data_purged_at`).
+- `insertMember()` overrides cover member edge cases (`is_hof`, `is_deceased`, `personal_data_purged_at`).
 - A case that deliberately drives a `logger.error()` calls `expectLoggedError(pattern)` before the action, with a pattern naming the expected line.
-- Many assertions about one page share one response through `cachedGet`.
 
 Give the test its own inputs. For every input the test does not create (a file, a directory, an installed binary, an exported variable), write it, stub it, pass its path or set it; a default that resolves to the developer's machine is not an input the test owns.
 
@@ -102,7 +94,7 @@ How often, per the rule's demonstrated-failure requirement: once per test for a 
 
 ## Step 7: Review, run and report
 
-**Reviewer.** Run a fresh read-only reviewer subagent when the new tests guard auth and session, payments, member privacy, identity claim or erasure, or a destructive, irreversible or outward-facing action (deleting data, overwriting, retiring a resource, sending mail, deploying, applying infrastructure). The size of the change does not decide it; what an undetected false green would let through does. Give it only the diff and the code under test, and this brief: "Propose five to ten one-line edits to the changed production code that a correct suite must catch (invert a condition, drop a filter, delete a guard, return the other branch, move a write out of its transaction), each naming the test file it should turn red. Do not comment on style or ask for more tests." The reviewer is read-only, so you apply each edit alone, run only the files it names, and reverse it exactly. Every edit no test notices gets a stronger assertion, shown red against it. Record how many edits were tried and how many survived.
+**Reviewer.** Run a fresh read-only reviewer subagent when the new tests guard auth and session, payments, member privacy, identity claim or erasure, or a destructive, irreversible or outward-facing action (deleting data, overwriting, retiring a resource, sending mail, deploying, applying infrastructure). The size of the change does not decide it; what an undetected false green would let through does. Give it only the diff and the code under test, and this brief: "Propose five to ten one-line edits to the changed production code that a correct suite must catch (invert a condition, drop a filter, delete a guard, return the other branch, move a write out of its transaction), each naming the test file it should turn red. Do not comment on style or ask for more tests. You cannot ask the human: return any question in your report with its context and your recommended answer." The reviewer is read-only, so you apply each edit alone, run only the files it names, and reverse it exactly. Every edit no test notices gets a stronger assertion, shown red against it. Record how many edits were tried and how many survived.
 
 **Drive.** Where a person can see the change, drive the changed journey through the real pages on the development stack with the Playwright MCP tools (snapshot, not screenshot), across every page it touches. A defect found that way lands as a test.
 

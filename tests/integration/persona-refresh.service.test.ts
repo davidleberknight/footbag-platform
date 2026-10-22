@@ -130,7 +130,7 @@ describe('refreshAllPersonas', () => {
     // An audit row referencing a persona member but written by a non-persona actor.
     insertAuditEntry(db, {
       created_by: 'real-system',
-      action_type: 'real_event',
+      action_type: 'member.profile_updated',
       entity_id: T1,
     });
     // The shared mailing_lists parent (seeded by ml_subscribed) must survive teardown.

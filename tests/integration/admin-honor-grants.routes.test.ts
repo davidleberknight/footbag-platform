@@ -12,7 +12,7 @@ import rawRequest from 'supertest';
 import BetterSqlite3 from 'better-sqlite3';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember, createMemberAtTier, createTestSessionJwt } from '../fixtures/factories';
+import { insertMember, createMemberAtTier, createTestSessionJwt, insertAuditEntry } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3143');
 
@@ -125,6 +125,26 @@ describe('GET /admin/honor-grants', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('/admin/honor-grants/grant');
   });
+  // Defect caught: a grant taken back as an error still reads in the recent
+  // list as a grant standing, because the list showed grants and never their
+  // removal.
+  it('lists a removal beside the grant it took back', async () => {
+    const db = new BetterSqlite3(dbPath);
+    const removedId = insertMember(db, { id: 'hg-removed-grant', slug: 'hg_removed_grant' });
+    insertAuditEntry(db, {
+      action_type: 'tier.hof_grant', actor_type: 'admin', entity_id: removedId,
+      occurred_at: '2026-03-01T10:00:00.000Z',
+    });
+    insertAuditEntry(db, {
+      action_type: 'tier.hof_grant_removed', actor_type: 'admin', entity_id: removedId,
+      occurred_at: '2026-03-02T10:00:00.000Z',
+    });
+    db.close();
+    const res = await request(createApp()).get('/admin/honor-grants').set('Cookie', adminCookie());
+    const recent = res.text.slice(res.text.indexOf('Recent Honor Grants'));
+    expect(recent).toContain('<span class="badge">Removed</span>');
+  });
+
   // The page offers to take a grant back, keyed on a member id typed by hand.
   // Its only listing was a recency feed of grants made, which answers a
   // different question from who holds the honour now.

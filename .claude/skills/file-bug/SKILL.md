@@ -1,6 +1,6 @@
 ---
 name: file-bug
-description: Use when a developer or tester wants to report a bug, an error, or confusing wording they saw in the footbag.org app, including a bare "file a bug", or wants to answer a maintainer's questions on a bug report of theirs. Questions the tester one question at a time until the report or answer holds everything the maintainer needs to reproduce it, removes any secret, shows it, and posts it to the private dev-tester repository only after the tester approves. Never fixes the bug and never triages it.
+description: Use when a developer or tester wants to report a bug, an error, or confusing wording they saw in the footbag.org app, including a bare "file a bug", or wants to answer a maintainer's questions on a bug report of theirs. Questions the tester one question at a time until the report or answer holds everything the maintainer needs to reproduce it, removes any secret, shows it, and posts it to the private dev-tester repository only after the tester approves. Never fixes the bug and never triages it. Not for a bug Claude is asked to debug or fix in this session.
 ---
 
 # File a bug report

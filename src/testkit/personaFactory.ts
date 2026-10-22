@@ -980,7 +980,6 @@ export function seedPersona(
     action_type: PERSONA_SEED_AUDIT_ACTION_TYPE,
     entity_type: 'member',
     entity_id: memberId,
-    category: 'identity',
     reason_text: PERSONA_SEED_REASON_TEXT,
     metadata: { slug: spec.slug, tier: spec.tier },
   });

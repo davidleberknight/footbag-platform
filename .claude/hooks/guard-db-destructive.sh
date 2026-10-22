@@ -24,7 +24,12 @@ if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|`({]|&&|\|\|)[[:space:]]*([A-Za-z_]
   exit 0
 fi
 
-if printf '%s' "$COMMAND" | grep -Eq 'rm[[:space:]].*(footbag\.db|\.db-wal|\.db-shm)'; then
+# Command position for rm and sqlite3, as for the reset script above: start or after
+# a separator, past VAR= prefixes, a sudo/env/command/nohup launcher and a directory
+# prefix, so a grep or git log that only names them is not judged as running them.
+AT_CMD='(^|[;&|`({]|&&|\|\|)[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*((sudo|env|command|nohup)[[:space:]]+)*([^[:space:];&|]*/)?'
+
+if printf '%s' "$COMMAND" | grep -Eq "${AT_CMD}rm[[:space:]].*(footbag\.db|\.db-wal|\.db-shm)"; then
   jq -n '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
@@ -36,7 +41,7 @@ if printf '%s' "$COMMAND" | grep -Eq 'rm[[:space:]].*(footbag\.db|\.db-wal|\.db-
 fi
 
 # Inline destructive SQL
-if printf '%s' "$COMMAND" | grep -Eqi 'sqlite3.*(DROP[[:space:]]+TABLE|DROP[[:space:]]+INDEX|DELETE[[:space:]]+FROM|TRUNCATE|ALTER[[:space:]]+TABLE.*DROP)'; then
+if printf '%s' "$COMMAND" | grep -Eqi "${AT_CMD}sqlite3[[:space:]].*(DROP[[:space:]]+TABLE|DROP[[:space:]]+INDEX|DELETE[[:space:]]+FROM|TRUNCATE|ALTER[[:space:]]+TABLE.*DROP)"; then
   jq -n '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
@@ -48,7 +53,7 @@ if printf '%s' "$COMMAND" | grep -Eqi 'sqlite3.*(DROP[[:space:]]+TABLE|DROP[[:sp
 fi
 
 # Piped destructive SQL into sqlite3
-if printf '%s' "$COMMAND" | grep -Eqi '(DROP[[:space:]]+TABLE|DROP[[:space:]]+INDEX|DELETE[[:space:]]+FROM|TRUNCATE|ALTER[[:space:]]+TABLE.*DROP).*[|].*sqlite3|sqlite3.*<.*(DROP|DELETE|TRUNCATE|ALTER)'; then
+if printf '%s' "$COMMAND" | grep -Eqi "(DROP[[:space:]]+TABLE|DROP[[:space:]]+INDEX|DELETE[[:space:]]+FROM|TRUNCATE|ALTER[[:space:]]+TABLE.*DROP).*[|][[:space:]]*([^[:space:];&|]*/)?sqlite3([[:space:]]|\$)|${AT_CMD}sqlite3[[:space:]].*<.*(DROP|DELETE|TRUNCATE|ALTER)"; then
   jq -n '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
@@ -64,7 +69,7 @@ fi
 # read-only (the -readonly flag or a file:...?mode=ro URI), so a non-readonly sqlite3 has no
 # auto-allow; this guard makes that ask explicit rather than leaving it to chance. Ask, never
 # silently allow.
-if printf '%s' "$COMMAND" | grep -Eqi 'sqlite3.*(INSERT[[:space:]]+INTO|UPDATE[[:space:]]+|REPLACE[[:space:]]+INTO|CREATE[[:space:]]+(TABLE|INDEX|VIEW|TRIGGER|VIRTUAL)|ALTER[[:space:]]+TABLE|ATTACH([[:space:]]+DATABASE)?[[:space:]]|VACUUM[[:space:]]+INTO|\.(read|import|restore|output|save|backup|clone|dump)[[:space:]])'; then
+if printf '%s' "$COMMAND" | grep -Eqi "${AT_CMD}sqlite3[[:space:]].*(INSERT[[:space:]]+INTO|UPDATE[[:space:]]+|REPLACE[[:space:]]+INTO|CREATE[[:space:]]+(TABLE|INDEX|VIEW|TRIGGER|VIRTUAL)|ALTER[[:space:]]+TABLE|ATTACH([[:space:]]+DATABASE)?[[:space:]]|VACUUM[[:space:]]+INTO|\.(read|import|restore|output|save|backup|clone|dump)[[:space:]])"; then
   jq -n '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",

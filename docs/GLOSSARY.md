@@ -16,7 +16,7 @@
 
 **Argon2id**: Password hashing algorithm (preferred over bcrypt) that is memory-hard, requiring 64 MB memory with 3 iterations and parallelism factor of 4. Makes brute-force attacks computationally expensive while maintaining acceptable login performance (100-250ms).
 
-**Audit Log**: An immutable, chronological record of all significant events and actions in the system. Footbag.org logs authentication, profile changes, admin actions, payment transactions, content moderation decisions, and all ballot decryption operations. Logs retained 7 years with IAM-restricted access. Audit entries record actor identity via authenticated member ID; IP addresses are intentionally excluded.
+**Audit Log**: An immutable, chronological record of governance- and security-significant changes: who changed what, when and why. Footbag.org logs account security changes, profile changes, admin actions, payment transactions, content moderation decisions, and all ballot decryption operations. Only administrators read it; rows are kept 7 years and then deleted by a daily job. Audit entries record actor identity via authenticated member ID; IP addresses are intentionally excluded.
 
 **AWS (Amazon Web Services)**: Cloud computing platform providing infrastructure services including S3 storage, CloudFront CDN, Lightsail hosting, SES email, Parameter Store, KMS, and CloudTrail.
 
@@ -36,7 +36,7 @@
 
 **CloudTrail**: AWS logging service that records all API calls to AWS services for security analysis and compliance. Footbag.org enables CloudTrail for Parameter Store access (tracking who retrieved third-party API secrets such as Stripe keys and when) and for audit-log bucket operations.
 
-**CloudWatch Logs**: AWS log aggregation service collecting structured application logs from Docker containers. Provides search, filtering, and alerting capabilities. Footbag.org retains application logs 30 days, audit logs 7 years.
+**CloudWatch Logs**: AWS log aggregation service collecting structured application logs from Docker containers. Provides search, filtering, and alerting capabilities. Footbag.org retains application logs 30 days.
 
 **CMK (Customer Master Key)**: AWS KMS term for a named encryption key managed in the KMS service, backed by hardware security modules. Footbag.org uses one CMK per environment for ballot envelope encryption (kms:GenerateDataKey for encryption, kms:Decrypt in tally role only) and a separate CMK for JWT asymmetric signing (kms:Sign, kms:GetPublicKey).
 

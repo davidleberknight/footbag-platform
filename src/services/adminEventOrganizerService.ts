@@ -115,9 +115,10 @@ function ownStandingAct(
   act: 'event.organizer_assigned' | 'event.organizer_removed',
 ): boolean {
   const reversal = act === 'event.organizer_assigned' ? 'event.organizer_removed' : 'event.organizer_assigned';
-  const own = findStandingOwnAct(adminMemberId, act, reversal, 'event', eventId);
-  return own !== null
-    && (JSON.parse(own.metadata_json) as { organizer_member_id?: string }).organizer_member_id === memberId;
+  return findStandingOwnAct(
+    adminMemberId, act, reversal, 'event', eventId,
+    { metadataKey: 'organizer_member_id', id: memberId },
+  ) !== null;
 }
 
 function requireReason(reason: string): string {
@@ -243,7 +244,6 @@ export const adminEventOrganizerService = {
       );
       appendAuditEntry({
         actionType:    'event.organizer_assigned',
-        category:      'event',
         actorType:     'admin',
         actorMemberId: adminMemberId,
         entityType:    'event',
@@ -290,7 +290,6 @@ export const adminEventOrganizerService = {
       }
       appendAuditEntry({
         actionType:    'event.organizer_removed',
-        category:      'event',
         actorType:     'admin',
         actorMemberId: adminMemberId,
         entityType:    'event',

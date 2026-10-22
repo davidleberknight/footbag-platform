@@ -7,7 +7,8 @@
  *   2. Daily jobs loop: Active Player expiry (Tier 0 scan, reminder enqueue,
  *      expiry ledger rows), the PII
  *      purge-eligibility scan, payment reconciliation against the payment
- *      provider, and the purge of long-resolved reconciliation issues. One
+ *      provider, the purge of long-resolved reconciliation issues, and the
+ *      purge of audit rows past their seven-year retention window. One
  *      system_job_runs row per job per pass. A job needing a
  *      slower or wall-clock cadence self-gates inside its service rather than
  *      owning a loop.
@@ -209,6 +210,13 @@ async function activePlayerExpiryLoop(): Promise<void> {
       await operationsPlatformService.runReconciliationIssuePurge();
     } catch (err) {
       logger.error('worker: reconciliation issue purge unexpected error', {
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+    try {
+      await operationsPlatformService.runAuditRetentionPurge();
+    } catch (err) {
+      logger.error('worker: audit retention purge unexpected error', {
         error: err instanceof Error ? err.message : String(err),
       });
     }

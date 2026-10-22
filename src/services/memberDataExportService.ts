@@ -158,7 +158,10 @@ export const memberDataExportService = {
       declaredAnchors:     capped(declaredAnchors.listByMember.all(memberId) as unknown[], truncated),
       legacyAccount,
       externalLinks:       capped(memberLinks.listByMember.all(memberId) as unknown[], truncated),
-      ownActions:          capped(memberExport.ownAuditActions.all(memberId) as unknown[], truncated),
+      // Every own action, uncapped: each is only a type and a time, and the
+      // seven-year purge bounds them, while a cap here kept the oldest and
+      // silently dropped the newest.
+      ownActions:          memberExport.ownAuditActions.all(memberId) as unknown[],
     };
 
     return { document, truncated: truncated.hit };

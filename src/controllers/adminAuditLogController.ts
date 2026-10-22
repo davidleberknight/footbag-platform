@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { auditLogService, type AuditLogQuery } from '../services/auditLogService';
 import { handleControllerError } from '../lib/controllerErrors';
+import { ValidationError } from '../services/serviceErrors';
 
 /** Trim a query value to a non-empty string, or undefined. */
 function str(v: unknown): string | undefined {
@@ -11,6 +12,8 @@ function parseQuery(req: Request): AuditLogQuery {
   const pageRaw = parseInt(String(req.query.page ?? '1'), 10);
   return {
     memberId: str(req.query.member),
+    entityType: str(req.query.entityType),
+    entityId: str(req.query.entityId),
     actionType: str(req.query.actionType),
     category: str(req.query.category),
     actorType: str(req.query.actorType),
@@ -49,11 +52,22 @@ export const adminAuditLogController = {
     try {
       const format = req.query.format === 'json' ? 'json' : 'csv';
       const query = parseQuery(req);
-      const out = auditLogService.getAuditLogExportBody(query, format);
+      const out = auditLogService.getAuditLogExport(query, format);
       res.setHeader('Content-Type', `${out.contentType}; charset=utf-8`);
       res.setHeader('Content-Disposition', `attachment; filename="${out.filename}"`);
-      res.send(out.body);
+      for (const chunk of out.chunks) res.write(chunk);
+      res.end();
     } catch (err) {
+      // A refused window re-renders the viewer with the rule as a refusal, so
+      // the administrator sees why rather than a not-found page.
+      if (err instanceof ValidationError) {
+        const vm = auditLogService.getAuditLogPage(parseQuery(req));
+        res.status(422).render('admin/audit-log/index', {
+          ...vm,
+          page: { ...vm.page, notice: err.message, noticeTone: 'no' },
+        });
+        return;
+      }
       handleControllerError(err, res, next, 'admin audit-log export');
     }
   },

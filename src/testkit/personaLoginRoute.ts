@@ -78,7 +78,6 @@ export async function getDevLogin(
     const outcome = member ? 'session_issued' : 'rejected';
     appendAuditEntry({
       actionType: PERSONA_LOGIN_AUDIT_ACTION_TYPE,
-      category: 'identity',
       actorType: 'system',
       actorMemberId: null,
       entityType: 'member',

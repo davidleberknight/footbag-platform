@@ -1,12 +1,12 @@
 import { randomUUID } from 'crypto';
 import { auditEntries } from '../db/db';
 import { currentDataOrigin } from './dataOriginService';
+import { auditTopicFor } from './auditTopics';
 
 export type AuditActorType = 'system' | 'member' | 'admin';
 
 export interface AuditAppendInput {
   actionType: string;
-  category: string;
   actorType: AuditActorType;
   actorMemberId: string | null;
   entityType: string;
@@ -31,8 +31,23 @@ export function assertCanonicalActionType(actionType: string): void {
   }
 }
 
+/**
+ * Whether the account is a member: onboarded, live, or the system account. The
+ * audit log holds rows about members only, so a write about anyone else (a
+ * registrant, an unfinished account, an address no account holds) is skipped
+ * or, for claim evidence, held until the person becomes a member.
+ */
+export function isMember(memberId: string | null): boolean {
+  return memberId !== null && auditEntries.isMember.get(memberId) !== undefined;
+}
+
+/**
+ * Appends one row. The category is derived from the action type through the one
+ * topic map, never chosen by the caller.
+ */
 export function appendAuditEntry(input: AuditAppendInput): string {
   assertCanonicalActionType(input.actionType);
+  const category = auditTopicFor(input.actionType);
   const id = `audit_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
   const now = new Date().toISOString();
   auditEntries.insert.run(
@@ -44,7 +59,7 @@ export function appendAuditEntry(input: AuditAppendInput): string {
     input.actionType,
     input.entityType,
     input.entityId,
-    input.category,
+    category,
     input.reasonText ?? null,
     JSON.stringify(input.metadata ?? {}),
     currentDataOrigin(),
@@ -86,10 +101,18 @@ export function findStandingOwnAct(
   reversingActionType: string,
   entityType: string,
   entityId: string,
+  subject?: { metadataKey: string; id: string },
 ): OwnAuditRow | null {
-  const latest = auditEntries.findLatestForEntity.get(
-    entityType, entityId, actionType, reversingActionType,
-  ) as (OwnAuditRow & { actor_member_id: string | null; action_type: string }) | undefined;
+  // On a shared entity (an event's organizers, a club's leaders) the subject
+  // names which member the act was about, so an act on another member of the
+  // same event or club never stands in for one on this member.
+  const latest = (subject
+    ? auditEntries.findLatestForEntitySubject.get(
+      entityType, entityId, actionType, reversingActionType, `$.${subject.metadataKey}`, subject.id,
+    )
+    : auditEntries.findLatestForEntity.get(
+      entityType, entityId, actionType, reversingActionType,
+    )) as (OwnAuditRow & { actor_member_id: string | null; action_type: string }) | undefined;
   if (!latest || latest.action_type !== actionType || latest.actor_member_id !== actorMemberId) {
     return null;
   }

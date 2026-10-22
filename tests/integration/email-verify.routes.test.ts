@@ -252,17 +252,17 @@ describe('POST /verify', () => {
     const m = db.prepare(
       `SELECT id, email_verified_at FROM members WHERE login_email_normalized = ?`,
     ).get('verify-good@example.com') as { id: string; email_verified_at: string | null };
-    // Verification is an account-lifecycle transition and leaves an audit row.
+    // The account row records the verification. Verifying starts onboarding, so
+    // the account is not a member and the audit log holds nothing about it.
     const audit = db.prepare(
-      `SELECT COUNT(*) AS n FROM audit_entries
-        WHERE action_type = 'auth.email_verified' AND entity_id = ?`,
-    ).get(m.id) as { n: number };
+      'SELECT COUNT(*) AS n FROM audit_entries WHERE entity_id = ? OR actor_member_id = ?',
+    ).get(m.id, m.id) as { n: number };
     db.close();
     expect(m.email_verified_at).not.toBeNull();
-    expect(audit.n).toBe(1);
+    expect(audit.n).toBe(0);
   });
 
-  it('a still-valid token consumed after the account is already verified issues a session and still audits', async () => {
+  it('a still-valid token consumed after the account is already verified issues a session and writes no audit row', async () => {
     const app = createApp();
     await request(app).post('/register').type('form').send({
       givenNames: 'Verify', familyName: 'Already',
@@ -283,10 +283,8 @@ describe('POST /verify', () => {
 
     const res = await pressVerify(app, token);
 
-    // The link still signs the member in, so it is a session issuance and has
-    // to be recorded as one. Gating the audit row on the row-changing UPDATE
-    // lost exactly this case: nothing changed, so nothing was written, while a
-    // session went out with no trail behind it.
+    // The link still signs the registrant in. They are not a member, so the
+    // audit log records nothing about them either way.
     expect(res.status).toBe(303);
     const cookies = res.get('Set-Cookie');
     expect(cookies?.some((c) => c.startsWith('__Host-footbag_session='))).toBe(true);
@@ -296,14 +294,11 @@ describe('POST /verify', () => {
       `SELECT id FROM members WHERE login_email_normalized = ?`,
     ).get('verify-already@example.com') as { id: string };
     const rows = db.prepare(
-      `SELECT metadata_json FROM audit_entries
-        WHERE action_type = 'auth.email_verified' AND entity_id = ?`,
-    ).all(m.id) as { metadata_json: string }[];
+      'SELECT action_type FROM audit_entries WHERE entity_id = ? OR actor_member_id = ?',
+    ).all(m.id, m.id);
     db.close();
 
-    expect(rows).toHaveLength(1);
-    // Flagged, so the trail does not read as a second account activation.
-    expect(JSON.parse(rows[0].metadata_json).alreadyVerified).toBe(true);
+    expect(rows).toEqual([]);
   });
 
   it('a second press of the same link reports the first outcome: verified, sign in, no session, nothing written', async () => {
@@ -641,6 +636,21 @@ describe('POST /verify/resend — verify-email enqueue failure', () => {
   // eslint-disable-next-line @typescript-eslint/consistent-type-imports
   let commsMod: typeof import('../../src/services/communicationService');
 
+  // The registrant is not a member, so the failure is an operator alarm line
+  // and never an audit row: an alarm that stopped firing would leave the
+  // registrant with no verification email and nobody told.
+  async function expectOperatorAlarmAndNoAuditRow(email: string): Promise<void> {
+    const { logger } = await import('../../src/config/logger');
+    const lines = vi.mocked(logger.error).mock.calls.map((args) => String(args[0]));
+    expect(lines).toContain('audit: auth.register_notification_failed');
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    const member = db.prepare('SELECT id FROM members WHERE login_email_normalized = ?')
+      .get(email) as { id: string };
+    const rows = db.prepare('SELECT action_type FROM audit_entries WHERE entity_id = ?').all(member.id);
+    db.close();
+    expect(rows).toEqual([]);
+  }
+
   beforeAll(async () => {
     commsMod = await import('../../src/services/communicationService');
   });
@@ -684,23 +694,8 @@ describe('POST /verify/resend — verify-email enqueue failure', () => {
     const res = await request(app).post('/verify/resend').type('form').send({ email: targetEmail });
     expect(res.status).toBe(200);
 
-    // Audit row records the failure for operator triage.
-    const db = new BetterSqlite3(dbPath, { readonly: true });
-    const member = db.prepare(
-      `SELECT id FROM members WHERE login_email_normalized = ?`,
-    ).get(targetEmail) as { id: string } | undefined;
-    // The address is unique to this case, so its member registers once and fails
-    // once; the member and action type identify the row without an ordering.
-    const auditRow = member ? theOnlyRow<{ action_type: string }>(
-      db,
-      rowPin(
-        'audit_entries',
-        `entity_id = ? AND action_type = 'auth.register_notification_failed'`,
-        [member.id],
-      ),
-    ) : undefined;
-    db.close();
-    expect(auditRow).toBeDefined();
+    // The failure reaches the operator for triage.
+    await expectOperatorAlarmAndNoAuditRow(targetEmail);
   });
 
   // Defect caught: a registration whose verification email never reached the
@@ -776,23 +771,8 @@ describe('POST /verify/resend — verify-email enqueue failure', () => {
       spy.mockRestore();
     }
 
-    // ...but the failure is recorded for operator triage, not silently dropped.
-    const db = new BetterSqlite3(dbPath, { readonly: true });
-    const member = db.prepare(
-      `SELECT id FROM members WHERE login_email_normalized = ?`,
-    ).get(targetEmail) as { id: string } | undefined;
-    // The address is unique to this case, so its member registers once and fails
-    // once; the member and action type identify the row without an ordering.
-    const auditRow = member ? theOnlyRow<{ action_type: string }>(
-      db,
-      rowPin(
-        'audit_entries',
-        `entity_id = ? AND action_type = 'auth.register_notification_failed'`,
-        [member.id],
-      ),
-    ) : undefined;
-    db.close();
-    expect(auditRow).toBeDefined();
+    // ...but the failure reaches the operator, not silently dropped.
+    await expectOperatorAlarmAndNoAuditRow(targetEmail);
   });
 });
 

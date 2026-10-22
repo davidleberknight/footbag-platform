@@ -86,18 +86,18 @@ If remediation is needed, it goes through the existing channels (`overrides/`, `
 No change is "done" until:
 
 ```
-.venv/bin/python pipeline/qc/run_qc.py
+legacy_data/.venv/bin/python legacy_data/pipeline/qc/run_qc.py --root legacy_data
 ```
 
 returns `QC STATUS: PASS` with zero hard failures. `run_pipeline.sh full` enforces this between stage 4 and stage 5. If you bypassed `full`, run QC manually and report the result. Never commit the canonical snapshot (`event_results/canonical_input/`) while QC is failing. Never load the DB after a QC failure.
 
 ### 7. Fresh-clone / clean-`out/` behavior is considered
 
-Before claiming a change is correct, simulate or actually run the pipeline from a clean state (it needs the local mirror, refreshed first, or the run silently drops events; see the stale-mirror trap in `legacy_data/CLAUDE.md`):
+Before claiming a change is correct, simulate or actually run the pipeline from a clean state (it needs the local mirror, refreshed first, or the run silently drops events; see the stale-mirror trap in `legacy_data/CLAUDE.md`). The operator runs these; Claude proposes them:
 
 ```
 rm -rf legacy_data/out
-cd legacy_data && ./run_pipeline.sh full
+bash legacy_data/run_pipeline.sh full
 ```
 
 If the change introduces a consumer that reads a path no prior step writes, the clean-`out/` run fails. Either add the missing producer to the orchestrator, or make the consumer graceful with an actionable preflight error (see check 8).
@@ -136,19 +136,18 @@ Smallest change that satisfies the invariants. Preference order:
 Exact commands the operator should run to confirm the fix. Default set:
 
 ```
-cd legacy_data
-wc -l out/canonical/*.csv                              # baseline
-./run_pipeline.sh full                                 # rebuild
-wc -l out/canonical/*.csv                              # delta
-git diff --stat event_results/canonical_input/         # row-level confirmation
-.venv/bin/python pipeline/qc/run_qc.py                 # QC gate
+wc -l legacy_data/out/canonical/*.csv                  # baseline
+bash legacy_data/run_pipeline.sh full                  # rebuild
+wc -l legacy_data/out/canonical/*.csv                  # delta
+git diff --stat legacy_data/event_results/canonical_input/
+legacy_data/.venv/bin/python legacy_data/pipeline/qc/run_qc.py --root legacy_data
 ```
 
 For fresh-clone validation:
 
 ```
 rm -rf legacy_data/out
-cd legacy_data && ./run_pipeline.sh full
+bash legacy_data/run_pipeline.sh full
 ```
 
 For loader-touching changes, also run the loader twice and confirm DELETE+INSERT idempotency (no duplicates, honest counters).
@@ -169,12 +168,12 @@ Operational procedure detail (do not duplicate here):
 - `legacy_data/runbooks/rebuild-identity-pipeline.md` for identity-pipeline rebuild
 - `legacy_data/runbooks/workbook-v22.md` for the release workbook builder
 
-Always-on invariants (loaded automatically by the harness):
+Rules that load when their paths are touched:
 
 - `.claude/rules/db-write-safety.md` for DB mutation invariants
-- `.claude/rules/testing.md` for test mandate
+- `.claude/rules/testing.md` (loads on `legacy_data/tests/**`) for test mandate
 - `.claude/rules/doc-governance.md` for doc rules
-- `legacy_data/CLAUDE.md` for the subtree's lane, source precedence, local safety rules, known
+- `legacy_data/CLAUDE.md` (loads when a file under `legacy_data/` is read) for the subtree's lane, source precedence, local safety rules, known
   pipeline traps and the loader contract (it defers the structural invariants above to this skill)
 
 ---

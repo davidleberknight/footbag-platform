@@ -297,7 +297,6 @@ const TIER_RANK: Record<MemberTier, number> = {
 
 function audit(opts: {
   actionType: string;
-  category: string;
   actorType: AuditActorType;
   actorId: string | null;
   memberId: string;
@@ -306,7 +305,6 @@ function audit(opts: {
 }): void {
   appendAuditEntry({
     actionType: opts.actionType,
-    category: opts.category,
     actorType: opts.actorType,
     actorMemberId: opts.actorId,
     entityType: 'member',
@@ -469,7 +467,6 @@ export function applyPurchaseGrantInTx(
 
   audit({
     actionType: 'tier.purchase_grant',
-    category: 'tier_change',
     actorType: 'member',
     actorId,
     memberId,
@@ -546,18 +543,11 @@ export function applyAdminTier2InvariantGrantInTx(
   // produces one row: the steady-state grant records the tier movement on its
   // own admin.role_granted row rather than claiming to be a bootstrap.
   if (opts.emitAudit !== false) {
-    let actionType: string;
-    let category: 'admin' | 'tier_change';
-    if (reasonCode === 'dev_admin_register_allowlist.admin_tier2') {
-      actionType = 'admin.dev_register_allowlist_grant';
-      category = 'admin';
-    } else {
-      actionType = 'admin.bootstrap_grant';
-      category = 'admin';
-    }
+    const actionType = reasonCode === 'dev_admin_register_allowlist.admin_tier2'
+      ? 'admin.dev_register_allowlist_grant'
+      : 'admin.bootstrap_grant';
     audit({
       actionType,
-      category,
       actorType: 'system',
       actorId: null,
       memberId,
@@ -682,7 +672,6 @@ export function grantAdminRole(
     );
     audit({
       actionType: 'admin.role_granted',
-      category: 'admin',
       actorType: 'admin',
       actorId: adminMemberId,
       memberId: targetMemberId,
@@ -796,7 +785,6 @@ function raiseAdminLossAlertInTx(
   });
   audit({
     actionType: 'admin.loss_alert_raised',
-    category:   'admin',
     actorType:  actorId === 'system' ? 'system' : 'admin',
     actorId:    actorId === 'system' ? null : actorId,
     memberId:   lostMemberId,
@@ -854,7 +842,6 @@ export function runAdminLossSweep(): { examined: number; raised: number; failed:
       failed += 1;
       recordOperationalError({
         actionType: 'admin.loss_alert_failed',
-        category:   'admin',
         entityType: 'member',
         entityId:   row.id,
         reasonText: 'Administrator-loss recruitment alert could not be raised.',
@@ -914,7 +901,6 @@ export function revokeAdminRole(
     unsubscribeAdminAlertsInTx(targetMemberId, now, 'admin_role_revoke');
     audit({
       actionType: 'admin.role_revoked',
-      category: 'admin',
       actorType: 'admin',
       actorId: adminMemberId,
       memberId: targetMemberId,
@@ -1128,7 +1114,6 @@ export function applyHonorGrant(
 
     audit({
       actionType: honor === 'hof' ? 'tier.hof_grant' : 'tier.bap_grant',
-      category: 'governance_change',
       actorType: 'admin',
       actorId,
       memberId,
@@ -1225,7 +1210,6 @@ export function removeHonorGrant(
 
     audit({
       actionType: honor === 'hof' ? 'tier.hof_grant_removed' : 'tier.bap_grant_removed',
-      category: 'governance_change',
       actorType: 'admin',
       actorId,
       memberId,
@@ -1311,7 +1295,6 @@ export function applyLegacyClaimGrantInTx(
 
   audit({
     actionType: 'tier.legacy_claim_grant',
-    category:   'tier_change',
     actorType:  'member',
     actorId:    actorMemberId,
     memberId,
@@ -1410,7 +1393,6 @@ export function applyAutoLinkRevertGrantInTx(
 
   audit({
     actionType: 'tier.auto_link_revert',
-    category:   'tier_change',
     actorType:  'member',
     actorId:    actorMemberId,
     memberId,
@@ -1507,7 +1489,6 @@ function setGovernanceTier3InTx(args: {
 
   audit({
     actionType: 'tier.governance_set',
-    category: 'governance_change',
     actorType: args.actorType,
     actorId,
     memberId,
@@ -1626,7 +1607,6 @@ export function removeGovernanceTier3(
 
     audit({
       actionType: 'tier.governance_removed',
-      category: 'governance_change',
       actorType: 'admin',
       actorId,
       memberId,
@@ -1682,7 +1662,6 @@ export function adminOverride(
 
     audit({
       actionType: 'tier.admin_override',
-      category: 'tier_change',
       actorType: 'admin',
       actorId,
       memberId,

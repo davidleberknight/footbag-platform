@@ -381,7 +381,6 @@ function raiseIssueRow(draft: IssueDraft, now: Date): string | null {
 
   appendAuditEntry({
     actionType: 'payment.reconciliation_issue_raised',
-    category: 'payment',
     actorType: 'system',
     actorMemberId: null,
     entityType: 'reconciliation_issue',
@@ -708,7 +707,6 @@ export const paymentReconciliationService = {
 
       appendAuditEntry({
         actionType: 'payment.reconciliation_issue_resolved',
-        category: 'payment',
         actorType: 'admin',
         actorMemberId: input.adminMemberId,
         entityType: 'reconciliation_issue',
@@ -848,7 +846,8 @@ export const paymentReconciliationService = {
   },
 
   /** Admin All Payments list: every inbound payment, filterable and paged. */
-  getAdminPaymentsPage(q: AdminPaymentQuery): PageViewModel<AdminPaymentsContent> {
+  getAdminPaymentsPage(requested: AdminPaymentQuery): PageViewModel<AdminPaymentsContent> {
+    const q = withMonthToDate(requested, Date.now());
     const page = normalizePage(q.page);
     const memberInput = (q.memberId ?? '').trim();
     const filters: AdminPaymentFilters = {
@@ -874,8 +873,8 @@ export const paymentReconciliationService = {
     const sortedQuery: AdminPaymentQuery = { ...q, sort: activeSort };
     // Totals cover the chosen date range rather than the current page: a page
     // is an arbitrary fifty rows and summing it would answer a question nobody
-    // asked. Unbounded when no range is chosen, which is correct for an
-    // organization whose whole payment history is small.
+    // asked. The range defaults to the month to date, so the figures read as
+    // current takings; an open bound stays open when the reader asks for one.
     const totalsFrom = q.createdFrom || '0000-01-01';
     const totalsTo = inclusiveToBound(q.createdTo) ?? '9999-12-31';
     const totals = periodTotals(totalsFrom, totalsTo);
@@ -1816,7 +1815,6 @@ const MONEY_EVENT_LABELS: Record<string, string> = {
   'payment.dispute_funds_withdrawn': 'Disputed funds withdrawn',
   'payment.dispute_funds_reinstated': 'Disputed funds returned to the account',
   'payment.refund_not_returned': 'Refund could not be returned to the card',
-  'payment.payout_rejected': 'Payout to the bank account rejected',
 };
 
 /**
@@ -1869,6 +1867,16 @@ function parseDetails(json: string): Record<string, unknown> {
   } catch {
     return {};
   }
+}
+
+// A browse of the payments with no dates chosen covers the current month up to
+// today, so its rows and totals are current takings and the latest payment is
+// always in it; the dates are filled into the form so the reader sees the
+// window. A lookup by reference or member keeps its whole span.
+function withMonthToDate(q: AdminPaymentQuery, nowMs: number): AdminPaymentQuery {
+  if (q.createdFrom || q.createdTo || q.reference || q.memberId) return q;
+  const today = new Date(nowMs).toISOString().slice(0, 10);
+  return { ...q, createdFrom: `${today.slice(0, 8)}01`, createdTo: today };
 }
 
 // A payment's created_at is a full timestamp, so an admin's `to=YYYY-MM-DD` must

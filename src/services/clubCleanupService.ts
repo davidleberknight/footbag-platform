@@ -323,7 +323,6 @@ function applyRuleDemotions(adminMemberId: string): { demotedCount: number } {
 
       appendAuditEntry({
         actionType: 'club.auto_demoted',
-        category: 'club_lifecycle',
         actorType: 'admin',
         actorMemberId: adminMemberId,
         entityType: 'club',
@@ -1537,7 +1536,6 @@ function resolveClub(
 
     appendAuditEntry({
       actionType: `admin.club_cleanup.${action}`,
-      category: 'admin',
       actorType: 'admin',
       actorMemberId: adminMemberId,
       entityType: 'club',
@@ -1604,7 +1602,6 @@ function contactMembersToVolunteer(
 
   appendAuditEntry({
     actionType: 'admin.club_cleanup.contact_members',
-    category: 'admin',
     actorType: 'admin',
     actorMemberId: adminMemberId,
     entityType: 'club',
@@ -1717,7 +1714,6 @@ function resolveCandidate(
         actionType: action === 'dismiss'
           ? 'admin.club_cleanup.candidate_dismiss'
           : 'admin.club_cleanup.candidate_park',
-        category: 'admin',
         actorType: 'admin',
         actorMemberId: adminMemberId,
         entityType: 'legacy_club_candidate',
@@ -1750,7 +1746,6 @@ function resolveCandidate(
 
     appendAuditEntry({
       actionType: `admin.club_cleanup.candidate_${action}`,
-      category: 'admin',
       actorType: 'admin',
       actorMemberId: adminMemberId,
       entityType: 'legacy_club_candidate',
@@ -1790,7 +1785,6 @@ function delistUnconfirmedResidue(
     clubCleanupClaims.releaseClaim.run('club', clubId);
     appendAuditEntry({
       actionType: 'admin.club_cleanup.delist_residue',
-      category: 'admin',
       actorType: 'admin',
       actorMemberId: adminMemberId,
       entityType: 'club',
@@ -1852,7 +1846,6 @@ function bulkParkGroup(
         clubCleanupClaims.releaseClaim.run('candidate', item.candidateId);
         appendAuditEntry({
           actionType: 'admin.club_cleanup.candidate_park',
-          category: 'admin',
           actorType: 'admin',
           actorMemberId: adminMemberId,
           entityType: 'legacy_club_candidate',
@@ -1880,7 +1873,6 @@ function bulkParkGroup(
       clubCleanupClaims.releaseClaim.run('club', item.clubId);
       appendAuditEntry({
         actionType: `admin.club_cleanup.${action}`,
-        category: 'admin',
         actorType: 'admin',
         actorMemberId: adminMemberId,
         entityType: 'club',

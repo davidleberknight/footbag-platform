@@ -99,8 +99,11 @@
  *     link-help apply path. Date of birth is collected only in personal_details, not the
  *     claim task; the continue-without-linking decision additionally requires the member to
  *     choose which of its two answers is true (never had an old-site account, or had one and
- *     cannot find it), and each is recorded as given on the task's audit row, with the
- *     cards it passed over.
+ *     cannot find it), and each is recorded as given, with the cards it passed over.
+ *   - The audit log holds nothing about a prospective member. Claim evidence the claim
+ *     step produces (an anchor added, a refused claim, the no-link answer) is held on
+ *     the claim step's task row and written to the audit log by the transaction that
+ *     completes onboarding; step transitions write no audit row.
  *   - The claim step is answered only when its task is completed and no answerable card in
  *     it is still open. This governs sequencing only: isOnboardingComplete reads the task
  *     rows alone, so an open row never takes membership away from a member who has already
@@ -120,7 +123,7 @@
  *     shared write-time sanitizer before its length is checked.
  *
  * Persistence:
- *   member_onboarding_tasks (state, and the held answers in answer_json),
+ *   member_onboarding_tasks (state, and the held answers and held claim evidence in answer_json),
  *   club_viability_signals and club_insight_notes (written at completion), and the tables the
  *   delegated services own, also written at completion.
  *
@@ -163,7 +166,7 @@ import {
   type StructuralSignals,
   type ContextModifiers,
 } from './clubBootstrapClassificationService';
-import { identityAccessService, type ClaimTarget } from './identityAccessService';
+import { identityAccessService, type AuditSink, type ClaimTarget } from './identityAccessService';
 import { readIntConfig } from './configReader';
 import { type Candidate } from './legacyMatchingService';
 import {
@@ -297,20 +300,6 @@ function writeInsightNote(
     sourceEntityType,
     sourceEntityId,
   );
-  appendAuditEntry({
-    actionType:    'wizard.club_insight.recorded',
-    category:      'onboarding',
-    actorType:     'member',
-    actorMemberId: memberId,
-    entityType:    clubId ? 'club' : (sourceEntityType ?? 'member'),
-    entityId:      clubId ?? sourceEntityId ?? memberId,
-    metadata: {
-      source_stage: sourceStage,
-      // The note itself is member-authored free text and never goes into an
-      // audit row; the row records that one was left and how long it was.
-      note_length:  noteText.length,
-    },
-  });
 }
 
 // The task order is the wizard sequence: personal details first, because the
@@ -396,11 +385,12 @@ function ensureTaskRow(memberId: string, taskType: OnboardingTaskType): MemberOn
   return memberOnboarding.findByMemberAndType.get(memberId, taskType) as MemberOnboardingTaskRow;
 }
 
+// The task row's own state and completed_at are the record of a step; the audit
+// log takes only the wizard.complete row that makes the person a member.
 function transitionTask(
   memberId: string,
   taskType: string,
   nextState: OnboardingTaskState,
-  actionType: string,
 ): void {
   assertTaskType(taskType);
   const row = ensureTaskRow(memberId, taskType);
@@ -410,15 +400,6 @@ function transitionTask(
   memberOnboarding.updateState.run(
     nextState, completedAt, now, 'onboarding_service', row.id,
   );
-  appendAuditEntry({
-    actionType,
-    category: 'onboarding',
-    actorType: 'member',
-    actorMemberId: memberId,
-    entityType: 'member_onboarding_task',
-    entityId: row.id,
-    metadata: { task_type: taskType },
-  });
 }
 
 // A task is outstanding until it is completed. Stated as a predicate rather
@@ -527,12 +508,11 @@ function completeTask(memberId: string, taskType: string): void {
     return;
   }
   const wasComplete = isOnboardingComplete(memberId);
-  transitionTask(memberId, taskType, 'completed', 'wizard.task.completed');
+  transitionTask(memberId, taskType, 'completed');
   if (!wasComplete && isOnboardingComplete(memberId)) {
     const { claimNotApplied } = applyHeldAnswersOnCompletion(memberId);
     appendAuditEntry({
       actionType:    'wizard.complete',
-      category:      'onboarding',
       actorType:     'member',
       actorMemberId: memberId,
       entityType:    'member',
@@ -594,8 +574,47 @@ function writeHeld(memberId: string, taskType: OnboardingTaskType, value: unknow
   );
 }
 
+// A claim-evidence audit row (an anchor added, a refused claim, the no-link
+// answer) a prospective member's claim step produced. The audit log holds
+// nothing about someone who is not a member, so the row waits on the claim
+// step's task row, with when it happened, and is written at completion.
+type HeldAuditEntry = AuditAppendInput & { heldAt: string };
+
+interface HeldLegacyClaimStep {
+  claim?: HeldClaim;
+  audit?: HeldAuditEntry[];
+}
+
+function readHeldLegacyClaimStep(memberId: string): HeldLegacyClaimStep {
+  return readHeld<HeldLegacyClaimStep>(memberId, 'legacy_claim') ?? {};
+}
+
 function readHeldClaim(memberId: string): HeldClaim | null {
-  return readHeld<{ claim: HeldClaim }>(memberId, 'legacy_claim')?.claim ?? null;
+  return readHeldLegacyClaimStep(memberId).claim ?? null;
+}
+
+// The audit sink the claim step passes to the identity writers: a member's row
+// is written at once, a prospective member's is held.
+function auditOrHold(memberId: string): AuditSink {
+  return (input) => {
+    if (isOnboardingComplete(memberId)) {
+      appendAuditEntry(input);
+      return;
+    }
+    const held = readHeldLegacyClaimStep(memberId);
+    writeHeld(memberId, 'legacy_claim', {
+      ...held,
+      audit: [...(held.audit ?? []), { ...input, heldAt: new Date().toISOString() }],
+    });
+  };
+}
+
+// Inside the completion transaction, once the person is a member: write the
+// held claim-evidence rows in the order they happened.
+function releaseHeldAuditEntries(memberId: string): void {
+  for (const { heldAt, ...input } of readHeldLegacyClaimStep(memberId).audit ?? []) {
+    appendAuditEntry({ ...input, metadata: { ...(input.metadata ?? {}), held_at: heldAt } });
+  }
 }
 
 function readHeldClubAnswers(memberId: string): HeldClubAnswer[] {
@@ -607,7 +626,7 @@ function holdsAnything(memberId: string): boolean {
 }
 
 function holdClaim(memberId: string, claim: HeldClaim): void {
-  writeHeld(memberId, 'legacy_claim', { claim });
+  writeHeld(memberId, 'legacy_claim', { ...readHeldLegacyClaimStep(memberId), claim });
 }
 
 function holdClubAnswer(memberId: string, answer: HeldClubAnswer): void {
@@ -652,7 +671,6 @@ function recordHeldAnswerDropped(memberId: string, taskType: OnboardingTaskType,
   });
   appendAuditEntry({
     actionType:    'wizard.held_answer.dropped',
-    category:      'onboarding',
     actorType:     'member',
     actorMemberId: memberId,
     entityType:    'member',
@@ -724,7 +742,11 @@ function replayHeldAnswers(memberId: string, mode: 'rehearse' | 'apply'): { clai
 // Inside the transaction that completes onboarding: write every held answer
 // and release the holds.
 function applyHeldAnswersOnCompletion(memberId: string): { claimNotApplied: boolean } {
-  if (!holdsAnything(memberId)) return { claimNotApplied: false };
+  releaseHeldAuditEntries(memberId);
+  if (!holdsAnything(memberId)) {
+    writeHeld(memberId, 'legacy_claim', null);
+    return { claimNotApplied: false };
+  }
   const outcome = replayHeldAnswers(memberId, 'apply');
   writeHeld(memberId, 'legacy_claim', null);
   writeHeld(memberId, 'club_affiliations', null);
@@ -1277,31 +1299,30 @@ function submitMembershipResponse(
     }
   }
 
-  const actionType =
-    result.branch === 'confirmed'
-      ? 'wizard.club_affiliations.confirmed'
-      : result.branch === 'declined'
-        ? 'wizard.club_affiliations.declined'
-        : result.branch === 'cap_hit'
-          ? 'wizard.club_affiliations.cap_hit'
-          : 'wizard.club_affiliations.idempotent';
-  appendAuditEntry({
-    actionType,
-    category:      'onboarding',
-    actorType:     'member',
-    actorMemberId: memberId,
-    entityType:    'legacy_person_club_affiliation',
-    entityId:      candidateId,
-    metadata: {
-      kind:              'membership',
-      user_decision:     userDecision,
-      activity_signal:   activitySignal,
-      confirm_branch:    result.branch,
-      resolved_club_id:  result.resolvedClubId,
-      new_affiliation_id: result.newAffiliationId,
-      confidence_score:  affiliation.confidence_score,
-    },
-  });
+  // A repeated answer changed nothing, so like the signal above it writes no row.
+  if (result.branch !== 'idempotent') {
+    appendAuditEntry({
+      actionType:
+        result.branch === 'confirmed'
+          ? 'wizard.club_affiliations.confirmed'
+          : result.branch === 'declined'
+            ? 'wizard.club_affiliations.declined'
+            : 'wizard.club_affiliations.cap_hit',
+      actorType:     'member',
+      actorMemberId: memberId,
+      entityType:    'legacy_person_club_affiliation',
+      entityId:      candidateId,
+      metadata: {
+        kind:              'membership',
+        user_decision:     userDecision,
+        activity_signal:   activitySignal,
+        confirm_branch:    result.branch,
+        resolved_club_id:  result.resolvedClubId,
+        new_affiliation_id: result.newAffiliationId,
+        confidence_score:  affiliation.confidence_score,
+      },
+    });
+  }
 
   const branch: ClubAffiliationsBranch =
     result.branch === 'confirmed'  ? 'confirmed'
@@ -1361,7 +1382,6 @@ function submitLeadershipResponse(
     clubBootstrapLeaders.setStatusRejected.run('onboarding_service', candidateId);
     appendAuditEntry({
       actionType:    'wizard.club_affiliations.declined',
-      category:      'onboarding',
       actorType:     'member',
       actorMemberId: memberId,
       entityType:    'club_bootstrap_leader',
@@ -1387,7 +1407,6 @@ function submitLeadershipResponse(
   const promote = clubService.claimLeadershipInTx(candidateId, memberId);
   appendAuditEntry({
     actionType:    'wizard.club_affiliations.promoted',
-    category:      'onboarding',
     actorType:     'member',
     actorMemberId: memberId,
     entityType:    'club_bootstrap_leader',
@@ -1749,7 +1768,7 @@ function rehearseClaim(memberId: string, target: ClaimTarget, withSurname: boole
     throw err;
   }
   if (refused) {
-    identityAccessService.recordClaimRefused(memberId, target, refused.candidate);
+    identityAccessService.recordClaimRefused(memberId, target, refused.candidate, auditOrHold(memberId));
     return CLAIM_NO_LONGER_AVAILABLE;
   }
   return null;
@@ -1824,7 +1843,7 @@ function processAddAnchor(memberId: string, anchorType: string, anchorValue: str
     return { kind: 'retry_same', flash: null };
   }
   try {
-    identityAccessService.declareAnchor(memberId, anchorType, anchorValue);
+    identityAccessService.declareAnchor(memberId, anchorType, anchorValue, auditOrHold(memberId));
   } catch (err) {
     if (err instanceof RateLimitedError) {
       return { kind: 'rate_limited', retryAfterSeconds: err.retryAfterSeconds ?? 60 };
@@ -1897,33 +1916,6 @@ function readNoLinkAnswer(raw: unknown): NoLinkAnswer | null {
 }
 
 /**
- * Record which of the two answers finished the task, as the member's own stated
- * fact about themselves.
- *
- * The two answers get two action types rather than one carrying the answer in
- * its metadata, because the surface an administrator reads the ledger back on
- * filters by action type alone. Merged, the members who say they held an old
- * account and cannot find it — the only ones an administrator can help, and the
- * only place in the system that fact is marked — would be buried inside the far
- * larger population that needs nothing. The answer needs no metadata beyond the
- * value itself, which the action type already carries.
- */
-function recordNoLinkAnswer(memberId: string, answer: NoLinkAnswer): void {
-  const entry: Omit<AuditAppendInput, 'actionType'> = {
-    category:      'onboarding',
-    actorType:     'member',
-    actorMemberId: memberId,
-    entityType:    'member',
-    entityId:      memberId,
-  };
-  if (answer === 'never_had_one') {
-    appendAuditEntry({ actionType: 'wizard.legacy_claim.never_had_account', ...entry });
-  } else {
-    appendAuditEntry({ actionType: 'wizard.legacy_claim.cannot_find_record', ...entry });
-  }
-}
-
-/**
  * The legacy-claim task's non-claiming resolutions, both of which COMPLETE the
  * required task. There is no skip anywhere in the wizard; these are the task's
  * two explicit negative answers, gated on the personal-details prerequisite
@@ -1957,8 +1949,7 @@ function processContinueWithoutLinking(
     };
   }
   transaction(() => {
-    recordNoLinkAnswer(memberId, answer);
-    identityAccessService.recordClaimStepAnswered(memberId, answer);
+    identityAccessService.recordClaimStepAnswered(memberId, answer, auditOrHold(memberId));
     completeTask(memberId, 'legacy_claim');
     if (answer === 'cannot_find_it') {
       const now = new Date().toISOString();
@@ -2040,7 +2031,6 @@ function bulkDeclineMembership(memberId: string, candidateId: string): void {
   const result = clubService.confirmAffiliationInTx(candidateId, memberId, 'decline');
   appendAuditEntry({
     actionType:    'wizard.club_affiliations.declined',
-    category:      'onboarding',
     actorType:     'member',
     actorMemberId: memberId,
     entityType:    'legacy_person_club_affiliation',
@@ -2064,7 +2054,6 @@ function bulkDeclineLeadership(memberId: string, candidateId: string): void {
   clubBootstrapLeaders.setStatusRejected.run('onboarding_service', candidateId);
   appendAuditEntry({
     actionType:    'wizard.club_affiliations.declined',
-    category:      'onboarding',
     actorType:     'member',
     actorMemberId: memberId,
     entityType:    'club_bootstrap_leader',

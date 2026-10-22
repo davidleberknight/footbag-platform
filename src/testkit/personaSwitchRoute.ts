@@ -58,7 +58,6 @@ export async function getDevSwitch(
 
     appendAuditEntry({
       actionType: PERSONA_SWITCH_AUDIT_ACTION_TYPE,
-      category: 'identity',
       actorType: 'system',
       actorMemberId: null,
       entityType: 'member',

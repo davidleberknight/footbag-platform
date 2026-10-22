@@ -29,14 +29,14 @@ A secret MUST NEVER appear in any process's argv on any host: `ps -ef` (any read
 
 - Put a secret in argv (`cmd --pass X`, `-e VAR=value`, `ssh host "... $SECRET"`).
 - Pipe `sudo -S` into a stdin-consuming file writer (`tee`, `cat`, `dd`): if sudo consumes nothing, the password becomes the first line of the target file. Write the file from inside the remote half instead, through a root-side restricted temp file promoted with `install` (the `install_via_tmp` shape in `scripts/internal/install-cwagent-remote.sh`). `sudo -k -S -p "" bash` is not this case; it is the required form.
-- Reach a host's privileged state with `ssh -t` and an interactive sudo prompt. A TTY prompt cannot be driven by a test, it makes the operator hold a step in their head, and a tree carrying both forms drifts back to the weaker one. Every privileged remote step goes through the wire pattern below. This covers comments as well as code: a comment describing the interactive flow is how the superseded doctrine survived a revert and was later cited back as though it were the rule.
+- Reach a host's privileged state with `ssh -t` and an interactive sudo prompt. A TTY prompt cannot be driven by a test, it makes the operator hold a step in their head, and a tree carrying both forms drifts back to the weaker one. Every privileged remote step goes through the wire pattern below. This covers comments as well as code, because a comment describing the interactive flow gets cited back later as though it were the rule.
 - Write a secret to a world-readable file, or leave a keys file un-shredded.
 - Commit an archive of any kind. Every secret control here reads text, including the
   gitleaks history scan, so an archive is a container none of them can see into. A saved
-  Terraform plan is a zip: one committed under an unmatched filename held three live
-  secrets in public history for seven weeks with CI green throughout.
+  Terraform plan is a zip and can carry live secrets past every text scan.
   `scripts/ci/check_no_opaque_archives.sh` refuses them by magic bytes, wherever the file
-  sits and whatever it is called, because the filename rule is what failed.
+  sits and whatever it is called, because a filename rule misses one saved under an
+  unexpected name.
 - Compose a credential-redirect invocation from memory, or by analogy with a sibling script. Whether `< <operator credential file>` belongs on a command is a property of that one script, not of the family it sits in: read its usage header and its `read` sites before writing the command. Handing an operator `< credfile bash <script>` for a script that does not consume stdin feeds the password straight into a confirmation prompt and echoes it on the failed comparison.
 
 ## The required wire pattern
@@ -53,6 +53,10 @@ Every privileged remote step is one ssh session carrying one stream: the sudo pa
 
 Read the password once with `IFS= read -r SUDO_PASS` when several sessions need it; a single stdin cannot serve two, because the first drains it. A confirmation prompt reads from `/dev/tty`, never stdin, which now belongs to the credential pipe.
 
+The sending side reads one line and emits one line: sudo consumes exactly one, and the remote
+`bash` runs everything after it, so a bare `cat` of the operator's credential file would run any
+second line of it as a root command on a deployed host.
+
 File content travels the same way, base64 on one line, rather than by `scp`: no host-side staging path, so no cleanup step for a crash or an interrupt to skip.
 
 `scripts/install-cwagent-staging.sh` is the model; `scripts/lib/host-env-remote.sh` is the shared implementation for host env-file reads and writes. Operator-facing rationale: DEVOPS_GUIDE.md (private GitHub repo), "CloudWatch agent install (one-time per host)" section.
@@ -61,32 +65,20 @@ File content travels the same way, base64 on one line, rather than by `scp`: no 
 
 `scripts/ci/check_script_credentials.sh` runs inside `scripts/ci/assert_conventions.sh`, so it gates `npm run test:quick` and CI. It blocks `--password` flags, credentials in URLs, a `sudo` reading a password from stdin without `-k` (including a `-k` that `-p` swallows as its prompt string), `sudo -S` feeding a stdin-consuming file writer, a bare `cat` forwarding the whole credential file into the remote shell, any `ssh -t` (or the long `RequestTTY` spelling, or the flag assembled in an options array that an `ssh` invocation then expands), and a prompt-style read in a script carrying no terminal guard.
 
-Two of those forms are narrower than they look, and the difference is what keeps the gate usable.
-`-S` is refused only where it sits in `sudo`'s own run of flags, because that is the only place it
-means "read the password from stdin": `sudo passwd -S <account>` asks an account's password status
-and is refused by nothing, while `sudo -S` and `sudo -u root -S` still are. `--stdin` stays a
-whole-line match instead, because it never means anything benign. Spelling a flag around the gate is
-not a fix — `passwd --status` was once used that way, which is not portable and is the wrong reason
-to choose a flag.
+Scope is `scripts/**`, `legacy_data/scripts/**`, `legacy_data/tools/**`, and the repository-root operator scripts, which is where the credential file is resolved before it reaches a leaf deploy. Spelling a flag around the gate is not a fix.
 
-The bare-`cat` check is the newest and the reason for it is worth stating. The sending side of the wire pattern must read ONE line and emit ONE line, because sudo consumes exactly one and the remote `bash` inherits and executes everything after it. A `cat` in that position forwards every remaining line of whatever the operator redirected in, so a credential file holding a second credential, a comment or a stray note runs each of those as a root shell command on a deployed host. Three scripts carried that form while a fourth had been corrected and carried the explanation in its header, which is the shape of a fix that did not travel. The check is file-level, because the two halves sit on different lines, and it takes its file list from the same set the `-k` and file-writer checks narrow rather than searching again: the gate's normalizer blanks the inside of quoted strings, and the `sudo` invocation in this pattern lives inside the quoted `ssh` argument, so a fresh search finds nothing in exactly the files that matter. The prompt and guard checks read a file's code only: comments, heredoc bodies and the inside of quoted strings are stripped first, so a file cannot describe a guard it does not have. Scope is `scripts/**`, `legacy_data/scripts/**`, `legacy_data/tools/**`, and the repository-root operator scripts, which is where the credential file is resolved before it reaches a leaf deploy.
-
-Three properties of that gate are load-bearing, and each was absent once.
-
-**No line can exempt itself.** Path exclusions apply to the file list, never to a matched line. One filter does read the matched line, to let data plumbing through rather than report it as an operator prompt, and it reads the line's code only: every comment is cut away first, and the words it looks for have to stand as shell tokens. Otherwise a line excuses itself by naming one of them in its own trailing comment, or by carrying one inside a variable name.
-
-**It fails closed.** An empty file list, a shell tree with no files, or a `grep` exiting above 1 is a failure rather than a pass, and a successful run prints the number of files scanned so a silently shrinking scope is visible.
-
-**A file-level exemption for a prompt requires a terminal guard present as code**, with every comment cut away before it is looked for, so a file cannot describe a guard it does not have. That search reads a here-string rather than piping into `grep -q`: the early exit of `grep -q` closes the pipe, the stripper ahead of it dies on SIGPIPE, and under `pipefail` the pipeline's status makes a guard near the top of a long file read as no guard at all. Which files that hit depended on timing, which is the worst form this can take.
-
-`tests/integration/scriptCredentialsGate.script.test.ts` pins this by asserting refusals against throwaway repositories. Its "no weaker than the gate it replaced" block is the important half and exists for a specific reason: a rewrite of this gate once strengthened four properties while quietly catching *less* on a fifth, and every test at the time asserted a new capability rather than the absence of a regression, so nothing noticed. Any future rewrite has to keep refusing every form in that block, whatever its patterns look like. Add to it rather than replacing it.
+The gate's mechanics (why `-S` is refused only in sudo's own flags, why the bare-`cat` check is
+file-level, and the properties it must keep: no line exempts itself, it fails closed, and a prompt
+exemption needs a terminal guard present as code) are documented in its header.
+`tests/integration/scriptCredentialsGate.script.test.ts` pins them; its "no weaker than the gate
+it replaced" block must keep refusing every form in it, so add to that block rather than replacing it.
 
 The gate is a floor, not a proof. It matches shapes, so a determined author can still write a violation it does not recognise; what it buys is that the *common* regressions cannot land silently. Everything else in this rule is enforced by code review.
 
 ## Ambient state decides nothing
 
-A guard that an environment variable can satisfy is not a guard. `ASSUME_YES` is the worked example: the shared helper used to default it from the environment, so an exported `ASSUME_YES=yes` in an operator's shell accepted the typed confirmation on a production apply, on arming live payments, and on restoring a database, with no terminal involved and nothing printed to say so.
+A guard that an environment variable can satisfy is not a guard. `ASSUME_YES` is the worked example: were the shared helper to default it from the environment, an exported `ASSUME_YES=yes` in an operator's shell would accept the typed confirmation on a production apply, on arming live payments, and on restoring a database, with no terminal involved.
 
-The fix belongs in the shared library, not in each caller. Callers were expected to clear the variable before sourcing, which is a convention every new script has to remember, no test can enforce from outside, and seven scripts had already got wrong or half-right. `scripts/lib/host-env-remote.sh` now assigns it unconditionally, so a caller cannot inherit what the library always overwrites, and `--yes` still works because every caller parses its flags after sourcing.
+Such a property belongs in the shared library, not in each caller: clearing the variable before sourcing is a convention every new script has to remember and no test can enforce from outside. `scripts/lib/host-env-remote.sh` assigns it unconditionally, so a caller cannot inherit it, and `--yes` still works because every caller parses its flags after sourcing.
 
 Generalise it: when a safety property depends on every script doing something, put it where every script already goes rather than in a convention each one repeats.

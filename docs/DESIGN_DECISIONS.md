@@ -1081,7 +1081,7 @@ Trade-offs:
 
 Requirements:
 
-- The retention-cleanup job runs on the documented cadence and is part of the standard runtime, not an optional add-on. It permanently purges PII from soft-deleted member rows past the configured grace period, hard-deletes rows whose retention window has elapsed, and writes an audit-log entry per affected row. Loss of the job's last successful run past a configured threshold raises an alarm.
+- The retention-cleanup job runs on the documented cadence and is part of the standard runtime, not an optional add-on. It permanently purges PII from soft-deleted member rows past the configured grace period, hard-deletes rows whose retention window has elapsed, and records each pass on its job-run row; purging a member's personal data also writes that member's audit row. Loss of the job's last successful run past a configured threshold raises an alarm.
 
 Impact:
 
@@ -1103,7 +1103,7 @@ Member personal data: retained for a configurable grace period (Administrator-co
 
 - Media, news items, and events without published results: hard-deleted under the hard-delete pattern above, with no grace period; events with published results are never deleted. Deleted media persists in backups until backup retention expiry (operational constraint).
 
-- Audit logs: purged after 7 years; entries name people by id and exclude IP addresses, under Immutable Audit Logs with Privacy-safe Fields.
+- Audit logs: a daily job deletes rows older than `audit_retention_days` (never less than seven years); entries name people by id and exclude IP addresses, under Immutable Audit Logs with Privacy-safe Fields.
 
 - Financial records: retained as required for reconciliation/compliance, but after deletion windows, personal identifiers are removed/anonymized where feasible while keeping transaction integrity.
 
@@ -1169,7 +1169,7 @@ The audit log (`audit_entries`) is the accountability record of governance- and 
 
 - What is audited: a state change that an administrator, a member or the system makes to a member's account, standing, money or content, to a club or curated record, or to the platform's configuration, where the trail is needed to reconstruct who did what, when and why: grants, overrides, role changes, deletions, claims, disputes, payments, corrections, moderation, configuration.
 
-- What is not: a read (Every GET Is Read-only); an act that changed nothing (a repeat, a no-op, a prompt, a pending state); a fact a dedicated table already records, unless a named reader needs the audit row; anything concerning a person who is not a member. A prospective member's onboarding answers, claim evidence included, are written in the transaction that completes onboarding, so they enter the log only once the person is a member; a prospective member's own bookkeeping rows show by account id only. A scheduled job's trail is its `system_job_runs` row.
+- What is not: a read (Every GET Is Read-only); an act that changed nothing (a repeat, a no-op, a prompt, a pending state); a fact a dedicated table already records, unless a named reader needs the audit row; anything concerning a person who is not a member. A prospective member's onboarding answers, claim evidence included, are written in the transaction that completes onboarding, so they enter the log only once the person is a member. A scheduled job's trail is its `system_job_runs` row.
 
 - Fields: when it happened, actor type and actor member id, action type, entity type and id, a category derived from the action type through one map, an optional reason, and metadata.
 
@@ -1460,7 +1460,7 @@ Two rules follow, and they are what this decision is for.
 
 **A group's record is complete by construction.** The platform accepts no inbound mail and a group's mailing list sends from a no-reply identity, so every message to a group is composed on the platform and kept there; messages are append-only, and a correction is a further message. How members compose, reply and read is specified under Group Membership in the user stories.
 
-**Nothing is aged out.** Messages, threads, ended roster rows with their offices and terms, and the audit trail are retained indefinitely, so both the composition of the board at any past date and the argument behind any decision remain recoverable. The single exception is account erasure clearing a sender identity, which leaves the message itself standing.
+**Nothing is aged out.** Messages, threads, and ended roster rows with their offices and terms are retained indefinitely, so both the composition of the board at any past date and the argument behind any decision remain recoverable. The single exception is account erasure clearing a sender identity, which leaves the message itself standing.
 
 Rationale:
 
@@ -2955,6 +2955,30 @@ Impact:
 - The convention gate rejects a raw spacing length, so the rhythm stays closed without depending on review.
 
 - The rendered-style check measures, on every page view at phone and desktop width, the gap between every pair of stacked blocks and the space inside every drawn box, and fails any that is zero, wider than the widest role, or between two roles.
+
+## 4.18 Admin Lists Open on the Latest Data
+
+Decision:
+
+Every admin page that lists time-stamped rows opens on the latest data. With no dates chosen, a browse covers a default span that ends now (today included, so the newest row is always in it) and runs back a span set for the topic: the audit log the last 90 days, its monthly summary the last 12 months, payments the month to date, alarms the last 30 days, the email log the last 7 days. The span is filled into the page's From and To fields, so the reader sees what they are looking at. Results are sorted most recent first.
+
+- A lookup is not a browse: a member's or an entity's history, a payment found by reference or member, and a message found by recipient keep their whole span unless the reader narrows it.
+- A page with no date inputs pages its whole history newest first rather than dropping older rows, so nothing becomes unreachable.
+- A still-active alarm is shown above the window whatever its age.
+
+Rationale:
+
+- An unbounded default mixes this week's events into all of history, and a total over all history reads as current figures.
+- A window that ends before now hides the row an administrator most often came to see.
+
+Requirements:
+
+- Three lists are worked or read in sequence and stay oldest first: open work-queue items, media awaiting storage removal, and the money history on one payment.
+- A bare To date includes that whole day.
+
+Impact:
+
+- A new admin list or search follows this rule, with its span chosen for its topic.
 
 # 5. Back-End Services and Patterns
 
@@ -5187,7 +5211,7 @@ DEVOPS_GUIDE.md (private GitHub repo) documents step-by-step recovery procedures
 
 Integration tests validate the S3 upload contract (retry logic, error handling, promotion into the hourly and daily tiers). The replication alarms provide ongoing assurance that the off-region copies keep pace.
 
-Backup retention windows support data deletion policy. On the primary snapshot bucket the recovery window is set by the per-generation lifecycle rules: in production, two days of the fine-grained stream, thirty days of the hourly generation, four hundred days of the daily one; staging keeps deliberately shorter windows. The Object Lock retention on the cross-region disaster-recovery bucket is 90 days, set in Terraform beside the bucket it governs rather than in the configuration store, because nothing in the application reads or changes it. The normative default for the remaining backup retention value is defined in the Configurable Parameters section of the user stories: `audit_retention_days` (default: 7 years / 2555 days) records how long audit history must be kept.
+Backup retention windows support data deletion policy. On the primary snapshot bucket the recovery window is set by the per-generation lifecycle rules: in production, two days of the fine-grained stream, thirty days of the hourly generation, four hundred days of the daily one; staging keeps deliberately shorter windows. The Object Lock retention on the cross-region disaster-recovery bucket is 90 days, set in Terraform beside the bucket it governs rather than in the configuration store, because nothing in the application reads or changes it.
 
 WAL checkpoint failure handling: If a long-running transaction holds locks, the WAL checkpoint cannot complete. The backup worker attempts wal_checkpoint(TRUNCATE) with busy_timeout=10000 (10 seconds). If checkpoint fails, the worker logs a warning, skips that backup cycle, and retries in the next five-minute interval. After three consecutive checkpoint failures, an administrator alert is sent indicating potential database contention issues. Backups only proceed after successful WAL checkpoint to ensure consistency.
 

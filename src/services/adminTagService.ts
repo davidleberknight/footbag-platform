@@ -317,7 +317,6 @@ export const adminTagService = {
       }
       appendAuditEntry({
         actionType:    'media.tag_retired',
-        category:      'media',
         actorType:     'admin',
         actorMemberId: actorId,
         entityType:    'tag',

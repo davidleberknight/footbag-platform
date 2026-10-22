@@ -1035,7 +1035,8 @@ WHERE s.effective_start_at = (
 
 -- Privacy-safe, append-only audit ledger. Records who did what to which entity
 -- and when, with structured metadata. IP addresses and user-agent strings are
--- NEVER stored. UPDATE and DELETE are blocked by triggers; rows are permanent.
+-- NEVER stored. UPDATE is blocked by a trigger, and so is every DELETE except
+-- the daily retention purge of rows older than the retention window.
 -- Actor context uses actor_type + actor_member_id (NULL for system actors).
 CREATE TABLE audit_entries (
   id         TEXT PRIMARY KEY,
@@ -1074,6 +1075,9 @@ CREATE INDEX idx_audit_category    ON audit_entries(category);
 CREATE INDEX idx_audit_actor_member
   ON audit_entries(actor_member_id)
   WHERE actor_member_id IS NOT NULL;
+-- The readers that look up an entity's history or one kind of act.
+CREATE INDEX idx_audit_entity      ON audit_entries(entity_type, entity_id);
+CREATE INDEX idx_audit_action_type ON audit_entries(action_type);
 
 CREATE TRIGGER trg_audit_no_update
 BEFORE UPDATE ON audit_entries
@@ -1081,10 +1085,17 @@ BEGIN
   SELECT RAISE(ABORT, 'audit_entries is immutable; use append only');
 END;
 
+-- Only a row past the retention window may be deleted. The window is the
+-- configured audit_retention_days, never less than seven years (2555 days),
+-- and seven years when the setting is missing or unreadable, so lowering the
+-- setting cannot erase recent history.
 CREATE TRIGGER trg_audit_no_delete
 BEFORE DELETE ON audit_entries
+WHEN OLD.occurred_at >= strftime('%Y-%m-%dT%H:%M:%fZ', 'now', '-' || MAX(2555, COALESCE(
+  (SELECT CAST(value_json AS INTEGER) FROM system_config_current
+    WHERE config_key = 'audit_retention_days'), 2555)) || ' days')
 BEGIN
-  SELECT RAISE(ABORT, 'audit_entries is immutable; rows may not be deleted');
+  SELECT RAISE(ABORT, 'audit_entries is immutable; only rows past the retention window may be deleted');
 END;
 
 -- Append-only ledger of PII erasures. Each row records that an erasure shape

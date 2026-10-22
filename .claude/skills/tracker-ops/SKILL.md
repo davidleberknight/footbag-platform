@@ -85,7 +85,7 @@ the human's instruction as given.
   the env var, works when the symlink is absent) — do not hard-code it here, it drifts.
   Every issue: one lane label, the applicable markers, one assignee, and the milestone when
   go-live-scoped. `blocked` needs a first body line `Blocked on: <person> - <what unblocks
-  it>`. Unwired (no env var and no symlink): fall back to the labels the local `BUGS.md` or
+  it>`. Unwired (no env var and no symlink): fall back to the labels `BUGS.md` or
   the human names, and note the wiring gap in one line.
 - Files drafted into `footbag_private_repo/` are working drafts: a human reviews,
   commits, and pushes them.
@@ -110,7 +110,7 @@ standard above, plus the exact `gh issue create -R "$FOOTBAG_PRIVATE_REPO" --tit
 markers as they apply). Claude runs it under the mutation policy above once the human has
 agreed to the set: ask once, listing each issue's title, lane and proposed owner, rather than
 one question per issue.
-`BUGS.md` is the local scratch sink; a finding leaves it
+`footbag_private_repo/BUGS.md` is the hunts' working sink; a finding leaves it
 when its issue is filed or its fix lands. When the tracker is not wired, skip drafting with
 the one-line degradation note above.
 

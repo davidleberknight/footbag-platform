@@ -32,7 +32,7 @@ import { openLiveDb } from './helpers/liveDb';
 import { seedCrawlWorld } from '../fixtures/crawl/seedCrawlFixture';
 import { submitForm } from './helpers/submitForm';
 import {
-  insertClub, insertClubLeader, insertCuratorVideo, insertEmailArchive, insertEvent, insertFreeformTag,
+  insertAuditEntry, insertClub, insertClubLeader, insertCuratorVideo, insertEmailArchive, insertEvent, insertFreeformTag,
   insertFreestyleEvAdjudication, insertFreestyleTrick, insertFreestyleTrickAlias,
   insertHistoricalPerson, insertLegacyMember, insertMediaItem, insertMediaJob, insertMember,
   insertMemberClubAffiliation, insertMemberGallery, insertNetTeam, insertPayment,
@@ -42,6 +42,7 @@ import {
   EXEMPT, REACH, REACH_ROWS, STRESS, VIEWERS, forMember, listPageTemplates,
   STRESS_CLUB_KEY, STRESS_CLUB_NAME, STRESS_CLUB_URL,
   STRESS_TRICK_NAME, STRESS_TRICK_NOTATION, STRESS_TRICK_SLUG,
+  STRESS_AUDIT_ENTITY_ID, STRESS_AUDIT_METADATA,
   type Reach,
 } from '../fixtures/pageLists';
 
@@ -60,6 +61,7 @@ test.beforeAll(() => {
   });
   // A displayed nickname rides on the same line as the name, so the longest row carries one.
   insertFreestyleTrickAlias(db, `${STRESS_TRICK_SLUG}_nick`, STRESS_TRICK_SLUG, 'the extraordinarily long community nickname', { alias_type: 'common', alias_display: 1 });
+  insertAuditEntry(db, { action_type: 'admin.loss_alert_raised', entity_type: 'member', entity_id: STRESS_AUDIT_ENTITY_ID, metadata: STRESS_AUDIT_METADATA });
 
   // Rows the listed pages need, under the ids their URLs name.
   const member = 'member_persona_t1_paid';
@@ -70,7 +72,7 @@ test.beforeAll(() => {
   insertNetTeam(db, { team_id: REACH_ROWS.netTeamId, person_id_a: playerA, person_id_b: playerB });
   insertMemberGallery(db, { id: REACH_ROWS.memberGalleryId, owner_member_id: member, created_by: member, name: 'Rendered Style Gallery', description: '', is_default: 0 });
   insertMediaItem(db, { id: REACH_ROWS.memberMediaId, uploader_member_id: member, caption: 'Rendered style upload' });
-  insertPayment(db, { member_id: member, status: 'succeeded', stripe_checkout_session_id: REACH_ROWS.checkoutSessionId });
+  insertPayment(db, { id: REACH_ROWS.paymentId, member_id: member, status: 'succeeded', stripe_checkout_session_id: REACH_ROWS.checkoutSessionId });
   insertRecurringDonationSubscription(db, { member_id: member, stripe_subscription_id: REACH_ROWS.recurringSubscriptionId, status: 'active', amount_cents: 2500 });
   insertCuratorVideo(db, { uploaderMemberId: 'crawl-fh-system', sourceFilename: 'rendered-style.mp4', slotTag: '#rendered_style_demo', mediaId: REACH_ROWS.curatorMediaId });
   insertMediaJob(db, { id: REACH_ROWS.curatorJobId, admin_member_id: 'member_persona_admin_t2' });

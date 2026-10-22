@@ -102,7 +102,7 @@ function seedRequester(realName?: string): string {
 }
 
 describe('member intake', () => {
-  it('raises the link-help item from the identity-link contact category, with audit + dedupe onto the open item', async () => {
+  it('raises the link-help item from the identity-link contact category, deduped onto the open item', async () => {
     const memberId = seedRequester();
     const res = await askAdminToLink(memberId, 'I competed at Worlds 2003 as Helper.');
     expect(res.status).toBe(303);
@@ -115,7 +115,8 @@ describe('member intake', () => {
     const payload = JSON.parse(String(items[0].reason_text)) as Record<string, unknown>;
     expect(payload.statement).toBe('I competed at Worlds 2003 as Helper.');
     expect(payload.is_dispute).toBe(false);
-    expect(audits(memberId, 'support.help_request_submitted')).toHaveLength(1);
+    // The queue item is the record of an ordinary request; only a dispute is audited.
+    expect(audits(memberId, 'claim.dispute_opened')).toHaveLength(0);
 
     // Re-submit collapses onto the open item rather than stacking a second.
     const again = await askAdminToLink(memberId, 'Second message.');
@@ -140,8 +141,6 @@ describe('member intake', () => {
       WHERE entity_id = ? AND task_type = 'member_contact_request'
     `).all(memberId) as Array<Record<string, unknown>>;
     expect(contactRows).toHaveLength(1);
-    expect(audits(memberId, 'support.contact_request_submitted')).toHaveLength(1);
-    expect(audits(memberId, 'support.help_request_submitted')).toHaveLength(0);
   });
 
   it('classifies a request as a dispute from the records, not from anything the member declares', async () => {
@@ -208,13 +207,10 @@ describe('member intake', () => {
     const payload = JSON.parse(String(item.reason_text)) as Record<string, unknown>;
     expect(String(payload.statement)).toContain('oldhandle@old.example.com');
 
-    const submitted = audits(memberId, 'support.help_request_submitted');
-    expect(submitted).toHaveLength(1);
-    const metadata = JSON.parse(String(submitted[0].metadata_json)) as Record<string, unknown>;
-    expect(metadata.work_queue_item_id).toBe(item.id);
-    expect(metadata.is_dispute).toBe(false);
-    expect(metadata).not.toHaveProperty('statement');
-    expect(String(submitted[0].metadata_json)).not.toContain('oldhandle');
+    // The statement is the member's own words and stays out of the
+    // purge-exempt audit log.
+    const allAudit = db.prepare('SELECT reason_text, metadata_json FROM audit_entries').all();
+    expect(JSON.stringify(allAudit)).not.toContain('oldhandle');
   });
 
   it('rejects an empty message with an inline 422 and raises nothing', async () => {

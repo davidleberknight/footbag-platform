@@ -182,13 +182,13 @@ const SECTIONS: SectionSpec[] = [
       },
       {
         key: 'audit_retention_days',
-        label: 'Audit record hold',
+        label: 'Audit record retention',
         unit: 'days',
-        min: 1,
+        min: 2555,
         max: 36500,
         defaultValue: 2555,
-        disposition: 'Hold',
-        helpText: 'How long the accountability record must be kept. Nothing on the platform deletes audit entries and this does not schedule a deletion: it states the obligation the archive has to meet. Seven years is the baseline.',
+        disposition: 'Delete',
+        helpText: 'How long an audit record is kept. The daily cleanup deletes records older than this. It cannot be set below seven years (2555 days), the period the record must be kept.',
       },
       {
         key: 'ballot_retention_days',
@@ -606,7 +606,6 @@ export const adminSystemParametersService = {
           );
           appendAuditEntry({
             actionType: 'config.updated',
-            category: 'system',
             actorType: 'admin',
             actorMemberId,
             entityType: 'system_config',
@@ -684,7 +683,6 @@ export const adminSystemParametersService = {
         );
         appendAuditEntry({
           actionType: 'config.price_scheduled',
-          category: 'pricing',
           actorType: 'admin',
           actorMemberId,
           entityType: 'system_config',

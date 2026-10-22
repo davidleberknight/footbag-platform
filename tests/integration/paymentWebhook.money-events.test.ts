@@ -435,10 +435,11 @@ describe('a renewal the provider reports as paid', () => {
     expect(paymentService.handleWebhook(zero.rawBody, zero.signature)).toEqual({ outcome: 'duplicate' });
 
     expect(chargeRows('in_me_zero')).toHaveLength(0);
+    // Nothing moved, so nothing is audited.
     expect(countRows(
-      "SELECT COUNT(*) AS c FROM audit_entries WHERE action_type = 'payment.recurring_charge_zero_amount' AND entity_id = ?",
+      "SELECT COUNT(*) AS c FROM audit_entries WHERE entity_id = ? AND action_type LIKE 'payment.recurring_charge%'",
       subId,
-    )).toBe(1);
+    )).toBe(0);
     expect(countRows(
       'SELECT COUNT(*) AS c FROM outbox_emails WHERE recipient_member_id = ?',
       M_INVOICE_ZERO,

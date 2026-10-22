@@ -166,7 +166,7 @@ describe('a missing task row reads as pending', () => {
     expect(svc.isOnboardingComplete(MEMBER_PARTIAL)).toBe(false);
   });
 
-  it('completing a task with no row creates it completed, with its audit row', () => {
+  it('completing a task with no row creates it completed, and writes no audit row about the prospective member', () => {
     const memberId = 'onb-rowless-complete';
     const d = new BetterSqlite3(dbPath);
     insertMember(d, { id: memberId, slug: 'onb_rowless_complete', login_email: 'onbrc@example.com', onboarding: 'none' });
@@ -174,7 +174,7 @@ describe('a missing task row reads as pending', () => {
     svc.completeTask(memberId, 'personal_details');
     const rows = readTaskRows(memberId);
     expect(rows.map((r) => [r.task_type, r.state])).toEqual([['personal_details', 'completed']]);
-    expect(readAuditRowsForMember(memberId).map((a) => a.action_type)).toEqual(['wizard.task.completed']);
+    expect(readAuditRowsForMember(memberId)).toEqual([]);
   });
 });
 
@@ -205,7 +205,7 @@ describe('a task is outstanding until it is completed', () => {
 });
 
 describe('memberOnboardingService.completeTask', () => {
-  it('transitions to completed, sets completed_at, removes from widget, and emits one audit row', () => {
+  it('transitions to completed, sets completed_at, and removes it from the widget; the task row is the record', () => {
     seedPendingTasks(MEMBER_COMPLETE);
     svc.completeTask(MEMBER_COMPLETE, 'club_affiliations');
 
@@ -215,38 +215,27 @@ describe('memberOnboardingService.completeTask', () => {
     expect(target.completed_at).not.toBeNull();
 
     expect(svc.nextOutstandingTaskType(MEMBER_COMPLETE)).not.toBe('club_affiliations');
-
-    const audits = readAuditRowsForMember(MEMBER_COMPLETE)
-      .filter((a) => a.action_type === 'wizard.task.completed');
-    expect(audits).toHaveLength(1);
-    expect(audits[0].entity_id).toBe(target.id);
-    expect(JSON.parse(audits[0].metadata_json)).toEqual({
-      task_type: 'club_affiliations',
-    });
+    expect(readAuditRowsForMember(MEMBER_COMPLETE).filter((a) => a.entity_id === target.id)).toEqual([]);
   });
 });
 
-describe('memberOnboardingService transition audit trail', () => {
-  it('a no-op transition writes nothing, so only the real state change is recorded', () => {
+describe('memberOnboardingService repeated transition', () => {
+  it('a no-op transition writes nothing, so the first completion time stands', () => {
     const d = new BetterSqlite3(dbPath);
     insertOnboardingTask(d, MEMBER_CYCLE, 'personal_details', 'pending');
     insertOnboardingTask(d, MEMBER_CYCLE, 'legacy_claim', 'pending');
     insertOnboardingTask(d, MEMBER_CYCLE, 'club_affiliations', 'pending');
     d.close();
 
-    // Completing an already-completed task changes nothing and must not pad
-    // the trail with a transition that did not happen.
+    // Completing an already-completed task changes nothing, so it must not
+    // move the recorded completion time.
     svc.completeTask(MEMBER_CYCLE, 'club_affiliations');
+    const first = readTaskRows(MEMBER_CYCLE).find((r) => r.task_type === 'club_affiliations')!;
     svc.completeTask(MEMBER_CYCLE, 'club_affiliations');
 
-    const rows = readTaskRows(MEMBER_CYCLE);
-    const target = rows.find((r) => r.task_type === 'club_affiliations')!;
+    const target = readTaskRows(MEMBER_CYCLE).find((r) => r.task_type === 'club_affiliations')!;
     expect(target.state).toBe('completed');
-    expect(target.completed_at).not.toBeNull();
-
-    const audits = readAuditRowsForMember(MEMBER_CYCLE)
-      .filter((a) => a.entity_id === target.id);
-    expect(audits.map((a) => a.action_type)).toEqual(['wizard.task.completed']);
+    expect(target.completed_at).toBe(first.completed_at);
   });
 });
 

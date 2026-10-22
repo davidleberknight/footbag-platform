@@ -159,7 +159,7 @@ import { memberOnboardingService } from './memberOnboardingService';
 import { NotFoundError, RateLimitedError, ValidationError } from './serviceErrors';
 import { hit as rateLimitHit } from './rateLimitService';
 import { readIntConfig } from './configReader';
-import { appendAuditEntry } from './auditService';
+import { appendAuditEntry, isMember } from './auditService';
 import { runSqliteRead } from './sqliteRetry';
 import { buildAvatarUrl } from './avatarService';
 import { emailService } from './emailService';
@@ -193,11 +193,13 @@ const MAX_PHONE = 40;
 
 // Records a forensic audit row for a member self-service profile/PII mutation.
 // Metadata carries the touched field names only (never the new values), so the
-// trail stays free of the PII it exists to make traceable.
+// trail stays free of the PII it exists to make traceable. A prospective
+// member's edits during onboarding are not audited: the log holds rows about
+// members only.
 function auditProfileUpdate(memberId: string, fields: readonly string[]): void {
+  if (!isMember(memberId)) return;
   appendAuditEntry({
     actionType: 'member.profile_updated',
-    category: 'profile_change',
     actorType: 'member',
     actorMemberId: memberId,
     entityType: 'member',
@@ -1127,7 +1129,6 @@ function purgeAccountPII(memberId: string): PurgeAccountPIIResult {
 
     appendAuditEntry({
       actionType:    'member.pii_purged',
-      category:      'member',
       actorType:     'system',
       actorMemberId: null,
       entityType:    'member',
@@ -1212,7 +1213,6 @@ function scrubDeceasedMemberPII(memberId: string): ScrubDeceasedMemberPIIResult 
 
     appendAuditEntry({
       actionType:    'member.deceased_pii_scrubbed',
-      category:      'member',
       actorType:     'system',
       actorMemberId: null,
       entityType:    'member',
@@ -1812,7 +1812,6 @@ export const memberService = {
         // values already on file is not an event.
         correctionAuditId = appendAuditEntry({
           actionType:    'member.profile_corrected',
-          category:      'profile_change',
           actorType:     'admin',
           actorMemberId: actor.memberId,
           entityType:    'member',

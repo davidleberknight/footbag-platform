@@ -75,14 +75,15 @@ function readNotes(memberId: string): NoteRow[] {
     .all(memberId) as NoteRow[];
 }
 
-function readInsightAudits(memberId: string): Array<{ action_type: string; metadata_json: string }> {
-  return testDb
+/** Everything the audit log holds about this member's acts, as one string. */
+function auditTextFor(memberId: string): string {
+  const rows = testDb
     .prepare(
-      `SELECT action_type, metadata_json FROM audit_entries
-         WHERE actor_member_id = ? AND action_type = 'wizard.club_insight.recorded'
-         ORDER BY rowid`,
+      `SELECT action_type, reason_text, metadata_json FROM audit_entries
+         WHERE actor_member_id = ? OR entity_id = ?`,
     )
-    .all(memberId) as Array<{ action_type: string; metadata_json: string }>;
+    .all(memberId, memberId) as Array<{ action_type: string; reason_text: string | null; metadata_json: string }>;
+  return rows.map((r) => `${r.action_type} ${r.reason_text ?? ''} ${r.metadata_json}`).join('\n');
 }
 
 // One member, one membership card, personal details already on file so the club
@@ -197,11 +198,9 @@ describe('the club card asks for insight on the last card', () => {
       note_text:    'They merged into the university club in 2019.',
     });
 
-    const audits = readInsightAudits(MEMBER_CARD);
-    expect(audits).toHaveLength(1);
-    const meta = JSON.parse(audits[0].metadata_json);
-    expect(meta.note_length).toBe('They merged into the university club in 2019.'.length);
-    expect(audits[0].metadata_json).not.toContain('university');
+    // The note lives in its own table; the audit log, which erasure never
+    // reaches, holds none of the member's words.
+    expect(auditTextFor(MEMBER_CARD)).not.toContain('university');
   });
 });
 
@@ -241,7 +240,6 @@ describe('the insight question is asked once per member', () => {
     });
     // No orphan: the repeat must not land a second note keyed to nothing.
     expect(notes.filter((n) => n.club_id === null)).toHaveLength(0);
-    expect(readInsightAudits(MEMBER_REPEAT)).toHaveLength(1);
   });
 
   it('stores no note when an already-answered last card is posted again with one', async () => {
@@ -263,6 +261,7 @@ describe('the insight question is asked once per member', () => {
       .prepare(`SELECT state FROM member_onboarding_tasks WHERE member_id = ? AND task_type = 'club_affiliations'`)
       .get(MEMBER_LATE) as { state: string } | undefined;
     expect(taskState?.state).toBe('completed');
+    const auditBefore = auditTextFor(MEMBER_LATE);
 
     // A stale tab or crafted request re-posts the same card with a note.
     const late = await request(createApp())
@@ -274,7 +273,8 @@ describe('the insight question is asked once per member', () => {
     expect(late.headers.location).toBe(first.headers.location);
 
     expect(readNotes(MEMBER_LATE)).toHaveLength(0);
-    expect(readInsightAudits(MEMBER_LATE)).toHaveLength(0);
+    // The repeat changed nothing, so the audit log gains nothing either.
+    expect(auditTextFor(MEMBER_LATE)).toBe(auditBefore);
   });
 
   it('stores no second note when a member who left one on a card then answers no club with another', async () => {
@@ -321,7 +321,6 @@ describe('the insight question is asked once per member', () => {
       source_stage: 'onboarding_club_card',
       note_text:    'That club folded years ago.',
     });
-    expect(readInsightAudits(MEMBER_TWICE)).toHaveLength(1);
   });
 });
 
@@ -342,7 +341,6 @@ describe('the insight question is optional and bounded', () => {
       });
     expect(res.status).toBe(303);
     expect(readNotes(MEMBER_BLANK)).toHaveLength(0);
-    expect(readInsightAudits(MEMBER_BLANK)).toHaveLength(0);
   });
 
   it('refuses an over-long note and leaves the card unanswered so the words are not lost', async () => {

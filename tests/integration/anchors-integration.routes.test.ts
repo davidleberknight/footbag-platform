@@ -259,7 +259,7 @@ describe('registration-time conflict prompt', () => {
     identity.identityAccessService.claimLegacyAccount('mem-conflict-owner', 'LM-conflict-1');
   }
 
-  it('records the prompted event at registration, renders the wizard prompt, and the later dispute files a help request', async () => {
+  it('renders the wizard prompt, and the later dispute files a help request', async () => {
     seedClaimedRecord();
     const memberId = insertMember(db, {
       id: 'mem-conflict-new', slug: 'mem_conflict_new',
@@ -301,7 +301,9 @@ describe('registration-time conflict prompt', () => {
         message: 'That claimed record is actually mine.',
       });
     expect(res.status).toBe(303);
-    expect(audits(memberId, 'legacy.registration_conflict_disputed')).toHaveLength(1);
+    // One audit row for the dispute, not one per name the same act went by.
+    expect(audits(memberId, 'claim.dispute_opened')).toHaveLength(1);
+    expect(audits(memberId, 'legacy.registration_conflict_disputed')).toHaveLength(0);
 
     const item = db.prepare(
       `SELECT reason_text FROM work_queue_items WHERE entity_id = ? AND task_type = 'member_link_help_request'`,
@@ -401,12 +403,12 @@ describe('registration-time conflict prompt', () => {
 });
 
 // The prompt shown to a registrant names the people it found, because that is
-// the question it is asking them. The permanent ledger entry behind it must not:
-// erasure never reaches that table, so a name recorded there outlives the account
-// it belongs to, and these are other people's names held against a registrant who
-// may have no connection to them.
+// the question it is asking them. Showing a prompt changes nothing, so the
+// permanent audit log, which erasure never reaches, records nothing about it:
+// least of all other people's names, held against a registrant who may have no
+// connection to them.
 describe('registration conflict ledger entry', () => {
-  it('names conflicting records by identifier, never by the person, and stays bounded', async () => {
+  it('writes no audit row for the prompt, and no conflicting person\'s name anywhere in the log', async () => {
     insertLegacyMember(db, {
       legacy_member_id: 'LM-ledger-1', legacy_email: 'ledger-claimed@old.example.com',
       real_name: 'Ledger Ledgersson', display_name: 'Ledger Ledgersson',
@@ -432,13 +434,13 @@ describe('registration conflict ledger entry', () => {
 
     const registered = db.prepare('SELECT id FROM members WHERE login_email = ?')
       .get('ledger-new@example.com') as { id: string };
-    const rows = audits(registered.id, 'legacy.registration_conflict_prompted');
-    expect(rows).toHaveLength(1);
-
-    const metadata = JSON.parse(rows[0].metadata_json as string);
-    expect(metadata.conflict_count).toBeGreaterThan(0);
-    expect(metadata.conflicts[0].legacy_member_id).toBe('LM-ledger-1');
-    expect(metadata.conflicts.length).toBeLessThanOrEqual(5);
-    expect(JSON.stringify(metadata)).not.toContain('Ledgersson');
+    // The conflicting record's holder is on file under that name, so a log that
+    // copied the prompt would carry it.
+    expect(JSON.stringify(db.prepare('SELECT real_name FROM members').all())).toContain('Ledgersson');
+    const everything = db.prepare(
+      'SELECT action_type, metadata_json, reason_text FROM audit_entries',
+    ).all() as Array<{ action_type: string }>;
+    expect(everything.map((r) => r.action_type)).not.toContain('legacy.registration_conflict_prompted');
+    expect(JSON.stringify(everything)).not.toContain('Ledgersson');
   });
 });

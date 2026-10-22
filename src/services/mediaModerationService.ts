@@ -633,7 +633,6 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
 
       appendAuditEntry({
         actionType: 'media.flagged',
-        category:   'media',
         actorType:  input.actorIsAdmin ? 'admin' : 'member',
         actorMemberId: input.actorMemberId,
         entityType: 'media_item',
@@ -703,7 +702,6 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
 
       appendAuditEntry({
         actionType: input.resolutionLabel === 'deleted' ? 'media.deleted' : 'media.flag_resolved',
-        category:   'media',
         actorType:  'admin',
         actorMemberId: input.adminMemberId,
         entityType: 'media_item',
@@ -789,7 +787,6 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
 
         appendAuditEntry({
           actionType: 'media.flag_cleared',
-          category:   'media',
           actorType:  'admin',
           actorMemberId: input.adminMemberId,
           entityType: 'media_item',

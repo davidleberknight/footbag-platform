@@ -15,8 +15,7 @@ own rule and is not restated here; this one covers the shape of the script aroun
 ## What a script owns
 
 The design position lives in the design decisions: a script owns the whole operation, not the
-mutating step in the middle of it. In practice that means four things, and the failure mode of
-each is a real one.
+mutating step in the middle of it. In practice:
 
 - **Preconditions run inside the script.** A precondition an operator is asked to check first is
   a precondition that is skipped under pressure. If it can be checked from here, check it and
@@ -68,7 +67,7 @@ each is a real one.
 
 ## Four invariants
 
-Each of these was violated by a script in this repository, and each failure was silent.
+A violation of any of these fails silently.
 
 1. **A trap may only undo what the run itself created and nothing outside has recorded yet.**
    Once a credential has been written into the vault, or a resource has been handed to another
@@ -96,8 +95,6 @@ Each of these was violated by a script in this repository, and each failure was 
    it reaches: `footbag-operator` is both an IAM user and the profile holding that user's key,
    and `FootbagDevTester` is both the role and the profile that assumes it. A bare name is
    therefore ambiguous, and any text that does not say which of the two it means is a defect.
-   Two library functions and a workstation report were deciding which identity a run was acting
-   as from which profile existed, in a file whose own comment said that could not be derived.
    No mechanical check enforces this one: the grep that would catch it cannot tell a profile
    test used to decide from one used to report, so it is held by review and by the assertions in
    `scripts/lib/aws-identity.sh`.
@@ -149,7 +146,7 @@ Each of these was violated by a script in this repository, and each failure was 
 A fixture stager (`scripts/ci/stage_*.sh` or equivalent) populates paths that on a workstation may
 also hold real data: `legacy_data/legacy_mirror/mirror_footbag_org/` (the legacy site mirror,
 days to regenerate) and `legacy_data/event_results/canonical_input/` (the canonical CSVs, hours
-to regenerate). An empty-target-only guard once wiped a 60 GB real mirror.
+to regenerate). A guard that checks only for an empty target does not protect them.
 
 - **Detect real data first and refuse to overwrite it.** No flag, environment variable or CI mode
   bypasses this guard: no `--clobber-real-data`, no `FORCE_REAL_DATA_CLOBBER`, nothing. A signal

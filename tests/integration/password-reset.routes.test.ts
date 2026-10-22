@@ -288,6 +288,42 @@ describe('POST /password/forgot', () => {
 });
 
 describe('POST /password/reset/:token', () => {
+  // The audit log holds rows about members only. An account still onboarding
+  // can reset its password, and that reset leaves no row; a member's does.
+  it('audits a member\'s reset and writes nothing about an unfinished account\'s', async () => {
+    const app = createApp();
+    const prospectEmail = 'pwreset-prospect@example.com';
+    const seed = new BetterSqlite3(dbPath);
+    const prospectId = insertMember(seed, {
+      id: 'pwreset-prospect-001', slug: 'pwreset_prospect', login_email: prospectEmail, onboarding: 'none',
+    });
+    const auditedEmail = 'pwreset-audited@example.com';
+    const auditedId = insertMember(seed, {
+      id: 'pwreset-audited-001', slug: 'pwreset_audited', login_email: auditedEmail,
+    });
+    seed.close();
+    const auditFor = (id: string): number => {
+      const ro = new BetterSqlite3(dbPath, { readonly: true });
+      const n = (ro.prepare(
+        "SELECT COUNT(*) AS n FROM audit_entries WHERE entity_id = ? AND action_type = 'auth.password_reset'",
+      ).get(id) as { n: number }).n;
+      ro.close();
+      return n;
+    };
+
+    const prospectToken = await issueAndExtractResetToken(app, prospectEmail);
+    const prospectRes = await request(app).post(`/password/reset/${prospectToken}`).type('form')
+      .send({ newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD });
+    expect(prospectRes.status).toBe(303);
+    expect(auditFor(prospectId)).toBe(0);
+
+    const memberToken = await issueAndExtractResetToken(app, auditedEmail);
+    const memberRes = await request(app).post(`/password/reset/${memberToken}`).type('form')
+      .send({ newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD });
+    expect(memberRes.status).toBe(303);
+    expect(auditFor(auditedId)).toBe(1);
+  });
+
   it('valid token + matching passwords → 303 to /members/:slug, reissues session cookie, new password works, password_version bumped', async () => {
     const app = createApp();
     const token = await issueAndExtractResetToken(app, MEMBER_EMAIL);
@@ -564,7 +600,7 @@ describe('POST /password/forgot — outbox failure does not leak via 500', () =>
       // type identifies the row. Asserting it names a second writer rather than
       // silently choosing between two.
       const row = theOnlyRow<{
-        action_type: string; category: string; entity_type: string; entity_id: string;
+        action_type: string; category: string; entity_type: string; entity_id: string; metadata_json: string;
       }>(
         db,
         rowPin('audit_entries', `action_type = 'auth.password_reset_notification_failed'`),
@@ -574,6 +610,10 @@ describe('POST /password/forgot — outbox failure does not leak via 500', () =>
       expect(row!.category).toBe('auth');
       expect(row!.entity_type).toBe('member');
       expect(row!.entity_id).toBe(MEMBER_ID);
+      // The row says what kind of failure it was, never the error's message,
+      // which can quote data from the row that failed and would outlive erasure.
+      expect(JSON.parse(row!.metadata_json).error_class).toBe('Error');
+      expect(row!.metadata_json).not.toContain('database is locked');
     } finally {
       enqueueSpy.mockRestore();
     }
@@ -796,6 +836,51 @@ describe('POST /password/reset/:token — confirmation-email enqueue failure', (
     expect(auditRow).toBeDefined();
     expect(auditRow!.category).toBe('auth');
     expect(auditRow!.actor_type).toBe('system');
+  });
+
+  // Defect caught: a mail failure on an unfinished account's reset either goes
+  // unreported to the operator or lands an audit row about someone who is not
+  // a member. Both the request and the confirmation send are covered.
+  it('an unfinished account\'s mail failures reach the operator and write no audit row', async () => {
+    expectLoggedError('audit: auth.password_reset_notification_failed');
+    const app = createApp();
+    const email = 'pwreset-prospect-mailfail@example.com';
+    const seed = new BetterSqlite3(dbPath);
+    const prospectId = insertMember(seed, {
+      id: 'pwreset-prospect-mailfail', slug: 'pwreset_prospect_mailfail', login_email: email, onboarding: 'none',
+    });
+    seed.close();
+    const { logger } = await import('../../src/config/logger');
+    const alarmLines = (): number => vi.mocked(logger.error).mock.calls
+      .filter((args) => String(args[0]) === 'audit: auth.password_reset_notification_failed').length;
+    const auditAbout = (): unknown[] => {
+      const ro = new BetterSqlite3(dbPath, { readonly: true });
+      const rows = ro.prepare('SELECT action_type FROM audit_entries WHERE entity_id = ?').all(prospectId);
+      ro.close();
+      return rows;
+    };
+
+    const token = await issueAndExtractResetToken(app, email);
+    const { ServiceUnavailableError } = await import('../../src/services/serviceErrors');
+    commsMod.setCommunicationServiceForTests({
+      enqueue: () => { throw new ServiceUnavailableError('synthetic enqueue failure'); },
+      liftAddressSuppression: async () => {},
+      processSendQueue: async () => ({
+        claimed: 0, sent: 0, failed: 0, deadLettered: 0, manualReview: 0, paused: false,
+        suppressed: 0, bulkHalted: false, bulkPaused: false,
+      }),
+    });
+
+    const reset = await request(app).post(`/password/reset/${token}`).type('form')
+      .send({ newPassword: NEW_PASSWORD, confirmPassword: NEW_PASSWORD });
+    expect(reset.status).toBe(303);
+    expect(alarmLines()).toBe(1);
+    expect(auditAbout()).toEqual([]);
+
+    const forgot = await request(app).post('/password/forgot').type('form').send({ email });
+    expect(forgot.status).toBe(200);
+    expect(alarmLines()).toBe(2);
+    expect(auditAbout()).toEqual([]);
   });
 });
 

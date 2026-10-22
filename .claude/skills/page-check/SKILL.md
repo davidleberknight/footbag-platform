@@ -1,7 +1,6 @@
 ---
 name: page-check
-disable-model-invocation: true
-description: Targeted browser check of a page without screenshots, led by the rendered-style layout helper: measures and drives the page, or just the sections a change touched, on the dev stack and reports layout, behaviour and console problems. Human-invoked; the add-public-page skill follows it by path after every page change.
+description: Use after changing a page (template, stylesheet, client script, or a page-shaping service) to measure and drive it on the dev stack without screenshots, or when asked to check a page. Reports layout, behaviour and console problems.
 ---
 
 # Page Check
@@ -9,7 +8,7 @@ description: Targeted browser check of a page without screenshots, led by the re
 ## When
 
 - On request, to check a page, the whole page, or named sections.
-- After any change to a page (template, stylesheet, client script, or a service that shapes a page), before calling it done, when the add-public-page skill directs here.
+- After any change to a page (template, stylesheet, client script, or a service that shapes a page), before calling it done.
 
 ## Scope
 

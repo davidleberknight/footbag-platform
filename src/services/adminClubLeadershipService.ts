@@ -184,7 +184,6 @@ function audit(
 ): void {
   appendAuditEntry({
     actionType,
-    category:      'club',
     actorType:     'admin',
     actorMemberId: adminMemberId,
     entityType:    'club',
@@ -223,11 +222,10 @@ function assignLeader(
     | { id: string; role: string }
     | undefined;
   if (existingRow) {
-    const own = findStandingOwnAct(
+    const ownIsThisMember = findStandingOwnAct(
       adminMemberId, 'club.admin_leader_assigned', 'club.admin_leader_demoted', 'club', clubId,
-    );
-    const ownIsThisMember = own !== null
-      && (JSON.parse(own.metadata_json) as { member_id?: string }).member_id === member.id;
+      { metadataKey: 'member_id', id: member.id },
+    ) !== null;
     return ownIsThisMember
       ? { ending: 'own_repeat', text: ASSIGNED_NOTICE }
       : { ending: 'already_held', text: ALREADY_LEADS_NOTICE };

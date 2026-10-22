@@ -64,13 +64,19 @@ function clubRow(clubId: string): Record<string, unknown> {
   return db.prepare('SELECT name, description, city, region, country, external_url, external_url_validated_at FROM clubs WHERE id = ?').get(clubId) as Record<string, unknown>;
 }
 
-function auditChanges(clubId: string): Record<string, { before: unknown; after: unknown }> {
+// A co-leader's own edit records which fields moved, never their values: the
+// text is what a member typed, and the audit log outlives an erasure.
+function latestEditMetadata(clubId: string): string {
   const row = db.prepare(
     `SELECT metadata_json FROM audit_entries
       WHERE action_type = 'club.content_edited' AND entity_id = ?
       ORDER BY rowid DESC LIMIT 1`,
   ).get(clubId) as { metadata_json: string };
-  return JSON.parse(row.metadata_json).changes;
+  return row.metadata_json;
+}
+
+function auditFields(clubId: string): string[] {
+  return JSON.parse(latestEditMetadata(clubId)).fields;
 }
 
 // The widened form posts every field on every save, so a test that changes one
@@ -104,12 +110,8 @@ describe('direct edit (authoritative editors)', () => {
     expect(res.status).toBe(303);
     expect(clubRow(clubId).description).toBe('Fresh description.');
 
-    const audit = db.prepare(
-      `SELECT metadata_json FROM audit_entries WHERE action_type = 'club.content_edited' AND entity_id = ?`,
-    ).get(clubId) as { metadata_json: string };
-    const changes = JSON.parse(audit.metadata_json).changes as Record<string, { before: unknown; after: unknown }>;
-    expect(changes.description.before).toBe('Old description.');
-    expect(changes.description.after).toBe('Fresh description.');
+    expect(auditFields(clubId)).toEqual(['description']);
+    expect(latestEditMetadata(clubId)).not.toMatch(/Old description|Fresh description/);
   });
 
   it('a leader-supplied URL that fails verification changes nothing', async () => {
@@ -137,7 +139,7 @@ describe('a club does not move between countries', () => {
     expect(res.status).toBe(303);
     expect(clubRow(clubId).country).toBe('USA');
     expect(clubRow(clubId).region).toBe('California');
-    expect(auditChanges(clubId).country).toBeUndefined();
+    expect(auditFields(clubId)).not.toContain('country');
 
     const page = await request(createApp()).get(`/clubs/${clubKey}`).set('Cookie', cookieFor(leaderId));
     expect(page.status).toBe(200);
@@ -147,7 +149,7 @@ describe('a club does not move between countries', () => {
 });
 
 describe('the full club field set', () => {
-  it('a co-leader edits name, city and region, each audited with its before and after', async () => {
+  it('a co-leader edits name, city and region, each audited by field name alone', async () => {
     const { clubId, clubKey, leaderId, name } = seedClubWithLeader();
 
     const res = await request(createApp())
@@ -162,13 +164,10 @@ describe('the full club field set', () => {
     expect(row.city).toBe('Portland');
     expect(row.region).toBe('Oregon');
 
-    const changes = auditChanges(clubId);
-    expect(changes.name).toEqual({ before: `CCL Club ${_n}`, after: 'Renamed Crew' });
-    expect(changes.city).toEqual({ before: 'Testville', after: 'Portland' });
-    expect(changes.region).toEqual({ before: 'California', after: 'Oregon' });
     // A field the save did not change earns no audit entry, so the trail says
-    // what moved rather than what was submitted.
-    expect(changes.country).toBeUndefined();
+    // what moved rather than what was submitted, and no value it moved to.
+    expect([...auditFields(clubId)].sort()).toEqual(['city', 'name', 'region']);
+    expect(latestEditMetadata(clubId)).not.toMatch(/Renamed Crew|Portland|Oregon|Testville/);
 
     // A co-leader who saves is told the save landed.
     const carried = (res.headers['set-cookie'] as unknown as string[])
@@ -194,7 +193,7 @@ describe('the full club field set', () => {
     expect(clubRow(clubId).region).toBe('New York');
   });
 
-  it('an all-lowercase city is stored and audited with each word capitalized', async () => {
+  it('an all-lowercase city is stored with each word capitalized', async () => {
     const { clubId, clubKey, leaderId, name } = seedClubWithLeader();
 
     const res = await request(createApp())
@@ -204,8 +203,7 @@ describe('the full club field set', () => {
       .send(fullForm(name, { city: 'san luis obispo' }));
     expect(res.status).toBe(303);
     expect(clubRow(clubId).city).toBe('San Luis Obispo');
-    // The trail records the value the row now holds, not the raw submission.
-    expect(auditChanges(clubId).city).toEqual({ before: 'Testville', after: 'San Luis Obispo' });
+    expect(auditFields(clubId)).toEqual(['city']);
   });
 
   it('an unrecognized state is refused and the club is untouched', async () => {
@@ -439,9 +437,8 @@ describe('club content edit cleans the typed text', () => {
   }
 
   // Defect caught: an edited club is stored with live markup, a control
-  // character, CRLF line ends or a decomposed accent, and the audit row
-  // records that raw text as the new value.
-  it('stores and audits the cleaned name, description, city and region', async () => {
+  // character, CRLF line ends or a decomposed accent.
+  it('stores the cleaned name, description, city and region', async () => {
     const { clubId, clubKey, leaderId, name } = seedClubWithLeader();
     const res = await edit(clubKey, leaderId, fullForm(name, {
       name: 'Clean <b>Edit</b>\u0085 Club',
@@ -456,7 +453,7 @@ describe('club content edit cleans the typed text', () => {
       city: 'Fresno',
       region: 'Oregon',
     });
-    expect(auditChanges(clubId).name.after).toBe('Clean Edit Club');
+    expect(latestEditMetadata(clubId)).not.toContain('Clean Edit Club');
   });
 
   // Defect caught: a markup-only name passes the required check and the club
@@ -509,7 +506,7 @@ describe('club content edit cleans the typed text', () => {
 
     const cityOnly = await edit(clubKey, leaderId, fullForm(name, { description: older, city: 'Elsewhere' }));
     expect(cityOnly.status).toBe(303);
-    expect(Object.keys(auditChanges(clubId))).toEqual(['city']);
+    expect(auditFields(clubId)).toEqual(['city']);
     expect(clubRow(clubId).description).toBe(older);
   });
 });

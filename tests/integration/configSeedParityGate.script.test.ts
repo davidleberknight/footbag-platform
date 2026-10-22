@@ -120,8 +120,8 @@ describe('check_config_seed_parity.sh', () => {
     // Exercises the real allow-list rather than a fixture one, so a case cannot
     // pass against an allow-list mechanism the live gate does not have.
     const r = inFixtureRepo(
-      [seed('audit_retention_days', '2555')],
-      ['- `audit_retention_days = 2555` (fixture)'],
+      [seed('ballot_retention_days', '2555')],
+      ['- `ballot_retention_days = 2555` (fixture)'],
       { 'services/demoService.ts': 'const unrelated = 1;\n' },
     );
     expect(r.exitCode).toBe(0);
@@ -129,13 +129,13 @@ describe('check_config_seed_parity.sh', () => {
 
   it('refuses an allow-list entry whose reason has expired because a reader now exists', () => {
     const r = inFixtureRepo(
-      [seed('audit_retention_days', '2555')],
-      ['- `audit_retention_days = 2555` (fixture)'],
-      { 'services/demoService.ts': "readIntConfig('audit_retention_days', 2555);\n" },
+      [seed('ballot_retention_days', '2555')],
+      ['- `ballot_retention_days = 2555` (fixture)'],
+      { 'services/demoService.ts': "readIntConfig('ballot_retention_days', 2555);\n" },
     );
     expect(r.exitCode).toBe(1);
     expect(r.stderr).toMatch(/listed as having no reader, but src\/ now reads them/);
-    expect(r.stderr).toContain('audit_retention_days');
+    expect(r.stderr).toContain('ballot_retention_days');
   });
 
   it('does not count the admin parameters display surface as a reader', () => {

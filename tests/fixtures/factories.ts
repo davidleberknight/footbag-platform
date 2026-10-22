@@ -1474,6 +1474,7 @@ export interface AccountTokenOverrides {
   expires_at?: string;
   used_at?: string | null;
   token_hash?: string;
+  target_audit_entry_id?: string | null;
 }
 
 export function insertAccountToken(
@@ -1487,8 +1488,8 @@ export function insertAccountToken(
     INSERT INTO account_tokens (
       id, created_at, created_by, updated_at, updated_by, version,
       member_id, token_type, token_hash, token_hash_version,
-      issued_at, expires_at, used_at
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, 1, ?, ?, ?)
+      issued_at, expires_at, used_at, target_audit_entry_id
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, 1, ?, ?, ?, ?)
   `).run(
     id, issuedAt, SYS, issuedAt, SYS,
     memberId,
@@ -1497,6 +1498,7 @@ export function insertAccountToken(
     issuedAt,
     o.expires_at ?? TS,
     o.used_at ?? null,
+    o.target_audit_entry_id ?? null,
   );
   return id;
 }
@@ -1919,7 +1921,9 @@ export function insertMailingList(db: BetterSqlite3.Database, o: MailingListOver
 
 export function insertOutboxEmail(db: BetterSqlite3.Database, o: OutboxEmailOverrides = {}): string {
   const id = o.id ?? `outbox_${uid()}`;
-  const ts = o.created_at ?? TS;
+  // Stamped now, as the send path stamps a message, so a seeded row sits inside
+  // the recent windows the email log and the health pages default to.
+  const ts = o.created_at ?? new Date().toISOString();
   // The CHECK constraint requires at least one addressing column; default to a
   // recipient_email when the caller supplies none.
   const recipientEmail = o.recipient_email !== undefined ? o.recipient_email

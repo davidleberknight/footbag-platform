@@ -70,9 +70,6 @@ def leading_int(v):
 # is designed but not yet built, and lands with it. Anything else on this list
 # is a key that should have been wired or removed.
 UNREAD_ALLOWED = {
-    'audit_retention_days':
-        'a stated archive obligation, not a deletion schedule: nothing on the '
-        'platform trims audit rows, and the admin screen presents it as a hold',
     'ballot_retention_days':
         'a stated archive obligation, not a deletion schedule: disposing of vote '
         'records is a governance decision and the cleanup sweep never touches them',

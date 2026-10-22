@@ -1646,12 +1646,13 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           appliedTagIds = applyTagsForCurator(mediaId, input.tags, now);
           appendAuditEntry({
             actionType: 'media.curated_uploaded',
-            category: 'media',
             actorType: 'admin',
             actorMemberId: input.adminMemberId,
             entityType: 'media_item',
             entityId: mediaId,
-            metadata: { mediaType: 'photo', tags: input.tags },
+            // Counts, never the member's own typed tags, caption or file name:
+            // the audit log outlives an erasure.
+            metadata: { mediaType: 'photo', tagCount: input.tags.length },
           });
         });
       } catch (err) {
@@ -1772,7 +1773,6 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           appliedTagIds = applyTagsForCurator(mediaId, input.tags, now);
           appendAuditEntry({
             actionType: 'media.curated_uploaded',
-            category: 'media',
             actorType: 'admin',
             actorMemberId: input.adminMemberId,
             entityType: 'media_item',
@@ -1892,7 +1892,6 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           appliedTagIds = applyTagsForCurator(mediaId, tags, now);
           appendAuditEntry({
             actionType: 'media.curated_uploaded',
-            category: 'media',
             actorType: 'admin',
             actorMemberId: job.admin_member_id,
             entityType: 'media_item',
@@ -2221,7 +2220,6 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         }
         appendAuditEntry({
           actionType: 'media.curated_url_reference_added',
-          category: 'media',
           actorType: 'admin',
           actorMemberId: input.adminMemberId,
           entityType: sidecarFilename ? 'curated_sidecar' : 'media_item',
@@ -2390,7 +2388,6 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         }
         appendAuditEntry({
           actionType: auditActionType,
-          category: 'media',
           actorType: 'admin',
           actorMemberId: input.adminMemberId,
           entityType: auditEntityType,
@@ -2465,7 +2462,6 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         media.deleteMediaItem.run(input.mediaId);
         appendAuditEntry({
           actionType: isSidecarBacked ? 'media.curated_url_reference_deleted' : 'media.curated_deleted',
-          category: 'media',
           actorType: 'admin',
           actorMemberId: input.adminMemberId,
           // The entity is the authoring file only when one was actually found and
@@ -2897,7 +2893,6 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           if (changed.length > 0) {
             moderationAuditId = appendAuditEntry({
               actionType:    'media.member_gallery_moderated',
-              category:      'media',
               actorType:     'admin',
               actorMemberId,
               entityType:    'gallery',
@@ -2917,7 +2912,6 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
             actionType: existing.is_system === 1
               ? 'media.curated_gallery_updated'
               : 'media.member_gallery_updated',
-            category: 'media',
             actorType: actorIsAdmin ? 'admin' : 'member',
             actorMemberId,
             entityType: 'gallery',
@@ -3098,7 +3092,6 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
               actionType: isFhOwned
                 ? 'media.curated_gallery_created'
                 : 'media.member_gallery_created',
-              category: 'media',
               actorType: actorIsAdmin ? 'admin' : 'member',
               actorMemberId,
               entityType: 'gallery',
@@ -3229,7 +3222,6 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           actionType: existing.is_system === 1
             ? 'media.curated_gallery_deleted'
             : 'media.member_gallery_deleted',
-          category: 'media',
           actorType: actorIsAdmin ? 'admin' : 'member',
           actorMemberId,
           entityType: 'gallery',
@@ -3382,12 +3374,13 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           ensureDefaultPersonalGalleryTx(input.memberId, input.slug, now);
           appendAuditEntry({
             actionType: 'media.member_uploaded',
-            category: 'media',
             actorType: 'member',
             actorMemberId: input.memberId,
             entityType: 'media_item',
             entityId: mediaId,
-            metadata: { mediaType: 'photo', tags: input.tags },
+            // Counts, never the member's own typed tags, caption or file name:
+            // the audit log outlives an erasure.
+            metadata: { mediaType: 'photo', tagCount: input.tags.length },
           });
         });
       } catch (err) {
@@ -3538,15 +3531,18 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         }
         appendAuditEntry({
           actionType: 'media.member_edited',
-          category: 'media',
           actorType: 'member',
           actorMemberId: input.memberId,
           entityType: 'media_item',
           entityId: input.mediaId,
+          // Which fields changed, never their values: these are the member's
+          // own words and links, and the audit log outlives an erasure.
           metadata: {
-            caption: input.caption !== undefined ? input.caption : null,
-            tags: dedupedTags ?? null,
-            externalUrl: normalizedExternalUrlEdit !== undefined ? normalizedExternalUrlEdit : null,
+            fields: [
+              ...(input.caption !== undefined ? ['caption'] : []),
+              ...(dedupedTags !== undefined ? ['tags'] : []),
+              ...(normalizedExternalUrlEdit !== undefined ? ['externalUrl'] : []),
+            ],
           },
         });
       });
@@ -3608,16 +3604,13 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         media.deleteMediaItem.run(input.mediaId);
         appendAuditEntry({
           actionType: 'media.member_deleted',
-          category: 'media',
           actorType: 'member',
           actorMemberId: input.memberId,
           entityType: 'media_item',
           entityId: input.mediaId,
           metadata: {
             mediaType: row.media_type,
-            sourceFilename: row.source_filename,
             videoPlatform: row.video_platform,
-            videoUrl: row.video_url,
           },
         });
       });
@@ -3752,12 +3745,11 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
         ensureDefaultPersonalGalleryTx(input.memberId, input.slug, now);
         appendAuditEntry({
           actionType: 'media.member_uploaded',
-          category: 'media',
           actorType: 'member',
           actorMemberId: input.memberId,
           entityType: 'media_item',
           entityId: mediaId,
-          metadata: { mediaType: 'video', videoPlatform: input.videoPlatform, tags: input.tags },
+          metadata: { mediaType: 'video', videoPlatform: input.videoPlatform, tagCount: input.tags.length },
         });
       });
       if (twin) {

@@ -4,20 +4,19 @@ import BetterSqlite3 from 'better-sqlite3';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, createTestSessionJwt, insertMailingListSubscription } from '../fixtures/factories';
-import { rowPin, snapshotIds, oneRowAddedSince } from '../fixtures/rowPinning';
+import { rowPin, snapshotIds } from '../fixtures/rowPinning';
 
 const { dbPath } = setTestEnv('3128');
 
-// The submission rows one member has accumulated. Several cases here submit as
-// the same member and the ledger is append-only, so the per-case cleanup cannot
-// clear it; each case takes the row its own POST added rather than the most
-// recent, which a millisecond-resolution stamp and a random ledger id cannot
-// identify.
+// Every audit row about one member or written by them. The work-queue row is the
+// record of a contact request, so a submission adds none of these; several
+// cases submit as the same member and the ledger is append-only, so each case
+// compares against the ids present before its own POST.
 const contactAudit = (memberId: string) =>
   rowPin(
     'audit_entries',
-    `entity_id = ? AND action_type = 'support.contact_request_submitted'`,
-    [memberId],
+    'entity_id = ? OR actor_member_id = ?',
+    [memberId, memberId],
   );
 
 const OWNER_ID    = 'member_contact_owner';
@@ -166,7 +165,7 @@ describe('GET /members/:slug/contact-admin', () => {
 });
 
 describe('POST /members/:slug/contact-admin', () => {
-  it('happy path → 303 + flash cookie + queue row inserted + audit entry', async () => {
+  it('happy path → 303 + flash cookie + queue row inserted, and no audit row', async () => {
     const app = createApp();
     const snapDb = new BetterSqlite3(dbPath, { readonly: true });
     const beforeSubmit = snapshotIds(snapDb, contactAudit(OWNER_ID));
@@ -190,15 +189,9 @@ describe('POST /members/:slug/contact-admin', () => {
     expect(queueRow!.status).toBe('open');
     expect(queueRow!.reason_text).toMatch(/Display name correction/);
 
-    const auditRow = oneRowAddedSince<Record<string, unknown>>(
-      db,
-      contactAudit(OWNER_ID),
-      beforeSubmit,
-    );
-    expect(auditRow).toBeDefined();
-    expect(auditRow!.action_type).toBe('support.contact_request_submitted');
-    expect(auditRow!.category).toBe('support');
-    expect(auditRow!.actor_type).toBe('member');
+    // The queue row above is the record; a second copy in the audit log would
+    // be a duplicate the log's viewer and export have to read past.
+    expect([...snapshotIds(db, contactAudit(OWNER_ID))].filter((id) => !beforeSubmit.has(id))).toHaveLength(0);
     db.close();
   });
 
@@ -305,7 +298,7 @@ describe('POST /members/:slug/contact-admin', () => {
     expect(res.headers.location).toMatch(/^\/login/);
   });
 
-  it('adversarial: the cleaned message persists only in the mutable queue row; the audit row carries its length, not its text', async () => {
+  it('adversarial: the cleaned message persists only in the mutable queue row, never in the audit log', async () => {
     // The audit ledger is append-only and exempt from PII purge, so
     // member-authored free text (which can carry emails, phone numbers,
     // anything) must never land in it. The operational copy lives in the
@@ -329,16 +322,9 @@ describe('POST /members/:slug/contact-admin', () => {
     expect(queueRow).toBeDefined();
     expect(queueRow!.detail_text).toBe(cleaned);
     expect(queueRow!.reason_text).toBe(`Other: ${cleaned}`);
-    const newRow = oneRowAddedSince<{ metadata_json: string }>(
-      db,
-      contactAudit(OWNER_ID),
-      beforeIds,
-    );
-    expect(newRow).toBeDefined();
-    const parsed = JSON.parse(newRow!.metadata_json);
-    expect(parsed.message_length).toBe(cleaned.length);
-    expect(parsed).not.toHaveProperty('message');
-    expect(newRow!.metadata_json).not.toContain('alert(1)');
+    expect([...snapshotIds(db, contactAudit(OWNER_ID))].filter((id) => !beforeIds.has(id))).toHaveLength(0);
+    const allAudit = db.prepare('SELECT reason_text, metadata_json FROM audit_entries').all();
+    expect(JSON.stringify(allAudit)).not.toContain('alert(1)');
     db.close();
 
     const adminCookie = `__Host-footbag_session=${createTestSessionJwt({ memberId: ADMIN_SUBSCRIBER_ID, role: 'admin' })}`;
@@ -406,7 +392,7 @@ describe('POST /members/:slug/contact-admin', () => {
   // Defect caught: a double-click or back-button re-post opens a second copy of
   // the same request for an administrator to work, records it twice, or shows
   // the member an error for a request that went through.
-  it('the same request submitted twice opens one queue item and one audit row, with the same redirect and flash', async () => {
+  it('the same request submitted twice opens one queue item and no audit row, with the same redirect and flash', async () => {
     const app = createApp();
     const snap = new BetterSqlite3(dbPath, { readonly: true });
     const beforeAudit = snapshotIds(snap, contactAudit(OWNER_ID));
@@ -433,7 +419,7 @@ describe('POST /members/:slug/contact-admin', () => {
     const outbox = db.prepare(`SELECT COUNT(*) AS n FROM outbox_emails`).get() as { n: number };
     db.close();
     expect(items).toHaveLength(1);
-    expect([...added].filter((id) => !beforeAudit.has(id))).toHaveLength(1);
+    expect([...added].filter((id) => !beforeAudit.has(id))).toHaveLength(0);
     expect(outbox.n).toBe(0);
   });
 

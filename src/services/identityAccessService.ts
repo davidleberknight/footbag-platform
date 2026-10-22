@@ -284,8 +284,15 @@ import { createSessionJwt } from './jwtService';
 import { compareBirthDates, type RecordedBirthDateComparison } from '../lib/birthDate';
 import { cleanUserText } from '../lib/textSanitizer';
 import { isUniqueConstraintError } from './sqliteRetry';
-import { appendAuditEntry, findOwnLatestAudit } from './auditService';
-import { recordOperationalError } from './operationalErrors';
+import { appendAuditEntry, findOwnLatestAudit, isMember, type AuditAppendInput } from './auditService';
+
+/**
+ * Where a claim-evidence row goes. A member's lands in the audit log at once.
+ * The onboarding wizard passes its own sink, which holds a prospective member's
+ * row on their task row until the transaction that makes them a member.
+ */
+export type AuditSink = (input: AuditAppendInput) => void;
+import { logOperationalError, recordOperationalError } from './operationalErrors';
 import { liftOwnAddressSuppression, recoverBouncedAddressInTx } from './emailSubscriptionService';
 import {
   applyAutoLinkRevertGrantInTx, applyLegacyClaimBoardGrantInTx, applyLegacyClaimGrantInTx,
@@ -707,7 +714,6 @@ async function attemptLogin(
     if (member) {
       appendAuditEntry({
         actionType: 'auth.login_rate_limited',
-        category: 'auth',
         actorType: 'system',
         actorMemberId: null,
         entityType: 'member',
@@ -1005,26 +1011,16 @@ function validateSlug(
  */
 function enqueueAccountExistsNotice(existing: { id: string; login_email: string }): void {
   const baseUrl = config.publicBaseUrl.replace(/\/+$/, '');
-  // One notice per attempt, keyed on the attempt's own audit row. Both land
-  // together or not at all, so a refused strict enqueue leaves no row claiming
-  // a notice that never went.
-  transaction(() => {
-    const auditId = appendAuditEntry({
-      actionType: 'auth.register_duplicate_email',
-      category: 'auth',
-      actorType: 'system',
-      actorMemberId: null,
-      entityType: 'member',
-      entityId: existing.id,
-    });
-    emailService.send({
-      template: 'account_exists_notice',
-      params: { loginUrl: `${baseUrl}/login`, resetUrl: `${baseUrl}/password/forgot` },
-      recipientEmail: existing.login_email,
-      recipientMemberId: existing.id,
-      idempotencyKey: `account_exists_notice:${existing.id}:${auditId}`,
-      strict: true,
-    });
+  // One notice per attempt, keyed on the attempt itself. A registration attempt
+  // changes nothing on the existing account, so it writes no audit row; the
+  // outbox row is the record that the notice went.
+  emailService.send({
+    template: 'account_exists_notice',
+    params: { loginUrl: `${baseUrl}/login`, resetUrl: `${baseUrl}/password/forgot` },
+    recipientEmail: existing.login_email,
+    recipientMemberId: existing.id,
+    idempotencyKey: `account_exists_notice:${existing.id}:${randomUUID()}`,
+    strict: true,
   });
 }
 
@@ -1194,52 +1190,8 @@ async function registerMember(
 
   applyDevStagingBootstrapAdmin({ memberId: id, normalizedEmail, now }); // dev/staging register-allowlist bootstrap; no-op in production
 
-  // Record the canonical registration audit before the verify-email enqueue.
-  // The member row is already committed; enqueue failure re-throws (recording
-  // auth.register_notification_failed), so writing auth.register first keeps the
-  // registration itself auditable even when the notification path degrades.
-  appendAuditEntry({
-    actionType: 'auth.register',
-    category: 'auth',
-    actorType: 'system',
-    actorMemberId: null,
-    entityType: 'member',
-    entityId: id,
-  });
-
-  // Same-name collision against already-claimed records, detected at the
-  // earliest point. The wizard re-derives the prompt at render time; this
-  // event records that the collision existed at signup.
-  // Bounded like the card is: the ledger records that the collision happened,
-  // not an unbounded roster of everyone a common surname reached.
-  const conflicts = detectRegistrationConflicts(id, CONFLICT_CARD_LIMIT);
-  if (conflicts.length > 0) {
-    appendAuditEntry({
-      actionType: 'legacy.registration_conflict_prompted',
-      category: 'identity',
-      actorType: 'system',
-      actorMemberId: null,
-      entityType: 'member',
-      entityId: id,
-      reasonText: null,
-      metadata: {
-        conflict_count: conflicts.length,
-        // Records are named by identifier, never by the person's name. This
-        // ledger is append-only and erasure never reaches it, so a name written
-        // here would outlive the account it belongs to and survive the very
-        // anonymisation that is supposed to retire it -- and these are other
-        // people's names, recorded against a registrant they may have no
-        // connection to. An identifier resolves for anyone investigating, and
-        // stops resolving once the record behind it is erased.
-        conflicts: conflicts.map((c) => ({
-          legacy_member_id:     c.legacyMemberId,
-          historical_person_id: c.historicalPersonId,
-          source:               c.sourceLabel,
-        })),
-      },
-    });
-  }
-
+  // A registrant is not a member, so registering writes no audit row; the
+  // account row records when it was created.
   await issueAndEnqueueVerifyEmail(id, trimmedEmail);
 
   return { status: 'registered' };
@@ -1283,10 +1235,10 @@ async function issueAndEnqueueVerifyEmail(memberId: string, recipientEmail: stri
     // Member row (or, for resend, the existing unverified member) committed
     // but no verify email was queued. Operator review should treat this as
     // a possible outbox / SES degradation signal; the affected member can
-    // self-recover via /verify/resend.
-    recordOperationalError({
+    // self-recover via /verify/resend. The account is a registrant, not a
+    // member, so the operator is told and the audit log gets no row.
+    logOperationalError({
       actionType: 'auth.register_notification_failed',
-      category: 'auth',
       entityType: 'member',
       entityId: memberId,
       reasonText: 'Member row committed but verify-email token issuance or enqueue failed.',
@@ -1317,22 +1269,10 @@ async function verifyEmailByToken(rawToken: string): Promise<VerifyEmailResult |
     if (!c) return null;
 
     const now = new Date().toISOString();
-    const update = auth.markEmailVerified.run(now, now, c.memberId);
-    // A member who already verified changes no row here, because the statement
-    // only marks an unverified account. They still spend a token and still
-    // leave with a session, so the row is appended either way: what the trail
-    // records is that a session was issued off a verification link, and gating
-    // that on whether an UPDATE moved a row would silently lose the cases where
-    // a second outstanding link is redeemed. The flag distinguishes the two.
-    appendAuditEntry({
-      actionType: 'auth.email_verified',
-      category: 'auth',
-      actorType: 'member',
-      actorMemberId: c.memberId,
-      entityType: 'member',
-      entityId: c.memberId,
-      ...(update.changes > 0 ? {} : { metadata: { alreadyVerified: true } }),
-    });
+    // Verifying the address starts onboarding, so the account is never a
+    // member here and the audit log takes no row; the account row records when
+    // the address was verified.
+    auth.markEmailVerified.run(now, now, c.memberId);
     // Opening a link sent to the address proves it receives mail, so a bounce
     // on it clears here, in the same transaction that spends the proof.
     recoverBouncedAddressInTx(c.memberId, now);
@@ -1686,7 +1626,6 @@ async function requestAddressRecovery(memberId: string): Promise<AddressRecovery
   await issueAndEnqueueVerifyEmail(memberId, row.login_email);
   appendAuditEntry({
     actionType: 'email.recovery_requested',
-    category: 'system',
     actorType: 'member',
     actorMemberId: memberId,
     entityType: 'member',
@@ -1859,7 +1798,8 @@ const CLAIM_OUTCOME_LABELS: Record<string, string> = {
   'claim.legacy_account':            'Linked an old footbag.org account',
   'claim.historical_person':         'Linked a competition record',
   'claim.refused':                   'Refused: the member\'s evidence no longer made it claimable',
-  'legacy.claim_step_answered':      'Finished the claim step without linking',
+  'wizard.legacy_claim.never_had_account':  'Finished the claim step without linking',
+  'wizard.legacy_claim.cannot_find_record': 'Finished the claim step without linking',
   'legacy.anchor_declared':          'Added a former surname or an old email address',
   'legacy.auto_link_revert':         'A claim was reverted',
 };
@@ -2273,7 +2213,6 @@ function claimLegacyAccountInTxInner(
   // reconstructed (who claimed what, when, with what HP back-link).
   appendAuditEntry({
     actionType:    'claim.legacy_account',
-    category:      'identity',
     actorType:     actor.type,
     actorMemberId: actor.id,
     entityType:    'member',
@@ -2404,13 +2343,24 @@ function claimWithFormerSurnameInTx(memberId: string, target: ClaimTarget): Clai
  * Inside the caller's transaction. Passing over a card is the answer that it
  * is not theirs; the row records what was shown so an administrator later sees
  * what was passed over.
+ *
+ * The two answers get two action types rather than one carrying the answer in
+ * its metadata, because the audit viewer filters by action type alone. Merged,
+ * the members who say they held an old account and cannot find it, the only
+ * ones an administrator can help and the only place that fact is marked, would
+ * be buried inside the far larger population that needs nothing.
  */
-function recordClaimStepAnswered(memberId: string, answer: 'never_had_one' | 'cannot_find_it'): void {
+function recordClaimStepAnswered(
+  memberId: string,
+  answer: 'never_had_one' | 'cannot_find_it',
+  audit: AuditSink = appendAuditEntry,
+): void {
   const evidence = legacyMatchingService.readMemberEvidence(memberId);
   const shown = evidence ? legacyMatchingService.shownCandidates(legacyMatchingService.match(evidence)) : [];
-  appendAuditEntry({
-    actionType:    'legacy.claim_step_answered',
-    category:      'identity',
+  audit({
+    actionType:    answer === 'never_had_one'
+      ? 'wizard.legacy_claim.never_had_account'
+      : 'wizard.legacy_claim.cannot_find_record',
     actorType:     'member',
     actorMemberId: memberId,
     entityType:    'member',
@@ -2435,7 +2385,12 @@ function recordClaimStepAnswered(memberId: string, answer: 'never_had_one' | 'ca
  * carries whatever the old site held. Only a date that actively contradicts the
  * claim is recorded as evidence against them.
  */
-function recordClaimRefused(memberId: string, target: ClaimTarget, candidate: Candidate | null): void {
+function recordClaimRefused(
+  memberId: string,
+  target: ClaimTarget,
+  candidate: Candidate | null,
+  audit: AuditSink = appendAuditEntry,
+): void {
   const evidence = legacyMatchingService.readMemberEvidence(memberId);
   const hp = target.recordId
     ? legacyClaim.findHistoricalPersonById.get(target.recordId) as HistoricalPersonClaimRow | undefined
@@ -2447,9 +2402,8 @@ function recordClaimRefused(memberId: string, target: ClaimTarget, candidate: Ca
     dobComparison === 'mismatch' ? 'contradicted'
       : dobComparison === 'identical' ? 'corroborated'
         : 'unevidenced';
-  appendAuditEntry({
+  audit({
     actionType:    'claim.refused',
-    category:      'identity',
     actorType:     'member',
     actorMemberId: memberId,
     entityType:    'member',
@@ -2881,7 +2835,6 @@ function claimHistoricalPersonInTxInner(
 
   appendAuditEntry({
     actionType:    'claim.historical_person',
-    category:      'identity',
     actorType:     actor.type,
     actorMemberId: actor.id,
     entityType:    'member',
@@ -3064,7 +3017,6 @@ async function changePassword(
 
     appendAuditEntry({
       actionType: 'auth.password_change',
-      category: 'auth',
       actorType: 'member',
       actorMemberId: memberId,
       entityType: 'member',
@@ -3107,7 +3059,6 @@ async function changePassword(
     if (sent.status === 'suppressed') {
       recordOperationalError({
         actionType: 'auth.password_change_notification_failed',
-        category: 'auth',
         entityType: 'member',
         entityId: memberId,
         reasonText:
@@ -3192,9 +3143,9 @@ async function requestPasswordReset(email: string): Promise<PasswordResetRequest
   } catch (err) {
     // Swallow (do not re-throw) to preserve the anti-enumeration contract:
     // the exists/not-exists branches must return identical UX to the caller.
-    recordOperationalError({
+    // An unfinished account gets the operator alarm and no audit row.
+    (isMember(row.id) ? recordOperationalError : logOperationalError)({
       actionType: 'auth.password_reset_notification_failed',
-      category: 'auth',
       entityType: 'member',
       entityId: row.id,
       reasonText:
@@ -3280,14 +3231,17 @@ async function completePasswordReset(
       | undefined;
     const newPasswordVersion = after?.password_version ?? member.password_version + 1;
 
-    appendAuditEntry({
-      actionType: 'auth.password_reset',
-      category: 'auth',
-      actorType: 'system',
-      actorMemberId: null,
-      entityType: 'member',
-      entityId: consumed.memberId,
-    });
+    // An unfinished account can reset its password too; only a member's reset
+    // is audited.
+    if (isMember(consumed.memberId)) {
+      appendAuditEntry({
+        actionType: 'auth.password_reset',
+        actorType: 'system',
+        actorMemberId: null,
+        entityType: 'member',
+        entityId: consumed.memberId,
+      });
+    }
 
     return { consumed, member, newPasswordVersion };
   });
@@ -3313,9 +3267,8 @@ async function completePasswordReset(
         strict: true,
       });
     } catch (err) {
-      recordOperationalError({
+      (isMember(consumed.memberId) ? recordOperationalError : logOperationalError)({
         actionType: 'auth.password_reset_notification_failed',
-        category: 'auth',
         entityType: 'member',
         entityId: consumed.memberId,
         reasonText:
@@ -3571,7 +3524,6 @@ function revertAutoLinkInTx(
 
     appendAuditEntry({
       actionType:    'legacy.auto_link_revert',
-      category:      'identity',
       actorType:     actor.actorType,
       actorMemberId: actor.actorMemberId,
       entityType:    'member',
@@ -3770,7 +3722,6 @@ function applyDisputeRevertInTx(adminMemberId: string, r: ResolvedDisputeRevert)
     }
     appendAuditEntry({
       actionType:    'claim.dispute_opened',
-      category:      'identity',
       actorType:     'admin',
       actorMemberId: adminMemberId,
       entityType:    'member',
@@ -3783,7 +3734,6 @@ function applyDisputeRevertInTx(adminMemberId: string, r: ResolvedDisputeRevert)
     });
     appendAuditEntry({
       actionType:    'claim.revert_applied',
-      category:      'identity',
       actorType:     'admin',
       actorMemberId: adminMemberId,
       entityType:    'member',
@@ -3984,6 +3934,7 @@ function declareAnchor(
   memberId: string,
   anchorType: string,
   anchorValue: string,
+  audit: AuditSink = appendAuditEntry,
 ): void {
   // Input is checked and an anchor already on file recognised before a
   // rate-limit slot is taken, so a refused submit, a double submit or a re-add
@@ -4009,7 +3960,7 @@ function declareAnchor(
   if (onFile) return;
   anchorChangeRateLimit(memberId);
   try {
-    transaction(() => declareAnchorInTx(memberId, anchorType as 'former_surname' | 'old_email', anchorValue));
+    transaction(() => declareAnchorInTx(memberId, anchorType as 'former_surname' | 'old_email', anchorValue, audit));
   } catch (err: unknown) {
     // Adding one already on file (a double submit, a second tab) lands where the
     // first add did: the anchor is there, so the save stands and nothing more is
@@ -4026,13 +3977,17 @@ function declareAnchor(
  * transaction. The ledger names the anchor by id and kind, never by value: a
  * former surname or an old address is personal data the ledger must not hold.
  */
-function declareAnchorInTx(memberId: string, anchorType: 'former_surname' | 'old_email', anchorValue: string): string {
+function declareAnchorInTx(
+  memberId: string,
+  anchorType: 'former_surname' | 'old_email',
+  anchorValue: string,
+  audit: AuditSink = appendAuditEntry,
+): string {
   const value = storedAnchorValue(anchorType, anchorValue);
   const id = `mda_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
   declaredAnchors.insert.run(id, memberId, memberId, memberId, anchorType, value);
-  appendAuditEntry({
+  audit({
     actionType:    'legacy.anchor_declared',
-    category:      'identity',
     actorType:     'member',
     actorMemberId: memberId,
     entityType:    'member',
@@ -4184,41 +4139,18 @@ function submitLinkHelpRequest(
     const nowIso = new Date().toISOString();
     transaction(() => {
       workQueue.updateOpenPayload.run(JSON.stringify(payload), nowIso, memberId, existing.id);
-      appendAuditEntry({
-        actionType:    'support.help_request_submitted',
-        category:      'identity',
-        actorType:     'member',
-        actorMemberId: memberId,
-        entityType:    'member',
-        entityId:      memberId,
-        reasonText:    null,
-        metadata: {
-          work_queue_item_id: existing.id,
-          is_dispute:         payload.is_dispute,
-        },
-      });
-      // The dispute pair records the transition, so a member re-filing an
-      // already-open dispute does not stack another copy of it.
+      // The work-queue row is the record of the request itself. Opening a
+      // dispute is the one act the audit log keeps, once, on the transition, so
+      // a member re-filing an already-open dispute does not stack another copy.
       if (payload.is_dispute && !priorWasDispute) {
         appendAuditEntry({
           actionType:    'claim.dispute_opened',
-          category:      'identity',
           actorType:     'member',
           actorMemberId: memberId,
           entityType:    'member',
           entityId:      memberId,
           reasonText:    null,
           metadata: { work_queue_item_id: existing.id, source: 'registration_conflict_prompt' },
-        });
-        appendAuditEntry({
-          actionType:    'legacy.registration_conflict_disputed',
-          category:      'identity',
-          actorType:     'member',
-          actorMemberId: memberId,
-          entityType:    'member',
-          entityId:      memberId,
-          reasonText:    null,
-          metadata: { work_queue_item_id: existing.id },
         });
       }
     });
@@ -4236,42 +4168,18 @@ function submitLinkHelpRequest(
       reasonText:    JSON.stringify(payload),
       detailText:    null,
     });
-    appendAuditEntry({
-      actionType:    'support.help_request_submitted',
-      category:      'identity',
-      actorType:     'member',
-      actorMemberId: memberId,
-      entityType:    'member',
-      entityId:      memberId,
-      reasonText:    null,
-      // The audit ledger is append-only and exempt from PII purge, so the
-      // claimed legacy identifiers stay out of it; the mutable work-queue
-      // row carries the operational copy.
-      metadata: {
-        work_queue_item_id: id,
-        is_dispute:         payload.is_dispute,
-      },
-    });
+    // The work-queue row is the record of the request, and carries the claimed
+    // legacy identifiers, which stay out of the purge-exempt audit log. Opening
+    // a dispute is the one act the log keeps.
     if (payload.is_dispute) {
       appendAuditEntry({
         actionType:    'claim.dispute_opened',
-        category:      'identity',
         actorType:     'member',
         actorMemberId: memberId,
         entityType:    'member',
         entityId:      memberId,
         reasonText:    null,
         metadata: { work_queue_item_id: id, source: 'registration_conflict_prompt' },
-      });
-      appendAuditEntry({
-        actionType:    'legacy.registration_conflict_disputed',
-        category:      'identity',
-        actorType:     'member',
-        actorMemberId: memberId,
-        entityType:    'member',
-        entityId:      memberId,
-        reasonText:    null,
-        metadata: { work_queue_item_id: id },
       });
     }
     return { id };
@@ -4528,7 +4436,6 @@ function approveLinkHelpRequest(
     );
     appendAuditEntry({
       actionType:    'support.help_request_approved',
-      category:      'identity',
       actorType:     'admin',
       actorMemberId: adminMemberId,
       entityType:    'member',
@@ -4600,7 +4507,6 @@ function notifyLinkHelpResolved(input: {
   } catch (err) {
     recordOperationalError({
       actionType:    'support.help_request_resolve_notification_failed',
-      category:      'support',
       actorType:     'admin',
       actorMemberId: input.adminMemberId,
       entityType:    'member',
@@ -4636,7 +4542,6 @@ function rejectLinkHelpRequest(
     );
     appendAuditEntry({
       actionType:    'support.help_request_rejected',
-      category:      'identity',
       actorType:     'admin',
       actorMemberId: adminMemberId,
       entityType:    'member',
@@ -4807,7 +4712,6 @@ function correctMemberNames(
     );
     correctionAuditId = appendAuditEntry({
       actionType:    'member.name_corrected',
-      category:      'profile_change',
       actorType:     'admin',
       actorMemberId: actorId,
       entityType:    'member',
@@ -4976,7 +4880,6 @@ function correctMemberSlug(
 
       const correctionAuditId = appendAuditEntry({
         actionType:    'member.slug_corrected',
-        category:      'profile_change',
         actorType:     'admin',
         actorMemberId: actorId,
         entityType:    'member',

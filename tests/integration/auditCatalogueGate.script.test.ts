@@ -56,12 +56,26 @@ interface RunResult {
  *  gate inside it, and tears it down. The script resolves its own root through
  *  git, so the fixture has to be a repository rather than a bare directory. */
 const FIXTURE_CATALOGUE = 'fixture-catalogue.txt';
+const TOPIC_MAP = 'services/auditTopics.ts';
+
+/** A topic map in the real file's one-entry-per-line shape. */
+function topicMap(...keys: string[]): string {
+  return [
+    'const AUDIT_TOPIC_BY_PREFIX = [',
+    ...keys.map((k) => `  ['${k}', 'system'],`),
+    '];',
+    '',
+  ].join('\n');
+}
+
+const DEFAULT_MAP = topicMap('demo.', 'second.', 'ghost.');
 
 function inFixtureRepo(dataModel: string, sources: Record<string, string>): RunResult {
   const dir = mkdtempSync(join(tmpdir(), 'footbag-test-auditcat-'));
   try {
     writeFileSync(join(dir, FIXTURE_CATALOGUE), dataModel, 'utf-8');
-    for (const [rel, contents] of Object.entries(sources)) {
+    const withMap = TOPIC_MAP in sources ? sources : { ...sources, [TOPIC_MAP]: DEFAULT_MAP };
+    for (const [rel, contents] of Object.entries(withMap)) {
       const full = join(dir, 'src', rel);
       mkdirSync(join(full, '..'), { recursive: true });
       writeFileSync(full, contents, 'utf-8');
@@ -156,6 +170,45 @@ describe('check_audit_catalogue.sh', () => {
     });
     expect(r.exitCode).toBe(1);
     expect(r.stderr).toMatch(/catalogue section not found/);
+  });
+
+  it('fails a written action type the topic map does not cover, naming file, line and value', () => {
+    // The write path throws on an unmapped action type, so this row would fail
+    // at runtime on whatever page wrote it.
+    const r = inFixtureRepo(catalogue(ONE_ENTRY), {
+      'services/demoService.ts': "appendAuditEntry({ actionType: 'demo.known_thing' });\n",
+      [TOPIC_MAP]: topicMap('second.'),
+    });
+    expect(r.exitCode).toBe(1);
+    expect(r.stderr).toContain("src/services/demoService.ts:1: audit action_type 'demo.known_thing' has no topic");
+  });
+
+  it('fails a catalogued action type the topic map does not cover, even when nothing writes it yet', () => {
+    const r = inFixtureRepo(catalogue(`${ONE_ENTRY}\n- **\`spare.*\`**: \`later_thing\``), {
+      'services/demoService.ts': "appendAuditEntry({ actionType: 'demo.known_thing' });\n",
+    });
+    expect(r.exitCode).toBe(1);
+    expect(r.stderr).toContain("catalogued action_type 'spare.later_thing' has no topic");
+    expect(r.stderr).not.toContain('demo.known_thing');
+  });
+
+  it('lets a more specific map entry cover an action type its namespace does not', () => {
+    const r = inFixtureRepo(catalogue(ONE_ENTRY), {
+      'services/demoService.ts': "appendAuditEntry({ actionType: 'demo.known_thing' });\n",
+      [TOPIC_MAP]: topicMap('demo.known', 'demo.other_thing'),
+    });
+    expect(r.exitCode).toBe(0);
+  });
+
+  it('refuses rather than passing silently when the topic map has no entries', () => {
+    // A parse that finds no keys would call every action type unmapped, or, read
+    // the other way, prove nothing; either way the gate could not run.
+    const r = inFixtureRepo(catalogue(ONE_ENTRY), {
+      'services/demoService.ts': "appendAuditEntry({ actionType: 'demo.known_thing' });\n",
+      [TOPIC_MAP]: 'export const nothing = [];\n',
+    });
+    expect(r.exitCode).toBe(1);
+    expect(r.stderr).toMatch(/no topic map entries found/);
   });
 
   it('refuses rather than passing silently when the inventory is absent', () => {

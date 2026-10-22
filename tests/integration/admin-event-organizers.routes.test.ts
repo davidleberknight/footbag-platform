@@ -301,6 +301,25 @@ describe('assigning an organizer', () => {
     expect(auditCount(eventId, 'event.organizer_assigned')).toBe(1);
   });
 
+  it('a repeat is recognised even after the same admin assigned someone else to the same event', async () => {
+    // Defect caught: the repeat check read the event's latest act whoever it
+    // named, so assigning a second organizer made a re-post for the first read
+    // as somebody else's act.
+    makeMember('org_pair_a');
+    makeMember('org_pair_b');
+    const eventId = withDb((db) => insertEvent(db, { title: 'Two Organizers', start_date: '2099-11-13' }));
+    expect((await assign(eventId, 'org_pair_a', 'First organizer.')).status).toBe(303);
+    const bId = withDb((db) => (db.prepare("SELECT id FROM members WHERE slug = 'org_pair_b'").get() as { id: string }).id);
+    expect((await assign(eventId, 'org_pair_b', 'Second organizer.')).status).toBe(303);
+    // The event's latest act is now a removal, of the other organizer.
+    expect((await remove(eventId, bId, 'Second organizer stood down.')).status).toBe(303);
+
+    const again = await assign(eventId, 'org_pair_a', 'First organizer again.');
+    expect((await landedOn(again)).text)
+      .toContain('<div class="form-success-banner" role="status">Organizer added.</div>');
+    expect(auditCount(eventId, 'event.organizer_assigned')).toBe(2);
+  });
+
   it('someone already organizing from another act reads as informational, not as a refusal', async () => {
     // Defect caught: a state that already held, painted red as if this
     // admin's request had been refused.

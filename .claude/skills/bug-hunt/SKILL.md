@@ -6,13 +6,6 @@ description: Runs a bounded adversarial bug hunt over the footbag-platform repos
 
 # Bug Hunt: adversarial defect hunt across design, code and the discrepancies between them
 
-> **Invoke ONLY on explicit request.** Run this skill exclusively when the user asks for a
-> "bug hunt", "bug sweep", "design bug hunt" or "design bug sweep" by name. Do NOT infer it
-> from "adversarial review", "security pass", "review the code/design/docs" or any general
-> review phrasing: those mean a findings-only review in plan mode. A documentation audit is
-> the `doc-sync` skill's full-audit mode; a test or gate gap is the `write-tests` skill's; a
-> review of the harness against vendor guidance is the `update-config` skill's. When in
-> doubt, ask before invoking.
 
 **This skill orchestrates; it does not read the catalogs itself.** The method detail lives
 in two briefs, each read by the subagent that sweeps that layer, never by the orchestrator,
@@ -131,7 +124,7 @@ finding-count target: a short findings list is a valid result.
 2. Root `CLAUDE.md`: the authority order (do not restate it).
 3. Dispatch **Lane 0** to build the tracked-work exclusion list: open issues from the
    maintainers' private tracker (`gh issue list -R "$FOOTBAG_PRIVATE_REPO" --state open`,
-   read-only) plus the local gitignored `BUGS.md`. The label taxonomy lives in
+   read-only) plus `footbag_private_repo/BUGS.md`. The label taxonomy lives in
    `TRACKER_GUIDE.md` (private GitHub repo). If `FOOTBAG_PRIVATE_REPO` is unset, say one
    line that the tracker is not wired on this machine, proceed with `BUGS.md` alone, never
    hard-fail.
@@ -308,7 +301,9 @@ break, public-record display error, operational workflow break, a silent break f
 non-shipped asset. Low: cosmetic issues, dead code, redundant guards, stale comments with
 no behavioral consequence.
 
-**Output.** Single sink: `BUGS.md` at the repo root, written once, after approval. Groups in
+**Output.** Single sink: `BUGS.md` in the private operations checkout
+(`footbag_private_repo/BUGS.md`, gitignored there), written once, after approval; on a machine
+without that checkout, the session scratchpad. Groups in
 order: (1) security and correctness severity sections (Catastrophic, High, Medium, Low; a
 section exists only when it has findings), implementation findings and harness guard
 bypasses; (2) design bugs (specification layer), ordered by severity; (3) discrepancy and

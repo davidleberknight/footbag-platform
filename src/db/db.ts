@@ -5374,6 +5374,29 @@ export const accountTokens = {
 };
 
 export const auditEntries = {
+  // Whether an account is a member, the line the audit log draws: a row is
+  // written about a member and never about anyone else.
+  get isMember() { return db.prepare(`
+    SELECT 1 AS m FROM members_onboarded WHERE id = ?
+  `); },
+
+  // The retention purge: rows older than the cutoff, except one an account
+  // token still points at, which its foreign key keeps until the token goes.
+  // The delete trigger refuses any row inside the retention window, whatever
+  // cutoff is passed here.
+  get deleteOlderThan() { return db.prepare(`
+    DELETE FROM audit_entries
+    WHERE occurred_at < ?
+      AND id NOT IN (
+        SELECT target_audit_entry_id FROM account_tokens
+        WHERE target_audit_entry_id IS NOT NULL
+      )
+  `); },
+
+  get oldestOccurredAt() { return db.prepare(`
+    SELECT MIN(occurred_at) AS oldest FROM audit_entries
+  `); },
+
   get insert() { return db.prepare(`
     INSERT INTO audit_entries (
       id, created_at, created_by,
@@ -5408,7 +5431,8 @@ export const auditEntries = {
         'claim.legacy_account',
         'claim.historical_person',
         'claim.refused',
-        'legacy.claim_step_answered',
+        'wizard.legacy_claim.never_had_account',
+        'wizard.legacy_claim.cannot_find_record',
         'legacy.anchor_declared',
         'legacy.auto_link_revert'
       )
@@ -5429,14 +5453,41 @@ export const auditEntries = {
     LIMIT 1
   `); },
 
-  // The actor's own latest row for one action naming a club in its metadata,
-  // for acts whose entity row is deleted with the act (a co-leader seat).
-  get findLatestOwnForClub() { return db.prepare(`
-    SELECT id, occurred_at, metadata_json
+  // The member's own co-leader step-down at a club, when it still stands: no
+  // later act gave them a seat there again (volunteering, an administrator's
+  // assignment, a leadership claim at onboarding). The seat row goes with the
+  // step-down, so the audit row is what traces a repeated step-down.
+  get findStandingOwnStepDown() { return db.prepare(`
+    SELECT s.id, s.occurred_at, s.metadata_json
+    FROM audit_entries s
+    WHERE s.actor_member_id = ?
+      AND s.action_type = 'club.coleader_stepped_down'
+      AND json_extract(s.metadata_json, '$.club_id') = ?
+      AND NOT EXISTS (
+        SELECT 1 FROM audit_entries r
+        WHERE r.occurred_at > s.occurred_at
+          AND r.action_type IN ('club.coleader_volunteered', 'club.admin_leader_assigned',
+                                'wizard.club_affiliations.promoted')
+          AND (json_extract(r.metadata_json, '$.club_id') = json_extract(s.metadata_json, '$.club_id')
+               OR (r.entity_type = 'club' AND r.entity_id = json_extract(s.metadata_json, '$.club_id')))
+          AND (r.actor_member_id = s.actor_member_id
+               OR json_extract(r.metadata_json, '$.member_id') = s.actor_member_id)
+      )
+    ORDER BY s.occurred_at DESC, s.id DESC
+    LIMIT 1
+  `); },
+
+  // The same, narrowed to acts on one member of a shared entity (one organizer
+  // of an event, one leader of a club), named in metadata under the given
+  // JSON path. Without it an act on another member of the same club or event
+  // would read as the latest act on this one.
+  get findLatestForEntitySubject() { return db.prepare(`
+    SELECT id, occurred_at, actor_member_id, action_type, metadata_json
     FROM audit_entries
-    WHERE actor_member_id = ?
-      AND action_type = ?
-      AND json_extract(metadata_json, '$.club_id') = ?
+    WHERE entity_type = ?
+      AND entity_id = ?
+      AND action_type IN (?, ?)
+      AND json_extract(metadata_json, ?) = ?
     ORDER BY occurred_at DESC, id DESC
     LIMIT 1
   `); },
@@ -5458,7 +5509,10 @@ export const auditEntries = {
 // dynamic, so the SQL is assembled per call (the project's dynamic-SQL-helper
 // pattern) rather than as a fixed prepared statement.
 export interface AuditLogFilters {
-  memberId?: string | null;      // matches actor OR member-entity
+  memberId?: string | null;      // matches actor, member-entity, or a row naming the member in metadata
+  entityType?: string | null;    // with entityId: rows on that entity or naming it in metadata
+  entityId?: string | null;
+  liveOnly?: boolean;            // real business only, no rehearsal or unknown-origin rows
   actionType?: string | null;
   category?: string | null;
   actorType?: string | null;
@@ -5488,10 +5542,21 @@ export interface AuditLogQueryRow {
 function buildAuditLogWhere(f: AuditLogFilters): { sql: string; params: unknown[] } {
   const clauses: string[] = [];
   const params: unknown[] = [];
+  // A member's history includes the rows about something of theirs (a payment,
+  // an affiliation, a gallery), which name the member in metadata rather than
+  // as the row's entity.
   if (f.memberId) {
-    clauses.push("(a.actor_member_id = ? OR (a.entity_type = 'member' AND a.entity_id = ?))");
-    params.push(f.memberId, f.memberId);
+    clauses.push(`(a.actor_member_id = ? OR (a.entity_type = 'member' AND a.entity_id = ?)
+      OR json_extract(a.metadata_json, '$.member_id') = ? OR json_extract(a.metadata_json, '$.memberId') = ?)`);
+    params.push(f.memberId, f.memberId, f.memberId, f.memberId);
   }
+  // An entity's history: the rows on it, and the rows on related entities that
+  // name it in metadata the same way (a club's affiliations carry club_id).
+  if (f.entityType && f.entityId && /^[a-z_]+$/.test(f.entityType)) {
+    clauses.push('((a.entity_type = ? AND a.entity_id = ?) OR json_extract(a.metadata_json, ?) = ?)');
+    params.push(f.entityType, f.entityId, `$.${f.entityType}_id`, f.entityId);
+  }
+  if (f.liveOnly) { clauses.push("a.data_origin = 'live'"); }
   if (f.actionType) { clauses.push('a.action_type = ?'); params.push(f.actionType); }
   if (f.category)   { clauses.push('a.category = ?');    params.push(f.category); }
   if (f.actorType)  { clauses.push('a.actor_type = ?');  params.push(f.actorType); }
@@ -5505,7 +5570,23 @@ function buildAuditLogWhere(f: AuditLogFilters): { sql: string; params: unknown[
 
 export function queryAuditLog(filters: AuditLogFilters, limit: number, offset: number): AuditLogQueryRow[] {
   const { sql, params } = buildAuditLogWhere(filters);
-  return db.prepare(`
+  return db.prepare(`${auditLogSelect(sql)} LIMIT ? OFFSET ?`)
+    .all(...params, limit, offset) as AuditLogQueryRow[];
+}
+
+/**
+ * Every row the filters match, one at a time, for the export: a date window
+ * bounds it, and nothing caps it, so an incident handoff is never silently
+ * missing its oldest rows. Unpaginated, so the id tiebreak only fixes the order
+ * of rows sharing a timestamp.
+ */
+export function iterateAuditLog(filters: AuditLogFilters): IterableIterator<AuditLogQueryRow> {
+  const { sql, params } = buildAuditLogWhere(filters);
+  return db.prepare(auditLogSelect(sql)).iterate(...params) as IterableIterator<AuditLogQueryRow>;
+}
+
+function auditLogSelect(where: string): string {
+  return `
     SELECT
       a.id, a.occurred_at, a.actor_type, a.actor_member_id, a.action_type,
       a.entity_type, a.entity_id, a.category, a.reason_text, a.metadata_json,
@@ -5519,10 +5600,8 @@ export function queryAuditLog(filters: AuditLogFilters, limit: number, offset: n
     -- must not show or a /members/<slug> link that 404s.
     LEFT JOIN members_onboarded am ON am.id = a.actor_member_id
     LEFT JOIN members_onboarded em ON em.id = a.entity_id AND a.entity_type = 'member'
-    ${sql}
-    ORDER BY a.occurred_at DESC, a.id DESC
-    LIMIT ? OFFSET ?
-  `).all(...params, limit, offset) as AuditLogQueryRow[];
+    ${where}
+    ORDER BY a.occurred_at DESC, a.id DESC`;
 }
 
 export interface AuditLogSummaryRow {
@@ -5569,6 +5648,8 @@ export interface OutboxLogFilters {
   recipient?: string | null;   // substring match on recipient_email
   templateKey?: string | null;
   status?: string | null;
+  fromDate?: string | null;    // created_at >= (inclusive)
+  toDate?: string | null;      // created_at <= (inclusive; a bare date is stretched to the day's end)
 }
 
 export interface OutboxLogQueryRow {
@@ -5597,6 +5678,8 @@ function buildOutboxLogWhere(f: OutboxLogFilters): { sql: string; params: unknow
   if (f.recipient)   { clauses.push("o.recipient_email LIKE '%' || ? || '%'"); params.push(f.recipient); }
   if (f.templateKey) { clauses.push('o.template_key = ?'); params.push(f.templateKey); }
   if (f.status)      { clauses.push('o.status = ?');       params.push(f.status); }
+  if (f.fromDate)    { clauses.push('o.created_at >= ?');  params.push(f.fromDate); }
+  if (f.toDate)      { clauses.push('o.created_at <= ?');  params.push(f.toDate); }
   return { sql: clauses.length ? `WHERE ${clauses.join(' AND ')}` : '', params };
 }
 
@@ -8173,12 +8256,20 @@ export const legacyClaim = {
   // read is for a friendly error rather than a raw constraint failure.
   // Whether marking this member deceased cascaded the flag onto this record.
   // Parameters: member id, record id.
+  // The marking that cascaded onto the record, when it still stands: a marking
+  // removed as an error since did not leave the flag there.
   get findDeceasedCascadeOntoRecord() { return db.prepare(`
-    SELECT id FROM audit_entries
-    WHERE action_type = 'member.deceased_marked'
-      AND entity_type = 'member' AND entity_id = ?
-      AND json_extract(metadata_json, '$.cascaded_to_historical_person') = 1
-      AND json_extract(metadata_json, '$.historical_person_id') = ?
+    SELECT m.id FROM audit_entries m
+    WHERE m.action_type = 'member.deceased_marked'
+      AND m.entity_type = 'member' AND m.entity_id = ?
+      AND json_extract(m.metadata_json, '$.cascaded_to_historical_person') = 1
+      AND json_extract(m.metadata_json, '$.historical_person_id') = ?
+      AND NOT EXISTS (
+        SELECT 1 FROM audit_entries r
+        WHERE r.action_type = 'member.deceased_reverted'
+          AND r.entity_type = 'member' AND r.entity_id = m.entity_id
+          AND r.occurred_at > m.occurred_at
+      )
     LIMIT 1
   `); },
 
@@ -9069,7 +9160,8 @@ export const memberTier = {
     FROM audit_entries a
     -- A member row is never hard-deleted, so every grant finds its member.
     JOIN members m ON m.id = a.entity_id
-    WHERE a.action_type IN ('tier.hof_grant', 'tier.bap_grant')
+    -- Removals too, so a grant taken back never reads as one still standing.
+    WHERE a.action_type IN ('tier.hof_grant', 'tier.bap_grant', 'tier.hof_grant_removed', 'tier.bap_grant_removed')
     ORDER BY a.occurred_at DESC, a.id DESC
     LIMIT ?
   `); },
@@ -9767,7 +9859,11 @@ export const emailArchives = {
     FROM email_archives AS a
     LEFT JOIN mailing_lists AS ml ON ml.slug = a.mailing_list_id
     ORDER BY a.sent_at DESC, a.id DESC
-    LIMIT ?
+    LIMIT ? OFFSET ?
+  `); },
+
+  get countAll() { return db.prepare(`
+    SELECT COUNT(*) AS n FROM email_archives
   `); },
 
   get getById() { return db.prepare(`
@@ -10446,8 +10542,10 @@ export const systemAlarms = {
     WHERE id = ?
   `); },
 
-  // Newest alarms first, bounded by the caller, joined to the acknowledging
-  // admin so the page can name them without a second read.
+  // Every alarm still active, whenever it was raised, then the rest raised
+  // since the cutoff, each group latest raise first: the order follows the
+  // time the page shows, which a re-raise moves. Bounded by the caller, joined
+  // to the acknowledging admin so the page can name them without a second read.
   get listRecent() { return db.prepare(`
     SELECT a.id, a.alarm_type, a.severity, a.raised_at, a.cleared_at, a.status,
            a.acknowledged_at, a.acknowledgment_note, a.details_json,
@@ -10455,14 +10553,14 @@ export const systemAlarms = {
            m.slug         AS acknowledged_by_slug
     FROM system_alarm_events AS a
     LEFT JOIN members_all AS m ON m.id = a.acknowledged_by_member_id
-    ORDER BY a.created_at DESC, a.id DESC
+    WHERE a.status = 'active' OR a.raised_at >= ?
+    ORDER BY (a.status = 'active') DESC, a.raised_at DESC, a.id DESC
     LIMIT ? OFFSET ?
   `); },
 
-  // Total recorded alarms, so the page can say whether more exist beyond the
-  // one it is showing and offer a way to reach them.
-  get countAll() { return db.prepare(`
+  get countRecent() { return db.prepare(`
     SELECT COUNT(*) AS n FROM system_alarm_events
+    WHERE status = 'active' OR raised_at >= ?
   `); },
 
   // The dashboard badge counts what nobody has picked up yet; an acknowledged
@@ -11742,7 +11840,7 @@ export const paymentMoneyHistory = {
   // Everything that moved money on a payment after it settled, for the admin
   // detail page.
   //
-  // A partial refund, a dispute and a failed payout never touch the payment row
+  // A partial refund and a dispute never touch the payment row
   // by design: the status machine is monotonic and only a full refund reaches
   // the terminal state. The audit ledger is therefore the only place that
   // history exists, and without it the detail page shows a settled payment at
@@ -11752,7 +11850,8 @@ export const paymentMoneyHistory = {
   // recorded against the payment itself; a dispute is recorded against the
   // provider's dispute object and names the payment only in its metadata, so it
   // is reached by the intent id instead. UNION rather than OR so each arm can
-  // use its own index.
+  // use its own index. A rejected payout is not here: a payout carries many
+  // payments, names none of them, and is read in the audit log viewer.
   get forPayment() { return db.prepare(`
     SELECT occurred_at, action_type, reason_text, metadata_json
     FROM audit_entries
@@ -11764,11 +11863,10 @@ export const paymentMoneyHistory = {
     UNION ALL
     SELECT occurred_at, action_type, reason_text, metadata_json
     FROM audit_entries
-    WHERE category = 'payment'
+    WHERE category = 'payments'
       AND action_type IN (
         'payment.dispute_opened', 'payment.dispute_updated', 'payment.dispute_closed',
-        'payment.dispute_funds_withdrawn', 'payment.dispute_funds_reinstated',
-        'payment.payout_rejected'
+        'payment.dispute_funds_withdrawn', 'payment.dispute_funds_reinstated'
       )
       AND json_extract(metadata_json, '$.stripe_payment_intent_id') = ?
     ORDER BY occurred_at ASC

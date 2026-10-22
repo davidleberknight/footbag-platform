@@ -16,7 +16,7 @@ Every line of a CLAUDE.md, rule or skill costs context and adherence. Before add
 - Never restate what a hook, a permission rule, a skill or an always-loaded rule already enforces or states; point to it, or say nothing.
 - Put a point-of-use instruction in the output of the script or tool it governs (as `scripts/test-targets.sh` prints how to run its command), not in an always-loaded file.
 - Make anything that must hold every time a hook, not an instruction; instructions are advisory.
-- Read-only commands are allowed generally; no instruction asks permission for a read.
+- Read-only commands are allowed generally; no instruction asks permission for a read. Screenshots and other heavy browser-tool reads are the exception and run only on request.
 - Emphasis (IMPORTANT, MUST) on at most one line Claude keeps skipping.
 - No history, incident stories or dated narration; state the rule in force.
 - A subagent does not see CLAUDE.md: a rule it must follow goes in its prompt or its agent file.

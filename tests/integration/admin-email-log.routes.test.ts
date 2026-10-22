@@ -150,6 +150,24 @@ describe('GET /admin/email-log', () => {
     expect(res.text).not.toContain('Template body (merge fields unpopulated)');
   });
 
+  // Defect caught: a browse with no dates mixes this week's delivery problems
+  // into all of history, or ends before today and misses the latest message.
+  it('browses the last 7 days ending today by default; a recipient lookup keeps its whole span', async () => {
+    withDb((db) => {
+      insertOutboxEmail(db, { subject: 'Sent this week', recipient_email: 'week@example.com', status: 'sent',
+        created_at: new Date(Date.now() - 2 * 86_400_000).toISOString() });
+      insertOutboxEmail(db, { subject: 'Sent last month', recipient_email: 'month@example.com', status: 'sent',
+        created_at: new Date(Date.now() - 30 * 86_400_000).toISOString() });
+    });
+    const app = createApp();
+    const browse = await request(app).get('/admin/email-log').set('Cookie', adminCookie());
+    expect(browse.text).toContain('Sent this week');
+    expect(browse.text).not.toContain('Sent last month');
+
+    const lookup = await request(app).get('/admin/email-log?recipient=month%40example.com').set('Cookie', adminCookie());
+    expect(lookup.text).toContain('Sent last month');
+  });
+
   it('status filter narrows to matching rows', async () => {
     withDb((db) => {
       insertOutboxEmail(db, { recipient_email: 'a@example.com', subject: 'Sent one', template_key: 'payment_receipt_succeeded', status: 'sent' });
@@ -207,9 +225,11 @@ describe('GET /admin/email-log', () => {
   // rows below come back in the reverse of the order they were written.
   it('orders a block of emails sharing one timestamp by identifier, newest first', async () => {
     withDb((db) => {
-      insertOutboxEmail(db, { id: 'el_tie_a', created_at: '2026-04-01T00:00:00.000Z', subject: 'Fanout alpha', status: 'sent' });
-      insertOutboxEmail(db, { id: 'el_tie_b', created_at: '2026-04-01T00:00:00.000Z', subject: 'Fanout bravo', status: 'sent' });
-      insertOutboxEmail(db, { id: 'el_tie_c', created_at: '2026-04-01T00:00:00.000Z', subject: 'Fanout charlie', status: 'sent' });
+      // One instant shared by all three, an hour ago, so only the id can order them.
+      const tie = new Date(Date.now() - 3_600_000).toISOString();
+      insertOutboxEmail(db, { id: 'el_tie_a', created_at: tie, subject: 'Fanout alpha', status: 'sent' });
+      insertOutboxEmail(db, { id: 'el_tie_b', created_at: tie, subject: 'Fanout bravo', status: 'sent' });
+      insertOutboxEmail(db, { id: 'el_tie_c', created_at: tie, subject: 'Fanout charlie', status: 'sent' });
     });
     const app = createApp();
     const res = await request(app).get('/admin/email-log').set('Cookie', adminCookie());

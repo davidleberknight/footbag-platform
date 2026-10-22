@@ -465,7 +465,6 @@ export const freestyleRecordCurationService = {
       );
       appendAuditEntry({
         actionType:    'freestyle.record.updated',
-        category:      'content',
         actorType:     'admin',
         actorMemberId,
         entityType:    'freestyle_record',
@@ -496,7 +495,6 @@ export const freestyleRecordCurationService = {
       );
       appendAuditEntry({
         actionType:    'freestyle.record.created',
-        category:      'content',
         actorType:     'admin',
         actorMemberId,
         entityType:    'freestyle_record',

@@ -180,7 +180,6 @@ export function createAvatarService(deps: AvatarServiceDeps) {
         // 'media.member_uploaded' taxonomy (mediaType distinguishes avatar/photo).
         appendAuditEntry({
           actionType: 'media.member_uploaded',
-          category: 'media',
           actorType: 'member',
           actorMemberId: memberId,
           entityType: 'media_item',

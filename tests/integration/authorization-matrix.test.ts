@@ -196,7 +196,7 @@ describe('admin gate — GET (allow admin only, deny everyone else)', () => {
     '/admin/work-queue',
     '/admin/audit-log',
     '/admin/audit-log/summary',
-    '/admin/audit-log/export',
+    '/admin/audit-log/export?from=2026-01-01&to=2026-01-31',
     '/admin/email-log',
     '/admin/system-parameters',
     '/admin/mailing-lists',

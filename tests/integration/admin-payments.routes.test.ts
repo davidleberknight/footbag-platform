@@ -13,7 +13,7 @@ import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/
 const { dbPath } = setTestEnv('4035');
 process.env.PAYMENT_ADAPTER = 'stub';
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import plainRequest from 'supertest';
 import BetterSqlite3 from 'better-sqlite3';
@@ -46,6 +46,17 @@ beforeAll(async () => {
 });
 
 afterAll(() => cleanupTestDb(dbPath));
+
+// The page's clock stands at NOW, the instant the seeded payments are recent
+// to, so its default window (the month to date) holds them as it would hold
+// real recent payments.
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  vi.setSystemTime(NOW);
+});
+afterEach(() => {
+  vi.useRealTimers();
+});
 
 beforeEach(async () => {
   const { resetPaymentAdapterForTests } = await import('../../src/adapters/paymentAdapter');
@@ -743,7 +754,20 @@ describe('All Payments sorting', () => {
     // Handlebars escapes the `=` inside an href attribute, which the browser
     // decodes again; comparing against the decoded form keeps the assertion
     // about the destination rather than about the escaping.
-    expect(res.text.replace(/&#x3D;/g, '=')).toContain('/admin/payments?sort=amount_desc');
+    // The link keeps the window on screen, the month to date by default.
+    expect(res.text.replace(/&#x3D;/g, '=').replace(/&amp;/g, '&'))
+      .toContain('/admin/payments?from=2026-07-01&to=2026-07-20&sort=amount_desc');
+  });
+
+  // Defect caught: with no dates the totals add up every payment ever made,
+  // which reads as current takings, or the window ends before today and
+  // misses the latest payment.
+  it('defaults the list and its totals to the month to date, and fills the dates in', async () => {
+    seedSortablePayments();
+    const res = await plainRequest(createApp()).get('/admin/payments').set('Cookie', cookie(ADMIN));
+    expect(res.text).toContain('value="2026-07-01"');
+    expect(res.text).toContain('value="2026-07-20"');
+    expect(res.text).not.toContain('the whole record');
   });
 });
 

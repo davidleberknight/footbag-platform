@@ -7,11 +7,7 @@
 
 <div class="wrapper">
   {{#if content.hasRows}}
-  {{#if content.isCapped}}
-  <p class="text-muted">The {{content.pageSize}} most recent sends.</p>
-  {{else}}
-  <p class="text-muted">{{content.totalCount}} sends.</p>
-  {{/if}}
+  <p class="text-muted">{{content.resultSummary}}</p>
 
   <table class="data-table">
     <thead>
@@ -33,6 +29,10 @@
       {{/each}}
     </tbody>
   </table>
+  <p>
+    {{#if content.prevPageHref}}<a href="{{content.prevPageHref}}" class="btn btn-outline">Previous</a>{{/if}}
+    {{#if content.nextPageHref}}<a href="{{content.nextPageHref}}" class="btn btn-outline">Next</a>{{/if}}
+  </p>
   {{else}}
   <p>Nothing has been sent yet. A message composed to a mailing list is recorded here.</p>
   {{/if}}

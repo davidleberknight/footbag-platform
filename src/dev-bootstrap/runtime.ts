@@ -140,7 +140,6 @@ export function applyDevStagingBootstrapAdmin(
     registration.setAdminFlagOnRegister.run(args.now, args.memberId);
     appendAuditEntry({
       actionType: 'admin.dev_register_allowlist_grant',
-      category: 'admin',
       actorType: 'system',
       actorMemberId: null,
       entityType: 'member',

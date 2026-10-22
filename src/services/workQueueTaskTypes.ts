@@ -111,7 +111,6 @@ export type WorkQueueAction =
       decisions: readonly WorkQueueDecisionOption[];
       note: WorkQueueNoteField;
       auditActionType: string;
-      auditCategory: string;
       /** True where the decision is answered to the member by email. */
       notifiesSubject: boolean;
       /**
@@ -143,7 +142,6 @@ export type WorkQueueAction =
       style: 'primary' | 'outline';
       note: WorkQueueNoteField;
       auditActionType: string;
-      auditCategory: string;
       /** The fixed ledger wording for this dismissal. The ledger is append-only,
        *  so each type names its own event and reason: a shared one would file one
        *  type's review under another's and the wrong entry could never be
@@ -237,7 +235,6 @@ function paymentsTask(label: string, entityTypes: readonly string[]): WorkQueueT
       decisions:       PAYMENT_DECISIONS,
       note:            INTERNAL_NOTE,
       auditActionType: 'payment.queue_item_resolved',
-      auditCategory:   'payment',
       // No email: the row points at a provider-side record, and any
       // member-facing message went out when the underlying event was recorded.
       notifiesSubject: false,
@@ -264,7 +261,6 @@ export const WORK_QUEUE_TASK_TYPES: Readonly<Record<string, WorkQueueTaskTypeDes
       decisions:       CONTACT_DECISIONS,
       note:            MEMBER_ANSWER_NOTE,
       auditActionType: 'support.contact_request_resolved',
-      auditCategory:   'support',
       notifiesSubject: true,
       // Any member can file one of these about their own record, an
       // administrator included, and the decisions include correcting the record
@@ -347,7 +343,6 @@ export const WORK_QUEUE_TASK_TYPES: Readonly<Record<string, WorkQueueTaskTypeDes
       style:           'outline',
       note:            REVIEW_NOTE,
       auditActionType: 'admin.loss_alert_dismissed',
-      auditCategory:   'admin',
       auditReasonText: 'Administrator-loss recruitment alert reviewed and closed.',
       hint:            'Dismiss this once a replacement admin volunteer is recruited, or once the team agrees the current admin roster is sufficient. Granting the role to the replacement is done on the admin roles page.',
     }],

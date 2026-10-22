@@ -2,8 +2,10 @@
 paths:
   - "src/views/**"
   - "src/public/**"
-  - "src/services/freestyle*.ts"
-  - "src/services/symbolic*.ts"
+  - "src/services/**"
+  - "src/types/page.ts"
+  - "src/lib/outcomeNotice.ts"
+  - "src/lib/titleCase.ts"
   - "src/content/**"
 ---
 
@@ -126,8 +128,8 @@ underlined at rest: the link green against the body text is 2.54:1, so colour al
 it. A link whose context already signals a link (navigation, a link list, a card) may drop the
 resting underline, and then underlines on hover and on keyboard focus. No link renders at
 `color: inherit` without one of these cues. And a
-control's visible label names where it goes or what it does, per the truthful-controls rule in
-`template-conventions.md`.
+control's visible label names where it goes or what it does, per the truthful-controls rule under
+Template mechanics below.
 
 ## Message vocabulary
 
@@ -183,7 +185,7 @@ their own way. A true community nickname renders inline beside the canonical nam
 ## CSS vocabulary
 
 `src/public/css/style.css` is the source of truth for class definitions; this rule names the
-discipline, not the enumeration.
+discipline and the shared classes; per-section classes are in the stylesheet.
 
 - Every class used in a template has a corresponding rule in `style.css` that reaches it where it is
   used. A compound such as `.hero.hero-sm` defines both parts; a descendant selector such as
@@ -200,6 +202,17 @@ discipline, not the enumeration.
   `.form-fieldset`.
 - Never invent a class by analogy with another framework (`btn-secondary` is a Bootstrap name, not
   ours). New classes are added to `style.css`.
+- Shared classes: site frame `.skip-link`, `.wrapper`, `.site-header`, `.site-logo`, `.main-nav`,
+  `.site-footer`; hero `.hero`, `.hero-sm`, `.hero-eyebrow`, `.hero-subtitle`, `.hero-hashtag`;
+  sections `.content-section`, `.section-heading`, `.section-intro` (`.profile-section` on member
+  profile pages only); cards and tables `.card`, `.card-static`, `.card-title`, `.card-meta`,
+  `.card-description`, `.card-grid`, `.badge`, `.data-table`, `.empty-state`; actions `.btn`,
+  `.btn-primary`, `.btn-outline`, `.btn-inverse`, `.btn-sm`, `.action-link`, `.tag-chip`; forms
+  `.form-block`, `.form-field`, `.form-hint`, `.form-fieldset`, `.form-actions`, `.filter-bar`;
+  text `.text-muted` (metadata only), `.text-center`, `.fs-sm`, `.fw-600`.
+- Spacing utilities (`.mt-1` to `.mt-10`, `.mb-0` to `.mb-10`) take their values from the
+  `--space-*` role tokens and are not a tuning tool: a gap belongs to the shared component that
+  owns it and is never adjusted per template (the Spacing Rhythm design decision).
 - The vocabulary is shared (required across all public pages) plus per-section (required only within
   that section); both groups live in `style.css`.
 - A new class, shared or per-section, enters only through a reviewed change that adds it to
@@ -352,10 +365,55 @@ Served by Express at the root URL path `/`, with no build step of any kind:
 - `src/public/img/` holds images belonging to the site itself (world map, logos, icons,
   placeholders). Member-uploaded photos and media live in object storage, never here.
 
+## Template mechanics
+
+Templates are logic-light Handlebars: the service hands them a fully shaped view-model and they
+render it. Middleware adds the pre-shaped booleans the layout uses (`res.locals.isAuthenticated`,
+`isMember`, `isAdmin`, `currentSection`).
+
+- No business rules, computed values or database access; a template missing data is fixed in the
+  service.
+- Branch only on a service-shaped boolean or pre-shaped enum, never on a raw domain code.
+  `{{#if showContact}}` and `{{#if hasResults}}` are right; `{{#if (eq member.role 'admin')}}`,
+  `{{#if (gt member.tier 1)}}` and `{{#if (eq event.status 'completed')}}` are wrong, because the
+  service supplies `isAdmin`, the tier check and `isCompleted`. Labels likewise: the service
+  supplies `teamTypeLabel`, never an `eq` on `teamType`.
+- A URL with one variable may be written in the template (`href="/clubs/{{slug}}"`); one with two
+  or more, and every dictionary filter, view or hashtag link, is a service-shaped `*Href` field.
+- No inline `style="..."`, `<style>` or `<script>` block: the content security policy allows only
+  same-origin scripts and styles. The one exception is a non-executable JSON data island,
+  `<script type="application/json" id="...">{{{ jsonViewModel }}}</script>`, parsed by an external
+  script. The convention gate enforces this at merge time.
+- No raw HTML from a service string. Paragraph text renders escaped with `{{ }}`; a link inside it
+  is a service-shaped segment. Triple-stash `{{{ }}}` is for helpers, the layout `body`, JSON data
+  islands, sanitised markdown and service-shaped `*Href` values only.
+- No inline event handlers (`onclick=` and the like); attach handlers from external JS with
+  `addEventListener` on a class or `data-*` selector.
+- No nested `<form>`. HTML closes the outer form at the first `</form>`, orphaning every later
+  control and the submit button, so the form submits nothing. Where independent actions interleave
+  with a form's fields, give the form an `id` and associate controls with `form="id"`. The
+  convention gate enforces this.
+- **Truthful controls.** A control's visible label is a promise about where the click lands. Every
+  form-submit button or button-styled link names the action it performs or the place it goes, and
+  two controls showing the same label on one page resolve to the same destination (form `action` or
+  anchor `href`). A "Link My History" button that runs a search, or two "Apply" buttons posting to
+  different endpoints, are defects. The one exception is `Switch`, the identity-switch verb, which
+  the dev persona harness offers through more than one endpoint. The button-destination check in
+  `tests/integration/route-wiring.crawl.test.ts` enforces this across every template.
+
+Registered helpers, from `src/app.ts`:
+
+- `formatDate(iso)`: ISO `YYYY-MM-DD` to `D Month YYYY`.
+- `yearFromDate(iso)`: the 4-digit year.
+- `countryFlag(country)`: flag for a country code.
+- `externalLink(url, label, class)`: an external `<a>` with `rel="noopener noreferrer"`.
+- `formatLocation(city, region, country)`: location parts joined with commas.
+- `splitParagraphs(text)`: curator prose split on blank lines into paragraph strings.
+- `eq`, `gt`, `add`, `not`, `or`: for pre-shaped enum branching (`{{#if (eq activeView 'add')}}`),
+  never to derive a label from a raw domain code.
+
 ## Where the rest lives
 
-- Template mechanics (what templates MAY / MUST NOT do, registered helpers, pre-shaped-boolean
-  discipline): `template-conventions.md`.
 - Controller / HTTP shape, status codes, cookies, auth gates: `controller-conventions.md`.
 - Service page-shaping methods and view-model ownership: `service-layer.md`.
 - Each page's audience, rendering contract, and sensitive-page invariants: the owning service's
