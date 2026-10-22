@@ -277,6 +277,27 @@ describe('a bounced member resuming mail to the same address', () => {
     expect(emailStatusOf(complained.id)).toBe('complained');
     expect(emailStatusOf(suppressed.id)).toBe('suppressed');
   });
+
+  // A registrant whose first verification mail bounced recovers through the
+  // same link before onboarding finishes. The audit log holds no row about
+  // someone who is not a member, and a row there would also keep their
+  // unfinished account from ever being deleted.
+  it('a registrant still onboarding gets the bounce cleared and no audit row about them', async () => {
+    seq += 1;
+    const registrant = { id: `rec_registrant_${seq}`, email: `rec-registrant-${seq}@example.com` };
+    withDb((db) => insertMember(db, {
+      id: registrant.id, slug: `rec_registrant_${seq}`, login_email: registrant.email,
+      email_status: 'bounced', email_verified_at: null, onboarding: 'none',
+    }));
+    const { accountTokenService } = await import('../../src/services/accountTokenService');
+    const { rawToken } = accountTokenService.issueToken({ memberId: registrant.id, tokenType: 'email_verify', ttlHours: 24 });
+
+    const res = await request(createApp()).post('/verify').type('form').send({ token: rawToken });
+
+    expect(res.status).toBe(303);
+    expect(emailStatusOf(registrant.id)).toBe('ok');
+    expect(auditCount('email.address_recovered', registrant.id)).toBe(0);
+  });
 });
 
 describe('a member who reported spam turning a list back on', () => {

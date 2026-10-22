@@ -272,10 +272,13 @@ describe('route wiring crawl', () => {
 
 describe('route-to-story ledger', () => {
   // Read from the working tree, because the catalogue under test is the one
-  // this checkout serves.
+  // this checkout serves. Background-job stories live in their own document,
+  // so both are read; a story in either that the ledger never accounts for is
+  // a finding.
   it('maps every served route to a story and accounts for every story, both ways', () => {
-    const catalogue = fs.readFileSync(path.join(process.cwd(), 'docs', 'USER_STORIES.md'), 'utf8');
-    const storyIds = storyIdsFrom(catalogue);
+    const storyIds = ['USER_STORIES.md', 'BACKGROUND_JOBS.md'].flatMap((file) =>
+      storyIdsFrom(fs.readFileSync(path.join(process.cwd(), 'docs', file), 'utf8')));
+    expect(storyIds.length, 'no story headings read from the catalogue').toBeGreaterThan(100);
     expect(storyIds.length, 'no story headings read from the catalogue').toBeGreaterThan(100);
     expect(ledgerFindings({
       servedRoutes: served.map((r) => `${r.method} ${r.path}`),

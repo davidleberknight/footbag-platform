@@ -217,10 +217,9 @@ describe('the report a run leaves behind', () => {
     const issueId = (openDb().prepare('SELECT id FROM reconciliation_issues').get() as { id: string }).id;
     service.resolveIssue({ issueId, adminMemberId: ADMIN, notes: 'Checked at the provider; a console charge.' });
 
-    // The next UTC day, so the once-per-day gate lets it run.
+    // The next UTC day's pass.
     const nextDay = new Date(NOW.getTime() + 86_400_000);
-    const second = await operationsPlatformService.runPaymentReconciliation(nextDay);
-    expect(second.skipped).toBe(false);
+    await operationsPlatformService.runPaymentReconciliation(nextDay);
 
     const runs = openDb().prepare(
       "SELECT details_json FROM system_job_runs WHERE job_name = 'SYS_Reconcile_Payments_Nightly' AND status = 'succeeded' ORDER BY started_at DESC",

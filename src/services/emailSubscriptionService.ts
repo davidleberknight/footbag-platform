@@ -54,14 +54,15 @@
  * members (email_status, read/write).
  *
  * Side effects: audit_entries append on a write that moves a row, on a
- * withdrawn spam report and on a recovered address; SES suppression lift
+ * withdrawn spam report and on a member's recovered address (a registrant
+ * still onboarding recovers with no audit row); SES suppression lift
  * through CommunicationService; recordOperationalError when that lift fails.
  */
 import { randomUUID } from 'crypto';
 
 import { account, mailingListSubscriptions, sesFeedback, transaction } from '../db/db';
 import { readUnsubscribeToken } from '../lib/unsubscribeToken';
-import { appendAuditEntry, findOwnLatestAudit } from './auditService';
+import { appendAuditEntry, findOwnLatestAudit, isMember } from './auditService';
 import { getCommunicationService } from './communicationService';
 import { recordOperationalError } from './operationalErrors';
 import { ServiceUnavailableError, ValidationError } from './serviceErrors';
@@ -188,6 +189,10 @@ export async function liftOwnAddressSuppression(memberId: string, address: strin
  * address, and turns back on the lists that bounce paused. Runs inside the
  * caller's token-consume transaction, so the proof and its effect land
  * together. A member whose address was not bounced is left as they are.
+ *
+ * Only a member's recovery is audited. A registrant whose first verification
+ * mail bounced recovers through this same path before onboarding finishes,
+ * and the audit log holds no row about someone who is not a member.
  */
 export function recoverBouncedAddressInTx(memberId: string, nowIso: string): void {
   const cleared = sesFeedback.clearBouncedForMember.run(nowIso, memberId, memberId);
@@ -195,6 +200,7 @@ export function recoverBouncedAddressInTx(memberId: string, nowIso: string): voi
   const restored = mailingListSubscriptions.restoreBouncedForMember.run(
     nowIso, nowIso, memberId, memberId,
   );
+  if (!isMember(memberId)) return;
   appendAuditEntry({
     actionType: 'email.address_recovered',
     actorType: 'member',

@@ -17,7 +17,8 @@
  *   - Event registration (CompetitionParticipationService)
  *   - Club affiliations (ClubService)
  *   - Scheduling expiry passes (ActivePlayerExpiryService orchestrates; this
- *     service exposes `applyExpiry` for the orchestrator to call)
+ *     service exposes `applyExpiry`, and `applyExpiryInTx` for an orchestrator
+ *     that commits the expiry together with its day-of notice)
  *
  * Required patterns:
  *   - Append-only ledgers. UPDATE/DELETE blocked by DB triggers.
@@ -768,6 +769,16 @@ export function applyClubJoinInTx(
  * value to keep expiry decisions deterministic.
  */
 export function applyExpiry(memberId: string, now?: Date): { ok: true; expired: boolean } {
+  return transaction(() => applyExpiryInTx(memberId, now));
+}
+
+/**
+ * The same expiry write for a caller that already holds an open transaction,
+ * so the expire row, its audit entry and whatever the caller writes beside them
+ * (the day-of notice) commit or roll back together. better-sqlite3 forbids
+ * nested transactions, so this must not open its own.
+ */
+export function applyExpiryInTx(memberId: string, now?: Date): { ok: true; expired: boolean } {
   const latest = readLatestGrant(memberId);
   if (!latest) return { ok: true, expired: false };
   if (latest.change_type === 'expire' || latest.change_type === 'end') {
@@ -781,34 +792,32 @@ export function applyExpiry(memberId: string, now?: Date): { ok: true; expired: 
   }
 
   const id = newGrantId();
-  // Grant insert + audit entry land in one transaction. Without the wrapper,
-  // a SIGKILL between the two statements left an expired AP grant with no
+  // Grant insert + audit entry land in the caller's one transaction. Without
+  // it, a SIGKILL between the two statements left an expired AP grant with no
   // matching audit row, breaking traceability of who/when status changed.
   // Matches the applyVouch / applyAttendance patterns elsewhere in this file.
-  transaction(() => {
-    insertGrant({
-      id,
-      now: nowIso,
-      memberId,
-      actorId: null,
-      changeType: 'expire',
-      oldExpiresAt: latest.new_active_player_expires_at,
-      newExpiresAt: null,
-      reasonCode: 'active_player_expired',
-      reasonText: null,
-    });
-    appendAuditEntry({
-      actionType: 'active_player.expire',
-      actorType: 'system',
-      actorMemberId: null,
-      entityType: 'member',
-      entityId: memberId,
-      reasonText: null,
-      metadata: {
-        reason_code: 'active_player_expired',
-        previous_expires_at: latest.new_active_player_expires_at,
-      },
-    });
+  insertGrant({
+    id,
+    now: nowIso,
+    memberId,
+    actorId: null,
+    changeType: 'expire',
+    oldExpiresAt: latest.new_active_player_expires_at,
+    newExpiresAt: null,
+    reasonCode: 'active_player_expired',
+    reasonText: null,
+  });
+  appendAuditEntry({
+    actionType: 'active_player.expire',
+    actorType: 'system',
+    actorMemberId: null,
+    entityType: 'member',
+    entityId: memberId,
+    reasonText: null,
+    metadata: {
+      reason_code: 'active_player_expired',
+      previous_expires_at: latest.new_active_player_expires_at,
+    },
   });
   return { ok: true, expired: true };
 }

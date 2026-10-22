@@ -11,6 +11,7 @@ Design and specification documents for the footbag-platform modernization projec
 - [`DATA_MODEL.md`](DATA_MODEL.md): canonical entities, relationships, schema conventions, DB-vs-app boundaries
 - [`DATA_GOVERNANCE.md`](DATA_GOVERNANCE.md): GDPR compliance, privacy boundaries, sensitivity tiers, and data-handling rules (members, historical persons, search, exports, erasure)
 - [`USER_STORIES.md`](USER_STORIES.md): functional scope and success criteria
+- [`BACKGROUND_JOBS.md`](BACKGROUND_JOBS.md): the background jobs, the system actor: the catalogue of every job and each job's story
 - [`TESTING.md`](TESTING.md): test strategy, risk-classification rubric, coverage expectations, and verification gates
 - [`DIAGRAMS.md`](DIAGRAMS.md): architecture and data-flow diagrams
 - [`GLOSSARY.md`](GLOSSARY.md): cross-document terminology
@@ -20,6 +21,7 @@ Design and specification documents for the footbag-platform modernization projec
 ## Where to look
 
 - What must the system do? → `USER_STORIES.md`
+- What must each background job do, and how is it watched? → `BACKGROUND_JOBS.md`
 - Why was it designed this way? → `DESIGN_DECISIONS.md`
 - What entities exist and how are they related? → `DATA_MODEL.md` + `database/schema.sql`
 - What does a public page/route look like? → the owning service's file-header JSDoc + `.claude/rules/view-layer.md`

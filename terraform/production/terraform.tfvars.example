@@ -242,6 +242,7 @@ enable_planned_maintenance    = false
 # monitoring window only, back to false after.
 enable_cwagent_alarms         = false
 enable_backup_alarm           = false
+enable_jobs_heartbeat_alarm   = false
 ses_enable_domain_identity    = false
 ses_enable_domain_auth        = false
 ses_sender_on_domain_identity = false

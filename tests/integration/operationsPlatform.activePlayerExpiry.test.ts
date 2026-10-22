@@ -119,13 +119,6 @@ describe('OperationsPlatformService.runActivePlayerExpiryCheck — system_job_ru
   });
 });
 
-describe('OperationsPlatformService.getActivePlayerExpiryIntervalMs', () => {
-  it('defaults to 86400 seconds (24h) when no config override is set', () => {
-    const ms = ops.operationsPlatformService.getActivePlayerExpiryIntervalMs();
-    expect(ms).toBe(86400 * 1000);
-  });
-});
-
 describe('OperationsPlatformService.recordJobRun — failure path', () => {
   it('on throw, marks the row failed with the error message and re-throws', async () => {
     expectLoggedError('SYS_Check_Active_Player_Expiry: failed');

@@ -5315,6 +5315,18 @@ export const accountTokens = {
        OR (used_at IS NULL AND expires_at <= ?)
   `); },
 
+  // What the sweep above is about to delete, counted by type, read in the same
+  // transaction so the counts are of the rows it removes. Grouped on the stored
+  // type rather than a fixed list, for the same reason the sweep covers every
+  // type.
+  get countSpentOlderThanByType() { return db.prepare(`
+    SELECT token_type, COUNT(*) AS n
+    FROM account_tokens
+    WHERE (used_at IS NOT NULL AND used_at <= ?)
+       OR (used_at IS NULL AND expires_at <= ?)
+    GROUP BY token_type
+  `); },
+
   // The age of the oldest row the sweep chose to keep, so the job can say
   // whether the table is draining or growing a tail it never reaches.
   get oldestRemainingIssuedAt() { return db.prepare(`
@@ -8870,6 +8882,71 @@ export const declaredAnchors = {
   `); },
 };
 
+// ── unfinishedAccounts ──────────────────────────────────────────────────────
+//
+// Deletion of a prospective member's account: registered, onboarding not
+// finished, idle past the configured period. Such an account holds only its own
+// rows (everything reaching beyond it is held on its onboarding task rows until
+// completion), so it is deleted outright rather than soft-deleted and purged.
+// Child rows go first, because every key to members is NO ACTION; a protected
+// row the account should not hold (an audit row, a tier grant) makes the member
+// delete fail, and the caller rolls the whole account back.
+export const unfinishedAccounts = {
+  // Idle measured from the account's latest activity: creation, any change to
+  // its own row, its last sign-in, its last onboarding answer, its last
+  // declared anchor. Ordered by id so a run walks a stable order.
+  get listIdleBefore() { return db.prepare(`
+    SELECT m.id
+    FROM members AS m
+    WHERE m.is_system = 0
+      AND m.deleted_at IS NULL
+      AND m.id NOT IN (SELECT id FROM members_onboarded)
+      AND MAX(
+            m.created_at,
+            m.updated_at,
+            COALESCE(m.last_login_at, ''),
+            COALESCE((SELECT MAX(t.updated_at) FROM member_onboarding_tasks AS t WHERE t.member_id = m.id), ''),
+            COALESCE((SELECT MAX(a.updated_at) FROM member_declared_anchors AS a WHERE a.member_id = m.id), '')
+          ) < ?
+    ORDER BY m.id
+  `); },
+
+  // The same test for one account, read inside the delete's transaction before
+  // anything is removed, so an account that finished onboarding or came back
+  // after the listing keeps every row.
+  get isIdleBefore() { return db.prepare(`
+    SELECT 1 AS idle
+    FROM members AS m
+    WHERE m.id = ?
+      AND m.is_system = 0
+      AND m.deleted_at IS NULL
+      AND m.id NOT IN (SELECT id FROM members_onboarded)
+      AND MAX(
+            m.created_at,
+            m.updated_at,
+            COALESCE(m.last_login_at, ''),
+            COALESCE((SELECT MAX(t.updated_at) FROM member_onboarding_tasks AS t WHERE t.member_id = m.id), ''),
+            COALESCE((SELECT MAX(a.updated_at) FROM member_declared_anchors AS a WHERE a.member_id = m.id), '')
+          ) < ?
+  `); },
+
+  get deleteOutboxForRecipient() { return db.prepare(`
+    DELETE FROM outbox_emails WHERE recipient_member_id = ?
+  `); },
+
+  get deleteTokensForMember() { return db.prepare(`
+    DELETE FROM account_tokens WHERE member_id = ?
+  `); },
+
+  get deleteOnboardingTasksForMember() { return db.prepare(`
+    DELETE FROM member_onboarding_tasks WHERE member_id = ?
+  `); },
+
+  get deleteMember() { return db.prepare(`
+    DELETE FROM members WHERE id = ? AND is_system = 0
+  `); },
+};
+
 // ── memberPurge ─────────────────────────────────────────────────────────────
 //
 // Row-level PII erasure for a soft-deleted or deceased member whose grace
@@ -10387,9 +10464,9 @@ export const systemJobRuns = {
       AND started_at < ?
   `); },
 
-  // Most recent successful finish time for a job name, so an interval-gated
-  // scheduled pass (e.g. the admin work-queue digest) can skip a tick when the
-  // configured cadence has not yet elapsed since its last successful run.
+  // Most recent successful finish time for a job name, for a job whose work
+  // depends on when it last succeeded (the payment reconciliation widens its
+  // window back to that point).
   get lastSuccessAt() { return db.prepare(`
     SELECT MAX(finished_at) AS last_success
     FROM system_job_runs
@@ -10420,10 +10497,14 @@ export const systemJobRuns = {
   `); },
 
   // Newest runs across every job, bounded by the caller, for the run-history
-  // table beneath the per-job summary.
+  // table beneath the per-job summary. The first parameter is a JSON array of
+  // job names whose successful runs are left out: a job running every few
+  // minutes would otherwise fill the table and push every daily run off it,
+  // while its failures still show.
   get listRecentRuns() { return db.prepare(`
     SELECT id, job_name, started_at, finished_at, status, last_error
     FROM system_job_runs
+    WHERE NOT (status = 'succeeded' AND job_name IN (SELECT value FROM json_each(?)))
     ORDER BY started_at DESC, id DESC
     LIMIT ?
   `); },
@@ -10437,6 +10518,23 @@ export const systemJobRuns = {
     WHERE job_name = ?
     ORDER BY started_at DESC, id DESC
     LIMIT ? OFFSET ?
+  `); },
+
+  // Deletes one job's finished runs started before the cutoff, always keeping
+  // its latest success, so a job that has not succeeded for longer than its
+  // retention still shows when it last did. A run still marked running is left
+  // to the stale-run reap.
+  get pruneFinishedBefore() { return db.prepare(`
+    DELETE FROM system_job_runs
+    WHERE job_name = ?
+      AND started_at < ?
+      AND status <> 'running'
+      AND id NOT IN (
+        SELECT id FROM system_job_runs
+        WHERE job_name = ? AND status = 'succeeded'
+        ORDER BY finished_at DESC, id DESC
+        LIMIT 1
+      )
   `); },
 
   get countRunsByJob() { return db.prepare(`

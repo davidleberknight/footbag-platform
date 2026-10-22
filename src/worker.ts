@@ -4,14 +4,10 @@
  * Hosts four concerns in one Node process:
  *   1. Email-outbox polling loop: drains transactional emails. Polling is
  *      fine here because outbound email is not a foreground UX.
- *   2. Daily jobs loop: Active Player expiry (Tier 0 scan, reminder enqueue,
- *      expiry ledger rows), the PII
- *      purge-eligibility scan, payment reconciliation against the payment
- *      provider, the purge of long-resolved reconciliation issues, and the
- *      purge of audit rows past their seven-year retention window. One
- *      system_job_runs row per job per pass. A job needing a
- *      slower or wall-clock cadence self-gates inside its service rather than
- *      owning a loop.
+ *   2. Scheduled-jobs loop: every tick runs each job in the job registry that
+ *      is due, then writes the heartbeat line the missed-run alarm reads. The
+ *      registry is the only place a clock-driven job is declared; this loop
+ *      knows none of them by name.
  *   3. Notification feed loop: drains the SES bounce/complaint queue and the
  *      platform alarm queue, handing each envelope to the service that owns
  *      that feed. Reading these from a queue rather than being pushed to over
@@ -19,10 +15,8 @@
  *      wait to be read instead of being discarded.
  *   4. Curator video transcode HTTP server: receives /transcode/dispatch
  *      pushes from the web container, runs ffmpeg, posts state events back.
- *      Dispatch is event-driven; a recurring reap loop re-runs the
- *      expired-lease recovery pass, because a job claimed just before a
- *      restart holds a live lease at boot and would otherwise be orphaned
- *      permanently when that lease expires with no further boot coming.
+ *      Dispatch is event-driven; the registry's media-lease reclaim job
+ *      re-runs its expired-lease recovery pass.
  *
  * All of these shut down cleanly on SIGTERM/SIGINT.
  */
@@ -35,6 +29,8 @@ import { createTranscodeWorker } from './transcodeWorker';
 import { checkpointAndCloseDatabase } from './db/db';
 import { initDataOrigin } from './services/dataOriginService';
 import { outboxDepthLevel } from './lib/outboxDepthLevel';
+import { JOB_TICK_MS } from './lib/jobSchedule';
+import { runDueJobs, writeJobsHeartbeat } from './services/jobRegistry';
 
 let stopping = false;
 
@@ -46,6 +42,15 @@ const FEED_ERROR_BACKOFF_MS = 30_000;
 // wait and a shutdown lands inside one.
 const feedPollAbort = new AbortController();
 
+// Wakes every sleeping loop at shutdown, so the loops can be waited for
+// without waiting out a five-minute tick.
+const stopSignal = new AbortController();
+
+// How long shutdown waits for the loops to finish their current step before
+// closing the database anyway. Inside the container runtime's ten-second stop
+// grace, so a hung provider call cannot hold a deploy.
+const SHUTDOWN_WAIT_MS = 8_000;
+
 // Do NOT unref() the email-outbox sleep timer: better-sqlite3 is synchronous,
 // so an unref'd timer lets Node exit the event loop mid-sleep (exit code 0,
 // restart-backoff masquerading as crash-loop). The HTTP server keeps Node
@@ -53,7 +58,17 @@ const feedPollAbort = new AbortController();
 // where the polling loop is sleeping and HTTP has no in-flight request.
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => {
-    setTimeout(resolve, ms);
+    if (stopSignal.signal.aborted) {
+      resolve();
+      return;
+    }
+    const timer = setTimeout(done, ms);
+    function done(): void {
+      clearTimeout(timer);
+      stopSignal.signal.removeEventListener('abort', done);
+      resolve();
+    }
+    stopSignal.signal.addEventListener('abort', done, { once: true });
   });
 }
 
@@ -115,110 +130,31 @@ async function notificationFeedLoop(abortSignal: AbortSignal): Promise<void> {
   logger.info('worker: notification feed loop stopped');
 }
 
-async function activePlayerExpiryLoop(): Promise<void> {
-  logger.info('worker: AP expiry daily loop started');
+/**
+ * Runs the job registry on a fixed tick. Each tick runs what is due, so after a
+ * restart or an outage the first tick catches up every job that fell behind,
+ * then writes the heartbeat line whose absence or overdue count raises the
+ * missed-run alarm.
+ */
+async function scheduledJobsLoop(
+  reapExpiredMediaJobs: () => Promise<{ reclaimedIds: string[] }>,
+): Promise<void> {
+  const workerStartedAt = new Date();
+  logger.info('worker: scheduled-jobs loop started', { tickMs: JOB_TICK_MS });
   while (!stopping) {
     try {
-      await operationsPlatformService.runActivePlayerExpiryCheck();
+      await runDueJobs({ reapExpiredMediaJobs, shouldStop: () => stopping });
+      if (stopping) break;
+      writeJobsHeartbeat(new Date(), workerStartedAt);
     } catch (err) {
-      logger.error('worker: AP expiry unexpected error', {
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-    // Administrators who can no longer serve are surfaced on the same daily
-    // cadence; the sweep only reads and raises, and an already-open alert makes
-    // a repeat tick a no-op, so it rides this tick rather than owning a loop.
-    try {
-      await operationsPlatformService.runAdminLossSweep();
-    } catch (err) {
-      logger.error('worker: admin-loss sweep unexpected error', {
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-    // The PII purge-eligibility scan is daily by design and idempotent
-    // (erasure_log guards), so it rides the same tick.
-    try {
-      await operationsPlatformService.runPiiPurgeScan();
-    } catch (err) {
-      logger.error('worker: PII purge scan unexpected error', {
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-    // Spent and expired account tokens age out on the same daily tick: every
-    // verification and reset request leaves a row, so without the sweep the
-    // table only grows.
-    try {
-      await operationsPlatformService.runExpiredTokenCleanup();
-    } catch (err) {
-      logger.error('worker: expired-token cleanup unexpected error', {
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-    // The hashtag-statistics full rebuild keeps the aggregated counts from
-    // drifting away from the incremental updates; it is cheap and idempotent,
-    // so it rides the same daily tick.
-    try {
-      await operationsPlatformService.runHashtagStatsRebuild();
-    } catch (err) {
-      logger.error('worker: hashtag-stats rebuild unexpected error', {
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-    // The admin work-queue digest rolls up open routine items to each admin on
-    // its configured cadence (self-gated, so it is safe on the daily tick), and
-    // the stale-item escalation emails a one-time nudge for items left
-    // unclaimed too long; both are idempotent, so they ride the same tick.
-    try {
-      await operationsPlatformService.runAdminQueueDigest();
-    } catch (err) {
-      logger.error('worker: admin work-queue digest unexpected error', {
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-    try {
-      await operationsPlatformService.runStaleQueueEscalation();
-    } catch (err) {
-      logger.error('worker: admin work-queue stale escalation unexpected error', {
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-    // Payment reconciliation compares the platform's records against the payment
-    // provider's ledger. It self-gates to once per UTC day and its digest to its
-    // own configured cadence, so both are safe on the daily tick; the purge of
-    // long-resolved issues is cheap and idempotent, so it rides the tick too.
-    try {
-      await operationsPlatformService.runPaymentReconciliation();
-    } catch (err) {
-      logger.error('worker: payment reconciliation unexpected error', {
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-    try {
-      await operationsPlatformService.runReconciliationDigest();
-    } catch (err) {
-      logger.error('worker: reconciliation digest unexpected error', {
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-    try {
-      await operationsPlatformService.runReconciliationIssuePurge();
-    } catch (err) {
-      logger.error('worker: reconciliation issue purge unexpected error', {
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-    try {
-      await operationsPlatformService.runAuditRetentionPurge();
-    } catch (err) {
-      logger.error('worker: audit retention purge unexpected error', {
+      logger.error('worker: scheduled-jobs unexpected error', {
         error: err instanceof Error ? err.message : String(err),
       });
     }
     if (stopping) break;
-    const intervalMs = operationsPlatformService.getActivePlayerExpiryIntervalMs();
-    await sleep(intervalMs);
+    await sleep(JOB_TICK_MS);
   }
-  logger.info('worker: AP expiry daily loop stopped');
+  logger.info('worker: scheduled-jobs loop stopped');
 }
 
 async function startTranscodeServer(): Promise<{
@@ -244,45 +180,42 @@ async function startTranscodeServer(): Promise<{
   };
 }
 
-async function mediaJobReapLoop(
-  reap: () => Promise<{ reclaimedIds: string[] }>,
-): Promise<void> {
-  // A fraction of the lease keeps the wait between a lease expiring and its
-  // job being reclaimed short relative to the lease itself; the clamp keeps
-  // an extreme operator override from producing a hammering or useless
-  // cadence. Sleeps first: boot recovery has already run this pass.
-  const intervalMs =
-    Math.min(Math.max(Math.floor(config.mediaJobLeaseSeconds / 4), 60), 600) * 1000;
-  logger.info('worker: media-job reap loop started', { intervalMs });
-  while (!stopping) {
-    await sleep(intervalMs);
-    if (stopping) break;
-    try {
-      await reap();
-    } catch (err) {
-      logger.error('worker: media-job reap unexpected error', {
-        error: err instanceof Error ? err.message : String(err),
-      });
-    }
-  }
-  logger.info('worker: media-job reap loop stopped');
-}
-
 let transcodeServer: {
   close: () => Promise<void>;
   reapExpiredProcessing: () => Promise<{ reclaimedIds: string[] }>;
 } | null = null;
 
-function shutdown(signal: NodeJS.Signals): void {
+// The running loops, so shutdown can wait for the step each is in.
+const loops: Promise<void>[] = [];
+
+async function shutdown(signal: NodeJS.Signals): Promise<void> {
+  if (stopping) return;
   logger.info('worker: received signal, shutting down', { signal });
-  // Setting stopping breaks the loops at their next wake; both check it before
-  // touching the DB, so closing the connection here cannot race an in-flight
-  // job. Checkpoint the WAL and close so the on-disk DB is consistent for the
-  // post-stop host backup.
+  // Setting stopping and waking the sleeps ends every loop after its current
+  // step. That step can be an awaited provider call (a reconciliation page, a
+  // mail send) that writes to the database when it returns, so the database
+  // is closed only once the loops have finished or the bounded wait runs out;
+  // closing it at once would fail the step's own write and leave its run row
+  // marked running. Checkpoint the WAL and close so the on-disk DB is
+  // consistent for the post-stop host backup.
   stopping = true;
-  // The feed poll is the one wait long enough to still be in flight when the
-  // database closes below, so it is cut rather than waited out.
+  stopSignal.abort();
+  // The feed poll holds its connection open for a long wait, so it is cut
+  // rather than waited out.
   feedPollAbort.abort();
+  let waitTimer: NodeJS.Timeout | undefined;
+  const waitedOut = await Promise.race([
+    Promise.allSettled(loops).then(() => false),
+    new Promise<boolean>((resolve) => {
+      waitTimer = setTimeout(() => resolve(true), SHUTDOWN_WAIT_MS);
+    }),
+  ]);
+  clearTimeout(waitTimer);
+  if (waitedOut) {
+    logger.warn('worker: a loop was still busy at shutdown; closing the database anyway', {
+      waitMs: SHUTDOWN_WAIT_MS,
+    });
+  }
   if (transcodeServer) {
     transcodeServer.close().catch((err) => {
       logger.warn('worker: transcode server close error', {
@@ -293,8 +226,8 @@ function shutdown(signal: NodeJS.Signals): void {
   checkpointAndCloseDatabase();
 }
 
-process.on('SIGTERM', shutdown);
-process.on('SIGINT', shutdown);
+process.on('SIGTERM', (signal) => { void shutdown(signal); });
+process.on('SIGINT', (signal) => { void shutdown(signal); });
 
 (async () => {
   // Resolved before any loop turns, because the worker appends audit rows from
@@ -308,28 +241,22 @@ process.on('SIGINT', shutdown);
     });
     process.exit(1);
   }
-  emailOutboxLoop().catch((err) => {
+  loops.push(emailOutboxLoop().catch((err) => {
     logger.error('worker: fatal email-outbox error', {
       error: err instanceof Error ? err.message : String(err),
     });
     process.exit(1);
-  });
-  activePlayerExpiryLoop().catch((err) => {
-    logger.error('worker: fatal AP expiry loop error', {
+  }));
+  loops.push(scheduledJobsLoop(transcodeServer.reapExpiredProcessing).catch((err) => {
+    logger.error('worker: fatal scheduled-jobs loop error', {
       error: err instanceof Error ? err.message : String(err),
     });
     process.exit(1);
-  });
-  notificationFeedLoop(feedPollAbort.signal).catch((err) => {
+  }));
+  loops.push(notificationFeedLoop(feedPollAbort.signal).catch((err) => {
     logger.error('worker: fatal notification feed loop error', {
       error: err instanceof Error ? err.message : String(err),
     });
     process.exit(1);
-  });
-  mediaJobReapLoop(transcodeServer.reapExpiredProcessing).catch((err) => {
-    logger.error('worker: fatal media-job reap loop error', {
-      error: err instanceof Error ? err.message : String(err),
-    });
-    process.exit(1);
-  });
+  }));
 })();

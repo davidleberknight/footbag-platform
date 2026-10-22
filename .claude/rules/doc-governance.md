@@ -16,14 +16,14 @@ paths:
 
 Long-term canonical docs describe **design intent**, not implementation status:
 
-- `docs/USER_STORIES.md`, `docs/DESIGN_DECISIONS.md`, `PROJECT_SUMMARY_CONCISE.md`, `docs/DATA_MODEL.md`, `docs/TESTING.md` — pure design.
+- `docs/USER_STORIES.md`, `docs/BACKGROUND_JOBS.md`, `docs/DESIGN_DECISIONS.md`, `PROJECT_SUMMARY_CONCISE.md`, `docs/DATA_MODEL.md`, `docs/TESTING.md` — pure design.
 - `docs/DEV_ONBOARDING.md` — permanent design + permanent operating procedure. Same no-current-slice rule applies.
 
 Never add current-slice notes, deviation qualifiers, shortcut descriptions, completion status, "Last updated" dates, or sprint tracking to any of these.
 
 All implementation-state language belongs exclusively in the maintainers' private tracker (the `tracker-ops` skill).
 
-**Where implementation detail lives.** Durable technical and security design and rationale live in `docs/DESIGN_DECISIONS.md`, which discusses behaviour only where it drives a technical decision; functional requirements live in `docs/USER_STORIES.md`; the per-service and per-page contract (ownership, rendering, audience, sensitive-page invariants) lives in each service's file-header JSDoc; cross-cutting AI coding rules live in the path-scoped `.claude/rules/*.md` files; repeatable procedures (how to add a public page, run a review, sync docs) live in `.claude/skills/*`. A canonical doc states the design; it does not restate a contract that a service JSDoc, a rule, or a skill already owns. Page-rendering contracts live in service JSDoc and `.claude/rules/view-layer.md`, the route list lives in `src/routes/publicRoutes.ts`, and durable view design intent lives in DESIGN_DECISIONS §4.
+**Where implementation detail lives.** Durable technical and security design and rationale live in `docs/DESIGN_DECISIONS.md`, which discusses behaviour only where it drives a technical decision; functional requirements live in `docs/USER_STORIES.md`, and those of the background jobs, the system actor, in `docs/BACKGROUND_JOBS.md`; the per-service and per-page contract (ownership, rendering, audience, sensitive-page invariants) lives in each service's file-header JSDoc; cross-cutting AI coding rules live in the path-scoped `.claude/rules/*.md` files; repeatable procedures (how to add a public page, run a review, sync docs) live in `.claude/skills/*`. A canonical doc states the design; it does not restate a contract that a service JSDoc, a rule, or a skill already owns. Page-rendering contracts live in service JSDoc and `.claude/rules/view-layer.md`, the route list lives in `src/routes/publicRoutes.ts`, and durable view design intent lives in DESIGN_DECISIONS §4.
 
 ## No superseded history
 

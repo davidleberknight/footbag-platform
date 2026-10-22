@@ -257,6 +257,39 @@ describe('GET /admin/system-health', () => {
     expect(html).not.toContain('Never');
   });
 
+  // The page and the missed-run alarm judge lateness by the same rule, so an
+  // operator sent here by the alarm finds the job it fired for, and a job that
+  // ran an hour ago is not dressed up as a problem.
+  it('marks a registry job overdue once its last success is past cadence plus grace, and only that one', async () => {
+    withDb((db) => {
+      insertSystemJobRun(db, { job_name: 'SYS_Cleanup_Expired_Tokens', status: 'succeeded', started_at: isoHoursAgo(72) });
+      insertSystemJobRun(db, { job_name: 'SYS_Purge_Audit_Entries', status: 'succeeded', started_at: isoHoursAgo(1) });
+    });
+    const html = await healthPage();
+    const late = html.split('SYS_Cleanup_Expired_Tokens')[1]?.split('</tr>')[0] ?? '';
+    const current = html.split('SYS_Purge_Audit_Entries')[1]?.split('</tr>')[0] ?? '';
+    expect(late).toContain('<span class="badge badge-warn">Overdue</span>');
+    expect(current).not.toContain('Overdue');
+
+    const dash = await request(createApp()).get('/admin').set('Cookie', adminCookie());
+    expect(dash.text).toContain('One scheduled job is overdue.');
+  });
+
+  // A job running every few minutes would otherwise fill the recent-runs table
+  // and push every daily run off it; its failures still have to show.
+  it('leaves successful runs of the frequent media reclaim out of recent runs, but lists its failures', async () => {
+    withDb((db) => {
+      insertSystemJobRun(db, { job_name: 'SYS_Reclaim_Expired_Media_Jobs', status: 'succeeded', started_at: isoHoursAgo(0.1) });
+      insertSystemJobRun(db, { job_name: 'SYS_Reclaim_Expired_Media_Jobs', status: 'failed', started_at: isoHoursAgo(0.2), last_error: 'reclaim went wrong' });
+      insertSystemJobRun(db, { job_name: 'SYS_Purge_Audit_Entries', status: 'succeeded', started_at: isoHoursAgo(0.3) });
+    });
+    const html = await healthPage();
+    const recent = html.split('Recent Runs')[1] ?? '';
+    expect(recent).toContain('reclaim went wrong');
+    expect(recent).toContain('SYS_Purge_Audit_Entries');
+    expect(recent.split('SYS_Reclaim_Expired_Media_Jobs').length - 1).toBe(1);
+  });
+
   it('counts alarms nobody has picked up, and excludes acknowledged and cleared ones', async () => {
     withDb((db) => {
       insertSystemAlarmEvent(db, { alarm_type: 'footbag-a', status: 'active' });
@@ -326,10 +359,10 @@ describe('the admin dashboard surfaces the same health signals', () => {
   // killed mid-run hides exactly the quiet failure it exists to surface.
   it('flags a failing job, one that has never succeeded, and one killed mid-run', async () => {
     withDb((db) => {
-      insertSystemJobRun(db, { job_name: 'SYS_Failing', status: 'succeeded', started_at: isoHoursAgo(5) });
-      insertSystemJobRun(db, { job_name: 'SYS_Failing', status: 'failed',    started_at: isoHoursAgo(1) });
-      insertSystemJobRun(db, { job_name: 'SYS_NeverOk', status: 'failed',    started_at: isoHoursAgo(2) });
-      insertSystemJobRun(db, { job_name: 'SYS_Stuck',   status: 'running',   started_at: isoHoursAgo(3) });
+      insertSystemJobRun(db, { job_name: 'SYS_Cleanup_Expired_Tokens', status: 'succeeded', started_at: isoHoursAgo(5) });
+      insertSystemJobRun(db, { job_name: 'SYS_Cleanup_Expired_Tokens', status: 'failed',    started_at: isoHoursAgo(1) });
+      insertSystemJobRun(db, { job_name: 'SYS_Purge_Audit_Entries',    status: 'failed',    started_at: isoHoursAgo(2) });
+      insertSystemJobRun(db, { job_name: 'SYS_Rebuild_Hashtag_Stats',  status: 'running',   started_at: isoHoursAgo(3) });
     });
     const res = await request(createApp()).get('/admin').set('Cookie', adminCookie());
     expect(res.status).toBe(200);
@@ -337,6 +370,18 @@ describe('the admin dashboard surfaces the same health signals', () => {
     expect(res.text).toContain('scheduled jobs failed recently');
     expect(res.text).toContain('scheduled jobs have never succeeded');
     expect(res.text).toContain('One scheduled job is still marked as running.');
+  });
+
+  // A retired job's last row is never reaped or pruned, so counting it would
+  // hold a note on the dashboard for ever with nothing to act on.
+  it('leaves a job the registry no longer runs out of the dashboard notes', async () => {
+    withDb((db) => {
+      insertSystemJobRun(db, { job_name: 'SYS_Retired_Job', status: 'running', started_at: isoHoursAgo(3) });
+      insertSystemJobRun(db, { job_name: 'SYS_Rebuild_Hashtag_Stats', status: 'running', started_at: isoHoursAgo(3) });
+    });
+    const res = await request(createApp()).get('/admin').set('Cookie', adminCookie());
+    expect(res.text).toContain('One scheduled job is still marked as running.');
+    expect(res.text).not.toContain('2 scheduled jobs are still marked as running.');
   });
 
   // A queue with items in it is ordinary operation, so a plain backlog stays

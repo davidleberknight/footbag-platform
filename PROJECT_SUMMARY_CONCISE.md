@@ -11,6 +11,7 @@ Which document to read for which need. Which source wins in a conflict is the au
 | What design intent is, when it is clear, and conflicts between code, documents and intent | the `design-intent` skill |
 | Members, historical persons, search, contact fields, records, stats, exports, or auth and privacy boundaries | `docs/DATA_GOVERNANCE.md` |
 | Feature behavior, success criteria, functional scope | targeted sections of `docs/USER_STORIES.md`, plus the owning service's file-header JSDoc |
+| Background jobs: what each must do, its cadence, alarms and run record | targeted sections of `docs/BACKGROUND_JOBS.md`, plus `src/services/jobRegistry.ts` |
 | Technical and non-functional requirements, rationale, security, layer boundaries | targeted sections of `docs/DESIGN_DECISIONS.md` |
 | Entity relationships, persisted state conventions, schema invariants, exact SQL surface | `docs/DATA_MODEL.md` and `database/schema.sql` |
 | Public-page rendering patterns, view-model contracts, page invariants | `.claude/rules/view-layer.md` and the owning service's file-header JSDoc |

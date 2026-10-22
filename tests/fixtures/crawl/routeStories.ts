@@ -464,4 +464,13 @@ export const STORIES_WITHOUT_ROUTE: Readonly<Record<string, { status: StoryWitho
   'SYS_Handle_SES_Bounce_And_Complaint_Feed': { status: 'runtime-only', why: 'Runs as the worker notification feed loop reading a polled queue.' },
   'SYS_Cross_Region_Replication': { status: 'no-route-of-its-own', why: 'Infrastructure replication run by the object store, with no platform code.' },
   'SYS_Continuous_Database_Backup': { status: 'runtime-only', why: 'Runs from a host timer outside the web process.' },
+  'SYS_Delete_Unfinished_Accounts': { status: 'runtime-only', why: 'Runs as a daily worker job.' },
+  'SYS_Admin_Queue_Digest': { status: 'runtime-only', why: 'Runs as a worker job on its configured interval.' },
+  'SYS_Admin_Queue_Escalation': { status: 'runtime-only', why: 'Runs as a daily worker job.' },
+  'SYS_Reconciliation_Digest': { status: 'runtime-only', why: 'Runs as a worker job on its configured interval.' },
+  'SYS_Purge_Reconciliation_Issues': { status: 'runtime-only', why: 'Runs as a daily worker job.' },
+  'SYS_Purge_Audit_Entries': { status: 'runtime-only', why: 'Runs as a daily worker job.' },
+  'SYS_Reclaim_Expired_Media_Jobs': { status: 'runtime-only', why: 'Runs as a worker job every few minutes.' },
+  'SYS_Host_Snapshots': { status: 'no-route-of-its-own', why: 'Host snapshots run by the hosting provider, with no platform code.' },
+  'SYS_Storage_Lifecycle_Expiry': { status: 'no-route-of-its-own', why: 'Lifecycle expiry run by the object store, with no platform code.' },
 };

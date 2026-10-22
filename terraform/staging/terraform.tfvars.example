@@ -46,9 +46,10 @@ enable_cloudfront    = false
 lightsail_origin_dns = ""
 
 # ── Monitoring gates ──────────────────────────────────────────────────────────
-# Both default to false. See variables.tf descriptions before enabling.
-enable_cwagent_alarms = false
-enable_backup_alarm   = false
+# All default to false. See variables.tf descriptions before enabling.
+enable_cwagent_alarms       = false
+enable_backup_alarm         = false
+enable_jobs_heartbeat_alarm = false
 
 # ── SES sender identity ───────────────────────────────────────────────────────
 # Target canonical: noreply@footbag.org (once the footbag.org domain is

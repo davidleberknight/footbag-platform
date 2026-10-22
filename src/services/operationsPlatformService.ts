@@ -7,11 +7,18 @@
  *     memory pressure)
  *   - The system_job_runs lifecycle wrapper (`recordJobRun`): insert on start,
  *     succeeded/failed on completion, stale-running reap for crash recovery
- *   - Worker-loop entry points and their config-tunable intervals: outbox
- *     drain, notification-feed drain (the bounce/complaint and alarm queues),
- *     Active Player expiry, PII purge scan, hashtag-stats rebuild, administrator-loss sweep, payment
- *     reconciliation, its digest and the resolved-issue purge (self-gated:
- *     reconciliation to once per UTC day, the digest to its configured interval)
+ *   - The continuous pollers' entry points and intervals: outbox drain and
+ *     notification-feed drain (the bounce/complaint and alarm queues)
+ *   - The scheduled jobs' entry points, each one run through `recordJobRun`:
+ *     Active Player expiry, administrator-loss sweep, PII purge scan, expired
+ *     token cleanup, hashtag-stats rebuild, admin work-queue digest and stale
+ *     escalation, payment reconciliation, its digest and the resolved-issue
+ *     purge, the audit retention purge, the unfinished-account deletion, and
+ *     the media-lease reclaim. When each runs is the job registry's decision,
+ *     never the entry point's.
+ *   - Unfinished-account deletion: which prospective members' accounts are idle
+ *     past `unfinished_account_cleanup_days`, and their outright deletion with
+ *     every row they own; no audit row, since the log holds none about them
  *   - PII purge eligibility: which members' grace windows have expired and
  *     which erasure shape applies (full purge for soft-deleted accounts,
  *     contact scrub for deceased ones), plus anonymizing payments past the
@@ -22,14 +29,17 @@
  *     never less than seven years; the delete trigger refuses anything younger
  *
  * Does not own:
+ *   - When a scheduled job runs, its run-row pruning and the missed-run
+ *     heartbeat (JobRegistry)
  *   - The delegated job bodies (ActivePlayerExpiryService, CommunicationService drain,
  *     MembershipTieringService administrator-loss sweep)
  *   - Outbox row mechanics (CommunicationService)
  *   - Row-level PII erasure (MemberService primitives)
  *
  * Required patterns:
- *   - Every periodic job runs through `recordJobRun` so operators can see
- *     last-run status and failures in system_job_runs.
+ *   - Every scheduled job runs through `recordJobRun` so operators can see
+ *     last-run status and failures in system_job_runs, and is declared in the
+ *     job registry, which alone decides when it runs.
  *   - The PII purge scan keeps separate soft-deleted vs deceased branches
  *     with distinct grace configs (member_cleanup_grace_days,
  *     deceased_cleanup_grace_days) read at runtime; the two grace rules are
@@ -40,7 +50,9 @@
  * Persistence:
  *   system_job_runs, outbox_emails (backlog read +
  *   mailing-list enqueue + retention delete of delivered copies), members
- *   (purge-eligibility read), payments (compliance-retention read + anonymize
+ *   (purge-eligibility read; unfinished-account delete, with that account's
+ *   account_tokens, member_onboarding_tasks, member_declared_anchors,
+ *   mailing_list_subscriptions, member_links and outbox_emails rows), payments (compliance-retention read + anonymize
  *   write), health (read), system_config (the declared payment mode observed
  *   at boot: read of the current row, append when it changed).
  *
@@ -52,6 +64,8 @@
  *   - outbox_emails delete (delivered copies past the retention window)
  *   - payments anonymize-write (compliance-retention cleanup)
  *   - audit_entries delete (the retention purge, rows past the window only)
+ *   - members hard delete (an unfinished account idle past its period, with
+ *     every row it owns)
  *   - audit_entries append (pii_erasure_failed, payment.compliance_anonymize_failed, and
  *     email.outbox_retention_cleanup_failed operational errors; the per-row
  *     erasure audit rows belong to MemberService)
@@ -62,7 +76,10 @@
  */
 import { readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
-import { accountTokens, auditEntries, health, systemJobRuns, systemConfig, memberPurge, outbox, payments } from '../db/db';
+import {
+  accountTokens, auditEntries, declaredAnchors, health, mailingListSubscriptions, memberLinks,
+  memberPurge, outbox, payments, systemConfig, systemJobRuns, transaction, unfinishedAccounts,
+} from '../db/db';
 
 // Seven years: the audit log's retention never drops below it, whatever the
 // setting says, so lowering the setting cannot erase recent history.
@@ -77,10 +94,7 @@ import { publishedByExpectedTopic } from '../lib/snsSignature';
 import { sesFeedbackService } from './sesFeedbackService';
 import { systemAlarmService } from './systemAlarmService';
 import { workQueueService } from './workQueueService';
-import {
-  paymentReconciliationService,
-  RECONCILIATION_DIGEST_INTERVAL_DEFAULT_DAYS,
-} from './paymentReconciliationService';
+import { paymentReconciliationService } from './paymentReconciliationService';
 import { readIntConfig } from './configReader';
 import { config } from '../config/env';
 import { logger } from '../config/logger';
@@ -383,36 +397,44 @@ export class OperationsPlatformService {
   }
 
   /**
-   * SYS_Rebuild_Hashtag_Stats daily entry point. Recomputes the aggregated
-   * hashtag usage counts from scratch so the figures cannot drift from the
-   * incremental updates over time. The rebuild runs in a single transaction,
-   * so a failure leaves the existing stats in place; `recordJobRun` writes one
-   * `system_job_runs` row per pass with the upsert count in `details_json`.
-   */
-  /**
    * SYS_Cleanup_Expired_Tokens. Deletes account tokens that can no longer do
    * anything and have been that way for longer than the configured threshold.
    *
-   * It reports the age of the oldest row it left behind as well as the number it
-   * removed, because a sweep that deletes a healthy number every night and still
-   * leaves a row from months ago is not working, and a count alone cannot say so.
+   * It reports the count by token type, and the age of the oldest row it left
+   * behind as well as the number it removed, because a sweep that deletes a
+   * healthy number every night and still leaves a row from months ago is not
+   * working, and a count alone cannot say so.
    */
   async runExpiredTokenCleanup(
     startTime?: Date,
-  ): Promise<{ deleted: number; oldestRemainingAgeDays: number | null }> {
+  ): Promise<{
+    deleted: number;
+    deletedByType: Record<string, number>;
+    oldestRemainingAgeDays: number | null;
+  }> {
     return this.recordJobRun('SYS_Cleanup_Expired_Tokens', () => {
       const now = startTime ?? new Date();
       const thresholdDays = readIntConfig('token_cleanup_threshold_days', 7);
       const cutoff = new Date(now.getTime() - thresholdDays * 86_400_000).toISOString();
 
-      const deleted = accountTokens.deleteSpentOlderThan.run(cutoff, cutoff).changes;
+      const { deleted, deletedByType } = transaction(() => {
+        const byType: Record<string, number> = {};
+        for (const row of accountTokens.countSpentOlderThanByType.all(cutoff, cutoff) as
+          { token_type: string; n: number }[]) {
+          byType[row.token_type] = row.n;
+        }
+        return {
+          deleted: accountTokens.deleteSpentOlderThan.run(cutoff, cutoff).changes,
+          deletedByType: byType,
+        };
+      });
       const oldest = accountTokens.oldestRemainingIssuedAt.get() as { oldest_issued_at: string | null };
       const oldestRemainingAgeDays = oldest.oldest_issued_at
         ? Math.floor((now.getTime() - Date.parse(oldest.oldest_issued_at)) / 86_400_000)
         : null;
 
-      logger.info('token cleanup', { deleted, thresholdDays, oldestRemainingAgeDays });
-      return { deleted, oldestRemainingAgeDays };
+      logger.info('token cleanup', { deleted, deletedByType, thresholdDays, oldestRemainingAgeDays });
+      return { deleted, deletedByType, oldestRemainingAgeDays };
     }, startTime);
   }
 
@@ -441,6 +463,13 @@ export class OperationsPlatformService {
     }, startTime);
   }
 
+  /**
+   * SYS_Rebuild_Hashtag_Stats daily entry point. Recomputes the aggregated
+   * hashtag usage counts from scratch so the figures cannot drift from the
+   * incremental updates over time. The rebuild runs in a single transaction,
+   * so a failure leaves the existing stats in place; `recordJobRun` writes one
+   * `system_job_runs` row per pass with the upsert count in `details_json`.
+   */
   async runHashtagStatsRebuild(
     startTime?: Date,
   ): Promise<{ rowsUpserted: number }> {
@@ -452,64 +481,34 @@ export class OperationsPlatformService {
   }
 
   /**
-   * SYS_Admin_Queue_Digest cadence-gated entry point. Emails each administrator
-   * a rollup of the open routine work-queue items, on the cadence set by
-   * `admin_queue_digest_interval_days` (default daily). The daily worker tick
-   * calls this every day; when the configured cadence is longer than a day, the
-   * pass skips a tick if its last successful run is more recent than the
-   * interval, so the config key governs the true cadence rather than the tick.
+   * SYS_Admin_Queue_Digest entry point. Emails each administrator a rollup of
+   * the open routine work-queue items. The job registry runs it on the cadence
+   * set by `admin_queue_digest_interval_days` (default daily).
    */
   async runAdminQueueDigest(
     startTime?: Date,
-  ): Promise<{ skipped: boolean; admins: number; sent: number; openRoutineItems: number }> {
-    const intervalDays = readIntConfig('admin_queue_digest_interval_days', 1);
-    const now = startTime ?? new Date();
-    const last = systemJobRuns.lastSuccessAt.get('SYS_Admin_Queue_Digest') as
-      | { last_success: string | null }
-      | undefined;
-    if (last?.last_success && (now.getTime() - Date.parse(last.last_success)) / 86_400_000 < intervalDays) {
-      return { skipped: true, admins: 0, sent: 0, openRoutineItems: 0 };
-    }
-    const result = await this.recordJobRun(
+  ): Promise<{ admins: number; sent: number; openRoutineItems: number }> {
+    return this.recordJobRun(
       'SYS_Admin_Queue_Digest',
       () => workQueueService.sendAdminQueueDigests(),
       startTime,
     );
-    return { skipped: false, ...result };
   }
 
   /**
-   * SYS_Reconcile_Payments_Nightly entry point, called on the daily worker tick.
-   *
-   * This codebase has no wall-clock scheduler, so the pass self-gates: it runs
-   * on the first tick of a UTC day it has not yet succeeded on. The gate is
-   * deliberately independent of the hour, because the tick interval is a day: a
-   * gate that also demanded a particular hour would skip a tick that fell before
-   * it and not get another chance until the next day, so a worker started at the
-   * wrong time of day would never reconcile at all.
+   * SYS_Reconcile_Payments_Nightly entry point. The job registry runs it once
+   * per UTC day, on the first tick of a day it has not yet succeeded on.
    */
   async runPaymentReconciliation(
     startTime?: Date,
-  ): Promise<{ skipped: boolean; issuesRaised: number; duplicatesSkipped: number }> {
+  ): Promise<{ issuesRaised: number; duplicatesSkipped: number }> {
     const now = startTime ?? new Date();
-    const last = systemJobRuns.lastSuccessAt.get('SYS_Reconcile_Payments_Nightly') as
-      | { last_success: string | null }
-      | undefined;
-    if (last?.last_success && last.last_success.slice(0, 10) >= now.toISOString().slice(0, 10)) {
-      // Visible in production: a nightly control that silently does nothing is
-      // indistinguishable from one that is broken.
-      logger.warn('payment reconciliation skipped: already ran for this UTC day', {
-        lastSuccessAt: last.last_success,
-      });
-      return { skipped: true, issuesRaised: 0, duplicatesSkipped: 0 };
-    }
     const result = await this.recordJobRun(
       'SYS_Reconcile_Payments_Nightly',
       () => paymentReconciliationService.runReconciliation({ now }),
       startTime,
     );
     return {
-      skipped: false,
       issuesRaised: result.issuesRaised,
       duplicatesSkipped: result.duplicatesSkipped,
     };
@@ -555,44 +554,28 @@ export class OperationsPlatformService {
   }
 
   /**
-   * Periodic reconciliation digest to administrators, on the cadence set by
-   * `reconciliation_summary_interval_days`. Gated the same way as the admin
-   * work-queue digest: the daily tick calls it every day, and the pass skips
-   * when its last success is more recent than the configured interval, so the
-   * config key governs the true cadence rather than the tick.
+   * SYS_Reconciliation_Digest entry point: the periodic reconciliation digest to
+   * administrators. The job registry runs it on the cadence set by
+   * `reconciliation_summary_interval_days`.
    */
   async runReconciliationDigest(
     startTime?: Date,
-  ): Promise<{ skipped: boolean; recipient: string | null; sent: number; outstanding: number }> {
-    const intervalDays = readIntConfig(
-      'reconciliation_summary_interval_days',
-      RECONCILIATION_DIGEST_INTERVAL_DEFAULT_DAYS,
-    );
+  ): Promise<{ recipient: string | null; sent: number; outstanding: number }> {
     const now = startTime ?? new Date();
-    const last = systemJobRuns.lastSuccessAt.get('SYS_Reconciliation_Digest') as
-      | { last_success: string | null }
-      | undefined;
-    if (
-      last?.last_success &&
-      (now.getTime() - Date.parse(last.last_success)) / 86_400_000 < intervalDays
-    ) {
-      return { skipped: true, recipient: null, sent: 0, outstanding: 0 };
-    }
-    const result = await this.recordJobRun(
+    return this.recordJobRun(
       'SYS_Reconciliation_Digest',
       () => paymentReconciliationService.sendReconciliationDigest({ now }),
       startTime,
     );
-    return { skipped: false, ...result };
   }
 
   /**
    * SYS_Purge_Reconciliation_Issues daily entry point. Deletes resolved
    * reconciliation issues whose retention has expired, and the webhook-failure
    * counters that age out on the same key; outstanding issues are never
-   * touched. The reported count covers both tables. No cadence gate: the delete
-   * is cheap and idempotent, so running it on every daily tick is simpler than
-   * tracking when it last ran.
+   * touched. The reported count covers both tables. The delete is cheap and
+   * idempotent, so the job registry runs it daily with nothing to track beyond
+   * its run row.
    */
   async runReconciliationIssuePurge(startTime?: Date): Promise<{ deleted: number }> {
     return this.recordJobRun(
@@ -617,14 +600,94 @@ export class OperationsPlatformService {
   }
 
   /**
-   * Returns the daily-tick interval for the AP expiry worker, in
-   * milliseconds. Reads from system_config; clamped to a one-minute floor
-   * to prevent a misconfiguration from pinning the worker in a tight loop.
+   * SYS_Delete_Unfinished_Accounts daily pass. Deletes the account of a
+   * prospective member (registered, onboarding not finished) idle longer than
+   * `unfinished_account_cleanup_days`, measured from its latest activity. Such
+   * an account holds only its own rows, so it is deleted outright, one
+   * transaction per account: its outgoing mail, tokens, onboarding task rows,
+   * declared anchors, subscriptions and links, then the member row. Idleness is
+   * re-read inside that transaction before anything is removed, so an account
+   * that finished onboarding or came back after the listing keeps every row.
+   *
+   * An account holding a row it should not (an audit row, a tier grant) fails
+   * the member delete on its foreign key; that account is rolled back whole,
+   * kept, counted and named by id on the run row and in a warn line, because
+   * the row that blocked it is a defect an operator should find. The job
+   * writes no audit row: the audit log holds none about a prospective member.
    */
-  getActivePlayerExpiryIntervalMs(): number {
-    const seconds = readIntConfig('active_player_expiry_check_interval_seconds', 86400);
-    const clamped = Math.max(60, seconds);
-    return clamped * 1000;
+  async runUnfinishedAccountCleanup(
+    startTime?: Date,
+  ): Promise<{
+    eligible: number;
+    deleted: number;
+    noLongerIdle: number;
+    blocked: number;
+    blockedMemberIds: string[];
+    failed: number;
+  }> {
+    return this.recordJobRun('SYS_Delete_Unfinished_Accounts', () => {
+      const now = startTime ?? new Date();
+      const idleDays = readIntConfig('unfinished_account_cleanup_days', 90);
+      const cutoff = new Date(now.getTime() - idleDays * 86_400_000).toISOString();
+      const ids = (unfinishedAccounts.listIdleBefore.all(cutoff) as { id: string }[]).map((r) => r.id);
+      const result = {
+        eligible: ids.length, deleted: 0, noLongerIdle: 0, blocked: 0,
+        blockedMemberIds: [] as string[], failed: 0,
+      };
+      for (const memberId of ids) {
+        try {
+          const removed = transaction(() => {
+            if (!unfinishedAccounts.isIdleBefore.get(memberId, cutoff)) return false;
+            unfinishedAccounts.deleteOutboxForRecipient.run(memberId);
+            unfinishedAccounts.deleteTokensForMember.run(memberId);
+            unfinishedAccounts.deleteOnboardingTasksForMember.run(memberId);
+            declaredAnchors.deleteAllForMember.run(memberId);
+            mailingListSubscriptions.deleteAllForMember.run(memberId);
+            memberLinks.deleteAllForMember.run(memberId);
+            unfinishedAccounts.deleteMember.run(memberId);
+            return true;
+          });
+          if (removed) result.deleted += 1;
+          else result.noLongerIdle += 1;
+        } catch (err) {
+          if ((err as { code?: string }).code === 'SQLITE_CONSTRAINT_FOREIGNKEY') {
+            result.blocked += 1;
+            result.blockedMemberIds.push(memberId);
+          } else {
+            result.failed += 1;
+            logger.error('SYS_Delete_Unfinished_Accounts: account delete failed', {
+              memberId,
+              errorClass: err instanceof Error ? err.name : typeof err,
+            });
+          }
+        }
+      }
+      if (result.blocked > 0) {
+        logger.warn('unfinished account cleanup kept accounts holding a protected row', {
+          blocked: result.blocked,
+          memberIds: result.blockedMemberIds,
+        });
+      }
+      return result;
+    }, startTime);
+  }
+
+  /**
+   * SYS_Reclaim_Expired_Media_Jobs entry point. Re-runs the transcode worker's
+   * expired-lease recovery, because a media job claimed just before a restart
+   * holds a live lease at boot and would otherwise be orphaned when that lease
+   * expires with no further boot coming. The worker hands in its own reclaim
+   * function, since the transcode worker instance lives in the worker process.
+   */
+  async runMediaJobReap(
+    reap: () => Promise<{ reclaimedIds: string[] }>,
+    startTime?: Date,
+  ): Promise<{ reclaimed: number }> {
+    return this.recordJobRun(
+      'SYS_Reclaim_Expired_Media_Jobs',
+      async () => ({ reclaimed: (await reap()).reclaimedIds.length }),
+      startTime,
+    );
   }
 
   /**
@@ -634,10 +697,12 @@ export class OperationsPlatformService {
    * alert for each, so the remaining administrators are prompted to recruit.
    * The sweep reads and alerts; it changes no `is_admin` value. Idempotent: an
    * administrator with the alert already open is skipped, so re-running raises
-   * nothing new. Runs on the worker daily tick alongside the other daily jobs.
+   * nothing new.
    */
-  async runAdminLossSweep(): Promise<{ examined: number; raised: number; failed: number }> {
-    return this.recordJobRun('SYS_Detect_Admin_Loss', () => runAdminLossSweep());
+  async runAdminLossSweep(
+    startTime?: Date,
+  ): Promise<{ examined: number; raised: number; failed: number }> {
+    return this.recordJobRun('SYS_Detect_Admin_Loss', () => runAdminLossSweep(), startTime);
   }
 
   /**
@@ -655,7 +720,7 @@ export class OperationsPlatformService {
    * and rows whose erasure_log entries show the shape already applied, so
    * the pass is idempotent. One failing row never aborts the pass: the
    * failure is recorded as a member.pii_erasure_failed operational error and
-   * counted, and the scan continues. Runs on the worker daily tick.
+   * counted, and the scan continues. The job registry runs it daily.
    *
    * A third branch anonymizes payments past the compliance-retention window
    * (member-linking PII stripped, anonymized financial record kept, including

@@ -89,6 +89,39 @@ describe('what the sweep deletes', () => {
   });
 });
 
+describe('the count by token type', () => {
+  // An operator reading the run row needs to know which kind of link is piling
+  // up or draining; a single total cannot say that verification links stopped
+  // being swept while reset links still were.
+  it('counts only the deleted rows, split by type, and agrees with the total', async () => {
+    insertToken({ id: 'tok_v1', tokenType: 'email_verify', issuedAt: isoDaysAgo(40), expiresAt: isoDaysAgo(30) });
+    insertToken({ id: 'tok_v2', tokenType: 'email_verify', issuedAt: isoDaysAgo(40), expiresAt: isoDaysAgo(30) });
+    insertToken({ id: 'tok_r1', tokenType: 'password_reset', issuedAt: isoDaysAgo(40), expiresAt: isoDaysAgo(39), usedAt: isoDaysAgo(30) });
+    insertToken({ id: 'tok_r_live', tokenType: 'password_reset', issuedAt: isoDaysAgo(1), expiresAt: isoDaysFromNow(1) });
+    const result = await operationsPlatformService.runExpiredTokenCleanup();
+    expect(result.deletedByType).toEqual({ email_verify: 2, password_reset: 1 });
+    expect(result.deleted).toBe(3);
+    expect(remainingIds()).toEqual(['tok_r_live']);
+  });
+
+  it('counts a token spent exactly at the cutoff the same way it deletes it', async () => {
+    // The count and the delete are separate statements; if their boundaries
+    // drifted apart, the run row would report a total its own split does not
+    // add up to.
+    const runAt = new Date('2026-07-21T03:00:00.000Z');
+    const cutoff = new Date(runAt.getTime() - 7 * 86_400_000).toISOString();
+    insertToken({ id: 'tok_at_cutoff', tokenType: 'password_reset', issuedAt: '2026-07-01T00:00:00.000Z', expiresAt: '2026-07-30T00:00:00.000Z', usedAt: cutoff });
+    const result = await operationsPlatformService.runExpiredTokenCleanup(runAt);
+    expect(result.deleted).toBe(1);
+    expect(result.deletedByType).toEqual({ password_reset: 1 });
+  });
+
+  it('reports no type at all when nothing was deleted', async () => {
+    const result = await operationsPlatformService.runExpiredTokenCleanup();
+    expect(result.deletedByType).toEqual({});
+  });
+});
+
 describe('what the sweep keeps', () => {
   it('keeps a token that is still usable', async () => {
     insertToken({ id: 'tok_live', tokenType: 'email_verify', issuedAt: isoDaysAgo(1), expiresAt: isoDaysFromNow(2) });

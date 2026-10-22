@@ -83,8 +83,8 @@ Pick the level deliberately, because production runs at `LOG_LEVEL=warn` and dro
 - `error` — a failure an operator must act on (pairs with an audit row via `recordOperationalError`
   for governance-sensitive failures).
 - `warn` — an operationally-significant condition that must be visible in production: a backlog, a
-  degraded or failing dependency, an exhausted retry. Anything a production operator needs to see
-  lives at `warn` or above.
+  degraded or failing dependency, an exhausted retry, and the scheduled-job heartbeat, whose absence
+  is the missed-run alarm. Anything a production operator needs to see lives at `warn` or above.
 - `info` — normal-operation milestones useful in development and staging (startup, a completed job),
   not worth production noise.
 - `debug` — high-frequency or diagnostic detail (per-cycle heartbeats, per-request traces); shown

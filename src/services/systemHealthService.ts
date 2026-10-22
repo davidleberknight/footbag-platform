@@ -28,6 +28,10 @@
  *     recomputed here, so the page cannot report a pacing the worker is not
  *     actually applying.
  *
+ * Jobs: a job is reported overdue by the same rule, and from the same job
+ * registry, that the worker's missed-run heartbeat uses, so the page and the
+ * alarm cannot disagree about which job is late.
+ *
  * Persistence: reads outbox_emails, system_job_runs, system_alarm_events and
  * system_config_current directly, and reaches ses_events only through the
  * drain's own feedback evaluation rather than querying it a second time.
@@ -42,6 +46,8 @@ import { runSqliteRead } from './sqliteRetry';
 import { readIntConfig, readHealthWindowHours } from './configReader';
 import { systemAlarmService } from './systemAlarmService';
 import { evaluateBulkFeedbackHalt } from './communicationService';
+import { JOBS, listHighFrequencyJobNames } from './jobRegistry';
+import { isJobOverdue } from '../lib/jobSchedule';
 import type { PageViewModel } from '../types/page';
 
 const RECENT_RUN_LIMIT = 25;
@@ -71,6 +77,7 @@ interface JobHealthViewModel {
   failuresInWindow: number;
   hasFailures: boolean;
   hasNeverSucceeded: boolean;
+  isOverdue: boolean;
 }
 
 interface JobRunViewModel {
@@ -223,6 +230,21 @@ function windowStartIso(hours: number, nowMs: number): string {
   return new Date(nowMs - hours * HOUR_MS).toISOString();
 }
 
+/** Whether a job with a recorded success has gone longer than its cadence plus
+ *  grace since it, judged by the same rule the missed-run alarm uses. A job the
+ *  registry no longer declares is never overdue, and one that has never
+ *  succeeded is reported as such rather than as overdue. */
+function isRowOverdue(row: JobSummaryRow, nowMs: number): boolean {
+  const job = JOBS.find((j) => j.name === row.job_name);
+  if (!job) return false;
+  return isJobOverdue(
+    job,
+    { lastSuccessAt: row.last_success_at, lastStartedAt: row.last_started_at },
+    new Date(nowMs),
+    null,
+  );
+}
+
 
 export const systemHealthService = {
   /** The counts the admin dashboard shows as badges, without shaping the whole
@@ -256,12 +278,23 @@ export const systemHealthService = {
     // succeeded is exactly the quiet failure a dashboard exists to surface.
     const windowHours = readHealthWindowHours();
     const since = windowStartIso(windowHours, Date.now());
-    const jobRows = systemJobRuns.summarizeByJob.all(since, since) as JobSummaryRow[];
+    // Only jobs the registry still runs: a retired job's last row is never
+    // reaped or pruned, so counting it would hold a note on the dashboard for
+    // ever with nothing an administrator could do about it.
+    const registered = new Set(JOBS.map((job) => job.name));
+    const jobRows = (systemJobRuns.summarizeByJob.all(since, since) as JobSummaryRow[])
+      .filter((row) => registered.has(row.job_name));
     const failing = jobRows.filter((r) => r.failures_in_window > 0).length;
     if (failing > 0) {
       attentionNotes.push(failing === 1
         ? 'One scheduled job failed recently.'
         : `${failing} scheduled jobs failed recently.`);
+    }
+    const overdue = jobRows.filter((r) => isRowOverdue(r, Date.now())).length;
+    if (overdue > 0) {
+      attentionNotes.push(overdue === 1
+        ? 'One scheduled job is overdue.'
+        : `${overdue} scheduled jobs are overdue.`);
     }
     const neverSucceeded = jobRows.filter((r) => r.last_success_at === null).length;
     if (neverSucceeded > 0) {
@@ -354,7 +387,10 @@ export const systemHealthService = {
     const haltMeasure = halt.reason === 'complaint_rate' ? 'complaint rate' : 'bounce rate';
 
     const summaryRows = systemJobRuns.summarizeByJob.all(since, since) as JobSummaryRow[];
-    const runRows = systemJobRuns.listRecentRuns.all(RECENT_RUN_LIMIT) as JobRunRow[];
+    const runRows = systemJobRuns.listRecentRuns.all(
+      JSON.stringify(listHighFrequencyJobNames()),
+      RECENT_RUN_LIMIT,
+    ) as JobRunRow[];
     const activeAlarmCount = systemAlarmService.countActiveUnacknowledged();
 
     return {
@@ -430,6 +466,7 @@ export const systemHealthService = {
             failuresInWindow: row.failures_in_window,
             hasFailures: row.failures_in_window > 0,
             hasNeverSucceeded: row.last_success_at === null,
+            isOverdue: isRowOverdue(row, nowMs),
           })),
           hasSummaries: summaryRows.length > 0,
           recentRuns: runRows.map((row) => ({

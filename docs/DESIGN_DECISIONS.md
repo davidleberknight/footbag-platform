@@ -97,6 +97,7 @@ Current implementation status and accepted temporary deviations are tracked in t
   - [5.10 Admin Work-Queue Task Types](#510-admin-work-queue-task-types)
   - [5.11 Every GET Is Read-only](#511-every-get-is-read-only)
   - [5.12 Every State-changing Action Is Safe to Submit Twice](#512-every-state-changing-action-is-safe-to-submit-twice)
+  - [5.13 Background Jobs](#513-background-jobs)
 - [6. External Services and Integrations](#6-external-services-and-integrations)
   - [6.1 Stripe Payments](#61-stripe-payments)
   - [6.2 CloudFront CDN](#62-cloudfront-cdn)
@@ -1081,7 +1082,7 @@ Trade-offs:
 
 Requirements:
 
-- The retention-cleanup job runs on the documented cadence and is part of the standard runtime, not an optional add-on. It permanently purges PII from soft-deleted member rows past the configured grace period, hard-deletes rows whose retention window has elapsed, and records each pass on its job-run row; purging a member's personal data also writes that member's audit row. Loss of the job's last successful run past a configured threshold raises an alarm.
+- The retention-cleanup job runs on the documented cadence and is part of the standard runtime, not an optional add-on. It permanently purges PII from soft-deleted member rows past the configured grace period, hard-deletes rows whose retention window has elapsed, and records each pass on its job-run row; purging a member's personal data also writes that member's audit row.
 
 Impact:
 
@@ -1098,6 +1099,8 @@ Impact:
 Member personal data: retained for a configurable grace period (Administrator-configurable default 90 days, parameter key: member_cleanup_grace_days) after soft delete, then purged from primary storage. Purge sets credential and contact fields (email, phone, passwordHash) to NULL. For non-nullable identity/location columns retained for referential integrity, the application overwrites values with anonymized placeholders (not original data). Exception: members with HoF or BAP flags keep the record the honor publishes after purge: slug, `displayName`, `bio`, country, both archival identity links, and their claim on the legacy account. Credential and contact fields are still nulled, the legal name is still replaced with a placeholder, and other required retained identity/location fields are anonymized as needed. The member row is retained as an anonymized record for referential integrity and audit history.
 
 - Deceased members: memberStatus="deceased" disables login immediately; private contact information is permanently removed after a configurable grace period (parameter key: `deceased_cleanup_grace_days`; in case of error), while historical contributions and honor data (HoF, BAP) are preserved.
+
+- Unfinished accounts: a prospective member's account (registered, onboarding not finished) idle for a configurable period (parameter key: `unfinished_account_cleanup_days`, default 90) is hard-deleted with every row it owns. It holds no shared row, because everything reaching beyond the account is held on its onboarding task rows until onboarding completes, so nothing is anonymized or kept, and no audit row is written about it.
 
 - Club records: Club records are never permanently deleted and do not use the deleted_at soft-delete pattern. Club archival is performed by setting status = 'archived'. The deleted_at column is not present on the clubs database table. A club persists whether or not it currently has co-leaders, and a successful leadership claim or a new current affiliation returns a club of any status to `'active'`.  
 
@@ -3680,6 +3683,47 @@ Trade-offs:
 - Every state-changing method on a covered path carries an explicit already-holds check, which is more code than relying on a unique constraint and an error. Accepted: the constraint stays as the backstop, and the check is what turns a repeat into the right message.
 - Telling the actor's own repeat apart from another person's act relies on the audit trail, or on a record of who acted that the action leaves; an action that writes neither can only report "already held", never "you already did this".
 
+## 5.13 Background Jobs
+
+Decision:
+
+Every clock-driven job inside the application is declared in one job registry: its story ID, its cadence, its missed-run grace, how long its run rows are kept, and the function that does the work. The worker runs one scheduler over that registry. Every five minutes it runs, in order, each job that is due: a daily job is due when it has no successful run in the current UTC day, an interval job when its last success is older than its cadence. Each job runs through one run recorder, which writes the job's `system_job_runs` row, and each runs in its own error boundary, so one failing job never stops the others. Every tick the worker writes one heartbeat log line naming the jobs that are overdue, and one alarm reads it. Jobs outside the application (the host backup timer, the host snapshots, storage lifecycle rules, cross-region replication) are designed under Backup and Recovery and watched by their own alarms; they are catalogued with the in-app jobs in the background-jobs document.
+
+Rationale:
+
+- A job declared as data is the pattern of the established schedulers (Kubernetes CronJob, Oban, Solid Queue): one list is the single place a job is added, and the worker, the overdue check, the admin health page and the tests all read the same list, so none of them can miss a job.
+- Running what is due on a short tick, rather than sleeping a day from the end of the last pass, makes a missed run self-healing: after a restart or an outage the next tick runs every job that fell behind, as systemd's persistent timers and Kubernetes' starting deadline do.
+- A job that stops running produces no error to alarm on. The dead-man's-switch pattern (Healthchecks.io, Cronitor, CloudWatch's missing-data-as-breaching) alarms on the absence of a success signal instead. The heartbeat is judged outside the worker, so the same alarm catches an overdue job and a worker that has died.
+- One alarm across all jobs, with the overdue jobs named in the heartbeat line and on the admin health page, keeps the alarm set small for a volunteer operator without hiding which job is late.
+- A date-driven action (a reminder a set number of days before an expiry) is level-triggered: each pass sends what is due and not yet recorded as sent. An action keyed on one exact day is lost whenever that day's pass does not run.
+- No scheduling library fits a single host on SQLite; the registry is a small amount of application code over the existing run table.
+
+Requirements:
+
+- A clock-driven job runs only from the registry. Each entry names the job by its story ID, and a test fails when a registry job has no catalogue row or story in the background-jobs document, or a catalogue row names no registry or host job.
+- Cadence ships with the application and changes by deploy, except where a story makes a job's interval an administrator setting (the two digests); the registry reads that setting from the configuration store. Business thresholds a job reads (reminder offsets, retention and grace periods) stay in the configuration store.
+- A failed attempt is retried no sooner than an hour after it started, or after the job's own cadence when that is shorter, so a failing job does not repeat its provider calls and its error alarm on every tick.
+- Every run writes its `system_job_runs` row: started, then succeeded with the job's result, or failed with the error. That row is the job's trail; a job writes audit rows only for the records it changes, never about its own run. A run left marked running past its job's stale threshold is closed as aborted.
+- Run rows are pruned by the registry's retention for each job, always keeping the job's last success. The nightly payment reconciliation keeps its rows for the payment-record retention period, because its row is the report the Financial Reports view reads back; the media-lease reap keeps 30 days; every other job keeps 400 days.
+- A job is overdue when its last success is older than its cadence plus its grace, two hours for a daily job and three ticks for an interval job. A job that has never succeeded is overdue once the worker has been up longer than that.
+- The heartbeat line is written at warn every tick, carrying the overdue count and the overdue job names. Its alarm fires when the count stays above zero, or the line stops arriving, across three consecutive five-minute periods, so a normal restart never trips it.
+- A job failure logs at error, which raises the application error alarm.
+- A job still running after ten minutes is left to finish in the background while the pass moves on, logged at error, so one hung provider call cannot hold every later job; the limit sits inside the missed-run alarm's fifteen-minute window.
+- Date-driven actions send what is due and not yet in their sent ledger, only the most urgent offset when several have passed, and never after the date they warn of.
+- The email outbox drain and the notification-feed poll are continuous pollers, not scheduled jobs: they keep their own loops and are watched by the outbox-backlog alarm, the unread-feed alarm on the bounce and complaint queue, the dead-letter alarms on both notification queues, and the heartbeat alarm, which a dead worker stops.
+
+Trade-offs:
+
+- The heartbeat writes about 288 warn lines a day. Accepted: it is the signal that the scheduler is alive, and production keeps only warn and above.
+- Jobs run one after another in the worker process, so a long job delays the next. Accepted: every job is short at this scale, and running in sequence keeps SQLite to one writer.
+- An intentionally stopped host trips the missed-run alarm. Accepted: a stopped host is worth knowing about.
+
+Impact:
+
+- Adding a job is one registry entry, one catalogue row and one story.
+- The admin health page shows each job's overdue state from the same registry.
+- The missed-run alarm is declared in Terraform beside the application error alarm.
+
 # 6. External Services and Integrations
 
 ## 6.1 Stripe Payments
@@ -4922,7 +4966,7 @@ Requirements:
 
 Decision:
 
-CloudWatch metrics and alarms monitor key system health indicators: application errors (5xx rates, exceptions), Lightsail instance health (CPU, memory, disk), S3 operation failures, SES bounce rates, backup job failures or missed runs, Stripe webhook processing failures. SNS topics deliver alarms to the administrator mailbox, including alarms for KMS error rates/latency (auth signing, ballot encryption) and alerts for unusual Parameter Store access patterns.
+CloudWatch metrics and alarms monitor key system health indicators: application errors (5xx rates, exceptions), Lightsail instance health (CPU, memory, disk), S3 operation failures, SES bounce rates, backup failures, scheduled-job failures and missed runs, Stripe webhook processing failures. SNS topics deliver alarms to the administrator mailbox, including alarms for KMS error rates/latency (auth signing, ballot encryption) and alerts for unusual Parameter Store access patterns.
 
 Rationale:
 
@@ -5191,7 +5235,7 @@ Rationale: Five minute backup interval provides acceptable RPO (Recovery Point O
 
 The selected approach keeps snapshots in S3 Standard and thins them by age, which costs approximately $1/month while providing acceptable RPO (5-10 minutes) and recovery points reaching back just over a year, at a cost appropriate for a volunteer-maintained platform. Storage-class automation is not used: the fine-grained stream is deleted at two days, well inside the thirty days any automatic tiering waits before moving an object, so it would transition nothing while adding a per-object monitoring charge, and the off-region copy already sits in a cheaper class than tiering would select.
 
-Daily automated verification provides continuous confidence that backups are actually working without waiting for a disaster to discover issues. Restoration drills, run when a change or an incident gives a reason, validate end-to-end recovery procedures and uncover gaps in runbooks before they matter. Work on a volunteer project is done as needed rather than on a calendar: the backup alarms catch a broken backup between drills, and a drill nobody has a reason to run proves nothing new.
+Restoration drills, run when a change or an incident gives a reason, validate end-to-end recovery procedures and uncover gaps in runbooks before they matter. Work on a volunteer project is done as needed rather than on a calendar: the backup alarms catch a broken backup between drills, and a drill nobody has a reason to run proves nothing new.
 
 Trade-offs:
 
@@ -5201,7 +5245,7 @@ Trade-offs:
 
 - RTO of 5 minutes requires manual intervention (download, verify, restore, restart). There is no automated failover to a standby instance. This trade-off favors operational simplicity over automatic recovery, which is appropriate for volunteer-maintained community platform.
 
-- Manual recovery procedures introduce human error risk. This is mitigated through comprehensive runbooks, drills run when a change or incident calls for one, and automated verification that catches backup issues before recovery is needed.
+- Manual recovery procedures introduce human error risk. This is mitigated through comprehensive runbooks, drills run when a change or incident calls for one, and the backup alarms that catch a broken backup between drills.
 
 Impact:
 
@@ -5380,7 +5424,7 @@ Proactive monitoring detects issues before user impact and enables data-driven c
 
 Layer 1 - Infrastructure Metrics: Lightsail instance CPU, memory and root-volume disk use, collected by the CloudWatch agent, which gathers only what the alarms and the operations dashboard read. Alongside it, the metrics AWS publishes unasked for the services in use: distribution errors and latency, and object-store replication health. Container-level metrics are not collected: on a single instance a failing container surfaces as host pressure, as an application error, or as the deploy's own readiness failure, and all three are watched. These detect resource exhaustion and infrastructure failures.
 
-Layer 2 - Application Signals (CloudWatch log metric filters): Application error rate, login successes, outbox depth, and webhook delivery failures, each counted from the structured log stream. Origin request latency comes from the CloudFront distribution rather than from the application, so it measures origin processing and not the edge and network time in front of it. These detect application bugs and performance degradation at the granularity a log line supports, which is per-signal rather than per-route.
+Layer 2 - Application Signals (CloudWatch log metric filters): Application error rate, login successes, outbox depth, webhook delivery failures, and the scheduled-job heartbeat, each counted from the structured log stream. Origin request latency comes from the CloudFront distribution rather than from the application, so it measures origin processing and not the edge and network time in front of it. These detect application bugs and performance degradation at the granularity a log line supports, which is per-signal rather than per-route.
 
 Layer 3 - Business Figures (read from the database through administrator surfaces): Member registrations, photo uploads, payment transactions, email delivery and event registrations are read on demand by an administrator from the records themselves, not published as metrics and not alarmed on. Email delivery is the exception that reaches CloudWatch, through the provider's own bounce and complaint metrics.
 

@@ -220,15 +220,10 @@ describe('workQueueService.escalateStaleQueueItems', () => {
   });
 });
 
-describe('operationsPlatformService.runAdminQueueDigest cadence gate', () => {
-  it('runs on the first pass and skips a same-day second pass at the default daily cadence', async () => {
+describe('operationsPlatformService.runAdminQueueDigest', () => {
+  it('mails the open routine items to the administrators', async () => {
     enqueueRoutine(ENTITY_MEMBER_ID);
-
     const first = await ops.runAdminQueueDigest();
-    expect(first.skipped).toBe(false);
     expect(first.sent).toBeGreaterThan(0);
-
-    const second = await ops.runAdminQueueDigest();
-    expect(second.skipped).toBe(true);
   });
 });

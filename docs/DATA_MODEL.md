@@ -428,7 +428,7 @@ One key is written by the application rather than seeded or administered: `payme
 One row per applied file: its name, a checksum of its bytes, when it was applied, and who applied it (`applied_by`: the host account the deploy connected as, plus the job-role session name where the run acted as one). Migration files are named `NNNN_snake_case_description.sql`, numbered from `0001` with no repeat and no gap, and the deploy applies a numbered file only on top of every lower-numbered one already recorded here. Every build also writes one baseline row, `baseline:schema.sql`, carrying the checksum of the schema it was built from, so the chain is anchored to a known starting point. The row is written inside the same transaction as the migration itself, so a migration that rolls back leaves no claim to have run. The checksum separates "already applied" from "the file has been edited since it was applied"; the second is refused, because the database no longer matches the file that names its state, and the fix is a new migration rather than a re-run. A database built from `schema.sql` records the bundled migrations as already applied, since the schema file already carries their effect, so every migration's schema change is also written into `schema.sql`, and a parity test holds the two in agreement.
 
 #### Job runs
-`system_job_runs` holds one row per periodic job per pass: name, start, finish, status, and `details_json`, the result the job returned. Rows are never pruned, because for some jobs the result is the record: the nightly payment reconciliation returns its whole report (window, provider mode compared, rows set aside, per-pass findings, issues raised and resolved, gross totals by category and currency), and the admin Financial Reports view reads those rows back rather than keeping a second table of reports. A job that throws leaves a failed row with the error text and no result.
+`system_job_runs` holds one row per periodic job per pass: name, start, finish, status, and `details_json`, the result the job returned. Each job's rows are pruned by the retention the job registry declares for it, always keeping the job's last success: 400 days for most jobs, 30 for the frequent media-lease reclaim. For some jobs the result is the record, so their retention follows the record's: the nightly payment reconciliation returns its whole report (window, provider mode compared, rows set aside, per-pass findings, issues raised and resolved, gross totals by category and currency), the admin Financial Reports view reads those rows back rather than keeping a second table of reports, and its rows are kept for `payment_retention_days`. A job that throws leaves a failed row with the error text and no result.
 
 #### Audit log
 `audit_entries` is an append-only, privacy-safe ledger. IP addresses and user-agent strings are **never** stored. UPDATE is blocked by a DB trigger, and DELETE is refused for any row inside the `audit_retention_days` window (never less than 2555 days). The daily `SYS_Purge_Audit_Entries` job deletes rows older than that window, keeping any row an account token still references; its trail is its `system_job_runs` row. Actor context uses `actor_type` + `actor_member_id` (NULL for system actors).
@@ -1178,6 +1178,7 @@ To change any value: INSERT a new row into `system_config` with the desired `val
 | `donation_rate_limit_per_hour` | `20` | Max donation checkout attempts per member per hour |
 | `event_registration_reminder_days` | `7` | Days before event start to send reminder |
 | `member_cleanup_grace_days` | `90` | Grace days after soft-delete before PII purge job runs |
+| `unfinished_account_cleanup_days` | `90` | Idle days after which an unfinished account is deleted |
 | `payment_retention_days` | `2555` | Payment record compliance retention (~7 years) |
 | `password_reset_expiry_hours` | `1` | Password reset token TTL (hours) |
 | `email_verify_expiry_hours` | `24` | Email verification token TTL (hours) |
@@ -1187,7 +1188,6 @@ To change any value: INSERT a new row into `system_config` with the desired `val
 | `active_player_duration_days` | `730` | Active Player grant duration in days (IFPA-rule-derived) |
 | `active_player_expiry_reminder_days_1` | `30` | First Active Player expiry reminder offset (days before expiry) |
 | `active_player_expiry_reminder_days_2` | `7` | Second Active Player expiry reminder offset (days before expiry) |
-| `active_player_expiry_check_interval_seconds` | `86400` | Worker tick interval for the AP expiry sweep (seconds) |
 | `vouch_rate_limit_max_per_hour` | `5` | Max vouch submissions per voucher per window |
 | `vouch_rate_limit_window_minutes` | `60` | Sliding window (minutes) for counting vouch submissions per voucher |
 | `outbox_max_retry_attempts` | `5` | Max email retry attempts before moving to dead-letter queue |

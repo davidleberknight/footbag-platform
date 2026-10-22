@@ -187,6 +187,17 @@ variable "enable_backup_alarm" {
   default     = false
 }
 
+variable "enable_jobs_heartbeat_alarm" {
+  description = <<-EOT
+    Set to true only after a worker running the job registry is deployed here and
+    its log stream shows a `jobs.heartbeat` line every five minutes. Arms the
+    missed-run alarm, which uses treat_missing_data = "breaching": enabling
+    before the heartbeat arrives fires it on apply.
+  EOT
+  type        = bool
+  default     = false
+}
+
 variable "enable_replication_alarm" {
   description = <<-EOT
     Watch the cross-region replication that carries the snapshot and media

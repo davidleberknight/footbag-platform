@@ -1676,12 +1676,21 @@ describe('the reconciliation digest', () => {
   });
 });
 
-describe('the digest cadence gate', () => {
-  it('sends on the first pass and then holds off until the configured interval elapses', async () => {
-    // The daily worker tick calls this every day, so the config key rather than
-    // the tick must govern the true cadence; without the gate administrators
-    // would be mailed the same outstanding list every morning.
-    const { operationsPlatformService } = await import('../../src/services/operationsPlatformService');
+/** One scheduler pass over just the named registry job, on a fixed clock. */
+async function tickJob(name: string, now: Date): Promise<boolean> {
+  const { JOBS, runDueJobs } = await import('../../src/services/jobRegistry');
+  const { ran } = await runDueJobs(
+    { now, reapExpiredMediaJobs: async () => ({ reclaimedIds: [] }) },
+    JOBS.filter((job) => job.name === name),
+  );
+  return ran.includes(name);
+}
+
+describe('the digest cadence', () => {
+  it('sends on the first tick and then holds off until the configured interval elapses', async () => {
+    // The scheduler ticks every few minutes, so the config key rather than the
+    // tick must govern the true cadence; otherwise administrators would be
+    // mailed the same outstanding list over and over.
     seed((db) => {
       insertPayment(db, {
         id: 'pay-digest-gate', member_id: MEMBER, created_at: IN_WINDOW,
@@ -1690,25 +1699,23 @@ describe('the digest cadence gate', () => {
     });
     await (await svc()).runReconciliation({ now: NOW });
 
-    const first = await operationsPlatformService.runReconciliationDigest(NOW);
-    expect(first.skipped).toBe(false);
+    expect(await tickJob('SYS_Reconciliation_Digest', NOW)).toBe(true);
 
     // Immediately after, and a few days later: still inside the default
     // seven-day window, so no second mailing.
-    expect((await operationsPlatformService.runReconciliationDigest(NOW)).skipped).toBe(true);
+    expect(await tickJob('SYS_Reconciliation_Digest', NOW)).toBe(false);
     const threeDaysOn = new Date('2026-07-23T03:00:00.000Z');
-    expect((await operationsPlatformService.runReconciliationDigest(threeDaysOn)).skipped).toBe(true);
+    expect(await tickJob('SYS_Reconciliation_Digest', threeDaysOn)).toBe(false);
 
     // Well past the window, it sends again. The date is deliberately far out
     // rather than exactly eight days on, so the case reads as clearly outside
     // the interval rather than resting on which side of the boundary a
     // same-instant comparison falls.
     const wellPastTheWindow = new Date('2027-01-01T03:00:00.000Z');
-    expect((await operationsPlatformService.runReconciliationDigest(wellPastTheWindow)).skipped)
-      .toBe(false);
+    expect(await tickJob('SYS_Reconciliation_Digest', wellPastTheWindow)).toBe(true);
 
     // Each mailing is the digest for the day its run was for, the same clock
-    // the gate judged it by. Dated by the wall clock instead, both runs would
+    // the cadence judged it by. Dated by the wall clock instead, both runs would
     // share one day's key and the second report would be dropped as a repeat
     // of the first, so the treasurer would never receive it.
     digestBodyFor(NOW);
@@ -1716,27 +1723,25 @@ describe('the digest cadence gate', () => {
   });
 });
 
-describe('the nightly job gate', () => {
+describe('the nightly reconciliation cadence', () => {
   it('runs on the first tick of a UTC day whatever hour that tick falls at', async () => {
-    // The worker ticks once a day, at whatever time of day it happened to
-    // start. A gate that also demanded a particular hour would skip a tick
-    // falling before it and not get another chance until the next day, so a
-    // worker started in the small hours would never reconcile at all.
-    const { operationsPlatformService } = await import('../../src/services/operationsPlatformService');
+    // A cadence that also demanded a particular hour would skip a worker that
+    // was down at that hour until the next day, so reconciliation would depend
+    // on when the worker happened to be running.
     const earlyTick = new Date('2026-07-21T01:00:00.000Z');
-    expect((await operationsPlatformService.runPaymentReconciliation(earlyTick)).skipped).toBe(false);
+    expect(await tickJob('SYS_Reconcile_Payments_Nightly', earlyTick)).toBe(true);
 
     // Same UTC day, later in the evening: already done.
     const laterSameDay = new Date('2026-07-21T22:00:00.000Z');
-    expect((await operationsPlatformService.runPaymentReconciliation(laterSameDay)).skipped).toBe(true);
+    expect(await tickJob('SYS_Reconcile_Payments_Nightly', laterSameDay)).toBe(false);
 
     // Next UTC day: runs again.
     const nextDay = new Date('2026-07-22T03:00:00.000Z');
-    expect((await operationsPlatformService.runPaymentReconciliation(nextDay)).skipped).toBe(false);
+    expect(await tickJob('SYS_Reconcile_Payments_Nightly', nextDay)).toBe(true);
   });
 });
 
-describe('purging resolved issues on the daily tick', () => {
+describe('purging resolved issues on the daily pass', () => {
   it('clears issues past their retention and records the run', async () => {
     // The purge is wired to the worker tick rather than left to be called by
     // hand: an unwired retention rule is a documented promise the system never

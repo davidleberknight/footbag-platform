@@ -3394,6 +3394,7 @@ VALUES
 --   payments_paused                 0=membership purchases open, 1=paused (admin kill-switch)
 --   event_registration_reminder_days Days before event start to send registration reminder
 --   member_cleanup_grace_days       Grace days after soft-delete before PII purge job runs
+--   unfinished_account_cleanup_days Idle days after which an unfinished account is deleted
 --   payment_retention_days          Payment record compliance retention window
 --   outbox_retention_days           Age at which a delivered or dead-lettered outbox copy is deleted
 --   password_reset_expiry_hours     Password reset token TTL (hours)
@@ -3401,7 +3402,6 @@ VALUES
 --   active_player_duration_days            Active Player grant duration (IFPA-rule-derived)
 --   active_player_expiry_reminder_days_1   First Active Player expiry reminder offset (days)
 --   active_player_expiry_reminder_days_2   Second Active Player expiry reminder offset (days)
---   active_player_expiry_check_interval_seconds   Worker tick interval for the AP expiry sweep (seconds)
 --   vouch_rate_limit_max_per_hour          Max vouch submissions per voucher per window
 --   vouch_rate_limit_window_minutes        Sliding window (minutes) for vouch rate limiting
 --   outbox_max_retry_attempts       Max email retries before dead-letter queue
@@ -3511,6 +3511,15 @@ VALUES
    'member_cleanup_grace_days', '90',
    '2000-01-01T00:00:00.000Z',
    'Grace period (days) before PII purge runs after member soft-delete (default: 90 days).',
+   NULL
+  ),
+
+  (
+   'seed-unfinished-account-cleanup-days',
+   '2000-01-01T00:00:00.000Z',
+   'unfinished_account_cleanup_days', '90',
+   '2000-01-01T00:00:00.000Z',
+   'Idle days after which an unfinished account (registered, onboarding not finished) is deleted (default: 90 days).',
    NULL
   ),
 
@@ -4041,15 +4050,6 @@ VALUES
    'active_player_expiry_reminder_days_2', '7',
    '2000-01-01T00:00:00.000Z',
    'Second Active Player expiry reminder offset in days before expiry (default: 7 days).',
-   NULL
-  ),
-
-  (
-   'seed-active-player-expiry-check-interval-seconds',
-   '2000-01-01T00:00:00.000Z',
-   'active_player_expiry_check_interval_seconds', '86400',
-   '2000-01-01T00:00:00.000Z',
-   'Worker tick interval for the AP expiry sweep, in seconds (default: 86400 = 24h).',
    NULL
   );
 

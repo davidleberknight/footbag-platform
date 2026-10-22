@@ -1,6 +1,7 @@
 /**
  * Pure-function tests for the SYS_Check_Active_Player_Expiry offset decision.
- * Covers UTC day-boundary math and the pre-expiry offset windows. The decision
+ * Covers UTC day-boundary math and the pre-expiry offset windows: an offset is
+ * due from its day until the expiry, and only the most urgent open one. The decision
  * looks strictly forward: the message for the expiry date itself is the day-of
  * ending notice, which the expiry pass sends, not a reminder this function
  * selects.
@@ -76,22 +77,53 @@ describe('decideReminderDue', () => {
     expect(r).toEqual({ label: 'days_2', days: 7 });
   });
 
-  it('T-15 (between offsets) returns null', () => {
+  it('T-31 (before the first window opens) returns null', () => {
     const r = decideReminderDue(
-      '2099-09-30T12:00:00.000Z',
+      '2099-10-16T12:00:00.000Z',
       '2099-09-15T12:00:00.000Z',
       DEFAULT_OFFSETS,
     );
     expect(r).toBeNull();
   });
 
-  it('T-1 (post-pre-expiry, pre-day-of) returns null', () => {
+  it('T-15 is still inside the days_1 window, so a pass missed on T-30 still sends it', () => {
+    // A reminder keyed on the exact day was lost whenever that day's pass did
+    // not run; the sent ledger, not the date, is what keeps it to once.
+    const r = decideReminderDue(
+      '2099-09-30T12:00:00.000Z',
+      '2099-09-15T12:00:00.000Z',
+      DEFAULT_OFFSETS,
+    );
+    expect(r).toEqual({ label: 'days_1', days: 30 });
+  });
+
+  it('T-5 picks only the most urgent open window, days_2, never days_1 as well', () => {
+    // A member a few days out told "your status ends in a month" after a
+    // missed pass would be told something false.
+    const r = decideReminderDue(
+      '2099-09-20T12:00:00.000Z',
+      '2099-09-15T12:00:00.000Z',
+      DEFAULT_OFFSETS,
+    );
+    expect(r).toEqual({ label: 'days_2', days: 7 });
+  });
+
+  it('the result does not depend on the order the offsets are configured in', () => {
+    const r = decideReminderDue(
+      '2099-09-20T12:00:00.000Z',
+      '2099-09-15T12:00:00.000Z',
+      [...DEFAULT_OFFSETS].reverse(),
+    );
+    expect(r).toEqual({ label: 'days_2', days: 7 });
+  });
+
+  it('T-1 is still inside the days_2 window', () => {
     const r = decideReminderDue(
       '2099-09-16T12:00:00.000Z',
       '2099-09-15T12:00:00.000Z',
       DEFAULT_OFFSETS,
     );
-    expect(r).toBeNull();
+    expect(r).toEqual({ label: 'days_2', days: 7 });
   });
 
   it('T+1 (one day past expiry) returns null (no late-after-day-of reminder)', () => {

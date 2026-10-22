@@ -17,9 +17,10 @@
  * generating a fresh reminder cycle, tier-filter at the view, unsubscribe /
  * bounced / missing-email gating.
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
+import { expectLoggedError } from '../setup-env';
 import {
   insertMember,
   insertActivePlayerGrant,
@@ -158,6 +159,17 @@ function readReminderSentCountForMember(memberId: string): number {
   }
 }
 
+function readReminderLabelsForMember(memberId: string): string[] {
+  const db = new BetterSqlite3(dbPath, { readonly: true });
+  try {
+    return (db.prepare(
+      'SELECT offset_label FROM active_player_reminder_sent WHERE member_id = ? ORDER BY offset_label',
+    ).all(memberId) as { offset_label: string }[]).map((r) => r.offset_label);
+  } finally {
+    db.close();
+  }
+}
+
 function readLatestGrantChangeType(memberId: string): string | undefined {
   const db = new BetterSqlite3(dbPath, { readonly: true });
   try {
@@ -212,14 +224,75 @@ describe('runDailyPass — reminder enqueue per offset', () => {
     expect(readLatestGrantChangeType(m.id)).toBe('grant');
   });
 
-  it('Tier 0 between offsets (T-15) sends no reminder', () => {
+  it('Tier 0 before the first window opens (T-31) sends no reminder', () => {
     const now = nextNow();
-    const m = seedMember({ expires_at: isoDayOffset(now, 15) });
+    const m = seedMember({ expires_at: isoDayOffset(now, 31) });
 
     expirySvc.runDailyPass({ now });
 
     expect(readOutboxForMember(m.id)).toBe(0);
     expect(readReminderSentCountForMember(m.id)).toBe(0);
+  });
+
+  // A pass that does not run on the offset's exact day (the worker down, a
+  // deploy at the wrong moment) must not cost the member their reminder; the
+  // sent ledger is what keeps it to one.
+  it('Tier 0 inside the days_1 window (T-15) still gets the reminder, once across passes', () => {
+    const now = nextNow();
+    const m = seedMember({ expires_at: isoDayOffset(now, 15) });
+
+    expirySvc.runDailyPass({ now });
+    expirySvc.runDailyPass({ now: new Date(now.getTime() + 86_400_000) });
+
+    expect(readOutboxForMember(m.id)).toBe(1);
+    expect(readReminderLabelsForMember(m.id)).toEqual(['days_1']);
+  });
+
+  it('after both windows were missed (T-5) sends only the more urgent reminder', () => {
+    // Telling a member five days out that their status ends in a month would be
+    // false, and two reminders on one day is one too many.
+    const now = nextNow();
+    const m = seedMember({ expires_at: isoDayOffset(now, 5) });
+
+    expirySvc.runDailyPass({ now });
+
+    expect(readOutboxForMember(m.id)).toBe(1);
+    expect(readReminderLabelsForMember(m.id)).toEqual(['days_2']);
+  });
+});
+
+describe('runDailyPass — one failing member', () => {
+  // Committing the expiry before the send meant a failed send lost the ending
+  // notice for good, since a later pass sees the status already ended; and an
+  // uncaught throw aborted the pass for every member after the failing one.
+  it('rolls the failing member back whole, still serves the rest, and sends both on the next pass', async () => {
+    expectLoggedError('SYS_Check_Active_Player_Expiry: candidate failed');
+    const { emailService } = await import('../../src/services/emailService');
+    const now = nextNow();
+    const failing = seedMember({ expires_at: isoDayOffset(now, -2) });
+    const other = seedMember({ expires_at: isoDayOffset(now, -1) });
+    const realSend = emailService.send.bind(emailService);
+    const spy = vi.spyOn(emailService, 'send').mockImplementation((input) => {
+      if (input.recipientMemberId === failing.id) throw new Error('outbox unavailable');
+      return realSend(input);
+    });
+    let first: ReturnType<typeof expirySvc.runDailyPass>;
+    try {
+      first = expirySvc.runDailyPass({ now });
+    } finally {
+      spy.mockRestore();
+    }
+
+    expect(first.failed).toBe(1);
+    expect(readLatestGrantChangeType(failing.id)).toBe('grant');
+    expect(readOutboxForMember(failing.id)).toBe(0);
+    expect(readLatestGrantChangeType(other.id)).toBe('expire');
+    expect(readOutboxForMember(other.id)).toBe(1);
+
+    const second = expirySvc.runDailyPass({ now });
+    expect(second.failed).toBe(0);
+    expect(readLatestGrantChangeType(failing.id)).toBe('expire');
+    expect(readOutboxForMember(failing.id)).toBe(1);
   });
 });
 

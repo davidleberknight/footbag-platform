@@ -127,6 +127,7 @@
                 {{#if this.hasNeverSucceeded}}
                   <span class="badge badge-warn">Never</span>
                 {{else}}
+                  {{#if this.isOverdue}}<span class="badge badge-warn">Overdue</span><br>{{/if}}
                   {{this.lastSuccessAgeLabel}}<br><span class="text-muted fs-sm">{{this.lastSuccessDisplay}}</span>
                 {{/if}}
               </td>

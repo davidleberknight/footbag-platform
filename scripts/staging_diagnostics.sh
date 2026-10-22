@@ -773,7 +773,8 @@ JS
 
 cmd_ap_expiry_health() {
   # Single-purpose health gate for the AP expiry worker. Asserts a recent
-  # successful pass exists (within ~26h, slightly above the 24h tick interval).
+  # successful pass exists (within ~26h: a day plus the daily job's two-hour
+  # missed-run grace).
   # Useful as a post-deploy smoke from the operator workstation:
   #   bash scripts/staging_diagnostics.sh ap-expiry-health
   banner "AP expiry worker health (SYS_Check_Active_Player_Expiry)"

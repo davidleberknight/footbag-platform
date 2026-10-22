@@ -21,7 +21,7 @@ A story or feature is deployed if any of these is true: a mounted HTTP route in 
 
 ## Classification taxonomy
 
-Classify each story in `docs/USER_STORIES.md`, and each deployed runtime feature that lacks a story id, into exactly one bucket:
+Classify each story in `docs/USER_STORIES.md` and `docs/BACKGROUND_JOBS.md`, and each deployed runtime feature that lacks a story id, into exactly one bucket:
 
 - **Complete and deployed** — a mounted route or runtime path implements the story, and the code is intended to satisfy all its success criteria.
 - **Partial and deployed** — a route or service path exists, but only some success criteria are implemented, or an accepted deviation tracked as a private-tracker issue covers the remainder.
@@ -39,4 +39,4 @@ Designed-but-not-deployed, future, and documented-deferred are status facts. A n
 
 ## Every deployed path maps to a named story
 
-Every deployed surface traces upward to a descriptively-named user story in `docs/USER_STORIES.md`. A deployed feature that lands in "runtime feature without a story id" is therefore a coverage gap the review surfaces: write the missing story, or, if the surface is genuinely unintended, remove it. Legacy data-pipeline surfaces anchor on the pipeline validation gates in `docs/TESTING.md` (the migration and onboarding testing section) instead of a user story.
+Every deployed surface traces upward to a descriptively-named user story in `docs/USER_STORIES.md`, or, for a background job, to its story in `docs/BACKGROUND_JOBS.md`. A deployed feature that lands in "runtime feature without a story id" is therefore a coverage gap the review surfaces: write the missing story, or, if the surface is genuinely unintended, remove it. Legacy data-pipeline surfaces anchor on the pipeline validation gates in `docs/TESTING.md` (the migration and onboarding testing section) instead of a user story.

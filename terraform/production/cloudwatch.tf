@@ -543,6 +543,41 @@ resource "aws_cloudwatch_metric_alarm" "outbox_backlog" {
   ok_actions          = [aws_sns_topic.alarms.arn]
 }
 
+# ── Scheduled-job heartbeat (missed-run alarm) ────────────────────────────────
+# The worker's scheduler writes one `jobs.heartbeat` line at warn on every
+# five-minute tick, carrying the count of overdue jobs; the filter turns $.overdue
+# into the JobsOverdue metric. The filter has no default value on purpose: a tick
+# that writes no line leaves the metric missing, and missing data breaches, so one
+# alarm catches both a job that stopped running and a worker that died.
+
+resource "aws_cloudwatch_log_metric_filter" "jobs_heartbeat" {
+  count          = var.enable_jobs_heartbeat_alarm ? 1 : 0
+  name           = "${local.prefix}-jobs-heartbeat"
+  log_group_name = aws_cloudwatch_log_group.app.name
+  pattern        = "{ $.msg = \"jobs.heartbeat\" }"
+  metric_transformation {
+    namespace = "Footbag/${var.environment}"
+    name      = "JobsOverdue"
+    value     = "$.overdue"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "jobs_missed_run" {
+  count               = var.enable_jobs_heartbeat_alarm ? 1 : 0
+  alarm_name          = "${local.prefix}-jobs-missed-run"
+  comparison_operator = "GreaterThanThreshold"
+  evaluation_periods  = 3
+  metric_name         = "JobsOverdue"
+  namespace           = "Footbag/${var.environment}"
+  period              = 300
+  statistic           = "Maximum"
+  threshold           = 0
+  treat_missing_data  = "breaching"
+  alarm_description   = "A scheduled job is overdue, or the worker stopped writing its heartbeat, for 15+ minutes"
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+  ok_actions          = [aws_sns_topic.alarms.arn]
+}
+
 # ── Payment webhook delivery ──────────────────────────────────────────────────
 # Both webhook rejection paths answer 400 and log webhook.delivery_failed at
 # warn: a rejected signature (reason=signature) and a recoverable processing
