@@ -16,6 +16,7 @@ import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
+import { isoHoursAgo } from '../fixtures/clock';
 import {
   insertMember,
   insertPayment,
@@ -33,8 +34,6 @@ const ADMIN_SLUG  = 'ph_admin_one';
 const MEMBER_ID   = 'ph_member_001';
 const MEMBER_SLUG = 'ph_member_one';
 
-const HOUR_MS = 60 * 60 * 1000;
-const HOURS_AGO = (h: number) => new Date(Date.now() - h * HOUR_MS).toISOString();
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
@@ -158,14 +157,14 @@ describe('webhook rejection counts', () => {
   });
 
   it('leaves rejections older than the window out of the count', async () => {
-    recordFailure('signature', { bucket: HOURS_AGO(48), count: 4 });
+    recordFailure('signature', { bucket: isoHoursAgo(48), count: 4 });
     recordFailure('signature', { count: 1 });
     const html = await healthPage();
     expect(rejectionCountFor(html, 'Signature rejected')).toBe(1);
   });
 
   it('widens the window when the administrator configures a longer one', async () => {
-    recordFailure('signature', { bucket: HOURS_AGO(48), count: 4 });
+    recordFailure('signature', { bucket: isoHoursAgo(48), count: 4 });
     withDb((db) => insertSystemConfig(db, {
       config_key: 'system_health_window_hours', value_json: '96',
     }));
@@ -187,10 +186,10 @@ describe('webhook silence', () => {
   it('warns when nothing has been processed for a long time', async () => {
     withDb((db) => insertStripeEvent(db, {
       event_id: 'evt_old',
-      created_at: HOURS_AGO(200),
+      created_at: isoHoursAgo(200),
       event_type: 'payment_intent.succeeded',
-      stripe_created: HOURS_AGO(200),
-      processed_at: HOURS_AGO(200),
+      stripe_created: isoHoursAgo(200),
+      processed_at: isoHoursAgo(200),
     }));
     const html = await healthPage();
     expect(html).toContain('Nothing has been processed for more than');
@@ -199,10 +198,10 @@ describe('webhook silence', () => {
   it('does not warn when a delivery landed recently', async () => {
     withDb((db) => insertStripeEvent(db, {
       event_id: 'evt_fresh',
-      created_at: HOURS_AGO(1),
+      created_at: isoHoursAgo(1),
       event_type: 'payment_intent.succeeded',
-      stripe_created: HOURS_AGO(1),
-      processed_at: HOURS_AGO(1),
+      stripe_created: isoHoursAgo(1),
+      processed_at: isoHoursAgo(1),
     }));
     const html = await healthPage();
     expect(html).not.toContain('Nothing has been processed for more than');
@@ -213,11 +212,11 @@ describe('settled volume', () => {
   it('groups by category and never sums two currencies into one figure', async () => {
     withDb((db) => {
       insertPayment(db, {
-        id: 'ph-pay-usd', member_id: MEMBER_ID, created_at: HOURS_AGO(2),
+        id: 'ph-pay-usd', member_id: MEMBER_ID, created_at: isoHoursAgo(2),
         status: 'succeeded', amount_cents: 2500, currency: 'USD', payment_type: 'donation',
       });
       insertPayment(db, {
-        id: 'ph-pay-eur', member_id: MEMBER_ID, created_at: HOURS_AGO(2),
+        id: 'ph-pay-eur', member_id: MEMBER_ID, created_at: isoHoursAgo(2),
         status: 'succeeded', amount_cents: 2500, currency: 'EUR', payment_type: 'donation',
       });
     });
@@ -231,7 +230,7 @@ describe('settled volume', () => {
 
   it('leaves unsettled payments out of the volume', async () => {
     withDb((db) => insertPayment(db, {
-      id: 'ph-pay-pending', member_id: MEMBER_ID, created_at: HOURS_AGO(2),
+      id: 'ph-pay-pending', member_id: MEMBER_ID, created_at: isoHoursAgo(2),
       status: 'pending', amount_cents: 9900, currency: 'USD', payment_type: 'membership',
     }));
     const html = await healthPage();
@@ -304,11 +303,11 @@ describe('what the settled volume counts', () => {
     withDb((db) => {
       insertPayment(db, {
         id: 'ph-vol-live', member_id: MEMBER_ID, payment_type: 'donation', status: 'succeeded',
-        amount_cents: 5000, created_at: HOURS_AGO(1), provider_livemode: 1,
+        amount_cents: 5000, created_at: isoHoursAgo(1), provider_livemode: 1,
       });
       insertPayment(db, {
         id: 'ph-vol-test', member_id: MEMBER_ID, payment_type: 'donation', status: 'succeeded',
-        amount_cents: 7000, created_at: HOURS_AGO(1), provider_livemode: 0,
+        amount_cents: 7000, created_at: isoHoursAgo(1), provider_livemode: 0,
       });
     });
     const html = await healthPage();

@@ -34,6 +34,7 @@ import { operationsPlatformService } from './services/operationsPlatformService'
 import { createTranscodeWorker } from './transcodeWorker';
 import { checkpointAndCloseDatabase } from './db/db';
 import { initDataOrigin } from './services/dataOriginService';
+import { outboxDepthLevel } from './lib/outboxDepthLevel';
 
 let stopping = false;
 
@@ -61,17 +62,10 @@ async function emailOutboxLoop(): Promise<void> {
   while (!stopping) {
     try {
       await operationsPlatformService.runEmailWorker();
-      // A backlog means the worker is falling behind or SES is failing, so emit
-      // it at warn: production runs at the warn level and would suppress an info
-      // line, starving the OutboxDepth metric the backlog alarm depends on. An
-      // idle queue logs at debug (shown in dev, suppressed in prod/staging); the
-      // metric filter's default of 0 covers those idle periods.
+      // Only a backlog past the alarm's threshold is logged at warn, which feeds
+      // the OutboxDepth metric in production; a normal drain logs at debug.
       const outboxDepth = operationsPlatformService.getOutboxBacklogDepth();
-      if (outboxDepth > 0) {
-        logger.warn('outbox.depth', { depth: outboxDepth });
-      } else {
-        logger.debug('outbox.depth', { depth: outboxDepth });
-      }
+      logger[outboxDepthLevel(outboxDepth)]('outbox.depth', { depth: outboxDepth });
     } catch (err) {
       logger.error('worker: email-outbox unexpected error', {
         error: err instanceof Error ? err.message : String(err),

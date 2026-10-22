@@ -4,6 +4,7 @@ import BetterSqlite3 from 'better-sqlite3';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, insertAuditEntry, createTestSessionJwt } from '../fixtures/factories';
+import { DAY_MS, dateOnly, inMonthsAgo } from '../fixtures/clock';
 
 const { dbPath } = setTestEnv('3134');
 
@@ -16,23 +17,10 @@ const OTHER_SLUG  = 'al_member_two';
 
 // Real, recent dates, as live rows carry: the readers default to windows
 // ending now, so seeded rows sit where real ones would.
-const DAY_MS = 86_400_000;
-const dateOnly = (ms: number): string => new Date(ms).toISOString().slice(0, 10);
 const TODAY = dateOnly(Date.now());
 /** An export window covering the last 30 days, ending today. */
 const WINDOW = `from=${dateOnly(Date.now() - 30 * DAY_MS)}&to=${TODAY}`;
 
-const MONTH_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-];
-/** A UTC instant in the calendar month `back` months before this one. */
-function inMonthsAgo(back: number, day: number): { iso: string; month: string; label: string } {
-  const now = new Date();
-  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - back, day, 10));
-  const month = d.toISOString().slice(0, 7);
-  return { iso: d.toISOString(), month, label: `${MONTH_NAMES[d.getUTCMonth()]} ${d.getUTCFullYear()}` };
-}
 // The summary's two months: the earlier one and the later one, both complete.
 const EARLIER = (day: number) => inMonthsAgo(2, day);
 const LATER = (day: number) => inMonthsAgo(1, day);

@@ -11,6 +11,7 @@
 import { randomUUID } from 'node:crypto';
 import BetterSqlite3 from 'better-sqlite3';
 import { signJwtLocalSync } from './signJwt';
+import { DAY_MS, isoDaysFromNow } from './clock';
 
 // Membership / identity / club row builders are defined once in the
 // testkit subtree (the only src location permitted to compile SQL
@@ -145,7 +146,13 @@ export type {
   ClubCleanupResolutionOverrides,
 } from '../../src/testkit/personaRowBuilders';
 
-const TS  ='2025-01-01T00:00:00.000Z';
+// Default timestamps are one second before the insert, read per call, for the
+// reasons the row builders give: readers compare stored times with the clock,
+// a fixed date falls outside every window that ends now, and a seeded row must
+// be strictly earlier than anything the code under test then writes.
+function nowIso(): string {
+  return new Date(Date.now() - 1000).toISOString();
+}
 const SYS = 'system';
 
 let _counter = 0;
@@ -202,6 +209,8 @@ export interface EventOverrides {
   hashtag_tag_id?: string;
   title?: string;
   description?: string;
+  /** Two months ahead by default, so the default open-registration event is
+   *  upcoming. A test about a past or calendar-specific event passes its dates. */
   start_date?: string;
   end_date?: string;
   city?: string;
@@ -215,8 +224,12 @@ export interface EventOverrides {
 }
 
 export function insertEvent(db: BetterSqlite3.Database, o: EventOverrides = {}): string {
-  const id    = o.id             ?? `event-test-${uid()}`;
-  const tagId = o.hashtag_tag_id ?? insertTag(db);
+  const id        = o.id         ?? `event-test-${uid()}`;
+  const startDate = o.start_date ?? isoDaysFromNow(60).slice(0, 10);
+  // A public event is addressed by event_<year>_<slug>, the year being its
+  // start year, so a default event is reachable at the key its listings link.
+  const tagId = o.hashtag_tag_id
+    ?? insertTag(db, { tag_normalized: `#event_${startDate.slice(0, 4)}_test_${uid()}` });
   db.prepare(`
     INSERT INTO events (
       id, hashtag_tag_id, title, description, start_date, end_date,
@@ -230,8 +243,8 @@ export function insertEvent(db: BetterSqlite3.Database, o: EventOverrides = {}):
     id, tagId,
     o.title              ?? 'Test Event',
     o.description        ?? 'A test event.',
-    o.start_date         ?? '2026-06-01',
-    o.end_date           ?? '2026-06-03',
+    startDate,
+    o.end_date           ?? isoDaysFromNow(62).slice(0, 10),
     o.city               ?? 'Testville',
     o.region             ?? null,
     o.country            ?? 'United States',
@@ -239,7 +252,7 @@ export function insertEvent(db: BetterSqlite3.Database, o: EventOverrides = {}):
     o.registration_status ?? 'open',
     o.sanction_status    ?? 'none',
     o.host_club_id       !== undefined ? o.host_club_id : null,
-    TS, SYS, TS, SYS,
+    nowIso(), SYS, nowIso(), SYS,
   );
   return id;
 }
@@ -268,7 +281,7 @@ export function insertDiscipline(db: BetterSqlite3.Database, eventId: string, o:
     o.team_type           ?? 'singles',
     o.sort_order          ?? 1,
     o.is_aggregate_standing ?? 0,
-    TS, SYS, TS, SYS,
+    nowIso(), SYS, nowIso(), SYS,
   );
   return id;
 }
@@ -287,7 +300,7 @@ export function insertResultsUpload(
       id, event_id, uploaded_by_member_id, uploaded_at,
       original_filename, created_at, created_by, updated_at, updated_by, version
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-  `).run(id, eventId, memberId, TS, o.filename ?? 'results.csv', TS, SYS, TS, SYS);
+  `).run(id, eventId, memberId, nowIso(), o.filename ?? 'results.csv', nowIso(), SYS, nowIso(), SYS);
   return id;
 }
 
@@ -304,7 +317,7 @@ export function insertResultEntry(
   db.prepare(`
     INSERT INTO event_result_entries (id, event_id, results_upload_id, discipline_id, placement, created_at, created_by, updated_at, updated_by, version)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-  `).run(id, eventId, uploadId, disciplineId, o.placement ?? 1, TS, SYS, TS, SYS);
+  `).run(id, eventId, uploadId, disciplineId, o.placement ?? 1, nowIso(), SYS, nowIso(), SYS);
   return id;
 }
 
@@ -320,7 +333,7 @@ export function insertResultParticipant(
   db.prepare(`
     INSERT INTO event_result_entry_participants (id, result_entry_id, participant_order, display_name, historical_person_id, member_id, created_at, created_by, updated_at, updated_by, version)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-  `).run(id, resultEntryId, o.participant_order ?? 1, displayName, o.historical_person_id ?? null, o.member_id ?? null, TS, SYS, TS, SYS);
+  `).run(id, resultEntryId, o.participant_order ?? 1, displayName, o.historical_person_id ?? null, o.member_id ?? null, nowIso(), SYS, nowIso(), SYS);
   return id;
 }
 
@@ -362,11 +375,11 @@ export function insertMediaItem(db: BetterSqlite3.Database, o: MediaItemOverride
       moderation_status, source_sha256
     ) VALUES (?, ?, 'test', ?, 'test', 1, ?, 'photo', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
-    id, TS, TS,
+    id, nowIso(), nowIso(),
     o.uploader_member_id,
     o.is_avatar ?? 0,
     o.caption === undefined ? null : o.caption,
-    o.uploaded_at ?? TS,
+    o.uploaded_at ?? nowIso(),
     o.s3_key_thumb   ?? `test/thumb_${id}.jpg`,
     o.s3_key_display ?? `test/display_${id}.jpg`,
     o.width_px  ?? 800,
@@ -387,7 +400,7 @@ export function insertMediaItem(db: BetterSqlite3.Database, o: MediaItemOverride
       UPDATE members SET avatar_media_id = ?, updated_at = ?, updated_by = 'test',
              version = version + 1
        WHERE id = ?
-    `).run(id, TS, o.uploader_member_id);
+    `).run(id, nowIso(), o.uploader_member_id);
   }
   return id;
 }
@@ -430,10 +443,10 @@ export function insertVideoMediaItem(db: BetterSqlite3.Database, o: VideoMediaIt
       width_px, height_px, moderation_status, source_id
     ) VALUES (?, ?, 'test', ?, 'test', 1, ?, 'video', 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
-    id, TS, TS,
+    id, nowIso(), nowIso(),
     o.uploader_member_id,
     o.caption === undefined ? null : o.caption,
-    o.uploaded_at ?? TS,
+    o.uploaded_at ?? nowIso(),
     o.video_platform,
     o.video_id,
     o.video_url      === undefined ? null : o.video_url,
@@ -468,12 +481,12 @@ export function insertMediaFlag(db: BetterSqlite3.Database, o: MediaFlagOverride
       media_id, reporter_member_id, reason_code, reason_text, reported_at, status
     ) VALUES (?, ?, 'test', ?, 'test', 1, ?, ?, ?, ?, ?, ?)
   `).run(
-    id, TS, TS,
+    id, nowIso(), nowIso(),
     o.media_id,
     o.reporter_member_id,
     o.reason_code ?? 'illegal_or_harassing',
     o.reason_text === undefined ? null : o.reason_text,
-    o.reported_at ?? TS,
+    o.reported_at ?? nowIso(),
     o.status ?? 'open',
   );
   return id;
@@ -510,7 +523,7 @@ export function insertEmailArchive(
       sender_member_id, from_identity, subject, body_text, sent_at, recipient_count
     ) VALUES (?, ?, 'test', ?, 'test', 1, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
-    id, TS, TS,
+    id, nowIso(), nowIso(),
     o.archive_type ?? 'announce',
     o.mailing_list_id ?? null,
     o.event_id ?? null,
@@ -518,7 +531,7 @@ export function insertEmailArchive(
     o.from_identity === undefined ? null : o.from_identity,
     o.subject ?? 'A message to the community',
     o.body_text ?? 'The body of the message as it went out.',
-    o.sent_at ?? TS,
+    o.sent_at ?? nowIso(),
     o.recipient_count ?? 0,
   );
   return id;
@@ -548,8 +561,8 @@ export function insertTagStat(db: BetterSqlite3.Database, o: TagStatOverrides): 
     o.tag_id,
     o.usage_count ?? 1,
     o.distinct_member_count ?? 1,
-    o.last_used_at ?? TS,
-    TS, TS, TS,
+    o.last_used_at ?? nowIso(),
+    nowIso(), nowIso(), nowIso(),
   );
   return o.tag_id;
 }
@@ -579,14 +592,14 @@ function attachMediaTags(
         id, created_at, created_by, updated_at, updated_by, version,
         tag_normalized, tag_display
       ) VALUES (?, ?, 'test', ?, 'test', 1, ?, ?)
-    `).run(tagId, TS, TS, tagNormalized, tagDisplay);
+    `).run(tagId, nowIso(), nowIso(), tagNormalized, tagDisplay);
 
     db.prepare(`
       INSERT INTO media_tags (
         id, created_at, created_by, updated_at, updated_by, version,
         media_id, tag_id, tag_display
       ) VALUES (?, ?, 'test', ?, 'test', 1, ?, ?, ?)
-    `).run(`mt-${mediaId}-${tagId}`, TS, TS, mediaId, tagId, tagDisplay);
+    `).run(`mt-${mediaId}-${tagId}`, nowIso(), nowIso(), mediaId, tagId, tagDisplay);
   }
 }
 
@@ -628,9 +641,9 @@ export function insertTtLesson(db: BetterSqlite3.Database, o: TtLessonOverrides)
     ) VALUES (?, ?, 'test', ?, 'test', 1, ?, 'video', 0, ?, ?,
               'youtube', ?, ?, NULL, ?, 'active')
   `).run(
-    id, TS, TS,
+    id, nowIso(), nowIso(),
     o.uploader_member_id,
-    caption, TS,
+    caption, nowIso(),
     o.videoId, `https://www.youtube.com/watch?v=${o.videoId}`,
     sourceId,
   );
@@ -679,9 +692,9 @@ export function insertMemberSubmittedVideo(
     ) VALUES (?, ?, 'member', ?, 'member', 1, ?, 'video', 0, ?, ?,
               'youtube', ?, ?, NULL, ?, ?, NULL)
   `).run(
-    id, TS, TS,
+    id, nowIso(), nowIso(),
     o.uploader_member_id,
-    o.caption === undefined ? null : o.caption, TS,
+    o.caption === undefined ? null : o.caption, nowIso(),
     o.videoId, `https://www.youtube.com/watch?v=${o.videoId}`,
     sourceId, o.moderation_status ?? 'active',
   );
@@ -724,7 +737,7 @@ export function insertFreestyleTrickAlias(
     opts?.provenance_note ?? null,
     opts?.display_reason ?? null,
     opts?.alias_origin_producer ?? 'base-dictionary',
-    TS,
+    nowIso(),
   );
 }
 
@@ -737,7 +750,7 @@ export function insertFreestyleTrickSource(
   db.prepare(`
     INSERT INTO freestyle_trick_sources (id, source_type, source_label, source_url, retrieved_at, notes)
     VALUES (?, ?, ?, ?, ?, NULL)
-  `).run(id, o.source_type ?? 'curated', o.source_label ?? 'Curated v1', o.source_url ?? null, TS);
+  `).run(id, o.source_type ?? 'curated', o.source_label ?? 'Curated v1', o.source_url ?? null, nowIso());
   return id;
 }
 
@@ -807,7 +820,7 @@ export function insertFreestyleRecord(
     o.video_timecode ?? null,
     o.notes          ?? null,
     o.superseded_by  ?? null,
-    TS, TS,
+    nowIso(), nowIso(),
   );
   return id;
 }
@@ -864,8 +877,8 @@ export function insertConsecutiveKicksRecord(
     o.event_date ?? null,
     o.event_name ?? null,
     o.location   ?? null,
-    o.created_at ?? TS,
-    o.updated_at ?? TS,
+    o.created_at ?? nowIso(),
+    o.updated_at ?? nowIso(),
   );
   return id;
 }
@@ -897,7 +910,7 @@ export function insertNetTeam(db: BetterSqlite3.Database, o: NetTeamOverrides = 
     o.first_year       ?? 2010,
     o.last_year        ?? 2015,
     o.appearance_count ?? 1,
-    TS, TS,
+    nowIso(), nowIso(),
   );
   return team_id;
 }
@@ -957,7 +970,7 @@ export function insertNetTeamAppearance(
     o.score_text      ?? null,
     o.event_year      ?? 2010,
     o.evidence_class  ?? 'canonical_only',
-    TS,
+    nowIso(),
   );
   return id;
 }
@@ -1044,7 +1057,7 @@ export function insertFreestyleTrick(
     o.review_status  ?? 'curated',
     o.is_active      ?? 1,
     o.is_core        ?? 0,
-    TS,
+    nowIso(),
     o.jobs_notation_raw         ?? null,
     o.jobs_notation_normalized  ?? null,
     o.structural_parse_json     ?? null,
@@ -1135,9 +1148,9 @@ export function insertFreestyleEvAdjudication(
   `).run(
     candidateId,
     o.sequence_no ?? nextSeq,
-    TS,
+    nowIso(),
     SYS,
-    TS,
+    nowIso(),
     SYS,
     1,
     submitted,
@@ -1203,7 +1216,7 @@ export function insertFreestyleTrickTip(
     o.display_order      ?? 0,
     o.status             ?? 'published',
     o.source             ?? 'footbag_org_moves2',
-    TS,
+    nowIso(),
   );
   return Number(info.lastInsertRowid);
 }
@@ -1237,7 +1250,7 @@ export function insertNetDisciplineGroup(
     o.match_method    ?? 'pattern',
     o.review_needed   ?? 0,
     o.conflict_flag   ?? 0,
-    TS,
+    nowIso(),
     o.mapped_by       ?? 'test',
   );
   return disciplineId;
@@ -1279,10 +1292,10 @@ export function insertCuratorVideo(
       moderation_status, source_filename, mime_type
     ) VALUES (?, ?, 'seed', ?, 'seed', 1, ?, 'video', 0, ?, ?, 's3', ?, NULL, ?, 'active', ?, ?)
   `).run(
-    mediaId, TS, TS,
+    mediaId, nowIso(), nowIso(),
     o.uploaderMemberId,
     o.caption ?? 'Curator demo video',
-    TS,
+    nowIso(),
     videoKey,
     posterUrl,
     o.sourceFilename,
@@ -1294,14 +1307,14 @@ export function insertCuratorVideo(
       id, created_at, created_by, updated_at, updated_by, version,
       tag_normalized, tag_display
     ) VALUES (?, ?, 'seed', ?, 'seed', 1, ?, ?)
-  `).run(tagId, TS, TS, tagNormalized, tagDisplay);
+  `).run(tagId, nowIso(), nowIso(), tagNormalized, tagDisplay);
 
   db.prepare(`
     INSERT INTO media_tags (
       id, created_at, created_by, updated_at, updated_by, version,
       media_id, tag_id, tag_display
     ) VALUES (?, ?, 'seed', ?, 'seed', 1, ?, ?, ?)
-  `).run(`mt-${mediaId}-${tagId}`, TS, TS, mediaId, tagId, tagDisplay);
+  `).run(`mt-${mediaId}-${tagId}`, nowIso(), nowIso(), mediaId, tagId, tagDisplay);
 
   return mediaId;
 }
@@ -1403,10 +1416,10 @@ export function insertCuratorUrlReference(
       moderation_status
     ) VALUES (?, ?, 'seed', ?, 'seed', 1, ?, 'video', 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active')
   `).run(
-    mediaId, TS, TS,
+    mediaId, nowIso(), nowIso(),
     o.uploaderMemberId,
     o.caption ?? null,
-    TS,
+    nowIso(),
     o.videoPlatform,
     o.videoId,
     o.videoUrl,
@@ -1434,10 +1447,10 @@ export function insertCuratorUrlReference(
   for (const tagDisplay of finalTags) {
     const tagNormalized = tagDisplay.toLowerCase();
     const candidateId = `tag-${tagNormalized.replace(/[^a-z0-9]/g, '_')}-${uid()}`;
-    insertTag.run(candidateId, TS, TS, tagNormalized, tagDisplay);
+    insertTag.run(candidateId, nowIso(), nowIso(), tagNormalized, tagDisplay);
     const existing = selectTagId.get(tagNormalized) as { id: string };
     const tagId = existing.id;
-    insertMediaTag.run(`mt-${mediaId}-${tagId}-${uid()}`, TS, TS, mediaId, tagId, tagDisplay);
+    insertMediaTag.run(`mt-${mediaId}-${tagId}-${uid()}`, nowIso(), nowIso(), mediaId, tagId, tagDisplay);
   }
 
   return { mediaId, sidecarPath, sidecarFilename };
@@ -1483,7 +1496,7 @@ export function insertAccountToken(
   o: AccountTokenOverrides = {},
 ): string {
   const id = o.id ?? `tok-test-${uid()}`;
-  const issuedAt = o.issued_at ?? TS;
+  const issuedAt = o.issued_at ?? nowIso();
   db.prepare(`
     INSERT INTO account_tokens (
       id, created_at, created_by, updated_at, updated_by, version,
@@ -1496,7 +1509,8 @@ export function insertAccountToken(
     o.token_type ?? 'email_verify',
     o.token_hash ?? `hash-${id}`,
     issuedAt,
-    o.expires_at ?? TS,
+    // A day after issue: live until a case asks for an expired token.
+    o.expires_at ?? new Date(Date.parse(issuedAt) + DAY_MS).toISOString(),
     o.used_at ?? null,
     o.target_audit_entry_id ?? null,
   );
@@ -1522,7 +1536,7 @@ export function insertEventOrganizer(
       id, created_at, created_by, updated_at, updated_by, version,
       event_id, member_id, role, added_at
     ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
-  `).run(id, TS, SYS, TS, SYS, eventId, memberId, 'organizer', TS);
+  `).run(id, nowIso(), SYS, nowIso(), SYS, eventId, memberId, 'organizer', nowIso());
   return id;
 }
 
@@ -1540,8 +1554,8 @@ export function insertRegistration(
       attended_at, payment_id
     ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)
   `).run(
-    id, TS, SYS, TS, SYS,
-    eventId, memberId, TS,
+    id, nowIso(), SYS, nowIso(), SYS,
+    eventId, memberId, nowIso(),
     o.registration_type ?? 'competitor',
     o.status ?? 'confirmed',
     o.attended_at ?? null,
@@ -1596,7 +1610,7 @@ export function insertFreestyleTrickModifier(
     o.add_bonus_rotational ?? 1,
     o.modifier_type ?? 'body',
     o.notes ?? null,
-    TS,
+    nowIso(),
   );
 }
 
@@ -1627,10 +1641,10 @@ export function insertActivePlayerVouch(
     ) VALUES (?, ?, 'system', ?, ?, ?, ?, ?, ?)
   `).run(
     id,
-    o.created_at ?? TS,
+    o.created_at ?? nowIso(),
     o.voucher_member_id,
     o.target_member_id,
-    o.vouched_at ?? TS,
+    o.vouched_at ?? nowIso(),
     o.reason_text ?? null,
     o.old_active_player_expires_at ?? null,
     o.new_active_player_expires_at ?? null,
@@ -1661,7 +1675,7 @@ export function insertClubViabilitySignal(db: BetterSqlite3.Database, o: ClubVia
        source_stage, activity_signal, source_entity_type, source_entity_id)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
-    id, o.created_at ?? TS, SYS,
+    id, o.created_at ?? nowIso(), SYS,
     o.member_id ?? `mem_${uid()}`,
     'club_id' in o ? o.club_id : `club_${uid()}`,
     o.source_stage ?? 'stage1b_affiliated',
@@ -1693,7 +1707,7 @@ export function insertClubInsightNote(db: BetterSqlite3.Database, o: ClubInsight
        source_stage, note_text, source_entity_type, source_entity_id)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
-    id, o.created_at ?? TS, SYS,
+    id, o.created_at ?? nowIso(), SYS,
     o.member_id ?? `mem_${uid()}`,
     'club_id' in o ? o.club_id : null,
     o.source_stage ?? 'onboarding_club_card',
@@ -1739,7 +1753,7 @@ export function insertMemberGallery(db: BetterSqlite3.Database, o: MemberGallery
        owner_member_id, name, description, is_default, sort_order)
     VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
   `).run(
-    id, o.created_at ?? TS, actor, o.created_at ?? TS, o.updated_by ?? actor,
+    id, o.created_at ?? nowIso(), actor, o.created_at ?? nowIso(), o.updated_by ?? actor,
     o.owner_member_id ?? `mem_${uid()}`,
     o.name ?? `Gallery ${id}`,
     o.description ?? '',
@@ -1760,7 +1774,7 @@ export function insertGalleryCriterionTag(
   db.prepare(`
     INSERT INTO member_gallery_tags (gallery_id, tag_id, created_at, created_by)
     VALUES (?, ?, ?, ?)
-  `).run(galleryId, tagId, TS, SYS);
+  `).run(galleryId, tagId, nowIso(), SYS);
 }
 
 // One NOT-criterion on a named gallery: an item carrying this tag is kept out of
@@ -1773,7 +1787,7 @@ export function insertGalleryExcludeTag(
   db.prepare(`
     INSERT INTO member_gallery_exclude_tags (gallery_id, tag_id, created_at, created_by)
     VALUES (?, ?, ?, ?)
-  `).run(galleryId, tagId, TS, SYS);
+  `).run(galleryId, tagId, nowIso(), SYS);
 }
 
 // An off-site link rendered beside a gallery. A link is publicly visible only
@@ -1795,7 +1809,7 @@ export function insertGalleryExternalLink(
   o: GalleryExternalLinkOverrides,
 ): string {
   const id = o.id ?? `gallink-test-${uid()}`;
-  const at = o.created_at ?? TS;
+  const at = o.created_at ?? nowIso();
   db.prepare(`
     INSERT INTO gallery_external_links (
       id, created_at, created_by, updated_at, updated_by, version,
@@ -1829,7 +1843,7 @@ export interface MediaJobOverrides {
 
 export function insertMediaJob(db: BetterSqlite3.Database, o: MediaJobOverrides): string {
   const id = o.id ?? `mj-test-${uid()}`;
-  const at = o.created_at ?? TS;
+  const at = o.created_at ?? nowIso();
   const by = o.created_by ?? SYS;
   db.prepare(`
     INSERT INTO media_jobs (
@@ -1906,7 +1920,7 @@ export function insertMailingList(db: BetterSqlite3.Database, o: MailingListOver
       from_identity, subject_prefix, restricted_sending
     ) VALUES (?, ?, ?, '', ?, ?, ?, ?, ?, ?, ?)
   `).run(
-    slug, TS,
+    slug, nowIso(),
     o.name ?? slug,
     o.status ?? 'active',
     o.is_member_manageable ?? 1,
@@ -1923,7 +1937,10 @@ export function insertOutboxEmail(db: BetterSqlite3.Database, o: OutboxEmailOver
   const id = o.id ?? `outbox_${uid()}`;
   // Stamped now, as the send path stamps a message, so a seeded row sits inside
   // the recent windows the email log and the health pages default to.
-  const ts = o.created_at ?? new Date().toISOString();
+  const ts = o.created_at ?? nowIso();
+  // A sent message always carries its send time, as marking a row sent stamps
+  // it; without one the row would never count among mail sent in a window.
+  const sentAt = o.sent_at !== undefined ? o.sent_at : (o.status === 'sent' ? ts : null);
   // The CHECK constraint requires at least one addressing column; default to a
   // recipient_email when the caller supplies none.
   const recipientEmail = o.recipient_email !== undefined ? o.recipient_email
@@ -1947,7 +1964,7 @@ export function insertOutboxEmail(db: BetterSqlite3.Database, o: OutboxEmailOver
     o.template_key ?? null,
     o.status ?? 'pending',
     o.last_error ?? null,
-    o.sent_at ?? null,
+    sentAt,
     o.stream ?? 'transactional',
     o.last_attempt_at ?? null,
     o.reviewed_at ?? null,
@@ -1962,8 +1979,8 @@ export function insertOutboxEmail(db: BetterSqlite3.Database, o: OutboxEmailOver
 //
 // One row in the append-only system_config table. `readIntConfig` and the
 // rate-limit buckets read the latest effective value per key through the
-// system_config_current view, so effective_start_at defaults to a past
-// timestamp and value_json is the raw JSON string (e.g. '2' for an integer cap).
+// system_config_current view, so effective_start_at defaults to the insert
+// time, current at once and later than the schema's seeded rows, and value_json is the raw JSON string (e.g. '2' for an integer cap).
 
 export interface SystemConfigOverrides {
   id?: string;
@@ -1977,7 +1994,7 @@ export interface SystemConfigOverrides {
 
 export function insertSystemConfig(db: BetterSqlite3.Database, o: SystemConfigOverrides): string {
   const id = o.id ?? `syscfg_${uid()}`;
-  const ts = o.created_at ?? TS;
+  const ts = o.created_at ?? nowIso();
   db.prepare(`
     INSERT INTO system_config
       (id, created_at, config_key, value_json, effective_start_at, reason_text, changed_by_member_id)
@@ -2015,7 +2032,7 @@ export function insertEmailTemplate(db: BetterSqlite3.Database, o: EmailTemplate
        template_key, subject_template, body_template, is_enabled, pii_classification)
     VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
   `).run(
-    id, TS, SYS, TS, SYS,
+    id, nowIso(), SYS, nowIso(), SYS,
     o.template_key,
     o.subject_template ?? `Test subject for ${o.template_key}`,
     o.body_template ?? 'Hello {memberName},\ntest body.',
@@ -2043,7 +2060,7 @@ export interface SystemJobRunOverrides {
 
 export function insertSystemJobRun(db: BetterSqlite3.Database, o: SystemJobRunOverrides = {}): string {
   const id = o.id ?? `jobrun_${uid()}`;
-  const startedAt = o.started_at ?? TS;
+  const startedAt = o.started_at ?? nowIso();
   const status = o.status ?? 'succeeded';
   const finishedAt = o.finished_at !== undefined
     ? o.finished_at
@@ -2087,7 +2104,7 @@ export function insertSystemAlarmEvent(
   o: SystemAlarmEventOverrides = {},
 ): string {
   const id = o.id ?? `alarm_${uid()}`;
-  const raisedAt = o.raised_at ?? TS;
+  const raisedAt = o.raised_at ?? nowIso();
   db.prepare(`
     INSERT INTO system_alarm_events (
       id, created_at, created_by, updated_at, updated_by, version,
@@ -2132,7 +2149,7 @@ export interface SesEventOverrides {
 
 export function insertSesEvent(db: BetterSqlite3.Database, o: SesEventOverrides = {}): string {
   const messageId = o.message_id ?? `sns_${uid()}`;
-  const ts = o.created_at ?? TS;
+  const ts = o.created_at ?? nowIso();
   db.prepare(`
     INSERT INTO ses_events (
       message_id, created_at, event_type, processed_at, recipient_count,

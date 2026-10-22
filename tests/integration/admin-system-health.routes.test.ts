@@ -11,6 +11,7 @@ import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
+import { isoHoursAgo } from '../fixtures/clock';
 import {
   insertMember,
   insertOutboxEmail,
@@ -28,8 +29,6 @@ const ADMIN_SLUG  = 'sh_admin_one';
 const MEMBER_ID   = 'sh_member_001';
 const MEMBER_SLUG = 'sh_member_one';
 
-const HOUR_MS = 60 * 60 * 1000;
-const HOURS_AGO = (h: number) => new Date(Date.now() - h * HOUR_MS).toISOString();
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
@@ -121,13 +120,13 @@ describe('GET /admin/system-health', () => {
   // shouting about.
   it('counts what was sent within the window, and everything still waiting whatever its age', async () => {
     withDb((db) => {
-      insertOutboxEmail(db, { status: 'pending', created_at: HOURS_AGO(1) });
-      insertOutboxEmail(db, { status: 'pending', created_at: HOURS_AGO(2) });
-      insertOutboxEmail(db, { status: 'sent',    created_at: HOURS_AGO(3), sent_at: HOURS_AGO(3) });
+      insertOutboxEmail(db, { status: 'pending', created_at: isoHoursAgo(1) });
+      insertOutboxEmail(db, { status: 'pending', created_at: isoHoursAgo(2) });
+      insertOutboxEmail(db, { status: 'sent',    created_at: isoHoursAgo(3), sent_at: isoHoursAgo(3) });
       // Sent before the window opened: out of the volume figure.
-      insertOutboxEmail(db, { status: 'sent',    created_at: HOURS_AGO(40), sent_at: HOURS_AGO(40) });
+      insertOutboxEmail(db, { status: 'sent',    created_at: isoHoursAgo(40), sent_at: isoHoursAgo(40) });
       // Still waiting since before the window: counted, because it is stuck.
-      insertOutboxEmail(db, { status: 'pending', created_at: HOURS_AGO(40) });
+      insertOutboxEmail(db, { status: 'pending', created_at: isoHoursAgo(40) });
     });
     const html = await healthPage();
     expect(outboxCountFor(html, 'Pending')).toBe(3);
@@ -137,9 +136,9 @@ describe('GET /admin/system-health', () => {
   it('honours a widened window from the administrator-configurable setting', async () => {
     withDb((db) => {
       // Inside the widened window but outside the default one.
-      insertOutboxEmail(db, { status: 'sent', created_at: HOURS_AGO(40), sent_at: HOURS_AGO(40) });
+      insertOutboxEmail(db, { status: 'sent', created_at: isoHoursAgo(40), sent_at: isoHoursAgo(40) });
       // Outside the widened window too, so widening must not sweep it in.
-      insertOutboxEmail(db, { status: 'sent', created_at: HOURS_AGO(100), sent_at: HOURS_AGO(100) });
+      insertOutboxEmail(db, { status: 'sent', created_at: isoHoursAgo(100), sent_at: isoHoursAgo(100) });
       insertSystemConfig(db, { config_key: 'system_health_window_hours', value_json: '72' });
     });
     const html = await healthPage();
@@ -160,7 +159,7 @@ describe('GET /admin/system-health', () => {
   });
 
   it('counts dead-lettered messages over all time, so one older than the window still shows', async () => {
-    withDb((db) => insertOutboxEmail(db, { status: 'dead_letter', created_at: HOURS_AGO(500) }));
+    withDb((db) => insertOutboxEmail(db, { status: 'dead_letter', created_at: isoHoursAgo(500) }));
     const html = await healthPage();
     // The count is a link only when there is something to look at, so the
     // assertion targets that anchor with its number rather than the bare
@@ -182,16 +181,16 @@ describe('GET /admin/system-health', () => {
   it('expresses bounces and complaints as a share of what was sent in the window', async () => {
     withDb((db) => {
       for (let i = 0; i < 10; i += 1) {
-        insertOutboxEmail(db, { status: 'sent', created_at: HOURS_AGO(2), sent_at: HOURS_AGO(2) });
+        insertOutboxEmail(db, { status: 'sent', created_at: isoHoursAgo(2), sent_at: isoHoursAgo(2) });
       }
       // Created before the window but sent inside it: the denominator counts
       // when a message went out, which is the population the feedback is about.
-      insertOutboxEmail(db, { status: 'pending', created_at: HOURS_AGO(40) });
-      insertSesEvent(db, { event_type: 'bounce',    created_at: HOURS_AGO(2) });
-      insertSesEvent(db, { event_type: 'complaint', created_at: HOURS_AGO(2) });
-      insertSesEvent(db, { event_type: 'complaint', created_at: HOURS_AGO(2) });
+      insertOutboxEmail(db, { status: 'pending', created_at: isoHoursAgo(40) });
+      insertSesEvent(db, { event_type: 'bounce',    created_at: isoHoursAgo(2) });
+      insertSesEvent(db, { event_type: 'complaint', created_at: isoHoursAgo(2) });
+      insertSesEvent(db, { event_type: 'complaint', created_at: isoHoursAgo(2) });
       // Outside the window: counted in neither numerator.
-      insertSesEvent(db, { event_type: 'bounce', created_at: HOURS_AGO(40) });
+      insertSesEvent(db, { event_type: 'bounce', created_at: isoHoursAgo(40) });
     });
     const html = await healthPage();
     expect(html).toContain('10.0%');
@@ -205,9 +204,9 @@ describe('GET /admin/system-health', () => {
   it('counts every recipient a bounce notification named, not the notification', async () => {
     withDb((db) => {
       for (let i = 0; i < 10; i += 1) {
-        insertOutboxEmail(db, { status: 'sent', created_at: HOURS_AGO(2), sent_at: HOURS_AGO(2) });
+        insertOutboxEmail(db, { status: 'sent', created_at: isoHoursAgo(2), sent_at: isoHoursAgo(2) });
       }
-      insertSesEvent(db, { event_type: 'bounce', created_at: HOURS_AGO(2), recipient_count: 3 });
+      insertSesEvent(db, { event_type: 'bounce', created_at: isoHoursAgo(2), recipient_count: 3 });
     });
     const html = await healthPage();
     expect(html).toContain('30.0%');
@@ -218,9 +217,9 @@ describe('GET /admin/system-health', () => {
       // Half an hour inside the "3 hours" bucket, not on its edge: the page floors
       // the elapsed time, so a success stamped exactly three hours back reads as
       // "2 hours ago" if the clock steps back a second before the page renders.
-      insertSystemJobRun(db, { job_name: 'SYS_Alpha', status: 'succeeded', started_at: HOURS_AGO(3.5) });
-      insertSystemJobRun(db, { job_name: 'SYS_Alpha', status: 'failed',    started_at: HOURS_AGO(1), last_error: 'alpha blew up' });
-      insertSystemJobRun(db, { job_name: 'SYS_Beta',  status: 'failed',    started_at: HOURS_AGO(2), last_error: 'beta blew up' });
+      insertSystemJobRun(db, { job_name: 'SYS_Alpha', status: 'succeeded', started_at: isoHoursAgo(3.5) });
+      insertSystemJobRun(db, { job_name: 'SYS_Alpha', status: 'failed',    started_at: isoHoursAgo(1), last_error: 'alpha blew up' });
+      insertSystemJobRun(db, { job_name: 'SYS_Beta',  status: 'failed',    started_at: isoHoursAgo(2), last_error: 'beta blew up' });
     });
     const html = await healthPage();
     expect(html).toContain('SYS_Alpha');
@@ -238,7 +237,7 @@ describe('GET /admin/system-health', () => {
   it('counts a reaped run among a job\'s failures, matching how the run history badges it', async () => {
     withDb((db) => {
       insertSystemJobRun(db, {
-        job_name: 'SYS_Reaped', status: 'aborted', started_at: HOURS_AGO(1),
+        job_name: 'SYS_Reaped', status: 'aborted', started_at: isoHoursAgo(1),
         last_error: 'stale_running_reaped',
       });
     });
@@ -250,7 +249,7 @@ describe('GET /admin/system-health', () => {
 
   it("reports a job's last success from before the window rather than treating it as absent", async () => {
     withDb((db) => insertSystemJobRun(db, {
-      job_name: 'SYS_Stale', status: 'succeeded', started_at: HOURS_AGO(100),
+      job_name: 'SYS_Stale', status: 'succeeded', started_at: isoHoursAgo(100),
     }));
     const html = await healthPage();
     expect(html).toContain('SYS_Stale');
@@ -262,7 +261,7 @@ describe('GET /admin/system-health', () => {
     withDb((db) => {
       insertSystemAlarmEvent(db, { alarm_type: 'footbag-a', status: 'active' });
       insertSystemAlarmEvent(db, { alarm_type: 'footbag-b', status: 'acknowledged' });
-      insertSystemAlarmEvent(db, { alarm_type: 'footbag-c', status: 'cleared', cleared_at: HOURS_AGO(1) });
+      insertSystemAlarmEvent(db, { alarm_type: 'footbag-c', status: 'cleared', cleared_at: isoHoursAgo(1) });
     });
     const html = await healthPage();
     expect(html).toContain('1 alarm nobody has picked up yet');
@@ -273,7 +272,7 @@ describe('GET /admin/system-health', () => {
 describe('the admin dashboard surfaces the same health signals', () => {
   it('flags the system-health card when something needs attention and links to both pages', async () => {
     withDb((db) => {
-      insertOutboxEmail(db, { status: 'dead_letter', created_at: HOURS_AGO(1) });
+      insertOutboxEmail(db, { status: 'dead_letter', created_at: isoHoursAgo(1) });
       insertSystemAlarmEvent(db, { alarm_type: 'footbag-x', status: 'active' });
     });
     const res = await request(createApp()).get('/admin').set('Cookie', adminCookie());
@@ -296,7 +295,7 @@ describe('the admin dashboard surfaces the same health signals', () => {
   it('drops a reviewed dead letter from the urgent block while the health page still counts it', async () => {
     withDb((db) => {
       insertOutboxEmail(db, {
-        id: 'sh_reviewed_dl', status: 'dead_letter', created_at: HOURS_AGO(1),
+        id: 'sh_reviewed_dl', status: 'dead_letter', created_at: isoHoursAgo(1),
         reviewed_at: '2026-09-14T00:00:00.000Z', reviewed_by_member_id: ADMIN_ID,
         review_note: 'Address does not exist yet.',
       });
@@ -313,7 +312,7 @@ describe('the admin dashboard surfaces the same health signals', () => {
 
   it('keeps an unreviewed dead letter in the urgent block', async () => {
     withDb((db) => {
-      insertOutboxEmail(db, { id: 'sh_open_dl', status: 'dead_letter', created_at: HOURS_AGO(1) });
+      insertOutboxEmail(db, { id: 'sh_open_dl', status: 'dead_letter', created_at: isoHoursAgo(1) });
     });
     const dash = await request(createApp()).get('/admin').set('Cookie', adminCookie());
     expect(dash.text).toContain('One message was dead-lettered.');
@@ -327,10 +326,10 @@ describe('the admin dashboard surfaces the same health signals', () => {
   // killed mid-run hides exactly the quiet failure it exists to surface.
   it('flags a failing job, one that has never succeeded, and one killed mid-run', async () => {
     withDb((db) => {
-      insertSystemJobRun(db, { job_name: 'SYS_Failing', status: 'succeeded', started_at: HOURS_AGO(5) });
-      insertSystemJobRun(db, { job_name: 'SYS_Failing', status: 'failed',    started_at: HOURS_AGO(1) });
-      insertSystemJobRun(db, { job_name: 'SYS_NeverOk', status: 'failed',    started_at: HOURS_AGO(2) });
-      insertSystemJobRun(db, { job_name: 'SYS_Stuck',   status: 'running',   started_at: HOURS_AGO(3) });
+      insertSystemJobRun(db, { job_name: 'SYS_Failing', status: 'succeeded', started_at: isoHoursAgo(5) });
+      insertSystemJobRun(db, { job_name: 'SYS_Failing', status: 'failed',    started_at: isoHoursAgo(1) });
+      insertSystemJobRun(db, { job_name: 'SYS_NeverOk', status: 'failed',    started_at: isoHoursAgo(2) });
+      insertSystemJobRun(db, { job_name: 'SYS_Stuck',   status: 'running',   started_at: isoHoursAgo(3) });
     });
     const res = await request(createApp()).get('/admin').set('Cookie', adminCookie());
     expect(res.status).toBe(200);
@@ -345,13 +344,13 @@ describe('the admin dashboard surfaces the same health signals', () => {
   // queue that has stopped moving.
   it('flags mail that has been waiting longer than the window, but not an ordinary backlog', async () => {
     withDb((db) => {
-      insertOutboxEmail(db, { status: 'pending', created_at: HOURS_AGO(1) });
+      insertOutboxEmail(db, { status: 'pending', created_at: isoHoursAgo(1) });
     });
     const fresh = await request(createApp()).get('/admin').set('Cookie', adminCookie());
     expect(fresh.text).not.toContain('Mail has been waiting to go out longer than the health window.');
 
     withDb((db) => {
-      insertOutboxEmail(db, { status: 'pending', created_at: HOURS_AGO(40) });
+      insertOutboxEmail(db, { status: 'pending', created_at: isoHoursAgo(40) });
     });
     const stale = await request(createApp()).get('/admin').set('Cookie', adminCookie());
     expect(stale.text).toContain('Mail has been waiting to go out longer than the health window.');
@@ -360,7 +359,7 @@ describe('the admin dashboard surfaces the same health signals', () => {
   it('leaves the card unflagged when every alarm has been taken or has cleared', async () => {
     withDb((db) => {
       insertSystemAlarmEvent(db, { alarm_type: 'footbag-y', status: 'acknowledged' });
-      insertSystemAlarmEvent(db, { alarm_type: 'footbag-z', status: 'cleared', cleared_at: HOURS_AGO(1) });
+      insertSystemAlarmEvent(db, { alarm_type: 'footbag-z', status: 'cleared', cleared_at: isoHoursAgo(1) });
     });
     const res = await request(createApp()).get('/admin').set('Cookie', adminCookie());
     expect(res.status).toBe(200);
@@ -376,8 +375,8 @@ describe('the admin dashboard surfaces the same health signals', () => {
 describe('feedback arriving in a window that sent nothing', () => {
   it('still shows the bounce and complaint counts, with a dash for the share', async () => {
     withDb((db) => {
-      insertSesEvent(db, { event_type: 'bounce', created_at: HOURS_AGO(1), recipient_count: 4 });
-      insertSesEvent(db, { event_type: 'complaint', created_at: HOURS_AGO(1), recipient_count: 2 });
+      insertSesEvent(db, { event_type: 'bounce', created_at: isoHoursAgo(1), recipient_count: 4 });
+      insertSesEvent(db, { event_type: 'complaint', created_at: isoHoursAgo(1), recipient_count: 2 });
     });
     const html = await healthPage();
     expect(html).toContain('there is no share to report against');
@@ -416,10 +415,10 @@ describe('release rate and the bulk stream', () => {
     withDb((db) => {
       for (let i = 0; i < 100; i += 1) {
         insertOutboxEmail(db, {
-          status: 'sent', sent_at: HOURS_AGO(1), recipient_email: `sent-${i}@example.test`,
+          status: 'sent', sent_at: isoHoursAgo(1), recipient_email: `sent-${i}@example.test`,
         });
       }
-      insertSesEvent(db, { event_type: 'complaint', created_at: HOURS_AGO(1) });
+      insertSesEvent(db, { event_type: 'complaint', created_at: isoHoursAgo(1) });
     });
     const html = await healthPage();
     expect(html).toMatch(/bulk stream:\s*<span class="fw-600">Stopped on feedback<\/span>/);
@@ -433,7 +432,7 @@ describe('release rate and the bulk stream', () => {
       insertSystemConfig(db, {
         config_key: 'bulk_send_paused',
         value_json: '1',
-        effective_start_at: HOURS_AGO(1),
+        effective_start_at: isoHoursAgo(1),
       });
     });
     const html = await healthPage();
@@ -449,14 +448,14 @@ describe('release rate and the bulk stream', () => {
     withDb((db) => {
       for (let i = 0; i < 100; i += 1) {
         insertOutboxEmail(db, {
-          status: 'sent', sent_at: HOURS_AGO(1), recipient_email: `sent-${i}@example.test`,
+          status: 'sent', sent_at: isoHoursAgo(1), recipient_email: `sent-${i}@example.test`,
         });
       }
-      insertSesEvent(db, { event_type: 'complaint', created_at: HOURS_AGO(1) });
+      insertSesEvent(db, { event_type: 'complaint', created_at: isoHoursAgo(1) });
       insertSystemConfig(db, {
         config_key: 'bulk_send_paused',
         value_json: '1',
-        effective_start_at: HOURS_AGO(1),
+        effective_start_at: isoHoursAgo(1),
       });
     });
     const html = await healthPage();
@@ -473,10 +472,10 @@ describe('release rate and the bulk stream', () => {
     withDb((db) => {
       for (let i = 0; i < 401; i += 1) {
         insertOutboxEmail(db, {
-          status: 'sent', sent_at: HOURS_AGO(1), recipient_email: `sent-${i}@example.test`,
+          status: 'sent', sent_at: isoHoursAgo(1), recipient_email: `sent-${i}@example.test`,
         });
       }
-      insertSesEvent(db, { event_type: 'complaint', created_at: HOURS_AGO(1) });
+      insertSesEvent(db, { event_type: 'complaint', created_at: isoHoursAgo(1) });
     });
     const html = await healthPage();
     expect(html).toContain('Bulk sending is stopped: the complaint rate');
@@ -488,10 +487,10 @@ describe('release rate and the bulk stream', () => {
     withDb((db) => {
       for (let i = 0; i < 100; i += 1) {
         insertOutboxEmail(db, {
-          status: 'sent', sent_at: HOURS_AGO(1), recipient_email: `sent-${i}@example.test`,
+          status: 'sent', sent_at: isoHoursAgo(1), recipient_email: `sent-${i}@example.test`,
         });
       }
-      insertSesEvent(db, { event_type: 'bounce', created_at: HOURS_AGO(1), recipient_count: 6 });
+      insertSesEvent(db, { event_type: 'bounce', created_at: isoHoursAgo(1), recipient_count: 6 });
     });
     const html = await healthPage();
     expect(html).toContain('Bulk sending is stopped: the bounce rate over the last 24 hours');

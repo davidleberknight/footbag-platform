@@ -23,7 +23,17 @@ import BetterSqlite3 from 'better-sqlite3';
 import { randomUUID } from 'node:crypto';
 import { auditTopicFor } from '../services/auditTopics';
 
-const TS  = '2025-01-01T00:00:00.000Z';
+// Every default timestamp is one second before the insert, read per call
+// rather than once at load. Readers compare stored times with the clock (admin
+// windows ending now, staleness sweeps, token expiry), and a fixed date falls
+// outside every such window, so a seeded row would silently test nothing; a
+// long-running dev server reseeding personas needs the current time too. The
+// second's lead keeps a seeded row strictly earlier than anything the code
+// under test then writes, because latest-row reads and the ledgers' later-stamp
+// guard would otherwise see a same-millisecond tie.
+function nowIso(): string {
+  return new Date(Date.now() - 1000).toISOString();
+}
 const SYS = 'system';
 
 let _counter = 0;
@@ -90,8 +100,8 @@ export interface MemberOverrides {
   /** Last successful sign-in. Null by default, matching an account that has
    *  never signed in; set it to age a member for a sign-in-recency rule. */
   last_login_at?: string | null;
-  /** Account creation stamp. Fixed by default; set it where a rule measures
-   *  from account age, such as an administrator who has yet to sign in. */
+  /** Account creation stamp. The insert time by default; set it where a rule
+   *  measures from account age, such as an administrator who has yet to sign in. */
   created_at?: string;
   /**
    * Membership is an authorization level: an account is pending until every
@@ -126,9 +136,9 @@ export function insertMember(db: BetterSqlite3.Database, o: MemberOverrides = {}
   const noCredentials    = isSystem || !!purged;
   const email            = noCredentials ? null : (o.login_email ?? `test-${uid()}@example.com`);
   const emailNormalized  = email ? email.toLowerCase() : null;
-  const emailVerifiedAt  = noCredentials ? null : (o.email_verified_at !== undefined ? o.email_verified_at : TS);
+  const emailVerifiedAt  = noCredentials ? null : (o.email_verified_at !== undefined ? o.email_verified_at : nowIso());
   const passwordHash     = noCredentials ? null : (o.password_hash ?? '[TEST_HASH]');
-  const passwordChanged  = noCredentials ? null : TS;
+  const passwordChanged  = noCredentials ? null : nowIso();
 
   if (o.legacy_member_id) {
     const existing = db.prepare(`SELECT 1 FROM legacy_members WHERE legacy_member_id = ?`).get(o.legacy_member_id);
@@ -176,7 +186,7 @@ export function insertMember(db: BetterSqlite3.Database, o: MemberOverrides = {}
     o.show_competitive_results ?? 1, o.show_first_competition_year ?? 1, o.gender ?? null, o.show_gender ?? 0, o.legacy_member_id ?? null, o.historical_person_id ?? null, o.first_competition_year ?? null,
     o.stripe_customer_id ?? null,
     o.whatsapp ?? null, o.whatsapp_visible ?? 0, o.last_login_at ?? null,
-    o.created_at ?? TS, SYS, TS, SYS,
+    o.created_at ?? nowIso(), SYS, nowIso(), SYS,
   );
   if ((o.onboarding ?? 'complete') === 'complete') {
     completeOnboarding(db, id);
@@ -200,7 +210,7 @@ export function insertTag(db: BetterSqlite3.Database, o: TagOverrides = {}): str
   db.prepare(`
     INSERT INTO tags (id, tag_normalized, tag_display, is_standard, standard_type, created_at, created_by, updated_at, updated_by, version)
     VALUES (?, ?, ?, 1, ?, ?, ?, ?, ?, 1)
-  `).run(id, normalized, display, o.standard_type ?? 'event', TS, SYS, TS, SYS);
+  `).run(id, normalized, display, o.standard_type ?? 'event', nowIso(), SYS, nowIso(), SYS);
   return id;
 }
 
@@ -220,7 +230,7 @@ export function insertFreeformTag(db: BetterSqlite3.Database, o: FreeformTagOver
   db.prepare(`
     INSERT INTO tags (id, tag_normalized, tag_display, is_standard, standard_type, created_at, created_by, updated_at, updated_by, version)
     VALUES (?, ?, ?, 0, NULL, ?, ?, ?, ?, 1)
-  `).run(id, normalized, display, TS, SYS, TS, SYS);
+  `).run(id, normalized, display, nowIso(), SYS, nowIso(), SYS);
   return id;
 }
 
@@ -239,7 +249,7 @@ export function attachMediaTag(
   db.prepare(`
     INSERT INTO media_tags (id, created_at, created_by, updated_at, updated_by, version, media_id, tag_id, tag_display)
     VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?)
-  `).run(id, TS, SYS, TS, SYS, mediaId, tagId, row.tag_display);
+  `).run(id, nowIso(), SYS, nowIso(), SYS, mediaId, tagId, row.tag_display);
   return id;
 }
 
@@ -274,7 +284,7 @@ export function insertPersonaNamedGallery(
     db.prepare(`
       INSERT INTO tags (id, tag_normalized, tag_display, is_standard, standard_type, created_at, created_by, updated_at, updated_by, version)
       VALUES (?, ?, ?, 0, NULL, ?, ?, ?, ?, 1)
-    `).run(byTagId, byTag, byTag, TS, SYS, TS, SYS);
+    `).run(byTagId, byTag, byTag, nowIso(), SYS, nowIso(), SYS);
   }
 
   db.prepare(`
@@ -282,12 +292,12 @@ export function insertPersonaNamedGallery(
       id, created_at, created_by, updated_at, updated_by, version,
       owner_member_id, name, description, is_default
     ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, 0)
-  `).run(o.galleryId, TS, SYS, TS, SYS, o.ownerMemberId, o.name, o.description ?? '');
+  `).run(o.galleryId, nowIso(), SYS, nowIso(), SYS, o.ownerMemberId, o.name, o.description ?? '');
 
   db.prepare(`
     INSERT INTO member_gallery_tags (gallery_id, tag_id, created_at, created_by)
     VALUES (?, ?, ?, ?)
-  `).run(o.galleryId, byTagId, TS, SYS);
+  `).run(o.galleryId, byTagId, nowIso(), SYS);
 
   // The gallery is seeded empty: its media is created by a real click-through
   // upload in the end-to-end test, so the upload path is genuinely exercised
@@ -408,7 +418,7 @@ export function insertLegacyMember(db: BetterSqlite3.Database, o: LegacyMemberOv
     o.legacy_ever_paid_tier1_lifetime ?? 0,
     o.legacy_was_board_at_cutover ?? 0,
     o.import_source ?? 'test',
-    TS,
+    nowIso(),
   );
   if (o.claimed_by_member_id && o.claimed_at) {
     db.prepare(`
@@ -517,7 +527,7 @@ export function insertClub(db: BetterSqlite3.Database, o: ClubOverrides = {}): s
   const externalUrl = o.external_url !== undefined ? o.external_url : null;
   const validatedAt = o.external_url_validated_at !== undefined
     ? o.external_url_validated_at
-    : (externalUrl ? TS : null);
+    : (externalUrl ? nowIso() : null);
   const quarantineReason = o.external_url_quarantine_reason ?? null;
   db.prepare(`
     INSERT INTO clubs (
@@ -536,7 +546,7 @@ export function insertClub(db: BetterSqlite3.Database, o: ClubOverrides = {}): s
     validatedAt,
     quarantineReason,
     o.status       ?? 'active',
-    TS, SYS, TS, SYS,
+    nowIso(), SYS, nowIso(), SYS,
   );
   return id;
 }
@@ -577,7 +587,7 @@ export function insertClubBootstrapLeader(
       role, confidence_score, status, notes
     ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
-    id, TS, SYS, TS, SYS,
+    id, nowIso(), SYS, nowIso(), SYS,
     o.club_id,
     o.imported_member_id ?? null,
     o.claimed_member_id  ?? null,
@@ -622,7 +632,7 @@ export function insertClubBootstrapLeaderSignal(
       is_present, source
     ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
   `).run(
-    id, TS, SYS, TS, SYS,
+    id, nowIso(), SYS, nowIso(), SYS,
     o.bootstrap_leader_id,
     o.signal_type,
     o.signal_payload_json ?? '{}',
@@ -654,7 +664,7 @@ export function insertClubLeader(db: BetterSqlite3.Database, o: ClubLeaderOverri
       id, created_at, created_by, updated_at, updated_by, version,
       club_id, member_id, role, added_at
     ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
-  `).run(id, TS, SYS, TS, SYS, o.club_id, o.member_id, 'co-leader', TS);
+  `).run(id, nowIso(), SYS, nowIso(), SYS, o.club_id, o.member_id, 'co-leader', nowIso());
   return id;
 }
 
@@ -681,7 +691,7 @@ export function insertMemberClubAffiliation(
       member_id, club_id, is_current, is_primary, is_contact, source
     ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)
   `).run(
-    id, TS, SYS, TS, SYS,
+    id, nowIso(), SYS, nowIso(), SYS,
     memberId, clubId,
     o.is_current ?? 1,
     o.is_primary ?? 0,
@@ -717,11 +727,11 @@ export function insertMemberLink(
       member_id, label, url, validated_at, sort_order
     ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
   `).run(
-    id, TS, SYS, TS, SYS,
+    id, nowIso(), SYS, nowIso(), SYS,
     memberId,
     o.label ?? 'My Site',
     o.url ?? 'https://example.com/',
-    o.validated_at === undefined ? TS : o.validated_at,
+    o.validated_at === undefined ? nowIso() : o.validated_at,
     o.sort_order ?? 0,
   );
   return id;
@@ -751,7 +761,7 @@ export function insertErasureLog(
     VALUES (?, ?, ?, 'member', ?, ?)
   `).run(
     id,
-    o.created_at ?? TS,
+    o.created_at ?? nowIso(),
     o.created_by ?? SYS,
     memberId,
     o.erasure_kind ?? 'account_pii_purge',
@@ -800,7 +810,7 @@ export function insertPayment(db: BetterSqlite3.Database, o: PaymentOverrides = 
     paymentType === 'membership'
       ? (o.purchased_tier_status ?? 'tier1')
       : (o.purchased_tier_status ?? null);
-  const createdAt = o.created_at ?? TS;
+  const createdAt = o.created_at ?? nowIso();
   db.prepare(`
     INSERT INTO payments (
       id, created_at, created_by, updated_at, updated_by, version,
@@ -882,7 +892,7 @@ export function insertRecurringDonationSubscription(
   o: RecurringDonationSubscriptionOverrides,
 ): string {
   const id = o.id ?? `rds-test-${uid()}`;
-  const startedAt = o.started_at ?? TS;
+  const startedAt = o.started_at ?? nowIso();
   const status = o.status ?? 'active';
   db.prepare(`
     INSERT INTO recurring_donation_subscriptions (
@@ -963,7 +973,7 @@ export function insertMemberTierGrant(
     ) VALUES (?, ?, 'system', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
-    o.created_at ?? TS,
+    o.created_at ?? nowIso(),
     o.member_id,
     o.actor_member_id ?? null,
     o.change_type ?? 'grant',
@@ -1021,7 +1031,7 @@ export function insertActivePlayerGrant(
     ) VALUES (?, ?, 'system', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
-    o.created_at ?? TS,
+    o.created_at ?? nowIso(),
     o.member_id,
     o.actor_member_id ?? null,
     o.change_type ?? 'grant',
@@ -1173,7 +1183,7 @@ export function insertOnboardingTask(
        birth_date_changes, last_attempt_opened_at)
     VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)
   `).run(
-    `mot_${uid()}`, TS, SYS, TS, SYS, memberId, taskType, state, state === 'completed' ? TS : null,
+    `mot_${uid()}`, nowIso(), SYS, nowIso(), SYS, memberId, taskType, state, state === 'completed' ? nowIso() : null,
     o.birth_date_changes ?? null, o.last_attempt_opened_at ?? null,
   );
 
@@ -1201,7 +1211,7 @@ export function setOnboardingHeldAnswer(
   const changed = db.prepare(`
     UPDATE member_onboarding_tasks SET answer_json = ?, updated_at = ?, version = version + 1
      WHERE member_id = ? AND task_type = ?
-  `).run(JSON.stringify(value), TS, memberId, taskType).changes;
+  `).run(JSON.stringify(value), nowIso(), memberId, taskType).changes;
   if (changed !== 1) {
     throw new Error(`Held-answer seed did not land: no ${taskType} task row for ${memberId}.`);
   }
@@ -1237,8 +1247,7 @@ export interface AuditEntryOverrides {
    *  marker stamps; a reader that counts real activity needs 'live'. */
   data_origin?: 'live' | 'test' | 'unknown';
   /** When the event happened, for a reader that groups or filters by period.
-   *  Defaults to the shared fixture timestamp, so a suite that does not care
-   *  about time gets the same row it always did. */
+   *  Defaults to the insert time, inside every window that ends now. */
   occurred_at?: string;
   // Verbatim metadata_json, bypassing JSON.stringify. The only use is seeding a
   // deliberately invalid metadata_json (the column has no JSON CHECK) to prove
@@ -1263,7 +1272,7 @@ export interface WorkQueueItemOverrides {
   reason_text?: string | null;
   detail_text?: string | null;
   /** When the item was raised, for a caller whose surface reports how long it
-   *  has been waiting. Defaults to the shared fixture timestamp. */
+   *  has been waiting. Defaults to the insert time, so the item is fresh. */
   created_at?: string;
   opened_at?: string;
   /** The actor on the row. Defaults to the system actor; pass a member id for an
@@ -1283,7 +1292,7 @@ export function insertWorkQueueItem(
   o: WorkQueueItemOverrides,
 ): string {
   const id = o.id ?? `wq-test-${uid()}`;
-  const createdAt = o.created_at ?? TS;
+  const createdAt = o.created_at ?? nowIso();
   // An item a member's own action raised was not raised by the system. Callers
   // seeding one on behalf of a member pass the actor; the default covers the
   // items the platform raises for itself.
@@ -1366,15 +1375,15 @@ export function insertMemberMessage(
        outcome, note_text, answered_at)
     VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
-    id, TS, sender, TS, sender,
+    id, nowIso(), sender, nowIso(), sender,
     o.recipient_member_id, sender, o.work_queue_item_id,
     o.subject ?? null, o.body_text ?? null,
     o.expected_answer_kind ?? 'confirm_birth_date',
     o.answer ? 'answered' : 'sent',
-    TS,
+    nowIso(),
     o.answer?.outcome ?? null,
     o.answer?.note_text ?? null,
-    o.answer ? TS : null,
+    o.answer ? nowIso() : null,
   );
   return id;
 }
@@ -1429,14 +1438,14 @@ export function insertMailingListSubscription(
   db.prepare(`
     INSERT OR IGNORE INTO mailing_lists (slug, updated_at, name, description)
     VALUES (?, ?, ?, '')
-  `).run(slug, TS, o.list_name ?? slug);
+  `).run(slug, nowIso(), o.list_name ?? slug);
   const id = o.id ?? `mls-test-${uid()}`;
   db.prepare(`
     INSERT INTO mailing_list_subscriptions (
       id, created_at, created_by, updated_at, updated_by, version,
       mailing_list_id, member_id, status, status_updated_at
     ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?)
-  `).run(id, TS, SYS, TS, SYS, slug, o.member_id, o.status ?? 'subscribed', TS);
+  `).run(id, nowIso(), SYS, nowIso(), SYS, slug, o.member_id, o.status ?? 'subscribed', nowIso());
   return id;
 }
 
@@ -1522,7 +1531,7 @@ export function insertLegacyClubCandidate(db: BetterSqlite3.Database, o: LegacyC
     o.unique_member_names !== undefined ? o.unique_member_names : null,
     o.linkable_member_count !== undefined ? o.linkable_member_count : null,
     o.ever_hosted ?? 0,
-    TS, SYS, TS, SYS,
+    nowIso(), SYS, nowIso(), SYS,
   );
   return id;
 }
@@ -1574,7 +1583,7 @@ export function insertLegacyPersonClubAffiliation(
     o.resolution_status            ?? 'pending',
     o.resolved_club_id             ?? null,
     o.display_name                 ?? null,
-    TS, SYS, TS, SYS,
+    nowIso(), SYS, nowIso(), SYS,
   );
   return id;
 }
@@ -1599,7 +1608,7 @@ export function insertNameVariant(
     o.canonical_normalized,
     o.variant_normalized,
     o.source     ?? 'mirror_mined',
-    o.created_at ?? TS,
+    o.created_at ?? nowIso(),
   );
 }
 
@@ -1621,7 +1630,7 @@ export function insertGivenNameVariant(
   `).run(
     o.short_form_normalized,
     o.long_form_normalized,
-    o.created_at ?? TS,
+    o.created_at ?? nowIso(),
   );
 }
 
@@ -1648,7 +1657,7 @@ export function insertPaymentStatusTransition(
   o: PaymentStatusTransitionOverrides,
 ): string {
   const id = o.id ?? `pst-test-${uid()}`;
-  const at = o.created_at ?? TS;
+  const at = o.created_at ?? nowIso();
   db.prepare(`
     INSERT INTO payment_status_transitions (
       id, created_at, created_by,
@@ -1690,7 +1699,7 @@ export function insertActivePlayerReminderSent(
   o: ActivePlayerReminderSentOverrides,
 ): string {
   const id = o.id ?? `aprs-test-${uid()}`;
-  const at = o.created_at ?? TS;
+  const at = o.created_at ?? nowIso();
   db.prepare(`
     INSERT INTO active_player_reminder_sent (
       id, created_at, created_by, member_id, expires_at, offset_label, sent_at
@@ -1731,7 +1740,7 @@ export function insertCandidateCleanupResolution(
       candidate_id, predicate_name, resolution, parked_by_member_id, reason_text
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
-    id, o.created_at ?? TS, SYS,
+    id, o.created_at ?? nowIso(), SYS,
     o.candidate_id,
     o.predicate_name ?? 'promotable_candidate',
     o.resolution ?? 'parked',
@@ -1757,7 +1766,7 @@ export function insertClubCleanupClaim(
   o: ClubCleanupClaimOverrides,
 ): string {
   const id = o.id ?? `ccl-test-${uid()}`;
-  const at = o.created_at ?? TS;
+  const at = o.created_at ?? nowIso();
   db.prepare(`
     INSERT INTO club_cleanup_claims (
       id, created_at, created_by, item_type, item_id, claimed_by_member_id, claimed_at
@@ -1790,7 +1799,7 @@ export function insertMemberDeclaredAnchor(
   o: MemberDeclaredAnchorOverrides,
 ): string {
   const id = o.id ?? `anch-test-${uid()}`;
-  const at = o.created_at ?? TS;
+  const at = o.created_at ?? nowIso();
   const by = o.created_by ?? SYS;
   db.prepare(`
     INSERT INTO member_declared_anchors (
@@ -1824,7 +1833,7 @@ export function insertStripeEvent(
   o: StripeEventOverrides = {},
 ): string {
   const eventId = o.event_id ?? `evt_${uid()}`;
-  const at = o.created_at ?? TS;
+  const at = o.created_at ?? nowIso();
   db.prepare(`
     INSERT INTO stripe_events (event_id, created_at, event_type, stripe_created, processed_at)
     VALUES (?, ?, ?, ?, ?)
@@ -1857,8 +1866,12 @@ export function insertStripeWebhookFailure(
   db: BetterSqlite3.Database,
   o: StripeWebhookFailureOverrides = {},
 ): string {
-  const bucketStart = o.bucket_start ?? TS;
-  const seenAt = o.first_seen_at ?? TS;
+  // The current five-minute bucket, kept for the reconciliation expiry
+  // default of 90 days, as the webhook endpoint records a rejection.
+  const nowMs = Date.now();
+  const bucketMs = 5 * 60_000;
+  const bucketStart = o.bucket_start ?? new Date(Math.floor(nowMs / bucketMs) * bucketMs).toISOString();
+  const seenAt = o.first_seen_at ?? new Date(nowMs).toISOString();
   db.prepare(`
     INSERT INTO stripe_webhook_failures
       (bucket_start, reason, failure_count, first_seen_at, last_seen_at,
@@ -1872,7 +1885,7 @@ export function insertStripeWebhookFailure(
     o.last_seen_at ?? seenAt,
     o.last_event_type ?? null,
     o.last_event_id ?? null,
-    o.expires_at ?? TS,
+    o.expires_at ?? new Date(nowMs + 90 * 86_400_000).toISOString(),
   );
   return bucketStart;
 }
@@ -1905,7 +1918,7 @@ export function insertClubCleanupResolution(
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
-    o.created_at ?? TS,
+    o.created_at ?? nowIso(),
     o.created_by ?? SYS,
     o.club_id,
     o.predicate_name ?? 'crowdsource_viability',

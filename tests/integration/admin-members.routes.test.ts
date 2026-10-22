@@ -537,12 +537,16 @@ describe('the Active Player expiry correction', () => {
       .post(`/admin/members/${AP_PAID_ID}/active-player/confirm`)
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ expires_on: '2027-06-30', reason: 'error correction' });
+      .send({ expires_on: isoDaysFromNow(250).slice(0, 10), reason: 'error correction' });
     expect(res.status).toBe(303);
     expect(readAudit('active_player.admin_correction', AP_PAID_ID)).toHaveLength(0);
   });
 
   it('writes nothing when the prefilled form is submitted untouched', async () => {
+    // A live standing whose stored instant carries a time of day the date
+    // field cannot show, so an untouched submit must not rewrite it.
+    const expiresOn = isoDaysFromNow(320).slice(0, 10);
+    const expiresAt = `${expiresOn}T11:22:33.444Z`;
     // The stored expiry is a moment; the form offers a date. An administrator
     // who opens the record, fills a reason and submits without touching the date
     // is not asking for a change, and must not silently move the standing.
@@ -574,7 +578,7 @@ describe('the Active Player expiry correction', () => {
         actor_member_id: null,
         change_type: 'grant',
         old_active_player_expires_at: null,
-        new_active_player_expires_at: '2027-09-01T11:22:33.444Z',
+        new_active_player_expires_at: expiresAt,
         reason_code: 'official_event_attendance',
       });
     });
@@ -585,14 +589,14 @@ describe('the Active Player expiry correction', () => {
       .post(`/admin/members/${grantedBy}/active-player/confirm`)
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ expires_on: '2027-09-01', reason: 'reviewed, no change intended' });
+      .send({ expires_on: expiresOn, reason: 'reviewed, no change intended' });
     expect(res.status).toBe(303);
 
     expect(readAudit('active_player.admin_correction', grantedBy)).toHaveLength(before);
     const current = db((conn) => conn.prepare(
       `SELECT new_active_player_expires_at AS e FROM active_player_grants WHERE member_id = ?`,
     ).get(grantedBy)) as { e: string };
-    expect(current.e).toBe('2027-09-01T11:22:33.444Z');
+    expect(current.e).toBe(expiresAt);
   });
 
   it('refuses text that is not a date', async () => {

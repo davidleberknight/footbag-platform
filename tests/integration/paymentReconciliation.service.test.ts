@@ -1672,7 +1672,7 @@ describe('the reconciliation digest', () => {
     });
     const service = await svc();
     await service.runReconciliation({ now: NOW });
-    expect(service.sendReconciliationDigest().outstanding).toBe(1);
+    expect(service.sendReconciliationDigest({ now: NOW }).outstanding).toBe(1);
   });
 });
 
@@ -1706,6 +1706,13 @@ describe('the digest cadence gate', () => {
     const wellPastTheWindow = new Date('2027-01-01T03:00:00.000Z');
     expect((await operationsPlatformService.runReconciliationDigest(wellPastTheWindow)).skipped)
       .toBe(false);
+
+    // Each mailing is the digest for the day its run was for, the same clock
+    // the gate judged it by. Dated by the wall clock instead, both runs would
+    // share one day's key and the second report would be dropped as a repeat
+    // of the first, so the treasurer would never receive it.
+    digestBodyFor(NOW);
+    digestBodyFor(wellPastTheWindow);
   });
 });
 

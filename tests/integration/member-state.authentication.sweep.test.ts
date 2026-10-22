@@ -21,13 +21,16 @@ import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/
 import { loadRouteTable, type RouteEntry } from '../fixtures/routeTable';
 import { insertMember, createTestSessionJwt } from '../fixtures/factories';
 import { hashTestPassword } from '../fixtures/hashTestPassword';
+import { isoDaysAgo } from '../fixtures/clock';
 
 const { dbPath } = setTestEnv('4457');
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 const PASSWORD = 'AuthSweepPass1!';
-const PAST = '2025-01-01T00:00:00.000Z';
+// A state reached a month ago, on an account opened over a year ago.
+const OPENED = isoDaysAgo(400);
+const PAST = isoDaysAgo(30);
 
 type ExcludedState = 'deceased' | 'softDeleted' | 'purged' | 'unverified';
 
@@ -76,6 +79,7 @@ beforeAll(async () => {
   for (const [state, overrides] of Object.entries(STATES)) {
     insertMember(db, {
       id: idOf(state), slug: slugOf(state), login_email: emailOf(state), password_hash: hash, is_admin: 1,
+      created_at: OPENED,
       ...overrides,
     });
   }

@@ -1517,6 +1517,7 @@ expect_err2 guard-shell-loop.sh
 expect_err2 guard-process-substitution.sh
 expect_err2 guard-aws-reach.sh
 expect_err2 guard-interpreter-writes.sh
+expect_err2 guard-maintainer-gate.sh
 expect_err2 guard-memory-write.sh
 
 # expect_memory <file-path> <transcript-jsonl> <deny|defer>: feed the memory guard a
@@ -1556,6 +1557,112 @@ expect_memory "$MEM" "$USER_TURN"$'\n'"$PLAIN" deny
 expect_memory "$MEM" "$USER_TURN"$'\n'"$AUDITED"$'\n'"$USER_TURN"$'\n'"$PLAIN" deny
 expect_memory "$MEM" "" deny
 expect_memory "$CLAUDE_PROJECT_DIR/src/app.ts" "" defer
+
+# The audit carried in the write itself passes with no transcript at all, because
+# text sent with the tool call is not in the transcript yet when the hook runs; an
+# index edit passes only when every memory file it links to carries the audit.
+# expect_memory_write <tool-input-json> <deny|defer>
+expect_memory_write() {
+  local input="$1" want="$2" out decision
+  out="$(jq -n --argjson i "$input" '{tool_input: $i}' | .claude/hooks/guard-memory-write.sh)"
+  decision="$(printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecision // "defer"' 2>/dev/null)"
+  [ -n "$out" ] || decision="defer"
+  if [ "$decision" != "$want" ]; then
+    echo "[hooks] FAIL (guard-memory-write.sh): want $want, got $decision: $input" >&2
+    fail=1
+  fi
+}
+memdir="$(mktemp -d)/.claude/projects/-x/memory"
+mkdir -p "$memdir"
+printf -- '---\nname: a\nmetadata:\n  audit: lesson = x; class = user preference\n---\nbody\n' > "$memdir/audited.md"
+printf -- '---\nname: b\n---\nbody\n' > "$memdir/plain.md"
+# Claude Code saves the value quoted, so the file on disk reads audit: "lesson = ...".
+printf -- '---\nname: q\nmetadata:\n  audit: "lesson = x; class = user preference"\n---\nbody\n' > "$memdir/quoted.md"
+expect_memory_write "$(jq -n --arg p "$memdir/MEMORY.md" '{file_path: $p, old_string: "x", new_string: "x\n- [Q](quoted.md) -- hook"}')" defer
+expect_memory_write "$(jq -n --arg p "$memdir/new.md" '{file_path: $p, content: "---\nmetadata:\n  audit: lesson = x; class = machine-local\n---\n"}')" defer
+expect_memory_write "$(jq -n --arg p "$memdir/new.md" '{file_path: $p, content: "---\nname: n\n---\nno audit\n"}')" deny
+expect_memory_write "$(jq -n --arg p "$memdir/MEMORY.md" '{file_path: $p, old_string: "x", new_string: "x\n- [A](audited.md) -- hook"}')" defer
+expect_memory_write "$(jq -n --arg p "$memdir/MEMORY.md" '{file_path: $p, old_string: "x", new_string: "x\n- [A](audited.md) -- hook\n- [B](plain.md) -- hook"}')" deny
+expect_memory_write "$(jq -n --arg p "$memdir/MEMORY.md" '{file_path: $p, old_string: "x", new_string: "x\n- [M](missing.md) -- hook"}')" deny
+# A link the edit keeps from its old text is context, not an addition.
+expect_memory_write "$(jq -n --arg p "$memdir/MEMORY.md" '{file_path: $p, old_string: "- [B](plain.md) -- hook", new_string: "- [B](plain.md) -- hook\n- [A](audited.md) -- hook"}')" defer
+expect_memory_write "$(jq -n --arg p "$memdir/MEMORY.md" '{file_path: $p, old_string: "- [B](plain.md) -- hook", new_string: "- [B](plain.md) -- edited"}')" deny
+rm -rf "${memdir%/.claude/projects/-x/memory}"
+
+# expect_gate <session-id> <command> <deny|defer> [reason-substring]: feed the
+# maintainer gate a Bash event from the given session. Its once-per-session markers
+# live under TMPDIR, which points at a throwaway directory for these fixtures.
+expect_gate() {
+  local sid="$1" cmd="$2" want="$3" sub="${4:-}" out decision reason
+  out="$(jq -n --arg s "$sid" --arg c "$cmd" '{session_id: $s, tool_input: {command: $c}}' \
+    | TMPDIR="$gate_tmp" .claude/hooks/guard-maintainer-gate.sh)"
+  decision="$(printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecision // "defer"' 2>/dev/null)"
+  [ -n "$out" ] || decision="defer"
+  if [ "$decision" != "$want" ]; then
+    echo "[hooks] FAIL (guard-maintainer-gate.sh): want $want, got $decision: [$sid] $cmd" >&2
+    fail=1
+    return
+  fi
+  if [ -n "$sub" ]; then
+    reason="$(printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecisionReason // ""')"
+    case "$reason" in
+      *"$sub"*) : ;;
+      *) echo "[hooks] FAIL (guard-maintainer-gate.sh): reason lacks '$sub': $cmd" >&2; fail=1 ;;
+    esac
+  fi
+}
+gate_tmp="$(mktemp -d)"
+# A gated command is denied once per session, with the why and what to do, and the
+# reissue in that session falls through to the ask rule; another session starts over.
+expect_gate s1 'npm run test:rendered-style' deny 'Say in your message the exact command and why'
+expect_gate s1 'npm run test:rendered-style' defer
+expect_gate s2 'npm run test:rendered-style' deny
+# Combined with anything else it is always denied, so the prompt names it alone.
+expect_gate s1 'RENDERED_STYLE_READ_ONLY=1 npm run test:rendered-style > /tmp/x/log 2>&1; echo "exit=$?"' deny 'must run as its own Bash call'
+expect_gate s3 'git status && npm test' deny
+expect_gate s3 'npm run test:e2e -- x | tail -5' deny
+# An env prefix and a redirect are not separate commands; a quoted | is not a pipe.
+expect_gate s4 'RENDERED_STYLE_READ_ONLY=1 npm run test:rendered-style > /tmp/x/log 2>&1' deny
+expect_gate s4 'RENDERED_STYLE_READ_ONLY=1 npm run test:rendered-style > /tmp/x/log 2>&1' defer
+expect_gate s5 'npm run test:e2e -- --grep "a|b"' deny
+expect_gate s5 'npm run test:e2e -- --grep "a|b"' defer
+# The rebuild modes and deploy are gated; a `:*` rule needs a word boundary.
+expect_gate s6 './run_dev.sh --reset' deny
+expect_gate s6 'bash deploy_to_aws.sh --target staging' deny
+expect_gate s6 'bash deploy_to_aws.sh.bak' defer
+# Targeted tests and ordinary commands are not the gate's business.
+expect_gate s6 'npx vitest run tests/unit/foo.test.ts' defer
+expect_gate s6 'npm run test:strong-hash' defer
+expect_gate s6 'ls -la' defer
+rm -rf "$gate_tmp"
+
+# expect_strip <local-settings-json-or-empty> <jq-assertion> <label>: run the session-start
+# strip hook on a throwaway project and assert a jq condition on the file it leaves.
+expect_strip() {
+  local seed="$1" assertion="$2" label="$3" proj
+  proj="$(mktemp -d)"
+  mkdir -p "$proj/.claude"
+  [ -n "$seed" ] && printf '%s' "$seed" > "$proj/.claude/settings.local.json"
+  if ! CLAUDE_PROJECT_DIR="$proj" .claude/hooks/strip-local-allows.sh >/dev/null 2>&1; then
+    echo "[hooks] FAIL (strip-local-allows.sh): errored: $label" >&2
+    fail=1
+  elif ! eval "$assertion"; then
+    echo "[hooks] FAIL (strip-local-allows.sh): $label" >&2
+    fail=1
+  fi
+  rm -rf "$proj"
+}
+# Saved allow and ask rules go, path-scoped ones included; env and deny stay.
+expect_strip '{"env":{"A":"1"},"permissions":{"allow":["Bash(echo hi)","Read(/home/x/**)"],"ask":["Bash(foo)"],"deny":["Bash(bar)"]}}' \
+  'jq -e ".env.A == \"1\" and .permissions.deny == [\"Bash(bar)\"] and (.permissions | has(\"allow\") or has(\"ask\") | not)" "$proj/.claude/settings.local.json" >/dev/null' \
+  'allow and ask removed, env and deny kept'
+# An emptied permissions block is dropped rather than left as {}.
+expect_strip '{"env":{"A":"1"},"permissions":{"allow":["Bash(x)"]}}' \
+  'jq -e "has(\"permissions\") | not" "$proj/.claude/settings.local.json" >/dev/null' \
+  'empty permissions block removed'
+# Invalid JSON is left exactly as it was, and a missing file stays missing.
+expect_strip 'nope' '[ "$(cat "$proj/.claude/settings.local.json")" = nope ]' 'invalid JSON untouched'
+expect_strip '' '[ ! -e "$proj/.claude/settings.local.json" ]' 'missing file not created'
 
 if [ "$fail" -ne 0 ]; then
   echo "[hooks] FAIL: one or more hook fixtures failed." >&2

@@ -12,6 +12,7 @@
 import { describe, it, expect, afterAll, beforeEach, afterEach } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
+import { MINUTE_MS, isoFromNow } from '../fixtures/clock';
 import { refreshAllPersonas } from '../../src/testkit/personaRefreshRunner';
 import {
   insertMember,
@@ -78,10 +79,11 @@ describe('refreshAllPersonas', () => {
     expect(tierOf(T1)).toBe('tier1');
 
     // Simulate an in-app upgrade: a later-stamped grant wins member_tier_current.
+    const upgradeAt = isoFromNow(MINUTE_MS);
     insertMemberTierGrant(db, {
       member_id: T1,
       new_tier_status: 'tier2',
-      created_at: '2026-01-01T00:00:00.000Z',
+      created_at: upgradeAt,
       reason_code: 'purchase.tier2',
     });
     expect(tierOf(T1)).toBe('tier2');
@@ -96,7 +98,7 @@ describe('refreshAllPersonas', () => {
       .all(T1) as { created_at: string; new_tier_status: string }[];
     expect(grants).toHaveLength(1);
     expect(grants[0].new_tier_status).toBe('tier1');
-    expect(grants.some((g) => g.created_at === '2026-01-01T00:00:00.000Z')).toBe(false);
+    expect(grants.some((g) => g.created_at === upgradeAt)).toBe(false);
   });
 
   // Defect caught: a refresh drops a persona's old records or nickname pair,
@@ -537,7 +539,7 @@ describe('refreshAllPersonas', () => {
     insertMemberTierGrant(db, {
       member_id: T1,
       new_tier_status: 'tier2',
-      created_at: '2026-01-01T00:00:00.000Z',
+      created_at: isoFromNow(MINUTE_MS),
       reason_code: 'purchase.tier2',
     });
     expect(tierOf(T1)).toBe('tier2');

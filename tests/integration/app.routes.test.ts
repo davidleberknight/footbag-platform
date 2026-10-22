@@ -32,6 +32,13 @@ const BEAVER_OPEN_KEY    = 'event_2025_beaver_open';
 const QUIET_OPEN_KEY     = 'event_2025_quiet_open';
 const DRAFT_EVENT_KEY    = 'event_2026_draft_event';
 
+// The open and draft events lie ahead of today, so a page leaving them out
+// does so by status or layout, never because the date filter dropped them.
+const SPRING_CLASSIC_START = isoDaysFromNow(60).slice(0, 10);
+const SPRING_CLASSIC_END   = isoDaysFromNow(62).slice(0, 10);
+const DRAFT_EVENT_START    = isoDaysFromNow(90).slice(0, 10);
+const DRAFT_EVENT_END      = isoDaysFromNow(92).slice(0, 10);
+
 // ── Person IDs for /history routes ───────────────────────────────────────────
 const ALICE_ID = 'person-alice-001';
 const BOB_ID   = 'person-bob-001';
@@ -48,6 +55,7 @@ let createApp: typeof import('../../src/app').createApp;
 // shared cache.
 const page = cachedGet(() => createApp());
 import { createTestSessionJwt } from '../fixtures/factories';
+import { isoDaysFromNow } from '../fixtures/clock';
 import { assertSecureSessionCookie } from '../fixtures/assertSecureSessionCookie';
 
 function validAuthCookie(): string {
@@ -112,8 +120,8 @@ async function buildTestDatabase(): Promise<void> {
     hashtag_tag_id: springTagId,
     title:          '2026 Spring Classic',
     status:         'reg_open',
-    start_date:     '2026-06-15',
-    end_date:       '2026-06-17',
+    start_date:     SPRING_CLASSIC_START,
+    end_date:       SPRING_CLASSIC_END,
     city:           'Portland',
     country:        'US',
   });
@@ -181,8 +189,8 @@ async function buildTestDatabase(): Promise<void> {
     hashtag_tag_id: draftTagId,
     title:          '2026 Draft Event',
     status:         'draft',
-    start_date:     '2026-08-01',
-    end_date:       '2026-08-03',
+    start_date:     DRAFT_EVENT_START,
+    end_date:       DRAFT_EVENT_END,
   });
 
   // ── Clubs ──────────────────────────────────────────────────────────────────
@@ -411,7 +419,7 @@ describe('GET /events/year/:year', () => {
   });
 
   it('does not expose draft events in year archive', async () => {
-    const res = await page('/events/year/2026');
+    const res = await page(`/events/year/${DRAFT_EVENT_START.slice(0, 4)}`);
     expect(res.text).not.toContain('2026 Draft Event');
   });
 
@@ -1188,6 +1196,32 @@ describe('POST /csp-report', () => {
     // No top-level field carries the inflated keys.
     expect(JSON.stringify(logged)).not.toContain('attacker-padding');
     expect(JSON.stringify(logged)).not.toContain('another-key');
+  });
+
+  // Opening an image or stylesheet directly shows it in the browser's own viewer,
+  // which the policy refuses; a log line there is noise nobody can act on, while
+  // the same violation on a rendered page is still reported.
+  it('drops a report from a static file opened directly, and keeps one from a page', async () => {
+    warnSpy = vi.spyOn(loggerMod.logger, 'warn').mockImplementation(() => undefined);
+    const infoSpy = vi.spyOn(loggerMod.logger, 'info').mockImplementation(() => undefined);
+    try {
+      const app = createApp();
+      const report = (documentUri: string) => JSON.stringify({
+        'csp-report': { 'document-uri': documentUri, 'violated-directive': 'style-src-attr', 'blocked-uri': 'inline' },
+      });
+      const asset = await request(app).post('/csp-report')
+        .set('Content-Type', 'application/csp-report').send(report('http://localhost:3000/img/ifpa-logo-large.png'));
+      expect(asset.status).toBe(204);
+      expect(warnSpy).not.toHaveBeenCalled();
+      expect(infoSpy).not.toHaveBeenCalled();
+
+      const pageReport = await request(app).post('/csp-report')
+        .set('Content-Type', 'application/csp-report').send(report('http://localhost:3000/ifpa/sanctioning-guidelines'));
+      expect(pageReport.status).toBe(204);
+      expect(warnSpy).toHaveBeenCalledOnce();
+    } finally {
+      infoSpy.mockRestore();
+    }
   });
 
   it('accepts application/reports+json (modern Reporting API)', async () => {

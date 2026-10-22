@@ -5,7 +5,8 @@
  * BEFORE UPDATE and BEFORE DELETE abort triggers AND that each abort is
  * unconditional (no WHEN guard), so a schema change that drops a trigger or
  * narrows it behind a condition fails here rather than silently making a ledger
- * mutable. An unconditional BEFORE UPDATE/DELETE trigger fires on every matching
+ * mutable. The one sanctioned condition is a retention window on a purged
+ * ledger's delete trigger, which must name the window and its floor. An unconditional BEFORE UPDATE/DELETE trigger fires on every matching
  * mutation by construction, so the sweep proves the invariant for every ledger;
  * the behavioral cases then demonstrate that firing on representative ledgers
  * through the shared assertAppendOnly helper that any ledger test reuses.
@@ -35,6 +36,13 @@ const LEDGER_TABLES = [
   'vote_eligibility_snapshot',
   'ballots',
 ];
+
+// A ledger whose rows are purged after a retention window: its delete trigger
+// refuses every row inside the window, so its guard must name the window's
+// setting and its floor. Every other ledger trigger stays unconditional.
+const RETENTION_DELETE_GUARDS: Record<string, RegExp[]> = {
+  audit_entries: [/\bWHEN\b/i, /audit_retention_days/, /\b2555\b/],
+};
 
 const SEED_TS = '2024-01-01T00:00:00.000Z';
 
@@ -88,6 +96,15 @@ describe('ledger immutability', () => {
         // ahead of BEGIN so a 'when' inside the RAISE message never false-trips.
         for (const t of [...updateTrigs, ...deleteTrigs]) {
           const header = t.sql.split(/\bBEGIN\b/i)[0];
+          const retention = RETENTION_DELETE_GUARDS[table];
+          if (retention && deleteTrigs.includes(t)) {
+            // The one sanctioned condition: a delete is refused for every row still
+            // inside the retention window, never less than the floor.
+            for (const part of retention) {
+              expect(header, `${table} delete trigger guards on the retention window`).toMatch(part);
+            }
+            continue;
+          }
           expect(
             /\bWHEN\b/i.test(header),
             `${table} immutability trigger fires unconditionally (no WHEN guard)`,

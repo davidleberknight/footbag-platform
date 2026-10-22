@@ -12,6 +12,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
 import { insertMember, insertAccountToken, type AccountTokenOverrides } from '../fixtures/factories';
+import { isoDaysAgo, isoDaysFromNow } from '../fixtures/clock';
 
 const { dbPath } = setTestEnv('4186');
 
@@ -27,13 +28,6 @@ function withDb<T>(fn: (db: BetterSqlite3.Database) => T): T {
   }
 }
 
-function daysAgo(n: number): string {
-  return new Date(Date.now() - n * 86_400_000).toISOString();
-}
-
-function daysAhead(n: number): string {
-  return new Date(Date.now() + n * 86_400_000).toISOString();
-}
 
 function insertToken(o: {
   id: string;
@@ -73,22 +67,22 @@ beforeEach(() => {
 
 describe('what the sweep deletes', () => {
   it('deletes a token spent longer ago than the threshold', async () => {
-    insertToken({ id: 'tok_spent_old', tokenType: 'password_reset', issuedAt: daysAgo(40), expiresAt: daysAgo(39), usedAt: daysAgo(30) });
+    insertToken({ id: 'tok_spent_old', tokenType: 'password_reset', issuedAt: isoDaysAgo(40), expiresAt: isoDaysAgo(39), usedAt: isoDaysAgo(30) });
     const result = await operationsPlatformService.runExpiredTokenCleanup();
     expect(result.deleted).toBe(1);
     expect(remainingIds()).toEqual([]);
   });
 
   it('deletes a token that expired unused longer ago than the threshold', async () => {
-    insertToken({ id: 'tok_expired_old', tokenType: 'email_verify', issuedAt: daysAgo(40), expiresAt: daysAgo(30) });
+    insertToken({ id: 'tok_expired_old', tokenType: 'email_verify', issuedAt: isoDaysAgo(40), expiresAt: isoDaysAgo(30) });
     const result = await operationsPlatformService.runExpiredTokenCleanup();
     expect(result.deleted).toBe(1);
     expect(remainingIds()).toEqual([]);
   });
 
   it('covers every token type', async () => {
-    insertToken({ id: 'tok_b_verify', tokenType: 'email_verify', issuedAt: daysAgo(40), expiresAt: daysAgo(30) });
-    insertToken({ id: 'tok_c_reset', tokenType: 'password_reset', issuedAt: daysAgo(40), expiresAt: daysAgo(30) });
+    insertToken({ id: 'tok_b_verify', tokenType: 'email_verify', issuedAt: isoDaysAgo(40), expiresAt: isoDaysAgo(30) });
+    insertToken({ id: 'tok_c_reset', tokenType: 'password_reset', issuedAt: isoDaysAgo(40), expiresAt: isoDaysAgo(30) });
     const result = await operationsPlatformService.runExpiredTokenCleanup();
     expect(result.deleted).toBe(2);
     expect(remainingIds()).toEqual([]);
@@ -97,21 +91,21 @@ describe('what the sweep deletes', () => {
 
 describe('what the sweep keeps', () => {
   it('keeps a token that is still usable', async () => {
-    insertToken({ id: 'tok_live', tokenType: 'email_verify', issuedAt: daysAgo(1), expiresAt: daysAhead(2) });
+    insertToken({ id: 'tok_live', tokenType: 'email_verify', issuedAt: isoDaysAgo(1), expiresAt: isoDaysFromNow(2) });
     const result = await operationsPlatformService.runExpiredTokenCleanup();
     expect(result.deleted).toBe(0);
     expect(remainingIds()).toEqual(['tok_live']);
   });
 
   it('keeps a token spent only yesterday, so a member’s report can still be answered', async () => {
-    insertToken({ id: 'tok_spent_recent', tokenType: 'password_reset', issuedAt: daysAgo(2), expiresAt: daysAgo(1), usedAt: daysAgo(1) });
+    insertToken({ id: 'tok_spent_recent', tokenType: 'password_reset', issuedAt: isoDaysAgo(2), expiresAt: isoDaysAgo(1), usedAt: isoDaysAgo(1) });
     const result = await operationsPlatformService.runExpiredTokenCleanup();
     expect(result.deleted).toBe(0);
     expect(remainingIds()).toEqual(['tok_spent_recent']);
   });
 
   it('keeps a token that expired only yesterday', async () => {
-    insertToken({ id: 'tok_expired_recent', tokenType: 'email_verify', issuedAt: daysAgo(2), expiresAt: daysAgo(1) });
+    insertToken({ id: 'tok_expired_recent', tokenType: 'email_verify', issuedAt: isoDaysAgo(2), expiresAt: isoDaysAgo(1) });
     const result = await operationsPlatformService.runExpiredTokenCleanup();
     expect(result.deleted).toBe(0);
     expect(remainingIds()).toEqual(['tok_expired_recent']);
@@ -120,9 +114,9 @@ describe('what the sweep keeps', () => {
 
 describe('what the sweep reports', () => {
   it('reports the age of the oldest row it left behind', async () => {
-    insertToken({ id: 'tok_gone', tokenType: 'email_verify', issuedAt: daysAgo(90), expiresAt: daysAgo(60) });
-    insertToken({ id: 'tok_kept_old', tokenType: 'email_verify', issuedAt: daysAgo(20), expiresAt: daysAhead(30) });
-    insertToken({ id: 'tok_kept_new', tokenType: 'email_verify', issuedAt: daysAgo(1), expiresAt: daysAhead(30) });
+    insertToken({ id: 'tok_gone', tokenType: 'email_verify', issuedAt: isoDaysAgo(90), expiresAt: isoDaysAgo(60) });
+    insertToken({ id: 'tok_kept_old', tokenType: 'email_verify', issuedAt: isoDaysAgo(20), expiresAt: isoDaysFromNow(30) });
+    insertToken({ id: 'tok_kept_new', tokenType: 'email_verify', issuedAt: isoDaysAgo(1), expiresAt: isoDaysFromNow(30) });
 
     const result = await operationsPlatformService.runExpiredTokenCleanup();
     expect(result.deleted).toBe(1);

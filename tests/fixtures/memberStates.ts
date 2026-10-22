@@ -21,6 +21,7 @@ import {
   insertMailingListSubscription,
   insertRegistration,
 } from './factories';
+import { isoDaysAgo } from './clock';
 
 export const MEMBER_STATES = [
   'live',
@@ -43,7 +44,10 @@ export interface MemberStateMatrixOpts {
   eventId?: string;
 }
 
-const PAST = '2025-01-01T00:00:00.000Z';
+// A state reached a month ago, on an account opened over a year ago, so the
+// account never ends before it began.
+const OPENED = isoDaysAgo(400);
+const PAST = isoDaysAgo(30);
 
 export function seedMemberStateMatrix(
   db: BetterSqlite3.Database,
@@ -71,6 +75,7 @@ export function seedMemberStateMatrix(
       id,
       slug: `${p}_${state}`.toLowerCase().replace(/[^a-z0-9_]/g, '_'),
       login_email: email(state),
+      created_at: OPENED,
       ...overrides[state],
     });
     for (const list of opts.lists ?? []) {

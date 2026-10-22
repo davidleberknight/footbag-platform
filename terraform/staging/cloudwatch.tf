@@ -380,9 +380,11 @@ resource "aws_cloudwatch_metric_alarm" "cloudfront_5xx" {
 }
 
 # ── Outbox backlog ────────────────────────────────────────────────────────────
-# The worker logs a structured `outbox.depth` line per polling cycle; the
-# filter turns $.depth into the OutboxDepth metric. A sustained backlog means
-# the worker is down or SES is failing while members wait for verify links.
+# The worker logs a structured `outbox.depth` line at warn when the depth is
+# above this alarm's threshold (OUTBOX_BACKLOG_ALARM_DEPTH in the worker; move
+# the two together); the filter turns $.depth into the OutboxDepth metric. A
+# sustained backlog means the worker is down or SES is failing while members
+# wait for verify links.
 
 resource "aws_cloudwatch_log_metric_filter" "outbox_depth" {
   name           = "${local.prefix}-outbox-depth"

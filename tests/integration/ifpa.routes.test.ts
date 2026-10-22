@@ -30,6 +30,13 @@ describe('GET /ifpa — IFPA governance hub', () => {
     expect(res.text).toContain('href="/ifpa/sanctioning-guidelines"');
   });
 
+  // Worlds host bids are taken off the platform on a form IFPA maintains; without
+  // this link a would-be host has no way to find it.
+  it('links to the Worlds host-bid template', async () => {
+    const res = await page('/ifpa');
+    expect(res.text).toMatch(/<a href="https:\/\/docs\.google\.com\/document\/d\/[^"]+"[^>]*class="external-link btn btn-outline">Worlds Host-bid Template<\/a>/);
+  });
+
   it('highlights the IFPA nav entry as active', async () => {
     const res = await page('/ifpa');
     expect(res.text).toMatch(/<a href="\/ifpa" class="active">IFPA<\/a>/);
@@ -85,6 +92,20 @@ describe('GET /ifpa/sanctioning-guidelines', () => {
     expect(article).toContain('What you agree to.');
     expect(article).toContain('Within 20 days of the event&#39;s last day');
     expect(article).toContain('sanctioning@footbag.org');
+  });
+
+  // The guidelines promise the IFPA logo "available to download from this page"
+  // at print quality; a link to a file that is not served breaks that promise.
+  it('offers the IFPA logo as a vector PDF and every logo link resolves to the file', async () => {
+    const res = await page('/ifpa/sanctioning-guidelines');
+    const article = res.text.match(/<article class="markdown-body">[\s\S]*?<\/article>/)?.[0] ?? '';
+    const hrefs = [...article.matchAll(/href="(\/img\/[^"]+)"/g)].map((m) => m[1]!);
+    expect(hrefs.some((h) => h.endsWith('.pdf'))).toBe(true);
+    for (const href of hrefs) {
+      const file = await page(href);
+      expect(file.status, href).toBe(200);
+      expect(file.headers['content-type'], href).toMatch(/^(application\/pdf|image\/png)/);
+    }
   });
 });
 

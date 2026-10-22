@@ -134,7 +134,7 @@ describe('seedPersona — composition by dimension', () => {
     expect(rows).toEqual([
       { task_type: 'club_affiliations', state: 'pending', completed_at: null },
       { task_type: 'legacy_claim', state: 'pending', completed_at: null },
-      { task_type: 'personal_details', state: 'completed', completed_at: '2025-01-01T00:00:00.000Z' },
+      { task_type: 'personal_details', state: 'completed', completed_at: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/) },
     ]);
   });
 

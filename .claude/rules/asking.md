@@ -49,7 +49,7 @@ Before any message containing "?":
 3. One recommended answer, researched from the canonical docs and code and grounded in design intent, verified and never guessed. Pros and cons when the trade-offs are real.
 4. One decision per message. A trailing "open questions" or "decisions for you" list carrying a second ask is the same violation.
 5. In plan mode, ask through the multiple-choice tool, exactly one question per call, the recommended option first and marked "(Recommended)", with the context and load-bearing assumptions in the question text; its free-text row stays open for any other answer. Outside plan mode, prose by default, and the tool only when the human asks to pick from options.
-6. Explain before any approval prompt; never spring a bare approval.
+6. Explain before any approval prompt; never spring a bare approval. Before a command that an ask rule or an ask-returning hook gates, say in the message what it runs and why, write the Bash description as that why, and run it as its own call with no trailing plumbing, so any rule the prompt offers names that command.
 7. Structure it so a bare "y" or "go" means take the recommended answer: exactly one recommendation to affirm, never an ambiguous "y".
 8. State the load-bearing assumptions behind the recommendation, so a wrong one can be corrected before you act.
 9. Propose any surgical edit as literal BEFORE/AFTER text, verbatim with enough surrounding context to locate it, never an abstract description. A documentation edit follows Documentation edits below instead.

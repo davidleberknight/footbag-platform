@@ -48,42 +48,36 @@ MUTATION_HEAD_RE='^Bash\((xargs|find|echo|awk|sed|rm|mv|cp|dd|tee|truncate|chmod
 # Check 11, defined here so --local-settings-only can run it alone.
 # settings.local.json is gitignored and per-developer, so it is absent in CI and this check
 # runs only where the file exists (a developer's machine). Its only routine writer is the
-# "always allow" click at a permission prompt, so it drifts toward over-permission by
-# construction, and no hook can intercept the product's own write.
+# "don't ask again" click at a permission prompt, which saves permanently and cannot be
+# made session-only, so it drifts toward over-permission by construction.
 #
-# A rule may stay here only when it names an absolute machine path. Such a rule cannot be
-# committed, because an absolute home path is wrong on every other machine, and promoting
-# it to the developer's user-scope settings would widen it to every project they open,
-# which is the opposite of least privilege. Everything else is click residue: a shareable
-# rule belongs in the committed settings.json, and the rest is deleted. The file's other
-# legitimate content is the env block (machine-local values committed text must never
-# name), which is never scanned.
-#
-# Naming a path is not a licence to do anything: a path-scoped rule still clears the same
-# mutation-head screen the committed allow list faces, so a click cannot park a destructive
-# command here under cover of pointing it at a directory. deny entries are exempt from the
-# path requirement, since a deny only ever tightens.
+# A saved click lasts one session here: strip-local-allows.sh removes every allow and ask
+# rule from this file when a fresh session starts. An allow or ask rule found now was saved
+# in this session, or survived a failed strip; either way it is not a permanent rule. A
+# permanent never-ask is written by hand into the committed settings.json when it is
+# shareable, or into the developer's user-scope settings when it names a machine path.
+# The file's legitimate content is the env block (machine-local values committed text must
+# never name), which is never scanned, and deny rules, which only ever tighten but still
+# clear the same mutation-head screen the committed allow list faces.
 check_local_settings() {
   local LOCAL=".claude/settings.local.json"
-  local LOCAL_PATH_RE='(^|[[:space:](,=])/[^[:space:])]'
-  local local_gated local_all local_unscoped local_unsafe
+  local local_gated local_deny local_unsafe
   if [ -f "$LOCAL" ] && jq empty "$LOCAL" >/dev/null 2>&1; then
     local_gated=$(jq -r '((.permissions.allow // []) + (.permissions.ask // []))[]' "$LOCAL" 2>/dev/null | grep -v '^[[:space:]]*$' | sort -u || true)
-    local_all=$(jq -r '((.permissions.allow // []) + (.permissions.ask // []) + (.permissions.deny // []))[]' "$LOCAL" 2>/dev/null | grep -v '^[[:space:]]*$' | sort -u || true)
-    local_unscoped=$(printf '%s\n' "$local_gated" | grep -v '^[[:space:]]*$' | grep -Ev "$LOCAL_PATH_RE" || true)
-    local_unsafe=$(printf '%s\n' "$local_all" | grep -v '^[[:space:]]*$' | grep -E "$MUTATION_HEAD_RE" || true)
-    if [ -n "$local_unscoped" ]; then
-      echo "[harness] FAIL: $LOCAL carries permission rule(s) naming no absolute path — promote to $SETTINGS (shareable) or delete:" >&2
-      ( IFS=$'\n'; printf '  %s\n' $local_unscoped >&2 )
+    local_deny=$(jq -r '(.permissions.deny // [])[]' "$LOCAL" 2>/dev/null | grep -v '^[[:space:]]*$' | sort -u || true)
+    local_unsafe=$(printf '%s\n' "$local_deny" | grep -v '^[[:space:]]*$' | grep -E "$MUTATION_HEAD_RE" || true)
+    if [ -n "$local_gated" ]; then
+      echo "[harness] FAIL: $LOCAL carries saved allow or ask rule(s); the next fresh session removes them, or delete them now and put a permanent one in $SETTINGS or user-scope settings by hand:" >&2
+      ( IFS=$'\n'; printf '  %s\n' $local_gated >&2 )
       fail=1
     fi
     if [ -n "$local_unsafe" ]; then
-      echo "[harness] FAIL: $LOCAL carries mutation-capable or unscoped rule(s), which naming a path does not excuse:" >&2
+      echo "[harness] FAIL: $LOCAL carries mutation-capable or unscoped deny rule(s):" >&2
       ( IFS=$'\n'; printf '  %s\n' $local_unsafe >&2 )
       fail=1
     fi
-    if [ -z "$local_unscoped" ] && [ -z "$local_unsafe" ]; then
-      echo "[harness] $LOCAL carries only path-scoped permission rules"
+    if [ -z "$local_gated" ] && [ -z "$local_unsafe" ]; then
+      echo "[harness] $LOCAL carries no saved allow or ask rules"
     fi
   else
     echo "[harness] $LOCAL absent or empty (nothing to scan)"
@@ -332,7 +326,7 @@ else
   fail=1
 fi
 
-# --- Check 11: the machine-local settings file holds only path-scoped permission rules ---
+# --- Check 11: the machine-local settings file holds no saved allow or ask rules ---
 check_local_settings
 
 # --- Check 12: agent frontmatter hooks resolve and mirror the settings Bash chain ---
@@ -395,6 +389,31 @@ if [ -n "$mcp_bad" ]; then
   fail=1
 else
   echo "[harness] project MCP servers start and answer"
+fi
+
+# --- Check 14: every maintainer-gated command is also an ask rule ---
+# guard-maintainer-gate.sh denies a gated command once so Claude says why, then leaves
+# the reissue to the permissions.ask entry it copies. A gated entry missing from the ask
+# list would let the reissue run unprompted, so the ask list must stay the floor. A tree
+# without the hook skips this with a note; the wired-hooks check catches a hook that
+# settings.json wires but the tree lacks.
+GATE_HOOK=".claude/hooks/guard-maintainer-gate.sh"
+if [ -f "$GATE_HOOK" ]; then
+  gate_rules=$(grep -oE "^  'Bash\(.*\)'$" "$GATE_HOOK" | sed -E "s/^  '(.*)'$/\1/" || true)
+  ask_rules=$(jq -r '(.permissions.ask // [])[]' "$SETTINGS")
+  gate_missing=$(printf '%s\n' "$gate_rules" | grep -v '^$' | grep -vxF -f <(printf '%s\n' "$ask_rules") || true)
+fi
+if [ ! -f "$GATE_HOOK" ]; then
+  echo "[harness] note: $GATE_HOOK absent; maintainer-gate ask check skipped"
+elif [ -z "$gate_rules" ]; then
+  echo "[harness] FAIL: no gated rules found in $GATE_HOOK" >&2
+  fail=1
+elif [ -n "$gate_missing" ]; then
+  echo "[harness] FAIL: $GATE_HOOK gates rule(s) missing from permissions.ask in $SETTINGS:" >&2
+  ( IFS=$'\n'; printf '  %s\n' $gate_missing >&2 )
+  fail=1
+else
+  echo "[harness] every maintainer-gated command is an ask rule"
 fi
 
 if [ "$fail" -ne 0 ]; then

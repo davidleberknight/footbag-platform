@@ -12,6 +12,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
 import { insertMember, insertAuditEntry, insertAccountToken, insertSystemConfig } from '../fixtures/factories';
+import { isoDaysAgo } from '../fixtures/clock';
 import { rowPin, snapshotIds, oneRowAddedSince } from '../fixtures/rowPinning';
 
 const { dbPath } = setTestEnv('4191');
@@ -28,13 +29,10 @@ function withDb<T>(fn: (db: BetterSqlite3.Database) => T): T {
   }
 }
 
-function daysAgo(n: number): string {
-  return new Date(Date.now() - n * 86_400_000).toISOString();
-}
 
 function auditAged(id: string, days: number): void {
   withDb((db) => insertAuditEntry(db, {
-    id, action_type: 'member.profile_updated', entity_id: memberId, occurred_at: daysAgo(days),
+    id, action_type: 'member.profile_updated', entity_id: memberId, occurred_at: isoDaysAgo(days),
   }));
 }
 

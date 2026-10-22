@@ -37,7 +37,7 @@ let dbMod: typeof import('../../src/db/db');
 
 const PAST_AP = '2020-01-01T00:00:00.000Z';
 const FUTURE_AP = '2099-01-01T00:00:00.000Z';
-const NEAR_FUTURE_AP = '2027-01-01T00:00:00.000Z';
+const NEAR_FUTURE_AP = isoDaysFromNow(30);
 const ACTOR_ID = 'member-ap-actor';
 
 beforeAll(async () => {
@@ -315,7 +315,8 @@ describe('applyAttendance', () => {
     const { eventId } = buildEvent();
     const regId = buildRegistration(eventId, id);
 
-    const result = aps.applyAttendance(ACTOR_ID, id, regId, '2026-06-03');
+    // Attended yesterday: the grant it earns must still be running today.
+    const result = aps.applyAttendance(ACTOR_ID, id, regId, isoDaysFromNow(-1).slice(0, 10));
 
     expect(result.status).toBe('granted');
     const rows = apGrants(id);
@@ -326,7 +327,7 @@ describe('applyAttendance', () => {
       related_registration_id: regId,
       related_event_id: eventId,
     });
-    expect(rows[0].new_active_player_expires_at).toBeTruthy();
+    expect(rows[0].new_active_player_expires_at! > new Date().toISOString()).toBe(true);
   });
 
   it('Tier 0 second attendance: writes an `extend` row when later expiry', () => {

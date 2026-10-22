@@ -171,8 +171,8 @@ describe('paymentService.getPaymentCancelPage', () => {
 describe('paymentService.getPaymentHistoryPage', () => {
   it('shapes owner payment history rows with formatted date + amount', () => {
     insertMember(db, { id: 'm_hist', slug: 'hist_owner' });
-    insertPayment(db, { member_id: 'm_hist', amount_cents: 1000, currency: 'usd', status: 'succeeded', descriptor: 'Membership: Tier 1 IFPA Member' });
-    insertPayment(db, { member_id: 'm_hist', amount_cents: 5000, currency: 'usd', status: 'refunded', descriptor: 'Membership: Tier 2 IFPA Organizer Member' });
+    insertPayment(db, { member_id: 'm_hist', amount_cents: 1000, currency: 'usd', status: 'succeeded', descriptor: 'Membership: Tier 1 IFPA Member', created_at: '2025-01-01T00:00:00.000Z' });
+    insertPayment(db, { member_id: 'm_hist', amount_cents: 5000, currency: 'usd', status: 'refunded', descriptor: 'Membership: Tier 2 IFPA Organizer Member', created_at: '2025-01-01T00:00:00.000Z' });
 
     const vm = pay.paymentService.getPaymentHistoryPage('m_hist', 'hist_owner');
     expect(vm.page.pageKey).toBe('member_payment_history');

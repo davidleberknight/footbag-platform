@@ -23,7 +23,7 @@ import {
   createTestSessionJwt,
   completeOnboarding,
 } from '../fixtures/factories';
-import { rowPin, snapshotIds, oneRowAddedSince, theOnlyRow } from '../fixtures/rowPinning';
+import { rowPin, theOnlyRow } from '../fixtures/rowPinning';
 
 const { dbPath } = setTestEnv('4195');
 
@@ -42,15 +42,27 @@ const OTHER_ID     = 'hpc-other';
 const OTHER_SLUG   = 'hpc_other';
 const OTHER_NAME   = 'Unrelated Smith';
 
-// Three cases below have this member attempt a different blocked claim, so the
-// ledger accumulates rows that differ only in the fields each case asserts on.
-// Each case takes the row its own attempt added: the ledger stamp is
-// millisecond-resolution and its id is random, so no ordering separates them.
-const blockedClaimAudit = rowPin(
-  'audit_entries',
-  `action_type = 'claim.refused' AND actor_member_id = ?`,
-  [OTHER_ID],
-);
+// Three cases below have this prospective member attempt a different blocked
+// claim. A prospective member's refused claims are held on their own claim-step
+// row until onboarding completes, never written to the ledger early, so each case
+// reads the one held refusal naming its own record and checks the ledger has none.
+function heldRefusal(memberId: string, recordId: string): Record<string, unknown> {
+  const task = testDb.prepare(
+    `SELECT answer_json FROM member_onboarding_tasks WHERE member_id = ? AND task_type = 'legacy_claim'`,
+  ).get(memberId) as { answer_json: string | null } | undefined;
+  const held = JSON.parse(task?.answer_json ?? '{}') as {
+    audit?: Array<{ actionType: string; metadata?: Record<string, unknown> }>;
+  };
+  const matches = (held.audit ?? []).filter(
+    (e) => e.actionType === 'claim.refused' && e.metadata?.record_id === recordId,
+  );
+  expect(matches, `one held refusal for ${recordId}`).toHaveLength(1);
+  const ledger = testDb.prepare(
+    `SELECT COUNT(*) AS c FROM audit_entries WHERE action_type = 'claim.refused' AND actor_member_id = ?`,
+  ).get(memberId) as { c: number };
+  expect(ledger.c, 'a prospective member has no refused-claim row in the ledger').toBe(0);
+  return matches[0].metadata ?? {};
+}
 
 const NO_LONGER_AVAILABLE = 'This record is no longer available to claim.';
 
@@ -566,7 +578,6 @@ describe('POST /history/:personId/claim/confirm — adversarial', () => {
       hof_member: 1, bap_member: 0,
     });
     const app = createApp();
-    const before = snapshotIds(testDb, blockedClaimAudit);
     const res = await request(app)
       .post(`/history/${surnameMismatchHp}/claim/confirm`)
       .set('Cookie', otherCookie()).type('form').send({});
@@ -577,13 +588,7 @@ describe('POST /history/:personId/claim/confirm — adversarial', () => {
     // rather than as an impersonation attempt on the strength of a name. This
     // record carries no legacy account, so there is no date to weigh and
     // nothing is settled either way. The member's evidence never reached it.
-    const row = oneRowAddedSince<{ metadata_json: string }>(
-      testDb,
-      blockedClaimAudit,
-      before,
-    );
-    const meta = JSON.parse(row.metadata_json) as Record<string, unknown>;
-    expect(meta.record_id).toBe(surnameMismatchHp);
+    const meta = heldRefusal(OTHER_ID, surnameMismatchHp);
     expect(meta.refusal).toBe('not_reached');
     expect(meta.dob_comparison).toBe('no_legacy_account');
     expect(meta.assessment).toBe('unevidenced');
@@ -605,19 +610,12 @@ describe('POST /history/:personId/claim/confirm — adversarial', () => {
       legacy_member_id: legacyId, hof_member: 0, bap_member: 0,
     });
     const app = createApp();
-    const before = snapshotIds(testDb, blockedClaimAudit);
     const res = await request(app)
       .post(`/history/${corroboratedHp}/claim/confirm`)
       .set('Cookie', otherCookie()).type('form').send({});
     expect(res.status).toBe(422);
 
-    const row = oneRowAddedSince<{ metadata_json: string }>(
-      testDb,
-      blockedClaimAudit,
-      before,
-    );
-    const meta = JSON.parse(row.metadata_json) as Record<string, unknown>;
-    expect(meta.record_id).toBe(corroboratedHp);
+    const meta = heldRefusal(OTHER_ID, corroboratedHp);
     expect(meta.dob_comparison).toBe('identical');
     expect(meta.assessment).toBe('corroborated');
   });
@@ -635,19 +633,12 @@ describe('POST /history/:personId/claim/confirm — adversarial', () => {
       legacy_member_id: legacyId, hof_member: 0, bap_member: 0,
     });
     const app = createApp();
-    const before = snapshotIds(testDb, blockedClaimAudit);
     const res = await request(app)
       .post(`/history/${contradictedHp}/claim/confirm`)
       .set('Cookie', otherCookie()).type('form').send({});
     expect(res.status).toBe(422);
 
-    const row = oneRowAddedSince<{ metadata_json: string }>(
-      testDb,
-      blockedClaimAudit,
-      before,
-    );
-    const meta = JSON.parse(row.metadata_json) as Record<string, unknown>;
-    expect(meta.record_id).toBe(contradictedHp);
+    const meta = heldRefusal(OTHER_ID, contradictedHp);
     expect(meta.dob_comparison).toBe('mismatch');
     expect(meta.assessment).toBe('contradicted');
   });

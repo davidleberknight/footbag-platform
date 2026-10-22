@@ -24,6 +24,32 @@ export function isoDaysFromNow(days: number): string {
   return isoFromNow(days * DAY_MS);
 }
 
+export function isoDaysAgo(days: number): string {
+  return isoFromNow(-days * DAY_MS);
+}
+
 export function isoHoursAgo(hours: number): string {
   return isoFromNow(-hours * HOUR_MS);
+}
+
+/** The UTC calendar date (YYYY-MM-DD) of an epoch-milliseconds instant. */
+export function dateOnly(ms: number): string {
+  return new Date(ms).toISOString().slice(0, 10);
+}
+
+const MONTH_NAMES = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+/**
+ * A UTC instant on `day` of the calendar month `back` months before this one,
+ * with its YYYY-MM key and its "Month YYYY" label, for readers that group by
+ * month.
+ */
+export function inMonthsAgo(back: number, day: number): { iso: string; month: string; label: string } {
+  const now = new Date();
+  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - back, day, 10));
+  const month = d.toISOString().slice(0, 7);
+  return { iso: d.toISOString(), month, label: `${MONTH_NAMES[d.getUTCMonth()]} ${d.getUTCFullYear()}` };
 }

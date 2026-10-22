@@ -11,6 +11,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
+import { isoDaysFromNow } from '../fixtures/clock';
 import {
   insertMember,
   insertActivePlayerGrant,
@@ -46,9 +47,6 @@ const PAST_DUE_SLUG = 'act_past_due';
 const PENDING_PURCHASE_ID = 'act-pending-purchase';
 const PENDING_PURCHASE_SLUG = 'act_pending_purchase';
 
-function isoDaysFromNow(days: number): string {
-  return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
-}
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);

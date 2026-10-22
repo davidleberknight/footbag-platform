@@ -300,8 +300,8 @@ export class OperationsPlatformService {
     return clamped * 1000;
   }
 
-  /** Deliverable email backlog (pending + sending rows); the worker logs it
-   * each cycle for the CloudWatch outbox-depth alarm. */
+  /** Deliverable email backlog (pending + sending rows); the worker logs it each
+   * cycle, at warn only above the CloudWatch outbox-depth alarm's threshold. */
   getOutboxBacklogDepth(): number {
     return (outbox.countBacklog.get() as { n: number }).n;
   }
@@ -580,7 +580,7 @@ export class OperationsPlatformService {
     }
     const result = await this.recordJobRun(
       'SYS_Reconciliation_Digest',
-      () => paymentReconciliationService.sendReconciliationDigest(),
+      () => paymentReconciliationService.sendReconciliationDigest({ now }),
       startTime,
     );
     return { skipped: false, ...result };

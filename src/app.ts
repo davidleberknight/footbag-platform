@@ -61,6 +61,24 @@ function clientErrorStatus(err: unknown): number | null {
 }
 
 /**
+ * True when a CSP report's document is a static file opened on its own rather
+ * than a page this app rendered: the browser's built-in viewer for that file
+ * draws with inline styles the policy refuses, which says nothing about the site.
+ */
+function isStaticAssetReport(report: unknown): boolean {
+  if (typeof report !== 'object' || report === null) return false;
+  const uri = (report as Record<string, unknown>)['document-uri'];
+  if (typeof uri !== 'string') return false;
+  let path: string;
+  try {
+    path = new URL(uri).pathname;
+  } catch {
+    return false;
+  }
+  return /\.(png|jpe?g|gif|webp|avif|svg|ico|css|js|mjs|map|woff2?|ttf|otf|mp4|webm|mp3|pdf|txt|json|xml)$/i.test(path);
+}
+
+/**
  * Factory that returns a configured Express application without
  * binding to a port. Keeping this as a factory (not a module singleton)
  * lets integration tests call createApp() directly without an HTTP server.
@@ -359,6 +377,13 @@ export function createApp(): express.Express {
     express.json({ type: ['application/csp-report', 'application/reports+json'] }),
     (req, res) => {
       const body = (req.body ?? {}) as Record<string, unknown>;
+      // A static file opened directly (an image, a stylesheet) is shown inside
+      // the browser's own viewer, whose inline styling the policy blocks. No page
+      // of ours caused it and nobody can act on it, so it is not logged at all.
+      if (isStaticAssetReport(body['csp-report'])) {
+        res.status(204).end();
+        return;
+      }
       logger.warn('csp violation reported', {
         cspReport: body['csp-report'],
         userAgent: req.get('User-Agent'),

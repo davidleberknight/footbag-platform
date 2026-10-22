@@ -30,7 +30,14 @@ interface IfpaIndexContent {
   tiers: ReadonlyArray<MemberWelcomeTier>;
   /** The Become-a-Member / Log-In cards render only for unauthenticated visitors. */
   showJoinCtas: boolean;
+  /** IFPA's Worlds host-bid template; bids are taken and decided off the platform. */
+  worldsBidHref: string;
 }
+
+// IFPA owns this Google Doc; a bidder copies it, fills in what they can and
+// shares it with the Board. The view link lets a visitor read it before bidding.
+const WORLDS_BID_TEMPLATE_URL =
+  'https://docs.google.com/document/d/1b30TxP3Emd47vUjHA-Td83MyXoXf6f3pjhqPiU6Lw2Q/edit?usp=sharing';
 
 interface IfpaDocContent {
   doc: ParsedIfpaDoc;
@@ -67,6 +74,7 @@ export const ifpaService = {
         docs,
         tiers: memberService.getMembershipTiers(),
         showJoinCtas: !opts.isAuthenticated,
+        worldsBidHref: WORLDS_BID_TEMPLATE_URL,
       },
     };
   },

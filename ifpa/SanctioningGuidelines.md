@@ -1,5 +1,6 @@
 **What sanctioning gives your event**
 - It's listed on footbag.org as IFPA-sanctioned, and you may use the IFPA logo, available to download from this page, in your publicity.
+  Download the IFPA logo: [PDF, for print](/img/ifpa-logo-print.pdf) or [PNG, high resolution](/img/ifpa-logo-large.png).
 - It can take entry fees online through footbag.org, if you choose.
 - Its results are official IFPA results and count toward world rankings.
 - Sponsors and donors can give to IFPA designated for your event.

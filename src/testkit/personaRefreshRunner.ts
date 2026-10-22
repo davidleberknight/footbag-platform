@@ -6,9 +6,8 @@
  * app flows that append to the persistent ledgers — most visibly a tier upgrade,
  * which appends a member_tier_grants row so member_tier_current reports the new
  * tier permanently. Re-running the seed runner cannot undo that: it skips slugs
- * that already exist, and even a fresh grant would lose the latest-row race
- * because seed grants are stamped 2025-01-01 while an in-app upgrade is stamped
- * "now". So the only way back to the seeded baseline is to delete the persona's
+ * that already exist, and a grant appended beside the upgrade would only race it
+ * for latest row. So the only way back to the seeded baseline is to delete the persona's
  * rows (the upgrade grant included) and re-seed.
  *
  * The membership ledgers (member_tier_grants, active_player_grants, audit_entries)

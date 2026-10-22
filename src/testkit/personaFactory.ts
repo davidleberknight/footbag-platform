@@ -608,7 +608,7 @@ export function seedPersona(
     // into a loud seed failure.
     onboarding: 'none',
     ...(spec.emailVerified === false ? { email_verified_at: null } : {}),
-    ...(spec.isDeceased ? { is_deceased: 1 as const, deceased_at: '2025-06-01T00:00:00.000Z' } : {}),
+    ...(spec.isDeceased ? { is_deceased: 1 as const, deceased_at: new Date().toISOString() } : {}),
     ...(spec.honors?.hof ? { is_hof: 1 as const } : {}),
     ...(spec.honors?.bap ? { is_bap: 1 as const } : {}),
     ...(spec.honors?.board ? { is_board: 1 as const } : {}),
@@ -642,7 +642,7 @@ export function seedPersona(
       ...(legacyEmail ? { legacy_email: legacyEmail.toLowerCase() } : {}),
       ...(spec.legacy.legacyIsAdmin ? { legacy_is_admin: 1 as const } : {}),
       claimed_by_member_id: memberId,
-      claimed_at: '2025-01-01T00:00:00.000Z',
+      claimed_at: new Date().toISOString(),
     });
   }
 
@@ -707,7 +707,7 @@ export function seedPersona(
       const claimMarkers = taskType === 'legacy_claim' && spec.legacyClaimTask
         ? {
           birth_date_changes: spec.legacyClaimTask.birthDateChanges ?? null,
-          last_attempt_opened_at: spec.legacyClaimTask.lastAttemptOpened ? '2026-01-01T00:00:00.000Z' : null,
+          last_attempt_opened_at: spec.legacyClaimTask.lastAttemptOpened ? new Date().toISOString() : null,
         }
         : {};
       insertOnboardingTask(db, memberId, taskType, state, claimMarkers);
@@ -859,7 +859,7 @@ export function seedPersona(
         activitySignal: 'active',
         insightNote: null,
         promotion: null,
-        heldAt: '2025-01-01T00:00:00.000Z',
+        heldAt: new Date().toISOString(),
       });
     }
   }
@@ -870,7 +870,7 @@ export function seedPersona(
       claim: {
         target: { accountId: legacyMemberId, recordId: null },
         withSurname: false,
-        heldAt: '2025-01-01T00:00:00.000Z',
+        heldAt: new Date().toISOString(),
       },
     });
   }
@@ -885,7 +885,7 @@ export function seedPersona(
       claim: {
         target: { accountId: spec.heldClaimOnAccount, recordId: null },
         withSurname: false,
-        heldAt: '2025-01-01T00:00:00.000Z',
+        heldAt: new Date().toISOString(),
       },
     });
   }

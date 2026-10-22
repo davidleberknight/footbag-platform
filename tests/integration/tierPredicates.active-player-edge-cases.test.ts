@@ -17,6 +17,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
+import { isoDaysFromNow } from '../fixtures/clock';
 import {
   insertMember,
   insertActivePlayerGrant,
@@ -53,9 +54,6 @@ function nextId(prefix: string): { id: string; slug: string } {
 // is robustly in the future under any realistic CI scheduler. The fragile
 // pattern to avoid is asserting against ~10ms boundaries;
 // see the 'tier0_ap_already_expired' case for the deterministic alternative.
-function isoOffsetDays(days: number): string {
-  return new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString();
-}
 
 describe('hasTier1Benefits — AP edge states (Tier 0)', () => {
   it('tier0_no_ap → false (no AP ledger row at all)', () => {
@@ -69,7 +67,7 @@ describe('hasTier1Benefits — AP edge states (Tier 0)', () => {
   it('tier0_ap_current_30d → true (AP grant 30 days in the future)', () => {
     const db = new BetterSqlite3(dbPath);
     const { id, slug } = nextId('t0_30d');
-    createTier0WithActivePlayer(db, { id, slug, expiresAt: isoOffsetDays(30) });
+    createTier0WithActivePlayer(db, { id, slug, expiresAt: isoDaysFromNow(30) });
     db.close();
     expect(predicates.hasTier1Benefits(id)).toBe(true);
   });
@@ -91,7 +89,7 @@ describe('hasTier1Benefits — AP edge states (Tier 0)', () => {
   it('tier0_ap_expired_yesterday → false', () => {
     const db = new BetterSqlite3(dbPath);
     const { id, slug } = nextId('t0_y');
-    createTier0WithActivePlayer(db, { id, slug, expiresAt: isoOffsetDays(-1) });
+    createTier0WithActivePlayer(db, { id, slug, expiresAt: isoDaysFromNow(-1) });
     db.close();
     expect(predicates.hasTier1Benefits(id)).toBe(false);
   });
@@ -99,7 +97,7 @@ describe('hasTier1Benefits — AP edge states (Tier 0)', () => {
   it('tier0_ap_long_window → true (AP grant 730+ days out, typical vouch grant)', () => {
     const db = new BetterSqlite3(dbPath);
     const { id, slug } = nextId('t0_long');
-    createTier0WithActivePlayer(db, { id, slug, expiresAt: isoOffsetDays(800) });
+    createTier0WithActivePlayer(db, { id, slug, expiresAt: isoDaysFromNow(800) });
     db.close();
     expect(predicates.hasTier1Benefits(id)).toBe(true);
   });
@@ -113,15 +111,15 @@ describe('hasTier1Benefits — AP edge states (Tier 0)', () => {
     insertActivePlayerGrant(db, {
       member_id: id,
       change_type: 'grant',
-      new_active_player_expires_at: isoOffsetDays(30),
+      new_active_player_expires_at: isoDaysFromNow(30),
       reason_code: 'official_event_attendance',
       created_at: '2026-01-01T00:00:00.000Z',
     });
     insertActivePlayerGrant(db, {
       member_id: id,
       change_type: 'extend',
-      old_active_player_expires_at: isoOffsetDays(30),
-      new_active_player_expires_at: isoOffsetDays(365),
+      old_active_player_expires_at: isoDaysFromNow(30),
+      new_active_player_expires_at: isoDaysFromNow(365),
       reason_code: 'official_event_attendance',
       created_at: '2026-02-01T00:00:00.000Z',
     });
@@ -136,14 +134,14 @@ describe('hasTier1Benefits — AP edge states (Tier 0)', () => {
     insertActivePlayerGrant(db, {
       member_id: id,
       change_type: 'grant',
-      new_active_player_expires_at: isoOffsetDays(30),
+      new_active_player_expires_at: isoDaysFromNow(30),
       reason_code: 'official_event_attendance',
       created_at: '2026-01-01T00:00:00.000Z',
     });
     insertActivePlayerGrant(db, {
       member_id: id,
       change_type: 'end',
-      old_active_player_expires_at: isoOffsetDays(30),
+      old_active_player_expires_at: isoDaysFromNow(30),
       new_active_player_expires_at: null,
       reason_code: 'membership_upgrade_ended_active_player',
       created_at: '2026-02-01T00:00:00.000Z',
@@ -159,14 +157,14 @@ describe('hasTier1Benefits — AP edge states (Tier 0)', () => {
     insertActivePlayerGrant(db, {
       member_id: id,
       change_type: 'grant',
-      new_active_player_expires_at: isoOffsetDays(-30),
+      new_active_player_expires_at: isoDaysFromNow(-30),
       reason_code: 'official_event_attendance',
       created_at: '2025-01-01T00:00:00.000Z',
     });
     insertActivePlayerGrant(db, {
       member_id: id,
       change_type: 'expire',
-      old_active_player_expires_at: isoOffsetDays(-30),
+      old_active_player_expires_at: isoDaysFromNow(-30),
       new_active_player_expires_at: null,
       reason_code: 'sys_active_player_expiry_job',
       created_at: '2026-01-01T00:00:00.000Z',
@@ -187,7 +185,7 @@ describe('hasTier1Benefits — Tier 1+ ignores AP ledger', () => {
     insertActivePlayerGrant(db, {
       member_id: id,
       change_type: 'grant',
-      new_active_player_expires_at: isoOffsetDays(30),
+      new_active_player_expires_at: isoDaysFromNow(30),
       reason_code: 'official_event_attendance',
     });
     db.close();
@@ -201,7 +199,7 @@ describe('hasTier1Benefits — Tier 1+ ignores AP ledger', () => {
     insertActivePlayerGrant(db, {
       member_id: id,
       change_type: 'grant',
-      new_active_player_expires_at: isoOffsetDays(30),
+      new_active_player_expires_at: isoDaysFromNow(30),
       reason_code: 'official_event_attendance',
     });
     db.close();
@@ -218,7 +216,7 @@ describe('hasTier1Benefits — Tier 1+ ignores AP ledger', () => {
     insertActivePlayerGrant(db, {
       member_id: id,
       change_type: 'grant',
-      new_active_player_expires_at: isoOffsetDays(30),
+      new_active_player_expires_at: isoDaysFromNow(30),
       reason_code: 'official_event_attendance',
     });
     db.close();
@@ -260,7 +258,7 @@ describe('Factory smoke tests for the new ergonomic helpers', () => {
   it('createTier0WithActivePlayer writes a single AP grant row at the requested expiry', () => {
     const db = new BetterSqlite3(dbPath);
     const { id, slug } = nextId('helper_t0_ap');
-    const expiresAt = isoOffsetDays(60);
+    const expiresAt = isoDaysFromNow(60);
     createTier0WithActivePlayer(db, { id, slug, expiresAt });
     const rows = db
       .prepare(
