@@ -635,8 +635,37 @@ describe('scripts/deploy-local-data.sh member-intake dispatch', () => {
       const combined = (r.stderr ?? '') + (r.stdout ?? '');
       expect(combined).toMatch(/run_legacy_members\.sh --load --apply/);
       expect(combined).not.toMatch(/run_legacy_members\.sh --load --dry-run/);
+      // A rebuild that is not the final load must not carry the cutover-only
+      // completeness bar, or it stops on people nobody can rule on yet.
+      expect(combined).not.toMatch(/--final-load/);
     } finally {
       fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('--all-data --apply-members --final-load hands the final-load mark to the runner', () => {
+    const tmpRoot = scaffoldAllDataRoot();
+    try {
+      const r = run(
+        'bash',
+        ['scripts/deploy-local-data.sh', '--all-data', '--apply-members', '--final-load', '--dry-run'],
+        { cwd: tmpRoot, env: ENTRY },
+      );
+      expect(r.status).toBe(0);
+      const combined = (r.stderr ?? '') + (r.stdout ?? '');
+      expect(combined).toMatch(/run_legacy_members\.sh --load --apply --final-load/);
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('--final-load without an applied --all-data intake exits 1 (it would assert nothing)', () => {
+    for (const args of [['--all-data'], ['--from-csv']]) {
+      const r = run('bash', ['scripts/deploy-local-data.sh', ...args, '--final-load'], { env: ENTRY });
+      expect(r.status, args.join(' ')).toBe(1);
+      expect((r.stderr ?? '') + (r.stdout ?? ''), args.join(' ')).toMatch(
+        /--final-load is only meaningful with --all-data --apply-members/,
+      );
     }
   });
 
@@ -718,6 +747,54 @@ describe('scripts/deploy-local-data.sh member-intake dispatch', () => {
     expect(r.status).toBe(0);
     const combined = (r.stderr ?? '') + (r.stdout ?? '');
     expect(combined).toMatch(/deploy-local-data\.sh --all-data --apply-members/);
+    // A production rebuild before cutover is not the final load.
+    expect(combined).not.toMatch(/--final-load/);
+  });
+
+  it('deploy-to-aws.sh --final-member-load on production --all-data dispatches the final load', () => {
+    const r = run('bash', ['scripts/deploy-to-aws.sh', '--all-data', '--final-member-load', '-ny'], {
+      input: 'fake-pw\n',
+      env: { DEPLOY_TARGET: 'footbag-production' },
+    });
+    expect(r.status).toBe(0);
+    const combined = (r.stderr ?? '') + (r.stdout ?? '');
+    expect(combined).toMatch(/deploy-local-data\.sh --all-data --apply-members --final-load/);
+  });
+
+  it('deploy-to-aws.sh refuses --final-member-load anywhere but a production --all-data deploy', () => {
+    const cases: Array<{ args: string[]; target: string }> = [
+      { args: ['--all-data', '--final-member-load', '-ny'], target: 'footbag-staging' },
+      { args: ['--final-member-load', '-ny'], target: 'footbag-production' },
+    ];
+    for (const { args, target } of cases) {
+      const r = run('bash', ['scripts/deploy-to-aws.sh', ...args], {
+        input: 'fake-pw\n',
+        env: { DEPLOY_TARGET: target },
+      });
+      const label = `${target} ${args.join(' ')}`;
+      expect(r.status, label).toBe(1);
+      expect((r.stderr ?? '') + (r.stdout ?? ''), label).toMatch(
+        /--final-member-load is only meaningful on a production --all-data deploy/,
+      );
+    }
+  });
+
+  it('deploy_to_aws.sh refuses --final-member-load off production ahead of the typed gate', () => {
+    const tmpRoot = scaffoldWrapperRoot();
+    try {
+      for (const args of [
+        ['--all-data', '--final-member-load', '--target', 'staging'],
+        ['--final-member-load', '--target', 'production'],
+      ]) {
+        const r = run('bash', ['deploy_to_aws.sh', ...args], { cwd: tmpRoot });
+        const combined = (r.stderr ?? '') + (r.stdout ?? '');
+        expect(r.status, args.join(' ')).toBe(1);
+        expect(combined, args.join(' ')).toMatch(/--final-member-load is only meaningful/);
+        expect(combined, args.join(' ')).not.toMatch(/PRODUCTION/);
+      }
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
   });
 
   // A direct run skips what each entry point adds around the build, so it is

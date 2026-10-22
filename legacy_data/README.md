@@ -155,8 +155,9 @@ it, and an `--all-data` build refuses before any destructive step when the
 private checkout is missing. The recorded rulings are optional on a development
 machine, where duplicate accounts then merge on the mechanical rule alone and the
 run says so. A production load (`deploy_to_aws.sh --target production`) refuses
-without them, and also requires every membership-only person to carry a proposed
-link or a recorded disposition. The cutover date and the board flag are fixed at
+without them. The final cutover load (the same deploy with `--final-member-load`)
+also requires every membership-only person to carry a proposed link or a recorded
+disposition. The cutover date and the board flag are fixed at
 publish, so the load takes neither as an input. The runner's own `--help` is
 authoritative for what each input changes.
 

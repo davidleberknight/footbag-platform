@@ -75,7 +75,12 @@ DATA SOURCE (opt-in DB rebuild; mutually exclusive)
                                Requires the gitignored membership roster AND
                                either the footbag.org dump or a prior
                                intermediate CSV.
-  --public-data                Staging only. Rebuild the local DB from the
+  --final-member-load          Production --all-data only. Marks this as the final
+                               cutover member load: the intake refuses unless every
+                               membership-only person carries a proposed link or a
+                               recorded disposition. Production rebuilds before
+                               cutover omit it.
+  --public-data               Staging only. Rebuild the local DB from the
                                committed public inputs alone (the
                                deploy-local-data.sh --db-only build), then
                                replace the staging DB with it. Needs no
@@ -217,6 +222,7 @@ FROM_CSV="no"        # explicit alias for default rebuild source
 SOUP_TO_NUTS="no"    # full clean rebuild from legacy mirror
 ALL_DATA="no"        # --from-csv build + member intake applied and shipped (full migration load)
 PUBLIC_DATA="no"     # --db-only build from committed public inputs; staging only, no private checkout
+FINAL_MEMBER_LOAD="no"  # production --all-data only: the final cutover member load
 # --seed-test-personas: after the deploy completes, seed the canonical persona
 #   catalog inside the staging web container. Staging only: production never
 #   carries test personas, so the flag is refused for a production target.
@@ -270,6 +276,7 @@ for arg in "${EXPANDED_ARGS[@]+"${EXPANDED_ARGS[@]}"}"; do
     --soup-to-nuts)        SOUP_TO_NUTS="yes" ;;
     --all-data)            ALL_DATA="yes" ;;
     --public-data)         PUBLIC_DATA="yes" ;;
+    --final-member-load)   FINAL_MEMBER_LOAD="yes" ;;
     --seed-test-personas) SEED_TEST_PERSONAS="yes" ;;
     --refresh-test-personas) REFRESH_TEST_PERSONAS="yes"; REFRESH_ASKED_EXPLICITLY="yes" ;;
     --no-refresh-personas) NO_REFRESH_FLAG="yes" ;;
@@ -314,6 +321,15 @@ fi
 if [[ "$PUBLIC_DATA" == "yes" &&"${DEPLOY_TARGET:-footbag-staging}" != "footbag-staging" ]]; then
   echo "ERROR: --public-data is staging only. Production's database is built from the full" >&2
   echo "       sources, never from the public inputs alone." >&2
+  exit 1
+fi
+
+# The final member load is the production cutover load, so the flag that marks it
+# means nothing on staging or on any other mode; a mistyped command fails loud
+# rather than reading as a cutover that asserted something.
+if [[ "$FINAL_MEMBER_LOAD" == "yes" ]] && \
+   [[ "${DEPLOY_TARGET:-footbag-staging}" != "footbag-production" || "$ALL_DATA" != "yes" ]]; then
+  echo "ERROR: --final-member-load is only meaningful on a production --all-data deploy." >&2
   exit 1
 fi
 
@@ -735,8 +751,13 @@ elif [[ "$ALL_DATA" == "yes" ]]; then
   # production database replace runs only under the wrapper's typed confirmation,
   # so a production member load is the deliberate go-live cutover, not an
   # accidental deploy.
-  echo "==> Step 1 (local DB rebuild + member intake applied): scripts/deploy-local-data.sh --all-data --apply-members"
-  run_step bash "${SCRIPT_DIR}/deploy-local-data.sh" --all-data --apply-members
+  if [[ "$FINAL_MEMBER_LOAD" == "yes" ]]; then
+    echo "==> Step 1 (local DB rebuild + FINAL member load applied): scripts/deploy-local-data.sh --all-data --apply-members --final-load"
+    run_step bash "${SCRIPT_DIR}/deploy-local-data.sh" --all-data --apply-members --final-load
+  else
+    echo "==> Step 1 (local DB rebuild + member intake applied): scripts/deploy-local-data.sh --all-data --apply-members"
+    run_step bash "${SCRIPT_DIR}/deploy-local-data.sh" --all-data --apply-members
+  fi
 elif [[ "$PUBLIC_DATA" == "yes" ]]; then
   # The public-inputs build: committed seed and canonical CSVs, freestyle, net,
   # clubs and curated media, with no enrichment phase and no member intake, so

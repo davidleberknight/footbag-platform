@@ -17,7 +17,7 @@ cd "${REPO_ROOT}"
 
 usage() {
   cat <<'USAGE'
-Usage: bash scripts/deploy-local-data.sh <mode> [--dry-run] [--apply-members] [--cutover-clubs]
+Usage: bash scripts/deploy-local-data.sh <mode> [--dry-run] [--apply-members] [--final-load] [--cutover-clubs]
 
 Modes (exactly one required):
   --soup-to-nuts  Full rebuild from the legacy mirror. Drops the DB file,
@@ -79,6 +79,11 @@ Options:
                   Without it the intake stays a validate + dry-run preview.
                   The AWS deploy path passes this flag on any --all-data deploy
                   (the full migration load) to whichever target it deploys.
+  --final-load    The final cutover member load (only with --all-data
+                  --apply-members): the intake refuses unless every
+                  membership-only person carries a proposed link or a recorded
+                  disposition. The AWS deploy path passes it on a production
+                  --all-data deploy given --final-member-load.
   --cutover-clubs Cutover club set (only with --all-data): exports CLUBS_SEED=no
                   so the dev-convenience clubs seed is skipped and the cutover
                   pre-populated-clubs step is the sole creator of live clubs
@@ -101,6 +106,7 @@ fi
 MODE=""
 DRY_RUN="no"
 APPLY_MEMBERS="no"
+FINAL_LOAD="no"
 CUTOVER_CLUBS="no"
 for arg in "$@"; do
   case "$arg" in
@@ -116,6 +122,9 @@ for arg in "$@"; do
       ;;
     --apply-members)
       APPLY_MEMBERS="yes"
+      ;;
+    --final-load)
+      FINAL_LOAD="yes"
       ;;
     --cutover-clubs)
       CUTOVER_CLUBS="yes"
@@ -155,6 +164,13 @@ fi
 # carries; anywhere else it is almost certainly a mistake, so fail loud.
 if [[ "$APPLY_MEMBERS" == "yes" && "$MODE" != "--all-data" ]]; then
   echo "ERROR: --apply-members is only meaningful with --all-data" >&2
+  exit 1
+fi
+
+# --final-load marks the cutover member load, which is an applied intake; on a
+# preview or another mode it would assert nothing, so fail loud.
+if [[ "$FINAL_LOAD" == "yes" && ( "$MODE" != "--all-data" || "$APPLY_MEMBERS" != "yes" ) ]]; then
+  echo "ERROR: --final-load is only meaningful with --all-data --apply-members" >&2
   exit 1
 fi
 
@@ -316,7 +332,11 @@ run_all_data() {
   local runner="${REPO_ROOT}/legacy_data/member_data_scripts/run_legacy_members.sh"
   if [[ "$APPLY_MEMBERS" == "yes" ]]; then
     echo "==> member intake: reconcile + apply (writes member data to the local DB)"
-    run_or_print bash "$runner" --load --apply
+    if [[ "$FINAL_LOAD" == "yes" ]]; then
+      run_or_print bash "$runner" --load --apply --final-load
+    else
+      run_or_print bash "$runner" --load --apply
+    fi
 
     echo ""
     echo "NOTE: member data WAS applied to the local database: the reconciled"

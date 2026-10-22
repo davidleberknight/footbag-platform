@@ -178,18 +178,34 @@ def test_final_merge_applies_the_recorded_account_rulings() -> None:
     assert '-s "${ADJ_LINK_HOLDS}" && -s "${ADJ_REVIEW_RESOLUTIONS}"' in TEXT
 
 
-def test_completeness_is_required_on_the_production_load_alone() -> None:
+def test_completeness_is_required_on_the_final_load_alone() -> None:
     # The flag refuses unless every membership-only provisional person carries a
-    # proposed link or a recorded disposition. That is the right bar for the load
-    # that cannot be redone, and too strict for a dev or CI run on a partial dump.
+    # proposed link or a recorded disposition. That is the bar for the final
+    # cutover load, run on the export the rulings were fitted to. A production
+    # rebuild before cutover replaces a database that can be redone, from member
+    # data that is not yet final; keyed on the deploy target, the check stopped
+    # those rebuilds on people nobody could yet rule on.
     stage_b = _stage_b_ruled_call()
     assert '"${COMPLETE_ARGS[@]+"${COMPLETE_ARGS[@]}"}"' in stage_b
     i_call = TEXT.index('reconcile_legacy_members.py" --stage-b-survivor-view')
     setup = TEXT[:i_call]
     i_args = setup.rindex("COMPLETE_ARGS=()")
     guard = setup[i_args:]
-    assert 'if [[ "${PRODUCTION_LOAD}" -eq 1 ]]' in guard
+    assert 'if [[ "${FINAL_LOAD}" -eq 1 ]]' in guard
+    assert "PRODUCTION_LOAD" not in guard
     assert "COMPLETE_ARGS=(--require-complete-dispositions)" in guard
+
+
+def test_the_final_load_is_marked_by_its_flag_alone() -> None:
+    # Only the cutover command names the final load. A value inherited from the
+    # environment or derived from the target would put every production rebuild
+    # back under the cutover bar.
+    assert "FINAL_LOAD=0" in TEXT
+    assert TEXT.count("FINAL_LOAD=1") == 1
+    assert "--final-load)    FINAL_LOAD=1; shift ;;" in TEXT
+    # Every run says which bar it applied, so a cutover run missing the flag is
+    # visible in its own output.
+    assert "completeness:" in TEXT and "required (final load)" in TEXT
 
 
 def test_production_load_refuses_when_its_inputs_are_absent() -> None:

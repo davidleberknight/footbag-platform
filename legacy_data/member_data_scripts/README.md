@@ -45,8 +45,9 @@ There is one load path, no modes, entered through `run_legacy_members.sh --load`
 every run prints what it found. The recorded account rulings live in the private
 checkout under `private_data/stage_a_overrides/`, which the runner resolves by
 canonical path rather than from any variable. A production build (`deploy_to_aws.sh
---target production`) makes them mandatory and requires every membership-only
-person to carry a proposed link or a recorded disposition; a machine without them
+--target production`) makes them mandatory, and the final cutover load (the same
+deploy with `--final-member-load`) also requires every membership-only person to
+carry a proposed link or a recorded disposition; a machine without them
 loads on the mechanical merge rule and says so. The retired `--extract`,
 `--from-csv` and `--final-export` flags are refused by name rather than silently
 ignored. The runner's `--help` is authoritative for all of it.

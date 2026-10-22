@@ -185,6 +185,24 @@ if (( PUBLIC_REBUILD == 1 )) && [[ "$DEPLOY_TARGET" != "footbag-staging" ]]; the
   exit 1
 fi
 
+# --final-member-load marks the final cutover member load, which only a production
+# --all-data deploy performs. Refused anywhere else, ahead of the production gate,
+# so a mistyped command costs no typed confirmation; the orchestrator refuses it
+# again for a direct invocation.
+FINAL_MEMBER_LOAD_ASKED=0
+ALL_DATA_ASKED=0
+for arg in "${EXPANDED_ARGS[@]+"${EXPANDED_ARGS[@]}"}"; do
+  case "$arg" in
+    --final-member-load) FINAL_MEMBER_LOAD_ASKED=1 ;;
+    --all-data)          ALL_DATA_ASKED=1 ;;
+  esac
+done
+if (( FINAL_MEMBER_LOAD_ASKED == 1 )) && \
+   [[ "$DEPLOY_TARGET" != "footbag-production" || "$ALL_DATA_ASKED" -eq 0 ]]; then
+  echo "ERROR: --final-member-load is only meaningful on a production --all-data deploy." >&2
+  exit 1
+fi
+
 # Production has exactly two modes: code-only, and code with a database built in
 # this run by --all-data, which is all the data except the test personas, from
 # committed inputs. Refused here, ahead of the production gate, so the mistake
@@ -440,10 +458,12 @@ fi
 # 'Could not resolve hostname'. Catch it here.
 # Exported, not merely assigned. The legacy member load two scripts down reads
 # DEPLOY_TARGET to tell a production load from any other: on production it
-# refuses without the recorded account rulings and requires every
-# membership-only person to carry a proposed link or a recorded disposition. It
-# sees the value only through the environment, and a load that cannot see it
-# runs as a development load onto production without raising any error.
+# refuses without the recorded account rulings. (Requiring every membership-only
+# person to carry a proposed link or a recorded disposition belongs to the final
+# cutover load alone, and is turned on by --final-member-load, not by the
+# target.) It sees the value only through the environment, and a load that
+# cannot see it runs as a development load onto production without raising any
+# error.
 export DEPLOY_TARGET="${DEPLOY_TARGET:-footbag-staging}"
 # Avoid `awk ... exit` here: when awk exits before consuming all of ssh -G's
 # output, the upstream `ssh -G` receives SIGPIPE and `set -o pipefail` then

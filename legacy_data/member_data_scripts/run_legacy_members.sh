@@ -31,6 +31,9 @@
 #                      staging / /srv/footbag by the underlying writers. Without
 #                      it, --load writes nothing.
 #   --dry-run          validate + preview and stop cleanly (no write attempted).
+#   --final-load       this is the final cutover load: refuse unless every
+#                      membership-only person carries a proposed link or a
+#                      recorded disposition.
 #   --db PATH          target database (default: $FOOTBAG_DB_PATH or database/footbag.db).
 set -euo pipefail
 
@@ -53,11 +56,12 @@ MERGE_MAP_CSV="${OUT_DIR}/stage_a_merged_accounts.csv"
 
 usage() {
   cat >&2 <<'USAGE'
-Usage: run_legacy_members.sh --load [--apply] [--dry-run] [--db PATH]
+Usage: run_legacy_members.sh --load [--apply] [--dry-run] [--final-load] [--db PATH]
 
   --load             Validate + preview, run reconciliation (Stage A, Stage B, QC gate, honors re-run), then stop before applying (read-only).
   --apply            With --load, perform the real writes after the gate passes (reconciled members, then proposed links). Refused on production/staging.
   --dry-run          Validate + preview and stop cleanly (no write attempted).
+  --final-load       The final cutover load: refuse unless every membership-only person carries a proposed link or a recorded disposition.
   --db PATH          Target database (default: $FOOTBAG_DB_PATH or database/footbag.db).
 
 There is ONE load path, and every input it reads lives in the maintainers'
@@ -84,6 +88,7 @@ USAGE
 DO_LOAD=0
 DO_APPLY=0
 DRY_RUN=0
+FINAL_LOAD=0
 DB="${FOOTBAG_DB_PATH:-database/footbag.db}"
 
 while [[ $# -gt 0 ]]; do
@@ -91,6 +96,7 @@ while [[ $# -gt 0 ]]; do
     --load)          DO_LOAD=1; shift ;;
     --apply)         DO_APPLY=1; shift ;;
     --dry-run)       DRY_RUN=1; shift ;;
+    --final-load)    FINAL_LOAD=1; shift ;;
     # Flags this script no longer has are refused rather than ignored: a script or
     # a note that still passes one must be corrected, not silently given a
     # different load.
@@ -184,6 +190,7 @@ fi
 
 echo "==> member intake: $([[ "${PRODUCTION_LOAD}" -eq 1 ]] && echo 'PRODUCTION load' || echo 'development load')"
 echo "    account rulings: $([[ "${ADJUDICATIONS_READY}" -eq 1 ]] && echo "applied from ${PRIVATE_OVERRIDES}" || echo "NOT APPLIED (nothing readable at ${PRIVATE_OVERRIDES}; duplicate accounts merge on the mechanical rule alone)")"
+echo "    completeness:    $([[ "${FINAL_LOAD}" -eq 1 ]] && echo 'required (final load)' || echo 'not asserted (not the final load; the cutover load passes --final-load)')"
 
 if [[ "${DO_LOAD}" -eq 1 ]]; then
   if [[ ! -s "${PUBLISHED_CSV}" ]]; then
@@ -242,12 +249,16 @@ with open(sys.argv[1], newline="", encoding="utf-8") as fh:
   echo "==> reconcile: Stage A duplicate-account review"
   "${PY}" "${MDS}/reconcile_legacy_members.py" --stage-a --csv "${CSV}"
 
-  # Completeness is asserted on the production load alone: it refuses unless every
+  # Completeness is asserted on the final load alone: it refuses unless every
   # membership-only provisional person carries a proposed link or a recorded
-  # disposition, which is the right bar for the load that cannot be redone and too
-  # strict for a dev or CI run against partial data.
+  # disposition. That is the right bar for the load that cannot be redone, run on
+  # the final legacy export the rulings were fitted to. It is keyed on the explicit
+  # flag rather than the deploy target because every production rebuild before
+  # cutover replaces the database and can be redone, and its member data is not yet
+  # the final export, so requiring rulings against it would demand decisions about
+  # data that will change.
   COMPLETE_ARGS=()
-  if [[ "${PRODUCTION_LOAD}" -eq 1 ]]; then
+  if [[ "${FINAL_LOAD}" -eq 1 ]]; then
     COMPLETE_ARGS=(--require-complete-dispositions)
   fi
 
