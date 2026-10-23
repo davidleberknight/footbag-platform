@@ -22,6 +22,13 @@ import {
   type GallerySidecarData,
 } from '../../src/lib/curatorGallerySidecar';
 
+// The safety-verdicts file sits beside the sidecars and is not a gallery; the
+// seeder and the URL verifier skip it by name, so the scans here do too.
+const GALLERY_VERDICTS_FILE = 'url_verdicts.json';
+function gallerySidecarFiles(): string[] {
+  return listFiles('curated/galleries', /\.json$/).filter((f) => f !== GALLERY_VERDICTS_FILE);
+}
+
 function valid(): GallerySidecarData {
   return {
     id: 'gallery_test_sample',
@@ -242,7 +249,7 @@ describe('externalLinks (sidecar contract extension)', () => {
     const galleriesDir = path.join(process.cwd(), 'curated', 'galleries');
     // No suite writes here: in test mode the curator service refuses to touch
     // the real curated tree unless a test hands it a scratch root.
-    const files = listFiles('curated/galleries', /\.json$/);
+    const files = gallerySidecarFiles();
     // A scan that finds no sidecars passes having checked nothing.
     expect(files.length, 'no gallery sidecars found').toBeGreaterThan(0);
     for (const f of files) {
@@ -267,7 +274,7 @@ describe('catch-all gallery does not double-list its sibling source galleries', 
 
   async function loadGalleries(): Promise<Map<string, GallerySidecarData>> {
     const galleriesDir = path.join(process.cwd(), 'curated', 'galleries');
-    const files = listFiles('curated/galleries', /\.json$/);
+    const files = gallerySidecarFiles();
     const out = new Map<string, GallerySidecarData>();
     for (const f of files) {
       const data = JSON.parse(await fs.readFile(path.join(galleriesDir, f), 'utf-8')) as GallerySidecarData;

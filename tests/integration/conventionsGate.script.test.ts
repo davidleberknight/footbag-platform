@@ -537,6 +537,71 @@ describe('the convention gate: rules about src/', () => {
   });
 });
 
+describe('the convention gate: nothing under src/ is generated', () => {
+  const GENERATED_FAIL = 'a file under src/ is marked generated';
+  const WRITE_FAIL = 'a script writes into src/';
+
+  it('refuses a generated module under src/, judged before it is added', () => {
+    // A generated module under src/ can never be rebuilt once its generator is
+    // deleted at cutover; this one is new, so the gate must see it unstaged.
+    const res = inFixtureRepo({}, {
+      untracked: {
+        'src/content/thing.ts': '// thing.ts\n// GENERATED FILE — do not hand-edit.\nexport const X = 1;\n',
+      },
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('src/content/thing.ts');
+    expect(res.stderr).toContain(GENERATED_FAIL);
+  });
+
+  it('accepts hand-written files, a marker past the header, and the one exempt module', () => {
+    const lateMarker = `${'// line\n'.repeat(15)}// GENERATED is mentioned in a comment far below the header\n`;
+    const res = inFixtureRepo({
+      'src/services/plain.ts': '// Builds the page; nothing here is generated.\nexport const y = 2;\n',
+      'src/services/late.ts': `${lateMarker}export const z = 3;\n`,
+      'src/content/freestyleObservationalUniverse.ts': '// GENERATED FILE\nexport const U = [];\n',
+    });
+    expect(res.exitCode, res.stderr).toBe(0);
+    expectCheckRan(res, 'no generated file under src/');
+    expect(res.stderr).not.toContain(GENERATED_FAIL);
+  });
+
+  it('refuses a script that binds a path under src/ and writes through it', () => {
+    // The generator shape: a name bound to a src/ path, then written, which is
+    // how a generated module arrives in the app source.
+    const res = inFixtureRepo({
+      'freestyle/scripts/build_thing.py':
+        'from pathlib import Path\nREPO = Path(__file__).parents[2]\nOUT = REPO / "src/content/thing.ts"\nOUT.write_text("x")\n',
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('freestyle/scripts/build_thing.py:4:OUT.write_text("x")');
+    expect(res.stderr).toContain(WRITE_FAIL);
+  });
+
+  it('refuses a shell script that redirects output into src/', () => {
+    const res = inFixtureRepo({
+      'scripts/gen.sh': '#!/usr/bin/env bash\necho "export const A = 1;" > src/content/a.ts\n',
+    });
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toContain('scripts/gen.sh:2:');
+    expect(res.stderr).toContain(WRITE_FAIL);
+  });
+
+  it('accepts a script that only reads src/, one that writes elsewhere, and the exempt generators', () => {
+    const res = inFixtureRepo({
+      'legacy_data/scripts/audit.py':
+        'from pathlib import Path\nREPO_ROOT = Path(__file__).parents[2]\nSERVICE = REPO_ROOT / "src" / "services" / "x.ts"\nREPORT = REPO_ROOT / "legacy_data" / "out" / "r.csv"\ntext = SERVICE.read_text()\nREPORT.write_text(text)\n',
+      'freestyle/scripts/build_observational_universe_content.py':
+        'from pathlib import Path\nREPO = Path(__file__).parents[2]\nOUT = REPO / "src/content/freestyleObservationalUniverse.ts"\nOUT.write_text("x")\n',
+      'legacy_data/scripts/generate_world_map_svg.py':
+        'from pathlib import Path\nOUTPUT = Path(__file__).parent / "src" / "public" / "img" / "world-map.svg"\nOUTPUT.write_text("x")\n',
+    });
+    expect(res.exitCode, res.stderr).toBe(0);
+    expectCheckRan(res, 'no script writes into src/');
+    expect(res.stderr).not.toContain(WRITE_FAIL);
+  });
+});
+
 describe('the convention gate: one renderer for an action result', () => {
   // The outcome-notice partial as it ships: the one file allowed to write the
   // three outcome classes.

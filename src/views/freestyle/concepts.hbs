@@ -1122,7 +1122,7 @@
     <p>
       Job's original proposal sets out the core grammar:
     </p>
-    <pre><code class="font-mono">(toe | clip) &gt;
+    <pre tabindex="0" role="region" aria-labelledby="jobs-notation"><code class="font-mono">(toe | clip) &gt;
 [(same | op)(in | out) dexterity]* &gt;
 (same | op)(toe | clip)</code></pre>
     <p>
@@ -1423,8 +1423,8 @@
       <dt id="op-side-op"><code>OP</code></dt>
       <dd>The opposite leg from the most recent side-bearing component. The other leg performs the move.</dd>
     </dl>
-    <p>Worked example, tracking which leg acts as you read left to right:</p>
-    <pre><code class="font-mono">LEFT set &gt; OP dex   = RIGHT dex
+    <p id="op-side-worked-example">Worked example, tracking which leg acts as you read left to right:</p>
+    <pre tabindex="0" role="region" aria-labelledby="op-side-worked-example"><code class="font-mono">LEFT set &gt; OP dex   = RIGHT dex
 RIGHT dex &gt; OP catch = LEFT catch</code></pre>
     <p>So a set and a catch that are each <code>OP</code> relative to the step before
       them land back on the setting leg, not on the opposite one.</p>

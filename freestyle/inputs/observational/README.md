@@ -1,10 +1,8 @@
 # freestyle/inputs/observational/
 
-Committed inputs for the observational-layer content generators
-(`freestyle/scripts/build_observational_universe_content.py` and
-`freestyle/scripts/build_tracked_names_content.py`), which emit
-`src/content/freestyleObservationalUniverse.ts` and
-`src/content/freestyleTrackedNames.ts`. They live under `freestyle/inputs/`
+Committed inputs for the observational-layer content generator
+(`freestyle/scripts/build_observational_universe_content.py`), which emits
+`src/content/freestyleObservationalUniverse.ts`. They live under `freestyle/inputs/`
 so the freestyle pipeline stays self-contained and independent of the
 `legacy_data/` freeze. Like the rest of the pipeline, these inputs are pre-go-live
 and are deleted after cutover.

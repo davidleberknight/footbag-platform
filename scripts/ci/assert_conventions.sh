@@ -397,6 +397,73 @@ if [ -n "$hits" ]; then
 fi
 fi
 
+# Rule: no file under src/ is generated.
+# Reason: at cutover the generators and their inputs are deleted, so a
+# generated module could never be rebuilt, and curator data belongs in the
+# database, not in code. A generated file announces itself in its header, so
+# the first 15 lines of every file under src/ are read for a generated marker.
+# The one exemption is the Emerging Vocabulary module, which leaves src/ when
+# its data moves into the database; delete the exemption in the same change.
+# Reads through git, so it judges a new file before it is added and never a
+# gitignored one.
+check "no generated file under src/"
+generated_src_exempt='src/content/freestyleObservationalUniverse.ts'
+generated_src_hits=$(git ls-files -z --cached --others --exclude-standard -- src \
+  | xargs -0 -r awk 'FNR <= 15 && /GENERATED|DO NOT EDIT|Regenerate:/ && !(FILENAME in seen) { seen[FILENAME] = 1; print FILENAME }' 2>/dev/null \
+  | grep -vxF "$generated_src_exempt" \
+  || true)
+if [ -n "$generated_src_hits" ]; then
+  echo "$generated_src_hits" >&2
+  echo "  FAIL: a file under src/ is marked generated; nothing under src/ may be generated, because its generator is deleted at cutover. Move the data into the database or hand-author the file." >&2
+  violations=$((violations + 1))
+fi
+
+# Rule: no script writes into src/.
+# Reason: the same rule from the other side. A generator that writes into src/
+# is how a generated module arrives. A script under freestyle/, legacy_data/ or
+# scripts/ fails when it redirects shell output into src/, calls a write on a
+# path literal under src/, or binds a name to a path under src/ and then writes
+# through that name. Scripts that only read src/ pass. Two exemptions: the
+# Emerging Vocabulary generator, deleted with its module, and the world-map
+# builder, which draws one static image from a public map dataset once and
+# never needs rerunning, so its committed output is a site asset, not code.
+check "no script writes into src/"
+src_write_out=$(git ls-files -z --cached --others --exclude-standard -- freestyle legacy_data scripts \
+  | python3 -c '
+import re, sys
+EXEMPT = {
+    "freestyle/scripts/build_observational_universe_content.py",
+    "legacy_data/scripts/generate_world_map_svg.py",
+    "scripts/ci/assert_conventions.sh",
+}
+SRC = r"""(?:["\x27]src["\x27/]|/src/)"""
+SHELL_REDIRECT = re.compile(r"""(?:>>?|\btee(?:\s+-a)?)\s*["\x27]?(?:\$\{?\w+\}?/)?src/""")
+INLINE_WRITE = re.compile(r"""(?:writeFileSync|writeFile|appendFileSync)\(\s*[^,)]*""" + SRC)
+BIND = re.compile(r"""^\s*(?:const\s+|let\s+)?([A-Za-z_]\w*)\s*=\s*.*""" + SRC)
+for path in sys.stdin.read().split("\0"):
+    if not path or path in EXEMPT or not path.endswith((".py", ".sh", ".ts", ".js", ".mjs")):
+        continue
+    try:
+        text = open(path, encoding="utf-8", errors="replace").read()
+    except OSError:
+        continue
+    lines = text.splitlines()
+    names = {m.group(1) for line in lines for m in [BIND.match(line)] if m}
+    for n, line in enumerate(lines, 1):
+        hit = SHELL_REDIRECT.search(line) or INLINE_WRITE.search(line)
+        for name in names:
+            esc = re.escape(name)
+            if re.search(esc + r"""\.(?:write_text|write_bytes)\(|""" + esc + r"""\.open\(\s*["\x27][wa]|open\(\s*""" + esc + r"""\s*,\s*["\x27][wa]|writeFileSync\(\s*""" + esc + r"""\b""", line):
+                hit = True
+        if hit:
+            print(f"{path}:{n}:{line.strip()}")
+' || true)
+if [ -n "$src_write_out" ]; then
+  echo "$src_write_out" >&2
+  echo "  FAIL: a script writes into src/; nothing generates code under src/. Write the output to the database or to a file outside src/." >&2
+  violations=$((violations + 1))
+fi
+
 # Rule: templates must not carry inline style="...", <style> blocks, or
 # inline <script> tags.
 # Reason: The app's Content-Security-Policy is style-src 'self' and

@@ -1,18 +1,17 @@
 #!/usr/bin/env bash
-# Regeneration-is-a-no-op guard for the generated freestyle content modules.
+# Regeneration-is-a-no-op guard for the last generated freestyle content module.
 #
-# Pre-go-live only. The app is moving off generated TypeScript entirely: these
-# modules become database-backed, and this guard is deleted with their
-# generators before cutover.
+# Pre-go-live only. The app is moving off generated TypeScript entirely: this
+# module becomes database-backed, and this guard is deleted with its generator
+# before cutover.
 #
-# src/content/freestyleObservationalUniverse.ts and
-# src/content/freestyleTrackedNames.ts are generated from committed inputs plus,
-# for the observational module, the adjudication table that decides what each
-# observational name IS. This runs both generators and fails if a committed
-# module differs from a fresh regeneration, i.e. an input changed without the
-# module being regenerated and committed. (The live publication-state exclusion
-# for the rendered Emerging Vocabulary surface is applied at request time by the
-# service, not baked into these modules.)
+# src/content/freestyleObservationalUniverse.ts is generated from committed
+# inputs plus the adjudication table that decides what each observational name
+# IS. This runs the generator and fails if the committed module differs from a
+# fresh regeneration, i.e. an input changed without the module being
+# regenerated and committed. (The live publication-state exclusion for the
+# rendered Emerging Vocabulary surface is applied at request time by the
+# service, not baked into this module.)
 #
 # The adjudication authority is a database table, and this tier has no database,
 # so the guard builds a disposable one from the committed inputs: the dictionary
@@ -29,7 +28,6 @@ cd "$(dirname "$0")/../.."
 
 MODULES=(
   src/content/freestyleObservationalUniverse.ts
-  src/content/freestyleTrackedNames.ts
 )
 
 WORKDIR="$(mktemp -d -t footbag-generated-content-XXXXXX)"
@@ -58,16 +56,14 @@ done
 
 FREESTYLE_EV_AUTHORITY_DB="${AUTHORITY_DB}" \
   python3 freestyle/scripts/build_observational_universe_content.py >/dev/null
-python3 freestyle/scripts/build_tracked_names_content.py >/dev/null
 
 if git diff --exit-code -- "${MODULES[@]}" >/dev/null; then
   echo "[generated-content] current: regeneration is a no-op."
 else
   echo "[generated-content] FAIL: a committed generated module is stale vs its inputs." >&2
-  echo "  A source input changed without regenerating. Re-run the generators and" >&2
-  echo "  commit the regenerated modules:" >&2
+  echo "  A source input changed without regenerating. Re-run the generator and" >&2
+  echo "  commit the regenerated module:" >&2
   echo "    python3 freestyle/scripts/build_observational_universe_content.py" >&2
-  echo "    python3 freestyle/scripts/build_tracked_names_content.py" >&2
   git --no-pager diff --stat -- "${MODULES[@]}" >&2
   # A local run leaves the regenerated modules in the tree, so the diff is there
   # to read afterwards. Inside the clean room it is not: that worktree is deleted

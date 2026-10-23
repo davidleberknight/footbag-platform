@@ -3,9 +3,8 @@
 
 Read-only over the committed observational-inputs CSVs. Emits a deterministic,
 typed TS content module that the freestyle service reads to render the
-/freestyle/observational governance surface. Mirrors the existing
-build_tracked_names_content.py → freestyleTrackedNames.ts pattern (generated TS
-content, schema-free, reversible — no DB).
+/freestyle/observational governance surface (generated TS content,
+schema-free, reversible — no DB).
 
 The module is the DATA spine (one row per documented observational name +
 identity grouping + question/decision registries + overall stats), and it
@@ -85,9 +84,8 @@ OBS = FREESTYLE / "inputs/observational"
 OUT = REPO / "src/content/freestyleObservationalUniverse.ts"
 # Canonical CSVs (loader 17 + loader 19). Any slug present here is
 # canonical-published; the observational layer must never also carry it (layer
-# separation forbids one slug in both). Mirrors the dual-gate in
-# build_tracked_names_content.py so a promoted slug leaves this surface on the
-# next regen even when the upstream packet CSVs still list it.
+# separation forbids one slug in both), so a promoted slug leaves this surface
+# on the next regen even when the upstream packet CSVs still list it.
 TRICKS_CSV = FREESTYLE / "inputs/base_dictionary/tricks.csv"
 RED_ADD_CSV = FREESTYLE / "inputs/curated/tricks/red_additions_2026_04_20.csv"
 # The adjudication authority: one row per adjudicated observational name in the

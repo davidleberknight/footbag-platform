@@ -19,9 +19,6 @@
  *    plus butterfly-kick all now appear in FIRST_CLASS_TIER_2 so the
  *    browse card renders the JOB + ADD row (was: bare op-notation text
  *    on the trick-detail page only).
- *
- * Observational backlog: wrap moves out of TRACKED_DOCUMENTED_NAMES;
- * total decrements (was 554 → 553).
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from 'supertest';
@@ -156,28 +153,4 @@ describe('First-class browse-card rendering — JOB+ADD card renders for promote
       expect(card).not.toContain('dict-trick-row-pending-value');
     },
   );
-});
-
-describe('Observational backlog — wrap is not counted', () => {
-  it('TRACKED_DOCUMENTED_TOTAL is bounded above (wrap + later promotions removed)', async () => {
-    const { TRACKED_DOCUMENTED_TOTAL } = await import('../../src/content/freestyleTrackedNames');
-    // The total fluctuates: promotions drop it; corpus expansions
-    // (one expansion added ~1700 names to the reconciliation audit)
-    // raise it. The load-bearing check is slug-absence (see the wrap
-    // assertion below); this count assertion is a sanity ceiling to
-    // ensure the file regeneration didn't catastrophically multiply
-    // the corpus.
-    expect(TRACKED_DOCUMENTED_TOTAL).toBeGreaterThan(0);
-    expect(TRACKED_DOCUMENTED_TOTAL).toBeLessThanOrEqual(5000);
-  });
-
-  it('wrap does NOT appear in TRACKED_DOCUMENTED_NAMES', async () => {
-    const { TRACKED_DOCUMENTED_NAMES } = await import('../../src/content/freestyleTrackedNames');
-    const allSlugs = new Set<string>();
-    for (const group of TRACKED_DOCUMENTED_NAMES) {
-      for (const name of group.names) allSlugs.add(name.slug);
-    }
-    expect(allSlugs.has('wrap')).toBe(false);
-  });
-
 });

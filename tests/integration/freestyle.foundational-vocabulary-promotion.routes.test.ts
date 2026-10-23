@@ -264,30 +264,6 @@ describe('Foundational-vocabulary promotion — canonical browse view (/freestyl
 });
 
 describe('Foundational-vocabulary promotion — Emerging Vocabulary does not count the promoted slugs', () => {
-  it('TRACKED_DOCUMENTED_TOTAL is bounded after promoted slugs moved to canonical-published state', async () => {
-    // The total fluctuates: promotions drop it; corpus expansions
-    // raise it (the reconciliation audit added ~1700 names). The
-    // load-bearing check is slug-absence (see the next assertion
-    // below); this count assertion is a sanity ceiling.
-    const { TRACKED_DOCUMENTED_TOTAL } = await import('../../src/content/freestyleTrackedNames');
-    expect(TRACKED_DOCUMENTED_TOTAL).toBeGreaterThan(0);
-    expect(TRACKED_DOCUMENTED_TOTAL).toBeLessThanOrEqual(5000);
-  });
-
-  it('the 4 promoted slugs do NOT appear in TRACKED_DOCUMENTED_NAMES', async () => {
-    const { TRACKED_DOCUMENTED_NAMES } = await import('../../src/content/freestyleTrackedNames');
-    const allTrackedSlugs = new Set<string>();
-    for (const group of TRACKED_DOCUMENTED_NAMES) {
-      for (const name of group.names) {
-        allTrackedSlugs.add(name.slug);
-      }
-    }
-    expect(allTrackedSlugs.has('around_the_world_kick')).toBe(false);
-    expect(allTrackedSlugs.has('triple_around_the_world')).toBe(false);
-    expect(allTrackedSlugs.has('double_around_the_world_heel')).toBe(false);
-    expect(allTrackedSlugs.has('clipper_kick')).toBe(false);
-  });
-
   it('/freestyle/observational page renders a reduced count, not 558', async () => {
     const res = await page('/freestyle/observational');
     expect(res.status).toBe(200);

@@ -1891,24 +1891,6 @@ section.home-media { padding-top: 0; }
   text-transform: uppercase;
 }
 
-/* ── Home section cards ─────────────────────────────────────── */
-.home-sections {
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-}
-.home-section-card {
-  display: flex;
-  flex-direction: column;
-  color: var(--text);
-  text-decoration: none;
-}
-.home-section-card:hover { text-decoration: none; }
-.home-section-card h2 { margin-bottom: var(--space-sm); }
-.home-section-card p  { color: var(--text-muted); flex: 1; }
-.home-section-icon {
-  font-size: 2.25rem;
-  margin-bottom: var(--space-lg);
-}
-
 /* ── Buttons ─────────────────────────────────────────────────── */
 .btn {
   display: inline-block;
@@ -3839,6 +3821,11 @@ main fieldset > :not(:has(~ :not([type="hidden"]))) { margin-bottom: 0; }
   line-height: 1.5;
   max-width: 55ch;
 }
+
+/* Aligned ASCII notation inside running content keeps its spacing, so it
+   scrolls inside its own labelled, focusable box instead of widening the page
+   on a phone. */
+main pre[role="region"] { overflow-x: auto; }
 
 /* Verbatim historical-article reproduction (Jobs notation): monospace,
    preserves the original ASCII layout, scrolls horizontally on narrow screens. */
@@ -6993,7 +6980,7 @@ a.trick-hero-meta-chip--media:hover {
 }
 .glossary-family-card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
   gap: var(--space-lg);
   margin: var(--space-md) 0 var(--space-2xl) 0;
 }
@@ -7171,7 +7158,7 @@ a.trick-hero-meta-chip--media:hover {
    3-row labeled fields, optional collapsed observational note. */
 .glossary-add-examples-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
   gap: var(--space-lg);
   margin: var(--space-md) 0 var(--space-xl) 0;
 }
