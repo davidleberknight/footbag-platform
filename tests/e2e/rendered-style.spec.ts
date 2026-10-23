@@ -24,7 +24,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { evaluate, formatFinding, tableNamesFromSchema, type Finding } from './helpers/renderedStyle';
 import { compareToBaseline, formatBaseline, formatBaselineEntries, measuredKey, normalisePageProblem, parseBaseline, shrinkBaseline } from './helpers/renderedStyleDiff';
-import { capture, DESKTOP, PHONE, VIEW_HEADER } from './helpers/renderedStyleCapture';
+import { capture, DESKTOP, MEASURE_SCRIPT, PHONE, VIEW_HEADER, walkFocus } from './helpers/renderedStyleCapture';
 import { walkViews } from './helpers/pageWalk';
 import { watchPageProblems } from './helpers/pageProblems';
 import { scanWcagAa } from './helpers/axe';
@@ -154,13 +154,38 @@ test('every page view meets the layout standard at phone and desktop width', asy
     await probe.goto('/legal', { waitUntil: 'load' });
     // Known text in both faces, styled by the site's own stylesheet, so the probe
     // does not depend on what content the seeded pages happen to hold.
-    await probe.evaluate(async () => {
+    // Each weight the stylesheet uses is its own font file, and accented
+    // letters must come from the same face, not a system fallback.
+    const bodyProbes = {
+      body: '<p data-font-probe="body">Footbag 0123</p>',
+      medium: '<p class="fw-500" data-font-probe="medium">Footbag 0123</p>',
+      semibold: '<p class="fw-600" data-font-probe="semibold">Footbag 0123</p>',
+      bold: '<p><strong data-font-probe="bold">Footbag 0123</strong></p>',
+      accented: '<p data-font-probe="accented">Café Ñandú Øresund Łódź</p>',
+    };
+    await probe.evaluate(async (html) => {
       const main = document.querySelector('main') as HTMLElement;
-      main.insertAdjacentHTML('beforeend', '<p data-font-probe="body">Footbag 0123</p><pre class="font-mono" data-font-probe="mono">Footbag 0123</pre>');
+      main.insertAdjacentHTML('beforeend', `${html}<pre class="font-mono" data-font-probe="mono">Footbag 0123</pre>`);
+      await new Promise((r) => requestAnimationFrame(r));
       await document.fonts.ready;
-    });
-    expect(await platformFonts(probe, '[data-font-probe="body"]'), 'body text must render in the Inter the site serves').toEqual(['Inter']);
+    }, Object.values(bodyProbes).join(''));
+    for (const name of Object.keys(bodyProbes)) {
+      const fonts = await platformFonts(probe, `[data-font-probe="${name}"]`);
+      expect(fonts, `${name} text must render only in the Inter the site serves, found ${fonts.join(', ')}`)
+        .toEqual([expect.stringMatching(/^Inter\b(?!.*\(system\))/)]);
+    }
+    const loadedWeights = await probe.evaluate(() => [...document.fonts]
+      .filter((f) => f.family.replace(/"/g, '') === 'Inter' && f.status === 'loaded').map((f) => f.weight));
+    expect(loadedWeights, 'every Inter weight the stylesheet uses must load its own file').toEqual(expect.arrayContaining(['400', '500', '600', '700']));
     expect(await platformFonts(probe, '[data-font-probe="mono"]'), 'monospace must render in the JetBrains Mono the site serves').toEqual(['JetBrains Mono']);
+
+    // A root token comes back as authored, so one written as a named colour
+    // would match no computed colour and the grey-text and palette rules would
+    // go silent; the capture reads every token as the browser paints it.
+    await probe.evaluate(() => document.documentElement.style.setProperty('--rs-probe-token', 'rebeccapurple'));
+    const probed = await probe.evaluate(fs.readFileSync(MEASURE_SCRIPT, 'utf8') +
+      ';globalThis.__footbagMeasure({ tokens: ["--rs-probe-token"] }).then((c) => c.tokens["--rs-probe-token"])');
+    expect(probed, 'a token written as a named colour must be read as the colour it paints').toBe('rgb(102, 51, 153)');
     await probe.close();
   }
 
@@ -229,12 +254,16 @@ test('every page view meets the layout standard at phone and desktop width', asy
         }
         visited.add(measuredKey(target.template, viewport.width));
         visited.add(measuredKey(target.template, 0));
-        findings.push(...evaluate(await capture(page, target.template), ctx));
+        const cap = await capture(page, target.template);
         if (viewport === DESKTOP) {
           for (const v of await scanWcagAa(page, { disableRules: ['color-contrast'] })) {
             findings.push({ ...base, rule: `axe-${v.id}`, selector: v.sampleTargets[0] ?? 'document', measured: `${v.nodes} node(s): ${v.help}` });
           }
+          // Focus looks the same at every width, and walking it scrolls the
+          // page and can open what a script shows on focus, so it runs last.
+          cap.focus = await walkFocus(page);
         }
+        findings.push(...evaluate(cap, ctx));
       } finally {
         if (own) {
           problemLines.push(...problems.list);
@@ -256,7 +285,7 @@ test('every page view meets the layout standard at phone and desktop width', asy
   // baseline down; the CI job keeps it with the run's other results.
   fs.writeFileSync(test.info().outputPath('rendered-style-findings.txt'), `${findings.map(formatFinding).sort().join('\n')}\n`);
 
-  const header = '# Known rendered-style findings: rule, view, viewport, count. The check lowers these itself as findings are fixed.\n';
+  const header = '# Known rendered-style findings: rule, view, viewport, count, elements. The check lowers these itself as findings are fixed.\n';
   if (process.env.RENDERED_STYLE_WRITE_BASELINE === '1') {
     // The deliberate escape hatch: accept every current finding, new ones included.
     fs.writeFileSync(BASELINE, header + formatBaseline(findings));
@@ -285,6 +314,7 @@ test('every page view meets the layout standard at phone and desktop width', asy
     ...reachedButExempt.map((t) => `exempt view ${t} is reached by the walk; remove its exemption`),
     ...verdict.unexpected.map((f) => `new finding (${accept}): ${formatFinding(f)}`),
     ...verdict.exceeded.map((e) => `more than listed (${accept}): ${e.entry.rule} ${e.entry.template} @${e.entry.viewport} found ${e.count}, listed ${e.entry.max}`),
+    ...verdict.swapped.map((e) => `other elements than listed (${accept}): ${e.entry.rule} ${e.entry.template} @${e.entry.viewport} found ${e.count} on elements the baseline does not name`),
     ...walkNotes,
   ];
   expect(report.join('\n'), `rendered-style check over ${targets.length} pages:\n${report.join('\n')}`).toBe('');

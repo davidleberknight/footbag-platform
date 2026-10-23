@@ -1,1 +1,7 @@
-# Known rendered-style findings: rule, view, viewport, count. The check lowers these itself as findings are fixed.
+# Known rendered-style findings: rule, view, viewport, count, elements. The check lowers these itself as findings are fixed.
+colour-off-palette	freestyle/by-the-numbers	1280	7	dd8d58a1
+colour-off-palette	freestyle/by-the-numbers	390	7	dd8d58a1
+colour-off-palette	freestyle/jobs-notation-article	1280	1	b3eed40d
+colour-off-palette	freestyle/jobs-notation-article	390	1	b3eed40d
+colour-off-palette	freestyle/trick-shell	1280	2	e264a134
+colour-off-palette	freestyle/trick-shell	390	2	e264a134

@@ -14,7 +14,7 @@ import { test, expect, type Page } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import { evaluate, tableNamesFromSchema, type RuleId } from './helpers/renderedStyle';
-import { capture, DESKTOP, PHONE } from './helpers/renderedStyleCapture';
+import { capture, DESKTOP, PHONE, walkFocus } from './helpers/renderedStyleCapture';
 import { submitForm } from './helpers/submitForm';
 
 const STYLESHEET = path.resolve(__dirname, '../../src/public/css/style.css');
@@ -140,6 +140,8 @@ const CASES: Case[] = [
     red: [
       '<main><input type="text" placeholder="Name" aria-label="Name"></main>',
       '<main><label class="visually-hidden" for="n">Name</label><input id="n" type="text"></main>',
+      '<main><label style="position:absolute;left:-9999px" for="n">Name</label><input id="n" type="text"></main>',
+      '<main><label style="position:absolute;clip-path:inset(50%)" for="n">Name</label><input id="n" type="text"></main>',
     ],
     green: '<main><label for="n">Name</label> <input id="n" type="text"></main>',
   },
@@ -158,7 +160,53 @@ const CASES: Case[] = [
     ],
     green: '<main><p>First block of text.</p><p>Second block, one paragraph gap below.</p></main>',
   },
+  {
+    rule: 'text-overlaps',
+    viewport: DESKTOP,
+    red: ['<main><p style="margin:0">A line of text.</p><p style="margin:-12px 0 0">Another line pulled up over it.</p></main>'],
+    green: '<main><p>A line of text.</p><p>Another line below it.</p></main>',
+  },
+  {
+    rule: 'text-clipped',
+    viewport: DESKTOP,
+    red: [
+      '<main><p style="width:120px;white-space:nowrap;overflow:hidden">A club name far too long for its box</p></main>',
+      '<main><p style="height:20px;overflow:hidden">Line one of a caption<br>line two<br>line three</p></main>',
+    ],
+    green: '<main><p style="width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">A club name far too long for its box</p></main>',
+  },
+  {
+    rule: 'colour-off-palette',
+    viewport: DESKTOP,
+    red: ['<main><p style="color:#123456">Text in a colour no token holds.</p></main>', '<main><button>Unstyled browser button</button></main>'],
+    green: '<main><p style="color:var(--text-muted)">Text in a token colour.</p></main>',
+  },
+  {
+    rule: 'prose-leading-tight',
+    viewport: DESKTOP,
+    red: [`<main><p style="line-height:1.1">${LONG}</p></main>`],
+    green: `<main><p>${LONG}</p></main>`,
+  },
+  {
+    rule: 'image-unsized',
+    viewport: DESKTOP,
+    red: ['<main><img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" alt="Logo"></main>'],
+    green: '<main><img src="data:image/gif;base64,R0lGODlhAQABAAAAACw=" alt="Logo" width="40" height="40"></main>',
+  },
 ];
+
+test('a control whose keyboard focus draws nothing is reported, and one with the site\'s focus style is not', async ({ page }) => {
+  // A keyboard reader tabbing past a control with no focus indicator cannot tell where they are.
+  const focused = async (body: string) => {
+    const cap = await plant(page, body, DESKTOP);
+    cap.focus = await walkFocus(page);
+    return evaluate(cap, ctx, new Set<RuleId>(['focus-not-visible']));
+  };
+  // The site's link focus style underlines and darkens a link; the planted one pins all of that off.
+  const red = await focused('<main><p><a href="/x" style="outline:none;text-decoration:none;color:var(--primary-ink)">Bare link</a></p></main>');
+  expect(red.map((f) => f.selector)).toEqual(['body>main>p>a']);
+  expect(await focused('<main><p><a href="/x">Site link</a></p></main>')).toEqual([]);
+});
 
 test('a block wider than the phone is reported even when the page clips sideways', async ({ page }) => {
   // A clipped body hides what is past the edge, so the reader cannot scroll to it;
@@ -166,8 +214,8 @@ test('a block wider than the phone is reported even when the page clips sideways
   await plant(page, '<main><div style="width:600px">A block wider than the phone</div></main>', PHONE);
   await page.addStyleTag({ content: 'body { overflow-x: hidden; }' });
   const cap = await capture(page, 'planted');
-  await page.evaluate(() => window.scrollTo(500, 0));
-  expect(await page.evaluate(() => window.scrollX), 'the page scrolled sideways, so the clipping premise no longer holds').toBe(0);
+  // A script may still scroll a clipped page, and the site scrolls smoothly, so the premise is read from the clip itself.
+  expect(await page.evaluate(() => getComputedStyle(document.body).overflowX), 'the body no longer clips sideways, so the premise no longer holds').toBe('hidden');
   const found = evaluate(cap, ctx, new Set<RuleId>(['page-overflow']));
   expect(found.map((f) => f.measured)).toEqual([expect.stringContaining('culprits: body>main>div')]);
 });

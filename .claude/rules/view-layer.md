@@ -210,7 +210,7 @@ discipline and the shared classes; per-section classes are in the stylesheet.
   `.btn-primary`, `.btn-outline`, `.btn-inverse`, `.btn-sm`, `.action-link`, `.tag-chip`; forms
   `.form-block`, `.form-field`, `.form-hint`, `.form-fieldset`, `.form-actions`, `.filter-bar`;
   text `.text-muted` (metadata only), `.text-center`, `.fs-sm`, `.fw-600`.
-- Spacing utilities (`.mt-1` to `.mt-10`, `.mb-0` to `.mb-10`) take their values from the
+- Spacing utilities (`.mt-1` to `.mt-10`, `.mb-0` to `.mb-8`) take their values from the
   `--space-*` role tokens and are not a tuning tool: a gap belongs to the shared component that
   owns it and is never adjusted per template (the Spacing Rhythm design decision).
 - The vocabulary is shared (required across all public pages) plus per-section (required only within

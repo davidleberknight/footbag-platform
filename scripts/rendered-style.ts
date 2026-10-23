@@ -30,7 +30,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { chromium, type BrowserContext } from '@playwright/test';
-import { evaluate, formatFinding, tableNamesFromSchema, type Capture } from '../tests/e2e/helpers/renderedStyle';
+import { evaluate, formatFinding, layoutShiftNote, tableNamesFromSchema, type Capture } from '../tests/e2e/helpers/renderedStyle';
 import { diffCaptures, isEmptyDiff, summariseDiff } from '../tests/e2e/helpers/renderedStyleDiff';
 import { MEASURE_SCRIPT, measureUrl } from '../tests/e2e/helpers/renderedStyleCapture';
 
@@ -90,6 +90,8 @@ async function cmdUrl(o: Options): Promise<number> {
         total += findings.length;
         console.log(`${url} @${width} (${cap.template ?? 'view unknown'}): ${findings.length} finding(s)`);
         for (const f of findings) console.log(`  ${formatFinding(f)}`);
+        const shift = layoutShiftNote(cap);
+        if (shift) console.log(`  note: ${shift}`);
       }
     }
   });

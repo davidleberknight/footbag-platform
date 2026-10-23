@@ -17,7 +17,7 @@
  * 16, 24 and 32px (24px at most on a phone).
  */
 
-export const CAPTURE_SCHEMA = 1 as const;
+export const CAPTURE_SCHEMA = 2 as const;
 
 /**
  * The computed properties every element records, in a fixed order. The
@@ -68,9 +68,28 @@ export const STYLE_PROPS = [
   'column-gap',
   'list-style-type',
   'clip-path',
+  'overflow-y',
+  'text-overflow',
+  '-webkit-line-clamp',
+  'float',
+  'aspect-ratio',
+  'outline-style',
+  'outline-width',
+  'outline-color',
 ] as const;
 
 export type StyleProp = (typeof STYLE_PROPS)[number];
+
+/**
+ * The short hash of an element's own text that its key carries, so a sibling
+ * inserted before it leaves its key alone. The browser script computes the
+ * same hash; a unit test runs both on one page.
+ */
+export function textHash(s: string): string {
+  let h = 5381;
+  for (let k = 0; k < s.length; k++) h = (Math.imul(h, 33) ^ s.charCodeAt(k)) >>> 0;
+  return h.toString(36);
+}
 
 /** Root custom properties resolved at capture time, used by the grey-text rules. */
 export const DEFAULT_TOKENS = ['--text', '--text-muted', '--text-subtle', '--bg', '--primary-ink', '--secondary', '--border'] as const;
@@ -92,6 +111,8 @@ export interface ElementRecord {
     ariaHidden?: true;
     disabled?: true;
     href?: true;
+    /** An image carrying both width and height attributes, which fix its shape before it loads. */
+    sized?: true;
     role?: string;
     /** The aria-live politeness, lowercased; a live region announces messages. */
     live?: string;
@@ -101,8 +122,8 @@ export interface ElementRecord {
     named?: true;
   };
   rect: Rect;
-  /** Present only on an element whose content overflows it horizontally. */
-  scroll?: { sw: number; cw: number };
+  /** Present only on an element whose content overflows it, across or down: scroll and client sizes. */
+  scroll?: { sw: number; cw: number; sh?: number; ch?: number };
   /** The element's own direct text, whitespace-collapsed, first 200 characters. */
   ownText: string;
   /** Length of the element's own direct text before truncation. */
@@ -121,12 +142,34 @@ export interface Capture {
   /** The view that rendered the page, read from the development-only response header; null when unknown. */
   template: string | null;
   viewport: { width: number; height: number };
-  page: { scrollWidth: number; clientWidth: number; scrollHeight: number };
+  page: {
+    scrollWidth: number;
+    clientWidth: number;
+    scrollHeight: number;
+    /** The computed backgrounds of html and body, the colour behind everything else. */
+    htmlBackground?: string;
+    bodyBackground?: string;
+    /** Summed layout-shift score from load until the capture; null where the browser reports none. */
+    layoutShift?: number | null;
+  };
   tokens: Record<string, string>;
+  /** Every colour a root token resolves to, as the browser computes it. */
+  palette?: string[];
   styleProps: string[];
   strings: string[];
   elements: ElementRecord[];
   truncated: boolean;
+  /** Each element keyboard focus reached, with what its focus indicator changed; absent when focus was not walked. */
+  focus?: FocusRecord[];
+}
+
+/** The focused state of one element, keyed as the capture keys it. */
+export interface FocusRecord {
+  key: string;
+  rect: Rect;
+  styles: Record<string, string>;
+  /** The nearest boxes around it while it has focus, which may draw its indicator through focus-within. */
+  ancestors?: Array<{ key: string; styles: Record<string, string> }>;
 }
 
 export type RuleId =
@@ -150,6 +193,13 @@ export type RuleId =
   | 'field-without-visible-label'
   | 'empty-state-leaks-code'
   | 'spacing-off-rhythm'
+  | 'contrast-unjudged'
+  | 'text-overlaps'
+  | 'text-clipped'
+  | 'focus-not-visible'
+  | 'colour-off-palette'
+  | 'prose-leading-tight'
+  | 'image-unsized'
   // Findings the browser check adds beside the rules: something the browser
   // refused or reported while the page loaded, a URL that rendered another view
   // than the one it was meant to measure, and an axe violation by rule id.
@@ -336,6 +386,16 @@ export class CaptureView {
     return false;
   }
 
+  /** What the page paints behind everything: the body's background over the root's, over the canvas white. */
+  pageBackground(): Rgba {
+    let acc: Rgba = WHITE;
+    for (const value of [this.capture.page.htmlBackground, this.capture.page.bodyBackground]) {
+      const c = value ? parseColor(value) : null;
+      if (c && c.a > 0) acc = composite(c, acc);
+    }
+    return acc;
+  }
+
   /** The opaque colour behind an element's text, or null when a gradient or image sits in the chain. */
   backgroundBehind(el: ElementRecord): Rgba | null {
     const layers: Rgba[] = [];
@@ -347,9 +407,27 @@ export class CaptureView {
         if (bg.a >= 1) break;
       }
     }
-    let acc: Rgba = WHITE;
+    let acc: Rgba = this.pageBackground();
     for (let k = layers.length - 1; k >= 0; k--) acc = composite(layers[k], acc);
     return acc;
+  }
+
+  /**
+   * A colour in the element's text or the backgrounds behind it that this
+   * module cannot read (oklch, color-mix), so its contrast cannot be judged;
+   * null when every colour in the chain parses.
+   */
+  unreadableColour(el: ElementRecord): string | null {
+    const readable = (v: string) => v === '' || parseColor(v) !== null;
+    const own = this.style(el, 'color');
+    if (!readable(own)) return own;
+    for (const node of [el, ...this.ancestors(el)]) {
+      const bg = this.style(node, 'background-color');
+      if (!readable(bg)) return bg;
+      const parsed = parseColor(bg);
+      if (parsed && parsed.a >= 1) break;
+    }
+    return null;
   }
 
   /** The element's text colour composited over what is behind it, with inherited opacity applied. */
@@ -364,9 +442,17 @@ export class CaptureView {
     return composite({ ...fg, a: alpha }, bg);
   }
 
+  /** The element's key without positions or text hashes, so a finding reads as a selector. */
   findingSelector(el: ElementRecord): string {
-    return el.key.replace(/:nth\(\d+\)/g, '');
+    return el.key.replace(/(~[0-9a-z]+)?:nth\(\d+\)/g, '');
   }
+
+  byKey(key: string): ElementRecord | undefined {
+    if (!this.keyIndex) this.keyIndex = new Map(this.capture.elements.map((e) => [e.key, e]));
+    return this.keyIndex.get(key);
+  }
+
+  private keyIndex: Map<string, ElementRecord> | null = null;
 }
 
 // ── Rules ─────────────────────────────────────────────────────────────────
@@ -432,6 +518,18 @@ function namedSearchField(v: CaptureView, el: ElementRecord): boolean {
   if (!form || form.attrs.role !== 'search') return false;
   return [...v.descendants(form)].some((d) =>
     (d.tag === 'button' && (d.attrs.type ?? 'submit') === 'submit') || (d.tag === 'input' && d.attrs.type === 'submit'));
+}
+
+/**
+ * Text a reader is meant to read, whose contrast is therefore judged: its own
+ * words or the value a form control shows, drawn, enabled, and neither faded
+ * out nor hidden from assistive technology as decoration.
+ */
+function judgedForContrast(v: CaptureView, el: ElementRecord): boolean {
+  if (el.textLen === 0 && !showsControlText(el)) return false;
+  if (!v.isPainted(el)) return false;
+  if (el.attrs.disabled || [...v.ancestors(el)].some((a) => a.attrs.disabled)) return false;
+  return !ariaHidden(v, el) && !fullyTransparent(v, el);
 }
 
 function largeText(v: CaptureView, el: ElementRecord): boolean {
@@ -649,6 +747,14 @@ function bodyProseSize(v: CaptureView): number {
   return best;
 }
 
+// Under this, two boxes merely touch at a rounded edge.
+const OVERLAP_MIN_PX = 2;
+// The leading below which lines of prose crowd each other; browsers' "normal" is about 1.2.
+const LEADING_MIN = 1.4;
+const NORMAL_LEADING = 1.2;
+// The score under which a page's layout stability counts as good.
+export const LAYOUT_SHIFT_MAX = 0.1;
+
 export const RULES: readonly Rule[] = [
   {
     id: 'box-outside-viewport',
@@ -855,9 +961,7 @@ export const RULES: readonly Rule[] = [
     check(v) {
       const out: Array<{ el: ElementRecord; measured: string }> = [];
       for (const el of v.elements) {
-        if (el.textLen === 0 || !v.isPainted(el)) continue;
-        if (el.attrs.disabled || [...v.ancestors(el)].some((a) => a.attrs.disabled)) continue;
-        if (ariaHidden(v, el) || fullyTransparent(v, el)) continue;
+        if (!judgedForContrast(v, el)) continue;
         const bg = v.backgroundBehind(el);
         if (!bg) continue; // a gradient or image sits behind the text; not judged here
         const fg = v.textColor(el, bg);
@@ -1000,7 +1104,196 @@ export const RULES: readonly Rule[] = [
       return out;
     },
   },
+  {
+    id: 'contrast-unjudged',
+    applies: 'any',
+    requirement: 'Text is drawn in colours whose contrast can be measured; a colour form the check cannot read is reported rather than passed unseen.',
+    check(v) {
+      const out: Array<{ el: ElementRecord; measured: string }> = [];
+      for (const el of v.elements) {
+        if (!judgedForContrast(v, el)) continue;
+        const colour = v.unreadableColour(el);
+        if (colour) out.push({ el, measured: `cannot read ${colour}` });
+      }
+      return out;
+    },
+  },
+  {
+    id: 'text-overlaps',
+    applies: 'any',
+    requirement: 'No two pieces of text are drawn over each other.',
+    check(v) {
+      // Blocks only: a run of inline words spans its lines' bounding box,
+      // which covers the words beside it without any text touching. A float's
+      // neighbour runs its box under the float while its lines wrap around it.
+      const texts = v.elements
+        .filter((el) => el.textLen > 0 && v.isPainted(el) && !fullyTransparent(v, el))
+        .filter((el) => !v.style(el, 'display').startsWith('inline') && v.style(el, 'display') !== 'contents')
+        .filter((el) => (v.style(el, 'float') || 'none') === 'none')
+        .sort((a, b) => a.rect.y - b.rect.y);
+      const out: Array<{ el: ElementRecord; measured: string }> = [];
+      for (let k = 0; k < texts.length; k++) {
+        const a = texts[k];
+        for (let j = k + 1; j < texts.length && texts[j].rect.y < a.rect.y + a.rect.h; j++) {
+          const b = texts[j];
+          const w = Math.min(a.rect.x + a.rect.w, b.rect.x + b.rect.w) - Math.max(a.rect.x, b.rect.x);
+          const h = Math.min(a.rect.y + a.rect.h, b.rect.y + b.rect.h) - Math.max(a.rect.y, b.rect.y);
+          if (w <= OVERLAP_MIN_PX || h <= OVERLAP_MIN_PX) continue;
+          if (isAncestorOf(v, a, b) || isAncestorOf(v, b, a)) continue;
+          const later = a.i > b.i ? a : b;
+          const earlier = later === a ? b : a;
+          out.push({ el: later, measured: `${fmt(w)}x${fmt(h)}px over ${v.findingSelector(earlier).split('>').pop()}` });
+        }
+      }
+      return out;
+    },
+  },
+  {
+    id: 'text-clipped',
+    applies: 'any',
+    requirement: 'Text cut off by its box is marked as cut off with an ellipsis; otherwise the box makes room for it.',
+    check(v) {
+      const clips = (value: string) => value === 'hidden' || value === 'clip';
+      const out: Array<{ el: ElementRecord; measured: string }> = [];
+      for (const el of v.elements) {
+        const s = el.scroll;
+        if (!s || !v.isPainted(el)) continue;
+        if (el.textLen === 0 && ![...v.descendants(el)].some((d) => d.textLen > 0)) continue;
+        const across = clips(v.style(el, 'overflow-x')) && s.sw > s.cw + 1 && v.style(el, 'text-overflow') !== 'ellipsis';
+        const clamp = v.style(el, '-webkit-line-clamp');
+        const down = clips(v.style(el, 'overflow-y')) && s.sh !== undefined && s.ch !== undefined && s.sh > s.ch + 1
+          && (clamp === '' || clamp === 'none');
+        if (across) out.push({ el, measured: `${s.sw - s.cw}px of content cut off at the side with no ellipsis` });
+        else if (down) out.push({ el, measured: `${(s.sh as number) - (s.ch as number)}px of content cut off at the bottom with no ellipsis` });
+      }
+      return out;
+    },
+  },
+  {
+    id: 'focus-not-visible',
+    applies: 'any',
+    requirement: 'Every control keyboard focus reaches shows that it has focus.',
+    check(v) {
+      const out: Array<{ el: ElementRecord; measured: string }> = [];
+      for (const f of v.capture.focus ?? []) {
+        const el = v.byKey(f.key);
+        if (!el) continue;
+        if (focusDrawsSomething(v, el, f)) continue;
+        out.push({ el, measured: 'focus changes nothing a reader can see' });
+      }
+      return out;
+    },
+  },
+  {
+    id: 'colour-off-palette',
+    applies: 'any',
+    requirement: 'Every colour drawn comes from the site\'s root tokens.',
+    check(v) {
+      const palette = new Set((v.capture.palette ?? []).map(normalizeColor));
+      if (palette.size === 0) return [];
+      const out: Array<{ el: ElementRecord; measured: string }> = [];
+      const drawn = (el: ElementRecord, side: 'top' | 'left') =>
+        v.px(el, `border-${side}-width`) > 0 && !['none', 'hidden'].includes(v.style(el, `border-${side}-style`));
+      for (const el of v.elements) {
+        if (!v.isPainted(el)) continue;
+        const used: Array<[string, string]> = [];
+        if (el.textLen > 0 || showsControlText(el)) used.push(['color', v.style(el, 'color')]);
+        const bg = parseColor(v.style(el, 'background-color'));
+        if (bg && bg.a > 0) used.push(['background-color', v.style(el, 'background-color')]);
+        if (drawn(el, 'top')) used.push(['border-top-color', v.style(el, 'border-top-color')]);
+        if (drawn(el, 'left')) used.push(['border-left-color', v.style(el, 'border-left-color')]);
+        // An unreadable colour form is reported by the contrast check, not here.
+        const off = used.find(([, value]) => parseColor(value) !== null && !palette.has(normalizeColor(value)));
+        if (off) out.push({ el, measured: `${off[0]} ${normalizeColor(off[1])} is no token` });
+      }
+      return out;
+    },
+  },
+  {
+    id: 'prose-leading-tight',
+    applies: 'any',
+    requirement: `Running prose is set with lines at least ${LEADING_MIN} times its type size apart.`,
+    check(v) {
+      return v.elements
+        .filter((el) => PROSE_TAGS.has(el.tag) && v.isPainted(el) && flowTextLen(v, el) >= PROSE_MIN_CHARS)
+        .filter((el) => !v.within(el, 'table') && !v.within(el, 'pre'))
+        .map((el) => ({ el, ratio: leading(v, el) }))
+        .filter((x): x is { el: ElementRecord; ratio: number } => x.ratio !== null && x.ratio < LEADING_MIN - 0.005)
+        .map(({ el, ratio }) => ({ el, measured: `line height ${fmt(ratio)} times the type size` }));
+    },
+  },
+  {
+    id: 'image-unsized',
+    applies: 'any',
+    requirement: 'An image declares its shape (width and height attributes, or a CSS aspect ratio), or sits in a frame that fixes it, so the page does not jump when it loads.',
+    check(v) {
+      // A frame with its own aspect ratio, or a wrapper the image is placed
+      // inside out of flow, keeps its size before the picture arrives.
+      const framed = (el: ElementRecord) => {
+        if (OUT_OF_FLOW.has(v.style(el, 'position'))) return true;
+        const frame = v.boxParentOf(el);
+        if (!frame) return false;
+        return OUT_OF_FLOW.has(v.style(frame, 'position'))
+          || (v.style(frame, 'aspect-ratio') !== 'auto' && v.style(frame, 'aspect-ratio') !== '');
+      };
+      return v.elements
+        .filter((el) => el.tag === 'img' && v.isPainted(el) && !el.attrs.sized && v.style(el, 'aspect-ratio') === 'auto' && !framed(el))
+        .map((el) => ({ el, measured: 'no width and height attributes and no aspect ratio' }));
+    },
+  },
 ];
+
+/**
+ * A note naming a page whose content jumped while it loaded, or null when it
+ * held still. The score depends on when fonts and scripts arrive, so it
+ * differs between two loads of one page; it is reported for a person reading
+ * one page's measurements and is never a rule that fails a check.
+ */
+export function layoutShiftNote(capture: Capture): string | null {
+  const score = capture.page.layoutShift;
+  if (score === undefined || score === null || score <= LAYOUT_SHIFT_MAX) return null;
+  return `layout-shift score ${fmt(score)} (above ${LAYOUT_SHIFT_MAX}; varies between loads)`;
+}
+
+/** Line height as a multiple of the type size; null when either is unknown. */
+function leading(v: CaptureView, el: ElementRecord): number | null {
+  const size = v.px(el, 'font-size');
+  const lh = v.style(el, 'line-height');
+  if (size <= 0) return null;
+  if (lh === 'normal') return NORMAL_LEADING;
+  const px = parseFloat(lh);
+  return Number.isFinite(px) && lh.endsWith('px') ? px / size : null;
+}
+
+/**
+ * The focused state differs from the resting one in something drawn: an
+ * outline, a shadow, an underline, a colour or a box that moved into view, on
+ * the control or on a box around it that shows focus within.
+ */
+function focusDrawsSomething(v: CaptureView, el: ElementRecord, f: FocusRecord): boolean {
+  if (indicatorChanged(v, el, f.styles)) return true;
+  for (const a of f.ancestors ?? []) {
+    const box = v.byKey(a.key);
+    if (box && indicatorChanged(v, box, a.styles)) return true;
+  }
+  const r = el.rect;
+  return Math.abs(r.x - f.rect.x) > 1 || Math.abs(r.y - f.rect.y) > 1 || Math.abs(r.w - f.rect.w) > 1 || Math.abs(r.h - f.rect.h) > 1;
+}
+
+/** One element's focused styles draw something its resting styles do not. */
+function indicatorChanged(v: CaptureView, el: ElementRecord, s: Record<string, string>): boolean {
+  const same = (prop: StyleProp, focused: string | undefined) => {
+    const rest = v.style(el, prop);
+    const isColour = prop.endsWith('color');
+    return (isColour ? normalizeColor(rest) : rest) === (isColour ? normalizeColor(focused ?? '') : (focused ?? ''));
+  };
+  const outlined = (s['outline-style'] ?? 'none') !== 'none' && parseFloat(s['outline-width'] ?? '0') > 0;
+  if (outlined && !(same('outline-style', s['outline-style']) && same('outline-width', s['outline-width']) && same('outline-color', s['outline-color']))) return true;
+  for (const prop of ['box-shadow', 'text-decoration-line', 'background-color', 'border-top-color', 'color'] as const) {
+    if (!same(prop, s[prop])) return true;
+  }
+  return false;
+}
 
 function isAncestorOf(v: CaptureView, maybeAncestor: ElementRecord, el: ElementRecord): boolean {
   for (const a of v.ancestors(el)) if (a === maybeAncestor) return true;

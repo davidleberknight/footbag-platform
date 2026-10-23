@@ -16,6 +16,7 @@ import {
   measuredKey,
   normalisePageProblem,
   parseBaseline,
+  selectorHash,
   shrinkBaseline,
   summariseDiff,
   verdictIsClean,
@@ -60,6 +61,18 @@ describe('diffCaptures', () => {
     expect(both.moved).toEqual([]);
   });
 
+  it('reports one row inserted above others as one addition, and a toggled state class as no change of identity', () => {
+    // Positional keys would report every later row as changed, burying the insertion; a key carrying is-open would
+    // report an opened menu as one element removed and another added.
+    const list = (...items: string[]) => buildCapture(el('ul', {}, ...items.map((t) => el('li', { text: t, rect: { y: 0 } }))));
+    const d = diffCaptures(list('Beta', 'Gamma'), list('Alpha', 'Beta', 'Gamma'));
+    expect(d.added).toHaveLength(1);
+    expect([d.removed, d.restyled]).toEqual([[], []]);
+    const menu = (cls: string) => buildCapture(el('nav', { cls }, el('a', { text: 'Clubs' })));
+    const toggled = diffCaptures(menu('menu'), menu('menu is-open'));
+    expect([toggled.added, toggled.removed]).toEqual([[], []]);
+  });
+
   it('reports elements added and removed by key', () => {
     // A refactor that drops a whole row must show up even though no property of a surviving element changed.
     const one = buildCapture(el('table', {}, el('tr')));
@@ -69,8 +82,12 @@ describe('diffCaptures', () => {
   });
 });
 
-const finding = (rule: Finding['rule'], template: string, viewport = 390): Finding =>
-  ({ rule, template, url: '/x', viewport, selector: 'body>p', measured: '1' });
+const finding = (rule: Finding['rule'], template: string, viewport = 390, selector = 'body>p'): Finding =>
+  ({ rule, template, url: '/x', viewport, selector, measured: '1' });
+
+/** A baseline line for `count` findings, by default all on the planted paragraph. */
+const line = (rule: string, template: string, viewport: number, count: number, selectors = Array(count).fill('body>p')) =>
+  `${rule}\t${template}\t${viewport}\t${count}\t${selectorHash(selectors)}`;
 
 /** The measured-set a run records for views it rendered at both widths. */
 const measured = (...templates: string[]) =>
@@ -80,14 +97,30 @@ describe('baseline', () => {
   it('rejects a malformed line rather than reading it as no findings', () => {
     // A typo that silently emptied the baseline would turn every known finding into a CI failure, or worse, hide a line.
     expect(() => parseBaseline('contrast-low\tclubs/detail\t390')).toThrow(/line 1/);
-    expect(parseBaseline('# known\n\ncontrast-low\tclubs/detail\t390\t2\n')).toEqual([
-      { rule: 'contrast-low', template: 'clubs/detail', viewport: 390, max: 2 },
+    // A line with its count but no element hash could not tell a swapped finding from an unchanged one.
+    expect(() => parseBaseline('contrast-low\tclubs/detail\t390\t2')).toThrow(/line 1/);
+    expect(parseBaseline(`# known\n\n${line('contrast-low', 'clubs/detail', 390, 2)}\n`)).toEqual([
+      { rule: 'contrast-low', template: 'clubs/detail', viewport: 390, max: 2, elements: selectorHash(['body>p', 'body>p']) },
     ]);
+  });
+
+  it('fails a line found as many times as listed but on other elements, and passes the same elements in any order', () => {
+    // Fixing one finding and adding another of the same rule on the same page would otherwise pass as no change.
+    const base = parseBaseline(`${line('contrast-low', 'clubs/detail', 390, 2, ['body>p', 'body>h2'])}\n`);
+    const swapped = compareToBaseline(
+      [finding('contrast-low', 'clubs/detail', 390, 'body>p'), finding('contrast-low', 'clubs/detail', 390, 'body>footer>p')],
+      base, measured('clubs/detail'));
+    expect(swapped.swapped.map((s) => s.entry.template)).toEqual(['clubs/detail']);
+    expect(verdictIsClean(swapped)).toBe(false);
+    const same = compareToBaseline(
+      [finding('contrast-low', 'clubs/detail', 390, 'body>h2'), finding('contrast-low', 'clubs/detail', 390, 'body>p')],
+      base, measured('clubs/detail'));
+    expect(verdictIsClean(same)).toBe(true);
   });
 
   it('fails on a new finding and on a count above the listed maximum', () => {
     // A regression on a page with known findings must not hide behind the ones already listed.
-    const base = parseBaseline('contrast-low\tclubs/detail\t390\t1\n');
+    const base = parseBaseline(`${line('contrast-low', 'clubs/detail', 390, 1)}\n`);
     const visited = measured('clubs/detail', 'events/index');
     const v = compareToBaseline(
       [finding('contrast-low', 'clubs/detail'), finding('contrast-low', 'clubs/detail'), finding('text-below-ramp', 'events/index')],
@@ -101,7 +134,7 @@ describe('baseline', () => {
 
   it('reports a fixed finding as progress, never as a failure, and only for pages the run visited', () => {
     // Failing a run because someone fixed a defect would punish the fix; a filtered run must not call every other line stale.
-    const base = parseBaseline('contrast-low\tclubs/detail\t390\t2\ncontrast-low\tevents/index\t390\t1\n');
+    const base = parseBaseline(`${line('contrast-low', 'clubs/detail', 390, 2)}\n${line('contrast-low', 'events/index', 390, 1)}\n`);
     const v = compareToBaseline([finding('contrast-low', 'clubs/detail')], base, measured('clubs/detail'));
     expect(v.stale.map((s) => [s.entry.template, s.count])).toEqual([['clubs/detail', 1]]);
     expect(verdictIsClean(v)).toBe(true);
@@ -109,7 +142,7 @@ describe('baseline', () => {
 
   it('keeps the lines of a width that failed to render, even when the other width was measured', () => {
     // A page that failed only at phone width would otherwise read as every phone finding fixed, and lose those lines.
-    const base = parseBaseline('contrast-low\tclubs/detail\t390\t2\ncontrast-low\tclubs/detail\t1280\t2\n');
+    const base = parseBaseline(`${line('contrast-low', 'clubs/detail', 390, 2)}\n${line('contrast-low', 'clubs/detail', 1280, 2)}\n`);
     const desktopOnly = new Set([measuredKey('clubs/detail', 1280), measuredKey('clubs/detail', 0)]);
     const found = [finding('contrast-low', 'clubs/detail', 1280), finding('contrast-low', 'clubs/detail', 1280)];
     const { entries, changes } = shrinkBaseline(base, found, desktopOnly, new Set(['clubs/detail']));
@@ -120,18 +153,18 @@ describe('baseline', () => {
   it('tightens itself to what a run found, without ever loosening', () => {
     // A baseline that needed a manual rewrite after every fix would go stale, letting fixed defects come back unnoticed.
     const base = parseBaseline([
-      'contrast-low\tclubs/detail\t390\t3', // found once now: lowered
-      'prose-muted\tclubs/detail\t390\t1', // found none now: removed
-      'contrast-low\tevents/index\t390\t1', // not visited by this run: kept
-      'contrast-low\told/page\t390\t4', // view deleted from disk: removed
-      'text-below-ramp\tclubs/detail\t390\t1', // found more often: kept at its limit, the check fails it
+      line('contrast-low', 'clubs/detail', 390, 3), // found once now: lowered, with the element still found
+      line('prose-muted', 'clubs/detail', 390, 1), // found none now: removed
+      line('contrast-low', 'events/index', 390, 1), // not visited by this run: kept
+      line('contrast-low', 'old/page', 390, 4), // view deleted from disk: removed
+      line('text-below-ramp', 'clubs/detail', 390, 1), // found more often: kept at its limit, the check fails it
     ].join('\n'));
     const findings = [finding('contrast-low', 'clubs/detail'), finding('text-below-ramp', 'clubs/detail'), finding('text-below-ramp', 'clubs/detail')];
     const { entries, changes } = shrinkBaseline(base, findings, measured('clubs/detail'), new Set(['clubs/detail', 'events/index']));
     expect(formatBaselineEntries(entries)).toBe([
-      'contrast-low\tclubs/detail\t390\t1',
-      'contrast-low\tevents/index\t390\t1',
-      'text-below-ramp\tclubs/detail\t390\t1',
+      line('contrast-low', 'clubs/detail', 390, 1),
+      line('contrast-low', 'events/index', 390, 1),
+      line('text-below-ramp', 'clubs/detail', 390, 1),
       '',
     ].join('\n'));
     expect(changes).toHaveLength(3);
@@ -141,7 +174,7 @@ describe('baseline', () => {
     // A REACH URL that drifted to another page would otherwise be listed once and then
     // pass forever, while the view it was meant to measure goes unmeasured.
     const wrong = finding('wrong-view', 'net/teams', 390);
-    const listed = parseBaseline('wrong-view\tnet/teams\t390\t1\n');
+    const listed = parseBaseline(`${line('wrong-view', 'net/teams', 390, 1)}\n`);
     expect(compareToBaseline([wrong], listed, measured('net/teams')).unexpected).toEqual([wrong]);
     expect(() => formatBaseline([wrong, finding('contrast-low', 'a')])).toThrow(/net\/teams.*wrong view/);
   });

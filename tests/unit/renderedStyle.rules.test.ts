@@ -12,9 +12,12 @@ import {
   contrastRatio,
   evaluate,
   normalizeColor,
+  layoutShiftNote,
   parseColor,
+  RULES,
   tableNamesFromSchema,
   type Capture,
+  type FocusRecord,
   type ElementRecord,
   type RuleId,
   type StyleProp,
@@ -667,6 +670,287 @@ describe('spacing-off-rhythm', () => {
       el('p', { rect: { x: 220, y: 5, w: 200, h: 20 }, text: 'Right' }),
     ));
     expect(hits(c, 'spacing-off-rhythm')).toEqual([]);
+  });
+});
+
+describe('contrast-low on form controls and page backgrounds', () => {
+  it('judges the text a form control shows against the control\'s own background', () => {
+    // A field whose typed value is pale grey on white would pass, because the control carries no text node of its own.
+    const field = (color: string) => buildCapture(el('input', { attrs: { type: 'text' }, style: { color, 'background-color': 'rgb(255, 255, 255)' } }));
+    expect(hits(field('rgb(190, 190, 190)'), 'contrast-low').map((f) => f.selector)).toEqual(['body>input']);
+    expect(hits(field('rgb(51, 51, 51)'), 'contrast-low')).toEqual([]);
+  });
+
+  it('judges text with no background of its own against the page background, not an assumed white', () => {
+    // Light text on a page that paints its body dark would be reported as failing, and dark text there would pass.
+    const page = (bodyBackground: string) => buildCapture(el('p', { text: 'Footer line', style: { color: 'rgb(230, 230, 230)' } }), { page: { bodyBackground } });
+    expect(hits(page('rgb(17, 17, 17)'), 'contrast-low')).toEqual([]);
+    expect(hits(page('rgb(255, 255, 255)'), 'contrast-low')).toHaveLength(1);
+  });
+});
+
+describe('contrast-unjudged', () => {
+  it('reports text whose colour, or a background behind it, the check cannot read, and not readable colours', () => {
+    // An oklch() or color-mix() colour skipped silently is text whose contrast nobody has measured.
+    const text = (color: string, bg = 'rgba(0, 0, 0, 0)') =>
+      buildCapture(el('div', { style: { 'background-color': bg } }, el('p', { text: 'Words', style: { color } })));
+    expect(hits(text('oklch(0.6 0.1 200)'), 'contrast-unjudged').map((f) => f.measured)).toEqual(['cannot read oklch(0.6 0.1 200)']);
+    expect(hits(text('rgb(51, 51, 51)', 'color-mix(in srgb, red 50%, white)'), 'contrast-unjudged')).toHaveLength(1);
+    expect(hits(text('rgb(51, 51, 51)'), 'contrast-unjudged')).toEqual([]);
+    // The same unreadable colour never also counts as a contrast failure.
+    expect(hits(text('oklch(0.6 0.1 200)'), 'contrast-low')).toEqual([]);
+  });
+});
+
+describe('text-overlaps', () => {
+  const pair = (secondY: number, secondStyle: Partial<Record<StyleProp, string>> = {}) => buildCapture(el('div', { rect: { h: 200 } },
+    el('p', { rect: { x: 0, y: 0, w: 300, h: 40 }, text: 'First line of text' }),
+    el('p', { rect: { x: 0, y: secondY, w: 300, h: 40 }, text: 'Second line of text', style: secondStyle }),
+  ));
+
+  it('reports two blocks of text drawn over each other, and not two that only touch', () => {
+    // Overlapping text is unreadable in both places; a reader sees neither line.
+    expect(hits(pair(10), 'text-overlaps').map((f) => f.measured)).toEqual(['300x30px over p']);
+    expect(hits(pair(39), 'text-overlaps')).toEqual([]);
+    expect(hits(pair(40), 'text-overlaps')).toEqual([]);
+  });
+
+  it('leaves text inside other text alone, and a float whose neighbour wraps its lines around it', () => {
+    // A heading's link sits inside the heading's box, and a paragraph's box runs under a float its lines avoid.
+    const nested = buildCapture(el('h2', { rect: { h: 40 }, text: 'Heading' }, el('span', { rect: { h: 40 }, style: { display: 'block' }, text: 'inside' })));
+    expect(hits(nested, 'text-overlaps')).toEqual([]);
+    expect(hits(pair(10, { float: 'left' }), 'text-overlaps')).toEqual([]);
+  });
+
+  it('leaves inline words alone, whose line box spans the words beside them', () => {
+    // A link wrapping onto a second line has a bounding box covering the words that follow it on that line.
+    const inline = buildCapture(el('p', { rect: { h: 40 }, text: 'Words' },
+      el('a', { rect: { x: 0, y: 0, w: 300, h: 40 }, attrs: { href: true }, text: 'a long link' }),
+      el('em', { rect: { x: 100, y: 20, w: 50, h: 20 }, text: 'after' }),
+    ));
+    expect(hits(inline, 'text-overlaps')).toEqual([]);
+  });
+});
+
+describe('text-clipped', () => {
+  const box = (style: Partial<Record<StyleProp, string>>, scroll: { sw: number; cw: number; sh?: number; ch?: number }, text = 'A name too long for its box') =>
+    buildCapture(el('div', { style, scroll, text }));
+
+  it('reports text cut off at the side or the bottom with no ellipsis', () => {
+    // A cut-off word or line reads as the whole of it; the reader never learns anything is missing.
+    expect(hits(box({ 'overflow-x': 'hidden' }, { sw: 500, cw: 300 }), 'text-clipped')).toHaveLength(1);
+    expect(hits(box({ 'overflow-y': 'clip' }, { sw: 300, cw: 300, sh: 90, ch: 40 }), 'text-clipped')).toHaveLength(1);
+  });
+
+  it('accepts a cut marked by an ellipsis or a line clamp, a scroll box, and a box that clips only a picture', () => {
+    // These show the reader that more exists, let them reach it, or cut nothing anyone reads.
+    expect(hits(box({ 'overflow-x': 'hidden', 'text-overflow': 'ellipsis' }, { sw: 500, cw: 300 }), 'text-clipped')).toEqual([]);
+    expect(hits(box({ 'overflow-y': 'hidden', '-webkit-line-clamp': '2' }, { sw: 300, cw: 300, sh: 90, ch: 40 }), 'text-clipped')).toEqual([]);
+    expect(hits(box({ 'overflow-x': 'auto' }, { sw: 500, cw: 300 }), 'text-clipped')).toEqual([]);
+    expect(hits(box({ 'overflow-x': 'hidden' }, { sw: 500, cw: 300 }, ''), 'text-clipped')).toEqual([]);
+  });
+});
+
+describe('focus-not-visible', () => {
+  const REST: Record<string, string> = {
+    'outline-style': 'none', 'outline-width': '0px', 'outline-color': 'rgb(51, 51, 51)', 'box-shadow': '',
+    'text-decoration-line': 'none', 'background-color': 'rgba(0, 0, 0, 0)', 'border-top-color': '', color: 'rgb(51, 51, 51)',
+  };
+  const focused = (styles: Record<string, string>, rect = { x: 0, y: 0, w: 300, h: 20 }) => {
+    const c = buildCapture(el('a', { attrs: { href: true }, text: 'Clubs' }));
+    const record: FocusRecord = { key: c.elements[0].key, rect, styles: { ...REST, ...styles } };
+    return { ...c, focus: [record] };
+  };
+
+  it('reports a control whose focus draws nothing new', () => {
+    // A keyboard reader tabbing through the page cannot tell where they are.
+    expect(hits(focused({}), 'focus-not-visible').map((f) => f.selector)).toEqual(['body>a']);
+  });
+
+  it('accepts an outline, an underline, a shadow, a colour change or a box moving into view', () => {
+    // Each of these shows the focused control; demanding one kind would fail the site's underline-on-focus links.
+    for (const styles of [
+      { 'outline-style': 'solid', 'outline-width': '2px' } as Record<string, string>,
+      { 'text-decoration-line': 'underline' },
+      { 'box-shadow': 'rgb(0, 0, 0) 0px 0px 0px 3px' },
+      { 'background-color': 'rgb(238, 238, 255)' },
+    ]) expect(hits(focused(styles), 'focus-not-visible'), JSON.stringify(styles)).toEqual([]);
+    expect(hits(focused({}, { x: 0, y: 0, w: 120, h: 40 }), 'focus-not-visible')).toEqual([]);
+  });
+
+  it('accepts a field whose focus ring is drawn by the box around it, and nothing the box drew already', () => {
+    // A tag field inside a chip box shows focus on the box (focus-within); the field itself draws nothing new.
+    const c = buildCapture(el('div', { cls: 'chip-box', style: { 'box-shadow': 'none' } }, el('input', { attrs: { type: 'text' } })));
+    const [box, input] = c.elements;
+    const record = (boxShadow: string): FocusRecord => ({
+      key: input.key, rect: input.rect, styles: { ...REST },
+      ancestors: [{ key: box.key, styles: { ...REST, 'box-shadow': boxShadow } }],
+    });
+    expect(hits({ ...c, focus: [record('rgb(51, 102, 204) 0px 0px 0px 2px')] }, 'focus-not-visible')).toEqual([]);
+    expect(hits({ ...c, focus: [record('none')] }, 'focus-not-visible')).toHaveLength(1);
+  });
+
+  it('does not count an outline the control already draws at rest', () => {
+    // A border-like outline present before focus is not a focus indicator.
+    const c = buildCapture(el('a', { attrs: { href: true }, text: 'Clubs', style: { 'outline-style': 'solid', 'outline-width': '1px' } }));
+    const withFocus = { ...c, focus: [{ key: c.elements[0].key, rect: c.elements[0].rect, styles: { ...REST, 'outline-style': 'solid', 'outline-width': '1px' } }] };
+    expect(hits(withFocus, 'focus-not-visible')).toHaveLength(1);
+  });
+});
+
+describe('colour-off-palette', () => {
+  const PALETTE = ['rgb(51, 51, 51)', 'rgb(255, 255, 255)', 'rgba(255, 255, 255, 0.85)'];
+
+  it('reports text, a fill or a drawn border in a colour no token holds', () => {
+    // A one-off colour is a parallel palette the token gate cannot see, such as a browser-default button.
+    const text = buildCapture(el('p', { text: 'x', style: { color: 'rgb(1, 2, 3)' } }), { palette: PALETTE });
+    const fill = buildCapture(el('div', { style: { 'background-color': 'rgb(239, 239, 239)' } }), { palette: PALETTE });
+    const border = buildCapture(el('div', { style: { 'border-top-width': '1px', 'border-top-style': 'solid', 'border-top-color': 'rgb(118, 118, 118)' } }), { palette: PALETTE });
+    expect(hits(text, 'colour-off-palette').map((f) => f.measured)).toEqual(['color rgba(1,2,3,1) is no token']);
+    expect(hits(fill, 'colour-off-palette')).toHaveLength(1);
+    expect(hits(border, 'colour-off-palette')).toHaveLength(1);
+  });
+
+  it('accepts token colours, a translucent token, and colours nothing draws', () => {
+    // An undrawn border's colour and an element without text's colour are never seen.
+    const fine = buildCapture([
+      el('p', { text: 'x', style: { color: '#333333', 'background-color': 'rgba(255, 255, 255, 0.85)' } }),
+      el('div', { style: { color: 'rgb(1, 2, 3)', 'border-top-color': 'rgb(1, 2, 3)' } }),
+    ], { palette: PALETTE });
+    expect(hits(fine, 'colour-off-palette')).toEqual([]);
+  });
+});
+
+describe('prose-leading-tight', () => {
+  const para = (lineHeight: string) => buildCapture(el('p', { text: LONG, style: { 'line-height': lineHeight } }));
+
+  it('reports prose set tighter than 1.4 times its type size, browser "normal" included', () => {
+    // Crowded lines make a long paragraph hard to track from one line to the next.
+    expect(hits(para('20px'), 'prose-leading-tight').map((f) => f.measured)).toEqual(['line height 1.25 times the type size']);
+    expect(hits(para('normal'), 'prose-leading-tight')).toHaveLength(1);
+  });
+
+  it('accepts the site\'s body leading and short text', () => {
+    // Body prose at 1.6 is the standard; a one-line label is not running prose.
+    expect(hits(para('25.6px'), 'prose-leading-tight')).toEqual([]);
+    expect(hits(para('22.4px'), 'prose-leading-tight')).toEqual([]);
+    expect(hits(buildCapture(el('p', { text: 'Short.', style: { 'line-height': '16px' } })), 'prose-leading-tight')).toEqual([]);
+  });
+});
+
+describe('image-unsized', () => {
+  it('reports an image with no declared shape, and accepts one with width and height or an aspect ratio', () => {
+    // An image with no declared shape takes no room until it loads, then pushes everything below it down.
+    // The browser reports aspect-ratio "auto" whether or not the attributes are there, so the attributes decide.
+    const img = (ratio: string, attrs: { sized?: true } = {}) => buildCapture(el('img', { rect: { w: 150, h: 150 }, attrs, style: { 'aspect-ratio': ratio } }));
+    expect(hits(img('auto'), 'image-unsized')).toHaveLength(1);
+    expect(hits(img('auto', { sized: true }), 'image-unsized')).toEqual([]);
+    expect(hits(img('16 / 9'), 'image-unsized')).toEqual([]);
+  });
+
+  it('accepts an image whose frame fixes its shape: a tile with an aspect ratio, or a wrapper it is placed inside', () => {
+    // A gallery tile or a 16:9 video frame keeps its size before the picture loads, so nothing below it moves.
+    const inTile = buildCapture(el('a', { style: { display: 'block', 'aspect-ratio': '1 / 1' } }, el('img')));
+    const placed = buildCapture(el('div', { style: { position: 'relative' } }, el('img', { style: { position: 'absolute' } })));
+    // A video thumbnail sits in a link that is itself placed to fill the 16:9 frame.
+    const inPlacedLink = buildCapture(el('div', { style: { 'aspect-ratio': '16 / 9', position: 'relative' } },
+      el('a', { style: { display: 'block', position: 'absolute' } }, el('img'))));
+    expect(hits(inTile, 'image-unsized')).toEqual([]);
+    expect(hits(placed, 'image-unsized')).toEqual([]);
+    expect(hits(inPlacedLink, 'image-unsized')).toEqual([]);
+    // A frame that fixes nothing still leaves the image to push the page.
+    expect(hits(buildCapture(el('a', { style: { display: 'block' } }, el('img'))), 'image-unsized')).toHaveLength(1);
+  });
+});
+
+describe('layout-shift note', () => {
+  it('names a page whose content jumped by more than 0.1 while loading, and not one that held still', () => {
+    // Content moving under a reader's finger or eye makes them tap or read the wrong thing.
+    const page = (layoutShift: number | null) => buildCapture(el('main'), { page: { layoutShift } });
+    expect(layoutShiftNote(page(0.25))).toMatch(/^layout-shift score 0\.25 /);
+    expect(layoutShiftNote(page(0.1))).toBeNull();
+    expect(layoutShiftNote(page(null))).toBeNull();
+  });
+
+  it('never fails a check, because the score differs between two loads of one page', () => {
+    // A score that decides pass or fail would make the whole-site check flaky.
+    expect(evaluate(buildCapture(el('main'), { page: { layoutShift: 0.9 } }), NO_TABLES)).toEqual([]);
+  });
+});
+
+/**
+ * One planted defect per rule, with the element it must name. A rule that
+ * fires on the wrong element sends whoever fixes it to the wrong place; a rule
+ * with no planted case here could stop firing without any test noticing.
+ */
+const PLANTED: Record<string, () => { capture: Capture; selectors: string[]; ctx?: { tableNames: Set<string> } }> = {
+  'box-outside-viewport': () => ({ capture: buildCapture(el('div', { rect: { w: 600 } }, el('span', { rect: { w: 600 }, text: 'wide' })), { width: PHONE }), selectors: ['body>div>span'] }),
+  'page-overflow': () => ({ capture: buildCapture(el('div'), { width: PHONE, page: { scrollWidth: 500 } }), selectors: ['document'] }),
+  'scroll-box-unlabelled': () => ({ capture: buildCapture(el('div', { rect: { w: PHONE }, style: { 'overflow-x': 'auto' }, scroll: { sw: 600, cw: PHONE } }, el('table', { rect: { w: 600 } })), { width: PHONE }), selectors: ['body>div'] }),
+  'scroll-box-disallowed': () => ({ capture: buildCapture(el('div', { rect: { w: PHONE }, style: { 'overflow-x': 'auto' }, scroll: { sw: 600, cw: PHONE } }, el('p', { text: 'x' })), { width: PHONE }), selectors: ['body>div'] }),
+  'table-overflows-container': () => ({ capture: buildCapture(el('div', { rect: { w: 300 } }, el('table', { rect: { w: 600 } }))), selectors: ['body>div>table'] }),
+  'table-columns-misaligned': () => ({
+    capture: buildCapture(el('table', {},
+      el('thead', {}, el('tr', {}, el('th', { rect: { x: 0, w: 100 }, text: 'Name' }))),
+      el('tbody', {}, el('tr', {}, el('td', { rect: { x: 0, w: 100 }, text: 'a' }), el('td', { rect: { x: 100, w: 100 }, text: 'b' }))),
+    )),
+    selectors: ['body>table'],
+  }),
+  'tap-target-small': () => ({
+    capture: buildCapture(el('div', {},
+      el('a', { rect: { x: 0, y: 0, w: 10, h: 10 }, attrs: { href: true }, style: { display: 'inline-block' }, text: 'a' }),
+      el('a', { rect: { x: 15, y: 0, w: 10, h: 10 }, attrs: { href: true }, style: { display: 'inline-block' }, text: 'b' }),
+    ), { width: PHONE }),
+    selectors: ['body>div>a', 'body>div>a'],
+  }),
+  'text-below-ramp': () => ({ capture: buildCapture(el('p', { text: 'small', style: { 'font-size': '12px' } })), selectors: ['body>p'] }),
+  'heading-not-outranking': () => ({ capture: buildCapture(el('main', {}, el('h2', { text: 'Heading' }), el('p', { text: LONG }))), selectors: ['body>main>h2'] }),
+  'prose-too-wide': () => ({ capture: buildCapture(el('p', { rect: { w: 1000 }, chPx: 8, text: LONG })), selectors: ['body>p'] }),
+  'prose-muted': () => ({ capture: buildCapture(el('p', { text: LONG, style: { color: 'rgb(102, 102, 102)' } })), selectors: ['body>p'] }),
+  'text-subtle-used': () => ({ capture: buildCapture(el('span', { text: 'x', style: { color: 'rgb(138, 138, 138)' } })), selectors: ['body>span'] }),
+  'contrast-low': () => ({ capture: buildCapture(el('p', { text: 'pale', style: { color: 'rgb(200, 200, 200)' } })), selectors: ['body>p'] }),
+  'link-no-cue-in-prose': () => ({ capture: buildCapture(el('p', { text: 'See' }, el('a', { attrs: { href: true }, text: 'here', style: { color: 'rgb(14, 128, 80)' } }))), selectors: ['body>p>a'] }),
+  'fieldset-bordered': () => ({ capture: buildCapture(el('fieldset', { style: { 'border-top-width': '2px', 'border-top-style': 'groove' } })), selectors: ['body>fieldset'] }),
+  'hidden-but-displayed': () => ({ capture: buildCapture(el('div', { attrs: { hidden: true } })), selectors: ['body>div'] }),
+  'field-without-visible-label': () => ({ capture: buildCapture(el('input', { visibleLabel: false })), selectors: ['body>input'] }),
+  'empty-state-leaks-code': () => ({ capture: buildCapture(el('div', { cls: 'empty-state', text: 'No member_profiles rows' })), selectors: ['body>div.empty-state'], ctx: { tableNames: new Set(['member_profiles']) } }),
+  'spacing-off-rhythm': () => ({
+    capture: buildCapture(el('div', { rect: { h: 100 } },
+      el('p', { rect: { y: 0, h: 20 }, text: 'One' }),
+      el('p', { rect: { y: 30, h: 20 }, text: 'Two' }),
+    )),
+    selectors: ['body>div>p'],
+  }),
+  'contrast-unjudged': () => ({ capture: buildCapture(el('p', { text: 'x', style: { color: 'oklch(0.6 0.1 200)' } })), selectors: ['body>p'] }),
+  'text-overlaps': () => ({
+    capture: buildCapture(el('div', { rect: { h: 100 } },
+      el('p', { rect: { y: 0, h: 40 }, text: 'One' }),
+      el('p', { rect: { y: 10, h: 40 }, text: 'Two' }),
+    )),
+    selectors: ['body>div>p'],
+  }),
+  'text-clipped': () => ({ capture: buildCapture(el('div', { text: 'long', style: { 'overflow-x': 'hidden' }, scroll: { sw: 500, cw: 300 } })), selectors: ['body>div'] }),
+  'focus-not-visible': () => {
+    const c = buildCapture(el('nav', {}, el('a', { attrs: { href: true }, text: 'Go' })));
+    const a = c.elements[1];
+    const styles = Object.fromEntries(['outline-style', 'outline-width', 'outline-color', 'box-shadow', 'text-decoration-line', 'background-color', 'border-top-color', 'color']
+      .map((p) => [p, new CaptureView(c).style(a, p as StyleProp)]));
+    return { capture: { ...c, focus: [{ key: a.key, rect: a.rect, styles }] }, selectors: ['body>nav>a'] };
+  },
+  'colour-off-palette': () => ({ capture: buildCapture(el('p', { text: 'x', style: { color: 'rgb(1, 2, 3)' } }), { palette: ['rgb(51, 51, 51)'] }), selectors: ['body>p'] }),
+  'prose-leading-tight': () => ({ capture: buildCapture(el('p', { text: LONG, style: { 'line-height': '18px' } })), selectors: ['body>p'] }),
+  'image-unsized': () => ({ capture: buildCapture(el('img')), selectors: ['body>img'] }),
+};
+
+describe('every rule fires on a planted defect and names the element it found', () => {
+  it('has a planted defect for every rule, and none for a rule that no longer exists', () => {
+    // A new rule with no planted case could ship never firing; a stale entry here would hide that the rule was removed.
+    expect(Object.keys(PLANTED).sort()).toEqual(RULES.map((r) => r.id).sort());
+  });
+
+  it.each(RULES.map((r) => r.id))('%s', (id) => {
+    const { capture, selectors, ctx } = PLANTED[id]();
+    expect(hits(capture, id, ctx ?? NO_TABLES).map((f) => f.selector)).toEqual(selectors);
   });
 });
 

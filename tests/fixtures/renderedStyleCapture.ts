@@ -6,8 +6,8 @@
  * overrides only what its case is about.
  */
 import {
-  CAPTURE_SCHEMA, STYLE_PROPS,
-  type Capture, type ElementRecord, type Rect, type StyleProp,
+  CAPTURE_SCHEMA, STYLE_PROPS, textHash,
+  type Capture, type ElementRecord, type FocusRecord, type Rect, type StyleProp,
 } from '../e2e/helpers/renderedStyle';
 
 export interface NodeSpec {
@@ -16,9 +16,11 @@ export interface NodeSpec {
   rect?: Partial<Rect>;
   style?: Partial<Record<StyleProp, string>>;
   attrs?: ElementRecord['attrs'];
+  /** The element's id attribute, which keys it in place of its classes and position. */
+  id?: string;
   text?: string;
   chPx?: number;
-  scroll?: { sw: number; cw: number };
+  scroll?: { sw: number; cw: number; sh?: number; ch?: number };
   visibleLabel?: boolean;
   children?: NodeSpec[];
 }
@@ -49,7 +51,23 @@ function defaults(tag: string): Record<StyleProp, string> {
     'border-bottom-style': 'none',
     'border-left-style': 'none',
     'clip-path': 'none',
+    'overflow-y': 'visible',
+    'text-overflow': 'clip',
+    '-webkit-line-clamp': 'none',
+    float: 'none',
+    'aspect-ratio': 'auto',
+    'outline-style': 'none',
+    'outline-width': '0px',
+    'outline-color': 'rgb(51, 51, 51)',
   };
+}
+
+/** The key segment the browser script gives an element, before its position among look-alike siblings. */
+export function signatureOf(spec: Pick<NodeSpec, 'tag' | 'cls' | 'id' | 'text'>): string {
+  if (spec.id) return `${spec.tag}#${spec.id}`;
+  const cls = (spec.cls ?? '').split(/\s+/).filter((c) => c && !/^(is|has)-/.test(c)).sort();
+  const text = (spec.text ?? '').replace(/\s+/g, ' ').trim();
+  return [spec.tag, ...cls].join('.') + (text ? `~${textHash(text)}` : '');
 }
 
 export function el(tag: string, opts: Omit<NodeSpec, 'tag' | 'children'> = {}, ...children: NodeSpec[]): NodeSpec {
@@ -63,6 +81,8 @@ export interface CaptureOptions {
   template?: string | null;
   page?: Partial<Capture['page']>;
   tokens?: Record<string, string>;
+  palette?: string[];
+  focus?: FocusRecord[];
   truncated?: boolean;
 }
 
@@ -102,7 +122,7 @@ export function buildCapture(roots: NodeSpec | NodeSpec[], opts: CaptureOptions 
   const visitChildren = (specs: NodeSpec[], parent: ElementRecord | null) => {
     const seen = new Map<string, number>();
     for (const spec of specs) {
-      const sig = [spec.tag, ...(spec.cls ?? '').split(/\s+/).filter(Boolean).sort()].join('.');
+      const sig = signatureOf(spec);
       const nth = (seen.get(sig) ?? 0) + 1;
       seen.set(sig, nth);
       visit(spec, parent, `${sig}:nth(${nth})`);
@@ -117,6 +137,8 @@ export function buildCapture(roots: NodeSpec | NodeSpec[], opts: CaptureOptions 
     viewport: { width, height: opts.height ?? 800 },
     page: { scrollWidth: width, clientWidth: width, scrollHeight: 800, ...opts.page },
     tokens: opts.tokens ?? { '--text': '#333333', '--text-muted': '#666666', '--text-subtle': '#8a8a8a' },
+    ...(opts.palette ? { palette: opts.palette } : {}),
+    ...(opts.focus ? { focus: opts.focus } : {}),
     styleProps: [...STYLE_PROPS],
     strings,
     elements,

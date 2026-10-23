@@ -55,7 +55,6 @@ badge-historical
 badge-honor
 badge-member
 badge-muted
-badge-ok
 badge-tier
 badge-warn
 banner-grid
@@ -153,7 +152,6 @@ club-slug-prefix
 col-adds
 col-date
 col-holder
-col-message
 col-num
 col-rank
 col-year
@@ -603,7 +601,6 @@ media-layout--rail-end
 media-layout-main
 media-layout-rail
 media-report
-media-tag-strip
 member-action-detail
 member-action-headline
 member-action-list

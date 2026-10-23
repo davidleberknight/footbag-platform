@@ -4,28 +4,12 @@
 # Read by scripts/ci/assert_conventions.sh. The list only shrinks: moving a
 # rule onto a token removes its line in the same change, and a new colour
 # literal is refused rather than added here.
-.hero .tag-chip-link:hover | .hero .tag-chip-link:hover { color: rgba(255, 255, 255, 0.85); }
-.hero .hero-title-link:hover | .hero .hero-title-link:hover { color: rgba(255, 255, 255, 0.85); }
-.hero-stats span | background: rgba(255,255,255,0.15);
-.hero-stats span | border: 1px solid rgba(255,255,255,0.25);
-.gallery-tile-play | filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.5));
-.caption-mask-fullscreen | background: rgba(0, 0, 0, 0.55);
-.caption-mask-fullscreen:focus-visible | background: rgba(0, 0, 0, 0.8);
-.tag-chip-input-container:focus-within | outline: 2px solid rgba(51, 102, 204, 0.2);
-.event-hero-eyebrow | color: rgba(255,255,255,0.85);
-.event-hero-title a:hover | .event-hero-title a:hover { color: rgba(255,255,255,0.9); text-decoration: none; }
-.event-hero-meta | color: rgba(255,255,255,0.92);
-.btn-inverse:hover | .btn-inverse:hover { background: rgba(255,255,255,0.9); color: var(--secondary); }
-.video-facade-play | filter: drop-shadow(0 4px 12px rgba(0,0,0,0.5));
-.hero .breadcrumb-sep | color: rgba(255, 255, 255, 0.4);
-.sec-card code | .sec-card code { background: rgba(0,0,0,0.05); padding: 0 var(--space-xs); border-radius: var(--radius-2xs); }
 .notation-article-text | background: rgba(0, 0, 0, 0.03);
 .notation-article-text | border: 1px solid rgba(0, 0, 0, 0.1);
 .freestyle-featured-fallback | background: rgba(0, 0, 0, 0.03);
 .reference-layer-list li | background: rgba(0, 0, 0, 0.02);
 .notation-display .notation-display-tokens | background: rgba(0, 0, 0, 0.02);
 .operational-notation-display .operational-notation-tokens | background: rgba(0, 0, 0, 0.02);
-.hero-mascot | filter: drop-shadow(0 2px 6px rgba(0,0,0,0.12));
 .family-lineage-tier-current | background: rgba(34, 197, 94, 0.05);
 .modifier-layer-set | background: rgba(219, 234, 254, 0.42);
 .modifier-layer-rotation | background: rgba(255, 237, 213, 0.55);
@@ -38,4 +22,3 @@
 a.by-numbers-card:hover | box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12);
 .by-numbers-bar-track | background: rgba(0, 0, 0, 0.08);
 a.banner-tile:hover | a.banner-tile:hover { box-shadow: 0 2px 10px rgba(0, 0, 0, 0.12); transform: translateY(-1px); }
-.banner-tile--soon | .banner-tile--soon { background: transparent; box-shadow: none; border: 1px dashed rgba(0, 0, 0, 0.12); }

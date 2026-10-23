@@ -10,9 +10,12 @@
  * they come from the same machine, because fonts differ between systems.
  *
  * The baseline lists findings that exist today and are being worked down. It
- * holds rule, template, viewport and a maximum count, and no measured numbers,
- * so ordinary refactors and font differences between machines do not churn it.
+ * holds rule, template, viewport, a maximum count and a short hash of the
+ * elements found, and no measured numbers, so ordinary refactors and font
+ * differences between machines do not churn it, while fixing one finding and
+ * adding another of the same rule on the same page cannot pass as no change.
  */
+import { createHash } from 'node:crypto';
 import {
   CaptureView, normalizeColor, STYLE_PROPS,
   type Capture, type Finding, type Rect, type StyleProp,
@@ -111,7 +114,14 @@ export function summariseDiff(d: PageDiff): string[] {
 
 // ── Baseline ──────────────────────────────────────────────────────────────
 
-export interface BaselineEntry { rule: string; template: string; viewport: number; max: number }
+export interface BaselineEntry {
+  rule: string;
+  template: string;
+  viewport: number;
+  max: number;
+  /** A short hash of the sorted selectors found, so the same count over other elements is told apart. */
+  elements: string;
+}
 
 /** Plain code-point order, the same on every machine; a locale-aware sort would reorder the committed file between machines. */
 function byCodePoint(a: string, b: string): number {
@@ -122,7 +132,12 @@ function baselineKey(rule: string, template: string, viewport: number): string {
   return `${rule}\t${template}\t${viewport}`;
 }
 
-/** Parses tab-separated `rule template viewport max` lines; blank lines and `#` comments are skipped. */
+/** A short hash of a set of finding selectors, the same whatever order they were found in. */
+export function selectorHash(selectors: readonly string[]): string {
+  return createHash('sha1').update([...selectors].sort(byCodePoint).join('\n')).digest('hex').slice(0, 8);
+}
+
+/** Parses tab-separated `rule template viewport max elements` lines; blank lines and `#` comments are skipped. */
 export function parseBaseline(text: string): BaselineEntry[] {
   const out: BaselineEntry[] = [];
   for (const [n, raw] of text.split('\n').entries()) {
@@ -130,10 +145,10 @@ export function parseBaseline(text: string): BaselineEntry[] {
     if (!line || line.startsWith('#')) continue;
     const parts = line.split('\t');
     const max = Number(parts[3]);
-    if (parts.length !== 4 || !Number.isInteger(max) || max < 1) {
-      throw new Error(`baseline line ${n + 1} is not "rule<TAB>template<TAB>viewport<TAB>count": ${raw}`);
+    if (parts.length !== 5 || !Number.isInteger(max) || max < 1 || !/^[0-9a-f]{8}$/.test(parts[4])) {
+      throw new Error(`baseline line ${n + 1} is not "rule<TAB>template<TAB>viewport<TAB>count<TAB>elements": ${raw}`);
     }
-    out.push({ rule: parts[0], template: parts[1], viewport: Number(parts[2]), max });
+    out.push({ rule: parts[0], template: parts[1], viewport: Number(parts[2]), max, elements: parts[4] });
   }
   return out;
 }
@@ -151,16 +166,18 @@ export function formatBaseline(findings: readonly Finding[]): string {
     throw new Error(`refusing to record a broken measurement as known: ${broken.map((f) => `${f.template ?? f.url} rendered the wrong view`).join('; ')}`);
   }
   const counts = countFindings(findings);
-  return [...counts].sort(([a], [b]) => byCodePoint(a, b)).map(([k, n]) => `${k}\t${n}`).join('\n') + (counts.size ? '\n' : '');
+  return [...counts].sort(([a], [b]) => byCodePoint(a, b)).map(([k, c]) => `${k}\t${c.count}\t${c.elements}`).join('\n') + (counts.size ? '\n' : '');
 }
 
-function countFindings(findings: readonly Finding[]): Map<string, number> {
-  const counts = new Map<string, number>();
+function countFindings(findings: readonly Finding[]): Map<string, { count: number; elements: string }> {
+  const selectors = new Map<string, string[]>();
   for (const f of findings) {
     const k = baselineKey(f.rule, f.template ?? f.url, f.viewport);
-    counts.set(k, (counts.get(k) ?? 0) + 1);
+    const list = selectors.get(k) ?? [];
+    list.push(f.selector);
+    selectors.set(k, list);
   }
-  return counts;
+  return new Map([...selectors].map(([k, list]) => [k, { count: list.length, elements: selectorHash(list) }]));
 }
 
 export interface BaselineVerdict {
@@ -170,6 +187,8 @@ export interface BaselineVerdict {
   exceeded: Array<{ entry: BaselineEntry; count: number }>;
   /** Baseline lines now found fewer times than listed: progress, which shrinkBaseline records. */
   stale: Array<{ entry: BaselineEntry; count: number }>;
+  /** Baseline lines found as many times as listed, but on other elements: one finding fixed and another added. */
+  swapped: Array<{ entry: BaselineEntry; count: number }>;
 }
 
 /**
@@ -190,22 +209,24 @@ export function measuredKey(template: string, viewport: number): string {
 export function compareToBaseline(findings: readonly Finding[], baseline: readonly BaselineEntry[], visited: ReadonlySet<string>): BaselineVerdict {
   const counts = countFindings(findings);
   const listed = new Map(baseline.map((e) => [baselineKey(e.rule, e.template, e.viewport), e]));
-  const verdict: BaselineVerdict = { unexpected: [], exceeded: [], stale: [] };
+  const verdict: BaselineVerdict = { unexpected: [], exceeded: [], stale: [], swapped: [] };
   for (const f of findings) {
     if (NEVER_KNOWN.has(f.rule) || !listed.has(baselineKey(f.rule, f.template ?? f.url, f.viewport))) verdict.unexpected.push(f);
   }
   for (const [k, entry] of listed) {
     if (!visited.has(measuredKey(entry.template, entry.viewport))) continue;
-    const count = counts.get(k) ?? 0;
+    const found = counts.get(k);
+    const count = found?.count ?? 0;
     if (count > entry.max) verdict.exceeded.push({ entry, count });
     else if (count < entry.max) verdict.stale.push({ entry, count });
+    else if (found && found.elements !== entry.elements) verdict.swapped.push({ entry, count });
   }
   return verdict;
 }
 
-/** True when nothing is new or worse; a line found fewer times than listed is progress, not a failure. */
+/** True when nothing is new, worse or swapped; a line found fewer times than listed is progress, not a failure. */
 export function verdictIsClean(v: BaselineVerdict): boolean {
-  return v.unexpected.length === 0 && v.exceeded.length === 0;
+  return v.unexpected.length === 0 && v.exceeded.length === 0 && v.swapped.length === 0;
 }
 
 /**
@@ -229,10 +250,16 @@ export function shrinkBaseline(
     const label = `${e.rule} ${e.template} @${e.viewport}`;
     if (!liveTemplates.has(e.template)) { changes.push(`removed ${label}: the view no longer exists`); continue; }
     if (!visited.has(measuredKey(e.template, e.viewport))) { entries.push(e); continue; }
-    const count = counts.get(baselineKey(e.rule, e.template, e.viewport)) ?? 0;
+    const found = counts.get(baselineKey(e.rule, e.template, e.viewport));
+    const count = found?.count ?? 0;
     if (count === 0) { changes.push(`removed ${label}: fixed`); continue; }
-    if (count < e.max) changes.push(`lowered ${label} from ${e.max} to ${count}`);
-    entries.push({ ...e, max: Math.min(count, e.max) });
+    // A lowered line records the elements still found, so the next run judges those.
+    if (count < e.max) {
+      changes.push(`lowered ${label} from ${e.max} to ${count}`);
+      entries.push({ ...e, max: count, elements: found!.elements });
+      continue;
+    }
+    entries.push(e);
   }
   return { entries, changes };
 }
@@ -247,6 +274,6 @@ export function normalisePageProblem(message: string, origin: string): string {
 
 /** Writes baseline entries in the same sorted, tab-separated form `formatBaseline` produces. */
 export function formatBaselineEntries(entries: readonly BaselineEntry[]): string {
-  const lines = entries.map((e) => `${baselineKey(e.rule, e.template, e.viewport)}\t${e.max}`).sort(byCodePoint);
+  const lines = entries.map((e) => `${baselineKey(e.rule, e.template, e.viewport)}\t${e.max}\t${e.elements}`).sort(byCodePoint);
   return lines.join('\n') + (lines.length ? '\n' : '');
 }
