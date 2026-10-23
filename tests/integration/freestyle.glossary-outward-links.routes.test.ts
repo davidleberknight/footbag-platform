@@ -23,8 +23,8 @@
  *     on modifier feel-cards.
  *   - "Modifier reference →" replaces "Learn more about {displayName} →"
  *     on connective panels with a modifierFamilyHref.
- *   - The unified .glossary-outward-link CSS class binds the
- *     standardized links.
+ *   - The standardized links take the site's one prominent-link class,
+ *     .action-link.
  *   - Forbidden variants ("See tricks using", "Learn more about") do
  *     not appear in the rendered HTML.
  */
@@ -102,11 +102,13 @@ describe('GET /freestyle/concepts — standardized outward-link phrasings', () =
     expect(res.text).not.toMatch(linkPattern);
   });
 
-  it('unified .glossary-outward-link class binds the standardized links', async () => {
+  it('the standardized links take the site prominent-link class', async () => {
+    // A family-card link left on a local class reads as plain body text, so a
+    // visitor misses the way on to the trick or the family article.
     const res = await page('/freestyle/concepts');
     // At minimum, the family cards carry the class. The test pins presence;
     // count assertions would be brittle across future curator additions.
-    expect(res.text).toMatch(/class="glossary-outward-link"/);
+    expect(res.text).toMatch(/<a class="action-link" href="[^"]+">(View full ontology|Read the Full Family Article)<\/a>/);
   });
 });
 

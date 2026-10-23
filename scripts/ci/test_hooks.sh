@@ -1614,16 +1614,16 @@ expect_gate() {
 gate_tmp="$(mktemp -d)"
 # A gated command is denied once per session, with the why and what to do, and the
 # reissue in that session falls through to the ask rule; another session starts over.
-expect_gate s1 'npm run test:rendered-style' deny 'Say in your message the exact command and why'
-expect_gate s1 'npm run test:rendered-style' defer
-expect_gate s2 'npm run test:rendered-style' deny
+expect_gate s1 'npm run test:persona-crawl' deny 'Say in your message the exact command and why'
+expect_gate s1 'npm run test:persona-crawl' defer
+expect_gate s2 'npm run test:persona-crawl' deny
 # Combined with anything else it is always denied, so the prompt names it alone.
-expect_gate s1 'RENDERED_STYLE_READ_ONLY=1 npm run test:rendered-style > /tmp/x/log 2>&1; echo "exit=$?"' deny 'must run as its own Bash call'
+expect_gate s1 'RUN_PERSONA_CRAWL=1 npm run test:persona-crawl > /tmp/x/log 2>&1; echo "exit=$?"' deny 'must run as its own Bash call'
 expect_gate s3 'git status && npm test' deny
 expect_gate s3 'npm run test:e2e -- x | tail -5' deny
 # An env prefix and a redirect are not separate commands; a quoted | is not a pipe.
-expect_gate s4 'RENDERED_STYLE_READ_ONLY=1 npm run test:rendered-style > /tmp/x/log 2>&1' deny
-expect_gate s4 'RENDERED_STYLE_READ_ONLY=1 npm run test:rendered-style > /tmp/x/log 2>&1' defer
+expect_gate s4 'RUN_PERSONA_CRAWL=1 npm run test:persona-crawl > /tmp/x/log 2>&1' deny
+expect_gate s4 'RUN_PERSONA_CRAWL=1 npm run test:persona-crawl > /tmp/x/log 2>&1' defer
 expect_gate s5 'npm run test:e2e -- --grep "a|b"' deny
 expect_gate s5 'npm run test:e2e -- --grep "a|b"' defer
 # The rebuild modes and deploy are gated; a `:*` rule needs a word boundary.
@@ -1633,6 +1633,7 @@ expect_gate s6 'bash deploy_to_aws.sh.bak' defer
 # Targeted tests and ordinary commands are not the gate's business.
 expect_gate s6 'npx vitest run tests/unit/foo.test.ts' defer
 expect_gate s6 'npm run test:strong-hash' defer
+expect_gate s6 'npm run test:rendered-style' defer
 expect_gate s6 'ls -la' defer
 rm -rf "$gate_tmp"
 

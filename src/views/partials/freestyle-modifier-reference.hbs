@@ -71,7 +71,7 @@
     owning chapters, but the anchors stay as thin cross-links so those deep links
     keep resolving. }}
 <p class="detail-muted">Set systems:
-  {{#each content.setModifierFeelCards}}<a id="modifier-{{slug}}" class="glossary-outward-link" href="#section-timing-sets">{{name}}</a>{{#unless @last}} &middot; {{/unless}}{{/each}}.
+  {{#each content.setModifierFeelCards}}<a id="modifier-{{slug}}" href="#section-timing-sets">{{name}}</a>{{#unless @last}} &middot; {{/unless}}{{/each}}.
 </p>
 
 <div class="glossary-modifier-cluster">
@@ -87,7 +87,7 @@
       <p class="glossary-modifier-card-intuition">{{intuition}}</p>
       <p class="glossary-modifier-card-example"><em>Example:</em> {{example}}</p>
       {{#if familyHint}}<p class="glossary-modifier-card-family-hint">{{familyHint}}</p>{{/if}}
-      {{#if browseHref}}<p class="glossary-modifier-card-tricks-link"><a class="glossary-outward-link" href="{{{browseHref}}}">Browse {{name}} tricks</a></p>{{/if}}
+      {{#if browseHref}}<p class="glossary-modifier-card-tricks-link"><a class="action-link" href="{{{browseHref}}}">Browse {{name}} tricks</a></p>{{/if}}
     </article>
     {{/each}}
   </div>
@@ -110,7 +110,7 @@
       <p class="glossary-modifier-card-intuition">{{intuition}}</p>
       <p class="glossary-modifier-card-example"><em>Example:</em> {{example}}</p>
       {{#if familyHint}}<p class="glossary-modifier-card-family-hint">{{familyHint}}</p>{{/if}}
-      {{#if browseHref}}<p class="glossary-modifier-card-tricks-link"><a class="glossary-outward-link" href="{{{browseHref}}}">Browse {{name}} tricks</a></p>{{/if}}
+      {{#if browseHref}}<p class="glossary-modifier-card-tricks-link"><a class="action-link" href="{{{browseHref}}}">Browse {{name}} tricks</a></p>{{/if}}
     </article>
     {{/each}}
   </div>

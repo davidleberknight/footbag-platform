@@ -289,21 +289,6 @@
   --glossary-inline-notation-bg:    rgba(0, 0, 0, 0.02);   /* faint inline-notation wash */
   --operational-glossary-target-bg: rgba(180, 83, 9, 0.06); /* warm amber deep-link highlight */
 
-  /* Freestyle semantic aliases (map freestyle vocabulary onto canonical tokens) */
-  --text-primary: var(--text);
-  --text-secondary: var(--text-muted);
-  --text-strong: var(--slate-800);
-  --bg-subtle: var(--gray-100);
-  --bg-card: var(--white);
-  --bg-page: var(--bg);
-  --surface-2: var(--slate-200);
-  --surface-muted: var(--gray-100);
-  --accent: var(--secondary);
-  --accent-strong: var(--steel-600);
-  --border-subtle: var(--border);
-  --border-light: var(--gray-150);
-  --border-soft: var(--parch-300);
-  --link: var(--primary);
   /* The width of the page content column. Anything that must line up with the
      page beneath it reads this rather than repeating the number, so a band
      spanning the viewport still meets the column at the same edge. */
@@ -374,7 +359,7 @@ a:hover,
 a:focus-visible { color: var(--primary-ink-dk); text-decoration: underline; }
 /* A keyboard reader needs a mark that does not depend on the link's resting
    style, so every focused link draws the same ring as a focused text button. */
-a:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+a:focus-visible { outline: 2px solid var(--secondary); outline-offset: 2px; }
 /* In-prose links carry a non-color cue at rest: an anchor inside running
    paragraph text is underlined, so it stays distinguishable for color-blind
    readers regardless of the surrounding text's color. Buttons rendered as
@@ -1108,7 +1093,7 @@ th.sortable:hover { color: var(--primary-ink); }
   cursor: pointer;
   font-size: 0.9rem;
   font-weight: 600;
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
 .gallery-item-pager {
   display: flex;
@@ -1950,7 +1935,7 @@ section.home-media { padding-top: 0; }
 }
 .btn-link:hover { color: var(--primary-ink-dk); }
 .btn-link:focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--secondary);
   outline-offset: 2px;
 }
 
@@ -2396,7 +2381,7 @@ section.home-media { padding-top: 0; }
   font-size: 0.9rem;
   color: var(--text);
   text-decoration: none;
-  background: var(--bg-card);
+  background: var(--white);
   transition: border-color 0.15s, background 0.15s;
 }
 .club-country-nav-list a:hover {
@@ -3816,7 +3801,7 @@ main fieldset > :not(:has(~ :not([type="hidden"]))) { margin-bottom: 0; }
 /* ── Source note (records page provenance disclaimer) ───────────────────── */
 .source-note {
   font-size: 0.9rem;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   margin: var(--space-lg) 0 var(--space-xl);
   line-height: 1.5;
   max-width: 55ch;
@@ -3876,7 +3861,7 @@ main pre[role="region"] { overflow-x: auto; }
   padding: var(--space-sm) var(--space-md);
   border-bottom: 2px solid var(--gray-300);
   font-weight: 600;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   white-space: nowrap;
 }
 .records-table td {
@@ -3886,7 +3871,7 @@ main pre[role="region"] { overflow-x: auto; }
 }
 .records-table tr:last-child td { border-bottom: none; }
 .records-table .col-num { text-align: right; font-variant-numeric: tabular-nums; }
-.records-table .col-adds { text-align: center; }
+.data-table .col-adds { text-align: center; }
 
 /* Trick name: two-line display (common name bold, sort name muted below) */
 .trick-name {
@@ -3896,7 +3881,7 @@ main pre[role="region"] { overflow-x: auto; }
 .trick-sort-name {
   display: block;
   font-size: 0.9rem;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   margin-top: var(--space-xs);
 }
 
@@ -3908,7 +3893,7 @@ main pre[role="region"] { overflow-x: auto; }
   padding: var(--space-xs) var(--space-sm);
   border-radius: var(--radius-sm);
   background: var(--bg-light);
-  color: var(--text-secondary);
+  color: var(--text-muted);
   font-size: 0.9rem;
   font-weight: 600;
   text-transform: uppercase;
@@ -3919,7 +3904,7 @@ main pre[role="region"] { overflow-x: auto; }
   margin-top: var(--space-xs);
   font-size: 0.9rem;
   font-style: italic;
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
 
 /* ── Trick hashtag token ─────────────────────────────────────────
@@ -3999,7 +3984,7 @@ a.hashtag--media:hover {
 }
 .trick-row {
   padding: var(--space-md);
-  border-bottom: 1px solid var(--border-light);
+  border-bottom: 1px solid var(--gray-150);
 }
 .trick-row:last-child { border-bottom: none; }
 .trick-row--external-placeholder {
@@ -4202,7 +4187,7 @@ a.hashtag--media:hover {
 .reference-layer-list li {
   padding: var(--space-md) var(--space-lg);
   background: rgba(0, 0, 0, 0.02);
-  border-left: 3px solid var(--accent);
+  border-left: 3px solid var(--secondary);
   border-radius: var(--radius-2xs);
   line-height: 1.5;
 }
@@ -4377,22 +4362,12 @@ a.hashtag--media:hover {
   color: var(--warn-deep);  /* match operational palette primary on hover */
 }
 
-/* Parallel glossary deeplink for the semantic
- * notation block. Same styling shape; hover color picks the cool-palette
- * primary (notation-core-family green) to maintain layer distinction. */
+/* Glossary deeplink at the foot of the semantic notation block; the link
+ * itself takes the site link treatment. */
 .notation-glossary-link {
   margin: var(--space-sm) 0 0;
   font-size: 0.9rem;
   color: var(--text-muted);
-}
-.notation-glossary-link a {
-  color: inherit;
-  text-decoration: underline dotted;
-  text-underline-offset: 2px;
-}
-.notation-glossary-link a:hover {
-  text-decoration: underline;
-  color: var(--sec-dev);  /* match notation-core-family cool palette on hover */
 }
 
 .notation-token {
@@ -4569,7 +4544,7 @@ a.hashtag--media:hover {
 .next-tricks-list li > a:first-child { font-weight: 500; }
 .next-tricks-adds {
   font-size: 0.9rem;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -4592,7 +4567,7 @@ a.hashtag--media:hover {
   padding: var(--space-xs) var(--space-md);
   margin: var(--space-xs) 0 0 0;
   text-decoration: none;
-  color: var(--text-primary);
+  color: var(--text);
 }
 .family-badge:hover { background: var(--slate-200); }
 
@@ -4608,15 +4583,7 @@ a.hashtag--media:hover {
    ones whose second column is something else, and hides a header while its
    data stays, so every later header sits over the wrong column. */
 @media (max-width: 768px) {
-  .records-table .col-adds { display: none; }
-}
-
-/* ── Leaders table ──────────────────────────────────────────────────────── */
-.leaders-table .col-rank {
-  width: 2.5rem;
-  text-align: center;
-  color: var(--text-secondary);
-  font-variant-numeric: tabular-nums;
+  .data-table .col-adds { display: none; }
 }
 
 /* ── Content sub-headings (About, Moves pages) ──────────────────────────── */
@@ -4624,7 +4591,7 @@ a.hashtag--media:hover {
   font-size: 1.25rem;
   font-weight: 600;
   margin: var(--space-xl) 0 var(--space-sm);
-  color: var(--text-primary);
+  color: var(--text);
 }
 
 /* ── Legal page (/legal) ──────────────────────────────────────────────── */
@@ -4680,7 +4647,7 @@ a.hashtag--media:hover {
   padding: var(--space-sm) var(--space-md);
   border-bottom: 2px solid var(--gray-300);
   font-weight: 600;
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
 .moves-table td {
   padding: var(--space-sm) var(--space-md);
@@ -4707,7 +4674,7 @@ a.hashtag--media:hover {
   border-radius: var(--radius-xs);
   padding: var(--space-xs) var(--space-md);
   font-size: 0.9rem;
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
 
 /* ─────────────────────────────────────────────────────────────────────
@@ -4732,7 +4699,7 @@ a.hashtag--media:hover {
 }
 .compositional-sets-canonical-formula code {
   font-size: 1rem;
-  color: var(--text-strong);
+  color: var(--slate-800);
   letter-spacing: 0.01em;
 }
 .compositional-sets-canonical-formula figcaption {
@@ -4746,7 +4713,7 @@ a.hashtag--media:hover {
   margin: var(--space-md) 0;
   padding: var(--space-md) var(--space-lg);
   border-left: 3px solid var(--border);
-  color: var(--text-secondary);
+  color: var(--text-muted);
   font-size: 1rem;
 }
 
@@ -4766,7 +4733,7 @@ a.hashtag--media:hover {
 .compositional-set-family-intro {
   margin: 0 0 var(--space-lg);
   max-width: 720px;
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
 
 .compositional-set-grid {
@@ -4792,7 +4759,7 @@ a.hashtag--media:hover {
 /* The card's padding is the space under its last line. */
 .compositional-set-card > :last-child { margin-bottom: 0; }
 .compositional-set-card--canonical {
-  border-left-color: var(--accent);
+  border-left-color: var(--secondary);
 }
 .compositional-set-card--platform-tracked {
   border-left-color: var(--slate-400);
@@ -4806,11 +4773,11 @@ a.hashtag--media:hover {
   margin: 0 0 var(--space-sm);
   font-weight: 600;
   font-size: 1rem;
-  color: var(--text-strong);
+  color: var(--slate-800);
 }
 .compositional-set-card-name a {
   color: inherit;
-  text-decoration-color: var(--accent);
+  text-decoration-color: var(--secondary);
   text-underline-offset: 2px;
 }
 
@@ -4821,14 +4788,14 @@ a.hashtag--media:hover {
   background: var(--slate-50);
   border-radius: var(--radius-2xs);
   font-size: 0.9rem;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   overflow-wrap: anywhere;
 }
 
 .compositional-set-card-note {
   margin: var(--space-xs) 0 0;
   font-size: 0.9rem;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   line-height: 1.4;
 }
 .compositional-set-card-status {
@@ -4846,14 +4813,14 @@ a.hashtag--media:hover {
 .compositional-sets-ladders-intro {
   max-width: 720px;
   margin: 0 0 var(--space-lg);
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
 .compositional-ladder {
   margin: var(--space-lg) 0;
   padding: var(--space-lg);
   background: var(--white);
   border: 1px solid var(--border);
-  border-left: 3px solid var(--accent);
+  border-left: 3px solid var(--secondary);
   border-radius: var(--radius-xs);
 }
 .compositional-ladder--conflict {
@@ -4871,11 +4838,11 @@ a.hashtag--media:hover {
   margin: 0;
   font-weight: 600;
   font-size: 1rem;
-  color: var(--text-strong);
+  color: var(--slate-800);
 }
 .compositional-ladder-set-notation {
   font-size: 0.9rem;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   padding: var(--space-xs) var(--space-sm);
   background: var(--slate-50);
   border-radius: var(--radius-2xs);
@@ -4883,7 +4850,7 @@ a.hashtag--media:hover {
 .compositional-ladder-reinterpretation {
   margin: var(--space-sm) 0 var(--space-md);
   font-size: 1rem;
-  color: var(--text-strong);
+  color: var(--slate-800);
   font-style: italic;
 }
 .compositional-ladder-steps {
@@ -4909,7 +4876,7 @@ a.hashtag--media:hover {
 .compositional-ladder-step code {
   background: transparent;
   padding: 0;
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
 .compositional-ladder-source {
   margin: var(--space-sm) 0 0;
@@ -4927,7 +4894,7 @@ a.hashtag--media:hover {
   border-left: 2px dashed var(--slate-400);
   border-radius: var(--radius-2xs);
   font-size: 0.9rem;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   font-style: italic;
 }
 
@@ -5247,7 +5214,7 @@ a.hashtag--media:hover {
 .upload-tabs > input#upload-tab-url:focus-visible   ~ .upload-tab-bar .upload-tab[for="upload-tab-url"],
 .upload-tabs > input#member-tab-photo:focus-visible ~ .upload-tab-bar .upload-tab[for="member-tab-photo"],
 .upload-tabs > input#member-tab-video:focus-visible ~ .upload-tab-bar .upload-tab[for="member-tab-video"] {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--secondary);
   outline-offset: 2px;
 }
 /* Panels: hide by default, show when the matching radio is checked. */
@@ -5327,7 +5294,7 @@ a.hashtag--media:hover {
    to the heading it qualifies. */
 .data-table .sort-indicator {
   margin-left: var(--space-xs);
-  color: var(--accent);
+  color: var(--secondary);
 }
 
 
@@ -5491,7 +5458,7 @@ a.hashtag--media:hover {
   cursor: pointer;
   font-weight: 600;
   font-size: 0.9rem;
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
 .glossary-core-atom-collapsible > p {
   margin-top: var(--space-sm);
@@ -5628,7 +5595,7 @@ a.hashtag--media:hover {
 .trick-add-analysis-total {
   font-size: 1.5rem;
   font-weight: 700;
-  color: var(--text-strong);
+  color: var(--slate-800);
 }
 .trick-add-analysis-derivation {
   display: block;
@@ -5656,7 +5623,7 @@ a.hashtag--media:hover {
   margin: 0 0 var(--space-xs);
   font-weight: 600;
   font-size: 1rem;
-  color: var(--text-strong);
+  color: var(--slate-800);
   letter-spacing: 0.01em;
 }
 .trick-primitive-note-explainer {
@@ -5701,7 +5668,7 @@ a.hashtag--media:hover {
   margin: var(--space-sm) 0 var(--space-md);
   font-size: 1rem;
   line-height: 1.6;
-  color: var(--text-strong);
+  color: var(--slate-800);
   max-width: 55ch;
 }
 .trick-intuition-attribution {
@@ -5720,7 +5687,7 @@ a.hashtag--media:hover {
 .trick-interpretation {
   background: var(--white);
   border: 1px solid var(--border);
-  border-left: 3px solid var(--accent);
+  border-left: 3px solid var(--secondary);
   border-radius: var(--radius-xs);
   padding: var(--space-md) var(--space-lg);
   margin: var(--space-md) 0;
@@ -5729,7 +5696,7 @@ a.hashtag--media:hover {
 .trick-interpretation .section-heading h2 {
   margin: 0 0 var(--space-sm);
   font-size: 1.5rem;
-  color: var(--text-strong);
+  color: var(--slate-800);
   letter-spacing: 0.01em;
 }
 .trick-interpretation-readings {
@@ -5745,16 +5712,16 @@ a.hashtag--media:hover {
   grid-column: 1;
   margin: 0;
   font-weight: 600;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   white-space: nowrap;
 }
 .trick-interpretation-reading-value {
   grid-column: 2;
   margin: 0;
-  color: var(--text-strong);
+  color: var(--slate-800);
 }
 .trick-interpretation-reading-value--historical {
-  color: var(--text-secondary);
+  color: var(--text-muted);
   font-style: italic;
 }
 .trick-interpretation-notes {
@@ -5789,28 +5756,28 @@ a.hashtag--media:hover {
 .section-topology-label,
 .section-role-eyebrow {
   font-size: 0.9rem;
-  color: var(--text-secondary);
-  background: var(--bg-subtle);
+  color: var(--text-muted);
+  background: var(--gray-100);
   padding: var(--space-xs) var(--space-sm);
   border-radius: var(--radius-2xs);
 }
 .trick-mechanical-delta-parents {
   font-size: 0.9rem;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   margin: var(--space-xs) 0 var(--space-sm);
 }
 .trick-mechanical-delta-prose p {
   margin: 0 0 var(--space-md);
   font-size: 1rem;
   line-height: 1.6;
-  color: var(--text-strong);
+  color: var(--slate-800);
   max-width: 720px;
 }
 .trick-interpretive-traditions {
   margin-top: var(--space-md);
   padding: var(--space-md);
   border-left: 3px solid var(--border);
-  background: var(--bg-subtle);
+  background: var(--gray-100);
 }
 .trick-interpretive-traditions-intro {
   font-size: 0.9rem;
@@ -5842,7 +5809,7 @@ a.hashtag--media:hover {
   margin: var(--space-sm) 0 var(--space-md);
   font-size: 1rem;
   line-height: 1.55;
-  color: var(--text-strong);
+  color: var(--slate-800);
   max-width: 720px;
 }
 .trick-productive-descendants {
@@ -5875,17 +5842,17 @@ a.hashtag--media:hover {
 }
 .trick-family-evolution-axis {
   margin: 0 0 var(--space-xs);
-  color: var(--text-strong);
+  color: var(--slate-800);
 }
 .trick-family-evolution-prose {
   margin: 0 0 var(--space-sm);
   font-size: 1rem;
   line-height: 1.5;
-  color: var(--text-primary);
+  color: var(--text);
 }
 .trick-family-evolution-exemplars {
   font-size: 0.9rem;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   margin: 0;
 }
 .trick-progressive-readings-stages {
@@ -5898,20 +5865,20 @@ a.hashtag--media:hover {
   counter-increment: progressive-stage;
   padding: var(--space-md) var(--space-md) var(--space-md) var(--space-lg);
   margin-bottom: var(--space-lg);
-  background: var(--bg-subtle);
+  background: var(--gray-100);
   border-left: 3px solid var(--border);
 }
 .trick-progressive-stage::before {
   content: counter(progressive-stage) ". ";
   font-weight: 600;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   font-size: 0.9rem;
 }
 .trick-progressive-stage-label {
   display: inline;
   font-weight: 600;
   font-size: 1rem;
-  color: var(--text-strong);
+  color: var(--slate-800);
 }
 .trick-progressive-stage-reading {
   display: block;
@@ -5919,7 +5886,7 @@ a.hashtag--media:hover {
   padding-left: var(--space-lg);
   font-size: 1rem;
   line-height: 1.55;
-  color: var(--text-primary);
+  color: var(--text);
 }
 .trick-progressive-stage-citation {
   margin-top: var(--space-xs);
@@ -5930,12 +5897,12 @@ a.hashtag--media:hover {
 .trick-description--decomposition-pill {
   display: inline-block;
   padding: var(--space-xs) var(--space-md);
-  background: var(--bg-subtle);
+  background: var(--gray-100);
   border-radius: var(--radius-2xs);
   font-family: var(--font-body);
   font-weight: 500;
   font-size: 0.9rem;
-  color: var(--text-primary);
+  color: var(--text);
 }
 
 /* Reverse-pair transform overlay.
@@ -5952,7 +5919,7 @@ a.hashtag--media:hover {
 }
 .trick-transform-label {
   font-weight: 600;
-  color: var(--text-strong);
+  color: var(--slate-800);
   margin-right: var(--space-sm);
 }
 .trick-transform-expression {
@@ -6003,7 +5970,7 @@ a.hashtag--media:hover {
   margin: 0;
   padding: var(--space-lg) var(--space-lg) var(--space-sm) var(--space-lg);
   font-size: 0.9rem;
-  color: var(--text-primary);
+  color: var(--text);
 }
 .trick-equivalence-topology-list {
   list-style: none;
@@ -6019,7 +5986,7 @@ a.hashtag--media:hover {
   font-size: 1rem;
 }
 .trick-equivalence-topology-row + .trick-equivalence-topology-row {
-  border-top: 1px dashed var(--border-soft);
+  border-top: 1px dashed var(--parch-300);
 }
 .trick-equivalence-topology-glyph {
   color: var(--text-muted);
@@ -6544,7 +6511,7 @@ a.hashtag--media:hover {
   border-radius: var(--radius-full);
   background: var(--bg-light);
   border: 1px solid var(--border);
-  color: var(--text-secondary);
+  color: var(--text-muted);
   font-weight: 500;
   letter-spacing: 0.01em;
   text-decoration: none;
@@ -6784,7 +6751,7 @@ a.trick-hero-meta-chip--media:hover {
    cards / glossary / landing never carry this surface). */
 .trick-scoring-notes {
   border-left: 3px solid var(--border);
-  background: var(--bg-subtle);
+  background: var(--gray-100);
   padding: var(--space-md) var(--space-lg);
   margin-top: var(--space-lg);
   margin-bottom: var(--space-lg);
@@ -6812,7 +6779,7 @@ a.trick-hero-meta-chip--media:hover {
 .trick-scoring-notes-summary {
   font-size: 0.9rem;
   font-weight: 600;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   cursor: pointer;
   user-select: none;
 }
@@ -6831,7 +6798,7 @@ a.trick-hero-meta-chip--media:hover {
 .glossary-core-atoms-lede {
   margin-top: var(--space-sm);
   margin-bottom: var(--space-lg);
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
 .glossary-core-atoms-grid {
   display: grid;
@@ -6888,7 +6855,7 @@ a.trick-hero-meta-chip--media:hover {
   margin: 0;
   font-size: 0.9rem;
   line-height: 1.5;
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
 .glossary-core-atom-intuition-label {
   display: inline-block;
@@ -6903,7 +6870,7 @@ a.trick-hero-meta-chip--media:hover {
   margin: 0;
   font-size: 0.9rem;
   font-style: italic;
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
 .glossary-core-atom-family-role {
   margin: 0;
@@ -7305,14 +7272,6 @@ a.trick-hero-meta-chip--media:hover {
 .glossary-family-tree-members li:last-child::before {
   content: "└";
 }
-.glossary-family-tree-members a {
-  color: inherit;
-  text-decoration: none;
-  border-bottom: 1px dotted var(--gray-500);
-}
-.glossary-family-tree-members a:hover {
-  border-bottom-color: var(--fern-500);
-}
 .glossary-family-tree-member-adds {
   font-size: 0.9rem;
   color: var(--text-muted);
@@ -7652,7 +7611,7 @@ a.trick-hero-meta-chip--media:hover {
   padding: var(--space-lg);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
-  background: var(--bg-subtle);
+  background: var(--gray-100);
 }
 .learn-path-steps {
   list-style: none;
@@ -7763,11 +7722,6 @@ a.trick-hero-meta-chip--media:hover {
   gap: var(--space-xs);
 }
 .symbolic-trick-ctas li { font-size: 0.9rem; }
-.symbolic-trick-ctas a {
-  color: var(--earth-500);
-  text-decoration: underline dotted;
-}
-.symbolic-trick-ctas a:hover { text-decoration: underline solid; }
 
 /* Symbolic-surface cross-links footer (walking-progression + modifier-family) */
 .symbolic-crosslinks {
@@ -7924,7 +7878,7 @@ a.trick-hero-meta-chip--media:hover {
   width: 22px;
   height: 22px;
   border-radius: var(--radius);
-  background: var(--surface-2);
+  background: var(--slate-200);
   color: var(--tier-color);
   font-size: 0.9rem;
   line-height: 1;
@@ -8580,7 +8534,7 @@ a.trick-hero-meta-chip--media:hover {
 .dict-trick-row-title {
   font-weight: 600;
   font-size: 1rem;
-  color: var(--text-strong);
+  color: var(--slate-800);
 }
 /* The difficulty value, compact, immediately in front of the notation. It is
    the number alone, never the derivation: the operator-by-operator breakdown
@@ -8661,7 +8615,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-muted);
-  background: var(--bg-subtle);
+  background: var(--gray-100);
   padding: var(--space-xs) var(--space-sm);
   border-radius: var(--radius-2xs);
 }
@@ -8733,7 +8687,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   margin-top: var(--space-lg);
   padding: var(--space-md) var(--space-lg);
   border-left: 3px solid var(--secondary);
-  background: var(--bg-subtle);
+  background: var(--gray-100);
   border-radius: var(--radius-sm);
   font-weight: 600;
   line-height: 1.5;
@@ -9198,7 +9152,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   font-weight: 600;
   padding: 1px var(--space-xs);
   border-radius: var(--radius-2xs);
-  background: var(--surface-2);
+  background: var(--slate-200);
   color: var(--secondary);
 }
 .set-modifier-meaning {
@@ -9227,7 +9181,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   line-height: 20px;
   text-align: center;
   border-radius: var(--radius);
-  background: var(--surface-2);
+  background: var(--slate-200);
   color: var(--text-muted);
   font-size: 0.9rem;
   text-decoration: none;
@@ -9432,7 +9386,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 .glossary-equivalence-distinctions th {
   font-weight: 600;
   background: var(--parch-100);
-  color: var(--text-primary);
+  color: var(--text);
 }
 .glossary-equivalence-distinctions td:first-child {
   font-weight: 500;
@@ -9478,10 +9432,10 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   max-width: 55ch;
   margin: 0 0 var(--space-lg);
   padding: var(--space-md) var(--space-lg);
-  background: var(--parch-100);
+  background: var(--bg-light);
   border-left: 3px solid var(--border);
   border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
-  color: var(--text-primary);
+  color: var(--text);
   font-size: 1rem;
   line-height: 1.5;
 }
@@ -9534,7 +9488,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   background: var(--sec-bg);
   border-left: 3px solid var(--secondary);
   border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
-  color: var(--text-primary);
+  color: var(--text);
   font-size: 1rem;
   line-height: 1.5;
 }
@@ -9556,24 +9510,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   }
 }
 
-/* Standardized outward-link affordance.
-   Single class controls placement + tone for all glossary→destination
-   navigation: "View full ontology →", "Browse {Name} tricks →",
-   "Modifier reference →", etc. Forbidden phrasings ("See tricks using",
-   "Learn more about") retired. */
-.glossary-outward-link {
-  display: inline-block;
-  margin-top: var(--space-sm);
-  font-size: 0.9rem;
-  color: var(--accent);
-  text-decoration: none;
-  font-weight: 500;
-}
-.glossary-outward-link:hover,
-.glossary-outward-link:focus {
-  text-decoration: underline;
-  color: var(--accent-strong);
-}
 .glossary-family-card-outward {
   margin: var(--space-md) 0 0;
   text-align: right;
@@ -9760,7 +9696,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   line-height: 1.3;
 }
 .glossary-modifier-card-tricks-link a {
-  color: var(--accent);
+  color: var(--secondary);
   text-decoration: none;
 }
 .glossary-modifier-card-tricks-link a:hover,
@@ -9842,7 +9778,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 }
 .add-analysis-branch-total {
   font-size: 0.9rem;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   margin-left: auto;
 }
 .add-analysis-worked-examples,
@@ -9973,7 +9909,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 .combo-analysis-topology-list dt {
   font-weight: 600;
   margin-top: var(--space-lg);
-  color: var(--text-primary);
+  color: var(--text);
 }
 .combo-analysis-architecture-list dd,
 .combo-analysis-topology-list dd {
@@ -10009,7 +9945,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 }
 .combo-analysis-example-total {
   margin: var(--space-sm) 0;
-  color: var(--text-primary);
+  color: var(--text);
 }
 .combo-analysis-example-what {
   margin: var(--space-sm) 0;
@@ -10029,7 +9965,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 .combo-analysis-example-concepts {
   margin: var(--space-sm) 0;
   font-size: 0.9rem;
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
 .combo-analysis-example-corpus {
   margin: var(--space-sm) 0 0 0;
@@ -10560,7 +10496,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 .observed-count-strip {
   margin: var(--space-md) 0 var(--space-lg);
   font-size: 1rem;
-  color: var(--text-primary);
+  color: var(--text);
 }
 .observed-count-strip strong {
   font-weight: 600;
@@ -10598,10 +10534,10 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   gap: var(--space-lg);
 }
 .set-card {
-  border: 1px solid var(--border-subtle);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: var(--space-md) var(--space-lg);
-  background: var(--bg-card);
+  background: var(--white);
 }
 .set-card--holden-only {
   border-style: dashed;
@@ -10623,7 +10559,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   font-weight: 600;
   font-size: 0.9rem;
   color: var(--secondary);
-  background: var(--bg-subtle);
+  background: var(--gray-100);
   padding: var(--space-sm);
   border-radius: var(--radius-xs);
   margin: var(--space-xs) 0 var(--space-sm);
@@ -10632,7 +10568,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 }
 .set-card-movement {
   font-size: 0.9rem;
-  color: var(--text-primary);
+  color: var(--text);
   line-height: 1.45;
   margin: var(--space-sm) 0;
 }
@@ -10641,14 +10577,14 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   padding-left: 0;
   margin: var(--space-xs) 0 var(--space-sm);
   font-size: 0.9rem;
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
 .set-card-equivalences li {
   padding: 1px 0;
 }
 .set-card-relations {
   font-size: 0.9rem;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   margin: var(--space-xs) 0;
   line-height: 1.4;
 }
@@ -10664,14 +10600,14 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   gap: var(--space-sm);
   font-size: 0.9rem;
   color: var(--text-muted);
-  border-top: 1px dashed var(--border-subtle);
+  border-top: 1px dashed var(--border);
   padding-top: var(--space-sm);
   margin-top: var(--space-sm);
 }
 .set-card-source {
   padding: 1px var(--space-sm);
   border-radius: var(--radius-2xs);
-  background: var(--bg-subtle);
+  background: var(--gray-100);
   font-weight: 600;
 }
 .set-card-source--canonical {
@@ -10714,7 +10650,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   font-style: italic;
 }
 .sets-alt-surfaces-cross-link {
-  border-top: 1px solid var(--border-subtle);
+  border-top: 1px solid var(--border);
   margin-top: var(--space-2xl);
   padding-top: var(--space-lg);
 }
@@ -10726,7 +10662,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   font-size: 0.9rem;
   line-height: 1.5;
   margin: 0 0 var(--space-sm);
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
 
 /* ── Set Encyclopedia (standalone /freestyle/sets) ──────────
@@ -10743,8 +10679,8 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   margin: 0;
 }
 .sets-encyclopedia-cross-nav {
-  background: var(--bg-subtle);
-  border: 1px solid var(--border-subtle);
+  background: var(--gray-100);
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   padding: var(--space-md) var(--space-lg);
   margin-bottom: var(--space-xl);
@@ -10787,7 +10723,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 .sets-encyclopedia-subtype-count {
   font-size: 0.9rem;
   color: var(--text-muted);
-  background: var(--bg-subtle);
+  background: var(--gray-100);
   padding: 1px var(--space-sm);
   border-radius: var(--radius);
 }
@@ -10866,8 +10802,8 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   letter-spacing: 0.04em;
   padding: 1px var(--space-sm);
   border-radius: var(--radius-2xs);
-  background: var(--bg-subtle);
-  color: var(--text-secondary);
+  background: var(--gray-100);
+  color: var(--text-muted);
   white-space: nowrap;
 }
 .operator-meta-chip--add { color: var(--secondary); }
@@ -10921,7 +10857,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 .modifier-stub-related { font-size: 0.9rem; }
 .modifier-stub-decomposition { font-size: 0.9rem; margin: 0 0 var(--space-sm); }
 .modifier-stub-decomp-label { font-weight: 600; color: var(--text-muted); margin-right: var(--space-xs); }
-.modifier-stub-examples { font-size: 0.9rem; color: var(--text-secondary); margin: 0; }
+.modifier-stub-examples { font-size: 0.9rem; color: var(--text-muted); margin: 0; }
 
 /* ── Set detail page ────────────────────────── */
 /* The width and gutters come from the shared page frame, as they do on every
@@ -10948,7 +10884,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   font-weight: 600;
   font-size: 1rem;
   color: var(--secondary);
-  background: var(--bg-subtle);
+  background: var(--gray-100);
   padding: var(--space-md);
   border-radius: var(--radius-xs);
   white-space: normal;
@@ -11022,7 +10958,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   gap: var(--space-md);
   margin: var(--space-xl) 0 0;
   padding-top: var(--space-lg);
-  border-top: 1px solid var(--border-subtle);
+  border-top: 1px solid var(--border);
   font-size: 0.9rem;
 }
 .set-detail-sibling-nav-prev,
@@ -11031,7 +10967,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   align-items: baseline;
   gap: var(--space-sm);
   flex-wrap: wrap;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   text-decoration: none;
   line-height: 1.4;
 }
@@ -11043,7 +10979,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 .set-detail-sibling-nav-prev:focus,
 .set-detail-sibling-nav-next:hover,
 .set-detail-sibling-nav-next:focus {
-  color: var(--text-primary);
+  color: var(--text);
 }
 .set-detail-sibling-nav-arrow {
   color: var(--text-muted);
@@ -11055,7 +10991,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 }
 .set-detail-sibling-nav-name {
   font-weight: 600;
-  color: var(--text-primary);
+  color: var(--text);
 }
 .set-detail-sibling-nav-prev:hover .set-detail-sibling-nav-name,
 .set-detail-sibling-nav-prev:focus .set-detail-sibling-nav-name,
@@ -11064,7 +11000,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   text-decoration: underline;
 }
 .set-detail-provenance {
-  border-top: 1px dashed var(--border-subtle);
+  border-top: 1px dashed var(--border);
   padding-top: var(--space-md);
   margin-top: var(--space-xl);
   display: flex;
@@ -11094,13 +11030,13 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 .observed-lane-intro {
   margin: var(--space-xs) 0 var(--space-md);
   font-size: 0.9rem;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   line-height: 1.45;
 }
 .observed-lane--promotion-queue .section-heading h2 { color: var(--sec-dev); }
 .observed-lane--formula-review .section-heading h2 { color: var(--medal-gold); }
 .observed-lane--doctrine-blocked .section-heading h2 { color: var(--danger-text); }
-.observed-lane--source-only .section-heading h2 { color: var(--text-primary); }
+.observed-lane--source-only .section-heading h2 { color: var(--text); }
 
 /* ─────────────────────────────────────────────────────────────────────────
    Glossary structural refinements: intro card, tier-break rulers, §7 mini-TOC,
@@ -11547,7 +11483,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 }
 .dev-persona-note {
   border-left: 3px solid var(--primary);
-  background: var(--surface-muted);
+  background: var(--gray-100);
   padding: var(--space-sm) var(--space-md);
   border-radius: var(--radius-sm);
   font-size: 0.9rem;
@@ -11577,7 +11513,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   margin-bottom: var(--space-md);
   padding: var(--space-md) var(--space-lg);
   border-radius: var(--radius-md);
-  background: var(--bg-subtle);
+  background: var(--gray-100);
   box-shadow: var(--shadow-sm);
   text-decoration: none;
   color: inherit;
@@ -11590,7 +11526,7 @@ a.by-numbers-card:hover {
   transform: translateY(-1px);
 }
 .by-numbers-eyebrow { font-size: 0.9rem; color: var(--text-muted); }
-.by-numbers-title { font-weight: 700; font-size: 1rem; color: var(--text-secondary); }
+.by-numbers-title { font-weight: 700; font-size: 1rem; color: var(--text-muted); }
 .by-numbers-bars { display: flex; flex-direction: column; gap: var(--space-xs); }
 .by-numbers-bar {
   display: grid;
@@ -11598,7 +11534,7 @@ a.by-numbers-card:hover {
   align-items: center;
   gap: var(--space-sm);
   font-size: 0.9rem;
-  color: var(--text-secondary);
+  color: var(--text-muted);
 }
 .by-numbers-bar-label { text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .by-numbers-bar-track {
@@ -11666,7 +11602,7 @@ a.by-numbers-card:hover {
   padding: var(--space-md) var(--space-lg);
   min-height: 74px;
   border-radius: var(--radius-md);
-  background: var(--bg-subtle);
+  background: var(--gray-100);
   box-shadow: var(--shadow-sm);
   text-decoration: none;
   color: inherit;

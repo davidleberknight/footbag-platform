@@ -227,6 +227,46 @@ describe('tap-target-small', () => {
     );
     expect(hits(prose, 'tap-target-small')).toEqual([]);
   });
+
+  it('judges inline links that sit in no sentence, such as a bare row of links', () => {
+    // A row of small links outside any prose is a cluster of tap targets, not text, and a thumb hits the wrong one.
+    const row = buildCapture(
+      el('div', {},
+        el('a', { rect: { x: 0, w: 20, h: 18 }, attrs: { href: true }, text: 'one' }),
+        el('a', { rect: { x: 21, w: 20, h: 18 }, attrs: { href: true }, text: 'two' })),
+      { width: PHONE },
+    );
+    expect(hits(row, 'tap-target-small')).toHaveLength(2);
+  });
+
+  it('exempts links set in a line of words, such as two names joined by a slash in a table cell', () => {
+    // "Alice / Bob" wrapping in a narrow cell is text whose line height sizes the links, which WCAG excepts.
+    const pair = buildCapture(
+      el('td', { text: '/' },
+        el('a', { rect: { x: 0, y: 0, w: 60, h: 17 }, attrs: { href: true }, text: 'Alice' }),
+        el('a', { rect: { x: 0, y: 17, w: 60, h: 17 }, attrs: { href: true }, text: 'Bob' })),
+      { width: PHONE },
+    );
+    expect(hits(pair, 'tap-target-small')).toEqual([]);
+  });
+
+  it('measures clear space as the 24px circle, so a neighbour only at the diagonal corner does not crowd', () => {
+    // A square zone reaches corners the WCAG circle does not, flagging controls that meet the spacing exception.
+    const diagonal = buildCapture(
+      [el('button', { rect: { x: 0, y: 0, w: 20, h: 20 }, text: 'A' }), el('button', { rect: { x: 21, y: 21, w: 30, h: 30 }, text: 'B' })],
+      { width: PHONE },
+    );
+    expect(hits(diagonal, 'tap-target-small')).toEqual([]);
+  });
+
+  it('reports two small controls whose circles overlap, though neither circle reaches the other control', () => {
+    // Two undersized targets 20px apart centre to centre leave less than 24px each, which is the case WCAG fails.
+    const close = buildCapture(
+      [el('button', { rect: { x: 0, w: 10, h: 10 }, text: 'A' }), el('button', { rect: { x: 20, w: 10, h: 10 }, text: 'B' })],
+      { width: PHONE },
+    );
+    expect(hits(close, 'tap-target-small')).toHaveLength(2);
+  });
 });
 
 describe('closed disclosures', () => {
@@ -295,6 +335,35 @@ describe('prose-too-wide', () => {
     expect(hits(para(600), 'prose-too-wide')).toHaveLength(1);
     expect(hits(para(440), 'prose-too-wide')).toEqual([]);
     expect(hits(para(600, PHONE), 'prose-too-wide')).toEqual([]);
+  });
+
+  it('measures the line inside the padding and border, not the whole box', () => {
+    // A padded callout whose lines sit within the measure would be reported for padding the reader never reads across.
+    const padded = buildCapture(el('p', {
+      text: LONG, chPx: 8, rect: { w: 480 },
+      style: { 'padding-left': '30px', 'padding-right': '30px', 'border-left-width': '4px', 'border-left-style': 'solid' },
+    }), { width: DESKTOP });
+    expect(hits(padded, 'prose-too-wide')).toEqual([]);
+  });
+
+  it('counts the text inside links and emphasis as part of the paragraph', () => {
+    // A wide paragraph made mostly of linked or bold words would escape the measure because its own text is short.
+    const linked = buildCapture(
+      el('p', { text: 'Read the full account of', chPx: 8, rect: { w: 600 } },
+        el('strong', { text: LONG }),
+        el('a', { attrs: { href: true }, text: 'the event' })),
+      { width: DESKTOP },
+    );
+    expect(hits(linked, 'prose-too-wide')).toHaveLength(1);
+  });
+
+  it('does not treat a line of notation set in code as prose', () => {
+    // A list of notation formulas is read symbol by symbol, not as sentences, so the reading measure does not bind it.
+    const notation = buildCapture(
+      el('li', { chPx: 8, rect: { w: 760 } }, el('code', { text: LONG })),
+      { width: DESKTOP },
+    );
+    expect(hits(notation, 'prose-too-wide')).toEqual([]);
   });
 });
 
@@ -423,6 +492,17 @@ describe('empty-state-leaks-code', () => {
     const msg = (text: string) => buildCapture(el('p', { cls: 'empty-state', text }));
     expect(hits(msg('No member_tier_grants rows.'), 'empty-state-leaks-code', ctx)).toHaveLength(1);
     expect(hits(msg('No members have joined yet.'), 'empty-state-leaks-code', ctx)).toEqual([]);
+  });
+
+  it('scans alert, status and live regions, which carry messages without a message class', () => {
+    // A refusal rendered in a bare role="alert" box that names a table would leak internals unnoticed.
+    const region = (attrs: ElementRecord['attrs']) =>
+      buildCapture(el('div', { attrs, text: 'No member_tier_grants rows.' }));
+    expect(hits(region({ role: 'alert' }), 'empty-state-leaks-code', ctx)).toHaveLength(1);
+    expect(hits(region({ role: 'status' }), 'empty-state-leaks-code', ctx)).toHaveLength(1);
+    expect(hits(region({ live: 'polite' }), 'empty-state-leaks-code', ctx)).toHaveLength(1);
+    expect(hits(region({ live: 'off' }), 'empty-state-leaks-code', ctx)).toEqual([]);
+    expect(hits(region({ role: 'region' }), 'empty-state-leaks-code', ctx)).toEqual([]);
   });
 
   it('counts only compound table names as leaks', () => {

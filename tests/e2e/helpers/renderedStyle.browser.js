@@ -157,6 +157,7 @@
       if (el.disabled === true || el.hasAttribute('disabled')) attrs.disabled = true;
       if (tag === 'a' && el.hasAttribute('href')) attrs.href = true;
       if (el.hasAttribute('role')) attrs.role = el.getAttribute('role');
+      if (el.hasAttribute('aria-live')) attrs.live = (el.getAttribute('aria-live') || '').toLowerCase();
       if (el.hasAttribute('tabindex')) attrs.tabindex = el.getAttribute('tabindex');
       if (el.hasAttribute('type')) attrs.type = (el.getAttribute('type') || '').toLowerCase();
       if (isNamed(el)) attrs.named = true;
@@ -175,7 +176,8 @@
       };
       if (el.clientWidth > 0 && el.scrollWidth > el.clientWidth + 1) rec.scroll = { sw: el.scrollWidth, cw: el.clientWidth };
       if (FIELD_TAGS[tag]) rec.visibleLabel = hasVisibleLabel(el);
-      if (text.length >= CH_MIN_TEXT) {
+      // A paragraph made mostly of links or emphasis is still prose, so its whole text decides.
+      if ((el.textContent || '').length >= CH_MIN_TEXT) {
         var ch = zeroWidth(cs);
         if (ch) rec.chPx = ch;
       }

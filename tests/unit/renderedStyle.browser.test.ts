@@ -57,8 +57,11 @@ describe('renderedStyle.browser.js', () => {
       '<div id="w" tabindex="0" role="region" aria-label="Results"></div>' +
       '<div id="u" aria-labelledby="missing"></div>' +
       '<input type="Checkbox" disabled hidden><a href="/x">x</a><a>y</a>' +
-      '<details open><summary>s</summary></details><details><summary>t</summary></details>';
-    const [w, u, input, link, bare, opened, , closed] = (await measure()).elements;
+      '<details open><summary>s</summary></details><details><summary>t</summary></details>' +
+      '<div aria-live="Polite">m</div>';
+    const [w, u, input, link, bare, opened, , closed, , live] = (await measure()).elements;
+    // A live region left unrecorded is a message the code-leak check never reads.
+    expect(live.attrs.live).toBe('polite');
     // A closed disclosure recorded as open would have its hidden content judged as if a reader saw it.
     expect(opened.attrs.open).toBe(true);
     expect(closed.attrs.open).toBeUndefined();

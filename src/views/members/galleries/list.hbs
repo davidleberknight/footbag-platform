@@ -66,8 +66,8 @@
               {{! Without the benefits the row keeps its read and loses its
                   write controls. The notice above the table says why once,
                   rather than repeating itself on every row. }}
-              {{#unless ../content.benefitNotice}}<a href="{{editHref}}">Edit</a>{{/unless}}
-              <a href="/media/{{id}}" target="_blank" rel="noopener noreferrer">View</a>
+              {{#unless ../content.benefitNotice}}<a href="{{editHref}}" class="btn btn-outline btn-sm">Edit</a>{{/unless}}
+              <a href="/media/{{id}}" class="btn btn-outline btn-sm" target="_blank" rel="noopener noreferrer">View</a>
               {{#unless ../content.benefitNotice}}
                 {{#if isDefault}}
                   <span class="text-muted">Created for you, and kept</span>
@@ -76,7 +76,7 @@
                     <input type="hidden" name="confirmed" value="1" />
                     <span class="text-secondary">Are you sure?</span>
                     <button type="submit" class="btn btn-outline btn-sm">Confirm Delete</button>
-                    <a href="{{../content.listHref}}">Cancel</a>
+                    <a href="{{../content.listHref}}" class="btn btn-outline btn-sm">Cancel</a>
                   </form>
                 {{else}}
                   <form method="POST" action="{{deleteHref}}" class="inline-form" data-confirm="Delete this gallery? This cannot be undone.">

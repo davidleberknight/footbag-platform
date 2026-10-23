@@ -93,6 +93,8 @@ export interface ElementRecord {
     disabled?: true;
     href?: true;
     role?: string;
+    /** The aria-live politeness, lowercased; a live region announces messages. */
+    live?: string;
     tabindex?: string;
     type?: string;
     /** True when aria-label or an aria-labelledby target supplies a non-empty name. */
@@ -107,7 +109,7 @@ export interface ElementRecord {
   textLen: number;
   /** Form fields only: a label or aria-labelledby target that is painted and carries text. */
   visibleLabel?: boolean;
-  /** Width in px of the digit zero in this element's font; recorded for prose-length text only. */
+  /** Width in px of the digit zero in this element's font; recorded when its whole text, descendants included, is prose length. */
   chPx?: number;
   /** Indices into `Capture.strings`, aligned with `Capture.styleProps`. */
   styles: number[];
@@ -388,6 +390,13 @@ function isSanctionedScrollRegion(el: ElementRecord): boolean {
   return el.attrs.tabindex === '0' && el.attrs.role === 'region' && !!el.attrs.named;
 }
 
+/** Carries a message to the reader: a message class, or an alert, status or live region. */
+function isMessage(v: CaptureView, el: ElementRecord): boolean {
+  if (MESSAGE_CLASSES.some((c) => v.hasClass(el, c))) return true;
+  if (el.attrs.role === 'alert' || el.attrs.role === 'status') return true;
+  return !!el.attrs.live && el.attrs.live !== 'off';
+}
+
 function isInteractive(el: ElementRecord): boolean {
   if (el.tag === 'a') return !!el.attrs.href;
   if (el.tag === 'button' || el.tag === 'select' || el.tag === 'textarea' || el.tag === 'summary') return true;
@@ -435,8 +444,41 @@ function fmt(n: number): string {
   return String(Math.round(n * 100) / 100);
 }
 
-function intersects(a: Rect, b: Rect): boolean {
-  return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+function centre(r: Rect): { x: number; y: number } {
+  return { x: r.x + r.w / 2, y: r.y + r.h / 2 };
+}
+
+/** The 24px circle centred on `small` reaches into `other`'s box. */
+function circleTouches(small: Rect, other: Rect): boolean {
+  const c = centre(small);
+  const dx = c.x - Math.max(other.x, Math.min(c.x, other.x + other.w));
+  const dy = c.y - Math.max(other.y, Math.min(c.y, other.y + other.h));
+  return dx * dx + dy * dy < (TARGET_MIN_PX / 2) ** 2;
+}
+
+/** The 24px circles centred on two small controls overlap. */
+function circlesOverlap(a: Rect, b: Rect): boolean {
+  const ca = centre(a);
+  const cb = centre(b);
+  return (ca.x - cb.x) ** 2 + (ca.y - cb.y) ** 2 < TARGET_MIN_PX ** 2;
+}
+
+/** An inline element whose block carries words of its own, so it is set in a line of running text rather than standing alone. */
+function inSentence(v: CaptureView, el: ElementRecord): boolean {
+  const block = [...v.ancestors(el)].find((a) => v.style(a, 'display') !== 'inline');
+  return !!block && block.textLen > 0;
+}
+
+// Notation and literal text, read symbol by symbol rather than as sentences.
+const LITERAL_TAGS = new Set(['code', 'kbd', 'samp']);
+
+/** The text of an element and of the inline words set in its lines, such as links and emphasis; literal text does not count. */
+function flowTextLen(v: CaptureView, el: ElementRecord): number {
+  let n = el.textLen;
+  for (const c of v.childrenOf(el)) {
+    if (v.style(c, 'display') === 'inline' && !LITERAL_TAGS.has(c.tag)) n += flowTextLen(v, c);
+  }
+  return n;
 }
 
 function overflowCulprits(v: CaptureView): ElementRecord[] {
@@ -719,15 +761,17 @@ export const RULES: readonly Rule[] = [
     requirement: 'A control is at least 24 by 24 CSS pixels, or has 24px of clear space; inline links in a sentence are exempt.',
     check(v) {
       const targets = v.elements.filter((el) => isInteractive(el) && v.isPainted(el));
+      const small = (el: ElementRecord) => el.rect.w < TARGET_MIN_PX || el.rect.h < TARGET_MIN_PX;
       const out: Array<{ el: ElementRecord; measured: string }> = [];
       for (const el of targets) {
-        if (el.tag === 'a' && v.style(el, 'display') === 'inline') continue;
+        if (el.tag === 'a' && v.style(el, 'display') === 'inline' && inSentence(v, el)) continue;
         if (el.tag === 'input' && (el.attrs.type === 'checkbox' || el.attrs.type === 'radio') && el.visibleLabel) continue;
-        if (el.rect.w >= TARGET_MIN_PX && el.rect.h >= TARGET_MIN_PX) continue;
-        const cx = el.rect.x + el.rect.w / 2;
-        const cy = el.rect.y + el.rect.h / 2;
-        const zone: Rect = { x: cx - TARGET_MIN_PX / 2, y: cy - TARGET_MIN_PX / 2, w: TARGET_MIN_PX, h: TARGET_MIN_PX };
-        const crowded = targets.some((o) => o !== el && !isAncestorOf(v, o, el) && !isAncestorOf(v, el, o) && intersects(zone, o.rect));
+        if (!small(el)) continue;
+        // WCAG's spacing exception: a 24px circle on the small control's centre
+        // touches no other control and no other small control's circle.
+        const crowded = targets.some((o) => o !== el
+          && (circleTouches(el.rect, o.rect) || (small(o) && circlesOverlap(el.rect, o.rect)))
+          && !isAncestorOf(v, o, el) && !isAncestorOf(v, el, o));
         if (!crowded) continue;
         out.push({ el, measured: `${fmt(el.rect.w)}x${fmt(el.rect.h)}px` });
       }
@@ -764,11 +808,15 @@ export const RULES: readonly Rule[] = [
     applies: 'desktop',
     requirement: 'Running prose is capped at the 55ch reading measure.',
     check(v) {
+      // The line runs inside the padding and border, so that is the width a reader's eye travels.
+      const lineWidth = (el: ElementRecord) => el.rect.w
+        - v.px(el, 'padding-left') - v.px(el, 'padding-right')
+        - v.px(el, 'border-left-width') - v.px(el, 'border-right-width');
       return v.elements
-        .filter((el) => PROSE_TAGS.has(el.tag) && el.textLen >= PROSE_MIN_CHARS && !!el.chPx && v.isPainted(el))
+        .filter((el) => PROSE_TAGS.has(el.tag) && !!el.chPx && v.isPainted(el) && flowTextLen(v, el) >= PROSE_MIN_CHARS)
         .filter((el) => !v.within(el, 'table') && !v.within(el, 'pre'))
-        .filter((el) => el.rect.w > MEASURE_CH * (el.chPx as number) + 1)
-        .map((el) => ({ el, measured: `${fmt(el.rect.w / (el.chPx as number))}ch` }));
+        .filter((el) => lineWidth(el) > MEASURE_CH * (el.chPx as number) + 1)
+        .map((el) => ({ el, measured: `${fmt(lineWidth(el) / (el.chPx as number))}ch` }));
     },
   },
   {
@@ -885,7 +933,7 @@ export const RULES: readonly Rule[] = [
     check(v, ctx) {
       const out: Array<{ el: ElementRecord; measured: string }> = [];
       for (const el of v.elements) {
-        if (!MESSAGE_CLASSES.some((c) => v.hasClass(el, c)) || !v.isPainted(el)) continue;
+        if (!isMessage(v, el) || !v.isPainted(el)) continue;
         const parts = [el.ownText];
         for (const d of v.descendants(el)) if (!['code', 'kbd', 'pre'].includes(d.tag)) parts.push(d.ownText);
         const words = parts.join(' ').match(/[a-z][a-z0-9_]*/g) ?? [];

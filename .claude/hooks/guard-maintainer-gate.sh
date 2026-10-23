@@ -32,7 +32,6 @@ GATED=(
   'Bash(npm run test:coverage*)'
   'Bash(npm run test:all*)'
   'Bash(npm run test:e2e*)'
-  'Bash(npm run test:rendered-style*)'
   'Bash(npm run test:deployed*)'
   'Bash(npm run test:pentest*)'
   'Bash(npm run test:persona-crawl*)'

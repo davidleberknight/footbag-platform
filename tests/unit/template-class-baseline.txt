@@ -519,7 +519,6 @@ glossary-operator-nickname-flag
 glossary-operator-notation-framing
 glossary-operator-pending-flag
 glossary-operator-pending-note
-glossary-outward-link
 glossary-page
 glossary-paradox-formula
 glossary-primitives-compounds
@@ -571,7 +570,6 @@ ladder-step-add
 ladder-step-here
 ladder-step-missing-label
 ladder-steps
-leaders-table
 learn-entries
 learn-entry-blurb
 learn-entry-status
