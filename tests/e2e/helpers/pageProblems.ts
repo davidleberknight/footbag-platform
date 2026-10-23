@@ -35,6 +35,11 @@ export async function watchPageProblems(page: Page, origin: string, opts: WatchO
   const problems: PageProblems = { list: [] };
   await page.route('**/csp-report', (route) => route.abort());
   await page.addInitScript(() => {
+    // Init scripts run in every frame, cross-origin ones included. A violation
+    // inside a vendor's frame (the captcha widget fetching a data: URL under
+    // Cloudflare's own policy) is that vendor's policy, not this site's, so only
+    // the top-level document, which this site's policy governs, reports.
+    if (window !== window.top) return;
     document.addEventListener('securitypolicyviolation', (e) => {
       // eslint-disable-next-line no-console
       console.error(`CSP violation: ${e.violatedDirective} blocked ${e.blockedURI}`);
@@ -42,7 +47,7 @@ export async function watchPageProblems(page: Page, origin: string, opts: WatchO
   });
   // Errors a third-party frame logs about itself (the captcha widget, a video
   // player) are that vendor's noise, not this site's defect; a policy violation is
-  // logged from the page itself and always counts.
+  // logged only from the top-level document above, so it always counts.
   page.on('console', (msg) => {
     if (msg.type() !== 'error') return;
     const source = msg.location().url;
