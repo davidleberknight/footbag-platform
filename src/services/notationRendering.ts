@@ -139,7 +139,7 @@ const WORD_TOKEN_LABELS: Record<string, string> = {
 
   // ── Rotation modifiers (rotation) ─────────────────────────────────────
   SPINNING:   'Spinning, rotation modifier (+1 ADD)',
-  WHIRLING:   'Whirling, whirl-family launch set (+1 ADD; underlies Blender)',
+  WHIRLING:   'Whirling, rotation modifier (+1 ADD; underlies Blender)',
   SWIRLING:   'Swirling, whirl-and-swirl launch set (+1 ADD)',
   BLAZING:    'Blazing, whirl-chassis launch set (+1 ADD; an uptime whirl the following trick is performed off of)',
   INSPINNING: 'Inspinning, rotation modifier (distinct from Spinning)',

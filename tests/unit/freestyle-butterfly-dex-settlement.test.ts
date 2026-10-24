@@ -83,9 +83,8 @@ describe('set teaching copy states the authored-in-compound coordinate doctrine'
     expect(count).toBeGreaterThanOrEqual(11);
   });
 
-  it('the three settled butterfly examples appear on their set pages', () => {
+  it('the settled butterfly examples appear on their set pages', () => {
     expect(EDUCATION).toContain("Fairy Butterfly retains Butterfly\\'s OP OUT");
-    expect(EDUCATION).toContain("Whirling Butterfly retains Butterfly\\'s OP OUT");
     expect(EDUCATION).toContain("Swirling Butterfly retains Butterfly\\'s OP OUT");
   });
 

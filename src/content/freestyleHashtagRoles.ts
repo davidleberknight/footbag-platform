@@ -69,32 +69,16 @@ export function declaresTrickRole(slug: string): boolean {
 }
 
 /**
- * Curator-pinned hashtag role for a modifier / set concept whose role diverges
- * from the raw `freestyle_trick_modifiers.modifier_type`. The registry is
- * authoritative; modifier_type is only the fallback signal.
- *
- * `whirling` has both a settled set role and a separately documented mid-chain
- * body-operator role. The stored modifier_type 'body' records the operator
- * reading; the Set Encyclopedia is its taxonomic home, so the curator renders
- * the set hashtag from the settled set role rather than inferring taxonomy from
- * the operator registry.
- */
-export const MODIFIER_ROLE_OVERRIDES: Readonly<Record<string, HashtagRole>> =
-  Object.freeze({
-    whirling: 'set',
-  });
-
-/**
- * Resolve the hashtag role of a modifier / set concept. A curator override wins;
- * otherwise modifier_type 'set' is a set role and anything else is an operator
- * role. Use this instead of reading modifier_type directly, so a stored type
- * that lags the curator doctrine never decides the hashtag form.
+ * Resolve the hashtag role of a modifier / set concept: modifier_type 'set' is
+ * a set role and anything else is an operator role. Every concept's stored
+ * modifier_type agrees with its role; whirling, stored 'body', is a body
+ * modifier and not a set (the uptime whirling set is Blazing). Use this instead
+ * of reading modifier_type directly, so every surface decides the hashtag form
+ * the same way.
  */
 export function modifierHashtagRole(
-  slug: string,
+  _slug: string,
   modifierType: string | null | undefined,
 ): HashtagRole {
-  const override = MODIFIER_ROLE_OVERRIDES[slug];
-  if (override) return override;
   return modifierType === 'set' ? 'set' : 'operator';
 }

@@ -75,7 +75,7 @@ export function trickSurfaceHashtag(slug: string, category: string | null | unde
 
 // The hashtag for a concept rendered on a modifier / operator surface (the
 // operators index, a modifier detail). The curator role override wins over the
-// stored modifier_type, so whirling reads #set_whirling and spinning reads
+// stored modifier_type, so a set reads #set_<slug> and spinning reads
 // #operator_spinning.
 export function modifierSurfaceHashtag(slug: string, modifierType: string | null | undefined): string {
   return hashtagForRole(slug, modifierHashtagRole(slug, modifierType));

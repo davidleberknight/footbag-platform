@@ -50,7 +50,7 @@ describe('SAME/OP are component-relative and not synonyms for near/far', () => {
   const svc = read('src/services/freestyleService.ts');
   const opRender = read('src/services/operationalNotationRendering.ts');
   const core = read('src/content/freestyleGlossaryCoreConcepts.ts');
-  const moves = read('src/views/freestyle/moves.hbs');
+  const moves = read('src/views/freestyle/sets-encyclopedia.hbs');
   const concepts = read('src/views/freestyle/concepts.hbs');
 
   it('the SS/OP short-code definitions are component-relative', () => {

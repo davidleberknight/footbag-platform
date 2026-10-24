@@ -1,0 +1,14 @@
+{{! A set detail page's links: back to the Set Encyclopedia, this set's section
+    of the dictionary's By set view, and its operator entry where it has one.
+    Rendered under "Cross-references" on a set page without teaching content,
+    and inside "Related concepts" on a teaching page. }}
+<ul class="set-detail-cross-links">
+  <li><a href="{{content.crossLinks.setEncyclopediaHref}}">Back to Set Encyclopedia</a></li>
+  {{#if content.crossLinks.setBrowseHref}}
+  <li><a href="{{{content.crossLinks.setBrowseHref}}}">Browse This Set in the Dictionary</a></li>
+  {{/if}}
+  {{#if content.crossLinks.operatorReferenceHref}}
+  <li><a href="{{content.crossLinks.operatorReferenceHref}}">Operator entry on Operators &amp; Modifiers</a></li>
+  {{/if}}
+</ul>
+<p class="set-detail-component-note">{{content.componentMechanicsNote}}</p>

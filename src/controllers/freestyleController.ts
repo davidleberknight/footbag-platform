@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { freestyleService } from '../services/freestyleService';
+import { freestyleService, RETIRED_SET_PAGE_REDIRECTS } from '../services/freestyleService';
 import { handleControllerError, renderNotFound } from '../lib/controllerErrors';
 
 /**
@@ -224,25 +224,17 @@ export const freestyleController = {
   },
 
   /**
-   * GET /freestyle/sets/reference — flat Holden set-notation reference
-   * table. Lives under /sets/reference so the Set Encyclopedia can hold
-   * the canonical /freestyle/sets/<slug> namespace.
+   * GET /freestyle/sets/reference — retired; Holden's compilation is a
+   * section of /freestyle/sets now. Registered ahead of /freestyle/sets/:slug
+   * so "reference" is never read as a set slug.
    */
-  moves(_req: Request, res: Response, next: NextFunction): void {
-    try {
-      const vm = freestyleService.getMovesPage();
-      res.render('freestyle/moves', vm);
-    } catch (err) {
-      handleControllerError(err, res, next, 'freestyle controller');
-    }
+  moveSetReferenceRedirect(_req: Request, res: Response): void {
+    res.redirect(301, RETIRED_SET_PAGE_REDIRECTS.moveSetReference);
   },
 
   /**
-   * GET /freestyle/sets — Set Encyclopedia. The canonical set-specific
-   * surface: a minimalist index of canonical sets as first-class ontology
-   * objects. Distinct from the dictionary's /freestyle/tricks?view=modifier
-   * browse (tricks grouped by the modifier they use) and from the
-   * /freestyle/compositional-sets exploration hub.
+   * GET /freestyle/sets — Set Encyclopedia, the one set page: the set list,
+   * how sets are built, the uptime ladders, Holden's compilation and sources.
    */
   setsEncyclopedia(_req: Request, res: Response, next: NextFunction): void {
     try {
@@ -303,14 +295,9 @@ export const freestyleController = {
     res.redirect(302, '/freestyle/tricks?view=family');
   },
 
-  /** GET /freestyle/compositional-sets — systematic dictionary-hub exploration */
-  compositionalSets(_req: Request, res: Response, next: NextFunction): void {
-    try {
-      const vm = freestyleService.getCompositionalSetsPage();
-      res.render('freestyle/compositional-sets', vm);
-    } catch (err) {
-      handleControllerError(err, res, next, 'freestyle controller');
-    }
+  /** GET /freestyle/compositional-sets — retired; a section of /freestyle/sets now. */
+  compositionalSetsRedirect(_req: Request, res: Response): void {
+    res.redirect(301, RETIRED_SET_PAGE_REDIRECTS.compositionalSets);
   },
 
   /** GET /freestyle/glossary — the A–Z term list. */

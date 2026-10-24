@@ -411,15 +411,15 @@ describe('GET /freestyle/about', () => {
 
 // ---------------------------------------------------------------------------
 
-describe('GET /freestyle/sets/reference (flat Holden table)', () => {
-  it('returns 200 with page title', async () => {
-    const res = await page('/freestyle/sets/reference');
+describe('GET /freestyle/sets — the Historical Move-Set Reference section (Holden table)', () => {
+  it('returns 200 with the section heading', async () => {
+    const res = await page('/freestyle/sets');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Move Sets');
+    expect(res.text).toContain('Historical Move-Set Reference');
   });
 
   it('contains core set names', async () => {
-    const res = await page('/freestyle/sets/reference');
+    const res = await page('/freestyle/sets');
     expect(res.text).toContain('Pixie');
     expect(res.text).toContain('Fairy');
     expect(res.text).toContain('Nuclear');
@@ -432,14 +432,14 @@ describe('GET /freestyle/sets/reference (flat Holden table)', () => {
   // row carries a stable id="move-<slug>" anchor for future backlinking.
 
   it('renders trick-matched basic-set labels as anchors to /freestyle/tricks/:slug', async () => {
-    const res = await page('/freestyle/sets/reference');
+    const res = await page('/freestyle/sets');
     expect(res.text).toContain('<a href="/freestyle/tricks/pixie">Pixie</a>');
     expect(res.text).toContain('<a href="/freestyle/tricks/fairy">Fairy</a>');
     expect(res.text).toContain('<a href="/freestyle/tricks/stepping">Stepping</a>');
   });
 
   it('renders unmatched basic-set labels as plain text (no anchor)', async () => {
-    const res = await page('/freestyle/sets/reference');
+    const res = await page('/freestyle/sets');
     // Slapping, Bubba, Frantic, Flailing, Infracting are in the table but
     // not seeded as trick slugs — should render without /freestyle/tricks/ links.
     expect(res.text).not.toContain('/freestyle/tricks/slapping');
@@ -453,14 +453,14 @@ describe('GET /freestyle/sets/reference (flat Holden table)', () => {
     // "Terraging (Double Pixie)". slugify yields "terraging-double-pixie",
     // which does not match 'terraging' — so the row stays plain text under
     // the strict-match rule. No representative-link guess.
-    const res = await page('/freestyle/sets/reference');
+    const res = await page('/freestyle/sets');
     expect(res.text).toContain('Terraging (Double Pixie)');
     expect(res.text).not.toContain('/freestyle/tricks/terraging_double_pixie');
     expect(res.text).not.toMatch(/<a[^>]+href="\/freestyle\/tricks\/terraging"[^>]*>Terraging \(Double Pixie\)/);
   });
 
   it('keeps modifier-only labels plain (no link to hidden modifier surface)', async () => {
-    const res = await page('/freestyle/sets/reference');
+    const res = await page('/freestyle/sets');
     // Nuclear, Miraging, Blurry, Swirling, Whirling, Diving slugify to
     // freestyle_trick_modifiers slugs but NOT to freestyle_tricks slugs;
     // they must not render as /freestyle/tricks/* links and must not
@@ -475,7 +475,7 @@ describe('GET /freestyle/sets/reference (flat Holden table)', () => {
   });
 
   it('cross-links variant-tag list items where the label matches', async () => {
-    const res = await page('/freestyle/sets/reference');
+    const res = await page('/freestyle/sets');
     expect(res.text).toContain('<a href="/freestyle/tricks/surging">Surging</a>');
     expect(res.text).toContain('<a href="/freestyle/tricks/blazing">Blazing</a>');
     expect(res.text).toContain('<a href="/freestyle/tricks/pogo">Pogo</a>');
@@ -485,7 +485,7 @@ describe('GET /freestyle/sets/reference (flat Holden table)', () => {
   });
 
   it('emits stable move-<slug> anchor ids on every row and tag', async () => {
-    const res = await page('/freestyle/sets/reference');
+    const res = await page('/freestyle/sets');
     // Anchor-id derives from slugify(label) regardless of whether the row
     // links anywhere; this gives future trick-detail backlinking a stable
     // target without requiring a re-author pass on the moves page.
@@ -500,17 +500,17 @@ describe('GET /freestyle/sets/reference (flat Holden table)', () => {
 // ---------------------------------------------------------------------------
 
 describe('Set-notation reference cross-links', () => {
-  it('Concepts §3 intermediate-operators block links to /freestyle/sets/reference', async () => {
+  it('Concepts §3 intermediate-operators block links to the Historical Move-Set Reference section', async () => {
     const res = await page('/freestyle/concepts');
     const intermediateIdx = res.text.indexOf('id="intermediate-operators"');
-    const linkIdx         = res.text.indexOf('href="/freestyle/sets/reference"', intermediateIdx);
+    const linkIdx         = res.text.indexOf('href="/freestyle/sets#historical-move-set-reference"', intermediateIdx);
     expect(intermediateIdx).toBeGreaterThan(0);
     expect(linkIdx).toBeGreaterThan(intermediateIdx);
   });
 
   it('/freestyle/learn lists the historical move-set compilation as a shipped entry, named as historical', async () => {
     const res = await page('/freestyle/learn');
-    expect(res.text).toMatch(/href="\/freestyle\/sets\/reference"[^>]*>Historical Move-Set Reference/);
+    expect(res.text).toMatch(/href="\/freestyle\/sets#historical-move-set-reference"[^>]*>Historical Move-Set Reference/);
   });
 
   it('landing surfaces Operators & Modifiers as a banner tile linking to /freestyle/operators', async () => {
@@ -1827,7 +1827,7 @@ describe('Freestyle IA realignment — landing and Concepts contract', () => {
   it('Concepts intro links to dictionary and set-notation reference without three-layer rhetoric', async () => {
     const res = await page('/freestyle/concepts');
     expect(res.text).toContain('href="/freestyle/tricks"');
-    expect(res.text).toContain('href="/freestyle/sets/reference"');
+    expect(res.text).toContain('href="/freestyle/sets#historical-move-set-reference"');
   });
 
   it('operator board renders a Symposium definition consistent with its single-leg-jump mechanics', async () => {

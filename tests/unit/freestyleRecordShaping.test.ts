@@ -197,8 +197,10 @@ describe('modifierSurfaceHashtag', () => {
     expect(modifierSurfaceHashtag('pixie', 'set')).toBe('#set_pixie');
   });
 
-  it('honors the curator role override over modifier_type (whirling is a set)', () => {
-    expect(modifierSurfaceHashtag('whirling', 'body')).toBe('#set_whirling');
+  it('gives whirling, a body modifier and not a set, the operator hashtag', () => {
+    // Defect caught: the retired Whirling set coming back as a #set_ tag on the
+    // whirling modifier's own page.
+    expect(modifierSurfaceHashtag('whirling', 'body')).toBe('#operator_whirling');
   });
 });
 

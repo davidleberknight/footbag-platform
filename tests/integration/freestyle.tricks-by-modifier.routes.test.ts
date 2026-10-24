@@ -154,10 +154,9 @@ beforeAll(async () => {
   insertFreestyleTrickModifierLink(db, 'ducking-legover', 'ducking', 1);
   insertFreestyleTrickModifierLink(db, 'ducking-butterfly', 'ducking', 1);
 
-  // Outside the first-class roster: whirling (ruled a legitimate set; its
-  // reference home is its Set Encyclopedia page, so it is never a first-class
-  // modifier group) and backside (documented by no reference surface). Both
-  // render only in the Other tracked groups band.
+  // Outside the first-class roster: whirling (a body modifier, not a set, so it
+  // has no Set Encyclopedia page) and backside (documented by no reference
+  // surface). Both render only in the Other tracked groups band.
   insertFreestyleTrickModifier(db, { slug: 'whirling', modifier_type: 'body', notes: 'Intermediate whirl carried mid-chain.' });
   insertFreestyleTrickModifier(db, { slug: 'backside', modifier_type: 'body', notes: 'Behind-the-body execution qualifier.' });
   insertFreestyleTrick(db, {
@@ -291,9 +290,11 @@ describe('/freestyle/tricks?view=modifier — findability of representative ecos
     expect(res.text).not.toContain('data-trick-slug="whirling-osis"');
     const band = res.text.match(/id="modifier-other-groups"[\s\S]*?<\/section>/);
     expect(band, 'Other tracked groups band present').not.toBeNull();
-    // whirling has a Set Encyclopedia page, so its band entry links there;
-    // backside has no documenting reference surface, so it renders plain.
-    expect(band![0]).toMatch(/<a href="\/freestyle\/sets\/whirling">whirling<\/a>/);
+    // The band links an entry only to the Set Encyclopedia page documenting it.
+    // Neither whirling (not a set) nor backside has one, so both render plain,
+    // and neither links to the retired Whirling set URL.
+    expect(band![0]).toMatch(/<li>whirling /);
+    expect(band![0]).not.toContain('href="/freestyle/sets/whirling"');
     expect(band![0]).toMatch(/backside/);
     expect(band![0]).not.toMatch(/<a[^>]*>backside<\/a>/);
   });

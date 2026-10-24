@@ -45,8 +45,6 @@ const CONTENT_DRIVEN_PAGES = [
   '/freestyle/learn',
   '/freestyle/glossary',
   '/freestyle/sets',
-  '/freestyle/sets/reference',
-  '/freestyle/compositional-sets',
   '/freestyle/operators',
   '/freestyle/observational',
   '/freestyle/progression/walking-family',

@@ -699,9 +699,9 @@ Story: As a visitor, I can browse the set encyclopedia so that I understand the 
 Success Criteria:
 
 - `/freestyle/sets` is the set encyclopedia index; `/freestyle/sets/{slug}` renders a set's detail page; a legacy set alias slug permanently redirects to the canonical set URL; an unknown slug returns 404.
-- `/freestyle/sets/reference` renders the flat set reference table with its source credited.
-- `/freestyle/compositional-sets` is a sibling hub grouping sets compositionally (family groups and progression ladders); it complements the encyclopedia index and does not replace it.
-- Set surfaces carry `#set_{slug}` hashtags per V_View_Trick_Reference_Videos. A name that is both a trick and a set (pixie, fairy) has both pages, each carrying its role's hashtag.
+- `/freestyle/sets` lists each set once, by name with a one-line description linking to its detail page; the set notation lives on the detail page, not in the list. Below the list it explains how sets are built, shows the uptime reinterpretation ladders, and reproduces the historical community compilation of set notation verbatim with its source credited.
+- `/freestyle/compositional-sets` and `/freestyle/sets/reference` permanently redirect to their sections of `/freestyle/sets`.
+- Set detail pages carry `#set_{slug}` hashtags per V_View_Trick_Reference_Videos. A name that is both a trick and a set (pixie, fairy) has both pages, each carrying its role's hashtag.
 - Classification follows compositional role: a set launches a trick, an operator modifies one. A set page never presents its subject as a trick.
 
 ### V_Learn_Freestyle

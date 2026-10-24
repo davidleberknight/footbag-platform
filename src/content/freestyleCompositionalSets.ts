@@ -1,9 +1,11 @@
 /**
- * Compositional Sets content for /freestyle/compositional-sets.
+ * Compositional sets content: how named sets compose from a small grammar.
  *
- * A systematic exploration of how named sets compose from a small
- * grammar: the dictionary-hub companion to the flat reference table
- * at /freestyle/sets (Chris Holden compilation).
+ * The uptime reinterpretation ladders render on /freestyle/sets. The six
+ * structural families below no longer render: the set list on /freestyle/sets
+ * is the one inventory, and its subtype intros say what the family intros
+ * said. They stay here as curator material, with the audit rows that name
+ * their members.
  *
  * Design principles (locked):
  *
@@ -41,9 +43,8 @@
  *                        tracked treatment. Surfaced honestly as
  *                        community-cited; never promoted.
  *
- * This file is layer-1 content. Service shaping at
- * freestyleService.getCompositionalSetsPage() resolves canonicalSlug
- * against the live dictionary and produces the view-model.
+ * This file is layer-1 content. freestyleService.getSetsEncyclopediaPage()
+ * shapes the ladders into the /freestyle/sets view-model.
  */
 
 export type CompositionalSetStatus =

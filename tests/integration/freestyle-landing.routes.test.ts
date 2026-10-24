@@ -5,12 +5,8 @@ const { dbPath } = setTestEnv('3986');
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import { cachedGet } from '../fixtures/cachedGet';
-import BetterSqlite3 from 'better-sqlite3';
-import { insertMember, insertCuratorVideo } from '../fixtures/factories';
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
-// cachedGet-writes: the last case seeds a curated clip to flip the page's
-// no-clips state and reads the page with a fresh request.
 const page = cachedGet(() => createApp());
 
 beforeAll(async () => {
@@ -22,18 +18,13 @@ afterAll(() => {
   cleanupTestDb(dbPath);
 });
 
-describe('freestyle landing foundations gallery link', () => {
+describe('freestyle landing reference banners', () => {
   it('embeds no foundations mosaic: the clips live in their own gallery', async () => {
     const res = await page('/freestyle');
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('class="tricks-mosaic"');
     expect(res.text).not.toContain('tricks-mosaic-cell');
     expect(res.text).not.toContain('See All Foundations');
-  });
-
-  it('withholds the gallery card until a clip is curated, so it never opens an empty gallery', async () => {
-    const res = await page('/freestyle');
-    expect(res.text).not.toContain('href="/media/gallery_foundations_of_freestyle"');
   });
 
   it('renders the two reference banners and retires Start Here / Go Deeper', async () => {
@@ -45,10 +36,7 @@ describe('freestyle landing foundations gallery link', () => {
     // a button reading "Start Here" and that control is not a portal card.
     expect(res.text).not.toMatch(/<h[1-6][^>]*>\s*Start Here\s*<\/h[1-6]>/);
     expect(res.text).not.toMatch(/<h[1-6][^>]*>\s*Go Deeper\s*<\/h[1-6]>/);
-    expect(res.text).toContain('href="/freestyle/partnerships"');
-    // supporting sections moved below the educational core
     expect(res.text).toContain('Freestyle Media');
-    expect(res.text).toContain('History of Freestyle');
     expect(res.text).toContain('href="/freestyle/media"');
   });
 
@@ -62,52 +50,54 @@ describe('freestyle landing foundations gallery link', () => {
     expect(res.text).not.toContain('Individual Shred Videos');
   });
 
-  it('links to Freestyle by the Numbers as a card and embeds none of it', async () => {
-    const res = await page('/freestyle');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Freestyle by the Numbers');
-    expect(res.text).toContain('href="/freestyle/by-the-numbers"');
+  it('links to Freestyle by the Numbers and embeds none of it', async () => {
     // The histograms and their shared denominator note live on that page; the
-    // landing links into the surface rather than embedding it.
-    expect(res.text).not.toContain('by-numbers-grid');
-    expect(res.text).not.toContain('Counts cover');
+    // landing links into it rather than embedding it.
+    const landing = await page('/freestyle');
+    expect(landing.text).toContain('href="/freestyle/by-the-numbers"');
+    expect(landing.text).not.toContain('by-numbers-grid');
+    expect(landing.text).not.toContain('Counts cover');
   });
+});
 
-  it('places the Freestyle by the Numbers card below the Featured videos showcase', async () => {
+describe('freestyle landing destinations', () => {
+  it('still links every destination its story requires', async () => {
+    // Defect caught: a cut taking away a link the landing must carry. The
+    // dictionary and records tiles render only once their tables hold rows;
+    // the portal suite seeds those and checks both links.
     const res = await page('/freestyle');
-    const featuredAt = res.text.indexOf('id="featured"');
-    const cardAt = res.text.indexOf('href="/freestyle/by-the-numbers"');
-    expect(featuredAt).toBeGreaterThan(-1);
-    expect(cardAt).toBeGreaterThan(featuredAt);
+    for (const href of [
+      '/freestyle/start',
+      '/freestyle/glossary',
+      '/freestyle/concepts',
+      '/freestyle/sets',
+      '/freestyle/operators',
+      '/freestyle/media',
+      '/freestyle/competition',
+      '/freestyle/history',
+      '/rules/freestyle/footbag-freestyle',
+      '/equipment#freestyle',
+    ]) {
+      expect(res.text, `landing link to ${href}`).toContain(`href="${href}"`);
+    }
   });
 
-  // Seeds one clip (runs last: the seeded clip flips the no-clips state the
-  // withheld-card test above relies on).
-  it('offers the gallery card in the vocabulary group once a clip is curated', async () => {
-    const seedDb = new BetterSqlite3(dbPath);
-    try {
-      const fhId = insertMember(seedDb, { is_system: 1, slug: 'fh-mosaic' });
-      insertCuratorVideo(seedDb, {
-        uploaderMemberId: fhId,
-        sourceFilename: 'mosaic-toe-stall.mp4',
-        slotTag: '#freestyle',
-        caption: 'Toe delay',
-      });
-    } finally {
-      seedDb.close();
+  it('keeps every page without a landing tile one click from a page the landing links', async () => {
+    // Defect caught: a page dropped from the landing left with no link to it
+    // anywhere, reachable only by typing its address.
+    const reachedFrom: Array<[string, string]> = [
+      ['/freestyle/start', '/freestyle/about'],
+      ['/freestyle/start', '/freestyle/by-the-numbers'],
+      ['/freestyle/start', '/freestyle/observational'],
+      ['/freestyle/competition', '/freestyle/partnerships'],
+    ];
+    const landing = await page('/freestyle');
+    for (const [from, to] of reachedFrom) {
+      expect(landing.text, `landing links ${from}`).toContain(`href="${from}"`);
+      const res = await page(from);
+      expect(res.status).toBe(200);
+      expect(res.text, `${from} links ${to}`).toContain(`href="${to}"`);
     }
-
-    const res = await request(createApp()).get('/freestyle');
-    expect(res.text).toContain('href="/media/gallery_foundations_of_freestyle"');
-    // The card names the gallery it opens and says what the clips show.
-    expect(res.text).toContain('Media Gallery: Foundations of Freestyle');
-    expect(res.text).toContain('Almost every trick is built from one of these core movements.');
-    // The card sits in the vocabulary group, not in a band of its own.
-    const languageAt = res.text.indexOf('>The Language of Freestyle<');
-    const cardAt     = res.text.indexOf('href="/media/gallery_foundations_of_freestyle"');
-    const featuredAt = res.text.indexOf('id="featured"');
-    expect(cardAt).toBeGreaterThan(languageAt);
-    expect(featuredAt).toBeGreaterThan(cardAt);
   });
 });
 

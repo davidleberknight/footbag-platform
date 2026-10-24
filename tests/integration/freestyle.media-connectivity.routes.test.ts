@@ -41,11 +41,13 @@ beforeAll(async () => {
   insertFreestyleTrick(db, { slug: 'spinning_whirl', canonical_name: 'spinning whirl', adds: '4', base_trick: 'whirl', trick_family: 'whirl', category: 'compound', is_active: 1 });
   insertTtLesson(db, { uploader_member_id: curator, ttNumber: 810, trickSlug: 'paradox_whirl', videoId: 'pw-1', lessonTitle: 'Paradox Whirl' });
 
-  // Atomic set: one example trick (modifier-linked) with a curated clip.
-  insertFreestyleTrickModifier(db, { slug: 'atomic', modifier_name: 'atomic', add_bonus: 1, modifier_type: 'set' });
-  insertFreestyleTrick(db, { slug: 'atomic_mirage', canonical_name: 'atomic mirage', adds: '4', base_trick: 'mirage', trick_family: 'mirage', category: 'compound', is_active: 1 });
-  insertFreestyleTrickModifierLink(db, 'atomic_mirage', 'atomic');
-  insertTtLesson(db, { uploader_member_id: curator, ttNumber: 811, trickSlug: 'atomic_mirage', videoId: 'am-1', lessonTitle: 'Atomic Mirage' });
+  // Sailing set: one example trick (modifier-linked) with a curated clip. A set
+  // with no teaching page lists every linked trick, which is where the media
+  // links render.
+  insertFreestyleTrickModifier(db, { slug: 'sailing', modifier_name: 'sailing', add_bonus: 2, modifier_type: 'set' });
+  insertFreestyleTrick(db, { slug: 'sailing_mirage', canonical_name: 'sailing mirage', adds: '4', base_trick: 'mirage', trick_family: 'mirage', category: 'compound', is_active: 1 });
+  insertFreestyleTrickModifierLink(db, 'sailing_mirage', 'sailing');
+  insertTtLesson(db, { uploader_member_id: curator, ttNumber: 811, trickSlug: 'sailing_mirage', videoId: 'am-1', lessonTitle: 'Sailing Mirage' });
 
   db.close();
   createApp = await importApp();
@@ -76,13 +78,13 @@ describe('Family detail surfaces its members\' media', () => {
 
 describe('Set detail surfaces its example tricks\' media', () => {
   it('renders a gallery link for a covered example trick', async () => {
-    const res = await page('/freestyle/sets/atomic');
+    const res = await page('/freestyle/sets/sailing');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('/media/browse?context&#x3D;atomic_mirage');
+    expect(res.text).toContain('/media/browse?context&#x3D;sailing_mirage');
   });
 
   it('promotes no single example gallery as the set\'s own clip', async () => {
-    const res = await page('/freestyle/sets/atomic');
+    const res = await page('/freestyle/sets/sailing');
     const html = res.text;
     expect(html).not.toContain('Watch a clip from this set');
     expect(html).not.toContain('Tutorial available');

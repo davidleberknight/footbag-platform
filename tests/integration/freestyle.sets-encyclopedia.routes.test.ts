@@ -1,18 +1,15 @@
 /**
- * GET /freestyle/sets — Set Encyclopedia.
+ * GET /freestyle/sets — Set Encyclopedia, the one set page.
  *
- * The canonical set-specific surface, listing canonical sets as first-class
- * ontology objects. Distinct from:
- *   /freestyle/tricks?view=modifier — the dictionary's modifier-grouped browse
- *   /freestyle/compositional-sets — exploratory compositional-sets hub
- *   /freestyle/sets/:slug         — per-set detail pages
- *   /freestyle/sets/reference     — flat Holden reference table
- *
- * Curator UX contract: cards stay minimalist. Each card carries name +
- * hashtag + compact formula + one-sentence movement + one provenance
- * line + up to 3 quick-relation tags + a "View details →" link.
+ * Contract: the set list comes first, each set listed once as its name
+ * linking to its detail page plus one line saying what it is, with no
+ * notation in the list. Below it: how sets are built, the uptime
+ * reinterpretation ladders, Holden's compilation reproduced as an archive,
+ * and the sources. The two retired set addresses redirect permanently to
+ * their sections here.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import request from 'supertest';
 import { cachedGet } from '../fixtures/cachedGet';
 
 import {
@@ -21,11 +18,6 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
-import {
-  insertFreestyleTrick,
-  insertFreestyleTrickModifier,
-  insertFreestyleTrickModifierLink,
-} from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3159');
 
@@ -40,160 +32,227 @@ const PRIORITY_SETS = [
   'furious', 'blurry', 'surging', 'tapping',
 ] as const;
 
+const SUBTYPE_KEYS = [
+  'true-core', 'composite-derived', 'rotational',
+  'whirl-swirl', 'uns', 'rooted-antisymposium',
+] as const;
+
 beforeAll(async () => {
-  // The Set Encyclopedia reads from CANONICAL_SETS (content module),
-  // not from freestyle_tricks. We seed a handful of trick rows + modifier
-  // links so the S1 "Common in:" preview line has data to render for at
-  // least one canonical set (pixie); cards without seeded links render
-  // an empty produces array and suppress the line.
-  const db = createTestDb(dbPath);
-  insertFreestyleTrickModifier(db, { slug: 'pixie' });
-  insertFreestyleTrick(db, { slug: 'dimwalk',        canonical_name: 'dimwalk',        adds: '4' });
-  insertFreestyleTrick(db, { slug: 'smear',          canonical_name: 'smear',          adds: '3' });
-  insertFreestyleTrick(db, { slug: 'pixie_illusion', canonical_name: 'pixie illusion', adds: '3' });
-  insertFreestyleTrickModifierLink(db, 'dimwalk',        'pixie');
-  insertFreestyleTrickModifierLink(db, 'smear',          'pixie');
-  insertFreestyleTrickModifierLink(db, 'pixie_illusion', 'pixie');
-  db.close();
+  // The set list reads from the CANONICAL_SETS content module, not from
+  // freestyle_tricks, so an empty database renders the whole page.
+  createTestDb(dbPath).close();
   createApp = await importApp();
 });
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('GET /freestyle/sets — route + envelope', () => {
-  it('returns 200 and renders the Set Encyclopedia page', async () => {
-    const res = await page('/freestyle/sets');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('class="sets-encyclopedia-head"');
-    expect(res.text).toContain('Set Encyclopedia');
-  });
+// The set list runs from the first subtype section to the first section below
+// it, so list-only assertions read just that slice.
+function setListOf(html: string): string {
+  const start = html.indexOf('id="set-subtype-true-core"');
+  const end   = html.indexOf('id="how-sets-are-built"');
+  expect(start).toBeGreaterThan(0);
+  expect(end).toBeGreaterThan(start);
+  return html.slice(start, end);
+}
 
-  it('serves the page itself rather than redirecting into the trick dictionary', async () => {
-    const res = await page('/freestyle/sets');
-    expect(res.status).toBe(200);
-    expect(res.status).not.toBe(301);
-  });
-
-  it('explains why this surface is an encyclopedia rather than a dictionary', async () => {
-    const res = await page('/freestyle/sets');
-    expect(res.text).toContain('Why an encyclopedia instead of a dictionary?');
-    expect(res.text).toContain('explores the movement systems that');
-  });
-});
-
-describe('GET /freestyle/sets — minimalist card contract', () => {
+describe('GET /freestyle/sets — the set list', () => {
   it.each(PRIORITY_SETS.map(slug => [slug] as const))(
-    '%s renders a card with name, hashtag, formula, compact movement, provenance, and detail link',
+    '%s is listed by name, linking to its detail page, with one line saying what it is',
     async (slug) => {
       const res = await page('/freestyle/sets');
-      // Card present
-      expect(res.text).toContain(`id="enc-set-${slug}"`);
-      // Detail link points at the per-set detail page (not in-page anchor)
-      expect(res.text).toMatch(new RegExp(`<a class="action-link" href="/freestyle/sets/${slug}">View details</a>`));
-      // Hashtag follows the set ontology role-prefix pattern (#set_<slug>)
-      expect(res.text).toContain(`#set_${slug}`);
+      expect(res.status).toBe(200);
+      const rowStart = res.text.indexOf(`id="enc-set-${slug}"`);
+      expect(rowStart).toBeGreaterThan(0);
+      const row = res.text.slice(rowStart, res.text.indexOf('</article>', rowStart));
+      expect(row).toMatch(new RegExp(`<a class="dict-trick-row-title" href="/freestyle/sets/${slug}">`));
+      expect(row).toMatch(/<p class="sets-encyclopedia-card-movement">[^<]+<\/p>/);
     },
   );
 
-  it('every set row carries a status pill, the SET notation line, and one descriptor', async () => {
-    const res = await page('/freestyle/sets');
-    // One row per set: count by detail-link, then confirm each required slot
-    // appears the same number of times. The rows reuse the trick-dictionary
-    // notation contract (.dict-trick-row-notation) for the SET formula line.
-    const detailLinkMatches = res.text.match(/href="\/freestyle\/sets\/[^"]+">View details<\/a>/g) ?? [];
-    const movementMatches  = res.text.match(/sets-encyclopedia-card-movement/g) ?? [];
-    const statusMatches     = res.text.match(/sets-encyclopedia-card-status /g) ?? [];
-    const notationMatches   = res.text.match(/dict-trick-row-notation/g) ?? [];
-    expect(detailLinkMatches.length).toBeGreaterThan(0);
-    expect(movementMatches.length).toBe(detailLinkMatches.length);
-    expect(statusMatches.length).toBe(detailLinkMatches.length);
-    expect(notationMatches.length).toBe(detailLinkMatches.length);
+  it('carries no notation: the long formulas live on the set detail pages', async () => {
+    // Defect caught: a long formula back in the list, running a row off a
+    // phone screen and repeating what the detail page says.
+    const list = setListOf((await page('/freestyle/sets')).text);
+    expect(list).toContain('id="enc-set-pixie"');
+    expect(list).not.toContain('<code');
+    expect(list).not.toContain('[DEX]');
+    const detail = await page('/freestyle/sets/pixie');
+    expect(detail.text).toContain('TOE &gt; SAME IN [DEX]');
   });
 
-  it('status pills use beginner-safe labels and never expose internal source names', async () => {
+  it('lists each set exactly once, and nowhere else on the page as a second list', async () => {
+    // Defect caught: the retired compositional family cards coming back as a
+    // second inventory of the same sets.
     const res = await page('/freestyle/sets');
-    expect(res.text).toMatch(/sets-encyclopedia-card-status--(platform-tracked|community-cited|under-review)/);
-    // Internal source-name provenance phrasing is gone from the cards.
-    expect(res.text).not.toContain('Holden aligned');
-    expect(res.text).not.toContain('Holden partial');
+    const ids = res.text.match(/id="enc-set-[a-z_]+"/g) ?? [];
+    expect(ids.length).toBeGreaterThan(0);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(res.text).not.toContain('compositional-set-card');
   });
 
-  it('cards do NOT carry the verbose fields (equivalences, source/audit footer with citation, alt-surfaces cross-link)', async () => {
-    // The Encyclopedia index stays light: the verbose fields belong on the
-    // per-set detail page. Specifically, the citation footer and the
-    // equivalence-readings list do not appear here.
+  it('groups the sets by the six subtypes', async () => {
     const res = await page('/freestyle/sets');
-    expect(res.text).not.toContain('set-card-citation');
-    expect(res.text).not.toContain('set-card-equivalences');
-    expect(res.text).not.toContain('sets-alt-surfaces-cross-link');
-  });
-});
-
-describe('GET /freestyle/sets — cross-navigation', () => {
-  it('renders the three cross-nav links disambiguating from sibling surfaces', async () => {
-    const res = await page('/freestyle/sets');
-    expect(res.text).toContain('class="sets-encyclopedia-cross-nav"');
-    // `=` is HTML-escaped to `&#x3D;` in Handlebars output. Match the
-    // path without the `=` to keep the regex stable.
-    expect(res.text).toMatch(/href="\/freestyle\/tricks\?view/);
-    expect(res.text).toMatch(/href="\/freestyle\/compositional-sets"/);
-    expect(res.text).toMatch(/href="\/freestyle\/operators"/);
-    // The flat Holden reference link is intentionally not surfaced here
-    // (no source-person naming on the public related-surfaces list).
-    expect(res.text).not.toMatch(/href="\/freestyle\/sets\/reference"/);
+    for (const key of SUBTYPE_KEYS) {
+      expect(res.text, `subtype section ${key}`).toContain(`id="set-subtype-${key}"`);
+    }
   });
 
-  it('each cross-nav link carries the disambiguating question phrasing', async () => {
-    const res = await page('/freestyle/sets');
-    expect(res.text).toContain('which tricks use this set?');
-    expect(res.text).toContain('how do sets relate as families?');
-    expect(res.text).toContain('what transformations act on tricks?');
-  });
-});
-
-describe('GET /freestyle/sets — subtype grouping', () => {
-  it('groups cards by the 6 canonical subtypes', async () => {
-    const res = await page('/freestyle/sets');
-    expect(res.text).toContain('id="set-subtype-true-core"');
-    expect(res.text).toContain('id="set-subtype-composite-derived"');
-    expect(res.text).toContain('id="set-subtype-rotational"');
-    expect(res.text).toContain('id="set-subtype-whirl-swirl"');
-    expect(res.text).toContain('id="set-subtype-uns"');
-    expect(res.text).toContain('id="set-subtype-rooted-antisymposium"');
-  });
-
-  it('renders "True core sets" / "Composite / derived sets" subtype labels', async () => {
-    const res = await page('/freestyle/sets');
-    expect(res.text).toContain('True core sets');
-    expect(res.text).toContain('Composite / derived sets');
-  });
-});
-
-describe('GET /freestyle/sets — detail-page link resolution', () => {
   it.each(PRIORITY_SETS.map(slug => [slug] as const))(
-    'detail link for %s resolves (route exists; not a 404 or 301)',
+    'the detail link for %s resolves to a page, not a 404 or a redirect',
     async (slug) => {
       const res = await page(`/freestyle/sets/${slug}`);
-      // Resolves to the existing set-detail page (200), not a 404.
-      // Note: this verifies the *route resolves*; the detail page's own
-      // rendering contract lives in freestyle.set-detail.routes.test.ts.
       expect(res.status).toBe(200);
     },
   );
+
+  it('lists Furious and Blazing, and no Miraging, Barraging or Whirling set', async () => {
+    const res = await page('/freestyle/sets');
+    expect(res.text).toContain('id="enc-set-furious"');
+    expect(res.text).toContain('id="enc-set-blazing"');
+    expect(res.text).not.toContain('id="enc-set-miraging"');
+    expect(res.text).not.toContain('id="enc-set-barraging"');
+    expect(res.text).not.toContain('id="enc-set-whirling"');
+    expect(res.text).not.toContain('#set_whirling');
+  });
+
+  it('the set sitemap includes furious and blazing and excludes miraging, barraging and whirling', async () => {
+    const { freestyleService } = await import('../../src/services/freestyleService');
+    const slugs = freestyleService.listSitemapSetSlugs();
+    expect(slugs).toContain('furious');
+    expect(slugs).toContain('blazing');
+    expect(slugs).not.toContain('miraging');
+    expect(slugs).not.toContain('barraging');
+    expect(slugs).not.toContain('whirling');
+  });
+
+  it('links the dictionary\'s By set view once, for which tricks use a set', async () => {
+    const res = await page('/freestyle/sets');
+    // `=` is HTML-escaped to `&#x3D;` in Handlebars output.
+    const links = res.text.match(/href="\/freestyle\/tricks\?view(=|&#x3D;)set"/g) ?? [];
+    expect(links.length).toBe(1);
+  });
 });
 
-describe('GET /freestyle/sets — distinct from sibling surfaces', () => {
-  it('renders compact trick-dictionary-style rows, not the retired verbose set cards', async () => {
+describe('GET /freestyle/sets — page order and contents', () => {
+  it('puts the set list first, then how sets are built, the ladders, the compilation and the sources', async () => {
     const res = await page('/freestyle/sets');
-    // The index mirrors the trick-dictionary row contract (shared structure)
-    // while carrying the encyclopedia's own status pill + role chip.
-    expect(res.text).toContain('dict-trick-row-stack');
-    expect(res.text).toContain('class="dict-trick-row"');
-    expect(res.text).toContain('sets-encyclopedia-card-status');
-    expect(res.text).toContain('sets-encyclopedia-card-role-chip');
-    // The retired verbose set-card classes are NOT here
-    expect(res.text).not.toContain('class="set-card set-card--');
-    expect(res.text).not.toContain('class="set-card-grid"');
+    const order = [
+      'id="set-subtype-true-core"',
+      'id="how-sets-are-built"',
+      'id="uptime-reinterpretation"',
+      'id="historical-move-set-reference"',
+      'id="sources"',
+    ].map(marker => res.text.indexOf(marker));
+    for (const at of order) expect(at).toBeGreaterThan(0);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+  });
+
+  it('the contents bar links every section on the page, and every target exists', async () => {
+    // Defect caught: a contents entry that jumps nowhere.
+    const res = await page('/freestyle/sets');
+    const tocStart = res.text.indexOf('class="glossary-mini-toc"');
+    const toc = res.text.slice(tocStart, res.text.indexOf('</nav>', tocStart));
+    const targets = [...toc.matchAll(/href="#([^"]+)"/g)].map(m => m[1]);
+    expect(targets).toEqual([
+      ...SUBTYPE_KEYS.map(key => `set-subtype-${key}`),
+      'how-sets-are-built', 'uptime-reinterpretation', 'historical-move-set-reference', 'sources',
+    ]);
+    for (const id of targets) expect(res.text, `section ${id}`).toContain(`id="${id}"`);
+  });
+
+  it('points each subtype forward to the next, and the last subtype to nothing', async () => {
+    const res = await page('/freestyle/sets');
+    const footers = res.text.match(/class="glossary-section-next"/g) ?? [];
+    expect(footers.length).toBe(SUBTYPE_KEYS.length - 1);
+    const lastStart = res.text.indexOf('id="set-subtype-rooted-antisymposium"');
+    const last = res.text.slice(lastStart, res.text.indexOf('</section>', lastStart));
+    expect(last).not.toContain('glossary-section-next');
+  });
+});
+
+describe('GET /freestyle/sets — the sections below the list', () => {
+  it('how sets are built gives the grammar\'s base shape once', async () => {
+    const res = await page('/freestyle/sets');
+    const section = res.text.slice(res.text.indexOf('id="how-sets-are-built"'), res.text.indexOf('id="uptime-reinterpretation"'));
+    expect(section).toContain('(toe | clip) &gt; [(same | op)(in | out) dexterity]* &gt; (same | op)(toe | clip)');
+    expect(section).toContain('Example: <code>Pixie = TOE &gt; SAME IN [DEX] &gt;</code>');
+  });
+
+  it('records both readings where Holden and the platform disagree, rather than picking one', async () => {
+    // Defect caught: a documented disagreement silently normalized to one reading.
+    const res = await page('/freestyle/sets');
+    expect(res.text).toMatch(/spinning miraging/);
+    expect(res.text).toMatch(/spinning stepping/);
+    expect(res.text).toContain('compositional-ladder--conflict');
+    expect(res.text).toMatch(/documented disagreement, not normalized/);
+  });
+
+  it('presents the older Furious three-dex reading as superseded, not as current structure', async () => {
+    const res = await page('/freestyle/sets');
+    expect(res.text).toMatch(/superseded/i);
+    expect(res.text).not.toContain('Barraging-set extended with a third dex');
+  });
+
+  it('declares the compilation\'s source before its table', async () => {
+    const res = await page('/freestyle/sets');
+    const provenance = res.text.indexOf('Set notation sourced from the freestyle discussion archive');
+    const table = res.text.indexOf('class="moves-table"');
+    expect(provenance).toBeGreaterThan(-1);
+    expect(table).toBeGreaterThan(provenance);
+    expect(res.text).toContain('may differ from current platform doctrine');
+  });
+
+  it('reproduces the compilation untouched, including names and formulas the platform does not use', async () => {
+    // Defect caught: the archive edited to match current doctrine.
+    const res = await page('/freestyle/sets');
+    const archive = res.text.slice(res.text.indexOf('id="historical-move-set-reference"'), res.text.indexOf('id="sources"'));
+    expect(archive).toMatch(/Miraging/);
+    expect(archive).toMatch(/Barraging/);
+    expect(archive).toContain('SET &gt; OP IN [DEX] &gt;');
+    expect(archive).toContain('SET &gt; (no plant while) OP OUT [BOD] [DEX] &gt;');
+    expect(archive).toContain('CLIP &gt; OP IN [DEX] &gt; SAME IN [DEX] &gt; OP IN [DEX] &gt;');
+  });
+
+  it('keeps the curator audit off the public page', async () => {
+    const res = await page('/freestyle/sets');
+    expect(res.text).not.toMatch(/<h2[^>]*>Consistency audit<\/h2>/);
+    expect(res.text).not.toContain('id="audit"');
+    expect(res.text).not.toContain('curatorial transparency');
+    expect(res.text).not.toContain('curator workspace');
+  });
+
+  it('credits the notation grammar and the compilation in the sources section', async () => {
+    const res = await page('/freestyle/sets');
+    const sources = res.text.slice(res.text.indexOf('id="sources"'));
+    expect(sources).toContain('Ben Job');
+    expect(sources).toContain('Chris Holden');
+    expect(sources).toContain('href="#historical-move-set-reference"');
+  });
+});
+
+describe('Retired set addresses', () => {
+  it.each([
+    ['/freestyle/compositional-sets', '/freestyle/sets#how-sets-are-built'],
+    ['/freestyle/sets/reference',     '/freestyle/sets#historical-move-set-reference'],
+  ])('%s redirects permanently to its section of /freestyle/sets', async (from, to) => {
+    // Defect caught: an old bookmark or outside link dead-ending, or landing
+    // at the top of the page instead of the section it was for.
+    const res = await request(createApp()).get(from).redirects(0);
+    expect(res.status).toBe(301);
+    expect(res.headers['location']).toBe(to);
+    const target = await page('/freestyle/sets');
+    expect(target.text).toContain(`id="${to.split('#')[1]}"`);
+  });
+
+  it('no freestyle page links to a retired set address', async () => {
+    // Defect caught: an internal link that sends every reader through a redirect.
+    for (const path of ['/freestyle', '/freestyle/sets', '/freestyle/sets/pixie', '/freestyle/concepts', '/freestyle/learn']) {
+      const res = await page(path);
+      expect(res.status, path).toBe(200);
+      expect(res.text, `${path} links /freestyle/compositional-sets`).not.toContain('href="/freestyle/compositional-sets');
+      expect(res.text, `${path} links /freestyle/sets/reference`).not.toContain('href="/freestyle/sets/reference');
+    }
   });
 });
 
@@ -207,189 +266,5 @@ describe('Cross-link presence on sibling pages', () => {
   it('glossary links to the Set Encyclopedia', async () => {
     const res = await page('/freestyle/glossary');
     expect(res.text).toMatch(/href="\/freestyle\/sets"/);
-  });
-});
-
-// ─────────────────────────────────────────────────────────────────────────
-// S1 — Index card refinement (role chip · ★ flagship marker · Common in)
-// ─────────────────────────────────────────────────────────────────────────
-
-describe('GET /freestyle/sets — S1 role chip on every card', () => {
-  it('every card carries a role-chip class', async () => {
-    const res = await page('/freestyle/sets');
-    const detailLinkMatches = res.text.match(/href="\/freestyle\/sets\/[^"]+">View details<\/a>/g) ?? [];
-    const roleChipMatches  = res.text.match(/sets-encyclopedia-card-role-chip\b/g) ?? [];
-    expect(detailLinkMatches.length).toBeGreaterThan(0);
-    // One role chip per card (the base class appears once per chip;
-    // the role-variant class is a second occurrence on the same element).
-    expect(roleChipMatches.length).toBeGreaterThanOrEqual(detailLinkMatches.length);
-  });
-
-  it('true-core TOE-prefix sets carry the +1 entry role', async () => {
-    const res = await page('/freestyle/sets');
-    for (const slug of ['pixie', 'fairy', 'atomic', 'quantum']) {
-      // Card present + role chip variant + role label visible
-      expect(res.text).toContain(`id="enc-set-${slug}"`);
-      expect(res.text).toContain('sets-encyclopedia-card-role-chip--plus-one-entry');
-    }
-    expect(res.text).toMatch(/>\+1 entry<\/span>/);
-  });
-
-  it('true-core CLIP-prefix sets carry the CLIP entry role', async () => {
-    const res = await page('/freestyle/sets');
-    for (const slug of ['stepping', 'bubba', 'slapping', 'tapping']) {
-      expect(res.text).toContain(`id="enc-set-${slug}"`);
-    }
-    expect(res.text).toContain('sets-encyclopedia-card-role-chip--clip-entry');
-    expect(res.text).toMatch(/>CLIP entry<\/span>/);
-  });
-
-  it('composite-derived / rotational / uns / rooted subtypes each carry their distinct role chip', async () => {
-    const res = await page('/freestyle/sets');
-    expect(res.text).toContain('sets-encyclopedia-card-role-chip--composite');
-    expect(res.text).toContain('sets-encyclopedia-card-role-chip--rotational');
-    expect(res.text).toContain('sets-encyclopedia-card-role-chip--uns-entry');
-    expect(res.text).toContain('sets-encyclopedia-card-role-chip--rooted');
-  });
-});
-
-describe('GET /freestyle/sets — S1 ★ flagship marker on 5 foundational sets', () => {
-  const FLAGSHIP_SLUGS = ['pixie', 'fairy', 'stepping', 'atomic', 'quantum'] as const;
-  const NON_FLAGSHIP_SLUGS = ['bubba', 'slapping', 'blurry', 'surging'] as const;
-
-  it.each(FLAGSHIP_SLUGS.map(slug => [slug] as const))(
-    '%s carries the flagship-marker chip with a title tooltip',
-    async (slug) => {
-      const res = await page('/freestyle/sets');
-      // Locate the card and assert the flagship span is present inside it.
-      const cardIdx = res.text.indexOf(`id="enc-set-${slug}"`);
-      expect(cardIdx).toBeGreaterThan(0);
-      const cardSlice = res.text.slice(cardIdx, cardIdx + 1500);
-      expect(cardSlice).toMatch(/<span class="sets-encyclopedia-card-flagship" title="Flagship set: [^"]+" aria-hidden="true">/);
-      // The star's meaning is spoken, not left to a tooltip a keyboard, touch
-      // screen or screen reader never reaches.
-      expect(cardSlice).toMatch(/<span class="visually-hidden">Flagship set: [^<]+<\/span>/);
-    },
-  );
-
-  it.each(NON_FLAGSHIP_SLUGS.map(slug => [slug] as const))(
-    '%s does NOT carry the flagship-marker chip',
-    async (slug) => {
-      const res = await page('/freestyle/sets');
-      const cardIdx = res.text.indexOf(`id="enc-set-${slug}"`);
-      expect(cardIdx).toBeGreaterThan(0);
-      const cardSlice = res.text.slice(cardIdx, cardIdx + 1500);
-      expect(cardSlice).not.toMatch(/sets-encyclopedia-card-flagship/);
-    },
-  );
-
-  it('the flagship cohort is exactly 5 cards (matches FLAGSHIP_SET_TOOLTIPS in the service; miraging removed)', async () => {
-    const res = await page('/freestyle/sets');
-    const flagshipMatches = res.text.match(/sets-encyclopedia-card-flagship/g) ?? [];
-    expect(flagshipMatches.length).toBe(5);
-  });
-});
-
-describe('GET /freestyle/sets — index prose reduced (Derived / Common in moved to detail pages)', () => {
-  it('does not render the Derived or Common-in lines on the index rows', async () => {
-    const res = await page('/freestyle/sets');
-    // These relational previews now live on the set detail pages; the index
-    // rows carry at most one short descriptor (the compact movement line).
-    expect(res.text).not.toContain('class="sets-encyclopedia-card-common-in"');
-    expect(res.text).not.toContain('Common in:');
-    expect(res.text).not.toContain('class="sets-encyclopedia-card-relations-row"');
-    expect(res.text).not.toContain('Derived:');
-  });
-});
-
-// ─────────────────────────────────────────────────────────────────────────
-// S4 — Mini-TOC pill row + per-subtype Read-next footers
-// ─────────────────────────────────────────────────────────────────────────
-
-describe('GET /freestyle/sets — S4 mini-TOC pill row', () => {
-  it('renders the mini-TOC nav with one anchor per rendered subtype', async () => {
-    const res = await page('/freestyle/sets');
-    expect(res.text).toContain('class="glossary-mini-toc"');
-    expect(res.text).toContain('aria-label="In this encyclopedia"');
-    expect(res.text).toContain('>In this encyclopedia:</span>');
-  });
-
-  it('mini-TOC anchors target each of the 6 subtype sections', async () => {
-    const res = await page('/freestyle/sets');
-    const tocStart = res.text.indexOf('class="glossary-mini-toc"');
-    const tocEnd = res.text.indexOf('</nav>', tocStart);
-    expect(tocStart).toBeGreaterThan(0);
-    const tocSlice = res.text.slice(tocStart, tocEnd);
-    for (const key of [
-      'true-core', 'composite-derived', 'rotational',
-      'whirl-swirl', 'uns', 'rooted-antisymposium',
-    ]) {
-      expect(tocSlice).toContain(`href="#set-subtype-${key}"`);
-    }
-  });
-
-  it('mini-TOC anchors carry human-readable subtype labels', async () => {
-    const res = await page('/freestyle/sets');
-    const tocStart = res.text.indexOf('class="glossary-mini-toc"');
-    const tocEnd = res.text.indexOf('</nav>', tocStart);
-    const tocSlice = res.text.slice(tocStart, tocEnd);
-    expect(tocSlice).toContain('True core sets');
-    expect(tocSlice).toContain('Composite / derived sets');
-    expect(tocSlice).toContain('Rotational set systems');
-  });
-});
-
-describe('GET /freestyle/sets — S4 per-subtype Read-next footers', () => {
-  it('renders 5 Read-next footers (one per subtype except the last)', async () => {
-    const res = await page('/freestyle/sets');
-    const footerMatches = res.text.match(/class="glossary-section-next"/g) ?? [];
-    // 6 rendered subtypes → 5 forward-pointing footers (last suppresses).
-    expect(footerMatches.length).toBe(5);
-  });
-
-  it('true-core footer points forward to composite-derived with a lowercased tagline', async () => {
-    const res = await page('/freestyle/sets');
-    const sectionStart = res.text.indexOf('id="set-subtype-true-core"');
-    const sectionEnd   = res.text.indexOf('id="set-subtype-composite-derived"');
-    expect(sectionStart).toBeGreaterThan(0);
-    expect(sectionEnd).toBeGreaterThan(sectionStart);
-    const slice = res.text.slice(sectionStart, sectionEnd);
-    expect(slice).toMatch(/class="glossary-section-next"/);
-    expect(slice).toMatch(/href="#set-subtype-composite-derived"/);
-    expect(slice).toContain('Composite / derived sets');
-    // Tagline is the lowercased first sentence of the composite intro.
-    expect(slice).toMatch(/multi-dex chains and derived entry topologies/);
-  });
-
-  it('the last rendered subtype (rooted-antisymposium) does NOT render a Read-next footer', async () => {
-    const res = await page('/freestyle/sets');
-    const sectionStart = res.text.indexOf('id="set-subtype-rooted-antisymposium"');
-    expect(sectionStart).toBeGreaterThan(0);
-    // Slice from this section's opening to the wrapper close — there
-    // should be no glossary-section-next inside it.
-    const wrapperCloseIdx = res.text.indexOf('</div>', sectionStart);
-    const slice = res.text.slice(sectionStart, wrapperCloseIdx + 6);
-    expect(slice).not.toMatch(/class="glossary-section-next"/);
-  });
-});
-
-// Set-taxonomy doctrine: Furious is the confirmed two-dex uptime set page;
-// Miraging and Barraging are not sets and must not appear as set pages in the
-// index or the sitemap.
-describe('GET /freestyle/sets — set-taxonomy doctrine (furious in, miraging/barraging out)', () => {
-  it('renders a Furious set card and no Miraging or Barraging card', async () => {
-    const res = await page('/freestyle/sets');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('id="enc-set-furious"');
-    expect(res.text).not.toContain('id="enc-set-miraging"');
-    expect(res.text).not.toContain('id="enc-set-barraging"');
-  });
-
-  it('the set sitemap includes furious and excludes miraging and barraging', async () => {
-    const { freestyleService } = await import('../../src/services/freestyleService');
-    const slugs = freestyleService.listSitemapSetSlugs();
-    expect(slugs).toContain('furious');
-    expect(slugs).not.toContain('miraging');
-    expect(slugs).not.toContain('barraging');
   });
 });

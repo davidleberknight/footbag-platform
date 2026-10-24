@@ -38,7 +38,7 @@ const labelFor = (slug: string): string | null =>
 
 describe('every displayed set formula says whose notation it is', () => {
   it('the formula-bearing cohort is the size the audit found', () => {
-    expect(withFormula).toHaveLength(47);
+    expect(withFormula).toHaveLength(46);
     expect(withoutFormula.map((s) => s.slug).sort()).toEqual(['weaving', 'zulu']);
   });
 
@@ -57,7 +57,7 @@ describe('every displayed set formula says whose notation it is', () => {
     // here, which is why the displayed defect was so concentrated on blazing.
     const EDUCATION_BACKED = [
       'atomic', 'fairy', 'floating', 'furious', 'nuclear', 'pixie',
-      'quantum', 'stepping', 'surfing', 'swirling', 'warping', 'whirling',
+      'quantum', 'stepping', 'surfing', 'swirling', 'warping',
     ];
     for (const slug of EDUCATION_BACKED) {
       const set = findCanonicalSetBySlug(slug)!;
@@ -102,7 +102,7 @@ describe('every displayed set formula says whose notation it is', () => {
       counts.set(label, (counts.get(label) ?? 0) + 1);
     }
     expect(Object.fromEntries(counts)).toEqual({
-      [HOLDEN]: 41,
+      [HOLDEN]: 40,
       [PLATFORM_ENTRY]: 2,
       [CURATOR]: 2,
       [PLATFORM_TRACKED]: 1,

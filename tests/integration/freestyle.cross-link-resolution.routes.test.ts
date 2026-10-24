@@ -59,12 +59,12 @@ describe('trick-detail operator cross-link resolves or is suppressed', () => {
   });
 
   it('still renders the cross-link to an operator that has a page, pointing where its route lands', async () => {
-    // Whirling's modifier route redirects to its set page, so the link goes
-    // there directly rather than through the redirect.
+    // Whirling is a body modifier with its own page, so the link goes there and
+    // never to the retired Whirling set URL, which only redirects.
     const res = await request(await createApp()).get('/freestyle/tricks/whirl');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('href="/freestyle/sets/whirling"');
-    expect(res.text).not.toContain('href="/freestyle/modifier/whirling"');
+    expect(res.text).toContain('href="/freestyle/modifier/whirling"');
+    expect(res.text).not.toContain('href="/freestyle/sets/whirling"');
   });
 });
 

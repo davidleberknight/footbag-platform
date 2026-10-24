@@ -14,9 +14,10 @@
  *     (getOperatorsPage), /freestyle/modifier/:slug (getModifierDetail -> teaching | stub),
  *     /freestyle/notation-article (getJobsNotationArticlePage), /freestyle/observational
  *     (getObservationalLayerPage).
- *   - Sets: /freestyle/sets (getSetsEncyclopediaPage), /freestyle/sets/:slug
- *     (getCanonicalSetDetailPage), /freestyle/sets/reference (getMovesPage),
- *     /freestyle/compositional-sets (getCompositionalSetsPage).
+ *   - Sets: /freestyle/sets (getSetsEncyclopediaPage, with Holden's compilation from
+ *     getHoldenCompilation), /freestyle/sets/:slug (getCanonicalSetDetailPage).
+ *     /freestyle/compositional-sets and /freestyle/sets/reference redirect permanently
+ *     to their sections of /freestyle/sets (RETIRED_SET_PAGE_REDIRECTS).
  *   - Analysis: /freestyle/records (getRecordsPage), /freestyle/leaders (getLeadersPage),
  *     /freestyle/competition, /freestyle/partnerships, /freestyle/add-analysis
  *     (getAddAnalysisPage), /freestyle/combo-analysis (getComboAnalysisPage),
@@ -137,10 +138,9 @@ import {
 import {
   CORE_TRICK_SPEC,
 } from '../content/freestyleLandingContent';
-import { TRICKS_MOSAIC } from '../content/freestyleTricksMosaic';
 import { HISTORY_NARRATIVE, type HistoryNarrative } from '../content/freestyleHistoryNarrative';
 import { TERMINAL_DERIVED_COHORTS, TERMINAL_OF_MEMBER } from '../content/freestyleTerminalCohorts';
-import { loadSiteVideo, loadMosaicVideo } from './siteMediaService';
+import { loadSiteVideo } from './siteMediaService';
 import {
   CORE_ATOM_EDUCATIONAL,
   isCoreAtom,
@@ -199,10 +199,7 @@ import {
   resolveSetRouteRedirect,
 } from '../content/freestyleCanonicalSets';
 import { COMPETITION_FORMATS } from '../content/freestyleCompetitionFormats';
-import {
-  COMPOSITIONAL_SET_FAMILIES,
-  UPTIME_REINTERPRETATION_LADDERS,
-} from '../content/freestyleCompositionalSets';
+import { UPTIME_REINTERPRETATION_LADDERS } from '../content/freestyleCompositionalSets';
 import {
   getCompoundSemanticDescription,
   isDescriptionRedundantWithNotation,
@@ -760,9 +757,6 @@ export interface FreestyleLandingContent {
   // Featured strip — competition formats + curated demonstrations rendered
   // in one compact grid. Empty array hides the section content.
   featured: FreestyleFeaturedItem[];
-  // False until at least one core-atom clip is curated. The landing links to the
-  // foundations media gallery only when the gallery has something in it.
-  tricksMosaicHasClips: boolean;
   // Coming-soon gating for the Start Here / Go Deeper portal cards.
   totalTricks: number;
   totalRecords: number;
@@ -930,17 +924,15 @@ export interface FreestyleMoveLabel {
   anchorId:  string;            // move-<slugified-label>; stable for every row
 }
 
-export interface FreestyleMovesContent {
+export interface HoldenCompilationView {
   /**
    * Source provenance, rendered above the table rather than in a footer: this
-   * page reproduces a community compilation, and a reader must meet that fact
-   * before the classifications rather than after them.
+   * section reproduces a community compilation, and a reader must meet that
+   * fact before the classifications rather than after them.
    */
   provenance: {
     sourceNote:   string;
     groupingNote: string;
-    currentLabel: string;
-    currentHref:  string;
   };
   basicSets:          FreestyleMoveLabel[];
   spinningVariants:   FreestyleMoveLabel[];
@@ -948,32 +940,6 @@ export interface FreestyleMovesContent {
   unsVariants:        FreestyleMoveLabel[];
   antisymposium:      FreestyleMoveLabel[];
   components:         FreestyleMoveLabel[];
-}
-
-// View-model shapes for /freestyle/compositional-sets. Service-shaped
-// from src/content/freestyleCompositionalSets.ts plus a live dictionary
-// lookup that resolves each card's canonical link target.
-export interface CompositionalSetCardView {
-  name:           string;
-  notation:       string;
-  /** Resolved status — 'canonical' iff a dictionary slug exists. */
-  status:         'canonical' | 'platform-tracked' | 'holden-only';
-  /** Visible badge text for non-canonical cards; null for canonical. */
-  statusLabel:    string | null;
-  /** Pre-shaped badge gate; templates never compare the raw status. */
-  showStatusBadge: boolean;
-  /** /freestyle/tricks/<slug> when status === 'canonical'; null otherwise. */
-  trickHref:      string | null;
-  /** Stable per-card anchor (kebab-case). */
-  anchorId:       string;
-  structuralNote: string | null;
-}
-
-export interface CompositionalSetFamilyView {
-  key:     string;
-  name:    string;
-  intro:   string;
-  members: CompositionalSetCardView[];
 }
 
 export interface UptimeReinterpretationLadderView {
@@ -986,20 +952,20 @@ export interface UptimeReinterpretationLadderView {
   anchorId:         string;
 }
 
-export interface FreestyleCompositionalSetsContent {
-  premise: {
-    canonicalFormula: string;
-    softenerNote:     string;
-    examples:         { name: string; notation: string; trickHref: string | null }[];
-  };
-  families: CompositionalSetFamilyView[];
-  ladders:  UptimeReinterpretationLadderView[];
-  crossLinks: {
-    setsReferenceHref:    string;
-    operatorsHref:        string;
-    conceptsNotationHref: string;
-  };
-}
+// Section ids on /freestyle/sets below the set list. The two retired set
+// addresses redirect permanently to two of them, so an old bookmark lands on
+// the matching section; renaming one breaks those redirects.
+export const SETS_SECTION_IDS = {
+  howSetsAreBuilt: 'how-sets-are-built',
+  uptime:          'uptime-reinterpretation',
+  holden:          'historical-move-set-reference',
+  sources:         'sources',
+} as const;
+
+export const RETIRED_SET_PAGE_REDIRECTS = {
+  compositionalSets: `/freestyle/sets#${SETS_SECTION_IDS.howSetsAreBuilt}`,
+  moveSetReference:  `/freestyle/sets#${SETS_SECTION_IDS.holden}`,
+} as const;
 
 // Underscore slug derivation for /freestyle/sets labels, matching the dictionary
 // trick slug form (one lowercase underscore token equal to the hashtag body and
@@ -2670,28 +2636,31 @@ export interface SlugLinkVM {
 }
 
 // ─────────────────────────────────────────────────────────────────────────
-// Set Encyclopedia (standalone /freestyle/sets page).
+// Set Encyclopedia (the one /freestyle/sets page).
 //
-// The canonical set-specific surface. Distinct from the dictionary's
-// /freestyle/tricks?view=modifier browse (tricks grouped by the modifier
-// they use) and from /freestyle/compositional-sets (the exploratory hub).
-// The Encyclopedia answers "what is this set system?" — minimalist cards,
-// scan-friendly, links to /freestyle/sets/<slug> for deep ontology.
-//
-// Per the curator UX directive: cards carry ONLY name +
-// hashtag + compact formula + one-sentence movement + one provenance
-// line + quick-relation tags + "View details →". Deep prose lives on
-// the detail pages.
+// The set list comes first: each set is its name, linking to its detail page
+// at /freestyle/sets/<slug>, and one line saying what it is. The long notation
+// lives on the detail page, never in the list. Below the list, in order: how
+// sets are built (the grammar and the notation primer), the uptime
+// reinterpretation ladders, Holden's compilation reproduced verbatim as an
+// archive, and the sources. Each set is listed once; the compilation is the
+// archive, not a second list.
 // ─────────────────────────────────────────────────────────────────────────
 
 export interface FreestyleSetsEncyclopediaView {
   intro:           string;
-  totalSets:       number;
   subtypeSections: readonly EncyclopediaSubtypeSection[];
-  /** S4 mini-TOC: one pill per rendered subtype section, in render order.
-   *  Empty when no sections render. */
-  subtypeMiniToc:  readonly EncyclopediaMiniTocEntry[];
+  /** One entry per subtype section, then one per section below the list, in
+   *  render order. */
+  contents:        readonly EncyclopediaMiniTocEntry[];
   crossLinks:      EncyclopediaCrossLinks;
+  sectionIds:      typeof SETS_SECTION_IDS;
+  howSetsAreBuilt: {
+    canonicalFormula: string;
+    softenerNote:     string;
+  };
+  ladders:         readonly UptimeReinterpretationLadderView[];
+  holden:          HoldenCompilationView;
 }
 
 export interface EncyclopediaMiniTocEntry {
@@ -2721,56 +2690,16 @@ export interface EncyclopediaSubtypeSection {
 
 export interface EncyclopediaSetCard {
   slug:            string;
-  hashtag:         string;
   displayName:     string;
-  formula:         string;
   /** First sentence of movementExplanation; compact + scan-friendly. */
   compactMovement: string;
-  /** Single short line — combines source + audit status into one label. */
-  provenanceLine:  string;
-  /** Beginner-safe status pill that keeps internal source names off the card:
-   *  'Under review' (documented disagreement), 'Listed here', or
-   *  'Community-cited' (compilation-only). key is the kebab CSS hook. */
-  statusPill:      { label: string; key: string };
-  /** Up to 3 quick-relation tags (derived first, then related). */
-  quickRelations:  readonly SlugLinkVM[];
   /** Resolves to /freestyle/sets/<slug>. */
   detailHref:      string;
-  /** Kebab-case role key for CSS targeting (e.g. 'plus-one-entry'). */
-  roleKey:         EncyclopediaCardRole;
-  /** Uppercase short label shown in the card header (e.g. '+1 ENTRY'). */
-  roleLabel:       string;
-  /** True for the 5 literal-primitive true-core entries that anchor most
-   *  of the compositional vocabulary (pixie / fairy / stepping / atomic /
-   *  quantum). Drives a small ★ chip + tooltip in the card header. */
-  isFlagship:      boolean;
-  /** Tooltip text for the ★ chip on flagship cards. */
-  flagshipTitle?:  string;
-  /** Up to 3 canonical tricks this set is commonly seen in (lowest ADD first,
-   *  then alphabetical). Empty when no modifier-registry rows link the set.
-   *  Surfaced as "Common in:" on the card — deliberately non-deterministic
-   *  wording, since a set is one ingredient among several in any compound. */
-  commonIn:        readonly SlugLinkVM[];
 }
-
-export type EncyclopediaCardRole =
-  | 'plus-one-entry'
-  | 'clip-entry'
-  | 'composite'
-  | 'rotational'
-  | 'whirl-swirl'
-  | 'uns-entry'
-  | 'rooted';
 
 export interface EncyclopediaCrossLinks {
   dictionarySetLabel:      string;
   dictionarySetHref:       string;
-  compositionalHubLabel:   string;
-  compositionalHubHref:    string;
-  operatorsPageLabel:      string;
-  operatorsPageHref:       string;
-  flatReferenceLabel:      string;
-  flatReferenceHref:       string;
 }
 
 // Set detail page content.
@@ -2842,12 +2771,10 @@ export interface SetDetailExampleTrick {
 
 export interface SetDetailCrossLinks {
   setEncyclopediaHref:                string;
-  compositionalHubHref:      string;
   // This set's section in the dictionary's By set view; null when the set has
   // no section there.
   setBrowseHref:             string | null;
   operatorReferenceHref?:    string;
-  flatReferenceHref:         string;
 }
 
 // One row in the ?view=modifier projection. Each set/modifier carries the list
@@ -10168,16 +10095,6 @@ export const freestyleService = {
         mediaHref:           mediaHrefFor(row.slug),
       }));
 
-    // Compositional-sets anchor — map subtype → family key on /freestyle/compositional-sets.
-    const compositionalFamilyKey: Record<SetSubtypeKey, string> = {
-      'true-core':            'single-dex-primitives',
-      'composite-derived':    'multi-dex-compounds',
-      'rotational':           'spinning-family',
-      'whirl-swirl':          'whirl-swirl-family',
-      'uns':                  'uns-sets',
-      'rooted-antisymposium': 'antisymposium-and-components',
-    };
-
     // Operator reference is only meaningful when the set has a registered
     // modifier (pixie/fairy/atomic/miraging/quantum/nuclear/stepping/surging).
     // Set operators live on their own set pages; the Operators & Modifiers index
@@ -10191,10 +10108,8 @@ export const freestyleService = {
 
     const crossLinks: SetDetailCrossLinks = {
       setEncyclopediaHref:             '/freestyle/sets',
-      compositionalHubHref:   `/freestyle/compositional-sets#${compositionalFamilyKey[set.subtype]}`,
       setBrowseHref:          clusterForModifier(set.slug) === 'set-uptime' ? modifierBrowseHref(set.slug) : null,
       operatorReferenceHref,
-      flatReferenceHref:      '/freestyle/sets/reference',
     };
 
     // S5 sibling navigation: previous / next set within the same subtype,
@@ -10280,46 +10195,16 @@ export const freestyleService = {
   },
 
   /**
-   * GET /freestyle/sets — Set Encyclopedia.
+   * GET /freestyle/sets — Set Encyclopedia, the one set page.
    *
-   * The canonical set-specific surface, listing canonical sets as first-class
-   * ontology objects. Distinct from:
-   *
-   *   /freestyle/tricks?view=modifier — the dictionary's modifier-grouped trick
-   *                                   browse (which tricks use this modifier)
-   *   /freestyle/compositional-sets — exploratory compositional-sets hub
-   *                                   (family / ladder groupings)
-   *   /freestyle/sets/:slug         — per-set detail pages (deep ontology)
-   *   /freestyle/sets/reference     — flat Holden reference table
-   *
-   * Cards carry only: name + hashtag + compact formula + one-sentence
-   * movement + one provenance line + up to 3 quick-relation tags + a
-   * detail link. Deep content lives on the detail pages.
+   * The set list first, each set a name and one line linking to its detail
+   * page at /freestyle/sets/:slug; then how sets are built, the uptime
+   * reinterpretation ladders, Holden's compilation verbatim, and the sources.
+   * The former /freestyle/compositional-sets and /freestyle/sets/reference
+   * addresses redirect permanently to their sections here. Tricks grouped by
+   * set are the dictionary's By set view, linked once.
    */
   getSetsEncyclopediaPage(): PageViewModel<FreestyleSetsEncyclopediaView> {
-    const sourceLabels: Record<CanonicalSetSourceKey, string> = {
-      'canonical':        'Canonical',
-      'platform-tracked': 'Tracked here',
-      'holden-only':      'Holden-only',
-    };
-
-    // Compact provenance: combine source + audit status into ONE line.
-    // Examples:
-    //   canonical + aligned        → "Canonical · Holden aligned"
-    //   platform-tracked + aligned → "Tracked here · Holden aligned"
-    //   holden-only                → "Holden-only"
-    //   platform-tracked + partial → "Tracked here · Holden partial"
-    const buildProvenanceLine = (set: typeof CANONICAL_SETS[number]): string => {
-      const sourcePart = sourceLabels[set.source];
-      if (!set.auditStatus) return sourcePart;
-      switch (set.auditStatus) {
-        case 'aligned':     return `${sourcePart} · Holden aligned`;
-        case 'partial':     return `${sourcePart} · Holden partial`;
-        case 'conflict':    return `${sourcePart} · documented disagreement`;
-        case 'holden-only': return sourcePart;
-      }
-    };
-
     // Compact movement: first sentence of the explanation. Splits on
     // ". " (period-space) which preserves abbreviations within a sentence.
     // Falls back to the full string when no sentence-break is found.
@@ -10331,143 +10216,12 @@ export const freestyleService = {
       return cleaned.slice(0, sentenceBreak + 1);
     };
 
-    // Quick relations: up to 2 derived + 1 related, capped at 3 total.
-    // Hrefs go to detail pages, NOT the in-page anchors (the Encyclopedia
-    // links forward, not into itself).
-    const shapeQuickRelations = (set: typeof CANONICAL_SETS[number]): SlugLinkVM[] => {
-      const derived: SlugLinkVM[] = set.derivedSystems.slice(0, 2).map(r => ({
-        slug:  r.slug,
-        label: r.label,
-        href:  `/freestyle/sets/${r.slug}`,
-      }));
-      const related: SlugLinkVM[] = set.relatedSystems.slice(0, 1).map(r => ({
-        slug:  r.slug,
-        label: r.label,
-        href:  `/freestyle/sets/${r.slug}`,
-      }));
-      return [...derived, ...related].slice(0, 3);
-    };
-
-    // Card role: derived from subtype, with true-core split by formula prefix
-    // (TOE → +1 entry; CLIP → clip entry). Composite / rotational / whirl-swirl
-    // / uns / rooted map 1:1 from subtype.
-    const deriveCardRole = (s: typeof CANONICAL_SETS[number]): { roleKey: EncyclopediaCardRole; roleLabel: string } => {
-      switch (s.subtype) {
-        case 'true-core': {
-          const startsWithToe = /^\s*TOE\b/.test(s.formula);
-          return startsWithToe
-            ? { roleKey: 'plus-one-entry', roleLabel: '+1 entry' }
-            : { roleKey: 'clip-entry',     roleLabel: 'CLIP entry' };
-        }
-        case 'composite-derived':    return { roleKey: 'composite',   roleLabel: 'composite' };
-        case 'rotational':           return { roleKey: 'rotational',  roleLabel: 'rotational' };
-        case 'whirl-swirl':          return { roleKey: 'whirl-swirl', roleLabel: 'whirl/swirl' };
-        case 'uns':                  return { roleKey: 'uns-entry',   roleLabel: 'UNS entry' };
-        case 'rooted-antisymposium': return { roleKey: 'rooted',      roleLabel: 'rooted' };
-      }
-    };
-
-    // Flagship-foundational cohort: the 6 literal-primitive true-core sets
-    // that anchor most of the compositional vocabulary. Mirrors the
-    // flagship-marker discipline on /freestyle/concepts.
-    const FLAGSHIP_SET_TOOLTIPS: Record<string, string> = {
-      pixie:    'Flagship set: the simplest +1 set entry; anchors terraging / sailing / frantic.',
-      fairy:    "Flagship set: pixie's directional mirror (out-dex); anchors the fairy-spinning family.",
-      stepping: 'Flagship set: clipper-entry +1; anchors blurry / furious / shooting / leaning.',
-      atomic:   'Flagship set: out-dex toe entry resolving to op-side; the outward-dex set, anchors nuclear / fairy-atomic.',
-      quantum:  "Flagship set: atomic's in-dex sibling; the inward-dex set, the platform-canonical replacement for toe-prefix naming.",
-    };
-
-    // Pre-load trick rows + modifier-link rows ONCE for the whole encyclopedia
-    // page (43 cards). The per-card produces preview reads from these maps;
-    // no per-card DB calls.
-    const allTrickRows = runSqliteRead('freestyleTricks.listAll', () =>
-      freestyleTricks.listAll.all() as FreestyleTrickRow[],
-    );
-    const trickRowBySlug = new Map<string, FreestyleTrickRow>(
-      allTrickRows.map(r => [r.slug, r]),
-    );
-    const linkRowsAll = runSqliteRead('freestyleTrickModifiers.listTricksByModifier', () =>
-      freestyleTrickModifiers.listTricksByModifier.all() as FreestyleTrickModifierLinkRow[],
-    );
-    const tricksByModifier = new Map<string, FreestyleTrickRow[]>();
-    for (const link of linkRowsAll) {
-      const row = trickRowBySlug.get(link.trick_slug);
-      if (!row) continue;
-      const bucket = tricksByModifier.get(link.modifier_slug);
-      if (bucket) bucket.push(row);
-      else tricksByModifier.set(link.modifier_slug, [row]);
-    }
-
-    // "Common in" preview: up to 3 canonical trick examples per set, sorted
-    // by lowest ADD first (most foundational compounds surface first), then
-    // alphabetical. Empty when no modifier-registry rows link the set.
-    // Wording chosen over "produces" to avoid implying single-ingredient
-    // determinism — a set is one factor among several in any compound.
-    const shapeCommonInPreview = (s: typeof CANONICAL_SETS[number]): SlugLinkVM[] => {
-      const tricks = tricksByModifier.get(s.slug) ?? [];
-      // freestyle_tricks.adds is TEXT in the schema (e.g. "3", "4",
-      // "modifier"). Parse to number for sort; non-numeric / null sorts
-      // last by using a sentinel of 99.
-      const parseAdds = (raw: string | null): number => {
-        if (raw === null) return 99;
-        const n = Number.parseInt(raw, 10);
-        return Number.isFinite(n) ? n : 99;
-      };
-      return tricks
-        .slice()
-        .sort((a, b) => {
-          const aAdd = parseAdds(a.adds);
-          const bAdd = parseAdds(b.adds);
-          if (aAdd !== bAdd) return aAdd - bAdd;
-          return a.canonical_name.localeCompare(b.canonical_name);
-        })
-        .slice(0, 3)
-        .map(r => ({
-          slug:  r.slug,
-          label: r.canonical_name,
-          href:  `/freestyle/tricks/${r.slug}`,
-        }));
-    };
-
-    // Public status pill: keeps internal source names off the card. Only a
-    // genuine documented disagreement (conflict audit) reads "Under review".
-    // A 'partial' audit means an outside compilation frames the set
-    // differently while the platform contract is settled and in shipped use
-    // (atomic +1, nuclear +2), so those read as tracked, not under review;
-    // the framing difference stays documented on the compositional-sets
-    // audit surface. Canonical and platform-tracked sets read "Listed
-    // here"; remaining compilation-only sets read "Community-cited".
-    const deriveStatusPill = (s: typeof CANONICAL_SETS[number]): { label: string; key: string } => {
-      if (s.auditStatus === 'conflict') {
-        return { label: 'Under review', key: 'under-review' };
-      }
-      if (s.source === 'canonical' || s.source === 'platform-tracked') {
-        return { label: 'Listed here', key: 'platform-tracked' };
-      }
-      return { label: 'Community-cited', key: 'community-cited' };
-    };
-
-    const shapeEncyclopediaCard = (s: typeof CANONICAL_SETS[number]): EncyclopediaSetCard => {
-      const role = deriveCardRole(s);
-      const flagshipTitle = FLAGSHIP_SET_TOOLTIPS[s.slug];
-      return {
-        slug:            s.slug,
-        hashtag:         s.hashtag,
-        displayName:     s.displayName,
-        formula:         s.formula,
-        compactMovement: compactFirstSentence(s.movementExplanation),
-        provenanceLine:  buildProvenanceLine(s),
-        statusPill:      deriveStatusPill(s),
-        quickRelations:  shapeQuickRelations(s),
-        detailHref:      `/freestyle/sets/${s.slug}`,
-        roleKey:         role.roleKey,
-        roleLabel:       role.roleLabel,
-        isFlagship:      flagshipTitle !== undefined,
-        flagshipTitle,
-        commonIn:        shapeCommonInPreview(s),
-      };
-    };
+    const shapeEncyclopediaCard = (s: typeof CANONICAL_SETS[number]): EncyclopediaSetCard => ({
+      slug:            s.slug,
+      displayName:     s.displayName,
+      compactMovement: compactFirstSentence(s.movementExplanation),
+      detailHref:      `/freestyle/sets/${s.slug}`,
+    });
 
     // First pass: build sections without forward-pointers, drop empties.
     type RawSection = Omit<
@@ -10515,29 +10269,41 @@ export const freestyleService = {
       };
     });
 
-    const subtypeMiniToc: EncyclopediaMiniTocEntry[] = subtypeSections.map(section => ({
-      anchorId: `set-subtype-${section.key}`,
-      label:    section.label,
-    }));
+    // The section ids are the targets of the permanent redirects from the two
+    // retired set addresses, so they stay stable.
+    const contents: EncyclopediaMiniTocEntry[] = [
+      ...subtypeSections.map(section => ({
+        anchorId: `set-subtype-${section.key}`,
+        label:    section.label,
+      })),
+      { anchorId: SETS_SECTION_IDS.howSetsAreBuilt, label: 'How Sets Are Built' },
+      { anchorId: SETS_SECTION_IDS.uptime,          label: 'Uptime Reinterpretation' },
+      { anchorId: SETS_SECTION_IDS.holden,          label: 'Historical Move-Set Reference' },
+      { anchorId: SETS_SECTION_IDS.sources,         label: 'Sources & Attribution' },
+    ];
 
     const crossLinks: EncyclopediaCrossLinks = {
       dictionarySetLabel:  'Trick Dictionary: tricks grouped by set',
       dictionarySetHref:   '/freestyle/tricks?view=set',
-      compositionalHubLabel: 'Compositional Sets hub (family / ladder groupings)',
-      compositionalHubHref:  '/freestyle/compositional-sets',
-      operatorsPageLabel:    'Operators & Modifiers',
-      operatorsPageHref:     '/freestyle/operators',
-      flatReferenceLabel:    'Flat Holden reference table',
-      flatReferenceHref:     '/freestyle/sets/reference',
     };
+
+    const ladders: UptimeReinterpretationLadderView[] = UPTIME_REINTERPRETATION_LADDERS.map(l => ({
+      setName:          l.setName,
+      setNotation:      l.setNotation,
+      reinterpretation: l.reinterpretation,
+      steps:            l.steps,
+      sourceCitation:   l.sourceCitation,
+      conflictNote:     l.conflictNote,
+      anchorId:         `ladder-${movesAnchorSlug(l.setName)}`,
+    }));
 
     return {
       seo: {
         title:       'Set Encyclopedia',
         description:
           'Canonical sets as first-class compositional vocabulary: the named ' +
-          'movement primitives that open a trick. One card per set; detail pages carry ' +
-          'the deep ontology.',
+          'movement primitives that open a trick, how they are built, and the ' +
+          'historical community compilation of set notation.',
       },
       page: {
         sectionKey: 'freestyle',
@@ -10545,7 +10311,7 @@ export const freestyleService = {
         title:      'Set Encyclopedia',
         eyebrow:    'Compositional vocabulary',
         intro:
-          'Set systems as first-class ontology objects. Tap any card for the deep reading; ' +
+          'Set systems as first-class ontology objects. Select a set\'s name for the deep reading; ' +
           'this index keeps it compact and browsable.',
       },
       navigation: {
@@ -10557,18 +10323,38 @@ export const freestyleService = {
       content: {
         intro:
           'A set is how a freestyle trick begins: the launch or entry that sets up the rest ' +
-          'of the movement. This encyclopedia treats each named set as its own subject; tap ' +
-          'any card for the deep reading. For which tricks use a given set, see the Trick ' +
+          'of the movement. This encyclopedia treats each named set as its own subject; select ' +
+          'a set\'s name for the deep reading. For which tricks use a given set, see the Trick ' +
           'Dictionary\'s By Set view.',
-        totalSets: subtypeSections.reduce((n, s) => n + s.count, 0),
         subtypeSections,
-        subtypeMiniToc,
+        contents,
         crossLinks,
+        sectionIds: SETS_SECTION_IDS,
+        howSetsAreBuilt: {
+          canonicalFormula: '(toe | clip) > [(same | op)(in | out) dexterity]* > (same | op)(toe | clip)',
+          softenerNote:
+            'The dictionary\'s operational notation system descends from this compositional grammar, ' +
+            'extending it with additional movement primitives and modifiers: swirl/twirl, body modifiers ' +
+            '(ducking, diving, spinning), no-plant variants (symposium), unusual surfaces, and ' +
+            'torque-class hybrids. The base grammar covers a large central region of the trick language; ' +
+            'the extensions reach into the rest.',
+        },
+        ladders,
+        holden: this.getHoldenCompilation(),
       },
     };
   },
 
-  getMovesPage(): PageViewModel<FreestyleMovesContent> {
+  /**
+   * Chris Holden's community compilation of set names and notation (circa
+   * 2003), reproduced verbatim as an archive on /freestyle/sets. Its names,
+   * groupings and formulas are the compilation's own and may differ from the
+   * platform's; a name links to a trick page only where it is exactly a live
+   * trick slug.
+   */
+  getHoldenCompilation(): HoldenCompilationView {
+    // Every row keeps its move-<slug> anchor so links into a single
+    // compilation entry still resolve on /freestyle/sets.
     const trickRows = runSqliteRead('freestyleTricks.listAll', () =>
       freestyleTricks.listAll.all() as FreestyleTrickRow[],
     );
@@ -10588,27 +10374,6 @@ export const freestyleService = {
     const shapeBare = (label: string): FreestyleMoveLabel => shape(label, null);
 
     return {
-      seo: {
-        title: 'Freestyle Move Sets',
-        description:
-          'A historical community compilation of freestyle move-set names, classifications, and notation, preserved as source evidence.',
-      },
-      page: {
-        sectionKey: 'freestyle',
-        pageKey:    'freestyle_moves',
-        title:      'Historical Move-Set Reference',
-        intro:
-          'This page reproduces a historical community compilation of freestyle move sets and ' +
-          'notation. Its names, classifications, and formulas are preserved as source evidence ' +
-          'and may differ from current platform doctrine.',
-      },
-      navigation: {
-        breadcrumbs: [
-          { label: 'Freestyle', href: '/freestyle' },
-          { label: 'Historical Move-Set Reference' },
-        ],
-      },
-      content: {
         provenance: {
           sourceNote:
             'Set notation sourced from the freestyle discussion archive. Original reference: ' +
@@ -10617,8 +10382,6 @@ export const freestyleService = {
             'The groupings and headings below are the compilation\'s own classification, not the ' +
             'platform\'s. Names that link out lead to current trick pages for navigation; the link ' +
             'does not make the historical classification current.',
-          currentLabel: 'For the platform\'s current set classifications, use the Set Encyclopedia',
-          currentHref:  '/freestyle/sets',
         },
         basicSets: [
           shape('Pixie',                       'TOE > SAME IN [DEX] >'),
@@ -10659,124 +10422,6 @@ export const freestyleService = {
         components: [
           'Ducking', 'Diving', 'Spinning', 'Inspinning', 'Gyro',
         ].map(shapeBare),
-      },
-    };
-  },
-
-  getCompositionalSetsPage(): PageViewModel<FreestyleCompositionalSetsContent> {
-    // Sibling to getMovesPage. /freestyle/sets is the flat reference
-    // table (look up a formula); /freestyle/compositional-sets is the
-    // systematic exploration view. Shared dictionary-lookup pattern
-    // resolves canonical trick slugs so cards can link out.
-    const trickRows = runSqliteRead('freestyleTricks.listAll', () =>
-      freestyleTricks.listAll.all() as FreestyleTrickRow[],
-    );
-    const trickSlugs = new Set<string>(trickRows.map(r => r.slug));
-
-    const resolveCard = (
-      raw: {
-        name: string;
-        notation: string;
-        statusHint: 'canonical' | 'platform-tracked' | 'holden-only';
-        structuralNote: string | null;
-      },
-    ): CompositionalSetCardView => {
-      // Canonical resolution: a card is canonical iff its display
-      // name (slugified) matches a live dictionary slug. The
-      // statusHint is curator-locked for the 'platform-tracked' and
-      // 'holden-only' buckets; the live check upgrades to 'canonical'
-      // whenever a slug exists, regardless of hint.
-      const slug   = movesAnchorSlug(raw.name);
-      const isCanonical = trickSlugs.has(slug);
-      const status: CompositionalSetCardView['status'] = isCanonical
-        ? 'canonical'
-        : raw.statusHint === 'canonical'
-          ? 'platform-tracked'  // demote: hint said canonical but no slug
-          : raw.statusHint;
-      return {
-        name:           raw.name,
-        notation:       raw.notation,
-        status,
-        statusLabel:    status === 'platform-tracked' ? 'platform-tracked'
-                      : status === 'holden-only'      ? 'Holden-only'
-                      : null,
-        showStatusBadge: status !== 'canonical',
-        trickHref:      isCanonical ? `/freestyle/tricks/${slug}` : null,
-        anchorId:       `compset-${slug}`,
-        structuralNote: raw.structuralNote,
-      };
-    };
-
-    const families: CompositionalSetFamilyView[] = COMPOSITIONAL_SET_FAMILIES.map(f => ({
-      key:     f.key,
-      name:    f.name,
-      intro:   f.intro,
-      members: f.members.map(resolveCard),
-    }));
-
-    const ladders: UptimeReinterpretationLadderView[] = UPTIME_REINTERPRETATION_LADDERS.map(l => ({
-      setName:          l.setName,
-      setNotation:      l.setNotation,
-      reinterpretation: l.reinterpretation,
-      steps:            l.steps,
-      sourceCitation:   l.sourceCitation,
-      conflictNote:     l.conflictNote,
-      anchorId:         `ladder-${movesAnchorSlug(l.setName)}`,
-    }));
-
-    // Premise examples — same four shown in the glossary primer, with
-    // canonical-link resolution applied here so the view can render
-    // each as an operator card with proper cross-link when present.
-    const premiseExamples = [
-      { name: 'Pixie',    notation: 'TOE > SAME IN [DEX] >' },
-      { name: 'Stepping', notation: 'CLIP > OP IN [DEX] >' },
-      { name: 'Blurry',   notation: 'CLIP > OP IN [DEX] > OP OUT [DEX] >' },
-      { name: 'Mobius',   notation: 'CLIP >> (back) SPIN [BOD] >> SAME IN [DEX] > (front) SPIN [BOD] > OP CLIP [XBD] [DEL]' },
-    ].map(ex => {
-      const slug = movesAnchorSlug(ex.name);
-      return {
-        name:      ex.name,
-        notation:  ex.notation,
-        trickHref: trickSlugs.has(slug) ? `/freestyle/tricks/${slug}` : null,
-      };
-    });
-
-    return {
-      seo: {
-        title:       'Compositional Sets',
-        description: 'Systematic exploration of how named freestyle sets compose from a small grammar: uptime reinterpretation ladders, family branching, and operator cards.',
-      },
-      page: {
-        sectionKey: 'freestyle',
-        pageKey:    'freestyle_compositional_sets',
-        title:      'Compositional Sets',
-        intro:      'How named sets are built from a few simple parts. This page shows the grammar behind them: which small moves combine, and in what order, to form each named set.',
-      },
-      navigation: {
-        breadcrumbs: [
-          { label: 'Freestyle', href: '/freestyle' },
-          { label: 'Compositional Sets' },
-        ],
-      },
-      content: {
-        premise: {
-          canonicalFormula: '(toe | clip) > [(same | op)(in | out) dexterity]* > (same | op)(toe | clip)',
-          softenerNote:
-            'The dictionary\'s operational notation system descends from this compositional grammar, ' +
-            'extending it with additional movement primitives and modifiers: swirl/twirl, body modifiers ' +
-            '(ducking, diving, spinning), no-plant variants (symposium), unusual surfaces, and ' +
-            'torque-class hybrids. The base grammar covers a large central region of the trick language; ' +
-            'the extensions reach into the rest.',
-          examples: premiseExamples,
-        },
-        families,
-        ladders,
-        crossLinks: {
-          setsReferenceHref:    '/freestyle/sets/reference',
-          operatorsHref:        '/freestyle/operators',
-          conceptsNotationHref: '/freestyle/concepts#operational-notation',
-        },
-      },
     };
   },
 
@@ -10800,7 +10445,7 @@ export const freestyleService = {
       href:      destination?.href      ?? null,
       hrefLabel: destination?.label     ?? null,
     });
-    const NOTATION    = (slug: string) => ({ href: `/freestyle/sets/reference#move-${slug}`, label: 'Notation reference' });
+    const NOTATION    = (slug: string) => ({ href: `/freestyle/sets#move-${slug}`, label: 'Notation reference' });
     const CONCEPTS    = (slug: string) => ({ href: `/freestyle/concepts#term-${slug}`,     label: 'Concepts entry'     });
     const MOD_PEDAGOGY = (slug: string) => ({ href: `/freestyle/modifier/${slug}`,          label: 'Modifier page'      });
 
@@ -10901,11 +10546,6 @@ export const freestyleService = {
 
     const totalRecords = typeCounts.reduce((sum, r) => sum + r.n, 0);
 
-    // The foundations clips are curated into their own media gallery, which the
-    // landing links to rather than embedding. The link renders only once at
-    // least one clip exists, so it never opens an empty gallery.
-    const tricksMosaicHasClips = TRICKS_MOSAIC.some((atom) => loadMosaicVideo(atom.slug) !== null);
-
     return {
       seo: {
         title: 'Freestyle',
@@ -10982,7 +10622,6 @@ export const freestyleService = {
         ],
         totalTricks:  trickRows.length,
         totalRecords,
-        tricksMosaicHasClips,
       },
     };
   },

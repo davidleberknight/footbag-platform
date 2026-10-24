@@ -5,8 +5,8 @@
  * math, but they are not tricks. These tests pin the contract that:
  *   - a concept's hashtag is rendered from its role, never blindly from its slug:
  *     a trick is a bare tag, a set is #set_, an operator is #operator_;
- *   - the curator role override wins over the stored modifier_type, so whirling
- *     reads #set_whirling though its modifier_type is body;
+ *   - whirling is a body modifier, not a set: it reads #operator_whirling, its
+ *     modifier page renders, and only its retired set URL redirects (to Blazing);
  *   - the trick-detail route redirects a modifier/operator row, or an operator
  *     slug with no trick row, to its operator page; a set with no active trick
  *     row goes to its set page, while dual-role sets (pixie/fairy) still render
@@ -28,9 +28,8 @@ const page = cachedGet(() => createApp());
 beforeAll(async () => {
   const db = createTestDb(dbPath);
 
-  // Modifier registry: a body modifier (spinning), a body modifier the curator
-  // pins as a set (whirling), and two set primitives (pixie, atomic). These
-  // drive the operators-index hashtags.
+  // Modifier registry: two body modifiers (spinning, whirling) and two set
+  // primitives (pixie, atomic). These drive the operators-index hashtags.
   insertFreestyleTrickModifier(db, { slug: 'spinning', modifier_name: 'Spinning', add_bonus: 1, add_bonus_rotational: 1, modifier_type: 'body' });
   insertFreestyleTrickModifier(db, { slug: 'whirling', modifier_name: 'Whirling', add_bonus: 1, add_bonus_rotational: 1, modifier_type: 'body' });
   insertFreestyleTrickModifier(db, { slug: 'pixie',    modifier_name: 'Pixie',    add_bonus: 1, add_bonus_rotational: 1, modifier_type: 'set'  });
@@ -101,10 +100,19 @@ describe('GET /freestyle/modifier/:slug — stub hashtag', () => {
     expect(res.text).toContain('#set_slapping');
   });
 
-  it('honors the curator role override: whirling is a first-class set, so its modifier route redirects to the set page', async () => {
+  it('renders whirling as a body modifier with the operator hashtag, not as a set', async () => {
+    // Defect caught: the whirling modifier page sending readers to a set that
+    // no longer exists, or labelling a body modifier as a set.
     const res = await page('/freestyle/modifier/whirling');
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('#operator_whirling');
+    expect(res.text).not.toContain('#set_whirling');
+  });
+
+  it('redirects the retired Whirling set URL to Blazing, the uptime whirling set', async () => {
+    const res = await page('/freestyle/sets/whirling');
     expect(res.status).toBe(301);
-    expect(res.headers['location']).toBe('/freestyle/sets/whirling');
+    expect(res.headers['location']).toBe('/freestyle/sets/blazing');
   });
 });
 

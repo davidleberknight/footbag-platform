@@ -334,8 +334,6 @@ describe('GET /freestyle — two-band landing', () => {
       '/freestyle/concepts',
       '/freestyle/sets',
       '/freestyle/operators',
-      '/freestyle/observational',
-      '/freestyle/about',
     ]) {
       expect(res.text, `Banner 1 href ${href}`).toContain(`href="${href}"`);
     }
@@ -349,9 +347,6 @@ describe('GET /freestyle — two-band landing', () => {
     for (const href of [
       '/freestyle/records',
       '/freestyle/competition',
-      '/freestyle/partnerships',
-      '/freestyle/about',
-      '/freestyle/by-the-numbers',
     ]) {
       expect(res.text, `Banner 2 href ${href}`).toContain(`href="${href}"`);
     }
@@ -370,8 +365,6 @@ describe('GET /freestyle — two-band landing', () => {
     ]) {
       expect(landing.text, `landing tile for ${href}`).not.toContain(`href="${href}"`);
     }
-    // Emerging Vocabulary keeps its tile: no other page links to it.
-    expect(landing.text).toContain('href="/freestyle/observational"');
     // The Leaders page lost its landing tile, so Records must carry the way in.
     const records = await page('/freestyle/records');
     expect(records.status).toBe(200);
@@ -394,29 +387,21 @@ describe('GET /freestyle — two-band landing', () => {
     expect(res.text).not.toContain('World Records');
   });
 
-  it('orders sections: lede → vocabulary → Featured → Media → History → analysis', async () => {
+  it('orders sections: lede → vocabulary → Media → Featured → analysis → explore', async () => {
     const res = await page('/freestyle');
     const ledeIdx     = res.text.indexOf('freestyle-portal-lede');
     const languageIdx = res.text.indexOf('>The Language of Freestyle<');
-    const featuredIdx = res.text.indexOf('class="content-section freestyle-featured"');
     const mediaIdx    = res.text.indexOf('>Freestyle Media<');
-    const historyIdx  = res.text.indexOf('>History of Freestyle<');
+    const featuredIdx = res.text.indexOf('class="content-section freestyle-featured"');
     const analysisIdx = res.text.indexOf('Analysis &amp; Competition');
+    const exploreIdx  = res.text.indexOf('>Explore Freestyle<');
     expect(ledeIdx).toBeGreaterThan(0);
     expect(languageIdx).toBeGreaterThan(ledeIdx);
-    expect(featuredIdx).toBeGreaterThan(languageIdx);
-    expect(mediaIdx).toBeGreaterThan(featuredIdx);
-    expect(historyIdx).toBeGreaterThan(mediaIdx);
-    // The deeper analysis reference closes the page, below the video sections.
-    expect(analysisIdx).toBeGreaterThan(historyIdx);
-  });
-
-  it('carries the By the Numbers link inside the analysis group', async () => {
-    const res = await page('/freestyle');
-    const analysisIdx = res.text.indexOf('Analysis &amp; Competition');
-    const numbersIdx  = res.text.indexOf('href="/freestyle/by-the-numbers"');
-    expect(analysisIdx).toBeGreaterThan(0);
-    expect(numbersIdx).toBeGreaterThan(analysisIdx);
+    expect(mediaIdx).toBeGreaterThan(languageIdx);
+    expect(featuredIdx).toBeGreaterThan(mediaIdx);
+    expect(analysisIdx).toBeGreaterThan(featuredIdx);
+    // The further reference pages close the page.
+    expect(exploreIdx).toBeGreaterThan(analysisIdx);
   });
 
   // ── Featured videos showcase ────────────────────────────────────────────

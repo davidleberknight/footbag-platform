@@ -1,8 +1,8 @@
 {{! /freestyle — landing. Hero → demo video + What is Freestyle? (tight lede) →
-    beginner on-ramp → Language of Freestyle → Featured videos → Media →
-    History → Analysis & Competition (which carries By the Numbers). The
-    foundations clips live in their own media gallery, linked from the
-    vocabulary group. }}
+    beginner on-ramp → Language of Freestyle → Media → Featured videos →
+    Analysis & Competition → Explore Freestyle. A newcomer's first page invites: the
+    secondary pages have no tile here and are linked from the page they belong
+    to. }}
 
 <div class="hero hero-sm hero-with-mascot">
   <div class="hero-text">
@@ -64,22 +64,17 @@
         <span class="banner-tile-title">Set Encyclopedia</span>
         <span class="banner-tile-blurb">The named sets tricks open with.</span>
       </a>
-      <a class="banner-tile" href="/freestyle/operators">
-        <span class="banner-tile-title">Operators &amp; Modifiers</span>
-        <span class="banner-tile-blurb">The ideas that turn one trick into many.</span>
+    </div>
+  </section>
+
+  {{! ── Freestyle Media ────────────────────────────────────────────────────── }}
+  <section class="content-section">
+    <div class="section-heading"><h2>Freestyle Media</h2></div>
+    <div class="banner-grid">
+      <a class="banner-tile" href="/freestyle/media">
+        <span class="banner-tile-title">Browse Freestyle Media</span>
+        <span class="banner-tile-blurb">Tutorials and demos, trick videos, and other media galleries.</span>
       </a>
-      <a class="banner-tile" href="/freestyle/observational">
-        <span class="banner-tile-title">Emerging Vocabulary</span>
-        <span class="banner-tile-blurb">Trick names and readings still being confirmed.</span>
-      </a>
-      {{! Same gate as the mosaic's own "See All Foundations" link: the gallery
-          exists only once its clips are curated. }}
-      {{#if content.tricksMosaicHasClips}}
-      <a class="banner-tile" href="/media/gallery_foundations_of_freestyle">
-        <span class="banner-tile-title">Media Gallery: Foundations of Freestyle</span>
-        <span class="banner-tile-blurb">Almost every trick is built from one of these core movements.</span>
-      </a>
-      {{/if}}
     </div>
   </section>
 
@@ -101,28 +96,6 @@
   </section>
   {{/if}}
 
-  {{! ── Freestyle Media (supporting) ───────────────────────────────────────── }}
-  <section class="content-section">
-    <div class="section-heading"><h2>Freestyle Media</h2></div>
-    <div class="banner-grid">
-      <a class="banner-tile" href="/freestyle/media">
-        <span class="banner-tile-title">Browse Freestyle Media</span>
-        <span class="banner-tile-blurb">Tutorials and demos, trick videos, and other media galleries.</span>
-      </a>
-    </div>
-  </section>
-
-  {{! ── History of Freestyle (supporting) ──────────────────────────────────── }}
-  <section class="content-section">
-    <div class="section-heading"><h2>History of Freestyle</h2></div>
-    <div class="banner-grid">
-      <a class="banner-tile" href="/freestyle/history">
-        <span class="banner-tile-title">Story of Freestyle</span>
-        <span class="banner-tile-blurb">How the sport grew from kicking circles.</span>
-      </a>
-    </div>
-  </section>
-
   {{! ── Analysis & Competition — the deeper reference, after the visual tour ── }}
   <section class="content-section">
     <div class="section-heading">
@@ -139,10 +112,6 @@
         <span class="banner-tile-title">Competition</span>
         <span class="banner-tile-blurb">Decades of documented events and results.</span>
       </a>
-      <a class="banner-tile" href="/freestyle/partnerships">
-        <span class="banner-tile-title">Partnerships</span>
-        <span class="banner-tile-blurb">The doubles pairings that shaped the sport.</span>
-      </a>
       <a class="banner-tile" href="/rules/freestyle/footbag-freestyle">
         <span class="banner-tile-title">Freestyle Rules</span>
         <span class="banner-tile-blurb">The official IFPA rules: playing area, competition formats and judging.</span>
@@ -151,13 +120,28 @@
         <span class="banner-tile-title">Freestyle Equipment</span>
         <span class="banner-tile-blurb">Freestyle footbags, shoes, and the playing circle.</span>
       </a>
-      <a class="banner-tile" href="/freestyle/about">
-        <span class="banner-tile-title">About Freestyle</span>
-        <span class="banner-tile-blurb">Formats, judging, and set notation.</span>
+    </div>
+  </section>
+
+  {{! ── Explore Freestyle — the further reference pages ────────────────────── }}
+  <section class="content-section">
+    <div class="section-heading"><h2>Explore Freestyle</h2></div>
+    <div class="banner-grid">
+      <a class="banner-tile" href="/freestyle/operators">
+        <span class="banner-tile-title">Operators &amp; Modifiers</span>
+        <span class="banner-tile-blurb">The ideas that turn one trick into many.</span>
       </a>
       <a class="banner-tile" href="/freestyle/by-the-numbers">
         <span class="banner-tile-title">Freestyle by the Numbers</span>
         <span class="banner-tile-blurb">How the trick dictionary breaks down by difficulty, dexterity, entry set, family ending, and body movement.</span>
+      </a>
+      <a class="banner-tile" href="/freestyle/observational">
+        <span class="banner-tile-title">Emerging Vocabulary</span>
+        <span class="banner-tile-blurb">Trick names and readings still being confirmed.</span>
+      </a>
+      <a class="banner-tile" href="/freestyle/history">
+        <span class="banner-tile-title">Story of Freestyle</span>
+        <span class="banner-tile-blurb">How the sport grew from kicking circles.</span>
       </a>
     </div>
   </section>

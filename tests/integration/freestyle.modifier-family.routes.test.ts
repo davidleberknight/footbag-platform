@@ -724,9 +724,11 @@ describe('GET /freestyle/modifier/gyro — concept-first (Tier-1, closely relate
 });
 
 describe('GET /freestyle/modifier/:slug — first-class sets redirect to the Set Encyclopedia', () => {
-  // Stepping has an authored set page; whirling and swirling are route-migrated
-  // first-class sets. All resolve to their set page, never a modifier stub.
-  for (const slug of ['stepping', 'whirling', 'swirling']) {
+  // Stepping has an authored set page; swirling is a route-migrated first-class
+  // set. Both resolve to their set page, never a modifier stub. Whirling is a
+  // body modifier, not a set, so its modifier page renders (covered with the
+  // role-aware hashtags).
+  for (const slug of ['stepping', 'swirling']) {
     it(`permanently redirects /freestyle/modifier/${slug} to /freestyle/sets/${slug}`, async () => {
       const res = await page(`/freestyle/modifier/${slug}`);
       expect(res.status).toBe(301);

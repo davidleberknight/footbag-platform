@@ -757,7 +757,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     tier: 'compositional-system',
   },
 
-  // ── Whirl / swirl-derived systems (8) ──────────────────────────────
+  // ── Whirl / swirl-derived systems (7) ──────────────────────────────
   {
     slug: 'swirling', hashtag: '#set_swirling', displayName: 'Swirling', subtype: 'whirl-swirl',
     formula: 'CLIP > SAME BACK/FRONT SWIRL [DEX] >',
@@ -769,31 +769,9 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       { slug: 'snapping', label: 'Snapping (Dragon-set variant)' },
       { slug: 'twisted',  label: 'Twisted (Dragon-set Paradox variant)' },
     ],
-    relatedSystems: [
-      { slug: 'whirling', label: 'Whirling (same-side terminal sibling)' },
-    ],
+    relatedSystems: [],
     source: 'platform-tracked',
     sourceCitation: 'Holden compilation (2003); aligned with platform tracking.',
-    auditStatus: 'aligned',
-    tier: 'compositional-system',
-  },
-  {
-    slug: 'whirling', hashtag: '#set_whirling', displayName: 'Whirling', subtype: 'whirl-swirl',
-    formula: 'CLIP > OP IN [DEX] > (same side component)',
-    movementExplanation:
-      'Whirl-family base: clipper-anchored opposite-side inward dex with a same-side ' +
-      'terminal. Anchor of the whirl-family naming branch.',
-    equivalenceNotes: [],
-    derivedSystems: [
-      { slug: 'blistering', label: 'Blistering (Whirling Gyro)' },
-      { slug: 'pogo',       label: 'Pogo (Symposium Whirling)' },
-    ],
-    relatedSystems: [
-      { slug: 'blazing',    label: 'Blazing (distinct set on the same chassis)' },
-      { slug: 'swirling',   label: 'Swirling (SWIRL-token sibling)' },
-    ],
-    source: 'platform-tracked',
-    sourceCitation: 'Holden compilation (2003); aligned with platform operator reference.',
     auditStatus: 'aligned',
     tier: 'compositional-system',
   },
@@ -812,9 +790,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       { reading: 'whirling (op-side terminal variant)', citation: 'Holden distinction' },
     ],
     derivedSystems: [],
-    relatedSystems: [
-      { slug: 'whirling', label: 'Whirling (the chassis this set opens from)' },
-    ],
+    relatedSystems: [],
     source: 'platform-tracked',
     sourceCitation: 'Blazing is a Whirling set; Holden compilation (2003) additionally distinguishes it by terminal side.',
     auditStatus: 'partial',
@@ -832,7 +808,6 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     derivedSystems: [],
     relatedSystems: [
       { slug: 'shattered', label: 'Shattered (op-side terminal sibling)' },
-      { slug: 'whirling',  label: 'Whirling (forward-direction sibling)' },
     ],
     source: 'holden-only',
     sourceCitation: 'Holden compilation (2003); no current platform canonical.',
@@ -867,9 +842,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       { reading: 'Symposium Whirling', citation: 'Holden parenthetical' },
     ],
     derivedSystems: [],
-    relatedSystems: [
-      { slug: 'whirling', label: 'Whirling (planted base)' },
-    ],
+    relatedSystems: [],
     source: 'platform-tracked',
     sourceCitation: 'Holden compilation (2003); aligned with platform tracking.',
     auditStatus: 'aligned',
@@ -885,9 +858,7 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
       { reading: 'Whirling Gyro', citation: 'Holden parenthetical' },
     ],
     derivedSystems: [],
-    relatedSystems: [
-      { slug: 'whirling', label: 'Whirling (dex base)' },
-    ],
+    relatedSystems: [],
     source: 'platform-tracked',
     sourceCitation: 'Holden compilation (2003); aligned with platform tracking.',
     auditStatus: 'aligned',
@@ -905,7 +876,6 @@ export const CANONICAL_SETS: readonly CanonicalSet[] = [
     ],
     derivedSystems: [],
     relatedSystems: [
-      { slug: 'whirling',  label: 'Whirling (forward-direction sibling)' },
       { slug: 'scattered', label: 'Scattered (same-side-terminal sibling)' },
     ],
     source: 'holden-only',
@@ -1162,22 +1132,26 @@ export function resolveCanonicalSetAlias(slug: string): string | null {
 
 /**
  * Old /freestyle/sets/:slug routes for retired concepts that are NOT confirmed
- * sets and name no single canonical set: Illusioning is a standalone movement,
- * and Miraging is a descriptive inward-dex name with no single set destination.
- * Their old set URLs redirect to the Freestyle Concepts term explaining each as
- * a non-set concept, so existing deep links resolve without teaching a set page.
- * A retired nickname that names exactly one canonical set (barraging names the
- * Furious set) redirects to that set page instead, resolved ahead of this map.
- * Only fires for slugs that are not themselves a live canonical set.
+ * sets. Illusioning is a standalone movement, and Miraging is a descriptive
+ * inward-dex name with no single set destination: their old set URLs redirect
+ * to the Freestyle Concepts term explaining each as a non-set concept. Whirling
+ * is not a set either; the uptime whirling set is Blazing, so the old Whirling
+ * set URL lands on the Blazing page. Only the set URL moves: whirling stays a
+ * body modifier, and its modifier and trick routes resolve as any modifier's do.
+ * A retired nickname that names exactly one canonical set and nothing else
+ * (barraging names the Furious set) redirects all its routes to that set page
+ * instead, resolved ahead of this map. Only fires for slugs that are not
+ * themselves a live canonical set.
  */
-const SET_ROUTE_CONCEPTS_REDIRECTS: ReadonlyMap<string, string> = new Map([
+const SET_ROUTE_RETIRED_REDIRECTS: ReadonlyMap<string, string> = new Map([
   ['illusioning', '/freestyle/concepts#term-illusioning'],
   ['miraging',    '/freestyle/concepts#term-miraging-not-a-set'],
+  ['whirling',    '/freestyle/sets/blazing'],
 ]);
 
 export function resolveSetRouteRedirect(slug: string): string | null {
   if (SETS_BY_SLUG.has(slug)) return null;
-  return SET_ROUTE_CONCEPTS_REDIRECTS.get(slug) ?? null;
+  return SET_ROUTE_RETIRED_REDIRECTS.get(slug) ?? null;
 }
 
 export function canonicalSetsBySubtype(subtype: SetSubtype): readonly CanonicalSet[] {

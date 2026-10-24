@@ -121,7 +121,7 @@ const REFERENCE_SECTION: LearnIndexSection = {
   entries: [
     {
       title:      'Historical Move-Set Reference',
-      href:       '/freestyle/sets/reference',
+      href:       '/freestyle/sets#historical-move-set-reference',
       shortBlurb: 'A historical community compilation of the set-notation language: how Pixie, Fairy, Atomic, Quantum, Nuclear, Barraging, Furious and the rest were described in TOE / CLIP / SET grammar. Its classifications are source evidence and may differ from current platform doctrine.',
       status:     'shipped',
       isShipped:  true,

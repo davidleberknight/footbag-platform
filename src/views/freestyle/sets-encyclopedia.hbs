@@ -1,17 +1,13 @@
 {{!--
-  /freestyle/sets — Set Encyclopedia.
+  /freestyle/sets — Set Encyclopedia, the one set page.
 
-  The canonical set-specific surface: a minimalist index of canonical sets as
-  first-class ontology objects. Distinct from /freestyle/tricks?view=set
-  (the dictionary's set-grouped trick browse) and from
-  /freestyle/compositional-sets (exploratory hub).
-
-  Curator UX directive: cards stay compact + scan-friendly — name, hashtag,
-  formula, one-sentence movement, one provenance line, up to 3 quick-
-  relation tags, "View details →". Deep prose lives on the detail pages
-  at /freestyle/sets/<slug>.
-
-  Visual goal: compositional vocabulary board, not glossary essay.
+  The set list first: each set is its name, linking to its detail page, and
+  one line saying what it is. The long notation lives on the detail page,
+  never here. Below the list: how sets are built, the uptime reinterpretation
+  ladders, Holden's compilation reproduced verbatim as an archive, and the
+  sources. The retired /freestyle/compositional-sets and
+  /freestyle/sets/reference addresses redirect to sections of this page, so
+  the section ids come from the service and stay stable.
 --}}
 {{! The shared page hero, the same one the family detail page and the net
     landing use. The eyebrow's colour is written for this panel's dark
@@ -26,36 +22,20 @@
 
 <div class="wrapper">
 
-  <header class="sets-encyclopedia-head">
-    <p class="section-intro">
-      Why an encyclopedia instead of a dictionary? The trick dictionary defines
-      individual tricks. The Set Encyclopedia explores the movement systems that
-      tricks are built from, and how those systems relate to one another.
-    </p>
-    <p class="sets-encyclopedia-total detail-muted"><strong>{{content.totalSets}}</strong> documented sets across {{content.subtypeSections.length}} subtypes.</p>
-  </header>
-
-  <nav class="sets-encyclopedia-cross-nav" aria-label="Related surfaces">
-    <p class="sets-encyclopedia-cross-nav-intro">Related surfaces, different questions:</p>
-    <ul class="sets-encyclopedia-cross-nav-list">
-      <li><a href="{{content.crossLinks.dictionarySetHref}}">{{content.crossLinks.dictionarySetLabel}}</a> <span class="sets-encyclopedia-cross-nav-question">(which tricks use this set?)</span></li>
-      <li><a href="{{content.crossLinks.compositionalHubHref}}">{{content.crossLinks.compositionalHubLabel}}</a> <span class="sets-encyclopedia-cross-nav-question">(how do sets relate as families?)</span></li>
-      <li><a href="{{content.crossLinks.operatorsPageHref}}">{{content.crossLinks.operatorsPageLabel}}</a> <span class="sets-encyclopedia-cross-nav-question">(what transformations act on tricks?)</span></li>
-    </ul>
-  </nav>
-
-  {{#if content.subtypeMiniToc.length}}
-  {{! Mini-TOC pill row — one anchor per rendered subtype section, in
-      render order. Reuses the shared .glossary-mini-toc styling. }}
+  {{#if content.contents.length}}
+  {{! One anchor per section, in render order. Reuses the shared
+      .glossary-mini-toc styling. }}
   <nav class="glossary-mini-toc" aria-label="In this encyclopedia">
     <span class="glossary-mini-toc-label">In this encyclopedia:</span>
     <ol class="glossary-mini-toc-list">
-      {{#each content.subtypeMiniToc}}
+      {{#each content.contents}}
       <li><a href="#{{anchorId}}">{{label}}</a></li>
       {{/each}}
     </ol>
   </nav>
   {{/if}}
+
+  <p><a class="action-link" href="{{content.crossLinks.dictionarySetHref}}">{{content.crossLinks.dictionarySetLabel}}</a></p>
 
   {{#each content.subtypeSections}}
   <section class="sets-encyclopedia-subtype" id="set-subtype-{{key}}" aria-label="{{label}}">
@@ -66,25 +46,11 @@
     {{#if intro}}
     <p class="sets-encyclopedia-subtype-intro">{{intro}}</p>
     {{/if}}
-    {{! Compact rows that mirror the trick-dictionary row contract (reusing the
-        dict-trick-row structure + the SET notation slot). Long prose (Derived,
-        Common in, full explanation) lives on the set detail page. }}
     <ul class="dict-trick-row-stack" role="list">
       {{#each cards}}
       <li><article class="dict-trick-row" id="enc-set-{{slug}}" data-set-slug="{{slug}}">
         <div class="dict-trick-row-head">
           <a class="dict-trick-row-title" href="{{detailHref}}">{{displayName}}</a>
-          {{#if isFlagship}}<span class="sets-encyclopedia-card-flagship" title="{{flagshipTitle}}" aria-hidden="true">&#9733;</span><span class="visually-hidden">{{flagshipTitle}}</span>{{/if}}
-          <span class="hashtag">{{hashtag}}</span>
-          <span class="sets-encyclopedia-card-status sets-encyclopedia-card-status--{{statusPill.key}}">{{statusPill.label}}</span>
-          <span class="sets-encyclopedia-card-role-chip sets-encyclopedia-card-role-chip--{{roleKey}}">{{roleLabel}}</span>
-        </div>
-        <div class="dict-trick-row-notation">
-          <span class="dict-trick-row-job">
-            <span class="dict-trick-row-label">SET</span>
-            {{#if formula}}<code class="dict-trick-row-job-value">{{formula}}</code>{{else}}<span class="dict-trick-row-job-value dict-trick-row-pending-value">notation pending</span>{{/if}}
-          </span>
-          <a class="action-link" href="{{detailHref}}">View details</a>
         </div>
         <p class="sets-encyclopedia-card-movement">{{compactMovement}}</p>
       </article></li>
@@ -98,5 +64,169 @@
     {{/if}}
   </section>
   {{/each}}
+
+  {{! The sections below the list keep the content-section container they had
+      on the pages they came from, so their prose keeps the reading measure
+      and body colour that container gives it. }}
+  <section class="content-section" id="{{content.sectionIds.howSetsAreBuilt}}" aria-label="How Sets Are Built">
+    <div class="section-heading"><h2>How Sets Are Built</h2></div>
+    <p>
+      Named freestyle sets compose from a small grammar. Notation work
+      originating with Ben Job (1995) proposes that every set can be
+      expressed as a sequence of set-type, side, direction, and dexterity
+      tokens. The dictionary's operational notation system descends from
+      that grammar.
+    </p>
+
+    <figure class="compositional-sets-canonical-formula">
+      <code>{{content.howSetsAreBuilt.canonicalFormula}}</code>
+      <figcaption>The canonical base shape.</figcaption>
+    </figure>
+
+    <p class="compositional-sets-softener">{{content.howSetsAreBuilt.softenerNote}}</p>
+
+    <p>
+      Each set prefix describes the arc of the bag from plant to catch. The notation uses four
+      components: the <strong>set type</strong> (TOE, CLIP, or SET), the <strong>side</strong>
+      (SAME or OP: the same leg as the most recent side-bearing component, or the opposite leg), the <strong>direction</strong>
+      (IN or OUT), and optional <strong>modifiers</strong> ([DEX] for dexterity, [BOD] for body
+      move). A &ldquo;&gt;&rdquo; between components means the next element follows before the catch.
+    </p>
+    <p>
+      Example: <code>Pixie = TOE &gt; SAME IN [DEX] &gt;</code>, toe set, dexterity on the same
+      side inward arc.
+    </p>
+
+    <p class="compositional-sets-premise-bridge">
+      Within that scope, several named "sets" turn out to be recognizable
+      trick structures under a different reading: blurry reads as stepping
+      with a paradox second dex. Miraging is retained as descriptive
+      mirage-family language for the inward standalone movement, not a launch
+      set; the same inward movement realized with a set role is quantum. The
+      structural relationships are explored below.
+    </p>
+  </section>
+
+  <section class="content-section" id="{{content.sectionIds.uptime}}" aria-label="Uptime Reinterpretation">
+    <div class="section-heading"><h2>Uptime Reinterpretation</h2></div>
+    <p class="compositional-sets-ladders-intro">
+      Several named sets read as trick structures performed uptime. The
+      ladders below show the relationship between a set and its
+      trick-structural source. Where Holden's compilation and later
+      platform analysis disagree, both readings are recorded.
+    </p>
+
+    {{#each content.ladders}}
+      <article
+        id="{{this.anchorId}}"
+        class="compositional-ladder{{#if this.conflictNote}} compositional-ladder--conflict{{/if}}"
+      >
+        <header class="compositional-ladder-header">
+          <p class="compositional-ladder-set-name">{{this.setName}}</p>
+          <code class="compositional-ladder-set-notation">{{this.setNotation}}</code>
+        </header>
+        <p class="compositional-ladder-reinterpretation">&rarr; {{this.reinterpretation}}</p>
+        <ol class="compositional-ladder-steps">
+          {{#each this.steps}}
+            <li class="compositional-ladder-step"><code>{{this}}</code></li>
+          {{/each}}
+        </ol>
+        <p class="compositional-ladder-source"><span class="compositional-ladder-source-label">Source:</span> {{this.sourceCitation}}</p>
+        {{#if this.conflictNote}}
+          <p class="compositional-ladder-conflict">{{this.conflictNote}}</p>
+        {{/if}}
+      </article>
+    {{/each}}
+  </section>
+
+  {{! Holden's compilation, verbatim: its own names, groupings and formulas,
+      which may differ from the platform's. }}
+  <section class="content-section" id="{{content.sectionIds.holden}}" aria-label="Historical Move-Set Reference">
+    <div class="section-heading"><h2>Historical Move-Set Reference</h2></div>
+    <p>
+      This section reproduces a historical community compilation of freestyle move sets and
+      notation. Its names, classifications, and formulas are preserved as source evidence
+      and may differ from current platform doctrine.
+    </p>
+    <p class="source-note">{{content.holden.provenance.sourceNote}}</p>
+    <p>{{content.holden.provenance.groupingNote}}</p>
+
+    <section>
+    <h3>Basic Sets</h3>
+    <div class="moves-table-wrap">
+      <table class="moves-table">
+        <thead>
+          <tr><th>Set Name</th><th>Notation</th></tr>
+        </thead>
+        <tbody>
+          {{#each content.holden.basicSets}}
+          <tr id="{{anchorId}}">
+            <td>{{#if trickHref}}<a href="{{trickHref}}">{{label}}</a>{{else}}{{label}}{{/if}}</td>
+            <td>{{#if notation}}<code>{{notation}}</code>{{/if}}</td>
+          </tr>
+          {{/each}}
+        </tbody>
+      </table>
+    </div>
+    </section>
+
+    <section>
+    <h3>Spinning Variants</h3>
+    <div class="moves-tag-list">
+      {{#each content.holden.spinningVariants}}
+      <span class="moves-tag" id="{{anchorId}}">{{#if trickHref}}<a href="{{trickHref}}">{{label}}</a>{{else}}{{label}}{{/if}}</span>
+      {{/each}}
+    </div>
+    </section>
+
+    <section>
+    <h3>Whirl / Swirl Variants</h3>
+    <div class="moves-tag-list">
+      {{#each content.holden.whirlSwirlVariants}}
+      <span class="moves-tag" id="{{anchorId}}">{{#if trickHref}}<a href="{{trickHref}}">{{label}}</a>{{else}}{{label}}{{/if}}</span>
+      {{/each}}
+    </div>
+    </section>
+
+    <section>
+    <h3>UNS Set Variants</h3>
+    <div class="moves-tag-list">
+      {{#each content.holden.unsVariants}}
+      <span class="moves-tag" id="{{anchorId}}">{{#if trickHref}}<a href="{{trickHref}}">{{label}}</a>{{else}}{{label}}{{/if}}</span>
+      {{/each}}
+    </div>
+    </section>
+
+    <section>
+    <h3>Antisymposium</h3>
+    <div class="moves-tag-list">
+      {{#each content.holden.antisymposium}}
+      <span class="moves-tag" id="{{anchorId}}">{{#if trickHref}}<a href="{{trickHref}}">{{label}}</a>{{else}}{{label}}{{/if}}</span>
+      {{/each}}
+    </div>
+    </section>
+
+    <section>
+    <h3>Components</h3>
+    <p>These are modifiers or partial sets, not standalone set prefixes.</p>
+    <div class="moves-tag-list">
+      {{#each content.holden.components}}
+      <span class="moves-tag" id="{{anchorId}}">{{#if trickHref}}<a href="{{trickHref}}">{{label}}</a>{{else}}{{label}}{{/if}}</span>
+      {{/each}}
+    </div>
+    </section>
+  </section>
+
+  <section class="content-section" id="{{content.sectionIds.sources}}" aria-label="Sources and attribution">
+    <div class="section-heading"><h2>Sources &amp; Attribution</h2></div>
+    <p>
+      Notation grammar originates with Ben Job's 1995 proposal to the
+      footbag discussion list. The compilation above is Chris Holden's
+      community-curated list (circa 2003), preserved verbatim in the
+      <a href="#{{content.sectionIds.holden}}">Historical Move-Set Reference</a>.
+      Holden's compilation is a community archive, not platform-canonical
+      doctrine.
+    </p>
+  </section>
 
 </div>

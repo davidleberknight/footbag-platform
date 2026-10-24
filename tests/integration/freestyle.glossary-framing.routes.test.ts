@@ -106,10 +106,11 @@ describe('Freestyle Concepts framing — modifier-ecosystem framing', () => {
     }
   });
 
-  it('the modifier weights table classes paradox as a dex relationship, whirling and stepping as sets', async () => {
+  it('the modifier weights table classes paradox as a dex relationship, whirling as a rotation body modifier, and stepping as a set', async () => {
+    // Defect caught: the retired Whirling set coming back as a set row.
     const html = await concepts();
     expect(html).toContain('<tr><td>paradox</td><td>+1</td><td>dex relationship</td></tr>');
-    expect(html).toContain('<tr><td>whirling</td><td>+1</td><td>set</td></tr>');
+    expect(html).toContain('<tr><td>whirling</td><td>+1</td><td>body (rotation)</td></tr>');
     expect(html).toContain('<tr><td>stepping</td><td>+1</td><td>set</td></tr>');
   });
 

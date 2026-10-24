@@ -108,19 +108,16 @@ publicRouter.get('/freestyle/history',     freestyleController.history);
 publicRouter.get('/freestyle/about',       freestyleController.about);
 publicRouter.get('/freestyle/add-analysis', freestyleController.addAnalysis);
 publicRouter.get('/freestyle/combo-analysis', freestyleController.comboAnalysis);
-// /freestyle/sets is the standalone Set Encyclopedia, a minimalist index
-// of canonical sets as first-class ontology objects, distinct from
-// /freestyle/tricks?view=modifier (the Trick Dictionary's modifier-grouped
-// trick browse) and from
-// /freestyle/compositional-sets (exploratory hub). Per-set detail pages
-// live at /freestyle/sets/:slug; flat Holden reference table at
-// /freestyle/sets/reference.
+// /freestyle/sets is the one set page: the set list, how sets are built, the
+// uptime ladders and Holden's compilation. Per-set detail pages live at
+// /freestyle/sets/:slug. The retired /freestyle/sets/reference and
+// /freestyle/compositional-sets redirect permanently to their sections.
 // Literal sub-routes (reference) MUST register before the :slug param
 // route.
-publicRouter.get('/freestyle/sets/reference', freestyleController.moves);
+publicRouter.get('/freestyle/sets/reference', freestyleController.moveSetReferenceRedirect);
 publicRouter.get('/freestyle/sets/:slug',     freestyleController.setDetail);
 publicRouter.get('/freestyle/sets',           freestyleController.setsEncyclopedia);
-publicRouter.get('/freestyle/compositional-sets', freestyleController.compositionalSets);
+publicRouter.get('/freestyle/compositional-sets', freestyleController.compositionalSetsRedirect);
 // Three distinct reference resources: /freestyle/tricks finds tricks,
 // /freestyle/glossary looks up
 // terminology (the A–Z list), /freestyle/concepts explains concepts in depth

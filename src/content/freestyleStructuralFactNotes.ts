@@ -36,7 +36,7 @@ export const MODIFIER_BEGINNER_NOTES: ReadonlyMap<string, string> = new Map([
   ['swirling',   'Inserts the swirl-cell dexterity, a same-side out dex, ahead of the base (+1).'],
   ['inspinning', 'A forward body turn carried through the middle of the trick.'],
   ['miraging',   'Descriptive mirage-family language for the inward standalone movement that adds one inward dexterity before the base (+1). Quantum is the same inward movement realized with a set role; miraging is not a launch set or a Quantum equivalent.'],
-  ['whirling',   'The whirl-family launch set: a rotational opening run before the base (whirling osis is the blender).'],
+  ['whirling',   'A rotation modifier: a rotational opening run before the base (whirling osis is the blender).'],
   ['tapping',    'Adds a quick extra dexterity tap before the base.'],
   ['sailing',    'A compound set that runs two set treatments before the base.'],
   ['railing',    'A compound set combining a held position with a sailing set.'],
