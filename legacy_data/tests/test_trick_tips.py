@@ -5,9 +5,9 @@ dropped, exact duplicates within a move dropped, legacy HTML sanitized, HintTitl
 discarded, legacy move_type ('f' freestyle / 'n' net) carried.
 
 Loader (freestyle/loaders/27_load_trick_tips.py): every tip is PRESERVED in
-freestyle_trick_tips under one of five buckets; only status='published' rows are
-public:
-  - published            : legacy name mapped to a canonical slug (alias-aware)
+freestyle_trick_tips under one of five buckets, and none loads as published:
+only a curator's approval in the admin tips page makes a tip public.
+  - hidden               : legacy name mapped to a canonical slug (alias-aware), awaiting approval
   - unresolved_freestyle : real freestyle trick not authored yet -> 'unresolved:<name>'
   - unresolved_frontier  : blocked on a deferred operator/doctrine
   - unresolved_ambiguous : a canonical may exist but is unconfirmed
@@ -200,7 +200,7 @@ def _loader_args(db: Path, tips: Path, review: Path) -> list[str]:
     return [str(LOADER), "--db", str(db), "--tips", str(tips), "--review-out", str(review)]
 
 
-def test_published_mapping_in_chronological_order(tmp_path: Path) -> None:
+def test_matched_tips_load_hidden_in_chronological_order(tmp_path: Path) -> None:
     db = make_db(tmp_path)
     seed_trick(db, "mirage", "mirage")
     tips = _write_tips(tmp_path / "t.ndjson", [
@@ -208,18 +208,37 @@ def test_published_mapping_in_chronological_order(tmp_path: Path) -> None:
         _tip(1, 60, "Mirage", "First by time.", created=100),
     ])
     assert run(_loader_args(db, tips, tmp_path / "r.json")).returncode == 0
-    assert rows(db, "WHERE status='published' ORDER BY display_order") == [
-        ("mirage", "published", 0, "First by time."),
-        ("mirage", "published", 1, "Second by time."),
+    assert rows(db, "ORDER BY display_order") == [
+        ("mirage", "hidden", 0, "First by time."),
+        ("mirage", "hidden", 1, "Second by time."),
     ]
 
 
-def test_alias_resolution_to_published(tmp_path: Path) -> None:
+def test_no_loaded_tip_is_published_until_a_curator_approves_it(tmp_path: Path) -> None:
+    # Defect caught: unvetted legacy tips (profanity and chatter included) going
+    # live on public trick pages straight from the load, with no curator approval.
+    # Every bucket is loaded; every row is kept for the admin tips page; none is public.
+    db = make_db(tmp_path)
+    seed_trick(db, "mirage", "mirage")
+    seed_trick(db, "clipper_stall", "clipper stall")
+    tips = _write_tips(tmp_path / "t.ndjson", [
+        _tip(1, 60, "Mirage", "name-matched tip"),
+        _tip(2, 18, "Clipper", "override-matched tip"),
+        _tip(3, 99, "Clipper set Illusion", "unmatched tip"),
+        _tip(4, 299, "Side Axe or Shataf", "net tip", mt="n"),
+    ])
+    assert run(_loader_args(db, tips, tmp_path / "r.json")).returncode == 0
+    assert count(db) == 4
+    assert count(db, "WHERE status='published'") == 0
+    assert count(db, "WHERE status='hidden'") == 2
+
+
+def test_alias_resolution_to_hidden(tmp_path: Path) -> None:
     db = make_db(tmp_path)
     seed_trick(db, "eggbeater", "eggbeater", aliases_json='["Atomic Legover"]')
     tips = _write_tips(tmp_path / "t.ndjson", [_tip(1, 70, "Atomic Legover", "alias tip")])
     assert run(_loader_args(db, tips, tmp_path / "r.json")).returncode == 0
-    assert rows(db, "WHERE status='published'") == [("eggbeater", "published", 0, "alias tip")]
+    assert rows(db) == [("eggbeater", "hidden", 0, "alias tip")]
 
 
 def test_unresolved_freestyle_preserved_no_fk(tmp_path: Path) -> None:
@@ -266,7 +285,7 @@ def test_loader_is_idempotent_across_all_buckets(tmp_path: Path) -> None:
     seed_trick(db, "mirage", "mirage")
     review = tmp_path / "r.json"
     tips = _write_tips(tmp_path / "t.ndjson", [
-        _tip(1, 60, "Mirage", "published tip"),
+        _tip(1, 60, "Mirage", "matched tip"),
         _tip(2, 99, "Clipper set Illusion", "unresolved tip"),
         _tip(3, 299, "Side Axe or Shataf", "net tip", mt="n"),
     ])
@@ -291,15 +310,15 @@ def test_curated_move_id_override_routes_the_clipper_family(tmp_path: Path) -> N
         _tip(3, 209, "Clipper", "spin tip"),   # colliding name; the override wins
     ])
     assert run(_loader_args(db, tips, tmp_path / "r.json")).returncode == 0
-    got = {text: slug for slug, _st, _o, text in rows(db, "WHERE status='published'")}
+    got = {text: slug for slug, _st, _o, text in rows(db, "WHERE status='hidden'")}
     assert got == {
         "kick tip": "clipper",
         "delay tip": "clipper_stall",
         "spin tip": "spinning_clipper",
     }
-    # no tip is lost, duplicated, or left unpublished
+    # no tip is lost, duplicated, or left unmatched
     assert count(db) == 3
-    assert count(db, "WHERE status='published'") == 3
+    assert count(db, "WHERE status='hidden'") == 3
     # a second run is idempotent (DELETE-by-source + INSERT)
     assert run(_loader_args(db, tips, tmp_path / "r.json")).returncode == 0
     assert count(db) == 3

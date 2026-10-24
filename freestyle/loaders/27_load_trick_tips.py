@@ -13,6 +13,11 @@ Maps each legacy trick name to a modern freestyle_tricks slug, alias-aware
 Tips whose legacy trick cannot be mapped are preserved in a review artifact
 (freestyle/reports/member_tips_unmatched.json, gitignored) rather than dropped.
 
+No tip loads as published. A legacy tip is raw community text, profanity and
+chatter included, so it reaches a public trick page only once the freestyle
+curator approves it by publishing it in the admin tips page. A mapped tip loads
+as hidden: kept, attached to its trick, and invisible to visitors.
+
 display_order is chronological per trick (earliest legacy creation first).
 
 Doctrine: tips are display-only community advice. This loader never touches
@@ -105,8 +110,8 @@ def assert_override_targets_present_and_active(
 def classify(tip: dict, idx: dict[str, str]) -> tuple[str, str]:
     """Return (status, trick_slug) for a tip.
 
-    published          -> canonical slug (rendered publicly)
-    future_net         -> 'unresolved:net:<name>'  (net technique, preserved for future net pages)
+    hidden             -> canonical slug (awaiting curator approval; never rendered by this load)
+    future_net        -> 'unresolved:net:<name>'  (net technique, preserved for future net pages)
     unresolved_frontier-> 'unresolved:<name>'      (blocked on a deferred operator/doctrine)
     unresolved_ambiguous-> 'unresolved:<name>'     (a plausible canonical exists but unconfirmed)
     unresolved_freestyle-> 'unresolved:<name>'     (real freestyle trick simply not authored yet)
@@ -116,11 +121,11 @@ def classify(tip: dict, idx: dict[str, str]) -> tuple[str, str]:
         # The preflight (assert_override_targets_present_and_active) has already
         # confirmed this target exists and is active, so route unconditionally.
         # Never fall back to name mapping for an override move.
-        return ("published", LEGACY_MOVE_ID_SLUG_OVERRIDES[move_id])
+        return ("hidden", LEGACY_MOVE_ID_SLUG_OVERRIDES[move_id])
     name = tip.get("legacy_trick_name", "")
     slug = idx.get(name_to_slug(name))
     if slug:
-        return ("published", slug)
+        return ("hidden", slug)
     if tip.get("move_type") == "n":
         return ("future_net", "unresolved:net:" + kebab(name))
     key = name.lower().strip()
@@ -197,7 +202,8 @@ def main() -> None:
     assert_override_targets_present_and_active(conn, tips)
 
     # Classify every tip into a bucket. All buckets are PRESERVED in the table
-    # (no tip is discarded); only status='published' rows reach public pages.
+    # (no tip is discarded); only status='published' rows reach public pages,
+    # and only the curator's approval in the admin tips page sets it.
     classified: list[dict] = []
     for t in tips:
         status, slug = classify(t, idx)
@@ -232,15 +238,15 @@ def main() -> None:
         )
 
     # counts per bucket
-    buckets = ["published", "unresolved_freestyle", "unresolved_frontier",
+    buckets = ["hidden", "unresolved_freestyle", "unresolved_frontier",
                "unresolved_ambiguous", "future_net"]
     by_status: dict[str, list[dict]] = defaultdict(list)
     for r in classified:
         by_status[r["status"]].append(r)
     counts = {b: len(by_status.get(b, [])) for b in buckets}
-    published_slugs = {r["trick_slug"] for r in by_status.get("published", [])}
+    matched_slugs = {r["trick_slug"] for r in by_status.get("hidden", [])}
 
-    # Review artifact: every non-published tip, grouped by bucket then slug, so a
+    # Review artifact: every unmatched tip, grouped by bucket then slug, so a
     # future curator can remap an unresolved slug to a canonical trick (or stand
     # up the net pages) without re-running discovery. reports/ is gitignored.
     def group(bucket: str) -> dict[str, list[dict]]:
@@ -258,7 +264,7 @@ def main() -> None:
     review_path.parent.mkdir(parents=True, exist_ok=True)
     review_path.write_text(json.dumps({
         "summary": counts,
-        "note": "Non-published tips are preserved here and in freestyle_trick_tips "
+        "note": "Unmatched tips are preserved here and in freestyle_trick_tips "
                 "(status-gated, no public render). Remap an unresolved slug to a "
                 "canonical trick once authored; stand up net pages for future_net.",
         "unresolved_freestyle": group("unresolved_freestyle"),
@@ -271,7 +277,7 @@ def main() -> None:
 
     print("── Member Tips load ────────────────────────────────────")
     print(f"  total tips (artifact)        : {len(tips)}")
-    print(f"  active imported (published)  : {counts['published']}  ({len(published_slugs)} tricks)")
+    print(f"  matched, awaiting approval   : {counts['hidden']}  ({len(matched_slugs)} tricks)")
     print(f"  unresolved freestyle         : {counts['unresolved_freestyle']}")
     print(f"  unresolved frontier          : {counts['unresolved_frontier']}")
     print(f"  unresolved ambiguous         : {counts['unresolved_ambiguous']}")

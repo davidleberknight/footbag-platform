@@ -28,6 +28,8 @@ beforeAll(async () => {
   insertFreestyleTrickTip(db, { trick_slug: 'mirage', tip_text: 'Wait for the apex before you turn your hips.', display_order: 1 });
   // An unresolved-status tip on the same trick must never reach the page.
   insertFreestyleTrickTip(db, { trick_slug: 'mirage', tip_text: 'HIDDEN unresolved advice on mirage', status: 'unresolved_freestyle', display_order: 2 });
+  // A matched tip the curator has not approved, the state every legacy tip loads in.
+  insertFreestyleTrickTip(db, { trick_slug: 'mirage', tip_text: 'UNAPPROVED legacy advice on mirage', status: 'hidden', display_order: 3 });
 
   insertFreestyleTrick(db, {
     slug: 'osis', canonical_name: 'osis', adds: '3',
@@ -75,6 +77,15 @@ describe('Community Tips on trick detail', () => {
     const res = await page('/freestyle/tricks/mirage');
     expect(res.text).not.toContain('HIDDEN unresolved advice on mirage');
     expect(res.text).toContain('Community Tips (2)');   // the unresolved tip is not counted
+  });
+
+  it('never renders a tip the curator has not approved, beside the approved ones it does render', async () => {
+    // Defect caught: a visitor reading unvetted legacy advice (profanity included)
+    // on a trick page because a matched-but-unapproved tip leaked past the filter.
+    const res = await page('/freestyle/tricks/mirage');
+    expect(res.text).toContain('Lean over the bag and set it vertically.');
+    expect(res.text).not.toContain('UNAPPROVED legacy advice on mirage');
+    expect(res.text).toContain('Community Tips (2)');
   });
 
   it('keeps tips out of the canonical description (display-only, not doctrine)', async () => {

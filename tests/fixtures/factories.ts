@@ -1214,6 +1214,8 @@ export function insertFreestyleTrickTip(
     o.created_at_legacy  ?? null,
     o.modified_at_legacy ?? null,
     o.display_order      ?? 0,
+    // The tips loader loads every matched tip as 'hidden'; 'published' here is
+    // the state a curator's approval in the admin tips page leaves.
     o.status             ?? 'published',
     o.source             ?? 'footbag_org_moves2',
     nowIso(),
