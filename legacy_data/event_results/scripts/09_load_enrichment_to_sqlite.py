@@ -116,6 +116,16 @@ def normalize_role(role: str) -> str:
     return role.strip().replace("_", "-")
 
 
+def refuse_unloaded(lost: dict[str, int]) -> None:
+    """Stop the load, before anything is committed, when a row the person and club
+    pipelines produced could not be stored. Rows set aside by a deliberate rule (a
+    name that is not a person, a duplicate of a stored row) are not losses and are
+    only counted."""
+    if any(lost.values()):
+        raise SystemExit("09 aborted: rows that would not load; nothing was committed: "
+                         + ", ".join(f"{reason} {n}" for reason, n in lost.items() if n))
+
+
 def translate_membership_only_pid(
     matched_pid: str,
     member_name_norm: str,
@@ -171,38 +181,10 @@ def translate_membership_only_pid(
 import re as _re
 import unicodedata as _unicodedata
 
-# ── Person-likeness gate (mirrors export_canonical_platform.py step 5b) ───────
+# ── Encoding damage in roster and membership names ───────────────────────────
 _PL_MOJIBAKE     = _re.compile(r"[¶¦±¼¿¸¹º³]")
 _PL_EMBED_Q      = _re.compile(r"\w\?|\?\w")
 _PL_STANDALONE_Q = _re.compile(r"(?:^|\s)\?{1,5}(?:\s|$)")
-_PL_BAD_CHARS    = _re.compile(r"[+=\\|/]")
-_PL_SCOREBOARD   = _re.compile(r"^[A-Z]{2}\s+\d+$")
-_PL_PRIZE        = _re.compile(r"\$\d+")
-_PL_MATCH_RESULT = _re.compile(r"\d+-\d+\s+over\b", _re.IGNORECASE)
-_PL_BIG_NUMBER   = _re.compile(r"\b\d{3,}\b")
-_PL_NON_PERSON   = _re.compile(
-    r"\b(Connection|Dimension|Footbag|Spikehammer|head-to-head|"
-    r"being determined|Freestyler|round robin|results|"
-    r"Champions|Foot Clan|"
-    r"whirlygig|whirlwind|spinning|blender|smear|"
-    r"clipper|torque|butterfly|mirage|legbeater|ducking|"
-    r"eggbeater|ripwalk|hopover|dropless|scorpion|matador|"
-    r"symposium|swirl|drifter|vortex|superfly|"
-    r"atomic|blurry|whirl|flux|dimwalk|nemesis|bedwetter|"
-    r"pixie|rooted|sailing|diving|ripped|warrior|"
-    r"paradon|steping|pdx|mullet|"
-    r"Big Add Posse|Aerial Zone|Annual Mountain|Be Announced|"
-    r"depending|highest.placed|two footbags)\b",
-    _re.IGNORECASE,
-)
-_PL_ALL_CAPS     = _re.compile(r"^[A-Z]{2,}[\s-]+[A-Z]{2,}(?:[\s-]+[A-Z]{2,})*$")
-_PL_TRAILING_JUNK = _re.compile(r"[*]+$")
-_PL_ABBREVIATED  = _re.compile(r"^[A-Z]\.?\s+\S")
-_PL_INCOMPLETE   = _re.compile(r"^\S+\s+[A-Z]$")
-_PL_INITIALS     = _re.compile(r"^[A-Z]\.\s+[A-Z]\.$")
-_PL_PRIZE_SUFFIX = _re.compile(r"-prizes\b|\bprize\b", _re.IGNORECASE)
-_PL_TRICK_ARROW  = _re.compile(r"[>]|\s:\s")
-_PL_LONG_TOKEN   = _re.compile(r"\S{21,}")
 
 
 def _norm_name(name: str) -> str:
@@ -222,34 +204,30 @@ def _aggressive_norm(name: str) -> str:
     return s
 
 
-def _is_person_like(name: str) -> bool:
-    """Return False if name is clearly not a canonical person name."""
-    s = name.strip()
-    if not s:                      return False
-    if _PL_MOJIBAKE.search(s):     return False
-    if _PL_EMBED_Q.search(s):      return False
-    if _PL_STANDALONE_Q.search(s): return False
-    if _PL_BAD_CHARS.search(s):    return False
-    if _PL_SCOREBOARD.match(s):    return False
-    if _PL_PRIZE.search(s):        return False
-    if _PL_MATCH_RESULT.search(s): return False
-    if _PL_BIG_NUMBER.search(s):   return False
-    if _PL_NON_PERSON.search(s):   return False
-    if "," in s:                   return False
-    if _PL_ALL_CAPS.match(s):      return False
-    if _PL_TRAILING_JUNK.search(s) and len(s.split()) >= 2: return False
-    if " " not in s and "." not in s: return False
-    if _PL_ABBREVIATED.match(s):   return False
-    if _PL_INCOMPLETE.match(s):    return False
-    if _PL_INITIALS.match(s):      return False
-    if _PL_PRIZE_SUFFIX.search(s): return False
-    if _PL_TRICK_ARROW.search(s):  return False
-    if _PL_LONG_TOKEN.search(s):   return False
-    if s[0].islower():             return False
-    if _re.search(r"\bThe\b", s):  return False
-    if '"' in s:                   return False
-    if " or " in s.lower():       return False
-    return True
+# The name a provisional person carries while its source spelling, damaged in
+# encoding, waits for its legacy account's repaired name; the site shows it as an
+# unknown name. The notes marker is what the member load finds to replace it.
+UNKNOWN_NAME = "Unknown"
+NAME_PENDING_ACCOUNT_REPAIR = "name pending legacy account repair"
+
+# A lone capital, a space, then a lower-case word: a letter whose accent markup the
+# roster extractor turned into a space ("S<caron>tepan" read as "S tepan").
+_SPLIT_ACCENTED_LETTER = _re.compile(r"(?:^|\s)[A-Z]\s[a-zà-ÿ]")
+
+
+def roster_name_damage(name: str) -> str:
+    """Why a roster or membership name is damaged in encoding, or "" when it is
+    not: a codepage-mismatch character, a question mark standing for a lost letter,
+    or a letter split from its accent. Nothing else about a roster name blocks it."""
+    if _PL_MOJIBAKE.search(name):
+        return "codepage-mismatch character"
+    if _PL_EMBED_Q.search(name) or _PL_STANDALONE_Q.search(name):
+        return "question mark for a lost letter"
+    if _SPLIT_ACCENTED_LETTER.search(name):
+        return "letter split from its accent"
+    return ""
+
+
 
 
 # ---------------------------------------------------------------------------
@@ -350,34 +328,53 @@ def main() -> None:
                 _existing_aggressive.add(_aggressive_norm(pn))
 
         provisional_raw = [r for r in persons_rows if r.get("person_type", "") == "PROVISIONAL"]
-        # Filter out encoding-corrupted / non-person-like names
-        # and names that duplicate an existing canonical person.
-        persons_qc_skipped = 0
+        # A provisional person comes from a club roster or the membership list,
+        # so the row is a real person and loads with its name as written. A name
+        # the source damaged in encoding is never stored as the person's name.
+        # When the roster row links to a legacy account, the person loads under
+        # the unknown-name placeholder with that link, and the damaged source
+        # text is kept in notes as unresolved: the account's repaired name, from
+        # the member load, replaces it. With no account link there is no route to
+        # a repaired name, and the load stops. A name that duplicates an existing
+        # canonical person is that person, and is counted.
+        persons_garbled: list[str] = []
+        persons_name_pending = 0
         persons_dedup_skipped = 0
         provisional = []
         for r in provisional_raw:
             pn = r.get("person_name", "").strip()
-            if not _is_person_like(pn):
-                persons_qc_skipped += 1
+            damage = roster_name_damage(pn)
+            if damage:
+                if not (r.get("legacy_member_id") or "").strip():
+                    persons_garbled.append(r.get("master_person_id", "").strip())
+                    continue
+                r = {**r, "person_name": UNKNOWN_NAME,
+                     "notes": f"{NAME_PENDING_ACCOUNT_REPAIR} ({damage}): {pn}"}
+                persons_name_pending += 1
+                provisional.append(r)
                 continue
             if _norm_name(pn) in _existing_norm or _aggressive_norm(pn) in _existing_aggressive:
                 persons_dedup_skipped += 1
                 continue
             provisional.append(r)
         print(f"  PROVISIONAL rows: {len(provisional):,} (CANONICAL rows skipped — already loaded by script 08)")
-        if persons_qc_skipped:
-            print(f"  QC filter: {persons_qc_skipped} non-person-like name(s) skipped")
+        if persons_name_pending:
+            print(f"  Name pending its legacy account's repair: {persons_name_pending}")
+        if persons_garbled:
+            print(f"  ERROR: {len(persons_garbled)} name(s) damaged in encoding with no legacy "
+                  f"account to repair them from: {persons_garbled}")
         if persons_dedup_skipped:
             print(f"  Dedup filter: {persons_dedup_skipped} duplicate(s) of existing canonical persons skipped")
 
         persons_inserted = 0
-        persons_skipped  = 0
+        persons_no_id    = 0
+        persons_refused  = 0
         persons_ignored  = 0
 
         for row in provisional:
             pid = row["master_person_id"].strip()
             if not pid:
-                persons_skipped += 1
+                persons_no_id += 1
                 continue
 
             try:
@@ -388,8 +385,8 @@ def main() -> None:
                       country, first_year, last_year,
                       bap_member, bap_nickname, bap_induction_year,
                       hof_member, hof_induction_year,
-                      source, source_scope
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                      notes, source, source_scope
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         pid,
@@ -403,6 +400,7 @@ def main() -> None:
                         opt_int(row.get("bap_induction_year", "")),
                         parse_bool_col(row.get("hof_member", "0")),
                         opt_int(row.get("hof_induction_year", "")),
+                        opt_str(row.get("notes", "")),
                         opt_str(row.get("source_types", "")),
                         row.get("person_type", "PROVISIONAL").strip(),
                     ),
@@ -416,13 +414,14 @@ def main() -> None:
                 else:
                     persons_ignored += 1
             except sqlite3.IntegrityError as e:
-                print(f"  WARN: person {pid!r} skipped — {e}")
-                persons_skipped += 1
+                print(f"  ERROR: person {pid!r} refused — {e}")
+                persons_refused += 1
 
         print(
             f"  Inserted: {persons_inserted:,}  "
             f"Ignored (PK collision with CANONICAL): {persons_ignored:,}  "
-            f"Skipped (bad row): {persons_skipped:,}"
+            f"No person id: {persons_no_id:,}  "
+            f"Refused by the database: {persons_refused:,}"
         )
 
         # Build name_norm → master_person_id map for the just-loaded PROVISIONAL
@@ -455,12 +454,14 @@ def main() -> None:
         candidate_id_map: dict[str, str] = {}
 
         candidates_inserted = 0
-        candidates_skipped  = 0
+        candidates_no_key   = 0
+        candidates_duplicate_key = 0
+        candidates_refused  = 0
 
         for row in candidates_rows:
             club_key = row["club_key"].strip()
             if not club_key:
-                candidates_skipped += 1
+                candidates_no_key += 1
                 continue
 
             lcc_id = stable_id("lcc", club_key)
@@ -550,11 +551,17 @@ def main() -> None:
                 # for honest accounting in case of future pattern changes).
                 if cur.rowcount:
                     candidates_inserted += 1
+                else:
+                    # A second row for a club key already loaded; its values
+                    # would be dropped, so this is a producer defect.
+                    candidates_duplicate_key += 1
             except sqlite3.IntegrityError as e:
-                print(f"  WARN: candidate {club_key!r} skipped — {e}")
-                candidates_skipped += 1
+                print(f"  ERROR: candidate {club_key!r} refused — {e}")
+                candidates_refused += 1
 
-        print(f"  Inserted: {candidates_inserted:,}  Skipped (bad row): {candidates_skipped:,}")
+        print(f"  Inserted: {candidates_inserted:,}  No club key: {candidates_no_key:,}  "
+              f"Duplicate club key: {candidates_duplicate_key:,}  "
+              f"Refused by the database: {candidates_refused:,}")
 
         # ------------------------------------------------------------------
         # Step 3 — Person-club affiliations → legacy_person_club_affiliations
@@ -562,7 +569,9 @@ def main() -> None:
         print("\nLoading affiliations → legacy_person_club_affiliations...")
 
         affiliations_inserted  = 0
-        affiliations_skipped   = 0
+        affiliations_duplicate = 0
+        affiliations_no_identity = 0
+        affiliations_refused   = 0
         affiliations_fk_miss   = 0
         affiliations_pid_fallback = 0
         affiliations_pid_translated = 0
@@ -615,7 +624,7 @@ def main() -> None:
             legacy_mid     = mirror_id   if mirror_id   else None
 
             if historical_pid is None and legacy_mid is None:
-                affiliations_skipped += 1
+                affiliations_no_identity += 1
                 continue
 
             # Stable deterministic ID: keyed on club + member/person + role
@@ -649,16 +658,33 @@ def main() -> None:
                 )
                 if cur.rowcount:
                     affiliations_inserted += 1
+                else:
+                    # The same club, person and role already loaded: a roster
+                    # that lists one member twice is one affiliation.
+                    affiliations_duplicate += 1
             except sqlite3.IntegrityError as e:
-                print(f"  WARN: affiliation {lpca_id!r} skipped — {e}")
-                affiliations_skipped += 1
+                print(f"  ERROR: affiliation {lpca_id!r} refused — {e}")
+                affiliations_refused += 1
 
         print(f"  Inserted: {affiliations_inserted:,}  "
-              f"Skipped (bad row): {affiliations_skipped:,}  "
+              f"Duplicate (same club, person and role): {affiliations_duplicate:,}  "
+              f"No person or member id: {affiliations_no_identity:,}  "
+              f"Refused by the database: {affiliations_refused:,}  "
               f"Missing candidate FK: {affiliations_fk_miss:,}  "
               f"PID translated (membership_only::* → master_person::*): "
               f"{affiliations_pid_translated:,}  "
               f"PID fallback (unresolved): {affiliations_pid_fallback:,}")
+        refuse_unloaded({
+            "provisional person whose name is damaged in encoding": len(persons_garbled),
+            "provisional person with no id": persons_no_id,
+            "provisional person refused by the database": persons_refused,
+            "club candidate with no key": candidates_no_key,
+            "second club candidate row for one key": candidates_duplicate_key,
+            "club candidate refused by the database": candidates_refused,
+            "affiliation with no person or member id": affiliations_no_identity,
+            "affiliation refused by the database": affiliations_refused,
+            "affiliation to a club with no candidate row": affiliations_fk_miss,
+        })
 
         conn.commit()
 

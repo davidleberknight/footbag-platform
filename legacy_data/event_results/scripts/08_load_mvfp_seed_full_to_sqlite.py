@@ -15,6 +15,7 @@ import csv
 import hashlib
 import shutil
 import sys
+from collections import defaultdict
 try:
     import pysqlite3 as sqlite3
 except ImportError:
@@ -85,6 +86,79 @@ def normalize_team_type(team_type: str, discipline_name: str = "") -> str:
     if "double" in dn or "pairs" in dn or "team" in dn:
         return "doubles"
     return "singles"
+
+
+def event_dates(row: dict[str, str]) -> tuple[str, str]:
+    """The event's start and end date as the seed gives them. An event whose day
+    is unknown is stored as its bare year, which the site renders as the year
+    alone; inventing a day would present a guess as history."""
+    start = (row.get("start_date") or "").strip() or (row.get("year") or "").strip()
+    end = (row.get("end_date") or "").strip() or start
+    return start, end
+
+
+def fabricated_event_dates(seed_events: list[dict[str, str]],
+                           loaded: dict[str, tuple[str, str]]) -> list[str]:
+    """Event keys whose stored dates are not what the seed supplied. An event the
+    seed leaves undated must be stored as exactly its year, so any day or month on
+    it was invented; a dated event must be stored as the seed dates it."""
+    bad = []
+    for row in seed_events:
+        key = row["event_key"].strip()
+        year = (row.get("year") or "").strip()
+        seed_start = (row.get("start_date") or "").strip()
+        seed_end = (row.get("end_date") or "").strip()
+        expected_start = seed_start or year
+        expected_end = seed_end or expected_start
+        if loaded.get(key) != (expected_start, expected_end):
+            bad.append(key)
+    return bad
+
+
+def base_event_hashtag(row: dict[str, str]) -> str:
+    """#event_{year}_{slug}, the slug taken from the seed with any leading or
+    trailing year removed, since many slugs were generated from event names that
+    already contain it and the prefix would double it."""
+    event_key = row["event_key"].strip()
+    year = (row.get("year") or "").strip()
+    slug = (row.get("event_slug") or "").strip().lower().replace(" ", "_") or event_key.lower().replace("-", "_")
+    if year and slug.startswith(f"{year}_"):
+        slug = slug[len(f"{year}_"):]
+    if year and slug.endswith(f"_{year}"):
+        slug = slug[: -len(f"_{year}")]
+    return f"#event_{year}_{slug}" if year else f"#{slug}"
+
+
+def event_hashtags(seed_events: list[dict[str, str]], taken: set[str]) -> dict[str, str]:
+    """Each event's displayed hashtag, unique case-insensitively among the events
+    and against the tags already stored in `taken`.
+
+    The hashtag a member types is the one the page shows, so two events never
+    share one: the event first by key keeps the base hashtag and each later one
+    takes the next free "_2", "_3". Numbering depends on the event keys alone, so
+    a rebuild gives every event the same hashtag."""
+    used = {t.lower() for t in taken}
+    out: dict[str, str] = {}
+    for row in sorted(seed_events, key=lambda r: r["event_key"].strip()):
+        base = base_event_hashtag(row)
+        candidate, n = base, 1
+        while candidate.lower() in used:
+            n += 1
+            candidate = f"{base}_{n}"
+        used.add(candidate.lower())
+        out[row["event_key"].strip()] = candidate
+    return out
+
+
+def refuse_unloaded(unloaded: dict[str, list[str]]) -> None:
+    """Stop the load, before anything is committed, when any seed row could not be
+    ingested, naming each reason with its count and a few of the rows."""
+    if not any(unloaded.values()):
+        return
+    lines = [f"  {reason}: {len(rows)} (for example {rows[:3]})"
+             for reason, rows in sorted(unloaded.items()) if rows]
+    raise SystemExit("08 aborted: seed rows that would not load; nothing was committed.\n"
+                     + "\n".join(lines))
 
 
 def map_event_status(seed_status: str, start_date: str, end_date: str) -> tuple[str, str]:
@@ -643,39 +717,19 @@ def main() -> None:
         # ------------------------------------------------------------------
         print("Loading events...")
         event_id_map: dict[str, str] = {}
+        taken = {t for (t,) in conn.execute("SELECT tag_normalized FROM tags")}
+        hashtags = event_hashtags(seed_events, taken)
 
         for row in seed_events:
             event_key = row["event_key"].strip()
             event_id = event_key
             event_id_map[event_key] = event_id
 
-            year = (row.get("year") or "").strip()
-            slug = (row.get("event_slug") or "").strip().lower().replace(" ", "_") or event_key.lower().replace("-", "_")
-            # Strip leading or trailing year from slug — many slugs were generated
-            # from event names that already contain the year, so the
-            # #event_{year}_ prefix would double it.
-            if year and slug.startswith(f"{year}_"):
-                slug = slug[len(f"{year}_"):]
-            if year and slug.endswith(f"_{year}"):
-                slug = slug[: -len(f"_{year}")]
-            # Canonical platform format: #event_{year}_{slug}
-            hashtag = f"#event_{year}_{slug}" if year else f"#{slug}"
+            hashtag = hashtags[event_key]
+            tag_normalized = hashtag.lower()
             tag_id = stable_id("tag", event_key)
-            # Ensure tag_normalized is unique even if another non-event tag
-            # already uses this normalized value. We keep the display hashtag
-            # stable and only vary the normalized form if needed.
-            base_normalized = hashtag.lower()
-            tag_normalized = base_normalized
-            suffix_idx = 1
-            while conn.execute(
-                "SELECT 1 FROM tags WHERE tag_normalized = ?",
-                (tag_normalized,),
-            ).fetchone():
-                tag_normalized = f"{base_normalized}__{event_key.lower()}_{suffix_idx}"
-                suffix_idx += 1
             title = row.get("event_name", "").strip()
-            start_date = row.get("start_date", "").strip() or f'{row["year"]}-07-01'
-            end_date = row.get("end_date", "").strip() or start_date
+            start_date, end_date = event_dates(row)
             city = row.get("city", "").strip()
             region = (row.get("region") or "").strip() or None
             country = row.get("country", "").strip() or "Unknown"
@@ -780,6 +834,10 @@ def main() -> None:
         # ------------------------------------------------------------------
         print("Loading event result entries...")
         result_id_map: dict[tuple[str, str, str], str] = {}
+        # Seed rows this loader could not ingest, by reason. The seed is built
+        # from canonical output that has passed QC, so any count here is history
+        # that would not load; the run stops on it rather than report success.
+        unloaded: dict[str, list[str]] = defaultdict(list)
 
         for row in seed_results:
             event_key = row["event_key"].strip()
@@ -789,13 +847,15 @@ def main() -> None:
             event_id = event_id_map[event_key]
             discipline_id = discipline_id_map.get((event_key, discipline_key))
             result_id = f"result_{event_key}_{discipline_key}_{placement}"
-            result_id_map[(event_key, discipline_key, placement)] = result_id
 
             try:
                 placement_int = int(placement)
             except ValueError:
-                # skip malformed placements rather than crash whole load
+                unloaded["result_placement_not_a_number"].append(result_id)
                 continue
+            # Recorded only once the result is inserted, so no participant is
+            # loaded against a result that does not exist.
+            result_id_map[(event_key, discipline_key, placement)] = result_id
 
             score_text = (row.get("score_text") or "").strip() or None
 
@@ -822,18 +882,22 @@ def main() -> None:
             discipline_key = row["discipline_key"].strip()
             placement = row["placement"].strip()
 
+            slot = f"{event_key}/{discipline_key}/{placement}"
             result_id = result_id_map.get((event_key, discipline_key, placement))
             if not result_id:
+                unloaded["participant_without_result"].append(slot)
                 continue
 
             participant_order_raw = row["participant_order"].strip()
             try:
                 participant_order = int(participant_order_raw)
             except ValueError:
+                unloaded["participant_order_not_a_number"].append(slot)
                 continue
 
             display_name = row.get("display_name", "").strip()
             if not display_name:
+                unloaded["participant_without_name"].append(slot)
                 continue
 
             historical_person_id = row.get("person_id", "").strip() or None
@@ -856,6 +920,8 @@ def main() -> None:
                     historical_person_id,
                 ),
             )
+
+        refuse_unloaded(unloaded)
 
         # ------------------------------------------------------------------
         # Permanent showcase event and its Hall-of-Fame persona. This is the
@@ -977,6 +1043,20 @@ def main() -> None:
             ),
         )
 
+
+        # Every seed event's stored dates are what the seed supplied, checked over
+        # the whole loaded table before anything is committed.
+        loaded = {
+            r[0]: (r[1], r[2])
+            for r in conn.execute("SELECT id, start_date, end_date FROM events WHERE created_by = ?",
+                                  (system_user,))
+        }
+        bad = fabricated_event_dates(seed_events, loaded)
+        if bad:
+            raise SystemExit(
+                f"08 aborted: {len(bad)} event(s) stored with dates the seed did not supply, "
+                f"for example {bad[:5]}. An undated event is stored as its bare year; nothing "
+                "was committed.")
 
         conn.execute("PRAGMA foreign_keys = ON;")
         conn.commit()

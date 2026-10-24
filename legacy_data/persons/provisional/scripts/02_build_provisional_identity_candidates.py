@@ -164,6 +164,11 @@ def main():
             "membership_row_count": (g["source_type"] == "MEMBERSHIP").sum(),
             "club_row_count": (g["source_type"] == "CLUB").sum(),
             "mirror_member_id_count": (g["mirror_member_id"] != "").sum(),
+            # The legacy account the roster or membership row links to. An
+            # identity keyed by an account is that one account; one keyed by name
+            # has none.
+            "mirror_member_id": next(
+                (norm_member_id(m) for m in g["mirror_member_id"] if norm_member_id(m)), ""),
             "confidence": "medium",
             "promotion_status": "STAGED",
         })

@@ -30,8 +30,8 @@ event_key,discipline_key,scope,confidence,evidence
 1996_worlds_montreal,overall,cross_sport,inferred,curated source category OVERALL separate from the sport categories; same format as 1994 1995 1997
 1996_worlds_montreal,womens_overall,cross_sport,inferred,curated source category OVERALL separate from the sport categories; same format as 1994 1995 1997
 1996_worlds_montreal,team_points,cross_sport,verified,curated source category TEAM: club points standings
-1997_worlds,mens_overall,cross_sport,verified,mirror worlds97 Men's Overall Rankings: points totals in the WFA format
-1997_worlds,womens_overall,cross_sport,verified,mirror worlds97 Women's Overall Rankings: points totals in the WFA format
+1997_worlds_portland,mens_overall,cross_sport,verified,mirror worlds97 Men's Overall Rankings: points totals in the WFA format
+1997_worlds_portland,womens_overall,cross_sport,verified,mirror worlds97 Women's Overall Rankings: points totals in the WFA format
 1998_worlds_montreal,mens_individual_overall,cross_sport,inferred,mirror event 876591529 OVERALL RANKINGS section after net freestyle and consecutive divisions
 1998_worlds_montreal,womens_individual_overall,cross_sport,inferred,mirror event 876591529 OVERALL RANKINGS section after net freestyle and consecutive divisions
 1999_montana_invitational,open_overall,cross_sport,verified,mirror event 931840905: 5-4-3-2-1 points over golf freestyle singles net doubles net and consecutives (recomputed)

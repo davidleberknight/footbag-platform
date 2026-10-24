@@ -215,7 +215,11 @@ def build_provisional_rows(candidates: pd.DataFrame, promoted_links: pd.DataFram
     out["person_name_norm"] = out["canonical_candidate_name_norm"]
     out["person_type"] = "PROVISIONAL"
 
-    out["legacy_member_id"] = ""
+    # The account the roster row itself links to: explicit identity evidence, so
+    # carrying it decides nothing new. A claim links an account only to a
+    # results-derived person, so this does not change what a claim attaches.
+    out["legacy_member_id"] = (out["mirror_member_id"].fillna("").astype(str).str.strip()
+                               if "mirror_member_id" in out.columns else "")
     out["legacy_user_id"] = ""
     out["legacy_email"] = ""
     out["ifpa_member_id"] = ""

@@ -82,3 +82,4 @@ event_id,file,replace,notes
 984694623,legacy_data/event_results/984694623.txt,true,1st Montreal Summer 2001 — Name City Province format caused city as teammate
 972427576,legacy_data/event_results/972427576.txt,true,LHivernal 2001 — (City Province) format caused city as doubles partner
 991285803,legacy_data/event_results/991285803.txt,true,Montreal Net Championships 2001 — unlabeled section after Open Singles p19
+1623054449,legacy_data/event_results/1623054449.txt,true,2021 Online Freestyle Worlds — tab-separated rank-last tables; doubles partners named in full from the registration summary

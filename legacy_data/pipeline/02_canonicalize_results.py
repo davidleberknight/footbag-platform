@@ -2384,6 +2384,9 @@ def clean_player_name(name: str) -> str:
     return name.strip()
 
 
+_TRAILING_TRICK_RE = re.compile(r"^(?P<name>[^>]*?)\s*[-–—]\s+(?P<trick>[^>]*>.*)$")
+
+
 def split_entry(entry: str, is_doubles: bool = False) -> tuple[str, Optional[str], str]:
     """
     Detect teams/multiple players separated by '/', ' and ', ' & ', commas, or dash separators.
@@ -2423,6 +2426,16 @@ def split_entry(entry: str, is_doubles: bool = False) -> tuple[str, Optional[str
     if not entry_clean:
         entry_clean = entry
 
+    # A trick sequence written after the competitor ("Name - Legbeater -> Vortex",
+    # "Name (DE) - Mobius >") is what they threw, not a partner; the arrow is the
+    # tell, because no name carries one.
+    m_trick = _TRAILING_TRICK_RE.match(entry_clean)
+    if m_trick:
+        name = m_trick.group("name").strip()
+        if "/" in name or " & " in name:
+            return split_entry(name, is_doubles)
+        return strip_trailing_score(name), None, "player"
+
     # Helper to validate if a name-like string looks like it could be a player name
     def looks_like_name(s):
         """Check if string looks like a player name (relaxed validation)."""
@@ -2461,6 +2474,9 @@ def split_entry(entry: str, is_doubles: bool = False) -> tuple[str, Optional[str
     if slash_idx > 0:
         a = entry_clean[:slash_idx].strip()
         b = entry_clean[slash_idx + 1:].strip()
+        if ">" in b and ">" not in a:
+            # "Name / Bedwetter > Frantic Butterfly": the right side is a trick line.
+            return strip_trailing_score(a), None, "player"
         if len(a) >= 2 and len(b) >= 2:
             return strip_trailing_score(a), strip_trailing_score(b), "team"
 
@@ -2921,6 +2937,19 @@ def looks_like_person_name(s: str) -> bool:
     return True
 
 
+# An age group's winner listed on its own line under a division header, as in
+# "Teen:  Cody Smith (88)". The label names a sub-division, not the competitor.
+_AGE_GROUP_WINNER_RE = re.compile(
+    r"^(?P<label>teen|teens|youth|youth boys|youth girls|junior|juniors|kids|boys|girls)"
+    r"\s*:\s*(?P<name>\S.*)$",
+    re.IGNORECASE,
+)
+
+# Lines inside a results block that no placement rule read, per event. Most are
+# prose around the results; a count that moves is a parser change to look at.
+UNPARSED_RESULT_LINES: Counter = Counter()
+
+
 def parse_results_text(results_text: str, event_id: str, event_type: str = None,
                        trusted_headings: bool = False) -> list[dict]:
     """
@@ -3183,7 +3212,17 @@ def parse_results_text(results_text: str, event_id: str, event_type: str = None,
             # (skip the normal place/ordinal parsing)
         else:
             # Check if we're waiting for a bare player name after a division header
-            if pending_division is not None and not looks_like_division_header(line):
+            m_age = (_AGE_GROUP_WINNER_RE.match(line.strip())
+                     if pending_division is not None else None)
+            if m_age:
+                # "Teen: Name (88)" under a header: the winner of that age group,
+                # which is its own sub-division. The header stays open, because
+                # the next age group's winner usually follows on the next line.
+                place = 1
+                entry_raw = m_age.group("name").strip()
+                division_raw = f"{pending_division} - {m_age.group('label').strip().title()}"
+                placement_already_parsed = True
+            elif pending_division is not None and not looks_like_division_header(line):
                 # Line doesn't look like a division header
                 # Check if it looks like a bare player name
                 # Conservative criteria to minimize false positives:
@@ -3348,6 +3387,7 @@ def parse_results_text(results_text: str, event_id: str, event_type: str = None,
                     else:
                         m = place_re.match(line)
                         if not m:
+                            UNPARSED_RESULT_LINES[event_id] += 1
                             continue
                         place = int(m.group(1))
                         entry_raw = m.group(2).strip()
@@ -3415,7 +3455,12 @@ def parse_results_text(results_text: str, event_id: str, event_type: str = None,
         # Pattern 12: narrative/descriptive text with exclamation marks
         # e.g., "golfers, great weather, crazy course!" from "10 golfers, great..."
         # But NOT legitimate entries with locations like "Name, City, Country"
-        if '!' in entry_raw and not entry_raw.rstrip().endswith(':'):
+        # An exclamation inside a trick line after the competitor ("Name - Ripped
+        # warrior -> Pdx blender!!!") is the thrower's, not narrative.
+        m_trick_line = _TRAILING_TRICK_RE.match(entry_raw)
+        entry_wo_trick = m_trick_line.group("name") if m_trick_line else entry_raw
+        if '!' in entry_wo_trick and not entry_wo_trick.rstrip().endswith(':'):
+            UNPARSED_RESULT_LINES[event_id] += 1
             continue  # Skip - exclamatory text is not a placement
 
         # Pattern 13: event narrative keywords and tournament match results
@@ -6686,6 +6731,8 @@ def main():
 
     print_verification_stats(canonical)
     print(f"Wrote: {out_csv}")
+    print(f"Unparsed result lines: {sum(UNPARSED_RESULT_LINES.values())} "
+          f"across {len(UNPARSED_RESULT_LINES)} events")
 
     # Write players registry
     players_path = out_dir / "stage2_players.csv"

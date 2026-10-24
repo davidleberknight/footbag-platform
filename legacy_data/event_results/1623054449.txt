@@ -1,0 +1,120 @@
+# 2021 IFPA Online Freestyle Footbag World Championships
+# Online
+# 2021
+# Source: footbag.org mirror, events/show/1623054449 (tab-separated tables with the rank in the last column; the parser could not read the layout)
+# Division names follow the event's registration summary (registration/regsummary/1623054449).
+# The results page names the doubles teams by first name only; the full names are the four teams the registration summary lists for Open Doubles Routines.
+# Gary Yao keeps the spelling the results page uses for him in his other divisions.
+
+Open Singles Routines
+1. Patrik Cerny
+2. Honza Weber
+3. Vasek Klouda
+4. Taishi Ishida
+5. Mathieu Gauthier
+6. Matt Kemmer
+7. Ken Somolinos
+8. Bruce Li
+9. Damian Gielnicki
+10. Sebastian Ceballos (scratch)
+
+Women's Singles Routines
+1. Tina Aeberli
+2. Paloma Mayo
+3. Leimar Salas
+4. Caroline Birch
+5. Fairy Liu
+6. Cassandra Taylor
+7. Tricia George (scratch)
+
+Intermediate Singles Routines
+1. Jordan Chiu
+2. Gary Yao
+3. Said Shaheen
+4. Taku Miura
+5. Allen Sneed
+6. Christophe Kabache
+7. Ken Moller
+8. Timothy Kersey (scratch)
+
+Open Doubles Routines
+1. Paloma Mayo & Sergio Garcia
+2. Bruce Li & Gary Yao
+3. Yoshihito Yamamoto & Yuji Morishima
+4. Anton Britting & Zach Jahner (scratch)
+
+Open Shred 30
+1. Vasek Klouda
+2. Mathieu Gauthier
+3. Santeri Karvinen
+4. Alex Trenner
+5. Ken Somolinos
+6. Dustin Rhodes
+7. Scott Davidson
+8. Cassy Taylor
+9. TJ Boutorwick
+10. Happy Om
+11. Cyril Kabache
+12. Sebastian Ceballos
+13. Dan Boyle
+14. Ben Barrows
+15. Ryan Morris
+
+Intermediate Shred 30
+1. Gary Yao
+2. Taku Miura
+3. Jordan Chiu
+4. Leimar Salas
+5. David Gil
+6. Saiid Shaheen
+7. Yuito Watanuki
+
+Open Shred Off
+1. Honza Weber
+2. Christopher Schillem
+3. Josh Gayhart
+4. Pawel Nowak
+
+Women's Shred Off
+1. Paloma Mayo
+2. Cass Taylor
+3. Leimar Romero
+4. Fairy Liu
+
+Intermediate Shred Off
+1. Jordan Chiu
+2. Gary Yao
+3. Daniel Cadavid
+4. Taku Miura
+
+Open Sick 3
+1. Honza Weber
+2. Christopher Schillem
+3. Rafal Kaleta
+4. Josh Gayhart
+5. Pawel Nowak
+6. Patrik Cerny
+7. Mathieu Gauthier
+8. Wiktor Debski
+
+Women's Sick 3
+1. Cassy Taylor
+2. Paloma Mayo
+3. Leimar Salas
+4. Fairy Liu
+5. Megan Gayhart
+
+Intermediate Sick 3
+1. David Gil
+2. Saiid Shaheen
+3. Jordan Chiu
+4. Taku Muira
+5. Takao Wakou
+6. Christophe Kabache
+7. Gary Yao
+8. Diego Velazquez
+9. Christoph Alexander
+10. Yuito Watanuki
+11. Ken Moller
+12. Allen Sneed
+13. Daniel Cadavid

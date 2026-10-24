@@ -7,32 +7,39 @@ pages carry the same person under several spellings: the correct one, a
 mojibake form where an accented letter renders as a stray glyph, and a form
 where the letter is simply gone. When a lost-letter spelling reaches the
 canonicalizer as an unrecognised participant, it is minted as its own person
-row carrying no player ids and no legacy account link. That row can never be
-claimed by the real player, and it splits their competition record.
+row carrying no legacy account link, and sometimes player ids of its own. That
+row can never be claimed by the real player, and it splits their competition
+record.
 
 This check reports those rows. It looks for a person whose normalized name is
 a character-deletion of another person's normalized name, in either direction,
-within two characters, restricted to rows that carry neither player ids nor a
-legacy account link. Restricting to those rows matters: an unclaimable orphan
-is the shape that causes the harm, and comparing every name against every
-other name reports far more noise than signal.
+within two characters, where the reported row carries no legacy account link.
+Player ids do not exempt a row: a split twin minted with ids of its own is the
+same harm, and is the shape that once escaped a check restricted to rows
+without them.
 
-## Why this reports rather than blocks
+## Why this blocks, and what a ruling may say
 
 A dropped diacritic is not mechanically distinguishable from a real
 difference between two people. The surviving names in the lock are themselves
 often already transliterated, so the missing character is an ordinary letter:
 the gap between 'Przemysaw' and 'Przemyslaw' looks exactly like the gap
 between 'Tim Kelly' and 'Tim Kelley', and only a person who knows the players
-can tell those apart. Every pair therefore needs a human ruling, which is why
-this runs as a warning and why ruled pairs are recorded rather than guessed.
+can tell those apart. Every pair therefore needs a human ruling before a
+production ship, and the check blocks until each has one. A ruling may be that
+the two are one person, two people, or that the evidence cannot tell; the last
+is an honest answer and settles the pair without merging anything, so the gate
+never forces an identity call the evidence does not support.
 
-## Suppressing a ruled pair
+## Settling a ruled pair
 
-A pair stops being reported once it appears in overrides/identity_review_queue.csv,
-matched on the two person ids or, when those are blank, on the two names. The
-register is the record that a human has seen the pair, whatever they decided;
-it is not a claim that the pair was merged.
+A pair stops being reported once it appears in overrides/identity_review_queue.csv
+with a ruled status, matched on the two person ids or, when those are blank, on
+the two names. The ruled statuses are SAME (one person, repaired by a
+truth-file patch plus an alias row), DIFFERENT (two people, left alone),
+CANNOT_TELL (not determinable from the evidence, left alone) and the older
+RESOLVED. A row still under review (REVIEW, DO_NOT_MERGE_YET) does not settle
+its pair: an unruled pair is exactly what this check exists to stop.
 
 ## Exit codes
 
@@ -59,8 +66,8 @@ from pipeline.identity.alias_resolver import normalize_name  # noqa: E402
 DEFAULT_TRUTH = LEGACY_ROOT / "inputs" / "identity_lock" / "Persons_Truth_Final.csv"
 DEFAULT_REGISTER = LEGACY_ROOT / "overrides" / "identity_review_queue.csv"
 
-# An orphan minted from an unrecognised participant carries this source prefix.
-ORPHAN_SOURCE_PREFIX = "patch_v53:"
+# Register statuses that record a ruling and so settle a pair.
+RULED_STATUSES = frozenset({"SAME", "DIFFERENT", "CANNOT_TELL", "RESOLVED"})
 
 # One or two characters. More than that admits shortened given names, which are
 # a different question.
@@ -87,21 +94,20 @@ def load_rows(path: Path) -> list[dict]:
         return list(csv.DictReader(f))
 
 
-def is_unclaimable_orphan(row: dict) -> bool:
-    return (
-        (row.get("source") or "").startswith(ORPHAN_SOURCE_PREFIX)
-        and not (row.get("player_ids_seen") or "").strip()
-        and not (row.get("legacyid") or "").strip()
-    )
+def is_unclaimed(row: dict) -> bool:
+    """A row no legacy account is linked to, which its player can never claim."""
+    return not (row.get("legacyid") or "").strip()
 
 
 def load_register(path: Path) -> set[frozenset]:
-    """Pairs a human has already seen, keyed on ids when present, else names."""
+    """Pairs a human has ruled on, keyed on ids when present, else names."""
     if not path.exists():
         return set()
     seen: set[frozenset] = set()
     with open(path, newline="", encoding="utf-8") as f:
         for row in csv.DictReader(f):
+            if (row.get("status") or "").strip() not in RULED_STATUSES:
+                continue
             alias_pid = (row.get("alias_pid") or "").strip()
             canon_pid = (row.get("canon_pid") or "").strip()
             if alias_pid and canon_pid:
@@ -124,7 +130,7 @@ def find_pairs(rows: list[dict]) -> list[tuple[dict, dict, int]]:
     # Two orphans can be each other's counterpart; report that pair once.
     reported: set[frozenset] = set()
     for orphan in rows:
-        if not is_unclaimable_orphan(orphan):
+        if not is_unclaimed(orphan):
             continue
         o_norm = normalize_name(orphan.get("person_canon") or "")
         if not o_norm or is_initialled(o_norm):
@@ -165,8 +171,8 @@ def main() -> int:
     print("=== character-loss duplicate persons ===")
     print(f"truth file: {truth}")
     print(f"register:   {register}")
-    print("Reports a person carrying no player ids and no legacy account link whose")
-    print(f"name is a deletion of another person's name by up to {MAX_LOST_CHARACTERS} characters.")
+    print("Reports a person carrying no legacy account link whose name is a deletion")
+    print(f"of another person's name by up to {MAX_LOST_CHARACTERS} characters.")
 
     if not truth.exists():
         print(f"\nSKIP: identity lock not found (expected at {truth}).")
@@ -216,9 +222,9 @@ def main() -> int:
         )
     print()
     print(f"STATUS: FAIL — {len(unregistered)} pair(s) awaiting a ruling")
-    print("Rule each one, then record it in the review register so it stops being reported.")
-    print("A pair that is one person is repaired by a truth-file patch plus an alias row;")
-    print("a pair that is two people is recorded as such and left alone.")
+    print("Rule each one and record the ruling in overrides/identity_review_queue.csv")
+    print("with status SAME, DIFFERENT or CANNOT_TELL. A pair that is one person is also")
+    print("repaired by a truth-file patch plus an alias row; the others are left alone.")
     return 1
 
 

@@ -73,6 +73,45 @@ def test_an_event_without_a_correction_is_unchanged(tmp_path):
         "9", "1. Mirror Name", overrides={}, root=tmp_path) == "1. Mirror Name"
 
 
+def test_the_2021_online_worlds_correction_replaces_the_misparsed_divisions():
+    # Defect caught: the 2021 online Worlds page lays out its results as
+    # tab-separated tables with the rank last, which the parser read as four
+    # bogus divisions ("Open Net", "Intermediate Net", a trick line and a table
+    # header), losing every Routines, doubles, Shred Off and most Sick 3 result.
+    # The correction file must replace that block and parse into the event's
+    # real freestyle divisions. The stand-in block below has the layout's shape;
+    # the mirror page itself is a local-only input.
+    misparsed = (
+        "SHRED-30\nOPEN\t\t\nFINALS\tNAME\tPOINTS\n1\tSomeone Else\t300\n"
+        "Rank\tPlayer\tCombo (judged)\tCombo (attempted)\n"
+    )
+    raw = canon.apply_results_file_override("1623054449", misparsed)
+    placements, rejected = canon.parse_results_text(
+        raw, "1623054449", "worlds", trusted_headings=False)
+    assert rejected == 0
+    counts: dict[str, int] = {}
+    for p in placements:
+        assert p["division_category"] == "freestyle", p["division_canon"]
+        counts[p["division_canon"]] = counts.get(p["division_canon"], 0) + 1
+    assert counts == {
+        "Open Singles Routines": 10,
+        "Women's Singles Routines": 7,
+        "Intermediate Singles Routines": 8,
+        "Open Doubles Routines": 4,
+        "Open Shred 30": 15,
+        "Intermediate Shred 30": 7,
+        "Open Shred Off": 4,
+        "Women's Shred Off": 4,
+        "Intermediate Shred Off": 4,
+        "Open Sick 3": 8,
+        "Women's Sick 3": 5,
+        "Intermediate Sick 3": 13,
+    }
+    assert not any("Someone Else" in (p["player1_name"] or "") for p in placements)
+    doubles = [p for p in placements if p["division_canon"] == "Open Doubles Routines"]
+    assert all(p["competitor_type"] == "team" and p["player2_name"] for p in doubles)
+
+
 def test_every_listed_correction_file_is_present_in_the_checkout():
     # Defect caught: a committed override row whose file never reached the
     # checkout, which would stop every canonical rebuild.

@@ -5,24 +5,23 @@ event_key,legacy_event_id,year,event_name,event_slug,start_date,end_date,city,re
 1980_worlds,1980_worlds_nhsa,1980,1980 World Footbag Championships (NHSA),world_championships_1980_nhsa,,,Oregon City,Oregon,United States,NHSA,worlds,completed,,mirror
 1980_worlds_memphis,1980_worlds_memphis,1980,1980 World Footbag Championships (IFAB),world_footbag_championships_1980_ifab,,,Memphis,Tennessee,United States,NHSA,worlds,completed,MERGE_ADJUDICATED:from=1980_worlds_memphis_2,mirror
 1981_mike_marshall_memorial,1981_mike_marshall_memorial_san_jose,1981,Mike Marshall Memorial,mike_marshall_memorial,,,San Jose,California,United States,NHSA,net,completed,,mirror
-1981_texas_state,1981_texas_state_footbag_texas,1981,Texas State Footbag Championships 1981,texas_state_footbag_championships_1981,,,Texas,,United States,NHSA,net,completed,,mirror
+1981_texas_state,1981_texas_state_footbag_texas,1981,Texas State Footbag Championships 1981,texas_state_footbag_championships_1981,,,,Texas,United States,NHSA,net,completed,,mirror
 1981_worlds,1981_worlds_nhsa,1981,1981 World Footbag Championships (NHSA),world_championships_1981_nhsa,,,Oregon City,Oregon,United States,NHSA,worlds,completed,,mirror
 1981_worlds_san_dimas,1981_worlds_san_dimas,1981,1981 World Footbag Championships (IFAB/FBW),world_footbag_championships_1981_ifab_fbw,,,San Dimas,California,United States,NHSA,worlds,completed,,mirror
 1982_worlds_golden,1982_worlds_golden,1982,1982 World Footbag Championships (FBW),1982_world_footbag_championships,,,Golden,Colorado,United States,NHSA,worlds,completed,,mirror
-1982_rocky_mountain,1982_rocky_mountain_open_colorado,1982,Rocky Mountain Open 1982,rocky_mountain_open_1982,,,Colorado,,United States,NHSA,mixed,completed,,mirror
+1982_rocky_mountain,1982_rocky_mountain_open_colorado,1982,Rocky Mountain Open 1982,rocky_mountain_open_1982,,,,Colorado,United States,NHSA,mixed,completed,,mirror
 1982_westregion,1982_western_regionals_united_states,1982,Western Regionals,western_regionals,,,,,United States,NHSA,net,completed,,mirror
 1982_worlds_oregon_city,1982_worlds_nhsa,1982,1982 World Footbag Championships (NHSA),world_championships_1982_nhsa,,,Oregon City,Oregon,United States,NHSA,worlds,completed,MERGE_ADJUDICATED:from=1982_nhsa_national,mirror
 1982_worlds_portland,1982_worlds_portland,1982,1982 World Footbag Championships (IFAB/FBW),world_footbag_championships,,,Portland,Oregon,United States,NHSA,worlds,completed,,mirror
 1982_worlds_san_francisco,1982_worlds_san_francisco,1982,1982 World Footbag Championships (IFAB),world_footbag_championships_1982_ifab,,,San Francisco,California,United States,NHSA,worlds,completed,,mirror
 1983_worlds_golden,1983_worlds_golden,1983,1983 World Footbag Championships (FBW),1983_world_footbag_championships,,,Golden,Colorado,United States,WFA,worlds,completed,,mirror
-1983_oregon_state,1983_oregon_state_footbag_oregon,1983,Oregon State Footbag Championships,oregon_state_footbag_championships,,,Oregon,,United States,WFA,net,completed,,mirror
+1983_oregon_state,1983_oregon_state_footbag_oregon,1983,Oregon State Footbag Championships,oregon_state_footbag_championships,,,,Oregon,United States,WFA,net,completed,,mirror
 1983_secret_underground,1983_secret_underground_jam,1983,Secret Underground Jam,secret_underground_jam,,,,,,WFA,freestyle,completed,,mirror
 1983_worlds_boulder_nhsa,1983_worlds_nhsa,1983,1983 World Footbag Championships (NHSA),world_championships_1983_nhsa,,,Boulder,Colorado,United States,NHSA,worlds,completed,MERGE_ADJUDICATED:from=1983_nhsa_national,mirror
 1983_worlds_boulder_wfa,1983_worlds_wfa,1983,1983 World Footbag Championships (WFA),world_championships_1983_wfa,,,Boulder,Colorado,United States,WFA,worlds,completed,MERGE_ADJUDICATED:from=1983_national,mirror
 1983_worlds_oregon_city,1983_worlds_oregon_city,1983,1983 World Footbag Championships (IFAB),world_footbag_championships_1983_ifab,,,Oregon City,Oregon,United States,WFA,worlds,completed,,mirror
 1984_worlds_golden_fbw,1984_worlds_golden,1984,1984 World Footbag Championships (FBW),1984_world_footbag_championships,,,Golden,Colorado,United States,WFA,worlds,completed,,mirror
-1984_eurochamp,1984_european_footbag_championships_europe,1984,European Footbag Championships,european_footbag_championships,,,,,Europe,WFA,net,completed,,mirror
-1984_eurochamp_2,1984_european_footbag_championships,1984,European Footbag Championships 1984,european_footbag_championships_1984,,,,,,WFA,net,completed,,mirror
+1984_eurochamp,1984_european_footbag_championships,1984,European Footbag Championships 1984,european_footbag_championships_1984,,,,,,WFA,net,completed,,mirror
 1984_worlds_golden_wfa,1984_worlds,1984,1984 World Footbag Championships (WFA),world_championships_1984,,,Golden,Colorado,United States,WFA,worlds,completed,MERGE_ADJUDICATED:from=1984_national,mirror
 1984_worlds_oregon_city,1984_worlds_oregon_city,1984,1984 World Footbag Championships (IFAB),world_footbag_championships_1984_ifab,,,Oregon City,Oregon,United States,WFA,worlds,completed,,mirror
 1985_holiday,1985_1985_holiday_classic,1985,1985 Holiday Classic,1985_holiday_classic,,,,,,WFA,freestyle,completed,,mirror
@@ -37,13 +36,12 @@ event_key,legacy_event_id,year,event_name,event_slug,start_date,end_date,city,re
 1985_worlds_golden,1985_worlds,1985,6th Annual World Footbag Championships,1985_world_footbag_championships,,,Golden,Colorado,United States,WFA,worlds,completed,,mirror
 1986_worlds_golden,1986_worlds_golden,1986,7th Annual World Footbag Championships,1986_world_footbag_championships,,,Golden,Colorado,United States,WFA,worlds,completed,,mirror
 1986_eastregion_long_branch,1057126024,1986,East Coast Footbag Championships - 4th Annual - 1986,east_coast_footbag_championships_4th_annual_1986,1986-09-30,1986-09-30,Long Branch,New Jersey,United States,WFA,mixed,completed,,mirror
-1986_sunshine_state,1986_sunshine_state_open_florida,1986,Sunshine State Open 1986,sunshine_state_open_1986,,,Florida,,United States,WFA,net,completed,,mirror
+1986_sunshine_state,1986_sunshine_state_open_florida,1986,Sunshine State Open 1986,sunshine_state_open_1986,,,,Florida,United States,WFA,net,completed,,mirror
 1987_worlds,1987_worlds_golden,1987,8th Annual World Footbag Championships,1987_wfa_world_championships,,,Golden,Colorado,United States,WFA,worlds,completed,,mirror
 1987_eastregion,1987_eastern_regionals_1987_atlanta,1987,Eastern Regionals 1987,eastern_regionals_1987,,,Atlanta,Georgia,United States,WFA,freestyle,completed,,mirror
-1987_eurochamp,1987_european_footbag_championships_europe,1987,European Footbag Championships,european_footbag_championships,,,,,Europe,WFA,net,completed,,mirror
 1987_eurochamp_munich,1987_european_footbag_championships_munich,1987,European Footbag Championships 1987,european_footbag_championships_1987,,,Munich,Bavaria,Germany,WFA,net,completed,,mirror
 1988_worlds,1988_worlds_golden,1988,9th Annual World Footbag Championships,1988_wfa_world_championships,,,Golden,Colorado,United States,WFA,worlds,completed,,mirror
-1988_california_state,1988_california_state_open_california,1988,California State Open 1988,california_state_open_1988,,,California,,United States,WFA,net,completed,,mirror
+1988_california_state,1988_california_state_open_california,1988,California State Open 1988,california_state_open_1988,,,,California,United States,WFA,net,completed,,mirror
 1988_u_s_national,1988_national_footbag_championships_united_states,1988,U.S. National Footbag Championships,u_s_national_footbag_championships,,,,,United States,WFA,net,completed,,mirror
 1989_worlds,1989_worlds_golden,1989,10th Annual World Footbag Championships,1989_wfa_world_championships,,,Golden,Colorado,United States,WFA,worlds,completed,,mirror
 1990_worlds,1990_worlds,1990,11th Annual World Footbag Championships,1990_wfa_world_championships,,,Golden,Colorado,United States,WFA,worlds,completed,,mirror
@@ -53,12 +51,12 @@ event_key,legacy_event_id,year,event_name,event_slug,start_date,end_date,city,re
 1992_eurochamp,1992_1992_european_championships,1992,1992 European Championships,1992_european_championships,,,,,,WFA,mixed,completed,,mirror
 1992_worlds,1992_worlds,1992,13th Annual World Footbag Championships,1992_wfa_world_championships,,,Montreal,Quebec,Canada,WFA,worlds,completed,,mirror
 1993_worlds,1993_worlds,1993,14th Annual World Footbag Championships,1993_wfa_world_championships,,,Golden,Colorado,United States,WFA,worlds,completed,,mirror
-1993_louisiana_state,1993_6th_annual_louisiana_louisiana,1993,6th Annual Louisiana State Footbag Championships,6th_annual_louisiana_state_footbag_championships,,,Louisiana,,United States,WFA,net,completed,,mirror
-1993_california_state,1993_california_state_footbag_california,1993,California State Footbag Championships,california_state_footbag_championships,,,California,,United States,WFA,mixed,completed,,mirror
+1993_louisiana_state,1993_6th_annual_louisiana_louisiana,1993,6th Annual Louisiana State Footbag Championships,6th_annual_louisiana_state_footbag_championships,,,,Louisiana,United States,WFA,net,completed,,mirror
+1993_california_state,1993_california_state_footbag_california,1993,California State Footbag Championships,california_state_footbag_championships,,,,California,United States,WFA,mixed,completed,,mirror
 1993_westregion,1993_eighth_annual_western,1993,Eighth Annual Western Regional Footbag Championships,eighth_annual_western_regional_footbag_championships,,,,,,WFA,mixed,completed,,mirror
 1993_heartland,1993_heartland_regional_footbag,1993,Heartland Regional Footbag Championships,heartland_regional_footbag_championships,,,,,,WFA,mixed,completed,,mirror
 1993_midwest,1993_midwest_regional_footbag,1993,Midwest Regional Footbag Championships,midwest_regional_footbag_championships,,,,,,WFA,mixed,completed,,mirror
-1993_footbagjam,1993_northern_illinois_footbag_illinois,1993,Northern Illinois Footbag Open,northern_illinois_footbag_open,,,Illinois,,United States,WFA,mixed,completed,,mirror
+1993_footbagjam,1993_northern_illinois_footbag_illinois,1993,Northern Illinois Footbag Open,northern_illinois_footbag_open,,,,Illinois,United States,WFA,mixed,completed,,mirror
 1993_southern,1993_southern_regional_footbag,1993,Southern Regional Footbag Championships,southern_regional_footbag_championships,,,,,,WFA,mixed,completed,,mirror
 1993_usopen,1993_open_footbag_championships,1993,U.S. Open Footbag Championships,u_s_open_footbag_championships,,,,,,WFA,mixed,completed,,mirror
 1994_westregion,1994_10th_annual_western,1994,10th Annual Western Regional Footbag Championships,10th_annual_western_regional_footbag_championships,,,,,,,mixed,completed,,mirror
@@ -71,7 +69,6 @@ event_key,legacy_event_id,year,event_name,event_slug,start_date,end_date,city,re
 1997_midwest,857880964,1997,13th Annual MIDWEST REGIONAL FOOTBAG CHAMPIONSHIPS,13th_annual_midwest_regional_footbag_championships,1997-06-13,1997-06-15,Mt. Prospect,Illinois,United States,,mixed,completed,,mirror
 1997_emeraldcity,860356126,1997,14th Annual Emerald City Open Footbag Championships,14th_annual_emerald_city_open_footbag_championships,1997-06-07,1997-06-08,Seattle,Washington,United States,,net,completed,,mirror
 1997_seattle_fall_indoor,876590022,1997,1997 Seattle Fall Indoor Tournament,1997_seattle_fall_indoor_tournament,1997-11-08,1997-11-09,Seattle,Washington,United States,,mixed,completed,,mirror
-1997_worlds,1997_worlds,1997,18th Annual World Footbag Championships,1997_wfa_world_championships,,,,,,,worlds,completed,,mirror
 1997_air_a_zona,859913311,1997,Air-A-Zona State Footbag Championships,air_a_zona_state_footbag_championships,1997-01-18,1997-01-19,Scottsdale,Arizona,United States,,net,completed,,mirror
 1997_auburn_u_f,877848852,1997,Auburn U.F.O. Fall Festival,auburn_u_f_o_fall_festival,1997-11-08,1997-11-09,Auburn,Alabama,United States,,mixed,completed,,mirror
 1997_bedford_australia_indoor,857880054,1997,Bedford (Australia) Indoor Footbag Championships,bedford_australia_indoor_footbag_championships,1997-06-08,1997-06-08,Perth,Western Australia,Australia,,net,completed,,mirror
@@ -85,7 +82,7 @@ event_key,legacy_event_id,year,event_name,event_slug,start_date,end_date,city,re
 1997_southern_california,857852604,1997,Southern California Footbag Championships,southern_california_footbag_championships,1997-04-05,1997-04-06,Hermosa Beach,California,United States,,freestyle,completed,,mirror
 1997_state_games_oregon,857876215,1997,State Games of Oregon Footbag Tournament,state_games_of_oregon_footbag_tournament,1997-07-12,1997-07-13,Gresham,Oregon,United States,,net,completed,,mirror
 1997_eastregion,857879540,1997,The 15th Annual EAST COAST FOOTBAG CHAMPIONSHIPS,the_15th_annual_east_coast_footbag_championships,1997-04-26,1997-04-27,College Park,Maryland,United States,,mixed,completed,,mirror
-1997_worlds_portland,857876517,1997,18th Annual World Footbag Championships,the_18th_annual_world_footbag_championships,1997-08-11,1997-08-17,Portland,Oregon,United States,Sole Purpose Footbag Club,worlds,completed,,mirror
+1997_worlds_portland,857876517,1997,18th Annual World Footbag Championships,the_18th_annual_world_footbag_championships,1997-08-11,1997-08-17,Portland,Oregon,United States,Sole Purpose Footbag Club,worlds,completed,MERGE_ADJUDICATED:from=1997_worlds,mirror
 1997_ultimate_chaos_outdoor,865043841,1997,The Ultimate Chaos Outdoor Footbag Flying Disc Festival,the_ultimate_chaos_outdoor_footbag_flying_disc_festival,1997-09-27,1997-09-28,Carbondale,Illinois,United States,,mixed,completed,,mirror
 1997_university_oregon,857874500,1997,University of Oregon Footbag Tournament,university_of_oregon_footbag_tournament,1997-04-19,1997-04-20,Eugene,Oregon,United States,,mixed,completed,,mirror
 1997_westregion,857875120,1997,Western Regional Footbag Championships,western_regional_footbag_championships,1997-05-24,1997-05-26,Palo Alto,California,United States,,mixed,completed,,mirror
@@ -190,6 +187,7 @@ event_key,legacy_event_id,year,event_name,event_slug,start_date,end_date,city,re
 2002_footjam_meets_3borderscup,1011556608,2002,FOOTJAM meets 3BORDERSCUP,footjam_meets_3borderscup,2002-06-01,2002-06-02,Basel,Basel-Stadt,Switzerland,Bootfägers Basel,mixed,completed,,mirror
 2002_finnish,1027925383,2002,Finnish Footbag Championships 2002,finnish_footbag_championships_2002,2002-09-28,2002-09-29,Helsinki,Uusimaa,Finland,Finnsta,mixed,completed,,mirror
 2002_finnsta_city,1019193491,2002,Finnsta City Jam,finnsta_city_jam,2002-06-15,2002-06-16,Helsinki,Uusimaa,Finland,Finnsta,freestyle,completed,,mirror
+2002_footbagjam_berlin,1020262608,2002,German Footbag Open 2002,german_footbag_open_2002,2002-09-13,2002-09-15,Berlin,Berlin,Germany,FC Footstar Berlin e.V.,mixed,completed,,mirror
 2002_hungarian,1024091202,2002,III. Hungarian Footbag Festival,iii_hungarian_footbag_festival,2002-07-13,2002-07-13,Kiskunfélegyháza,Bács-Kiskun,Hungary,Sunshred Footbag Crew,freestyle,completed,,mirror
 2002_new_south_wales,1035817350,2002,New South Wales Footbag Championships,new_south_wales_footbag_championships,2002-12-07,2002-12-07,Sydney,New South Wales,Australia,,freestyle,completed,,mirror
 2002_pennstatetrios_o_f,1011324897,2002,PennStateTrio's O.F.F. 2,pennstatetrios_o_f_f_2,2002-03-02,2002-03-03,State College,Pennsylvania,United States,,freestyle,completed,,mirror
@@ -241,6 +239,7 @@ event_key,legacy_event_id,year,event_name,event_slug,start_date,end_date,city,re
 2004_finnish_helsinki,1094123527,2004,8th Annual Footbag Finnish Open 2004,8th_annual_footbag_finnish_open_2004,2004-09-24,2004-09-25,Helsinki,Uusimaa,Finland,Suomen Footbag Liitto ry. (Finnish Footbag Association),mixed,completed,,mirror
 2004_aachen_indoor,1071060801,2004,Aachen Indoor Open 2004,aachen_indoor_open_2004,2004-02-07,2004-02-08,Aachen,North Rhine-Westphalia,Germany,TSK Aachen e.V.,net,completed,,mirror
 2004_czech,1092073845,2004,Czech Championships 2004,czech_championships_2004,2004-09-04,2004-09-05,Prague,,Czech Republic,Czech Footbag Association,mixed,completed,,mirror
+2004_drunken_masters,1102447093,2004,Drunken Net Masters 2004,drunken_net_masters_2004,2004-12-25,2004-12-26,Frankfurt,Hesse,Germany,SG Frankfurt Footbag e.V.,net,completed,,mirror
 2004_finnish_naantali,1097785506,2004,Finnish Singles Net Footbag Championships 2004,finnish_singles_net_footbag_championships_2004,2004-12-04,2004-12-05,Naantali,Southwest Finland,Finland,Footcraft,net,completed,,mirror
 2004_footbagjam_frankfurt_2,1094201584,2004,Frankfurt Footbag Open 2004,frankfurt_footbag_open_2004,2004-10-02,2004-10-03,Frankfurt,Hesse,Germany,SG Frankfurt Footbag e.V.,mixed,completed,,mirror
 2004_funtastik_summer,1075781798,2004,Funtastik Summer Classic Footbag Tournament,funtastik_summer_classic_footbag_tournament,2004-09-04,2004-09-06,Harrisburg,Pennsylvania,United States,,mixed,completed,,mirror
@@ -483,6 +482,7 @@ event_key,legacy_event_id,year,event_name,event_slug,start_date,end_date,city,re
 2011_de_france_de,1294262550,2011,12e Open de France de Footbag,12e_open_de_france_de_footbag,2011-02-24,2011-02-27,Paris,Île-de-France,France,Rien N'est Hacky - RNH Footbag,mixed,completed,,mirror
 2011_german,1298627369,2011,13th Annual German Footbag Championships,13th_annual_german_footbag_championships,2011-10-21,2011-10-23,Kiel,Schleswig-Holstein,Germany,Nordlicht Footbag Club e.V.,mixed,completed,,mirror
 2011_eurochamp_madrid,1293877917,2011,13th Annual IFPA European Footbag Championships,13th_annual_ifpa_european_footbag_championships,2011-07-08,2011-07-10,Madrid,Community of Madrid,Spain,Madrid Footbag Club,mixed,completed,,mirror
+2011_caribbean,1296449468,2011,1st Caribbean Jam,1st_caribbean_jam,2011-02-26,2011-02-28,Barranquilla,Atlántico,Colombia,Footbag Barranquilla,freestyle,completed,,mirror
 2011_eastregion,1313351184,2011,2011 East Coast Footbag Championships,2011_east_coast_footbag_championships,2011-09-24,2011-09-25,New Brunswick,New Jersey,United States,,mixed,completed,,mirror
 2011_green_chaos,1295120951,2011,2011 Green Cup Presented by Chaos,2011_green_cup_presented_by_chaos,2011-05-28,2011-05-30,Oakland,California,United States,Chaos Footbag Club,mixed,completed,,mirror
 2011_mud_island_belt,1294779128,2011,2011 Mud Island Belt presented by Memphis Footworks,2011_mud_island_belt_presented_by_memphis_footworks,2011-04-09,2011-04-10,Memphis,Tennessee,United States,Memphis Footworks,net,completed,,mirror

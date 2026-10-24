@@ -241,6 +241,19 @@ _CANONICAL_COUNTRY: dict[str, str] = {
     "usa": "United States",
 }
 
+# A US state named where a city belongs ("Texas, USA") is the event's region, and
+# its city is unknown. New York and Washington are left alone: each is also a city.
+_US_STATE_REGIONS: frozenset[str] = frozenset({
+    "alabama", "alaska", "arizona", "arkansas", "california", "colorado", "connecticut",
+    "delaware", "florida", "georgia", "hawaii", "idaho", "illinois", "indiana", "iowa",
+    "kansas", "kentucky", "louisiana", "maine", "maryland", "massachusetts", "michigan",
+    "minnesota", "mississippi", "missouri", "montana", "nebraska", "nevada",
+    "new hampshire", "new jersey", "new mexico", "north carolina", "north dakota", "ohio",
+    "oklahoma", "oregon", "pennsylvania", "rhode island", "south carolina", "south dakota",
+    "tennessee", "texas", "utah", "vermont", "virginia", "west virginia", "wisconsin",
+    "wyoming",
+})
+
 
 def parse_location(location: str) -> tuple[str, str, str]:
     """
@@ -290,6 +303,9 @@ def parse_location(location: str) -> tuple[str, str, str]:
         city = ""
 
     country = _CANONICAL_COUNTRY.get(country.lower().strip(), country)
+
+    if country == "United States" and not region and city.lower().strip() in _US_STATE_REGIONS:
+        city, region = "", city
 
     return city, region, country
 
@@ -1006,20 +1022,85 @@ with open(OUT / "Placements_ByPerson.csv", newline="", encoding="utf-8") as _f:
 _pbp_total = sum(len(v) for v in pbp_by_event.values())
 print(f"  {_pbp_total:,} placement rows, {len(pbp_by_event):,} events covered")
 
-# person-level country overrides (nationality corrections where event-location heuristic is wrong)
+# ── A player's country, from explicit evidence only (pipeline/historical/player_country.py) ──
+import sys as _sys_pc
+if str(ROOT) not in _sys_pc.path:
+    _sys_pc.path.insert(0, str(ROOT))
+from pipeline.historical import player_country as _player_country  # noqa: E402
+
+# Curated decisions: a country, or a hold that leaves it unknown. A row awaiting
+# review decides nothing, and a status this file does not define stops the run.
 _COUNTRY_OVERRIDES_PATH = ROOT / "inputs" / "person_country_overrides.csv"
-_person_country_overrides: dict[str, str] = {}
-_country_overrides_skipped = 0
+_curated_country: dict[str, str] = {}
+_country_overrides_pending = 0
 if _COUNTRY_OVERRIDES_PATH.exists():
     with open(_COUNTRY_OVERRIDES_PATH, newline="", encoding="utf-8") as _f:
         for _r in csv.DictReader(_f):
-            # Skip entries marked for review (not yet human-approved)
-            if _r.get("status", "").strip() == "review":
-                _country_overrides_skipped += 1
-                continue
-            _person_country_overrides[_r["person_id"].strip()] = _r["country"].strip()
-    print(f"  Loaded {len(_person_country_overrides)} person country override(s)"
-          f"{f', {_country_overrides_skipped} pending review' if _country_overrides_skipped else ''}")
+            _status = _r.get("status", "").strip()
+            _pid = _r["person_id"].strip()
+            if _status in _player_country.IGNORED_STATUSES:
+                _country_overrides_pending += 1
+            elif _status == _player_country.HOLD:
+                _curated_country[_pid] = _player_country.HOLD
+            elif _status in _player_country.CURATED_STATUSES:
+                _curated_country[_pid] = _r["country"].strip()
+            else:
+                raise SystemExit(f"{_COUNTRY_OVERRIDES_PATH}: person {_pid} has status {_status!r}; "
+                                 f"expected one of {sorted(_player_country.CURATED_STATUSES | _player_country.IGNORED_STATUSES | {_player_country.HOLD})}")
+    print(f"  Loaded {len(_curated_country)} curated country decision(s)"
+          f"{f', {_country_overrides_pending} pending review' if _country_overrides_pending else ''}")
+
+# Account country, from each linked member's legacy profile page in the mirror.
+_MIRROR_PROFILES = ROOT.parent / "footbag_legacy_mirror" / "www.footbag.org" / "members" / "profile"
+if not _MIRROR_PROFILES.is_dir():
+    raise SystemExit(
+        f"Missing the footbag.org mirror's member profiles: {_MIRROR_PROFILES}\n"
+        "  A player's account country is read from them. Link the mirror at the repository "
+        "root (footbag_legacy_mirror) and rerun ./run_pipeline.sh full.")
+_account_unrecognised: list[str] = []
+
+# The account a person is linked to includes the curated supplement the platform
+# export applies after this step, so a supplemented person's account country is read
+# here too.
+_member_id_for_country: dict[str, str] = dict(member_id_map)
+_MEMBER_ID_SUPPLEMENT = ROOT / "inputs" / "identity_lock" / "member_id_supplement.csv"
+if _MEMBER_ID_SUPPLEMENT.exists():
+    with open(_MEMBER_ID_SUPPLEMENT, newline="", encoding="utf-8") as _f:
+        for _r in csv.DictReader(_f):
+            if _r.get("person_id", "").strip() and _r.get("member_id", "").strip():
+                _member_id_for_country.setdefault(_r["person_id"].strip(), _r["member_id"].strip())
+
+
+def _profile_country_for(member_id: str) -> tuple[str, str]:
+    page = _MIRROR_PROFILES / member_id / "index.html"
+    if not page.exists():
+        return "", ""
+    return _player_country.profile_country(page.read_text(encoding="utf-8", errors="replace"))
+
+
+# Countries written beside a player's own name on their singles result lines. A
+# doubles line names two players, so a country on it cannot be credited to one.
+_result_countries: dict[str, Counter] = defaultdict(Counter)
+for _s in stage2_rows:
+    _eid = _s["event_id"]
+    _by_slot: dict[tuple[str, str], list[str]] = defaultdict(list)
+    for _r in pbp_by_event.get(_eid, []):
+        if _r.get("competitor_type") == "player" and (_r.get("person_id") or "").strip():
+            _by_slot[(_r["division_canon"], str(_r["place"]).strip())].append(_r["person_id"].strip())
+    if not _by_slot:
+        continue
+    try:
+        _placements = json.loads(_s.get("placements_json") or "[]")
+    except Exception:
+        _placements = []
+    for _p in _placements:
+        _entry = _p.get("entry_raw") or ""
+        if _p.get("competitor_type") != "player" or "/" in _entry or " & " in _entry:
+            continue
+        _pids = _by_slot.get((_p.get("division_canon") or "", str(_p.get("place", "")).strip()), [])
+        if len(_pids) == 1:
+            for _c in _player_country.entry_countries(_entry):
+                _result_countries[_pids[0]][_c] += 1
 
 
 # ── Build output rows ─────────────────────────────────────────────────────────
@@ -1569,10 +1650,13 @@ print(f"  {len(_difficulty_by_pid):,} difficulty profiles, {len(_diversity_by_pi
 persons_out: list[dict] = []
 for row in sorted(pt_rows, key=lambda r: r["person_canon"]):
     pid   = row["effective_person_id"]
-    # Country derived from PBP stats (unchanged — only used for display)
     stats = _pbp_stats.get(pid, {})
-    countries = stats.get("countries", Counter())
-    top_country = _person_country_overrides.get(pid) or (countries.most_common(1)[0][0] if countries else "")
+    _mid = _member_id_for_country.get(pid, "")
+    _acct_raw, _acct = _profile_country_for(_mid) if _mid else ("", "")
+    if _acct_raw and not _acct:
+        _account_unrecognised.append(f"{pid} ({_acct_raw!r})")
+    top_country = _player_country.choose_country(_curated_country.get(pid), _acct,
+                                     _result_countries.get(pid, Counter()))
     _years_set = stats.get("years", set())
     first_year = str(min(_years_set)) if _years_set else ""
     last_year  = str(max(_years_set)) if _years_set else ""
@@ -1611,6 +1695,16 @@ for row in sorted(pt_rows, key=lambda r: r["person_canon"]):
         "signature_trick_2":          top_tricks[1] if len(top_tricks) > 1 else "",
         "signature_trick_3":          top_tricks[2] if len(top_tricks) > 2 else "",
     })
+
+if _account_unrecognised:
+    # An account's own country that the name map cannot read is explicit
+    # evidence; dropping it would leave the player unknown with nothing said.
+    raise SystemExit(
+        f"{len(_account_unrecognised)} account profile country value(s) are not in the country "
+        f"name map in pipeline/historical/player_country.py: {_account_unrecognised[:10]}")
+_n_known = sum(1 for p in persons_out if p["country"])
+print(f"  Player country: {_n_known:,} from explicit evidence, "
+      f"{len(persons_out) - _n_known:,} unknown")
 
 
 # ── Person-likeness filter: drop non-person-like PT rows ─────────────────────

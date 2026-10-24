@@ -17,6 +17,7 @@ Secondary artifact:
 from __future__ import annotations
 
 import argparse
+import re
 import subprocess
 import sys
 from collections import Counter
@@ -113,19 +114,18 @@ OPTIONAL_CHECKS = [
         "needs_workbook": True,
     },
     # Character-loss duplicate persons in the frozen identity lock. Reports a
-    # person carrying no player ids and no legacy account link whose name is a
-    # short deletion of another person's name — the shape a dropped accented
-    # letter produces, which splits a real player's record into a copy nobody
-    # can claim. Severity=warn: a dropped diacritic is not mechanically
-    # distinguishable from a genuine difference between two people, because the
-    # surviving names are themselves often already transliterated, so every pair
-    # needs a human ruling and a blocking gate would stop the pipeline on
-    # questions only a person can answer. Ruled pairs are suppressed through
-    # overrides/identity_review_queue.csv.
+    # person carrying no legacy account link whose name is a short deletion of
+    # another person's name — the shape a dropped accented letter produces,
+    # which splits a real player's record into a copy nobody can claim.
+    # Severity=hard: no data-quality check ships as a warning. A dropped
+    # diacritic is not mechanically distinguishable from a genuine difference
+    # between two people, so every pair needs a human ruling before a production
+    # ship, recorded in overrides/identity_review_queue.csv; "cannot tell" is an
+    # accepted ruling, so the gate never forces a guess.
     {
         "name": "character_loss_pairs",
         "path": "pipeline/qc/check_character_loss_pairs.py",
-        "severity": "warn",
+        "severity": "hard",
         "needs_workbook": False,
     },
     # Committed seed text hygiene. A seed CSV is an input the production load
@@ -286,6 +286,22 @@ def check_events(events: pd.DataFrame, collector: IssueCollector) -> None:
     if dup:
         collector.hard("duplicate_event_key", f"{dup} duplicate event_key rows", table=table)
 
+    # One competition reaching the archive from two results lanes arrives under two
+    # keys, so a unique key does not rule it out; a shared year and title does. A
+    # genuine repeat is merged in overrides/event_equivalence.csv, never shipped twice.
+    if {"year", "event_name"} <= set(events.columns):
+        title = events["event_name"].map(lambda s: normalize_text(s).lower())
+        same = events.assign(_title=title)
+        same = same[same["_title"] != ""]
+        groups = same.groupby(["year", "_title"])["event_key"].apply(list)
+        for (year, _), keys in groups.items():
+            if len(keys) > 1:
+                collector.hard(
+                    "duplicate_event_year_title",
+                    f"{year}: one title on {len(keys)} events {sorted(keys)}; merge them in "
+                    f"overrides/event_equivalence.csv",
+                    table=table)
+
     for col in ["event_name", "year"]:
         if col in events.columns:
             blanks = int((events[col].astype(str).str.strip() == "").sum())
@@ -293,6 +309,24 @@ def check_events(events: pd.DataFrame, collector: IssueCollector) -> None:
                 collector.hard("blank_required_field", f"{blanks} blank values in {col}", table=table)
         else:
             collector.warn("missing_recommended_column", f"Recommended column missing: {col}", table=table)
+
+
+def check_trick_text(event_disciplines: pd.DataFrame, participants: pd.DataFrame,
+                     collector: IssueCollector) -> None:
+    """A trick sequence ("Legbeater > Vortex") read as a competitor or as a
+    division heading; the arrow is the tell, because no name or heading carries
+    one."""
+    for df, col, table in ((event_disciplines, "discipline_name", "event_disciplines.csv"),
+                           (participants, "display_name", "event_result_participants.csv")):
+        if df.empty or col not in df.columns:
+            continue
+        hits = df[df[col].astype(str).str.contains(">", regex=False)]
+        if len(hits):
+            sample = sorted(set(hits["event_key"].astype(str)))[:5] if "event_key" in hits.columns else []
+            collector.hard("trick_text_as_name",
+                           f"{len(hits)} {col} value(s) carry a trick arrow, events {sample}; "
+                           "rebuild the division in the placements lock",
+                           table=table)
 
 
 def check_event_disciplines(event_disciplines: pd.DataFrame, events: pd.DataFrame, collector: IssueCollector) -> None:
@@ -309,6 +343,20 @@ def check_event_disciplines(event_disciplines: pd.DataFrame, events: pd.DataFram
     dup = int(event_disciplines.duplicated(subset=["event_key", "discipline_key"]).sum())
     if dup:
         collector.hard("duplicate_event_discipline", f"{dup} duplicate (event_key, discipline_key) rows", table=table)
+
+    # One division spelled two ways reaches the event page as two sections, each
+    # with part of its places, under keys that differ. Names that agree once case,
+    # spacing and punctuation are ignored are one division.
+    spelled = event_disciplines.assign(
+        _name=event_disciplines["discipline_name"].map(
+            lambda s: re.sub(r"[^a-z0-9]", "", str(s).lower())))
+    for (event_key, _), keys in spelled.groupby(["event_key", "_name"])["discipline_key"].apply(list).items():
+        if len(keys) > 1:
+            collector.hard(
+                "duplicate_discipline_spelling",
+                f"{event_key}: one division under {len(keys)} keys {sorted(keys)}; give it one "
+                "name upstream (the placements lock or a curated results file)",
+                table=table)
 
     valid_events = set(events["event_key"].astype(str).str.strip()) if not events.empty and "event_key" in events.columns else set()
     if valid_events:
@@ -673,6 +721,7 @@ def main() -> int:
     check_event_disciplines(event_disciplines, events, collector)
     check_event_results(event_results, event_disciplines, collector)
     check_event_result_participants(participants, event_results, event_disciplines, persons, collector)
+    check_trick_text(event_disciplines, participants, collector)
     check_persons(persons, collector)
     check_cross_table_integrity(events, event_disciplines, event_results, participants, collector)
 

@@ -24,7 +24,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "legacy_data" / "pipeline" / "historical" / "export_historical_csvs.py"
-WANTED = {"_REGION_NOT_COUNTRY", "_CANONICAL_COUNTRY", "parse_location"}
+WANTED = {"_REGION_NOT_COUNTRY", "_CANONICAL_COUNTRY", "_US_STATE_REGIONS", "parse_location"}
 
 
 def _load_parser():
@@ -63,3 +63,15 @@ def test_other_countries_and_region_corrections_are_unchanged():
     assert parse_location("Prague, Czech Republic") == ("Prague", "", "Czech Republic")
     assert parse_location("Glasgow, Scotland") == ("Glasgow", "Scotland", "United Kingdom")
     assert parse_location("Golden, Colorado, United States") == ("Golden", "Colorado", "United States")
+
+
+def test_a_state_named_as_the_city_is_the_region_and_the_city_is_unknown():
+    # Broken, an event page says it was held in the city of "Texas".
+    assert parse_location("Texas, USA") == ("", "Texas", "United States")
+    assert parse_location("Rhode Island, United States") == ("", "Rhode Island", "United States")
+
+
+def test_a_name_that_is_both_city_and_state_stays_a_city():
+    # Broken, New York City events would lose their city.
+    assert parse_location("New York, USA") == ("New York", "", "United States")
+    assert parse_location("Washington, USA") == ("Washington", "", "United States")

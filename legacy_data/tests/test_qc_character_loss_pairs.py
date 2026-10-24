@@ -105,7 +105,39 @@ def test_a_pair_already_ruled_on_by_person_id_is_not_reported_again(tmp_path):
     truth = _truth(tmp_path, [REAL_PLAYER, LOST_LETTER_COPY])
     register = _register(tmp_path, [{
         "pair_id": "R-11", "alias_pid": "96b84e1f", "canon_pid": "8a15006e",
-        "status": "REVIEW",
+        "status": "DIFFERENT",
+    }])
+    assert _run(truth, register) == 0
+
+
+def test_a_split_twin_carrying_player_ids_is_reported(tmp_path):
+    # Defect caught: a lost-letter twin minted with player ids of its own, and
+    # no account link, passing unseen while it splits a real player's record.
+    truth = _truth(tmp_path, [
+        REAL_PLAYER,
+        _person("71b15435", "Przemysaw Pietrzycki", player_ids="7a28d48e"),
+    ])
+    assert _run(truth, _register(tmp_path)) == 1
+
+
+def test_a_pair_still_under_review_is_reported(tmp_path):
+    # Defect caught: a register row recording only that a pair awaits a
+    # ruling letting the blocking check pass, so an unruled identity ships.
+    truth = _truth(tmp_path, [REAL_PLAYER, LOST_LETTER_COPY])
+    for status in ("REVIEW", "DO_NOT_MERGE_YET"):
+        register = _register(tmp_path, [{
+            "pair_id": "R-11", "alias_pid": "96b84e1f", "canon_pid": "8a15006e",
+            "status": status,
+        }])
+        assert _run(truth, register) == 1, status
+
+
+def test_a_cannot_tell_ruling_settles_the_pair(tmp_path):
+    """An honest 'the evidence cannot tell' passes the check without a merge."""
+    truth = _truth(tmp_path, [REAL_PLAYER, LOST_LETTER_COPY])
+    register = _register(tmp_path, [{
+        "pair_id": "R-11", "alias_pid": "96b84e1f", "canon_pid": "8a15006e",
+        "status": "CANNOT_TELL",
     }])
     assert _run(truth, register) == 0
 

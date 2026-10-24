@@ -30,3 +30,5 @@ event_id,notes
 9934528,FBW carrier superseded by fbw_1983_secret_underground_jam.csv — naturally deduped but junked for explicitness
 9980521,FBW carrier superseded by fbw_1985_wfa_rocky_mountain_regionals.csv — series_only slug causes _2 collision; junked to free clean key
 9940469,FBW carrier superseded by fbw_1985_western_national_indoor.csv — has location so survives dedup as city-suffixed duplicate
+1984_european_footbag_championships_europe,Withheld: conflicting uncited record of the 1984 European Championships (fbw_1984_european_championships.csv names a different Open Singles Net champion and cites no issue); magazine_1984_european_championships.csv (FBW-V4N1) ships; kept pending corroboration
+1987_european_footbag_championships_europe,Withheld: conflicting uncited record of the 1987 European Championships (fbw_1987_european_championships.csv names a different Open Singles Net champion and cites no issue); magazine_1987_european_championships_munich.csv (FBW-V7N1) ships; kept pending corroboration

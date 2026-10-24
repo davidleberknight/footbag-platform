@@ -638,10 +638,11 @@ def _person_row(pid: str, name: str) -> dict:
     }
 
 
-def build_doubles_seed(seed_dir: Path, with_qc: bool = False) -> Path:
+def build_doubles_seed(seed_dir: Path, with_qc: bool = False, undated: bool = False) -> Path:
     """A canonical doubles-net entry (two linked participants -> one team). With
     with_qc, also a malformed entry (one participant) that loader 13 flags as a
-    wrong_participant_count QC issue without building a team."""
+    wrong_participant_count QC issue without building a team. With undated, the
+    event carries a year but no known day."""
     seed_dir.mkdir(parents=True, exist_ok=True)
     ek, dk = "2001_dbl_test", "open_doubles_net"
     write_csv(
@@ -651,7 +652,8 @@ def build_doubles_seed(seed_dir: Path, with_qc: bool = False) -> Path:
          "status", "notes", "source"],
         [{"event_key": ek, "legacy_event_id": ek, "year": "2001",
           "event_name": "Doubles Test Open", "event_slug": "doubles_test_2001",
-          "start_date": "2001-01-01", "end_date": "2001-01-02", "city": "Town",
+          "start_date": "" if undated else "2001-01-01",
+          "end_date": "" if undated else "2001-01-02", "city": "Town",
           "region": "State", "country": "United States", "host_club": "",
           "status": "completed", "notes": "", "source": "mirror"}],
     )
@@ -699,10 +701,10 @@ def build_doubles_seed(seed_dir: Path, with_qc: bool = False) -> Path:
     return seed_dir
 
 
-def _load_canonical_doubles(tmp_path: Path, with_qc: bool = False) -> Path:
+def _load_canonical_doubles(tmp_path: Path, with_qc: bool = False, undated: bool = False) -> Path:
     """Build the schema, load the doubles seed via loader 08, return the db path."""
     db = make_db(tmp_path)
-    seed_dir = build_doubles_seed(tmp_path / "seed", with_qc=with_qc)
+    seed_dir = build_doubles_seed(tmp_path / "seed", with_qc=with_qc, undated=undated)
     r = run([
         "legacy_data/event_results/scripts/08_load_mvfp_seed_full_to_sqlite.py",
         "--db", str(db), "--seed-dir", str(seed_dir), "--no-backup",
@@ -731,6 +733,42 @@ def test_net_teams_first_load(tmp_path: Path) -> None:
     assert count(db, "net_team") == 1
     assert count(db, "net_team_member") == 2
     assert count(db, "net_team_appearance") == 1
+
+
+def _query(db: Path, sql: str) -> list[tuple]:
+    conn = sqlite3.connect(db)
+    try:
+        return conn.execute(sql).fetchall()
+    finally:
+        conn.close()
+
+
+def test_an_undated_event_is_stored_as_its_bare_year(tmp_path: Path) -> None:
+    """An event whose day is unknown keeps its year alone. Defect caught: the
+    site presenting an invented day such as 1 July as the event's date."""
+    db = make_db(tmp_path)
+    seed_dir = build_mvfp_seed(tmp_path / "seed")
+    assert run(_mvfp_loader_args(db, seed_dir)).returncode == 0
+    assert _query(db, "SELECT start_date, end_date FROM events WHERE id = '2000_idem_test'") == [
+        ("2000", "2000")]
+
+
+def test_a_dated_event_keeps_its_dates(tmp_path: Path) -> None:
+    """The other side of the same rule. Defect caught: a known date overwritten
+    by the year-only form."""
+    db = _load_canonical_doubles(tmp_path)
+    assert _query(db, "SELECT start_date, end_date FROM events WHERE id = '2001_dbl_test'") == [
+        ("2001-01-01", "2001-01-02")]
+
+
+def test_a_net_team_appearance_at_an_undated_event_carries_its_year(tmp_path: Path) -> None:
+    """Defect caught: a team page heading an undated event's results with a year
+    thousands of years before the sport existed, because a bare year read as a
+    date is a day count, not a year."""
+    db = _load_canonical_doubles(tmp_path, undated=True)
+    assert run(_loader13(db)).returncode == 0
+    assert _query(db, "SELECT event_year FROM net_team_appearance") == [(2001,)]
+    assert _query(db, "SELECT first_year, last_year FROM net_team") == [(2001, 2001)]
 
 
 def test_net_teams_rerun_idempotent(tmp_path: Path) -> None:

@@ -166,6 +166,16 @@ def _load_recovered_results_overrides(path: str | Path = "overrides/recovered_re
     return overrides
 
 
+def has_results_after_recovery(event_id: str, results_block_raw: str,
+                               recovered: dict[str, str], min_lines: int) -> bool:
+    """A recovered block is a curator's assertion that the event has results, so
+    the short-page line minimum, which exists to drop tests, cancellations and
+    prose, does not veto it; every other page is judged by that minimum."""
+    if event_id in recovered:
+        return bool(results_block_raw.strip())
+    return compute_has_results(results_block_raw, min_lines)
+
+
 def sanitize_csv_string(s: str) -> str:
     """Remove control characters for CSV safety."""
     if not isinstance(s, str):
@@ -1010,7 +1020,8 @@ def main():
     for rec in records:
         results_block_raw = rec.get("results_block_raw") or ""
         rec["results_lines_n"] = str(len([ln for ln in results_block_raw.splitlines() if ln.strip()])) if results_block_raw else "0"
-        rec["has_results"] = "True" if compute_has_results(results_block_raw, args.min_results_lines) else "False"
+        rec["has_results"] = "True" if has_results_after_recovery(
+            str(rec.get("event_id", "")).strip(), results_block_raw, _over, args.min_results_lines) else "False"
 
     df = pd.DataFrame(records)
     if args.mode == "results":

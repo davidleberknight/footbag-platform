@@ -160,7 +160,7 @@ def load_doubles_net_entries(conn: sqlite3.Connection) -> list[dict]:
             ed.name         AS discipline_name,
             ere.placement,
             ere.score_text,
-            CAST(strftime('%Y', e.start_date) AS INTEGER) AS event_year,
+            CAST(substr(e.start_date, 1, 4) AS INTEGER) AS event_year,
             COUNT(erep.id) AS participant_count,
             SUM(CASE WHEN erep.historical_person_id IS NULL THEN 1 ELSE 0 END) AS unlinked_count,
             GROUP_CONCAT(erep.historical_person_id

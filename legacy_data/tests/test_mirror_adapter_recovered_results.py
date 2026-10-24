@@ -33,3 +33,28 @@ def test_a_present_recovered_results_file_loads_every_row(tmp_path):
     path.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
     assert adapter._load_recovered_results_overrides(path) == {
         "857879540": "1. A", "1770923654": "1. B"}
+
+
+# A recovered event with a single winner: two lines, under the five-line minimum.
+_SHORT_RESULTS = "Open Singles Net:\n1. Player One"
+# A cancellation page: three lines of prose, no placement lines.
+_CANCELLATION = "Cancelled due to weather.\nSee you next year.\nThanks all."
+
+
+def test_a_short_recovered_event_keeps_its_results():
+    # Without this, a curated recovery of a small event is silently dropped again.
+    recovered = {"1000000001": _SHORT_RESULTS}
+    assert adapter.has_results_after_recovery("1000000001", _SHORT_RESULTS, recovered, 5)
+
+
+def test_a_short_unrecovered_page_is_still_dropped():
+    # Without this, a cancellation or prose page would surface as an event with results.
+    recovered = {"1000000001": _SHORT_RESULTS}
+    assert not adapter.has_results_after_recovery("1000000002", _CANCELLATION, recovered, 5)
+    assert not adapter.has_results_after_recovery("1000000002", _SHORT_RESULTS, recovered, 5)
+
+
+def test_an_empty_recovered_block_does_not_count_as_results():
+    # Without this, a blank curated entry would put an empty event on the site.
+    recovered = {"1000000001": "   "}
+    assert not adapter.has_results_after_recovery("1000000001", "   ", recovered, 5)

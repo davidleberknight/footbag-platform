@@ -332,11 +332,12 @@ def main() -> None:
             date_fill_updates.append((idx, new_start, new_end, append_note(notes, "MVFP seed fallback: filled missing upcoming dates")))
             continue
 
-        # completed events -> plausible historical fallback in same year
+        # completed events with no known day keep their bare year; inventing a day
+        # would present a guess as history
         if status == "completed" or "completed_with_results" in roles or "completed_no_results" in roles:
-            new_start = f"{year}-07-01" if not start else start
-            new_end = f"{year}-07-03" if not end else end
-            date_fill_updates.append((idx, new_start, new_end, append_note(notes, "MVFP seed fallback: filled missing completed dates")))
+            new_start = str(year) if not start else start
+            new_end = new_start if not end else end
+            date_fill_updates.append((idx, new_start, new_end, append_note(notes, "MVFP seed fallback: undated completed event stored as its year")))
             continue
 
     for idx, new_start, new_end, new_notes in date_fill_updates:
@@ -379,10 +380,11 @@ def main() -> None:
         year = int(row["year"])
 
         if not start:
-            seed_events.at[idx, "start_date"] = f"{year}-07-01"
+            start = str(year)
+            seed_events.at[idx, "start_date"] = start
 
         if not end:
-            seed_events.at[idx, "end_date"] = f"{year}-07-05"
+            seed_events.at[idx, "end_date"] = start
 
     seed_events.to_csv(out_dir / "seed_events.csv", index=False)
     seed_event_disciplines.to_csv(out_dir / "seed_event_disciplines.csv", index=False)

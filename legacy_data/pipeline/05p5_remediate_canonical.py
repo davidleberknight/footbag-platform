@@ -1741,19 +1741,22 @@ print(f"  Resolved by exact canonical name match: {_f7_name_match:,}")
 print(f"  Left unresolved (empty person_id):      {_f7_left_empty:,}")
 print(f"  Remaining empty person_id (pre-Fix8):   {_f7_remaining:,}")
 
-# ── Fix 8: Remove artifact participants + orphaned result rows ─────────────────
-# Participants with blank person_id whose display_name is a parsing artifact
-# (single word, city/state/country, club name, parenthetical fragment, geographic
-# garbage) are REMOVED.  These are not people; keeping them corrupts statistics.
-# After removal, event_result rows that end up with zero participants are also
-# removed (orphaned result → no data at that placement).
+# ── Fix 8: Unknown competitors for artifact names + orphaned result rows ───────
+# A participant with a blank person_id whose display_name cannot be trusted as a
+# name (single word, city/state/country, club name, parenthetical fragment,
+# geographic garbage) keeps the placement but loses the name: it becomes the
+# [UNKNOWN] sentinel in singles and [UNKNOWN PARTNER] in doubles, which the site
+# shows as "Unknown". The source establishes that the place existed, so the
+# placement is history; a single word cannot tell "Jean" from "Poland", so no
+# name is shown. An unlinked participant counts toward no player's statistics.
+# Event_result rows that already carry zero participants are removed (orphaned
+# result → no data at that placement), and a discipline this pass would leave
+# with no results stops the run.
 #
-# Legitimate sentinels are KEPT:
-#   __NON_PERSON__, __UNKNOWN_PARTNER__, [UNKNOWN PARTNER]
-# Single-name fragments (Jean, Juha) that look like real first names are also
-# REMOVED — unidentifiable and cannot be attributed.
+# Legitimate sentinels are KEPT as they are:
+#   __NON_PERSON__, __UNKNOWN_PARTNER__, [UNKNOWN PARTNER], [UNKNOWN]
 
-print("\n[Fix 8] Removing artifact participants and orphaned results...")
+print("\n[Fix 8] Marking artifact participants unknown and removing orphaned results...")
 
 import re as _re
 
@@ -1801,36 +1804,43 @@ def _is_artifact(name: str) -> bool:
 
 
 # Build doubles slot set — artifacts in doubles results become [UNKNOWN PARTNER]
-# rather than being removed (doubles need exactly 2 participants).
+# (doubles need exactly 2 participants); everywhere else they become [UNKNOWN].
 _doubles_slots: set[tuple[str, str]] = {
     (r["event_key"], r["discipline_key"])
     for r in disciplines
     if r.get("team_type") == "doubles"
 }
 
-# First pass: remove artifact participants from singles; sentinel-ize in doubles
-_f8_removed = 0
-_f8_sentineled = 0
-clean_participants = []
-for row in participants:
-    pid   = row.get("person_id", "").strip()
-    dname = row.get("display_name", "").strip()
-    # A sourced club standing is a club's name by design, not a parsing artifact.
-    if not pid and _is_artifact(dname) and "club_standing" not in (row.get("notes") or ""):
-        slot = (row.get("event_key", ""), row.get("discipline_key", ""))
-        if slot in _doubles_slots:
-            # Replace with explicit unknown sentinel — preserves doubles structure
-            row["display_name"] = "[UNKNOWN PARTNER]"
-            clean_participants.append(row)
-            _f8_sentineled += 1
-        else:
-            _f8_removed += 1   # singles/other — remove entirely
-    else:
-        clean_participants.append(row)
+def mark_artifact_participants(participants, doubles_slots) -> tuple[int, int]:
+    """Replace each untrusted unlinked name, in place, with the unknown sentinel
+    for its slot; return how many became [UNKNOWN] and [UNKNOWN PARTNER]."""
+    unknown = sentineled = 0
+    for row in participants:
+        pid   = row.get("person_id", "").strip()
+        dname = row.get("display_name", "").strip()
+        # A sourced club standing is a club's name by design, not a parsing artifact.
+        if not pid and _is_artifact(dname) and "club_standing" not in (row.get("notes") or ""):
+            slot = (row.get("event_key", ""), row.get("discipline_key", ""))
+            if slot in doubles_slots:
+                row["display_name"] = "[UNKNOWN PARTNER]"
+                sentineled += 1
+            else:
+                row["display_name"] = "[UNKNOWN]"
+                unknown += 1
+    return unknown, sentineled
 
-participants = clean_participants
 
-# Second pass: remove event_result rows that now have zero participants
+def disciplines_emptied(before: set, results) -> list:
+    """Disciplines that held results in `before` and hold none in `results`."""
+    return sorted(before - {(r["event_key"], r["discipline_key"]) for r in results})
+
+
+_f8_discs_with_results_before = {(r["event_key"], r["discipline_key"]) for r in results}
+
+# First pass: replace each artifact name with the unknown sentinel for its slot
+_f8_unknown, _f8_sentineled = mark_artifact_participants(participants, _doubles_slots)
+
+# Second pass: remove event_result rows that have zero participants
 _result_keys_with_parts: set[tuple[str, str, str]] = {
     (r["event_key"], r["discipline_key"], r["placement"])
     for r in participants
@@ -1854,10 +1864,19 @@ for row in participants:
     row["participant_order"] = str(_slot_counter[slot])
 
 _f8_remaining = sum(1 for r in participants if not r.get("person_id", "").strip())
-print(f"  Artifact participants removed:      {_f8_removed:,}")
+print(f"  Artifact participants→[UNKNOWN]:   {_f8_unknown:,}")
 print(f"  Artifact participants→sentinel:    {_f8_sentineled:,}")
 print(f"  Orphaned result rows removed:      {_f8_orphan_results:,}")
 print(f"  Remaining empty person_id:         {_f8_remaining:,}")
+
+# A discipline that held results before this pass and holds none after it lost
+# every placement here; that is history removed, not cleanup.
+_f8_emptied = disciplines_emptied(_f8_discs_with_results_before, results)
+if _f8_emptied:
+    raise SystemExit(
+        f"[Fix 8] refusing to empty {len(_f8_emptied)} discipline(s) of every result, "
+        f"for example {_f8_emptied[:5]}. A placement the source records is kept; find "
+        "why these results have no participants.")
 
 # ── Andy Linder corrections (S-17, S-18, S-19) ───────────────────────────────
 # S-17: Remove Andy Linder from 1980_western_states / freestyle / p1 (+ cascade)
@@ -2188,6 +2207,106 @@ print(f"  Part C: disciplines reclassified doubles→team: {_pC_reclassified}")
 # NOT overwritten — the conflict is noted in the results.csv notes field.
 # The loser is removed from all five canonical tables after merge.
 
+# Loser disciplines that duplicate a winner discipline under another spelling: the
+# merged-away pre-1985 Worlds events spell these with an `open_` prefix and the
+# survivors spell them without it, and the survivor's copy holds the competitors.
+# The merge does not carry them, and Fix 13 removes any that reach it another way.
+# Named pairs only: the same prefixed key on a fifth event carries real competitors.
+_F13_TARGETS: list[tuple[str, str]] = [
+    ("1982_worlds_oregon_city", "open_doubles_net"),
+    ("1982_worlds_oregon_city", "open_golf"),
+    ("1982_worlds_oregon_city", "open_singles_consecutive"),
+    ("1982_worlds_oregon_city", "open_singles_freestyle"),
+    ("1982_worlds_oregon_city", "open_singles_net"),
+    ("1982_worlds_oregon_city", "open_team_freestyle"),
+    ("1983_worlds_boulder_wfa", "open_golf"),
+    ("1983_worlds_boulder_wfa", "open_singles_net"),
+    ("1983_worlds_boulder_nhsa", "open_doubles_net"),
+    ("1983_worlds_boulder_nhsa", "open_golf"),
+    ("1983_worlds_boulder_nhsa", "open_singles_consecutive"),
+    ("1983_worlds_boulder_nhsa", "open_singles_freestyle"),
+    ("1983_worlds_boulder_nhsa", "open_singles_net"),
+    ("1983_worlds_boulder_nhsa", "open_team_freestyle"),
+    ("1984_worlds_golden_wfa", "open_doubles_net"),
+    ("1984_worlds_golden_wfa", "open_golf"),
+    ("1984_worlds_golden_wfa", "open_singles_consecutive"),
+    ("1984_worlds_golden_wfa", "open_singles_freestyle"),
+    ("1984_worlds_golden_wfa", "open_singles_net"),
+    ("1984_worlds_golden_wfa", "open_team_freestyle"),
+]
+MERGE_DUPLICATE_DISCIPLINES = frozenset(_F13_TARGETS)
+
+
+def merge_loser_into_winner(winner_key, loser_key, disciplines, results, participants,
+                            winner_discs, winner_slots, duplicate_disciplines):
+    """Fold one loser event's rows into its winner, in place, and count each outcome.
+
+    The winner's own placements stand: a loser placement at a slot the winner
+    holds is flagged on the winner's row, and a loser placement in a discipline
+    the winner already holds is dropped, because the winner's copy of that
+    competition is the complete one and the loser's extra places are tie
+    leftovers. A discipline only the loser holds comes across whole, with its
+    competitors; a named duplicate discipline does not come across at all.
+    """
+    counts = defaultdict(int)
+    pre_merge_discs = set(winner_discs)
+    pre_merge_slots = set(winner_slots)
+
+    for d in list(disciplines):
+        if d["event_key"] != loser_key:
+            continue
+        if (winner_key, d["discipline_key"]) in duplicate_disciplines:
+            counts["skipped_duplicate_discipline"] += 1
+            continue
+        if d["discipline_key"] not in winner_discs:
+            disciplines.append({**d, "event_key": winner_key})
+            winner_discs.add(d["discipline_key"])
+            counts["discs_added"] += 1
+
+    added_slots: set[tuple[str, str]] = set()
+    for r in list(results):
+        if r["event_key"] != loser_key:
+            continue
+        slot = (r["discipline_key"], r["placement"])
+        if (winner_key, slot[0]) in duplicate_disciplines:
+            counts["skipped_duplicate_discipline_results"] += 1
+            continue
+        if slot in pre_merge_slots:
+            # Conflict: note it on the existing winner row (do not overwrite)
+            for wr in results:
+                if (wr["event_key"] == winner_key
+                        and wr["discipline_key"] == slot[0]
+                        and wr["placement"] == slot[1]):
+                    existing_note = (wr.get("notes") or "").strip()
+                    conflict_note = (
+                        f"MERGE_CONFLICT: loser {loser_key!r} "
+                        f"had different data at {slot[0]!r} p{slot[1]}"
+                    )
+                    wr["notes"] = (
+                        f"{existing_note}; {conflict_note}"
+                        if existing_note else conflict_note
+                    )
+                    counts["results_conflict"] += 1
+                    break
+        elif slot[0] in pre_merge_discs:
+            counts["skipped_shared_discipline_extra"] += 1
+        else:
+            results.append({**r, "event_key": winner_key})
+            winner_slots.add(slot)
+            added_slots.add(slot)
+            counts["results_added"] += 1
+
+    # A loser competitor comes across only with a placement the merge added.
+    for p in list(participants):
+        if p["event_key"] != loser_key:
+            continue
+        if (p["discipline_key"], p["placement"]) in added_slots:
+            participants.append({**p, "event_key": winner_key})
+            counts["parts_added"] += 1
+
+    return dict(counts)
+
+
 print("\n[Event merge] Applying event_equivalence.csv merges...")
 
 _EQUIV_PATH = ROOT / "overrides" / "event_equivalence.csv"
@@ -2221,62 +2340,15 @@ else:
     for _r in results:
         _winner_result_keys[_r["event_key"]].add((_r["discipline_key"], _r["placement"]))
 
-    _m_discs_added      = 0
-    _m_results_added    = 0
-    _m_results_conflict = 0
-    _m_parts_added      = 0
+    _m_counts: dict[str, int] = defaultdict(int)
 
     for _winner_key, _loser_keys in _merge_groups.items():
         for _loser_key in _loser_keys:
-            # ── event_disciplines: add loser disciplines not present in winner ──
-            for _d in disciplines:
-                if _d["event_key"] != _loser_key:
-                    continue
-                if _d["discipline_key"] not in _winner_disc_keys[_winner_key]:
-                    disciplines.append({**_d, "event_key": _winner_key})
-                    _winner_disc_keys[_winner_key].add(_d["discipline_key"])
-                    _m_discs_added += 1
-
-            # ── event_results: add loser results; flag conflicts ──────────────
-            for _r in results:
-                if _r["event_key"] != _loser_key:
-                    continue
-                _slot = (_r["discipline_key"], _r["placement"])
-                if _slot in _winner_result_keys[_winner_key]:
-                    # Conflict: note it on the existing winner row (do not overwrite)
-                    for _wr in results:
-                        if (_wr["event_key"] == _winner_key
-                                and _wr["discipline_key"] == _slot[0]
-                                and _wr["placement"] == _slot[1]):
-                            _existing_note = (_wr.get("notes") or "").strip()
-                            _conflict_note = (
-                                f"MERGE_CONFLICT: loser {_loser_key!r} "
-                                f"had different data at {_slot[0]!r} p{_slot[1]}"
-                            )
-                            _wr["notes"] = (
-                                f"{_existing_note}; {_conflict_note}"
-                                if _existing_note else _conflict_note
-                            )
-                            _m_results_conflict += 1
-                            break
-                else:
-                    results.append({**_r, "event_key": _winner_key})
-                    _winner_result_keys[_winner_key].add(_slot)
-                    _m_results_added += 1
-
-            # ── event_result_participants: add loser participants ─────────────
-            # Only add participants for non-conflicting slots.
-            # _winner_result_keys[_winner_key] holds the pre-merge snapshot,
-            # so any slot already present there was a conflict.
-            _pre_merge_winner_slots = _winner_result_keys[_winner_key]
-            for _p in participants:
-                if _p["event_key"] != _loser_key:
-                    continue
-                _pslot = (_p["discipline_key"], _p["placement"])
-                if _pslot in _pre_merge_winner_slots:
-                    continue   # conflict slot — keep winner's participants
-                participants.append({**_p, "event_key": _winner_key})
-                _m_parts_added += 1
+            for _k, _v in merge_loser_into_winner(
+                    _winner_key, _loser_key, disciplines, results, participants,
+                    _winner_disc_keys[_winner_key], _winner_result_keys[_winner_key],
+                    MERGE_DUPLICATE_DISCIPLINES).items():
+                _m_counts[_k] += _v
 
         # ── Remove all loser rows from all tables ─────────────────────────────
         _all_loser_keys = set(_loser_keys)
@@ -2285,18 +2357,23 @@ else:
         results      = [r for r in results      if r["event_key"] not in _all_loser_keys]
         participants = [p for p in participants if p["event_key"] not in _all_loser_keys]
 
-    print(f"  Disciplines added:        {_m_discs_added}")
-    print(f"  Result rows added:        {_m_results_added}")
-    print(f"  Result conflicts flagged: {_m_results_conflict}")
-    print(f"  Participant rows added:   {_m_parts_added}")
+    print(f"  Disciplines added:        {_m_counts['discs_added']}")
+    print(f"  Result rows added:        {_m_counts['results_added']}")
+    print(f"  Result conflicts flagged: {_m_counts['results_conflict']}")
+    print(f"  Participant rows added:   {_m_counts['parts_added']}")
+    print(f"  Skipped, duplicate discipline (Fix 13 pair): "
+          f"{_m_counts['skipped_duplicate_discipline']} discipline(s), "
+          f"{_m_counts['skipped_duplicate_discipline_results']} result row(s)")
+    print(f"  Skipped, extra place in a shared discipline: {_m_counts['skipped_shared_discipline_extra']}")
 
 
-# ── Fix 13: Empty prefixed competition slots left by the pre-1985 merge ───────
-# The merge above adds a loser discipline whenever its key is absent from the
-# winner's set, comparing keys as exact strings. The merged-away pre-1985 Worlds
-# events spell their disciplines with an `open_` prefix and the survivors spell
-# them without it, so both spellings survive and the public results page shows a
-# second, empty section for the same competition.
+# ── Fix 13: Empty prefixed competition slots on the merged pre-1985 events ────
+# The merged-away pre-1985 Worlds events spell their disciplines with an `open_`
+# prefix and the survivors spell them without it. The merge compares keys as
+# exact strings, so it skips these named pairs rather than adding them; this pass
+# removes any empty copy that still reaches the canonical tables, which would
+# otherwise show on the public results page as a second, empty section for the
+# same competition.
 #
 # Which spelling is correct is not the question. Across the archive the prefixed
 # form is the majority and the division map turns the bare name into the Open
@@ -2312,29 +2389,6 @@ else:
 # with its competitors, so nothing transfers. On one of these events the fold
 # model breaks outright: a prefixed golf slot has no bare counterpart at all.
 print("\n[Fix 13] Removing empty prefixed competition slots from merged pre-1985 events...")
-
-_F13_TARGETS: list[tuple[str, str]] = [
-    ("1982_worlds_oregon_city", "open_doubles_net"),
-    ("1982_worlds_oregon_city", "open_golf"),
-    ("1982_worlds_oregon_city", "open_singles_consecutive"),
-    ("1982_worlds_oregon_city", "open_singles_freestyle"),
-    ("1982_worlds_oregon_city", "open_singles_net"),
-    ("1982_worlds_oregon_city", "open_team_freestyle"),
-    ("1983_worlds_boulder_wfa", "open_golf"),
-    ("1983_worlds_boulder_wfa", "open_singles_net"),
-    ("1983_worlds_boulder_nhsa", "open_doubles_net"),
-    ("1983_worlds_boulder_nhsa", "open_golf"),
-    ("1983_worlds_boulder_nhsa", "open_singles_consecutive"),
-    ("1983_worlds_boulder_nhsa", "open_singles_freestyle"),
-    ("1983_worlds_boulder_nhsa", "open_singles_net"),
-    ("1983_worlds_boulder_nhsa", "open_team_freestyle"),
-    ("1984_worlds_golden_wfa", "open_doubles_net"),
-    ("1984_worlds_golden_wfa", "open_golf"),
-    ("1984_worlds_golden_wfa", "open_singles_consecutive"),
-    ("1984_worlds_golden_wfa", "open_singles_freestyle"),
-    ("1984_worlds_golden_wfa", "open_singles_net"),
-    ("1984_worlds_golden_wfa", "open_team_freestyle"),
-]
 
 
 def _f13_slot_is_empty(_ev: str, _dk: str, _results: list, _participants: list) -> str:
