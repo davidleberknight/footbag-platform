@@ -62,7 +62,13 @@
 #     differing secret and points here instead.
 #   --complete-webhook-rotation clears STRIPE_WEBHOOK_SECRET_PREVIOUS once every
 #     delivery signs with the new secret, returning its parameter to the
-#     placeholder. Idempotent.
+#     placeholder. It judges whether a window is open from the host env file
+#     and the previous-secret parameter both, says what it found in each, and
+#     refuses if the parameter cannot be read; a previous secret held only in
+#     the parameter means the rotation never reached the host, and is refused
+#     until a deploy finishes it.
+#     Idempotent. A deploy also removes the host line whenever the parameter
+#     reads the placeholder, so a completion whose host push failed converges.
 #
 # --deactivate is the reverse of activation, and exists so a test-mode exercise
 # on pre-cutover production leaves nothing behind. Without it the exercise closes
@@ -110,7 +116,9 @@
 #   --env-file <path> treats the local file as the host env, skips ssh and
 #   aws entirely, and reads the secrets from STRIPE_SECRET_KEY_VALUE and
 #   STRIPE_WEBHOOK_SECRET_VALUE instead of prompting. Rotation reads only
-#   STRIPE_WEBHOOK_SECRET_VALUE (the new secret); completion reads neither.
+#   STRIPE_WEBHOOK_SECRET_VALUE (the new secret); completion reads neither, and
+#   takes STRIPE_WEBHOOK_SECRET_PREVIOUS_PARAM_VALUE, when set, as the value of
+#   the previous-secret parameter (unset reads as the placeholder).
 set -euo pipefail
 
 # shellcheck source=lib/host-env-remote.sh
@@ -419,10 +427,13 @@ if (( DRY_RUN )); then
     complete)
       echo "== dry run: complete a webhook-secret rotation on $TARGET (ssh alias: $SSH_ALIAS) =="
       echo ""
-      echo "Would stage $HOST_ENV_PATH from $SSH_ALIAS, return"
-      echo "$SSM_WEBHOOK_PREV_PARAM to its placeholder, and remove the"
-      echo "STRIPE_WEBHOOK_SECRET_PREVIOUS line (idempotent: a no-op when no"
-      echo "rotation window is open), then push back and run the PAYMENTS-BOOT gate."
+      echo "Would stage $HOST_ENV_PATH from $SSH_ALIAS, read"
+      echo "$SSM_WEBHOOK_PREV_PARAM (refusing if it cannot be read), and judge"
+      echo "the window from both. Then return the parameter to its placeholder and"
+      echo "remove the STRIPE_WEBHOOK_SECRET_PREVIOUS line, push back and run the"
+      echo "PAYMENTS-BOOT gate (idempotent: a no-op when neither holds a previous"
+      echo "secret; refused when only the parameter does, until a deploy finishes"
+      echo "the rotation)."
       ;;
     deactivate)
       echo "== dry run: remove payment credentials from $TARGET (ssh alias: $SSH_ALIAS) =="
@@ -721,9 +732,49 @@ case "$MODE" in
     fi
     ;;
   complete)
-    if [[ -z "$PREVIOUS_WS" ]]; then
-      echo "No STRIPE_WEBHOOK_SECRET_PREVIOUS is set; no rotation window to close."
+    # The window is judged from both places it can be open. A rotation that
+    # stopped at its host push leaves the outgoing secret in Parameter Store and
+    # none on the host; judged from the host alone that reads as "no window",
+    # and the next deploy reinstalls the outgoing secret from the parameter.
+    if [[ -n "$ENV_FILE_OVERRIDE" ]]; then
+      SSM_PREV_VALUE="${STRIPE_WEBHOOK_SECRET_PREVIOUS_PARAM_VALUE:-}"
+      if [[ -n "${STRIPE_WEBHOOK_SECRET_PREVIOUS_PARAM_VALUE:-}" ]]; then
+        echo "SYNTHETIC: the previous-secret parameter is read from STRIPE_WEBHOOK_SECRET_PREVIOUS_PARAM_VALUE, not Parameter Store." >&2
+      fi
+    else
+      # The read's own status decides: an unreadable parameter is not an empty one.
+      if ! SSM_PREV_VALUE="$(read_ssm_secret "$SSM_WEBHOOK_PREV_PARAM")"; then
+        echo "ERROR: could not read $SSM_WEBHOOK_PREV_PARAM from Parameter Store." >&2
+        echo "       Refusing to judge the rotation window from the host alone: a previous" >&2
+        echo "       secret held only in the parameter is reinstalled by the next deploy." >&2
+        echo "       Nothing has been changed." >&2
+        exit 1
+      fi
+    fi
+    SSM_PREV_STATE="placeholder"
+    [[ -n "$SSM_PREV_VALUE" && "$SSM_PREV_VALUE" != TODO-* ]] && SSM_PREV_STATE="holds a previous secret"
+    unset SSM_PREV_VALUE
+    HOST_PREV_STATE="not set"
+    [[ -n "$PREVIOUS_WS" ]] && HOST_PREV_STATE="set"
+    echo "Rotation window, as found:"
+    echo "  host STRIPE_WEBHOOK_SECRET_PREVIOUS: $HOST_PREV_STATE"
+    echo "  Parameter Store $SSM_WEBHOOK_PREV_PARAM: $SSM_PREV_STATE"
+    if [[ -z "$PREVIOUS_WS" && "$SSM_PREV_STATE" == "placeholder" ]]; then
+      echo "Neither the host nor Parameter Store holds a previous secret; no rotation window to close."
       exit 0
+    fi
+    # A previous secret held only in Parameter Store means the rotation stopped
+    # before its host push: the host still verifies with the outgoing secret as
+    # its current one. Closing the window here would let the next deploy install
+    # the new secret with no overlap, failing every delivery still signed with
+    # the old one. The rotation is finished first, then completed.
+    if [[ -z "$PREVIOUS_WS" ]]; then
+      echo "ERROR: Parameter Store holds a previous secret the host does not: the rotation" >&2
+      echo "       stopped before its host push, so the host has not yet taken the new secret." >&2
+      echo "       Finish the rotation first (deploy, which installs both secrets from" >&2
+      echo "       Parameter Store and opens the window), then run --complete-webhook-rotation." >&2
+      echo "       Nothing has been changed." >&2
+      exit 1
     fi
     ;;
   deactivate)
@@ -905,6 +956,12 @@ else
         echo "Parameter Store already holds the new signing secret and the previous" >&2
         echo "one as its twin. The host still signs with the old secret alone." >&2
         echo "Re-run to finish the roll." >&2
+        ;;
+      complete)
+        echo "The previous-secret parameter is already back to the placeholder, but the" >&2
+        echo "host still holds STRIPE_WEBHOOK_SECRET_PREVIOUS, so the outgoing secret still" >&2
+        echo "verifies deliveries. The next deploy removes it, because a placeholder there" >&2
+        echo "means no window is open; or re-run --complete-webhook-rotation to remove it now." >&2
         ;;
       deactivate)
         echo "All three parameters are already back to the placeholder, but the host" >&2

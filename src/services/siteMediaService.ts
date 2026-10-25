@@ -12,6 +12,7 @@ import { media, CuratorSlotMediaRow } from '../db/db';
 import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { mosaicClipFilename } from '../content/freestyleTricksMosaic';
 import { SITE_MEDIA_SLOTS, SiteMediaSlot, SiteMediaSlotKey } from '../content/siteMedia';
+import { VideoMedia, expandVideoFromMediaItem } from './videoMedia';
 
 export interface SiteVideo {
   // The seeded media_items row id, used to link a site-content clip to its
@@ -49,6 +50,20 @@ function shapePhotoUrl(row: CuratorSlotMediaRow | undefined): string | undefined
 export function loadSiteVideo(slot: SiteMediaSlotKey): SiteVideo | null {
   const entry: SiteMediaSlot = SITE_MEDIA_SLOTS[slot];
   return shapeVideo(rowForFilename(entry.sourceFilename), entry.portrait === true);
+}
+
+/**
+ * Load a named video slot as click-to-play facade media, for a slot shown among
+ * other featured videos rather than as a looping demo.
+ */
+export function loadSiteVideoMedia(slot: SiteMediaSlotKey, videoTitle: string): VideoMedia | null {
+  const row = rowForFilename(SITE_MEDIA_SLOTS[slot].sourceFilename);
+  if (!row || row.media_type !== 'video') return null;
+  const adapter = getMediaStorageAdapter();
+  return expandVideoFromMediaItem(row, {
+    constructURL: (key) => adapter.constructURL(key),
+    videoTitle,
+  });
 }
 
 /** Load a named photo slot's display URL (e.g. `japan_worlds_promo`). */

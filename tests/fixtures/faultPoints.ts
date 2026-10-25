@@ -65,6 +65,10 @@ export const ADAPTER_SITES: AdapterSite[] = [
     status: { swept: WEBHOOK_SWEEP },
   },
   {
+    file: 'src/services/paymentService.ts', getter: 'getPaymentAdapter', operation: 'receiveWebhook',
+    status: { noWriteAfter: 'verifies the signature and loads the provider key so the event\'s mode can be checked against it; a key that cannot be loaded is logged and the event is handled with the mode unchecked, so nothing recorded depends on the load having happened' },
+  },
+  {
     file: 'src/services/paymentService.ts', getter: 'getPaymentAdapter', operation: 'startDonation',
     status: { swept: SWEEP },
   },
@@ -136,6 +140,7 @@ export const ADAPTER_SITES: AdapterSite[] = [
   { file: 'src/services/freestyleService.ts', getter: 'getMediaStorageAdapter', operation: 'shapeReferenceMedia', status: { noWriteAfter: ADDRESS_ONLY } },
   { file: 'src/services/siteMediaService.ts', getter: 'getMediaStorageAdapter', operation: 'shapeVideo', status: { noWriteAfter: ADDRESS_ONLY } },
   { file: 'src/services/siteMediaService.ts', getter: 'getMediaStorageAdapter', operation: 'shapePhotoUrl', status: { noWriteAfter: ADDRESS_ONLY } },
+  { file: 'src/services/siteMediaService.ts', getter: 'getMediaStorageAdapter', operation: 'loadSiteVideoMedia', status: { noWriteAfter: ADDRESS_ONLY } },
 
   // ── Secrets, signing and verification ─────────────────────────────────────
   {

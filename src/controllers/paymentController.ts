@@ -7,6 +7,7 @@ import { ValidationError, NotFoundError, RateLimitedError, ConflictError } from 
 import { handleControllerError, renderNotFound, renderRateLimited } from '../lib/controllerErrors';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
 import { isSafePath } from '../lib/safePath';
+import { outcomeNotice, outcomePayload, type OutcomeNoticeView } from '../lib/outcomeNotice';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -173,7 +174,8 @@ export const paymentController = {
 
   /**
    * GET /payments/cancel
-   * Renders the canceled/failed payment landing page with US-mandated text.
+   * Renders the canceled/failed payment landing page with US-mandated text,
+   * or sends the owner of a payment that went through to its confirmation.
    */
   async getPaymentCancel(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
@@ -199,6 +201,11 @@ export const paymentController = {
       // stays open until its own short expiry, and the member's next purchase
       // attempt for the same tier goes back to it.
       const continueHref = safeReturnTo(req.query.returnTo, `/members/${user.slug}`);
+      const confirmed = paymentService.getPaymentCancelRedirect(payment, continueHref);
+      if (confirmed) {
+        res.redirect(302, confirmed);
+        return;
+      }
       res.render(
         'payments/cancel',
         paymentService.getPaymentCancelPage(payment, { continueHref, slug: user.slug }),
@@ -216,11 +223,12 @@ export const paymentController = {
    *
    * Status mapping: a verified event (processed / duplicate / ignored) acks 200
    * so Stripe stops retrying. A bad signature returns 400 with no state written.
-   * A recoverable processing failure (no matching row yet, transient) returns
-   * 400 so Stripe retries; the un-claimed event re-runs cleanly. An unexpected
+   * A recoverable processing failure (no matching row yet, transient, or an
+   * event whose live/test mode disagrees with the loaded key) returns 400 so
+   * Stripe retries; the un-claimed event re-runs cleanly. An unexpected
    * error returns 500 and trips the alarm via logger.error.
    */
-  postPaymentWebhook(req: Request, res: Response): void {
+  async postPaymentWebhook(req: Request, res: Response): Promise<void> {
     const signature = req.get('stripe-signature') ?? '';
     // express.raw delivers req.body as a Buffer. Treat empty / non-Buffer as
     // a 400 (Stripe always sends a body).
@@ -230,7 +238,7 @@ export const paymentController = {
       return;
     }
     try {
-      paymentService.handleWebhook(buf, signature);
+      await paymentService.receiveWebhook(buf, signature);
       res.status(200).type('text/plain').send('ok');
     } catch (err) {
       if (err instanceof WebhookSignatureError) {
@@ -261,7 +269,7 @@ export const paymentController = {
           reason: 'recoverable',
           err: err.message,
         });
-        paymentService.recordWebhookRejection('recoverable');
+        paymentService.recordWebhookRejection('recoverable', paymentService.webhookEventOf(err) ?? {});
         res.status(400).type('text/plain').send('processing error');
         return;
       }
@@ -277,7 +285,7 @@ export const paymentController = {
       logger.error('stripe webhook processing failed', {
         err: err instanceof Error ? err.message : String(err),
       });
-      paymentService.recordWebhookRejection('error');
+      paymentService.recordWebhookRejection('error', paymentService.webhookEventOf(err) ?? {});
       res.status(500).type('text/plain').send('error');
     }
   },
@@ -295,13 +303,17 @@ export const paymentController = {
       }
       const flash = readFlash(req);
       let cancelConfirmed = false;
+      let outcome: OutcomeNoticeView | null = null;
       if (flash?.kind === FLASH_KIND.RECURRING_DONATION_CANCELED) {
         cancelConfirmed = true;
+        clearFlash(res, req);
+      } else if (flash?.kind === FLASH_KIND.RECURRING_DONATION_OUTCOME) {
+        outcome = outcomeNotice(flash.payload);
         clearFlash(res, req);
       }
       res.render(
         'members/payment-history',
-        paymentService.getPaymentHistoryPage(req.user.userId, memberKey, { cancelConfirmed }),
+        paymentService.getPaymentHistoryPage(req.user.userId, memberKey, { cancelConfirmed, outcome }),
       );
     } catch (err) {
       handleControllerError(err, res, next, 'payment history controller');
@@ -419,11 +431,17 @@ export const paymentController = {
       return;
     }
     try {
-      await paymentService.cancelRecurringDonation(
+      const result = await paymentService.cancelRecurringDonation(
         req.user.userId,
         req.params.stripeSubscriptionId,
       );
-      writeFlash(res, req, FLASH_KIND.RECURRING_DONATION_CANCELED, memberKey);
+      if (result.status === 'already_held') {
+        writeFlash(
+          res, req, FLASH_KIND.RECURRING_DONATION_OUTCOME, outcomePayload('info', result.message),
+        );
+      } else {
+        writeFlash(res, req, FLASH_KIND.RECURRING_DONATION_CANCELED, memberKey);
+      }
       res.redirect(303, `/members/${memberKey}/payments`);
     } catch (err) {
       // Caught locally: the shared handler does not map RateLimitedError, so

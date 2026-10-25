@@ -41,13 +41,15 @@ const M_DESCRIPTOR = 'don-descriptor';
 const M_RENEWAL_REFUND = 'don-renewal-refund';
 const M_REPEAT = 'don-repeat';
 const M_REPEAT_PEER = 'don-repeat-peer';
+const M_ADMIN_ENDED = 'don-admin-ended';
+const M_ADMIN_ENDED_BY = 'don-admin-ended-by';
 const ALL_MEMBERS = [
   M_PLAIN, M_HOF, M_BAP, M_BOTH, M_OTHER,
   M_FAIL_AGAIN, M_UPDATE_AGAIN, M_SIGNUP,
   M_PROMOTE, M_LEDGER, M_EXPIRE, M_EXPIRE_AGAIN,
   M_OUT_OF_ORDER_SUCCESS, M_RENEWAL_CURRENCY,
   M_LATE_ON_ENDED, M_UPDATE_ON_ENDED, M_DESCRIPTOR, M_RENEWAL_REFUND, M_REPEAT,
-  M_REPEAT_PEER,
+  M_REPEAT_PEER, M_ADMIN_ENDED, M_ADMIN_ENDED_BY,
 ];
 
 beforeAll(async () => {
@@ -1526,15 +1528,88 @@ describe('cancelRecurringDonation', () => {
       .rejects.toBeInstanceOf(NotFoundError);
   });
 
-  it('refuses to cancel a subscription that has already ended', async () => {
+  // Defect caught: a member cancelling a gift that has already ended gets an
+  // error instead of being told it has ended.
+  it('reports a subscription that has already ended here as already held', async () => {
     const paymentService = await svc();
     const stub = await stubAdapter();
-    const { ConflictError } = await import('../../src/services/serviceErrors');
     const { sessionId, stripeSubscriptionId } = await activateSubscription(M_PLAIN);
     const deleted = stub.buildSignedStubSubscriptionEvent(sessionId, 'deleted');
     paymentService.handleWebhook(deleted.rawBody, deleted.signature);
 
     await expect(paymentService.cancelRecurringDonation(M_PLAIN, stripeSubscriptionId))
-      .rejects.toBeInstanceOf(ConflictError);
+      .resolves.toMatchObject({ status: 'already_held' });
+  });
+
+  // Defect caught: the provider ended the gift before its deletion event
+  // arrived, and the member's cancel answers with an error, records a request
+  // for an act that changed nothing, or spends one of their attempts.
+  it('reports a subscription the provider already ended as already held, and changes nothing', async () => {
+    const paymentService = await svc();
+    const stub = await stubAdapter();
+    const rl = await import('../../src/services/rateLimitService');
+    const { sessionId, subscriptionId, stripeSubscriptionId } = await activateSubscription(M_UPDATE_AGAIN);
+    // Ended at the provider; the deletion event has not been delivered.
+    stub.buildSignedStubSubscriptionEvent(sessionId, 'deleted');
+    const versionBefore = readSubscription(subscriptionId)!.version;
+    rl.resetRateLimitForTests();
+
+    await expect(paymentService.cancelRecurringDonation(M_UPDATE_AGAIN, stripeSubscriptionId))
+      .resolves.toMatchObject({ status: 'already_held' });
+
+    const sub = readSubscription(subscriptionId)!;
+    expect(sub.version).toBe(versionBefore);
+    expect(sub.is_cancel_at_period_end).toBe(0);
+    expect(countRows(
+      "SELECT COUNT(*) AS c FROM recurring_donation_subscription_transitions WHERE recurring_subscription_id = ? AND lifecycle_event_code = 'cancel_requested'",
+      subscriptionId,
+    )).toBe(0);
+    expect(countRows(
+      "SELECT COUNT(*) AS c FROM audit_entries WHERE action_type = 'payment.recurring_cancel_requested' AND entity_id = ?",
+      subscriptionId,
+    )).toBe(0);
+    // The attempt was given back: one more is still free under a ceiling of one.
+    expect(rl.hit(`cancel-recurring:${M_UPDATE_AGAIN}`, 1, 60).allowed).toBe(true);
+  });
+
+  // Defect caught: an administrator's cancellation (a deceased member's gift)
+  // never spent one of the member's attempts, so giving one back hands the
+  // member an extra slot the throttle never counted.
+  it('gives no attempt back when an administrator finds the gift already ended', async () => {
+    const paymentService = await svc();
+    const stub = await stubAdapter();
+    const rl = await import('../../src/services/rateLimitService');
+    const { sessionId, stripeSubscriptionId } = await activateSubscription(M_ADMIN_ENDED);
+    stub.buildSignedStubSubscriptionEvent(sessionId, 'deleted');
+    rl.resetRateLimitForTests();
+    expect(rl.hit(`cancel-recurring:${M_ADMIN_ENDED}`, 1, 60).allowed).toBe(true);
+
+    await expect(paymentService.cancelRecurringDonation(M_ADMIN_ENDED, stripeSubscriptionId, {
+      adminMemberId: M_ADMIN_ENDED_BY, reason: 'member_deceased',
+    })).resolves.toMatchObject({ status: 'already_held' });
+
+    // The member's one attempt is still spent: the admin path refunded nothing.
+    expect(rl.hit(`cancel-recurring:${M_ADMIN_ENDED}`, 1, 60).allowed).toBe(false);
+  });
+
+  // Defect caught: a genuine provider failure is swallowed as an ended gift,
+  // so the member is told it ended while the provider goes on charging.
+  it('still fails on any other provider error', async () => {
+    const paymentService = await svc();
+    const stub = await stubAdapter();
+    const mod = await import('../../src/adapters/paymentAdapter');
+    const { stripeSubscriptionId } = await activateSubscription(M_UPDATE_ON_ENDED);
+    mod.setPaymentAdapterForTests({
+      ...stub,
+      async cancelSubscriptionAtPeriodEnd() {
+        throw new Error('provider unavailable');
+      },
+    });
+    try {
+      await expect(paymentService.cancelRecurringDonation(M_UPDATE_ON_ENDED, stripeSubscriptionId))
+        .rejects.toThrow('provider unavailable');
+    } finally {
+      mod.resetPaymentAdapterForTests();
+    }
   });
 });

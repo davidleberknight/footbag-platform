@@ -140,7 +140,7 @@ import {
 } from '../content/freestyleLandingContent';
 import { HISTORY_NARRATIVE, type HistoryNarrative } from '../content/freestyleHistoryNarrative';
 import { TERMINAL_DERIVED_COHORTS, TERMINAL_OF_MEMBER } from '../content/freestyleTerminalCohorts';
-import { loadSiteVideo } from './siteMediaService';
+import { loadSiteVideo, loadSiteVideoMedia } from './siteMediaService';
 import {
   CORE_ATOM_EDUCATIONAL,
   isCoreAtom,
@@ -10535,6 +10535,10 @@ export const freestyleService = {
 
     const totalRecords = typeCounts.reduce((sum, r) => sum + r.n, 0);
 
+    // The one self-hosted featured clip; absent until the curator seed has
+    // stored it, in which case the strip shows the YouTube seven alone.
+    const fountainShred = loadSiteVideoMedia('fountain_shred', 'Fountain Shred');
+
     return {
       seo: {
         title: 'Freestyle',
@@ -10608,6 +10612,12 @@ export const freestyleService = {
             caption: 'Featuring Jim Penske; footage by jay7bah.',
             media:   expandYouTubeVideo('U6J2LXxUWro', 'Footbag 2026: San Marino'),
           },
+          ...(fountainShred ? [{
+            key:     'fountain-shred',
+            title:   'Fountain Shred',
+            caption: 'Worlds 2017 Portland sideline shred at the fountain temple.',
+            media:   fountainShred,
+          }] : []),
         ],
         totalTricks:  trickRows.length,
         totalRecords,

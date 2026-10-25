@@ -104,8 +104,9 @@
       </div>
       <p class="fs-sm">
         Each currency is totalled on its own, because one figure covering two of them is true of
-        neither. Returned money covers refunds and chargebacks, which never change the payment
-        record itself, so Received on its own overstates what was kept.
+        neither. Returned money covers refunds, which never change the payment
+        record itself, so Received on its own overstates what was kept. Disputed charges are not
+        deducted from these figures.
       </p>
       {{#if content.hasPeriodTotalsExclusion}}
         <p class="fs-sm">{{content.periodTotalsExclusionLine}}</p>

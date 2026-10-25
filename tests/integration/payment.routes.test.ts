@@ -21,6 +21,8 @@ const OTHER_ID = `member_persona_${OTHER}`;
 const OWNER_SESSION = 'cs_test_owner_session';
 const OTHER_SESSION = 'cs_test_other_session';
 const OPEN_SESSION = 'cs_test_open_session';
+const REFUNDED_SESSION = 'cs_test_refunded_session';
+const CANCELED_SESSION = 'cs_test_canceled_session';
 const TS = '2024-01-01T00:00:00.000Z';
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
@@ -66,6 +68,8 @@ beforeAll(async () => {
   insertPaymentWithSession(db, { id: 'pay-ok', memberId: OWNER_ID, sessionId: OWNER_SESSION, status: 'succeeded' });
   insertPaymentWithSession(db, { id: 'pay-other', memberId: OTHER_ID, sessionId: OTHER_SESSION, status: 'failed' });
   insertPaymentWithSession(db, { id: 'pay-open', memberId: OWNER_ID, sessionId: OPEN_SESSION, status: 'pending' });
+  insertPaymentWithSession(db, { id: 'pay-refunded', memberId: OWNER_ID, sessionId: REFUNDED_SESSION, status: 'refunded' });
+  insertPaymentWithSession(db, { id: 'pay-canceled', memberId: OWNER_ID, sessionId: CANCELED_SESSION, status: 'canceled' });
   db.close();
   createApp = await importApp();
 });
@@ -141,6 +145,27 @@ describe('GET /payments/cancel', () => {
   it('404s when the session belongs to another member', async () => {
     const res = await request(createApp()).get(`/payments/cancel?session_id=${OTHER_SESSION}`).set('Cookie', cookie(OWNER_ID));
     expect(res.status).toBe(404);
+  });
+
+  // Defect caught: a member whose payment went through is told it was not
+  // completed and that they were not charged.
+  it('sends the owner of a payment that went through to its confirmation page', async () => {
+    for (const sessionId of [OWNER_SESSION, REFUNDED_SESSION]) {
+      const res = await request(createApp())
+        .get(`/payments/cancel?session_id=${sessionId}&returnTo=%2Fclubs`)
+        .set('Cookie', cookie(OWNER_ID));
+      expect(res.status, sessionId).toBe(302);
+      expect(res.headers.location, sessionId)
+        .toBe(`/payments/success?session_id=${sessionId}&returnTo=%2Fclubs`);
+    }
+  });
+
+  it('keeps the not-completed page for a canceled payment', async () => {
+    const res = await request(createApp())
+      .get(`/payments/cancel?session_id=${CANCELED_SESSION}`)
+      .set('Cookie', cookie(OWNER_ID));
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('Payment Not Completed');
   });
 
   it('only reads: the still-open payment stays pending and nothing is written', async () => {

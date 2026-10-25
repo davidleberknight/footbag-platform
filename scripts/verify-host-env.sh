@@ -545,8 +545,31 @@ fi
 # this value, is the constant committed to the repository: anyone with a copy
 # could forge a delivery the endpoint accepts. The runtime refuses to boot
 # without it; checking here reports it before the deploy gets that far.
+# Presence alone passes a real provider secret pasted into this slot, which
+# would have the stub host act on deliveries signed for the live endpoint, and
+# the committed all-zero constant or any short value anyone could guess. The
+# deploy generates whsec_stub_ plus 48 random hex characters, and the runtime
+# refuses to boot on anything else. The value is a secret, so a failure names
+# the shape, never the value. Recovery: delete the line and deploy, and the
+# deploy generates a fresh one.
 if [[ "${HOST_ENV[PAYMENT_ADAPTER]:-}" == "stub" ]]; then
-  check_set "STRIPE_WEBHOOK_SECRET_STUB" "stub webhook signing secret (required whenever the stub adapter serves a reachable endpoint)"
+  STUB_SECRET_ACTUAL="${HOST_ENV[STRIPE_WEBHOOK_SECRET_STUB]:-}"
+  if [[ -z "$STUB_SECRET_ACTUAL" ]]; then
+    check_fail "stub webhook signing secret (required whenever the stub adapter serves a reachable endpoint): STRIPE_WEBHOOK_SECRET_STUB is unset"
+  elif [[ ! "$STUB_SECRET_ACTUAL" =~ ^whsec_stub_[0-9a-f]{48}$ ]]; then
+    check_fail "stub webhook signing secret: STRIPE_WEBHOOK_SECRET_STUB is not a deploy-generated value (whsec_stub_ plus 48 hex characters); delete the line and deploy to regenerate it"
+  else
+    check_pass "stub webhook signing secret: STRIPE_WEBHOOK_SECRET_STUB is a generated value"
+  fi
+  unset STUB_SECRET_ACTUAL
+fi
+
+# An open signing-secret rotation keeps the outgoing secret valid for as long as
+# the line stays, so a leaked old secret still forges deliveries. The window is
+# legitimate while a roll is in progress, which is why this warns rather than
+# fails. Only presence is reported; the value is a secret.
+if [[ -n "${HOST_ENV[STRIPE_WEBHOOK_SECRET_PREVIOUS]:-}" ]]; then
+  check_warn "webhook rotation window open: STRIPE_WEBHOOK_SECRET_PREVIOUS is set, so the outgoing signing secret still verifies deliveries. Once every delivery signs with the new secret, close it with: < <operator credential file> bash scripts/activate-payments.sh --target $TARGET --profile <profile> --complete-webhook-rotation"
 fi
 
 # Internal-event secret. Must not be the development fallback literal. Checked

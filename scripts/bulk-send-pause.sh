@@ -161,6 +161,11 @@ fi
 
 state="$(printf '%s\n' "$result" | sed -n 's/^SWITCH_PAUSED=//p' | tail -1)"
 [[ -n "$state" ]] || die "the host did not report a switch state"
+# Only 1 and 0 mean anything to the platform. Any other stored value is a row
+# written wrong, and reporting it as either state would tell the operator
+# something the platform is not doing. The value is a flag, not a secret.
+[[ "$state" == "0" || "$state" == "1" ]] \
+  || die "the switch reads an unexpected value '${state}' (expected 0 or 1); not reporting it as paused or clear"
 
 echo ""
 if [[ "$state" == "1" ]]; then

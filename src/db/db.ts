@@ -11397,6 +11397,30 @@ export const payments = {
       AND member_id IS NOT NULL
   `); },
 
+  // Every live donation in a range that carries a donor comment, for the
+  // treasurer's periodic summary, so a purpose a donor named reaches the officer
+  // who handles the money. Refunded gifts count: the donor still named a
+  // purpose, and the money did arrive. Rehearsal gifts do not, because the
+  // summary would present one as a real gift. The donor is named only while
+  // their account stands: an erased, deleted or still-onboarding donor reads
+  // as no name, while the comment itself is the gift's own meaning and stays.
+  get listCommentedDonationsInRange() { return db.prepare(`
+    SELECT p.id, p.created_at, p.amount_cents, p.currency, p.donation_note,
+           CASE WHEN m.id IS NOT NULL
+                 AND m.deleted_at IS NULL
+                 AND m.personal_data_purged_at IS NULL
+                 AND EXISTS (SELECT 1 FROM members_onboarded mo WHERE mo.id = m.id)
+                THEN m.display_name END AS donor_name
+    FROM payments p
+    LEFT JOIN members m ON m.id = p.member_id
+    WHERE p.payment_type = 'donation'
+      AND p.status IN ('succeeded', 'refunded')
+      AND p.provider_livemode = 1
+      AND p.donation_note IS NOT NULL AND TRIM(p.donation_note) <> ''
+      AND p.created_at >= ? AND p.created_at < ?
+    ORDER BY p.created_at ASC, p.id ASC
+  `); },
+
   // One-time donation. Distinct from insertPayment because a donation carries the
   // member's note and never carries a purchased tier.
   get insertDonationPayment() { return db.prepare(`
@@ -11701,6 +11725,37 @@ export const reconciliationIssues = {
 
   get countOutstanding() { return db.prepare(`
     SELECT COUNT(*) AS c FROM reconciliation_issues WHERE status = 'outstanding'
+  `); },
+
+  // The most recently resolved issue carrying the same dedup key as a new
+  // finding, keyed exactly as the outstanding dedup index is. The pass compares
+  // its recorded figures with the new finding: unchanged, the finding is a
+  // carried-forward reconciling item an administrator already explained;
+  // changed, it is a new discrepancy.
+  get findLatestResolvedByDedupKey() { return db.prepare(`
+    SELECT i.id, i.issue_type, i.payment_id, i.details_json, i.resolved_at,
+           i.resolution_notes, m.slug AS resolved_by_slug
+    FROM reconciliation_issues i
+    LEFT JOIN members m ON m.id = i.resolved_by_member_id
+    WHERE i.status = 'resolved'
+      AND i.issue_type = ?
+      AND COALESCE(i.payment_id, '') = COALESCE(?, '')
+      AND COALESCE(i.stripe_payment_intent_id, '') = COALESCE(?, '')
+      AND COALESCE(i.stripe_subscription_id, '') = COALESCE(?, '')
+      AND COALESCE(i.stripe_invoice_id, '') = COALESCE(?, '')
+      AND COALESCE(i.subscription_record_id, '') = COALESCE(?, '')
+    ORDER BY i.resolved_at DESC, i.id DESC
+    LIMIT 1
+  `); },
+
+  // One issue with its resolver's handle, for answering a repeated resolve with
+  // who resolved it and when.
+  get findByIdWithResolver() { return db.prepare(`
+    SELECT i.id, i.status, i.resolved_at, i.resolved_by_member_id, i.resolution_notes,
+           m.slug AS resolved_by_slug
+    FROM reconciliation_issues i
+    LEFT JOIN members m ON m.id = i.resolved_by_member_id
+    WHERE i.id = ?
   `); },
 
   // Resolved rows past their retention window are cleared by the cleanup pass;
@@ -12016,99 +12071,119 @@ export const paymentMoneyHistory = {
   `); },
 };
 
-export const paymentPeriodTotals = {
-  // Settled money over an arbitrary range, grouped by what it was for and by
-  // its currency. The health page's rolling window answers "is anything moving
-  // right now"; this answers "what did we take in July", which is the figure a
-  // month-end or a year-end actually needs.
-  //
-  // A fully refunded payment counts here, not just a succeeded one. The money
-  // genuinely arrived and then genuinely went back, so it belongs in both the
-  // received column and the returned column. Counting the refund without the
-  // receipt would drive the net figure below zero and report the organization
-  // as having paid out money it never took.
-  get grossByTypeInRange() { return db.prepare(`
-    SELECT payment_type, currency,
-           COUNT(*)          AS n,
-           SUM(amount_cents) AS total_cents
-    FROM payments
-    WHERE status IN ('succeeded', 'refunded')
-      AND created_at >= ? AND created_at < ?
-      -- Real money only. Production is proven with the provider in test mode
-      -- before it goes live, so rehearsal charges sit in this same table; a
-      -- total that swept them in would overstate what the organization
-      -- actually took. A row predating this column reads NULL and is excluded
-      -- for the same reason it is never badged as real: it cannot be shown to
-      -- be real money. The excluded rows are counted separately so the
-      -- exclusion is disclosed rather than silent.
-      AND provider_livemode = 1
-    GROUP BY payment_type, currency
-    ORDER BY payment_type, currency
-  `); },
+/** The All Payments filters a period total honours beside its date range, so
+ *  a total shown under a filtered list counts the rows that list selects. */
+export type PeriodTotalFilters = Omit<AdminPaymentFilters, 'createdFrom' | 'createdTo'>;
 
-  // What the totals above left out, so the report can say so on its face. A
-  // reader who is told the figure covers real money only, and how many rows
-  // that set aside, can act on it; one shown a silently reduced total cannot.
-  get excludedFromTotalsInRange() { return db.prepare(`
-    SELECT CASE WHEN provider_livemode IS NULL THEN 'unknown' ELSE 'test' END AS mode,
+/** The WHERE clauses a period total shares with the All Payments listing: the
+ *  range plus whatever filters the reader chose. Built per call because the
+ *  filter set is open-ended, the same as the listing's own query. */
+function periodTotalClauses(
+  fromIso: string,
+  toIso: string,
+  filters: PeriodTotalFilters,
+): { where: string; params: unknown[] } {
+  const { where, params } = buildAdminPaymentClauses({
+    ...filters,
+    createdFrom: fromIso,
+    createdTo: toIso,
+  });
+  return { where: where.replace(/^WHERE /, ''), params };
+}
+
+/**
+ * Settled money over a range, grouped by what it was for and by its currency.
+ * The one definition every surface's money figure uses, so the health page's
+ * rolling window, the All Payments totals and each nightly report count the
+ * same way.
+ *
+ * A fully refunded payment counts here, not just a succeeded one. The money
+ * genuinely arrived and then genuinely went back, so it belongs in both the
+ * received column and the returned column. Counting the refund without the
+ * receipt would drive the net figure below zero and report the organization
+ * as having paid out money it never took.
+ *
+ * Real money only. Production is proven with the provider in test mode before
+ * it goes live, so rehearsal charges sit in this same table; a total that swept
+ * them in would overstate what the organization actually took. A row predating
+ * the mode column reads NULL and is excluded for the same reason it is never
+ * badged as real: it cannot be shown to be real money. The excluded rows are
+ * counted separately so the exclusion is disclosed rather than silent.
+ */
+export function queryPeriodGrossByType(
+  fromIso: string,
+  toIso: string,
+  filters: PeriodTotalFilters = {},
+): Array<{ payment_type: string; currency: string; n: number; total_cents: number }> {
+  const { where, params } = periodTotalClauses(fromIso, toIso, filters);
+  return db.prepare(`
+    SELECT p.payment_type, p.currency,
+           COUNT(*)            AS n,
+           SUM(p.amount_cents) AS total_cents
+    FROM payments p
+    ${ADMIN_PAYMENT_EVENT_JOIN}
+    WHERE p.status IN ('succeeded', 'refunded')
+      AND p.provider_livemode = 1
+      AND ${where}
+    GROUP BY p.payment_type, p.currency
+    ORDER BY p.payment_type, p.currency
+  `).all(...params) as Array<{ payment_type: string; currency: string; n: number; total_cents: number }>;
+}
+
+/** What the totals above left out, so the report can say so on its face. A
+ *  reader who is told the figure covers real money only, and how many rows that
+ *  set aside, can act on it; one shown a silently reduced total cannot. */
+export function queryPeriodExcludedFromTotals(
+  fromIso: string,
+  toIso: string,
+  filters: PeriodTotalFilters = {},
+): Array<{ mode: string; n: number }> {
+  const { where, params } = periodTotalClauses(fromIso, toIso, filters);
+  return db.prepare(`
+    SELECT CASE WHEN p.provider_livemode IS NULL THEN 'unknown' ELSE 'test' END AS mode,
            COUNT(*) AS n
-    FROM payments
-    WHERE status IN ('succeeded', 'refunded')
-      AND created_at >= ? AND created_at < ?
-      AND (provider_livemode IS NULL OR provider_livemode = 0)
+    FROM payments p
+    ${ADMIN_PAYMENT_EVENT_JOIN}
+    WHERE p.status IN ('succeeded', 'refunded')
+      AND (p.provider_livemode IS NULL OR p.provider_livemode = 0)
+      AND ${where}
     GROUP BY mode
-  `); },
+  `).all(...params) as Array<{ mode: string; n: number }>;
+}
 
-  // One row per payment in the range that had money returned or contested,
-  // flat, for the service to aggregate. Deliberately not summed here: the
-  // provider reports a cumulative refunded figure per charge, so a partial
-  // refund followed by a full one produces two audit rows describing overlapping
-  // money, and adding them would overstate what went back. Deciding that is a
-  // business rule and belongs above this layer.
-  get refundFactsInRange() { return db.prepare(`
+/** One row per payment in the range that had money returned, flat, for the
+ *  service to aggregate. Deliberately not summed here: the provider reports a
+ *  cumulative refunded figure per charge, so a partial refund followed by a full
+ *  one produces two audit rows describing overlapping money, and adding them
+ *  would overstate what went back. Deciding that is a business rule and belongs
+ *  above this layer. Real money only, matching the gross query: netting a
+ *  rehearsal refund against real gross would understate revenue as surely as
+ *  counting a rehearsal charge would overstate it. */
+export function queryPeriodRefundFacts(
+  fromIso: string,
+  toIso: string,
+  filters: PeriodTotalFilters = {},
+): Array<{
+  id: string; payment_type: string; currency: string; amount_cents: number;
+  action_type: string; refunded_amount_cents: number | null;
+}> {
+  const { where, params } = periodTotalClauses(fromIso, toIso, filters);
+  return db.prepare(`
     SELECT p.id, p.payment_type, p.currency, p.amount_cents,
            a.action_type,
            json_extract(a.metadata_json, '$.refunded_amount_cents') AS refunded_amount_cents
     FROM audit_entries a
     JOIN payments p ON p.id = a.entity_id
+    ${ADMIN_PAYMENT_EVENT_JOIN}
     WHERE a.entity_type = 'payment'
       AND a.action_type IN ('payment.refunded', 'payment.partially_refunded')
-      AND p.created_at >= ? AND p.created_at < ?
-      -- Matches the gross query's real-money filter. Netting a rehearsal
-      -- refund against real gross would understate revenue as surely as
-      -- counting a rehearsal charge would overstate it.
       AND p.provider_livemode = 1
-  `); },
-};
-
-export const paymentVolume = {
-  // Settled money over a window, grouped by what it was for and by its
-  // currency. Currency is part of the grouping, never a label beside a summed
-  // number: adding two currencies together produces a figure that is true of
-  // neither.
-  get byTypeSince() { return db.prepare(`
-    SELECT payment_type, currency,
-           COUNT(*)          AS n,
-           SUM(amount_cents) AS total_cents
-    FROM payments
-    WHERE status = 'succeeded' AND created_at >= ?
-      -- Real money only, for the same reason the period totals count only
-      -- live rows: a rehearsal charge on the health page reads as revenue.
-      AND provider_livemode = 1
-    GROUP BY payment_type, currency
-    ORDER BY payment_type, currency
-  `); },
-
-  // What the window's volume left out, so the page can say so on its face.
-  get excludedSince() { return db.prepare(`
-    SELECT CASE WHEN provider_livemode IS NULL THEN 'unknown' ELSE 'test' END AS mode,
-           COUNT(*) AS n
-    FROM payments
-    WHERE status = 'succeeded' AND created_at >= ?
-      AND (provider_livemode IS NULL OR provider_livemode = 0)
-    GROUP BY mode
-  `); },
-};
+      AND ${where}
+  `).all(...params) as Array<{
+    id: string; payment_type: string; currency: string; amount_cents: number;
+    action_type: string; refunded_amount_cents: number | null;
+  }>;
+}
 
 export const stripeEvents = {
   // Idempotency primitive: PRIMARY KEY (event_id) makes INSERT OR IGNORE a

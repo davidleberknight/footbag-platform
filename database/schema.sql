@@ -1756,8 +1756,12 @@ CREATE INDEX idx_recon_status ON reconciliation_issues(status);
 -- with no local counterpart, for instance) would never collide with itself and
 -- would duplicate on every run.
 --
--- Partial on status so a resolved issue stops occupying the slot: if the same
--- discrepancy is still present on a later run it is correctly raised again.
+-- Partial on status so a resolved issue stops occupying the slot. A later run
+-- that finds the same discrepancy compares it with the latest resolved issue
+-- under the same key: with its figures unchanged it is a reconciling item an
+-- administrator already explained, and the run carries it forward on its report
+-- and on the treasurer's summary, with the resolution note, rather than raising
+-- it again; with changed figures it is raised as a new outstanding issue.
 CREATE UNIQUE INDEX ux_recon_outstanding_dedup ON reconciliation_issues(
   issue_type,
   COALESCE(payment_id, ''),

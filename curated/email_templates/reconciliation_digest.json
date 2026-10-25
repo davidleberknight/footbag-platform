@@ -1,7 +1,7 @@
 {
   "templateKey": "reconciliation_digest",
   "subjectTemplate": "Payment reconciliation: {countPhrase}",
-  "bodyTemplate": "This is the regular check that our records and the payment provider's records agree. It covers the last {periodPhrase}, and it is sent every time whether or not anything needs doing, so that no news is good news rather than an open question.\n\n{headlinePhrase}\n\n{comparisonBlock}\n\nNEEDS ATTENTION\n{needsAttentionBlock}\n\nFOR THE RECORD\n{forTheRecordBlock}\n\nEvery nightly report, updated daily: {reportsUrl}\nReview and resolve: {reviewUrl}\n\nProcessing fees, payouts and net proceeds are read at the payment provider, which is the book of record for money movement; the figures here are gross, dated by charge, and are not expected to match a bank deposit.",
-  "piiClassification": "internal",
+  "bodyTemplate": "This is the regular check that our records and the payment provider's records agree. It covers the last {periodPhrase}, and it is sent every time whether or not anything needs doing, so that no news is good news rather than an open question.\n\n{headlinePhrase}\n\n{comparisonBlock}\n\nNEEDS ATTENTION\n{needsAttentionBlock}\n\nFOR THE RECORD\n{forTheRecordBlock}\n\nCARRIED FORWARD\n{carriedForwardBlock}\n\nDONATIONS WITH A COMMENT\n{donationCommentsBlock}\n\nTOTALS FROM THE NEWEST REPORT\n{totalsBlock}\n\nEvery nightly report, updated daily: {reportsUrl}\nReview and resolve: {reviewUrl}\n\nProcessing fees, payouts and net proceeds are read at the payment provider, which is the book of record for money movement; the figures here are gross, dated by charge, and are not expected to match a bank deposit. Disputed charges are not deducted from these figures.",
+  "piiClassification": "confidential",
   "isEnabled": true
 }

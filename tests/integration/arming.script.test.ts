@@ -31,6 +31,8 @@ import {
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import BetterSqlite3 from 'better-sqlite3';
+import { requireToolInCI } from '../fixtures/toolAvailability';
 
 const ARMING = join(process.cwd(), 'scripts/arming.sh');
 const MARKER = join(process.cwd(), 'scripts/production-live-marker.sh');
@@ -168,9 +170,21 @@ describe('arming.sh — the plan states the safe order', () => {
     expect(res.stdout).not.toMatch(/--soup-to-nuts|--from-csv/);
   });
 
-  it('warns that disarming manufactures one false reconciliation issue', () => {
+  it('states what reconciliation does after a disarm, not a false issue on every real payment', () => {
+    // Defect caught: the operator is told to expect, and to wave away, a
+    // "missing at provider" issue against every real payment. The stub reports
+    // test mode, so the nightly pass sets live-mode rows aside; an issue it does
+    // raise is on a test-mode or unrecorded-mode row, and deserves a look.
     const res = dryRun(['--target', 'production', '--state', 'dark']);
-    expect(res.stdout).toMatch(/false reconciliation issue/);
+    expect(res.stdout).toMatch(/live-mode payments are set aside/);
+    expect(res.stdout).not.toMatch(/against every real payment/);
+  });
+
+  it('the plan says a post-launch disarm also pauses payments, before the deploy', () => {
+    const res = dryRun(['--target', 'production', '--state', 'dark']);
+    const pause = res.stdout.indexOf('also pause payments');
+    expect(pause).toBeGreaterThan(-1);
+    expect(pause).toBeLessThan(res.stdout.indexOf('deploy_to_aws.sh'));
   });
 });
 
@@ -1044,5 +1058,252 @@ describe('arming.sh — the operator-address check before the deploy', () => {
     for (const verdict of ['covered', 'uncovered', 'unknown'] as const) {
       expect(runEgressCheck(verdict, 'yes').stdout).toMatch(/the helper said its piece/);
     }
+  });
+});
+
+/**
+ * The payments switch driven through the deploy and the verification, against
+ * stand-ins: a recorder in place of the deploy, the real status view reading a
+ * probe file in place of the host, an `aws` that answers the go-live marker, and
+ * an ssh that is a host holding a database built from the real schema. The
+ * pause body that crosses the wire is the real one, run against that database,
+ * so the switch a run reports is read back from a real write.
+ */
+const sqliteAvailable = requireToolInCI('sqlite3', '-version');
+describe.skipIf(!sqliteAvailable)('arming.sh — payments, judged from what the host reports', () => {
+  interface Stage {
+    dir: string;
+    db: string;
+    env: NodeJS.ProcessEnv;
+    deployLog: string;
+    tfvars: string;
+  }
+
+  /**
+   * `marker` is what the go-live parameter reads, or null for a read that fails.
+   * `probe` is the host state the status view is handed after the deploy.
+   * `pauseReadsBack` false makes the host answer the pause without writing it.
+   */
+  function stage(opts: {
+    marker: string | null;
+    probe: string[];
+    tfvarsState: 'armed' | 'dark';
+    pauseReadsBack?: boolean;
+    /** The pause takes at step 4 but reads clear at step 5, as if cleared in between. */
+    pauseLostBeforeVerify?: boolean;
+    statusFails?: boolean;
+  }): Stage {
+    fileCounter += 1;
+    const dir = join(tmpDir, `payments-e2e-${fileCounter}`);
+    const bin = join(dir, 'bin');
+    const home = join(dir, 'home');
+    mkdirSync(bin, { recursive: true });
+    mkdirSync(join(home, 'AWS'), { recursive: true });
+    for (const name of ['AWS_OPERATOR.txt', 'AWS_OPERATOR_PRODUCTION.txt']) {
+      writeFileSync(join(home, 'AWS', name), 'stand-in-sudo-password\n', { mode: 0o600 });
+    }
+    const db = join(dir, 'footbag.db');
+    const handle = new BetterSqlite3(db);
+    handle.pragma('synchronous = OFF');
+    handle.exec(readFileSync(join(process.cwd(), 'database', 'schema.sql'), 'utf-8'));
+    handle.close();
+
+    // Runs only the runtime-pause body, with the host's database path mapped to
+    // the scratch one; any other session (the env-file read) gets nothing back.
+    const stream = join(dir, 'stream.txt');
+    writeFileSync(join(bin, 'ssh'), [
+      '#!/usr/bin/env bash',
+      hostIdentityAnswer(),
+      'for a in "$@"; do',
+      '  if [[ "$a" == "-G" ]]; then echo "hostname 198.51.100.9"; echo "user footbag"; exit 0; fi',
+      'done',
+      `cat > ${JSON.stringify(stream)}`,
+      `grep -q '^CONFIG_KEY=' ${JSON.stringify(stream)} || exit 1`,
+      opts.pauseReadsBack === false
+        ? 'echo SWITCH_PAUSED=0; exit 0'
+        : opts.pauseLostBeforeVerify
+          ? `grep -q "^ACTION=status" ${JSON.stringify(stream)} && { echo SWITCH_PAUSED=0; exit 0; }; tail -n +2 ${JSON.stringify(stream)} | sed 's|^DB_FILE=.*|DB_FILE=${db}|' | bash`
+          : `tail -n +2 ${JSON.stringify(stream)} | sed 's|^DB_FILE=.*|DB_FILE=${db}|' | bash`,
+    ].join('\n'), { mode: 0o755 });
+
+    writeFileSync(join(bin, 'aws'), [
+      '#!/usr/bin/env bash',
+      'name=""; prev=""',
+      'for a in "$@"; do [[ "$prev" == "--name" ]] && name="$a"; prev="$a"; done',
+      'case "$name" in',
+      opts.marker === null
+        ? '  */app/production_live) echo "AccessDenied" >&2; exit 255 ;;'
+        : `  */app/production_live) echo ${JSON.stringify(opts.marker)} ;;`,
+      '  */secrets/*) echo "a-real-looking-value" ;;',
+      '  *) echo "unread" ;;',
+      'esac',
+    ].join('\n'), { mode: 0o755 });
+
+    const deployLog = join(dir, 'deploy.log');
+    const deploy = join(dir, 'deploy.sh');
+    // Records what the pause switch read at the moment the deploy started.
+    writeFileSync(deploy, [
+      '#!/usr/bin/env bash',
+      'echo RECORDER-DEPLOY-RAN',
+      `sqlite3 ${JSON.stringify(db)} "SELECT COALESCE((SELECT value_json FROM system_config_current WHERE config_key='payments_paused'),'0');" > ${JSON.stringify(deployLog)}`,
+    ].join('\n'), { mode: 0o755 });
+
+    const probe = join(dir, 'probe.txt');
+    writeFileSync(probe, opts.probe.join('\n') + '\n');
+    const status = join(dir, 'status.sh');
+    writeFileSync(status, opts.statusFails
+      ? '#!/usr/bin/env bash\necho "status view broke" >&2\nexit 3\n'
+      : `#!/usr/bin/env bash\nexec bash ${JSON.stringify(join(process.cwd(), 'scripts/bringup-status.sh'))} --target production --probe-file ${JSON.stringify(probe)}\n`,
+    { mode: 0o755 });
+
+    const pin = join(dir, 'pin');
+    writeFileSync(pin, '[198.51.100.9]:22 ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFAKE\n', { mode: 0o600 });
+
+    const tfvars = writeTfvars([
+      'environment    = "production"',
+      `payments_armed = "${opts.tfvarsState}"`,
+    ]);
+    return {
+      dir,
+      db,
+      deployLog,
+      tfvars,
+      env: {
+        ...process.env,
+        ...awsIdentityStubEnv(dir),
+        PATH: `${bin}:${process.env.PATH ?? ''}`,
+        FOOTBAG_HOST_SSH_BIN: join(bin, 'ssh'),
+        FOOTBAG_KNOWN_HOSTS: pin,
+        HOME: home,
+        ARMING_DEPLOY_CMD: deploy,
+        ARMING_STATUS_CMD: status,
+      },
+    };
+  }
+
+  function go(s: Stage, state: 'armed' | 'dark', input: string): RunResult {
+    const r = spawnSync('bash', [ARMING, '--target', 'production', '--state', state,
+      '--tfvars', s.tfvars, '--profile', 'stand-in-profile'], {
+      cwd: process.cwd(), encoding: 'utf-8', input, env: s.env, ...SPAWN_GUARD,
+    });
+    return { exitCode: r.status ?? 1, stdout: r.stdout ?? '', stderr: r.stderr ?? '' };
+  }
+
+  function pausedRows(s: Stage): { value_json: string; reason_text: string }[] {
+    const h = new BetterSqlite3(s.db, { readonly: true });
+    try {
+      return h.prepare("SELECT value_json, reason_text FROM system_config WHERE config_key = 'payments_paused' AND value_json = '1'")
+        .all() as { value_json: string; reason_text: string }[];
+    } finally {
+      h.close();
+    }
+  }
+
+  const DARK_PROBE = ['ENV_FETCHED=yes', 'ENV_PAYMENTS_ARMED=dark', 'ENV_PAYMENT_ADAPTER=stub', 'SSM_STRIPE_KEY=live'];
+  const ARMED_PROBE = ['ENV_FETCHED=yes', 'ENV_PAYMENTS_ARMED=armed', 'ENV_PAYMENT_ADAPTER=live',
+    'ENV_WEBHOOK_SECRET=set', 'SSM_STRIPE_KEY=live'];
+
+  it('after launch, a disarm pauses payments before the deploy and says so before APPLY', () => {
+    // Defect caught: a post-launch disarm leaves the stub checkout open, so any
+    // member could take a tier without paying from the moment the deploy lands.
+    const s = stage({ marker: 'true', probe: DARK_PROBE, tfvarsState: 'armed' });
+    const res = go(s, 'dark', 'APPLY\nyes\n');
+    expect(res.exitCode, res.stderr).toBe(0);
+    const prompt = res.stdout.indexOf("Type 'APPLY' once you have done it");
+    const warned = res.stdout.indexOf('payments will also be PAUSED');
+    expect(warned).toBeGreaterThan(-1);
+    expect(warned).toBeLessThan(prompt);
+    // The switch read paused when the deploy started, and the run said so.
+    expect(readFileSync(s.deployLog, 'utf-8').trim()).toBe('1');
+    expect(res.stdout.indexOf('payments on production: PAUSED')).toBeLessThan(res.stdout.indexOf('RECORDER-DEPLOY-RAN'));
+    const rows = pausedRows(s);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].reason_text).toMatch(/arming\.sh/);
+  });
+
+  it('before launch, a disarm leaves the pause alone', () => {
+    // The positive control: the pause is tied to the marker, so a pre-launch
+    // disarm (the test-mode exercise) refuses nothing.
+    const s = stage({ marker: 'false', probe: DARK_PROBE, tfvarsState: 'armed' });
+    const res = go(s, 'dark', 'APPLY\nyes\n');
+    expect(res.exitCode, res.stderr).toBe(0);
+    expect(res.stdout).not.toMatch(/also be PAUSED/);
+    expect(readFileSync(s.deployLog, 'utf-8').trim()).toBe('0');
+    expect(pausedRows(s)).toHaveLength(0);
+  });
+
+  it('refuses before changing anything when the go-live marker cannot be read', () => {
+    // A read the run could not take is never agreement: an unread marker could
+    // hide the post-launch state where the stub grants tiers for free.
+    const s = stage({ marker: null, probe: DARK_PROBE, tfvarsState: 'armed' });
+    const before = readFileSync(s.tfvars, 'utf-8');
+    const res = go(s, 'dark', 'APPLY\nyes\n');
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/\/footbag\/production\/app\/production_live/);
+    expect(res.stderr).toMatch(/Nothing has been changed/);
+    expect(readFileSync(s.tfvars, 'utf-8')).toEqual(before);
+    expect(res.stdout).not.toMatch(/RECORDER-DEPLOY-RAN/);
+  });
+
+  it('does not deploy when the pause does not read back as set', () => {
+    // Defect caught: a pause invoked but never confirmed, then a deploy that
+    // opens the stub checkout on a launched site.
+    const s = stage({ marker: 'true', probe: DARK_PROBE, tfvarsState: 'armed', pauseReadsBack: false });
+    const res = go(s, 'dark', 'APPLY\nyes\n');
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/pause did not take/);
+    expect(res.stdout).not.toMatch(/RECORDER-DEPLOY-RAN/);
+  });
+
+  it('after launch, verification fails when the pause no longer reads as set', () => {
+    // Defect caught: verification judged dark from the status view alone, whose
+    // Payments row says nothing about the pause, so a pause lost after step 4
+    // (or skipped by a resumed run) reported success with the stub checkout open.
+    const s = stage({ marker: 'true', probe: DARK_PROBE, tfvarsState: 'armed', pauseLostBeforeVerify: true });
+    const res = go(s, 'dark', 'APPLY\nyes\n');
+    expect(res.exitCode, `${res.stdout}\n${res.stderr}`).toBe(1);
+    expect(res.stderr).toMatch(/payments pause reads '0', not 1/);
+    expect(res.stderr).toMatch(/--from-step 4/);
+  });
+
+  it('re-arming leaves the pause in place and names the lever that clears it', () => {
+    const s = stage({ marker: 'true', probe: ARMED_PROBE, tfvarsState: 'dark' });
+    const res = go(s, 'armed', 'yes\n');
+    expect(res.exitCode, res.stderr).toBe(0);
+    expect(res.stdout).toMatch(/scripts\/payments-pause\.sh --target production --resume/);
+    expect(pausedRows(s)).toHaveLength(0);
+  });
+
+  it('fails the run when the host reports the other state, saying what it read', () => {
+    // Defect caught: verification read the status view and exited 0 whatever it
+    // said, so a deploy that left the host dark reported a successful arm.
+    const s = stage({ marker: 'false', probe: DARK_PROBE, tfvarsState: 'dark' });
+    const res = go(s, 'armed', 'yes\n');
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/does not read payments armed and live/);
+    expect(res.stderr).toMatch(/payments dark \(stub adapter/);
+  });
+
+  it('fails a disarm whose host still reads armed and live', () => {
+    // The other side of the same verdict: a disarm deploy that left the live
+    // adapter running must not report success.
+    const s = stage({ marker: 'false', probe: ARMED_PROBE, tfvarsState: 'armed' });
+    const res = go(s, 'dark', 'APPLY\nyes\n');
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/does not read payments dark on the stub/);
+    expect(res.stderr).toMatch(/armed: SSM key live, PAYMENT_ADAPTER=live/);
+  });
+
+  it('fails the run when the status cannot be read at all', () => {
+    const s = stage({ marker: 'false', probe: DARK_PROBE, tfvarsState: 'armed', statusFails: true });
+    const res = go(s, 'dark', 'APPLY\nyes\n');
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/could not read the status/);
+  });
+
+  it('announces the status stand-in, because a stubbed verification proves nothing', () => {
+    const s = stage({ marker: 'false', probe: DARK_PROBE, tfvarsState: 'armed' });
+    const res = go(s, 'dark', 'APPLY\nyes\n');
+    expect(res.stderr).toMatch(/SYNTHETIC: status command=/);
   });
 });

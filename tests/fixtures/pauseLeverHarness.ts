@@ -25,6 +25,7 @@ import BetterSqlite3 from 'better-sqlite3';
 import { SPAWN_GUARD } from './spawnGuard';
 import { hostIdentityAnswer } from './hostIdentityStub';
 import { requireToolInCI } from './toolAvailability';
+import { insertSystemConfig } from './factories';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const SCHEMA = path.join(REPO_ROOT, 'database', 'schema.sql');
@@ -260,6 +261,23 @@ export function describePauseLever(spec: PauseLeverSpec, makeScratch: (label: st
       expect(paused.stdout).toContain(spec.pausedLine);
       expect(paused.stdout).not.toContain(spec.clearLine);
       expect(h.effective()).toBe('1');
+    });
+
+    it('reports a stored value that is neither paused nor clear as unexpected, and fails', () => {
+      // Defect caught: any value other than 1 reported as the clear state, so a
+      // switch row written wrong by hand or by a future writer reads to the
+      // operator as "not refusing anything" with the run exiting 0.
+      const db = new BetterSqlite3(h.hostDbPath());
+      try {
+        insertSystemConfig(db, { config_key: spec.configKey, value_json: '2', reason_text: 'malformed row' });
+      } finally {
+        db.close();
+      }
+      const res = h.run(['--target', 'staging', '--status']);
+      expect(res.status).toBe(1);
+      expect(res.stderr).toContain("unexpected value '2'");
+      expect(res.stdout).not.toContain(spec.clearLine);
+      expect(res.stdout).not.toContain(spec.pausedLine);
     });
   });
 }

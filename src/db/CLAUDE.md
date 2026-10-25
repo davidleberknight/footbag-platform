@@ -23,6 +23,13 @@ only the file-local additions live here.
 When adding or removing columns from tables that appear in `tests/fixtures/factories.ts`, update
 the relevant factory inserts in the same change; otherwise tests fail with SQLite column errors.
 
+When adding, removing or renaming a table or column, classify it in `src/lib/copyColumnRegister.ts`
+in the same change, deciding what a copy of production does with it: keep, unless it holds a
+credential, a one-time token or a payment-provider identifier, which a copy drops or rewrites. The
+register has no default, so decide each column rather than copying a neighbour's action; what each
+action means is the register's own header. `tests/integration/copyColumnRegister.exhaustive.test.ts`
+fails on a table or column the register omits or names that the schema lacks.
+
 ### Where a schema change lands
 
 Before go-live: `database/schema.sql` alone. The whole database is replaced on every deploy, so the

@@ -51,6 +51,9 @@ export const FLASH_KIND = {
   PROFILE_UPDATED: 'profile_updated',
   PASSWORD_CHANGED: 'password_changed',
   RECURRING_DONATION_CANCELED: 'recurring_donation_canceled',
+  // A cancellation that found the gift already ended. The payload is the
+  // sentence and its tone, so the history page reports that nothing changed.
+  RECURRING_DONATION_OUTCOME: 'recurring_donation_outcome',
   RECONCILIATION_RESOLVED: 'reconciliation_resolved',
   // An administrator's correction on a member record. The payload is the
   // outcome code the member service turns back into a sentence, so the wording

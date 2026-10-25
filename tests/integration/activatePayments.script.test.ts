@@ -193,6 +193,19 @@ describe('activate-payments.sh — credential shape refusals', () => {
     expect(result.stderr).toMatch(/start with sk_live_ or sk_test_/);
   });
 
+  it('refuses a restricted key, as endpoint creation and the bring-up status view do', () => {
+    // Defect caught: activation accepting a restricted key the endpoint script
+    // refuses and the status view cannot classify, so arming with it reports a
+    // failure after the apply and deploy have succeeded.
+    const envFile = writeEnvFile(['SECRETS_ADAPTER=live']);
+    const result = runScript(['--target', 'staging', '--env-file', envFile], {
+      ...SECRETS,
+      STRIPE_SECRET_KEY_VALUE: 'rk_live_x',
+    });
+    expect(result.exitCode).toBe(1);
+    expect(result.stderr).toMatch(/start with sk_live_ or sk_test_/);
+  });
+
   it('refuses a webhook secret without the whsec_ prefix', () => {
     const envFile = writeEnvFile(['SECRETS_ADAPTER=live']);
     const result = runScript(['--target', 'staging', '--env-file', envFile], {
@@ -388,6 +401,50 @@ describe('activate-payments.sh — webhook-secret rotation', () => {
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toMatch(/no rotation window to close/);
   });
+
+  it('judges the window from Parameter Store too: a rotation that never reached the host is refused, not closed', () => {
+    // Defect caught: a rotation that aborted at its host push leaves the
+    // outgoing secret in Parameter Store and none on the host. Judged from the
+    // host alone, completion reported "no window"; closing it from the
+    // parameter instead would let the next deploy install the new secret with
+    // no overlap and fail every delivery still signed with the old one.
+    const envFile = writeEnvFile(LIVE_ENV);
+    const before = readFileSync(envFile, 'utf-8');
+    const result = runScript(
+      ['--target', 'staging', '--env-file', envFile, '--complete-webhook-rotation'],
+      { STRIPE_WEBHOOK_SECRET_PREVIOUS_PARAM_VALUE: 'whsec_outgoing_in_param' },
+    );
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).not.toMatch(/no rotation window to close/);
+    expect(result.stderr).toMatch(/stopped before its host push/);
+    expect(result.stderr).toMatch(/Finish the rotation first/);
+    expect(result.stderr).toMatch(/Nothing has been changed/);
+    expect(result.stderr).toMatch(/SYNTHETIC: .*STRIPE_WEBHOOK_SECRET_PREVIOUS_PARAM_VALUE/);
+    expect(result.stdout + result.stderr).not.toContain('whsec_outgoing_in_param');
+    expect(readFileSync(envFile, 'utf-8')).toEqual(before);
+  });
+
+  it('says what it found on both sides when a window is open on the host', () => {
+    const envFile = writeEnvFile([...LIVE_ENV, 'STRIPE_WEBHOOK_SECRET_PREVIOUS=whsec_older_value']);
+    const result = runScript(
+      ['--target', 'staging', '--env-file', envFile, '--complete-webhook-rotation'],
+      { STRIPE_WEBHOOK_SECRET_PREVIOUS_PARAM_VALUE: 'TODO-set-via-cli-after-apply' },
+    );
+    expect(result.exitCode, result.stderr).toBe(0);
+    expect(result.stdout).toMatch(/host STRIPE_WEBHOOK_SECRET_PREVIOUS: set/);
+    expect(result.stdout).toMatch(/Parameter Store .*: placeholder/);
+    expect(readFileSync(envFile, 'utf-8')).not.toMatch(/^STRIPE_WEBHOOK_SECRET_PREVIOUS=/m);
+  });
+
+  it('refuses to judge the window when the previous-secret parameter cannot be read', () => {
+    // A real-host run needs a terminal and a host, so the wiring is pinned in
+    // the source: the read's own exit status decides, and a failed read stops
+    // the run rather than reading as "no window".
+    const source = readFileSync(SCRIPT, 'utf-8');
+    expect(source).toMatch(
+      /if ! SSM_PREV_VALUE="\$\(read_ssm_secret "\$SSM_WEBHOOK_PREV_PARAM"\)"; then[\s\S]{0,400}?exit 1/,
+    );
+  });
 });
 
 // ── the order of writes, and the temp file that holds the key ────────────────
@@ -561,6 +618,7 @@ describe('activate-payments.sh — a declined push says what is already written'
     const branch = abort.slice(0, abort.indexOf('exit 1'));
     expect(branch).toMatch(/activate\)/);
     expect(branch).toMatch(/rotate\)/);
+    expect(branch).toMatch(/complete\)/);
     expect(branch).toMatch(/deactivate\)/);
   });
 

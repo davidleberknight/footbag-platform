@@ -893,4 +893,176 @@ describe('GET /admin/payments/reports', () => {
     const res = await plainRequest(createApp()).get('/admin/payments/reports/jr_nope').set('Cookie', cookie(ADMIN));
     expect(res.status).toBe(404);
   });
+
+  // Defect caught: a discrepancy an administrator explained, still present on a
+  // later run, vanishes from that run's report, so the report reads as if the
+  // books agreed when they still differ by a known amount.
+  it('lists a carried-forward reconciling item with its explanation, who gave it and when', async () => {
+    const issueId = await seedOneIssue();
+    await request(createApp())
+      .post(`/admin/payments/reconciliation/${issueId}/resolve`)
+      .set('Cookie', cookie(ADMIN))
+      .type('form')
+      .send({ notes: 'A charge booked by hand.' });
+    await runNightly(new Date(NOW.getTime() + 86_400_000));
+    const list = await plainRequest(createApp()).get('/admin/payments/reports').set('Cookie', cookie(ADMIN));
+    const href = /href="(\/admin\/payments\/reports\/jr_[a-z0-9]+)"/.exec(list.text);
+    const detail = await plainRequest(createApp()).get(href![1]).set('Cookie', cookie(ADMIN));
+    expect(detail.status).toBe(200);
+    expect(detail.text).toContain('Carried Forward');
+    expect(detail.text).toContain('A charge booked by hand.');
+    expect(detail.text).toContain('adminpay_admin');
+  });
+});
+
+describe('All Payments totals follow the filters', () => {
+  // Defect caught: the totals ignore the type, status, member, event and
+  // reference filters while the heading names only the period, so a filtered
+  // list sits above a total for every payment in the month.
+  it('counts only the payment type the list is filtered to', async () => {
+    const db = openDb();
+    try {
+      insertPayment(db, {
+        id: 'pay-tot-don', member_id: MEMBER, payment_type: 'donation', created_at: IN_WINDOW,
+        status: 'succeeded', amount_cents: 2500,
+      });
+      insertPayment(db, {
+        id: 'pay-tot-mem', member_id: MEMBER, payment_type: 'membership', created_at: IN_WINDOW,
+        status: 'succeeded', amount_cents: 7700,
+      });
+    } finally {
+      db.close();
+    }
+    const all = await plainRequest(createApp()).get('/admin/payments').set('Cookie', cookie(ADMIN));
+    expect(all.text).toContain('77.00 USD');
+    const filtered = await plainRequest(createApp())
+      .get('/admin/payments?type=donation')
+      .set('Cookie', cookie(ADMIN));
+    expect(filtered.status).toBe(200);
+    expect(filtered.text).toContain('25.00 USD');
+    expect(filtered.text).not.toContain('77.00 USD');
+  });
+
+  it('counts only the status and the payment reference the list is filtered to', async () => {
+    const db = openDb();
+    try {
+      insertPayment(db, {
+        id: 'pay-tot-kept', member_id: MEMBER, payment_type: 'donation', created_at: IN_WINDOW,
+        status: 'succeeded', amount_cents: 4100, stripe_payment_intent_id: 'pi_tot_kept',
+      });
+      insertPayment(db, {
+        id: 'pay-tot-refunded', member_id: MEMBER, payment_type: 'donation', created_at: IN_WINDOW,
+        status: 'refunded', amount_cents: 6300, stripe_payment_intent_id: 'pi_tot_refunded',
+      });
+    } finally {
+      db.close();
+    }
+    for (const [query, kept, dropped] of [
+      ['status=refunded', '63.00 USD', '41.00 USD'],
+      ['reference=pi_tot_kept', '41.00 USD', '63.00 USD'],
+    ] as const) {
+      const res = await plainRequest(createApp())
+        .get(`/admin/payments?type=donation&${query}`)
+        .set('Cookie', cookie(ADMIN));
+      expect(res.status, query).toBe(200);
+      expect(res.text, query).toContain(kept);
+      expect(res.text, query).not.toContain(dropped);
+      // The total of both payments together: present only if the totals
+      // ignore the filter while the rows above them obey it.
+      expect(res.text, query).not.toContain('104.00 USD');
+    }
+  });
+});
+
+describe('an absurd page number', () => {
+  // Defect caught: a page number past the safe-integer range reaches the
+  // offset arithmetic and the database as a value SQLite refuses, and the page
+  // answers a server error instead of rendering.
+  it('renders the first page of each paged admin payments view', async () => {
+    for (const path of [
+      '/admin/payments?page=1e30',
+      '/admin/payments/reconciliation?page=1e30',
+      '/admin/payments/reports?page=1e30',
+    ]) {
+      const res = await plainRequest(createApp()).get(path).set('Cookie', cookie(ADMIN));
+      expect(res.status, path).toBe(200);
+    }
+  });
+});
+
+describe('resolving an issue that is already resolved', () => {
+  const OTHER_ADMIN = 'adminpay-admin-two';
+
+  function flashFrom(res: { headers: Record<string, unknown> }): string {
+    const flash = ((res.headers['set-cookie'] as string[] | undefined) ?? [])
+      .find((c) => c.startsWith('footbag_flash='))?.split(';')[0];
+    expect(flash).toBeDefined();
+    return flash!;
+  }
+
+  function state(issueId: string) {
+    const db = openDb();
+    try {
+      return {
+        audit: (db.prepare(
+          "SELECT COUNT(*) AS c FROM audit_entries WHERE action_type = 'payment.reconciliation_issue_resolved' AND entity_id = ?",
+        ).get(issueId) as { c: number }).c,
+        row: db.prepare(
+          'SELECT status, resolved_by_member_id, resolution_notes, version FROM reconciliation_issues WHERE id = ?',
+        ).get(issueId),
+      };
+    } finally {
+      db.close();
+    }
+  }
+
+  async function resolveAs(memberId: string, issueId: string, notes: string) {
+    return request(createApp())
+      .post(`/admin/payments/reconciliation/${issueId}/resolve`)
+      .set('Cookie', cookie(memberId))
+      .type('form')
+      .send({ notes });
+  }
+
+  it('answers the same administrator submitting twice with the first confirmation, changing nothing', async () => {
+    const issueId = await seedOneIssue();
+    const first = await resolveAs(ADMIN, issueId, 'Confirmed at the provider.');
+    const afterFirst = state(issueId);
+    const second = await resolveAs(ADMIN, issueId, 'Confirmed at the provider.');
+    expect(second.status).toBe(303);
+    expect(second.headers.location).toBe(first.headers.location);
+    expect(state(issueId)).toEqual(afterFirst);
+    const landed = await plainRequest(createApp())
+      .get(second.headers.location)
+      .set('Cookie', [cookie(ADMIN), flashFrom(second)].join('; '));
+    expect(landed.text).toContain(
+      '<div class="form-success-banner" role="status">Issue resolved. Your note is recorded against it.</div>',
+    );
+  });
+
+  it('tells another administrator who resolved it and when, informationally, changing nothing', async () => {
+    const db = openDb();
+    try {
+      if (!db.prepare('SELECT 1 FROM members WHERE id = ?').get(OTHER_ADMIN)) {
+        insertMember(db, {
+          id: OTHER_ADMIN, slug: 'adminpay_admin_two', display_name: 'Admin Two',
+          login_email: 'ap2@example.com', is_admin: 1,
+        });
+      }
+    } finally {
+      db.close();
+    }
+    const issueId = await seedOneIssue();
+    await resolveAs(ADMIN, issueId, 'Confirmed at the provider.');
+    const afterFirst = state(issueId);
+    const second = await resolveAs(OTHER_ADMIN, issueId, 'I checked too.');
+    expect(second.status).toBe(303);
+    expect(second.headers.location).toBe('/admin/payments/reconciliation');
+    expect(state(issueId)).toEqual(afterFirst);
+    const landed = await plainRequest(createApp())
+      .get(second.headers.location)
+      .set('Cookie', [cookie(OTHER_ADMIN), flashFrom(second)].join('; '));
+    expect(landed.text).toContain('<p class="form-notice" role="status">Nothing changed: adminpay_admin already resolved this issue on 2026-07-20.</p>');
+    expect(landed.text).not.toContain('form-success-banner');
+  });
 });

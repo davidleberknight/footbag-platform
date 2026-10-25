@@ -48,7 +48,7 @@ process.env.CAPTCHA_ADAPTER           = 'stub'; // mandatory-explicit under prod
 process.env.IMAGE_PROCESSOR_URL       = 'http://image:4000';
 process.env.MEDIA_STORAGE_ADAPTER     = 'local';
 process.env.PAYMENT_ADAPTER           = 'stub';
-process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_staging_generated_value';
+process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_abababababababababababababababababababababababab';
 
 // A verified member who files a contact request, and an admin who both works
 // the queue and (being subscribed to admin-alerts) receives the submit-side

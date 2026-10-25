@@ -39,7 +39,7 @@ process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
 process.env.MEDIA_STORAGE_ADAPTER = 'local';
 process.env.PAYMENT_ADAPTER = 'stub';
 process.env.PAYMENTS_ARMED = 'dark';
-process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_for_a_dark_production_host';
+process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_abababababababababababababababababababababababab';
 process.env.CAPTCHA_ADAPTER = 'live';
 process.env.TURNSTILE_SITE_KEY = '1x00000000000000000000AA';
 delete process.env.ALLOW_CURATED_SIDECAR_WRITES;

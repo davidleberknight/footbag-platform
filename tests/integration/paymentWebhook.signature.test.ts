@@ -24,12 +24,16 @@ const M_REPLAY = 'sig-replay';
 const M_ATOMIC = 'sig-atomic';
 const M_XBIND_ROW = 'sig-xbind-row';
 const M_XBIND_META = 'sig-xbind-meta';
+const M_MODE_LIVE_EVENT = 'sig-mode-live-event';
+const M_MODE_TEST_EVENT = 'sig-mode-test-event';
+const M_MODE_MATCH = 'sig-mode-match';
+const M_MODE_UNREADABLE = 'sig-mode-unreadable';
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
-  for (const [i, id] of [M_HAPPY, M_PAYLOAD, M_SIG, M_EXPIRED, M_MISSING, M_CTRL_OK, M_CTRL_BAD, M_CTRL_REACH, M_REPLAY, M_ATOMIC, M_XBIND_ROW, M_XBIND_META].entries()) {
+  for (const [i, id] of [M_HAPPY, M_PAYLOAD, M_SIG, M_EXPIRED, M_MISSING, M_CTRL_OK, M_CTRL_BAD, M_CTRL_REACH, M_REPLAY, M_ATOMIC, M_XBIND_ROW, M_XBIND_META, M_MODE_LIVE_EVENT, M_MODE_TEST_EVENT, M_MODE_MATCH, M_MODE_UNREADABLE].entries()) {
     insertMember(db, { id, slug: `sig_${i}`, display_name: `Sig ${i}`, login_email: `sig${i}@example.com` });
   }
   db.close();
@@ -416,6 +420,15 @@ describe('POST /payments/webhook status mapping', () => {
         "SELECT last_event_id FROM stripe_webhook_failures WHERE reason = 'signature'",
       ).get() as { last_event_id: string | null };
       expect(identified.last_event_id).toBeNull();
+      // A verified delivery that failed afterwards is named, so an operator
+      // reading the health view can find the one event Stripe keeps retrying.
+      const recoverable = after.prepare(
+        "SELECT last_event_id, last_event_type FROM stripe_webhook_failures WHERE reason = 'recoverable'",
+      ).get() as { last_event_id: string | null; last_event_type: string | null };
+      expect(recoverable).toEqual({
+        last_event_id: 'evt_counter_recoverable',
+        last_event_type: 'payment_intent.succeeded',
+      });
     } finally {
       after.close();
     }
@@ -508,9 +521,26 @@ describe('POST /payments/webhook status mapping', () => {
       created: Math.floor(Date.now() / 1000),
       data: { object: { metadata: {} } }, // missing object.id
     });
+    const clear = openDb();
+    try {
+      clear.prepare("DELETE FROM stripe_webhook_failures WHERE reason = 'error'").run();
+    } finally {
+      clear.close();
+    }
     expectLoggedError(/stripe webhook processing failed/);
     const res = await postWebhook(body, signStripeWebhook(body, STUB_WEBHOOK_SECRET));
     expect(res.status).toBe(500);
+    const named = openDb();
+    try {
+      // The unexpected failure is the one an operator most needs to trace, so
+      // its counter row names the delivery that caused it.
+      const row = named.prepare(
+        "SELECT last_event_id, last_event_type FROM stripe_webhook_failures WHERE reason = 'error'",
+      ).get() as { last_event_id: string | null; last_event_type: string | null };
+      expect(row).toEqual({ last_event_id: 'evt_malformed', last_event_type: 'payment_intent.succeeded' });
+    } finally {
+      named.close();
+    }
 
     // The unexpected-failure branch is the one class of failure nobody
     // anticipated, and for a while it was also the one nothing could see: it
@@ -550,5 +580,100 @@ describe('POST /payments/webhook status mapping', () => {
     });
     const res = await postWebhook(body, signStripeWebhook(body, STUB_WEBHOOK_SECRET));
     expect(res.status).toBe(200);
+  });
+
+  // A verified event whose live/test flag disagrees with the key this process
+  // holds means the key and the endpoint secret come from different modes.
+  // Booking it would settle a payment in the wrong ledger: a test charge
+  // granting a real tier on a live host, or a real charge recorded as a
+  // rehearsal. It is refused before any row is touched, and retried by Stripe
+  // once the configuration agrees.
+  describe('event mode against the loaded key', () => {
+    async function signedSuccessWithMode(memberId: string, livemode: boolean) {
+      const { signStripeWebhook } = await import('../../src/adapters/stripeWebhook');
+      const { STUB_WEBHOOK_SECRET } = await import('../../src/adapters/paymentAdapter');
+      const { eventId, paymentId, rawBody } = await startSignedSuccess(memberId);
+      const parsed = JSON.parse(rawBody) as Record<string, unknown>;
+      const body = JSON.stringify({ ...parsed, livemode });
+      return { body, signature: signStripeWebhook(body, STUB_WEBHOOK_SECRET), eventId, paymentId };
+    }
+
+    function stateOf(paymentId: string, eventId: string) {
+      const db = openDb();
+      try {
+        const payment = db.prepare('SELECT status FROM payments WHERE id = ?').get(paymentId) as { status: string };
+        const claimed = db.prepare('SELECT COUNT(*) AS c FROM stripe_events WHERE event_id = ?').get(eventId) as { c: number };
+        const failure = db.prepare(
+          "SELECT last_event_id FROM stripe_webhook_failures WHERE reason = 'recoverable' AND last_event_id = ?",
+        ).get(eventId) as { last_event_id: string } | undefined;
+        return { status: payment.status, claimed: claimed.c, named: failure?.last_event_id ?? null };
+      } finally {
+        db.close();
+      }
+    }
+
+    it.each([
+      ['a live event against a test-mode key', 'test', true, M_MODE_LIVE_EVENT],
+      ['a test event against a live-mode key', 'live', false, M_MODE_TEST_EVENT],
+    ] as const)('refuses %s with a retryable 400 and settles nothing', async (_label, keyMode, livemode, member) => {
+      const { getStubPaymentAdapterForTests, getPaymentAdapter } = await import('../../src/adapters/paymentAdapter');
+      getPaymentAdapter();
+      const { body, signature, eventId, paymentId } = await signedSuccessWithMode(member, livemode);
+      getStubPaymentAdapterForTests()!.setLoadedCredentialModeForTests(keyMode);
+
+      const res = await postWebhook(body, signature);
+
+      expect(res.status).toBe(400);
+      expect(stateOf(paymentId, eventId)).toEqual({ status: 'pending', claimed: 0, named: eventId });
+    });
+
+    it('settles an event whose mode matches the key', async () => {
+      const { getStubPaymentAdapterForTests, getPaymentAdapter } = await import('../../src/adapters/paymentAdapter');
+      getPaymentAdapter();
+      const { body, signature, eventId, paymentId } = await signedSuccessWithMode(M_MODE_MATCH, true);
+      getStubPaymentAdapterForTests()!.setLoadedCredentialModeForTests('live');
+
+      const res = await postWebhook(body, signature);
+
+      expect(res.status).toBe(200);
+      expect(stateOf(paymentId, eventId)).toEqual({ status: 'succeeded', claimed: 1, named: null });
+    });
+
+    // The key is loaded only after the signature verifies, and a key that
+    // cannot be read must not stall deliveries the platform can settle: the
+    // event is processed with the mode unchecked, and the gap is logged.
+    it('processes the event when the key cannot be loaded, and loads it only after verification', async () => {
+      const mod = await import('../../src/adapters/paymentAdapter');
+      const stub = mod.createStubPaymentAdapter();
+      let resolveCalls = 0;
+      mod.setPaymentAdapterForTests({
+        ...stub,
+        loadedCredentialMode: () => 'unknown',
+        resolveCredentialMode: async () => {
+          resolveCalls += 1;
+          throw new Error('parameter store unavailable');
+        },
+      });
+      const { paymentService } = await import('../../src/services/paymentService');
+      const started = await paymentService.startMembershipPurchase(M_MODE_UNREADABLE, 'tier1', '/members/x');
+      const { rawBody, signature } = stub.buildSignedStubWebhookEvent(started.sessionId);
+      const eventId = (JSON.parse(rawBody) as { id: string }).id;
+
+      const unsigned = await postWebhook(rawBody, 't=1700000000,v1=deadbeef');
+      expect(unsigned.status).toBe(400);
+      expect(resolveCalls).toBe(0);
+
+      const { logger } = await import('../../src/config/logger');
+      const warn = vi.spyOn(logger, 'warn');
+      try {
+        const res = await postWebhook(rawBody, signature);
+        expect(res.status).toBe(200);
+        expect(resolveCalls).toBe(1);
+        expect(stateOf(started.paymentId, eventId).status).toBe('succeeded');
+        expect(warn).toHaveBeenCalledWith('webhook.mode_unchecked', expect.objectContaining({ eventMode: 'test' }));
+      } finally {
+        warn.mockRestore();
+      }
+    });
   });
 });

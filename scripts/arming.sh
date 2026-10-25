@@ -96,12 +96,27 @@
 # takes a few minutes, it is a deploy, and going dark requires the Stripe
 # webhook endpoint be disabled first. Know that before you need it.
 #
+# After launch a disarm also sets that pause, in the same run. A dark host runs
+# the stub checkout, which records a purchase without taking money, so once the
+# production-live marker (/footbag/production/app/production_live) reads
+# exactly "true" an unpaused disarm would let any member grant themselves a tier
+# for nothing. The pause goes through the same root-side body the pause lever
+# uses, before the deploy, and is read back; a pause that does not read back
+# stops the run before the deploy. A marker this run cannot read refuses the
+# disarm before anything changes. Re-arming never clears the pause: that is the
+# lever's job, done deliberately. Before launch nothing here changes.
+#
 # Steps (referenced by --from-step, so a failure part-way is resumable):
 #   1  the provider-side precondition for this switch and direction
 #   2  rewrite the arming flag in the environment tfvars
 #   3  terraform apply
-#   4  re-check this workstation's egress address, then deploy (code-only)
-#   5  verify the running host and print what to expect afterwards
+#   4  after launch, when disarming payments: set and read back the payments
+#      pause; then re-check this workstation's egress address, and deploy
+#      (code-only)
+#   5  verify the running host and print what to expect afterwards. For
+#      payments on production the status view's verdict decides the run: armed
+#      must read armed with the live adapter, dark must read dark on the stub,
+#      and anything else, or a status that cannot be read, fails the run
 #
 # Usage:
 #   scripts/arming.sh --target production --status
@@ -131,6 +146,10 @@
 # Synthetic mode (CI tests only; operators never use this):
 #   --tfvars <path> points the rewrite at a local file and stops after step 2,
 #   printing the remaining steps instead of running terraform or a deploy.
+#   With ARMING_DEPLOY_CMD set it also runs the post-launch pause and that
+#   command in place of the deploy, and with ARMING_STATUS_CMD set it runs step
+#   5 against that command in place of the status view. Without --profile it
+#   does not read the go-live marker and treats the run as before launch.
 set -euo pipefail
 
 # No default target. Which environment an arming change lands on is exactly the
@@ -197,6 +216,15 @@ if [[ -n "${ARMING_DEPLOY_CMD:-}" ]]; then
   # half-applied state this script exists to prevent, and it did so silently.
   echo "SYNTHETIC: deploy command='${DEPLOY_CMD}' -- not the real deploy." >&2
   echo "           Pass --tfvars as well, or this run applies for real." >&2
+fi
+
+# The status view step 5 judges. ARMING_STATUS_CMD exists only so a test can
+# hand step 5 a known host state; it is never set in operator use, and a run
+# using it says so, because a verification against a stand-in proves nothing.
+STATUS_CMD=(bash "$REPO_ROOT/scripts/bringup-status.sh")
+if [[ -n "${ARMING_STATUS_CMD:-}" ]]; then
+  STATUS_CMD=("$ARMING_STATUS_CMD")
+  echo "SYNTHETIC: status command='${ARMING_STATUS_CMD}' -- not the real status view." >&2
 fi
 
 while [[ $# -gt 0 ]]; do
@@ -622,13 +650,23 @@ if (( DRY_RUN )); then
   esac
   echo "  2. Rewrite $TFVAR_NAME = \"$STATE\" in $TFVARS_PATH (diff shown, confirmed)"
   echo "  3. terraform -chdir=$TF_DIR apply (publishes SSM app/$SSM_SUFFIX)"
-  echo "  4. Re-check this workstation's egress address, then:"
+  if [[ "$SWITCH" == "payments" && "$STATE" == "dark" && "$TARGET" == "production" ]]; then
+    echo "  4. If the production-live marker reads true (after launch), also pause payments"
+    echo "     (payments_paused) on the host and read it back first: a dark host's stub"
+    echo "     checkout would otherwise grant tiers without payment. An unreadable marker"
+    echo "     refuses the run before anything changes."
+    echo "     Then re-check this workstation's egress address, then:"
+  else
+    echo "  4. Re-check this workstation's egress address, then:"
+  fi
   echo "     ./deploy_to_aws.sh --target $TARGET   (code-only; never --all-data)"
   echo "  5. Verify with scripts/bringup-status.sh and report what to expect"
   if [[ "$SWITCH" == "payments" && "$STATE" == "dark" ]]; then
     echo ""
-    echo "After disarming, expect one false reconciliation issue within a day: the"
-    echo "nightly pass runs whatever the adapter is, and the stub's ledger is empty."
+    echo "After disarming, the nightly reconciliation pass runs against the stub, which"
+    echo "reports test mode: live-mode payments are set aside and counted on the pass's"
+    echo "report, not raised. Test-mode rows, and rows whose mode was never recorded,"
+    echo "are still compared against the stub's empty ledger and can be raised."
   fi
   if [[ "$SWITCH" == "email" && "$STATE" == "armed" ]]; then
     echo ""
@@ -732,6 +770,43 @@ if (( FROM_STEP <= 1 )) && [[ "$MODE" != "status" ]]; then
     fi
   fi
   unset sc_ssm sc_host
+fi
+
+# ── After launch, a payments disarm also pauses payments ─────────────────────
+#
+# Read on every resume point, because the pause itself happens at step 4. Only
+# the exact value "true" means launched, matching the marker script; any other
+# readable value is before launch. A read that fails refuses the run here,
+# before anything changes: guessing "before launch" would open the stub checkout
+# on a launched site, and guessing "after launch" would pause on a reason nobody
+# can state. Synthetic mode without --profile reaches no AWS and reads nothing.
+POST_LAUNCH_PAUSE=0
+if [[ "$SWITCH" == "payments" && "$STATE" == "dark" && "$TARGET" == "production" ]]; then
+  if [[ -n "$TFVARS_OVERRIDE" && -z "$AWS_PROFILE_ARG" ]]; then
+    echo "SYNTHETIC: the production-live marker is not read without --profile; treated as before launch." >&2
+  else
+    marker_args=()
+    [[ -n "$AWS_PROFILE_ARG" ]] && marker_args=(--profile "$AWS_PROFILE_ARG")
+    if ! MARKER_VALUE="$(aws ssm get-parameter --name /footbag/production/app/production_live \
+        --query 'Parameter.Value' --output text "${marker_args[@]}" 2>/dev/null)"; then
+      echo "REFUSING: could not read /footbag/production/app/production_live." >&2
+      echo "" >&2
+      echo "  After launch, disarming must also pause payments, because a dark host's stub" >&2
+      echo "  checkout would let any member take a tier without paying. Without the marker" >&2
+      echo "  this run cannot tell which side of launch it is on, so it does not guess." >&2
+      echo "  Fix the profile's access to that parameter and re-run." >&2
+      echo "" >&2
+      echo "  Nothing has been changed." >&2
+      exit 1
+    fi
+    if [[ "$MARKER_VALUE" == "true" ]]; then
+      POST_LAUNCH_PAUSE=1
+    else
+      echo "The production-live marker reads '${MARKER_VALUE}': before launch, so payments are not paused."
+      echo ""
+    fi
+    unset marker_args MARKER_VALUE
+  fi
 fi
 
 # ── Step 1: the provider side, which this script cannot do for you ───────────
@@ -985,6 +1060,13 @@ if (( FROM_STEP <= 1 )) && [[ "$PRECONDITION" == "stripe-endpoint" ]]; then
   echo "delivery fails with 400. Stripe retries for days and then disables the"
   echo "endpoint itself — typically right when the payout events arrive."
   echo ""
+  if (( POST_LAUNCH_PAUSE )); then
+    echo "Production is live, so payments will also be PAUSED by this run, before the"
+    echo "deploy: a dark host's stub checkout records a purchase without taking money,"
+    echo "so new purchases and donations are refused instead. Webhooks keep processing."
+    echo "Re-arming does not clear the pause; scripts/payments-pause.sh --resume does."
+    echo ""
+  fi
   printf "Type 'APPLY' once you have done it: "
   read -r TYPED
   if [[ "$TYPED" != "APPLY" ]]; then
@@ -1034,6 +1116,147 @@ if (( FROM_STEP <= 2 )); then
   echo ""
 fi
 
+# Sets the payments pause on the host and reads it back, after launch only. One
+# session on the shared wire: the password read once from the credential file,
+# then the values, then the same root-side body the pause lever sends, so the
+# append-only write and the read-back are the lever's own. Any failure stops the
+# run before the deploy: deploying the stub onto a launched site unpaused is the
+# outcome this exists to prevent.
+# Sends one pause-switch action (pause or status) to the host through the shared
+# remote half, on one stream with one credential read, and prints the switch
+# value the host reads back. Exits with what failed; `when` says in the message
+# how far the run had got.
+pause_switch_remote() {
+  local action="$1" when="$2" alias="footbag-$TARGET" pass="" result=""
+  if ! arming_select_credential; then
+    echo "ERROR: cannot reach the payments pause: ${ARMING_CRED_WHY}." >&2
+    echo "       $when" >&2
+    exit 1
+  fi
+  IFS= read -r pass < "$ARMING_CRED_FILE" || true
+  if [[ -z "$pass" ]]; then
+    echo "ERROR: cannot reach the payments pause: the credential file's first line is empty." >&2
+    echo "       $when" >&2
+    exit 1
+  fi
+  require_ssh_alias "$alias" || exit 1
+  SUDO_PASS="$pass" require_host_is "$alias" "$TARGET" || exit 1
+  if ! result="$(
+    {
+      printf '%s\n' "$pass"
+      printf 'DB_FILE=%q\n' "/srv/footbag/db/footbag.db"
+      printf 'CONFIG_KEY=%q\n' 'payments_paused'
+      printf 'ACTION=%q\n' "$action"
+      printf 'REASON=%q\n' "payments disarmed after launch by scripts/arming.sh; the stub checkout would grant tiers without payment"
+      printf 'ACTOR=%q\n' ''
+      cat "$REPO_ROOT/scripts/internal/runtime-pause-remote.sh"
+    } | "$HOST_SSH_BIN" "${HOST_SSH_OPTS[@]}" "$alias" 'sudo -k -S -p "" bash'
+  )"; then
+    echo "ERROR: the payments pause step failed on $alias." >&2
+    echo "       $when" >&2
+    exit 1
+  fi
+  printf '%s\n' "$result" | sed -n 's/^SWITCH_PAUSED=//p' | tail -1
+}
+
+post_launch_pause() {
+  (( POST_LAUNCH_PAUSE )) || return 0
+  local state=""
+  echo "  Pausing payments before the deploy (production is live)."
+  state="$(pause_switch_remote pause "Nothing has been deployed. Resume with --from-step 4.")"
+  if [[ "$state" != "1" ]]; then
+    echo "ERROR: the payments pause did not take: the host reads '${state:-nothing}', not 1." >&2
+    echo "       Nothing has been deployed. Resume with --from-step 4." >&2
+    exit 1
+  fi
+  echo "  payments on $TARGET: PAUSED (read back from the host). New purchases and"
+  echo "  donations are refused; webhooks keep settling money already in flight."
+  echo ""
+}
+
+# The status view's Payments row says nothing about the pause, so a launched
+# disarm proves it separately, on every run, a resumed one included: a run that
+# crashed after step 4's deploy, or resumed past it, must not report a verified
+# dark production while new purchases are still accepted.
+verify_pause_held() {
+  (( POST_LAUNCH_PAUSE )) || return 0
+  local now=""
+  now="$(pause_switch_remote status "The disarm itself is in place; resume with --from-step 4 to set the pause.")"
+  if [[ "$now" != "1" ]]; then
+    echo "ERROR: payments are dark but the payments pause reads '${now:-nothing}', not 1." >&2
+    echo "       New purchases are not refused, so the stub checkout could grant tiers" >&2
+    echo "       without payment. Resume with --from-step 4 to set it." >&2
+    exit 1
+  fi
+  echo "  payments pause on $TARGET: PAUSED (read back from the host)."
+}
+
+# Runs the status view and, for payments on production, judges it. The view
+# always exits 0 and reports, so its verdict is read from the Payments row:
+# armed must be the DONE row naming the live adapter, dark must be the stub row.
+# Anything else, a status that cannot be read included, fails the run and prints
+# what was read, rather than handing the operator a report to interpret.
+verify_outcome() {
+  local status_out="" status_rc=0 payments_row=""
+  local -a args=(--target "$TARGET")
+  [[ -n "$AWS_PROFILE_ARG" ]] && args+=(--profile "$AWS_PROFILE_ARG")
+  # The status view reads the host env file, which needs the sudo password on
+  # its stdin. This script's own stdin is the operator's terminal, so the
+  # credential file is passed through when one is usable; without it the remote
+  # probe self-skips and its rows come back UNKNOWN, which reads as a
+  # verification that ran rather than one that did not.
+  if arming_select_credential; then
+    status_out="$("${STATUS_CMD[@]}" "${args[@]}" < "$ARMING_CRED_FILE" 2>&1)" || status_rc=$?
+  else
+    status_out="$("${STATUS_CMD[@]}" "${args[@]}" --skip-remote 2>&1)" || status_rc=$?
+  fi
+  printf '%s\n' "$status_out"
+  if [[ -z "$ARMING_CRED_FILE" ]]; then
+    echo ""
+    echo "The host-side rows above are UNKNOWN because they were not read, not because"
+    echo "the host is in an unknown state: ${ARMING_CRED_WHY}."
+    echo "Put that right and step 1 checks its two host values as well."
+    echo "For the full picture, re-run:"
+    echo "  < ${OPERATOR_CREDENTIAL_DISPLAY:-~/AWS/<your credential file>} bash scripts/bringup-status.sh --target $TARGET${AWS_PROFILE_ARG:+ --profile $AWS_PROFILE_ARG}"
+  fi
+  echo ""
+  if [[ "$SWITCH" != "payments" || "$TARGET" != "production" ]]; then
+    if (( status_rc != 0 )); then
+      echo "WARNING: the status view exited $status_rc; read the rows above with that in mind." >&2
+    fi
+    echo "Confirm above that the host reads $SWITCH $STATE and that $ADAPTER_LABEL is"
+    echo "$([[ "$STATE" == "armed" ]] && echo live || echo stub). The go-live marker is not touched by arming;"
+    echo "move it deliberately with scripts/production-live-marker.sh if that is what you meant."
+    return 0
+  fi
+  if (( status_rc != 0 )); then
+    echo "ERROR: could not read the status of $TARGET (the status view exited $status_rc)." >&2
+    echo "       The run is not reported as a success: nothing confirms the host reads" >&2
+    echo "       payments $STATE. Re-run scripts/bringup-status.sh and check it by hand." >&2
+    exit 1
+  fi
+  payments_row="$(printf '%s\n' "$status_out" | grep -E '^ *3\. Payments ' | tail -1 || true)"
+  if [[ "$STATE" == "armed" ]]; then
+    if [[ "$payments_row" =~ DONE[[:space:]]+armed: && "$payments_row" == *"PAYMENT_ADAPTER=live"* ]]; then
+      echo "VERIFIED: $TARGET reads payments armed, on the live adapter."
+    else
+      echo "ERROR: $TARGET does not read payments armed and live after the deploy." >&2
+      echo "       It reads: ${payments_row:-<no Payments row in the status view>}" >&2
+      exit 1
+    fi
+  else
+    if [[ "$payments_row" == *"payments dark (stub adapter"* ]]; then
+      echo "VERIFIED: $TARGET reads payments dark, on the stub adapter."
+    else
+      echo "ERROR: $TARGET does not read payments dark on the stub after the deploy." >&2
+      echo "       It reads: ${payments_row:-<no Payments row in the status view>}" >&2
+      exit 1
+    fi
+  fi
+  echo "The go-live marker is not touched by arming; move it deliberately with"
+  echo "scripts/production-live-marker.sh if that is what you meant."
+}
+
 SYNTHETIC=0
 [[ -n "$TFVARS_OVERRIDE" ]] && SYNTHETIC=1
 
@@ -1047,8 +1270,24 @@ if (( SYNTHETIC )); then
   # runs: no terraform, no SSH, no host probe, and not the egress lookup either.
   # The flags carried here are a safety property, so a test that cannot execute
   # this line can only ever assert the sentence above it.
+  # The post-launch pause runs ahead of it, as at step 4, so its ordering
+  # against the deploy is observable too; and with an injected status command
+  # step 5 runs as well, so its verdict comes from a real run.
   if [[ -n "${ARMING_DEPLOY_CMD:-}" ]]; then
+    post_launch_pause
     "$DEPLOY_CMD" --target "$TARGET" "${DEPLOY_ARGS[@]}"
+    if [[ -n "${ARMING_STATUS_CMD:-}" ]]; then
+      echo "-- step 5: verify --"
+      echo ""
+      verify_outcome
+      verify_pause_held
+    fi
+  fi
+  if [[ "$SWITCH" == "payments" && "$STATE" == "armed" && "$TARGET" == "production" ]]; then
+    echo ""
+    echo "Arming does not clear the payments pause. If a post-launch disarm set it, it"
+    echo "stays until cleared deliberately with:"
+    echo "  scripts/payments-pause.sh --target production --resume --reason '...'"
   fi
   exit 0
 fi
@@ -1074,6 +1313,9 @@ if (( FROM_STEP <= 3 )); then
   echo "This publishes $TFVAR_NAME = \"$STATE\" as SSM /footbag/$TARGET/app/$SSM_SUFFIX."
   echo "Blast radius is small: the arming parameter, plus the CloudFront origin CIDR"
   echo "refresh that every apply performs. Nothing recreates the host."
+  if (( POST_LAUNCH_PAUSE )); then
+    echo "Production is live, so payments will also be PAUSED before the deploy."
+  fi
   echo ""
   printf "Type 'APPLY' to run terraform apply: "
   read -r TYPED
@@ -1093,6 +1335,8 @@ fi
 if (( FROM_STEP <= 4 )); then
   echo "-- step 4: deploy --"
   echo ""
+  # First, so a resume from any step up to here still pauses before the deploy.
+  post_launch_pause
   # SSH to the host is restricted to the operator source ranges the firewall
   # carries. A travelling workstation's address changes, and a rotation between
   # the apply and the deploy strands the deploy part-way through its remote
@@ -1146,28 +1390,15 @@ fi
 # ── Step 5: prove it, and say what happens next ──────────────────────────────
 echo "-- step 5: verify --"
 echo ""
-# The status view reads the host env file, which needs the sudo password on its
-# stdin. This script's own stdin is the operator's terminal, so pass the
-# credential file through when one was supplied; without it the remote probe
-# self-skips and the very rows this step tells the operator to confirm come back
-# UNKNOWN, which reads as a verification that ran rather than one that did not.
-if arming_select_credential; then
-  bash "$REPO_ROOT/scripts/bringup-status.sh" --target "$TARGET" ${AWS_PROFILE_ARG:+--profile "$AWS_PROFILE_ARG"} \
-    < "$ARMING_CRED_FILE" || true
-else
-  bash "$REPO_ROOT/scripts/bringup-status.sh" --target "$TARGET" ${AWS_PROFILE_ARG:+--profile "$AWS_PROFILE_ARG"} \
-    --skip-remote || true
+verify_outcome
+verify_pause_held
+
+if [[ "$SWITCH" == "payments" && "$STATE" == "armed" && "$TARGET" == "production" ]]; then
   echo ""
-  echo "The host-side rows above are UNKNOWN because they were not read, not because"
-  echo "the host is in an unknown state: ${ARMING_CRED_WHY}."
-  echo "Put that right and step 1 checks its two host values as well."
-  echo "For the full picture, re-run:"
-  echo "  < ${OPERATOR_CREDENTIAL_DISPLAY:-~/AWS/<your credential file>} bash scripts/bringup-status.sh --target $TARGET${AWS_PROFILE_ARG:+ --profile $AWS_PROFILE_ARG}"
+  echo "Arming does not clear the payments pause. If a post-launch disarm set it, it"
+  echo "stays until cleared deliberately with:"
+  echo "  scripts/payments-pause.sh --target production --resume --reason '...'"
 fi
-echo ""
-echo "Confirm above that the host reads $SWITCH $STATE and that $ADAPTER_LABEL is"
-echo "$([[ "$STATE" == "armed" ]] && echo live || echo stub). The go-live marker is not touched by arming;"
-echo "move it deliberately with scripts/production-live-marker.sh if that is what you meant."
 
 if [[ "$SWITCH" == "email" && "$STATE" == "armed" ]]; then
   echo ""
@@ -1207,11 +1438,17 @@ if [[ "$SWITCH" == "reachability" && "$STATE" == "dark" ]]; then
   echo "first person to notice is a member following a dead link."
 fi
 
+# What reconciliation does on a dark host. The nightly pass compares only rows
+# of the mode the loaded credential is in, and the stub reports test mode, so
+# live-mode payments are set aside and counted on the pass's report rather than
+# raised. What it still compares, against the stub's empty ledger, is test-mode
+# rows (a pre-launch exercise) and rows whose mode was never recorded, and those
+# can raise "missing at provider" issues.
 if [[ "$SWITCH" == "payments" && "$STATE" == "dark" ]]; then
   echo ""
-  echo "Expect one false reconciliation issue within a day. The nightly pass runs"
-  echo "whatever the adapter is, and the stub's ledger is empty, so it will raise a"
-  echo "\"payment missing at provider\" issue against every real payment and put a"
-  echo "work-queue card in front of the administrator. Resolve it with a note saying"
-  echo "what it was; it is an artefact of disarming, not a discrepancy."
+  echo "Reconciliation while dark: the stub reports test mode, so the nightly pass"
+  echo "sets live-mode payments aside and counts them on its report rather than"
+  echo "raising them. It still compares test-mode rows, and rows whose mode was never"
+  echo "recorded, against the stub's empty ledger, so an issue raised on one of those"
+  echo "is an artefact of disarming; check it is one of those before resolving it."
 fi

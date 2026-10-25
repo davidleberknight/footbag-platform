@@ -18,7 +18,9 @@
  *     so a quoted price cannot drift from the charged one
  *   - Member-facing payment-page view-model shaping (checkout, success, cancel,
  *     payment-history): the `get<Page>Page()` methods compose the full
- *     PageViewModel including copy, amounts, and hrefs. Controllers fetch the
+ *     PageViewModel including copy, amounts, and hrefs, and the cancel
+ *     landing's decision to send a payment that went through to its
+ *     confirmation instead. Controllers fetch the
  *     payment row, enforce the ownership/session gate, validate request-derived
  *     redirect targets, then render the returned model without augmenting it.
  *   - The stub-mode stand-in for the provider's hosted checkout: reading the
@@ -40,6 +42,16 @@
  *   - Webhook signature: handleWebhook verifies the signature first
  *     (adapter.constructWebhookEvent), before any row is read or written; a bad
  *     signature throws WebhookSignatureError -> the controller returns 400.
+ *   - Webhook mode: a verified event whose live/test flag disagrees with the
+ *     mode of the key this process holds is refused as recoverable before any
+ *     row is read or written, so a half-applied key or endpoint swap books
+ *     nothing in the wrong mode and Stripe retries once it is corrected. The
+ *     endpoint enters through receiveWebhook, which loads the key after
+ *     verifying the signature; a mode still unknown after that is processed and
+ *     logged rather than refused, so webhooks gain no dependency on reading the
+ *     key.
+ *   - A processing failure after verification carries the event's id and type
+ *     (webhookEventOf), so the rejection counter names the delivery.
  *   - Webhook idempotency: a mutating handler CLAIMS the event id
  *     (insertEventOrIgnore) INSIDE the same transaction as the state change it
  *     guards. A failure rolls the claim back so Stripe's retry re-runs cleanly;
@@ -73,6 +85,8 @@
  *     session it opened, gives back its throttle slot, and is sent to the
  *     winner's checkout. A gift whose matching checkout no longer opens is
  *     refused while the provider holds it paid, so one gift is never paid twice.
+ *     A refusal because an earlier checkout is still confirming opens nothing,
+ *     so it gives its throttle slot back as well.
  *   - Payment kill-switch: startMembershipPurchase and startDonation throw
  *     ServiceUnavailableError when payments_paused=1 (runtime config), before
  *     any eligibility check, rate-limit token, or createCheckoutSession call,
@@ -84,7 +98,11 @@
  *     append-only ledger that records one row per event. The throttle narrows
  *     that window; the cancel-intent write closes it, refusing to move a row
  *     whose cancellation was already requested, so only the request that
- *     actually moved it may append to the ledger.
+ *     actually moved it may append to the ledger. A gift already ended, here or
+ *     at the provider before its deletion event arrives, is the outcome the
+ *     member asked for: the cancellation reports it as already held, records
+ *     nothing, and gives back its throttle slot; any other provider refusal
+ *     still fails.
  *   - The one cancellation an administrator makes is the deceased marking's,
  *     through the member's own cancel path: the ledger and the audit row name
  *     the administrator and the reason, and the member's throttle does not
@@ -128,6 +146,12 @@
  *     that was made; one that stays 'incomplete' past the staleness cutoff is
  *     raised as a discrepancy, because the case it cannot be distinguished from
  *     is a live subscription whose created-event never arrived.
+ *     A subscription the provider confirms after the expiry already closed its
+ *     checkout row is still a gift being billed, so it gets a mirror row of its
+ *     own under a fresh id; the closed row is never reopened, since a canceled
+ *     row absorbs no further update. The row checkout opened, not the event's
+ *     metadata, names the member: an event naming someone else is acknowledged
+ *     and applied to neither.
  *     The row id also rides back on the success URL, because the confirmation
  *     page resolves a one-time payment by checkout-session id; the reference is
  *     request-derived and is shown only when it belongs to the viewer.
@@ -156,7 +180,9 @@
  *   - A created subscription takes the status the provider reports, not an
  *     assumption that creation means collecting. Stripe raises the event for a
  *     subscription whose first payment has not settled, and recording that as
- *     active shows the member a live yearly donation collecting nothing.
+ *     active shows the member a live yearly donation collecting nothing. For
+ *     the same reason the started notice goes only to a subscription that is
+ *     active.
  *   - A purchase grant that changes nothing is reported, not swallowed. When an
  *     admin tier change lands between checkout and webhook the downgrade guard
  *     keeps the higher tier, but the member has been charged for nothing, and
@@ -176,6 +202,9 @@
  *     success afterwards puts a past-due donation back to active on the
  *     strength of stale news. A renewal charge is always booked, because the
  *     money moved either way, but a stale one does not move the subscription.
+ *     Event times are whole seconds, so a decline and the retry that collects
+ *     can tie; a failure for an invoice already booked as paid is therefore
+ *     treated as stale whatever its time, because a paid invoice cannot fail.
  *   - One settlement, two events. The provider raises invoice.paid and
  *     invoice.payment_succeeded for the same renewal, in no fixed order, and
  *     only invoice.paid reports an invoice marked paid out of band. Both are
@@ -234,7 +263,9 @@
  *     would book the same money twice. A restatement moves no status, writes no
  *     transition row, and sends no second receipt; it is audited. A unique index
  *     backs the invariant, so a concurrent second delivery is answered as
- *     recoverable and restates on redelivery.
+ *     recoverable and restates on redelivery. Only that collision, proven by
+ *     the invoice's row being there on a re-read, is recoverable; any other
+ *     unique violation surfaces as an unexpected error.
  *   - Payment row written as 'pending' AFTER adapter.createCheckoutSession, in
  *     one INSERT already carrying stripe_checkout_session_id and, when Stripe
  *     created the PaymentIntent eagerly, stripe_payment_intent_id. Stripe may
@@ -299,7 +330,8 @@
  *     zero-amount renewal invoice, subscription lifecycle)
  *   - outbox_emails enqueue (payment receipt, recurring-donation lifecycle
  *     notices, admin alert when a recurring donation ends; all best-effort
- *     after the commit). A payer who is deceased or no longer an active member
+ *     after the commit, the recipient lookup included, so none can turn a
+ *     settled event into an error). A payer who is deceased or no longer an active member
  *     is skipped with a warning, never failed, because the event has already
  *     applied; and a receipt the outbox suppressed is not recorded as sent.
  *   - work_queue_items insert in the `payments` category for the money events an
@@ -353,6 +385,8 @@ import {
 } from './membershipTieringService';
 import {
   getPaymentAdapter,
+  type PaymentAdapter,
+  SubscriptionAlreadyEndedError,
   type StripeWebhookEvent,
   type StubPaymentAdapter,
 } from '../adapters/paymentAdapter';
@@ -362,6 +396,7 @@ import { workQueueService } from './workQueueService';
 import { paymentReconciliationService } from './paymentReconciliationService';
 import { isSafePath } from '../lib/safePath';
 import type { PageViewModel } from '../types/page';
+import type { OutcomeNoticeView } from '../lib/outcomeNotice';
 import {
   MemberActionContext,
   MemberActionItem,
@@ -548,6 +583,9 @@ export interface PaymentHistoryContent {
   donateHref: string;
   /** True on the redirect that follows a successful cancellation request. */
   cancelConfirmed: boolean;
+  /** A cancellation that changed nothing, with its tone, on the redirect that
+   *  follows it; null otherwise. */
+  outcome: OutcomeNoticeView | null;
 }
 
 export interface DonateAmountOption {
@@ -979,6 +1017,7 @@ const MEMBERSHIP_CHECKOUT_UNSETTLED =
   'We are still confirming your last membership checkout. Please try again in a few minutes.';
 const DONATION_CHECKOUT_UNSETTLED =
   'We are still confirming your last donation checkout. Please try again in a few minutes.';
+const RECURRING_DONATION_ALREADY_ENDED = 'That recurring donation has already ended.';
 
 // ── Public API ───────────────────────────────────────────────────────────────
 
@@ -1038,6 +1077,10 @@ async function startMembershipPurchase(
   // provider could not be asked about, whose state is unknown.
   if (open?.stripe_checkout_session_id) {
     if (!await closeCheckout(open.stripe_checkout_session_id, open.id)) {
+      // Refused before any session opened, so the attempt is given back: a
+      // member waiting on a confirmation must not be throttled out of the
+      // purchase it will allow.
+      rateLimitRefund(`purchase-tier:${memberId}`);
       throw new ConflictError(MEMBERSHIP_CHECKOUT_UNSETTLED);
     }
     releaseClosedCheckout(open, memberId);
@@ -1136,12 +1179,77 @@ async function startMembershipPurchase(
   return { redirectUrl: result.redirectUrl, paymentId, sessionId: result.sessionId };
 }
 
+// The event a post-verification failure belongs to, keyed by the thrown error
+// so the existing error classes, and every instanceof check on them, stay as
+// they are.
+const failedWebhookEvents = new WeakMap<object, { eventType: string; eventId: string }>();
+
+/**
+ * The id and type of the verified event whose handling threw `err`, or null
+ * when the error came before verification (a signature rejection names no
+ * event, because nothing an unauthenticated caller sent may be recorded).
+ */
+function webhookEventOf(err: unknown): { eventType: string; eventId: string } | null {
+  return err !== null && typeof err === 'object' ? failedWebhookEvents.get(err) ?? null : null;
+}
+
+/**
+ * The webhook endpoint's entry: verifies the signature, loads the provider key
+ * so the mode check compares against the key this process actually holds, then
+ * handles the event exactly as handleWebhook does.
+ *
+ * The live adapter reads its key lazily and reports its mode as unknown until
+ * it has. Loading it only after verification means an unsigned request can
+ * never cause a key read. Best-effort: a key that cannot be read must not fail
+ * a delivery the platform could otherwise settle, so the failure is logged and
+ * the event is handled with the mode unknown.
+ */
+async function receiveWebhook(rawBody: string | Buffer, signature: string): Promise<WebhookOutcome> {
+  const adapter = getPaymentAdapter();
+  const event = adapter.constructWebhookEvent(rawBody, signature);
+  try {
+    await adapter.resolveCredentialMode();
+  } catch (err) {
+    logger.warn('webhook.credential_mode_unresolved', {
+      provider: 'stripe',
+      err: err instanceof Error ? err.message : String(err),
+    });
+  }
+  return handleVerifiedEvent(adapter, event);
+}
+
 function handleWebhook(rawBody: string | Buffer, signature: string): WebhookOutcome {
   const adapter = getPaymentAdapter();
   // Signature verification first: a bad, expired, or missing signature throws
   // WebhookSignatureError before any row is read or written (controller -> 400).
   const event = adapter.constructWebhookEvent(rawBody, signature);
-  return dispatchEvent(event);
+  return handleVerifiedEvent(adapter, event);
+}
+
+function handleVerifiedEvent(adapter: PaymentAdapter, event: StripeWebhookEvent): WebhookOutcome {
+  try {
+    // A test event reaching a host holding a live key, or the reverse, means
+    // the key and the endpoint's signing secret come from different modes: a
+    // half-applied arming or a pasted secret. Booking it would record money
+    // that does not exist, or miss money that does, in the mode of the wrong
+    // ledger. Refused as recoverable, so Stripe retries once the configuration
+    // agrees; the delivery-failure alarm meanwhile tells an operator.
+    const keyMode = adapter.loadedCredentialMode();
+    const eventMode = event.livemode ? 'live' : 'test';
+    if (keyMode === 'unknown') {
+      logger.warn('webhook.mode_unchecked', { provider: 'stripe', eventMode });
+    } else if (keyMode !== eventMode) {
+      throw new RecoverableWebhookError(
+        `webhook event is ${eventMode}-mode but the loaded key is ${keyMode}-mode`,
+      );
+    }
+    return dispatchEvent(event);
+  } catch (err) {
+    if (err !== null && typeof err === 'object') {
+      failedWebhookEvents.set(err, { eventType: event.type, eventId: event.id });
+    }
+    throw err;
+  }
 }
 
 /**
@@ -2352,23 +2460,26 @@ function handleCheckoutExpired(event: StripeWebhookEvent): WebhookOutcome {
 }
 
 function enqueueReceiptEmail(payment: PaymentRow, outcome: 'succeeded' | 'failed'): void {
-  const contact = lookupMemberContact(payment.member_id);
-  if (!contact) {
-    logger.warn(
-      'payment receipt skipped: payer is deceased or no longer an active member',
-      { paymentId: payment.id, memberId: payment.member_id },
-    );
-    return;
-  }
-  if (!contact.loginEmail) {
-    logger.warn(
-      'payment receipt skipped: member has no login_email',
-      { paymentId: payment.id, memberId: payment.member_id },
-    );
-    return;
-  }
-
+  // The whole notice, the payer lookup included, is best-effort: it runs after
+  // the event committed, so anything it throws would answer the provider with
+  // an error for an event that already applied.
   try {
+    const contact = lookupMemberContact(payment.member_id);
+    if (!contact) {
+      logger.warn(
+        'payment receipt skipped: payer is deceased or no longer an active member',
+        { paymentId: payment.id, memberId: payment.member_id },
+      );
+      return;
+    }
+    if (!contact.loginEmail) {
+      logger.warn(
+        'payment receipt skipped: member has no login_email',
+        { paymentId: payment.id, memberId: payment.member_id },
+      );
+      return;
+    }
+
     const sent = emailService.send({
       template: 'payment_receipt',
       params: {
@@ -2573,16 +2684,16 @@ function handleSubscriptionCreated(event: StripeWebhookEvent): WebhookOutcome {
   const obj = eventObject(event);
   const meta = eventMetadata(event);
   const stripeSubscriptionId = typeof obj.id === 'string' ? obj.id : null;
-  const subscriptionRecordId =
+  const correlatedRecordId =
     typeof meta.subscriptionRecordId === 'string' ? meta.subscriptionRecordId : null;
-  const memberId = typeof meta.memberId === 'string' ? meta.memberId : null;
+  const metadataMemberId = typeof meta.memberId === 'string' ? meta.memberId : null;
   const stripeCustomerId = stripeIdFrom(obj.customer);
 
   // A subscription created straight in the Stripe Dashboard carries none of our
   // correlation metadata. It is not a platform donation, so it is acknowledged
   // and left alone rather than treated as an error; the nightly reconciliation
   // pass is what surfaces a Stripe subscription with no local counterpart.
-  if (!stripeSubscriptionId || !subscriptionRecordId || !memberId || !stripeCustomerId) {
+  if (!stripeSubscriptionId || !correlatedRecordId || !metadataMemberId || !stripeCustomerId) {
     logger.warn('stripe subscription created without platform correlation metadata', {
       eventId: event.id,
       stripeSubscriptionId,
@@ -2619,28 +2730,54 @@ function handleSubscriptionCreated(event: StripeWebhookEvent): WebhookOutcome {
   // stays as the fallback for the row that is somehow absent: a checkout opened
   // before this became true, or a local write that was lost. Losing the gift
   // because its opening row went missing would be the worse failure.
-  const opened = subsDb.findById.get(subscriptionRecordId) as
+  const opened = subsDb.findById.get(correlatedRecordId) as
     | RecurringSubscriptionRow
     | undefined;
 
-  // A row that exists but is no longer 'incomplete' has already been resolved by
-  // something: an expiry event closed it out, or a redelivery promoted it. The
-  // insert fallback below would then collide on the primary key, which surfaces
-  // as an unhandled 500, retries identically forever, and loses the gift. It is
-  // reachable purely by ordering — an expiry and a creation racing at the
-  // session boundary — so it is answered here rather than left to the database.
-  if (opened && opened.status !== 'incomplete') {
+  // The row checkout opened says whose gift this is. The event's metadata is
+  // only a correlation key, so an event naming a different member than the row
+  // it points at is not applied to either of them: it is acknowledged and left
+  // for a human, the same way an event that is not ours is.
+  if (opened && opened.member_id !== metadataMemberId) {
+    logger.warn('stripe subscription created naming a different member than its checkout row', {
+      eventId: event.id,
+      stripeSubscriptionId,
+      subscriptionRecordId: correlatedRecordId,
+    });
+    return recordIdempotentNoop(event, 'ignored');
+  }
+  const memberId = opened ? opened.member_id : metadataMemberId;
+
+  // A checkout row the expiry closed out before the provider confirmed the
+  // subscription behind it: canceled, and never given a provider id. The
+  // provider is billing a live gift all the same, so it gets a mirror row of its
+  // own under a fresh id. The closed row stays as it is, because a canceled row
+  // absorbs no further update and the member's history shows the abandoned
+  // attempt as canceled; without a row of its own every renewal of the live gift
+  // would find nothing to settle against and be refused forever.
+  const abandonedCheckout =
+    opened !== undefined && opened.status === 'canceled' && opened.stripe_subscription_id === null;
+
+  // Any other row that is no longer 'incomplete' has already been resolved by
+  // something, such as a redelivery that promoted it. The insert fallback below
+  // would then collide on the primary key, which surfaces as an unhandled 500,
+  // retries identically forever, and loses the gift, so it is answered here
+  // rather than left to the database.
+  if (opened && opened.status !== 'incomplete' && !abandonedCheckout) {
     logger.warn('subscription created for a record that is no longer awaiting confirmation', {
       eventId: event.id,
-      subscriptionRecordId,
+      subscriptionRecordId: correlatedRecordId,
       status: opened.status,
     });
     return recordIdempotentNoop(event, 'duplicate');
   }
+  const promotes = opened !== undefined && opened.status === 'incomplete';
+  const subscriptionRecordId = abandonedCheckout ? newSubscriptionId() : correlatedRecordId;
+  const donationNoteForRow = abandonedCheckout ? opened.donation_note : donationNote;
 
   const claimed = transaction(() => {
     if (!claimEvent(event)) return false;
-    if (opened && opened.status === 'incomplete') {
+    if (promotes) {
       subsDb.promoteFromCheckout.run(
         stripeSubscriptionId,
         stripeCustomerId,
@@ -2665,7 +2802,7 @@ function handleSubscriptionCreated(event: StripeWebhookEvent): WebhookOutcome {
         CURRENCY,
         now,
         now,
-        donationNote,
+        donationNoteForRow,
         event.livemode ? 1 : 0,
       );
     }
@@ -2679,9 +2816,11 @@ function handleSubscriptionCreated(event: StripeWebhookEvent): WebhookOutcome {
       lifecycleEventCode: 'activated',
       // The ledger records where the row actually came from: 'incomplete' when
       // checkout opened it, null when this event created it outright.
-      oldStatus: opened && opened.status === 'incomplete' ? 'incomplete' : null,
+      oldStatus: promotes ? 'incomplete' : null,
       newStatus: initialStatus,
-      reasonText: null,
+      reasonText: abandonedCheckout
+        ? 'the provider confirmed a subscription after its checkout had been closed out'
+        : null,
     });
     // Both writers above land the row as active, which is right for the
     // ordinary checkout. When the provider reports otherwise, correct it in the
@@ -2709,14 +2848,20 @@ function handleSubscriptionCreated(event: StripeWebhookEvent): WebhookOutcome {
         stripe_subscription_id: stripeSubscriptionId,
         amount_cents: amountCents,
         currency: CURRENCY,
+        ...(abandonedCheckout ? { abandoned_record_id: correlatedRecordId } : {}),
       },
     });
     return true;
   });
   if (!claimed) return { outcome: 'duplicate' };
 
+  // The started notice tells the member their yearly gift is collecting, so it
+  // goes only to a subscription that is. One whose first payment has not
+  // settled reads past_due and has nothing to announce yet.
   const inserted = subsDb.findById.get(subscriptionRecordId) as RecurringSubscriptionRow;
-  enqueueSubscriptionEmail(inserted, 'donation_subscription_started');
+  if (inserted.status === 'active') {
+    enqueueSubscriptionEmail(inserted, 'donation_subscription_started');
+  }
   return { outcome: 'processed' };
 }
 
@@ -2971,7 +3116,15 @@ function handleInvoicePaymentSucceeded(event: StripeWebhookEvent): WebhookOutcom
     // Another delivery for this same invoice inserted the row between the
     // lookup above and this insert. Nothing committed, so answering recoverable
     // lets the redelivery find the row and restate the amount on it instead.
-    if (err instanceof Error && (err as { code?: string }).code === 'SQLITE_CONSTRAINT_UNIQUE') {
+    // Only that collision is recoverable, proven by the row now being there; any
+    // other unique violation is a defect, and answering it as a race would
+    // retry it forever without ever raising the alarm.
+    if (
+      err instanceof Error
+      && (err as { code?: string }).code === 'SQLITE_CONSTRAINT_UNIQUE'
+      && invoiceId !== null
+      && paymentsDb.findByStripeInvoiceId.get(invoiceId) !== undefined
+    ) {
       throw new RecoverableWebhookError(
         `invoice charge for event ${event.id} was recorded by a concurrent delivery`,
       );
@@ -3012,6 +3165,18 @@ function handleInvoicePaymentFailed(event: StripeWebhookEvent): WebhookOutcome {
     const id = eventObject(event).id;
     return typeof id === 'string' ? id : null;
   })();
+
+  // An invoice already booked as paid cannot fail afterwards, so a failure for
+  // it is the earlier attempt arriving late. The watermark cannot always tell:
+  // the provider stamps events to the second, and a decline and the retry that
+  // collects can share one. Without this the paid invoice wins or loses on
+  // delivery order alone.
+  if (invoiceId !== null) {
+    const booked = paymentsDb.findByStripeInvoiceId.get(invoiceId) as PaymentRow | undefined;
+    if (booked && (booked.status === 'succeeded' || booked.status === 'refunded')) {
+      return recordIdempotentNoop(event, 'duplicate');
+    }
+  }
 
   // An ended donation stays ended. Stripe can report a failed collection after
   // the subscription is already gone (the last dunning attempt on a final
@@ -3169,15 +3334,24 @@ function handleSubscriptionDeleted(event: StripeWebhookEvent): WebhookOutcome {
 
   const canceled = subsDb.findById.get(sub.id) as RecurringSubscriptionRow;
   enqueueSubscriptionEmail(canceled, 'donation_subscription_canceled');
-  emailService.sendToAdmins({
-    template: 'admin_recurring_donation_ended',
-    params: {
-      referenceId: sub.id,
-      amountDisplay: formatAmount(sub.amount_cents, sub.currency),
-      memberRequested: sub.is_cancel_at_period_end === 1,
-    },
-    idempotencyKeyPrefix: `recurring-donation-ended:${sub.id}`,
-  });
+  // Best-effort like every other notice after the commit: the cancellation is
+  // already recorded, so a failed alert is logged, never answered as an error.
+  try {
+    emailService.sendToAdmins({
+      template: 'admin_recurring_donation_ended',
+      params: {
+        referenceId: sub.id,
+        amountDisplay: formatAmount(sub.amount_cents, sub.currency),
+        memberRequested: sub.is_cancel_at_period_end === 1,
+      },
+      idempotencyKeyPrefix: `recurring-donation-ended:${sub.id}`,
+    });
+  } catch (err) {
+    logger.warn('recurring donation ended admin alert enqueue failed', {
+      err: err instanceof Error ? err.message : String(err),
+      subscriptionId: sub.id,
+    });
+  }
   return { outcome: 'processed' };
 }
 
@@ -3373,24 +3547,26 @@ function enqueueSubscriptionEmail(
   sub: RecurringSubscriptionRow,
   template: SubscriptionEmailTemplate,
 ): void {
-  const contact = lookupMemberContact(sub.member_id);
-  if (!contact) {
-    logger.warn('recurring donation notice skipped: donor is deceased or no longer an active member', {
-      subscriptionId: sub.id,
-      memberId: sub.member_id,
-      template,
-    });
-    return;
-  }
-  if (!contact.loginEmail) {
-    logger.warn('recurring donation notice skipped: member has no login_email', {
-      subscriptionId: sub.id,
-      memberId: sub.member_id,
-      template,
-    });
-    return;
-  }
+  // Best-effort as a whole, the donor lookup included, for the reason the
+  // receipt gives: the event has already committed.
   try {
+    const contact = lookupMemberContact(sub.member_id);
+    if (!contact) {
+      logger.warn('recurring donation notice skipped: donor is deceased or no longer an active member', {
+        subscriptionId: sub.id,
+        memberId: sub.member_id,
+        template,
+      });
+      return;
+    }
+    if (!contact.loginEmail) {
+      logger.warn('recurring donation notice skipped: member has no login_email', {
+        subscriptionId: sub.id,
+        memberId: sub.member_id,
+        template,
+      });
+      return;
+    }
     emailService.send({
       template,
       params: {
@@ -3549,6 +3725,26 @@ function getPaymentSuccessPage(
       continueHref,
     },
   };
+}
+
+/**
+ * Where the cancel landing sends a member whose payment actually went through,
+ * or null to show the cancel page.
+ *
+ * The provider sends the browser to the cancel URL from a checkout page the
+ * member left, but a member can also arrive there for a session they paid (a
+ * back button, a second tab), and the cancel page would then tell them they
+ * were not charged. A payment the provider settled, or later refunded, goes to
+ * its confirmation instead. A pending row stays on the cancel page: that is the
+ * ordinary state of a checkout the member walked away from, which stays open
+ * until its own expiry, and the confirmation page would tell them it is
+ * processing. Display routing only; nothing is written.
+ */
+function getPaymentCancelRedirect(payment: PaymentRow | null, continueHref: string): string | null {
+  if (!payment || !payment.stripe_checkout_session_id) return null;
+  if (payment.status !== 'succeeded' && payment.status !== 'refunded') return null;
+  return `/payments/success?session_id=${encodeURIComponent(payment.stripe_checkout_session_id)}`
+    + `&returnTo=${encodeURIComponent(continueHref)}`;
 }
 
 function getPaymentCancelPage(
@@ -3711,7 +3907,7 @@ function historyItemText(p: PaymentHistoryItem, isOpeningCharge: boolean): strin
 function getPaymentHistoryPage(
   memberId: string,
   memberKey: string,
-  opts: { cancelConfirmed?: boolean } = {},
+  opts: { cancelConfirmed?: boolean; outcome?: OutcomeNoticeView | null } = {},
 ): PageViewModel<PaymentHistoryContent> {
   const items = getPaymentHistoryForMember(memberId);
   const opening = openingChargeIds(items);
@@ -3737,6 +3933,7 @@ function getPaymentHistoryPage(
       hasRecurring: recurringRows.length > 0,
       donateHref: '/donate',
       cancelConfirmed: opts.cancelConfirmed ?? false,
+      outcome: opts.outcome ?? null,
     },
   };
 }
@@ -3874,6 +4071,8 @@ async function startDonation(
   // holds expired falls through to a new checkout, and one it holds paid, or
   // could not be asked about, is refused until its confirmation settles it.
   if (open?.session_id && !await closeCheckout(open.session_id, null)) {
+    // Refused before any session opened, so the attempt is given back.
+    rateLimitRefund(rateLimitKey);
     throw new ConflictError(DONATION_CHECKOUT_UNSETTLED);
   }
 
@@ -3892,9 +4091,11 @@ async function startDonation(
     ownSessionId: string,
   ): Promise<StartDonationResult> => {
     await closeCheckout(ownSessionId, null);
+    // The session this request opened is closed again either way, so it spent
+    // nothing the throttle exists to bound, whether or not the winner reopens.
+    rateLimitRefund(rateLimitKey);
     const redirectUrl = winner.session_id ? await reopenCheckout(winner.session_id) : null;
     if (!redirectUrl || !winner.session_id) throw new ConflictError(DONATION_CHECKOUT_UNSETTLED);
-    rateLimitRefund(rateLimitKey);
     return { redirectUrl, sessionId: winner.session_id, reference: winner.id };
   };
 
@@ -4046,7 +4247,10 @@ async function cancelRecurringDonation(
   memberId: string,
   stripeSubscriptionId: string,
   byAdmin?: { adminMemberId: string; reason: 'member_deceased' },
-): Promise<{ status: 'cancel_requested' | 'already_requested' }> {
+): Promise<
+  | { status: 'cancel_requested' | 'already_requested' }
+  | { status: 'already_held'; message: string }
+> {
   const sub = subsDb.findByStripeSubscriptionId.get(stripeSubscriptionId) as
     | RecurringSubscriptionRow
     | undefined;
@@ -4055,8 +4259,10 @@ async function cancelRecurringDonation(
   if (!sub || sub.member_id !== memberId) {
     throw new NotFoundError('recurring donation not found');
   }
+  // A gift that has already ended is the outcome the member asked for, held
+  // from another act, so it is reported as such rather than refused.
   if (sub.status === 'canceled') {
-    throw new ConflictError('That recurring donation has already ended.');
+    return { status: 'already_held', message: RECURRING_DONATION_ALREADY_ENDED };
   }
   if (sub.is_cancel_at_period_end === 1) {
     return { status: 'already_requested' };
@@ -4081,7 +4287,19 @@ async function cancelRecurringDonation(
   // Network call before the transaction: a Stripe failure must leave local state
   // untouched, so the member can retry against an unchanged row.
   const adapter = getPaymentAdapter();
-  await adapter.cancelSubscriptionAtPeriodEnd(stripeSubscriptionId);
+  try {
+    await adapter.cancelSubscriptionAtPeriodEnd(stripeSubscriptionId);
+  } catch (err) {
+    // The provider already ended the gift, or no longer holds it, and its
+    // deletion event has not reached the mirror yet. What the member asked for
+    // already holds, so nothing is recorded and the attempt is given back; the
+    // local status still moves only when the deletion event arrives.
+    if (err instanceof SubscriptionAlreadyEndedError) {
+      if (!byAdmin) rateLimitRefund(`cancel-recurring:${memberId}`);
+      return { status: 'already_held', message: RECURRING_DONATION_ALREADY_ENDED };
+    }
+    throw err;
+  }
 
   // The guard above was read before the provider call, so two simultaneous
   // submits can both reach here. The UPDATE refuses to move a row whose
@@ -4288,10 +4506,13 @@ export const paymentService = {
   getStubCheckoutSession,
   completeStubCheckout,
   startMembershipPurchase,
+  receiveWebhook,
   handleWebhook,
+  webhookEventOf,
   recordWebhookRejection,
   getPaymentHistoryForMember,
   getPaymentBySessionId,
+  getPaymentCancelRedirect,
   getTierPriceDisplay,
   getCheckoutPage,
   getPaymentSuccessPage,

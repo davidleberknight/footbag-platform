@@ -9,6 +9,9 @@
     {{#if content.cancelConfirmed}}
       {{> outcome-notice text="Your recurring donation has been cancelled. You will not be charged again, and the period you have already given still counts. A confirmation goes to the address on your account." tone='ok'}}
     {{/if}}
+    {{#if content.outcome}}
+      {{> outcome-notice text=content.outcome.text tone=content.outcome.tone}}
+    {{/if}}
 
     {{#if content.hasRecurring}}
       <h2 class="section-heading">Recurring Donations</h2>

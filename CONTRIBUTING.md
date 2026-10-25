@@ -39,7 +39,7 @@ contribution under the Apache 2.0 licence per the
 
 - TypeScript: no new type errors; follow existing patterns.
 - Business logic belongs in services, not controllers or templates.
-- Schema changes: follow conventions in `docs/DATA_MODEL.md` and `database/schema.sql`.
+- Schema changes: follow conventions in `docs/DATA_MODEL.md` and `database/schema.sql`; what else a schema change updates in the same change is in `src/db/CLAUDE.md`.
 - Prefer the smallest safe change that preserves volunteer readability.
 - No new external dependencies without prior discussion.
 

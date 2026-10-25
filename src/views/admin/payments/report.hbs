@@ -85,6 +85,24 @@
       {{/if}}
 
       <div class="section-heading mt-8">
+        <h2>Carried Forward</h2>
+      </div>
+      {{#if content.report.hasCarriedForward}}
+        <p>Differences this run found again, unchanged, after an administrator explained them.</p>
+        <ul>
+          {{#each content.report.carriedForward}}
+            <li>
+              {{this.label}}{{#if this.amountPhrase}} ({{this.amountPhrase}}){{/if}}
+              &middot; explained {{this.resolvedDisplay}} by {{this.resolvedBySlug}}: {{this.resolutionNotes}}
+              {{#if this.paymentHref}} &middot; <a href="{{this.paymentHref}}">payment</a>{{/if}}
+            </li>
+          {{/each}}
+        </ul>
+      {{else}}
+        <p>No explained difference was found again.</p>
+      {{/if}}
+
+      <div class="section-heading mt-8">
         <h2>Totals for the Window</h2>
       </div>
       {{#if content.report.hasTotals}}
@@ -112,6 +130,7 @@
             {{/each}}
           </tbody>
         </table>
+        <p class="fs-sm">Disputed charges are not deducted from these figures.</p>
       {{else}}
         <p>No real money settled in this window.</p>
       {{/if}}

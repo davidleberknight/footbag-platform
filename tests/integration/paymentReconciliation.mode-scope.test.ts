@@ -145,6 +145,33 @@ describe('which local rows a pass compares', () => {
     expect(issuePaymentIds()).toEqual(['pay-live', 'pay-test', 'pay-unknown']);
   });
 
+  // The live adapter loads its key on first use and reports the mode as
+  // unknown until then. A worker's first run after boot had made no provider
+  // call yet, so it compared every row and raised the rehearsal row as missing
+  // money. The stub always knows its mode, so only an adapter that loads lazily
+  // can show this.
+  it('scopes the first run after boot by the key it is about to load', async () => {
+    const mod = await import('../../src/adapters/paymentAdapter');
+    const stub = mod.createStubPaymentAdapter();
+    stub.setLoadedCredentialModeForTests('live');
+    let loaded = false;
+    const load = () => { loaded = true; };
+    mod.setPaymentAdapterForTests({
+      ...stub,
+      loadedCredentialMode: () => (loaded ? 'live' : 'unknown'),
+      resolveCredentialMode: async () => { load(); return 'live'; },
+      listPaymentIntents: async (w) => { load(); return stub.listPaymentIntents(w); },
+      listSubscriptions: async () => { load(); return stub.listSubscriptions(); },
+      listInvoices: async (w) => { load(); return stub.listInvoices(w); },
+      listRefunds: async (w) => { load(); return stub.listRefunds(w); },
+    });
+    seedThreeModes();
+    const result = await (await svc()).runReconciliation({ now: NOW });
+    expect(result.modeCompared).toBe('live');
+    expect(result.rowsSetAside.payments).toBe(1);
+    expect(issuePaymentIds()).toEqual(['pay-live', 'pay-unknown']);
+  });
+
   it('applies the same rule to recurring donations', async () => {
     await stubIn('live');
     seed((db) => {
@@ -229,15 +256,20 @@ describe('the report a run leaves behind', () => {
       previousRunAt: string | null;
       resolvedSincePreviousRun: Array<{ id: string; resolvedBySlug: string | null; label: string }>;
       raised: unknown[];
+      carriedForward: Array<{ id: string; resolutionNotes: string | null }>;
       outstandingAfterRun: number;
     };
     expect(report.previousRunAt).not.toBeNull();
     expect(report.resolvedSincePreviousRun).toHaveLength(1);
     expect(report.resolvedSincePreviousRun[0]).toMatchObject({ id: issueId, resolvedBySlug: 'ms_admin' });
-    // The discrepancy is still present at the provider, so it is raised again
-    // rather than silently forgotten once resolved.
-    expect(report.raised).toHaveLength(1);
-    expect(report.outstandingAfterRun).toBe(1);
+    // The discrepancy is still present at the provider with the same figures,
+    // so it is carried forward under its explanation rather than raised again
+    // or silently forgotten once resolved.
+    expect(report.raised).toHaveLength(0);
+    expect(report.carriedForward).toEqual([
+      expect.objectContaining({ id: issueId, resolutionNotes: 'Checked at the provider; a console charge.' }),
+    ]);
+    expect(report.outstandingAfterRun).toBe(0);
   });
 
   it('is read back by the reports pages, and an unknown run is not found', async () => {

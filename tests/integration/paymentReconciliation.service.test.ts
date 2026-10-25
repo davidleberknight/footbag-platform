@@ -1217,16 +1217,15 @@ describe('resolving an issue', () => {
     }
   });
 
-  it('leaves the queue untouched when a second resolution is refused, with no orphaned audit row', async () => {
+  it('leaves the queue untouched when a second resolution finds the issue already resolved, with no orphaned audit row', async () => {
     const issueId = await oneOutstandingIssue();
     const service = await svc();
     service.resolveIssue({ issueId, adminMemberId: ADMIN, notes: 'First decision.' });
-    // A later run re-raises the discrepancy as a fresh outstanding issue with its
-    // own open twin; the stale id no longer resolves.
+    // The same discrepancy on a later run is carried forward under the first
+    // decision rather than raised again, so it opens no fresh twin either.
     await service.runReconciliation({ now: NOW });
-    const { NotFoundError } = await import('../../src/services/serviceErrors');
-    expect(() => service.resolveIssue({ issueId, adminMemberId: ADMIN, notes: 'Second decision.' }))
-      .toThrow(NotFoundError);
+    expect(service.resolveIssue({ issueId, adminMemberId: ADMIN, notes: 'Second decision.' }).status)
+      .toBe('already_held');
 
     const db = openDb();
     try {
@@ -1236,10 +1235,9 @@ describe('resolving an issue', () => {
       const openTwins = db.prepare(
         "SELECT COUNT(*) AS c FROM work_queue_items WHERE task_type = 'reconciliation_discrepancy' AND status = 'open'",
       ).get() as { c: number };
-      // The first resolution closed one twin; the re-raise opened a fresh one;
-      // the refused second resolution changed neither.
+      // The first resolution closed the one twin; the second changed nothing.
       expect(resolvedTwins.c).toBe(1);
-      expect(openTwins.c).toBe(1);
+      expect(openTwins.c).toBe(0);
       const auditCount = db.prepare(
         "SELECT COUNT(*) AS c FROM audit_entries WHERE action_type = 'payment.reconciliation_issue_resolved' AND entity_id = ?",
       ).get(issueId) as { c: number };
@@ -1264,13 +1262,12 @@ describe('resolving an issue', () => {
       .toThrow(NotFoundError);
   });
 
-  it('refuses a second resolution rather than overwriting the first administrator note', async () => {
+  it('answers a second resolution with the first one rather than overwriting the first administrator note', async () => {
     const issueId = await oneOutstandingIssue();
     const service = await svc();
-    const { NotFoundError } = await import('../../src/services/serviceErrors');
     service.resolveIssue({ issueId, adminMemberId: ADMIN, notes: 'First decision.' });
-    expect(() => service.resolveIssue({ issueId, adminMemberId: ADMIN, notes: 'Second decision.' }))
-      .toThrow(NotFoundError);
+    const again = service.resolveIssue({ issueId, adminMemberId: ADMIN, notes: 'Second decision.' });
+    expect(again).toMatchObject({ status: 'already_held', resolvedBySlug: 'recon_admin' });
     const db = openDb();
     try {
       const row = db.prepare('SELECT resolution_notes FROM reconciliation_issues WHERE id = ?').get(issueId) as
@@ -1281,12 +1278,102 @@ describe('resolving an issue', () => {
     }
   });
 
-  it('re-raises the discrepancy on a later run once it has been resolved, because a resolved issue does not suppress it', async () => {
+  // A resolved discrepancy whose figures have not moved is a reconciling item an
+  // administrator already explained. Raising it again every night buries the
+  // queue in questions already answered; dropping it silently hides that the
+  // books still differ. It is carried forward under its explanation instead.
+  it('carries a resolved discrepancy forward under its explanation while its figures are unchanged', async () => {
+    const issueId = await oneOutstandingIssue();
+    const service = await svc();
+    service.resolveIssue({ issueId, adminMemberId: ADMIN, notes: 'A rehearsal charge; left as is.' });
+    const db = openDb();
+    const countRows = () => ({
+      issues: (db.prepare('SELECT COUNT(*) AS c FROM reconciliation_issues').get() as { c: number }).c,
+      raisedAudit: (db.prepare(
+        "SELECT COUNT(*) AS c FROM audit_entries WHERE action_type = 'payment.reconciliation_issue_raised'",
+      ).get() as { c: number }).c,
+      queue: (db.prepare(
+        "SELECT COUNT(*) AS c FROM work_queue_items WHERE task_type = 'reconciliation_discrepancy'",
+      ).get() as { c: number }).c,
+    });
+    try {
+      const before = countRows();
+      const again = await service.runReconciliation({ now: NOW });
+      expect(again.issuesRaised).toBe(0);
+      expect(again.carriedForward).toEqual([
+        expect.objectContaining({
+          id: issueId,
+          paymentId: 'pay-res',
+          resolutionNotes: 'A rehearsal charge; left as is.',
+          resolvedBySlug: 'recon_admin',
+          resolvedAt: expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/),
+        }),
+      ]);
+      expect(countRows()).toEqual(before);
+    } finally {
+      db.close();
+    }
+  });
+
+  it('raises a new issue when a resolved discrepancy comes back with different figures', async () => {
     const issueId = await oneOutstandingIssue();
     const service = await svc();
     service.resolveIssue({ issueId, adminMemberId: ADMIN, notes: 'Handled.' });
+    seed((db) => db.prepare("UPDATE payments SET amount_cents = 9900 WHERE id = 'pay-res'").run());
     const again = await service.runReconciliation({ now: NOW });
     expect(again.issuesRaised).toBe(1);
+    expect(again.carriedForward).toEqual([]);
+  });
+
+  // Defect caught: only the platform's side of a status mismatch was compared,
+  // so a provider status that moved after the resolution (a payment the
+  // provider then canceled, say) was carried forward under the old note.
+  it('raises a new issue when only the provider status of a resolved mismatch has changed', async () => {
+    const service = await svc();
+    const adapter = await stub();
+    seed((db) => insertPayment(db, {
+      id: 'pay-prov', member_id: MEMBER, created_at: IN_WINDOW, status: 'succeeded',
+      amount_cents: 2600, stripe_payment_intent_id: 'pi_prov',
+    }));
+    adapter.setLedgerPaymentIntent({
+      id: 'pi_prov', amountCents: 2600, currency: 'USD', status: 'processing',
+      createdAt: IN_WINDOW, platformPaymentId: 'pay-prov',
+    });
+    const first = await service.runReconciliation({ now: NOW });
+    expect(first.issuesRaised).toBe(1);
+    const issueId = (() => {
+      const db = openDb();
+      try {
+        return (db.prepare(
+          "SELECT id FROM reconciliation_issues WHERE payment_id = 'pay-prov' AND status = 'outstanding'",
+        ).get() as { id: string }).id;
+      } finally {
+        db.close();
+      }
+    })();
+    service.resolveIssue({ issueId, adminMemberId: ADMIN, notes: 'Settling at the provider.' });
+
+    adapter.setLedgerPaymentIntent({
+      id: 'pi_prov', amountCents: 2600, currency: 'USD', status: 'canceled',
+      createdAt: IN_WINDOW, platformPaymentId: 'pay-prov',
+    });
+    const again = await service.runReconciliation({ now: NOW });
+    expect(again.issuesRaised).toBe(1);
+    expect(again.carriedForward).toEqual([]);
+  });
+
+  it('drops a carried-forward item once the run no longer finds it', async () => {
+    const issueId = await oneOutstandingIssue();
+    const service = await svc();
+    service.resolveIssue({ issueId, adminMemberId: ADMIN, notes: 'Handled.' });
+    const adapter = await stub();
+    adapter.setLedgerPaymentIntent({
+      id: 'pi_res', amountCents: 2500, currency: 'USD', status: 'succeeded',
+      createdAt: IN_WINDOW, platformPaymentId: 'pay-res',
+    });
+    const cleared = await service.runReconciliation({ now: NOW });
+    expect(cleared.issuesRaised).toBe(0);
+    expect(cleared.carriedForward).toEqual([]);
   });
 });
 
@@ -1812,12 +1899,299 @@ describe('reconciliation window', () => {
     // longer than it leaves a period no later run ever looks at again: not
     // retried, not reported, and recoverable only by someone noticing. The
     // provider's ledger would be the only record of what happened in there.
+    //
+    // It reaches the grace period further back than that run. The previous run
+    // left every record younger than the grace period for a later run to judge,
+    // so a window starting exactly at it would skip the records created in the
+    // half hour before it: neither run would ever examine them.
     const window = await windowFor(NOW, '2026-06-20T03:00:00.000Z');
-    expect(window.createdAfter).toBe('2026-06-20T03:00:00.000Z');
+    expect(window.createdAfter).toBe('2026-06-20T02:30:00.000Z');
   });
 
   it('falls back to the configured span when no run has ever succeeded', async () => {
     const window = await windowFor(NOW, null);
     expect(window.createdAfter).toBe('2026-07-13T03:00:00.000Z');
+  });
+});
+
+describe('a checkout that ended without the buyer paying', () => {
+  // An expired or released checkout ends canceled or failed with no provider
+  // payment intent, because the provider mints the intent only when the buyer
+  // pays. That is the ordinary end of a checkout nobody completed. Reporting it
+  // as settled money missing at the provider put a false alarm in the queue
+  // for every member who closed the payment page.
+  it('leaves a canceled or failed checkout with no intent alone, and still reports a settled payment with none', async () => {
+    seed((db) => {
+      insertPayment(db, {
+        id: 'pay-expired', member_id: MEMBER, created_at: IN_WINDOW,
+        status: 'canceled', amount_cents: 2500, stripe_payment_intent_id: null,
+      });
+      insertPayment(db, {
+        id: 'pay-released', member_id: MEMBER, created_at: IN_WINDOW,
+        status: 'failed', amount_cents: 2500, stripe_payment_intent_id: null,
+      });
+      insertPayment(db, {
+        id: 'pay-settled-no-intent', member_id: MEMBER, created_at: IN_WINDOW,
+        status: 'succeeded', amount_cents: 2500, stripe_payment_intent_id: null,
+      });
+    });
+    await (await svc()).runReconciliation({ now: NOW });
+    const db = openDb();
+    try {
+      const rows = db.prepare('SELECT issue_type, payment_id FROM reconciliation_issues').all();
+      expect(rows).toEqual([
+        { issue_type: 'payment_missing_at_provider', payment_id: 'pay-settled-no-intent' },
+      ]);
+    } finally {
+      db.close();
+    }
+  });
+});
+
+describe('a provider subscription created moments ago', () => {
+  // The created event and the ledger read do not land at the same instant, so a
+  // subscription a member set up minutes ago exists at the provider before its
+  // local mirror is written. Raising it as missing locally reported every new
+  // recurring gift as unrecorded money.
+  it('leaves one inside the grace period for a later run and reports one older than it', async () => {
+    const adapter = await stub();
+    adapter.setLedgerSubscription({
+      id: 'sub_just_created', customerId: 'cus_new', status: 'active',
+      amountCents: 2500, currency: 'USD', createdAt: '2026-07-20T02:50:00.000Z',
+    });
+    adapter.setLedgerSubscription({
+      id: 'sub_hour_old', customerId: 'cus_old', status: 'active',
+      amountCents: 2500, currency: 'USD', createdAt: '2026-07-20T01:00:00.000Z',
+    });
+    // Exactly at the cutoff (the run's 03:00 less the 30-minute default grace):
+    // still inside the grace, as every other pass treats its boundary.
+    adapter.setLedgerSubscription({
+      id: 'sub_at_cutoff', customerId: 'cus_edge', status: 'active',
+      amountCents: 2500, currency: 'USD', createdAt: '2026-07-20T02:30:00.000Z',
+    });
+    await (await svc()).runReconciliation({ now: NOW });
+    const db = openDb();
+    try {
+      const rows = db.prepare(
+        "SELECT stripe_subscription_id FROM reconciliation_issues WHERE issue_type = 'provider_subscription_missing_locally'",
+      ).all();
+      expect(rows).toEqual([{ stripe_subscription_id: 'sub_hour_old' }]);
+    } finally {
+      db.close();
+    }
+  });
+});
+
+describe('a renewal on a subscription the provider has since ended', () => {
+  // The provider can collect a final renewal and then end the subscription.
+  // That renewal's settlement intent carries no correlation key, so the intent
+  // pass recognises it only by its customer being one the provider bills on a
+  // subscription. Defect caught: a canceled subscription's customer left out of
+  // that set, so the one missed renewal is reported twice, once as an
+  // unrecorded charge and once as an unrecorded renewal.
+  it('reports the missed renewal once, through the invoice pass', async () => {
+    seed((db) => {
+      insertRecurringDonationSubscription(db, {
+        member_id: MEMBER, stripe_subscription_id: 'sub_since_ended', status: 'canceled',
+      });
+    });
+    const adapter = await stub();
+    adapter.setLedgerSubscription({
+      id: 'sub_since_ended', customerId: 'cus_since_ended', status: 'canceled',
+      amountCents: 2500, currency: 'USD',
+    });
+    adapter.setLedgerInvoice({
+      id: 'in_final_renewal', subscriptionId: 'sub_since_ended', amountPaidCents: 2500,
+      currency: 'USD', status: 'paid', createdAt: IN_WINDOW,
+    });
+    adapter.setLedgerPaymentIntent({
+      id: 'pi_final_renewal', amountCents: 2500, currency: 'USD', status: 'succeeded',
+      createdAt: IN_WINDOW, platformPaymentId: null, customerId: 'cus_since_ended',
+    });
+    await (await svc()).runReconciliation({ now: NOW });
+    expect(issueTypes()).toEqual(['invoice_charge_missing_locally']);
+  });
+});
+
+describe('resolving an issue twice', () => {
+  async function resolvedIssue(): Promise<string> {
+    seed((db) => {
+      insertPayment(db, {
+        id: 'pay-twice', member_id: MEMBER, created_at: IN_WINDOW,
+        status: 'succeeded', amount_cents: 2500, stripe_payment_intent_id: 'pi_twice',
+      });
+    });
+    const service = await svc();
+    await service.runReconciliation({ now: NOW });
+    const db = openDb();
+    try {
+      const id = (db.prepare("SELECT id FROM reconciliation_issues WHERE payment_id = 'pay-twice'").get() as
+        { id: string }).id;
+      service.resolveIssue({ issueId: id, adminMemberId: ADMIN, notes: 'Checked at the provider.' });
+      return id;
+    } finally {
+      db.close();
+    }
+  }
+
+  function counts(issueId: string) {
+    const db = openDb();
+    try {
+      return {
+        audit: (db.prepare(
+          "SELECT COUNT(*) AS c FROM audit_entries WHERE action_type = 'payment.reconciliation_issue_resolved' AND entity_id = ?",
+        ).get(issueId) as { c: number }).c,
+        resolvedQueue: (db.prepare(
+          "SELECT COUNT(*) AS c FROM work_queue_items WHERE entity_id = ? AND status = 'resolved'",
+        ).get(issueId) as { c: number }).c,
+        row: db.prepare(
+          'SELECT resolved_by_member_id, resolution_notes, resolved_at, version FROM reconciliation_issues WHERE id = ?',
+        ).get(issueId),
+      };
+    } finally {
+      db.close();
+    }
+  }
+
+  it('reports the same administrator submitting the same note again as their own decision, changing nothing', async () => {
+    const issueId = await resolvedIssue();
+    const before = counts(issueId);
+    const again = (await svc()).resolveIssue({
+      issueId, adminMemberId: ADMIN, notes: 'Checked at the provider.',
+    });
+    expect(again.status).toBe('own_repeat');
+    expect(counts(issueId)).toEqual(before);
+  });
+
+  it('tells another administrator who already resolved it and when, changing nothing', async () => {
+    const issueId = await resolvedIssue();
+    seed((db) => insertMember(db, {
+      id: 'recon-admin-two', slug: 'recon_admin_two', display_name: 'Second Admin',
+      login_email: 'recon-admin-two@example.com', is_admin: 1,
+    }));
+    const before = counts(issueId);
+    const again = (await svc()).resolveIssue({
+      issueId, adminMemberId: 'recon-admin-two', notes: 'Checked at the provider.',
+    });
+    expect(again).toEqual({
+      status: 'already_held',
+      resolvedBySlug: 'recon_admin',
+      resolvedAt: (before.row as { resolved_at: string }).resolved_at,
+    });
+    expect(counts(issueId)).toEqual(before);
+  });
+});
+
+describe('the digest carries the donor comments and the newest report', () => {
+  const DONOR = 'recon-donor';
+  const PURGED_DONOR = 'recon-donor-purged';
+
+  function seedDonations(): void {
+    seed((db) => {
+      if (!db.prepare('SELECT 1 FROM members WHERE id = ?').get(DONOR)) {
+        insertMember(db, { id: DONOR, slug: 'recon_donor', display_name: 'Dana Donor', login_email: 'dana@example.com' });
+        insertMember(db, {
+          id: PURGED_DONOR, slug: 'recon_donor_purged', display_name: 'Erased Person',
+          login_email: 'erased@example.com', personal_data_purged_at: '2026-07-19T00:00:00.000Z',
+        });
+      }
+      insertPayment(db, {
+        id: 'pay-gift-worlds', member_id: DONOR, payment_type: 'donation', created_at: IN_WINDOW,
+        status: 'succeeded', amount_cents: 2500, currency: 'USD',
+        donation_note: 'For the\nWorlds fund', stripe_payment_intent_id: 'pi_gift_worlds',
+      });
+      insertPayment(db, {
+        id: 'pay-gift-refunded', member_id: DONOR, payment_type: 'donation', created_at: '2026-07-18T13:00:00.000Z',
+        status: 'refunded', amount_cents: 1500, currency: 'EUR',
+        donation_note: 'In memory of a friend', stripe_payment_intent_id: 'pi_gift_refunded',
+      });
+      insertPayment(db, {
+        id: 'pay-gift-erased', member_id: PURGED_DONOR, payment_type: 'donation', created_at: '2026-07-18T14:00:00.000Z',
+        status: 'succeeded', amount_cents: 1000, currency: 'USD',
+        donation_note: 'General fund', stripe_payment_intent_id: 'pi_gift_erased',
+      });
+      // Each of these must stay out: a rehearsal gift, a gift with no comment,
+      // a checkout that never completed, a gift before the period, and a
+      // membership, which carries no donor comment by definition.
+      insertPayment(db, {
+        id: 'pay-gift-rehearsal', member_id: DONOR, payment_type: 'donation', created_at: IN_WINDOW,
+        status: 'succeeded', amount_cents: 700, donation_note: 'Rehearsal gift', provider_livemode: 0,
+      });
+      insertPayment(db, {
+        id: 'pay-gift-silent', member_id: DONOR, payment_type: 'donation', created_at: IN_WINDOW,
+        status: 'succeeded', amount_cents: 800, donation_note: null,
+      });
+      insertPayment(db, {
+        id: 'pay-gift-unpaid', member_id: DONOR, payment_type: 'donation', created_at: IN_WINDOW,
+        status: 'pending', amount_cents: 900, donation_note: 'Never paid',
+      });
+      insertPayment(db, {
+        id: 'pay-gift-old', member_id: DONOR, payment_type: 'donation', created_at: '2026-05-01T12:00:00.000Z',
+        status: 'succeeded', amount_cents: 600, donation_note: 'Last spring',
+      });
+    });
+  }
+
+  it('lists every commented gift of the period with its date, amount, donor and comment, and nothing else', async () => {
+    seedDonations();
+    const day = new Date(NOW.getTime() + 5 * 86_400_000);
+    (await svc()).sendReconciliationDigest({ now: day });
+    const body = digestBodyFor(day);
+    const section = body.split('DONATIONS WITH A COMMENT\n')[1]?.split('\n\n')[0] ?? '';
+    // A newline the donor typed is folded into the line, so member text can
+    // never start a line of its own and pass for a section of the report.
+    expect(section.split('\n')).toEqual([
+      '2026-07-18 - 25.00 USD - Dana Donor - "For the Worlds fund"',
+      '2026-07-18 - 15.00 EUR - Dana Donor - "In memory of a friend"',
+      '2026-07-18 - 10.00 USD - a donor whose account has since been removed - "General fund"',
+    ]);
+    expect(body).not.toContain('Erased Person');
+  });
+
+  it('says so when no gift in the period carried a comment', async () => {
+    const day = new Date(NOW.getTime() + 6 * 86_400_000);
+    (await svc()).sendReconciliationDigest({ now: day });
+    expect(digestBodyFor(day)).toContain(
+      'DONATIONS WITH A COMMENT\nNo donation during this period carried a comment.',
+    );
+  });
+
+  it('copies the newest report: its gross totals, live money only, and its carried-forward items', async () => {
+    seedDonations();
+    seed((db) => {
+      insertPayment(db, {
+        id: 'pay-carried', member_id: MEMBER, created_at: IN_WINDOW,
+        status: 'succeeded', amount_cents: 4400, stripe_payment_intent_id: 'pi_carried',
+      });
+    });
+    const service = await svc();
+    await service.runReconciliation({ now: NOW });
+    const db = openDb();
+    let resolvedDay: string;
+    try {
+      const id = (db.prepare("SELECT id FROM reconciliation_issues WHERE payment_id = 'pay-carried'").get() as
+        { id: string }).id;
+      service.resolveIssue({ issueId: id, adminMemberId: ADMIN, notes: 'Booked by hand;\nleft as is.' });
+      resolvedDay = (db.prepare('SELECT resolved_at FROM reconciliation_issues WHERE id = ?').get(id) as
+        { resolved_at: string }).resolved_at.slice(0, 10);
+    } finally {
+      db.close();
+    }
+    const runAt = new Date(NOW.getTime() + 4 * 86_400_000);
+    const { operationsPlatformService } = await import('../../src/services/operationsPlatformService');
+    await operationsPlatformService.runPaymentReconciliation(runAt);
+    const day = new Date(NOW.getTime() + 7 * 86_400_000);
+    service.sendReconciliationDigest({ now: day });
+    const body = digestBodyFor(day);
+    const totals = body.split('TOTALS FROM THE NEWEST REPORT\n')[1]?.split('\n\n')[0] ?? '';
+    expect(totals).toContain('Donation in EUR: 1 payment, 15.00 EUR received, 0.00 EUR returned, 15.00 EUR net.');
+    // Every live gift counts toward the total, commented or not.
+    expect(totals).toContain('Donation in USD: 3 payments, 43.00 USD received, 0.00 USD returned, 43.00 USD net.');
+    expect(totals).toContain('Set aside: 1 test-mode payment.');
+    const carried = body.split('CARRIED FORWARD\n')[1]?.split('\n\n')[0] ?? '';
+    expect(carried).toBe(
+      'Local payment with no provider record - 44.00 USD - explained by recon_admin on '
+      + `${resolvedDay}: "Booked by hand; left as is."`,
+    );
   });
 });

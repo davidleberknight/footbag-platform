@@ -14,7 +14,7 @@ const { dbPath } = setTestEnv('4036');
 process.env.PAYMENT_ADAPTER = 'stub';
 // Set before the app (and therefore the frozen config singleton) is imported,
 // the same ordering a deployed host gets from its env file.
-process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_deployment_generated_value';
+process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_abababababababababababababababababababababababab';
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 // Plain supertest (NOT supertestWithOrigin): real Stripe webhook deliveries are
@@ -96,7 +96,7 @@ describe('stub payment adapter: deployment-supplied webhook signing secret', () 
     const timestamp = Number(/t=(\d+)/.exec(signature)![1]);
     expect(signature).not.toBe(signStripeWebhook(rawBody, STUB_WEBHOOK_SECRET, timestamp));
     expect(signature).toBe(
-      signStripeWebhook(rawBody, 'whsec_stub_deployment_generated_value', timestamp),
+      signStripeWebhook(rawBody, 'whsec_stub_abababababababababababababababababababababababab', timestamp),
     );
   });
 });

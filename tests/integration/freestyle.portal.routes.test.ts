@@ -415,6 +415,9 @@ describe('GET /freestyle — two-band landing', () => {
       expect(res.text).toContain(`id="featured-${key}"`);
     }
     expect(res.text).not.toContain('id="featured-routine"');
+    // The self-hosted clip has no stored row here, so its card is left out
+    // rather than rendered empty; the seeded case below shows it present.
+    expect(res.text).not.toContain('id="featured-fountain-shred"');
   });
 
   it('Featured format cards use one-line captions, not paragraph prose', async () => {
@@ -484,6 +487,32 @@ describe('GET /freestyle — two-band landing', () => {
     expect(res.text).toContain('Demonstration of freestyle footbag');
     expect(res.text).toContain('autoplay');
     expect(res.text).toContain('playsinline');
+  });
+
+  it('renders the self-hosted featured clip as a click-to-play card once its curator row is stored', async () => {
+    const seedDb = new BetterSqlite3(dbPath);
+    let mediaId: string;
+    try {
+      const system = seedDb.prepare('SELECT id FROM members WHERE is_system = 1 LIMIT 1').get() as { id: string } | undefined;
+      const fhId = system?.id ?? insertMember(seedDb, { is_system: 1, slug: 'fh-fountain' });
+      mediaId = insertCuratorVideo(seedDb, {
+        uploaderMemberId: fhId,
+        sourceFilename: 'fountain-shred.mp4',
+        slotTag: '#demo_fountain_shred',
+        caption: 'Seeded fountain clip',
+      });
+    } finally {
+      seedDb.close();
+    }
+
+    const res = await request(createApp()).get('/freestyle');
+    const start = res.text.indexOf('id="featured-fountain-shred"');
+    expect(start).toBeGreaterThan(-1);
+    const card = res.text.slice(start, res.text.indexOf('</article>', start));
+    expect(card).toContain('data-platform="s3"');
+    expect(card).toContain(`${mediaId}-video.mp4`);
+    // Eight cards in all: the seven YouTube videos plus this one.
+    expect(res.text.match(/class="card featured-card"/g)).toHaveLength(8);
   });
 
   // The demo clip starts on its own and loops forever, so the visitor needs a

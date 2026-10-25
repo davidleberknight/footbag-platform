@@ -29,7 +29,7 @@ process.env.CAPTCHA_ADAPTER           = 'stub';
 process.env.IMAGE_PROCESSOR_URL       = 'http://image:4000';
 process.env.MEDIA_STORAGE_ADAPTER     = 'local';
 process.env.PAYMENT_ADAPTER           = 'stub';
-process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_staging_generated_value';
+process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_abababababababababababababababababababababababab';
 
 let createApp: Awaited<ReturnType<typeof importApp>>;
 

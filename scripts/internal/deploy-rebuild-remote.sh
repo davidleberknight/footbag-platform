@@ -979,7 +979,9 @@ if [[ "$FOOTBAG_ENV_VAL" == "production" ]]; then
   # sync leaves any existing host value untouched, so a value installed by
   # the payments activation or rotation script survives deploys until the
   # parameter carries the real secret. The _previous twin carries the
-  # outgoing secret during a Stripe secret roll.
+  # outgoing secret during a Stripe secret roll, and is the exception to the
+  # leave-alone rule: a placeholder there means no window is open, so the host
+  # line is removed.
   sync_stripe_webhook_secret() {
     local env_key="$1" param_suffix="$2"
     local param="/footbag/${FOOTBAG_ENV_VAL}/secrets/${param_suffix}"
@@ -1007,6 +1009,27 @@ if [[ "$FOOTBAG_ENV_VAL" == "production" ]]; then
       exit 1
     fi
     if [[ "$value" == TODO-* ]]; then value=""; fi
+    # The outgoing twin is the one key the placeholder clears. Completing a
+    # rotation returns its parameter to the placeholder before the host push, so
+    # a push that failed or was declined would otherwise keep the old secret
+    # valid on the host for good. The current secret keeps the leave-alone rule:
+    # clearing it would strip a secret activation installed and fail every
+    # live delivery.
+    if [[ -z "$value" && "$env_key" == "STRIPE_WEBHOOK_SECRET_PREVIOUS" ]]; then
+      if grep -q "^${env_key}=" "$ENV_PATH"; then
+        env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
+        chmod 600 "$env_tmp"
+        chown root:root "$env_tmp"
+        grep -v "^${env_key}=" "$ENV_PATH" > "$env_tmp" || [[ $? -eq 1 ]]
+        mv "$env_tmp" "$ENV_PATH"
+        chmod 600 "$ENV_PATH"
+        chown root:root "$ENV_PATH"
+        echo "    ${param} is the placeholder: no rotation window is open, so ${env_key} was removed from the host."
+      else
+        echo "    ${param} is the placeholder and the host holds no ${env_key}; nothing to clear."
+      fi
+      return 0
+    fi
     if [[ -z "$value" ]]; then
       echo "    ${param} still the placeholder; leaving any existing ${env_key} in place."
       return 0

@@ -239,7 +239,7 @@ describe('env config: dev defaults apply when NODE_ENV is not production', () =>
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
     process.env.PAYMENT_ADAPTER = 'stub';
-    process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_staging_generated_value';
+    process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_abababababababababababababababababababababababab';
     process.env.CAPTCHA_ADAPTER = 'stub';
     const { config } = await import('../../src/config/env');
     expect(config.captchaAdapter).toBe('stub');
@@ -284,7 +284,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
       process.env.MEDIA_STORAGE_ADAPTER = 'local';
       process.env.CAPTCHA_ADAPTER = 'stub';
       process.env.PAYMENT_ADAPTER = 'stub';
-      process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_staging_generated_value';
+      process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_abababababababababababababababababababababababab';
       delete process.env[name];
       await expect(import('../../src/config/env')).rejects.toThrow(
         new RegExp(`Missing required environment variable: ${name}`),
@@ -639,7 +639,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
     process.env.PAYMENT_ADAPTER = 'stub';
-    process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_staging_generated_value';
+    process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_abababababababababababababababababababababababab';
     const { config } = await import('../../src/config/env');
     expect(config.footbagEnv).toBe('staging');
     expect(config.ssmPrefix).toBe('/footbag/staging');
@@ -733,7 +733,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
     process.env.PAYMENT_ADAPTER = 'stub';
-    process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_staging_generated_value';
+    process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_abababababababababababababababababababababababab';
     const { config } = await import('../../src/config/env');
     expect(config.paymentAdapter).toBe('stub');
   });
@@ -760,6 +760,58 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     );
   });
 
+  // A real provider signing secret placed in the stub's slot would make a
+  // staging host verify, and act on, deliveries signed for the live endpoint.
+  // The committed constant is refused for the forgery reason above.
+  it.each([
+    ['a real provider signing secret', 'whsec_live_realvalue'],
+    ['the committed stub constant', 'whsec_stub_0000000000000000000000000000'],
+    ['a short guessable value', 'whsec_stub_abc'],
+    ['the bare prefix a failed generator writes', 'whsec_stub_'],
+  ])('refuses %s as the staging stub signing secret', async (_label, value) => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'production';
+    process.env.FOOTBAG_ENV = 'staging';
+    process.env.JWT_SIGNER = 'local';
+    process.env.SES_ADAPTER = 'stub';
+    process.env.SAFE_BROWSING_ADAPTER = 'stub';
+    process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
+    process.env.SECRETS_ADAPTER = 'stub';
+    process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
+    process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.PAYMENT_ADAPTER = 'stub';
+    process.env.STRIPE_WEBHOOK_SECRET_STUB = value;
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /STRIPE_WEBHOOK_SECRET_STUB must be a generated whsec_stub_ value/,
+    );
+  });
+
+  // Dark production runs the same stub against the public internet, so the
+  // same refusal must hold there, not only on staging.
+  it('refuses a real provider signing secret as the stub secret on a dark production host', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'production';
+    process.env.FOOTBAG_ENV = 'production';
+    process.env.JWT_SIGNER = 'kms';
+    process.env.JWT_KMS_KEY_ID = 'arn:aws:kms:us-east-1:000000000000:key/abcd-efgh';
+    process.env.SES_ADAPTER = 'live';
+    process.env.SES_FROM_IDENTITY = 'noreply@test.example.com';
+    process.env.AWS_REGION = 'us-east-1';
+    process.env.SAFE_BROWSING_ADAPTER = 'stub';
+    process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
+    process.env.SECRETS_ADAPTER = 'live';
+    process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
+    process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.PAYMENTS_ARMED = 'dark';
+    process.env.PAYMENT_ADAPTER = 'stub';
+    process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_live_realvalue';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /STRIPE_WEBHOOK_SECRET_STUB must be a generated whsec_stub_ value when FOOTBAG_ENV=production/,
+    );
+  });
+
   it('carries the staging stub signing secret through to config', async () => {
     baselineRequired();
     clearAwsWiring();
@@ -773,9 +825,9 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
     process.env.PAYMENT_ADAPTER = 'stub';
-    process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_staging_generated_value';
+    process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_abababababababababababababababababababababababab';
     const { config } = await import('../../src/config/env');
-    expect(config.stripeWebhookSecretStub).toBe('whsec_stub_staging_generated_value');
+    expect(config.stripeWebhookSecretStub).toBe('whsec_stub_abababababababababababababababababababababababab');
   });
 
   // Development and test are not reachable from the internet, so the adapter's
@@ -1014,7 +1066,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
     process.env.PAYMENT_ADAPTER = 'stub';
-    process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_staging_generated_value';
+    process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_abababababababababababababababababababababababab';
     process.env.FOOTBAG_TEST_MEMORY_PERCENT = '85';
     const { config } = await import('../../src/config/env');
     expect(config.testMemoryPercent).toBe(85);
@@ -1063,7 +1115,7 @@ describe('env config: prod-mode fail-fast (staging runtime)', () => {
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
     process.env.PAYMENT_ADAPTER = 'stub';
-    process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_staging_generated_value';
+    process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_abababababababababababababababababababababababab';
     process.env.FOOTBAG_DEV_INITIAL_ADMIN_EMAILS = 'someone@example.com';
     // Staging boots with the allowlist set; the production refusal above is
     // the other side of this branch.
@@ -1169,7 +1221,7 @@ describe('env config: FOOTBAG_ENV ↔ NODE_ENV cross-invariant', () => {
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
     process.env.PAYMENT_ADAPTER = 'stub';
-    process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_staging_generated_value';
+    process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_abababababababababababababababababababababababab';
     process.env.FOOTBAG_ENV = 'staging';
     const { config } = await import('../../src/config/env');
     expect(config.footbagEnv).toBe('staging');
@@ -2365,7 +2417,7 @@ describe('env config: arming switches (EMAIL_SEND_ARMED / PAYMENTS_ARMED)', () =
     process.env.PAYMENTS_ARMED = 'dark';
     process.env.SES_ADAPTER = 'stub';
     process.env.PAYMENT_ADAPTER = 'stub';
-    process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_production_generated';
+    process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_abababababababababababababababababababababababab';
     const { config } = await import('../../src/config/env');
     expect(config.emailSendArmed).toBe('dark');
     expect(config.paymentsArmed).toBe('dark');
@@ -2379,7 +2431,7 @@ describe('env config: arming switches (EMAIL_SEND_ARMED / PAYMENTS_ARMED)', () =
     armedEmailEnv();
     process.env.PAYMENT_ADAPTER = 'stub';
     process.env.PAYMENTS_ARMED = 'dark';
-    process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_production_generated';
+    process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_abababababababababababababababababababababababab';
     await expect(import('../../src/config/env')).rejects.toThrow(
       /SES_ADAPTER must be 'stub' when FOOTBAG_ENV=production and EMAIL_SEND_ARMED=dark/,
     );
@@ -2402,7 +2454,7 @@ describe('env config: arming switches (EMAIL_SEND_ARMED / PAYMENTS_ARMED)', () =
     process.env.SES_ADAPTER = 'stub';
     process.env.PAYMENTS_ARMED = 'dark';
     process.env.PAYMENT_ADAPTER = 'stub';
-    process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_production_generated';
+    process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_abababababababababababababababababababababababab';
     await expect(import('../../src/config/env')).rejects.toThrow(
       /SES_ADAPTER must be 'live' when FOOTBAG_ENV=production and EMAIL_SEND_ARMED=armed/,
     );
@@ -2444,7 +2496,7 @@ describe('env config: arming switches (EMAIL_SEND_ARMED / PAYMENTS_ARMED)', () =
     process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
     process.env.MEDIA_STORAGE_ADAPTER = 'local';
     process.env.PAYMENT_ADAPTER = 'stub';
-    process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_staging_generated_value';
+    process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_abababababababababababababababababababababababab';
     process.env.EMAIL_SEND_ARMED = 'dark';
     process.env.PAYMENTS_ARMED = 'dark';
     const { config } = await import('../../src/config/env');
@@ -2549,7 +2601,7 @@ describe('env config: prod-mode deployment-env declaration and hardening mandate
     process.env.SECRETS_ADAPTER = 'live';
     process.env.FOOTBAG_ENV = 'staging';
     process.env.CAPTCHA_ADAPTER = 'stub';
-    process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_staging_generated_value';
+    process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_abababababababababababababababababababababababab';
     delete process.env.AWS_REGION;
     await expect(import('../../src/config/env')).rejects.toThrow(
       /AWS_REGION is required when JWT_SIGNER=kms, SES_ADAPTER=live, SECRETS_ADAPTER=live, or MEDIA_STORAGE_ADAPTER=s3/,
@@ -2635,7 +2687,7 @@ describe('env config: link-protection switches (URL_SCREENING_ARMED / REACHABILI
     process.env.CAPTCHA_ADAPTER = env === 'production' ? 'live' : 'stub';
     if (env === 'production') process.env.TURNSTILE_SITE_KEY = 'turnstile-site-key';
     process.env.PAYMENT_ADAPTER = 'stub';
-    process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_generated_value';
+    process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_abababababababababababababababababababababababab';
     process.env.EMAIL_SEND_ARMED = 'dark';
     process.env.PAYMENTS_ARMED = 'dark';
   }

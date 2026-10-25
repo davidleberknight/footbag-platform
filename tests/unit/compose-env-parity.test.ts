@@ -207,7 +207,7 @@ const STAGING_FIXTURE: Record<string, string> = {
   // below production, so the stub plus its generated signing secret is the
   // only bootable staging shape.
   PAYMENT_ADAPTER: 'stub',
-  STRIPE_WEBHOOK_SECRET_STUB: 'whsec_stub_staging_generated_value',
+  STRIPE_WEBHOOK_SECRET_STUB: 'whsec_stub_abababababababababababababababababababababababab',
   // Arming switches: mandatory under prod-mode boots (the deploy syncs them
   // from SSM); inert below production.
   PAYMENTS_ARMED: 'armed',
@@ -241,7 +241,7 @@ const STAGING_FIXTURE: Record<string, string> = {
 const STAGING_STUB_FIXTURE: Record<string, string> = {
   ...STAGING_FIXTURE,
   PAYMENT_ADAPTER: 'stub',
-  STRIPE_WEBHOOK_SECRET_STUB: 'whsec_stub_staging_generated_value',
+  STRIPE_WEBHOOK_SECRET_STUB: 'whsec_stub_abababababababababababababababababababababababab',
 };
 
 /**
@@ -397,7 +397,7 @@ describe('compose ↔ env.ts parity (staging: base + prod overlay)', () => {
     for (const service of ['web', 'worker'] as const) {
       vi.resetModules();
       const env = resolveServiceEnv(merged.services[service], STAGING_STUB_FIXTURE);
-      expect(env.STRIPE_WEBHOOK_SECRET_STUB).toBe('whsec_stub_staging_generated_value');
+      expect(env.STRIPE_WEBHOOK_SECRET_STUB).toBe('whsec_stub_abababababababababababababababababababababababab');
       await expect(loadEnvWith(env)).resolves.toBeUndefined();
     }
   });

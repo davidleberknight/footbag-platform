@@ -23,6 +23,7 @@ import {
   insertSystemConfig,
   insertStripeEvent,
   insertStripeWebhookFailure,
+  insertAuditEntry,
   createTestSessionJwt,
 } from '../fixtures/factories';
 
@@ -295,6 +296,47 @@ describe('the read-only contract', () => {
     const after = await healthPage();
     expect(after).not.toContain('not yet recorded');
     expect(after).toContain('2026-07-01');
+  });
+});
+
+describe('the declared mode below production', () => {
+  // Below production the arming switch means nothing and defaults to armed,
+  // so reading it back as "Armed (live money)" tells an administrator on a
+  // development or staging stack that real money moves there when none can.
+  it('says the declaration does not apply instead of claiming live money', async () => {
+    const html = await healthPage();
+    expect(html).not.toContain('Armed (live money)');
+    expect(html).toMatch(
+      /<td>Mode this deployment declares<\/td>\s*<td><span class="fw-600">Does not apply outside production<\/span><\/td>/,
+    );
+  });
+});
+
+describe('settled volume counts as the period totals do', () => {
+  // Defect caught: the health page counts only succeeded rows and nets no
+  // refund, so a refunded payment vanishes from it while the All Payments
+  // totals and the nightly reports count it received and returned, and the two
+  // money figures an administrator compares disagree for the same window.
+  it('counts a refunded payment as received and returned, netting the refund', async () => {
+    withDb((db) => {
+      insertPayment(db, {
+        id: 'ph-vol-refunded', member_id: MEMBER_ID, payment_type: 'donation', status: 'refunded',
+        amount_cents: 4000, created_at: isoHoursAgo(1), provider_livemode: 1,
+      });
+      insertPayment(db, {
+        id: 'ph-vol-kept', member_id: MEMBER_ID, payment_type: 'donation', status: 'succeeded',
+        amount_cents: 1000, created_at: isoHoursAgo(1), provider_livemode: 1,
+      });
+      insertAuditEntry(db, {
+        action_type: 'payment.refunded',
+        actor_type: 'system',
+        entity_type: 'payment', entity_id: 'ph-vol-refunded',
+        metadata: { refunded_amount_cents: 4000, currency: 'USD' },
+      });
+    });
+    const html = await healthPage();
+    // Received 50.00, returned 40.00, net 10.00, on the one donation row.
+    expect(html).toMatch(/50\.00 USD[\s\S]*?40\.00 USD[\s\S]*?10\.00 USD/);
   });
 });
 

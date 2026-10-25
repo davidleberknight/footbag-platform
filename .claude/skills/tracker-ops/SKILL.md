@@ -127,6 +127,11 @@ effect. Then:
   follow-through on cards it merges into or from. Never one question per issue, never a
   second question for the same decision, never a pause between the commands of an agreed
   batch, and never treat a permission prompt as a question to answer in prose.
+- **A card the human picked to work is the decision for its comments and body edits.** In the
+  private issue review, the pick authorizes Claude to comment on that card and edit its body
+  without an ask; Claude shows each written text, a body edit as BEFORE and AFTER, in the same
+  message. Any other card, a new card, a close the human has not ruled, and everything the
+  floor below forbids still take the ask.
 - **Retitle, rewrite, reassign, relabel, comment, close and reopen never prompt at the
   tool layer.** They are allowed in the committed settings, scoped to the private tracker
   by an exact repo-flag prefix, which is why every mutating command writes the repo flag

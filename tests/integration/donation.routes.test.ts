@@ -421,6 +421,36 @@ describe('POST /members/:memberKey/recurring-donations/:stripeSubscriptionId/can
     expect(history.status).toBe(200);
   });
 
+  // Defect caught: a member cancelling a gift that already ended at the
+  // provider gets an error page, or is told they just cancelled it.
+  it('tells the owner a gift that already ended has ended, in the informational tone', async () => {
+    const { paymentService } = await import('../../src/services/paymentService');
+    const mod = await import('../../src/adapters/paymentAdapter');
+    mod.getPaymentAdapter();
+    const stub = mod.getStubPaymentAdapterForTests()!;
+    const started = await paymentService.startDonation(OWNER, 2600, 'ended gift', true, '/x');
+    const created = stub.buildSignedStubWebhookEvent(started.sessionId);
+    paymentService.handleWebhook(created.rawBody, created.signature);
+    const stripeSubscriptionId = stub.sessions.get(started.sessionId)!.stripeSubscriptionId!;
+    // Ended at the provider; the deletion event has not been delivered.
+    stub.buildSignedStubSubscriptionEvent(started.sessionId, 'deleted');
+
+    const res = await request(createApp())
+      .post(`/members/${OWNER_SLUG}/recurring-donations/${stripeSubscriptionId}/cancel`)
+      .set('Cookie', cookie(OWNER));
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe(`/members/${OWNER_SLUG}/payments`);
+
+    const history = await plainRequest(createApp())
+      .get(`/members/${OWNER_SLUG}/payments`)
+      .set('Cookie', [cookie(OWNER), ...(res.headers['set-cookie'] ?? [])]);
+    expect(history.status).toBe(200);
+    expect(history.text).toContain(
+      '<p class="form-notice" role="status">That recurring donation has already ended.</p>',
+    );
+    expect(history.text).not.toContain('Your recurring donation has been cancelled.');
+  });
+
   it('404s a member aiming the cancel action at another member subscription', async () => {
     const stripeSubscriptionId = await liveSubscriptionFor(OTHER);
     const res = await request(createApp())

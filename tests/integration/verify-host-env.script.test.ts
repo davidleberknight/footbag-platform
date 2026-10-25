@@ -54,7 +54,7 @@ const CLEAN_STAGING_ENV = [
   'TRUST_PROXY=2',
   'BACKUP_S3_BUCKET=footbag-staging-db-snapshots',
   'PAYMENT_ADAPTER=stub',
-  'STRIPE_WEBHOOK_SECRET_STUB=whsec_stub_staging_generated_value',
+  'STRIPE_WEBHOOK_SECRET_STUB=whsec_stub_abababababababababababababababababababababababab',
   'PAYMENTS_ARMED=armed',
   'EMAIL_SEND_ARMED=armed',
   // Both link-protection switches armed, matching the live screening and
@@ -414,6 +414,45 @@ describe('verify-host-env.sh — advisory checks', () => {
     const result = runScript({ envFilePath: writeEnvFile(env) });
     expect(result.exitCode).toBe(1);
     expect(result.stdout).toMatch(/FAIL +stub webhook signing secret/);
+  });
+
+  // A real provider secret in the stub's slot would have the stub host act on
+  // deliveries signed for the live endpoint; the committed constant is the
+  // forgeable value the generated one exists to replace.
+  it.each([
+    ['a real provider signing secret', 'whsec_live_realvalue'],
+    ['the committed stub constant', 'whsec_stub_0000000000000000000000000000'],
+    ['a short guessable value', 'whsec_stub_abc'],
+  ])('STRIPE_WEBHOOK_SECRET_STUB set to %s → FAIL without printing it', (_label, value) => {
+    const env = mutate(/STRIPE_WEBHOOK_SECRET_STUB=.*/, `STRIPE_WEBHOOK_SECRET_STUB=${value}`);
+    const result = runScript({ envFilePath: writeEnvFile(env) });
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toMatch(/FAIL +stub webhook signing secret/);
+    expect(result.stdout + result.stderr).not.toContain(value);
+  });
+
+  it('the generated stub signing secret passes', () => {
+    const result = runScript({ envFilePath: writeEnvFile(CLEAN_STAGING_ENV) });
+    expect(result.stdout).toMatch(/PASS +stub webhook signing secret/);
+  });
+
+  // A rotation left open keeps the outgoing signing secret valid indefinitely,
+  // so a leaked old secret still forges deliveries. Nothing else says so on a
+  // host check; it is a warning because the window is legitimate while a roll
+  // is in progress.
+  it('an open rotation window warns, names the command that closes it, and never prints the value', () => {
+    const previous = 'whsec_outgoing_rotation_value';
+    const env = `${CLEAN_STAGING_ENV}\nSTRIPE_WEBHOOK_SECRET_PREVIOUS=${previous}\n`;
+    const result = runScript({ envFilePath: writeEnvFile(env) });
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toMatch(/WARN +webhook rotation window open/);
+    expect(result.stdout).toContain('--complete-webhook-rotation');
+    expect(result.stdout + result.stderr).not.toContain(previous);
+  });
+
+  it('no rotation warning when no previous secret is held', () => {
+    const result = runScript({ envFilePath: writeEnvFile(CLEAN_STAGING_ENV) });
+    expect(result.stdout).not.toMatch(/rotation window/);
   });
 
   it('STRIPE_WEBHOOK_SECRET_STUB is not required when the host runs the live adapter', () => {

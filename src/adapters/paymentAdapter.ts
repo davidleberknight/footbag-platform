@@ -144,6 +144,10 @@ export interface StripeSubscriptionSummary {
   status: string;
   amountCents: number | null;
   currency: string | null;
+  /** When the provider created it. The comparison leaves a subscription
+   *  younger than the delivery grace period for a later run, because the event
+   *  that writes its local mirror may still be in flight. */
+  createdAt: string;
 }
 
 export interface StripeInvoiceSummary {
@@ -174,6 +178,33 @@ export interface StripeRefundSummary {
   status: string;
   createdAt: string;
 }
+
+// ── Errors ───────────────────────────────────────────────────────────────────
+
+/**
+ * Raised by `cancelSubscriptionAtPeriodEnd` when the subscription has already
+ * ended at the provider, or the provider no longer holds it. The cancel the
+ * caller asked for is then already true, so this names an outcome rather than
+ * an outage: the caller decides what an ended subscription means for its own
+ * record instead of reporting a provider failure. Any other refusal passes
+ * through unchanged.
+ */
+export class SubscriptionAlreadyEndedError extends Error {
+  readonly stripeSubscriptionId: string;
+  constructor(stripeSubscriptionId: string) {
+    super(`subscription ${stripeSubscriptionId} has already ended at the payment provider`);
+    this.name = 'SubscriptionAlreadyEndedError';
+    this.stripeSubscriptionId = stripeSubscriptionId;
+  }
+}
+
+/** Provider subscription statuses from which nothing can be canceled. */
+const ENDED_SUBSCRIPTION_STATUSES = new Set(['canceled', 'incomplete_expired']);
+
+/** Where a simulated subscription seeded without a creation time is dated:
+ *  long before any window a test compares, so the grace period never holds it
+ *  back unless the test means it to. */
+const STUB_LEDGER_LONG_AGO = '2000-01-01T00:00:00.000Z';
 
 // ── Adapter interface ────────────────────────────────────────────────────────
 
@@ -210,6 +241,15 @@ export interface PaymentAdapter {
    * of it, or its age.
    */
   loadedCredentialMode(): 'live' | 'test' | 'unknown';
+  /**
+   * Loads the credential if nothing has yet, then reports its mode as
+   * `loadedCredentialMode()` would. A caller that decides something by the
+   * mode (which rows reconciliation compares, whether a webhook event's mode
+   * matches the key) reads it here, because before the first provider call the
+   * synchronous read can only answer 'unknown'. Throws whatever loading the
+   * credential throws.
+   */
+  resolveCredentialMode(): Promise<'live' | 'test' | 'unknown'>;
   listPaymentIntents(window: LedgerWindow): Promise<StripePaymentIntentSummary[]>;
   listSubscriptions(): Promise<StripeSubscriptionSummary[]>;
   listInvoices(window: LedgerWindow): Promise<StripeInvoiceSummary[]>;
@@ -373,7 +413,12 @@ export interface StubPaymentAdapter extends PaymentAdapter {
       & Partial<Pick<StripePaymentIntentSummary, 'customerId'>>,
   ): void;
   removeLedgerPaymentIntent(id: string): void;
-  setLedgerSubscription(summary: StripeSubscriptionSummary): void;
+  /** `createdAt` defaults to long ago, so a test about something other than
+   *  the grace period never has its subscription left for a later run. */
+  setLedgerSubscription(
+    summary: Omit<StripeSubscriptionSummary, 'createdAt'>
+      & Partial<Pick<StripeSubscriptionSummary, 'createdAt'>>,
+  ): void;
   removeLedgerSubscription(id: string): void;
   setLedgerInvoice(summary: StripeInvoiceSummary): void;
   removeLedgerInvoice(id: string): void;
@@ -898,6 +943,10 @@ export function createStubPaymentAdapter(): StubPaymentAdapter {
         status: typeof obj.status === 'string' ? obj.status : 'active',
         amountCents: subscriptionAmountFrom(obj),
         currency: 'USD',
+        // A subscription is created once; a later lifecycle event moves its
+        // status, never its creation time.
+        createdAt: ledgerSubscriptions.get(id)?.createdAt
+          ?? (typeof obj.created === 'number' ? new Date(obj.created * 1000).toISOString() : createdAt),
       });
       return;
     }
@@ -1019,7 +1068,10 @@ export function createStubPaymentAdapter(): StubPaymentAdapter {
       ledgerIntents.delete(id);
     },
     setLedgerSubscription(summary) {
-      ledgerSubscriptions.set(summary.id, summary);
+      ledgerSubscriptions.set(summary.id, {
+        ...summary,
+        createdAt: summary.createdAt ?? STUB_LEDGER_LONG_AGO,
+      });
     },
     removeLedgerSubscription(id) {
       ledgerSubscriptions.delete(id);
@@ -1059,6 +1111,9 @@ export function createStubPaymentAdapter(): StubPaymentAdapter {
     // that needs the reconciliation to behave as it would under a live key, or
     // under a credential that could not be read, sets the reported mode.
     loadedCredentialMode() {
+      return reportedMode;
+    },
+    async resolveCredentialMode() {
       return reportedMode;
     },
     setLoadedCredentialModeForTests(mode) {
@@ -1127,9 +1182,14 @@ export function createStubPaymentAdapter(): StubPaymentAdapter {
       const signature = signStripeWebhook(rawBody, stubSecret);
       return { rawBody, signature };
     },
-    async cancelSubscriptionAtPeriodEnd(_stripeSubscriptionId) {
-      // Stub no-op. The real implementation will set
-      // subscription.cancel_at_period_end = true on the Stripe Subscription.
+    async cancelSubscriptionAtPeriodEnd(stripeSubscriptionId) {
+      // Refuses a subscription the simulated ledger holds as ended, as the
+      // provider refuses one; anything else, including a subscription the
+      // simulation never held, is accepted without effect.
+      const held = ledgerSubscriptions.get(stripeSubscriptionId);
+      if (held && ENDED_SUBSCRIPTION_STATUSES.has(held.status)) {
+        throw new SubscriptionAlreadyEndedError(stripeSubscriptionId);
+      }
     },
     isSessionClosed(sessionId) {
       return closedSessions.has(sessionId);
@@ -1297,6 +1357,9 @@ export interface StripeListParams {
   limit: number;
   starting_after?: string;
   created?: { gte: number; lt: number };
+  /** Subscriptions only. The provider lists only those not yet ended unless
+   *  asked for all of them. */
+  status?: 'all';
 }
 
 export interface StripePaymentIntentLike {
@@ -1320,6 +1383,7 @@ export interface StripeSubscriptionLike {
   id: string;
   customer?: string | { id: string } | null;
   status: string;
+  created: number;
   items?: { data?: Array<{ price?: { unit_amount?: number | null; currency?: string } }> };
 }
 
@@ -1361,6 +1425,7 @@ export interface StripeClientLike {
   };
   subscriptions: {
     update(id: string, params: { cancel_at_period_end: boolean }): Promise<unknown>;
+    retrieve(id: string): Promise<{ status: string }>;
     list(params: StripeListParams): Promise<StripeListPage<StripeSubscriptionLike>>;
   };
   paymentIntents: {
@@ -1402,6 +1467,12 @@ export function createLivePaymentAdapter(deps: LivePaymentAdapterDeps = {}): Pay
   const TEST_MODE_CLIENT_TTL_MS = 60_000;
   let client: StripeClientLike | null = null;
   let clientIsTestMode = false;
+  // Whether this process has ever built a client. The client is dropped on the
+  // test-mode expiry and on an authentication failure, and a refresh that then
+  // fails would otherwise report the mode as unknown at exactly the moment a
+  // key swap is half-applied, letting a webhook of the other mode through
+  // unchecked. The mode of the last key held stands until a new one is built.
+  let modeKnown = false;
   let clientBuiltAtMs = 0;
   async function getClient(): Promise<StripeClientLike> {
     if (client) {
@@ -1470,6 +1541,7 @@ export function createLivePaymentAdapter(deps: LivePaymentAdapterDeps = {}): Pay
     }
     client = stripeFactory(apiKey);
     clientIsTestMode = apiKey.startsWith('sk_test_') || apiKey.startsWith('rk_test_');
+    modeKnown = true;
     clientBuiltAtMs = Date.now();
     return client;
   }
@@ -1486,7 +1558,13 @@ export function createLivePaymentAdapter(deps: LivePaymentAdapterDeps = {}): Pay
     try {
       return await run(stripe);
     } catch (err) {
-      if (err instanceof Stripe.errors.StripeAuthenticationError) {
+      // A permission refusal counts too: a restricted key whose permissions
+      // were narrowed at the provider is refused that way, and the remedy, a
+      // replacement key in the parameter store, works only if this one is let go.
+      if (
+        err instanceof Stripe.errors.StripeAuthenticationError
+        || err instanceof Stripe.errors.StripePermissionError
+      ) {
         client = null;
         secrets.invalidate(secretKey);
       }
@@ -1630,9 +1708,15 @@ export function createLivePaymentAdapter(deps: LivePaymentAdapterDeps = {}): Pay
     // Read from the key the process actually built its client with. Unknown
     // until something has reached the provider since boot, which is honest:
     // the deployment's declared mode is a separate figure the health view shows
-    // beside this one.
+    // beside this one. After the client is dropped it reports the last key
+    // held, for the reason given beside modeKnown.
     loadedCredentialMode() {
-      if (!client) return 'unknown' as const;
+      if (!modeKnown) return 'unknown' as const;
+      return clientIsTestMode ? ('test' as const) : ('live' as const);
+    },
+
+    async resolveCredentialMode() {
+      await getClient();
       return clientIsTestMode ? ('test' as const) : ('live' as const);
     },
 
@@ -1651,9 +1735,16 @@ export function createLivePaymentAdapter(deps: LivePaymentAdapterDeps = {}): Pay
 
     async cancelSubscriptionAtPeriodEnd(stripeSubscriptionId) {
       return withClient(async (stripe) => {
-        await stripe.subscriptions.update(stripeSubscriptionId, {
-          cancel_at_period_end: true,
-        });
+        try {
+          await stripe.subscriptions.update(stripeSubscriptionId, {
+            cancel_at_period_end: true,
+          });
+        } catch (err) {
+          if (await isSubscriptionAlreadyEndedRefusal(stripe, stripeSubscriptionId, err)) {
+            throw new SubscriptionAlreadyEndedError(stripeSubscriptionId);
+          }
+          throw err;
+        }
       });
     },
 
@@ -1698,9 +1789,15 @@ export function createLivePaymentAdapter(deps: LivePaymentAdapterDeps = {}): Pay
         // Subscriptions are long-lived, so the reconciliation window that bounds
         // the intent and invoice reads does not apply: a subscription created
         // years ago is still current state to compare against.
+        //
+        // Every status, because the provider leaves ended subscriptions out by
+        // default. An ended one still matters: its customer can carry a final
+        // renewal the invoice pass owns, and the comparison reads a local
+        // mirror against a provider subscription that has ended as a status
+        // disagreement rather than as one missing at the provider.
         const raw = await drainList<StripeSubscriptionLike>(
           (params) => stripe.subscriptions.list(params),
-          {},
+          { status: 'all' },
         );
         return raw.map((s) => {
           const price = s.items?.data?.[0]?.price;
@@ -1710,6 +1807,7 @@ export function createLivePaymentAdapter(deps: LivePaymentAdapterDeps = {}): Pay
             status: s.status,
             amountCents: typeof price?.unit_amount === 'number' ? price.unit_amount : null,
             currency: price?.currency ? price.currency.toUpperCase() : null,
+            createdAt: new Date(s.created * 1000).toISOString(),
           };
         });
       });
@@ -1765,6 +1863,31 @@ function windowParams(window: LedgerWindow): Partial<StripeListParams> {
       lt: Math.floor(Date.parse(window.createdBefore) / 1000),
     },
   };
+}
+
+/**
+ * Whether a refused subscription update means the subscription has already
+ * ended. A subscription the provider no longer holds answers with the
+ * documented `resource_missing` code. An update to a canceled subscription is
+ * refused without a code of its own and with wording the provider does not
+ * publish, so instead of reading the message the subscription is read back and
+ * its documented status decides.
+ */
+async function isSubscriptionAlreadyEndedRefusal(
+  stripe: StripeClientLike,
+  stripeSubscriptionId: string,
+  err: unknown,
+): Promise<boolean> {
+  if (!(err instanceof Stripe.errors.StripeInvalidRequestError)) return false;
+  if (err.code === 'resource_missing') return true;
+  // A read-back that fails says nothing about the subscription, so the caller
+  // keeps the provider's original refusal rather than an unrelated error.
+  try {
+    const subscription = await stripe.subscriptions.retrieve(stripeSubscriptionId);
+    return subscription.status === 'canceled' || subscription.status === 'incomplete_expired';
+  } catch {
+    return false;
+  }
 }
 
 /** Walks every page of a Stripe list endpoint. Reconciliation that silently

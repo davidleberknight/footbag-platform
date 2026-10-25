@@ -43,6 +43,11 @@ export const SITE_MEDIA_SLOTS = {
     portrait: true,
     expectedTags: ['#curated', '#demo_consecutives'],
   },
+  fountain_shred: {
+    sourceFilename: 'fountain-shred.mp4',
+    kind: 'video',
+    expectedTags: ['#curated', '#demo_fountain_shred', '#freestyle'],
+  },
   japan_worlds_promo: {
     sourceFilename: 'japan-worlds-2026.jpg',
     kind: 'photo',

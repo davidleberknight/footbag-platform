@@ -110,7 +110,9 @@
           <tr>
             <th>Category</th>
             <th>Payments</th>
-            <th>Total</th>
+            <th>Received</th>
+            <th>Returned</th>
+            <th>Net</th>
           </tr>
         </thead>
         <tbody>
@@ -118,11 +120,14 @@
             <tr>
               <td>{{this.categoryLabel}}</td>
               <td>{{this.count}}</td>
-              <td>{{this.totalDisplay}}</td>
+              <td>{{this.grossDisplay}}</td>
+              <td>{{#if this.hasRefunds}}{{this.refundedDisplay}}{{else}}<span class="text-muted">--</span>{{/if}}</td>
+              <td class="fw-600">{{this.netDisplay}}</td>
             </tr>
           {{/each}}
         </tbody>
       </table>
+      <p class="fs-sm">Disputed charges are not deducted from these figures.</p>
     {{else}}
       <p>Nothing settled in this window.</p>
     {{/if}}

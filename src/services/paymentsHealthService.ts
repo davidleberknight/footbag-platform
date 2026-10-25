@@ -34,11 +34,21 @@
  *     last processed delivery is its own panel with its own warning.
  *   - Volume is grouped by currency as well as by category. Summing across
  *     currencies would produce a figure true of neither.
+ *   - Volume is counted by the one definition every money figure uses, the
+ *     period totals of PaymentReconciliationService: live rows only, refunded
+ *     payments counted received and returned, refunds netted, disputes not.
+ *     Two surfaces counting the same window differently is a disagreement an
+ *     administrator would chase as missing money.
+ *   - The declared mode is read back only in production. Below it the arming
+ *     switch has no meaning and defaults to armed, so the row says the
+ *     declaration does not apply rather than claiming live money.
  *   - The window is read at request time from the administrator-configurable
  *     setting, clamped so a bad value cannot empty the page or throw it.
  *
  * Persistence: reads stripe_events, stripe_webhook_failures, payments,
- * reconciliation_issues, system_config_current. Writes nothing.
+ * audit_entries (the refunds the volume nets), registrations and events (the
+ * shared totals query's event join), reconciliation_issues,
+ * system_config_current. Writes nothing.
  *
  * Side effects: none.
  *
@@ -48,14 +58,21 @@
  * call: a page whose job is reporting whether an external dependency is healthy
  * must not depend on that dependency to render.
  */
-import { paymentVolume, stripeEvents, stripeWebhookFailures, systemConfig } from '../db/db';
+import {
+  queryPeriodExcludedFromTotals,
+  stripeEvents,
+  stripeWebhookFailures,
+  systemConfig,
+} from '../db/db';
 import { runSqliteRead } from './sqliteRetry';
 import { readIntConfig } from './configReader';
 import { config } from '../config/env';
 import { getPaymentAdapter } from '../adapters/paymentAdapter';
 import {
   paymentReconciliationService,
+  periodTotals,
   PROVIDER_BOOK_OF_RECORD_LINE,
+  type PeriodTotalRow,
 } from './paymentReconciliationService';
 import type { PageViewModel } from '../types/page';
 
@@ -76,6 +93,9 @@ function volumeExclusionLineFor(rows: Array<{ mode: string; n: number }>): strin
 }
 
 const HOUR_MS = 60 * 60 * 1000;
+/** The far end of an open window, the same bound the All Payments totals use
+ *  when no end date is chosen. */
+const OPEN_END = '9999-12-31';
 /** A year. The floor stops a zero or negative configured value emptying the
  *  page; the ceiling stops a large one producing a window start the date
  *  arithmetic cannot express, which would throw the page rather than widen it. */
@@ -123,13 +143,6 @@ interface FailureRow {
   last_event_id: string | null;
 }
 
-interface VolumeRow {
-  payment_type: string;
-  currency: string;
-  n: number;
-  total_cents: number;
-}
-
 interface FailureViewModel {
   reasonLabel: string;
   count: number;
@@ -137,13 +150,6 @@ interface FailureViewModel {
   lastSeenDisplay: string | null;
   lastEventId: string | null;
   remedy: string;
-}
-
-interface VolumeViewModel {
-  categoryLabel: string;
-  currency: string;
-  count: number;
-  totalDisplay: string;
 }
 
 export interface PaymentsHealthContent {
@@ -174,7 +180,9 @@ export interface PaymentsHealthContent {
     providerLogNote: string;
   };
   volume: {
-    rows: VolumeViewModel[];
+    /** Received, returned and net by category and currency, counted exactly
+     *  as the All Payments totals and the nightly reports count them. */
+    rows: PeriodTotalRow[];
     hasRows: boolean;
     /** What the figures left out, live rows only being counted. */
     exclusionLine: string | null;
@@ -212,21 +220,6 @@ function ageLabel(iso: string | null, nowMs: number): string {
   return `${days} day${days === 1 ? '' : 's'} ago`;
 }
 
-function categoryLabel(paymentType: string): string {
-  switch (paymentType) {
-    case 'donation': return 'Donations';
-    case 'membership': return 'Membership dues';
-    case 'event_registration': return 'Event registrations';
-    default: return paymentType.replace(/_/g, ' ');
-  }
-}
-
-/** Amount with its own currency code and no invented symbol: a dollar sign in
- *  front of a euro total is a false statement about money. */
-function amountDisplay(cents: number, currency: string): string {
-  return `${(cents / 100).toFixed(2)} ${currency.toUpperCase()}`;
-}
-
 function readWindowHours(): number {
   const configured = readIntConfig('system_health_window_hours', 24);
   return Math.min(MAX_WINDOW_HOURS, Math.max(1, configured));
@@ -259,7 +252,13 @@ export const paymentsHealthService = {
 
     const runningMode = getPaymentAdapter().loadedCredentialMode();
     const declaredArmed = config.paymentsArmed === 'armed';
-    const declaredModeLabel = declaredArmed ? 'Armed (live money)' : 'Dark (no money moves)';
+    // Below production the arming switch means nothing and defaults to armed,
+    // so reading it back as armed would tell an administrator that real money
+    // moves on a stack where none can.
+    const isProduction = config.footbagEnv === 'production';
+    const declaredModeLabel = !isProduction
+      ? 'Does not apply outside production'
+      : declaredArmed ? 'Armed (live money)' : 'Dark (no money moves)';
     // The boot-time observation of the declared mode; its effective time is
     // when the declaration last changed, read locally rather than from the
     // parameter store this page must never call.
@@ -279,7 +278,7 @@ export const paymentsHealthService = {
     // is a banner nobody reads, which is exactly what this one cannot afford
     // to become.
     const hasModeDisagreement =
-      config.footbagEnv === 'production'
+      isProduction
       && ((runningMode === 'live' && !declaredArmed)
         || (runningMode === 'test' && declaredArmed));
 
@@ -308,15 +307,11 @@ export const paymentsHealthService = {
     });
     const totalFailures = failures.reduce((sum, f) => sum + f.count, 0);
 
-    const volumeRows = paymentVolume.byTypeSince.all(windowStart) as VolumeRow[];
-    const volume = volumeRows.map((row) => ({
-      categoryLabel: categoryLabel(row.payment_type),
-      currency: row.currency.toUpperCase(),
-      count: row.n,
-      totalDisplay: amountDisplay(row.total_cents, row.currency),
-    }));
+    // The window is open at its end, as the period totals' open bound is, so a
+    // payment written during this request still counts.
+    const volume = periodTotals(windowStart, OPEN_END);
     const volumeExclusionLine = volumeExclusionLineFor(
-      paymentVolume.excludedSince.all(windowStart) as Array<{ mode: string; n: number }>,
+      queryPeriodExcludedFromTotals(windowStart, OPEN_END),
     );
 
     const outstandingCount = paymentReconciliationService.countOutstandingIssues();

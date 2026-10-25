@@ -14,7 +14,7 @@
  * nothing else, so real sending is first exercised on production by the
  * operator-run scripts/verify-prod-email.sh.
  */
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
@@ -50,6 +50,7 @@ import {
 import {
   createStubPaymentAdapter,
   createLivePaymentAdapter,
+  SubscriptionAlreadyEndedError,
 } from '../../src/adapters/paymentAdapter';
 // Imported to construct the real Stripe error classes the adapter branches on;
 // a hand-rolled look-alike would pass a test the running code would fail.
@@ -1821,6 +1822,9 @@ describe('adapter-parity: PaymentAdapter (Stub vs. Live interface)', () => {
           captured.subscriptionUpdates.push({ id, params });
           return {};
         },
+        async retrieve() {
+          return { status: 'active' };
+        },
         async list(params) {
           captured.listCalls.push({ endpoint: 'subscriptions', params });
           return { data: ledger.subscriptions, has_more: false };
@@ -1866,6 +1870,7 @@ describe('adapter-parity: PaymentAdapter (Stub vs. Live interface)', () => {
         id: 'sub_a',
         customer: 'cus_a',
         status: 'active',
+        created: 1700000300,
         items: { data: [{ price: { unit_amount: 2500, currency: 'usd' } }] },
       },
     ],
@@ -2011,6 +2016,58 @@ describe('adapter-parity: PaymentAdapter (Stub vs. Live interface)', () => {
     ).toThrow(WebhookSignatureError);
   });
 
+  // Reconciliation and the webhook mode check decide by the key's mode. The
+  // live adapter loads its key lazily, so a resolve that reported without
+  // loading would answer 'unknown' on a worker's first run and every row would
+  // be compared regardless of mode.
+  it('resolveCredentialMode loads the key on the live side and reports the same modes as the stub', async () => {
+    const { adapter: live, factoryCalls } = makeLive();
+    expect(live.loadedCredentialMode()).toBe('unknown');
+    expect(await live.resolveCredentialMode()).toBe('test');
+    expect(factoryCalls()).toBe(1);
+    expect(live.loadedCredentialMode()).toBe('test');
+
+    const stub = createStubPaymentAdapter();
+    expect(await stub.resolveCredentialMode()).toBe(stub.loadedCredentialMode());
+    stub.setLoadedCredentialModeForTests('live');
+    expect(await stub.resolveCredentialMode()).toBe('live');
+  });
+
+  // The test-mode client expires and re-reads the key. If that read fails, a
+  // mode reported as unknown would let a webhook of the other mode through the
+  // mismatch check at exactly the moment a key swap is half-applied, so the
+  // last key held keeps deciding until a new one is built.
+  it('live keeps reporting the last key mode when a refresh after expiry fails', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      const { client } = makeFakeStripe();
+      const backing = createStubSecretsAdapter();
+      backing.setSecret('stripe_secret_key', 'sk_test_parity_fake');
+      let failReads = false;
+      const live = createLivePaymentAdapter({
+        secrets: {
+          get: (k: string) => backing.get(k),
+          getRequired: (k: string) => {
+            if (failReads) return Promise.reject(new Error('parameter store unavailable'));
+            return backing.getRequired(k);
+          },
+          getAbsolute: (n: string) => backing.getAbsolute(n),
+          deleteAbsolute: (n: string) => backing.deleteAbsolute(n),
+          invalidate: (k: string) => backing.invalidate(k),
+        },
+        stripeFactory: () => client,
+      });
+      expect(await live.resolveCredentialMode()).toBe('test');
+
+      vi.setSystemTime(Date.now() + 61_000);
+      failReads = true;
+      await expect(live.resolveCredentialMode()).rejects.toThrow(/parameter store unavailable/);
+      expect(live.loadedCredentialMode()).toBe('test');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('both return the same ledger-summary shapes from the reconciliation reads', async () => {
     const stub = createStubPaymentAdapter();
     const { adapter: live } = makeLive();
@@ -2027,7 +2084,7 @@ describe('adapter-parity: PaymentAdapter (Stub vs. Live interface)', () => {
     });
     stub.setLedgerSubscription({
       id: 'sub_stub_parity', customerId: 'cus_stub_parity', status: 'active',
-      amountCents: 2500, currency: 'USD',
+      amountCents: 2500, currency: 'USD', createdAt: '2023-11-15T12:00:00.000Z',
     });
     stub.setLedgerInvoice({
       id: 'in_stub_parity', subscriptionId: 'sub_stub_parity', amountPaidCents: 2500,
@@ -2057,6 +2114,9 @@ describe('adapter-parity: PaymentAdapter (Stub vs. Live interface)', () => {
         expect(typeof s.status).toBe('string');
         expect(s.customerId === null || typeof s.customerId === 'string').toBe(true);
         expect(s.amountCents === null || Number.isInteger(s.amountCents)).toBe(true);
+        // When the provider created it, so the comparison can leave a
+        // subscription minutes old for a later run on either implementation.
+        expect(s.createdAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
       });
     }
 
@@ -2109,6 +2169,120 @@ describe('adapter-parity: PaymentAdapter (Stub vs. Live interface)', () => {
     await adapter.listSubscriptions();
     const call = captured.listCalls.find((c) => c.endpoint === 'subscriptions')!;
     expect(call.params.created).toBeUndefined();
+  });
+
+  // Defect caught: the provider lists only subscriptions that have not ended
+  // unless asked for all of them, so a canceled subscription never reached the
+  // comparison. Its customer then dropped out of the set the intent pass reads,
+  // and the one missed final renewal was reported twice.
+  it('live listSubscriptions asks for every status, canceled ones included', async () => {
+    const { adapter, captured } = makeLive();
+    await adapter.listSubscriptions();
+    const call = captured.listCalls.find((c) => c.endpoint === 'subscriptions')!;
+    expect(call.params.status).toBe('all');
+  });
+
+  it('live listSubscriptions reports when the provider created each one', async () => {
+    const { adapter } = makeLive();
+    const subs = await adapter.listSubscriptions();
+    expect(subs.map((s) => s.createdAt)).toEqual([new Date(1700000300 * 1000).toISOString()]);
+  });
+
+  // A cancel asked of a subscription that has already ended, or that the
+  // provider no longer holds, is not a failure of the cancel: the subscription
+  // is ended either way. Both implementations name that case with one typed
+  // error so the caller can treat it as already done rather than as an outage.
+  it('both implementations raise the already-ended error for a subscription that has already ended', async () => {
+    const stub = createStubPaymentAdapter();
+    stub.setLedgerSubscription({
+      id: 'sub_stub_ended', customerId: 'cus_e', status: 'canceled', amountCents: 2500, currency: 'USD',
+    });
+    await expect(stub.cancelSubscriptionAtPeriodEnd('sub_stub_ended'))
+      .rejects.toBeInstanceOf(SubscriptionAlreadyEndedError);
+    // One still running, and one the simulation never held, cancel quietly.
+    stub.setLedgerSubscription({
+      id: 'sub_stub_running', customerId: 'cus_r', status: 'active', amountCents: 2500, currency: 'USD',
+    });
+    await expect(stub.cancelSubscriptionAtPeriodEnd('sub_stub_running')).resolves.toBeUndefined();
+    await expect(stub.cancelSubscriptionAtPeriodEnd('sub_stub_unknown')).resolves.toBeUndefined();
+
+    // The provider's refusal of an update to a canceled subscription carries no
+    // code and wording it does not publish, so the adapter reads the
+    // subscription back and its status decides; the refusal here is codeless
+    // and its message is deliberately not the provider's.
+    for (const [refusal, readBackStatus] of [
+      [new Stripe.errors.StripeInvalidRequestError({
+        message: 'No such subscription: sub_gone', code: 'resource_missing', type: 'invalid_request_error',
+      }), 'active'],
+      [new Stripe.errors.StripeInvalidRequestError({
+        message: 'refused', type: 'invalid_request_error',
+      }), 'canceled'],
+    ] as const) {
+      const { client } = makeFakeStripe();
+      const secrets = createStubSecretsAdapter();
+      secrets.setSecret('stripe_secret_key', 'sk_test_parity_fake');
+      const live = createLivePaymentAdapter({
+        secrets,
+        stripeFactory: () => ({
+          ...client,
+          subscriptions: {
+            ...client.subscriptions,
+            async update() { throw refusal; },
+            async retrieve() { return { status: readBackStatus }; },
+          },
+        }),
+      });
+      const err = await live.cancelSubscriptionAtPeriodEnd('sub_gone').catch((e: unknown) => e);
+      expect(err, refusal.message).toBeInstanceOf(SubscriptionAlreadyEndedError);
+      expect((err as InstanceType<typeof SubscriptionAlreadyEndedError>).stripeSubscriptionId).toBe('sub_gone');
+    }
+  });
+
+  it('live cancelSubscriptionAtPeriodEnd passes any other refusal through unchanged', async () => {
+    const { client } = makeFakeStripe();
+    const secrets = createStubSecretsAdapter();
+    secrets.setSecret('stripe_secret_key', 'sk_test_parity_fake');
+    const other = new Stripe.errors.StripeInvalidRequestError({
+      message: 'Invalid cancel_at_period_end', code: 'parameter_invalid_empty', type: 'invalid_request_error',
+    });
+    const live = createLivePaymentAdapter({
+      secrets,
+      stripeFactory: () => ({
+        ...client,
+        subscriptions: { ...client.subscriptions, async update() { throw other; } },
+      }),
+    });
+    await expect(live.cancelSubscriptionAtPeriodEnd('sub_x')).rejects.toBe(other);
+
+    // A codeless refusal for a subscription that is still running is not
+    // "already ended": the member must see the failure, not a false notice.
+    const codeless = new Stripe.errors.StripeInvalidRequestError({
+      message: 'A canceled subscription can only update its cancellation_details and metadata.',
+      type: 'invalid_request_error',
+    });
+    const running = createLivePaymentAdapter({
+      secrets,
+      stripeFactory: () => ({
+        ...client,
+        subscriptions: { ...client.subscriptions, async update() { throw codeless; } },
+      }),
+    });
+    await expect(running.cancelSubscriptionAtPeriodEnd('sub_running')).rejects.toBe(codeless);
+
+    // A read-back that itself fails must not replace the provider's refusal
+    // with an unrelated error, or the member and the logs lose the real cause.
+    const unreadable = createLivePaymentAdapter({
+      secrets,
+      stripeFactory: () => ({
+        ...client,
+        subscriptions: {
+          ...client.subscriptions,
+          async update() { throw codeless; },
+          async retrieve() { throw new Error('read-back unavailable'); },
+        },
+      }),
+    });
+    await expect(unreadable.cancelSubscriptionAtPeriodEnd('sub_unreadable')).rejects.toBe(codeless);
   });
 
   it('sends an idempotency key on both create calls, so a retry cannot mint a duplicate', async () => {
@@ -2520,6 +2694,26 @@ describe('adapter-parity: PaymentAdapter (Stub vs. Live interface)', () => {
     // The call that met the dead key still fails; recovery is the next one.
     await expect(live.adapter.createCheckoutSession(ONE_TIME_OPTS)).rejects.toThrow(
       /Invalid API Key/,
+    );
+    expect(live.invalidated).toEqual(['stripe_secret_key']);
+
+    const result = await live.adapter.createCheckoutSession(ONE_TIME_OPTS);
+    expect(result.sessionId).toBe('cs_fake_123');
+    expect(live.factoryCalls()).toBe(2);
+    expect(live.secretReads()).toBe(2);
+  });
+
+  // A restricted key whose permissions were narrowed at the provider is
+  // refused with a permission error rather than an authentication one. The
+  // operator's remedy is the same, a replacement key in the parameter store,
+  // and it takes effect only if the held key is let go.
+  it('live adapter rebuilds the client and re-reads the key after a Stripe permission failure', async () => {
+    const live = makeLiveRejectingOnce(
+      new Stripe.errors.StripePermissionError({ message: 'The provided key does not have the required permissions' }),
+    );
+
+    await expect(live.adapter.createCheckoutSession(ONE_TIME_OPTS)).rejects.toThrow(
+      /required permissions/,
     );
     expect(live.invalidated).toEqual(['stripe_secret_key']);
 

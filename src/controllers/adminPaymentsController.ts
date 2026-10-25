@@ -1,5 +1,9 @@
 import { Request, Response, NextFunction } from 'express';
-import { paymentReconciliationService } from '../services/paymentReconciliationService';
+import {
+  paymentReconciliationService,
+  resolveIssueNotice,
+} from '../services/paymentReconciliationService';
+import { outcomeNotice, outcomePayload } from '../lib/outcomeNotice';
 import { paymentsHealthService } from '../services/paymentsHealthService';
 import { handleControllerError, renderNotFound } from '../lib/controllerErrors';
 import { FLASH_KIND, writeFlash, readFlash, clearFlash } from '../lib/flashCookie';
@@ -9,9 +13,12 @@ function str(v: unknown): string | undefined {
   return typeof v === 'string' && v !== '' ? v : undefined;
 }
 
+// A safe integer only: a number past that range (`?page=1e30`) would reach the
+// offset arithmetic and the database as a value SQLite refuses, so it falls
+// back to the first page instead.
 function pageNum(v: unknown): number | undefined {
   const n = Number(v);
-  return Number.isFinite(n) && n > 0 ? n : undefined;
+  return Number.isSafeInteger(n) && n > 0 ? n : undefined;
 }
 
 export const adminPaymentsController = {
@@ -76,9 +83,9 @@ export const adminPaymentsController = {
   reconciliation(req: Request, res: Response, next: NextFunction): void {
     try {
       const flash = readFlash(req);
-      let resolvedFlag = false;
+      let outcome: ReturnType<typeof outcomeNotice> = null;
       if (flash?.kind === FLASH_KIND.RECONCILIATION_RESOLVED) {
-        resolvedFlag = true;
+        outcome = outcomeNotice(flash.payload);
         clearFlash(res, req);
       }
       res.render(
@@ -87,7 +94,7 @@ export const adminPaymentsController = {
           status: str(req.query.status),
           page: pageNum(req.query.page),
           sort: str(req.query.sort),
-          resolvedFlag,
+          outcome,
         }),
       );
     } catch (err) {
@@ -117,16 +124,19 @@ export const adminPaymentsController = {
   resolve(req: Request, res: Response, next: NextFunction): void {
     try {
       const body = req.body as Record<string, unknown>;
-      paymentReconciliationService.resolveIssue({
+      const result = paymentReconciliationService.resolveIssue({
         issueId: req.params.issueId,
         adminMemberId: req.user!.userId,
         notes: typeof body.notes === 'string' ? body.notes : '',
       });
-      writeFlash(res, req, FLASH_KIND.RECONCILIATION_RESOLVED, req.params.issueId);
+      // A repeat takes the same redirect as the first submit, carrying the
+      // message the service chose for it.
+      const notice = resolveIssueNotice(result);
+      writeFlash(res, req, FLASH_KIND.RECONCILIATION_RESOLVED, outcomePayload(notice.tone, notice.text));
       res.redirect(303, '/admin/payments/reconciliation');
     } catch (err) {
       // A missing note is the administrator's own mistake, so the page comes
-      // back with the reason rather than a bare error screen. A vanished issue
+      // back with the reason rather than a bare error screen. An unknown issue
       // is a 404 like any other missing resource.
       if (err instanceof ValidationError) {
         const body = req.body as Record<string, unknown>;

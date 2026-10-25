@@ -7,8 +7,8 @@
 
 <div class="wrapper">
   <section>
-    {{#if content.resolvedFlag}}
-      {{> outcome-notice text="Issue resolved. Your note is recorded against it." tone='ok'}}
+    {{#if content.outcome}}
+      {{> outcome-notice text=content.outcome.text tone=content.outcome.tone}}
     {{/if}}
 
     {{> outcome-notice text=content.errorMessage tone='no'}}

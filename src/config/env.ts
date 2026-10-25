@@ -858,6 +858,22 @@ function loadConfig(): AppConfig {
       `STRIPE_WEBHOOK_SECRET_STUB is required when FOOTBAG_ENV=${footbagEnv} and PAYMENT_ADAPTER='stub' (the committed stub constant must not sign a reachable endpoint)`,
     );
   }
+  // Presence is not enough. A real provider signing secret pasted into this
+  // slot would have the stub host verify, and act on, deliveries signed for the
+  // live endpoint; the committed constant, or any short or guessable value,
+  // would accept forgeries as above. The deploy generates `whsec_stub_`
+  // followed by 48 random hex characters, so anything else on a deployed host
+  // is a misconfiguration, refused before it serves a request.
+  if (
+    (footbagEnv === 'staging' || footbagEnv === 'production') &&
+    paymentAdapter === 'stub' &&
+    stripeWebhookSecretStub !== undefined &&
+    !/^whsec_stub_[0-9a-f]{48}$/.test(stripeWebhookSecretStub)
+  ) {
+    throw new Error(
+      `STRIPE_WEBHOOK_SECRET_STUB must be a generated whsec_stub_ value when FOOTBAG_ENV=${footbagEnv} (a provider signing secret or the committed constant is refused)`,
+    );
+  }
 
   function parseIntEnv(name: string, fallback: number, min: number, max: number): number {
     const raw = process.env[name];

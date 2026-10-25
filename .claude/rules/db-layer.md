@@ -9,7 +9,7 @@ paths:
 
 ## Schema authority
 
-`docs/DATA_MODEL.md` and `database/schema.sql` together are authoritative for persisted structure: do not invent columns, relationships, or derived persistence rules that neither states. Prefer explicit tables, columns, keys and documented constraints over abstraction-heavy patterns, and keep workflow and business rules in the services rather than the schema. Where a schema change lands before and after go-live, and the obligation to keep `tests/fixtures/factories.ts` in sync with a column change, are in `src/db/CLAUDE.md`.
+`docs/DATA_MODEL.md` and `database/schema.sql` together are authoritative for persisted structure: do not invent columns, relationships, or derived persistence rules that neither states. Prefer explicit tables, columns, keys and documented constraints over abstraction-heavy patterns, and keep workflow and business rules in the services rather than the schema. Where a schema change lands before and after go-live, the obligation to keep `tests/fixtures/factories.ts` in sync with a column change, and the obligation to classify every added, removed or renamed table and column for a copy of production, are in `src/db/CLAUDE.md`.
 
 ## Statement compilation
 

@@ -1727,6 +1727,99 @@ describe('Stripe webhook-secret sync from Parameter Store (both remote halves)',
     // The placeholder branch must not claim to cover an unreadable value.
     expect(content).not.toMatch(/still the placeholder or unreadable/);
   });
+
+  /**
+   * Runs the sync function exactly as it appears in a remote half, lifted out of
+   * the file and executed against a scratch env file. The host-only commands
+   * are shadowed: `aws` answers from one file per parameter (an absent file is
+   * a failed read), `chown` is a no-op, and `mktemp` lands in the scratch
+   * directory rather than under /srv. Returns the env file afterwards.
+   */
+  function runSync(file: string, hostEnv: string, params: Record<string, string>) {
+    const content = fs.readFileSync(path.join(REPO_ROOT, file), 'utf8');
+    const start = content.indexOf('  sync_stripe_webhook_secret() {');
+    const end = content.indexOf('\n  }\n', start);
+    expect(start, `${file}: sync function not found`).toBeGreaterThan(-1);
+    const fn = content.slice(start, end + '\n  }\n'.length);
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-webhook-sync-'));
+    try {
+      const envPath = path.join(dir, 'env');
+      fs.writeFileSync(envPath, hostEnv);
+      fs.mkdirSync(path.join(dir, 'params'));
+      for (const [name, value] of Object.entries(params)) {
+        fs.writeFileSync(path.join(dir, 'params', name), `${value}\n`);
+      }
+      const harness = [
+        'set -euo pipefail',
+        `ENV_PATH=${JSON.stringify(envPath)}`,
+        'FOOTBAG_ENV_VAL=production AWS_PROFILE_VAL=stub AWS_REGION_VAL=us-east-1',
+        `PARAM_DIR=${JSON.stringify(path.join(dir, 'params'))}`,
+        'aws() { local n=""; while (($#)); do [[ "$1" == --name ]] && n="$2"; shift; done',
+        '  local f="$PARAM_DIR/${n##*/}"; [[ -f "$f" ]] || return 255; cat "$f"; }',
+        'chown() { :; }',
+        `mktemp() { command mktemp ${JSON.stringify(path.join(dir, 'env.tmp.XXXXXX'))}; }`,
+        fn,
+        'sync_stripe_webhook_secret STRIPE_WEBHOOK_SECRET stripe_webhook_secret',
+        'sync_stripe_webhook_secret STRIPE_WEBHOOK_SECRET_PREVIOUS stripe_webhook_secret_previous',
+      ].join('\n');
+      const res = spawnSync('bash', ['-c', harness], { encoding: 'utf8', ...SPAWN_GUARD });
+      return { status: res.status, stdout: res.stdout, stderr: res.stderr, env: fs.readFileSync(envPath, 'utf8') };
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
+  const HOST_MID_ROTATION = [
+    'FOOTBAG_ENV=production',
+    'STRIPE_WEBHOOK_SECRET=whsec_current_in_service',
+    'STRIPE_WEBHOOK_SECRET_PREVIOUS=whsec_outgoing_secret',
+    'SESSION_SECRET=unrelated',
+    '',
+  ].join('\n');
+
+  it.each(halves)(
+    '$file clears a host previous secret once its parameter is back to the placeholder',
+    ({ file }) => {
+      // Defect caught: a completed rotation whose host push failed or was
+      // declined left the outgoing secret on the host for good, because the
+      // deploy read the placeholder as "leave the host alone".
+      const res = runSync(file, HOST_MID_ROTATION, {
+        stripe_webhook_secret: 'whsec_current_in_service',
+        stripe_webhook_secret_previous: 'TODO-set-via-cli-after-apply',
+      });
+      expect(res.status, res.stderr).toBe(0);
+      expect(res.env).not.toMatch(/^STRIPE_WEBHOOK_SECRET_PREVIOUS=/m);
+      expect(res.env).toMatch(/^STRIPE_WEBHOOK_SECRET=whsec_current_in_service$/m);
+      expect(res.env).toMatch(/^SESSION_SECRET=unrelated$/m);
+      expect(res.stdout + res.stderr).not.toContain('whsec_outgoing_secret');
+    },
+  );
+
+  it.each(halves)(
+    '$file leaves the current secret alone while its parameter is the placeholder',
+    ({ file }) => {
+      // Defect caught: extending the clear to the current secret would strip an
+      // activation-installed signing secret on the next deploy and fail every
+      // live delivery.
+      const res = runSync(file, HOST_MID_ROTATION, {
+        stripe_webhook_secret: 'TODO-set-via-cli-after-apply',
+        stripe_webhook_secret_previous: 'whsec_outgoing_secret',
+      });
+      expect(res.status, res.stderr).toBe(0);
+      expect(res.env).toMatch(/^STRIPE_WEBHOOK_SECRET=whsec_current_in_service$/m);
+      expect(res.env).toMatch(/^STRIPE_WEBHOOK_SECRET_PREVIOUS=whsec_outgoing_secret$/m);
+    },
+  );
+
+  it.each(halves)('$file installs a real previous secret during an open window', ({ file }) => {
+    const res = runSync(file, 'FOOTBAG_ENV=production\nSTRIPE_WEBHOOK_SECRET=whsec_old\n', {
+      stripe_webhook_secret: 'whsec_new_secret',
+      stripe_webhook_secret_previous: 'whsec_old',
+    });
+    expect(res.status, res.stderr).toBe(0);
+    expect(res.env).toMatch(/^STRIPE_WEBHOOK_SECRET=whsec_new_secret$/m);
+    expect(res.env).toMatch(/^STRIPE_WEBHOOK_SECRET_PREVIOUS=whsec_old$/m);
+  });
 });
 
 describe('production database-replacement ack threading', () => {

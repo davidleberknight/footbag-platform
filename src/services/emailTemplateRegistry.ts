@@ -110,7 +110,9 @@ export const TEMPLATE_VARIANTS = {
   donation_subscription_charge_failed:      v('confidential', RECURRING_DONATION_FIELDS),
   donation_subscription_canceled:           v('confidential', RECURRING_DONATION_FIELDS),
   admin_recurring_donation_ended:  v('internal',     ['referenceId', 'amountDisplay', 'endReason']),
-  reconciliation_digest:           v('internal',     ['countPhrase', 'periodPhrase', 'headlinePhrase', 'comparisonBlock', 'needsAttentionBlock', 'forTheRecordBlock', 'reportsUrl', 'reviewUrl']),
+  // Confidential, as every other message carrying a donor's note is: it names
+  // each commented gift's donor beside their comment.
+  reconciliation_digest:           v('confidential', ['countPhrase', 'periodPhrase', 'headlinePhrase', 'comparisonBlock', 'needsAttentionBlock', 'forTheRecordBlock', 'carriedForwardBlock', 'donationCommentsBlock', 'totalsBlock', 'reportsUrl', 'reviewUrl']),
   active_player_expiry_upcoming:   v('internal',     ['displayDate']),
   active_player_expiry_day_of:     v('internal',     ['displayDate']),
   club_membership_member_join:     v('confidential', ['memberName', 'clubName']),
@@ -298,12 +300,25 @@ const SHAPERS = {
     /** What the last nightly pass compared and set aside, or null before any
      *  pass has run. */
     comparisonLine: string | null;
+    /** One line per commented gift of the period; empty when none carried a
+     *  comment. */
+    donationCommentLines: string;
+    /** The newest report's totals, or null before any report exists. */
+    totalsLines: string | null;
+    /** The newest report's carried-forward reconciling items; empty when it
+     *  found none again. */
+    carriedForwardLines: string;
     reviewUrl: string;
     reportsUrl: string;
   }): ShapedEmail => ({
     variant: 'reconciliation_digest',
     merge: {
       comparisonBlock: p.comparisonLine ?? 'No nightly comparison has run yet.',
+      carriedForwardBlock: p.carriedForwardLines
+        || 'No difference explained earlier was found again.',
+      donationCommentsBlock: p.donationCommentLines
+        || 'No donation during this period carried a comment.',
+      totalsBlock: p.totalsLines ?? 'No nightly report has been kept yet.',
       reportsUrl: p.reportsUrl,
       countPhrase: p.outstandingCount === 0
         ? 'nothing outstanding'
