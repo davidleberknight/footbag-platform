@@ -274,6 +274,10 @@
  *     variant rather than its own transaction().
  *   - Adapter calls (`createCheckoutSession`) happen OUTSIDE transactions
  *     (they are network calls in live mode).
+ *   - A member's write after a provider call (each checkout start and the
+ *     recurring cancellation) commits its row and its audit row in one
+ *     transaction, so a failed audit write records nothing and the retry
+ *     records both exactly once.
  *   - A webhook handler's audit row and any administrator work item are written
  *     inside the same transaction as the event's idempotency claim, so a failed
  *     write rolls the claim back and the redelivery writes them; written after
@@ -1072,21 +1076,42 @@ async function startMembershipPurchase(
     metadata: { paymentId, memberId, tier },
   });
 
+  // The row and its audit row commit together: a failed audit write leaves no
+  // pending row behind, so the retry opens a fresh checkout and records both.
   try {
-    paymentsDb.insertPayment.run(
-      paymentId,
-      now, memberId, now, memberId,
-      memberId,
-      'membership',
-      amountCents, CURRENCY,
-      'pending',
-      descriptor,
-      tier,
-      '{}',
-      result.sessionId,
-      result.paymentIntentId,
-      result.livemode ? 1 : 0,
-    );
+    transaction(() => {
+      paymentsDb.insertPayment.run(
+        paymentId,
+        now, memberId, now, memberId,
+        memberId,
+        'membership',
+        amountCents, CURRENCY,
+        'pending',
+        descriptor,
+        tier,
+        '{}',
+        result.sessionId,
+        result.paymentIntentId,
+        result.livemode ? 1 : 0,
+      );
+
+      appendAuditEntry({
+        actionType: 'payment.checkout_started',
+        actorType: 'member',
+        actorMemberId: memberId,
+        entityType: 'payment',
+        entityId: paymentId,
+        reasonText: null,
+        metadata: {
+          payment_type: 'membership',
+          tier,
+          amount_cents: amountCents,
+          currency: CURRENCY,
+          session_id: result.sessionId,
+          payment_intent_id: result.paymentIntentId,
+        },
+      });
+    });
   } catch (err) {
     if (err instanceof Error && (err as { code?: string }).code === 'SQLITE_CONSTRAINT_UNIQUE') {
       // An overlapping submit of this same purchase inserted first. The session
@@ -1107,23 +1132,6 @@ async function startMembershipPurchase(
     }
     throw err;
   }
-
-  appendAuditEntry({
-    actionType: 'payment.checkout_started',
-    actorType: 'member',
-    actorMemberId: memberId,
-    entityType: 'payment',
-    entityId: paymentId,
-    reasonText: null,
-    metadata: {
-      payment_type: 'membership',
-      tier,
-      amount_cents: amountCents,
-      currency: CURRENCY,
-      session_id: result.sessionId,
-      payment_intent_id: result.paymentIntentId,
-    },
-  });
 
   return { redirectUrl: result.redirectUrl, paymentId, sessionId: result.sessionId };
 }
@@ -4079,7 +4087,9 @@ async function cancelRecurringDonation(
   // submits can both reach here. The UPDATE refuses to move a row whose
   // cancellation was already requested, and only the request that actually moved
   // it may append to the ledger: the ledger documents one row per action, and the
-  // member asked once.
+  // member asked once. The audit row commits with the request, so a failed
+  // audit write leaves the row unmoved and the member's retry records both;
+  // asking the provider again to cancel at the period end changes nothing there.
   const now = new Date().toISOString();
   const recorded = transaction(() => {
     const res = subsDb.markCancelRequested.run(now, now, 'payment_service', sub.id);
@@ -4098,24 +4108,23 @@ async function cancelRecurringDonation(
         ? 'cancelled at period end because the member was marked deceased'
         : 'member requested cancellation at period end',
     });
+    appendAuditEntry({
+      actionType: 'payment.recurring_cancel_requested',
+      actorType: byAdmin ? 'admin' : 'member',
+      actorMemberId: byAdmin ? byAdmin.adminMemberId : memberId,
+      entityType: 'recurring_donation_subscription',
+      entityId: sub.id,
+      reasonText: null,
+      metadata: {
+        stripe_subscription_id: stripeSubscriptionId,
+        amount_cents: sub.amount_cents,
+        currency: sub.currency,
+        ...(byAdmin ? { member_id: memberId, reason: byAdmin.reason } : {}),
+      },
+    });
     return true;
   });
   if (!recorded) return { status: 'already_requested' };
-
-  appendAuditEntry({
-    actionType: 'payment.recurring_cancel_requested',
-    actorType: byAdmin ? 'admin' : 'member',
-    actorMemberId: byAdmin ? byAdmin.adminMemberId : memberId,
-    entityType: 'recurring_donation_subscription',
-    entityId: sub.id,
-    reasonText: null,
-    metadata: {
-      stripe_subscription_id: stripeSubscriptionId,
-      amount_cents: sub.amount_cents,
-      currency: sub.currency,
-      ...(byAdmin ? { member_id: memberId, reason: byAdmin.reason } : {}),
-    },
-  });
 
   enqueueSubscriptionEmail(sub, 'donation_subscription_cancel_requested');
   return { status: 'cancel_requested' };

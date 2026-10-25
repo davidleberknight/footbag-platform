@@ -290,17 +290,7 @@ const DRIVERS: Driver[] = [
  * a change in how the defect shows, fails the row until this is updated with
  * the inventory entry.
  */
-const KNOWN_VIOLATIONS: Record<string, string[]> = {
-  'membership checkout start': [
-    'after the failed write: 1 pending row(s) and 0 audit row(s)',
-    'after the retry: 1 pending row(s) and 0 audit row(s)',
-  ],
-  'recurring donation cancellation': [
-    'after the failed write: 1 recorded request(s) and 0 audit row(s)',
-    'after the retry: 1 recorded request(s) and 0 audit row(s)',
-    'after the retry: the member was told 0 time(s)',
-  ],
-};
+const KNOWN_VIOLATIONS: Record<string, string[]> = {};
 
 describe('fault points swept here', () => {
   for (const d of DRIVERS) {

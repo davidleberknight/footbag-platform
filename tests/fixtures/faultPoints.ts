@@ -50,10 +50,7 @@ export const ADAPTER_SITES: AdapterSite[] = [
   // ── Payments ──────────────────────────────────────────────────────────────
   {
     file: 'src/services/paymentService.ts', getter: 'getPaymentAdapter', operation: 'startMembershipPurchase',
-    status: {
-      swept: SWEEP,
-      knownDefect: 'the payment row and its checkout audit row are written as two statements outside one transaction, so a failed audit write leaves a pending payment no audit row describes, and the retry returns to that open checkout, so the audit row is never written',
-    },
+    status: { swept: SWEEP },
   },
   {
     file: 'src/services/paymentService.ts', getter: 'getPaymentAdapter', operation: 'reopenCheckout',
@@ -73,10 +70,7 @@ export const ADAPTER_SITES: AdapterSite[] = [
   },
   {
     file: 'src/services/paymentService.ts', getter: 'getPaymentAdapter', operation: 'cancelRecurringDonation',
-    status: {
-      swept: SWEEP,
-      knownDefect: 'the cancellation audit row is written after the transaction that records the request, so a failed audit write reports failure for a cancellation the provider and the ledger both hold, the retry answers already-requested, and neither the audit row nor the member\'s confirmation mail is ever written',
-    },
+    status: { swept: SWEEP },
   },
   {
     file: 'src/services/paymentService.ts', getter: 'getPaymentAdapter', operation: 'stubCheckoutSessionFor',
