@@ -80,6 +80,9 @@ nothing has to be exported.
                                      applied and duplicate accounts collapse through the
                                      merge map. Absent: duplicates merge on the
                                      mechanical rule alone, and the run says so.
+                                     member_row_dispositions.csv there rules on accounts
+                                     the export lacks; the export gate reconciles a
+                                     linked id it rules keep.
   DEPLOY_TARGET=footbag-production   Marks this as a production load: the rulings become
                                      mandatory and the run refuses without them.
 USAGE
@@ -229,7 +232,8 @@ with open(sys.argv[1], newline="", encoding="utf-8") as fh:
   echo "    board flag:      $([[ "${CSV_BOARD_ROWS}" -gt 0 ]] && echo "${CSV_BOARD_ROWS} row(s) carry it" || echo 'no row carries it (the delivery'"'"'s board roster is not current; administrators seat the directors after cutover)')"
 
   echo "==> validate export (hard gate)"
-  "${PY}" "${MDS}/validate_legacy_export.py" --csv "${CSV}" --db "${DB}"
+  "${PY}" "${MDS}/validate_legacy_export.py" --csv "${CSV}" --db "${DB}" \
+    --dispositions "${PRIVATE_OVERRIDES}/member_row_dispositions.csv"
 
   echo "==> load: dry-run preview (writes nothing)"
   "${PY}" "${MDS}/load_legacy_export.py" --export "${CSV}" --db "${DB}"

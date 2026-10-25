@@ -6,7 +6,9 @@ Checks the export the loader will consume, BEFORE loading:
   G4  profile shape: real_name populated on >=95% of rows, country on >=50%
   G5  legacy_member_id is integer-format, present and unique on every row, and
       every historical_persons.legacy_member_id reconciles into the export
-      (no linked person's account is missing) when a --db is given
+      (no linked person's account is missing) when a --db is given; a linked id
+      the export lacks but a recorded keep disposition rules on is reconciled,
+      because recording keep is the decision on an account the export missed
 
 G1 (cross-column email collision) is enforced post-load by
 `validate-legacy-import-gates.sh` and at load by `load_legacy_export.py`; it is
@@ -23,11 +25,16 @@ import sys
 from collections import Counter
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import member_row_disposition as mrd  # noqa: E402
+
 REAL_NAME_MIN = 0.95
 COUNTRY_MIN = 0.50
 
 
-def validate(csv_path: Path, db_path: Path | None) -> list[tuple[str, bool, str]]:
+def validate(csv_path: Path, db_path: Path | None,
+             dispositions_path: Path | None = None) -> list[tuple[str, bool, str]]:
     with csv_path.open(encoding="utf-8", newline="") as fh:
         rows = list(csv.DictReader(fh))
     n = len(rows) or 1
@@ -75,12 +82,24 @@ def validate(csv_path: Path, db_path: Path | None) -> list[tuple[str, bool, str]
         # appear in the integer-only export; reconcile real ids, note stubs.
         linked_real = {i for i in linked if re.fullmatch(r"\d+", i)}
         stubs = sorted(linked - linked_real)
-        missing = sorted(linked_real - set(ids))
+        # Only keep settles a missing account: defer is explicitly undecided, and
+        # clear removes the link the person depends on.
+        kept = {d.legacy_member_id for d in mrd.load_dispositions(dispositions_path)
+                if d.decision == mrd.KEEP}
+        absent = linked_real - set(ids)
+        ruled = sorted(absent & kept)
+        missing = sorted(absent - kept)
         results.append((
             "G5 historical_persons.legacy_member_id reconciles into export",
             not missing,
             f"{len(linked_real)} real linked; {len(missing)} missing"
-            + (f" (e.g. {missing[:5]})" if missing else "")))
+            + (f" (e.g. {missing[:5]}; record a keep disposition only if the "
+               "export genuinely lacks the account)" if missing else "")))
+        if ruled:
+            results.append((
+                "G5 note: linked ids absent from the export, ruled keep in the member-row dispositions",
+                True,
+                f"{len(ruled)}: {ruled[:5]}"))
         if stubs:
             results.append((
                 "G5 note: non-integer linked ids in historical_persons (stubs, never real accounts)",
@@ -99,11 +118,17 @@ def main() -> None:
     ap.add_argument("--csv", required=True, type=Path, help="the members export CSV")
     ap.add_argument("--db", type=Path, default=None,
                     help="platform DB for the historical_persons G5 reconciliation")
+    ap.add_argument("--dispositions", type=Path, default=None,
+                    help="member-row dispositions CSV; a keep ruling reconciles a "
+                         "linked id the export lacks")
     args = ap.parse_args()
     if not args.csv.is_file():
         raise SystemExit(f"error: export CSV not found: {args.csv}")
 
-    results = validate(args.csv, args.db)
+    try:
+        results = validate(args.csv, args.db, args.dispositions)
+    except mrd.MemberRowDispositionError as e:
+        raise SystemExit(f"error: member-row dispositions {args.dispositions}: {e}")
     print(f"validate_legacy_export: {args.csv}")
     failed = 0
     for name, ok, detail in results:

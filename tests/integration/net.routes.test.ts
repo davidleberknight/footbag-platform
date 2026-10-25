@@ -378,8 +378,15 @@ describe('GET /net/teams/:teamId', () => {
     const res = await page(`/net/teams/${TEAM_1_ID}`);
     // Team 1: 2 canonical appearances (placement 1 + placement 2)
     expect(res.text).toContain('2 appearances');
-    expect(res.text).toContain('1 wins');
     expect(res.text).toContain('2 podiums');
+  });
+
+  // A visitor would read "1 wins" if a count of one kept the plural noun.
+  it('names a count of one in the singular and other counts in the plural', async () => {
+    const res = await page(`/net/teams/${TEAM_1_ID}`);
+    // Team 1: one canonical win beside two appearances and two podiums.
+    expect(res.text).toContain('<span>1 win</span>');
+    expect(res.text).toContain('<span>2 appearances</span>');
   });
 
   // A second listing of the same appearances would show every result twice.

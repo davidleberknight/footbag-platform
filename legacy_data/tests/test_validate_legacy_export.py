@@ -75,3 +75,61 @@ def test_g5_historical_persons_overlap(tmp_path):
     key = "G5 historical_persons.legacy_member_id reconciles into export"
     assert res[key][0] is False
     assert "404" in res[key][1]
+
+
+def _linked_db(tmp_path, ids):
+    db = tmp_path / "t.db"
+    con = sqlite3.connect(db)
+    con.execute("CREATE TABLE historical_persons (legacy_member_id TEXT)")
+    con.executemany("INSERT INTO historical_persons VALUES (?)", [(i,) for i in ids])
+    con.commit()
+    con.close()
+    return db
+
+
+def _dispositions(tmp_path, rows):
+    p = tmp_path / "dispositions.csv"
+    with p.open("w", newline="", encoding="utf-8") as fh:
+        w = csv.writer(fh, lineterminator="\n")
+        w.writerow(["decision", "legacy_member_id", "reason", "fingerprint", "note"])
+        for decision, member_id, reason in rows:
+            w.writerow([decision, member_id, reason, "a" * 64, "synthetic ruling"])
+    return p
+
+
+def _results_with(csv_path, db, dispositions):
+    return {name: (ok, detail) for name, ok, detail in vle.validate(csv_path, db, dispositions)}
+
+
+G5_KEY = "G5 historical_persons.legacy_member_id reconciles into export"
+ONE_ROW = [{"legacy_member_id": "1", "legacy_user_id": "a", "real_name": "A", "country": "USA"}]
+
+
+def test_g5_keep_disposition_reconciles_a_linked_id_the_export_lacks(tmp_path):
+    # An account created after the export snapshot, already ruled keep, must not
+    # stop every load; one with no ruling beside it must still stop it.
+    db = _linked_db(tmp_path, ["1", "900", "901"])
+    disp = _dispositions(tmp_path, [("keep", "900", "club_roster_membership_only")])
+    res = _results_with(_csv(tmp_path, ONE_ROW), db, disp)
+    ok, detail = res[G5_KEY]
+    assert ok is False
+    assert "901" in detail and "900" not in detail
+    notes = [d for name, (_, d) in res.items() if "ruled keep" in name]
+    assert notes == ["1: ['900']"]
+
+
+def test_g5_only_keep_settles_a_missing_linked_id(tmp_path):
+    # A defer is explicitly undecided; treating it as settled would ship a
+    # dangling person link nobody ruled on.
+    db = _linked_db(tmp_path, ["1", "900"])
+    disp = _dispositions(tmp_path, [("defer", "900", "undecided_pending_review")])
+    res = _results_with(_csv(tmp_path, ONE_ROW), db, disp)
+    assert res[G5_KEY][0] is False
+    assert "900" in res[G5_KEY][1]
+
+
+def test_g5_every_missing_linked_id_kept_passes(tmp_path):
+    db = _linked_db(tmp_path, ["1", "900"])
+    disp = _dispositions(tmp_path, [("keep", "900", "club_roster_membership_only")])
+    res = _results_with(_csv(tmp_path, ONE_ROW), db, disp)
+    assert all(ok for ok, _ in res.values())

@@ -255,6 +255,7 @@ def check_membership_cohort(ctx: dict) -> str:
 
     cohort_size, proposals = fig("cohort"), fig("stage_b_proposals")
     review_rows, explicit = fig("stage_b_review_rows"), fig("explicit_dispositions")
+    duplicates = fig("drafted_duplicates")
     require(FINAL_MEMBERS, "the member intake's final CSV (run_legacy_members.sh --load)")
     accounts = _rows(FINAL_MEMBERS)
     hps = rlm.read_historical_persons(ctx["db"])
@@ -287,8 +288,13 @@ def check_membership_cohort(ctx: dict) -> str:
         holds = plh.load_holds(out)
     expect(len(holds) == explicit,
            f"{len(holds)} drafted dispositions, audited {explicit}")
-    expect(all(h.decision == plh.NO_ACCOUNT for h in holds),
-           "a drafted disposition is not 'no account'")
+    # A person whose spelling variant already holds the one matching account is
+    # drafted as that person's duplicate; every other draft is 'no account'.
+    expect(all(h.decision in plh.PERSON_SCOPED_DECISIONS for h in holds),
+           "a drafted disposition is not person-scoped")
+    drafted_dupes = sum(1 for h in holds if h.decision == plh.DUPLICATE_PERSON)
+    expect(drafted_dupes == duplicates,
+           f"{drafted_dupes} drafted as a duplicate person, audited {duplicates}")
     flagged = {h.candidate_person_id for h in holds if h.note.startswith("REVIEW BEFORE KEEPING")}
     expect(flagged == review_ids, "the drafts flagged for review differ from the review queue")
     plh.assert_every_person_dispositioned(awaiting, holds)

@@ -14,9 +14,9 @@
 
   <div class="event-meta-row">
     <span><a href="{{{content.team.hrefA}}}">{{content.team.personNameA}}</a> / <a href="{{{content.team.hrefB}}}">{{content.team.personNameB}}</a></span>
-    <span>{{content.summary.appearanceCount}} appearances</span>
-    <span>{{content.summary.winCount}} wins</span>
-    <span>{{content.summary.podiumCount}} podiums</span>
+    <span>{{content.summary.appearanceCount}} {{content.summary.appearanceNoun}}</span>
+    <span>{{content.summary.winCount}} {{content.summary.winNoun}}</span>
+    <span>{{content.summary.podiumCount}} {{content.summary.podiumNoun}}</span>
     {{#if content.summary.yearSpan}}<span>{{content.summary.yearSpan}}</span>{{/if}}
   </div>
 

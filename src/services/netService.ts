@@ -182,8 +182,11 @@ export interface NetAppearanceYearGroup {
 
 interface NetTeamStatsViewModel {
   appearanceCount: number;
+  appearanceNoun:  string;   // pre-pluralized 'appearance' / 'appearances'
   winCount:        number;
+  winNoun:         string;   // pre-pluralized 'win' / 'wins'
   podiumCount:     number;
+  podiumNoun:      string;   // pre-pluralized 'podium' / 'podiums'
   yearSpan:        string | null;
 }
 
@@ -296,10 +299,14 @@ function yearSpan(first: number | null, last: number | null): string | null {
   return `${first}–${last}`;
 }
 
+// English ordinal: 11th to 13th take "th" in every hundred; otherwise the last digit decides.
 export function placementLabel(n: number): string {
-  if (n === 1) return '1st';
-  if (n === 2) return '2nd';
-  if (n === 3) return '3rd';
+  const lastTwo = n % 100;
+  if (lastTwo >= 11 && lastTwo <= 13) return `${n}th`;
+  const last = n % 10;
+  if (last === 1) return `${n}st`;
+  if (last === 2) return `${n}nd`;
+  if (last === 3) return `${n}rd`;
   return `${n}th`;
 }
 
@@ -646,8 +653,11 @@ export const netService = {
         team:    shapeTeam(teamRow),
         summary: {
           appearanceCount: shaped.length,
+          appearanceNoun:  shaped.length === 1 ? 'appearance' : 'appearances',
           winCount,
+          winNoun:         winCount === 1 ? 'win' : 'wins',
           podiumCount,
+          podiumNoun:      podiumCount === 1 ? 'podium' : 'podiums',
           yearSpan: yearSpan(teamRow.first_year, teamRow.last_year),
         },
         byYear,
