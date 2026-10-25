@@ -72,13 +72,13 @@ export const ADD_WORKED_EXAMPLES: readonly GlossaryAddExample[] = [
     observationalNote: 'Nuclear behaves as a +2 modifier on its named compounds (sumo = nuclear mirage; matador = nuclear butterfly; hurl = nuclear ss whirl). It decomposes as paradox + downtime illusion; the illusioning dex is downtime (uptime would make it atomic). Nuclear itself does not carry an X-Dex. A nuclear compound may still receive an X-Dex point from its receiving mirage or dex relationship, as in sumo, but that point comes from the compound\'s dex, not from nuclear.',
   },
   {
-    slug:              'quantum',
-    displayName:       'Quantum',
-    compactNotation:   'toe blur',
+    slug:              'quantum_mirage',
+    displayName:       'Quantum Mirage',
+    compactNotation:   'quantum mirage',
     officialAdd:       3,
-    derivation:        'quantum atom = TOE > OP IN [DEX] > OP TOE [DEL] = [DEX] + [DEL] + body topology = 3 ADD',
+    derivation:        'quantum(+1) + mirage(2) = 3 ADD',
     status:            'canonical',
-    observationalNote: 'Quantum is the 4-primitive direction-quadrant matrix counterpart of pixie / fairy / atomic: same compositional weight, different dex direction + leg. The full matrix is documented in §6 Modifiers.',
+    observationalNote: 'Quantum is the inward-dex set, the counterpart of pixie, fairy, and atomic: the same +1 weight with a different dex direction and leg.',
   },
   {
     slug:              'baroque',

@@ -138,7 +138,7 @@ describe('GET /freestyle/progression/walking-family', () => {
   it('renders related Freestyle Concepts links for each step (deep-linked via fragments)', async () => {
     const res = await page('/freestyle/progression/walking-family');
     expect(res.text).toMatch(/Related concepts:/);
-    // All step-concept links deep-link via fragment (#term-X or #glossary-panel-X).
+    // All step-concept links deep-link via a fragment.
     const fragmentLinks = res.text.match(/href="\/freestyle\/concepts#[^"]+"/g) ?? [];
     expect(fragmentLinks.length).toBeGreaterThanOrEqual(7);
   });

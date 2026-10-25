@@ -18,8 +18,12 @@ export interface GlossaryConceptCard {
   key: string;
   /** Always-visible line: plain conceptual description. No em dashes. */
   line: string;
-  /** Intermediate "how it relates" layer, shown in a collapsible. */
-  relates: string;
+  /**
+   * Intermediate "how it relates" layer, shown in a collapsible. Omitted where
+   * another chapter already teaches the relationship (set vs standalone, which
+   * Timing & Sets explains in full).
+   */
+  relates?: string;
   /**
    * Rare expert "what it reveals" layer, present only on insight-home concepts
    * (Side here). Omit on connective concepts (Direction).
@@ -30,14 +34,14 @@ export interface GlossaryConceptCard {
 export const GLOSSARY_CORE_CONCEPTS: readonly GlossaryConceptCard[] = [
   {
     key:     'direction',
-    line:    "A dexterity travels one of two ways around the leg, inward or outward. The direction is set the instant the foot starts the bag moving, and it is one of the two choices that make one dex a different move from another.",
-    relates: "Direction pairs with side to distinguish the two-point atoms. Reversing a dex's direction is not a softer or harder version of the trick, it is a different trick with its own name, trained and scored separately, which is the lesson mirage and illusion teach. Every atom has a direction mirror: around the world and orbit, mirage and illusion, whirl and reverse whirl (also called whip).",
+    line:    "A dexterity circles the bag one of two ways, inward or outward. The direction is set the instant the foot starts the bag moving, and it is one of the two choices that make one dex a different move from another.",
+    relates: "Direction pairs with side to distinguish the two-point atoms. Reversing a dex's direction gives a different trick with its own name, not a variant (the lesson of mirage and illusion). Every atom has a direction mirror: around the world and orbit, mirage and illusion, whirl and reverse whirl (also called whip).",
   },
   {
     key:     'side',
     line:    "A dexterity works either on the same side or the opposite side, read against the most recent side-bearing component rather than a fixed plant leg. Same-side means the same leg as that component; opposite-side means the other leg, and two opposite relations in a row return to where they started.",
-    relates: "Side is the second of the two choices that define a dex, alongside direction. The four two-point atoms lay both axes out: around the world and orbit are same-side, mirage and illusion opposite-side. Which side the bag travels to is part of what the trick is, not a matter of style or reach.",
-    reveal:  "Two tricks can share landing, difficulty, even direction, and still be different tricks because one stays on your side and the other crosses the body. Side is a full structural axis, not a variation. Hold direction and side as two independent switches, and the crowd of near-identical pairs stops being confusing: each atom flips on either switch, and each flip is a separately named, separately scored trick.",
+    relates: "Side is the second of the two choices that define a dex, alongside direction. The four two-point atoms lay both axes out: around the world and orbit are same-side, mirage and illusion opposite-side. Which leg does the dex is part of what the trick is, not a matter of style or reach.",
+    reveal:  "Two tricks can share landing, difficulty, even direction, and still be different tricks because one dexes with the same leg and the other with the opposite leg. Side is a full structural axis, not a variation. Hold direction and side as two independent switches, and the crowd of near-identical pairs stops being confusing: each atom flips on either switch, and each flip is a separately named trick.",
   },
   {
     key:     'cross-body',
@@ -47,7 +51,6 @@ export const GLOSSARY_CORE_CONCEPTS: readonly GlossaryConceptCard[] = [
   {
     key:     'set-vs-operator',
     line:    "A dexterity movement can be realized two ways: as a set that launches the trick, or as a standalone movement performed once the bag is already up. The same directional movement takes a different name in each role. Realized as a set, the outward dex is Atomic; realized standalone, the same outward movement is Illusioning.",
-    relates: "Role is separate from mechanic: Atomic and Illusioning are the one outward-dex movement in two roles, just as Quantum (set) and Miraging (standalone) are the one inward-dex movement. A set launches the trick and is scored as part of its structure; a standalone movement is realized independently and named descriptively, as in Illusioning Kick. Naming a standalone movement does not make it a reusable scored operator; the name describes a motion, it does not license arbitrary compounds.",
     reveal:  "Because role lives in where the movement sits, not in the movement itself, you cannot classify the vocabulary by watching movements in isolation; you ask what job each piece is doing. Once role comes apart from mechanic, a short list of directional movements covers a long list of names: each direction carries a set name and a standalone name, and that two-way split organizes the whole layer instead of doubling the moves you have to memorize.",
   },
   {

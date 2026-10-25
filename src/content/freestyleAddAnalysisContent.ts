@@ -195,7 +195,7 @@ const COMPONENT_CLASSES: readonly AddAnalysisComponent[] = [
     example:        'atomic + mirage = atom smasher = 4 ADD; barraging + osis = baroque = 5 ADD',
   },
   {
-    componentClass: 'Entry and side relationship: the entry dex\'s SAME/OP leg relation, read against the most recent side-bearing component, together with its separate near/far position relative to the body centreline. Paradox lives here. The no-plant discipline (symposium) is a separate axis, noted only for contrast (pedagogical axis, not an official grouping)',
+    componentClass: 'Entry and side relationship: the entry dex\'s SAME/OP leg relation, read against the most recent side-bearing component (near and far are other names for SAME and OP). Paradox lives here. The no-plant discipline (symposium) is a separate axis, noted only for contrast (pedagogical axis, not an official grouping)',
     contribution:   'The placement cues themselves are +0 (see positional cues below); the operators that act on the entry are scored. Paradox is the side-switch relationship between the support leg and the dexterity: the body switches sides around the dex (the [PDX] component), which is distinct from the [XBD] cross-body traversal; +1. When paradox is the entry it reads CLIP > OP IN [DEX] (its entry case), but it can also occur mid-trick as a later [PDX] dex, so that form is not paradox in every trick. Symposium, by contrast, is the no-plant case on its own axis: the support leg leaves the ground through the dex; +1.',
     example:        'paradox + mirage (2) = 3 ADD; CLIP > OP IN [DEX] is paradox as an entry, not every paradox',
   },
@@ -371,7 +371,7 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
     addLabel:   '2 ADD',
     components: 'Operational chain: toe > ss in dex > ss toe. One dexterity event that travels fully around the bag, finishing on a toe stall.',
     derivation: 'dex(1) + stall(1) = 2 ADD',
-    whyNote:    'The foot carries the bag in a complete orbit before the catch. The circular path is what makes it around-the-world, but for the count it is one dexterity finishing in one stall: the same two-component shape as mirage. Orbit, the same circle traced in the reverse direction, reaches the same 2 ADD; "reverse" is a direction marker (+0), not an additive operator.',
+    whyNote:    'The leg circles all the way around the bag before the catch. The circular path is what makes it around-the-world, but for the count it is one dexterity finishing in one stall: the same two-component shape as mirage. Orbit, the same circle traced in the reverse direction, reaches the same 2 ADD; "reverse" is a direction marker (+0), not an additive operator.',
   },
 
   // ── 3 ADD foundational atoms (three primitives) ───────────────────────

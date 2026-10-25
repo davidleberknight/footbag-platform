@@ -153,8 +153,8 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
     notableCompounds:  ['mobius', 'blur', 'stepping paradox whirl'],
     observationalNotes: [
       {
-        title: 'Why whirl anchors combinations',
-        body:  'Whirl ends on a cross-body clipper stall, making it a useful structural anchor for combinations. Blurry Whirl adds the Blurry structure to the same Whirl base, while other family members vary the entry and modifiers around that terminal pattern.',
+        title: 'One ending, many entries',
+        body:  'Blurry Whirl adds the Blurry structure to the same Whirl base, while other family members vary the entry and modifiers around that clipper ending.',
       },
     ],
     teaching: {
@@ -291,7 +291,7 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
     observationalNotes: [
       {
         title: 'Mirage / illusion symmetry',
-        body:  'Mirage and illusion are reverse-direction siblings: mirage takes an opposite-leg inside dex, illusion takes the mirror reverse. Both return to the toe that set the bag, the dexing leg not making the catch. The pair is the canonical example of direction-variant family symmetry.',
+        body:  'Mirage and illusion are reverse-direction siblings with the same return to the setting toe, the canonical example of a direction pair.',
       },
     ],
     teaching: {
@@ -374,12 +374,7 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
     commonDescendants: ['paradox illusion', 'spinning illusion', 'ducking illusion', 'atomic illusion'],
     siblingFamilies:   ['mirage', 'pickup', 'legover'],
     notableCompounds:  ['flail', 'blizzard', 'smudge'],
-    observationalNotes: [
-      {
-        title: 'Mirror of mirage',
-        body:  'Illusion is the out-to-in mirror of mirage: the bag follows the same path, the body the inverse. Both are leggy dexes that return to the toe that set the bag.',
-      },
-    ],
+    observationalNotes: [],
     teaching: {
       hook: 'Illusion is the Mirage run the other way, and the pair is where you learn that in freestyle a direction is not a detail: it is a different trick.',
       physicalDescription:
@@ -479,8 +474,8 @@ export const ROOT_TERMINAL_FAMILIES: readonly GlossaryFamilyCard[] = [
     notableCompounds:  ['scrambled eggbeater', 'paste', 'legeater'],
     observationalNotes: [
       {
-        title: 'Upward-catching dex',
-        body:  'Structurally distinct from mirage despite the same ADD: pickup scoops under the bag, introducing the upward-catching dex axis. It anchors paste, legeater, and the spinning / ducking pickup compounds.',
+        title: 'Pickup compounds',
+        body:  'Pickup anchors paste, legeater, and the spinning / ducking pickup compounds.',
       },
     ],
     teaching: {
@@ -546,7 +541,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     notableCompounds:  ['paradox whirling swirl', 'spyro gyro (≡ gyro butterfly swirl)'],
     observationalNotes: [],
     teaching: {
-      hook: 'Swirl is one cell of the clipper-terminal matrix: the same-side leg circles outward and the bag lands on a same-side clipper.',
+      hook: 'Swirl is the same-side, out-direction cell of the clipper-terminal matrix, and it heads its own line of swirling compounds.',
       physicalDescription:
         'In a swirl the same-side leg (the leg on the side the bag occupies) circles outward around the bag once, and the bag is caught on a same-side clipper. The entry is flexible: it can be set from a clipper, a toe stall, or a plain set; the clipper is the terminus, not the start. The swirl family extends that ending pattern through different entries, sets, and modifiers.',
       importance:
@@ -603,13 +598,13 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     observationalNotes: [
       {
         title: 'First-class branch of osis',
-        body:  'Torque ≡ quantum osis under the symbolic-compression doctrine; the lineage is preserved on the torque trick-detail page as a chain reading. Torque is a Family Parent that descends from osis (it conserves the osis terminal), so it renders as a branch under osis while leading its own lineage.',
+        body:  'Torque ≡ quantum osis, a reading its trick page keeps. Torque is a Family Parent that descends from osis (it conserves the osis terminal), so it renders as a branch under osis while leading its own lineage.',
       },
     ],
     teaching: {
       hook: 'Torque is an osis with a dexterity added in front, and it is the first doorway into the whole branch of tricks that end in an osis.',
       physicalDescription:
-        'A Torque adds one circling dexterity before an osis. The trick still ends the way an osis ends, a spin resolving onto a clipper, but a dex comes first. That added dex, a mirage-style circle in, is the whole difference between a torque and a plain osis.',
+        'A Torque still ends the way an osis ends, a spin resolving onto a clipper, but a dex comes first. That added dex, a mirage-style circle in, is the whole difference between a torque and a plain osis.',
       importance:
         'Torque is one of the first places you see the osis working as a base rather than a single trick. Mobius, fury, and the paradox and spinning torques all grow from the same osis ending with a dex in front. Once you can name the osis inside a torque, and then name the dex that was added, the branch stops being a list of hard tricks and becomes one ending you reach different ways.',
       variantsIntro:
@@ -692,8 +687,8 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     notableCompounds:  ['vortex (≡ gyro drifter)', 'paradox drifter'],
     observationalNotes: [
       {
-        title: 'Family Parent from clipper',
-        body:  'Drifter is a clipper-anchored base: from the set it takes a single inward dex into a cross-body clipper (SET > OP IN [DEX] > SAME CLIP [XBD]). This first-class lineage grows from the clipper-anchored set primitives. The legacy "miraging clipper" name is descriptive mirage-family shorthand, not a scored decomposition.',
+        title: 'The miraging clipper name',
+        body:  'The legacy "miraging clipper" name for drifter is descriptive mirage-family shorthand, not a scored decomposition.',
       },
     ],
     teaching: {
@@ -788,7 +783,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     observationalNotes: [
       {
         title: 'Airborne hop-over',
-        body:  'Eclipse lifts the held-stall leg-over chassis of hop-over off the ground: after a jump off the support leg, both the inside-foot held stall and the outward dex happen in flight. The jump is a body-bearing scored element, which is why eclipse reads as 3 ADD where its grounded hop-over cousin reads as 2.',
+        body:  'Eclipse lifts the held-stall leg-over chassis of hop-over off the ground: after a jump off the support leg, both the inside-foot held stall and the outward dex happen in flight. Both tricks score the jump; the added outward dex is why eclipse reads as 3 ADD where hop-over reads as 2.',
       },
     ],
   },
@@ -819,14 +814,14 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     notableCompounds:  ['blurriest', 'superfly'],
     observationalNotes: [
       {
-        title: 'Double-infinity compound',
-        body:  'Barfly is a 4-ADD double-infinity compound: two same-side outward dex cycles run between a clipper entry and an opposite cross-body clipper terminal. It anchors the blurry superlative blurriest, which stacks a third dex onto the same chassis.',
+        title: 'A third dex on the same chassis',
+        body:  'Barfly anchors the blurry superlative blurriest, which stacks a third dex onto the same double-dex chassis.',
       },
     ],
     teaching: {
       hook: 'Barfly is one of the downs, and on its own it anchors a small family that stacks onto its double-dex shape.',
       physicalDescription:
-        'A Barfly begins from a clipper, carries two outward dexterities through the setting-leg side, and resolves on the opposite clipper. The two dexes and the cross-body terminal form one continuous double-dex structure. Barfly is one member of the Down grid; it is not defined by an additional movement called the down occurring after the two dexes, because the Down identity belongs to the complete double-out-to-clipper topology.',
+        'A Barfly begins from a clipper, carries two outward dexterities through the setting-leg side, and resolves on the opposite clipper. Barfly is one member of the Down grid: the down is that whole double-out-to-clipper shape, not a separate movement after the two dexes.',
       importance:
         'Barfly reveals that several famous double-dex tricks differ through a small number of structural variables rather than unrelated movement inventions. Change the set surface or which leg performs the dexes and Barfly moves into a neighboring cell occupied by Double-Over-Down, Paradon, or Double-Down-Down. Its own descendants retain the Barfly chassis while adding sets and operators, including Gyro Barfly, Pixie Barfly, Stepping Barfly, Superfly, and Blurriest.',
       variantsIntro: '',
@@ -910,8 +905,8 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     notableCompounds:  ['down diver'],
     observationalNotes: [
       {
-        title: 'Name is the structure',
-        body:  'Double-Over-Down is named for what it does: two same-side out dexes (the double over), circled by the setting leg, come down onto an opposite cross-body clipper (the down), all from a toe set, for 4 ADD. It sits beside paradon, which circles with the other leg instead (two opposite-side out dexes), and beside the legover family; its deepest named descendant is the down diver.',
+        title: 'Neighbors',
+        body:  'Double-Over-Down sits beside paradon, which circles with the other leg instead (two opposite-side out dexes), and beside the legover family; its deepest named descendant is the down diver.',
       },
     ],
     teaching: {
@@ -1018,13 +1013,13 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     observationalNotes: [
       {
         title: 'First-class branch of legover',
-        body:  'A two-dex legover variant: the leg passes over twice before the toe catch. A Family Parent that descends from legover, rendered as a branch while leading its own lineage.',
+        body:  'A Family Parent that descends from legover (it keeps the legover toe catch), rendered as a branch while leading its own lineage.',
       },
     ],
     teaching: {
       hook: 'Double Legover is not a legover done twice; it is an inward dex added in front of a legover, and it grows a branch of its own.',
       physicalDescription:
-        'A Double Legover does not repeat the Legover motion twice. It combines two different dex directions, first inward and then outward, before resolving to a same-side toe stall. The final outward dex and toe catch are the Legover-shaped part of the trick, and the preceding inward dex is what extends that terminal movement into Double Legover.',
+        'A Double Legover combines two different dex directions, first inward and then outward, before resolving to a same-side toe stall. The final outward dex and toe catch are the Legover-shaped part of the trick, and the preceding inward dex is what extends that terminal movement into Double Legover.',
       importance:
         'Double Legover shows that a family can grow by adding a different movement before its conserved terminal, not only by repeating the base movement. This matters because Double Legover and Eggbeater both contain two dexes and finish alike, but their internal paths differ: Double Legover follows inward then outward, while Eggbeater follows outward then outward, with the first outward event serving as an atomic set.',
       variantsIntro: '',
@@ -1045,7 +1040,7 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
       ],
       seeItIn: ['haze', 'predator', 'paradox_double_leg_over', 'pixie_double_leg_over'],
       notationIntro:
-        'For readers interested in the formal notation, a double legover runs two dexes into a same-side toe: SET > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL] (3 ADD). The two dex tokens are the two passes over the bag; the toe is the catch.',
+        'For readers interested in the formal notation, a double legover runs two dexes into a same-side toe: SET > OP IN [DEX] > OP OUT [DEX] > SAME TOE [DEL] (3 ADD). The OP IN dex leads into the legover\'s OP OUT dex; the toe is the catch.',
       takeaway:
         'Double Legover is an inward dex added in front of a legover, and seeing the inward-then-outward path is what separates it from the eggbeater.',
       plainLanguageReading: 'One inward dexterity followed by one outward dexterity, ending on the same-side toe.',
@@ -1075,13 +1070,13 @@ export const BRANCH_FAMILIES: readonly GlossaryFamilyCard[] = [
     observationalNotes: [
       {
         title: 'First-class branch of legover',
-        body:  'A double out-dex legover variant. Like double-leg-over, a Family Parent that descends from legover, rendered as a branch while leading its own lineage.',
+        body:  'Like double-leg-over, a Family Parent that descends from legover, rendered as a branch while leading its own lineage.',
       },
     ],
     teaching: {
       hook: 'Eggbeater is the legover in its atomic form, and it became a base of its own.',
       physicalDescription:
-        'Eggbeater is the atomic form of Legover. Its first outward dexterity performs the set role, and the second outward dexterity completes the Legover terminal and returns the bag to the same-side toe. Although the formula contains two outward dexes, Eggbeater is not best understood as Legover performed twice: the two dexes have different jobs, one launches the trick and one resolves it.',
+        'In an Eggbeater the first outward dexterity performs the set role, and the second completes the Legover terminal and returns the bag to the same-side toe. Although the formula contains two outward dexes, Eggbeater is not Legover performed twice: one dex launches the trick and the other resolves it.',
       importance:
         'Eggbeater is a strong example of a set-plus-base composition becoming a recognizable base in its own right. Once established, the whole Eggbeater chassis can receive further operators and sets, producing Paradox Eggbeater, Gyro Eggbeater, Quantum Eggbeater, Pigbeater, and other compounds.',
       variantsIntro: '',

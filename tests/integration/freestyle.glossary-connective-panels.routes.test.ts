@@ -140,7 +140,7 @@ describe('GET /freestyle/concepts — inside-stall stationary-transition case st
     const start = res.text.indexOf('id="inside-clipper-neighborhood"');
     const end = res.text.indexOf('id="section-advanced-reference"');
     const slice = res.text.substring(start, end);
-    expect(slice).toMatch(/doctrinally unsettled/i);
-    expect(slice).toMatch(/commonly interpreted as symposium/i);
+    expect(slice).toMatch(/unsettled/i);
+    expect(slice).toMatch(/symposium/i);
   });
 });

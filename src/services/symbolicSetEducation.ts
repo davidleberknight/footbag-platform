@@ -642,7 +642,7 @@ const ATOMIC_SET_CONTENT: SetEducationInput = {
     {
       heading: 'Atomic vs quantum',
       prose:
-        'Both are toe-anchored launch sets that finish on an opposite-side component, but they open in opposite directions. Atomic opens with an opposite-side outward dex (TOE > OP OUT [DEX]); quantum opens with an opposite-side inward dex (TOE > OP IN [DEX]). They are directional counterparts, separate launch identities, not two names for one launch.',
+        'Both are toe-anchored launch sets that finish on an opposite-side component, but they open in opposite directions. Atomic opens with an opposite-side outward dex (TOE > OP OUT [DEX]); quantum opens with an opposite-side inward dex (TOE > OP IN [DEX]). Directional counterparts, separate launch identities, not two names for one launch.',
     },
     {
       heading: 'Atomic vs illusioning',

@@ -45,10 +45,17 @@ async function concepts(): Promise<string> {
   return res.text;
 }
 
+/** The definition that follows the term anchored at `id`, up to its closing tag. */
+function termEntry(text: string, id: string): string {
+  const start = text.indexOf(`id="${id}"`);
+  expect(start, id).toBeGreaterThan(-1);
+  return text.slice(start, text.indexOf('</dd>', start));
+}
+
 describe('GET /freestyle/concepts — Timing & Sets is the set-vocabulary home', () => {
   it('teaches that a set launches the trick', async () => {
     const text = await concepts();
-    expect(text).toContain('A set launches the trick');
+    expect(termEntry(text, 'term-set')).toMatch(/launch/i);
   });
 
   it('defines the confirmed named sets in Timing & Sets, including Furious', async () => {
@@ -78,8 +85,14 @@ describe('GET /freestyle/concepts — Timing & Sets is the set-vocabulary home',
     // Set realization: performed as part of the launch, may terminate on a toe.
     expect(timingChapter).toContain('A dex performed as part of launching and positioning the bag');
     expect(timingChapter).toContain('terminate immediately on a toe and still be a genuine set');
-    // Standalone realization: performed independently after the launch.
-    expect(timingChapter).toContain('A dex movement realized independently after the bag is launched');
+    // Each role carries its own pair of names: the set role is Quantum and
+    // Atomic, the standalone role (after the launch) is Mirage and Illusion.
+    const setRole = termEntry(text, 'term-set-realization');
+    expect(setRole).toMatch(/Quantum and Atomic/);
+    const standalone = termEntry(text, 'term-standalone-realization');
+    expect(standalone).toMatch(/launch/);
+    expect(standalone).toMatch(/Mirage and Illusion/);
+    expect(standalone).not.toMatch(/Quantum|Atomic/);
     // Role follows structure, not a single timing instant.
     expect(timingChapter).toContain('not a single timing instant');
   });
@@ -100,7 +113,11 @@ describe('GET /freestyle/concepts — Timing & Sets is the set-vocabulary home',
     for (const anchor of ['term-illusioning', 'term-miraging-not-a-set', 'term-barraging-not-a-set', 'term-barrage-not-a-set']) {
       expect(text).toContain(`id="${anchor}"`);
     }
-    expect(text).toContain('It is not equivalent to Atomic');   // illusioning vs atomic
+    // Illusioning is the standalone name; Atomic is named only as its set-role
+    // counterpart, never as an equivalent.
+    const illusioning = termEntry(text, 'term-illusioning');
+    expect(illusioning).toMatch(/Atomic[^.]*set role/);
+    expect(illusioning).not.toMatch(/equivalent to Atomic|same as Atomic/i);
     expect(text).toContain('not the same as Barraging');        // barrage vs barraging
   });
 
@@ -110,7 +127,10 @@ describe('GET /freestyle/concepts — Timing & Sets is the set-vocabulary home',
     const familiesIdx = text.indexOf('id="section-families"');
     expect(modifiersIdx).toBeGreaterThan(0);
     const modifiersChapter = familiesIdx > modifiersIdx ? text.slice(modifiersIdx, familiesIdx) : text.slice(modifiersIdx);
-    expect(modifiersChapter).toContain('defined in the');
-    expect(modifiersChapter).toContain('Timing &amp; Sets section');
+    expect(modifiersChapter).toContain('href="#section-timing-sets"');
+    // ...and does not carry its own copies of the set definitions.
+    for (const anchor of ['term-set-atomic', 'term-set-quantum', 'term-set-furious']) {
+      expect(modifiersChapter).not.toContain(`id="${anchor}"`);
+    }
   });
 });

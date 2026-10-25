@@ -7,17 +7,17 @@
  * /freestyle/glossary holds only short definitions and is not a deep-link
  * target for these callers.
  *
- * Two anchor sources exist on the Concepts page:
- *   - Connective panels — id="glossary-panel-{term}" for
- *     paradox, symposium, ducking, spinning, whirl, pixie (richest entries)
- *   - Inline term anchors — id="term-{slug}" for foundational
- *     tricks (butterfly, clipper, mirage, etc.) and the modifier quick-
- *     reference (stepping, paradox, spinning, ducking, symposium, cross-body)
+ * Every link lands on the entry that teaches the term: an id="term-{slug}"
+ * anchor for foundational tricks (butterfly, clipper, mirage, etc.) and the
+ * modifier reference (stepping, paradox, spinning, ducking, symposium,
+ * cross-body), a teaching-home override where a term is taught somewhere other
+ * than its own term anchor, or a reference-section anchor. Unknown terms fall
+ * back to the bare Concepts URL (fail-graceful).
  *
- * Preference order:
- *   1. connective-panel anchor when one exists (richer content)
- *   2. inline term anchor otherwise
- *   3. Bare Concepts URL as fallback for unknown terms (fail-graceful)
+ * The page once carried id="glossary-panel-{term}" connective panels. They are
+ * gone, but bookmarks and outside links still use them, so LEGACY_PANEL_TARGETS
+ * names the element each old panel id now sits inside; the page renders the old
+ * id there, and the deep-link opener reveals it like any other target.
  *
  * Observational-layer separation: this module produces deep-link URLs only.
  * No DB reads, no canonical mutation. Pure function.
@@ -25,13 +25,25 @@
 
 const CONCEPTS_PATH = '/freestyle/concepts';
 
-const CONNECTIVE_PANEL_TERMS: ReadonlySet<string> = new Set([
-  'paradox',
-  'symposium',
-  'ducking',
-  'spinning',
-  'whirl',
-  'pixie',
+// Terms taught somewhere other than their own term anchor. Pixie's term anchor
+// is a one-line set-modifier card; the named-sets entry in Timing & Sets is
+// where it is defined as a launch set.
+const TEACHING_HOME_OVERRIDES: ReadonlyMap<string, string> = new Map([
+  ['pixie', 'term-set-launches'],
+]);
+
+/**
+ * Old connective-panel ids and the element id each one now renders inside.
+ * The Concepts page renders every key as an empty anchor at the start of its
+ * target, so a bookmark to the old id lands on the entry that teaches the term.
+ */
+export const LEGACY_PANEL_TARGETS: ReadonlyMap<string, string> = new Map([
+  ['glossary-panel-paradox',   'term-paradox'],
+  ['glossary-panel-symposium', 'term-symposium'],
+  ['glossary-panel-spinning',  'term-spinning'],
+  ['glossary-panel-ducking',   'term-ducking'],
+  ['glossary-panel-whirl',     'term-whirl'],
+  ['glossary-panel-pixie',     'term-set-launches'],
 ]);
 
 const FOUNDATIONAL_TRICK_TERMS: ReadonlySet<string> = new Set([
@@ -96,8 +108,9 @@ const REFERENCE_SECTION_ANCHORS: ReadonlyMap<string, string> = new Map([
  */
 export function conceptsHrefForTerm(term: string): string {
   const normalized = term.trim().toLowerCase();
-  if (CONNECTIVE_PANEL_TERMS.has(normalized)) {
-    return `${CONCEPTS_PATH}#glossary-panel-${normalized}`;
+  const home = TEACHING_HOME_OVERRIDES.get(normalized);
+  if (home) {
+    return `${CONCEPTS_PATH}#${home}`;
   }
   const anchorOverride = FOUNDATIONAL_ANCHOR_SLUG_OVERRIDES.get(normalized);
   if (anchorOverride) {

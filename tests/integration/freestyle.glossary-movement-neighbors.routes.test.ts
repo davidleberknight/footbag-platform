@@ -70,15 +70,14 @@ describe('Freestyle Concepts — eight closest relatives (movement-neighbor figu
     const html = await concepts();
     expect(html).toContain('The eight closest relatives');
     expect(html).toContain('class="glossary-neighbor-figure"');
-    // Pre-figure framing: the eight are variations of one movement pattern,
-    // each one movement change away from three others (the named relation).
-    expect(html).toContain('variations of the same underlying movement pattern');
+    // Pre-figure framing: each of the eight is one movement change away from
+    // three others (the named relation).
     expect(html).toContain('movement change away');
     // Figure caption: the reading instruction.
     expect(html).toContain('Change just one of those three choices');
     // Sits inside Dexterities, after the section opens and before Execution window.
     const dexAt = html.indexOf('id="section-dexterities"');
-    const figureAt = html.indexOf('The eight closest relatives');
+    const figureAt = html.indexOf('>The eight closest relatives<');
     const windowAt = html.indexOf('Execution window');
     expect(dexAt).toBeGreaterThan(-1);
     expect(figureAt).toBeGreaterThan(dexAt);
@@ -123,7 +122,7 @@ describe('Freestyle Concepts — eight closest relatives (movement-neighbor figu
 describe('Dexterities teaching spine — mindset, counterparts, repetition', () => {
   it('opens the relatives figure with the mindset sentence, before the figure', async () => {
     const html = await concepts();
-    const mindset = html.indexOf('makes the rest of freestyle much easier to learn');
+    const mindset = html.indexOf('usually learned one at a time');
     const figure = html.indexOf('class="glossary-neighbor-figure"');
     expect(mindset).toBeGreaterThan(0);
     expect(figure).toBeGreaterThan(mindset);
@@ -154,7 +153,7 @@ describe('Dexterities teaching spine — mindset, counterparts, repetition', () 
   it('renders the repetition callout with its three ladders after the counterparts table', async () => {
     const html = await concepts();
     const bridge = html.indexOf('Clipper counterparts');
-    const repeat = html.indexOf('One common way freestyle vocabulary grows is by repeating an existing');
+    const repeat = html.indexOf('>Repeating a movement<');
     expect(repeat).toBeGreaterThan(bridge);
     for (const slug of ['ripstein', 'triple_swirl', 'double_around_the_world', 'triple_around_the_world', 'double_orbit', 'triple_orbit']) {
       expect(html).toContain(`href="/freestyle/tricks/${slug}"`);

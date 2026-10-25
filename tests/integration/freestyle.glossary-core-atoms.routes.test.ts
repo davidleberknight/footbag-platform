@@ -1,13 +1,12 @@
 /**
- * Integration tests for the twelve core trick atoms band on GET /freestyle/concepts.
+ * Integration tests for the twelve foundational moves on GET /freestyle/concepts.
  *
- * The band renders the curator-authored CORE_ATOM_EDUCATIONAL entries as
- * three-layer cards: a `line` always visible, a "How it relates" collapsible on
- * every atom, and a "What it reveals" collapsible now on every atom. Whirl and
- * swirl teach a conserved-terminal reveal and a name-order reveal; their deeper
- * surface-frame reading stays deferred and must not surface here. This suite
- * locks that structure. Cards come from the static content module, so they
- * render independent of fixture data.
+ * Each card shows its name, ADD and a "Movement:" description, with deeper
+ * teaching in titled collapsible panels. Each lesson has one home card: the
+ * direction and catching-foot grid on Mirage, the clipper-ending grid on Whirl,
+ * the compound-name reading on Swirl. Whirl and swirl keep their deferred
+ * surface-frame reading hidden. Cards come from the static content module, so
+ * they render independent of fixture data.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { cachedGet } from '../fixtures/cachedGet';
@@ -42,72 +41,78 @@ async function concepts(): Promise<string> {
 
 function card(html: string, slug: string): string {
   const m = html.match(new RegExp(`id="atom-${slug}"[\\s\\S]*?</article>`));
-  expect(m, `${slug} atom card`).not.toBeNull();
+  expect(m, `${slug} card`).not.toBeNull();
   return m![0];
 }
 
-// Scope collapsible counts to the atoms band. Other Concepts sections (the
-// Dexterities Core Concept cards) reuse the same "How it relates" / "What it
-// reveals" summaries, so a page-wide count would include them.
-function atomsBand(html: string): string {
-  const start = html.indexOf('id="core-trick-atoms"');
-  const end = html.indexOf('id="section-surfaces"');
-  expect(start, 'core-trick-atoms band start').toBeGreaterThan(-1);
-  expect(end, 'section-surfaces boundary').toBeGreaterThan(start);
-  return html.slice(start, end);
-}
+const SLUGS = ['toe_stall', 'clipper_stall', 'around_the_world', 'orbit', 'mirage', 'illusion',
+  'pickup', 'legover', 'butterfly', 'osis', 'whirl', 'swirl'];
 
-describe('Freestyle Concepts — core trick atoms band', () => {
-  it('renders the core trick atoms band with atom anchors', async () => {
+describe('Freestyle Concepts — twelve foundational moves', () => {
+  it('renders all twelve cards, each with an ADD value and a visible movement description', async () => {
     const html = await concepts();
     expect(html).toContain('id="core-trick-atoms"');
-    expect(html).toContain('id="atom-toe_stall"');
-    expect(html).toContain('id="atom-osis"');
-  });
-
-  it('renders each atom as a three-layer card: line visible, relates collapsible', async () => {
-    const html = await concepts();
-    const band = atomsBand(html);
-    const cardCount    = (html.match(/class="glossary-core-atom-card"/g) ?? []).length;
-    const lineCount    = (html.match(/class="glossary-core-atom-lead"/g) ?? []).length;
-    const relatesCount = (band.match(/<summary>How it relates<\/summary>/g) ?? []).length;
-    expect(cardCount).toBe(12);
-    // every atom's Line is present (always visible) and every atom has a
-    // How-it-relates collapsible wired through
-    expect(lineCount).toBe(cardCount);
-    expect(relatesCount).toBe(cardCount);
-  });
-
-  it('carries a Reveal on every one of the twelve atoms', async () => {
-    const html = await concepts();
-    const revealCount = (atomsBand(html).match(/<summary>What it reveals<\/summary>/g) ?? []).length;
-    expect(revealCount).toBe(12);
-
-    // insight-home atoms keep their reveal
-    expect(card(html, 'toe_stall')).toContain('What it reveals');
-    expect(card(html, 'butterfly')).toContain('What it reveals');
-
-    // the other eight atoms carry one too
-    for (const slug of ['around_the_world', 'orbit', 'legover', 'pickup', 'illusion', 'osis', 'whirl', 'swirl']) {
-      expect(card(html, slug), `${slug} reveal`).toContain('What it reveals');
+    expect((html.match(/class="glossary-core-atom-card"/g) ?? []).length).toBe(12);
+    for (const slug of SLUGS) {
+      const c = card(html, slug);
+      expect(c, `${slug} ADD`).toMatch(/class="glossary-core-atom-adds">\d ADD</);
+      expect(c, `${slug} movement line`).toMatch(/class="glossary-core-atom-lead">Movement: /);
     }
   });
 
-  it('Around the World reveal separates terminal-contact variants from direction reversal without naming a family', async () => {
+  it('titles every panel by what it teaches, never the generic pair', async () => {
+    const html = await concepts();
+    for (const slug of SLUGS) {
+      const c = card(html, slug);
+      const titles = [...c.matchAll(/<summary>([^<]+)<\/summary>/g)].map(m => m[1]);
+      expect(titles.length, `${slug} panels`).toBeGreaterThan(0);
+      expect(c, slug).not.toContain('<summary>How it relates</summary>');
+      expect(c, slug).not.toContain('<summary>What it reveals</summary>');
+    }
+  });
+
+  it('keeps "atom" out of the chapter text, leaving Atomic as the set name', async () => {
+    const html = await concepts();
+    const chapter = html.slice(html.indexOf('id="chapter-movement-basics"'), html.indexOf('id="chapter-contact-surfaces"'));
+    const text = chapter.replace(/<[^>]+>/g, ' ');
+    expect(text).not.toMatch(/\batoms?\b/i);
+    expect(text).toMatch(/Twelve foundational moves/);
+  });
+
+  it('teaches the direction and catching-foot grid once, on Mirage', async () => {
+    const html = await concepts();
+    const mirage = card(html, 'mirage');
+    for (const name of ['Illusion', 'Pickup', 'Legover']) expect(mirage).toContain(name);
+    expect(mirage).toMatch(/returns to the setting foot/);
+    expect(mirage).toMatch(/caught by the dexing foot/);
+    // The other three compare briefly and point to Mirage rather than restating it.
+    for (const slug of ['illusion', 'pickup', 'legover']) {
+      expect(card(html, slug), slug).toMatch(/Mirage/);
+      expect(card(html, slug), `${slug} does not restate the whole grid`).not.toMatch(/Legover circles outward and is caught/);
+    }
+  });
+
+  it('Around the World separates terminal-contact variants from direction reversal without naming a family', async () => {
     const atw = card(await concepts(), 'around_the_world');
     expect(atw).toContain('Inside Around the World');
     expect(atw).toContain('Outside Around the World');
     expect(atw).toContain('separate canonical tricks');
     expect(atw.toLowerCase()).toContain('ending contact');
     // The contact variants are explicitly not a family.
-    expect(atw).toMatch(/without either branch being a family/);
+    expect(atw).toMatch(/neither branch is a family/);
   });
 
-  it('whirl and swirl reveals keep the deferred surface-frame reading hidden', async () => {
+  it('scopes the compound-name rule rather than stating it for every name', async () => {
+    const swirl = card(await concepts(), 'swirl');
+    expect(swirl).toMatch(/last word names the base/);
+    expect(swirl).toMatch(/do not follow this pattern/);
+  });
+
+  it('whirl and swirl keep the deferred surface-frame reading hidden', async () => {
     const html = await concepts();
     for (const slug of ['whirl', 'swirl']) {
-      expect(card(html, slug).toLowerCase(), `${slug} reveal`).not.toContain('surface frame');
-      expect(card(html, slug).toLowerCase(), `${slug} reveal`).not.toContain('surface-frame');
+      expect(card(html, slug).toLowerCase(), slug).not.toContain('surface frame');
+      expect(card(html, slug).toLowerCase(), slug).not.toContain('surface-frame');
     }
   });
 });

@@ -113,7 +113,7 @@ describe('Freestyle Concepts — flat chapter architecture (reference-manual tab
     expect(html).toContain('>Structural Analysis<');
     expect(html).toContain('>ADD Accounting<');
     // one-line descriptions (spot check)
-    expect(html).toContain('Twelve foundational atoms and the movement vocabulary the dictionary teaches from.');
+    expect(html).toContain('Twelve foundational moves and how they relate.');
     expect(html).toContain('How to read any trick name as a formula.');
     expect(html).toContain("Where a trick's difficulty number comes from, and how the weights add up.");
     expect(html).toContain('How individual tricks combine into runs.');

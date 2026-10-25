@@ -12,7 +12,8 @@
  *
  * Doctrine asserted:
  *  - SAME/OP are component-relative (read against the most recent side-bearing
- *    component, not a fixed plant foot) and are not synonyms for near/far.
+ *    component, not a fixed plant foot); near and far are other names for
+ *    SAME and OP, and neither adds difficulty on its own.
  *  - [XBD] is a cross-body configuration/traversal, independent of SAME/OP, and
  *    is not defined by sharing the centreline-crossing idea with paradox.
  *  - [PDX] marks the paradox relationship on a dexterity; it is not a direction,
@@ -46,7 +47,7 @@ const lineWith = (text: string, needle: string): string => {
   return l;
 };
 
-describe('SAME/OP are component-relative and not synonyms for near/far', () => {
+describe('SAME/OP are component-relative, not plant-foot relative', () => {
   const svc = read('src/services/freestyleService.ts');
   const opRender = read('src/services/operationalNotationRendering.ts');
   const core = read('src/content/freestyleGlossaryCoreConcepts.ts');
@@ -62,11 +63,6 @@ describe('SAME/OP are component-relative and not synonyms for near/far', () => {
     // not defined by a fixed plant foot
     expect(ss).not.toMatch(/plant-?foot|non-?plant/i);
     expect(op).not.toMatch(/plant-?foot|non-?plant/i);
-  });
-
-  it('the SS/OP short-code definitions do not use near/far as synonyms', () => {
-    expect(lineWith(svc, "short: 'SS'")).not.toMatch(/near/i);
-    expect(lineWith(svc, "short: 'OP'")).not.toMatch(/\bfar\b/i);
   });
 
   it('operational SAME/OP token strings are component-relative, not plant-foot', () => {
@@ -90,15 +86,28 @@ describe('SAME/OP are component-relative and not synonyms for near/far', () => {
   });
 });
 
-describe('entry-topology surfaces distinguish SAME/OP from near/far', () => {
+describe('near and far are other names for SAME and OP on every surface that defines them', () => {
   const add = read('src/content/freestyleAddAnalysisContent.ts');
+  const terms = read('src/content/freestyleGlossaryTerms.ts');
 
-  it('the ADD-analysis entry line keeps SAME/OP and near/far separate and component-relative', () => {
+  it('the ADD-analysis entry line is component-relative and equates near/far with SAME/OP', () => {
     const line = lineWith(add, 'Entry and side relationship');
     expect(line).toMatch(/SAME\/OP leg relation/);
     expect(line).toMatch(/most recent side-bearing component/);
-    expect(line).toMatch(/separate near\/far/);
+    expect(line).toMatch(/near and far are other names for SAME and OP/);
+    expect(line).not.toMatch(/separate near\/far/);
     expect(line).not.toMatch(/relative to the plant foot/);
+  });
+
+  it('the Glossary near and far entries map near to SAME and far to OP, never a separate axis', () => {
+    const far = lineWith(terms, '(Far Whirl)');
+    const near = lineWith(terms, 'the counterpart of "far"');
+    expect(far).toMatch(/opposite-side \(OP\)/);
+    expect(near).toMatch(/same-side \(SAME\)/);
+    for (const def of [far, near]) {
+      expect(def).not.toMatch(/separate axis/);
+      expect(def).toMatch(/neither adds difficulty/);
+    }
   });
 });
 
@@ -118,24 +127,23 @@ describe('[XBD] is cross-body and independent of SAME/OP', () => {
   });
 });
 
-describe('OP is a component-relative leg relation, separate from near/far and from X-Dex', () => {
+describe('OP is a component-relative leg relation, named far, and separate from X-Dex', () => {
   const concepts = read('src/views/freestyle/concepts.hbs');
-  const dd = lineWith(concepts,'separate positional and naming axis');
+  const start = concepts.indexOf('id="term-op-not-xdex"');
+  const dd = start === -1 ? '' : concepts.slice(start, concepts.indexOf('</dd>', start));
 
   it('describes OP as a component-relative leg relation', () => {
     expect(dd).toMatch(/component-relative leg relation/);
     expect(dd).toMatch(/opposite leg from the most recent side-bearing component/);
   });
 
-  it('keeps near/far as a separate axis and drops the far/opposite synonym equation', () => {
-    expect(dd).toMatch(/separate positional and naming axis/);
-    expect(dd).toMatch(/not synonyms for/i);
-    expect(dd).not.toMatch(/far \/ opposite/i);
-    expect(dd).not.toMatch(/far dex/i);
+  it('names near as SAME and far as OP, never as a separate axis', () => {
+    expect(dd).toMatch(/near is <code>SAME<\/code>, far is <code>OP<\/code>/);
+    expect(dd).not.toMatch(/separate positional and naming axis|not synonyms for/i);
   });
 
-  it('states OP alone is not scored and X-Dex is a separate +1 only where marked', () => {
-    expect(dd).toMatch(/does not by itself add difficulty/);
+  it('states the side relation alone is not scored and X-Dex is a separate +1 only where marked', () => {
+    expect(dd).toMatch(/Neither adds difficulty on its own/);
     expect(dd).toMatch(/X-Dex<\/a> is a separate \+1/);
     expect(dd).toMatch(/only where the operational notation carries <code>\[XDEX\]<\/code>/);
   });
@@ -568,10 +576,11 @@ describe('the ruled side relationship is stated, and the source keeps its own cl
 
 describe('a stall is a trick and an anchor state, not one instead of the other', () => {
   const toeStall = CORE_ATOM_EDUCATIONAL_BY_SLUG.get('toe_stall');
+  const panelText = (c: { panels: readonly { body: string }[] }) => c.panels.map(p => p.body).join(' ');
 
   it('says a toe stall is both', () => {
     expect(toeStall, 'the toe stall card').toBeDefined();
-    expect(toeStall!.reveal).toMatch(/both a trick and an anchor state/i);
+    expect(panelText(toeStall!)).toMatch(/both a trick and an anchor state/i);
   });
 
   it('does not deny that it is a trick', () => {
@@ -579,17 +588,17 @@ describe('a stall is a trick and an anchor state, not one instead of the other',
     // copy saying it is not really a trick contradicted that, and a reader
     // meeting both had no way to reconcile them.
     for (const card of CORE_ATOM_EDUCATIONAL_BY_SLUG.values()) {
-      expect(card.reveal, `${card.slug} reveal`).not.toMatch(/not really a trick/i);
+      expect(panelText(card), `${card.slug} panels`).not.toMatch(/not really a trick/i);
       expect(card.line, `${card.slug} line`).not.toMatch(/not really a trick/i);
-      expect(card.relates, `${card.slug} relates`).not.toMatch(/not really a trick/i);
     }
   });
 
   it('keeps the anchor framing that made the claim worth making', () => {
     // The correction is to the denial, not to the teaching around it: the trip
     // out and back is why a bare stall scores less than the dex reaching it.
-    expect(toeStall!.reveal).toMatch(/anchor/i);
-    expect(toeStall!.reveal).toMatch(/the difficulty is in the trip, not the landing/i);
-    expect(toeStall!.reveal).toMatch(/not every trick is stall-to-stall/i);
+    expect(panelText(toeStall!)).toMatch(/anchor/i);
+    expect(panelText(toeStall!)).toMatch(/the difficulty is in the trip, not the landing/i);
+    // ...with its scope stated: not every trick starts or ends on a stall.
+    expect(panelText(toeStall!)).toMatch(/kicks and some body tricks do not/i);
   });
 });

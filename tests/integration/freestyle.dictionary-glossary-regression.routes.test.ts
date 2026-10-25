@@ -351,7 +351,11 @@ describe('Item 8: Freestyle Concepts explains the UNS abbreviation', () => {
     const res = await request(app).get('/freestyle/concepts');
     expect(res.status).toBe(200);
     expect(res.text).toContain('UNS');
-    expect(res.text).toMatch(/Unusual surface\.?\s+Non-standard/i);
+    // The [UNS] flag's own definition says what the abbreviation stands for.
+    const start = res.text.indexOf('id="op-flag-uns"');
+    expect(start).toBeGreaterThan(-1);
+    const entry = res.text.slice(start, res.text.indexOf('</dd>', start));
+    expect(entry).toMatch(/unusual-surface/i);
   });
 });
 

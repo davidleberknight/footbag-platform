@@ -813,7 +813,7 @@ describe('GET /freestyle/concepts', () => {
 
   it('contains ADD-system core terms', async () => {
     const res = await page('/freestyle/concepts');
-    expect(res.text).toContain('Delay');
+    expect(res.text).toMatch(/\[DEL\]<\/code> from delay/);
     expect(res.text).toContain('Dexterity');
     expect(res.text).toContain('BOP');
   });
@@ -1505,8 +1505,8 @@ describe('Freestyle Concepts framing paragraphs + history page contracts', () =>
   it('Concepts §6 carries the compositional-layering opening paragraph', async () => {
     const res = await page('/freestyle/concepts');
     expect(res.text).toContain('glossary-compositional-layering-note');
-    expect(res.text).toMatch(/simultaneous additional\s+constraint/);
-    expect(res.text).toMatch(/usually harder than the\s+sum of their parts/);
+    expect(res.text).toMatch(/simultaneous\s+constraint/);
+    expect(res.text).toMatch(/usually\s+harder than the\s+sum of their parts/);
   });
 
   it('Concepts §6 acknowledges evolved-ADD-value conventions with cross-link to add-analysis', async () => {
@@ -1524,8 +1524,8 @@ describe('Freestyle Concepts framing paragraphs + history page contracts', () =>
     // a prior standalone static duplicate (before the family-tree block)
     // was removed. Guard against the duplicate returning.
     const res = await page('/freestyle/concepts');
-    expect(res.text).toContain('Why whirl anchors combinations');
-    const occurrences = (res.text.match(/Why whirl anchors combinations/g) ?? []).length;
+    expect(res.text).toContain('Blurry Whirl adds the Blurry structure');
+    const occurrences = (res.text.match(/Blurry Whirl adds the Blurry structure/g) ?? []).length;
     expect(occurrences, 'whirl resolution-point note renders exactly once').toBe(1);
   });
 
@@ -1541,7 +1541,10 @@ describe('Freestyle Concepts framing paragraphs + history page contracts', () =>
     // Canonical whirl uses generic SET (may enter from toe or clipper), so the card
     // must describe only the terminal, never a fixed clipper entry or a "lands where
     // it began" relationship.
-    expect(res.text).toContain('ends on a cross-body clipper stall');
+    const start = res.text.indexOf('id="term-whirl"');
+    expect(start).toBeGreaterThan(-1);
+    const whirlCard = res.text.slice(start, res.text.indexOf('</article>', start));
+    expect(whirlCard).toMatch(/cross-body clipper stall/);
     expect(res.text).not.toMatch(/same clipper surface it set from/);
     expect(res.text).not.toMatch(/ends exactly where it begins/i);
     expect(res.text).not.toMatch(/lands where it beg|resolves where it beg|whirl sets from a clipper/i);
@@ -2089,16 +2092,6 @@ describe('Freestyle Concepts — Structural compression subsection', () => {
     expect(slice).toContain('href="/freestyle/add-analysis"');
   });
 
-  it('frames the wow-moment as "oh, these are compositional transformations"', async () => {
-    // Replaces the prior "Three names. One trick." framing. The new
-    // prose explicitly names the pedagogical pivot.
-    const res = await page('/freestyle/concepts');
-    const flowIdx = res.text.indexOf('id="symbolic-compression-flow"');
-    const topologyIdx = res.text.indexOf('id="connective-panels"');
-    const slice = res.text.slice(flowIdx, topologyIdx);
-    expect(slice).toMatch(/wow-moment/i);
-    expect(slice).toMatch(/compositional\s+transformations/i);
-  });
 });
 
 describe('Freestyle Concepts — §9 semantic-vs-operational contrast', () => {

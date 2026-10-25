@@ -188,6 +188,7 @@ import {
   type FamilyTier,
 } from '../content/freestyleFamilyTiers';
 import { JOBS_NOTATION_ARTICLE, JOBS_NOTATION_ARTICLE_TITLE } from '../content/jobsNotationArticle';
+import { LEGACY_PANEL_TARGETS } from './conceptsAnchors';
 import { TERMINAL_SURFACES, type TopologyHistogramRow } from '../content/freestyleTopologyHistograms';
 import { MODIFIER_CLUSTERS, FIRST_CLASS_BROWSE_MODIFIERS, clusterForModifier, clusterLabelForModifier } from '../content/freestyleModifierClusters';
 import { quantityLadderFor } from '../content/freestyleQuantityLadders';
@@ -3365,7 +3366,7 @@ const ENTRY_TOPOLOGY_FEEL_CARDS: readonly ModifierFeelCard[] = [
     name:        'Paradox',
     glyph:       null,
     feel:        'Paradox pivots the hips on a single dex; the body changes sides mid-trick without adding another dex.',
-    intuition:   'A dex relationship, not a body movement: the body changes sides between dex events without changing the set foot.',
+    intuition:   'A dex relationship, not a body movement, and the set foot does not change.',
     example:     'Paradox Whirl; Paradox Mirage.',
     familyHint:  'Paradox pairs naturally with symposium and stacks inside nuclear.',
     midtimeBody: false,
@@ -3401,8 +3402,8 @@ const BODY_MODIFIER_FEEL_CARDS: readonly ModifierFeelCard[] = [
     glyph:       null,
     feel:        'Symposium is a no-plant leg discipline; the support leg stays off the ground through the dex.',
     intuition:   'A body modifier that often stacks with paradox.',
-    example:     'Surreal = Paradox Symposium Whirl; Mullet.',
-    familyHint:  'Symposium pairs naturally with paradox and underlies surreal, surgery, mullet, montage, and superfly.',
+    example:     'Paradox Symposium Whirl; Mullet.',
+    familyHint:  'Symposium pairs naturally with paradox and underlies surgery, mullet, montage, and superfly.',
     midtimeBody: false,
   },
 ];
@@ -3425,14 +3426,11 @@ export interface FreestyleFamilyTree {
   members:       readonly FreestyleFamilyTreeMember[];
 }
 
-// The glossary surfaces two abbreviation categories. `trickNames` are
-// the shorthand readers meet in trick titles + composition prose;
-// `operationalTokens` are the bracket-flagged component tokens that
-// appear inside operational notation strings. Split intentionally so a
-// learner reading §7 can scan the right list for the context they're in.
+// The Concepts abbreviation table: the shorthand readers meet in trick titles
+// and composition prose. The bracketed operational-notation tokens are defined
+// once, in the page's operational-notation reference.
 export interface FreestyleGlossaryAbbreviations {
-  trickNames:        readonly FreestyleGlossaryAbbreviationEntry[];
-  operationalTokens: readonly FreestyleGlossaryAbbreviationEntry[];
+  trickNames: readonly FreestyleGlossaryAbbreviationEntry[];
 }
 
 // Curator-authored. Order is rendered as-is.
@@ -3447,15 +3445,6 @@ const GLOSSARY_ABBREVIATIONS: FreestyleGlossaryAbbreviations = {
     { short: 'DATW',     meaning: 'Double Around-the-World.' },
     { short: 'BOP',      meaning: 'Butterfly, Osis, Paradox Mirage.' },
     { short: 'PS Whirl', meaning: 'Paradox Symposium Whirl.' },
-  ],
-  operationalTokens: [
-    { short: 'DEX',  meaning: 'Dexterity component. The foot circles the bag.' },
-    { short: 'XBD',  meaning: 'Cross-body component. Active foot crosses the body’s centerline.' },
-    { short: 'BOD',  meaning: 'Body-position component. Spin, duck, dive, flying, or paradox pose change. Carries +1 ADD in body-modifier accounting (e.g. BOD(1) + clipper(1) for flying clipper).' },
-    { short: 'CLIP', meaning: 'Clipper: inside-arch shoe surface.' },
-    { short: 'TOE',  meaning: 'Toe surface: top of the shoe.' },
-    { short: 'UNS',  meaning: 'Unusual surface. Non-standard stall or kick surface (sole, cloud, knee-front, etc.). Carries 1 ADD in surface-anchor accounting (e.g. UNS(1) = 1 ADD for sole-kick / cloud-kick).' },
-    { short: 'DEL',  meaning: 'Delay / terminal stall component closing a JOB-notation chain.' },
   ],
 };
 
@@ -3478,6 +3467,9 @@ export interface GlossaryFamilyCardView extends GlossaryFamilyCard {
   // physical description and the significance hook, plus a link to the full
   // family article. Null for a family with no authored teaching.
   teachingBrief: { physicalDescription: string; significance: string; articleHref: string | null } | null;
+  // Old connective-panel ids that now land on this card, rendered as empty
+  // anchors so bookmarks to them still resolve.
+  legacyAnchorIds: readonly string[];
 }
 
 // Family cards that are not in the public roster carry an explicit tier and, when
@@ -3519,7 +3511,10 @@ function shapeGlossaryFamilyCard(card: GlossaryFamilyCard): GlossaryFamilyCardVi
           : null,
       }
     : null;
-  return { ...card, lineageLabel, tierKey: tier, tierLabel: FAMILY_TIER_LABEL[tier], teachingBrief };
+  const legacyAnchorIds = [...LEGACY_PANEL_TARGETS]
+    .filter(([, target]) => target === `term-${card.slug}`)
+    .map(([legacyId]) => legacyId);
+  return { ...card, lineageLabel, tierKey: tier, tierLabel: FAMILY_TIER_LABEL[tier], teachingBrief, legacyAnchorIds };
 }
 
 // A lineage sub-group within a tier ("Root lineages", "Branches of Osis").
@@ -3837,7 +3832,7 @@ function shapeGlossaryConcept(key: string): GlossaryConceptCardVM {
   if (!c) throw new Error(`glossary core concept not found: ${key}`);
   return {
     line:      c.line,
-    relates:   c.relates,
+    relates:   c.relates ?? '',
     hasReveal: c.reveal !== undefined,
     reveal:    c.reveal ?? '',
   };
@@ -3851,10 +3846,8 @@ export interface LanguageOfFreestyleAtomCard {
   displayName:      string;
   adds:             string;        // pre-formatted, e.g. "2 ADD"
   detailHref:       string;
-  line:             string;        // always-visible physical-first description
-  relates:          string;        // "how it relates" collapsible body
-  hasReveal:        boolean;        // pre-shaped: only insight-home atoms carry a reveal
-  reveal:           string;        // "what it reveals" collapsible body ('' when hasReveal is false)
+  line:             string;        // always-visible "Movement:" description
+  panels:           readonly { title: string; body: string }[]; // titled collapsible depth
 }
 
 // ── Emerging Vocabulary governance surface ────────────────────────────────
@@ -9196,20 +9189,16 @@ export const freestyleService = {
             : ex.status,
         })),
         derivationAtlas:   DERIVATION_PILOT_ENTRIES,
-        // Core trick atoms — three-layer glossary entries. The Line is always
-        // visible; Relates and (for the four insight-home atoms) Reveal render as
-        // per-entry collapsibles. Sourced from CORE_ATOM_EDUCATIONAL; href maps to
-        // canonical trick-detail. hasReveal is pre-shaped so the template branches
-        // on a boolean, not on field presence.
+        // The twelve foundational moves: the Movement line is always visible and
+        // each titled panel renders as its own collapsible. Sourced from
+        // CORE_ATOM_EDUCATIONAL; href maps to canonical trick-detail.
         coreAtomEducationalCards: CORE_ATOM_EDUCATIONAL.map(c => ({
           slug:             c.slug,
           displayName:      c.displayName,
           adds:             `${c.adds} ADD`,
           detailHref:       `/freestyle/tricks/${c.slug}`,
           line:             c.line,
-          relates:          c.relates,
-          hasReveal:        c.reveal !== undefined,
-          reveal:           c.reveal ?? '',
+          panels:           c.panels.map(p => ({ title: p.title, body: p.body })),
         })),
         // Core Concept cards for the Dexterities section. hasReveal is
         // pre-shaped so the template branches on a boolean, not field presence.

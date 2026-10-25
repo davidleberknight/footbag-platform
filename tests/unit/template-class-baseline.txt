@@ -420,7 +420,6 @@ glossary-family-tree-member-adds
 glossary-family-tree-members
 glossary-family-trees
 glossary-flagship-marker
-glossary-generative-formula
 glossary-glyph-quickref
 glossary-glyph-quickref-cell
 glossary-glyph-quickref-glyph
@@ -450,7 +449,6 @@ glossary-modifier-cards
 glossary-modifier-cluster
 glossary-modifier-cluster-axes
 glossary-modifier-cluster-heading
-glossary-modifier-cluster-note
 glossary-neighbor-card
 glossary-neighbor-card-trick
 glossary-neighbor-change
@@ -460,8 +458,6 @@ glossary-neighbor-figure-caption
 glossary-neighbor-grid
 glossary-neighbor-move
 glossary-neighbor-moves
-glossary-notation-in-practice
-glossary-notation-label
 glossary-notation-mappings
 glossary-notation-row
 glossary-notation-shorthand

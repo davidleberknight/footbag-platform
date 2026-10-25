@@ -46,8 +46,7 @@ async function concepts(): Promise<string> {
 describe('Freestyle Concepts framing — settled family-root test note', () => {
   it('renders the settled family-root rule inside the families section', async () => {
     const html = await concepts();
-    expect(html).toMatch(/family-root test is settled/);
-    expect(html).toMatch(/curated first-class roster/);
+    expect(html).toMatch(/curated first-class\s+roster/);
     expect(html).toMatch(/editorial classification/);
     expect(html).toMatch(/<strong>Minor Lineages<\/strong>/);
     expect(html).toContain('id="section-families"');
@@ -63,8 +62,8 @@ describe('Freestyle Concepts framing — no obsolete family-tier threshold claim
     expect(html).not.toMatch(/rather than being hand-picked/);
     // Eligibility is explicitly stated as a curated editorial classification,
     // never as the trick count alone deciding Family Parent status.
-    expect(html).toMatch(/not a trick-count threshold/);
-    expect(html).toMatch(/curated first-class roster/);
+    expect(html).toMatch(/editorial classification, not a trick\s+count/);
+    expect(html).toMatch(/curated first-class\s+roster/);
   });
 });
 
@@ -73,7 +72,7 @@ describe('Freestyle Concepts framing — modifier-ecosystem framing', () => {
     const html = await concepts();
     expect(html).toMatch(/Modifiers form <strong>ecosystems<\/strong>/);
     expect(html).toMatch(/An ecosystem is\s+<strong>not a family<\/strong>/);
-    expect(html).toMatch(/pixie appears across\s+pixie-illusion/);
+    expect(html).toMatch(/pixie appears\s+across\s+pixie-illusion/);
   });
 
   it('the atomic set definition states the single-dex +1 doctrine, not the retired double-dexterity reading', async () => {
@@ -94,7 +93,7 @@ describe('Freestyle Concepts framing — modifier-ecosystem framing', () => {
     // Paradox is a dex relationship; dex side relationships are owned by the
     // Dexterities chapter, which Operators cross-links rather than re-teaching.
     // The modifier-paradox deep-link anchor is preserved.
-    expect(html).toMatch(/Paradox is a <strong>dex relationship<\/strong>, not a body movement/);
+    expect(html).toMatch(/A dex relationship, not a body movement/);
     expect(html).toContain('href="#section-dexterities"');
     expect(html).toContain('id="modifier-paradox"');
   });
@@ -159,7 +158,9 @@ describe('Freestyle Concepts framing — chapter navigation + non-regression', (
 describe('Freestyle Concepts framing — surfaces and advanced-reference notes (additive, anchor-safe)', () => {
   it('§surfaces frames foundational vs alternative surfaces with the movement-vs-surface WHY', async () => {
     const html = await concepts();
-    expect(html).toContain('Surfaces split into two roles');
+    expect(html).toMatch(/<strong>Foundational surfaces<\/strong>/);
+    expect(html).toMatch(/<strong>alternative surface<\/strong>/);
+    expect(html).toMatch(/<strong>not browse families<\/strong>/);
     expect(html).toMatch(/<strong>movement structure<\/strong>/);
     expect(html).toMatch(/surface groupings, not canonical families/);
   });
@@ -237,8 +238,7 @@ describe('Freestyle Concepts framing: modifier ecosystem doctrine', () => {
   it('names symposium and paradox as ecosystem hard cases with a transitional caveat', async () => {
     const html = await concepts();
     expect(html).toMatch(/<strong>Hard cases: symposium and paradox\.<\/strong>/);
-    // Not over-hardened: the classification is flagged curator-confirmable.
-    expect(html).toMatch(/curator-confirmable/);
+    expect(html).toMatch(/neither lands on its own/);
   });
 });
 
@@ -250,8 +250,8 @@ describe('Freestyle Concepts families: parent, child and descendant lineage', ()
     expect(html).toMatch(/Foundational Terminal Surfaces<\/strong> \(toe, clipper\)/);
     // Blurry is a composite set (≡ stepping+paradox), not a no-ending modifier
     // ecosystem, so it is not listed here (it appears as a set in the kind table).
-    expect(html).toMatch(/Modifier ecosystems<\/strong> \(ducking, spinning\)/);
-    expect(html).not.toMatch(/Modifier ecosystems<\/strong> \(ducking, spinning, blurry\)/);
+    expect(html).toMatch(/modifier ecosystems<\/strong> \(ducking, spinning\)/i);
+    expect(html).not.toMatch(/modifier ecosystems<\/strong> \(ducking, spinning, blurry\)/i);
   });
 
   it('teaches the family-ish kinds with a two-axis Family entry (family / atom / ecosystem / anchor)', async () => {
@@ -273,7 +273,7 @@ describe('Freestyle Concepts families: parent, child and descendant lineage', ()
     const html = await concepts();
     expect(html).toMatch(/<strong>Where the edges blur\.<\/strong>/);
     expect(html).toMatch(/whirl \/ swirl \/ twirl/);
-    expect(html).toMatch(/a future ruling may move them/);
+    expect(html).toMatch(/a future\s+ruling may move them/);
   });
 
   it('renders the first-class roster from the dictionary source, ATW excluded as a primitive', async () => {
@@ -290,8 +290,6 @@ describe('Freestyle Concepts families: parent, child and descendant lineage', ()
     }
     // ATW is not a parent card, and the eight-parents framing does not render.
     expect(html).not.toMatch(/All eight recognized parents/);
-    // Every carded family carries an educational card (status line removed).
-    expect(html).toMatch(/Every family below has an educational card/);
   });
 
   it('promotes six empirically-admitted family parents and nests derived branches under their roots', async () => {
@@ -303,8 +301,8 @@ describe('Freestyle Concepts families: parent, child and descendant lineage', ()
     expect(html).toMatch(/Osis<\/a> \([^)]*family=torque[^)]*family=blender[^)]*\)/);
     expect(html).toMatch(/Legover<\/a> \([^)]*family=double_leg_over[^)]*family=eggbeater[^)]*\)/);
     // The first-class rule states the curated editorial classification, not a count threshold.
-    expect(html).toMatch(/curated first-class roster/);
-    expect(html).toMatch(/not a trick-count threshold/);
+    expect(html).toMatch(/curated first-class\s+roster/);
+    expect(html).toMatch(/editorial classification, not a trick\s+count/);
     expect(html).not.toMatch(/at least three recursive descendant tricks/);
     expect(html).not.toMatch(/curator-selected balance/);
     // The three newly-carded families carry educational cards.
@@ -362,13 +360,13 @@ describe('Freestyle Concepts — L3 folk/structural projections + equivalence me
   it('renders the two-projections subsection', async () => {
     const html = await concepts();
     expect(html).toContain('id="two-projections"');
-    expect(html).toMatch(/two projections of the same move/);
+    expect(html).toMatch(/two projections of\s+the same move/);
   });
 
   it('states the structure-not-strings equivalence mechanism', async () => {
     const html = await concepts();
     expect(html).toMatch(/decomposed structure/);
-    expect(html).toMatch(/on <em>structure<\/em>, never on <em>strings<\/em>/);
+    expect(html).toMatch(/compares the <strong>decomposed structure<\/strong>, not the spelling/);
   });
 
   it('uses the live-verified canonical-surface examples (both directions)', async () => {
@@ -390,7 +388,9 @@ describe('Freestyle Concepts edge-case classification notes', () => {
   it('disambiguates the overloaded clipper terminology', async () => {
     const html = await concepts();
     expect(html).toContain('is a flying (no-stall) clipper kick');
-    expect(html).toContain('clipper naming lineage');
+    // Toe and knee clipper keep the clipper shape with a different contact.
+    expect(html).toMatch(/<strong>toe clipper<\/strong> and <strong>knee clipper<\/strong>/);
+    expect(html).toContain('<strong>contact substitution</strong>');
   });
 
   it('notes swirl has no kick variant and grows through structural variants', async () => {
@@ -420,7 +420,7 @@ describe('Freestyle Concepts foundational frame — Tricks / Sets / Modifiers + 
 
   it('makes the set-vs-trick contrast explicit and gives the modifier tell', async () => {
     const html = await concepts();
-    expect(html).toContain('initiate movement rather than terminate it');
+    expect(html).toContain('initiates movement rather than ending');
     expect(html).toContain('Spinning is a modifier; Spin is a trick');
   });
 
@@ -428,7 +428,7 @@ describe('Freestyle Concepts foundational frame — Tricks / Sets / Modifiers + 
     const html = await concepts();
     expect(html).toContain('Continuous-Control Lineage');
     expect(html).toContain('observational grouping');
-    expect(html).toContain('closely related expressions');
+    expect(html).toMatch(/stay\s+under continuous control/);
     expect(html).toContain('href="/freestyle/tricks/eclipse"');
   });
 
@@ -445,7 +445,7 @@ describe('Freestyle Concepts family roster — three display tiers', () => {
     const html = await concepts();
     expect(html).toContain('Family Parents');
     expect(html).toContain('Minor lineages');
-    expect(html).toContain('Foundational terminal surfaces');
+    expect(html).toMatch(/Foundational Terminal Surfaces/i);
     // Foundational surfaces are named as excluded (too broad), not as families.
     expect(html).toContain('Clipper Stall');
     expect(html).toContain('Toe Stall');

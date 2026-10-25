@@ -44,7 +44,7 @@ function card(html: string, anchorId: string): string {
 }
 
 describe('Freestyle Concepts — Operators & Modifiers grammar concept cards', () => {
-  it('renders the Set-role vs standalone-role card as an insight home: line, relates, and a reveal', async () => {
+  it('renders the Set-role vs standalone-role card as an insight home: line and a reveal', async () => {
     const html = await concepts();
     expect(html).toContain('id="concept-set-vs-operator"');
     const svo = card(html, 'concept-set-vs-operator');
@@ -53,7 +53,6 @@ describe('Freestyle Concepts — Operators & Modifiers grammar concept cards', (
     expect(svo).toContain('Atomic');
     expect(svo).toContain('Illusioning');
     expect(svo).not.toContain('barraging');
-    expect(svo).toContain('<summary>How it relates</summary>');
     expect(svo).toContain('<summary>What it reveals</summary>');
   });
 

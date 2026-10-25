@@ -173,15 +173,15 @@ describe('Freestyle Concepts §12 — named source families', () => {
     expect(res.text).toContain('Footbag Finland');
   });
 
-  it('source-family bullets are depersonalized; individual acknowledgements live in the dedicated paragraph', async () => {
+  it('names no individual beyond Ben Job, the standing attribution exception', async () => {
     const res = await page('/freestyle/concepts');
-    // Source bullets should not carry personal attributions; PassBack and
-    // Stanford shorthand bullets in particular were depersonalized.
-    expect(res.text).not.toMatch(/Matt Kemmer's conceptual tutorial series/);
-    expect(res.text).not.toMatch(/Ben Lynn's compact symbolic notation/);
-    // Both individuals appear in the consolidated acknowledgements paragraph.
-    expect(res.text).toContain('Matt Kemmer');
-    expect(res.text).toContain('Ben Lynn');
+    const start = res.text.indexOf('id="section-sources"');
+    expect(start).toBeGreaterThan(-1);
+    const sources = res.text.slice(start, res.text.indexOf('</section>', start));
+    expect(sources).toContain('Ben Job');
+    for (const name of ['Matt Kemmer', 'Ben Lynn', 'Red Husted', 'Steve Goldberg', 'Chris Holden']) {
+      expect(sources, name).not.toContain(name);
+    }
   });
 });
 

@@ -2,15 +2,16 @@
  * Integration tests for Freestyle Concepts fragment-anchor support.
  *
  * The Concepts foundational-tricks chapter and the modifier quick-reference
- * subsection carry id="term-{slug}" anchors. The connective panels
- * carry id="glossary-panel-{term}" anchors. Progression / modifier-
- * family pages deep-link to those anchors via conceptsHrefForTerm.
+ * subsection carry id="term-{slug}" anchors. Progression / modifier-family
+ * pages deep-link to the entry that teaches each term via conceptsHrefForTerm,
+ * and the retired connective-panel ids still resolve inside those entries.
  *
  * Covers:
  *   - Concepts page renders id="term-X" anchors for foundational tricks
  *   - Concepts page renders id="term-X" anchors for modifier quick-reference
  *   - Walking-progression page concept links deep-link via fragments
- *   - Modifier-family pages conceptsHref deep-links to connective-panel anchors
+ *   - Every Concepts link on the modifier and progression pages resolves
+ *   - Retired panel ids land inside their replacement entries
  *   - Fallback path: conceptsHrefForTerm returns bare URL for unknown terms
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -23,7 +24,7 @@ import {
   importApp,
 } from '../fixtures/testDb';
 import { insertFreestyleTrick } from '../fixtures/factories';
-import { conceptsHrefForTerm } from '../../src/services/conceptsAnchors';
+import { conceptsHrefForTerm, LEGACY_PANEL_TARGETS } from '../../src/services/conceptsAnchors';
 
 const { dbPath } = setTestEnv('3094');
 
@@ -62,13 +63,14 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('conceptsHrefForTerm (pure function)', () => {
-  it('returns §13 connective-panel URL for terms with a panel', () => {
-    expect(conceptsHrefForTerm('paradox')).toBe('/freestyle/concepts#glossary-panel-paradox');
-    expect(conceptsHrefForTerm('spinning')).toBe('/freestyle/concepts#glossary-panel-spinning');
-    expect(conceptsHrefForTerm('ducking')).toBe('/freestyle/concepts#glossary-panel-ducking');
-    expect(conceptsHrefForTerm('symposium')).toBe('/freestyle/concepts#glossary-panel-symposium');
-    expect(conceptsHrefForTerm('whirl')).toBe('/freestyle/concepts#glossary-panel-whirl');
-    expect(conceptsHrefForTerm('pixie')).toBe('/freestyle/concepts#glossary-panel-pixie');
+  it('sends each former connective-panel term to the entry that teaches it', () => {
+    expect(conceptsHrefForTerm('paradox')).toBe('/freestyle/concepts#term-paradox');
+    expect(conceptsHrefForTerm('spinning')).toBe('/freestyle/concepts#term-spinning');
+    expect(conceptsHrefForTerm('ducking')).toBe('/freestyle/concepts#term-ducking');
+    expect(conceptsHrefForTerm('symposium')).toBe('/freestyle/concepts#term-symposium');
+    expect(conceptsHrefForTerm('whirl')).toBe('/freestyle/concepts#term-whirl');
+    // Pixie is defined as a launch set in Timing & Sets, not on its one-line card.
+    expect(conceptsHrefForTerm('pixie')).toBe('/freestyle/concepts#term-set-launches');
   });
 
   it('returns §10 / §3 inline-term URL for foundational + modifier terms', () => {
@@ -94,7 +96,7 @@ describe('conceptsHrefForTerm (pure function)', () => {
   });
 
   it('is case-insensitive and trims whitespace', () => {
-    expect(conceptsHrefForTerm('  Paradox  ')).toBe('/freestyle/concepts#glossary-panel-paradox');
+    expect(conceptsHrefForTerm('  Paradox  ')).toBe('/freestyle/concepts#term-paradox');
     expect(conceptsHrefForTerm('BUTTERFLY')).toBe('/freestyle/concepts#term-butterfly');
   });
 });
@@ -149,6 +151,18 @@ describe('GET /freestyle/concepts — fragment anchors render', () => {
     expect(duplicates, `duplicate Concepts anchor id(s): ${duplicates.join(', ')}`).toEqual([]);
   });
 
+  it('every in-page fragment link lands on an element of the page', async () => {
+    // A cross-reference that names a section or term the page no longer
+    // carries sends the reader nowhere; a trim that removes a target must take
+    // its links with it.
+    const res = await page('/freestyle/concepts');
+    const ids = new Set([...res.text.matchAll(/id="([^"]+)"/g)].map(m => m[1]));
+    const targets = [...res.text.matchAll(/href="#([^"]+)"/g)].map(m => m[1]);
+    expect(targets.length).toBeGreaterThan(0);
+    const dead = [...new Set(targets.filter(t => !ids.has(t)))];
+    expect(dead, `fragment links with no target: ${dead.join(', ')}`).toEqual([]);
+  });
+
   it('renders id="term-X" on the §3 modifier quick-reference subsection', async () => {
     const res = await page('/freestyle/concepts');
     expect(res.text).toContain('id="modifier-reference"');
@@ -161,13 +175,6 @@ describe('GET /freestyle/concepts — fragment anchors render', () => {
     // (ducking / weaving / diving / zulu); the §6 body-modifier entry delegates
     // to the connective panel rather than carrying a second term-ducking anchor.
     expect(res.text).toContain('id="term-ducking"');
-  });
-
-  it('§3 modifier quick-reference cross-links to §13 connective panels for paradox / spinning / ducking', async () => {
-    const res = await page('/freestyle/concepts');
-    expect(res.text).toContain('href="#glossary-panel-paradox"');
-    expect(res.text).toContain('href="#glossary-panel-spinning"');
-    expect(res.text).toContain('href="#glossary-panel-ducking"');
   });
 
   it('relative-side subsection explains SAME / OP / paradox coexistence and that OP is not X-Dex', async () => {
@@ -197,21 +204,12 @@ describe('walking-progression page — concept links deep-link via fragments', (
     expect(res.text).toContain('href="/freestyle/concepts#term-butterfly"');
   });
 
-  it('paradox references go to the §13 connective panel anchor', async () => {
+  it('paradox, stepping, pixie and ducking references go to the entries that teach them', async () => {
     const res = await page('/freestyle/progression/walking-family');
-    expect(res.text).toContain('href="/freestyle/concepts#glossary-panel-paradox"');
-  });
-
-  it('stepping / pixie references go to /freestyle/concepts#term-{slug}', async () => {
-    const res = await page('/freestyle/progression/walking-family');
+    expect(res.text).toContain('href="/freestyle/concepts#term-paradox"');
     expect(res.text).toContain('href="/freestyle/concepts#term-stepping"');
-    // pixie has a §13 connective panel, so it deep-links there
-    expect(res.text).toContain('href="/freestyle/concepts#glossary-panel-pixie"');
-  });
-
-  it('ducking references go to the §13 connective panel anchor', async () => {
-    const res = await page('/freestyle/progression/walking-family');
-    expect(res.text).toContain('href="/freestyle/concepts#glossary-panel-ducking"');
+    expect(res.text).toContain('href="/freestyle/concepts#term-set-launches"');
+    expect(res.text).toContain('href="/freestyle/concepts#term-ducking"');
   });
 
   it('no concept links remain at the bare /freestyle/concepts URL', async () => {
@@ -227,23 +225,54 @@ describe('walking-progression page — concept links deep-link via fragments', (
   });
 });
 
-describe('modifier-family pages — conceptsHref deep-links to connective-panel anchors', () => {
-  it('/freestyle/modifier/spinning concepts link goes to #glossary-panel-spinning', async () => {
-    const res = await page('/freestyle/modifier/spinning');
+describe('deep links into Concepts land on an element of the Concepts page', () => {
+  async function conceptsIds(): Promise<Set<string>> {
+    const res = await page('/freestyle/concepts');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('href="/freestyle/concepts#glossary-panel-spinning"');
+    return new Set([...res.text.matchAll(/id="([^"]+)"/g)].map(m => m[1]));
+  }
+
+  it('every Concepts link on the modifier and progression pages resolves', async () => {
+    // The pages that link into Concepts by term; a link whose fragment the
+    // Concepts page does not carry lands the reader at the top of the page.
+    const ids = await conceptsIds();
+    const sources = [
+      '/freestyle/modifier/spinning', '/freestyle/modifier/paradox',
+      '/freestyle/modifier/ducking', '/freestyle/modifier/symposium',
+      '/freestyle/progression/walking-family',
+    ];
+    let checked = 0;
+    for (const path of sources) {
+      const res = await page(path);
+      expect(res.status, path).toBe(200);
+      for (const m of res.text.matchAll(/href="\/freestyle\/concepts#([^"]+)"/g)) {
+        checked += 1;
+        expect(ids.has(m[1]), `${path} links #${m[1]}, which Concepts does not carry`).toBe(true);
+      }
+    }
+    expect(checked).toBeGreaterThan(0);
   });
 
-  it('/freestyle/modifier/paradox concepts link goes to #glossary-panel-paradox', async () => {
-    const res = await page('/freestyle/modifier/paradox');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('href="/freestyle/concepts#glossary-panel-paradox"');
+  it('every term the anchor map knows resolves on the Concepts page', async () => {
+    const ids = await conceptsIds();
+    const terms = ['paradox', 'symposium', 'ducking', 'spinning', 'whirl', 'pixie', 'fairy',
+      'clipper', 'mirage', 'legover', 'pickup', 'illusion', 'butterfly', 'swirl', 'osis',
+      'around_the_world', 'orbit', 'stepping', 'cross-body', 'jobs-notation'];
+    for (const term of terms) {
+      const href = conceptsHrefForTerm(term);
+      const fragment = href.split('#')[1];
+      expect(fragment, `${term} has a fragment`).toBeDefined();
+      expect(ids.has(fragment!), `${term} → #${fragment} is not on the page`).toBe(true);
+    }
   });
 
-  it('/freestyle/modifier/ducking concepts link goes to #glossary-panel-ducking', async () => {
-    const res = await page('/freestyle/modifier/ducking');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('href="/freestyle/concepts#glossary-panel-ducking"');
+  it('each retired connective-panel id still lands inside the entry that replaced it', async () => {
+    // Bookmarks and outside links still carry the old panel ids.
+    const res = await page('/freestyle/concepts');
+    for (const [legacyId, target] of LEGACY_PANEL_TARGETS) {
+      const pattern = new RegExp(`id="${target}"[^>]*>\\s*<span id="${legacyId}"></span>`);
+      expect(res.text, `${legacyId} inside #${target}`).toMatch(pattern);
+    }
   });
 });
 

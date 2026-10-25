@@ -49,12 +49,12 @@ describe('the ADD definition on every surface that carries one', () => {
 
   it('the Concepts card does not reduce ADD to a difficulty score', () => {
     expect(/difficulty score/i.test(addConcept!.line)).toBe(false);
-    expect(/difficulty score/i.test(addConcept!.relates)).toBe(false);
+    expect(/difficulty score/i.test(addConcept!.relates ?? '')).toBe(false);
     expect(/difficulty score/i.test(addConcept!.reveal ?? '')).toBe(false);
   });
 
   it('the Concepts card says ADD is not a direct measure of execution difficulty', () => {
-    const whole = `${addConcept!.line} ${addConcept!.relates}`;
+    const whole = `${addConcept!.line} ${addConcept!.relates ?? ''}`;
     expect(/not a direct measure|not a measure of how hard/i.test(whole)).toBe(true);
   });
 });

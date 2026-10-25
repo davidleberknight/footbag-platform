@@ -222,6 +222,6 @@ describe('Freestyle Concepts ADD Accounting — multi-bag governing rule', () =>
 
   it('the multi-bag note explicitly notes the single-bag dictionary views do NOT classify multi-bag rows', async () => {
     const res = await page('/freestyle/concepts');
-    expect(res.text).toMatch(/single-bag dictionary views[\s\S]*do not classify multi-bag rows/);
+    expect(res.text).toMatch(/single-bag\s+dictionary\s+views[^<]*do\s+not\s+classify/);
   });
 });

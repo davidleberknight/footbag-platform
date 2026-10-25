@@ -410,13 +410,13 @@ export const GLOSSARY_TERMS: readonly GlossaryTerm[] = [
   {
     term: 'Far',
     slug: 'far',
-    definition: 'A positional name in trick names (Far Whirl), with "near" as its counterpart. Near and far name a different configuration of the same trick; they are a separate axis from the SAME and OP side relations and do not redefine them.',
+    definition: 'A positional name in trick names (Far Whirl), with "near" as its counterpart. Far is another name for the opposite-side (OP) relation, as near is for same-side (SAME); neither adds difficulty on its own.',
     moreHref: `${CONCEPTS}#term-op-not-xdex`, moreLabel: 'Relative-side relationships',
   },
   {
     term: 'Near',
     slug: 'near',
-    definition: 'A positional name in trick names, the counterpart of "far". Near and far name a different configuration of the same trick; they are a separate axis from the SAME and OP side relations and do not redefine them.',
+    definition: 'A positional name in trick names, the counterpart of "far". Near is another name for the same-side (SAME) relation, as far is for opposite-side (OP); neither adds difficulty on its own.',
     moreHref: `${CONCEPTS}#term-op-not-xdex`, moreLabel: 'Relative-side relationships',
   },
   {
@@ -854,7 +854,7 @@ export const GLOSSARY_TERMS: readonly GlossaryTerm[] = [
   {
     term: 'Around the World',
     slug: 'around_the_world',
-    definition: 'Toe set, same-side circling dex, same-side toe catch. The foot carries the bag in a full circle around the outside of the leg without crossing the body. Abbreviated ATW.',
+    definition: 'Toe set, same-side inward circling dex, same-side toe catch. The setting leg circles all the way around the bag while it is in the air, without crossing the body. Abbreviated ATW.',
     moreHref: '/freestyle/tricks/around_the_world', moreLabel: 'Around the World in the dictionary',
   },
   {

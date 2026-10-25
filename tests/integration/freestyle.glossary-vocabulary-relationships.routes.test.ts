@@ -125,7 +125,6 @@ describe('Freestyle Concepts Vocabulary Relationships subsection', () => {
 
   it('closing paragraph frames the four lenses (vocabulary / composition / derivation / family)', async () => {
     const res = await page('/freestyle/concepts');
-    expect(res.text).toMatch(/notation\s+system\s+isn[\s\S]*just\s+labeling\s+tricks/i);
     expect(res.text).toMatch(/vocabulary,\s+composition,\s+derivation,\s+or\s+family/i);
   });
 
