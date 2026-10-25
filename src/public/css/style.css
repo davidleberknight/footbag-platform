@@ -75,9 +75,9 @@
   --bg:          #ffffff;   /* white */
   --bg-light:    #f7f8f9;   /* off-white */
   --border:      #e5e5e5;   /* light gray */
+  --shadow-hairline: 0 1px 2px rgba(0,0,0,0.02);
   --shadow-sm:   0 2px 6px rgba(0,0,0,0.06);
   --shadow-md:   0 4px 12px rgba(0,0,0,0.08);
-  --shadow-lg:   0 8px 24px rgba(0,0,0,0.10);
   --shadow-pop:  0 4px 12px rgba(0,0,0,0.1);
   --shadow-hero: 0 4px 20px rgba(0,0,0,0.15);
   --shadow-deep: 0 6px 24px rgba(0,0,0,0.18);
@@ -154,8 +154,6 @@
   --gray-350:    #ddd;      /* light gray */
   --gray-400:    #d0d0d0;   /* silver gray */
   --gray-500:    #aaa;      /* medium gray */
-  --gray-520:    #999;      /* medium gray, one stop darker */
-  --gray-550:    #888;      /* medium gray, two stops darker */
   --gray-600:    #777;      /* medium-dark gray */
   --gray-700:    #555;      /* dark gray */
   --gray-800:    #444;      /* darker gray */
@@ -217,7 +215,6 @@
   --warn-muted:     #a16207;   /* mustard */
   --amber-pale:     #fff8e1;   /* pale cream */
   --orange-soft:    #fff3e0;   /* pale orange */
-  --orange-deep:    #b06000;   /* burnt orange */
   --info-bg:        #eff6ff;   /* palest blue */
   --info-text:      #1e40af;   /* dark blue */
   --info-accent:    #3b82f6;   /* bright blue */
@@ -275,7 +272,6 @@
 
   /* Freestyle earth text scale (light to dark) */
   --earth-300:   #8a8470;   /* light olive-gray */
-  --earth-350:   #7a7560;   /* olive-gray */
   --earth-400:   #6e6850;   /* medium olive */
   --earth-450:   #6b6553;   /* medium olive-gray */
   --earth-500:   #5a5644;   /* dark olive */
@@ -306,6 +302,15 @@
      an inline color literal. */
   --glossary-inline-notation-bg:    rgba(0, 0, 0, 0.02);   /* faint inline-notation wash */
   --operational-glossary-target-bg: rgba(180, 83, 9, 0.06); /* warm amber deep-link highlight */
+  --notation-panel-bg:              rgba(0, 0, 0, 0.03);    /* fixed-width notation article panel */
+  --notation-panel-border:          rgba(0, 0, 0, 0.1);     /* its edge */
+  --lineage-current-bg:             rgba(34, 197, 94, 0.05); /* the family-lineage tier holding the current trick */
+  /* Modifier-layering legend: one wash per notation layer, keyed to the same
+     layer colours as the notation tokens (set, rotation, modifier, core family). */
+  --modifier-layer-set-bg:          rgba(219, 234, 254, 0.42);
+  --modifier-layer-rotation-bg:     rgba(255, 237, 213, 0.55);
+  --modifier-layer-modifier-bg:     rgba(254, 243, 199, 0.52);
+  --modifier-layer-core-family-bg:  rgba(209, 250, 229, 0.65);
 
   /* The width of the page content column. Anything that must line up with the
      page beneath it reads this rather than repeating the number, so a band
@@ -314,27 +319,20 @@
 
   /* Freestyle extended palette (distinct freestyle colors, named not flattened) */
   --muted-gold: #b6a267;
-  --historical-gold: #6a6230;
   --notation-gold: #8a7514;
   --set-azure: #93c5fd;
   --rotation-umber: #fdba74;
   --modifier-gold: #fcd34d;
   --pending-umber: #f4dfb8;
-  --blocked-brick: #752e2e;
-  --attention-umber: #d4a14a;
   --set-moss: #7f9a6b;
   --unresolved-gold: #c7a645;
   --flagship-umber: #b8923a;
-  --action-brick: #c2410c;
   --historical-umber: #c4a472;
   --historical-umber-strong: #7a5a3a;
   --deprecated-stone: #c7c0b0;
   --core-family-moss: #4ade80;
   --doctrine-plum: #4e366f;
   --tier-umber: #b87333;
-  --blockers-brick: #a44a2c;
-  --incomplete-gold: #c0b683;
-  --composite-mauve: #5e3a55;
 }
 
 /* Fallback clearance for deep-linked targets when js/anchor-offset.js does not
@@ -1313,7 +1311,7 @@ button.tag-suggestion {
 /* Advanced filter controls, collapsed by default so the rail leads with the
    everyday include-and-apply pair. */
 .tag-filter-more {
-  border-top: 1px solid var(--parch-350);
+  border-top: 1px solid var(--border);
   padding-top: var(--space-md);
 }
 .tag-filter-more-summary {
@@ -3372,13 +3370,6 @@ main fieldset > :not(:has(~ :not([type="hidden"]))) { margin-bottom: 0; }
    Freestyle records
    ========================================================================== */
 
-/* ── Section nav (landing page CTA row) ────────────────────────────────── */
-.section-nav {
-  display: flex;
-  gap: var(--space-md);
-  margin: var(--space-xl) 0;
-}
-
 /* ── Content sections (landing page prose blocks) ───────────────────────── */
 /* The primitive owns its own vertical rhythm, through this margin. It is
    applied to <section> elements, which already carry 40px of block padding
@@ -3421,8 +3412,8 @@ main pre[role="region"] { overflow-x: auto; }
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   padding: var(--space-lg);
-  background: rgba(0, 0, 0, 0.03);
-  border: 1px solid rgba(0, 0, 0, 0.1);
+  background: var(--notation-panel-bg);
+  border: 1px solid var(--notation-panel-border);
   border-radius: var(--radius-sm);
   margin: var(--space-lg) 0;
 }
@@ -3576,67 +3567,11 @@ a.hashtag--media:hover {
 .trick-modifier-group { margin-bottom: var(--space-2xl); }
 .trick-set-group { margin-bottom: var(--space-2xl); }
 
-.trick-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
 .trick-row {
   padding: var(--space-md);
   border-bottom: 1px solid var(--gray-150);
 }
 .trick-row:last-child { border-bottom: none; }
-.trick-row--external-placeholder {
-  background-color: var(--parch-50);
-  border-left: 3px solid var(--warn-strong);
-}
-
-.trick-row-header {
-  display: flex;
-  align-items: baseline;
-  flex-wrap: wrap;
-  gap: var(--space-sm) var(--space-md);
-  font-size: 1rem;
-}
-.trick-row-header .trick-name { font-weight: 600; color: var(--primary); text-decoration: none; }
-.trick-row-header a.trick-name:hover { text-decoration: underline; }
-.trick-row--external-placeholder .trick-name { color: var(--text); }
-
-.trick-add-chip {
-  font-size: 0.9rem;
-  padding: 1px var(--space-sm);
-  border-radius: var(--radius-2xs);
-  background-color: var(--hover-tint);
-  color: var(--indigo-deep);
-  font-variant-numeric: tabular-nums;
-}
-.trick-add-chip--unrated { background-color: var(--gray-100); color: var(--text-muted); }
-
-.trick-family-chip {
-  font-size: 0.9rem;
-  padding: 1px var(--space-sm);
-  border-radius: var(--radius-2xs);
-  background-color: var(--gray-100);
-  color: var(--text-muted);
-  text-decoration: none;
-  font-family: var(--font-body);
-  font-weight: 500;
-}
-.trick-family-chip:hover { text-decoration: underline; }
-
-.trick-category-chip {
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  font-style: italic;
-}
-
-.trick-status-badge {
-  font-size: 0.9rem;
-  padding: 1px var(--space-sm);
-  border-radius: var(--radius-2xs);
-  background-color: var(--warn-tint);
-  color: var(--warn-text);
-}
 
 .trick-notation {
   font-family: var(--font-body);
@@ -3645,28 +3580,11 @@ a.hashtag--media:hover {
   margin-top: var(--space-xs);
   color: var(--secondary);
 }
-.trick-notation--missing { color: var(--text-muted); font-family: inherit; }
 
 .trick-description {
   font-size: 0.9rem;
   margin-top: var(--space-xs);
   color: var(--text);
-}
-.trick-description--missing { color: var(--text-muted); }
-
-.trick-aliases {
-  font-size: 0.9rem;
-  margin-top: var(--space-xs);
-  color: var(--text-muted);
-}
-
-.trick-placeholder-note {
-  font-size: 0.9rem;
-  margin-top: var(--space-sm);
-  padding: var(--space-xs) var(--space-sm);
-  background-color: var(--warn-tint);
-  color: var(--medal-bronze);
-  border-radius: var(--radius-2xs);
 }
 
 /* ── Trick detail: pathways cross-link block ──────────────────────────── */
@@ -3702,16 +3620,6 @@ a.hashtag--media:hover {
 .trick-pathway-secondary {
   margin: var(--space-xs) 0 0;
   font-size: 0.9rem;
-  color: var(--text-muted);
-}
-
-/* ── Freestyle landing: featured video fallback styling ──────────────── */
-.freestyle-featured-fallback {
-  padding: var(--space-lg);
-  background: rgba(0, 0, 0, 0.03);
-  border-left: 3px solid var(--border);
-  border-radius: var(--radius-2xs);
-  font-style: italic;
   color: var(--text-muted);
 }
 
@@ -3774,26 +3682,6 @@ a.hashtag--media:hover {
   margin: 0 0 var(--space-xl) 0;
 }
 
-/* ── Freestyle landing: three-layer reference orientation list ──────────── */
-.reference-layer-list {
-  list-style: none;
-  padding: 0;
-  margin: var(--space-md) 0 0 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-sm);
-}
-.reference-layer-list li {
-  padding: var(--space-md) var(--space-lg);
-  background: rgba(0, 0, 0, 0.02);
-  border-left: 3px solid var(--secondary);
-  border-radius: var(--radius-2xs);
-  line-height: 1.5;
-}
-.reference-layer-list li strong {
-  color: var(--primary-ink);
-}
-
 /* ── Trick detail: role-aware notation display ──────────────────
  * Restraint-first palette: only the four primary roles
  * (core_family, set, rotation, modifier) carry color saturation. Secondary
@@ -3809,7 +3697,7 @@ a.hashtag--media:hover {
   letter-spacing: 0.02em;
   line-height: 1.6;
   padding: var(--space-xs) var(--space-sm);
-  background: rgba(0, 0, 0, 0.02);
+  background: var(--glossary-inline-notation-bg);
   border-radius: var(--radius-2xs);
 }
 
@@ -3830,7 +3718,7 @@ a.hashtag--media:hover {
   letter-spacing: 0.02em;
   line-height: 1.7;
   padding: var(--space-sm) var(--space-md);
-  background: rgba(0, 0, 0, 0.02);
+  background: var(--glossary-inline-notation-bg);
   border-radius: var(--radius-2xs);
   color: var(--gray-800);
   white-space: pre-wrap;
@@ -3943,24 +3831,6 @@ a.hashtag--media:hover {
  * a line that suddenly shouts. */
 .op-token--unknown { color: inherit; text-transform: lowercase; }
 
-/* O1c: glossary deeplink at the section foot. Subtle; recedes so the
- * token block remains the visual focus. Single link per section
- * (not per token) keeps the token block's restraint intact. */
-.operational-notation-glossary-link {
-  margin: var(--space-sm) 0 0;
-  font-size: 0.9rem;
-  color: var(--text-muted);
-}
-.operational-notation-glossary-link a {
-  color: inherit;
-  text-decoration: underline dotted;
-  text-underline-offset: 2px;
-}
-.operational-notation-glossary-link a:hover {
-  text-decoration: underline;
-  color: var(--warn-deep);  /* match operational palette primary on hover */
-}
-
 /* Glossary deeplink at the foot of the semantic notation block; the link
  * itself takes the site link treatment. */
 .notation-glossary-link {
@@ -4009,10 +3879,6 @@ a.hashtag--media:hover {
 }
 .related-tricks-list li > a,
 .similar-tricks-list li > a { font-weight: 500; }
-.related-trick-reason {
-  font-size: 0.9rem;
-  color: var(--text-muted);
-}
 
 /* Labeled relationship groups (Same family / Shares a modifier / Movement
    neighbours or Swing elements / Built on / Structural ancestor). */
@@ -4127,26 +3993,6 @@ a.hashtag--media:hover {
 .trick-minor-lineage-list a { font-weight: 500; }
 .trick-minor-lineage-count { font-size: 0.9rem; color: var(--text-muted); margin-left: var(--space-xs); }
 
-.next-tricks-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-.next-tricks-list li {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-md);
-  padding: var(--space-sm) 0;
-  border-bottom: 1px solid var(--gray-150);
-}
-.next-tricks-list li:last-child { border-bottom: none; }
-.next-tricks-list li > a:first-child { font-weight: 500; }
-.next-tricks-adds {
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
 
 .related-modifier-groups {
   font-size: 0.9rem;
@@ -4276,25 +4122,9 @@ a.hashtag--media:hover {
 }
 
 /* ─────────────────────────────────────────────────────────────────────
-   /freestyle/compositional-sets: dictionary-hub exploration surface.
-   Sibling to .moves-* above; operator cards in grids + visual ladders
-   for the uptime-reinterpretation section. Restrained palette per the
-   post-IA-cleanup standard (no warm/amber colors; white cards;
-   green-tinted accent for canonical, neutral for platform-tracked,
-   muted for Holden-only).
+   Set Encyclopedia: how sets are built, and the uptime-reinterpretation
+   ladders.
    ───────────────────────────────────────────────────────────────────── */
-.compositional-sets-page {
-  max-width: 980px;
-}
-
-.compositional-sets-premise .compositional-sets-canonical-formula {
-  margin: var(--space-md) 0 var(--space-lg);
-  padding: var(--space-lg);
-  background: var(--slate-50);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xs);
-  text-align: center;
-}
 .compositional-sets-canonical-formula code {
   font-size: 1rem;
   color: var(--slate-800);
@@ -4317,94 +4147,6 @@ a.hashtag--media:hover {
 
 .compositional-sets-premise-bridge {
   margin: var(--space-sm) 0 var(--space-md);
-}
-
-.compositional-sets-cross-link-row {
-  margin: var(--space-lg) 0 0;
-  font-size: 0.9rem;
-}
-.compositional-sets-cross-link-sep {
-  margin: 0 var(--space-sm);
-  color: var(--text-muted);
-}
-
-.compositional-set-family-intro {
-  margin: 0 0 var(--space-lg);
-  max-width: 720px;
-  color: var(--text-muted);
-}
-
-.compositional-set-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: var(--space-md);
-  margin: var(--space-sm) 0 0;
-}
-.compositional-set-grid--premise {
-  margin-top: var(--space-lg);
-}
-
-.compositional-set-card {
-  background: var(--white);
-  border: 1px solid var(--border);
-  border-left: 3px solid var(--border);
-  border-radius: var(--radius-xs);
-  padding: var(--space-md) var(--space-lg);
-  /* A grid item otherwise grows to its widest content, so a long notation
-     string would push the card past a phone's edge. */
-  min-width: 0;
-}
-/* The card's padding is the space under its last line. */
-.compositional-set-card > :last-child { margin-bottom: 0; }
-.compositional-set-card--canonical {
-  border-left-color: var(--secondary);
-}
-.compositional-set-card--platform-tracked {
-  border-left-color: var(--slate-400);
-}
-.compositional-set-card--holden-only {
-  border-left-color: var(--slate-300);
-  background: var(--gray-50);
-}
-
-.compositional-set-card-name {
-  margin: 0 0 var(--space-sm);
-  font-weight: 600;
-  font-size: 1rem;
-  color: var(--slate-800);
-}
-.compositional-set-card-name a {
-  color: inherit;
-  text-decoration-color: var(--secondary);
-  text-underline-offset: 2px;
-}
-
-.compositional-set-card-notation {
-  display: block;
-  margin: 0 0 var(--space-sm);
-  padding: var(--space-xs) var(--space-sm);
-  background: var(--slate-50);
-  border-radius: var(--radius-2xs);
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  overflow-wrap: anywhere;
-}
-
-.compositional-set-card-note {
-  margin: var(--space-xs) 0 0;
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  line-height: 1.4;
-}
-.compositional-set-card-status {
-  margin: var(--space-sm) 0 0;
-  font-size: 0.9rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-muted);
-}
-.compositional-set-card-status--holden-only {
-  color: var(--slate-400);
 }
 
 /* Uptime-reinterpretation ladders: visual hierarchy with step indent. */
@@ -4497,9 +4239,6 @@ a.hashtag--media:hover {
 }
 
 @media (max-width: 480px) {
-  .compositional-set-grid {
-    grid-template-columns: 1fr;
-  }
   .compositional-ladder-header {
     flex-direction: column;
     gap: var(--space-xs);
@@ -4561,28 +4300,6 @@ a.hashtag--media:hover {
   flex-shrink: 0;
   filter: var(--drop-mascot);
 }
-
-/* Get-started tiles: clickable card variant */
-.card-tile {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  gap: var(--space-md);
-  min-height: 120px;
-  color: var(--text);
-  text-decoration: none;
-  transition: transform 0.15s, box-shadow 0.15s;
-}
-.card-tile:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
-  text-decoration: none;
-  color: var(--primary-ink);
-}
-.card-tile.card-coming-soon { cursor: default; }
-.card-tile.card-coming-soon:hover { transform: none; box-shadow: none; color: var(--text-muted); }
 
 /* 16:9 responsive YouTube embed inside a card */
 .video-embed {
@@ -4726,15 +4443,6 @@ a.hashtag--media:hover {
 .rules-detail .markdown-body li { margin: 0 0 var(--space-xs); }
 .rules-detail .markdown-body table { margin: 0 0 var(--space-xl); }
 .rules-detail .markdown-body strong { font-weight: 600; }
-
-/* Standalone stats strip (outside the hero): neutral pill styling */
-.stats-strip { padding: var(--space-lg) 0; }
-.stats-strip .hero-stats { margin-top: 0; }
-.stats-strip .hero-stats span {
-  background: var(--bg-light);
-  border: 1px solid var(--border);
-  color: var(--text);
-}
 
 .flash-banner {
   /* Side padding matches .wrapper so the band's text starts on the same line as
@@ -4901,99 +4609,13 @@ a.hashtag--media:hover {
 }
 
 
-/* ─────────────────────────────────────────────────────────────────────────
-   Single-page pilot: flagship editorial trick layout.
-   Active only on freestyle/trick-ux2.hbs (today: /freestyle/tricks/montage).
-   Restraint-first additions; no token / palette redesign.
-   ───────────────────────────────────────────────────────────────────────── */
-
-.trick-featured-preview { margin-top: var(--space-2xl); }
-.trick-featured-preview-card {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: var(--space-xl);
-  align-items: start;
-  background: var(--white);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: var(--space-lg);
-}
-@media (max-width: 768px) {
-  .trick-featured-preview-card { grid-template-columns: 1fr; }
-}
-.trick-featured-preview-thumb { position: relative; }
-.trick-featured-preview-meta { padding-top: var(--space-xs); }
-.trick-featured-preview-title {
-  margin: 0 0 var(--space-sm);
-  font-size: 0.9rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
-}
-.trick-featured-preview-caption {
-  margin: 0 0 var(--space-sm);
-  font-size: 1rem;
-  line-height: 1.45;
-}
-.trick-featured-preview-source {
-  margin: 0 0 var(--space-sm);
-  font-size: 0.9rem;
-  color: var(--text-muted);
-}
-.trick-featured-preview-jump {
-  margin: var(--space-sm) 0 0;
-  font-size: 0.9rem;
-}
-
-.trick-featured-preview-empty {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-  padding: var(--space-lg);
-  background: var(--slate-50);
-  border: 1px dashed var(--slate-300);
-  border-radius: var(--radius-sm);
-}
-.trick-featured-preview-empty-label {
-  font-size: 0.9rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: var(--text-muted);
-}
-.trick-featured-preview-empty-text {
-  font-size: 1rem;
-  color: var(--steel-600);
-}
-
+/* ── Trick detail: prose paragraphs ───────────────────────────────────── */
 .trick-prose-paragraph {
   margin: 0 0 var(--space-md);
   line-height: 1.6;
   font-size: 1rem;
 }
 .trick-prose-paragraph:last-child { margin-bottom: 0; }
-
-.trick-prereq-anchor {
-  margin: var(--space-sm) 0 0;
-  font-size: 0.9rem;
-}
-
-.trick-media-block .trick-featured-media-card {
-  margin: var(--space-md) 0 var(--space-xl);
-  padding: var(--space-lg);
-  background: var(--white);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-}
-.trick-media-block .trick-featured-media-empty {
-  margin: var(--space-md) 0 var(--space-xl);
-  padding: var(--space-lg) var(--space-xl);
-  background: var(--slate-50);
-  border: 1px dashed var(--slate-300);
-  border-radius: var(--radius-md);
-  color: var(--slate-600);
-  font-size: 1rem;
-}
-.trick-media-block .trick-featured-media-empty p { margin: 0; }
 
 /* Structural decomposition collapsed-by-default in the REFERENCE tail.
    The legacy template renders this same panel inline; UX2 wraps it in
@@ -5164,34 +4786,8 @@ a.hashtag--media:hover {
 .community-tip p { margin: 0 0 var(--space-sm); }
 .community-tip p:last-child { margin-bottom: 0; }
 
-/* Tier-4 executable-accounting disclosure on trick-detail. Matches the
-   collapsed-by-default disclosure aesthetic of the structural panel but
-   sits earlier in the flow (between modifier-layering and execution
-   prose); the goal is educational, not diagnostic. */
-.trick-add-analysis-disclosure {
-  background: var(--white);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 0;
-}
-.trick-add-analysis-summary {
-  cursor: pointer;
-  padding: var(--space-md) var(--space-lg);
-}
-.trick-add-analysis-disclosure[open] .trick-add-analysis-summary {
-  border-bottom: 1px solid var(--border);
-}
-.trick-add-analysis-summary-title {
-  font-weight: 600;
-  font-size: 1rem;
-  display: inline;
-}
-.trick-add-analysis-summary-hint {
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  padding-left: var(--space-xl);
-}
-/* The value leads and the components support it, so the two are sized apart
+/* Tier-4 executable-accounting values on trick-detail.
+   The value leads and the components support it, so the two are sized apart
    rather than sharing one weight. */
 .trick-add-analysis-total {
   font-size: 1.5rem;
@@ -5203,13 +4799,6 @@ a.hashtag--media:hover {
   margin-top: var(--space-xs);
   font-size: 0.9rem;
   color: var(--text-muted);
-}
-.trick-add-analysis-context {
-  margin: 0;
-  padding: var(--space-xs) var(--space-lg) var(--space-lg) var(--space-lg);
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  font-style: italic;
 }
 
 /* Primitive-note callout on core-atom trick-detail pages.
@@ -5334,100 +4923,9 @@ a.hashtag--media:hover {
   margin: var(--space-xs) 0;
 }
 
-/* ── Trick-detail ontology doctrine ──
-   L2-L6 layered ontology sections for Tier A flagship pages.
-   Movement-first; restrained typography; no decorative drift. */
-.trick-mechanical-delta,
-.trick-ontology-role,
-.trick-productivity,
-.trick-family-evolution,
-.trick-progressive-readings {
+/* ── Family page: how the family evolves ── */
+.trick-family-evolution {
   margin-top: var(--space-xl);
-}
-.trick-mechanical-delta .section-heading,
-.trick-ontology-role .section-heading,
-.trick-productivity .section-heading {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-md);
-  flex-wrap: wrap;
-}
-.section-topology-label,
-.section-role-eyebrow {
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  background: var(--gray-100);
-  padding: var(--space-xs) var(--space-sm);
-  border-radius: var(--radius-2xs);
-}
-.trick-mechanical-delta-parents {
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  margin: var(--space-xs) 0 var(--space-sm);
-}
-.trick-mechanical-delta-prose p {
-  margin: 0 0 var(--space-md);
-  font-size: 1rem;
-  line-height: 1.6;
-  color: var(--slate-800);
-  max-width: 720px;
-}
-.trick-interpretive-traditions {
-  margin-top: var(--space-md);
-  padding: var(--space-md);
-  border-left: 3px solid var(--border);
-  background: var(--gray-100);
-}
-.trick-interpretive-traditions-intro {
-  font-size: 0.9rem;
-  color: var(--text);
-  margin: 0 0 var(--space-sm);
-  font-style: italic;
-}
-.trick-interpretive-traditions ul {
-  margin: 0;
-  padding-left: var(--space-lg);
-}
-.trick-interpretive-traditions li {
-  margin: var(--space-xs) 0;
-  font-size: 0.9rem;
-  line-height: 1.5;
-}
-.trick-interpretive-reading {
-  display: block;
-}
-.trick-interpretive-citation {
-  display: block;
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  font-style: italic;
-  margin-top: var(--space-xs);
-}
-.trick-ontology-role-prose,
-.trick-productivity-prose {
-  margin: var(--space-sm) 0 var(--space-md);
-  font-size: 1rem;
-  line-height: 1.55;
-  color: var(--slate-800);
-  max-width: 720px;
-}
-.trick-productive-descendants {
-  list-style: none;
-  padding-left: 0;
-  margin: var(--space-sm) 0;
-}
-.trick-productive-descendants li {
-  padding: var(--space-xs) 0;
-  font-size: 1rem;
-  line-height: 1.5;
-}
-.trick-productive-descendant-link {
-  font-weight: 500;
-}
-.trick-productive-descendant-note {
-  color: var(--text-muted);
-  font-size: 0.9rem;
-  margin-left: var(--space-xs);
 }
 .trick-family-evolution-steps {
   list-style: none;
@@ -5454,55 +4952,6 @@ a.hashtag--media:hover {
   color: var(--text-muted);
   margin: 0;
 }
-.trick-progressive-readings-stages {
-  list-style: none;
-  padding-left: 0;
-  counter-reset: progressive-stage;
-  margin: var(--space-sm) 0;
-}
-.trick-progressive-stage {
-  counter-increment: progressive-stage;
-  padding: var(--space-md) var(--space-md) var(--space-md) var(--space-lg);
-  margin-bottom: var(--space-lg);
-  background: var(--gray-100);
-  border-left: 3px solid var(--border);
-}
-.trick-progressive-stage::before {
-  content: counter(progressive-stage) ". ";
-  font-weight: 600;
-  color: var(--text-muted);
-  font-size: 0.9rem;
-}
-.trick-progressive-stage-label {
-  display: inline;
-  font-weight: 600;
-  font-size: 1rem;
-  color: var(--slate-800);
-}
-.trick-progressive-stage-reading {
-  display: block;
-  margin-top: var(--space-xs);
-  padding-left: var(--space-lg);
-  font-size: 1rem;
-  line-height: 1.55;
-  color: var(--text);
-}
-.trick-progressive-stage-citation {
-  margin-top: var(--space-xs);
-  font-size: 0.9rem;
-  font-style: italic;
-  color: var(--text-muted);
-}
-.trick-description--decomposition-pill {
-  display: inline-block;
-  padding: var(--space-xs) var(--space-md);
-  background: var(--gray-100);
-  border-radius: var(--radius-2xs);
-  font-family: var(--font-body);
-  font-weight: 500;
-  font-size: 0.9rem;
-  color: var(--text);
-}
 
 /* Reverse-pair transform overlay.
    Renders below the canonical JOB notation on 5 curator-locked trick
@@ -5511,15 +4960,6 @@ a.hashtag--media:hover {
    notation block above. Educational overlay only. */
 .trick-transform {
   margin: var(--space-sm) 0;
-}
-.trick-transform-line {
-  margin: 0 0 var(--space-xs);
-  font-size: 1rem;
-}
-.trick-transform-label {
-  font-weight: 600;
-  color: var(--slate-800);
-  margin-right: var(--space-sm);
 }
 .trick-transform-expression {
   font-family: var(--font-body);
@@ -5585,7 +5025,7 @@ a.hashtag--media:hover {
   font-size: 1rem;
 }
 .trick-equivalence-topology-row + .trick-equivalence-topology-row {
-  border-top: 1px dashed var(--parch-300);
+  border-top: 1px dashed var(--border);
 }
 .trick-equivalence-topology-glyph {
   color: var(--text-muted);
@@ -5642,16 +5082,13 @@ a.hashtag--media:hover {
    copies of this rhythm existed before it was named, two of them with
    conflicting values on the same page.
    ───────────────────────────────────────────────────────────────────────── */
-.section-compact .content-section,
 .page-freestyle  .content-section {
   margin: var(--section-compact-gap) 0;
 }
-.section-compact .content-section:first-child,
 .page-freestyle  .content-section:first-child {
   margin-top: 0;
   padding-top: 0;
 }
-.section-compact .section-heading,
 .page-freestyle  .section-heading {
   margin-bottom: var(--section-compact-head-gap);
 }
@@ -5659,9 +5096,7 @@ a.hashtag--media:hover {
    the h2, and the class on the h2 itself. A descendant selector alone silently
    drops the second spelling to the global h2 rule, so match both. The h3
    rule below already does. */
-.section-compact .section-heading h2,
 .page-freestyle  .section-heading h2,
-.section-compact h2.section-heading,
 .page-freestyle  h2.section-heading {
   font-size: var(--section-compact-heading);
   font-weight: 600;
@@ -5670,7 +5105,6 @@ a.hashtag--media:hover {
 }
 /* Spelled on the h2 itself, the heading is its own block and owns the gap to
    what follows; inside a wrapper, the wrapper owns it. */
-.section-compact h2.section-heading,
 .page-freestyle  h2.section-heading {
   margin-bottom: var(--section-compact-head-gap);
 }
@@ -5683,7 +5117,6 @@ a.hashtag--media:hover {
    compaction and restores the ordering, which the type gate cannot see: it
    checks that a size is on the scale, not what the size lands on relative to
    its own body text. */
-.section-compact h3.section-heading,
 .page-freestyle h3.section-heading {
   margin-bottom: var(--space-sm);
 }
@@ -5711,12 +5144,12 @@ a.hashtag--media:hover {
 .trick-compressed-from {
   margin: var(--space-xs) 0 var(--space-md);
   font-size: 0.9em;
-  color: var(--earth-450);
+  color: var(--text-muted);
   line-height: 1.4;
 }
 .trick-compressed-from-label {
   font-weight: 600;
-  color: var(--earth-650);
+  color: var(--text);
 }
 .trick-compressed-from-reading {
   font-style: italic;
@@ -5745,7 +5178,7 @@ a.hashtag--media:hover {
 }
 .family-lineage-tier:last-child { border-bottom: none; }
 .family-lineage-tier-current {
-  background: rgba(34, 197, 94, 0.05);
+  background: var(--lineage-current-bg);
   border-radius: var(--radius-xs);
   padding-left: var(--space-sm);
 }
@@ -5847,22 +5280,22 @@ a.hashtag--media:hover {
    surfaces. Each role uses a tinted background + matching border. */
 .modifier-layer-set {
   border-color: var(--set-azure);
-  background: rgba(219, 234, 254, 0.42);
+  background: var(--modifier-layer-set-bg);
   color: var(--info-text);
 }
 .modifier-layer-rotation {
   border-color: var(--rotation-umber);
-  background: rgba(255, 237, 213, 0.55);
+  background: var(--modifier-layer-rotation-bg);
   color: var(--warn-text);
 }
 .modifier-layer-modifier {
   border-color: var(--modifier-gold);
-  background: rgba(254, 243, 199, 0.52);
+  background: var(--modifier-layer-modifier-bg);
   color: var(--medal-bronze);
 }
 .modifier-layer-core-family {
   border-color: var(--core-family-moss);
-  background: rgba(209, 250, 229, 0.65);
+  background: var(--modifier-layer-core-family-bg);
   color: var(--map-tier-6);
 }
 .modifier-layer-core-family .modifier-layer-name { font-weight: 800; }
@@ -5919,11 +5352,8 @@ a.hashtag--media:hover {
 }
 
 @media (max-width: 768px) {
-  .section-compact .content-section,
   .page-freestyle  .content-section { margin: var(--space-lg) 0; }
-  .section-compact .section-heading h2,
   .page-freestyle  .section-heading h2,
-  .section-compact h2.section-heading,
   .page-freestyle  h2.section-heading { font-size: 1.25rem; }
 }
 
@@ -5946,7 +5376,7 @@ a.hashtag--media:hover {
   background: var(--white);
   border-radius: var(--radius-md);
   margin: var(--space-md) 0;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.02);
+  box-shadow: var(--shadow-hairline);
 }
 .trick-shell .notation-display .section-heading,
 .trick-shell .operational-notation-display .section-heading,
@@ -5962,124 +5392,6 @@ a.hashtag--media:hover {
     margin: var(--space-md) 0;
     border-radius: var(--radius-sm);
   }
-}
-
-/* ─────────────────────────────────────────────────────────────────────────
-   Relationship intelligence panels: parallel tricks +
-   modifier substitutions. Renders below Related Tricks, above the Media
-   block. Compact lists; visually lighter than prose sections; no hashtags;
-   role-coloured swap tokens for the substitutions panel.
-   ───────────────────────────────────────────────────────────────────────── */
-
-.trick-parallels-list,
-.trick-substitutions-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-/* Parallels: one-line rows with name, ADD, and decomposition snippet. */
-.trick-parallels-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: baseline;
-  gap: var(--space-sm) var(--space-md);
-  padding: var(--space-sm) 0;
-  border-bottom: 1px dotted var(--border);
-}
-.trick-parallels-row:last-child { border-bottom: none; }
-.trick-parallels-name {
-  font-weight: 600;
-  text-decoration: none;
-  color: var(--text);
-}
-.trick-parallels-name:hover { text-decoration: underline; }
-.trick-parallels-adds {
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-  justify-self: end;
-}
-.trick-parallels-decomp {
-  grid-column: 1 / -1;
-  font-family: var(--font-body);
-  font-weight: 600;
-  font-size: 0.9rem;
-  color: var(--secondary);
-  letter-spacing: 0.01em;
-}
-
-/* Substitutions: two-row grid -- swap on top, result trick below. */
-.trick-substitutions-row {
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: var(--space-xs);
-  padding: var(--space-md) 0;
-  border-bottom: 1px dotted var(--border);
-}
-.trick-substitutions-row:last-child { border-bottom: none; }
-.trick-substitutions-swap {
-  font-family: var(--font-body);
-  color: var(--secondary);
-  font-weight: 600;
-  font-size: 1rem;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-sm);
-}
-.substitution-token {
-  padding: 1px var(--space-sm);
-  border-radius: var(--radius-xs);
-  font-weight: 600;
-  border-bottom: 2px solid transparent;
-}
-.substitution-arrow {
-  color: var(--text-muted);
-  font-weight: 500;
-  font-size: 0.9rem;
-}
-
-/* Role coloration for swap tokens, matching the hero decomposition strip
-   palette but on light backdrop. */
-.substitution-from-set, .substitution-to-set {
-  background: rgba(219, 234, 254, 0.55);
-  color: var(--info-text);
-  border-bottom-color: var(--set-azure);
-}
-.substitution-from-rotation, .substitution-to-rotation {
-  background: rgba(255, 237, 213, 0.65);
-  color: var(--warn-text);
-  border-bottom-color: var(--rotation-umber);
-}
-.substitution-from-modifier, .substitution-to-modifier {
-  background: rgba(254, 243, 199, 0.62);
-  color: var(--medal-bronze);
-  border-bottom-color: var(--modifier-gold);
-}
-
-.trick-substitutions-result {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-sm);
-}
-.trick-substitutions-name {
-  font-weight: 600;
-  text-decoration: none;
-  color: var(--text);
-}
-.trick-substitutions-name:hover { text-decoration: underline; }
-.trick-substitutions-adds {
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  font-variant-numeric: tabular-nums;
-}
-
-@media (max-width: 768px) {
-  .trick-parallels-row { padding: var(--space-sm) 0; }
-  .trick-parallels-decomp { font-size: 0.9rem; }
-  .trick-substitutions-row { padding: var(--space-sm) 0; }
-  .trick-substitutions-swap { font-size: 0.9rem; }
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -6114,23 +5426,7 @@ a.hashtag--media:hover {
   letter-spacing: 0.01em;
   text-decoration: none;
   white-space: nowrap;
-  /* Absolute, not a multiplier: the media chip steps its glyph up one size
-     and the pill must not grow with it, or the whole ribbon reflows. */
   line-height: 1.2rem;
-}
-
-/* Live state: the trick has media and this chip opens its gallery. A plain
-   .trick-hero-meta-chip (no --media) is a non-clickable identity token.
-   Steps up one size on top of the colour change, so the difference reads
-   without comparing it against a neighbouring chip. */
-a.trick-hero-meta-chip--media {
-  font-size: var(--hashtag-size-live);
-  color: var(--secondary);
-  font-weight: 600;
-}
-a.trick-hero-meta-chip--media:hover {
-  text-decoration: underline;
-  text-underline-offset: 2px;
 }
 
 .trick-hero-meta-chip-family {
@@ -6179,49 +5475,6 @@ a.trick-hero-meta-chip--media:hover {
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
-   Substitution inline-compact mode. Activates when
-   content.substitutions.length >= 3 (Matador's 4-row case + similar
-   1-modifier flagships). Collapses the per-substitution two-row layout
-   (swap on top, result below) into a single row: swap pills + bullet +
-   result name + ADD chip. 1-2 row panels (Mind Bender, Spender) keep
-   the existing two-row pedagogical format because pair-level emphasis
-   reads stronger at low counts.
-   ───────────────────────────────────────────────────────────────────────── */
-
-.trick-substitutions-compact .trick-substitutions-row {
-  grid-template-columns: 1fr;
-  align-items: baseline;
-  gap: 0;
-  padding: var(--space-sm) 0;
-}
-.trick-substitutions-compact .trick-substitutions-swap,
-.trick-substitutions-compact .trick-substitutions-result {
-  display: inline-flex;
-  align-items: baseline;
-}
-.trick-substitutions-compact .trick-substitutions-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-sm) var(--space-md);
-}
-.trick-substitutions-compact .trick-substitutions-result::before {
-  content: "\00b7";
-  margin-right: var(--space-xs);
-  color: var(--text-muted);
-  font-weight: 500;
-}
-.trick-substitutions-compact .trick-substitutions-swap {
-  font-size: 0.9rem;
-}
-
-@media (max-width: 768px) {
-  .trick-substitutions-compact .trick-substitutions-row {
-    padding: var(--space-xs) 0;
-    gap: var(--space-xs) var(--space-sm);
-  }
-}
-
-/* ─────────────────────────────────────────────────────────────────────────
  * Symbolic-layer styling (observational; visually subordinate to canonical)
  *
  * Used by:
@@ -6238,20 +5491,8 @@ a.trick-hero-meta-chip--media:hover {
  * `.related-tricks-list` etc.
  * ────────────────────────────────────────────────────────────────────── */
 
-/* Shared symbolic-card pattern: muted background + warm-tone left border.
- * Future symbolic surfaces should use this directly in HTML.
- * Existing surfaces (progression-step / confusion-card)
- * still ship their own rules with the same declarations;
- * HTML refactor to `.symbolic-card` is intentionally deferred. */
-.symbolic-card {
-  background: var(--parch-50);
-  border-left: 3px solid var(--border);
-  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
-}
-
 /* Shared ADD-value chip: used by every symbolic surface that surfaces ADD
  * counts next to a trick name, unifying their visual treatment. */
-.symbolic-adds-chip,
 .symbolic-walking-progression .step-adds,
 .symbolic-modifier-family .cross-base-adds {
   font-size: 0.9rem;
@@ -6427,7 +5668,8 @@ a.trick-hero-meta-chip--media:hover {
   color: var(--text);
   text-decoration: none;
 }
-.glossary-core-atom-name a:hover {
+.glossary-core-atom-name a:hover,
+.glossary-core-atom-name a:focus-visible {
   color: var(--primary-ink);
   text-decoration: underline;
 }
@@ -6445,34 +5687,6 @@ a.trick-hero-meta-chip--media:hover {
   margin: 0;
   font-size: 1rem;
   line-height: 1.5;
-}
-.glossary-core-atom-intuition {
-  margin: 0;
-  font-size: 0.9rem;
-  line-height: 1.5;
-  color: var(--text-muted);
-}
-.glossary-core-atom-intuition-label {
-  display: inline-block;
-  margin-right: var(--space-sm);
-  font-size: 0.9rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-muted);
-}
-.glossary-core-atom-foundational {
-  margin: 0;
-  font-size: 0.9rem;
-  font-style: italic;
-  color: var(--text-muted);
-}
-.glossary-core-atom-family-role {
-  margin: 0;
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  border-top: 1px dashed var(--border);
-  padding-top: var(--space-sm);
 }
 .glossary-core-atoms-tail {
   margin-top: var(--space-lg);
@@ -6518,9 +5732,17 @@ a.trick-hero-meta-chip--media:hover {
   height: auto;
   display: block;
 }
+/* The baseline, the bag's arc and its beats (the peak beat darker), then the
+   beat labels and the italic motion notes under them. */
+.glossary-timing-clock line { stroke: var(--gray-500); }
+.glossary-timing-clock path { stroke: var(--set-moss); }
+.glossary-timing-clock circle { fill: var(--set-moss); }
+.glossary-timing-clock circle:nth-of-type(3) { fill: var(--fern-500); }
+.glossary-timing-clock g:first-of-type { fill: var(--text); }
+.glossary-timing-clock g:last-of-type { fill: var(--text-muted); }
 .glossary-timing-clock-caption {
   font-size: 0.9rem;
-  color: var(--earth-450);
+  color: var(--text-muted);
   margin-top: var(--space-sm);
   line-height: 1.45;
 }
@@ -6684,38 +5906,6 @@ a.trick-hero-meta-chip--media:hover {
   color: var(--earth-gold);
 }
 
-/* §8 ADD-accounting weight tables. Compact tabular reference for atom
-   + modifier weights. Restraint-first: no heavy borders, alternating
-   row backgrounds for scanability. */
-.glossary-add-weight-table-wrap {
-  margin: var(--space-sm) 0 var(--space-lg) 0;
-  overflow-x: auto;
-}
-.glossary-add-weight-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.9rem;
-}
-.glossary-add-weight-table thead th {
-  text-align: left;
-  font-size: 0.9rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: var(--earth-gold);
-  text-transform: uppercase;
-  padding: var(--space-xs) var(--space-md);
-  border-bottom: 1px solid var(--parch-450);
-}
-.glossary-add-weight-table tbody td {
-  padding: var(--space-xs) var(--space-md);
-  border-bottom: 1px dashed var(--parch-300);
-  color: var(--earth-750);
-  font-variant-numeric: tabular-nums;
-}
-.glossary-add-weight-table tbody tr:nth-child(even) {
-  background: var(--parch-50);
-}
-
 /* §8 ADD worked-example cards. Compact bordered cards with status chip,
    3-row labeled fields, optional collapsed observational note. */
 .glossary-add-examples-grid {
@@ -6813,7 +6003,7 @@ a.trick-hero-meta-chip--media:hover {
   padding-left: var(--space-xl);
   font-size: 0.9rem;
   line-height: 1.5;
-  color: var(--earth-750);
+  color: var(--text);
 }
 .glossary-run-architecture-topics li {
   margin: var(--space-xs) 0;
@@ -6908,7 +6098,6 @@ a.trick-hero-meta-chip--media:hover {
   color: var(--gray-800);
   letter-spacing: 0.01em;
 }
-.glossary-modifier-card-glyph,
 .glossary-modifier-card-tag {
   display: inline-block;
   font-size: 0.9rem;
@@ -6986,7 +6175,7 @@ a.trick-hero-meta-chip--media:hover {
 .symbolic-walking-progression .progression-intro {
   font-size: 1rem;
   line-height: 1.55;
-  color: var(--earth-700);
+  color: var(--text);
   margin-bottom: var(--space-xl);
 }
 .symbolic-walking-progression .progression-chain {
@@ -6998,7 +6187,7 @@ a.trick-hero-meta-chip--media:hover {
   gap: var(--space-lg);
 }
 .symbolic-walking-progression .progression-step {
-  background: var(--parch-50);
+  background: var(--bg-light);
   border-left: 3px solid var(--border);
   border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
   padding: var(--space-lg);
@@ -7006,7 +6195,6 @@ a.trick-hero-meta-chip--media:hover {
 }
 .symbolic-walking-progression .progression-step.is-anchor {
   border-left-color: var(--secondary);
-  background: var(--parch-100);
 }
 .symbolic-walking-progression .step-header {
   display: flex;
@@ -7031,7 +6219,7 @@ a.trick-hero-meta-chip--media:hover {
 .symbolic-walking-progression .step-name {
   font-size: 1rem;
   font-weight: 600;
-  color: var(--earth-800);
+  color: var(--text);
 }
 .symbolic-walking-progression .step-adds {
   background: var(--parch-200);
@@ -7048,7 +6236,7 @@ a.trick-hero-meta-chip--media:hover {
 .symbolic-walking-progression .step-rationale {
   font-size: 0.9rem;
   line-height: 1.5;
-  color: var(--earth-700);
+  color: var(--text);
   margin: 0;
 }
 .symbolic-walking-progression .step-symbolic {
@@ -7063,11 +6251,6 @@ a.trick-hero-meta-chip--media:hover {
   margin-bottom: 0;
   color: var(--text-muted);
 }
-.symbolic-walking-progression .step-glossary-links a {
-  color: var(--earth-500);
-  text-decoration: underline dotted;
-}
-
 @media (max-width: 768px) {
   .symbolic-walking-progression .step-header {
     flex-direction: column;
@@ -7103,7 +6286,7 @@ a.trick-hero-meta-chip--media:hover {
 }
 .modifier-subtitle {
   font-size: 1rem;
-  color: var(--earth-700);
+  color: var(--text);
   font-style: italic;
   margin: var(--space-xs) 0 var(--space-xl) 0;
   line-height: 1.5;
@@ -7139,7 +6322,7 @@ a.trick-hero-meta-chip--media:hover {
 }
 .symbolic-modifier-family .cross-base-name {
   font-weight: 600;
-  color: var(--earth-800);
+  color: var(--text);
 }
 .symbolic-modifier-family .cross-base-base {
   color: var(--text-muted);
@@ -7158,7 +6341,7 @@ a.trick-hero-meta-chip--media:hover {
 .symbolic-modifier-family .cross-base-prose {
   font-size: 0.9rem;
   line-height: 1.5;
-  color: var(--earth-700);
+  color: var(--text);
   margin: var(--space-xs) 0 0 0;
 }
 .symbolic-modifier-family .related-modifiers-list {
@@ -7171,11 +6354,11 @@ a.trick-hero-meta-chip--media:hover {
   padding: var(--space-sm) 0;
   font-size: 0.9rem;
   line-height: 1.5;
-  color: var(--earth-700);
+  color: var(--text);
 }
 .symbolic-modifier-family .related-modifiers-list .related-name {
   font-weight: 600;
-  color: var(--earth-800);
+  color: var(--text);
 }
 
 /* Intro line of an observational Concepts section. */
@@ -7197,7 +6380,7 @@ a.trick-hero-meta-chip--media:hover {
 .symbolic-learn-index .learn-intro {
   font-size: 1rem;
   line-height: 1.55;
-  color: var(--earth-700);
+  color: var(--text);
   margin: 0 0 var(--space-2xl) 0;
 }
 .learn-foundational-path {
@@ -7341,12 +6524,9 @@ a.trick-hero-meta-chip--media:hover {
   flex-direction: column;
   gap: var(--space-xs);
 }
-.symbolic-crosslinks a {
-  color: var(--earth-700);
-  text-decoration: underline dotted;
-  font-size: 0.9rem;
-}
-.symbolic-crosslinks a:hover { text-decoration: underline solid; }
+/* A navigation strip: its links rest without an underline and take the site
+   link's hover and focus underline. */
+.symbolic-crosslinks a { font-size: 0.9rem; }
 
 /* ─────────────────────────────────────────────────────────────────────────
  * Operator Board (OP-BOARD-1).
@@ -7395,12 +6575,6 @@ a.trick-hero-meta-chip--media:hover {
   font-weight: 600;
   margin: 0 0 var(--space-xs) 0;
   color: var(--surface-dark);
-}
-.operator-tier-intro {
-  color: var(--text);
-  font-size: 1rem;
-  margin: 0 0 var(--space-lg) 0;
-  font-style: italic;
 }
 
 .operator-grid {
@@ -7546,12 +6720,6 @@ a.trick-hero-meta-chip--media:hover {
 .equivalent-reading-token {
   /* Plain tokens render as the surrounding italic-serif span (no extra style). */
 }
-.equivalent-readings-source {
-  font-size: 0.9rem;
-  font-style: italic;
-  color: var(--text-muted);
-  margin: var(--space-sm) 0 0 0;
-}
 
 .semantic-base-lineage {
   padding: 0;
@@ -7563,15 +6731,6 @@ a.trick-hero-meta-chip--media:hover {
   font-style: italic;
   color: var(--gray-700);
   margin: var(--space-xs) 0;
-}
-.semantic-base-lineage-phrase a {
-  color: var(--steel-500);
-  text-decoration: none;
-  border-bottom: 1px dotted var(--gray-500);
-}
-.semantic-base-lineage-phrase a:hover,
-.semantic-base-lineage-phrase a:focus-visible {
-  border-bottom: 1px solid var(--steel-500);
 }
 
 .semantic-notation-pending {
@@ -7596,11 +6755,6 @@ a.trick-hero-meta-chip--media:hover {
   font-size: 0.9rem;
   line-height: 1.5;
   color: var(--earth-650);
-}
-.freestyle-observational .observational-canonical-refs {
-  margin: 0 0 var(--space-2xl) 0;
-  font-size: 0.9rem;
-  color: var(--text-muted);
 }
 /* Observed-tricks compact-card pattern (A2/A3/A4 redesign).
  * 2-line default visible per card; <details> expansion for additional
@@ -7649,17 +6803,6 @@ a.trick-hero-meta-chip--media:hover {
 .observed-card-source-badge--FF { background: var(--slate-300); color: var(--steel-600); }
 .observed-card-source-badge--FB { background: var(--parch-350); color: var(--earth-bronze); }   /* footbag.org */
 .observed-card-source-badge--OTHER { background: var(--gray-300); color: var(--gray-700); }
-.observed-card-status-chip {
-  display: inline-block;
-  padding: 1px var(--space-sm);
-  border-radius: var(--radius-2xs);
-  font-size: 0.9rem;
-  font-weight: 500;
-  flex: 0 0 auto;
-}
-.observed-card-status-chip--neutral { background: var(--parch-100); color: var(--earth-550); }
-.observed-card-status-chip--accent  { background: var(--pending-umber); color: var(--earth-bronze); }
-.observed-card-status-chip--muted   { background: var(--border); color: var(--text-muted); }
 
 .observed-card-meta {
   margin: var(--space-xs) 0 0 0;
@@ -7669,17 +6812,6 @@ a.trick-hero-meta-chip--media:hover {
   gap: var(--space-sm);
   font-size: 0.9rem;
   color: var(--earth-650);
-}
-.observed-card-reading {
-  flex: 1 1 auto;
-  min-width: 0;
-}
-.observed-card-external-claim {
-  flex: 0 0 auto;
-  color: var(--gray-600);
-  font-variant-numeric: tabular-nums;
-  font-size: 0.9rem;
-  font-style: italic;
 }
 .observed-card-equiv-sigil {
   color: var(--text-muted);
@@ -7702,12 +6834,6 @@ a.trick-hero-meta-chip--media:hover {
   font-size: 0.9rem;
   color: var(--earth-gold);
 }
-.observed-card-detail-readings {
-  margin: var(--space-xs) 0;
-  padding-left: var(--space-lg);
-  font-size: 0.9rem;
-}
-.observed-card-detail-readings li { margin: var(--space-xs) 0; }
 .observed-card-detail-formula {
   margin: var(--space-sm) 0;
 }
@@ -7720,15 +6846,6 @@ a.trick-hero-meta-chip--media:hover {
 .observed-card-detail-note {
   margin: var(--space-xs) 0;
   font-style: italic;
-}
-.observed-card-detail-blockers {
-  margin: var(--space-xs) 0;
-  color: var(--blockers-brick);
-}
-.observed-card-detail-source {
-  margin: var(--space-sm) 0 0 0;
-  font-size: 0.9rem;
-  color: var(--text-muted);
 }
 
 .observational-empty-state {
@@ -7747,11 +6864,6 @@ a.trick-hero-meta-chip--media:hover {
 
 /* Tracked-vocabulary section: the broader documented-but-unpublished
    name list, grouped by source, on /freestyle/observational. */
-.observational-tracked {
-  margin-top: var(--space-2xl);
-  padding-top: var(--space-xl);
-  border-top: 2px solid var(--border);
-}
 .observational-tracked-list {
   margin: var(--space-sm) 0 var(--space-xl) 0;
   padding-left: 0;
@@ -7780,13 +6892,6 @@ a.trick-hero-meta-chip--media:hover {
   line-height: 1.5;
   color: var(--gray-800);
 }
-.observational-tracked-formula {
-  color: var(--text-muted);
-}
-.observational-tracked-formula code {
-  font-size: 0.9rem;
-  color: var(--earth-500);
-}
 
 /* ── Emerging Vocabulary v2 governance surface ────────────────────────── */
 .observed-section {
@@ -7794,7 +6899,7 @@ a.trick-hero-meta-chip--media:hover {
 }
 .observed-section-intro {
   font-size: 0.9rem;
-  color: var(--earth-550);
+  color: var(--text);
   margin: var(--space-xs) 0 var(--space-md) 0;
 }
 .observed-decision-question {
@@ -7836,10 +6941,10 @@ a.trick-hero-meta-chip--media:hover {
 .observed-eco-heading {
   font-size: 1rem;
   font-weight: 600;
-  color: var(--earth-650);
+  color: var(--text);
   margin: var(--space-md) 0 var(--space-sm) 0;
   padding-bottom: var(--space-xs);
-  border-bottom: 1px solid var(--parch-300);
+  border-bottom: 1px solid var(--border);
 }
 /* Provisional ADD chip on cards */
 .observed-add {
@@ -7860,33 +6965,6 @@ a.trick-hero-meta-chip--media:hover {
   flex-wrap: wrap;
   justify-content: flex-start;
 }
-/* Doctrine bottleneck clusters */
-.observed-cluster-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-  gap: var(--space-md);
-}
-.observed-cluster {
-  padding: var(--space-md);
-  background: var(--danger-bg);
-  border: 1px solid var(--parch-450);
-  border-radius: var(--radius-xs);
-}
-.observed-cluster-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-sm);
-}
-.observed-cluster-head h3 { margin: 0; font-size: 1rem; color: var(--blocked-brick); }
-.observed-cluster-count {
-  font-weight: 700;
-  font-size: 1.25rem;
-  color: var(--blocked-brick);
-  font-variant-numeric: tabular-nums;
-}
-.observed-cluster-q { margin: var(--space-xs) 0; font-size: 0.9rem; color: var(--earth-550); }
-.observed-cluster-samples { margin: var(--space-xs) 0 0 0; font-size: 0.9rem; }
 /* Full-list disclosure (folk / parser sections) */
 .observed-fulllist { margin: var(--space-md) 0; }
 .observed-fulllist-summary {
@@ -7905,7 +6983,6 @@ a.trick-hero-meta-chip--media:hover {
 }
 @media (max-width: 480px) {
   .observed-card-grid { grid-template-columns: 1fr; }
-  .observed-cluster-grid { grid-template-columns: 1fr; }
   .observed-fulllist-grid { columns: 1; }
 }
 
@@ -7940,30 +7017,6 @@ a.trick-hero-meta-chip--media:hover {
   color: var(--text-muted);
   margin-left: var(--space-xs);
 }
-.passback-add-disagreement-table {
-  width: 100%;
-  margin-top: var(--space-md);
-  border-collapse: collapse;
-  font-size: 0.9rem;
-}
-.passback-add-disagreement-table th,
-.passback-add-disagreement-table td {
-  padding: var(--space-sm);
-  text-align: left;
-  border-bottom: 1px solid var(--gray-200);
-  vertical-align: top;
-}
-.passback-add-disagreement-table th {
-  background: var(--parch-50);
-  font-weight: 600;
-  color: var(--gray-700);
-}
-.passback-add-claim-cell {
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-  color: var(--muted-gold);
-  font-weight: 600;
-}
 .passback-add-no-formula,
 .passback-add-no-note {
   color: var(--text-muted);
@@ -7972,38 +7025,10 @@ a.trick-hero-meta-chip--media:hover {
 }
 
 /* Canonical formula resolution: settled +1-stack reference */
-.resolved-formulas-table {
-  width: 100%;
-  margin-top: var(--space-sm);
-  border-collapse: collapse;
-  font-size: 0.9rem;
-}
-.resolved-formulas-table th,
-.resolved-formulas-table td {
-  padding: var(--space-sm) var(--space-md);
-  text-align: left;
-  border-bottom: 1px solid var(--gray-200);
-  vertical-align: top;
-}
-.resolved-formulas-table th {
-  background: var(--gray-100);
-  font-weight: 600;
-  color: var(--fern-600);
-}
 .resolved-formula-derivation {
   background: var(--bg-light);
   padding: var(--space-xs) var(--space-sm);
   border-radius: var(--radius-2xs);
-  font-size: 0.9rem;
-}
-.resolved-formula-add {
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-  color: var(--fern-600);
-  font-weight: 600;
-}
-.resolved-formula-provenance {
-  color: var(--gray-700);
   font-size: 0.9rem;
 }
 
@@ -8048,10 +7073,10 @@ a.trick-hero-meta-chip--media:hover {
 }
 .glossary-operator-decomposition-label {
   font-weight: 600;
-  color: var(--steel-500);
+  color: var(--text-muted);
 }
 .glossary-operator-pending-note {
-  color: var(--earth-500);
+  color: var(--text-muted);
   font-style: italic;
   font-size: 0.9rem;
 }
@@ -8213,26 +7238,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   word-break: normal;
   overflow-wrap: break-word;
 }
-.dict-trick-row-pending-value {
-  font-style: italic;
-  color: var(--text-muted);
-}
-/* Status badge for an adjudicated canonical trick whose JOB notation is not
-   yet authored. Shown in place of the JOB value on browse rows + first-class
-   cards. Muted, uppercase, small, non-alarming. */
-.dict-badge-incomplete {
-  display: inline-block;
-  padding: 1px var(--space-sm);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xs);
-  background: var(--sec-bg);
-  color: var(--text-muted);
-  font-size: 0.9rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  vertical-align: middle;
-}
 .dict-trick-row-placeholder-note {
   margin: var(--space-xs) 0 0;
   font-size: 0.9rem;
@@ -8245,11 +7250,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   margin: var(--space-xs) 0 var(--space-md) 0;
   font-size: 0.9rem;
 }
-.trick-family-cross-link a {
-  color: var(--earth-500);
-  text-decoration: underline dotted;
-}
-.trick-family-cross-link a:hover { text-decoration: underline solid; }
 
 /* Family-level shared-terminal-structure invariant.
  * Subdued single line under the family heading; sits
@@ -8291,7 +7291,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   font-family: var(--font-body);
   font-weight: 600;
   font-size: 0.9rem;
-  background: var(--parch-75);
+  background: var(--glossary-inline-notation-bg);
   padding: 1px var(--space-sm);
   border-radius: var(--radius-2xs);
   color: var(--secondary);
@@ -8326,7 +7326,8 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   font-weight: 600;
   padding: var(--space-xs);
 }
-.jump-bar a:hover { text-decoration: underline; }
+.jump-bar a:hover,
+.jump-bar a:focus-visible { text-decoration: underline; }
 .jump-bar-label { color: var(--text-muted); font-weight: 600; margin-right: var(--space-xs); }
 .jump-bar-label--branch,
 .jump-bar-label--minor { margin-left: var(--space-md); }
@@ -8358,43 +7359,13 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   .jump-bar { font-size: 0.9rem; }
 }
 
-/* ── Freestyle landing: The Language of Freestyle Footbag ──────────
-   Three structured surfaces sit between the hero/intro and the existing
-   competition / operator-board sections:
-     1. .freestyle-language-intro: short lede + optional demo loop.
-     2. .freestyle-basic-components: Contact / Set / Dex / Spin / Duck / Delay.
-     3. .freestyle-core-tricks: twelve compact symbolic objects.
-   And one curated strip below the operator board:
-     4. .freestyle-demonstrations: five conceptual curation slots.
-   Visual feel target: elegant, compositional, symbolic, alive.
-   Anti-targets: tabular, database-like, sterile. ────────────────── */
+/* ── Freestyle landing: The Language of Freestyle Footbag ────────── */
 
-/* Shared section eyebrow + sub-line ----------------------------------- */
-.freestyle-section-eyebrow {
-  font-family: var(--font-body);
-  font-size: 0.9rem;
-  font-weight: 700;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  color: var(--secondary);
-  margin: 0 0 var(--space-sm) 0;
-}
+/* Section sub-line ------------------------------------------------------ */
 .freestyle-section-sub {
   font-size: 1rem;
   color: var(--text-muted);
   margin: 0 0 var(--space-lg) 0;
-}
-
-/* Density cleanup for the teaching block -------
- * The three teaching sections (Basic Components, Operator Board, Core
- * Tricks) sit between Featured and Get Started post-Reading-A. Tighten
- * their vertical rhythm relative to the base .content-section spacing
- * so the teaching block reads as a single dense unit rather than three
- * widely-spaced sections. */
-.freestyle-basic-components,
-.freestyle-core-tricks {
-  margin-top: var(--space-xl);
-  margin-bottom: var(--space-2xl);
 }
 
 /* Portal lede (replaces the prior language-intro section). */
@@ -8405,43 +7376,10 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   color: var(--text);
 }
 
-/* Basic Components grid ------------------------------------------------- */
-.freestyle-basic-components-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  /* Tighter inter-card gap for a denser layout. */
-  gap: var(--space-lg) var(--space-xl);
-}
-.freestyle-component-card {
-  /* Tighter card padding for a denser layout. */
-  padding: var(--space-lg) var(--space-lg) var(--space-md) var(--space-lg);
-  border-left: 3px solid var(--secondary);
-  background: transparent;
-}
-.freestyle-component-name {
-  font-size: 1.25rem;
-  font-weight: 700;
-  margin: 0 0 var(--space-sm) 0;
-  color: var(--text);
-}
-.freestyle-component-desc {
-  font-size: 0.9rem;
-  line-height: 1.5;
-  color: var(--text);
-  margin: 0 0 var(--space-md) 0;
-}
-.freestyle-subfield-value {
-  font-style: italic;
-}
-.freestyle-subfield-sep {
-  color: var(--text-muted);
-  margin: 0 var(--space-xs);
-}
-
 /* Core Tricks: compact symbolic objects ------------------------------- */
 /* ── Symbolic objects: the universal language-token primitive ────────
-   Renders identically across landing Core Tricks grid,
-   glossary compression-flow, and dictionary browse cards.
+   Renders identically across landing Core Tricks grid and dictionary
+   browse cards.
 
    Hierarchy: #slug > ≡ equivalence > notation > ADD.
    Containment: typography + whitespace + grid gap only; no borders,
@@ -8540,11 +7478,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   padding: 1px var(--space-sm);
   /* No outline on pending: the visual absence signals "pending" honestly. */
 }
-.core-trick-footnote {
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  margin: var(--space-lg) 0 0 0;
-}
 
 /* Featured strip (merged competition formats + demonstrations) ---------
    One compact grid carrying both competition formats and demonstrations.
@@ -8582,42 +7515,14 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   color: var(--text-muted);
   margin: var(--space-xs) 0 0 0;
 }
-/* Top reference jump ---------------------------
-   Compact top-of-page shortcuts to the two core reference surfaces.
-   Sits immediately after the hero, before the in-page section jump-nav. */
-.freestyle-top-reference-jump {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-md);
-  padding: var(--space-md) 0 var(--space-sm) 0;
-  margin: 0 0 var(--space-xs) 0;
-}
-.freestyle-top-reference-link {
-  display: inline-block;
-  padding: var(--space-sm) var(--space-lg);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-xs);
-  background: var(--parch-75);
-  color: var(--secondary);
-  font-size: 0.9rem;
-  text-decoration: none;
-  letter-spacing: 0.01em;
-}
-.freestyle-top-reference-link:hover,
-.freestyle-top-reference-link:focus-visible {
-  background: var(--parch-200);
-  color: var(--gray-800);
-}
 
 /* Narrow viewports ------------------------------------------------------ */
 @media (max-width: 480px) {
-  .freestyle-basic-components-grid,
   .freestyle-core-trick-grid,
   .freestyle-featured-grid {
     grid-template-columns: 1fr;
     gap: var(--space-lg);
   }
-  .freestyle-component-card,
   .featured-card {
     padding: var(--space-lg) var(--space-lg) var(--space-md) var(--space-lg);
   }
@@ -8648,59 +7553,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
     font-size: 0.9rem;
     padding: 0 var(--space-sm);
   }
-}
-
-/* ── Glossary §3: symbolic-compression flow ──────────────────────────
-   Vertical stack of three .core-trick-object cards demonstrating the
-   torque/mobius compositional progression. Visual rhythm matches the
-   landing-page Core Tricks grid; this is the worked example for the
-   symbolic-object rendering rule. ───────────────────────────────────────── */
-.glossary-compression-flow {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  /* Tight 2px gap and trimmed outer margins for a more compact vertical
-     rhythm. The arrow + card pairs
-     should feel like one continuous flow, not a stack of separated cells. */
-  gap: var(--space-xs);
-  max-width: 480px;
-  margin: var(--space-md) auto;
-}
-.glossary-compression-card {
-  width: 100%;
-  max-width: 380px;
-  /* Tighter internal padding so each step reads as one compact
-     symbolic object rather than a tall card. */
-  padding: var(--space-sm) var(--space-md);
-}
-.glossary-compression-arrow {
-  font-family: var(--font-body);
-  font-weight: 600;
-  font-size: 0.9rem;
-  color: var(--secondary);
-  margin: 0;
-  line-height: 1;
-  letter-spacing: 0.25em;
-}
-.glossary-compression-note {
-  font-size: 0.9rem;
-  line-height: 1.55;
-  color: var(--text-muted);
-  max-width: 640px;
-  margin: var(--space-lg) auto 0 auto;
-  text-align: center;
-}
-
-/* Tokenized ≡ readings inside
-   the symbolic-compression flow. The notation-token classes already carry
-   role-specific color cues via the §8 notation-display rules; here we just
-   tighten line spacing so the readings read as compact symbolic objects. */
-.glossary-compression-reading {
-  font-family: var(--font-body);
-  font-size: 0.9rem;
-}
-.glossary-compression-reading .notation-token {
-  padding: 0 var(--space-xs);
 }
 
 /* Set-modifier registry grid (glossary §10). One tile per
@@ -8782,7 +7634,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   }
 }
 
-/* ── Glossary §8: thesis sentence + section bridge ─────────────────────
+/* ── Glossary §8: thesis sentence ──────────────────────────────────────
    Typography-led emphasis: italic serif + thin primary rule. No fill,
    no radius; the typography carries the lead role. */
 .glossary-thesis {
@@ -8793,22 +7645,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   border-left: 2px solid var(--primary);
   padding: var(--space-xs) 0 var(--space-xs) var(--space-lg);
   margin: 0 0 var(--space-lg) 0;
-}
-.glossary-section-bridge {
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  margin-top: var(--space-lg);
-  padding-top: var(--space-md);
-  border-top: 1px dashed var(--border);
-}
-
-/* ── Glossary PassBack source attribution ────────────────────────────── */
-.glossary-source-attrib {
-  display: inline-block;
-  margin-left: var(--space-xs);
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  font-style: italic;
 }
 
 /* ── Glossary §3: Execution Mechanics, PassBack-adapted concepts ────── */
@@ -8839,33 +7675,9 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   color: var(--secondary);
 }
 
-/* ── Glossary §9: semantic-vs-operational contrast table ─────────────── */
-.glossary-layer-contrast {
-  width: 100%;
-  max-width: 880px;
-  margin: var(--space-sm) 0 var(--space-lg) 0;
-  border-collapse: collapse;
-  font-size: 0.9rem;
-}
-.glossary-layer-contrast th,
-.glossary-layer-contrast td {
-  padding: var(--space-md) var(--space-lg);
-  text-align: left;
-  vertical-align: top;
-  border-bottom: 1px solid var(--border);
-}
-.glossary-layer-contrast thead th {
-  font-size: 0.9rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--secondary);
-  border-bottom: 2px solid var(--primary);
-}
-.glossary-layer-contrast td:first-child {
-  width: 22%;
-  white-space: nowrap;
-}
+/* ── Glossary §9: semantic-vs-operational contrast table ───────────────
+   A .data-table; its example cells carry inline notation, which takes the
+   notation treatment. */
 .glossary-layer-contrast code {
   font-family: var(--font-body);
   color: var(--secondary);
@@ -8952,31 +7764,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 }
 
 /* §9 compression-ladder vs alternate-derivation subsection (equivalence
-   topology). Compact distinctions table + worked-example list. */
-.glossary-equivalence-distinctions {
-  margin: var(--space-sm) 0 var(--space-lg);
-  border-collapse: collapse;
-  width: 100%;
-  max-width: 720px;
-  font-size: 1rem;
-}
-.glossary-equivalence-distinctions th,
-.glossary-equivalence-distinctions td {
-  text-align: left;
-  padding: var(--space-sm) var(--space-md);
-  border-bottom: 1px solid var(--border);
-  vertical-align: top;
-}
-.glossary-equivalence-distinctions th {
-  font-weight: 600;
-  background: var(--parch-100);
-  color: var(--text);
-}
-.glossary-equivalence-distinctions td:first-child {
-  font-weight: 500;
-  white-space: nowrap;
-  width: 30%;
-}
+   topology): the worked-example list under the distinctions table. */
 .glossary-equivalence-worked-heading {
   margin-top: var(--space-lg);
   font-size: 1rem;
@@ -8997,10 +7785,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   margin-left: var(--space-sm);
 }
 @media (max-width: 480px) {
-  .glossary-equivalence-distinctions td:first-child {
-    white-space: normal;
-    width: auto;
-  }
   .glossary-equivalence-worked-example em {
     display: block;
     margin-left: 0;
@@ -9033,7 +7817,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   color: var(--text-muted);
 }
 .trick-family-anchor-invariant code {
-  background: var(--parch-250);
+  background: var(--glossary-inline-notation-bg);
   padding: var(--space-xs) var(--space-sm);
   border-radius: var(--radius-2xs);
   font-size: 1em;
@@ -9093,10 +7877,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 
 .glossary-family-card-outward {
   margin: var(--space-md) 0 0;
-  text-align: right;
-}
-.derivation-panel-outward {
-  margin: var(--space-sm) 0 0;
   text-align: right;
 }
 
@@ -9170,39 +7950,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 /* The browser's own "smaller" would take a superscript under the type ramp's
    floor once the phone step has shrunk the formula to it. */
 .glossary-generative-formula sup { font-size: 0.9rem; }
-
-/* Additional compact symbolic blocks. */
-
-/* §5 root-vs-branch family-kinds list */
-.glossary-family-kinds {
-  list-style: disc;
-  padding-left: var(--space-xl);
-  margin: var(--space-md) 0 var(--space-md);
-}
-.glossary-family-kinds li {
-  margin-bottom: var(--space-md);
-  line-height: 1.55;
-}
-
-/* §5 sibling-pair list: visually tight, side-by-side mirror form */
-.glossary-family-sibling-pair {
-  list-style: none;
-  padding: 0;
-  margin: var(--space-sm) 0 var(--space-md);
-}
-.glossary-family-sibling-pair li {
-  margin: var(--space-xs) 0;
-  font-size: 1rem;
-}
-.glossary-family-sibling-pair code {
-  font-family: var(--font-body);
-  font-weight: 600;
-  font-size: 0.9rem;
-  background: var(--parch-75);
-  padding: 1px var(--space-sm);
-  border-radius: var(--radius-2xs);
-  color: var(--secondary);
-}
 
 /* §6 body-cluster axis label appended to the heading */
 .glossary-modifier-cluster-axes {
@@ -9295,25 +8042,10 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 .add-analysis-page .page-philosophy {
   margin: var(--space-md) 0 0 0;
   font-size: 1rem;
-  color: var(--earth-600);
+  color: var(--text);
   line-height: 1.55;
   padding-left: var(--space-md);
   border-left: 3px solid var(--border);
-}
-.add-analysis-components th,
-.add-analysis-components td {
-  padding: var(--space-sm) var(--space-md);
-  text-align: left;
-  vertical-align: top;
-  font-size: 0.9rem;
-}
-.add-analysis-components th {
-  font-weight: 600;
-  color: var(--earth-800);
-  border-bottom: 1px solid var(--parch-400);
-}
-.add-analysis-components tbody tr + tr td {
-  border-top: 1px solid var(--parch-150);
 }
 .add-analysis-callout {
   margin: var(--space-md) 0;
@@ -9388,7 +8120,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 .add-analysis-add-label,
 .add-analysis-delta {
   font-weight: 400;
-  color: var(--earth-500);
+  color: var(--text-muted);
 }
 .add-analysis-components-line,
 .add-analysis-why-line {
@@ -9407,7 +8139,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 }
 .add-analysis-case-detail dt {
   font-weight: 600;
-  color: var(--earth-600);
+  color: var(--text);
 }
 .add-analysis-case-detail dd {
   margin: 0;
@@ -9455,32 +8187,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
    Educational sequence-level surface. Mirrors the ADD Analysis styling
    pattern; same primitives, same callout/list/example aesthetics.
    ──────────────────────────────────────────────────────────────────────── */
-
-.combo-analysis-page .page-intro {
-  font-size: 1rem;
-  color: var(--text);
-}
-
-.combo-analysis-run-quality {
-  width: 100%;
-  border-collapse: collapse;
-  margin: var(--space-lg) 0;
-  font-size: 1rem;
-}
-.combo-analysis-run-quality th,
-.combo-analysis-run-quality td {
-  padding: var(--space-sm) var(--space-md);
-  text-align: left;
-  vertical-align: top;
-  border-bottom: 1px solid var(--gray-200);
-}
-.combo-analysis-run-quality th {
-  background: var(--gray-50);
-  font-weight: 600;
-}
-.combo-analysis-run-quality tbody tr:hover {
-  background: var(--surface-faint);
-}
 
 .combo-analysis-architecture-list,
 .combo-analysis-topology-list {
@@ -9582,13 +8288,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 }
 
 @media (max-width: 480px) {
-  .combo-analysis-run-quality {
-    font-size: 0.9rem;
-  }
-  .combo-analysis-run-quality th,
-  .combo-analysis-run-quality td {
-    padding: var(--space-sm);
-  }
   .combo-analysis-worked-example {
     padding: var(--space-md);
   }
@@ -9597,24 +8296,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   }
 }
 
-/* ── /freestyle/derivation-pilot: derivation primitives ───────────────
- * Standalone preview surface for the derivation-first compositional atlas.
- * Five
- * primitives: derivation panel, semantic-depth ladder, compression card,
- * equivalence chain, doctrine note.
- *
- * Restraint contract:
- *   - 4-color budget preserved (no new role colors).
- *   - Text-mode rendering only; no AST visuals, no tree drawings.
- *   - Plain typographic hierarchy; depth via indentation and font weight,
- *     not via color.
- *   - <details> for expansion only; no JS interaction.
- */
-
-.freestyle-derivation-pilot {
-  max-width: 880px;
-}
-
+/* ── Concepts: derivation atlas heading ─────────────────────────────── */
 .glossary-derivation-atlas-heading {
   margin-top: var(--space-2xl);
 }
@@ -9623,474 +8305,10 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   font-style: italic;
   margin-bottom: var(--space-lg);
 }
-.glossary-derivation-atlas {
-  margin-bottom: var(--space-md);
-}
-
-.derivation-pilot-intro {
-  margin-bottom: var(--space-2xl);
-}
-
-.derivation-pilot-source-legend {
-  list-style: none;
-  padding: 0;
-  margin: var(--space-lg) 0 0 0;
-  display: grid;
-  gap: var(--space-sm);
-}
-.derivation-pilot-source-legend-row {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-md);
-  font-size: 0.9rem;
-}
-.derivation-pilot-source-legend-desc {
-  color: var(--gray-700);
-}
-
-.derivation-pilot-section-intro {
-  color: var(--gray-700);
-  font-style: italic;
-  margin-bottom: var(--space-xl);
-}
-
-/* ── Derivation panel ─────────────────────────────────────────────────── */
-
-.derivation-panel {
-  border: 1px solid var(--parch-400);
-  border-radius: var(--radius-sm);
-  padding: var(--space-lg);
-  margin: 0 0 var(--space-lg) 0;
-  background: var(--bg);
-}
-.derivation-panel-head {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-md);
-  flex-wrap: wrap;
-  border-bottom: 1px solid var(--parch-250);
-  padding-bottom: var(--space-sm);
-  margin-bottom: var(--space-sm);
-}
-.derivation-panel-title {
-  font-family: var(--font-body);
-  font-size: 1.5rem;
-  font-weight: 600;
-  color: var(--steel-700);
-  margin: 0;
-  letter-spacing: 0.01em;
-}
-.derivation-panel-kind-chip {
-  font-size: 0.9rem;
-  font-weight: 500;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  padding: var(--space-xs) var(--space-sm);
-  border-radius: var(--radius-2xs);
-  background: var(--parch-250);
-  color: var(--steel-500);
-}
-.derivation-panel-kind-chip--modifier    { background: var(--parch-150); color: var(--historical-gold); }
-.derivation-panel-kind-chip--trick       { background: var(--gray-250); color: var(--steel-600); }
-.derivation-panel-kind-chip--family-root { background: var(--fern-100); color: var(--fern-600); }
-.derivation-panel-family-position {
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  font-style: italic;
-}
-
-.derivation-panel-section {
-  margin: var(--space-sm) 0;
-}
-.derivation-panel-section-heading {
-  font-size: 0.9rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  margin: 0 0 var(--space-xs) 0;
-}
-
-.derivation-panel-operational {
-  display: inline-block;
-  font-family: var(--font-body);
-  font-size: 0.9rem;
-  background: var(--parch-100);
-  color: var(--steel-700);
-  padding: var(--space-xs) var(--space-sm);
-  border-radius: var(--radius-2xs);
-  letter-spacing: 0.01em;
-  word-break: break-word;
-}
-
-.derivation-panel-add,
-.derivation-panel-lineage {
-  display: grid;
-  grid-template-columns: 130px 1fr;
-  gap: var(--space-xs) var(--space-md);
-  margin: 0;
-  font-size: 0.9rem;
-}
-.derivation-panel-add dt,
-.derivation-panel-lineage dt {
-  color: var(--text-muted);
-  font-size: 0.9rem;
-  letter-spacing: 0.02em;
-}
-.derivation-panel-add dd,
-.derivation-panel-lineage dd {
-  margin: 0;
-  color: var(--steel-700);
-}
-.derivation-panel-add-derivation {
-  font-style: italic;
-  color: var(--gray-700);
-}
-.derivation-panel-add-breakdown {
-  display: inline-block;
-  font-family: var(--font-body);
-  font-size: 0.9rem;
-  background: var(--amber-pale);
-  color: var(--earth-bronze);
-  padding: var(--space-xs) var(--space-sm);
-  border-radius: var(--radius-2xs);
-  letter-spacing: 0.01em;
-  word-break: break-word;
-}
-
-.derivation-panel-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-.derivation-panel-list li {
-  padding: 1px 0;
-}
-
-.derivation-panel-prose {
-  margin-top: var(--space-sm);
-  padding: var(--space-sm) var(--space-md);
-  background: var(--parch-100);
-  border-left: 3px solid var(--border);
-  border-radius: 0 var(--radius-2xs) var(--radius-2xs) 0;
-}
-.derivation-panel-prose summary {
-  cursor: pointer;
-  font-size: 0.9rem;
-  color: var(--gray-700);
-}
-.derivation-panel-prose[open] summary {
-  margin-bottom: var(--space-xs);
-}
-.derivation-panel-prose p {
-  margin: 0;
-  font-size: 0.9rem;
-  color: var(--steel-600);
-  line-height: 1.5;
-}
-.derivation-panel-prose-badge {
-  display: inline-block;
-  font-size: 0.9rem;
-  font-weight: 500;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  padding: 1px var(--space-sm);
-  margin-right: var(--space-sm);
-  border-radius: var(--radius-2xs);
-  background: var(--parch-250);
-  color: var(--historical-gold);
-}
-.derivation-panel-prose--observational .derivation-panel-prose-badge {
-  background: var(--fern-100);
-  color: var(--fern-600);
-}
-
-/* ── Semantic-depth ladder ────────────────────────────────────────────── */
-
-.semantic-depth-ladder {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: grid;
-  gap: var(--space-xs);
-}
-.semantic-depth-ladder-rung {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-md);
-  font-family: var(--font-body);
-  font-style: italic;
-  color: var(--steel-700);
-  line-height: 1.5;
-}
-.semantic-depth-ladder-chip {
-  flex: 0 0 90px;
-  font-family: var(--font-body);
-  font-style: normal;
-  font-size: 0.9rem;
-  font-weight: 500;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  padding: 1px var(--space-xs);
-}
-.semantic-depth-ladder-text {
-  flex: 1 1 auto;
-}
-.semantic-depth-ladder-rung--compressed .semantic-depth-ladder-text {
-  font-size: 1rem;
-  font-weight: 500;
-}
-.semantic-depth-ladder-rung--semantic .semantic-depth-ladder-text {
-  font-size: 1rem;
-}
-.semantic-depth-ladder-rung--expanded .semantic-depth-ladder-text {
-  font-size: 0.9rem;
-  color: var(--steel-600);
-}
-.semantic-depth-ladder-rung--deep .semantic-depth-ladder-text {
-  font-size: 0.9rem;
-  color: var(--steel-550);
-}
-
-/* ── Equivalence chain ────────────────────────────────────────────────── */
-
-.equivalence-chain {
-  margin: 0;
-  display: grid;
-  gap: var(--space-xs);
-}
-.equivalence-chain-row {
-  padding: var(--space-xs) var(--space-sm);
-  background: var(--parch-100);
-  border-left: 3px solid var(--border);
-  border-radius: 0 var(--radius-2xs) var(--radius-2xs) 0;
-}
-.equivalence-chain-pair {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-sm);
-  flex-wrap: wrap;
-  font-family: var(--font-body);
-  font-size: 1rem;
-  color: var(--steel-700);
-  margin: 0;
-}
-.equivalence-chain-left,
-.equivalence-chain-right {
-  font-style: italic;
-}
-.equivalence-chain-glyph {
-  font-style: normal;
-  color: var(--text-muted);
-}
-.equivalence-chain-source {
-  font-family: var(--font-body);
-  font-style: normal;
-  font-size: 0.9rem;
-  font-weight: 500;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  padding: 1px var(--space-sm);
-  border-radius: var(--radius-2xs);
-  margin-left: auto;
-}
-.equivalence-chain-source--historical      { background: var(--parch-150); color: var(--historical-gold); }
-.equivalence-chain-source--structural      { background: var(--fern-100); color: var(--fern-600); }
-.equivalence-chain-source--curator-derived { background: var(--gray-250); color: var(--steel-600); }
-.equivalence-chain-source--community       { background: var(--parch-250); color: var(--steel-500); }
-.equivalence-chain-why {
-  margin: var(--space-xs) 0 0 0;
-  font-size: 0.9rem;
-  font-style: italic;
-  color: var(--gray-700);
-}
-
-/* ── Compression card ─────────────────────────────────────────────────── */
-
-.compression-card {
-  border: 1px solid var(--parch-250);
-  border-radius: var(--radius-sm);
-  padding: var(--space-lg);
-  background: var(--bg);
-}
-.compression-card-head {
-  border-bottom: 1px solid var(--parch-250);
-  padding-bottom: var(--space-sm);
-  margin-bottom: var(--space-md);
-}
-.compression-card-eyebrow {
-  display: block;
-  font-size: 0.9rem;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
-.compression-card-title {
-  font-family: var(--font-body);
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: var(--steel-700);
-  margin: var(--space-xs) 0 0 0;
-}
-.compression-card-equivalence {
-  margin-top: var(--space-lg);
-  padding-top: var(--space-md);
-  border-top: 1px solid var(--parch-250);
-}
-
-/* ── Doctrine note ────────────────────────────────────────────────────── */
-
-.doctrine-note {
-  padding: var(--space-sm) var(--space-md);
-  background: var(--parch-100);
-  border-left: 4px solid var(--unresolved-gold);
-  border-radius: 0 var(--radius-xs) var(--radius-xs) 0;
-  margin: 0;
-}
-.doctrine-note--resolved              { border-left-color: var(--gray-600); }
-.doctrine-note--policy-dependent      { border-left-color: var(--unresolved-gold); }
-.doctrine-note--historical-disagreement { border-left-color: var(--earth-300); }
-.doctrine-note--multiple-readings     { border-left-color: var(--slate-500); }
-
-.doctrine-note-head {
-  display: flex;
-  align-items: baseline;
-  gap: var(--space-md);
-  margin-bottom: var(--space-sm);
-}
-.doctrine-note-badge {
-  font-size: 0.9rem;
-  font-weight: 500;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  padding: 1px var(--space-sm);
-  background: var(--parch-250);
-  border-radius: var(--radius-2xs);
-}
-.doctrine-note-title {
-  font-family: var(--font-body);
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--steel-700);
-  margin: 0;
-}
-.doctrine-note-fields {
-  display: grid;
-  grid-template-columns: 110px 1fr;
-  gap: var(--space-xs) var(--space-md);
-  margin: 0;
-  font-size: 0.9rem;
-}
-.doctrine-note-fields dt {
-  color: var(--text-muted);
-  font-size: 0.9rem;
-  letter-spacing: 0.02em;
-}
-.doctrine-note-fields dd {
-  margin: 0;
-  color: var(--steel-700);
-}
-.doctrine-note-status-chip {
-  display: inline-block;
-  font-size: 0.9rem;
-  font-weight: 500;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  padding: 1px var(--space-sm);
-  background: var(--parch-250);
-  color: var(--steel-500);
-  border-radius: var(--radius-2xs);
-}
-.doctrine-note-context {
-  margin-top: var(--space-sm);
-  padding-top: var(--space-sm);
-  border-top: 1px solid var(--parch-350);
-}
-.doctrine-note-context summary {
-  cursor: pointer;
-  font-size: 0.9rem;
-  color: var(--gray-700);
-}
-.doctrine-note-context p {
-  margin: var(--space-xs) 0 0 0;
-  font-size: 0.9rem;
-  font-style: italic;
-  color: var(--steel-600);
-  line-height: 1.5;
-}
-
-/* ── Standalone primitive demo grid ──────────────────────────────────── */
-
-.derivation-pilot-standalone-grid {
-  display: grid;
-  gap: var(--space-xl);
-  margin-top: var(--space-lg);
-}
-.derivation-pilot-standalone-cell {
-  display: block;
-}
-.derivation-pilot-standalone-label {
-  font-size: 0.9rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: var(--gray-700);
-  margin: 0 0 var(--space-sm) 0;
-}
-
-@media (min-width: 768px) {
-  .derivation-pilot-standalone-grid {
-    grid-template-columns: 1fr 1fr;
-  }
-}
-
-@media (max-width: 768px) {
-  .derivation-panel {
-    padding: var(--space-md);
-  }
-  .derivation-panel-add,
-  .derivation-panel-lineage,
-  .doctrine-note-fields {
-    grid-template-columns: 1fr;
-    gap: var(--space-xs);
-  }
-  .derivation-panel-add dt,
-  .derivation-panel-lineage dt,
-  .doctrine-note-fields dt {
-    margin-top: var(--space-xs);
-  }
-  .semantic-depth-ladder-rung {
-    flex-wrap: wrap;
-  }
-  .semantic-depth-ladder-chip {
-    flex: 0 0 auto;
-  }
-}
-
-/* Small surface-clarity adds:
-   - Observational count strip
-   - Family view ordering note
-   - Compositional Sets cross-link
-*/
-.observed-count-strip {
-  margin: var(--space-md) 0 var(--space-lg);
-  font-size: 1rem;
-  color: var(--text);
-}
-.observed-count-strip strong {
-  font-weight: 600;
-}
-.compositional-sets-cross-link {
-  margin: var(--space-md) 0 var(--space-lg);
-  font-size: 0.9rem;
-}
 
 /* Governance and polish surfaces.
    - Toggle aside for the Operators & Modifiers reference link
    - Modifier browse view (?view=modifier): Core / Secondary cohorts
-   - Observational lane sections
    - "By modifier" trick-list density
 */
 .trick-view-toggle-aside {
@@ -10098,91 +8316,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   font-size: 0.9rem;
   color: var(--text);
   font-style: italic;
-}
-.set-subtype-section {
-  margin-top: var(--space-xl);
-}
-.set-subtype-intro {
-  font-size: 0.9rem;
-  color: var(--text);
-  line-height: 1.45;
-  margin: var(--space-xs) 0 var(--space-lg);
-}
-.set-card-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: var(--space-lg);
-}
-.set-card {
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: var(--space-md) var(--space-lg);
-  background: var(--white);
-}
-.set-card--holden-only {
-  border-style: dashed;
-}
-.set-card-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-sm);
-  margin-bottom: var(--space-sm);
-}
-.set-card-name {
-  margin: 0;
-  font-size: 1rem;
-}
-.set-card-formula {
-  display: block;
-  font-family: var(--font-body);
-  font-weight: 600;
-  font-size: 0.9rem;
-  color: var(--secondary);
-  background: var(--gray-100);
-  padding: var(--space-sm);
-  border-radius: var(--radius-xs);
-  margin: var(--space-xs) 0 var(--space-sm);
-  white-space: normal;
-  word-break: break-word;
-}
-.set-card-movement {
-  font-size: 0.9rem;
-  color: var(--text);
-  line-height: 1.45;
-  margin: var(--space-sm) 0;
-}
-.set-card-equivalences {
-  list-style: none;
-  padding-left: 0;
-  margin: var(--space-xs) 0 var(--space-sm);
-  font-size: 0.9rem;
-  color: var(--text-muted);
-}
-.set-card-equivalences li {
-  padding: 1px 0;
-}
-.set-card-relations {
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  margin: var(--space-xs) 0;
-  line-height: 1.4;
-}
-.set-relation-link {
-  color: inherit;
-  text-decoration: underline;
-  text-decoration-style: dotted;
-}
-.set-card-footer {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-sm);
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  border-top: 1px dashed var(--border);
-  padding-top: var(--space-sm);
-  margin-top: var(--space-sm);
 }
 .set-card-source {
   padding: 1px var(--space-sm);
@@ -10211,39 +8344,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 .set-card-audit--partial    { background: var(--orange-soft); color: var(--warn-text); }
 .set-card-audit--conflict   { background: var(--red-pale); color: var(--danger-text); }
 .set-card-audit--holden-only{ background: var(--hover-tint); color: var(--doctrine-plum); }
-.set-card-citation {
-  flex: 1 0 100%;
-  margin-top: var(--space-xs);
-  font-style: italic;
-  line-height: 1.35;
-}
-.set-card-detail-link {
-  display: inline-block;
-  margin-top: var(--space-sm);
-  font-size: 0.9rem;
-  font-weight: 500;
-}
-.set-card-detail-placeholder {
-  margin: var(--space-sm) 0 0;
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  font-style: italic;
-}
-.sets-alt-surfaces-cross-link {
-  border-top: 1px solid var(--border);
-  margin-top: var(--space-2xl);
-  padding-top: var(--space-lg);
-}
-.sets-alt-surfaces-cross-link h2 {
-  font-size: 1.25rem;
-  margin: 0 0 var(--space-sm);
-}
-.sets-alt-surfaces-cross-link p {
-  font-size: 0.9rem;
-  line-height: 1.5;
-  margin: 0 0 var(--space-sm);
-  color: var(--text-muted);
-}
 
 /* ── Set Encyclopedia (standalone /freestyle/sets) ──────────
  * Denser visual treatment than the dictionary browse views. Goal:
@@ -10251,42 +8351,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
  * scan-friendly, formula-forward, with deep content deferred to
  * /freestyle/sets/<slug> detail pages.
  */
-.sets-encyclopedia-head {
-  margin-bottom: var(--space-lg);
-}
-.sets-encyclopedia-total {
-  font-size: 0.9rem;
-  margin: 0;
-}
-.sets-encyclopedia-cross-nav {
-  background: var(--gray-100);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: var(--space-md) var(--space-lg);
-  margin-bottom: var(--space-xl);
-}
-.sets-encyclopedia-cross-nav-intro {
-  margin: 0 0 var(--space-sm);
-  font-size: 0.9rem;
-  color: var(--text);
-  font-weight: 500;
-}
-.sets-encyclopedia-cross-nav-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
-}
-.sets-encyclopedia-cross-nav-list li {
-  font-size: 0.9rem;
-  line-height: 1.5;
-}
-.sets-encyclopedia-cross-nav-question {
-  color: var(--text-muted);
-  font-style: italic;
-}
 .sets-encyclopedia-subtype {
   margin-top: var(--space-xl);
 }
@@ -10313,53 +8377,11 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   color: var(--text);
   line-height: 1.45;
 }
-.sets-encyclopedia-card-flagship {
-  display: inline-block;
-  margin-left: var(--space-xs);
-  font-size: 0.9rem;
-  color: var(--flagship-umber);
-  vertical-align: 0.05em;
-  cursor: help;
-}
-.sets-encyclopedia-card-role-chip {
-  font-size: 0.9rem;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  padding: 1px var(--space-sm);
-  border-radius: var(--radius-2xs);
-  background: var(--parch-250);
-  color: var(--steel-500);
-  white-space: nowrap;
-}
-.sets-encyclopedia-card-role-chip--plus-one-entry { background: var(--fern-100); color: var(--fern-600); }
-.sets-encyclopedia-card-role-chip--clip-entry     { background: var(--slate-200); color: var(--steel-600); }
-.sets-encyclopedia-card-role-chip--composite      { background: var(--border); color: var(--composite-mauve); }
-.sets-encyclopedia-card-role-chip--rotational     { background: var(--parch-250); color: var(--earth-bronze); }
-.sets-encyclopedia-card-role-chip--whirl-swirl    { background: var(--fern-100); color: var(--fern-600); }
-.sets-encyclopedia-card-role-chip--uns-entry      { background: var(--parch-250); color: var(--steel-500); }
-.sets-encyclopedia-card-role-chip--rooted         { background: var(--parch-350); color: var(--earth-600); }
 .sets-encyclopedia-card-movement {
   font-size: 0.9rem;
   color: var(--text);
   line-height: 1.4;
   margin: var(--space-xs) 0 0;
-}
-.sets-encyclopedia-card-status {
-  display: inline-block;
-  font-size: 0.9rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  padding: 1px var(--space-sm);
-  border-radius: var(--radius-2xs);
-  margin: 0;
-  white-space: nowrap;
-}
-.sets-encyclopedia-card-status--platform-tracked { background: var(--fern-100); color: var(--fern-600); }
-.sets-encyclopedia-card-status--community-cited   { background: var(--parch-250); color: var(--steel-600); }
-.sets-encyclopedia-card-status--under-review      { background: var(--parch-250); color: var(--text); }
-.sets-alt-surfaces-cta {
-  font-weight: 500;
 }
 
 /* Operators & Modifiers index: compact modifier rows grouped by structural-role
@@ -10367,14 +8389,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
    chip, ADD chip, and status pill in the same visual language as the encyclopedia. */
 .operator-index-axis { margin-top: var(--space-xl); }
 .operator-index-axis:first-of-type { margin-top: var(--space-sm); }
-.operator-subfamily-label {
-  margin: var(--space-md) 0 0;
-  font-size: 0.9rem;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-}
 .operator-meta-chip {
   font-size: 0.9rem;
   font-weight: 600;
@@ -10554,9 +8568,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 .set-detail-sibling-nav-next:focus {
   color: var(--text);
 }
-.set-detail-sibling-nav-arrow {
-  color: var(--text-muted);
-}
 .set-detail-sibling-nav-label {
   font-size: 0.9rem;
   color: var(--text-muted);
@@ -10595,19 +8606,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   font-size: 0.9rem;
   color: var(--text);
 }
-.observed-lane {
-  margin: var(--space-xl) 0 var(--space-2xl);
-}
-.observed-lane-intro {
-  margin: var(--space-xs) 0 var(--space-md);
-  font-size: 0.9rem;
-  color: var(--text-muted);
-  line-height: 1.45;
-}
-.observed-lane--promotion-queue .section-heading h2 { color: var(--sec-dev); }
-.observed-lane--formula-review .section-heading h2 { color: var(--medal-gold); }
-.observed-lane--doctrine-blocked .section-heading h2 { color: var(--danger-text); }
-.observed-lane--source-only .section-heading h2 { color: var(--text); }
 
 /* ─────────────────────────────────────────────────────────────────────────
    Glossary structural refinements: intro card, tier-break rulers, §7 mini-TOC,
@@ -10711,16 +8709,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   font-style: italic;
   line-height: 1.45;
 }
-.glossary-section-next a {
-  font-style: normal;
-  color: var(--primary-ink);
-  text-decoration: none;
-  font-weight: 500;
-}
-.glossary-section-next a:hover,
-.glossary-section-next a:focus {
-  text-decoration: underline;
-}
+.glossary-section-next a { font-style: normal; }
 
 /* ★ flagship-example marker: tiny inline chip placed next to a trick
    name (e.g. ripwalk, mobius, flurry) on its first canonical pedagogical
@@ -10931,7 +8920,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
    rules give each a defining selector on the shared design tokens. */
 
 /* Deep-linkable trick-detail content sub-sections clear the sticky header. */
-.trick-parallels,
 .trick-pathways,
 .trick-add-analysis,
 .trick-equivalence-topology,
@@ -10964,11 +8952,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   margin: 0;
   color: var(--text-muted);
   font-size: 0.9rem;
-}
-
-/* Deeper-readings ladder sits directly under its details summary. */
-.semantic-depth-ladder--deep {
-  margin-top: var(--space-sm);
 }
 
 /* Modifier-reference lead note and inline paradox-formula label. */

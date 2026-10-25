@@ -111,7 +111,7 @@
     {{#each content.variantGroups}}
     <div class="trick-family-rung" id="variant-{{slug}}">
       <h3 class="family-rung-header">{{name}} <span class="section-count">{{memberCount}}</span></h3>
-      {{#if pageHref}}<p class="trick-family-cross-link"><a href="{{pageHref}}">{{name}} family page</a></p>{{/if}}
+      {{#if pageHref}}<p class="trick-family-cross-link"><a class="action-link" href="{{pageHref}}">{{name}} family page</a></p>{{/if}}
       <ul class="set-detail-trick-list">
         {{#each members}}
         <li class="set-detail-trick">

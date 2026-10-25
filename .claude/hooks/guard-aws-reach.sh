@@ -138,7 +138,7 @@ BEGIN {
     t = line; if (hds) sub(/^\t+/, "", t)
     # A heredoc fed to another language (python, a pager) is that program's
     # text: kept for the aws match, but a script path in it is not a shell run.
-    out[NR] = (mode == "refs" && !hsh) ? "" : line; raw[NR] = line
+    out[NR] = (mode == "refs" && !hsh) ? "" : line; raw[NR] = out[NR]
     if (t == hd) hd = ""
     next
   }
@@ -214,6 +214,10 @@ BEGIN {
     out[NR] = o
   }
   raw[NR] = nc
+  # A line that only prints (echo or printf, its quotes closed, with no command
+  # substitution, backtick or pipe) runs nothing, so the message it prints is
+  # data even in a file read whole: a hint naming another script is not a run.
+  if (mode != "iso" && !lr && inq == "" && sd == 0 && b ~ /^[ \t]*(echo|printf)([ \t]|$)/ && b !~ /[|`]/ && b !~ /[$][(]/) raw[NR] = b
   if (phd != "") { hd = phd; hds = phs; hsh = (b ~ evh) }
 }
 END {

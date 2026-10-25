@@ -36,7 +36,8 @@
 
     <p class="add-analysis-callout"><strong>The bracket-count rule.</strong> {{content.bracketRuleNote}}</p>
 
-    <table class="add-analysis-components">
+    <div class="records-table-wrap" tabindex="0" role="region" aria-label="How ADD is built">
+    <table class="data-table">
       <thead>
         <tr>
           <th>Component</th>
@@ -54,6 +55,7 @@
         {{/each}}
       </tbody>
     </table>
+    </div>
 
     <p class="add-analysis-callout add-analysis-callout--spin"><strong>What &ldquo;spin&rdquo; means.</strong> {{content.spinNote}}</p>
     <p class="add-analysis-callout"><strong>Stalls.</strong> {{content.delayNote}}</p>
@@ -111,12 +113,13 @@
       <h2>Common formula patterns</h2>
       <p class="section-intro">{{content.resolvedFormulasFraming}}</p>
     </div>
-    <table class="resolved-formulas-table">
+    <div class="records-table-wrap" tabindex="0" role="region" aria-label="Common formula patterns">
+    <table class="data-table">
       <thead>
         <tr>
           <th scope="col">Trick</th>
           <th scope="col">Breakdown</th>
-          <th scope="col">ADD</th>
+          <th scope="col" class="col-num">ADD</th>
         </tr>
       </thead>
       <tbody>
@@ -124,11 +127,12 @@
         <tr>
           <td>{{#if slug}}<a href="/freestyle/tricks/{{slug}}">{{name}}</a>{{else}}{{name}}{{/if}}</td>
           <td><code class="resolved-formula-derivation">{{derivation}}</code></td>
-          <td class="resolved-formula-add">{{totalAdd}}</td>
+          <td class="col-num">{{totalAdd}}</td>
         </tr>
         {{/each}}
       </tbody>
     </table>
+    </div>
   </section>
   {{/if}}
 
@@ -207,12 +211,13 @@
         rows with name-matched ADD divergence
         <span class="passback-add-disagreement-hint">(click to expand)</span>
       </summary>
-      <table class="passback-add-disagreement-table">
+      <div class="records-table-wrap" tabindex="0" role="region" aria-labelledby="passback-add-framing">
+      <table class="data-table">
         <thead>
           <tr>
             <th scope="col">IFPA trick</th>
             <th scope="col">IFPA structural reading</th>
-            <th scope="col">Outside-source dex count</th>
+            <th scope="col" class="col-num">Outside-source dex count</th>
             <th scope="col">Note</th>
           </tr>
         </thead>
@@ -221,12 +226,13 @@
           <tr>
             <td>{{#if ifpaSlug}}<a href="/freestyle/tricks/{{ifpaSlug}}">{{ifpaName}}</a>{{else}}{{ifpaName}}{{/if}}</td>
             <td>{{#if ifpaFormula}}<code>{{ifpaFormula}}</code>{{else}}<em class="passback-add-no-formula">&mdash;</em>{{/if}}</td>
-            <td class="passback-add-claim-cell">{{passbackAdd}}</td>
+            <td class="col-num">{{passbackAdd}}</td>
             <td>{{#if curatorNote}}{{curatorNote}}{{else}}<em class="passback-add-no-note">Outside-source dex count; IFPA structural ADD per reviewed row</em>{{/if}}</td>
           </tr>
           {{/each}}
         </tbody>
       </table>
+      </div>
     </details>
     {{/if}}
   </section>

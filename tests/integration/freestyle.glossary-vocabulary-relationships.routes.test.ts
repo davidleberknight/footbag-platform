@@ -112,7 +112,7 @@ describe('Freestyle Concepts Vocabulary Relationships subsection', () => {
 
   it('sharpened distinctions table renders all 4 rows with the revised "Same structure?" cell', async () => {
     const res = await page('/freestyle/concepts');
-    expect(res.text).toContain('class="glossary-equivalence-distinctions"');
+    expect(res.text).toContain('aria-label="Ontology relationships: family ancestry and transformations"');
     expect(res.text).toMatch(/<th>Relationship<\/th>[\s\S]*<th>Same trick\?<\/th>[\s\S]*<th>Same structure\?<\/th>[\s\S]*<th>What it asserts<\/th>/);
     // The revised cell for equivalent derivation
     expect(res.text).toMatch(/different structural reading\/path[\s\S]*movement converges[\s\S]*derivation differs/i);

@@ -31,7 +31,9 @@ GATED=(
   'Bash(npm run test:integration*)'
   'Bash(npm run test:coverage*)'
   'Bash(npm run test:all*)'
-  'Bash(npm run test:e2e*)'
+  'Bash(npm run test:e2e)'
+  'Bash(npm run test:e2e -- tests/e2e)'
+  'Bash(npm run test:e2e -- tests/e2e/)'
   'Bash(npm run test:deployed*)'
   'Bash(npm run test:pentest*)'
   'Bash(npm run test:persona-crawl*)'
@@ -80,8 +82,12 @@ SEGMENTS+=("$seg")
 
 parts=0 hit=''
 for seg in "${SEGMENTS[@]}"; do
-  # Drop leading blanks and VAR=value assignments, which a rule does not see.
-  seg="$(printf '%s' "$seg" | sed -E 's/^[[:space:]]*(([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*)[[:space:]]+)*//')"
+  # Drop leading blanks and VAR=value assignments, output redirects and trailing
+  # blanks, none of which a rule sees, so an exact rule matches the bare command.
+  seg="$(printf '%s' "$seg" | sed -E \
+    -e 's/^[[:space:]]*(([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*)[[:space:]]+)*//' \
+    -e 's/[[:space:]]+[0-9]*>{1,2}(&[0-9]+|[[:space:]]*[^[:space:]&]+)//g' \
+    -e 's/[[:space:]]+$//')"
   [ -n "${seg//[[:space:]]/}" ] || continue
   parts=$((parts + 1))
   if [ -z "$hit" ]; then

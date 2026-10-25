@@ -52,7 +52,7 @@ describe('GET /freestyle/concepts — equivalence-topology coverage in §composi
 
   it('renders the sharpened 4-row distinctions table (alias / structural compression / equivalent derivation / ontology relationship)', async () => {
     const res = await page('/freestyle/concepts');
-    const startIdx = res.text.indexOf('glossary-equivalence-distinctions');
+    const startIdx = res.text.indexOf('aria-label="Ontology relationships: family ancestry and transformations"');
     expect(startIdx).toBeGreaterThan(0);
     const endIdx = res.text.indexOf('</table>', startIdx);
     const table = res.text.slice(startIdx, endIdx);

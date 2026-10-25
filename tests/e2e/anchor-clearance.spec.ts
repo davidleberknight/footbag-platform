@@ -32,6 +32,49 @@ for (const width of [390, 600, 1280]) {
   });
 }
 
+test('a section address still lands below the header when the header grows after the jump', { tag: ['@a11y'] }, async ({ page }) => {
+  // When the webfont arrives after the jump and its letters are wider than the
+  // fallback's, the nav wraps onto another row and the sticky header grows
+  // over the heading the browser already scrolled to. Whether a machine's
+  // fallback font fits one row fewer than the webfont varies, so the nav's
+  // text is widened directly once the jump has landed.
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto('/consecutives#competitions');
+  await expect.poll(async () => landedBelowHeader(page, '#competitions h2')).toBe(true);
+  const headerHeight = () => page.evaluate(() => document.querySelector('.site-header')!.getBoundingClientRect().height);
+  const before = await headerHeight();
+  await page.evaluate(() => {
+    document.querySelectorAll<HTMLElement>('.main-nav a').forEach((link) => { link.style.letterSpacing = '0.2em'; });
+  });
+  await expect.poll(headerHeight).toBeGreaterThan(before);
+  await expect.poll(async () => landedBelowHeader(page, '#competitions h2')).toBe(true);
+});
+
+test('a reader who has scrolled away is not pulled back when the header grows', { tag: ['@a11y'] }, async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto('/consecutives#competitions');
+  await expect.poll(async () => landedBelowHeader(page, '#competitions h2')).toBe(true);
+  const scrollY = () => page.evaluate(() => window.scrollY);
+  const landedAt = await scrollY();
+  await page.mouse.wheel(0, -600);
+  await expect.poll(scrollY).toBeLessThan(landedAt);
+  // Let the wheel's own smooth scroll finish before taking the reader's spot.
+  let readerAt = await scrollY();
+  await expect.poll(async () => { const now = await scrollY(); const settled = now === readerAt; readerAt = now; return settled; }).toBe(true);
+  const header = () => page.evaluate(() => document.querySelector('.site-header')!.getBoundingClientRect().height);
+  const before = await header();
+  await page.evaluate(() => {
+    document.querySelectorAll<HTMLElement>('.main-nav a').forEach((link) => { link.style.letterSpacing = '0.2em'; });
+  });
+  await expect.poll(header).toBeGreaterThan(before);
+  // Once the script has measured the grown header, any re-landing would have
+  // begun by the next frame; the reader's own position must hold.
+  await expect.poll(async () => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--anchor-offset')))
+    .toBe(`${Math.ceil(await header()) + 8}px`);
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  expect(await scrollY()).toBe(readerAt);
+});
+
 test('an in-page jump lands its section below the header', { tag: ['@a11y'] }, async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 900 });
   await page.goto('/consecutives');

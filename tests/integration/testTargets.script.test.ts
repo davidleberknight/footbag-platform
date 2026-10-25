@@ -18,7 +18,7 @@ import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
 
 const SCRIPT = join(process.cwd(), 'scripts/test-targets.sh');
 const RUN_NOTE =
-  'run the VITEST command in the background with its output in the scratchpad, and keep working until it finishes';
+  'run every VITEST and CHECK command in the background with its output in the scratchpad, and keep working until it finishes';
 
 function run(args: string[], script = SCRIPT, cwd = process.cwd()) {
   const res = spawnSync('bash', [script, ...args], { cwd, encoding: 'utf8', ...SPAWN_GUARD });
@@ -158,9 +158,17 @@ describe('test-targets.sh — how to run the targeted set', () => {
     expect(r.notes).toContain(RUN_NOTE);
   });
 
-  it('prints no run note when there is no vitest command to run', () => {
+  it('tells the reader to run a check in the background when it prints only checks', () => {
+    const r = run(['tests/e2e/anchor-clearance.spec.ts']);
+    expect(r.tests).toEqual([]);
+    expect(r.checks.length).toBeGreaterThan(0);
+    expect(r.notes).toContain(RUN_NOTE);
+  });
+
+  it('prints no run note when there is nothing to run', () => {
     const r = run(['database/README.md']);
     expect(r.tests).toEqual([]);
+    expect(r.checks).toEqual([]);
     expect(r.notes).not.toContain(RUN_NOTE);
   });
 });

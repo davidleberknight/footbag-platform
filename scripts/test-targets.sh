@@ -548,7 +548,6 @@ done
 if [ "${#TESTS[@]}" -gt 0 ]; then
   mapfile -t TESTS < <(printf '%s\n' "${TESTS[@]}" | sort -u)
   echo "VITEST: npx vitest run --reporter=dot ${TESTS[*]}"
-  echo "NOTE: run the VITEST command in the background with its output in the scratchpad, and keep working until it finishes"
 fi
 if [ "${#SPECS[@]}" -gt 0 ]; then
   mapfile -t SPECS < <(printf '%s\n' "${SPECS[@]}" | sort -u)
@@ -579,5 +578,10 @@ if [ "${#PYTESTS[@]}" -gt 0 ]; then
   fi
 fi
 for c in "${CHECKS[@]+"${CHECKS[@]}"}"; do echo "CHECK: $c"; done
+# A targeted run takes a minute or more; in the foreground it blocks every other
+# piece of work until it ends.
+if [ "${#TESTS[@]}" -gt 0 ] || [ "${#CHECKS[@]}" -gt 0 ]; then
+  echo "NOTE: run every VITEST and CHECK command in the background with its output in the scratchpad, and keep working until it finishes"
+fi
 for n in "${NOTES[@]+"${NOTES[@]}"}"; do echo "NOTE: $n"; done
 exit 0

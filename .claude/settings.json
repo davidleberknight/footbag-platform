@@ -11,10 +11,10 @@
       "Glob",
       "Bash(jq:*)",
       "Bash(pgrep:*)",
-      "Bash(npm run test:strong-hash*)",
-      "Bash(npm run build*)",
+      "Bash(npm run test:strong-hash)",
+      "Bash(npm run build)",
       "Bash(npm run typecheck:tests)",
-      "Bash(npm run test:rendered-style*)",
+      "Bash(npm run test:rendered-style)",
       "Bash(npx tsc -p tsconfig.json --noEmit)",
       "Bash(npx vitest run:*)",
       "Bash(node --version*)",
@@ -47,7 +47,9 @@
       "Bash(bash scripts/ci/test_hooks.sh)",
       "Bash(bash scripts/ci/assert_generated_content_current.sh)",
       "Bash(bash scripts/ci/assert_conventions.sh)",
+      "Bash(bash scripts/ci/check_ci_parity.sh)",
       "Bash(bash scripts/test-targets.sh*)",
+      "Bash(npm run test:e2e -- tests/e2e/*.spec.ts*)",
       "Bash(bash scripts/e2e/reclaim-e2e-ports.sh)",
       "Bash(gh issue edit -R \"$FOOTBAG_PRIVATE_REPO\":*)",
       "Bash(gh issue comment -R \"$FOOTBAG_PRIVATE_REPO\":*)",
@@ -108,7 +110,9 @@
       "Bash(npm run test:integration*)",
       "Bash(npm run test:coverage*)",
       "Bash(npm run test:all*)",
-      "Bash(npm run test:e2e*)",
+      "Bash(npm run test:e2e)",
+      "Bash(npm run test:e2e -- tests/e2e)",
+      "Bash(npm run test:e2e -- tests/e2e/)",
       "Bash(npm run test:deployed*)",
       "Bash(npm run test:pentest*)",
       "Bash(npm run test:persona-crawl*)",
@@ -452,6 +456,17 @@
         ]
       }
     ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|NotebookEdit|Skill",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/track-doc-sync.sh"
+          }
+        ]
+      }
+    ],
     "SessionStart": [
       {
         "matcher": "startup|clear",
@@ -469,6 +484,10 @@
           {
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-question-quality.sh"
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/require-doc-sync.sh"
           }
         ]
       }

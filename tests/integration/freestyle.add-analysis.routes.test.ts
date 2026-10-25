@@ -620,7 +620,7 @@ describe('GET /freestyle/add-analysis — outside-source ADD framing subsection'
   it('renders a <details> disclosure with the 68 disagreement rows', async () => {
     const res = await page('/freestyle/add-analysis');
     expect(res.text).toContain('class="passback-add-disagreement-details"');
-    expect(res.text).toContain('class="passback-add-disagreement-table"');
+    expect(res.text).toContain('aria-labelledby="passback-add-framing"');
     // Spot-check representative rows by IFPA trick name
     for (const trick of ['butterfly', 'mirage', 'whirl', 'osis', 'eggbeater', 'mobius']) {
       expect(res.text, `missing PB-disagreement row for: ${trick}`)
@@ -631,12 +631,12 @@ describe('GET /freestyle/add-analysis — outside-source ADD framing subsection'
   it('every disagreement row carries an outside-source dex_count value, and IFPA names link only when resolvable', async () => {
     const res = await page('/freestyle/add-analysis');
     // Pull the table region
-    const tableMatch = res.text.match(/<table class="passback-add-disagreement-table">[\s\S]*?<\/table>/);
+    const tableMatch = res.text.match(/aria-labelledby="passback-add-framing">[\s\S]*?<\/table>/);
     expect(tableMatch).not.toBeNull();
     const table = tableMatch![0];
     // Every row carries a PB-claim cell (one per row, whether or not the IFPA
     // name links).
-    const claimCells = table.match(/class="passback-add-claim-cell"/g) ?? [];
+    const claimCells = table.match(/<td class="col-num">/g) ?? [];
     expect(claimCells.length).toBeGreaterThanOrEqual(60); // ~68 disagreement rows
     // IFPA names link only for slugs with a resolvable trick page. The fixture
     // seeds butterfly, so at least one row links; unresolvable slugs render as

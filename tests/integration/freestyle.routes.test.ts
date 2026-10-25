@@ -2107,7 +2107,7 @@ describe('Freestyle Concepts — §9 semantic-vs-operational contrast', () => {
     const sec9Idx = res.text.indexOf('id="operational-notation"');
     expect(sec9Idx).toBeGreaterThan(0);
     const after = res.text.slice(sec9Idx, sec9Idx + 2500);
-    expect(after).toContain('class="glossary-layer-contrast"');
+    expect(after).toContain('class="data-table glossary-layer-contrast"');
     expect(after).toMatch(/<strong>Semantic<\/strong>/);
     expect(after).toMatch(/<strong>Operational<\/strong>/);
     expect(after).toMatch(/stepping ducking paradox torque/);

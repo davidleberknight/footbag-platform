@@ -622,6 +622,17 @@ expect_pair 'find . -exec ./inner.sh {} \;' ask
 expect_pair $'x=$((1 << n))\n./inner.sh' ask
 expect_pair 'x="$(case $y in a) true; aws s3 ls;; esac)"' ask
 expect_pair 'echo "then run ./inner.sh"' defer
+# In a file read whole (it runs a command held in a variable), a line that only
+# prints, and a heredoc no shell reads, still run nothing...
+expect_pair $'"$py" -m venv x\necho "run ./inner.sh to fix it" >&2' defer
+expect_pair $'"$py" -m venv x\nprintf \'%s\\n\' "run ./inner.sh"' defer
+expect_pair $'"$py" -m venv x\ncat <<EOF\nthen run ./inner.sh\nEOF' defer
+# ...while a printed line piped to a shell, a substitution inside one, a run
+# after one, and a heredoc fed to a shell still ask.
+expect_pair $'"$py" -m venv x\necho "./inner.sh" | sh' ask
+expect_pair $'"$py" -m venv x\necho "$(./inner.sh)"' ask
+expect_pair $'"$py" -m venv x\necho hi; ./inner.sh' ask
+expect_pair $'"$py" -m venv x\nbash <<EOF\n./inner.sh\nEOF' ask
 # Strings run by an inline program, a shell fed by pipe or process
 # substitution, or sourced from stdin, are code.
 expect_script $'#!/usr/bin/env bash\nX=\'true; aws s3 ls\'\nprintf %s "$X" | /bin/sh' ask
@@ -1632,18 +1643,21 @@ expect_gate s2 'npm run test:persona-crawl' deny
 # Combined with anything else it is always denied, so the prompt names it alone.
 expect_gate s1 'RUN_PERSONA_CRAWL=1 npm run test:persona-crawl > /tmp/x/log 2>&1; echo "exit=$?"' deny 'must run as its own Bash call'
 expect_gate s3 'git status && npm test' deny
-expect_gate s3 'npm run test:e2e -- x | tail -5' deny
+expect_gate s3 'npm run test:e2e | tail -5' deny
 # An env prefix and a redirect are not separate commands; a quoted | is not a pipe.
 expect_gate s4 'RUN_PERSONA_CRAWL=1 npm run test:persona-crawl > /tmp/x/log 2>&1' deny
 expect_gate s4 'RUN_PERSONA_CRAWL=1 npm run test:persona-crawl > /tmp/x/log 2>&1' defer
-expect_gate s5 'npm run test:e2e -- --grep "a|b"' deny
-expect_gate s5 'npm run test:e2e -- --grep "a|b"' defer
+expect_gate s5 'npm run test:deployed -- --grep "a|b"' deny
+expect_gate s5 'npm run test:deployed -- --grep "a|b"' defer
 # The rebuild modes and deploy are gated; a `:*` rule needs a word boundary.
 expect_gate s6 './run_dev.sh --reset' deny
 expect_gate s6 'bash deploy_to_aws.sh --target staging' deny
 expect_gate s6 'bash deploy_to_aws.sh.bak' defer
 # Targeted tests and ordinary commands are not the gate's business.
+expect_gate s6 'npm run test:e2e' deny
 expect_gate s6 'npx vitest run tests/unit/foo.test.ts' defer
+expect_gate s6 'npm run test:e2e -- tests/e2e/anchor-clearance.spec.ts' defer
+expect_gate s7 'npm run test:e2e > /tmp/x/log 2>&1' deny
 expect_gate s6 'npm run test:strong-hash' defer
 expect_gate s6 'npm run test:rendered-style' defer
 expect_gate s6 'ls -la' defer
@@ -1676,6 +1690,57 @@ expect_strip '{"env":{"A":"1"},"permissions":{"allow":["Bash(x)"]}}' \
 # Invalid JSON is left exactly as it was, and a missing file stays missing.
 expect_strip 'nope' '[ "$(cat "$proj/.claude/settings.local.json")" = nope ]' 'invalid JSON untouched'
 expect_strip '' '[ ! -e "$proj/.claude/settings.local.json" ]' 'missing file not created'
+
+# track-doc-sync.sh (PostToolUse) and require-doc-sync.sh (Stop) together keep a turn
+# that changed project files from ending until the doc-sync skill has run since the
+# last change. Drive them with synthetic events against a throwaway scratch dir and a
+# fake project dir, then assert block or defer at Stop.
+ds_scratch="$(mktemp -d)"
+ds_proj="$(mktemp -d)"
+ds_post() {
+  # $1 = tool name, $2 = tool_input JSON, $3 = session id ("" for none)
+  jq -cn --arg t "$1" --argjson i "$2" --arg s "$3" --arg d "$ds_scratch" \
+    '{tool_name:$t,tool_input:$i,scratchpad_dir:$d} + (if $s == "" then {} else {session_id:$s} end)' \
+    | CLAUDE_PROJECT_DIR="$ds_proj" .claude/hooks/track-doc-sync.sh
+}
+expect_ds() {
+  # $1 = session id, $2 = permission mode, $3 = want (block|defer), $4 = label
+  local out got
+  out="$(jq -cn --arg s "$1" --arg m "$2" --arg d "$ds_scratch" \
+    '{session_id:$s,permission_mode:$m,scratchpad_dir:$d,stop_hook_active:false}' \
+    | .claude/hooks/require-doc-sync.sh)"
+  if grep -q '"block"' <<< "$out"; then got=block; else got=defer; fi
+  if [ "$got" != "$3" ]; then
+    echo "[hooks] FAIL (require-doc-sync.sh): want $3, got $got: $4" >&2
+    fail=1
+  fi
+}
+# An edit in the source tree blocks the turn end; a doc-sync run then clears it.
+ds_post Edit "{\"file_path\":\"$ds_proj/src/app.ts\"}" s1
+expect_ds s1 default block 'edit under src/'
+ds_post Skill '{"skill":"doc-sync"}' s1
+expect_ds s1 default defer 'doc-sync ran after the edit'
+# A later edit arms it again.
+ds_post Write "{\"file_path\":\"$ds_proj/.claude/hooks/x.sh\"}" s1
+expect_ds s1 default block 'edit after doc-sync'
+# Another skill does not clear it; a plugin-prefixed doc-sync does.
+ds_post Skill '{"skill":"write-tests"}' s1
+expect_ds s1 default block 'other skill run'
+ds_post Skill '{"skill":"footbag:doc-sync"}' s1
+expect_ds s1 default defer 'prefixed doc-sync name'
+# Doc edits and files outside the project never arm it.
+ds_post Edit "{\"file_path\":\"$ds_proj/docs/GUIDE.md\"}" s2
+ds_post Write '{"file_path":"/tmp/elsewhere/plan.md"}' s2
+expect_ds s2 default defer 'docs/ edit and outside-project edit'
+# A relative path is resolved against the project.
+ds_post Edit '{"file_path":"src/views/page.hbs"}' s3
+expect_ds s3 default block 'relative path inside the project'
+# Plan mode never blocks, even with the marker set.
+expect_ds s3 plan defer 'plan mode'
+# An event with no session id is ignored, and a Stop with no session id lets the turn end.
+ds_post Edit "{\"file_path\":\"$ds_proj/src/a.ts\"}" ''
+expect_ds '' default defer 'no session id'
+rm -rf "$ds_scratch" "$ds_proj"
 
 if [ "$fail" -ne 0 ]; then
   echo "[hooks] FAIL: one or more hook fixtures failed." >&2

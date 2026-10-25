@@ -43,7 +43,6 @@ genuine doubt survives the sources, ask; never guess or assume. Multi-step analy
 grounds to ask; only genuine undeterminability is. A design or implementation
 detail that precedent or the standard settles is never put to the human as a choice. Read-only investigation needs no permission:
 git reads, DB SELECTs, HTTP GETs through WebFetch, file listings, compile-checks. Run them, never ask.
-Screenshots and other heavy browser-tool reads are the exception: take them only when the human asks.
 
 Ask only when materially different interpretations survive the sources, a conflict stays unclear
 after the design-intent skill's resolution, or the call needs an
