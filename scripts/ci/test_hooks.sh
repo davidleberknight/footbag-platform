@@ -53,6 +53,19 @@ expect_reason() {
   esac
 }
 
+# expect_bg <hook-file> <command-string> <deny|ask|allow|defer>: as expect, but the
+# event sets run_in_background true, for a guard that judges how a command runs.
+expect_bg() {
+  local hook="$1" cmd="$2" want="$3" decision
+  decision="$(jq -n --arg c "$cmd" '{tool_input:{command:$c,run_in_background:true}}' \
+    | ".claude/hooks/$hook" | jq -r '.hookSpecificOutput.permissionDecision // "defer"')"
+  [ -n "$decision" ] || decision=defer
+  if [ "$decision" != "$want" ]; then
+    echo "[hooks] FAIL ($hook): want $want, got $decision (background): $cmd" >&2
+    fail=1
+  fi
+}
+
 # expect_err2 <hook-file>: pipe malformed (non-JSON) stdin and assert the hook fails
 # closed with the PreToolUse block code 2 (never jq's own error code), pinning the
 # security gates' documented fail-closed contract.
@@ -891,6 +904,46 @@ expect "$H" 'npm test' defer
 expect "$H" 'npm run test:integration' defer
 expect "$H" './run_all_tests.sh' defer
 expect "$H" 'npx tsc -p tsconfig.json' defer
+
+H=guard-foreground-tests.sh
+
+# A test runner in the foreground blocks all other work until it ends, so it is
+# denied unless the call sets run_in_background; the same command backgrounded
+# defers. Judged on the command head, so a command that merely names a runner, a
+# listing or version form, and a non-test npm script all defer.
+SP=/tmp/claude-1000/x/scratchpad
+expect "$H" "legacy_data/footbag_venv/bin/python -m pytest -q -p no:cacheprovider legacy_data/tests/a.py > $SP/py.log 2>&1; tail -15 $SP/py.log" deny
+expect "$H" 'legacy_data/footbag_venv/bin/python -m pytest -q legacy_data/tests/b.py -k "pending or still_damaged" | tail -20' deny
+expect "$H" "npm --prefix /repo run test:e2e -- tests/e2e/a.spec.ts > $SP/a.log 2>&1; grep passed $SP/a.log" deny
+expect "$H" 'PYTHONPYCACHEPREFIX="${TMPDIR:-/tmp}/p" legacy_data/footbag_venv/bin/python -m pytest -q legacy_data/tests/a.py' deny
+expect "$H" 'npx vitest run --reporter=dot tests/unit/a.test.ts' deny
+expect "$H" 'node_modules/.bin/vitest run tests/unit/a.test.ts' deny
+expect "$H" 'npx playwright test -c tests/playwright.config.ts' deny
+expect "$H" 'npm run test:rendered-style' deny
+expect "$H" 'npm test' deny
+expect "$H" './run_all_tests.sh --quick' deny
+expect "$H" 'python3 -I -m pytest x.py' deny
+expect "$H" 'timeout 300 npx vitest run tests/unit/a.test.ts' deny
+expect "$H" 'env FOO=1 pytest x.py' deny
+expect "$H" "bash -c 'npx vitest run tests/unit/a.test.ts'" deny
+expect "$H" 'mkdir -p /tmp/x && npx vitest run tests/unit/a.test.ts' deny
+expect "$H" '(npx vitest run tests/unit/a.test.ts)' deny
+expect_reason "$H" 'npm test' 'run_in_background: true'
+expect_bg "$H" "legacy_data/footbag_venv/bin/python -m pytest -q legacy_data/tests/a.py > $SP/py.log 2>&1" defer
+expect_bg "$H" "npm run test:e2e -- tests/e2e/a.spec.ts > $SP/a.log 2>&1" defer
+expect_bg "$H" 'npx vitest run tests/unit/a.test.ts' defer
+expect "$H" 'grep -n pytest scripts/test-targets.sh' defer
+expect "$H" 'cat package.json | grep test:e2e' defer
+expect "$H" 'bash scripts/test-targets.sh legacy_data/tests/a.py' defer
+expect "$H" 'npm run build' defer
+expect "$H" 'npm run typecheck:tests' defer
+expect "$H" 'npx playwright install chromium' defer
+expect "$H" 'npx playwright show-report' defer
+expect "$H" 'npx vitest --version' defer
+expect "$H" 'pytest --collect-only -q legacy_data/tests' defer
+expect "$H" 'npm run test:e2e -- --list' defer
+expect "$H" 'git log --grep vitest' defer
+expect "$H" 'bash scripts/ci/test_hooks.sh' defer
 
 H=guard-interpreter-writes.sh
 

@@ -82,7 +82,10 @@ The Goldberg member-account data family lives here:
   load can be fully reverted.
 - `load_legacy_export.py` loads the member CSV into `legacy_members`, applying
   the merge map when the rulings produced one; it writes the board flag the
-  claim reads, and reads and ignores the empty underlying-tier column.
+  claim reads, and reads and ignores the empty underlying-tier column. A
+  provisional person waiting on its account's repaired name takes that name,
+  and the load refuses, writing nothing, when such an account name is still
+  damaged in encoding.
 - `apply_reconciled_links.py` applies the reconciliation's cleared
   account-to-person links to `historical_persons.legacy_member_id` (dry-run
   by default, writing its own audit CSV and rollback SQL).

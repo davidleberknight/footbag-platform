@@ -21,6 +21,25 @@ async function landedBelowHeader(page: Page, selector: string): Promise<boolean>
   return gap >= 0 && (gap < 100 || atBottom);
 }
 
+// Smooth scrolling reaches the landing band before it stops moving, and a
+// loaded machine can stall a frame mid-scroll, so neither the position nor two
+// equal samples say the scroll is over. The browser's own scroll-end event
+// does. Installed before the page loads, so the jump's scroll is seen.
+async function trackScrolling(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const w = window as unknown as { scrolling: boolean };
+    w.scrolling = false;
+    window.addEventListener('scroll', () => { w.scrolling = true; }, { passive: true });
+    window.addEventListener('scrollend', () => { w.scrolling = false; });
+  });
+}
+
+// Call only once a scroll has visibly begun, so its end is the one awaited.
+async function scrollSettled(page: Page): Promise<number> {
+  await expect.poll(() => page.evaluate(() => (window as unknown as { scrolling: boolean }).scrolling)).toBe(false);
+  return page.evaluate(() => window.scrollY);
+}
+
 for (const width of [390, 600, 1280]) {
   test(`a section address lands its section below the header at ${width}px`, { tag: ['@a11y'] }, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
@@ -39,8 +58,10 @@ test('a section address still lands below the header when the header grows after
   // fallback font fits one row fewer than the webfont varies, so the nav's
   // text is widened directly once the jump has landed.
   await page.setViewportSize({ width: 390, height: 900 });
+  await trackScrolling(page);
   await page.goto('/consecutives#competitions');
   await expect.poll(async () => landedBelowHeader(page, '#competitions h2')).toBe(true);
+  await scrollSettled(page);
   const headerHeight = () => page.evaluate(() => document.querySelector('.site-header')!.getBoundingClientRect().height);
   const before = await headerHeight();
   await page.evaluate(() => {
@@ -52,15 +73,16 @@ test('a section address still lands below the header when the header grows after
 
 test('a reader who has scrolled away is not pulled back when the header grows', { tag: ['@a11y'] }, async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 900 });
+  await trackScrolling(page);
   await page.goto('/consecutives#competitions');
   await expect.poll(async () => landedBelowHeader(page, '#competitions h2')).toBe(true);
   const scrollY = () => page.evaluate(() => window.scrollY);
-  const landedAt = await scrollY();
+  // A wheel sent while the jump is still scrolling can be lost to it.
+  const landedAt = await scrollSettled(page);
   await page.mouse.wheel(0, -600);
   await expect.poll(scrollY).toBeLessThan(landedAt);
   // Let the wheel's own smooth scroll finish before taking the reader's spot.
-  let readerAt = await scrollY();
-  await expect.poll(async () => { const now = await scrollY(); const settled = now === readerAt; readerAt = now; return settled; }).toBe(true);
+  const readerAt = await scrollSettled(page);
   const header = () => page.evaluate(() => document.querySelector('.site-header')!.getBoundingClientRect().height);
   const before = await header();
   await page.evaluate(() => {

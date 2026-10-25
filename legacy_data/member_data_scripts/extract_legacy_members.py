@@ -258,8 +258,8 @@ def extract(members_sql: Path, out_csv: Path, cutover_date: str | None = None,
         for rec in iter_member_rows(sql, columns):
             mapped = map_record(rec, cutover_epoch, name_encodings, board_by_id)
             examined += 1
-            cp_rule = name_encodings.get(_val(rec, "MemberID"), (None, frozenset()))
-            audit = audit_record_encoding(rec, cp_rule[0], cp_rule[1])
+            audit = audit_record_encoding(
+                rec, *name_encodings.get(_val(rec, "MemberID"), (None, frozenset(), None)))
             member_id = mapped["legacy_member_id"] or ""
             for base, how in audit["outcomes"].items():
                 if how == SELECTED_UNICODE:

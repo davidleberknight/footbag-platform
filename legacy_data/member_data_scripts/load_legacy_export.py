@@ -84,6 +84,11 @@ from member_merge import (  # noqa: E402
 )
 import shared_email_resolution as ser  # noqa: E402
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))  # legacy_data/
+from pipeline.identity.name_damage import (  # noqa: E402
+    NAME_PENDING_ACCOUNT_REPAIR, roster_name_damage,
+)
+
 CREDENTIAL_HEADER_RE = re.compile(
     r"password|passwd|pwd|hash|salt|secret|recovery|session|token|cookie|auth",
     re.IGNORECASE,
@@ -446,6 +451,40 @@ def main() -> None:
                 "merged CSV must carry only survivors. Nothing was written."
             )
 
+    # A provisional person whose roster spelling was damaged in encoding loaded
+    # under a placeholder, marked to wait for its legacy account's repaired name.
+    # That name arrives here, so this load carries it across. An account name
+    # still damaged is no better than the placeholder, so the load refuses before
+    # writing anything rather than publish it as the person's name. A loser id the
+    # merge folds away resolves to its survivor's name.
+    account_names = {field(r, "legacy_member_id"): field(r, "real_name") or field(r, "display_name")
+                     for r in importable}
+    pending = cur.execute(
+        "SELECT person_id, legacy_member_id FROM historical_persons "
+        "WHERE source_scope = 'PROVISIONAL' AND notes LIKE ?",
+        (NAME_PENDING_ACCOUNT_REPAIR + "%",),
+    ).fetchall()
+    carried: list[tuple[str, str]] = []
+    damaged: list[str] = []
+    for person_id, account in pending:
+        name = account_names.get(merge_map.get(account, account))
+        if name is None:
+            continue
+        damage = roster_name_damage(name)
+        if damage:
+            damaged.append(f"{account} ({damage})")
+        else:
+            carried.append((person_id, name))
+    if damaged:
+        conn.close()
+        fail(
+            f"account name(s) still damaged in encoding for provisional persons waiting "
+            f"on them: {', '.join(damaged)}. Repair them in "
+            "legacy_data/overrides/member_name_encodings.csv, re-run the legacy publish "
+            "(legacy_data/scripts/publish_legacy_repo_data.py), then this load. "
+            "Nothing was written."
+        )
+
     if args.apply:
         cur.execute("BEGIN")
         if merge_map:
@@ -518,6 +557,11 @@ def main() -> None:
                 conn.rollback()
                 conn.close()
                 fail(str(exc))
+        for person_id, name in carried:
+            cur.execute(
+                "UPDATE historical_persons SET person_name = ?, notes = NULL WHERE person_id = ?",
+                (name, person_id),
+            )
         conn.commit()
     conn.close()
 
@@ -561,6 +605,8 @@ def main() -> None:
     print(f"    updated from fixture:   {updated_from_fixture}")
     print(f"    re-applied (export):    {re_applied}")
     print(f"    inserted new:           {inserted_new}")
+    print(f"  names carried from accounts: {len(carried)}")
+    print(f"  names still pending:         {len(pending) - len(carried)}")
     if merge_map:
         print(f"  auto-merge losers:        {merge_stats.get('losers', len(merge_map))}")
         for tbl, s in merge_stats.get("remap", {}).items():

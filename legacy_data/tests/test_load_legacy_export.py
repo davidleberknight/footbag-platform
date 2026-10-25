@@ -139,6 +139,74 @@ def seed_historical_person(db: Path, person_id: str, legacy_member_id: str, firs
     conn.close()
 
 
+PENDING_MARKER = "name pending legacy account repair"
+
+
+def seed_provisional_person(db: Path, person_id: str, legacy_member_id: str,
+                            person_name: str = "Unknown", notes: str | None = None) -> None:
+    conn = sqlite3.connect(db)
+    conn.execute(
+        """INSERT INTO legacy_members
+           (legacy_member_id, display_name, display_name_normalized, import_source, imported_at)
+           VALUES (?, 'FK Target', 'fk target', 'system_fixture', ?)
+           ON CONFLICT(legacy_member_id) DO NOTHING""",
+        (legacy_member_id, TS),
+    )
+    conn.execute(
+        """INSERT INTO historical_persons
+           (person_id, person_name, legacy_member_id, notes, source_scope)
+           VALUES (?, ?, ?, ?, 'PROVISIONAL')""",
+        (person_id, person_name, legacy_member_id, notes),
+    )
+    conn.commit()
+    conn.close()
+
+
+def person(db: Path, person_id: str) -> sqlite3.Row:
+    return query(db, "SELECT person_name, notes FROM historical_persons WHERE person_id = ?",
+                 (person_id,))[0]
+
+
+def test_a_person_pending_its_account_name_takes_it_and_others_are_untouched(tmp_path: Path) -> None:
+    # Defect caught: a roster person left as "Unknown" after its account's repaired
+    # name loaded, a person without the marker renamed, or a pending person whose
+    # account the export lacks silently dropped from the count.
+    db = make_db(tmp_path)
+    seed_provisional_person(db, "P-pending", "700",
+                            notes=f"{PENDING_MARKER} (letter split from its accent): S tepan Player")
+    seed_provisional_person(db, "P-plain", "701", person_name="Kept Name")
+    seed_provisional_person(db, "P-absent", "702", notes=f"{PENDING_MARKER} (x): y")
+    export = write_export(tmp_path, [
+        export_row("700", RealName="Štěpán Player"),
+        export_row("701", RealName="Other Name"),
+    ])
+    result = run_loader(db, export)
+    assert result.returncode == 0, result.stderr
+    assert tuple(person(db, "P-pending")) == ("Štěpán Player", None)
+    assert tuple(person(db, "P-plain")) == ("Kept Name", None)
+    assert person(db, "P-absent")["person_name"] == "Unknown"
+    assert "names carried from accounts: 1" in result.stdout
+    assert "names still pending:         1" in result.stdout
+
+
+def test_an_account_name_still_damaged_stops_the_load_and_writes_nothing(tmp_path: Path) -> None:
+    # Defect caught: a damaged account spelling copied onto a person, or a refused
+    # load that still wrote members.
+    db = make_db(tmp_path)
+    seed_provisional_person(db, "P-pending", "710", notes=f"{PENDING_MARKER} (x): y")
+    export = write_export(tmp_path, [
+        export_row("710", RealName="Alpha Pla?er"),
+        export_row("711"),
+    ])
+    for apply in (False, True):
+        result = run_loader(db, export, apply=apply)
+        assert result.returncode != 0, result.stdout
+        assert "710" in result.stderr and "question mark for a lost letter" in result.stderr
+        assert "member_name_encodings.csv" in result.stderr
+    assert person(db, "P-pending")["person_name"] == "Unknown"
+    assert query(db, "SELECT COUNT(*) AS n FROM legacy_members WHERE import_source = 'legacy_site_data'")[0]["n"] == 0
+
+
 def test_credential_column_aborts_before_any_write(tmp_path: Path) -> None:
     db = make_db(tmp_path)
     export = write_export(

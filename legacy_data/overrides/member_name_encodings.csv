@@ -1,4 +1,7 @@
-legacy_member_id,codepage,fields,note
+legacy_member_id,codepage,fields,note,lost_letter
+14232,cp1250,given,Central European plus caron markup,
+43636,none,surname,caron markup only,
+66090,none,surname,lost letter established from outside evidence,s<caron>
 70559,cp1250,surname,Central European
 78092,cp1250,middle,Central European
 81058,cp1250,middle,Central European

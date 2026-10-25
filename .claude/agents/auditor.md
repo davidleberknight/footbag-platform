@@ -33,6 +33,8 @@ hooks:
         - type: command
           command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-full-suite-vitest.sh"
         - type: command
+          command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-foreground-tests.sh"
+        - type: command
           command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-readonly-bash.sh"
         - type: command
           command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-find-exec.sh"

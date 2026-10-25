@@ -53,10 +53,19 @@ BY_CODEPAGE_VALUES = {"cp1250": 14, "cp1251": 6, "iso8859-5": 22}
 # in the curated file and never will be.
 DESTROYED_IDS = {"64656", "65997", "66007", "79457", "83072"}
 
+# Members outside that inventory whose names carry the legacy accent markup, one
+# of them with a letter lost to a question mark and established from outside
+# evidence. They are linked to roster persons waiting on their repaired names.
+MARKUP_IDS = {"14232", "43636", "66090"}
+
 
 def _curated() -> list[dict]:
     with OVERRIDES.open(newline="", encoding="utf-8") as fh:
         return list(csv.DictReader(fh))
+
+
+def _codepage_rows() -> list[dict]:
+    return [r for r in _curated() if r["legacy_member_id"] not in MARKUP_IDS]
 
 
 # ── the audited totals ───────────────────────────────────────────────────────
@@ -81,13 +90,14 @@ def test_a_group_never_has_fewer_values_than_members():
 # ── the curated file ─────────────────────────────────────────────────────────
 
 def test_the_curated_file_covers_exactly_the_recoverable_members():
-    rows = _curated()
+    rows = _codepage_rows()
     assert len(rows) == RECOVERABLE_MEMBERS
     assert len({r["legacy_member_id"] for r in rows}) == RECOVERABLE_MEMBERS
+    assert {r["legacy_member_id"] for r in _curated()} >= MARKUP_IDS
 
 
 def test_the_curated_file_groups_match_the_audited_counts():
-    rows = _curated()
+    rows = _codepage_rows()
     seen: dict[str, int] = {}
     for r in rows:
         seen[r["codepage"]] = seen.get(r["codepage"], 0) + 1
@@ -113,12 +123,13 @@ def test_the_curated_file_records_no_names():
 
 def test_the_loader_reads_the_codepage_and_the_fields():
     loaded = ex.load_member_name_encodings(OVERRIDES)
-    assert len(loaded) == RECOVERABLE_MEMBERS
-    assert loaded["70559"] == ("cp1250", frozenset({"MemberLastName"}))
+    assert len(loaded) == RECOVERABLE_MEMBERS + len(MARKUP_IDS)
+    assert loaded["70559"] == ("cp1250", frozenset({"MemberLastName"}), None)
     assert loaded["81506"] == ("cp1251", frozenset(
-        {"MemberFirstName", "MemberMiddleName", "MemberLastName"}))
+        {"MemberFirstName", "MemberMiddleName", "MemberLastName"}), None)
     assert loaded["82685"] == ("iso8859-5", frozenset(
-        {"MemberFirstName", "MemberLastName"}))
+        {"MemberFirstName", "MemberLastName"}), None)
+    assert loaded["66090"] == ("none", frozenset({"MemberLastName"}), "s<caron>")
 
 
 def test_a_member_whose_other_name_is_already_correct_lists_only_the_damaged_one():
@@ -126,7 +137,7 @@ def test_a_member_whose_other_name_is_already_correct_lists_only_the_damaged_one
     # This member's given name was written in an unrecorded codepage; the surname
     # was not, and it holds a letter both codepages define, so re-reading it would
     # decode cleanly to the WRONG letter and look repaired.
-    codepage, fields = ex.load_member_name_encodings(OVERRIDES)["82881"]
+    codepage, fields, _lost = ex.load_member_name_encodings(OVERRIDES)["82881"]
     assert fields == frozenset({"MemberFirstName"})
 
     # The surname's plain column as the dump stores it. Its unicode column is
@@ -146,7 +157,7 @@ def test_a_member_whose_other_name_is_already_correct_lists_only_the_damaged_one
 
 
 def test_every_curated_member_names_at_least_one_field():
-    for mid, (_cp, fields) in ex.load_member_name_encodings(OVERRIDES).items():
+    for mid, (_cp, fields, _lost) in ex.load_member_name_encodings(OVERRIDES).items():
         assert fields, mid
 
 
@@ -172,6 +183,16 @@ def test_naming_no_field_stops_the_extract(tmp_path):
     p.write_text("legacy_member_id,codepage,fields,note\n1,cp1250,,x\n",
                  encoding="utf-8")
     with pytest.raises(SystemExit):
+        ex.load_member_name_encodings(p)
+
+
+def test_a_lost_letter_of_more_than_one_character_stops_the_extract(tmp_path):
+    # A lost letter fills exactly one question mark; a longer value would write
+    # an invented name fragment into someone's name.
+    p = tmp_path / "bad.csv"
+    p.write_text("legacy_member_id,codepage,fields,note,lost_letter\n1,none,surname,x,sz\n",
+                 encoding="utf-8")
+    with pytest.raises(SystemExit, match="exactly one character"):
         ex.load_member_name_encodings(p)
 
 
@@ -262,6 +283,48 @@ def test_a_curated_codepage_never_forces_a_damaged_value_through():
     value, how = ex._resolve_pair("Ale?", "AleÂ?", "cp1250")
     assert "?" in value
     assert how != ex.SELECTED_CURATED
+
+
+# ── accent markup and a lost letter ──────────────────────────────────────────
+
+def test_markup_is_decoded_after_the_codepage_re_read():
+    # Defect caught: the markup left in a published name, or the re-read skipped
+    # because the markup was decoded first into a letter the codepage cannot hold.
+    value, how = ex._resolve_pair("C<caron>ernì", "", "cp1250")
+    assert (value, how) == ("Černě", ex.SELECTED_CURATED)
+
+
+def test_markup_alone_is_decoded_when_no_codepage_is_named():
+    # Defect caught: a markup-only member skipped because no re-read changes it.
+    value, how = ex._resolve_pair("Kos<caron>ir", "", "none")
+    assert (value, how) == ("Košir", ex.SELECTED_CURATED)
+
+
+def test_markup_is_left_alone_for_a_member_nobody_ruled_on():
+    # The repair is per member, like the codepage: without a ruling the name
+    # passes as delivered and the member load refuses it downstream.
+    value, how = ex._resolve_pair("Kos<caron>ir", "", None)
+    assert value == "Kos<caron>ir" and how != ex.SELECTED_CURATED
+
+
+def test_a_lost_letter_fills_the_one_question_mark_and_entities_decode():
+    # Defect caught: an established letter not applied, or a numeric entity left
+    # in a published name.
+    value, how = ex._resolve_pair("Mili?evi&#263;", "", "none", "s<caron>")
+    assert (value, how) == ("Milišević", ex.SELECTED_CURATED)
+
+
+def test_without_a_lost_letter_a_question_mark_still_refuses_the_repair():
+    # Defect caught: a name still carrying a lost letter published as repaired.
+    value, how = ex._resolve_pair("Mili?evi&#263;", "", "none")
+    assert how != ex.SELECTED_CURATED
+
+
+def test_a_named_member_maps_to_the_repaired_name_and_others_do_not():
+    # Defect caught: the rule reaching a field the curator did not name.
+    rec = {"MemberID": "9", "MemberFirstName": "Ana<caron>", "MemberLastName": "Kos<caron>ir"}
+    mapped = ex.map_record(rec, None, {"9": ("none", frozenset({"MemberLastName"}), None)})
+    assert mapped["real_name"] == "Ana<caron> Košir"
 
 
 def test_clean_unicode_columns_are_untouched_by_an_override():

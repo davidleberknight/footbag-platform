@@ -42,6 +42,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "scripts" / "lib"))
 from db_cutover_guard import assert_maintainer_db_target  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # legacy_data/
+from pipeline.identity.name_damage import (  # noqa: E402
+    NAME_PENDING_ACCOUNT_REPAIR, UNKNOWN_NAME, roster_name_damage,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -181,11 +185,6 @@ def translate_membership_only_pid(
 import re as _re
 import unicodedata as _unicodedata
 
-# ── Encoding damage in roster and membership names ───────────────────────────
-_PL_MOJIBAKE     = _re.compile(r"[¶¦±¼¿¸¹º³]")
-_PL_EMBED_Q      = _re.compile(r"\w\?|\?\w")
-_PL_STANDALONE_Q = _re.compile(r"(?:^|\s)\?{1,5}(?:\s|$)")
-
 
 def _norm_name(name: str) -> str:
     """Strip diacritics, lowercase, collapse whitespace, remove periods."""
@@ -202,32 +201,6 @@ def _aggressive_norm(name: str) -> str:
     if len(parts) > 2:
         return f"{parts[0]} {parts[-1]}"
     return s
-
-
-# The name a provisional person carries while its source spelling, damaged in
-# encoding, waits for its legacy account's repaired name; the site shows it as an
-# unknown name. The notes marker is what the member load finds to replace it.
-UNKNOWN_NAME = "Unknown"
-NAME_PENDING_ACCOUNT_REPAIR = "name pending legacy account repair"
-
-# A lone capital, a space, then a lower-case word: a letter whose accent markup the
-# roster extractor turned into a space ("S<caron>tepan" read as "S tepan").
-_SPLIT_ACCENTED_LETTER = _re.compile(r"(?:^|\s)[A-Z]\s[a-zà-ÿ]")
-
-
-def roster_name_damage(name: str) -> str:
-    """Why a roster or membership name is damaged in encoding, or "" when it is
-    not: a codepage-mismatch character, a question mark standing for a lost letter,
-    or a letter split from its accent. Nothing else about a roster name blocks it."""
-    if _PL_MOJIBAKE.search(name):
-        return "codepage-mismatch character"
-    if _PL_EMBED_Q.search(name) or _PL_STANDALONE_Q.search(name):
-        return "question mark for a lost letter"
-    if _SPLIT_ACCENTED_LETTER.search(name):
-        return "letter split from its accent"
-    return ""
-
-
 
 
 # ---------------------------------------------------------------------------

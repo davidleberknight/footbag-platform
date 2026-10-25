@@ -60,6 +60,7 @@ import io
 import os
 import re
 import sys
+import unicodedata
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
@@ -223,7 +224,25 @@ MEMBER_NAME_ENCODINGS_CSV = (
 # The encodings a curator may name. A closed set on purpose: the point of this
 # file is that a human decided, so an unrecognised value is a mistake to surface
 # rather than something to attempt.
-ALLOWED_CODEPAGES = frozenset({"cp1250", "cp1251", "iso8859-5"})
+ALLOWED_CODEPAGES = frozenset({"cp1250", "cp1251", "iso8859-5", "none"})
+
+# The codepage a curator names when the stored bytes are right and only the
+# legacy system's accent markup needs decoding.
+NO_CODEPAGE = "none"
+
+# The legacy system wrote some accented letters as markup, a letter followed by
+# the accent's name ("S<caron>" for Š), and others as numeric HTML entities.
+# Both are exact spellings of one character, so decoding them infers nothing.
+_ACCENT_MARKUP = re.compile(r"([A-Za-z])<caron>")
+_COMBINING_CARON = chr(0x030C)
+_NUMERIC_ENTITY = re.compile(r"&#(\d+);")
+
+
+def decode_accent_markup(text: str) -> str:
+    """The text with the legacy system's accent markup and numeric entities
+    turned into the characters they spell."""
+    text = _ACCENT_MARKUP.sub(lambda m: unicodedata.normalize("NFC", m.group(1) + _COMBINING_CARON), text)
+    return _NUMERIC_ENTITY.sub(lambda m: chr(int(m.group(1))), text)
 
 
 # Which stored column each curated field token names.
@@ -236,8 +255,12 @@ CURATED_FIELD_COLUMNS = {
 
 def load_member_name_encodings(
     path: Path = MEMBER_NAME_ENCODINGS_CSV,
-) -> dict[str, tuple[str, frozenset[str]]]:
-    """Curated member id -> (codepage, the columns it applies to).
+) -> dict[str, tuple[str, frozenset[str], str | None]]:
+    """Curated member id -> (codepage, the columns it applies to, the lost letter).
+
+    The lost letter is the one character a member's name lost to a question mark
+    in every source, established from outside evidence and written in the legacy
+    markup ("s<caron>") so the file still records no name. Most rows have none.
 
     The columns matter as much as the codepage. A member can have one name
     written in a codepage nobody recorded while another is already correct, and
@@ -252,7 +275,7 @@ def load_member_name_encodings(
     """
     if not path.exists():
         return {}
-    out: dict[str, tuple[str, frozenset[str]]] = {}
+    out: dict[str, tuple[str, frozenset[str], str | None]] = {}
     with path.open(newline="", encoding="utf-8") as fh:
         for row in csv.DictReader(fh):
             mid = (row.get("legacy_member_id") or "").strip()
@@ -270,7 +293,12 @@ def load_member_name_encodings(
                     f"member_name_encodings.csv: member {mid} names field(s) "
                     f"{unknown or '(none)'}, expected some of "
                     f"{sorted(CURATED_FIELD_COLUMNS)}")
-            out[mid] = (cp, frozenset(CURATED_FIELD_COLUMNS[t] for t in tokens))
+            lost = (row.get("lost_letter") or "").strip() or None
+            if lost is not None and len(decode_accent_markup(lost)) != 1:
+                raise SystemExit(
+                    f"member_name_encodings.csv: member {mid} names lost letter {lost!r}, "
+                    "which is not exactly one character")
+            out[mid] = (cp, frozenset(CURATED_FIELD_COLUMNS[t] for t in tokens), lost)
     return out
 
 
@@ -301,7 +329,8 @@ def decode_through_codepage(text: str, codepage: str) -> str | None:
 
 
 def _resolve_pair(base_val: str, uni_val: str,
-                  codepage: str | None = None) -> tuple[str, str]:
+                  codepage: str | None = None,
+                  lost_letter: str | None = None) -> tuple[str, str]:
     """Choose between a field's two stored spellings, and say why.
 
     A curated codepage, when one is recorded for this member, is consulted first
@@ -324,8 +353,15 @@ def _resolve_pair(base_val: str, uni_val: str,
     delivered and counted as such.
     """
     if codepage and base_val:
-        curated = decode_through_codepage(base_val, codepage)
-        if curated is not None:
+        # The codepage re-read comes first: the markup is ASCII, so it passes
+        # through the re-read untouched and is decoded afterwards.
+        curated = base_val
+        if codepage != NO_CODEPAGE:
+            curated = decode_through_codepage(base_val, codepage) or base_val
+        curated = decode_accent_markup(curated)
+        if lost_letter and curated.count("?") == 1:
+            curated = curated.replace("?", decode_accent_markup(lost_letter))
+        if curated != base_val and "?" not in curated and "�" not in curated:
             return curated, SELECTED_CURATED
 
     chosen = uni_val if uni_val else base_val
@@ -370,8 +406,9 @@ def _resolve_pair(base_val: str, uni_val: str,
 
 
 def _prefer_unicode(rec: dict, base: str, uni: str,
-                    codepage: str | None = None) -> str:
-    value, _ = _resolve_pair(_val(rec, base), _val(rec, uni), codepage)
+                    codepage: str | None = None,
+                    lost_letter: str | None = None) -> str:
+    value, _ = _resolve_pair(_val(rec, base), _val(rec, uni), codepage, lost_letter)
     return value
 
 
@@ -474,7 +511,8 @@ OTHER_PAIRS = [
 ]
 
 def audit_record_encoding(rec: dict, codepage: str | None = None,
-                          fields: frozenset[str] = frozenset()) -> dict:
+                          fields: frozenset[str] = frozenset(),
+                          lost_letter: str | None = None) -> dict:
     """Report how each stored-twice field of one row resolved, and what is wrong
     with the ones that did not.
 
@@ -491,7 +529,7 @@ def audit_record_encoding(rec: dict, codepage: str | None = None,
         # a name column the curator did not list, must resolve here exactly as it
         # does in the mapping.
         cp = codepage if base in fields else None
-        value, how = _resolve_pair(base_val, uni_val, cp)
+        value, how = _resolve_pair(base_val, uni_val, cp, lost_letter if cp else None)
         outcomes[base] = how
         if not value or value.isascii():
             continue
@@ -521,23 +559,23 @@ def audit_record_encoding(rec: dict, codepage: str | None = None,
 
 
 def map_record(rec: dict, cutover_epoch: int | None = None,
-               name_encodings: dict[str, tuple[str, frozenset[str]]] | None = None,
+               name_encodings: dict[str, tuple[str, frozenset[str], str | None]] | None = None,
                board_roster: dict[str, str] | None = None) -> dict:
     """Map a members row to the canonical loader-input fields."""
     # Only the name columns consult the curated codepage. A member's city or
     # country carrying the same damage is a different question and is not what
     # was ruled on, and the surname is what gates their claim.
-    codepage, fields = (name_encodings or {}).get(_val(rec, "MemberID"), (None, frozenset()))
+    codepage, fields, lost_letter = (name_encodings or {}).get(
+        _val(rec, "MemberID"), (None, frozenset(), None))
 
-    def cp_for(column: str) -> str | None:
-        return codepage if column in fields else None
+    def name_for(base: str, uni: str) -> str:
+        if base in fields:
+            return _prefer_unicode(rec, base, uni, codepage, lost_letter)
+        return _prefer_unicode(rec, base, uni)
 
-    first = _prefer_unicode(rec, "MemberFirstName", "MemberFirstNameUnicode",
-                            cp_for("MemberFirstName"))
-    middle = _prefer_unicode(rec, "MemberMiddleName", "MemberMiddleNameUnicode",
-                             cp_for("MemberMiddleName"))
-    last = _prefer_unicode(rec, "MemberLastName", "MemberLastNameUnicode",
-                           cp_for("MemberLastName"))
+    first = name_for("MemberFirstName", "MemberFirstNameUnicode")
+    middle = name_for("MemberMiddleName", "MemberMiddleNameUnicode")
+    last = name_for("MemberLastName", "MemberLastNameUnicode")
     real_name = " ".join(p for p in (first, middle, last) if p)
     alias = _val(rec, "MemberAlias")
     expiration = _val(rec, "MemberIFPAExpiration")
@@ -903,8 +941,8 @@ def member_csvs(members: list[dict], epoch: int, admins: set[str] | None,
         why = tier_coverage_violation(rec, mapped, epoch)
         if why:
             uncovered.append(f'MemberID {member_id or "?"}: {why}')
-        codepage, fields = name_encodings.get(member_id, (None, frozenset()))
-        audit = audit_record_encoding(rec, codepage, fields)
+        audit = audit_record_encoding(
+            rec, *name_encodings.get(member_id, (None, frozenset(), None)))
         for how in audit['outcomes'].values():
             if how != SELECTED_UNICODE:
                 outcomes.setdefault(how, set()).add(member_id)

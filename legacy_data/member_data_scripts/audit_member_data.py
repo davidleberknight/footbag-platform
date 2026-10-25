@@ -188,8 +188,7 @@ def check_name_encoding_repair(ctx: dict) -> str:
     still_double = 0
     for rec in ctx["delivered"]:
         mid = ex._val(rec, "MemberID")
-        cp, fields = encodings.get(mid, (None, frozenset()))
-        audit = ex.audit_record_encoding(rec, cp, fields)
+        audit = ex.audit_record_encoding(rec, *encodings.get(mid, (None, frozenset(), None)))
         for base, how in audit["outcomes"].items():
             if how == ex.SELECTED_UNICODE:
                 continue
