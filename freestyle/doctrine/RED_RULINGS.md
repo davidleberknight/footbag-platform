@@ -260,8 +260,12 @@ Values for all of these live in `freestyleOperatorReference.ts` /
 
 Each lives as a row (with pt-cited provenance) in the curated CSVs; the notable ones:
 
-- Toe Blur = Stepping Paradox Mirage (pt10 adjudication; supersedes the pt2
-  "Quantum Mirage" equivalence, whose math did not close).
+- **Toe Blur = Quantum Mirage, 3 ADD** (curator ruling, 2026-10-25), consistent
+  with the toe-prefix convention below; Blur remains Stepping Paradox Mirage,
+  4 ADD. This resolves the conflict between this ledger's two entries. The earlier
+  pt10 adjudication, recorded here as "Toe Blur = Stepping Paradox Mirage
+  (supersedes the pt2 'Quantum Mirage' equivalence, whose math did not close)",
+  is **superseded** by this ruling and kept for the record.
 - Quantum is the modern naming replacing the older "toe" prefix (pt2); toe-X names
   are aliases of quantum-X canonicals.
 - Omelette = Illusioning Pickup (pt6); Omelette resolves to the atomic_illusion
