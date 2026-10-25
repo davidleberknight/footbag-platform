@@ -168,6 +168,7 @@ each release contains is §1.3.
     - [A_Fix_Event_Results](#a_fix_event_results)
     - [A_Correct_Event_Data](#a_correct_event_data)
     - [A_Mark_Member_Deceased](#a_mark_member_deceased)
+    - [A_Correct_Historical_Person](#a_correct_historical_person)
     - [A_Periodic_Club_Cleanup](#a_periodic_club_cleanup)
   - [7.3 Content Moderation](#73-content-moderation)
     - [A_Moderate_Media](#a_moderate_media)
@@ -2959,6 +2960,21 @@ Success Criteria:
 - Admin sees a clear success message when action completes.
 - If marking was done in error, admin can remove the deceased flag within a configurable grace period with audit logging; after grace period, only full account deletion is available.
 - A parallel admin affordance can set or unset `historical_persons.is_deceased` on an unlinked historical record (a historical person with no member account), audit-logged and reversible, behind the same confirmation step. The `historical_persons.is_deceased` flag is affirmative-only (its presence marks a person recognized as deceased; its absence asserts nothing) and is consumed only to keep the record out of every claim offer (no suggestion, card, follow-up offer or claim control names it) and to refuse its claim on every self-serve path, including a legacy-account claim that would transitively link it (see M_Claim_Legacy_Account). No public memorial display is driven by this flag; an "In Memoriam" presentation on historical and HoF/BAP surfaces is deferred to its own future story.
+
+### A_Correct_Historical_Person
+
+Access: Only admins can correct a historical-person record.
+
+Story: As an administrator, I can correct the name, country and competition years on a historical-person record that no member has claimed, so that a mistake in the imported competition record can be fixed in the app after go-live.
+
+Success Criteria:
+
+- Admin reaches the correction from the historical-record lookup, on a record no member has claimed. A claimed record is corrected through its member, under `A_Override_Member_Data`.
+- Admin can correct the person's name, country, first competition year and last competition year. The name is required; a year is a four-digit year no later than the current year, and the first year is not later than the last.
+- Every correction requires a reason entered by the admin, previews before it writes, and writes an audit row carrying the before and after values, the admin's identity, the timestamp, and the reason. A submission that would change nothing writes nothing and says so.
+- A corrected name is what claim matching reads from the next time the onboarding wizard renders. The correction creates and removes no identity link.
+- Where the corrected name changes the person's player hashtag, the hashtag moves with it, so media already crediting the person keep crediting them; the preview says so before the correction is made. A correction whose new player hashtag is already in use is refused.
+- Corrections appear on the public history page and in results immediately, with no separate publication step.
 
 ### A_Review_Member_Link_Help_Requests
 

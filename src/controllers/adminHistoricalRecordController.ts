@@ -1,5 +1,8 @@
 import type { Request, Response, NextFunction } from 'express';
-import { adminHistoricalRecordService } from '../services/adminHistoricalRecordService';
+import {
+  adminHistoricalRecordService,
+  type HistoricalRecordCorrectionInput,
+} from '../services/adminHistoricalRecordService';
 import { NotFoundError, ValidationError, ConflictError } from '../services/serviceErrors';
 import { FLASH_KIND, readFlash, clearFlash } from '../lib/flashCookie';
 import { handleControllerError } from '../lib/controllerErrors';
@@ -27,6 +30,39 @@ function renderError(
   res.status(422).render(
     'admin/historical-records/index',
     adminHistoricalRecordService.getHistoricalRecordsPage('', { errorMessage: err.message }),
+  );
+}
+
+function bodyValue(req: Request, field: string): string {
+  return String(req.body?.[field] ?? '');
+}
+
+function correctionInputFrom(req: Request): HistoricalRecordCorrectionInput {
+  return {
+    name:      bodyValue(req, 'name'),
+    country:   bodyValue(req, 'country'),
+    firstYear: bodyValue(req, 'first_year'),
+    lastYear:  bodyValue(req, 'last_year'),
+  };
+}
+
+/**
+ * A correction the administrator can fix goes back to the form with what they
+ * typed; a claimed or missing record goes where any other refusal here goes.
+ */
+function renderCorrectionError(
+  req: Request,
+  res: Response,
+  err: NotFoundError | ValidationError | ConflictError,
+  next: NextFunction,
+): void {
+  if (!(err instanceof ValidationError)) { renderError(res, err, next); return; }
+  res.status(422).render(
+    'admin/historical-records/correction',
+    adminHistoricalRecordService.getCorrectionPage(req.params['personId'] ?? '', {
+      input: correctionInputFrom(req),
+      errorMessage: err.message,
+    }),
   );
 }
 
@@ -90,5 +126,49 @@ export const adminHistoricalRecordController = {
         handleControllerError(err, res, next, CONTEXT);
       }
     };
+  },
+
+  /** GET /admin/historical-records/:personId/correction */
+  correction(req: Request, res: Response, next: NextFunction): void {
+    try {
+      res.render(
+        'admin/historical-records/correction',
+        adminHistoricalRecordService.getCorrectionPage(req.params['personId'] ?? ''),
+      );
+    } catch (err) {
+      if (isHandled(err)) { renderError(res, err, next); return; }
+      handleControllerError(err, res, next, CONTEXT);
+    }
+  },
+
+  /** POST /admin/historical-records/:personId/correction */
+  previewCorrection(req: Request, res: Response, next: NextFunction): void {
+    try {
+      res.render('admin/historical-records/confirm', adminHistoricalRecordService.previewCorrection(
+        req.params['personId'] ?? '', correctionInputFrom(req), bodyValue(req, 'reason'),
+      ));
+    } catch (err) {
+      if (isHandled(err)) { renderCorrectionError(req, res, err, next); return; }
+      handleControllerError(err, res, next, CONTEXT);
+    }
+  },
+
+  /** POST /admin/historical-records/:personId/correction/confirm */
+  confirmCorrection(req: Request, res: Response, next: NextFunction): void {
+    const personId = req.params['personId'] ?? '';
+    try {
+      const outcome = adminHistoricalRecordService.applyCorrection(
+        req.user!.userId, personId, correctionInputFrom(req), bodyValue(req, 'reason'),
+      );
+      redirectWithOutcome(req, res, {
+        flash: FLASH_KIND.HISTORICAL_RECORD_OUTCOME,
+        to: `/admin/historical-records?q=${encodeURIComponent(personId)}`,
+        ending: outcome.ending,
+        text: outcome.text,
+      });
+    } catch (err) {
+      if (isHandled(err)) { renderCorrectionError(req, res, err, next); return; }
+      handleControllerError(err, res, next, CONTEXT);
+    }
   },
 };

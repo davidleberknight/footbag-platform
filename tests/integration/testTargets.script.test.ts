@@ -9,7 +9,7 @@
  */
 import { describe, it, expect, afterAll, beforeAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, mkdirSync, writeFileSync, appendFileSync, readFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, writeFileSync, appendFileSync, readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
@@ -102,18 +102,6 @@ describe('test-targets.sh — application source', () => {
     const r = run(['src/controllers/adminClubController.ts']);
     expect(r.tests).toContain('tests/integration/admin-clubs.routes.test.ts');
     expect(r.tests.filter((t) => t.includes('admin-club-cleanup'))).toEqual([]);
-  });
-
-  it('gives a high-fan-out module its canary sweeps and the full-gate note, not grep hits', () => {
-    const r = run(['src/db/db.ts']);
-    for (const f of CANARY) expect(r.tests, f).toContain(f);
-    // Every other selection names the module by its path; a grep on the bare
-    // name `db` would pull in most of the suite.
-    const unrelated = r.tests
-      .filter((f) => !CANARY.includes(f))
-      .filter((f) => !readFileSync(join(process.cwd(), f), 'utf8').includes('src/db/db.ts'));
-    expect(unrelated).toEqual([]);
-    expect(r.notes).toContain('src/db/db.ts is high fan-out; the full gate is needed at session end');
   });
 
   it('reaches the suites guarding a high-fan-out file by its path', () => {
@@ -447,6 +435,158 @@ describe('test-targets.sh — a test-data builder change reaches the suites call
 
   it('defers to the full gate when the file has no change to read', () => {
     const r = targets(base);
+    expect(r.notes).toContain(fullGate);
+  });
+});
+
+describe('test-targets.sh — a database statement change reaches the files using it', () => {
+  // The database module is imported by nearly every service, but a change to
+  // one statement can only break the files using that statement; deferring
+  // every such change to the full gate made a one-line change cost a full run.
+  const repo = createScratchDir('test-targets-db');
+  const dbFile = 'src/db/db.ts';
+  const base = [
+    "import { openDatabase } from './openDatabase';",
+    '',
+    'export const db = openDatabase();',
+    '',
+    '// Widgets on display.',
+    'export const widgets = {',
+    '  get countWidgets() { return db.prepare(`',
+    '    SELECT COUNT(*) AS n FROM widgets',
+    '  `); },',
+    '',
+    '  get listWidgets() { return db.prepare(`',
+    '    SELECT id FROM widgets',
+    '  `); },',
+    '};',
+    'const WIDGET_LIMIT = 10;',
+    '',
+    'export const gadgets = {',
+    '  get countGadgets() { return db.prepare(`',
+    '    SELECT COUNT(*) AS n FROM gadgets',
+    '  `); },',
+    '',
+    '  get findGadget() { return db.prepare(`',
+    '    SELECT id FROM gadgets WHERE id = ?',
+    '  `); },',
+    '};',
+    '',
+    'export const sessions = {',
+    '  get findSession() { return db.prepare(`',
+    '    SELECT id FROM sessions WHERE id = ?',
+    '  `); },',
+    '};',
+    '',
+    'export function transaction<T>(work: () => T): T {',
+    '  return work();',
+    '}',
+    '',
+  ].join('\n');
+  const git = (...a: string[]) =>
+    spawnSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@example.invalid', ...a], {
+      cwd: repo,
+      encoding: 'utf8',
+      ...SPAWN_GUARD,
+    });
+  const targets = (content: string) => {
+    writeFileSync(join(repo, dbFile), content);
+    return run([dbFile], join(repo, 'scripts/test-targets.sh'), repo);
+  };
+  const fullGate = `${dbFile} is high fan-out; the full gate is needed at session end`;
+  const widgetSuite = 'tests/integration/widget.service.test.ts';
+  const gadgetSuite = 'tests/integration/gadget.service.test.ts';
+  const lazyPrepare = 'tests/unit/db-lazy-prepare.test.ts';
+
+  beforeAll(() => {
+    for (const d of ['scripts', 'src/db', 'src/services', 'src/middleware', 'tests/unit', 'tests/integration']) {
+      mkdirSync(join(repo, d), { recursive: true });
+    }
+    copyFileSync(SCRIPT, join(repo, 'scripts/test-targets.sh'));
+    writeFileSync(join(repo, dbFile), base);
+    writeFileSync(join(repo, 'src/services/widgetService.ts'), "import { widgets } from '../db/db';\nwidgets.countWidgets.get();\n");
+    writeFileSync(join(repo, 'src/services/gadgetService.ts'), "import { gadgets } from '../db/db';\ngadgets.findGadget.get();\n");
+    writeFileSync(join(repo, widgetSuite), "import '../../src/services/widgetService';\n");
+    writeFileSync(join(repo, gadgetSuite), "import '../../src/services/gadgetService';\n");
+    writeFileSync(join(repo, lazyPrepare), "const MODULE = 'src/db/db.ts';\n");
+    // Names the module only by its bare name, as most of the suite does.
+    writeFileSync(join(repo, 'tests/integration/unrelated.test.ts'), "import { db } from '../../src/db/db';\n");
+    for (const f of CANARY) writeFileSync(join(repo, f), '// sweep\n');
+    expect(git('init', '-q').status).toBe(0);
+    expect(git('add', '.').status).toBe(0);
+    expect(git('commit', '-qm', 'base').status).toBe(0);
+  });
+  afterAll(() => removeScratch(repo));
+
+  it("selects a changed statement's users' suites and the module's own checks, with no full gate", () => {
+    const r = targets(base.replace('SELECT COUNT(*) AS n FROM widgets', 'SELECT COUNT(*) AS n FROM widgets WHERE shown = 1'));
+    expect(r.status).toBe(0);
+    expect(r.tests).toContain(widgetSuite);
+    expect(r.tests).toContain(lazyPrepare);
+    expect(r.checks).toContain('bash scripts/ci/assert_conventions.sh');
+    // An untouched statement's users, and a suite naming only `db`, are not reached.
+    expect(r.tests).not.toContain(gadgetSuite);
+    expect(r.tests).not.toContain('tests/integration/unrelated.test.ts');
+    expect(r.notes).not.toContain(fullGate);
+  });
+
+  it('reaches the suites of files still using a statement the change removes', () => {
+    // The removed lines sit below another statement, which owns the gap they
+    // leave, so only the removed declaration itself names the statement.
+    const r = targets(base.replace('\n  get findGadget() { return db.prepare(`\n    SELECT id FROM gadgets WHERE id = ?\n  `); },\n', '\n'));
+    expect(r.tests).toContain(gadgetSuite);
+    expect(r.notes).not.toContain(fullGate);
+  });
+
+  it('says so when a changed statement has no user, rather than deferring to the full gate', () => {
+    const r = targets(base.replace('SELECT id FROM widgets', 'SELECT id, name FROM widgets'));
+    expect(r.notes).toContain(`${dbFile}: widgets.listWidgets has no user in src/`);
+    expect(r.tests).toContain(lazyPrepare);
+    expect(r.notes).not.toContain(fullGate);
+  });
+
+  it('passes over a comment between groups, which no test could see', () => {
+    const r = targets(base.replace('// Widgets on display.', '// Widgets on public display.'));
+    expect(r.notes).not.toContain(fullGate);
+  });
+
+  // Each change below also touches a statement, so only the unowned part
+  // decides that the full gate is needed.
+  const statementChanged = base.replace('FROM gadgets WHERE id = ?', 'FROM gadgets WHERE id = ? AND live = 1');
+
+  it.each([
+    ['the transaction helper every service shares', 'return work();', 'return work() as T;'],
+    ['an import', "from './openDatabase';", "from './openDb';"],
+    ['the connection', 'export const db = openDatabase();', 'export const db = openDatabase(true);'],
+    // Its gap sits on the closing line of the group above, which that group owns.
+    ['a module-level line removed from just below a group', 'const WIDGET_LIMIT = 10;\n', ''],
+    ['a renamed group, whose users still name the old one', 'export const widgets = {', 'export const shownWidgets = {'],
+  ])('defers %s to the canary sweeps and the full gate', (_what, from, to) => {
+    const r = targets(statementChanged.replace(from, to));
+    expect(r.tests).toContain(gadgetSuite);
+    for (const f of CANARY) expect(r.tests, f).toContain(f);
+    expect(r.notes).toContain(fullGate);
+  });
+
+  it('defers to the full gate when a changed statement is used by another high-fan-out file', () => {
+    // Middleware, which most of the suite passes through. It exists only in
+    // this case: like every importer it names `db` in its import path, which
+    // would let the connection case pass without the rule that decides it.
+    const middleware = join(repo, 'src/middleware/session.ts');
+    writeFileSync(middleware, "import { sessions } from '../db/db';\nsessions.findSession.get();\n");
+    try {
+      const changed = base.replace('FROM sessions WHERE id = ?', 'FROM sessions WHERE id = ? AND live = 1');
+      expect(targets(changed).notes).toContain(fullGate);
+    } finally {
+      rmSync(middleware);
+    }
+  });
+
+  it('defers to the full gate when the module has no change to read', () => {
+    const r = targets(base);
+    for (const f of CANARY) expect(r.tests, f).toContain(f);
+    expect(r.tests).toContain(lazyPrepare);
+    expect(r.tests).not.toContain('tests/integration/unrelated.test.ts');
     expect(r.notes).toContain(fullGate);
   });
 });

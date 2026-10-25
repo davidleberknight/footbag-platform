@@ -14,7 +14,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
-import { insertSystemConfig, insertSystemJobRun } from '../fixtures/factories';
+import { insertMember, insertSystemConfig, insertSystemJobRun } from '../fixtures/factories';
 import { REPO_ROOT } from '../fixtures/sourceTree';
 import { expectLoggedError } from '../setup-env';
 import { cadenceMs } from '../../src/lib/jobSchedule';
@@ -57,6 +57,10 @@ const noReap = async () => ({ reclaimedIds: [] as string[] });
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
+  // A running platform always has a serving administrator. Without one the
+  // administrator-loss sweep correctly reports total admin loss at error level
+  // on every pass, which is that job's own contract, not this suite's.
+  insertMember(db, { id: 'jr_admin', slug: 'jr_admin', login_email: 'jr-admin@example.com', is_admin: 1, last_login_at: NOW.toISOString() });
   db.close();
   registry = await import('../../src/services/jobRegistry');
   ops = await import('../../src/services/operationsPlatformService');

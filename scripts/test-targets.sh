@@ -39,6 +39,14 @@
 #     before commit; a change no exported builder owns (an internal helper,
 #     module-level state, an import), or a file with no diff to read, still
 #     defers to the full gate.
+#   - The database module is decided the same way, one level finer: it is a
+#     flat list of statement groups, so a working-tree change inside named
+#     statements reaches only the source files using those statements, and
+#     those files are mapped in turn like any changed file. A change no
+#     statement owns (the connection, the transaction helpers, an import,
+#     module-level code, a removed or renamed group), a statement used from
+#     another high-fan-out file, or a file with no diff to read, still gets
+#     the canary sweeps and defers to the full gate.
 #   - Browser specs and the legacy pytest files are targeted too, as CHECK
 #     lines: a changed spec runs itself, a page object the specs naming it, a
 #     page template the specs named for it, a legacy Python module the pytest
@@ -297,6 +305,12 @@ high_fan_out() {
   # The repository path is specific where the bare name is not: it reaches the
   # suites that read or guard this file without every suite that imports it.
   collect naming "$p" || true
+  if [ "$p" = src/db/db.ts ]; then
+    # The conventions gate holds the module's own rules: every statement is
+    # compiled here and nowhere else, and none reads SQLite's clock directly.
+    add_check "bash scripts/ci/assert_conventions.sh"
+    db_statements "$p" && return 0
+  fi
   for f in "${CANARY[@]}"; do add_test "$f"; done
   case "$p" in
     src/testkit/*|tests/fixtures/factories.ts) test_data_builders "$p" && return 0 ;;
@@ -356,7 +370,159 @@ test_data_builders() {
   note "$p: only exported builders changed (${pinned[*]}); the suites calling them are selected"
 }
 
+# The statements a working-tree change to the database module $1 touches, one
+# per line: `group.member` for a line inside a statement group's member,
+# `group` for the group's own opening lines or an exported function or type,
+# or `-` for a changed line no statement owns. A line belongs to the nearest
+# member or top-level declaration above it; a group closer ends ownership, so
+# the comments and blank lines between groups belong to nothing and, being
+# unable to change behaviour, are passed over. The connection and the
+# transaction helpers are used by nearly every service, so a change to them is
+# `-`. A group the change removes without adding back (removed or renamed) is
+# `-` too: its users can no longer be named by the group's new name. A line
+# passed over prints `.`, so a comment-only change is told apart from no diff
+# at all, which prints nothing.
+db_statements_changed() {
+  local p="$1" d line text name group="" owner="-"
+  local m_line=() m_owner=() m_group=()
+  local infra='^(db|transaction|rehearse|savepoint|inTransaction|checkpointAndCloseDatabase)$'
+  local decl_re='^export (declare )?(async )?(function|interface|type|const|let|class|enum) ([A-Za-z0-9_$]+).*'
+  local member_re='^  (get |async )?([A-Za-z0-9_$]+)[[:space:]]*(\(|:).*'
+  [ -f "$p" ] || return 0
+  # Owner markers, ascending: each sets the owner from its line onward.
+  while IFS= read -r d; do
+    line="${d%%:*}"; text="${d#*:}"
+    case "$text" in
+      ' '*)
+        # Matched in the shell: a module of over a thousand statements makes a
+        # process per line the slowest part of the run.
+        [ -n "$group" ] && [[ "$text" =~ $member_re ]] || continue
+        owner="${group}.${BASH_REMATCH[2]}" ;;
+      '}'|'};'|'`'|'`;'|')'|');')
+        # The closing line still belongs to what it closes.
+        group=""; owner="-"; line=$((line + 1)) ;;
+      ')'*|'} {'*)
+        # A multi-line signature continues the declaration above.
+        continue ;;
+      'export const '*' = {')
+        group="${text#export const }"; group="${group%% *}"
+        owner="$group" ;;
+      export\ *)
+        group=""; owner="-"
+        [[ "$text" =~ $decl_re ]] && owner="${BASH_REMATCH[4]}"
+        [[ "$owner" =~ $infra ]] && owner="-" ;;
+      *) group=""; owner="-" ;;
+    esac
+    m_line+=("$line"); m_owner+=("$owner"); m_group+=("$group")
+  done < <(grep -nE "^[^[:space:]/*]|${member_re}" "$p" || true)
+
+  local i=0 cur="-" curg="" in_hunk=0 start=0 pos sign removed=() added=()
+  while IFS= read -r d; do
+    if [[ "$d" =~ ^@@\ -[0-9,]+\ \+([0-9]+) ]]; then
+      in_hunk=1; start="${BASH_REMATCH[1]}"; pos="$start"
+      continue
+    fi
+    [ "$in_hunk" -eq 1 ] || continue
+    sign="${d:0:1}"; text="${d:1}"
+    case "$sign" in
+      +) line="$pos"; pos=$((pos + 1)) ;;
+      # A removed line sits where its hunk does: just above the gap it leaves.
+      -) line="$start" ;;
+      *) continue ;;
+    esac
+    while [ "$i" -lt "${#m_line[@]}" ] && [ "${m_line[i]}" -le "$line" ]; do
+      cur="${m_owner[i]}"; curg="${m_group[i]}"; i=$((i + 1))
+    done
+    case "$text" in
+      'export const '*' = {')
+        name="$(printf '%s' "$text" | sed -E 's/^export const ([A-Za-z0-9_$]+) = \{$/\1/')"
+        if [ "$sign" = + ]; then added+=("$name"); printf '%s\n' "$name"; else removed+=("$name"); fi
+        continue ;;
+      export\ *)
+        name="$(printf '%s' "$text" | sed -E "s/${decl_re}/\4/")"
+        if [[ "$name" =~ $infra ]]; then printf -- '-\n'; else printf '%s\n' "$name"; fi
+        continue ;;
+    esac
+    # A comment or blank line at the top or member level changes nothing a
+    # test could see; statement bodies are indented deeper, so a SQL line
+    # opening with `*` is never mistaken for one.
+    if [[ "$text" =~ ^[[:space:]]{0,3}(//|/\*|\*|$) ]]; then printf '.\n'; continue; fi
+    if [ "$sign" = - ] && [ -n "$curg" ] && [[ "$text" =~ $member_re ]]; then
+      # A removed member is named from the diff, so its users are still found.
+      printf '%s.%s\n' "$curg" "${BASH_REMATCH[2]}"
+    elif [[ "$text" =~ ^[^[:space:]] ]] && ! [[ "$text" =~ ^(\}|\`|\)) ]]; then
+      # Any other top-level line: an import, module-level code, a private helper.
+      printf -- '-\n'
+    else
+      printf '%s\n' "$cur"
+    fi
+  done < <(git diff -U0 HEAD -- "$p" 2>/dev/null || true)
+
+  for name in "${removed[@]+"${removed[@]}"}"; do
+    [[ " ${added[*]+"${added[*]}"} " == *" $name "* ]] || printf -- '-\n'
+  done
+}
+
+# Source files under $2 naming the statement $1 (`group.member` or `group`):
+# for a member, those naming both the member and its group as words, which
+# matches dotted use and destructuring alike.
+statement_users() {
+  local group="${1%%.*}" member="${1#*.}" f
+  grep -rlwF --include='*.ts' -- "$member" "${@:2}" 2>/dev/null \
+    | grep -vx 'src/db/db.ts' \
+    | while IFS= read -r f; do grep -qwF -- "$group" "$f" && printf '%s\n' "$f"; done || true
+}
+
+# Selects the suites of every source file using a statement a change to the
+# database module $1 touches, mapped as though that file had changed. Succeeds
+# only when every changed line belongs to a statement or is passed over, and no
+# user is itself a high-fan-out file: then those suites are everything the
+# change can reach. Otherwise the suites found are still selected, and the
+# caller defers the rest to the full gate.
+db_statements() {
+  local p="$1" token u pinned=() users=() unpinned=0 passed=0
+  while IFS= read -r token; do
+    case "$token" in
+      '') ;;
+      -) unpinned=1 ;;
+      .) passed=1 ;;
+      *) pinned+=("$token") ;;
+    esac
+  done < <(db_statements_changed "$p" | sort -u)
+  for token in "${pinned[@]+"${pinned[@]}"}"; do
+    mapfile -t users < <(statement_users "$token" src)
+    [ "${#users[@]}" -gt 0 ] || note "$p: $token has no user in src/"
+    for u in "${users[@]+"${users[@]}"}"; do
+      # A high-fan-out user is reached by most of the suite in turn.
+      if is_high_fan_out "$u"; then unpinned=1; else map_path "$u"; fi
+    done
+    # A suite may prepare against a statement directly rather than through
+    # the service using it.
+    collect statement_users "$token" tests/unit tests/integration || true
+  done
+  [ "$unpinned" -eq 0 ] || return 1
+  if [ "${#pinned[@]}" -gt 0 ]; then
+    note "$p: only these statements changed (${pinned[*]}); the suites of the files using them are selected"
+  elif [ "$passed" -eq 1 ]; then
+    note "$p: only comments or blank lines changed"
+  else
+    return 1
+  fi
+}
+
 no_tests() { note "no tests found for $1; name its suites by hand"; }
+
+# The modules most of the suite depends on: the database layer, the schema, the
+# app, routes, middleware, env config, the shared factories and test database.
+is_high_fan_out() {
+  case "$1" in
+    src/db/*|database/*|src/app.ts|src/routes/*|src/middleware/*|src/config/env.ts|\
+    src/services/serviceErrors.ts|src/testkit/*|tests/fixtures/factories.ts|\
+    tests/fixtures/testDb.ts|tests/setup-env.ts|tests/global-setup.ts|vitest*.config.ts|\
+    package.json|package-lock.json|tsconfig*.json) return 0 ;;
+  esac
+  return 1
+}
 
 map_path() {
   local p="$1" base stem domain users
@@ -376,24 +542,20 @@ map_path() {
       return ;;
   esac
 
-  case "$p" in
-    src/db/*|database/*|src/app.ts|src/routes/*|src/middleware/*|src/config/env.ts|\
-    src/services/serviceErrors.ts|src/testkit/*|tests/fixtures/factories.ts|\
-    tests/fixtures/testDb.ts|tests/setup-env.ts|tests/global-setup.ts|vitest*.config.ts|\
-    package.json|package-lock.json|tsconfig*.json)
-      add_check "npm run build"
-      high_fan_out "$p"
-      if [ "$p" = database/schema.sql ]; then
-        local t
-        while IFS= read -r t; do
-          [ -n "$t" ] || continue
-          collect naming "$t" || true
-          collect_specs specs_naming "$t" || true
-          collect_pytests pytests_naming "$t" || true
-        done < <(schema_tables_changed "$p")
-      fi
-      return ;;
-  esac
+  if is_high_fan_out "$p"; then
+    add_check "npm run build"
+    high_fan_out "$p"
+    if [ "$p" = database/schema.sql ]; then
+      local t
+      while IFS= read -r t; do
+        [ -n "$t" ] || continue
+        collect naming "$t" || true
+        collect_specs specs_naming "$t" || true
+        collect_pytests pytests_naming "$t" || true
+      done < <(schema_tables_changed "$p")
+    fi
+    return
+  fi
 
   case "$p" in
     curated/*)

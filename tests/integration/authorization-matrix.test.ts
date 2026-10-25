@@ -298,7 +298,7 @@ describe('admin gate — parameterized GET (detail routes sit behind the gate)',
   const ROUTES = [
     '/admin/payments/ph', '/admin/members/ph', '/admin/clubs/ph',
     '/admin/mailing-lists/ph', '/admin/mailing-lists/ph/edit', '/admin/mailing-lists/ph/compose',
-    '/admin/broadcasts/ph',
+    '/admin/broadcasts/ph', '/admin/historical-records/ph/correction',
   ];
 
   it('redirects the unauthenticated, 403s a non-admin, and 404s an admin on a placeholder id', async () => {
@@ -344,6 +344,8 @@ describe('admin gate — POST (every state-changing admin route sits behind the 
     '/admin/historical-records/ph/deceased/confirm',
     '/admin/historical-records/ph/deceased/revert',
     '/admin/historical-records/ph/deceased/revert/confirm',
+    '/admin/historical-records/ph/correction',
+    '/admin/historical-records/ph/correction/confirm',
     '/admin/honor-grants/remove',
     '/admin/honor-grants/remove/confirm',
     '/admin/honor-grants/board/set',

@@ -1,0 +1,48 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{> outcome-notice text=content.errorMessage tone='no'}}
+
+  <section>
+    <div class="card mb-6">
+      <p class="m-0 fw-500">{{content.personName}} &middot; {{content.personId}}</p>
+    </div>
+
+    <p class="fs-sm">Correct a mistake in the imported competition record. The correction is shown for review before anything is written, takes a reason, and is recorded in the audit log. Leave the country or a year blank to clear it.</p>
+
+    <form method="POST" action="{{content.previewAction}}" class="form-block">
+      <div class="form-field">
+        <label for="hp_name">Name</label>
+        <input type="text" id="hp_name" name="name" value="{{content.form.name}}" maxlength="200" required />
+      </div>
+      <div class="form-field">
+        <label for="hp_country">Country</label>
+        <select id="hp_country" name="country">
+          <option value="">Not recorded</option>
+          {{#each content.countryOptions}}
+            <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+          {{/each}}
+        </select>
+      </div>
+      <div class="form-field">
+        <label for="hp_first_year">First competition year</label>
+        <input type="text" id="hp_first_year" name="first_year" value="{{content.form.firstYear}}" inputmode="numeric" maxlength="4" />
+      </div>
+      <div class="form-field">
+        <label for="hp_last_year">Last competition year</label>
+        <input type="text" id="hp_last_year" name="last_year" value="{{content.form.lastYear}}" inputmode="numeric" maxlength="4" />
+      </div>
+      <div class="form-field">
+        <label for="hp_reason">Reason (required)</label>
+        <input type="text" id="hp_reason" name="reason" maxlength="500" required />
+      </div>
+      <button type="submit" class="btn btn-primary">Review the Correction</button>
+    </form>
+
+    <p class="mt-4"><a href="{{content.cancelHref}}">Cancel</a></p>
+  </section>
+</div>

@@ -128,6 +128,7 @@ Success Criteria:
 - The sweep is idempotent: once an item names that administrator, re-running it leaves that item as the single record, whether it is still open or has been dismissed. A dismissal settles the loss and keeps it settled, because the states the sweep reads outlive the alert. A sign-in after the dismissal starts the clock again, so an administrator who returns and is lost a second time is alerted afresh.
 - Role changes stay deliberate human acts under A_Manage_Admin_Role. An inactivity finding is a prompt for the remaining administrators to act on, and the sweep's own writes are the queue item, its audit entry, and the notification.
 - An administrator closes the item by dismissing it once a replacement is recruited or the loss is otherwise settled. The dismissal is audit-logged and is an internal record, so it emails no member.
+- When no administrator able to sign in remains, every run logs that total loss at error level, so the operator alarm reaches the System Administrator who re-bootstraps the first administrator; the queue item and the Admin mailing list cannot, because only administrators read them.
 
 Operation:
 

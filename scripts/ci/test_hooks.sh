@@ -1795,6 +1795,60 @@ ds_post Edit "{\"file_path\":\"$ds_proj/src/a.ts\"}" ''
 expect_ds '' default defer 'no session id'
 rm -rf "$ds_scratch" "$ds_proj"
 
+# guard-background-work.sh (Stop) keeps a turn from ending while this session's own
+# background tasks are still in flight, unless the final message names them on a
+# "Still running:" line. Drive it with synthetic Stop events carrying the registry.
+B=guard-background-work.sh
+expect_bt() {
+  # $1 = event JSON, $2 = want (block|defer), $3 = label
+  local out rc got
+  out="$(printf '%s' "$1" | ".claude/hooks/$B")"
+  rc=$?
+  if [ "$rc" -ne 0 ]; then
+    echo "[hooks] FAIL ($B): errored (exit $rc): $3" >&2
+    fail=1
+    return
+  fi
+  if grep -q '"block"' <<< "$out"; then got=block; else got=defer; fi
+  if [ "$got" != "$2" ]; then
+    echo "[hooks] FAIL ($B): want $2, got $got: $3" >&2
+    fail=1
+  fi
+}
+bt_event() {
+  # $1 = background_tasks JSON, $2 = final message
+  jq -cn --argjson t "$1" --arg m "$2" \
+    '{session_id:"s1",stop_hook_active:false,last_assistant_message:$m,background_tasks:$t,session_crons:[]}'
+}
+bt_shell='[{"id":"b1","type":"shell","status":"running","description":"unit tests","command":"npx vitest run tests/unit/a.test.ts"}]'
+bt_agent='[{"id":"a1","type":"subagent","status":"running","description":"Research hooks","agent_type":"general-purpose"}]'
+bt_dev='[{"id":"b2","type":"shell","status":"running","description":"Start the dev server","command":"./run_dev.sh > dev.log 2>&1"}]'
+# Nothing in flight, or only a deliberate scheduled wakeup, lets the turn end.
+expect_bt '{"session_id":"s1","last_assistant_message":"Done."}' defer 'no registry in the input'
+expect_bt "$(bt_event '[]' 'Done.')" defer 'empty registry'
+expect_bt "$(jq -cn '{session_id:"s1",last_assistant_message:"Done.",background_tasks:[],session_crons:[{id:"c1",schedule:"*/5 * * * *",recurring:true,prompt:"x"}]}')" defer 'scheduled wakeup only'
+# A task still in flight blocks a message that does not name it.
+expect_bt "$(bt_event "$bt_shell" 'All done.')" block 'background shell task'
+expect_bt "$(bt_event "$bt_agent" 'All done.')" block 'subagent still registered'
+expect_bt "$(bt_event "$bt_dev" 'All done.')" block 'dev server task'
+expect_bt "$(bt_event "$bt_shell" 'Nothing is Still running: honest.')" block 'marker only mid-line'
+expect_bt "$(jq -cn --argjson t "$bt_shell" '{session_id:"s1",stop_hook_active:true,last_assistant_message:"Done.",background_tasks:$t}')" block 'stop_hook_active does not exempt'
+# A "Still running:" line naming what is left up lets the turn end.
+expect_bt "$(bt_event "$bt_shell" $'Tests are running.\nStill running: the unit tests, which I report on when they finish.')" defer 'marker line'
+expect_bt "$(bt_event "$bt_dev" $'Done.\n- **Still running:** the dev server, kept up at your request.')" defer 'bold bullet marker'
+# Fail-open on an input it cannot judge.
+expect_bt "$(jq -cn --argjson t "$bt_shell" '{session_id:"s1",background_tasks:$t}')" defer 'no final message field'
+expect_bt 'not json' defer 'invalid input'
+# The reason lists each task, and adds the port check only for a dev server.
+bt_reason="$(bt_event "$bt_dev" 'Done.' | ".claude/hooks/$B" | jq -r '.reason // ""')"
+case "$bt_reason" in *3000*) : ;; *) echo "[hooks] FAIL ($B): dev-server reason lacks the port check" >&2; fail=1 ;; esac
+bt_reason="$(bt_event "$bt_shell" 'Done.' | ".claude/hooks/$B" | jq -r '.reason // ""')"
+case "$bt_reason" in
+  *3000*) echo "[hooks] FAIL ($B): non-dev reason names the dev ports" >&2; fail=1 ;;
+  *b1*) : ;;
+  *) echo "[hooks] FAIL ($B): reason does not list the task id" >&2; fail=1 ;;
+esac
+
 if [ "$fail" -ne 0 ]; then
   echo "[hooks] FAIL: one or more hook fixtures failed." >&2
   exit 1

@@ -10,7 +10,7 @@
 
   <section>
     <div class="section-heading"><h2>Find a Historical Record</h2></div>
-    <p class="fs-sm">A historical record is a competitor from the archive who has no member account. The one thing recorded here is that the person is recognized as deceased, which stops the platform offering their record for direct claiming. Their results, honours and name stay published.</p>
+    <p class="fs-sm">A historical record is a competitor from the archive who has no member account. Here you can correct the record's name, country and competition years, and record that the person is recognized as deceased, which stops the platform offering their record for direct claiming. Recording a death leaves their results, honours and name published.</p>
     <div class="search-box-section">
       <form method="GET" action="/admin/historical-records" class="search-box-form" role="search">
         <input type="text" name="q" maxlength="200"
@@ -33,14 +33,19 @@
         {{#if isClaimed}}
           <p class="m-0 mt-1 fs-sm">{{claimedNote}}</p>
           <p class="m-0 mt-1"><a href="{{claimedHref}}">Open that member record</a></p>
-        {{else if isDeceased}}
-          <form method="POST" action="{{revertAction}}" class="form-block">
-            <button type="submit" class="btn btn-outline btn-sm">Review Removing the Record</button>
-          </form>
         {{else}}
-          <form method="POST" action="{{markAction}}" class="form-block">
-            <button type="submit" class="btn btn-outline btn-sm">Review Recording as Deceased</button>
-          </form>
+          <div class="card-actions">
+            <a href="{{correctHref}}" class="btn btn-outline btn-sm">Correct the Record</a>
+            {{#if isDeceased}}
+              <form method="POST" action="{{revertAction}}">
+                <button type="submit" class="btn btn-outline btn-sm">Review Removing the Record</button>
+              </form>
+            {{else}}
+              <form method="POST" action="{{markAction}}">
+                <button type="submit" class="btn btn-outline btn-sm">Review Recording as Deceased</button>
+              </form>
+            {{/if}}
+          </div>
         {{/if}}
       </div>
     {{/each}}

@@ -27,7 +27,7 @@ IFPA applies GDPR and UK GDPR to every member regardless of location.
 - **Rectification.** A member corrects their own profile; a field they cannot change themselves (a display name, a profile URL, a membership tier) is corrected by an administrator on request, with a reason and an audit row.
 - **Erasure.** A member deletes their account from their own tools; after the grace period their personal data is purged and the historical record survives without them (see Legacy archive and imported historical identities). Erasure that fails on any persistent surface is a launch-blocker.
 - **Retention.** Each kind of data has a recorded retention period, set in the design decisions' retention policy.
-- **Breach.** A suspected exposure of member personal data is reported at once to the IFPA Secretary, the CTO and the Board, who decide on notification. Affected members, and where the law requires it the relevant regulator, are notified within the legal deadline (for EU and UK members, the regulator within 72 hours of IFPA becoming aware).
+- **Breach.** A suspected exposure of member personal data is reported at once to the IFPA Secretary, the CTO and the Board; the Secretary decides on notification. Affected members, and where the law requires it the relevant regulator, are notified within the legal deadline (for EU and UK members, the regulator within 72 hours of IFPA becoming aware).
 - **Contact.** Requests the account tools do not handle go to `admin@footbag.org`.
 
 ---

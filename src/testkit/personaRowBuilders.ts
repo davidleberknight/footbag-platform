@@ -438,6 +438,7 @@ export interface HistoricalPersonOverrides {
   legacy_member_id?: string | null;
   country?: string | null;
   first_year?: number | null;
+  last_year?: number | null;
   event_count?: number;
   placement_count?: number;
   bap_member?: 0 | 1;
@@ -460,18 +461,19 @@ export function insertHistoricalPerson(db: BetterSqlite3.Database, o: Historical
   }
   db.prepare(`
     INSERT INTO historical_persons (
-      person_id, person_name, legacy_member_id, country, first_year,
+      person_id, person_name, legacy_member_id, country, first_year, last_year,
       event_count, placement_count,
       bap_member, bap_induction_year, hof_member, hof_induction_year,
       source, source_scope, aliases, is_deceased
     )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
     o.person_name         ?? 'Test Person',
     o.legacy_member_id    ?? null,
     o.country             ?? 'United States',
     o.first_year          ?? null,
+    o.last_year           ?? null,
     o.event_count         ?? 0,
     o.placement_count     ?? 0,
     o.bap_member          ?? 0,

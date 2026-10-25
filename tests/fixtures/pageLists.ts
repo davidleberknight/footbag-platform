@@ -126,6 +126,7 @@ export const REACH: readonly Reach[] = [
   { template: 'register/wizard/complete', viewer: 'member', url: '/register/wizard/complete', why: 'reached by redirect after the last onboarding step' },
   { template: 'history/claim-unavailable', viewer: 'registrant-claim', url: '/history/rendered-style-no-such-person/claim', why: 'shown for a claim link whose record cannot be claimed' },
   { template: 'admin/clubs/record', viewer: 'admin', url: '/admin/clubs/club-crawlville-real', why: 'the admin club list links records the walk groups together' },
+  { template: 'admin/historical-records/correction', viewer: 'admin', url: `/admin/historical-records/${R.playerAId}/correction`, why: 'linked only from a search result on the historical-record lookup' },
   { template: 'admin/event-organizers/queue', viewer: 'admin', url: '/admin/events/organizers', why: 'linked from the work queue only when organizer requests wait' },
   { template: 'admin/event-organizers/detail', viewer: 'admin', url: `/admin/events/${R.eventId}/organizers`, why: 'linked from the organizer queue' },
   { template: 'admin/curator/edit', viewer: 'admin', url: `/admin/curator/media/${R.curatorMediaId}/edit`, why: 'linked from curated media the walk groups together' },

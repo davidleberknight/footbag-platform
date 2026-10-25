@@ -7460,6 +7460,17 @@ export const mediaTags = {
            version        = version + 1
      WHERE id = ?
   `); },
+
+  // Each application of a tag carries its own copy of the display form, which
+  // is what a media item's chips show, so a renamed tag rewrites the copies too.
+  get updateMediaTagDisplayForTag() { return db.prepare(`
+    UPDATE media_tags
+       SET tag_display = ?,
+           updated_at  = ?,
+           updated_by  = ?,
+           version     = version + 1
+     WHERE tag_id = ?
+  `); },
 };
 
 // Taking an abusive freeform tag out of circulation. The tag row is never
@@ -9974,6 +9985,14 @@ export const adminRole = {
     SELECT is_admin FROM members_active WHERE id = ?
   `); },
 
+  // Administrators who can still sign in and act: the same definition of "an
+  // admin exists" the bootstrap grant's gate uses, so the platform reports total
+  // admin loss on exactly the condition that re-opens the break-glass path. An
+  // inactive administrator still counts, because they can sign in.
+  get countServingAdministrators() { return db.prepare(`
+    SELECT COUNT(*) AS n FROM members_active WHERE is_admin = 1 AND is_deceased = 0
+  `); },
+
   // Administrators who can no longer serve while still holding the role: the
   // account is gone (soft-deleted), the person is gone (deceased), or the
   // sign-in has lapsed past the caller's cutoff. Reads members_all rather than
@@ -10412,6 +10431,28 @@ export const deceasedMarking = {
     WHERE member_id = ?
       AND status IN ('pending', 'confirmed')
       AND event_id IN (SELECT id FROM events WHERE start_date >= ?)
+  `); },
+};
+
+// An administrator's correction of the imported facts on a historical record
+// nobody holds. The table carries no stamp columns: it is an imported
+// catalogue, and the audit row is the record of who changed what.
+export const historicalRecordCorrection = {
+  // The correctable facts, plus whoever holds the record. A soft-deleted
+  // claimant still counts, as it does for the deceased marking: their member
+  // row still holds the link.
+  get findRecord() { return db.prepare(`
+    SELECT hp.person_id, hp.person_name, hp.country, hp.first_year, hp.last_year,
+           m.id AS claimed_by_member_id
+    FROM historical_persons AS hp
+    LEFT JOIN members AS m ON m.historical_person_id = hp.person_id
+    WHERE hp.person_id = ?
+  `); },
+
+  get updateRecord() { return db.prepare(`
+    UPDATE historical_persons
+       SET person_name = ?, country = ?, first_year = ?, last_year = ?
+     WHERE person_id = ?
   `); },
 };
 

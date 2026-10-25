@@ -2,10 +2,31 @@
  * AdminHistoricalRecordService -- the administrator's surface for a historical
  * competition record nobody holds.
  *
- * Owns the lookup and the confirmation view-models for the one thing an
- * administrator does to such a record directly: recording that the person it
- * names is recognized as deceased, or taking that back. Writes nothing itself;
- * DeceasedMarkingService owns the flag.
+ * Owns the lookup and the confirmation view-models for the two things an
+ * administrator does to such a record directly:
+ *   - recording that the person it names is recognized as deceased, or taking
+ *     that back. DeceasedMarkingService owns the flag and writes it.
+ *   - correcting the imported facts: the name, the country, and the first and
+ *     last competition years. This service writes the correction itself.
+ *
+ * The correction:
+ *   - takes a reason, previews before it writes, and refuses a record a member
+ *     holds, which is corrected through their member record instead.
+ *   - writes the record, any player-hashtag move and one audit row
+ *     (`legacy.historical_person_corrected`, carrying every changed value before
+ *     and after) in one transaction, and writes nothing when nothing changed.
+ *   - re-runs no identity matcher and touches no link. Claim matching reads the
+ *     name live, so the corrected name is what the next wizard render matches.
+ *   - moves the person's player hashtag (`#player_` and the name as a tag slug)
+ *     when the corrected name spells it differently, renaming the one tag row
+ *     in place, and each media item's copy of its display form, so the media
+ *     crediting the person keep crediting them. A tag
+ *     another record's name also spells is left alone, because it still
+ *     credits that record; a move onto a tag already in use is refused rather
+ *     than merging two tags.
+ *
+ * Persistence: reads and writes `historical_persons`, `tags` and `media_tags`; appends to
+ * `audit_entries`. No outbox: nobody owns the record to be told.
  *
  * Why it is a surface of its own. A historical record is not a member account:
  * nobody signs in as one, it carries no contact details, and the flag on it is
@@ -16,16 +37,29 @@
  *
  * Audience: admin only, behind the route gate.
  */
-import { deceasedMarking } from '../db/db';
+import {
+  deceasedMarking,
+  historicalRecordCorrection,
+  mediaTags,
+  nameVariants,
+  transaction,
+} from '../db/db';
 import { deceasedMarkingService } from './deceasedMarkingService';
-import { NotFoundError } from './serviceErrors';
-import { findStandingOwnAct } from './auditService';
+import { ConflictError, NotFoundError, ValidationError } from './serviceErrors';
+import { appendAuditEntry, findStandingOwnAct } from './auditService';
+import { canonicalCountryOrThrow, parseFirstCompetitionYearOrThrow } from './memberLocationRules';
+import { locationPickers, type SelectOption } from './memberService';
+import { slugifyForTag } from './slugify';
+import { cleanUserText } from '../lib/textSanitizer';
 import type { PageViewModel } from '../types/page';
 import type { OutcomeNoticeView } from '../lib/outcomeNotice';
 import type { ActionEnding } from '../lib/actionOutcome';
 
 const LOOKUP_LIMIT = 25;
 const MIN_LOOKUP_QUERY = 2;
+const MAX_NAME = 200;
+const MAX_REASON = 500;
+const CORRECTED = 'legacy.historical_person_corrected';
 
 interface HistoricalRecordRow {
   person_id: string;
@@ -52,6 +86,7 @@ interface RecordResultView {
   claimedHref: string | null;
   markAction: string;
   revertAction: string;
+  correctHref: string;
 }
 
 export interface AdminHistoricalRecordsContent {
@@ -73,7 +108,62 @@ export interface AdminHistoricalRecordConfirmContent {
   confirmAction: string;
   confirmLabel: string;
   cancelHref: string;
+  /** Present on a correction: each changed value before and after. */
+  changes?: Array<{ label: string; before: string; after: string }>;
+  hasChanges?: boolean;
+  noChangeMessage?: string | null;
+  /** One sentence of caution, only on a correction that moves a hashtag. */
+  caution?: string | null;
+  reason?: string;
+  hiddenFields?: Array<{ name: string; value: string }>;
 }
+
+/** The facts an administrator submits, as the form posts them. */
+export interface HistoricalRecordCorrectionInput {
+  name: string;
+  country: string;
+  firstYear: string;
+  lastYear: string;
+}
+
+export interface AdminHistoricalRecordCorrectionContent {
+  personId: string;
+  personName: string;
+  form: HistoricalRecordCorrectionInput;
+  countryOptions: SelectOption[];
+  previewAction: string;
+  cancelHref: string;
+  errorMessage?: string;
+}
+
+interface CorrectableRow {
+  person_id: string;
+  person_name: string;
+  country: string | null;
+  first_year: number | null;
+  last_year: number | null;
+  claimed_by_member_id: string | null;
+}
+
+interface CorrectedFacts {
+  person_name: string;
+  country: string | null;
+  first_year: number | null;
+  last_year: number | null;
+}
+
+type FactField = keyof CorrectedFacts;
+
+const FACT_FIELDS: FactField[] = ['person_name', 'country', 'first_year', 'last_year'];
+
+const FACT_LABEL: Record<FactField, string> = {
+  person_name: 'Name',
+  country:     'Country',
+  first_year:  'First competition year',
+  last_year:   'Last competition year',
+};
+
+interface TagMove { tagId: string; oldTag: string; newTag: string }
 
 function yearsLabel(row: HistoricalRecordRow): string | null {
   if (!row.first_year && !row.last_year) return null;
@@ -100,7 +190,111 @@ function shapeRow(row: HistoricalRecordRow): RecordResultView {
       : null,
     markAction:   `/admin/historical-records/${row.person_id}/deceased`,
     revertAction: `/admin/historical-records/${row.person_id}/deceased/revert`,
+    correctHref:  correctionHref(row.person_id),
   };
+}
+
+function correctionHref(personId: string): string {
+  return `/admin/historical-records/${personId}/correction`;
+}
+
+/**
+ * The record, refused when a member holds it: their member record is where the
+ * name they compete under is corrected, and one set of facts must not have two
+ * homes that can disagree.
+ */
+function readCorrectableRecord(personId: string): CorrectableRow {
+  const row = historicalRecordCorrection.findRecord.get(personId) as CorrectableRow | undefined;
+  if (!row) throw new NotFoundError('No historical record with that id.');
+  if (row.claimed_by_member_id) {
+    throw new ConflictError(
+      'A member holds this record, so it is corrected through their member record instead.',
+    );
+  }
+  return row;
+}
+
+function requireReason(raw: string): string {
+  // Cleaned first, so markup alone is no reason and the cap counts what is stored.
+  const reason = cleanUserText(raw, 'single_line', 'reason');
+  if (!reason) throw new ValidationError('Enter the reason for this correction.');
+  if (reason.length > MAX_REASON) {
+    throw new ValidationError(`The reason must be ${MAX_REASON} characters or fewer.`);
+  }
+  return reason;
+}
+
+/**
+ * The submitted facts, validated. A blank country or year clears it, since
+ * many imported records never carried one. A country spelled as the record
+ * already holds it passes unchanged, so an imported spelling the picker does
+ * not list survives a correction of some other field.
+ */
+function validateFacts(row: CorrectableRow, input: HistoricalRecordCorrectionInput): CorrectedFacts {
+  const name = cleanUserText(input.name, 'single_line', 'name');
+  if (!name) throw new ValidationError('Enter the name.');
+  if (name.length > MAX_NAME) {
+    throw new ValidationError(`The name must be ${MAX_NAME} characters or fewer.`);
+  }
+  const rawCountry = input.country.trim();
+  const country = rawCountry === '' ? null : canonicalCountryOrThrow(rawCountry, row.country);
+  const firstYear = parseFirstCompetitionYearOrThrow(input.firstYear.trim());
+  const lastYear = parseFirstCompetitionYearOrThrow(input.lastYear.trim());
+  if (firstYear !== null && lastYear !== null && firstYear > lastYear) {
+    throw new ValidationError('The first competition year cannot be later than the last.');
+  }
+  return { person_name: name, country, first_year: firstYear, last_year: lastYear };
+}
+
+function changedFields(row: CorrectableRow, facts: CorrectedFacts): FactField[] {
+  return FACT_FIELDS.filter((f) => row[f] !== facts[f]);
+}
+
+function shown(value: string | number | null): string {
+  return value === null ? '(none)' : String(value);
+}
+
+function playerTag(name: string): string {
+  return `#player_${slugifyForTag(name)}`;
+}
+
+/**
+ * The player-hashtag move a name correction carries, or null when there is
+ * nothing to move: the spelling is unchanged, no media carry the old tag, or
+ * another record's name spells the same tag and it stays theirs.
+ */
+function resolveTagMove(row: CorrectableRow, facts: CorrectedFacts): TagMove | null {
+  const oldTag = playerTag(row.person_name);
+  const newTag = playerTag(facts.person_name);
+  if (oldTag === newTag) return null;
+  const existing = mediaTags.findTagByNormalized.get(oldTag) as { id: string } | undefined;
+  if (!existing) return null;
+  const people = nameVariants.listHistoricalPersonNames.all() as Array<{
+    person_id: string; person_name: string;
+  }>;
+  if (people.some((p) => p.person_id !== row.person_id && playerTag(p.person_name) === oldTag)) {
+    return null;
+  }
+  if (mediaTags.findTagByNormalized.get(newTag)) {
+    throw new ValidationError(
+      `The hashtag ${newTag} is already in use, so this correction would merge two hashtags. `
+      + 'Resolve the hashtags first, then correct the name.',
+    );
+  }
+  return { tagId: existing.id, oldTag, newTag };
+}
+
+function correctionHiddenFields(
+  input: HistoricalRecordCorrectionInput,
+  reason: string,
+): Array<{ name: string; value: string }> {
+  return [
+    { name: 'name',       value: input.name },
+    { name: 'country',    value: input.country },
+    { name: 'first_year', value: input.firstYear },
+    { name: 'last_year',  value: input.lastYear },
+    { name: 'reason',     value: reason },
+  ];
 }
 
 function readRecord(personId: string): { person_id: string; person_name: string; is_deceased: number } {
@@ -222,5 +416,145 @@ export const adminHistoricalRecordService = {
       };
     }
     return { ending: 'advance', text: changedText };
+  },
+
+  /**
+   * The correction form, holding the record's current facts, or the values the
+   * administrator submitted when they are shown it again with an error.
+   */
+  getCorrectionPage(
+    personId: string,
+    opts: { input?: HistoricalRecordCorrectionInput; errorMessage?: string } = {},
+  ): PageViewModel<AdminHistoricalRecordCorrectionContent> {
+    const row = readCorrectableRecord(personId);
+    const form = opts.input ?? {
+      name:      row.person_name,
+      country:   row.country ?? '',
+      firstYear: row.first_year === null ? '' : String(row.first_year),
+      lastYear:  row.last_year === null ? '' : String(row.last_year),
+    };
+    const title = 'Correct a Historical Record';
+    return {
+      seo:  { title, noindex: true },
+      page: { sectionKey: '', pageKey: 'admin_historical_record_correction', title },
+      content: {
+        personId:       row.person_id,
+        personName:     row.person_name,
+        form,
+        countryOptions: locationPickers(form.country, '').countryOptions,
+        previewAction:  correctionHref(row.person_id),
+        cancelHref:     `/admin/historical-records?q=${encodeURIComponent(row.person_id)}`,
+        ...(opts.errorMessage ? { errorMessage: opts.errorMessage } : {}),
+      },
+    };
+  },
+
+  /** Preview a correction. Nothing is written. */
+  previewCorrection(
+    personId: string,
+    input: HistoricalRecordCorrectionInput,
+    rawReason: string,
+  ): PageViewModel<AdminHistoricalRecordConfirmContent> {
+    const row = readCorrectableRecord(personId);
+    const reason = requireReason(rawReason);
+    const facts = validateFacts(row, input);
+    const fields = changedFields(row, facts);
+    const move = fields.includes('person_name') ? resolveTagMove(row, facts) : null;
+    const changes = fields.map((f) => ({
+      label: FACT_LABEL[f], before: shown(row[f]), after: shown(facts[f]),
+    }));
+    if (move) changes.push({ label: 'Player hashtag', before: move.oldTag, after: move.newTag });
+
+    const title = 'Confirm: Correct the Historical Record';
+    return {
+      seo:  { title, noindex: true },
+      page: { sectionKey: '', pageKey: 'admin_historical_record_confirm', title },
+      content: {
+        personId:   row.person_id,
+        personName: row.person_name,
+        summary: 'The corrected facts appear on the public history page and in results straight '
+          + 'away, and a corrected name is what claim matching reads from then on. Nobody is '
+          + 'emailed, because no member holds this record.',
+        changes,
+        hasChanges:      changes.length > 0,
+        noChangeMessage: changes.length > 0
+          ? null
+          : 'Those are the facts the record already holds. Nothing would change.',
+        caution: move
+          ? `Every media item tagged ${move.oldTag} will carry ${move.newTag} instead, and the `
+            + 'old hashtag stops existing.'
+          : null,
+        reason,
+        hiddenFields:  correctionHiddenFields(input, reason),
+        confirmAction: `${correctionHref(row.person_id)}/confirm`,
+        confirmLabel:  'Yes, Correct the Record',
+        cancelHref:    correctionHref(row.person_id),
+      },
+    };
+  },
+
+  /**
+   * Commit a correction, and say how it ended. A submission that changes
+   * nothing writes nothing: this admin's own standing correction reports the
+   * first submit's success, and facts someone else left report that nothing
+   * changed.
+   */
+  applyCorrection(
+    actorId: string,
+    personId: string,
+    input: HistoricalRecordCorrectionInput,
+    rawReason: string,
+  ): { ending: Exclude<ActionEnding, 'refused'>; text: string } {
+    const reason = requireReason(rawReason);
+    let personName = '';
+    let changed = false;
+
+    transaction(() => {
+      const row = readCorrectableRecord(personId);
+      const facts = validateFacts(row, input);
+      const fields = changedFields(row, facts);
+      personName = facts.person_name;
+      if (fields.length === 0) return;
+
+      const move = fields.includes('person_name') ? resolveTagMove(row, facts) : null;
+      const now = new Date().toISOString();
+      historicalRecordCorrection.updateRecord.run(
+        facts.person_name, facts.country, facts.first_year, facts.last_year, row.person_id,
+      );
+      if (move) {
+        mediaTags.updateTagDisplay.run(move.newTag, move.newTag, now, actorId, move.tagId);
+        mediaTags.updateMediaTagDisplayForTag.run(move.newTag, now, actorId, move.tagId);
+      }
+
+      const before: Record<string, string | number | null> = {};
+      const after: Record<string, string | number | null> = {};
+      for (const f of fields) {
+        before[f] = row[f];
+        after[f] = facts[f];
+      }
+      appendAuditEntry({
+        actionType:    CORRECTED,
+        actorType:     'admin',
+        actorMemberId: actorId,
+        entityType:    'historical_person',
+        entityId:      row.person_id,
+        reasonText:    reason,
+        metadata: {
+          fields, before, after,
+          ...(move ? { old_tag: move.oldTag, new_tag: move.newTag } : {}),
+        },
+      });
+      changed = true;
+    });
+
+    const changedText = `The record for ${personName} has been corrected, and the change is in the audit log.`;
+    if (changed) return { ending: 'advance', text: changedText };
+    if (findStandingOwnAct(actorId, CORRECTED, CORRECTED, 'historical_person', personId)) {
+      return { ending: 'own_repeat', text: changedText };
+    }
+    return {
+      ending: 'already_held',
+      text: 'Those are the facts the record already holds, so nothing changed.',
+    };
   },
 };

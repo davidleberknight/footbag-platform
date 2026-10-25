@@ -83,12 +83,17 @@ adminRouter.post('/members/:memberId/deceased/revert/confirm', adminMemberContro
 adminRouter.post('/members/:memberId/deceased/revert',         adminMemberController.previewDeceased(true));
 adminRouter.post('/members/:memberId/deceased/confirm',        adminMemberController.confirmDeceased(false));
 adminRouter.post('/members/:memberId/deceased',                adminMemberController.previewDeceased(false));
-// The same affordance for a competition record nobody has claimed. Same
-// ordering rule: `/revert` before its shorter sibling.
 // The old sign-ins nobody has claimed. Read-only: this is where the account id
 // a link-help approval asks for actually comes from.
 adminRouter.get('/legacy-accounts',                                   adminLegacyAccountController.index);
 adminRouter.get('/historical-records',                                adminHistoricalRecordController.index);
+// Correcting the imported facts on a competition record nobody has claimed:
+// the form, its preview, and the write on confirm, longer path first.
+adminRouter.get('/historical-records/:personId/correction',           adminHistoricalRecordController.correction);
+adminRouter.post('/historical-records/:personId/correction/confirm',  adminHistoricalRecordController.confirmCorrection);
+adminRouter.post('/historical-records/:personId/correction',          adminHistoricalRecordController.previewCorrection);
+// The deceased affordance for a competition record nobody has claimed. Same
+// ordering rule as the member's: `/revert` before its shorter sibling.
 adminRouter.post('/historical-records/:personId/deceased/revert/confirm', adminHistoricalRecordController.confirm(false));
 adminRouter.post('/historical-records/:personId/deceased/revert',         adminHistoricalRecordController.preview(false));
 adminRouter.post('/historical-records/:personId/deceased/confirm',        adminHistoricalRecordController.confirm(true));

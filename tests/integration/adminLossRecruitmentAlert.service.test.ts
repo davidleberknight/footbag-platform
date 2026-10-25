@@ -14,10 +14,11 @@
  * states the sweep reads persist after a dismissal: dismissing settles the loss
  * and keeps it settled until that administrator signs in again and lapses afresh.
  */
-import { describe, it, expect, beforeAll, beforeEach, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, beforeEach, afterAll, vi } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, insertMailingListSubscription, insertSystemConfig } from '../fixtures/factories';
+import { expectLoggedError } from '../setup-env';
 
 const { dbPath } = setTestEnv('4067');
 
@@ -53,6 +54,9 @@ let testDb: BetterSqlite3.Database;
 let tiering: typeof import('../../src/services/membershipTieringService');
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let adminQueue: typeof import('../../src/services/adminWorkQueueService');
+let logger: typeof import('../../src/config/logger').logger;
+
+const NONE_LEFT = 'admin.none_left';
 
 interface QueueRow {
   entity_id: string;
@@ -132,6 +136,7 @@ beforeAll(async () => {
   await importApp();
   tiering    = await import('../../src/services/membershipTieringService');
   adminQueue = await import('../../src/services/adminWorkQueueService');
+  ({ logger } = await import('../../src/config/logger'));
 });
 
 afterAll(() => {
@@ -319,6 +324,67 @@ describe('dismissing an alert settles the loss for good', () => {
 
     expect(alertCountFor(LAPSED)).toBe(2);
     expect(alertedMemberIds()).toContain(LAPSED);
+  });
+});
+
+// The recruitment alert reaches only the admin work queue and the admin mailing
+// list, and once no administrator can sign in nobody reads either. Losing the
+// last one must therefore raise a signal outside the platform, an error line the
+// operator's alarm picks up, so total admin loss is reported rather than found
+// the next time somebody cannot sign in.
+describe('losing the last administrator is reported outside the platform', () => {
+  function noneLeftCalls(spy: { mock: { calls: unknown[][] } }): unknown[][] {
+    return spy.mock.calls.filter((args) => args[0] === NONE_LEFT);
+  }
+
+  /** Leave only the named administrators holding the role. */
+  function keepOnlyAdmins(...memberIds: string[]): void {
+    for (const memberId of ADMINS) {
+      if (!memberIds.includes(memberId)) {
+        testDb.prepare('UPDATE members SET is_admin = 0 WHERE id = ?').run(memberId);
+      }
+    }
+  }
+
+  it('logs the condition at error level when every remaining administrator is deceased or deleted', () => {
+    keepOnlyAdmins(DECEASED, DELETED);
+    expectLoggedError(NONE_LEFT);
+    const errorSpy = vi.spyOn(logger, 'error');
+
+    tiering.runAdminLossSweep();
+
+    expect(noneLeftCalls(errorSpy)).toHaveLength(1);
+  });
+
+  it('logs it on every run while no administrator is left, because the condition persists until re-bootstrap', () => {
+    keepOnlyAdmins(DECEASED);
+    expectLoggedError(NONE_LEFT);
+    const errorSpy = vi.spyOn(logger, 'error');
+
+    tiering.runAdminLossSweep();
+    tiering.runAdminLossSweep();
+
+    expect(noneLeftCalls(errorSpy)).toHaveLength(2);
+  });
+
+  it('stays silent while one administrator who can sign in remains beside the lost ones', () => {
+    keepOnlyAdmins(DECEASED, DELETED, ACTOR);
+    const errorSpy = vi.spyOn(logger, 'error');
+
+    tiering.runAdminLossSweep();
+
+    expect(alertedMemberIds()).toContain(DECEASED);
+    expect(noneLeftCalls(errorSpy)).toHaveLength(0);
+  });
+
+  it('stays silent when the only administrators left are inactive, because they can still sign in', () => {
+    keepOnlyAdmins(LAPSED, NEVER_OLD);
+    const errorSpy = vi.spyOn(logger, 'error');
+
+    tiering.runAdminLossSweep();
+
+    expect(alertedMemberIds()).toEqual([LAPSED, NEVER_OLD].sort());
+    expect(noneLeftCalls(errorSpy)).toHaveLength(0);
   });
 });
 

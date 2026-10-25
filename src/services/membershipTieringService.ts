@@ -112,6 +112,10 @@
  *     the sweep raises each administrator in its own transaction so one failing
  *     row cannot abort the pass. The sweep reads and alerts only: it changes no
  *     `is_admin` value, because granting and revoking stay deliberate human acts.
+ *   - When the sweep finds no administrator able to sign in, it logs that at
+ *     error level on every run. The recruitment alert's queue item and mailing
+ *     list reach only administrators, so with none left the operator alarm is
+ *     the one signal that reaches the System Administrator who must re-bootstrap.
  *   - Tier 0 Active Player ending on purchase or Tier 3 grant runs in the same
  *     transaction as the tier write (calls `ActivePlayerService.endOnTierUpgrade`
  *     or `endOnTier3Grant`).
@@ -128,6 +132,7 @@
  *     provisioning/grant; unsubscribe on revoke)
  *   - work_queue_items insert (administrator-loss recruitment alert)
  *   - operational-error audit + alarm on a failed sweep row
+ *   - alarm (error log line) on every sweep that finds no administrator left
  *
  * Service shape: singleton object (no external adapters).
  */
@@ -147,6 +152,7 @@ import { endOnTier3Grant, endOnTierUpgrade } from './activePlayerService';
 import { workQueueService, ADMIN_LOSS_TASK_TYPE } from './workQueueService';
 import { readIntConfig } from './configReader';
 import { recordOperationalError } from './operationalErrors';
+import { logger } from '../config/logger';
 import { uuidv7Hex } from './uuidv7';
 import { laterStamp } from '../lib/ledgerStamp';
 import { cleanUserText } from '../lib/textSanitizer';
@@ -820,6 +826,13 @@ export function adminInactivityAlertDays(): number {
  * cannot abort the pass, and the prior-alert guard inside the raise makes a
  * re-run produce nothing new, whether the earlier alert is still queued or has
  * already been dismissed.
+ *
+ * Once no administrator able to sign in remains, the recruitment alert reaches
+ * nobody: its queue item and its mailing list are read only by administrators.
+ * So the pass then logs the total loss at error level, which the operator alarm
+ * carries outside the platform to the System Administrator who re-bootstraps. It
+ * logs on every pass while the condition holds, because nothing clears it short
+ * of that re-bootstrap.
  */
 export function runAdminLossSweep(): { examined: number; raised: number; failed: number } {
   const cutoffIso = new Date(Date.now() - adminInactivityAlertDays() * 86_400_000).toISOString();
@@ -849,6 +862,12 @@ export function runAdminLossSweep(): { examined: number; raised: number; failed:
         metadata:   { loss_reason: reason },
       });
     }
+  }
+  const serving = adminRole.countServingAdministrators.get() as { n: number };
+  if (serving.n === 0) {
+    logger.error('admin.none_left', {
+      action: 'No administrator can sign in; re-bootstrap the first administrator with the claim token.',
+    });
   }
   return { examined: rows.length, raised, failed };
 }
