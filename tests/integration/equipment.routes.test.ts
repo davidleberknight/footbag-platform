@@ -194,10 +194,12 @@ describe('game pages link to their rules and equipment', () => {
   const GAME_PAGES: Record<string, { rules: string[]; equipment: string[] }> = {
     '/net': { rules: ['/rules/net/footbag-net'], equipment: ['net'] },
     '/freestyle': { rules: ['/rules/freestyle/footbag-freestyle'], equipment: ['freestyle'] },
-    '/sideline': {
-      rules: ['/rules/golf/footbag-golf', '/rules/sideline/2-square', '/rules/sideline/4-square'],
-      equipment: ['footbags', 'golf', 'square-games'],
+    '/x-square': {
+      rules: ['/rules/x-square/2-square', '/rules/x-square/4-square'],
+      equipment: ['square-games'],
     },
+    '/golf': { rules: ['/rules/golf/footbag-golf'], equipment: ['golf'] },
+    '/sideline': { rules: [], equipment: ['footbags'] },
   };
 
   it('each game page links to its rules and to equipment sections that exist', async () => {

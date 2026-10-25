@@ -443,8 +443,8 @@ Records render honestly: an unknown value stays unknown and a placeholder date n
 as real; precision and confidence values come from their fixed vocabularies; a superseded
 record points at a real row and the chain has no cycle; a holder name that does not resolve
 renders as plain text; leader aggregates recompute from the rows; a historical person's
-display follows `docs/DATA_GOVERNANCE.md`. `/records` and the freestyle records and leaders
-pages read the same tables: diff the facts they show for the same record.
+display follows `docs/DATA_GOVERNANCE.md`. The freestyle records and leaders pages read the
+same tables: diff the facts they show for the same record.
 
 ### §F24 Trick-reference media contract
 

@@ -6,8 +6,7 @@ export const sidelineController = {
   /** GET /sideline */
   landing(_req: Request, res: Response, next: NextFunction): void {
     try {
-      const vm = sidelineService.getSidelineLandingPage();
-      res.render('sideline/landing', vm);
+      res.render('sideline/landing', sidelineService.getSidelinePage());
     } catch (err) {
       handleControllerError(err, res, next, 'sideline controller');
     }

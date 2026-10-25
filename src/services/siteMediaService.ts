@@ -11,7 +11,7 @@
 import { media, CuratorSlotMediaRow } from '../db/db';
 import { getMediaStorageAdapter } from '../adapters/mediaStorageAdapter';
 import { mosaicClipFilename } from '../content/freestyleTricksMosaic';
-import { SITE_MEDIA_SLOTS, SiteMediaSlotKey } from '../content/siteMedia';
+import { SITE_MEDIA_SLOTS, SiteMediaSlot, SiteMediaSlotKey } from '../content/siteMedia';
 
 export interface SiteVideo {
   // The seeded media_items row id, used to link a site-content clip to its
@@ -20,13 +20,15 @@ export interface SiteVideo {
   mp4Url: string;
   posterUrl: string;
   caption: string;
+  // An upright clip, framed in its own shape rather than the landscape frame.
+  isPortrait: boolean;
 }
 
 function rowForFilename(sourceFilename: string): CuratorSlotMediaRow | undefined {
   return media.getCuratorMediaByFilename.get(sourceFilename) as CuratorSlotMediaRow | undefined;
 }
 
-function shapeVideo(row: CuratorSlotMediaRow | undefined): SiteVideo | null {
+function shapeVideo(row: CuratorSlotMediaRow | undefined, isPortrait = false): SiteVideo | null {
   if (!row || row.media_type !== 'video' || !row.video_id) return null;
   const adapter = getMediaStorageAdapter();
   return {
@@ -34,6 +36,7 @@ function shapeVideo(row: CuratorSlotMediaRow | undefined): SiteVideo | null {
     mp4Url: `${adapter.constructURL(row.video_id)}?v=${row.id}`,
     posterUrl: row.thumbnail_url ?? '',
     caption: row.caption ?? '',
+    isPortrait,
   };
 }
 
@@ -44,7 +47,8 @@ function shapePhotoUrl(row: CuratorSlotMediaRow | undefined): string | undefined
 
 /** Load a named video slot (e.g. `net_demo`, `freestyle_demo`). */
 export function loadSiteVideo(slot: SiteMediaSlotKey): SiteVideo | null {
-  return shapeVideo(rowForFilename(SITE_MEDIA_SLOTS[slot].sourceFilename));
+  const entry: SiteMediaSlot = SITE_MEDIA_SLOTS[slot];
+  return shapeVideo(rowForFilename(entry.sourceFilename), entry.portrait === true);
 }
 
 /** Load a named photo slot's display URL (e.g. `japan_worlds_promo`). */

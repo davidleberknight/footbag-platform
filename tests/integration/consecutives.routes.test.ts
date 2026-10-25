@@ -1,17 +1,19 @@
 /**
- * Integration tests for the consecutive kicks records public route.
+ * Integration tests for the Consecutives section page, which carries the
+ * official IFPA consecutive kicks records.
  *
  * Covers:
- *   GET /records — consecutive kicks records page
+ *   GET /consecutives — what consecutives is, its competitions, and the records
  *
  * Verifies:
+ *   - orientation prose comes before the first records table
  *   - world records section renders
  *   - highest scores section renders with grouped subsections
  *   - progression section renders
  *   - milestone section renders
  *   - player names and scores appear correctly
  *   - notes are said once under a table, not in a mostly empty column
- *   - the freestyle passback records are linked, not repeated
+ *   - freestyle passback records are neither shown nor linked
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import request from 'supertest';
@@ -23,7 +25,12 @@ import {
   cleanupTestDb,
   importApp,
 } from '../fixtures/testDb';
-import { insertConsecutiveKicksRecord, insertFreestyleRecord } from '../fixtures/factories';
+import {
+  insertConsecutiveKicksRecord,
+  insertCuratorVideo,
+  insertFreestyleRecord,
+  insertMember,
+} from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3090');
 
@@ -62,6 +69,17 @@ beforeAll(async () => {
     event_date: '1998-03-21/1998-03-22',
     event_name: '1998 Chico Challenge',
     location:   'Lia Way Rec Center, Chico, California',
+  });
+
+  // A world record with no event, date or place recorded.
+  insertConsecutiveKicksRecord(db, {
+    sort_order: 408,
+    section:    'Official World Records',
+    subsection: 'Current Official World Records',
+    discipline: 'Open Doubles One-Pass',
+    player_1:   'Andy Linder',
+    player_2:   'Ted Martin',
+    score:      1001,
   });
 
   // Highest Official Score row
@@ -139,8 +157,17 @@ beforeAll(async () => {
     note: 'Tricia George was the first woman to reach each singles milestone through 20000',
   });
 
-  // A public passback record, which /freestyle/records lists and this page must not repeat.
+  // A public passback record: a freestyle record, not an official IFPA record.
   insertFreestyleRecord(db, { display_name: 'Passback Holder', trick_name: 'Passback Trick', achieved_date: '2009-04-12' });
+
+  // The featured clip, seeded the way the curator seed loads a site media slot.
+  const fhId = insertMember(db, { is_system: 1, slug: 'fh-consecutives' });
+  insertCuratorVideo(db, {
+    uploaderMemberId: fhId,
+    sourceFilename: 'demo-consecutives.mp4',
+    slotTag: '#demo_consecutives',
+    caption: 'Demonstration of timed consecutives',
+  });
 
   db.close();
   createApp = await importApp();
@@ -150,38 +177,107 @@ afterAll(() => cleanupTestDb(dbPath));
 
 // ---------------------------------------------------------------------------
 
-describe('GET /records', () => {
+describe('GET /consecutives', () => {
   it('shows Ted Martin world record with score', async () => {
-    const res = await page('/records');
+    const res = await page('/consecutives');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Ted Martin');
     expect(res.text).toContain('63,326');
   });
 
+  // Defect caught: a newcomer meets a wall of tables before being told what
+  // consecutives is.
+  it('explains what consecutives is before the first records table', async () => {
+    const res = await page('/consecutives');
+    const explainer = res.text.indexOf('id="what-are-consecutives"');
+    const firstTable = res.text.indexOf('<table');
+    expect(explainer).toBeGreaterThan(-1);
+    expect(firstTable).toBeGreaterThan(explainer);
+  });
+
+  // Defect caught: the featured clip goes missing from the explainer, or the
+  // upright clip is forced into the landscape frame and cropped to a strip.
+  it('shows the featured clip in a portrait frame inside the explainer', async () => {
+    const res = await page('/consecutives');
+    const explainer = res.text.match(/<section class="content-section" id="what-are-consecutives">[\s\S]*?<\/section>/)?.[0] ?? '';
+    expect(explainer).toContain('<figure class="demo-video demo-video--portrait">');
+    expect(explainer).toMatch(/\/media-store\/[^"]+-video\.mp4/);
+    expect(explainer).toContain('<figcaption>Demonstration of timed consecutives</figcaption>');
+  });
+
+  // Defect caught: the section's artwork goes missing from the hero, where the
+  // net, freestyle and other sport section landings carry theirs.
+  it('carries the consecutives mascot in the hero', async () => {
+    const res = await page('/consecutives');
+    const hero = res.text.slice(res.text.indexOf('<div class="hero hero-sm hero-with-mascot">'), res.text.indexOf('id="what-are-consecutives"'));
+    expect(hero).toContain('class="hero-mascot" src="/img/consecutives-mascot.svg');
+    // And beside the explainer heading, as the other sport section pages show theirs.
+    const explainer = res.text.match(/<section class="content-section" id="what-are-consecutives">[\s\S]*?<\/section>/)?.[0] ?? '';
+    expect(explainer).toMatch(/<img class="sport-section-icon" src="\/img\/consecutives-mascot\.svg/);
+  });
+
+  // Defect caught: the world records go back to a six-column table that runs
+  // wide on a laptop and scrolls sideways on a phone, instead of one card per
+  // record carrying its discipline, holder, count and where and when.
+  it('shows each world record as a card', async () => {
+    const res = await page('/consecutives');
+    const section = res.text.match(/<section class="content-section" id="world-records">[\s\S]*?<\/section>/)?.[0] ?? '';
+    expect(section).not.toContain('<table');
+    const cards = section.match(/<div class="card card-static" role="listitem">[\s\S]*?<\/div>\s*<\/div>/g) ?? [];
+    expect(cards).toHaveLength(3);
+    const singles = cards.find((c) => c.includes('<h3 class="card-title">Open Singles</h3>')) ?? '';
+    expect(singles).toContain('Ted Martin');
+    expect(singles).toContain('<p class="fw-600">63,326 kicks</p>');
+    expect(singles).toContain('<span>1997 Midwest Regional Footbag Championships</span>');
+    expect(singles).toContain('<span>Lions Park, Mount Prospect, Illinois</span>');
+  });
+
+  // Defect caught: a record with no event, date or place still draws an empty
+  // metadata line, leaving a gap at the foot of its card.
+  it('draws no where-and-when line for a record that has none', async () => {
+    const res = await page('/consecutives');
+    const section = res.text.match(/<section class="content-section" id="world-records">[\s\S]*?<\/section>/)?.[0] ?? '';
+    const onePass = section.match(/<h3 class="card-title">Open Doubles One-Pass<\/h3>[\s\S]*?<\/div>/)?.[0] ?? '';
+    expect(onePass).toContain('1,001 kicks');
+    expect(onePass).not.toContain('card-meta');
+  });
+
+  it('highlights the Consecutives entry in the main nav as active', async () => {
+    const res = await page('/consecutives');
+    expect(res.text).toMatch(/<a href="\/consecutives" class="active">Consecutives<\/a>/);
+  });
+
+  // Defect caught: a sanctioning claim with no source in the records data
+  // returns to the page, naming a body nobody has confirmed sanctioned them.
+  it('makes no sanctioning claim the records data does not support', async () => {
+    const res = await page('/consecutives');
+    expect(res.text).toContain('Ted Martin');
+    expect(res.text).not.toMatch(/sanctioned by/i);
+  });
+
   it('shows doubles holders joined with &', async () => {
-    const res = await page('/records');
+    const res = await page('/consecutives');
     expect(res.text).toContain('Gary Lautt');
     expect(res.text).toContain('Tricia George');
     expect(res.text).toContain('132,011');
   });
 
-  // The world-records table has no note column, so this cell can only come from
-  // the row's discipline; a blank cell means the stored discipline never reached
-  // the view.
-  it('shows each world record row with its discipline', async () => {
-    const res = await page('/records');
-    expect(res.text).toContain('<td>Open Doubles</td>');
+  // The card title can only come from the record's discipline; a blank title
+  // means the stored discipline never reached the view.
+  it('titles each world record card with its discipline', async () => {
+    const res = await page('/consecutives');
+    expect(res.text).toContain('<h3 class="card-title">Open Doubles</h3>');
   });
 
   it('renders a multi-day event date as a human-readable range, not the raw value', async () => {
-    const res = await page('/records');
+    const res = await page('/consecutives');
     // The doubles WR spans two days (stored raw as "1998-03-21/1998-03-22").
     expect(res.text).toContain('21–22 March 1998');
     expect(res.text).not.toContain('1998-03-21/1998-03-22');
   });
 
   it('renders a legacy slash date unambiguously, so the table has one date convention', async () => {
-    const res = await page('/records');
+    const res = await page('/consecutives');
     // The singles WR is stored as "14/6/1997", which a reader cannot tell from a
     // month-first date; the page states the month instead.
     expect(res.text).toContain('14 June 1997');
@@ -189,37 +285,37 @@ describe('GET /records', () => {
   });
 
   it('shows Highest Official Scores section', async () => {
-    const res = await page('/records');
+    const res = await page('/consecutives');
     expect(res.text).toContain('Singles Consecutive 20000+ Club');
   });
 
   it('shows Constance Constable in scores list', async () => {
-    const res = await page('/records');
+    const res = await page('/consecutives');
     expect(res.text).toContain('Constance Constable');
     expect(res.text).toContain('24,713');
   });
 
   it('shows World Record Progression section', async () => {
-    const res = await page('/records');
+    const res = await page('/consecutives');
     expect(res.text).toContain('Open Singles Consecutive');
   });
 
   // The year also appears in the event name and the full date elsewhere on
   // the page, so the assertion is on the year cell itself.
   it('shows year column in progression table', async () => {
-    const res = await page('/records');
+    const res = await page('/consecutives');
     expect(res.text).toContain('<td class="col-year">1997</td>');
   });
 
   it('shows Milestone Firsts section', async () => {
-    const res = await page('/records');
+    const res = await page('/consecutives');
     expect(res.text).toContain('Singles milestone first');
   });
 
   // Defect caught: a note column empty in most rows comes back, or the fact it
   // carried for a few rows is lost when the column goes.
   it('names the runs ended on purpose once under their progression, with no note column', async () => {
-    const res = await page('/records');
+    const res = await page('/consecutives');
     expect(res.text).not.toContain('<th>Note</th>');
     expect(res.text).toContain('<p class="mt-2">The runs of 33,333 and 75,000 were stopped on purpose.</p>');
     // The run that was not ended on purpose stays out of the sentence.
@@ -229,19 +325,19 @@ describe('GET /records', () => {
   // Defect caught: a milestone row with no count renders as an empty-milestone
   // row, or its note disappears with the note column.
   it('turns a milestone row with no count into a sentence under the milestones', async () => {
-    const res = await page('/records');
+    const res = await page('/consecutives');
     expect(res.text).toContain(
       '<p class="mt-2">Tricia George was the first woman to reach each singles milestone through 20000.</p>',
     );
     expect(res.text).not.toContain('<td class="col-num">—</td>');
   });
 
-  // Defect caught: /records repeats the freestyle passback records that
-  // /freestyle/records already lists, or loses its way to them.
-  it('links to the freestyle trick records instead of repeating them', async () => {
-    const res = await page('/records');
+  // Defect caught: freestyle passback records, which are not official IFPA
+  // records, reappear on the official records page or are pointed at from it.
+  it('neither shows nor links the freestyle passback records', async () => {
+    const res = await page('/consecutives');
     expect(res.text).not.toContain('Passback Holder');
-    expect(res.text).toContain('<a href="/freestyle/records" class="action-link">See All Trick Records</a>');
+    expect(res.text).not.toContain('href="/freestyle/records"');
   });
 
   it('returns 503 (not 500) when a records read hits database contention', async () => {
@@ -257,7 +353,7 @@ describe('GET /records', () => {
       },
     } as never);
     try {
-      const res = await request(createApp()).get('/records');
+      const res = await request(createApp()).get('/consecutives');
       expect(res.status).toBe(503);
       // Contention clears on its own, so the response tells a caller when to retry.
       expect(res.headers['retry-after']).toBe('30');

@@ -140,7 +140,7 @@ export interface RuleCategoryGroup {
   pages: ParsedRulePage[];
 }
 
-const CATEGORY_ORDER = ['sideline', 'net', 'golf', 'freestyle'];
+const CATEGORY_ORDER = ['net', 'freestyle', 'x-square', 'golf'];
 
 export function listGroupedByCategory(): RuleCategoryGroup[] {
   const byCategory = new Map<string, ParsedRulePage[]>();

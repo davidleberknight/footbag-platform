@@ -40,7 +40,7 @@ compile error at every call site.
   response's own URL fields (a form action, a cancel href, a redirect target). Templates never
   construct URLs or derive labels.
 
-Naming: a page's content interface is `<PageName>Content` (e.g. `RecordsContent`); a row-level
+Naming: a page's content interface is `<PageName>Content` (e.g. `ConsecutivesContent`); a row-level
 view-model inside it is `<Entity>ViewModel` (e.g. `NetTeamViewModel`); the template is
 `src/views/<section>/<page>.hbs`. Every page service method returns `PageViewModel<TContent>`;
 inline controller renders type the arg with `satisfies PageViewModel<TContent>`.
@@ -273,13 +273,11 @@ does not introduce a fourth.
 Grey is for metadata only: dates, counts, bylines, form hints, captions, and source notes, at the
 `0.9rem` step. Running prose, section intros, instructions, errors, and the consequences text on a
 confirm page take the body colour, and `--text-subtle` never colours text (DESIGN_DECISIONS
-"Bounded Type-Size Ramp"). One prose measure, about 70 characters per line (`55ch` in the body
-font), serves every page; no section widens it, and `scripts/ci/assert_conventions.sh` fails any
-`ch` cap wider than `55ch`.
+"Bounded Type-Size Ramp"). Text spans its content column like the tables and cards beside it
+(DESIGN_DECISIONS "Text Width").
 
-Font sizes come from the bounded ramp, and running prose carries a reading-measure cap; a section
-heading always outranks the body text beneath it in both size and colour (DESIGN_DECISIONS
-"Bounded Type-Size Ramp" and "Reading Measure"). Disclosure controls keep the browser's native
+Font sizes come from the bounded ramp; a section heading always outranks the body text beneath it
+in both size and colour (DESIGN_DECISIONS "Bounded Type-Size Ramp"). Disclosure controls keep the browser's native
 marker: no surface suppresses it or draws a substitute caret, per the same link-and-disclosure
 rule. Enclosing chrome is reserved for notices, cards, empty states, and
 technical-notation panels, and a callout accent bar takes one of three role colours, per the

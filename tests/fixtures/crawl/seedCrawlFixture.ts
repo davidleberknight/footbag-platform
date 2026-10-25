@@ -218,7 +218,7 @@ export function shouldSkip(p: string): boolean {
 
 export const SEED_ROOTS = [
   '/', '/members', '/clubs', '/events', '/media', '/media/browse', '/hof',
-  '/bap', '/history', '/freestyle', '/net', '/records', '/rules', '/ifpa',
+  '/bap', '/history', '/freestyle', '/net', '/consecutives', '/rules', '/ifpa',
   '/equipment', '/legal', '/login', '/register', '/password/forgot', '/dev/personas',
   // Admin claim form: requireAuth-only, above the admin gate, linked from no
   // page. Anonymous and non-admin personas see the redirect or the gate.

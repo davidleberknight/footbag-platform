@@ -2,8 +2,8 @@
 category: golf
 categoryLabel: Footbag Golf
 authority: IFPA Article IV
-parentHref: /sideline
-parentLabel: Sideline
+parentHref: /golf
+parentLabel: Footbag Golf
 ---
 
 # Footbag Golf

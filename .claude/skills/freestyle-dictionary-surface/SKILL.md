@@ -249,7 +249,7 @@ Forward sequencing for these surfaces is tracked in the maintainers' private tra
 - **Fragmenting depth across multiple URLs.** One trick = one URL; one family = one URL. Disclosure controls layered content, not routing.
 - **Coupling status enums to template-rendered text.** Single mapping site at the service layer.
 - **Rendering broken links.** "Modifier association" text without a destination is acceptable; a link to a non-existent page is not.
-- **Inventing visual treatment for these surfaces.** Type ramp, reading measure, heading scale, link and disclosure affordances, and callout chrome are the site-wide standard; the rule is `.claude/rules/view-layer.md`, which these surfaces follow without a freestyle variant.
+- **Inventing visual treatment for these surfaces.** Type ramp, heading scale, link and disclosure affordances, and callout chrome are the site-wide standard; the rule is `.claude/rules/view-layer.md`, which these surfaces follow without a freestyle variant.
 - **Linking a trick hashtag with no media.** The hashtag links to the gallery only when the trick has media. The full four-control rule: `.claude/rules/view-layer.md`, "Hashtag and dictionary-filter links".
 
 ---

@@ -103,12 +103,13 @@
   /* Clearance for a deep-linked target under the sticky site header. Every
      anchored target on the site scrolls to this offset, so the heading a
      reader followed the link to is the first thing they see rather than
-     something already hidden behind the header. The value must exceed the
-     header's real height, which is not one number: the nav row wraps as the
-     viewport narrows and the header grows with it, so the two overrides below
-     step the value up to match. Measured against the rendered header, with a
-     small gap on top. */
-  --anchor-offset: 100px;
+     something already hidden behind the header. The header's height is not one
+     number: its nav links wrap onto more rows as the viewport narrows or the
+     link count grows. js/anchor-offset.js sets this from the header's measured
+     height and keeps it current; the value here and the two overrides below
+     are the fallback when that script does not run, each clearing the tallest
+     header its width band contains, with a small gap on top. */
+  --anchor-offset: 116px;
 
   /* Hashtag token. A trick's hashtag is a link exactly when the trick has
      media, so the live and resting states must be told apart at a glance
@@ -336,25 +337,20 @@
   --composite-mauve: #5e3a55;
 }
 
-/* The header's nav row wraps as the viewport narrows and the header grows with
-   it, so the clearance a deep-linked target needs is not one number. Measured
-   against the rendered header: one row and 92px above 768px, two rows and 133px
-   from 481px to 768px, three rows and 174px across the common phone range. Each
-   value below clears the tallest header its band contains, with a small gap on
-   top.
-
-   Below 321px the nav takes a fourth row and the header reaches 215px, which
-   this value does not cover; widths that narrow are rare enough that covering
-   them would cost every phone above them 30px of dead space on every jump. A
-   header of one fixed height would retire this whole ladder, which is what the
-   dropped nav-collapse work would have done. */
+/* Fallback clearance for deep-linked targets when js/anchor-offset.js does not
+   run; with it, the offset follows the header's measured height at every
+   width. Each value clears the tallest header its band contains, with a small
+   gap on top: 108px above 768px, 139px from 481px to 768px, and 170px from
+   360px to 480px (a 320px phone takes one row more). Adding nav links can add
+   a row and make these short again, which the script corrects and only the
+   no-script path feels. */
 @media (max-width: 768px) {
-  :root { --anchor-offset: 145px; }
+  :root { --anchor-offset: 147px; }
 }
 
 @media (max-width: 480px) {
   :root {
-    --anchor-offset: 185px;
+    --anchor-offset: 178px;
     --space-xl:  16px;
     --space-2xl: 24px;
   }
@@ -440,16 +436,6 @@ main :where(dl:not([class])) > :where(dt + dd) { margin-top: var(--space-xs); }
 main :where(dl:not([class])) > :where(dd + dt) { margin-top: var(--space-sm); }
 main :where(details[open]) > :where(summary) { margin-bottom: var(--space-sm); }
 
-/* One reading measure, about 70 characters a line, reaches every block of
-   running prose in the page body from here, so prose added anywhere is capped
-   without a rule of its own. Zero specificity, so a component capping tighter
-   still wins. A list carrying a class is a component and sizes its own items;
-   an outcome message (it carries a role) is a banner that spans its column. */
-main :where(p:not([role]), dd, blockquote, figcaption, ol:not([class]) > li, ul:not([class]) > li) { max-width: 55ch; }
-/* Classed lists whose items are sentences of prose take the same measure. */
-:is(.add-analysis-edge-cases, .combo-analysis-example-why, .combo-analysis-caveats, .related-modifiers-list) > li { max-width: 55ch; }
-/* A capped paragraph inside a centred block stays centred under its heading. */
-main :is(.hero, .empty-state, .error-page, .text-center, .observational-empty-state) :where(p) { margin-inline: auto; }
 
 /* Inline code and notation render in the body font, so notation reads as
    emphasised prose rather than as a second typeface. Without this rule a
@@ -519,16 +505,16 @@ section { margin-top: var(--space-2xl); }
 }
 .skip-link:focus { transform: translateY(0); }
 
-/* Same clearance every other anchored target uses, so the skip target lands
-   below the sticky header rather than underneath it. */
-#main-content { scroll-margin-top: var(--anchor-offset); }
+/* Every element a link can jump to lands below the sticky header rather than
+   underneath it, the skip target included. */
+[id] { scroll-margin-top: var(--anchor-offset); }
 
 /* ── Header ─────────────────────────────────────────────────── */
 .site-header {
   position: sticky;
   top: 0;
   z-index: 100;
-  padding: var(--space-sm) 0;
+  padding: var(--space-xs) 0;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
   box-shadow: var(--shadow-sm);
@@ -538,7 +524,7 @@ section { margin-top: var(--space-2xl); }
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: var(--space-sm);
+  gap: var(--space-xs);
   width: 100%;
 }
 
@@ -553,11 +539,14 @@ section { margin-top: var(--space-2xl); }
 .site-logo:hover { color: var(--primary-ink); text-decoration: none; }
 .site-logo span { color: var(--primary-ink); }
 
+/* The links wrap onto as many rows as they need. Rows sit flush and each link
+   carries only a little padding, so a wrapped nav stays compact rather than
+   stacking a band of white space per row. */
 .main-nav {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: var(--space-sm);
+  gap: 0 var(--space-xs);
   width: 100%;
   justify-content: center;
 }
@@ -570,7 +559,7 @@ section { margin-top: var(--space-2xl); }
 .nav-primary a,
 .nav-auth a,
 .nav-auth .nav-logout-btn {
-  padding: var(--space-sm) var(--space-md);
+  padding: var(--space-xs) var(--space-sm);
   border-radius: var(--radius-sm);
   font-weight: 500;
   font-size: 0.9rem;
@@ -607,7 +596,7 @@ section { margin-top: var(--space-2xl); }
 .hero p  { font-size: 1rem; }
 .hero .text-muted { color: var(--white); }
 .hero-eyebrow { font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--white); margin-bottom: var(--space-xs); }
-.hero-subtitle { font-size: 1rem; margin: var(--space-sm) auto 0; color: var(--white); max-width: 55ch; }
+.hero-subtitle { font-size: 1rem; margin: var(--space-sm) auto 0; color: var(--white); }
 /* The hero's padding is the whole space under its last line. */
 .hero > :last-child,
 .hero > * > :last-child { margin-bottom: 0; }
@@ -825,7 +814,7 @@ section { margin-top: var(--space-2xl); }
   margin: 0;
   padding-left: var(--space-xl);
 }
-.tier-explainer-benefits li { line-height: 1.4; max-width: 55ch; }
+.tier-explainer-benefits li { line-height: 1.4; }
 .tier-explainer-benefits li + li { margin-top: var(--space-xs); }
 
 /* ── Section headings ───────────────────────────────────────── */
@@ -906,6 +895,9 @@ section { margin-top: var(--space-2xl); }
      rather than pushing a phone-width page sideways. */
   overflow-wrap: anywhere;
 }
+/* Closing a card, the line's own margin would sit inside the card's padding
+   and leave a wider gap at its foot than at its head. */
+.card > .card-meta:last-child { margin-bottom: 0; }
 
 .card-description {
   font-size: 0.9rem;
@@ -2974,7 +2966,6 @@ main fieldset > :not(:has(~ :not([type="hidden"]))) { margin-bottom: 0; }
   color: var(--text);
   font-size: 0.9rem;
   margin-top: var(--space-sm);
-  max-width: 55ch;
 }
 .notice-warn {
   background: var(--warn-bg);
@@ -3197,12 +3188,9 @@ main fieldset > :not(:has(~ :not([type="hidden"]))) { margin-bottom: 0; }
 /* A grid child defaults to min-content width, so a long meta line inside one
    tile would widen its column and push the page sideways. */
 .admin-tile { min-width: 0; }
-/* Prose inside a wide tile still takes a reading measure; the tile keeps its
-   width for the rows, which carry their own structure. */
 .admin-tile-note {
   font-size: 0.9rem;
   color: var(--text-muted);
-  max-width: 55ch;
   margin: var(--space-xs) 0 0 var(--space-md);
 }
 
@@ -3404,7 +3392,6 @@ main fieldset > :not(:has(~ :not([type="hidden"]))) { margin-bottom: 0; }
 .content-section p {
   line-height: 1.6;
   color: var(--text);
-  max-width: 55ch;
 }
 /* The paragraph gap at the paragraph's own weight, so a component paragraph
    carrying a class keeps the spacing it sets. */
@@ -3417,7 +3404,6 @@ main fieldset > :not(:has(~ :not([type="hidden"]))) { margin-bottom: 0; }
   color: var(--text-muted);
   margin: var(--space-lg) 0 var(--space-xl);
   line-height: 1.5;
-  max-width: 55ch;
 }
 
 /* Aligned ASCII notation inside running content keeps its spacing, so it
@@ -3576,7 +3562,7 @@ a.hashtag--media:hover {
 .browse-view-why { margin: var(--space-sm) 0 var(--space-lg); font-size: 0.9rem; }
 .browse-view-why summary { cursor: pointer; color: var(--primary-ink); }
 .browse-view-why-body { padding: var(--space-sm) 0 0 var(--space-lg); color: var(--text); }
-.browse-view-why-body p { margin: 0 0 var(--space-sm); max-width: 55ch; }
+.browse-view-why-body p { margin: 0 0 var(--space-sm); }
 
 /* The ADD section count reads as words beside the heading ("39 tricks"), so it
    needs no pill: the tint and border were carrying meaning the noun now
@@ -4236,7 +4222,6 @@ a.hashtag--media:hover {
 }
 .equipment-list {
   margin: 0 0 var(--space-md) var(--space-xl);
-  max-width: 55ch;
 }
 .equipment-list li {
   margin: 0 0 var(--space-sm);
@@ -4648,6 +4633,11 @@ a.hashtag--media:hover {
   background: var(--bg-light);
   object-fit: cover;
 }
+/* An upright clip keeps its own 5:7 shape in a narrower frame, about as tall as
+   a landscape clip is wide, so it is neither cropped to a strip nor allowed to
+   run off the bottom of a laptop screen. */
+.demo-video--portrait { max-width: 360px; }
+.demo-video--portrait video { aspect-ratio: 5 / 7; }
 /* Same treatment as every other caption on the page: the small muted scale,
    set flush with the block it describes rather than centred under it. */
 .demo-video figcaption {
@@ -4656,28 +4646,28 @@ a.hashtag--media:hover {
   color: var(--text-muted);
 }
 
-/* Sideline game sections: icon + heading row */
-.sideline-landing .sideline-game-header {
+/* Sport section landings (X Square, Golf, Sideline, Consecutives): icon + heading row */
+.sport-section .sport-section-header {
   display: flex;
   align-items: center;
   gap: var(--space-lg);
   margin-bottom: var(--space-md);
 }
-.sideline-landing .sideline-game-header h2 { margin: 0; }
-.sideline-landing .sideline-game-icon {
+.sport-section .sport-section-header h2 { margin: 0; }
+.sport-section .sport-section-icon {
   width: 80px;
   height: 80px;
   flex-shrink: 0;
 }
-.sideline-landing .sideline-more-info {
+.sport-section .sport-section-more-info {
   margin-top: var(--space-md);
   font-size: 1rem;
 }
-.sideline-landing .sideline-more-info ul {
+.sport-section .sport-section-more-info ul {
   margin: var(--space-sm) 0 0;
   padding-left: var(--space-xl);
 }
-.sideline-landing .sideline-more-info li { margin: var(--space-xs) 0; }
+.sport-section .sport-section-more-info li { margin: var(--space-xs) 0; }
 
 /* Rules pages: index list + detail layout */
 .rules-index .rules-link-list {
@@ -4979,7 +4969,6 @@ a.hashtag--media:hover {
   margin: 0 0 var(--space-md);
   line-height: 1.6;
   font-size: 1rem;
-  max-width: 55ch;
 }
 .trick-prose-paragraph:last-child { margin-bottom: 0; }
 
@@ -5094,7 +5083,6 @@ a.hashtag--media:hover {
   font-size: 0.9rem;
   line-height: 1.5;
   margin-bottom: var(--space-md);
-  max-width: 55ch;
 }
 .glossary-neighbor-grid {
   list-style: none;
@@ -5282,14 +5270,12 @@ a.hashtag--media:hover {
   font-size: 1rem;
   line-height: 1.6;
   color: var(--slate-800);
-  max-width: 55ch;
 }
 .trick-intuition-attribution {
   margin: 0;
   font-size: 0.9rem;
   color: var(--text-muted);
   font-style: italic;
-  max-width: 55ch;
 }
 
 /* Naming & interpretation overlay. Compact card; visually modest;
@@ -5711,7 +5697,6 @@ a.hashtag--media:hover {
   color: var(--text);
   margin: 0 0 var(--space-sm);
   line-height: 1.5;
-  max-width: 55ch;
 }
 /* Inside the heading row the intro sits beside the h2, so its bottom margin is
    pure dead space: it would leave a section that carries an intro sitting 8px
@@ -6306,11 +6291,9 @@ a.trick-hero-meta-chip--media:hover {
 }
 
 /* A–Z Glossary (/freestyle/glossary): a letter jump-row, then one section per
-   letter holding the shared term/definition <dl>. Reading-measure cap on the
-   definitions so a long entry wraps like body prose. */
+   letter holding the shared term/definition <dl>. */
 .glossary-az-orientation {
   margin: var(--space-xl) 0 var(--space-md);
-  max-width: 55ch;
 }
 .glossary-az-letter-nav {
   display: flex;
@@ -6342,7 +6325,6 @@ a.trick-hero-meta-chip--media:hover {
   font-size: 1.25rem;
 }
 .glossary-az-entry {
-  max-width: 55ch;
   scroll-margin-top: var(--anchor-offset);
 }
 /* Aliases ride on the term line in the muted colour and normal weight, so a
@@ -7125,7 +7107,6 @@ a.trick-hero-meta-chip--media:hover {
   font-style: italic;
   margin: var(--space-xs) 0 var(--space-xl) 0;
   line-height: 1.5;
-  max-width: 55ch;
 }
 .confusion-card {
   background: var(--parch-50);
@@ -7389,7 +7370,6 @@ a.trick-hero-meta-chip--media:hover {
   color: var(--gray-700);
   /* Tighter lede-to-tiers spacing for a denser layout. */
   margin: 0 0 var(--space-xl) 0;
-  max-width: 55ch;
   line-height: 1.55;
 }
 
@@ -7816,17 +7796,14 @@ a.trick-hero-meta-chip--media:hover {
   font-size: 0.9rem;
   color: var(--earth-550);
   margin: var(--space-xs) 0 var(--space-md) 0;
-  max-width: 55ch;
 }
 .observed-decision-question {
   font-size: 0.9rem;
   margin: var(--space-xs) 0 var(--space-sm) 0;
-  max-width: 55ch;
 }
 .observed-decision-facts {
   font-size: 0.9rem;
   margin: var(--space-sm) 0 0 0;
-  max-width: 55ch;
 }
 .observed-decision-facts dt {
   font-weight: 600;
@@ -7838,7 +7815,6 @@ a.trick-hero-meta-chip--media:hover {
 .observed-question-text {
   font-size: 0.9rem;
   margin: var(--space-sm) 0 var(--space-xs) 0;
-  max-width: 55ch;
 }
 .observed-disclosure {
   margin: var(--space-lg) 0;
@@ -8421,8 +8397,7 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   margin-bottom: var(--space-2xl);
 }
 
-/* Portal lede (replaces the prior language-intro section). Width comes
-   from the shared .content-section > p reading measure; no local cap. */
+/* Portal lede (replaces the prior language-intro section). */
 .freestyle-portal-lede .freestyle-portal-lede-paragraph {
   font-size: 1rem;
   line-height: 1.55;
@@ -9038,7 +9013,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
    muted-tone aesthetic of .browse-view-intro for visual cohesion
    across the dictionary pedagogy surfaces. */
 .trick-family-anchor-callout {
-  max-width: 55ch;
   margin: 0 0 var(--space-lg);
   padding: var(--space-md) var(--space-lg);
   background: var(--bg-light);
@@ -9091,7 +9065,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
    do under that axis. Muted tone; max-width so the paragraph reads
    like prose, not a banner. */
 .browse-view-intro {
-  max-width: 55ch;
   margin: var(--space-sm) 0 var(--space-xl);
   padding: var(--space-md) var(--space-lg);
   background: var(--sec-bg);
@@ -9106,7 +9079,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
    subtle metadata scale, which rendered a paragraph at chip size in the
    lightest text token. */
 .browse-view-scale {
-  max-width: 55ch;
   margin: 0 0 var(--space-xl);
   color: var(--text);
   font-size: 1rem;
@@ -10126,7 +10098,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   font-size: 0.9rem;
   color: var(--text);
   font-style: italic;
-  max-width: 55ch;
 }
 .set-subtype-section {
   margin-top: var(--space-xl);
@@ -10341,7 +10312,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   font-size: 0.9em;
   color: var(--text);
   line-height: 1.45;
-  max-width: 55ch;
 }
 .sets-encyclopedia-card-flagship {
   display: inline-block;
@@ -10476,12 +10446,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 }
 .set-detail-section {
   margin: var(--space-lg) 0;
-}
-/* Set pages sit outside the shared section paragraph rule, so their prose
-   takes the one reading measure here. */
-.set-detail-section p,
-.set-detail-movement {
-  max-width: 55ch;
 }
 .set-detail-section h2 {
   margin: 0 0 var(--space-sm);
@@ -10624,14 +10588,12 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   font-style: italic;
   color: var(--text-muted);
   line-height: 1.4;
-  max-width: 55ch;
 }
 
 .family-view-ordering-note {
   margin: var(--space-xs) 0 var(--space-lg);
   font-size: 0.9rem;
   color: var(--text);
-  max-width: 55ch;
 }
 .observed-lane {
   margin: var(--space-xl) 0 var(--space-2xl);
@@ -10745,7 +10707,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
   margin: var(--space-lg) 0 0 auto;
   font-size: 0.9rem;
   color: var(--text);
-  max-width: 55ch;
   text-align: right;
   font-style: italic;
   line-height: 1.45;
@@ -10889,7 +10850,6 @@ a.dict-trick-row-title:hover { text-decoration: underline; }
 }
 .dict-onboarding-intro {
   margin: 0 0 var(--space-sm);
-  max-width: 55ch;
 }
 .dict-onboarding-defs {
   margin: var(--space-md) 0;

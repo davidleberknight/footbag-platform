@@ -331,45 +331,6 @@ describe('heading-not-outranking', () => {
   });
 });
 
-describe('prose-too-wide', () => {
-  it('reports prose past the 55ch measure at desktop width only', () => {
-    // A line far past the reading measure makes a reader lose their place on the return sweep.
-    const para = (w: number, width = DESKTOP) => buildCapture(el('p', { text: LONG, chPx: 8, rect: { w } }), { width });
-    expect(hits(para(600), 'prose-too-wide')).toHaveLength(1);
-    expect(hits(para(440), 'prose-too-wide')).toEqual([]);
-    expect(hits(para(600, PHONE), 'prose-too-wide')).toEqual([]);
-  });
-
-  it('measures the line inside the padding and border, not the whole box', () => {
-    // A padded callout whose lines sit within the measure would be reported for padding the reader never reads across.
-    const padded = buildCapture(el('p', {
-      text: LONG, chPx: 8, rect: { w: 480 },
-      style: { 'padding-left': '30px', 'padding-right': '30px', 'border-left-width': '4px', 'border-left-style': 'solid' },
-    }), { width: DESKTOP });
-    expect(hits(padded, 'prose-too-wide')).toEqual([]);
-  });
-
-  it('counts the text inside links and emphasis as part of the paragraph', () => {
-    // A wide paragraph made mostly of linked or bold words would escape the measure because its own text is short.
-    const linked = buildCapture(
-      el('p', { text: 'Read the full account of', chPx: 8, rect: { w: 600 } },
-        el('strong', { text: LONG }),
-        el('a', { attrs: { href: true }, text: 'the event' })),
-      { width: DESKTOP },
-    );
-    expect(hits(linked, 'prose-too-wide')).toHaveLength(1);
-  });
-
-  it('does not treat a line of notation set in code as prose', () => {
-    // A list of notation formulas is read symbol by symbol, not as sentences, so the reading measure does not bind it.
-    const notation = buildCapture(
-      el('li', { chPx: 8, rect: { w: 760 } }, el('code', { text: LONG })),
-      { width: DESKTOP },
-    );
-    expect(hits(notation, 'prose-too-wide')).toEqual([]);
-  });
-});
-
 describe('grey text', () => {
   it('reports running prose in the muted grey', () => {
     // Grey body text is read less and trusted less; grey is reserved for metadata.
@@ -905,7 +866,6 @@ const PLANTED: Record<string, () => { capture: Capture; selectors: string[]; ctx
   }),
   'text-below-ramp': () => ({ capture: buildCapture(el('p', { text: 'small', style: { 'font-size': '12px' } })), selectors: ['body>p'] }),
   'heading-not-outranking': () => ({ capture: buildCapture(el('main', {}, el('h2', { text: 'Heading' }), el('p', { text: LONG }))), selectors: ['body>main>h2'] }),
-  'prose-too-wide': () => ({ capture: buildCapture(el('p', { rect: { w: 1000 }, chPx: 8, text: LONG })), selectors: ['body>p'] }),
   'prose-muted': () => ({ capture: buildCapture(el('p', { text: LONG, style: { color: 'rgb(102, 102, 102)' } })), selectors: ['body>p'] }),
   'text-subtle-used': () => ({ capture: buildCapture(el('span', { text: 'x', style: { color: 'rgb(138, 138, 138)' } })), selectors: ['body>span'] }),
   'contrast-low': () => ({ capture: buildCapture(el('p', { text: 'pale', style: { color: 'rgb(200, 200, 200)' } })), selectors: ['body>p'] }),

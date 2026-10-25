@@ -1,0 +1,61 @@
+{{! Partial: sport-section
+    Context: the page view-model (page + content: SportSectionContent).
+    Used by: sideline/landing.hbs, x-square/landing.hbs, golf/landing.hbs. }}
+
+<div class="hero hero-sm{{#if content.mascot}} hero-with-mascot{{/if}}">
+  <div class="hero-text">
+    <h1>{{page.title}}</h1>
+    {{#if page.intro}}<p class="hero-subtitle">{{page.intro}}</p>{{/if}}
+  </div>
+  {{#if content.mascot}}
+  <img class="hero-mascot" src="{{{asset content.mascot.src}}}" alt="{{content.mascot.alt}}" width="150" height="150">
+  {{/if}}
+</div>
+
+<div class="wrapper sport-section">
+
+  {{#if content.explainer}}
+  <section class="content-section">
+    <h2>{{content.explainer.heading}}</h2>
+    {{#each content.explainer.paragraphs}}
+    <p>{{#each this}}{{#if href}}<a href="{{href}}">{{text}}</a>{{else}}{{text}}{{/if}}{{/each}}</p>
+    {{/each}}
+  </section>
+  {{/if}}
+
+  {{#each content.games}}
+  <section class="content-section" id="{{slug}}">
+    <div class="sport-section-header">
+      {{#if iconSrc}}
+      <img class="sport-section-icon" src="{{{asset iconSrc}}}" alt="{{iconAlt}}" width="120" height="120">
+      {{/if}}
+      <h2>{{title}}</h2>
+    </div>
+    {{#each paragraphs}}
+    <p>{{this}}</p>
+    {{/each}}
+    {{#if demoVideo}}
+    <figure class="demo-video">
+      <video controls loop muted playsinline preload="metadata">
+        <source src="{{demoVideo.webmUrl}}" type="video/webm">
+        <p>{{demoVideo.caption}}</p>
+      </video>
+      <figcaption>{{demoVideo.caption}}</figcaption>
+    </figure>
+    {{/if}}
+    {{#if moreInfo.length}}
+    <div class="sport-section-more-info">
+      <strong>More info</strong>
+      <ul>
+        {{#each moreInfo}}
+        <li>
+          <a href="{{href}}"{{#if external}} target="_blank" rel="noopener noreferrer"{{/if}}>{{label}}</a>
+        </li>
+        {{/each}}
+      </ul>
+    </div>
+    {{/if}}
+  </section>
+  {{/each}}
+
+</div>

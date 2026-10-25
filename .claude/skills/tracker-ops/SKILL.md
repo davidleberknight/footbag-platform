@@ -149,8 +149,8 @@ Git writes in the private checkout stay human-run (`private-repo.md`).
 Committed public text never carries the private repository's slug, owner, name, or
 issue numbers, in any form: prose says "the maintainers' private tracker"; commands
 say `-R "$FOOTBAG_PRIVATE_REPO"`; fixtures use synthetic slugs. A public commit
-message never references a private issue; the private issue cites the public commit
-SHA instead. A card closes when its work is verified, never waiting on a commit.
+message never references a private issue; a private issue may cite a public commit
+SHA but never needs one. A card closes when its work is verified, never waiting on a commit.
 Public code comments keep the `Current:`/`Target:` convention and never carry an
 issue number; the issue cites the file and line.
 

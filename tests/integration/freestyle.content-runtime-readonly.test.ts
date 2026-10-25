@@ -130,7 +130,7 @@ describe('freestyle content tables under ordinary runtime reads', () => {
       '/freestyle/tricks/immutable_trick',
       '/freestyle/tricks/immutable_trick_kin',
       '/freestyle/records',
-      '/records',
+      '/consecutives',
     ];
     for (const path of reads) {
       const res = await request(app).get(path);

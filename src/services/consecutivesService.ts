@@ -1,14 +1,20 @@
 /**
- * RecordsService -- public cross-sport records page (read-only).
+ * ConsecutivesService -- public Consecutives landing page and the official IFPA records
+ * (read-only).
  *
  * Serves:
- *   - GET /records (public): canonical records section entry; the single page in the section.
+ *   - GET /consecutives (public): canonical consecutives section entry; the single page in the
+ *     section, carrying what consecutives is, how it is contested, and the official records.
+ *     The official IFPA records are the consecutive-kicks records, so they live here.
  *
  * Rendering contract:
- *   - getRecordsPage() returns PageViewModel<RecordsContent>.
- *   - Aggregates consecutive-kicks world records, highest scores, progression and milestones into
- *     one view-model. The freestyle passback records are not repeated here; the page links to
- *     /freestyle/records, which lists them.
+ *   - getConsecutivesPage() returns PageViewModel<ConsecutivesContent>.
+ *   - Orientation first: the explainer (with the featured timed-consecutives clip, an upright
+ *     video shown in a portrait frame, when its site media slot is seeded) and
+ *     the competitions sentence, then consecutive-kicks world records, highest scores, progression
+ *     and milestones. A records section with no rows renders nothing.
+ *   - Freestyle passback records are freestyle records, not official IFPA records, and are not
+ *     shown or linked here.
  *
  * Visibility:
  *   - Public official historical records only. Derived aggregates carry a scope caveat or are
@@ -17,6 +23,7 @@
  */
 import { consecutiveKicksRecords, ConsecutiveKicksRow } from '../db/db';
 import { runSqliteRead } from './sqliteRetry';
+import { SiteVideo, loadSiteVideo } from './siteMediaService';
 import { PageViewModel } from '../types/page';
 
 export interface ConsecutiveRecordViewModel {
@@ -29,6 +36,8 @@ export interface ConsecutiveRecordViewModel {
   eventName:  string | null;
   location:   string | null;
   year:       string | null;
+  /** Whether any of event, date or location is known, so an empty line is never drawn. */
+  hasWhereWhen: boolean;
 }
 
 export interface ConsecutiveGroup {
@@ -38,7 +47,12 @@ export interface ConsecutiveGroup {
   footnotes:  string[];
 }
 
-export interface RecordsContent {
+export interface ConsecutivesContent {
+  mascot:            { src: string; alt: string };
+  explainer:         { heading: string; paragraphs: string[] };
+  demoVideo:         SiteVideo | null;
+  competitions:      { heading: string; paragraphs: string[] };
+  worldRecordsIntro: string;
   worldRecords:      ConsecutiveRecordViewModel[];
   highestScores:     ConsecutiveGroup[];
   progression:       ConsecutiveGroup[];
@@ -67,6 +81,7 @@ function shapeRow(r: ConsecutiveKicksRow): ConsecutiveRecordViewModel {
     eventName:      r.event_name,
     location:       r.location,
     year:           r.year,
+    hasWhereWhen:   Boolean(r.event_name || r.event_date || r.location),
   };
 }
 
@@ -103,8 +118,8 @@ function groupBySubsection(rows: ConsecutiveKicksRow[]): ConsecutiveGroup[] {
   return groups;
 }
 
-export const recordsService = {
-  getRecordsPage(): PageViewModel<RecordsContent> {
+export const consecutivesService = {
+  getConsecutivesPage(): PageViewModel<ConsecutivesContent> {
     const worldRows = runSqliteRead('consecutiveKicksRecords.listWorldRecords', () =>
       consecutiveKicksRecords.listWorldRecords.all() as ConsecutiveKicksRow[],
     );
@@ -118,19 +133,39 @@ export const recordsService = {
       consecutiveKicksRecords.listMilestones.all() as ConsecutiveKicksRow[],
     );
 
+    const worldRecords  = worldRows.map(shapeRow);
+    const highestScores = groupBySubsection(highScoreRows);
+    const progression   = groupBySubsection(progressionRows);
+    const milestones    = groupBySubsection(milestoneRows);
+
     return {
-      seo:  { title: 'Records' },
+      seo:  { title: 'Consecutives and World Records' },
       page: {
-        sectionKey: 'records',
-        pageKey:    'records',
-        title:      'Records',
-        intro:      'Official consecutive and freestyle records.',
+        sectionKey: 'consecutives',
+        pageKey:    'consecutives_home',
+        title:      'Consecutives',
+        intro:      'Keep the footbag in the air for as many kicks as you can.',
       },
       content: {
-        worldRecords:    worldRows.map(shapeRow),
-        highestScores:   groupBySubsection(highScoreRows),
-        progression:     groupBySubsection(progressionRows),
-        milestones:      groupBySubsection(milestoneRows),
+        mascot: { src: '/img/consecutives-mascot.svg', alt: 'A player kicking a footbag to keep it in the air' },
+        explainer: {
+          heading: 'What Are Consecutives?',
+          paragraphs: [
+            'Consecutive kicks is the discipline of keeping a single footbag aloft for as many uninterrupted kicks as possible. It can be played solo or in a group, and it is the basis for some of footbag\'s longest-standing world records.',
+          ],
+        },
+        demoVideo: loadSiteVideo('consecutives_demo'),
+        competitions: {
+          heading: 'Competitions',
+          paragraphs: [
+            'At tournaments, consecutives is contested in several disciplines, including 5-Minute Timed Consecutive, Doubles Distance One-Pass, and Singles and Doubles Consecutive Kicks.',
+          ],
+        },
+        worldRecordsIntro: 'Open-ended record attempts can run for many hours, so they are kept as world records rather than contested at tournaments.',
+        worldRecords,
+        highestScores,
+        progression,
+        milestones,
       },
     };
   },

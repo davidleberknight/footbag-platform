@@ -1469,13 +1469,25 @@ expect_q 'Should I read docs/SOME_PLAN.md before deciding?' block
 expect_q "**${gate}** -- run this gate now or defer?" block
 expect_q "- ${finding}: is this the real blocker?" block
 # Deferred: a self-contained question, or a code merely mentioned inline (not a label).
-expect_q 'Should I open a follow-up for the ledger tiebreak, yes or no?' defer
-expect_q "We could fold this into ${gate} later; ship the fix now?" defer
-expect_q 'Should the S3 bucket stay private?' defer
+# Each carries its settled line, so only the reference check is exercised here.
+settled='Settled from the sources: the ledger story fixes the order.'
+expect_q "${settled}"$'\nShould I open a follow-up for the ledger tiebreak, yes or no?' defer
+expect_q "${settled}"$'\n'"We could fold this into ${gate} later; ship the fix now?" defer
+expect_q "${settled}"$'\nShould the S3 bucket stay private?' defer
 expect_q 'I applied the fix and verified it end to end.' defer
 # Literal text quoted in a fenced block is shown material, not checked; the
 # question's own wording outside the fence still is.
-expect_q $'Apply this batch?\n```\nBEFORE: see docs/SOME_PLAN.md and the part marked \xc2\xa74\n```' defer
+expect_q "${settled}"$'\nApply this batch?\n```\nBEFORE: see docs/SOME_PLAN.md and the part marked \xc2\xa74\n```' defer
+# A question must show what was settled from the sources before it asks.
+expect_q 'Should the S3 bucket stay private?' block
+expect_q '**Ship the fix now?**' block
+expect_q 'I noted that Settled from the sources: nothing. Ship it?' block
+expect_q $'**Settled from the sources:** the bucket policy is private by design.\nShould it stay private?' defer
+expect_q $'- Settled from the sources: the story fixes the order.\nShip the fix now?' defer
+# A question mark that does not end a line, or a question only inside a fence, is not
+# a question to the human.
+expect_q 'Open /freestyle/tricks?view=family to see the family list.' defer
+expect_q $'Done.\n```\nShip it?\n```' defer
 expect_q $'Should I read docs/SOME_PLAN.md first?\n```\nAFTER: plain text\n```' block
 # The final message in the hook input wins over a transcript that lacks it.
 tr="$(mktemp)"

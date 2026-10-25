@@ -12,7 +12,7 @@
  *
  * Each rule names the design requirement it enforces in plain words. Numbers
  * come from the site standard: nothing below 0.9rem (14.4px at the 16px
- * root), a 55ch prose measure, a 24x24 minimum target, 4.5:1 text contrast
+ * root), a 24x24 minimum target, 4.5:1 text contrast
  * (3:1 for large text), phone fit at 390px, and a spacing rhythm of 4, 8, 12,
  * 16, 24 and 32px (24px at most on a phone).
  */
@@ -183,7 +183,6 @@ export type RuleId =
   | 'tap-target-small'
   | 'text-below-ramp'
   | 'heading-not-outranking'
-  | 'prose-too-wide'
   | 'prose-muted'
   | 'text-subtle-used'
   | 'contrast-low'
@@ -459,7 +458,6 @@ export class CaptureView {
 
 const TEXT_FLOOR_PX = 14.35; // 0.9rem at the 16px root, less rounding slack
 const TARGET_MIN_PX = 24;
-const MEASURE_CH = 55.5;
 const PROSE_MIN_CHARS = 120;
 const PROSE_TAGS = new Set(['p', 'li', 'dd', 'blockquote']);
 const FIELD_TAGS = new Set(['input', 'select', 'textarea']);
@@ -907,22 +905,6 @@ export const RULES: readonly Rule[] = [
         if (size <= body) out.push({ el, measured: `${el.tag} ${fmt(size)}px against ${fmt(body)}px body text` });
       }
       return out;
-    },
-  },
-  {
-    id: 'prose-too-wide',
-    applies: 'desktop',
-    requirement: 'Running prose is capped at the 55ch reading measure.',
-    check(v) {
-      // The line runs inside the padding and border, so that is the width a reader's eye travels.
-      const lineWidth = (el: ElementRecord) => el.rect.w
-        - v.px(el, 'padding-left') - v.px(el, 'padding-right')
-        - v.px(el, 'border-left-width') - v.px(el, 'border-right-width');
-      return v.elements
-        .filter((el) => PROSE_TAGS.has(el.tag) && !!el.chPx && v.isPainted(el) && flowTextLen(v, el) >= PROSE_MIN_CHARS)
-        .filter((el) => !v.within(el, 'table') && !v.within(el, 'pre'))
-        .filter((el) => lineWidth(el) > MEASURE_CH * (el.chPx as number) + 1)
-        .map((el) => ({ el, measured: `${fmt(lineWidth(el) / (el.chPx as number))}ch` }));
     },
   },
   {

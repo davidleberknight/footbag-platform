@@ -86,19 +86,29 @@ export const homeService = {
           description: 'Fast-paced foot volleyball over a 5-foot net.',
         },
         {
+          label: 'X Square',
+          href: '/x-square',
+          description: '2-Square, 4-Square and 5-Square.',
+        },
+        {
+          label: 'Golf',
+          href: '/golf',
+          description: 'Kick a footbag around a course in as few kicks as possible.',
+        },
+        {
+          label: 'Consecutives',
+          href: '/consecutives',
+          description: 'Keep the footbag in the air for as many kicks as you can, and see the world records.',
+        },
+        {
           label: 'Sideline',
           href: '/sideline',
-          description: 'Casual and social kicking, including Hacky Sack, 2 Square, 4 Square, Consecutives, and Golf.',
+          description: 'Casual and social kicking that anyone can join: free flow, circle kicking and hacky sack.',
         },
         {
           label: 'Rules',
           href: '/rules',
-          description: 'Official IFPA rules for Sideline games, Footbag Net, Footbag Golf, and Freestyle.',
-        },
-        {
-          label: 'Records',
-          href: '/records',
-          description: 'Consecutive kicks world records, highest scores, and milestones.',
+          description: 'Official IFPA rules for Footbag Net, Freestyle, X Square and Footbag Golf.',
         },
         {
           label: 'Hall of Fame',

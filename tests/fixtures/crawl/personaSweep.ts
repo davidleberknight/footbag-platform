@@ -56,7 +56,7 @@ export function personasForPart(part: number, parts: number): PersonaSpec[] {
 function probePages(slug: string, admin: boolean): string[] {
   return [
     '/', `/members/${slug}`, `/members/${slug}/edit`, '/members', '/clubs', '/events', '/media',
-    '/freestyle', '/hof', '/records', '/members/canary_hidden', '/members/canary_shown',
+    '/freestyle', '/hof', '/consecutives', '/members/canary_hidden', '/members/canary_shown',
     '/register/wizard/personal_details', '/legal', admin ? '/admin' : '/admin/bootstrap-claim',
     `/media/item/${CRAWL_MEDIA_ITEM_ID}`,
   ];

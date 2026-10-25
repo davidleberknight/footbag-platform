@@ -259,7 +259,7 @@ Does not belong:
 
 ### 5.2 Integration tests
 
-Vitest plus Supertest plus better-sqlite3 against a real SQLite test DB per file (`tests/integration/`). Exercises real route, middleware, service, and DB paths. No mocks. The default home for assertions that exercise routes, services, schemas, or persistence. A few files here drive a committed command-line script as a real subprocess instead of an HTTP route, including the redirected club production chain, which runs the legacy club extractors; those run under the legacy pipeline's own Python environment, which `bash legacy_data/run_pipeline.sh venv` (and `run_dev.sh`, which calls it) builds from the hash-pinned requirements, and fall back to the `python3` on the path, into which the continuous-integration job installs the same hash-pinned requirements before the suite runs.
+Vitest plus Supertest plus better-sqlite3 against a real SQLite test DB per file (`tests/integration/`). Exercises real route, middleware, service, and DB paths. No mocks. The default home for assertions that exercise routes, services, schemas, or persistence. A few files here drive a committed command-line script as a real subprocess instead of an HTTP route, including the redirected club production chain, which runs the legacy club extractors; those run under the legacy pipeline's own Python environment, which `bash legacy_data/run_pipeline.sh venv` (and `run_dev.sh`, which calls it) builds from the hash-pinned requirements, and fall back to the `python3` on the path. Continuous integration does not run the redirected club production chain: its coverage step excludes that one suite, so only the local run executes it.
 
 Belongs:
 

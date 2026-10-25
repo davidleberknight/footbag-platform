@@ -81,7 +81,7 @@ Current implementation status and accepted temporary deviations are tracked in t
   - [4.10 Search-engine and Crawler Readiness](#410-search-engine-and-crawler-readiness)
   - [4.11 Static-Asset Fingerprinting](#411-static-asset-fingerprinting)
   - [4.12 Bounded Type-Size Ramp](#412-bounded-type-size-ramp)
-  - [4.13 Reading Measure](#413-reading-measure)
+  - [4.13 Text Width](#413-text-width)
   - [4.14 Link and Disclosure Affordances](#414-link-and-disclosure-affordances)
   - [4.15 Callout and Box Policy](#415-callout-and-box-policy)
 - [5. Back-End Services and Patterns](#5-back-end-services-and-patterns)
@@ -547,7 +547,7 @@ Trade-offs:
 Impact:
 - New mechanical rules go into `scripts/ci/assert_conventions.sh` as grep gates.
 - Per-service rules live in each service's file-header JSDoc; cross-cutting invariants live in DESIGN_DECISIONS.md §3–§4, the path-scoped rule files, or schema triggers.
-- High-stakes write-path services (identity, member, event, club, media, curator, membership tiering, active player) carry the full ownership file-header JSDoc. Read-only page services (history, hof, bap, sideline, rules, ifpa, freestyle, records, net, legal) carry a page-contract file-header JSDoc stating the audience, rendering contract, and sensitive-page invariants for the routes they serve.
+- High-stakes write-path services (identity, member, event, club, media, curator, membership tiering, active player) carry the full ownership file-header JSDoc. Read-only page services (history, hof, bap, x-square, golf, sideline, consecutives, rules, ifpa, freestyle, net, legal) carry a page-contract file-header JSDoc stating the audience, rendering contract, and sensitive-page invariants for the routes they serve.
 
 ## 1.11 Configuration Model
 
@@ -2782,35 +2782,21 @@ Impact:
 
 - The convention gate rejects any font size outside the scale, so the set stays closed without depending on review.
 
-## 4.13 Reading Measure
+## 4.13 Text Width
 
 Decision:
 
-Running prose is capped at a comfortable reading measure of about 70 characters per line, and one value, `55ch`, serves every prose element on the site. The cap is applied per component through `max-width`, in `ch` units for text and in pixels where a component caps a mixed column; the page container itself stays full width so grids, tables, and media are unaffected.
+Text spans the full width of its content column, the same column the tables, card grids and media on the page use, so every block on a page shares one left and one right edge. No component caps the width of its text.
 
 Rationale:
 
-- The site container is wide enough that uncapped prose reached about 160 characters per line, which roughly doubles comfortable measure and makes a reader lose the line on return.
+- One width for every block keeps each page consistent; text that stops short beside a full-width table reads as a defect.
 
-- Capping the component rather than the container keeps wide content (ladders, grids, tables, galleries) at full width, where its own structure carries the eye.
-
-- A `ch` is the width of the digit zero, wider than an average letter: in the site's body font a `70ch` line holds about 90 characters of running text, past the 45 to 75 a reader takes in comfortably and the 80 that accessibility guidance (WCAG 1.4.8) sets as a ceiling. `55ch` lands at about 70.
-
-Requirements:
-
-- Every element carrying running prose has a measure cap, whether from its own rule or an ancestor prose rule.
-
-- A component that mixes prose with wide content caps the prose, not the component.
-
-- No section or page widens the prose cap with an override of its own.
+- Short notices and intros stay on one line wherever the screen has room, instead of wrapping early.
 
 Trade-offs:
 
-- Prose no longer fills the column on a wide display, leaving deliberate whitespace to its right.
-
-Impact:
-
-- Section intros and detail-page prose across the site read at one measure.
+- On a very wide display a long paragraph runs long lines.
 
 ## 4.14 Link and Disclosure Affordances
 

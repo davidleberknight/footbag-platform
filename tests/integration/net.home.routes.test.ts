@@ -201,7 +201,9 @@ describe('GET /net — portal landing sections', () => {
 
     const app = createApp();
     const res = await request(app).get('/net');
+    // The net clip is landscape, so it keeps the landscape frame.
     expect(res.text).toContain('class="demo-video"');
+    expect(res.text).not.toContain('demo-video--portrait');
     expect(res.text).toMatch(/\/media-store\/[^"]+-video\.mp4\?v(?:=|&#x3D;)[^"]+/);
     expect(res.text).toMatch(/\/media-store\/[^"]+-poster-display\.jpg/);
     expect(res.text).toContain('Demonstration of footbag net');

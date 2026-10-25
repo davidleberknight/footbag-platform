@@ -3548,7 +3548,7 @@ export const freestyleCompetition = {
 // ---------------------------------------------------------------------------
 // consecutiveKicksRecords
 //
-// WFA-sanctioned consecutive kicks records loaded from the curated CSV.
+// Consecutive kicks records loaded from the curated CSV.
 // Four sections: Official World Records, Highest Official Scores,
 // World Record Progression, Milestone Firsts.
 // ---------------------------------------------------------------------------

@@ -93,12 +93,6 @@ const CASES: Case[] = [
     green: `<main><h2>Results</h2><p>${LONG}</p></main>`,
   },
   {
-    rule: 'prose-too-wide',
-    viewport: DESKTOP,
-    red: [`<main><p style="max-width:none">${LONG}</p></main>`],
-    green: `<main><p>${LONG}</p></main>`,
-  },
-  {
     rule: 'prose-muted',
     viewport: DESKTOP,
     red: [`<main><p style="color:var(--text-muted)">${LONG}</p></main>`],

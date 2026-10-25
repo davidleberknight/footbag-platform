@@ -845,10 +845,6 @@ sets-encyclopedia-subtype-count
 sets-encyclopedia-subtype-head
 sets-encyclopedia-subtype-intro
 severity-high
-sideline-game-header
-sideline-game-icon
-sideline-landing
-sideline-more-info
 signal-checklist
 signal-checklist-label
 signal-checklist-mark
@@ -860,6 +856,10 @@ site-logo
 skip-link
 sort-indicator
 source-note
+sport-section
+sport-section-header
+sport-section-icon
+sport-section-more-info
 step-adds
 step-glossary-links
 step-header

@@ -8,8 +8,8 @@
  * Rendering contract:
  *   - getEquipmentPage() returns PageViewModel<EquipmentContent>.
  *   - Opening paragraphs, then one section per topic with a stable anchor id (`footbags`, `shoes`,
- *     `net`, `foot-c`, `freestyle`, `golf`, `square-games`). The net, freestyle and sideline pages
- *     deep-link to these anchors, so the ids are a stable contract.
+ *     `net`, `foot-c`, `freestyle`, `golf`, `square-games`). The net, freestyle, X Square, golf and
+ *     sideline pages deep-link to these anchors, so the ids are a stable contract.
  *   - An item stating an official figure carries `officialRule`, a link to the exact rule section
  *     that governs it; items without one are practical guidance.
  *   - The vendor notice links to the vendor's site; the template renders that link through the

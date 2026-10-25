@@ -10,7 +10,8 @@
  *   - Adding a row and removing one, the removal a hard delete by that same id.
  *
  * Does not own:
- *   - The public records pages (RecordsService is public, read-only).
+ *   - The public Consecutives page that shows these records (ConsecutivesService, public and
+ *     read-only).
  *
  * Write discipline: updateRow validates the submitted fields (section, subsection,
  * and discipline required; score and rank each empty or a whole number; the display

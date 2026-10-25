@@ -31,7 +31,7 @@ const PUBLIC_PAGES: Array<{ path: string; name: string }> = [
   { path: '/freestyle/tricks', name: 'freestyle trick dictionary' },
   { path: '/freestyle/sets', name: 'freestyle set encyclopedia' },
   { path: '/freestyle/learn', name: 'freestyle learn' },
-  { path: '/records', name: 'records' },
+  { path: '/consecutives', name: 'consecutives and records' },
   { path: '/events', name: 'events' },
   { path: '/clubs', name: 'clubs' },
   { path: '/ifpa', name: 'membership hub' },

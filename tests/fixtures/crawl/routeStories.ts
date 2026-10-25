@@ -78,11 +78,13 @@ export const ROUTE_STORIES: Readonly<Record<string, RouteStory>> = {
   'GET /freestyle': { stories: ['V_Learn_Freestyle'] },
 
   // Sport sections, rules, IFPA, events, history
-  'GET /records': { stories: ['V_Browse_Static_Content'] },
   'GET /net': { stories: ['V_Browse_Static_Content'] },
   'GET /net/events': { stories: ['V_Browse_Static_Content'] },
   'GET /net/teams': { stories: ['V_Browse_Static_Content'] },
   'GET /net/teams/:teamId': { stories: ['V_Browse_Static_Content'] },
+  'GET /x-square': { stories: ['V_Browse_Static_Content'] },
+  'GET /golf': { stories: ['V_Browse_Static_Content'] },
+  'GET /consecutives': { stories: ['V_Browse_Static_Content'] },
   'GET /sideline': { stories: ['V_Browse_Static_Content'] },
   'GET /rules': { stories: ['V_View_Tutorials'] },
   'GET /rules/:categorySlug/:ruleSlug': { stories: ['V_View_Tutorials'] },

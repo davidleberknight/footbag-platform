@@ -12,22 +12,30 @@ describe('rules MD loader', () => {
     _resetRulesCache();
   });
 
-  it('discovers the sideline category file in ifpa/rules/', () => {
+  it('discovers the X Square category file in ifpa/rules/', () => {
     const groups = listGroupedByCategory();
-    const sideline = groups.find((g) => g.category === 'sideline');
-    expect(sideline).toBeDefined();
-    expect(sideline!.label).toBe('Sideline');
+    const xSquare = groups.find((g) => g.category === 'x-square');
+    expect(xSquare).toBeDefined();
+    expect(xSquare!.label).toBe('X Square');
   });
 
-  it('splits the sideline file into one rule page per H1', () => {
-    const all = listRulePages().filter((p) => p.category === 'sideline');
+  // Defect caught: a rules file whose category the index order does not name
+  // vanishes from the rules index and the sitemap while its pages still serve.
+  it('groups every category the rules files declare', () => {
+    const declared = new Set(listRulePages().map((p) => p.category));
+    const grouped = new Set(listGroupedByCategory().map((g) => g.category));
+    expect(grouped).toEqual(declared);
+  });
+
+  it('splits the X Square file into one rule page per H1', () => {
+    const all = listRulePages().filter((p) => p.category === 'x-square');
     const slugs = all.map((p) => p.slug);
     expect(slugs).toContain('2-square');
     expect(slugs).toContain('4-square');
   });
 
   it('exposes verbatim 2-Square text from the source', () => {
-    const page = getRulePage('sideline', '2-square');
+    const page = getRulePage('x-square', '2-square');
     expect(page).toBeDefined();
     expect(page!.title).toBe('2-Square');
     expect(page!.bodyHtml).toContain('Game is to 11, must win by 2 points');
@@ -36,7 +44,7 @@ describe('rules MD loader', () => {
   });
 
   it('exposes verbatim 4-Square text from the source', () => {
-    const page = getRulePage('sideline', '4-square');
+    const page = getRulePage('x-square', '4-square');
     expect(page).toBeDefined();
     expect(page!.title).toBe('4-Square');
     expect(page!.bodyHtml).toContain('GOLDEN RULES');
@@ -44,16 +52,16 @@ describe('rules MD loader', () => {
   });
 
   it('attaches category-level metadata to every rule page', () => {
-    for (const page of listRulePages().filter((p) => p.category === 'sideline')) {
+    for (const page of listRulePages().filter((p) => p.category === 'x-square')) {
       expect(page.authority).toBe('IFPA');
       expect(page.effective).toBe('2020');
-      expect(page.parentHref).toBe('/sideline');
-      expect(page.parentLabel).toBe('Sideline');
+      expect(page.parentHref).toBe('/x-square');
+      expect(page.parentLabel).toBe('X Square');
     }
   });
 
   it('returns undefined for an unknown category or slug', () => {
-    expect(getRulePage('sideline', 'no-such-rule')).toBeUndefined();
+    expect(getRulePage('x-square', 'no-such-rule')).toBeUndefined();
     expect(getRulePage('not-a-category', '2-square')).toBeUndefined();
   });
 

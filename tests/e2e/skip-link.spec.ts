@@ -1,8 +1,8 @@
 /**
  * Skip-link keyboard contract.
  *
- * The site header is fourteen tab stops for a visitor and sixteen for a
- * logged-in administrator (the logo, twelve section links, and the auth group),
+ * The site header is seventeen tab stops for a visitor and nineteen for a
+ * logged-in administrator (the logo, fifteen section links, and the auth group),
  * and every page renders it. Without a skip link a keyboard, switch, or voice
  * user crosses all of them before reaching content, on every navigation. The
  * automated accessibility scan cannot see this: its bypass-blocks rule is

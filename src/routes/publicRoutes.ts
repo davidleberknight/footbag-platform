@@ -24,8 +24,10 @@ import { UNSUBSCRIBE_PATH } from '../services/communicationService';
 import { hofController } from '../controllers/hofController';
 import { bapController } from '../controllers/bapController';
 import { freestyleController } from '../controllers/freestyleController';
-import { recordsController } from '../controllers/recordsController';
+import { consecutivesController } from '../controllers/consecutivesController';
 import { netController } from '../controllers/netController';
+import { xSquareController } from '../controllers/xSquareController';
+import { golfController } from '../controllers/golfController';
 import { sidelineController } from '../controllers/sidelineController';
 import { rulesController } from '../controllers/rulesController';
 import { ifpaController } from '../controllers/ifpaController';
@@ -151,7 +153,6 @@ publicRouter.get('/freestyle/tricks/:add(\\d+)', freestyleController.tricksByAdd
 publicRouter.get('/freestyle/tricks/:slug', freestyleController.trick);
 publicRouter.get('/freestyle',             freestyleController.landing);
 
-publicRouter.get('/records', recordsController.records);
 
 // IMPORTANT: /net must be registered before all /net/* sub-routes
 publicRouter.get('/net',                  netController.homePage);
@@ -161,10 +162,12 @@ publicRouter.get('/net/events', netController.eventsPage);
 publicRouter.get('/net/teams',             netController.teamsPage);
 publicRouter.get('/net/teams/:teamId',    netController.teamDetail);
 
+publicRouter.get('/x-square',              xSquareController.landing);
+publicRouter.get('/golf',                  golfController.landing);
+publicRouter.get('/consecutives',          consecutivesController.landing);
 publicRouter.get('/sideline',              sidelineController.landing);
 
-publicRouter.get('/rules',                                          rulesController.index);
-publicRouter.get('/rules/:categorySlug/:ruleSlug',                  rulesController.detail);
+publicRouter.get('/rules',                                          rulesController.index);publicRouter.get('/rules/:categorySlug/:ruleSlug',                  rulesController.detail);
 
 publicRouter.get('/ifpa',           ifpaController.index);
 // IMPORTANT: /ifpa/roster MUST be registered before /ifpa/:docSlug. Express

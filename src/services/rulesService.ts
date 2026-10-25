@@ -2,8 +2,9 @@
  * RulesService -- public IFPA rules pages (read-only).
  *
  * Serves (all public):
- *   - GET /rules: rules index; rule pages grouped by category ordered sideline, net, golf,
- *     freestyle, each group with a one-sentence intro, closing with a link to the equipment page.
+ *   - GET /rules: rules index; rule pages grouped by category ordered net, freestyle, x-square,
+ *     golf (the main-navigation order), each group with a one-sentence intro, closing with a link
+ *     to the equipment page.
  *   - GET /rules/:categorySlug/:ruleSlug: rule detail; unknown category or slug throws
  *     NotFoundError (renders 404).
  *
@@ -57,7 +58,7 @@ interface RulesDetailContent {
 
 // Keyed by category, matching the frontmatter `category` of each rules file.
 const GROUP_INTROS: Record<string, string> = {
-  sideline: 'Rules for 2-Square and 4-Square.',
+  'x-square': 'Rules for 2-Square and 4-Square.',
   net: 'Rules for singles and doubles net play.',
   golf: 'Rules for playing a footbag golf course.',
   freestyle: 'Rules for freestyle competition, where players are judged on difficulty, variety and execution.',
@@ -71,9 +72,9 @@ const PAGE_INTROS: Record<string, string> = {
     'Footbag Freestyle is a highly specialized version of footbag that focuses on technical skill, in terms of both depth and breadth.',
   'golf/footbag-golf':
     'Footbag golf is a recreational sport for everybody, regardless of age, gender or ability.',
-  'sideline/2-square':
+  'x-square/2-square':
     '2-Square takes the classic schoolyard square game and combines it with footbag.',
-  'sideline/4-square':
+  'x-square/4-square':
     'Four squares, four players: score points by landing the footbag in someone else\'s square without letting it land in your own.',
 };
 

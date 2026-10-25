@@ -412,10 +412,10 @@ gate build       bash -c 'npm run build && npm run typecheck:tests'
 # One integration suite drives the legacy club extractors as real subprocesses,
 # and they parse mirror HTML with BeautifulSoup, so it needs the pinned
 # environment the block above builds. Without that environment the suite fails on
-# its own dependency probe, and the room then reports a failed gate and says the
-# runner will see the same — which it will not, because the runner installs these
-# requirements. An environment the room could not build is not a verdict on the
-# tests. So the tier runs without that one suite and the suite is named NOT RUN,
+# its own dependency probe, and the room would then report a failed gate for an
+# environment it could not build, which is not a verdict on the tests. Continuous
+# integration excludes the same suite. So the tier runs without that one suite and
+# the suite is named NOT RUN,
 # which is the same treatment the gates below give a missing sqlite3, and the run
 # ends INCOMPLETE rather than green.
 #

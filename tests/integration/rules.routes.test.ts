@@ -17,11 +17,11 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /rules', () => {
-  it('lists the sideline rules with internal hrefs', async () => {
+  it('lists the X Square rules with internal hrefs', async () => {
     const res = await page('/rules');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('/rules/sideline/2-square');
-    expect(res.text).toContain('/rules/sideline/4-square');
+    expect(res.text).toContain('/rules/x-square/2-square');
+    expect(res.text).toContain('/rules/x-square/4-square');
   });
 
   it('highlights the Rules nav entry as active', async () => {
@@ -42,9 +42,9 @@ describe('GET /rules', () => {
   });
 });
 
-describe('GET /rules/sideline/2-square', () => {
+describe('GET /rules/x-square/2-square', () => {
   it('renders verbatim Google Doc text', async () => {
-    const res = await page('/rules/sideline/2-square');
+    const res = await page('/rules/x-square/2-square');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Game is to 11, must win by 2 points');
     expect(res.text).toContain('Rally Scoring');
@@ -53,32 +53,32 @@ describe('GET /rules/sideline/2-square', () => {
   });
 
   it('shows the IFPA, 2020 metadata line', async () => {
-    const res = await page('/rules/sideline/2-square');
+    const res = await page('/rules/x-square/2-square');
     expect(res.text).toMatch(/<p class="rules-meta">IFPA, 2020<\/p>/);
   });
 
   it('renders the back-link to the parent page its frontmatter names', async () => {
-    const res = await page('/rules/sideline/2-square');
+    const res = await page('/rules/x-square/2-square');
     const back = res.text.match(/<section class="content-section rules-footer-back">[\s\S]*?<\/section>/)?.[0] ?? '';
-    expect(back).toContain('href="/sideline"');
+    expect(back).toContain('href="/x-square"');
   });
 
   it('contains zero offsite links', async () => {
-    const res = await page('/rules/sideline/2-square');
+    const res = await page('/rules/x-square/2-square');
     expect(res.text).not.toContain('target="_blank"');
     expect(res.text).not.toContain('docs.google.com');
   });
 
   it('renders the browser tab title without double Footbag prefix', async () => {
-    const res = await page('/rules/sideline/2-square');
+    const res = await page('/rules/x-square/2-square');
     expect(res.text).toContain('<title>Footbag 2-Square Rules</title>');
     expect(res.text).not.toContain('<title>Footbag Footbag');
   });
 });
 
-describe('GET /rules/sideline/4-square', () => {
+describe('GET /rules/x-square/4-square', () => {
   it('returns 200 and shows verbatim 4-Square text', async () => {
-    const res = await page('/rules/sideline/4-square');
+    const res = await page('/rules/x-square/4-square');
     expect(res.status).toBe(200);
     expect(res.text).toContain('GOLDEN RULES');
     expect(res.text).toContain('TOO MUCH VOTING IS NO FUN!');
@@ -102,6 +102,15 @@ describe('GET /rules/golf/footbag-golf', () => {
     expect(res.text).toContain('A maximum of 30 seconds is allowed to each player');
     expect(res.text).toContain('Mandatory Dog-Leg');
     expect(res.text).toContain('Yelling &quot;Fore&quot;');
+  });
+
+  // Defect caught: the golf rules send a reader back to the open-play page
+  // instead of the golf section.
+  it('renders the back-link to the golf section', async () => {
+    const res = await page('/rules/golf/footbag-golf');
+    const back = res.text.match(/<section class="content-section rules-footer-back">[\s\S]*?<\/section>/)?.[0] ?? '';
+    expect(back).toContain('href="/golf"');
+    expect(back).toContain('Back to Footbag Golf');
   });
 
   it('shows the IFPA Article IV authority line', async () => {
@@ -268,7 +277,7 @@ describe('GET /rules/freestyle/footbag-freestyle', () => {
 describe('GET /rules with all four categories', () => {
   it('lists every category group on the index', async () => {
     const res = await page('/rules');
-    expect(res.text).toContain('Sideline');
+    expect(res.text).toContain('X Square');
     expect(res.text).toContain('Footbag Net');
     expect(res.text).toContain('Footbag Golf');
     expect(res.text).toContain('Freestyle');
@@ -284,7 +293,7 @@ describe('GET /rules/:categorySlug/:ruleSlug 404 handling', () => {
   });
 
   it('returns 404 for unknown rule slug', async () => {
-    const res = await page('/rules/sideline/no-such-rule');
+    const res = await page('/rules/x-square/no-such-rule');
     expect(res.status).toBe(404);
   });
 });

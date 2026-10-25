@@ -17,6 +17,9 @@ export type SiteMediaKind = 'photo' | 'video';
 export interface SiteMediaSlot {
   sourceFilename: string;
   kind: SiteMediaKind;
+  // A video shot upright; its frame keeps the clip's own shape instead of the
+  // landscape frame the other featured clips fill.
+  portrait?: boolean;
   // Tags the seeded row must carry (a subset assertion, not an exact set):
   // the sidecar tags plus the auto-applied `#curated`.
   expectedTags: readonly string[];
@@ -33,6 +36,12 @@ export const SITE_MEDIA_SLOTS = {
     sourceFilename: 'demo-freestyle.mp4',
     kind: 'video',
     expectedTags: ['#curated', '#demo_freestyle', '#freestyle'],
+  },
+  consecutives_demo: {
+    sourceFilename: 'demo-consecutives.mp4',
+    kind: 'video',
+    portrait: true,
+    expectedTags: ['#curated', '#demo_consecutives'],
   },
   japan_worlds_promo: {
     sourceFilename: 'japan-worlds-2026.jpg',

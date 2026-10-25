@@ -33,11 +33,13 @@ const NAV_SECTIONS: ReadonlyArray<{ href: string; section: string; label: string
   { href: '/clubs',     section: 'clubs',     label: 'Clubs' },
   { href: '/net',       section: 'net',       label: 'Net' },
   { href: '/freestyle', section: 'freestyle', label: 'Freestyle' },
+  { href: '/x-square',  section: 'x-square',  label: 'X Square' },
+  { href: '/golf',      section: 'golf',      label: 'Golf' },
+  { href: '/consecutives', section: 'consecutives', label: 'Consecutives' },
   { href: '/sideline',  section: 'sideline',  label: 'Sideline' },
   { href: '/ifpa',      section: 'ifpa',      label: 'IFPA' },
   { href: '/rules',     section: 'rules',     label: 'Rules' },
   { href: '/equipment', section: 'equipment', label: 'Equipment' },
-  { href: '/records',   section: 'records',   label: 'Records' },
   { href: '/hof',       section: 'hof',       label: 'HoF' },
   { href: '/bap',       section: 'bap',       label: 'BAP' },
   { href: '/media',     section: 'media',     label: 'Media' },
@@ -431,8 +433,10 @@ export function createApp(): express.Express {
       : req.path.startsWith('/hof') ? 'hof'
       : req.path.startsWith('/bap') ? 'bap'
       : req.path.startsWith('/freestyle') ? 'freestyle'
-      : req.path.startsWith('/records') ? 'records'
       : req.path.startsWith('/net') ? 'net'
+      : req.path.startsWith('/x-square') ? 'x-square'
+      : req.path.startsWith('/golf') ? 'golf'
+      : req.path.startsWith('/consecutives') ? 'consecutives'
       : req.path.startsWith('/sideline') ? 'sideline'
       : req.path.startsWith('/ifpa') ? 'ifpa'
       : req.path.startsWith('/rules') ? 'rules'

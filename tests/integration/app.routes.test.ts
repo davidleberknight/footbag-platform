@@ -590,57 +590,91 @@ describe('GET /', () => {
   });
 });
 
-// ── Sideline (Sideline) landing ───────────────────────────────────────────
+// ── Game sections: X Square, Golf, Sideline ───────────────────────────────
 
-describe('GET /sideline', () => {
-  it('returns 200 and renders the Sideline page body (not an empty/wrong template)', async () => {
-    const res = await page('/sideline');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('/img/sideline-hackysack-hero.svg');
+describe('sport section pages (X Square, Golf, Sideline)', () => {
+  const GAME_PAGES = [
+    { path: '/x-square', label: 'X Square', clips: ['/video/sideline/foursquare.webm'] },
+    { path: '/golf',     label: 'Golf',     clips: ['/video/sideline/golf.webm'] },
+    { path: '/sideline', label: 'Sideline', clips: ['/video/sideline/hackysack.webm'] },
+  ];
+
+  // Defect caught: a section's page renders without its own demo clip, or its
+  // nav entry never shows as the one the visitor is on.
+  it('renders each section with its own clip and its nav entry active', async () => {
+    for (const { path, label, clips } of GAME_PAGES) {
+      const res = await page(path);
+      expect(res.status, path).toBe(200);
+      for (const clip of clips) expect(res.text, `${path} ${clip}`).toContain(clip);
+      expect(res.text, path).toMatch(new RegExp(`<a href="${path}" class="active">${label}</a>`));
+    }
   });
 
-  it('embeds the three demo .webm clips', async () => {
-    const res = await page('/sideline');
-    expect(res.text).toContain('/video/sideline/hackysack.webm');
-    expect(res.text).toContain('/video/sideline/foursquare.webm');
-    expect(res.text).toContain('/video/sideline/golf.webm');
-    expect(res.text).toContain('type="video/webm"');
-    expect(res.text).toContain('playsinline');
-    expect(res.text).toContain('muted');
+  // Defect caught: the golf artwork leaves the hero, where the net and
+  // freestyle landings carry theirs, or turns up twice on the page.
+  it('carries the golf artwork as the Golf hero mascot, once', async () => {
+    const res = await page('/golf');
+    const bodyStart = res.text.indexOf('class="wrapper sport-section"');
+    expect(res.text.slice(0, bodyStart)).toContain('class="hero-mascot" src="/img/sideline-icon-golf.svg');
+    expect(res.text.slice(bodyStart)).not.toContain('/img/sideline-icon-golf.svg');
   });
 
-  // The page carries several demo clips at once, so none of them may start on
-  // its own: three simultaneous autoplaying videos would pull megabytes of
+  // Defect caught: a game section loses its cartoon icon beside the heading.
+  it('keeps each game icon beside its section heading', async () => {
+    const sideline = await page('/sideline');
+    expect(sideline.text).toMatch(/<img class="sport-section-icon" src="\/img\/sideline-icon-hackysack\.svg/);
+    const xSquare = await page('/x-square');
+    expect(xSquare.text.match(/<img class="sport-section-icon" src="\/img\/sideline-icon-twosquare\.svg/g)?.length).toBe(2);
+  });
+
+  // Defect caught: the X Square hero loses its artwork, unlike every other
+  // section landing.
+  it('carries the 2-Square artwork as the X Square hero mascot', async () => {
+    const res = await page('/x-square');
+    const bodyStart = res.text.indexOf('class="wrapper sport-section"');
+    expect(res.text.slice(0, bodyStart)).toContain('class="hero-mascot" src="/img/sideline-icon-twosquare.svg');
+  });
+
+  // These pages can carry several demo clips at once, so none of them may
+  // start on its own: simultaneous autoplaying videos would pull megabytes of
   // footage on every page load and give the visitor no way to stop the motion.
   it('leaves every demo clip click-to-play with its own controls', async () => {
-    const res = await page('/sideline');
-    expect(res.text).not.toContain('autoplay');
-    expect(res.text).toMatch(/<video[^>]*\bcontrols\b/);
-    expect(res.text).toContain('preload="metadata"');
+    for (const { path } of GAME_PAGES) {
+      const res = await page(path);
+      expect(res.text, path).not.toContain('autoplay');
+      expect(res.text, path).toMatch(/<video[^>]*\bcontrols\b/);
+      expect(res.text, path).toContain('preload="metadata"');
+    }
   });
 
-  it('links 2-Square and 4-Square to internal MD-backed rule pages', async () => {
+  // Defect caught: the 2-Square and 4-Square links point at the retired
+  // sideline rules addresses instead of the X Square rules.
+  it('links 2-Square and 4-Square to the X Square rules', async () => {
+    const res = await page('/x-square');
+    expect(res.text).toContain('href="/rules/x-square/2-square"');
+    expect(res.text).toContain('href="/rules/x-square/4-square"');
+    expect(res.text).not.toContain('/rules/sideline/');
+  });
+
+  // Defect caught: a competitive game or its clip drifts back onto the
+  // open-play page, or the page loses its pointer to the X Square games.
+  it('keeps Sideline to open play, pointing at the X Square games', async () => {
     const res = await page('/sideline');
-    expect(res.text).toContain('/rules/sideline/2-square');
-    expect(res.text).toContain('/rules/sideline/4-square');
+    expect(res.text).toContain('/img/sideline-hackysack-hero.svg');
+    expect(res.text).toContain('<a href="/x-square">X Square games</a>');
+    expect(res.text).not.toContain('/video/sideline/foursquare.webm');
+    expect(res.text).not.toContain('/video/sideline/golf.webm');
+    expect(res.text).not.toContain('href="/rules/');
   });
 
   it('contains no offsite rules links (no Google Docs, no YouTube tutorial, no footbag.org/rules)', async () => {
-    const res = await page('/sideline');
-    expect(res.text).not.toContain('docs.google.com');
-    expect(res.text).not.toContain('youtube.com/watch');
-    expect(res.text).not.toContain('footbag.org/rules');
-    expect(res.text).not.toContain('target="_blank"');
-  });
-
-  it('does not link Consecutive Kicks to a rules page', async () => {
-    const res = await page('/sideline');
-    expect(res.text).not.toContain('/rules/sideline/consecutive-kicks');
-  });
-
-  it('highlights the Sideline entry in the main nav as active', async () => {
-    const res = await page('/sideline');
-    expect(res.text).toMatch(/<a href="\/sideline" class="active">Sideline<\/a>/);
+    for (const { path } of GAME_PAGES) {
+      const res = await page(path);
+      expect(res.text, path).not.toContain('docs.google.com');
+      expect(res.text, path).not.toContain('youtube.com/watch');
+      expect(res.text, path).not.toContain('footbag.org/rules');
+      expect(res.text, path).not.toContain('target="_blank"');
+    }
   });
 });
 

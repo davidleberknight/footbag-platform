@@ -1,10 +1,10 @@
 ---
-category: sideline
-categoryLabel: Sideline
+category: x-square
+categoryLabel: X Square
 authority: IFPA
 effective: 2020
-parentHref: /sideline
-parentLabel: Sideline
+parentHref: /x-square
+parentLabel: X Square
 ---
 
 # 2-Square

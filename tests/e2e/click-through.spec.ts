@@ -147,10 +147,12 @@ const PUBLIC_NAV_PATHS = [
   '/clubs',
   '/net',
   '/freestyle',
+  '/x-square',
+  '/golf',
+  '/consecutives',
   '/sideline',
   '/rules',
   '/equipment',
-  '/records',
   '/hof',
   '/bap',
   '/media',
@@ -165,7 +167,7 @@ test('Public nav surfaces all render without Service Unavailable', { tag: ['@smo
 });
 
 // The freestyle public walk: landing, dictionary index, one seeded trick
-// detail, both records surfaces, glossary, Freestyle Concepts, learn, and the
+// detail, the trick records, glossary, Freestyle Concepts, learn, and the
 // media hub. One
 // looping test in this file's nav-reachability style: does each page render
 // with its main content, not does every control work.
@@ -184,7 +186,6 @@ test('Freestyle public surfaces render end-to-end for an anonymous visitor', { t
     '/freestyle/tricks',
     `/freestyle/tricks/${slug}`,
     '/freestyle/records',
-    '/records',
     '/freestyle/glossary',
     '/freestyle/concepts',
     '/freestyle/learn',

@@ -1,50 +1,63 @@
-{{! /records — WFA Consecutive Kicks Records }}
+{{! /consecutives — what consecutives is, how it is contested, and the official IFPA consecutive kicks records }}
 
-<div class="hero hero-sm">
-  <div>
+<div class="hero hero-sm hero-with-mascot">
+  <div class="hero-text">
     <h1>{{page.title}}</h1>
     {{#if page.intro}}<p class="hero-subtitle">{{page.intro}}</p>{{/if}}
   </div>
+  <img class="hero-mascot" src="{{{asset content.mascot.src}}}" alt="{{content.mascot.alt}}" width="150" height="150">
 </div>
 
-<div class="wrapper">
+<div class="wrapper sport-section">
+
+  <section class="content-section" id="what-are-consecutives">
+    <div class="sport-section-header">
+      <img class="sport-section-icon" src="{{{asset content.mascot.src}}}" alt="{{content.mascot.alt}}" width="120" height="120">
+      <div class="section-heading"><h2>{{content.explainer.heading}}</h2></div>
+    </div>
+    {{#each content.explainer.paragraphs}}
+    <p>{{this}}</p>
+    {{/each}}
+    {{#if content.demoVideo}}
+    {{> demo-video content.demoVideo}}
+    {{/if}}
+  </section>
+
+  <section class="content-section" id="competitions">
+    <div class="section-heading"><h2>{{content.competitions.heading}}</h2></div>
+    {{#each content.competitions.paragraphs}}
+    <p>{{this}}</p>
+    {{/each}}
+  </section>
 
   {{#if content.worldRecords}}
-  <section class="content-section">
+  <section class="content-section" id="world-records">
     <div class="section-heading"><h2>Current World Records</h2></div>
-    <div class="records-table-wrap" tabindex="0" role="region" aria-label="Current World Records">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Discipline</th>
-            <th>Holder(s)</th>
-            <th class="col-num">Kicks</th>
-            <th>Event</th>
-            <th>Date</th>
-            <th>Location</th>
-          </tr>
-        </thead>
-        <tbody>
-          {{#each content.worldRecords}}
-          <tr>
-            <td>{{discipline}}</td>
-            <td class="col-holder">
-              {{player_1}}{{#if player_2}} &amp; {{player_2}}{{/if}}
-            </td>
-            <td class="col-num">{{scoreFormatted}}</td>
-            <td>{{#if eventName}}{{eventName}}{{else}}&mdash;{{/if}}</td>
-            <td class="col-date">{{#if eventDate}}{{formatDateRange eventDate}}{{else}}&mdash;{{/if}}</td>
-            <td>{{#if location}}{{location}}{{else}}&mdash;{{/if}}</td>
-          </tr>
-          {{/each}}
-        </tbody>
-      </table>
+    <p>{{content.worldRecordsIntro}}</p>
+    {{! One card per record: discipline, holder, the count, then where and
+        when. The grid sets three across a laptop, two at mid width, one on a
+        phone, so no width scrolls sideways. }}
+    <div class="card-grid" role="list" aria-label="Current World Records">
+      {{#each content.worldRecords}}
+      <div class="card card-static" role="listitem">
+        <h3 class="card-title">{{discipline}}</h3>
+        <p>{{player_1}}{{#if player_2}} &amp; {{player_2}}{{/if}}</p>
+        <p class="fw-600">{{scoreFormatted}} kicks</p>
+        {{#if hasWhereWhen}}
+        <div class="card-meta">
+          {{#if eventName}}<span>{{eventName}}</span>{{/if}}
+          {{#if eventDate}}<span>{{formatDateRange eventDate}}</span>{{/if}}
+          {{#if location}}<span>{{location}}</span>{{/if}}
+        </div>
+        {{/if}}
+      </div>
+      {{/each}}
     </div>
   </section>
   {{/if}}
 
   {{#if content.highestScores}}
-  <section class="content-section">
+  <section class="content-section" id="highest-scores">
     <div class="section-heading"><h2>Highest Official Scores</h2></div>
     {{#each content.highestScores}}
     <h3 class="content-subheading">{{subsection}}</h3>
@@ -78,7 +91,7 @@
   {{/if}}
 
   {{#if content.progression}}
-  <section class="content-section">
+  <section class="content-section" id="progression">
     <div class="section-heading"><h2>World Record Progression</h2></div>
     {{#each content.progression}}
     <h3 class="content-subheading">{{subsection}}</h3>
@@ -110,7 +123,7 @@
   {{/if}}
 
   {{#if content.milestones}}
-  <section class="content-section">
+  <section class="content-section" id="milestones">
     <div class="section-heading"><h2>Milestone Firsts</h2></div>
     <p class="section-desc">First player to reach each milestone kick count.</p>
     {{#each content.milestones}}
@@ -141,15 +154,5 @@
     {{/each}}
   </section>
   {{/if}}
-
-  {{! The passback records live on the freestyle records page; repeating them
-      here would put the same 160-odd rows on two pages. }}
-  <section class="content-section">
-    <div class="section-heading"><h2>Freestyle Passback Records</h2></div>
-    <p>The record for each freestyle trick is listed with the trick records.</p>
-    <a href="/freestyle/records" class="action-link">See All Trick Records</a>
-  </section>
-
-  <p class="source-note">Consecutive kicks records sanctioned by the World Footbag Association (WFA).</p>
 
 </div>

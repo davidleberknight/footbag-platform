@@ -856,24 +856,6 @@ describe('the convention gate: rules about templates and the stylesheet', () => 
     expect(stale.exitCode).toBe(1);
     expect(stale.stderr).toContain('spacing-literal-allowlist.txt lists a rule that no longer carries a raw spacing length');
   });
-
-  // A section that widens its own prose cap is how lines drifted to 85 and 95
-  // characters; the one measure only holds if a wider cap fails the build.
-  it('refuses a prose cap wider than the one reading measure', () => {
-    const res = inFixtureRepo({
-      'src/public/css/style.css': `${PLAIN_CSS}.intro {\n  max-width: 56ch;\n}\n`,
-    });
-    expect(res.exitCode).toBe(1);
-    expect(res.stderr).toContain('reading-measure cap is wider than 55ch');
-  });
-
-  it('accepts a prose cap at or under the one reading measure', () => {
-    const res = inFixtureRepo({
-      'src/public/css/style.css': `${PLAIN_CSS}.intro {\n  max-width: 55ch;\n}\n.caption {\n  max-width: 40ch;\n}\n`,
-    });
-    expect(res.exitCode, res.stderr).toBe(0);
-    expectCheckRan(res, 'prose measure is at most 55ch');
-  });
 });
 
 describe('the convention gate: rules about tests/', () => {

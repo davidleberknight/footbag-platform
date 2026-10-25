@@ -20,13 +20,7 @@
   {{#if content.intro.paragraphs.length}}
   <section class="content-section freestyle-portal-lede">
     {{#if content.demoVideo}}
-    <figure class="demo-video">
-      <video autoplay loop muted playsinline controls preload="metadata" poster="{{content.demoVideo.posterUrl}}">
-        <source src="{{content.demoVideo.mp4Url}}" type="video/mp4">
-        <p>{{content.demoVideo.caption}}</p>
-      </video>
-      <figcaption>{{content.demoVideo.caption}}</figcaption>
-    </figure>
+    {{> demo-video content.demoVideo}}
     {{/if}}
     {{#if content.intro.heading}}<div class="section-heading"><h2>{{content.intro.heading}}</h2></div>{{/if}}
     {{#each content.intro.paragraphs}}
