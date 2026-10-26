@@ -28,6 +28,7 @@ This skill is for ad-hoc human-driven browser review. The standing Playwright su
 - Use `mcp__playwright__browser_take_screenshot` only when visual appearance is the explicit goal.
 - Do not take multiple screenshots per page unless the human asks for it.
 - Close the browser when done (`mcp__playwright__browser_close`).
+- If you started the dev server for this check, stop it afterwards; reuse one already running.
 
 ## Screenshot file hygiene
 

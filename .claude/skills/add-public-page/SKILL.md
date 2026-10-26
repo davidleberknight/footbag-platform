@@ -30,7 +30,7 @@ After reading docs, read:
 - nearby integration tests in `tests/integration/`
 
 If this task adds a **new top-level nav section**, also read:
-- `src/app.ts`: the site header/footer nav is the `NAV_SECTIONS` array (exposed as `res.locals.navLinks`, rendered by the `nav-links` partial); a new top-level section must be added there, together with its branch in the request-path-to-`currentSection` mapping a few lines below, or its nav entry never shows as active.
+- `src/app.ts`: the site header/footer nav is the `NAV_SECTIONS` array (exposed as `res.locals.navLinks`, rendered by the `nav-links` partial); a new top-level section must be added there, together with its branch in the request-path-to-`currentSection` middleware (the "Active nav section" block further down the same file), or its nav entry never shows as active.
 - `src/services/homeService.ts`: `primaryLinks[]` is the home-page body's featured-section list (separate from the header nav); add the section there too only if it should be featured on the home page.
 
 ## Step 3: Architecture context
@@ -69,10 +69,12 @@ Before touching any file, state:
 
 Before finishing, review all new or changed templates and CSS against `.claude/rules/view-layer.md` (Template mechanics, CSS vocabulary, Action hierarchy, Message vocabulary, Visual standard), and for responsive correctness:
 
-- **Laptop (768px+):** verify the layout reads well at typical desktop/laptop widths. Check that grids, flex rows, and max-width constraints produce a balanced page.
+- **Laptop (768px+; page-check measures at 1280px):** verify the layout reads well at typical desktop/laptop widths. Check that grids, flex rows, and max-width constraints produce a balanced page.
 - **Phone (the 480px breakpoint and below; page-check measures at 390px):** verify that every flex row, grid, multi-column layout, and inline element stacks or wraps gracefully. Check the 480px media query block in `style.css` and add rules if the new layout would break at narrow widths.
 - **Notation typography:** inline notation, formulas, and difficulty values render in the body font (`--font-body`) distinguished by semibold weight and the secondary accent color, not a separate typeface; hashtags and tags render in `--font-body` inside a low-tint rounded chip. `--font-mono` is reserved for tabular value columns and verbatim ASCII.
 - Common pitfalls: horizontal overflow from fixed-width elements, side-by-side rows that do not stack, text truncation, touch targets too small, identity/detail rows that need vertical stacking on narrow screens.
+- **Without JavaScript:** load each changed page with scripting off at both widths. A control a script replaces must still render at its normal size, and a box a script fills must reserve its space or not be drawn; the rendered-style check measures only with scripts on.
+- **Conformance gates:** a new template class needs a reviewed line in `tests/unit/template-class-baseline.txt` (reuse an existing primitive first); headings and button labels pass `toTitleCase`; site assets go through the `asset` helper; no inline `style`, `<style>`, `<script>` or event handler, because the content security policy refuses them.
 
 If in doubt about a layout, flag it to the human rather than shipping something that looks broken on mobile.
 

@@ -12,22 +12,22 @@ describe('rules MD loader', () => {
     _resetRulesCache();
   });
 
-  it('discovers the X Square category file in ifpa/rules/', () => {
+  it('discovers the X-Square discipline file in ifpa/rules/', () => {
     const groups = listGroupedByCategory();
     const xSquare = groups.find((g) => g.category === 'x-square');
     expect(xSquare).toBeDefined();
-    expect(xSquare!.label).toBe('X Square');
+    expect(xSquare!.label).toBe('X-Square');
   });
 
-  // Defect caught: a rules file whose category the index order does not name
+  // Defect caught: a rules file whose discipline the index order does not name
   // vanishes from the rules index and the sitemap while its pages still serve.
-  it('groups every category the rules files declare', () => {
+  it('groups every discipline the rules files declare', () => {
     const declared = new Set(listRulePages().map((p) => p.category));
     const grouped = new Set(listGroupedByCategory().map((g) => g.category));
     expect(grouped).toEqual(declared);
   });
 
-  it('splits the X Square file into one rule page per H1', () => {
+  it('splits the X-Square file into one rule page per H1', () => {
     const all = listRulePages().filter((p) => p.category === 'x-square');
     const slugs = all.map((p) => p.slug);
     expect(slugs).toContain('2-square');
@@ -51,16 +51,16 @@ describe('rules MD loader', () => {
     expect(page!.bodyHtml).toContain('TOO MUCH VOTING IS NO FUN!');
   });
 
-  it('attaches category-level metadata to every rule page', () => {
+  it('attaches discipline-level metadata to every rule page', () => {
     for (const page of listRulePages().filter((p) => p.category === 'x-square')) {
       expect(page.authority).toBe('IFPA');
       expect(page.effective).toBe('2020');
       expect(page.parentHref).toBe('/x-square');
-      expect(page.parentLabel).toBe('X Square');
+      expect(page.parentLabel).toBe('X-Square');
     }
   });
 
-  it('returns undefined for an unknown category or slug', () => {
+  it('returns undefined for an unknown discipline or slug', () => {
     expect(getRulePage('x-square', 'no-such-rule')).toBeUndefined();
     expect(getRulePage('not-a-category', '2-square')).toBeUndefined();
   });

@@ -38,15 +38,6 @@ function renderDetailError(
 }
 
 export const adminClubLeadershipController = {
-  /** GET /admin/clubs/leadership */
-  queue(_req: Request, res: Response, next: NextFunction): void {
-    try {
-      res.render('admin/club-leadership/queue', adminClubLeadershipService.getLeadershipQueuePage());
-    } catch (err) {
-      handleControllerError(err, res, next, 'admin club leadership controller');
-    }
-  },
-
   /** GET /admin/clubs/:clubId/leadership */
   detail(req: Request, res: Response, next: NextFunction): void {
     try {
@@ -71,7 +62,6 @@ export const adminClubLeadershipController = {
         clubId,
         String(req.body.member_key ?? ''),
         String(req.body.reason ?? ''),
-        String(req.body.cap_override_reason ?? ''),
       );
       redirectWithOutcome(req, res, {
         flash: FLASH_KIND.CLUB_LEADERSHIP_OUTCOME,

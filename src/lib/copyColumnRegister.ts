@@ -300,7 +300,7 @@ export const COPY_COLUMN_REGISTER: Readonly<Record<string, TableClassification>>
   },
   member_club_affiliations: {
     keep: ['id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version', 'member_id',
-      'club_id', 'is_current', 'is_primary', 'is_contact', 'source'],
+      'club_id', 'is_current', 'is_primary', 'source'],
   },
   member_declared_anchors: {
     keep: ['id', 'created_at', 'created_by', 'updated_at', 'updated_by', 'version', 'member_id',

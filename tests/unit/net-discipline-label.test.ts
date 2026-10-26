@@ -1,6 +1,6 @@
 /**
- * Net discipline labels: a canonical group shows its plain label, and a raw
- * discipline name shows without the trailing "Net" or "Footbag Net" that every
+ * Net division labels: a canonical group shows its plain label, and a raw
+ * `event_disciplines` name shows without the trailing "Net" or "Footbag Net" that every
  * page in the net section makes redundant.
  */
 import { describe, it, expect } from 'vitest';
@@ -26,7 +26,7 @@ describe('disciplineLabel', () => {
     expect(disciplineLabel('Net', null, 0)).toBe('Net');
   });
 
-  // The canonical label is what an unflagged discipline shows, not its raw name.
+  // The canonical label is what an unflagged row shows, not its raw name.
   it('uses the canonical group label when there is no conflict', () => {
     expect(disciplineLabel('Open Doubles Net', 'open_doubles', 0)).toBe('Open Doubles');
     expect(disciplineLabel('Doubles Net', 'uncategorized', 0)).toBe('Doubles');

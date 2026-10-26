@@ -34,7 +34,9 @@
  *     removing another co-leader is admin-only. Zero co-leaders is a tolerated
  *     leaderless state: the club persists, stays joinable, and stays listed.
  *   - Standard hashtag (`#club_{slug}`) persisted via `mediaTags.insertStandardTag` at
- *     creation; permanent (not HD).
+ *     creation; permanent (not HD). A standardized hashtag is reserved for
+ *     good: an administrator's move gives the club a new tag row and leaves the
+ *     old one in place, so no later club can take the old hashtag.
  *   - Every path that writes a club row's location applies `resolveClubRegion`,
  *     creation and co-leader edit alike: a country with an official state or
  *     province set must name one, stored as the FULL NAME, with a submitted
@@ -66,22 +68,27 @@
  *     country page and in the same duplicate checks as its neighbours.
  *     Creation and an administrator's correction refuse a country the picker
  *     does not offer and fold an alias to its canonical name; promotion folds
- *     the candidate's country. A club does not move between countries: its
+ *     the candidate's country when the picker recognises it and otherwise keeps
+ *     the curated country as written. A club does not move between countries: its
  *     co-leaders cannot change the country, and only an administrator's
  *     correction of a mistake reaches it.
  *   - Club display names are not required to be globally unique; the hashtag is the
  *     canonical identifier. Within one country an exact name is still taken by
  *     at most one club, blocked with no override on creation and on rename
  *     alike; a club's own row never collides with itself, so a co-leader can
- *     recase or repunctuate their own name.
+ *     recase or repunctuate their own name. Creation also blocks an exact match
+ *     with an onboarding-visible or dormant legacy candidate; an archived club,
+ *     and an archived or junk candidate, never blocks, because archiving frees
+ *     the name.
  *   - A club has no club-level contact field; it is reachable through its
  *     co-leaders' own contact. The creator's own contact serves the new club,
  *     so creation requires no contact field. Promoted candidates derive their
  *     hashtag from the pipeline-parity city-first cascade, with the club id
  *     derived deterministically from the legacy key so promotion is idempotent
  *     and concurrency-safe (PK collision resolves as already-promoted).
- *   - A successful leadership claim returns a club of any status to 'active'
- *     (revival); a new current affiliation revives an inactive club.
+ *   - A successful leadership claim, like a new current affiliation, revives an
+ *     inactive club to 'active'. Archiving is final: an archived club refuses a
+ *     claim and is never revived.
  *   - Co-leader contact exposure (`showContact` on `ClubLeader`) is role-based
  *     and member-scoped: current co-leaders' emails render to authenticated
  *     viewers only; provisional bootstrap entries never expose contact. On the
@@ -91,19 +98,20 @@
  *     every form: no mailto anchor, no email class attribute, no copy-paste fallback.
  *     The template branches on showContact alone, never on status; tests assert the
  *     absence of contact artifacts in the HTML. Leaders with a non-renderable status are
- *     filtered out in the service before rendering, not in the template. Unauthenticated visitors see
- *     neither the leaders section nor the club member roster; a bounded login prompt
- *     renders in place of the roster.
+ *     filtered out in the service before rendering, not in the template. A viewer who is not a
+ *     member (a signed-out visitor, or a registrant still onboarding) sees neither the leaders
+ *     section nor the club member roster; a bounded login prompt renders in place of the roster.
  *   - showContact fails closed for unknown or newly-introduced leader statuses: a new status maps
  *     to false unless its mapping explicitly chooses true with documented justification.
  *   - Bootstrap leader rendering (`club_bootstrap_leaders`) is read-only at the
  *     rendering path: it surfaces identity (display name, role, status), not
- *     authority. Claiming a `club_bootstrap_leaders` row links member identity
- *     to the historical leadership entry; it does NOT confer operational
- *     control of the club, edit permissions, contact-channel exposure, member-
- *     roster visibility, or any governance affordance. Claim, reassignment, and
- *     contact-exposure transitions are owned by explicit governance flows that
- *     mutate `club_bootstrap_leaders` or `club_leaders` separately from the
+ *     authority. A provisional row confers nothing. A confirmed claim, made when
+ *     the claiming member completes onboarding, makes them a live co-leader in
+ *     `club_leaders`, with the edit permissions and contact exposure every
+ *     co-leader holds, unless the club is at its five-co-leader cap or they
+ *     already co-lead another club. Claim, reassignment, and contact-exposure
+ *     transitions are owned by explicit governance flows that mutate
+ *     `club_bootstrap_leaders` or `club_leaders` separately from the
  *     public-page read path.
  *   - Clubs outside the pre_populate bootstrap cohort carry no
  *     `club_bootstrap_leaders` rows; there the public page surfaces
@@ -419,6 +427,8 @@ type CreateClubResult =
   | { branch: 'already_leader'; existingClubName: string }
   | { branch: 'affiliation_cap' }
   | { branch: 'exact_name_exists'; existingClubName: string; existingClubKey: string }
+  /** A legacy candidate holds the exact name; it has no page to link to. */
+  | { branch: 'exact_candidate_exists'; existingClubName: string }
   | { branch: 'near_matches_found'; nearMatches: ClubNearMatch[] }
   | { branch: 'tag_conflict'; tagNormalized: string };
 
@@ -1035,7 +1045,7 @@ function toClubMemberSummary(row: AffiliationRow): ClubMemberSummary {
   } else if (row.person_id) {
     href = `/history/${row.person_id}`;
   }
-  // The roster renders only for authenticated viewers (gated by the caller), so
+  // The roster renders only for member viewers (gated by the caller), so
   // an opted-in member's gender is shown here; 'undisclosed' publishes nothing.
   const genderLabel =
     row.member_show_gender === 1 && (row.member_gender === 'male' || row.member_gender === 'female')
@@ -1097,8 +1107,9 @@ export interface CountrySummary {
 }
 
 // Bin boundaries for the /clubs world-map choropleth. Driven by the
-// per-country distribution of legacy_person_club_affiliations rows.
-// Six lit bins + bin 0 (clubs row exists but no affiliations) give a
+// per-country distribution of club members: the imported
+// legacy_person_club_affiliations rows plus the current member_club_affiliations
+// of members who joined here. Six lit bins + bin 0 (clubs row exists but no affiliations) give a
 // smooth 6-step sequential green
 // ramp; USA's 1153 sits alone in bin 6, Canada plus the three
 // 100-200 cohorts populate bin 5, and the long tail spreads evenly
@@ -1606,7 +1617,7 @@ export class ClubService {
       }
 
       // Members-only roster (DATA_GOVERNANCE §7): the list renders only for
-      // authenticated viewers. One alphabetical list carries confirmed members
+      // member viewers, as the controller gates it. One alphabetical list carries confirmed members
       // ('confirmed_current' / 'promoted') and 'pending' rows together; pending
       // entries carry a status note so they are never presented as confirmed.
       // Both rosters, merged: the imported one and the members who joined here.
@@ -1635,7 +1646,7 @@ export class ClubService {
       // Leader identities are member-visible like the roster: the anonymous
       // public never receives leader names. Gated here at the data level so
       // no template branch can leak them. Vitality above still counts the
-      // full leader set; its chips render only in the curator panel.
+      // full leader set; its chips render on the public country page.
       const club = toPublicClubDetail(row, vitality, members, isAuthenticated ? leaders : []);
 
       // A legacy free-text description that embeds member lists or contact data
@@ -1799,6 +1810,15 @@ export class ClubService {
     const clubId = leader.club_id;
     const now = new Date().toISOString();
 
+    // Archiving is final: nothing about an archived club is claimed, joined or
+    // revived. The wizard never offers one, so this refuses only a stale page.
+    const club = clubs.findById.get(clubId) as
+      | { club_id: string; status: string }
+      | undefined;
+    if (club?.status === 'archived') {
+      throw new ConflictError(`Club is archived; its leadership cannot be claimed: ${clubId}`);
+    }
+
     let branch:        'promoted_co_leader' | 'affiliated_only' | 'idempotent' = 'idempotent';
     let actualRole:    'co-leader' | null = null;
     let clubLeaderId:  string | null = null;
@@ -1897,14 +1917,10 @@ export class ClubService {
       }
     }
 
-    // Revival: a successful leadership claim makes it a live club no
-    // matter how it was retired. Inactive and archived clubs return to
-    // 'active' in the same transaction, so the new leader's club is
-    // immediately visible in listings.
-    const club = clubs.findById.get(clubId) as
-      | { club_id: string; status: string }
-      | undefined;
-    if (club && club.status !== 'active') {
+    // Revival: a successful leadership claim makes an inactive club live
+    // again, in the same transaction, so the new leader's club is
+    // immediately visible in listings. An archived club was refused above.
+    if (club?.status === 'inactive') {
       clubs.updateStatus.run('active', now, 'onboarding_service', clubId);
       appendAuditEntry({
         actionType:    'club.revived_by_leadership_claim',
@@ -2186,7 +2202,7 @@ export class ClubService {
    * stays on the candidate row). Imported 'pending' affiliations on the
    * candidate carry forward to 'promoted' with the new club id stamped, and
    * the candidate's wizard activity flags get the new club id stamped so
-   * those votes feed the viability gates instead of the candidate-flag
+   * those signals feed the viability gates instead of the candidate-flag
    * cleanup group. An admin's promotion additionally stamps the candidate
    * with the moment it was made: that decision becomes part of the club's
    * record, so the cleanup rules never demote a club an admin just created
@@ -2320,7 +2336,7 @@ export class ClubService {
         } else {
           legacyPersonClubAffiliations.setAllPromotedByCandidate.run(clubId, 'club_service', candidateId);
         }
-        // Carry-forward: wizard activity answers left while the candidate
+        // Carry-forward: wizard activity signals left while the candidate
         // had no live clubs row get the new club id stamped, so those votes
         // start feeding the viability gates and stop surfacing on the
         // cleanup queue's candidate-flag group.
@@ -2500,6 +2516,14 @@ export class ClubService {
 
     if (sameClub) {
       return { branch: 'exact_name_exists', existingClubName: sameClub.name, existingClubKey: sameClub.club_key };
+    }
+    // The exact block reaches the legacy candidates a member could still
+    // confirm, not only live clubs; an archived or junk candidate frees its name.
+    const sameCandidate = legacyClubCandidates.findExactByNameAndCountry.get(name, country) as
+      | { display_name: string }
+      | undefined;
+    if (sameCandidate) {
+      return { branch: 'exact_candidate_exists', existingClubName: sameCandidate.display_name };
     }
 
     // Near-match warning: same-country live clubs whose normalized name
@@ -2764,16 +2788,14 @@ export class ClubService {
       const legacyRetired = legacyPersonClubAffiliations
         .delistConfirmedForMemberClub.run('club_service', clubId, actorMemberId).changes;
 
-      // A member holding any current affiliation holds exactly one primary.
-      // Leaving clears the departing row's flag, so whatever survives is
-      // repaired here rather than left designated secondary with nothing for
-      // that designation to mean anything against. The repair is keyed on the
-      // invariant, not on the survivor count: a member can hold more than two
-      // current affiliations, and testing for a single survivor left every
-      // larger case with no primary at all.
+      // A member holds at most two current clubs, and leaving clears the
+      // departing row's flag. A lone surviving club is the member's only club,
+      // so it becomes primary rather than staying designated secondary with
+      // nothing for that designation to mean anything against. A member left
+      // holding two picks which is primary themselves, never automatically.
       const remaining = memberClubAffiliations.listCurrentWithClubName.all(actorMemberId) as
         Array<{ club_id: string; is_primary: number }>;
-      const promoted = remaining.length > 0 && !remaining.some((r) => r.is_primary === 1)
+      const promoted = remaining.length === 1 && remaining[0].is_primary !== 1
         ? remaining[0].club_id
         : null;
       if (promoted) {
@@ -2900,12 +2922,15 @@ export class ClubService {
    * the live row; a failed verification changes nothing and surfaces the
    * validator's error.
    *
-   * The actors differ in three ways and no others. The leadership check binds a
-   * co-leader alone. An administrator's write records the reason and says
-   * 'admin' in the ledger. And an administrator's write tells the club's
-   * co-leaders what changed, because a correction is a past event on a record
-   * they are responsible for. A submission that would move nothing writes
-   * nothing and comes back empty for either actor.
+   * The actors differ in these ways. The leadership check binds a co-leader
+   * alone. Only an administrator's write reaches the country, because a club
+   * does not move between countries and only a correction of a mistake does.
+   * An administrator's write records the reason and says 'admin' in the
+   * ledger under its own action type; both record each changed field before
+   * and after. And an administrator's write tells the club's co-leaders what
+   * changed, because a correction is a past event on a record they are
+   * responsible for. A submission that would move nothing writes nothing and
+   * comes back empty for either actor.
    *
    * With `preview` set every rule runs and nothing is written, which is what
    * lets an administrator's confirmation screen show the same before and after
@@ -3111,11 +3136,10 @@ export class ClubService {
           normalizedUrl ?? null, normalizedUrl ? now : null, now, actorMemberId, clubId,
         );
       }
-      // An administrator correcting somebody else's club records each changed
-      // field's value before and after, with the reason, because a correction
-      // made on someone's behalf is reviewable only from what the value was. A
-      // co-leader's own edit records the field names alone: the text is what a
-      // member typed, and the audit log outlives an erasure.
+      // Either actor records each changed field's value before and after. A
+      // club is a shared record its co-leaders all edit, and the ledger is how
+      // a value one of them overwrote is recovered. An administrator's
+      // correction adds the reason.
       auditId = appendAuditEntry(actor.kind === 'administrator'
         ? {
           actionType:    'club.content_corrected',
@@ -3133,7 +3157,7 @@ export class ClubService {
           entityType:    'club',
           entityId:      clubId,
           reasonText:    null,
-          metadata:      { fields: changed.map((c) => c.field) },
+          metadata:      { changes },
         });
     });
 
@@ -3433,9 +3457,12 @@ export class ClubService {
    * Move the club's hashtag, which is also the address its public page sits at.
    *
    * The hashtag is the club's permanent handle, so only an administrator moves
-   * it, correcting one that is wrong and naming a reason. One tag row is renamed
-   * in place, so every media item already carrying the hashtag follows it
-   * rather than being left pointing at a tag nobody uses.
+   * it, correcting one that is wrong and naming a reason. The move gives the
+   * club a new tag row and carries every media item and gallery criterion
+   * carrying the old hashtag onto it, so they follow the club. The old tag row
+   * stays: a standardized hashtag is reserved permanently and never reused, so
+   * no later club can take it. The new hashtag meets the rules creation holds
+   * it to, at most 100 characters included.
    *
    * The old address dies at that moment and nothing redirects from it, which is
    * why the administrator's door previews first: a link already shared to the
@@ -3451,7 +3478,8 @@ export class ClubService {
     | { branch: 'updated'; newClubKey: string; oldTag: string; newTag: string }
     | { branch: 'not_found' }
     | { branch: 'tag_conflict' }
-    | { branch: 'invalid_format' } {
+    | { branch: 'invalid_format' }
+    | { branch: 'too_long' } {
     const normalized = slugifyForTag(newSlug);
     if (!normalized || normalized.length < 2) {
       return { branch: 'invalid_format' };
@@ -3459,6 +3487,9 @@ export class ClubService {
 
     const tagNormalized = `#club_${normalized}`;
     const tagDisplay = `#club_${normalized}`;
+    if (tagNormalized.length > 100) {
+      return { branch: 'too_long' };
+    }
 
     const existing = mediaTags.findTagByNormalized.get(tagNormalized) as { id: string } | undefined;
     const club = clubs.findByIdWithHashtag.get(clubId) as
@@ -3483,11 +3514,22 @@ export class ClubService {
     const actorMemberId = actor.memberId;
     const now = new Date().toISOString();
 
+    // Moving to the hashtag the club already holds is a no-op its caller
+    // reports before reaching here; the new row would collide with it.
+    if (existing) {
+      throw new Error(`updateClubHashtag called with the club's own hashtag: ${clubId}`);
+    }
+
     let auditId = '';
     transaction(() => {
-      mediaTags.updateTagDisplay.run(
-        tagNormalized, tagDisplay, now, actorMemberId, club.hashtag_tag_id,
+      const newTagId = `tag_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
+      mediaTags.insertStandardTag.run(
+        newTagId, now, actorMemberId, now, actorMemberId, tagNormalized, tagDisplay, 'club',
       );
+      clubs.updateHashtagTagId.run(newTagId, now, actorMemberId, clubId);
+      mediaTags.moveMediaTagsToTag.run(newTagId, tagDisplay, now, actorMemberId, club.hashtag_tag_id);
+      mediaTags.moveGalleryCriteriaToTag.run(newTagId, club.hashtag_tag_id);
+      mediaTags.moveGalleryExcludesToTag.run(newTagId, club.hashtag_tag_id);
 
       auditId = appendAuditEntry({
         actionType: 'club.hashtag_corrected',

@@ -7,7 +7,7 @@
 
 **Who can apply.** The organizer must be an IFPA Organizer Member (Tier 2) or hold a lifetime or honorary membership (Tier 3). Apply on footbag.org when you create your event. An administrator reviews each request, and the IFPA Sanctioning Director is notified and may contact you first. If a request is turned down, you'll get the reason and can revise and resubmit. A World Footbag Championships awarded by the IFPA Board is automatically sanctioned.
 
-**Divisions.** Every discipline a sanctioned event offers, for example Singles Net or Freestyle Routines, must include a Women's division and an Intermediate division alongside Open. If too few players enter at the time of the event, divisions may be combined.
+**Divisions.** Every category a sanctioned tournament offers, for example Singles Net or Freestyle Routines, must include a Women's division and an Intermediate division alongside Open. If too few players enter at the time of the tournament, divisions may be combined.
 
 **Prize money.** In any division that offers prize money, players must be able to enter as an Amateur. Amateurs take no prize money but earn the same placing and ranking points. This keeps prize events open to amateur players, in line with IFPA's purpose of fostering amateur competition. An event without prize money needs no separate Amateur option, since every player competes as an amateur.
 

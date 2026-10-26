@@ -1,19 +1,20 @@
 /**
  * AdminClubLeadershipService -- admin remediation of club leadership rosters.
  *
- * Owns: the single "could use a leader" remediation queue (clubs with no
- * co-leaders, computed fresh on open, never by a background process), admin
- * assignment of a co-leader from the member base (creating or reactivating the
- * affiliation when absent), removal of a co-leader back to ordinary member or
- * full affiliation removal (mandatory reason), and the five-co-leader cap with
- * an explicit cap-override reason. Resolving leadership for a bootstrapped club
- * supersedes its remaining provisional club_bootstrap_leaders rows. Assigning a
- * co-leader to an inactive or archived club revives it to 'active' in the same
- * transaction (staffing a club makes it a live club).
+ * Owns: the per-club leadership page, admin assignment of a co-leader from the
+ * member base (creating or reactivating the affiliation when absent), removal
+ * of a co-leader back to ordinary member or full affiliation removal
+ * (mandatory reason), and the five-co-leader cap, which is a hard limit with
+ * no override. Resolving leadership for a bootstrapped club supersedes its
+ * remaining provisional club_bootstrap_leaders rows. Assigning a co-leader to
+ * an inactive club revives it to 'active' in the same transaction (staffing a
+ * club makes it a live club); an archived club is final and refuses the
+ * assignment.
  *
  * Does not own: member-facing leadership flows (ClubService,
  * MemberOnboardingService path 1 / path 2) or club viability cleanup
- * (ClubCleanupService).
+ * (ClubCleanupService), whose queue is the one list of clubs that could use a
+ * leader.
  *
  * Non-negotiable invariants:
  *   - Schema invariants stand: a member co-leads at most one club
@@ -22,26 +23,29 @@
  *     is refused: a club is a local group, so a member leads the club they are
  *     local to and is a guest at any other. Changing which club a member
  *     co-leads is that member's own action, taken by stepping down first.
+ *   - A member holds at most two current clubs, so assigning a member who
+ *     already holds two others is refused.
  *   - A member holding any current club affiliation holds exactly one primary.
  *     An affiliation this service creates or reactivates is primary when the
  *     member held no other current club, and removing one promotes a lone
  *     survivor, so neither admin path can leave a member with a club but no
- *     primary club.
+ *     primary club. A member left holding two picks the primary themselves.
  *   - Every action writes one audit row with actor_type='admin',
- *     before/after values, and reason text. The audit trail is the
+ *     before/after values, and reason text; an assignment that revives a club
+ *     writes a second row recording the revival. The audit trail is the
  *     canonical history.
  *   - Assigning a member who already co-leads this club is a repeat and writes
  *     nothing: this admin's own standing assignment of them ends as the first
  *     submit did, and one someone else made ends informational. Assign and
  *     demote each return their ending and the sentence that reports it.
- *   - The reason and the cap-override reason are cleaned with the shared
- *     sanitizer before validation, so markup alone is no reason.
+ *   - The reason is cleaned with the shared sanitizer before validation, so
+ *     markup alone is no reason.
  *
  * Transaction discipline: every multi-row mutation (assign + affiliation +
  * supersede) is one transaction(() => ...).
  *
  * Persistence: clubs, club_leaders, member_club_affiliations,
- * club_bootstrap_leaders, audit_entries.
+ * club_bootstrap_leaders, members (read), audit_entries.
  *
  * Side effects: audit_entries append only.
  *
@@ -57,17 +61,7 @@ import type { OutcomeNoticeView } from '../lib/outcomeNotice';
 import type { ActionEnding } from '../lib/actionOutcome';
 
 const LEADERSHIP_CAP = 5;
-
-interface QueueClubRow {
-  id: string;
-  name: string;
-  city: string | null;
-  country: string | null;
-}
-
-export interface LeadershipQueueContent {
-  needsLeader: Array<{ clubId: string; name: string; location: string; manageHref: string }>;
-}
+const CURRENT_CLUB_CAP = 2;
 
 export interface ClubLeadershipContent {
   clubId: string;
@@ -81,7 +75,6 @@ export interface ClubLeadershipContent {
     memberId: string; displayName: string; slug: string; recordHref: string;
   }>;
   leadershipCount: number;
-  capReached: boolean;
   /** The result of the last assign or demote, carried across its redirect. */
   notice: OutcomeNoticeView | null;
   errorMessage: string | null;
@@ -97,21 +90,6 @@ const ASSIGNED_NOTICE = 'Co-leader added.';
 const ALREADY_LEADS_NOTICE = 'That member already co-leads this club.';
 const DEMOTED_TO_MEMBER_NOTICE = 'Leader stepped down to member.';
 const REMOVED_FROM_CLUB_NOTICE = 'Leader removed from the club.';
-
-function locationOf(r: QueueClubRow): string {
-  return [r.city, r.country].filter(Boolean).join(', ') || 'Unknown location';
-}
-
-function getLeadershipQueuePage(): PageViewModel<LeadershipQueueContent> {
-  const needsLeader = (clubLeaders.listClubsNeedingLeader.all() as QueueClubRow[]).map((r) => ({
-    clubId: r.id, name: r.name, location: locationOf(r), manageHref: `/admin/clubs/${r.id}/leadership`,
-  }));
-  return {
-    seo:  { title: 'Club Leadership Remediation' },
-    page: { sectionKey: '', pageKey: 'admin_club_leadership_queue', title: 'Club Leadership Remediation' },
-    content: { needsLeader },
-  };
-}
 
 function loadClub(clubId: string): { id: string; name: string; status: string } {
   const row = clubLeaders.findClubForAdminLeadership.get(clubId) as
@@ -157,7 +135,6 @@ function getClubLeadershipPage(
         leaders,
         affiliatedMembers: affiliated,
         leadershipCount: leaders.length,
-        capReached: leaders.length >= LEADERSHIP_CAP,
         notice: opts.notice ?? null,
         errorMessage: opts.errorMessage ?? null,
       },
@@ -197,8 +174,9 @@ function audit(
  * Assign a member from the member base as a co-leader. Creates or reactivates
  * the affiliation when absent. A member co-leads at most one club, so a member
  * who already co-leads another club is refused with direction (remove them
- * there first). Exceeding the five-co-leader cap requires an explicit
- * cap-override reason.
+ * there first). A club at five co-leaders refuses a sixth, a member who
+ * already holds two other current clubs is refused a third, and an archived
+ * club refuses any assignment.
  *
  * A member who already co-leads this club is a repeat, not an error: this
  * admin's own standing assignment of them reports the first submit's success,
@@ -209,10 +187,13 @@ function assignLeader(
   clubId: string,
   memberKey: string,
   reason: string,
-  capOverrideReason?: string,
 ): LeadershipChangeOutcome {
   const trimmedReason = requireReason(reason);
   const club = loadClub(clubId);
+  // Archiving is final: anyone wanting the club again creates a new one.
+  if (club.status === 'archived') {
+    throw new ValidationError('This club is archived, which is final, so it takes no new co-leader.');
+  }
   const member = clubLeaders.findMemberByKeyForAdmin.get(memberKey.trim(), memberKey.trim()) as
     | { id: string; display_name: string; slug: string }
     | undefined;
@@ -241,10 +222,21 @@ function assignLeader(
   }
 
   const count = (clubLeaders.countByClubId.get(clubId) as { c: number }).c;
-  const capOverride = cleanUserText(capOverrideReason ?? '', 'single_line', 'cap_override_reason');
-  if (count >= LEADERSHIP_CAP && !capOverride) {
+  if (count >= LEADERSHIP_CAP) {
     throw new ValidationError(
-      `This club already has ${count} co-leaders (cap ${LEADERSHIP_CAP}). Provide a cap-override reason to proceed.`,
+      `This club already has ${LEADERSHIP_CAP} co-leaders, the most a club can have.`,
+    );
+  }
+
+  // Leading a club puts the member on its roster, so a member who is not
+  // already a current member here and holds two other clubs would reach three.
+  const aff = clubLeaders.findCurrentAffiliation.get(member.id, clubId) as
+    | { id: string; is_current: number }
+    | undefined;
+  const currentCount = (memberClubAffiliations.countCurrentByMemberId.get(member.id) as { c: number }).c;
+  if (!aff?.is_current && currentCount >= CURRENT_CLUB_CAP) {
+    throw new ValidationError(
+      'That member already belongs to two clubs, the most a member can hold. They leave one first if they want to lead this one.',
     );
   }
 
@@ -261,10 +253,6 @@ function assignLeader(
     // other current club must come out of this holding their one club as
     // primary, or their profile shows a secondary club and no primary and they
     // have no control that repairs it.
-    const aff = clubLeaders.findCurrentAffiliation.get(member.id, clubId) as
-      | { id: string; is_current: number }
-      | undefined;
-    const currentCount = (memberClubAffiliations.countCurrentByMemberId.get(member.id) as { c: number }).c;
     const isPrimary = currentCount === 0 ? 1 : 0;
     if (!aff) {
       clubLeaders.insertAdminAffiliation.run(
@@ -278,10 +266,10 @@ function assignLeader(
 
     clubLeaders.supersedeProvisionalForClub.run(now, adminMemberId, clubId);
 
-    // Revival: staffing a club makes it a live club; an inactive or archived
-    // club returns to 'active' in the same transaction so the new co-leader's
-    // club is visible in listings.
-    if (club.status !== 'active') {
+    // Revival: staffing a club makes it a live club; an inactive club returns
+    // to 'active' in the same transaction so the new co-leader's club is
+    // visible in listings. An archived club never reaches here.
+    if (club.status === 'inactive') {
       clubsDb.updateStatus.run('active', now, adminMemberId, clubId);
       audit(adminMemberId, 'club.revived_by_leadership_claim', clubId, trimmedReason, {
         prior_status: club.status,
@@ -292,7 +280,6 @@ function assignLeader(
     audit(adminMemberId, 'club.admin_leader_assigned', clubId, trimmedReason, {
       member_id:               member.id,
       role:                    'co-leader',
-      cap_override_reason:     capOverride || null,
       leadership_count_before: count,
     });
   });
@@ -390,14 +377,13 @@ function demoteLeader(
       affiliationEnded = clubLeaders.endAffiliation
         .run(now, adminMemberId, memberId, clubId).changes > 0;
 
-      // Ending an affiliation clears its primary flag, so a member left holding
-      // clubs but no primary would carry them all as secondary with nothing for
-      // that designation to mean anything against. Repair on the invariant
-      // rather than on a survivor count, exactly as the member's own leave
-      // does: any surviving set with no primary gets one.
+      // Ending an affiliation clears its primary flag. A lone surviving club is
+      // the member's only club, so it becomes primary, exactly as the member's
+      // own leave does; a member left holding two picks which is primary
+      // themselves, never automatically.
       const remaining = memberClubAffiliations.listCurrentWithClubName.all(memberId) as
         Array<{ club_id: string; is_primary: number }>;
-      if (remaining.length > 0 && !remaining.some((r) => r.is_primary === 1)) {
+      if (remaining.length === 1 && remaining[0].is_primary !== 1) {
         memberClubAffiliations.setPrimary.run(now, adminMemberId, memberId, remaining[0].club_id);
       }
     }
@@ -415,7 +401,6 @@ function demoteLeader(
 }
 
 export const adminClubLeadershipService = {
-  getLeadershipQueuePage,
   getClubLeadershipPage,
   assignLeader,
   previewDemote,

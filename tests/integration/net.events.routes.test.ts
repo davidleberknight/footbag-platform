@@ -7,7 +7,7 @@
  * Verifies:
  *   - Events ordered by start_date DESC
  *   - Events without net appearances do NOT appear in the list
- *   - The discipline-review badge follows net_discipline_group.conflict_flag alone
+ *   - The grouping-unconfirmed badge follows net_discipline_group.conflict_flag alone
  *   - inferred_partial appearances do NOT appear
  *   - No rankings, win/loss, or head-to-head stats appear
  */
@@ -88,7 +88,7 @@ function setupDb(db: BetterSqlite3.Database): void {
     start_date: '2008-03-01', city: 'Denver', country: 'US',
   });
 
-  // Disciplines
+  // event_disciplines rows
   const disc2015a = insertDiscipline(db, ev2015, {
     id: 'disc-ev-open-2015', name: 'Open Doubles Net',
     discipline_category: 'net', team_type: 'doubles',
@@ -111,11 +111,11 @@ function setupDb(db: BetterSqlite3.Database): void {
     discipline_category: 'net', team_type: 'doubles',
   });
 
-  // Register conflict_flag discipline
+  // Register the conflict_flag row
   insertNetDisciplineGroup(db, disc2012_conflict, {
     canonical_group: 'mixed_doubles', review_needed: 1, conflict_flag: 1,
   });
-  // A discipline carrying only the broader review flag: its raw name is too
+  // An `event_disciplines` row carrying only the broader review flag: its raw name is too
   // generic to classify rather than ambiguous between patterns. The badge must
   // not fire for it, which is what makes "driven by the ambiguous-match flag"
   // an assertion about a real difference rather than about an empty set.
@@ -205,9 +205,9 @@ describe('GET /net/events', () => {
     expect(res.text).not.toContain('/internal/net/events/');
   });
 
-  it('badges the event whose discipline matched its canonical group ambiguously', async () => {
+  it('badges the event whose `event_disciplines` row matched its canonical group ambiguously', async () => {
     const res = await page('/net/events');
-    // ev2012 carries the only conflict_flag discipline in this fixture.
+    // ev2012 carries the only conflict_flag row in this fixture.
     expect(res.text).toContain('Grouping unconfirmed');
   });
 

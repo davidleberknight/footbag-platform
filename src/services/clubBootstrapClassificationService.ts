@@ -3,9 +3,10 @@
  *
  * Owns the combination-gate logic that maps a per-(member, club) signal set
  * to a strong/weak/none classification. The function is intentionally pure
- * and stateless so it can be invoked from the legacy_data pipeline (to seed
- * `club_bootstrap_leader_signals` evidence) and from the onboarding wizard's
- * task-response handler (to drive the strong / weak / declined branches).
+ * and stateless; the onboarding wizard's task-response handler invokes it to
+ * drive the strong / weak / declined branches. The legacy data pipeline seeds
+ * `club_bootstrap_leader_signals` evidence with its own implementation and
+ * does not call this one.
  *
  * Combination gates (structural signals only):
  *   strong = (listed_contact AND affiliation)

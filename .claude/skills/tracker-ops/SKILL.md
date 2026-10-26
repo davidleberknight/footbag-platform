@@ -104,8 +104,10 @@ the human's instruction as given.
 
 Single home for turning an approved `BUGS.md` finding into an issue; the `bug-hunt` and
 `freestyle-bug-hunt` skills cite this rather than restating it. After the human approves a
-hunt's findings, draft one issue per confirmed finding: an issue body meeting the issue-body
-standard above, plus the exact `gh issue create -R "$FOOTBAG_PRIVATE_REPO" --title "..."
+hunt's or an audit's findings, draft one issue per session-sized batch: the confirmed findings
+in one domain (a service and its pages) share an issue, one step each, and a new issue starts
+only for another domain or for work too large for one session. Each is an issue body meeting
+the issue-body standard above, plus the exact `gh issue create -R "$FOOTBAG_PRIVATE_REPO" --title "..."
 --label <lane> --label bug --assignee <handle> --body "..."` (the finding's lane, plus other
 markers as they apply). Claude runs it under the mutation policy above once the human has
 agreed to the set: ask once, listing each issue's title, lane and proposed owner, rather than

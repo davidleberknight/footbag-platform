@@ -33,7 +33,7 @@
     {{#if content.ruleDemotionCount}}
       <details class="cleanup-group">
         <summary>Demotions the Rules Would Make ({{content.ruleDemotionCount}})</summary>
-        <p class="mt-2">Each club here has nothing on its record saying it exists. Applying the rules demotes these clubs to inactive, where they stay listed and come back the moment someone joins or leads them, and retires their unconfirmed legacy affiliations.</p>
+        <p class="mt-2">Each club here has nothing on its record saying it exists. Applying the rules makes these clubs inactive, which takes them off the public club list until someone joins or leads them, and retires their unconfirmed legacy affiliations.</p>
         <form method="POST" action="/admin/club-cleanup/apply-rules" class="cleanup-action-form mt-2">
           <button type="submit" class="btn btn-primary btn-sm">Apply the Rules</button>
         </form>
@@ -61,7 +61,7 @@
         <details class="cleanup-group">
           <summary>{{this.label}} ({{this.count}})</summary>
           {{#if this.isOpportunity}}
-            <p class="fs-sm mt-2">These clubs could use a leader. Leaderless is a tolerated state, not a problem: nothing here needs remediation, and a club leaves this list by itself the moment anyone becomes a co-leader. Demotion is driven only by member-reported inactivity signals, never by this list.</p>
+            <p class="fs-sm mt-2">These clubs could use a leader. Leaderless is a tolerated state, not a problem: nothing here needs remediation, and a club leaves this list by itself the moment anyone becomes a co-leader. Making a club inactive is driven only by member-reported inactivity signals, never by this list.</p>
           {{/if}}
           <form method="POST" action="/admin/club-cleanup/bulk-resolve" class="cleanup-action-form mt-2">
             <input type="hidden" name="group" value="{{this.predicate}}" />
@@ -114,7 +114,7 @@
                       <input type="hidden" name="predicate" value="{{this.predicate}}" />
                       <label>Action <select name="action" class="cleanup-action-select">
                         {{#unless this.isOpportunity}}
-                        <option value="demote_inactive">Demote</option>
+                        <option value="demote_inactive">Make Inactive</option>
                         <option value="dismiss">Dismiss</option>
                         {{/unless}}
                         <option value="archive">Archive</option>
@@ -139,7 +139,7 @@
   <section class="mt-8">
     <details class="cleanup-group">
     <summary>Wizard Flags by Candidate ({{content.candidateFlags.length}})</summary>
-    <p class="fs-sm">Activity answers members left about club candidates that have no live club row yet, so the viability gates cannot evaluate them. One vote per member; a member's latest answer wins. Dismiss is terminal; parked flags wait without a deadline and stay listed with who parked them. Promoting the candidate moves its votes to the live club's viability evaluation.</p>
+    <p class="fs-sm">Activity signals members left about club candidates that have no live club row yet, so the viability gates cannot evaluate them. One signal per member; a member's latest signal wins. Dismiss is terminal; parked flags wait without a deadline and stay listed with who parked them. Promoting the candidate moves its signals to the live club's viability evaluation.</p>
     <form method="POST" action="/admin/club-cleanup/bulk-resolve" class="cleanup-action-form mt-2">
       <input type="hidden" name="group" value="candidate_flag" />
       <label>Action <select name="action" class="cleanup-action-select">

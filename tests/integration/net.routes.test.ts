@@ -10,7 +10,7 @@
  *   - Teams ordered by appearance_count DESC
  *   - Team name and partner names visible
  *   - Year grouping on detail page, each appearance listed once, with the inferred-pairing caveat
- *   - conflict_flag=1 renders raw discipline name instead of canonical group label, less a trailing "Net"
+ *   - conflict_flag=1 renders the raw `event_disciplines` name instead of canonical group label, less a trailing "Net"
  *   - Appearances with evidence_class != 'canonical_only' do NOT appear
  *   - No rankings, win/loss, or head-to-head stats appear
  */
@@ -68,12 +68,12 @@ function setupDb(db: BetterSqlite3.Database): void {
   const event2 = insertEvent(db, { id: 'event-net-test-2015', hashtag_tag_id: tag2, title: 'Net Open 2015',      start_date: '2015-07-01', city: 'Denver',  country: 'US' });
   const event3 = insertEvent(db, { id: 'event-net-test-2012', hashtag_tag_id: tag3, title: 'European Net 2012',  start_date: '2012-06-01', city: 'Berlin',  country: 'DE' });
 
-  // Disciplines
+  // event_disciplines rows
   const disc1 = insertDiscipline(db, event1, { id: 'disc-net-test-open-2010', name: 'Open Doubles Net', discipline_category: 'net', team_type: 'doubles' });
   const disc2 = insertDiscipline(db, event2, { id: 'disc-net-test-open-2015', name: 'Open Doubles Net', discipline_category: 'net', team_type: 'doubles' });
   const disc3 = insertDiscipline(db, event3, { id: 'disc-net-test-conflict-2012', name: 'Footbag Net: Singles', discipline_category: 'net', team_type: 'doubles' });
 
-  // net_discipline_group entries for discipline filter tests
+  // net_discipline_group entries for division filter tests
   insertNetDisciplineGroup(db, 'disc-net-test-open-2010', {
     canonical_group: 'open_doubles', match_method: 'exact', review_needed: 0, conflict_flag: 0,
   });
@@ -116,7 +116,7 @@ function setupDb(db: BetterSqlite3.Database): void {
   // inferred_partial appearance — must NOT appear in public output
   insertNetTeamAppearance(db, { team_id: TEAM_1_ID, event_id: event3, discipline_id: disc3, result_entry_id: entry5, placement: 2, event_year: 2012, evidence_class: 'inferred_partial' });
 
-  // Team 2: Carol + Dave — 1 canonical_only appearance (conflict_flag=1 discipline)
+  // Team 2: Carol + Dave — 1 canonical_only appearance (conflict_flag=1 row)
   insertNetTeam(db, {
     team_id:          TEAM_2_ID,
     person_id_a:      PERSON_A2,
@@ -130,7 +130,7 @@ function setupDb(db: BetterSqlite3.Database): void {
 
   insertNetTeamAppearance(db, { team_id: TEAM_2_ID, event_id: event3, discipline_id: disc3, result_entry_id: entry4, placement: 1, event_year: 2012 });
 
-  // A conflict-flagged discipline whose raw name ends in "Net", the shape most
+  // A conflict-flagged `event_disciplines` row whose raw name ends in "Net", the shape most
   // raw labels in the built database take ("Open Mixed Doubles Net").
   const disc4 = insertDiscipline(db, event3, { id: 'disc-net-test-mixed-2012', name: 'Open Mixed Doubles Net', discipline_category: 'net', team_type: 'doubles' });
   insertNetDisciplineGroup(db, 'disc-net-test-mixed-2012', {
@@ -198,7 +198,7 @@ describe('GET /net/teams', () => {
     expect(res.text).toContain('2 teams');
   });
 
-  it('redirects the former division parameter to discipline, keeping the other filters', async () => {
+  it('redirects the former `division` parameter to `discipline`, keeping the other filters', async () => {
     // A link written before the vocabulary changed must not quietly render the
     // unfiltered page, which looks like a working result rather than a stale
     // link. One permanent redirect keeps a single canonical URL.
@@ -217,27 +217,27 @@ describe('GET /net/teams', () => {
     expect(res.status).toBe(200);
   });
 
-  it('prefers discipline and drops division when a request carries both', async () => {
+  it('prefers `discipline` and drops `division` when a request carries both', async () => {
     const res = await page('/net/teams?division=stale&discipline=open_doubles');
     expect(res.status).toBe(200);
   });
 
-  it('shows discipline filter dropdown', async () => {
+  it('shows the division filter dropdown', async () => {
     const res = await page('/net/teams');
     expect(res.text).toContain('name="discipline"');
   });
 
-  it('shows open_doubles in discipline options', async () => {
+  it('shows open_doubles in division options', async () => {
     const res = await page('/net/teams');
     expect(res.text).toContain('open_doubles');
   });
 
   // Reconciliation: the same team competed in open_doubles in 2010 and 2015, so
-  // that discipline carries two canonical appearances but only one unique team. The
-  // discipline-option count is an appearance count, so it must be labelled as such
+  // that division carries two canonical appearances but only one unique team. The
+  // division-option count is an appearance count, so it must be labelled as such
   // and can legitimately exceed the unique-team total; it must never be presented
   // as a bare team count that overstates the team universe.
-  it('labels the discipline-option count as appearances, not an inflated team count', async () => {
+  it('labels the division-option count as appearances, not an inflated team count', async () => {
     const res = await page('/net/teams');
     expect(res.status).toBe(200);
     expect(res.text).toContain('2 teams');                       // unique-team universe (paginated header)
@@ -245,7 +245,7 @@ describe('GET /net/teams', () => {
     expect(res.text).not.toMatch(/Open Doubles \(2\)</);         // never a bare count read as teams
   });
 
-  it('a discipline filter shows no more teams than the full unique-team universe', async () => {
+  it('a division filter shows no more teams than the full unique-team universe', async () => {
     // Unfiltered header reads "N teams" (paginated); a filter reads "N teams shown".
     const teamCount = (html: string): number =>
       Number((html.match(/(\d+) teams(?: shown)?/) ?? [])[1]);
@@ -255,7 +255,7 @@ describe('GET /net/teams', () => {
     const universe = teamCount(all.text);
     const shown = teamCount(filtered.text);
     // The appearance-count option (2) does not become the team count: the filtered
-    // discipline shows its one unique team, and the subset never exceeds the whole.
+    // division shows its one unique team, and the subset never exceeds the whole.
     expect(shown).toBe(1);
     expect(shown).toBeLessThanOrEqual(universe);
   });
@@ -297,7 +297,7 @@ describe('GET /net/teams', () => {
 });
 
 describe('GET /net/teams?discipline=open_doubles', () => {
-  it('suffixes the page title with the active discipline', async () => {
+  it('suffixes the page title with the active division', async () => {
     const res = await page('/net/teams?discipline=open_doubles');
     expect(res.text).toContain('<h1>Net Teams: Open Doubles</h1>');
   });
@@ -307,23 +307,23 @@ describe('GET /net/teams?discipline=open_doubles', () => {
     expect(res.text).toContain('Alice Net');
   });
 
-  it('marks the selected discipline as selected in dropdown', async () => {
+  it('marks the selected division as selected in dropdown', async () => {
     const res = await page('/net/teams?discipline=open_doubles');
     expect(res.text).toContain('value="open_doubles" selected');
   });
 
-  it('shows clear filter link when discipline is active', async () => {
+  it('shows clear filter link when a division is active', async () => {
     const res = await page('/net/teams?discipline=open_doubles');
     expect(res.text).toContain('Clear');
   });
 
-  it('returns empty for a discipline with no teams', async () => {
+  it('returns empty for a division with no teams', async () => {
     const res = await page('/net/teams?discipline=masters_doubles');
     expect(res.status).toBe(200);
     expect(res.text).toContain('No teams found');
   });
 
-  it('ignores unknown discipline values gracefully', async () => {
+  it('ignores unknown division values gracefully', async () => {
     const res = await page('/net/teams?discipline=not_real');
     expect(res.status).toBe(200);
     expect(res.text).toContain('No teams found');
@@ -355,7 +355,7 @@ describe('GET /net/teams?q=Alice', () => {
     expect(res.text).toContain('Alice Net');
   });
 
-  it('combines discipline and search filters', async () => {
+  it('combines division and search filters', async () => {
     const res = await page('/net/teams?discipline=open_doubles&q=Alice');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Alice Net');
@@ -412,14 +412,14 @@ describe('GET /net/teams/:teamId', () => {
     expect(pos2015).toBeLessThan(pos2010);
   });
 
-  it('renders raw discipline name when conflict_flag=1', async () => {
+  it('renders the raw `event_disciplines` name when conflict_flag=1', async () => {
     const res = await page(`/net/teams/${TEAM_2_ID}`);
     // disc3 has conflict_flag=1; raw name is 'Footbag Net: Singles'
     expect(res.text).toContain('Footbag Net: Singles');
   });
 
   // Every net page is about net, so a raw label keeps its meaning without the suffix.
-  it('drops a trailing "Net" from a raw discipline name', async () => {
+  it('drops a trailing "Net" from a raw `event_disciplines` name', async () => {
     const res = await page(`/net/teams/${TEAM_2_ID}`);
     expect(res.text).toContain('<td>Open Mixed Doubles</td>');
     expect(res.text).not.toContain('Open Mixed Doubles Net');

@@ -2,7 +2,7 @@
  * RulesService -- public IFPA rules pages (read-only).
  *
  * Serves (all public):
- *   - GET /rules: rules index; rule pages grouped by category ordered net, freestyle, x-square,
+ *   - GET /rules: rules index; rule pages grouped by discipline ordered net, freestyle, x-square,
  *     golf (the main-navigation order), each group with a one-sentence intro, closing with a link
  *     to the equipment page.
  *   - GET /rules/:categorySlug/:ruleSlug: rule detail; unknown category or slug throws
@@ -107,7 +107,7 @@ export const rulesService = {
         sectionKey: 'rules',
         pageKey: 'rules_index',
         title: 'Footbag Rules',
-        intro: 'Official IFPA rules for each footbag sport.',
+        intro: 'Official IFPA rules for each discipline.',
       },
       content: {
         groups,

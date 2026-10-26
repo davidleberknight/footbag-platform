@@ -319,7 +319,7 @@
 
   /* Freestyle extended palette (distinct freestyle colors, named not flattened) */
   --muted-gold: #b6a267;
-  --notation-gold: #8a7514;
+  --notation-gold: #806c11;   /* text gold: 4.5:1 or better on every notation panel tint */
   --set-azure: #93c5fd;
   --rotation-umber: #fdba74;
   --modifier-gold: #fcd34d;
@@ -1802,7 +1802,7 @@ p.badge { display: block; width: fit-content; }
 
 /* ── Event detail layout ─────────────────────────────────────── */
 .event-detail { max-width: 860px; }
-/* The page's blocks (disciplines, results, the back link) sit one block gap
+/* The page's blocks (competition categories, results, the back link) sit one block gap
    apart, and a notice keeps a paragraph's gap from the results under it. */
 .event-detail > div + div { margin-top: var(--space-xl); }
 .no-results-notice + * { margin-top: var(--space-md); }
@@ -1837,7 +1837,7 @@ p.badge { display: block; width: fit-content; }
   word-break: break-all;
 }
 
-/* ── Disciplines list ───────────────────────────────────────── */
+/* ── Competition categories list ────────────────────────────── */
 .disciplines-list {
   display: flex;
   flex-wrap: wrap;
@@ -2055,7 +2055,12 @@ p.badge { display: block; width: fit-content; }
 
 /* ── Clubs directory ─────────────────────────────────────────── */
 /* world map */
-#clubs-map { margin: var(--space-xl) 0 var(--space-sm); border-radius: var(--radius); overflow: hidden; background: var(--bg-light); line-height: 0; }
+/* The box takes the map's own shape before the script fills it, so nothing
+   below it moves when the map arrives. The explicit width keeps it spanning
+   the column: left auto, the height cap would pass through the ratio and
+   narrow it. Without scripting there is no map to draw, so there is no box. */
+#clubs-map { margin: var(--space-xl) 0 var(--space-sm); border-radius: var(--radius); overflow: hidden; background: var(--bg-light); line-height: 0; width: 100%; aspect-ratio: 960 / 500; max-height: 420px; }
+@media (scripting: none) { #clubs-map { display: none; } }
 .clubs-map-svg { width: 100%; height: auto; display: block; max-height: 420px; }
 .clubs-map-svg path { fill: var(--map-base); stroke: var(--white); stroke-width: 0.4; }
 .clubs-map-svg path#n242 { fill: none; stroke: none; }
@@ -3354,9 +3359,11 @@ main fieldset > :not(:has(~ :not([type="hidden"]))) { margin-bottom: 0; }
   .event-list-row { grid-template-columns: 1fr; gap: var(--space-xs); }
   .event-list-meta { flex-direction: row; align-items: center; gap: var(--space-sm); flex-wrap: wrap; text-align: left; }
 
-  /* Hashtag search: one field per row once a row cannot hold two */
+  /* Hashtag search: one field per row once a row cannot hold two. In the
+     column the row's flex-basis would set each field's height, so it is
+     dropped here. */
   .browse-search-form { flex-direction: column; align-items: stretch; }
-  .browse-search-form .browse-search-input { max-width: none; width: 100%; }
+  .browse-search-form .browse-search-input { flex: none; max-width: none; width: 100%; }
   .browse-search-form .btn { width: 100%; }
 
   /* Admin queue rows: the label column reserves width so the badges line up
@@ -4120,6 +4127,9 @@ a.hashtag--media:hover {
   font-size: 0.9rem;
   color: var(--text-muted);
 }
+/* The site link green reads at 4.36:1 on the chip's grey; the deeper ink
+   keeps a linked move readable at 4.5:1 or better. */
+.moves-tag a { color: var(--primary-ink-dk); }
 
 /* ─────────────────────────────────────────────────────────────────────
    Set Encyclopedia: how sets are built, and the uptime-reinterpretation
@@ -4363,7 +4373,7 @@ a.hashtag--media:hover {
   color: var(--text-muted);
 }
 
-/* Sport section landings (X Square, Golf, Sideline, Consecutives): icon + heading row */
+/* Sport section landings (X-Square, Golf, Sideline, Consecutives): icon + heading row */
 .sport-section .sport-section-header {
   display: flex;
   align-items: center;
@@ -5046,8 +5056,7 @@ a.hashtag--media:hover {
 }
 /* Both spellings are in use across templates: the class on a wrapper around
    the h2, and the class on the h2 itself. A descendant selector alone silently
-   drops the second spelling to the global h2 rule, so match both. The h3
-   rule below already does. */
+   drops the second spelling to the global h2 rule, so match both. */
 .page-freestyle  .section-heading h2,
 .page-freestyle  h2.section-heading {
   font-size: var(--section-compact-heading);
@@ -5060,19 +5069,6 @@ a.hashtag--media:hover {
 .page-freestyle  h2.section-heading {
   margin-bottom: var(--section-compact-head-gap);
 }
-/* A sub-heading is not a section heading. Carrying the section-heading class
-   on an h3 inherits a top-level section's gap, which on a long page is the
-   single largest source of dead vertical space. The gap is what this rule is
-   for; the size is not. Shrinking the heading put it below the 1rem prose
-   beneath it, so the page read as body text interrupted by smaller labels.
-   Closing the gap while leaving the heading at its own step keeps the
-   compaction and restores the ordering, which the type gate cannot see: it
-   checks that a size is on the scale, not what the size lands on relative to
-   its own body text. */
-.page-freestyle h3.section-heading {
-  margin-bottom: var(--space-sm);
-}
-
 /* Section intro: the one-or-two-sentence orientation line under a section
    heading. Defined globally because templates use it well outside any one
    section scope; a scoped rule leaves it unstyled elsewhere, at full body
@@ -6105,7 +6101,7 @@ a.hashtag--media:hover {
 .glossary-advanced-reference-group > h3:first-child {
   margin-top: 0;
 }
-.glossary-advanced-reference-group > h4.section-heading {
+.glossary-advanced-reference-group > h4 {
   margin-top: var(--space-xl);
 }
 .symbolic-layer-footer {

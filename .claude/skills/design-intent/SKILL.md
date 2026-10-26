@@ -29,7 +29,9 @@ files, tracker status and any summary show what exists, never what is intended.
 5. Match the nearest existing example. Two existing examples that differ are a bug to report, not
    a precedent to choose from.
 6. Act or ask. If that settles it, act and name the passage that did; if not, ask under the asking
-   rule. IFPA documents are never presumed stale and never edited here: a conflict with one is
+   rule. A disagreement between code, a comment, a document and the intent is never settled here:
+   it goes to the maintainer with the answer this procedure recommends. IFPA documents are never
+   presumed stale and never edited here: a conflict with one is
    raised with the maintainer for IFPA to decide. On any other document a maintainer ruling wins,
    and the document it contradicts is corrected.
 

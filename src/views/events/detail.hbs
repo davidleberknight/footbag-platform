@@ -36,10 +36,10 @@
         <p>{{content.event.description}}</p>
       {{/if}}
 
-      {{! ── Disciplines ───────────────────────────────────────── }}
+      {{! ── Competition categories ────────────────────────────── }}
       {{#if content.disciplines.length}}
         <div>
-          <h2>Disciplines</h2>
+          <h2>Competition Categories</h2>
           <ul class="disciplines-list">
             {{#each content.disciplines}}
               <li class="discipline-tag">{{name}}{{#if teamTypeLabel}} ({{teamTypeLabel}}){{/if}}</li>

@@ -223,7 +223,6 @@ export interface PersonaClubAffiliationSpec {
   /** Current membership (is_current=1) when true/omitted; former (0) when false. */
   current?: boolean;
   primary?: boolean;
-  contact?: boolean;
 }
 
 /**
@@ -795,7 +794,6 @@ export function seedPersona(
     insertMemberClubAffiliation(db, memberId, cid, {
       is_current: c.current === false ? 0 : 1,
       is_primary: derivePrimary(c.current !== false, c.primary === true),
-      is_contact: c.contact ? 1 : 0,
       source: 'member_self_service',
     });
   }

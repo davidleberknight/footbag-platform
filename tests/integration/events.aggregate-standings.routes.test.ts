@@ -1,9 +1,9 @@
 /**
  * Aggregate standings: an overall or club standing ranks competitors over several
  * of an event's contests rather than in one contest. It is kept apart from the
- * sport families. A cross-sport standing carries no family; a standing over one
- * sport keeps its family. On the event page aggregates follow every contested
- * discipline. A player's history page lists the standing among the player's
+ * disciplines. A cross-discipline standing carries no discipline; a standing over one
+ * discipline keeps its discipline. On the event page aggregates follow every contested
+ * division. A player's history page lists the standing among the player's
  * results and publishes no career totals or partnership ranking built from it.
  * The freestyle partnerships page counts contested freestyle doubles only.
  */
@@ -91,9 +91,9 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('discipline category and the aggregate mark', () => {
-  it('refuses a contested discipline with no sport family, and allows a cross-sport standing without one', () => {
-    // Defect caught: a contest stored with no sport, which every per-sport count
+describe('`discipline_category` and the aggregate mark', () => {
+  it('refuses a contested `event_disciplines` row with no discipline, and allows a cross-discipline standing without one', () => {
+    // Defect caught: a contest stored with no discipline, which every per-discipline count
     // and grouping would silently drop.
     const eventId = insertEvent(db, { hashtag_tag_id: insertTag(db) });
     expect(() => insertDiscipline(db, eventId, { name: 'Mystery Contest', discipline_category: null }))
@@ -105,7 +105,7 @@ describe('discipline category and the aggregate mark', () => {
 });
 
 describe('event page', () => {
-  it('lists every aggregate standing after every contested discipline', async () => {
+  it('lists every aggregate standing after every contested division', async () => {
     // Defect caught: an overall or club standing listed among, or ahead of, the
     // contests it ranks over.
     const res = await request(createApp()).get(`/events/${EVENT_KEY}`);
@@ -123,7 +123,7 @@ describe('event page', () => {
 describe('player history page', () => {
   it('lists the standing among the results and publishes no career totals or partnership ranking', async () => {
     // Defect caught: a historical-person page publishing derived statistics (wins
-    // and podiums per sport, ranked partners) with no caveat, or dropping the
+    // and podiums per discipline, ranked partners) with no caveat, or dropping the
     // standing from the official results list. A member views the page, the
     // viewer who once saw the aggregates.
     const res = await request(createApp())

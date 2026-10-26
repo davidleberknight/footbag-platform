@@ -505,7 +505,7 @@ describe('memberOnboardingService.submitClubAffiliationsResponse — affiliation
     const clubY = insertClub(db, { name: 'D1 Club Y (new claim)' });
     // The pre-existing is_current=1 primary affiliation at clubX.
     insertMemberClubAffiliation(db, memberId, clubX, {
-      id: 'mca-d1-pre', is_current: 1, is_primary: 1, is_contact: 0, source: 'admin',
+      id: 'mca-d1-pre', is_current: 1, is_primary: 1, source: 'admin',
     });
     const candidateY = seedCandidate(db, {
       clubId: clubY,

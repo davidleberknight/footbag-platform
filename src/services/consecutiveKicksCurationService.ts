@@ -3,7 +3,7 @@
  *
  * Owns:
  *   - The admin browse of consecutive_kicks_records, grouped by section and then
- *     discipline, with a link to edit each row.
+ *     record type (the `discipline` column), with a link to edit each row.
  *   - The admin edit surface for one row: rendering its editable fields and saving
  *     edits, keyed on the row's stable surrogate id (not its mutable display
  *     position).
@@ -14,7 +14,7 @@
  *     read-only).
  *
  * Write discipline: updateRow validates the submitted fields (section, subsection,
- * and discipline required; score and rank each empty or a whole number; the display
+ * and record type required; score and rank each empty or a whole number; the display
  * position a unique positive whole number, checked against the other rows before
  * the write with the column's UNIQUE constraint as the backstop). Every free-text
  * field is cleaned with the shared write-time text sanitizer before those checks
@@ -197,7 +197,7 @@ export const consecutiveKicksCurationService = {
   getBrowsePage(): PageViewModel<ConsecutiveBrowseContent> {
     const rows = consecutiveKicksRecords.listAllForCuration.all() as ConsecutiveCurationDbRow[];
 
-    // Group by section, then by discipline, preserving the sort_order ordering the
+    // Group by section, then by record type, preserving the sort_order ordering the
     // query already applied.
     const sections: ConsecutiveSectionGroup[] = [];
     const sectionIndex = new Map<string, ConsecutiveSectionGroup>();
@@ -283,7 +283,7 @@ export const consecutiveKicksCurationService = {
 
     const players = [row.player_1, row.player_2].filter((p): p is string => !!p).join(' and ');
     const summary = [
-      { label: 'Discipline', value: row.discipline },
+      { label: 'Record type', value: row.discipline },
       { label: 'Year',     value: row.year ?? '' },
       { label: 'Players',  value: players },
       { label: 'Score',    value: numOrEmpty(row.score) },
@@ -427,7 +427,7 @@ export const consecutiveKicksCurationService = {
   },
 
   // Hard delete one row by its stable id, then append one audit entry, in a single
-  // transaction. The audit metadata carries the row's section, discipline, and
+  // transaction. The audit metadata carries the row's section, record type, and
   // display position so the removal is recoverable. Throws NotFoundError for an
   // unknown id.
   deleteRow(id: string, actorMemberId: string): void {
@@ -546,7 +546,7 @@ function validateConsecutiveInput(input: ConsecutiveScalarInput, selfId: string)
 
   if (!section && !fieldErrors.section) fieldErrors.section = 'Section is required.';
   if (!subsection && !fieldErrors.subsection) fieldErrors.subsection = 'Subsection is required.';
-  if (!discipline && !fieldErrors.discipline) fieldErrors.discipline = 'Discipline is required.';
+  if (!discipline && !fieldErrors.discipline) fieldErrors.discipline = 'Record type is required.';
 
   const sortRaw = (input.sortOrder ?? '').trim();
   let sortOrder = 0;

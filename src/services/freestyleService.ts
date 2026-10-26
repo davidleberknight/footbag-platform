@@ -8010,7 +8010,7 @@ export const freestyleService = {
         buckets,
         allRanked,
         totalShown: allRanked.length,
-        dataNote: 'Freestyle doubles and team routines only. Trick contests, shred, and circle events are excluded.',
+        dataNote: 'Freestyle doubles and team routines only. Trick contests, shred, and circle contests are excluded.',
       },
     };
   },

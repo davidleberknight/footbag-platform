@@ -52,7 +52,7 @@
  *     anti-enumeration contract.
  *   - A prospective member is not a member, so nothing they answer that reaches beyond
  *     their own account lands in a shared table before the last task is answered. The
- *     claim and the club answers (cards, activity answers, notes, the no-club answer) are
+ *     claim and the club answers (cards, activity signals, notes, the no-club answer) are
  *     held as JSON on their step's task row; personal details, date of birth and declared
  *     anchors are written to the account as they go. The transaction that completes the
  *     last task writes every held answer, in the order given: the claim first, then the
@@ -194,7 +194,7 @@ const VALID_ACTIVITY_SIGNALS: ReadonlySet<string> = new Set([
   'active', 'not_active',
 ]);
 
-// clubId is null for candidate-keyed flags: activity answers about a club
+// clubId is null for candidate-keyed flags: activity signals about a club
 // candidate that has no live clubs row yet. Those rows must carry the
 // candidate id in sourceEntityId (schema CHECK); promotion later stamps the
 // club id onto them.
@@ -1258,7 +1258,7 @@ function submitMembershipResponse(
     treatAsDecline ? 'decline' : 'confirm',
   );
 
-  // The activity answer feeds the viability predicate independently of the
+  // The activity signal feeds the viability predicate independently of the
   // membership answer, so it is recorded on every branch: a confirm resolves
   // to a live club; a decline/correct on an already-promoted candidate still
   // targets that candidate's live club; a decline/correct on an unpromoted
@@ -1268,7 +1268,7 @@ function submitMembershipResponse(
   //
   // An idempotent branch means this card was already answered, so there is no
   // new answer to record: writing one appends a second signal row saying what
-  // the first already said. Readers take a member's latest answer per club, so
+  // the first already said. Readers take a member's latest signal per club, so
   // the tally never changed, but the table is meant to hold one row per member
   // per club per stage and nothing enforces that, so a repeated submit was the
   // one way to break it. The leadership path already returns before its own

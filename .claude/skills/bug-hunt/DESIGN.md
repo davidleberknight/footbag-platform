@@ -10,19 +10,38 @@ unguarded, and the hand-off goes there.
 
 ## Contents
 
+- Oracle: the expectation table
 - Definition of a design bug
 - Design category taxonomy
 - Scope declaration and surface inventory
-- Traceability matrix and requirements-quality sweep
 - Threat model: STRIDE per element, LINDDUN GO, misuse cases
 - Service contract, view-layer, data and migration sweeps
 - Dev/staging/prod parity sweep
-- Cross-document contradiction sweep
 - Missing-decision owner classification
 - Design-finding refutation checklist
-- The four personas
 - Scenario tabletop (optional)
 - Design-specific high-risk checklist
+
+## Oracle: the expectation table
+
+The oracle lane's whole method. It reads the stories, background jobs and design decisions,
+never the code: an expectation read off the code only restates the code, and a hunt
+checked against it finds nothing the code does not already agree with.
+
+For each success criterion of each deployed story or job, and each design decision a
+five-ranked surface rests on, write one row:
+
+- the story, job or decision, by its identifier and heading;
+- the criterion, quoted;
+- the expected observable: what a request, a page, a row or a sent message shows when the
+  criterion holds, concrete enough that a probe passes or fails on it;
+- the probe: the request, page visit, `sqlite3 -readonly` query or existing test that would
+  show it, and the persona or state it needs.
+
+A criterion that yields no observable (too vague, two readings, no actor, no failure case)
+is a gap row naming what is missing. A gap row is a coverage gap in this hunt, never a
+design finding: wording is the extended doc sync's. Group the rows by feature domain, the
+way Lane 2 is split.
 
 ## Definition of a design bug
 
@@ -50,6 +69,9 @@ A design bug exists when at least one is true:
     handoff, or a retained legacy service creates unclear auth, cookie, TLS, CSRF, mail or
     DNS behavior.
 16. The design does not say who decides an unresolved governance or operational policy.
+
+Items 1, 4 and 5 are found by the extended doc sync, which runs first, and are recorded
+here only where they leave a five-ranked surface unsafe.
 
 Existing rationale is not automatically correct: good rationale can hide edge-case bugs. Do
 not guess; carry uncertainty as `UNKNOWN`, `NOT SPECIFIED`, `CONTRADICTED` or `NEEDS HUMAN
@@ -81,29 +103,12 @@ in service JSDoc and the view-layer rule; data model areas; governance rules; de
 and runtime artifacts; adapter boundaries; retained legacy services; post-go-live data
 boundaries.
 
-## Traceability matrix and requirements-quality sweep
-
-Build a matrix across: story; success criteria; design decision; service owner; view
-contract; schema support; governance rule; operational consideration; migration
-consideration; status or open question. A missing, contradictory or too-vague cell is a
-bug. Cover every story in scope, undelivered ones under the undelivered-work gate (design
-quality only).
-
-For each story and decision test for: ambiguity; incompleteness; contradiction;
-unverifiability; a missing actor, precondition, postcondition, failure behavior,
-authorization rule, ownership rule, retention rule, audit rule, error handling, edge case
-or test oracle; a hidden dependency on legacy data, staging-only behavior or manual admin
-knowledge; a hidden policy, migration, timing or external-service assumption. "Admin can
-manage X" is insufficient unless the design says which role, what actions, what
-constraints, what audit event, what errors, what is visible and what can be undone.
-
-Write the expected outcome of each criterion from the story text before reading any code.
-
 ## Threat model: STRIDE per element, LINDDUN GO, misuse cases
 
 This is an architecture-and-requirements threat model on the design itself, before and
 independent of code: can this design produce a wrong or unsafe outcome however competently
-it is coded. Do not reach for file:line evidence here.
+it is coded. Do not reach for file:line evidence here. It covers the five-ranked surfaces
+and the stories behind them, never the whole design.
 
 **STRIDE per element** over a data-flow diagram reconstructed from the design docs for each
 major surface: external entities get Spoofing and Repudiation; flows and stores get
@@ -117,7 +122,7 @@ someone tell data about a person exists), Disclosure, Unawareness, Non-complianc
 proportionality, retention, consent). Cross-check every privacy finding against
 `docs/DATA_GOVERNANCE.md`.
 
-**Misuse cases** over every story, delivered or not: who could misuse it and how ("member
+**Misuse cases** over every story behind a five-ranked surface, delivered or not: who could misuse it and how ("member
 registers" becomes "attacker registers as another member's legacy identity"). Derive the
 security or privacy acceptance criterion each misuse case demands and check the story
 states it; a missing one is a design bug. This is how undeployed stories get security
@@ -181,16 +186,6 @@ differing across environments without rationale; rollback documented but not
 artifact-supported. Classify each hit: design bug; documentation discrepancy;
 implementation bug; accepted environment difference; test gap (hand-off); unknown.
 
-## Cross-document contradiction sweep
-
-Search for contradictions across stories, design decisions, data model, service JSDoc, the
-view-layer rule, the testing standards, DEVOPS_GUIDE.md (private GitHub repo) against
-Terraform, Docker and scripts, and open tracker claims against the canonical docs. Report a
-contradiction only when it affects implementation, testing, migration, privacy, security,
-operations or go-live. The conflict is the finding; never silently choose one side. Where
-the conflict is code against a document's wording, hand it to the discrepancy lane, which
-names the side that looks wrong.
-
 ## Missing-decision owner classification
 
 Classify every unresolved design issue into exactly one owner before asking: legacy-site
@@ -212,29 +207,12 @@ Before recording a design candidate, try to disprove it:
    described state no longer matches the repo is itself a finding.
 3. Check whether the story defers it, a decision excludes it, or a JSDoc says the area is
    intentionally partial.
-4. Check whether it is purely an implementation defect (reclassify) or a code-against-doc
-   discrepancy (hand to that lane).
+4. Check whether it is purely an implementation defect (reclassify), or drift between
+   documents, comments and code (a hand-off to the extended doc sync).
 5. Check whether it is legacy-pipeline behavior out of scope, or stops mattering after
    go-live.
 6. Check whether a deterministic gate already covers it.
 7. Check whether it reduces to "the feature is not built yet"; if so, discard it.
-
-## The four personas
-
-The second pass over the design findings and the five-ranked surfaces, each persona a
-separate read-only subagent given the findings so far, trying to find what the first pass
-missed. Record only evidence-backed findings.
-
-- **The hostile visitor**: no account. What can I read, enumerate, link, replay or cause to
-  be emailed; which story's criteria leave that open.
-- **The careless legitimate member**, including the legacy claimant: what breaks when I do
-  the ordinary thing twice, out of order, on the wrong record, or with a former surname and
-  three old emails.
-- **The pressed administrator or operator**: what does a hurried admin action or a script
-  run with the wrong flag destroy, and does the design say what stops it or undoes it.
-- **The privacy and security reviewer**: what crosses an audience boundary, who can tell a
-  record exists, what is kept longer than its purpose, which trust-boundary crossing has no
-  stated control.
 
 ## Scenario tabletop (optional)
 

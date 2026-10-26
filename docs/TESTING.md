@@ -748,7 +748,7 @@ There is no G20; the numbering skips it.
 
 The internal QC subsystem was operator tooling for reviewing imported net results, mounted only in dev and staging. It is gone: the `/internal` router and its mount, the controllers, services and views under `src/internal-qc/` and `src/views/internal-qc/`, the prepared-statement groups in `src/db/db.ts`, six schema tables, the pipeline scripts that filled and drained them, and their tests.
 
-**What the public site kept.** Two of the three data-quality badges on the net events page were derived only from the retired review queue and went with it: Multi-stage and {n} unlinked. The third, Discipline review, also had an independent source: `net_discipline_group.conflict_flag`, a canonical grouping annotation for an ambiguous match rather than QC review state. It survives on that source alone.
+**What the public site kept.** Two of the three data-quality badges on the net events page were derived only from the retired review queue and went with it: Multi-stage and {n} unlinked. The third, Grouping unconfirmed, also had an independent source: `net_discipline_group.conflict_flag`, a canonical grouping annotation for an ambiguous match rather than QC review state. It survives on that source alone.
 
 **Where the loader findings go.** The net team builder still runs its seven checks, including a priority-one identity conflict that exists in no other output. They are written to `legacy_data/out/net_team_qc_issues.jsonl`, beside the QC artifacts the canonicalization stage already writes there. Every field is derived from the data rather than the run, so a rerun over unchanged data reproduces the file byte for byte and a diff means the data moved.
 

@@ -158,7 +158,7 @@ export const consecutivesService = {
         competitions: {
           heading: 'Competitions',
           paragraphs: [
-            'At tournaments, consecutives is contested in several disciplines, including 5-Minute Timed Consecutive, Doubles Distance One-Pass, and Singles and Doubles Consecutive Kicks.',
+            'At tournaments, consecutives is contested in several competition categories, including 5-Minute Timed Consecutive, Doubles Distance One-Pass, and Singles and Doubles Consecutive Kicks.',
           ],
         },
         worldRecordsIntro: 'Open-ended record attempts can run for many hours, so they are kept as world records rather than contested at tournaments.',

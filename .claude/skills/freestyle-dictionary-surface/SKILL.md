@@ -17,14 +17,14 @@ Before any template or CSS edit, read `.claude/rules/view-layer.md` and follow t
 
 Invoke this skill when work touches:
 
-- Public-facing surfaces of the freestyle dictionary (`/freestyle/tricks`, `/freestyle/tricks/:slug`, `/freestyle/families/:slug`, `/freestyle/modifier/:slug`)
+- Public-facing surfaces of the freestyle dictionary (`/freestyle/tricks`, `/freestyle/tricks/:slug`, `/freestyle/tricks/:add`, `/freestyle/families` and `/freestyle/families/:slug`, `/freestyle/sets` and `/freestyle/sets/:slug`, `/freestyle/modifier/:slug`)
 - Trick-detail page rendering, including aliases, decomposition, related tricks, records, media
 - Family-page rendering: collective structure, ladder views, family-level media aggregation
 - Per-section disclosure controls (collapsible regions)
 - Alias rendering decisions across any user-facing surface
 - Pedagogical authoring (family intros, trick descriptions)
 - Media tier ordering on dictionary surfaces
-- Cross-cutting browse views (by ADD, by family, by set, by modifier)
+- Cross-cutting browse views (by ADD, by family, by set, by modifier); grouping, ordering and the row contract belong to `add-browse-view`
 
 If the work is purely ontology / data-layer (canonical naming decisions, alias additions, modifier table edits, dictionary CSV changes), this skill is **adjacent** but not authoritative: fall through to `footbag-freestyle-dictionary` and the doctrine of record in `freestyle/doctrine/`.
 

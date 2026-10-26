@@ -262,7 +262,6 @@ describe('the Go To tier', () => {
   it('reaches the admin surfaces that were linked from nowhere', async () => {
     const text = await getDashboard();
     for (const href of [
-      '/admin/clubs/leadership',
       '/admin/freestyle/records',
       '/admin/freestyle/consecutive-records',
       '/admin/freestyle/sources',

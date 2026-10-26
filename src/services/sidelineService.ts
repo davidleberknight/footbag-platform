@@ -7,7 +7,7 @@
  *
  * Rendering contract:
  *   - getSidelinePage() returns PageViewModel<SidelineContent>.
- *   - Static hero with the hacky sack mascot, an explainer whose last paragraph links the X Square
+ *   - Static hero with the hacky sack mascot, an explainer whose last paragraph links the X-Square
  *     games (also played as open play), then circle kicking with its cartoon icon, demo .webm clip
  *     and a "More info" link to the footbags section of the equipment page.
  *   - Explainer paragraphs are prose segments; a segment carrying `href` renders as an internal
@@ -57,7 +57,7 @@ export const sidelineService = {
             [{ text: 'Sideline is open play, the casual and social side of the sport. Anyone can turn up and join in: there is nothing to register for and no bracket. It is easy to learn, and it is how most players first picked up a footbag.' }],
             [
               { text: 'Sideline also includes the ' },
-              { text: 'X Square games', href: '/x-square' },
+              { text: 'X-Square games', href: '/x-square' },
               { text: '.' },
             ],
           ],

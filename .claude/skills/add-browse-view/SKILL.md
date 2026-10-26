@@ -10,9 +10,10 @@ description: Add or change a dictionary browse view (any `?view=` surface) on th
 Use this skill (not general editing) when a task does any of the following:
 
 - Adds a new browse view at `/freestyle/tricks?view={new}`
-- Renames a view (an unknown `?view=` value falls through to ADD, so an inbound link to the old name needs an explicit redirect)
+- Renames a view (an unknown `?view=` value falls through to ADD, so an inbound link to the old name needs an explicit redirect; the precedent is `freestyleService.tricksIndexRedirectTarget`)
 - Adds a new grouping wrapper that consumes existing `DictionaryTrickCard[]` data
 - Changes within-group ordering rules for any browse view
+- Touches the ADD view's per-tier URL (`/freestyle/tricks/:add`, `tricksByAdd`) or its `?sort=` mode, which render the same ADD branch
 
 Do **not** use this skill to:
 - Modify the `<dictionary-trick-row>` partial itself. That changes every browse view at once, so it is a row-contract change: route through `extend-service-contract` + `add-public-page`
@@ -106,10 +107,10 @@ The branch owns grouping, headings and prose; the row owns everything inside a r
 <section class="content-section trick-{view}-group" id="{{anchorId}}">
   <div class="section-heading">
     <h2><a href="{{{href}}}">{{label}}</a></h2>
-    <span class="section-count">{{cards.length}}</span>
+    <span class="section-count">{{countLabel}}</span>
   </div>
-  {{#if bodyDefinition}}
-  <p class="section-intro">{{bodyDefinition}}</p>
+  {{#if intro}}
+  <p class="section-intro">{{intro}}</p>
   {{/if}}
   <ul class="dict-trick-row-stack" role="list">
     {{#each cards}}

@@ -5,7 +5,7 @@
  * filter, out-of-range pages clamp to the last page, empty results are a
  * controlled state, and no page ever renders more than the page size.
  *
- * Fifty-five teams are seeded into one discipline (open_doubles) so the page
+ * Fifty-five teams are seeded into one division (open_doubles) so the page
  * boundary (50) is crossed for both the unfiltered and the filtered views.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -85,7 +85,7 @@ describe('GET /net/teams — filtered pagination', () => {
     expect(res.text).toContain('Page 1 of 2');
   });
 
-  it('retains the discipline filter across page navigation', async () => {
+  it('retains the division filter across page navigation', async () => {
     const res = await request(await createApp()).get('/net/teams?discipline=open_doubles');
     // Handlebars escapes = to &#x3D; and & to &amp; in the rendered href.
     expect(res.text).toContain('/net/teams?discipline&#x3D;open_doubles&amp;page&#x3D;2');

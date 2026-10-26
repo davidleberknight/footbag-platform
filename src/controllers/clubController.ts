@@ -183,6 +183,9 @@ export const clubController = {
             existingClubName: result.existingClubName,
           });
           return;
+        case 'exact_candidate_exists':
+          renderForm(422, `A club named "${result.existingClubName}" already exists in that country.`);
+          return;
         case 'near_matches_found':
           renderForm(422, 'A similarly named club may already exist in that country. Review the matches below; if your club is distinct, confirm and submit again.', undefined, {
             nearMatches: result.nearMatches,

@@ -16,6 +16,7 @@ import request from '../fixtures/supertestWithOrigin';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import {
   insertMember, insertClub, insertClubLeader, insertTag, completeOnboarding, createTestSessionJwt,
+  insertMediaItem, insertMemberGallery, insertGalleryCriterionTag,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3440');
@@ -524,7 +525,6 @@ describe('the hashtag is the club address, so moving it is its own act', () => {
     const tagStamp = () => conn.prepare(
       'SELECT t.updated_by, t.version FROM clubs c JOIN tags t ON t.id = c.hashtag_tag_id WHERE c.id = ?',
     ).get(CLUB_ID) as { updated_by: string; version: number };
-    const stampBefore = tagStamp();
     const res = await request(createApp())
       .post(`/admin/clubs/${CLUB_ID}/hashtag/confirm`)
       .set('Cookie', adminCookie())
@@ -533,11 +533,9 @@ describe('the hashtag is the club address, so moving it is its own act', () => {
 
     expect(res.status).toBe(303);
     expect(clubTag()).toBe('#club_auckland_footbag');
-    // The renamed tag row names the administrator who moved it; without the
-    // stamp it keeps naming whoever last changed something else about it.
+    // The club's new tag row names the administrator who moved it.
     const stampAfter = tagStamp();
     expect(stampAfter.updated_by).toBe(ADMIN_ID);
-    expect(stampAfter.version).toBe(stampBefore.version + 1);
 
     const audit = auditRows('club.hashtag_corrected');
     expect(audit).toHaveLength(1);
@@ -558,6 +556,84 @@ describe('the hashtag is the club address, so moving it is its own act', () => {
     const aboutTheHashtag = noticesTo(LEADER_ID).filter((n) => n.body_text.includes('hashtag'));
     expect(aboutTheHashtag).toHaveLength(1);
     expect(aboutTheHashtag[0]!.body_text).toContain(reason);
+  });
+});
+
+describe('a moved hashtag stays reserved, and what carried it follows the club', () => {
+  const MOVER_ID = 'club-test-ac-mover';
+  const LONG_ID = 'club-test-ac-long';
+  // The media factory attaches a tag by this id, so the club's own tag uses it.
+  const OLD_TAG_ID = 'tag-_club_ac_mover';
+
+  function moveTo(clubId: string, slug: string) {
+    return request(createApp())
+      .post(`/admin/clubs/${clubId}/hashtag/confirm`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ hashtag_slug: slug, reason: 'Correcting the club address.' });
+  }
+
+  beforeAll(() => {
+    insertClub(conn, {
+      id: MOVER_ID,
+      hashtag_tag_id: insertTag(conn, {
+        id: OLD_TAG_ID, tag_normalized: '#club_ac_mover', tag_display: '#club_ac_mover', standard_type: 'club',
+      }),
+      name: 'Mover Footbag',
+      city: 'Hamilton',
+      country: 'New Zealand',
+    });
+    insertClub(conn, {
+      id: LONG_ID,
+      hashtag_tag_id: insertTag(conn, {
+        tag_normalized: '#club_ac_long', tag_display: '#club_ac_long', standard_type: 'club',
+      }),
+      name: 'Long Address Footbag',
+      city: 'Napier',
+      country: 'New Zealand',
+    });
+  });
+
+  // Defect caught: a moved hashtag is freed for reuse, so a later club takes
+  // the old address and inherits whatever still points at it; or the media and
+  // galleries that carried it are stranded on a tag no club holds.
+  it('carries media and gallery criteria to the new hashtag and keeps the old one from any other club', async () => {
+    const mediaId = insertMediaItem(conn, { uploader_member_id: ADMIN_ID, tags: ['#club_ac_mover'] });
+    const galleryId = insertMemberGallery(conn, { owner_member_id: ADMIN_ID, created_by: ADMIN_ID });
+    insertGalleryCriterionTag(conn, galleryId, OLD_TAG_ID);
+
+    const res = await moveTo(MOVER_ID, 'ac_mover_hamilton');
+    expect(res.status).toBe(303);
+    expect(clubTag(MOVER_ID)).toBe('#club_ac_mover_hamilton');
+
+    const newTagId = (conn.prepare('SELECT hashtag_tag_id AS id FROM clubs WHERE id = ?').get(MOVER_ID) as { id: string }).id;
+    expect(newTagId).not.toBe(OLD_TAG_ID);
+    expect(conn.prepare('SELECT tag_id, tag_display FROM media_tags WHERE media_id = ?').all(mediaId))
+      .toEqual([{ tag_id: newTagId, tag_display: '#club_ac_mover_hamilton' }]);
+    expect(conn.prepare('SELECT tag_id FROM member_gallery_tags WHERE gallery_id = ?').all(galleryId))
+      .toEqual([{ tag_id: newTagId }]);
+    // The old row survives with its old value, which is what reserves it.
+    expect(conn.prepare('SELECT tag_normalized FROM tags WHERE id = ?').get(OLD_TAG_ID))
+      .toEqual({ tag_normalized: '#club_ac_mover' });
+
+    const taken = await moveTo(RIVAL_ID, 'ac_mover');
+    expect(taken.status).toBe(422);
+    expect(taken.text).toContain('already holds that hashtag');
+    expect(clubTag(RIVAL_ID)).toBe('#club_ac_rival');
+  });
+
+  // Defect caught: an admin moves a club to a hashtag longer than club
+  // creation allows. The limit is 100 characters including the prefix, so a
+  // 94-character slug is the longest that lands and 95 is refused.
+  it('holds the new hashtag to the 100-character limit creation holds it to', async () => {
+    const tooLong = await moveTo(LONG_ID, 'a'.repeat(95));
+    expect(tooLong.status).toBe(422);
+    expect(tooLong.text).toContain('it must be 100 characters or fewer');
+    expect(clubTag(LONG_ID)).toBe('#club_ac_long');
+
+    const longest = await moveTo(LONG_ID, 'b'.repeat(94));
+    expect(longest.status).toBe(303);
+    expect(clubTag(LONG_ID)).toBe(`#club_${'b'.repeat(94)}`);
   });
 });
 

@@ -1970,7 +1970,7 @@ export const memberService = {
     // The wizard is the primary collection point for gender, so a blank
     // submission stores 'undisclosed' rather than leaving the value untouched:
     // the member who skips the choice is treated as not declaring, which keeps
-    // them eligible only for Open event categories.
+    // them eligible only for Open divisions.
     const postedGender = normalizeText(input.gender).toLowerCase();
     const genderValue = postedGender === 'male' || postedGender === 'female' ? postedGender : 'undisclosed';
 

@@ -295,7 +295,7 @@ describe('the cleanup rules demote the clubs they settle', () => {
     const flash = (res.get('Set-Cookie') ?? []).find((c) => c.startsWith('footbag_flash='));
     const page = await request(app).get('/admin/club-cleanup')
       .set('Cookie', [adminCookie(), flash!.split(';')[0]].join('; '));
-    expect(page.text).toMatch(/The rules demoted \d+ clubs? to inactive\./);
+    expect(page.text).toMatch(/The rules made \d+ clubs? inactive\./);
 
     expect(statusOf(CLUB_DEAD)).toBe('inactive');
     expect(autoDemoteAuditCount(CLUB_DEAD)).toBe(1);
@@ -509,7 +509,7 @@ describe('the cleanup rules demote the clubs they settle', () => {
     const flash = (res.get('Set-Cookie') ?? []).find((c) => c.startsWith('footbag_flash='));
     const page = await request(app).get('/admin/club-cleanup')
       .set('Cookie', [adminCookie(), flash!.split(';')[0]].join('; '));
-    expect(page.text).toContain('Nothing changed: no club still meets the rules for demotion.');
+    expect(page.text).toContain('Nothing changed: no club still meets the rules for being made inactive.');
     expect(page.text).not.toContain('Apply the Rules');
 
     expect(autoDemoteAuditCount(CLUB_DEAD)).toBe(1);

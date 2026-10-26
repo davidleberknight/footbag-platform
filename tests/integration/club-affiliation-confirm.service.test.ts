@@ -146,7 +146,7 @@ beforeAll(async () => {
   // Pre-existing is_current=1 primary affiliation at club A.
   insertMemberClubAffiliation(db, MEMBER_CROSS_CLUB, crossClubA, {
     id: 'mca-pre-cross-confirm',
-    is_current: 1, is_primary: 1, is_contact: 0, source: 'admin',
+    is_current: 1, is_primary: 1, source: 'admin',
   });
   const candCrossB = insertLegacyClubCandidate(db, {
     classification: 'pre_populate',

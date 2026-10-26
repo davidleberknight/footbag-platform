@@ -133,7 +133,7 @@ const TOOL_GROUPS: DashboardLinkGroup[] = [
       { label: 'Historical Records', href: '/admin/historical-records' },
       { label: 'Legacy Accounts', href: '/admin/legacy-accounts' },
       { label: 'Clubs', href: '/admin/clubs' },
-      { label: 'Club Leadership', href: '/admin/clubs/leadership' },
+      { label: 'Club Cleanup', href: '/admin/club-cleanup' },
     ],
   },
   {

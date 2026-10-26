@@ -9,6 +9,7 @@ import {
   insertClub,
   insertClubBootstrapLeader,
   insertLegacyClubCandidate,
+  insertMemberClubAffiliation,
   completeOnboarding,
 } from '../fixtures/factories';
 
@@ -69,34 +70,43 @@ function primaryCount(memberId: string): number {
   return affiliations(memberId).filter((a) => a.is_current === 1 && a.is_primary === 1).length;
 }
 
-describe('a member holding current clubs always holds exactly one primary', () => {
-  it('leaving a club repairs the flag even when more than one affiliation survives', () => {
+describe('a main club is chosen automatically only for a lone remaining club', () => {
+  // Defect caught: leaving the main club leaves the member's only remaining
+  // club designated secondary, with no main club at all.
+  it('leaving the main club makes a lone remaining club main', () => {
+    const memberId = seedMember();
+    const clubX = seedClub('Repair X');
+    const clubY = seedClub('Repair Y');
+    clubSvc.joinClub(memberId, clubX);
+    clubSvc.joinClub(memberId, clubY);
+
+    clubSvc.leaveClub(memberId, clubX, { confirmed: true });
+
+    const current = affiliations(memberId).filter((a) => a.is_current === 1);
+    expect(current).toEqual([{ club_id: clubY, is_current: 1, is_primary: 1 }]);
+  });
+
+  // Defect caught: the leave picks one of two remaining clubs as main itself,
+  // a choice that belongs to the member.
+  it('leaving the main club with two remaining makes neither main', () => {
     const memberId = seedMember();
     const clubX = seedClub('Repair X');
     const clubY = seedClub('Repair Y');
     const clubZ = seedClub('Repair Z');
+    // Seeded past the two-club limit, which no member or admin path reaches,
+    // because that is the only way two clubs survive a leave.
+    insertMemberClubAffiliation(db, memberId, clubX, { is_primary: 1 });
+    insertMemberClubAffiliation(db, memberId, clubY, { is_primary: 0 });
+    insertMemberClubAffiliation(db, memberId, clubZ, { is_primary: 0 });
 
-    clubSvc.joinClub(memberId, clubX);
-    clubSvc.joinClub(memberId, clubY);
-    // A third current affiliation, which only the admin path can produce.
-    leadershipSvc.assignLeader(ADMIN_ID, clubZ, memberId, 'Seeding a third current club');
-    expect(affiliations(memberId).filter((a) => a.is_current === 1)).toHaveLength(3);
-    expect(primaryCount(memberId)).toBe(1);
-
-    // Leaving the primary leaves two survivors, not one. Repairing only the
-    // lone-survivor case left the member holding clubs and no primary at all.
     clubSvc.leaveClub(memberId, clubX, { confirmed: true });
 
     const current = affiliations(memberId).filter((a) => a.is_current === 1);
     expect(current).toHaveLength(2);
-    expect(primaryCount(memberId)).toBe(1);
+    expect(primaryCount(memberId)).toBe(0);
   });
 
-  it('an admin demote that removes the affiliation leaves exactly one primary', () => {
-    // The admin path can only end an affiliation for a club the member leads,
-    // and a member leads at most one club, so this path reaches the repair with
-    // a single survivor rather than several. The repair is written on the
-    // invariant anyway, so it holds either way.
+  it('an admin demote that removes the affiliation makes the lone remaining club main', () => {
     const memberId = seedMember();
     const clubLed = seedClub('Demote Led');
     const clubOther = seedClub('Demote Other');

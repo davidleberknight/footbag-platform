@@ -222,7 +222,7 @@ export const siteMetaService = {
       `- [Freestyle](${b}/freestyle): the freestyle trick dictionary, families, and notation.`,
       `- [Freestyle records](${b}/freestyle/records): documented consecutive-completion trick records.`,
       `- [Net](${b}/net): footbag net competition, teams, and events.`,
-      `- [Rules](${b}/rules): official IFPA rules for each footbag sport.`,
+      `- [Rules](${b}/rules): official IFPA rules for each discipline.`,
       `- [Equipment](${b}/equipment): footbags, shoes, and how to set up each game's court or targets.`,
       `- [Hall of Fame](${b}/hof): inducted members of the footbag Hall of Fame.`,
       `- [Big Add Posse](${b}/bap): the Big Add Posse freestyle honor roll.`,

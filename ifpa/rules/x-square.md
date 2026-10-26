@@ -1,10 +1,10 @@
 ---
 category: x-square
-categoryLabel: X Square
+categoryLabel: X-Square
 authority: IFPA
 effective: 2020
 parentHref: /x-square
-parentLabel: X Square
+parentLabel: X-Square
 ---
 
 # 2-Square

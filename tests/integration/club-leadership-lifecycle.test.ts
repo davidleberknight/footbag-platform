@@ -1,16 +1,15 @@
 /**
  * Club leadership lifecycle contract: a willing leader makes it a live club.
  *
- *   - A successful leadership claim returns a club of any status (inactive
- *     or archived) to 'active', audit-logged as a revival; claiming an
- *     already-active club writes no revival audit.
+ *   - A successful leadership claim returns an inactive club to 'active',
+ *     audit-logged as a revival; claiming an already-active club writes no
+ *     revival audit. Archiving is final: an archived club is never offered as
+ *     a claim and never revives.
  *   - A new current affiliation (self-service join) revives an inactive
- *     club; archived clubs are not joinable and revive only via a claim.
+ *     club; archived clubs are not joinable.
  *   - Co-leader contact is member-visible by role: the club page shows
  *     current co-leaders' emails to authenticated viewers only; provisional
  *     (unclaimed) entries never expose contact to anyone.
- *   - The admin could-use-a-co-leader queue lists only leaderless active
- *     clubs: a club is reachable through its co-leaders.
  *   - The wizard's step-up offer routes through the shared volunteer write,
  *     which stamps the club_service provenance and revives the club.
  */
@@ -113,19 +112,31 @@ describe('revival on leadership claim', () => {
     expect(JSON.parse(audits[0].metadata_json).prior_status).toBe('inactive');
   });
 
-  it('claiming an archived club returns it to active', () => {
+  // Defect caught: an archived club, which is final, is offered to a member as
+  // a leadership claim, or a claim submitted from a stale page brings it back.
+  it('an archived club is never offered as a claim, and a stale claim is refused, leaving it archived', () => {
     const memberId = seedMember();
-    const clubId = seedClub('archived');
-    const candidateId = insertClubBootstrapLeader(db, {
-      club_id: clubId, legacy_member_id: anchorFor(memberId), role: 'leader', status: 'provisional',
+    const archivedId = seedClub('archived');
+    const archivedCandidate = insertClubBootstrapLeader(db, {
+      club_id: archivedId, legacy_member_id: anchorFor(memberId), role: 'leader', status: 'provisional',
+    });
+    const inactiveId = seedClub('inactive');
+    const inactiveCandidate = insertClubBootstrapLeader(db, {
+      club_id: inactiveId, legacy_member_id: anchorFor(memberId), role: 'leader', status: 'provisional',
     });
 
-    const result = onboardingSvc.submitClubAffiliationsResponse(memberId, {
-      candidateId, userDecision: 'confirm', activitySignal: 'active',
-    });
-    expect(result.branch).toBe('promoted_co_leader');
-    expect(clubStatus(clubId)).toBe('active');
-    expect(JSON.parse(revivalAudits(clubId)[0].metadata_json).prior_status).toBe('archived');
+    const offered = onboardingSvc.listWizardCardsForMember(memberId)
+      .filter((c) => c.kind === 'leadership')
+      .map((c) => (c as { candidateId: string }).candidateId);
+    expect(offered).toContain(inactiveCandidate);
+    expect(offered).not.toContain(archivedCandidate);
+
+    expect(() => onboardingSvc.submitClubAffiliationsResponse(memberId, {
+      candidateId: archivedCandidate, userDecision: 'confirm', activitySignal: 'active',
+    })).toThrow(/archived/);
+    expect(clubStatus(archivedId)).toBe('archived');
+    expect(revivalAudits(archivedId)).toHaveLength(0);
+    expect(db.prepare('SELECT COUNT(*) AS c FROM club_leaders WHERE club_id = ?').get(archivedId)).toEqual({ c: 0 });
   });
 
   it('claiming an active club writes no revival audit', () => {
@@ -444,19 +455,6 @@ describe('leader contact is member-visible by role', () => {
     // a provisional entry.
     const mailtos = res.text.match(/mailto:[^"]+/g) ?? [];
     expect(mailtos.every((m) => m.includes(leaderEmail))).toBe(true);
-  });
-});
-
-describe('the could-use-a-co-leader queue lists only leaderless active clubs', () => {
-  it('a club with a co-leader is reachable and absent; a leaderless one is listed', () => {
-    const ledClubId = seedClub('active');
-    const leaderId = seedMember();
-    insertClubLeader(db, { id: `cll-nc-${_n}`, club_id: ledClubId, member_id: leaderId });
-    const leaderlessClubId = seedClub('active');
-
-    const queue = leadershipSvc.getLeadershipQueuePage().content.needsLeader.map((c) => c.clubId);
-    expect(queue).not.toContain(ledClubId);
-    expect(queue).toContain(leaderlessClubId);
   });
 });
 

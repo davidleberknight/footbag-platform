@@ -535,16 +535,62 @@ describe('POST /clubs/create — near-match duplicate warning', () => {
     return id;
   }
 
-  function seedCandidate(displayName: string, classification: 'onboarding_visible' | 'dormant' | 'junk', country: string): void {
+  function seedCandidate(
+    displayName: string,
+    classification: 'onboarding_visible' | 'dormant' | 'junk',
+    country: string,
+    lifecycleState: 'archived' | null = null,
+  ): void {
     const db = new BetterSqlite3(dbPath);
     db.pragma('foreign_keys = ON');
     const id = insertLegacyClubCandidate(db, { display_name: displayName, classification });
-    // The shared factory does not set location columns; the duplicate check
-    // filters on country, so stamp it directly.
-    db.prepare('UPDATE legacy_club_candidates SET country = ?, city = ? WHERE id = ?')
-      .run(country, 'Tampere', id);
+    // The shared factory does not set location or lifecycle columns; the
+    // duplicate check filters on both, so stamp them directly.
+    db.prepare('UPDATE legacy_club_candidates SET country = ?, city = ?, lifecycle_state = ? WHERE id = ?')
+      .run(country, 'Tampere', lifecycleState, id);
     db.close();
   }
+
+  function clubsNamed(name: string): number {
+    const db = new BetterSqlite3(dbPath, { readonly: true });
+    try {
+      return (db.prepare('SELECT COUNT(*) AS n FROM clubs WHERE name = ?').get(name) as { n: number }).n;
+    } finally {
+      db.close();
+    }
+  }
+
+  // Defect caught: an exact name a member could still confirm as a legacy
+  // club reaches only the warning the creator can click past, so two clubs end
+  // up sharing an exact name in one country.
+  it('an exact name held by an onboarding-visible or dormant candidate in the same country blocks creation', async () => {
+    seedCandidate('Turku Kickers', 'onboarding_visible', 'Finland');
+    seedCandidate('Espoo Kickers', 'dormant', 'Finland');
+    for (const [name, slug] of [['Turku Kickers', 'turku_k'], ['espoo kickers', 'espoo_k']]) {
+      const res = await request(createApp())
+        .post('/clubs/create')
+        .set('Cookie', authCookie(seedCreator()))
+        .type('form')
+        .send(formData({ name, country: 'Finland', city: 'Turku', slug, confirm_near_matches: '1' }));
+      expect(res.status, name).toBe(422);
+      expect(res.text, name).toContain('already exists in that country');
+      expect(res.text, name).toContain('form-error-banner');
+      expect(clubsNamed(name), name).toBe(0);
+    }
+  });
+
+  // Defect caught: an archived candidate still holds its name, although
+  // archiving a junk record is how the name is freed for a real club.
+  it('an exact name held only by an archived candidate does not block creation', async () => {
+    seedCandidate('Vaasa Kickers', 'dormant', 'Finland', 'archived');
+    const res = await request(createApp())
+      .post('/clubs/create')
+      .set('Cookie', authCookie(seedCreator()))
+      .type('form')
+      .send(formData({ name: 'Vaasa Kickers', country: 'Finland', city: 'Vaasa', slug: 'vaasa_k', confirm_near_matches: '1' }));
+    expect(res.status).toBe(303);
+    expect(clubsNamed('Vaasa Kickers')).toBe(1);
+  });
 
   it('a legacy candidate with the same normalized name in the same country triggers the warning; confirming proceeds and is audit-flagged', async () => {
     seedCandidate('Tampere Kickers', 'onboarding_visible', 'Finland');
@@ -555,7 +601,7 @@ describe('POST /clubs/create — near-match duplicate warning', () => {
       .post('/clubs/create')
       .set('Cookie', authCookie(creator))
       .type('form')
-      .send(formData({ name: 'Tampere  Kickers', country: 'Finland', city: 'Tampere', slug: 'tampere' }));
+      .send(formData({ name: 'Tampere-Kickers', country: 'Finland', city: 'Tampere', slug: 'tampere' }));
     expect(warned.status).toBe(422);
     expect(warned.text).toContain('similarly named club');
     expect(warned.text).toContain('Tampere Kickers');
@@ -570,7 +616,7 @@ describe('POST /clubs/create — near-match duplicate warning', () => {
       .post('/clubs/create')
       .set('Cookie', authCookie(creator))
       .type('form')
-      .send(formData({ name: 'Tampere  Kickers', country: 'Finland', city: 'Tampere', slug: 'tampere', confirm_near_matches: '1' }));
+      .send(formData({ name: 'Tampere-Kickers', country: 'Finland', city: 'Tampere', slug: 'tampere', confirm_near_matches: '1' }));
     expect(confirmed.status).toBe(303);
 
     const db = new BetterSqlite3(dbPath, { readonly: true });
@@ -582,6 +628,23 @@ describe('POST /clubs/create — near-match duplicate warning', () => {
     db.close();
     const meta = JSON.parse(audit.metadata_json) as Record<string, unknown>;
     expect(meta.near_matches_acknowledged).toEqual(['Tampere Kickers']);
+  });
+
+  // Defect caught: a candidate an admin archived keeps appearing as a near
+  // match, though archiving it is what frees the name; the live candidate
+  // beside it proves the warning still fires for one that holds it.
+  it('an archived candidate is not surfaced as a near match, while a live one still is', async () => {
+    seedCandidate('Lahti Kickers', 'dormant', 'Finland', 'archived');
+    seedCandidate('Lahti, Kickers', 'dormant', 'Finland');
+    const res = await request(createApp())
+      .post('/clubs/create')
+      .set('Cookie', authCookie(seedCreator()))
+      .type('form')
+      .send(formData({ name: 'Lahti-Kickers', country: 'Finland', city: 'Lahti', slug: 'lahti_k' }));
+    expect(res.status).toBe(422);
+    expect(res.text).toContain('similarly named club');
+    expect(res.text).toContain('Lahti, Kickers');
+    expect(res.text).not.toContain('Lahti Kickers');
   });
 
   it('junk-classified candidates are never surfaced as potential duplicates', async () => {

@@ -4,8 +4,6 @@
  * Every browse view renders the one shared two-line row: the name links to the
  * trick's page, a separate Detail control agrees with it, the hashtag signals
  * media, and the difficulty value and movement notation ride the second column.
- * By modifier keeps its own compact-list density for the group index above its
- * rows and is outside the uniformity assertions here.
  *
  * Sample tricks:
  *   - toe stall   — sparse base trick, low ADD

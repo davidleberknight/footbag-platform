@@ -46,6 +46,24 @@ describe('static asset caching + fingerprinting', () => {
     expect(res.text).toMatch(/url\("\/fonts\/Inter-Regular\.woff2\?v=[0-9a-f]{10}"\)/);
   });
 
+  it('preloads fonts at exactly the URLs the served stylesheet asks for', async () => {
+    // A preload whose URL differs from the stylesheet's, even by its version
+    // token, is a second download the stylesheet never uses: the page still
+    // waits for its own copy and the text reflows when it lands.
+    const page = await request(createApp()).get('/login');
+    expect(page.status).toBe(200);
+    const preloads = [...page.text.matchAll(/<link rel="preload" href="([^"]+)" as="font"/g)].map((m) => m[1]);
+    expect(preloads.length, 'the layout preloads at least one font').toBeGreaterThan(0);
+
+    const sheetHref = page.text.match(/href="(\/css\/style\.css\?v=[0-9a-f]{10})"/)?.[1];
+    expect(sheetHref, 'the layout links the versioned stylesheet').toBeDefined();
+    const sheet = await request(createApp()).get(sheetHref!);
+    const fontUrls = new Set([...sheet.text.matchAll(/url\("(\/fonts\/[^"]+)"\)/g)].map((m) => m[1]));
+    for (const href of preloads) {
+      expect(fontUrls.has(href), `${href} is a font URL the stylesheet uses`).toBe(true);
+    }
+  });
+
   it('serves a versioned font request as immutable with a one-year max-age', async () => {
     const res = await request(createApp()).get('/fonts/Inter-Regular.woff2?v=abc1234567');
     expect(res.status).toBe(200);

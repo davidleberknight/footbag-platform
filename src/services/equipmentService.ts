@@ -8,7 +8,7 @@
  * Rendering contract:
  *   - getEquipmentPage() returns PageViewModel<EquipmentContent>.
  *   - Opening paragraphs, then one section per topic with a stable anchor id (`footbags`, `shoes`,
- *     `net`, `foot-c`, `freestyle`, `golf`, `square-games`). The net, freestyle, X Square, golf and
+ *     `net`, `foot-c`, `freestyle`, `golf`, `square-games`). The net, freestyle, X-Square, golf and
  *     sideline pages deep-link to these anchors, so the ids are a stable contract.
  *   - An item stating an official figure carries `officialRule`, a link to the exact rule section
  *     that governs it; items without one are practical guidance.
@@ -178,7 +178,7 @@ const SECTIONS: EquipmentSectionViewModel[] = [
     items: [
       {
         lead: 'Playing area',
-        text: 'a circle 20 feet (6 meters) across for most events, and about 40 feet (12 meters) across for choreographed routines.',
+        text: 'a circle 20 feet (6 meters) across for most competition categories, and about 40 feet (12 meters) across for choreographed routines.',
         officialRule: rule(FREESTYLE_RULES, '502.01 Playing Area', '502-01-playing-area'),
       },
     ],

@@ -2,10 +2,11 @@
  * ClubCleanupService -- club viability evaluation and admin cleanup queue.
  *
  * Owns:
- *   - `crowdsource_club_viability` predicate (G1-G4 gates per US 7.2);
- *     gates weigh onboarding-wizard signals, one vote per member (latest
- *     signal per member wins); queue items name the members whose latest
- *     answer was negative (admin-only authorship exposure)
+ *   - `crowdsource_club_viability` predicate: a first-match verdict ladder
+ *     over the club's evidence (current people, onboarding-wizard signals,
+ *     establishment, hosted events, member notes), counting one signal per
+ *     member (latest signal per member wins); queue items name the members
+ *     whose latest signal was negative (admin-only authorship exposure)
  *   - `leaderless_active_club` predicate
  *   - `stale_provisional_leader` predicate
  *   - Admin club cleanup queue page shaping (with category/region filter
@@ -29,18 +30,19 @@
  *     members the volunteer-to-co-lead invitation (audit-logged, no link).
  *     This sends only; it does not resolve the item, so the leaderless
  *     opportunity resurfaces until a member volunteers
- *   - Candidate-flag queue group: wizard activity answers about unpromoted
+ *   - Candidate-flag queue group: wizard activity signals about unpromoted
  *     candidates (candidate-keyed signal rows, club_id NULL), grouped per
- *     candidate with one vote per member and admin-only negative-reporter
+ *     candidate with one signal per member and admin-only negative-reporter
  *     names; resolved by terminal dismiss or by parking. Club-keyed signals stay
- *     the exclusive territory of the viability gates, so a vote never
+ *     the exclusive territory of the viability gates, so a signal never
  *     surfaces on both
  *   - Admin override entry point for candidate promotion (the queue lists
  *     unpromoted non-junk candidates with a promote action)
  *   - Candidate cleanup actions: demote (onboarding-visible to dormant),
  *     archive, junk handling (confirm junk as terminal, or return a junk
  *     candidate to dormant for further evaluation); guarded writes turn a
- *     concurrent admin's repeat action into an audited no-op
+ *     concurrent admin's repeat action into a no-op that is reported but not
+ *     audited
  *   - Candidate park: an unpromoted candidate leaves the working queue with no
  *     deadline and stays listed as parked with who parked it and why. The
  *     promotable item and the candidate-flag item carry separate resolutions,
@@ -52,10 +54,10 @@
  *     never on the evidence comparison alone, so a candidate promoted or
  *     retired since the park still shows somewhere
  *   - Admin de-list of unconfirmed legacy residue (pending -> former_only),
- *     also cascaded when a club is demoted or archived
+ *     also cascaded when a club is demoted or archived; a de-list that finds
+ *     nothing pending writes no audit row
  *   - Archiving is refused while a club still has a current member or
- *     co-leader, because no admin can end an affiliation and an archived club
- *     can be neither reached nor left; demotion is the action for those
+ *     co-leader, because an archived club can be neither reached nor left; demotion is the action for those
  *   - Group-level bulk actions: bulk park across a predicate group or the
  *     candidate-flag group (one shared reason, one audit row per item). Bulk
  *     covers the items currently in the group; promotable and junk candidates
@@ -85,6 +87,7 @@
  *   club_leaders (read),
  *   member_club_affiliations (read),
  *   club_bootstrap_leaders (read),
+ *   club_insight_notes (read),
  *   legacy_club_candidates (read + classification/lifecycle cleanup writes),
  *   audit_entries (append).
  *
@@ -125,7 +128,7 @@ import { canonicalCountryName, subdivisionsForCountry } from './countryUtils';
 
 // One club's full evidence row. The operational columns are what let a verdict
 // be reached for the roughly one club in three that can never receive a member
-// vote, and newest_evidence_at is what returns a parked club to the queue.
+// signal, and newest_evidence_at is what returns a parked club to the queue.
 export interface ClubEvidenceRow {
   club_id: string;
   club_name: string;
@@ -179,7 +182,7 @@ export interface ClubEvidenceRow {
 // whether that address once passed its safety and reachability check, says
 // nothing about whether the club exists. It is not part of any rule here.
 //
-// Most clubs carry no member vote at all and many never will, so the rules must
+// Most clubs carry no member signal at all and many never will, so the rules must
 // reach a verdict without one. That is what the hosting fact does: a club that
 // never once hosted an event and that nobody leads or belongs to has nothing on
 // any side of the ledger saying it exists.
@@ -510,7 +513,7 @@ export interface CleanupQueueItem {
   // remediation work: they render as a separate low-priority section and offer
   // no demote or dismiss action, because demotion stays driven only by the
   // crowdsourced inactivity signals and a standing opportunity is not something
-  // to dismiss. Archive is offered, for the club an admin has confirmed defunct;
+  // to dismiss. Archive is offered, for the club an admin has confirmed junk;
   // it is refused while the club still has a member or co-leader, so lacking a
   // co-leader can never on its own retire a club.
   isOpportunity?: boolean;
@@ -603,11 +606,11 @@ export interface PromotableCandidateItem {
 }
 
 // Wizard activity flags about unpromoted candidates, grouped per candidate.
-// These are the activity answers a member leaves while declining or
+// These are the activity signals a member leaves while declining or
 // correcting a card whose club candidate has no live clubs row yet; they
 // cannot feed the viability gates (no club to evaluate), so the queue
-// surfaces them for human judgment. Counting matches the gates: one vote
-// per member, latest answer wins. Negative-reporter names are admin-only.
+// surfaces them for human judgment. Counting matches the gates: one signal
+// per member, latest signal wins. Negative-reporter names are admin-only.
 export interface CandidateFlagItem {
   candidateId: string;
   displayName: string;
@@ -781,8 +784,8 @@ function insightNotesFor(rows: unknown[]): InsightNoteView[] {
     }));
 }
 
-// Negative votes are rare and admins judge them by who cast them, so queue
-// items name the members whose latest answer was negative. Admin queue
+// Negative signals are rare and admins judge them by who sent them, so queue
+// items name the members whose latest signal was negative. Admin queue
 // only: signal authorship is never exposed on public surfaces.
 function negativeReporterSuffix(
   reporters: Array<{ display_name: string; activity_signal: string }>,
@@ -902,7 +905,7 @@ function assembleQueue(prefetched?: {
       predicate: 'crowdsource_viability',
       predicateLabel: 'Reported inactive, record disagrees',
       detail,
-      recommendedAction: 'Demote to inactive, or dismiss the report',
+      recommendedAction: 'Make inactive, or dismiss the report',
       showLeaderlessControls: false,
       flagCount: verdict.inactiveVotes,
       openSince: row.club_updated_at,
@@ -1030,7 +1033,7 @@ function assembleQueue(prefetched?: {
 
   // Wizard flags about unpromoted candidates, grouped per candidate. Rows
   // here are candidate-keyed signals only; club-keyed signals stay with the
-  // viability gates above, so a vote never surfaces twice. Dismiss is
+  // viability gates above, so a signal never surfaces twice. Dismiss is
   // terminal; a parked candidate stays listed with who parked it.
   const flagRows = clubViabilitySignals.listCandidatesWithFlags.all() as Array<{
     candidate_id: string;
@@ -1480,18 +1483,17 @@ function resolveClub(
     );
   }
 
-  // Archiving retires a club for good, and nothing but a member's own leave can
-  // end their affiliation, so a club somebody still belongs to is never
-  // archived: doing so would leave them affiliated to a club they can neither
+  // Archiving retires a club for good, so a club somebody still belongs to is
+  // never archived: doing so would leave them affiliated to a club they can neither
   // reach nor leave, holding one of their two club slots. Demotion is the
-  // action for a club that looks defunct but still has people; it keeps the
-  // club listed and any member joining or claiming it revives it.
+  // action for a club that looks junk but still has people; it takes the
+  // club off the public list and any member joining or claiming it revives it.
   if (action === 'archive') {
     const people = memberClubAffiliations.countCurrentPeopleForClub.get(clubId, clubId) as
       { member_count: number; leader_count: number };
     if (people.member_count > 0 || people.leader_count > 0) {
       throw new ValidationError(
-        'This club still has members or co-leaders, so it cannot be archived. Demote it to inactive instead.',
+        'This club still has members or co-leaders, so it cannot be archived. Make it inactive instead.',
       );
     }
   }
@@ -1505,7 +1507,7 @@ function resolveClub(
     } else if (action === 'archive') {
       clubsDb.updateStatus.run('archived', now, adminMemberId, clubId);
     }
-    // Scrubbing a defunct club also retires its unconfirmed legacy residue so a
+    // Scrubbing a junk club also retires its unconfirmed legacy residue so a
     // demoted/archived club's roster does not linger as "possible members".
     if (action === 'demote_inactive' || action === 'archive') {
       residueDelisted = legacyPersonClubAffiliations.delistResidueByClub.run(adminMemberId, clubId).changes;
@@ -1765,6 +1767,7 @@ function resolveCandidate(
 // affiliations to 'former_only'. Safe to re-run (touches only 'pending').
 // The per-row updated_by/updated_at/version stamp plus one summary audit
 // entry record the action; delistedCount reports how many rows were retired.
+// A run that retires nothing changed nothing, so it writes no audit row.
 function delistUnconfirmedResidue(
   adminMemberId: string,
   clubId: string,
@@ -1783,6 +1786,7 @@ function delistUnconfirmedResidue(
   transaction(() => {
     delistedCount = legacyPersonClubAffiliations.delistResidueByClub.run(adminMemberId, clubId).changes;
     clubCleanupClaims.releaseClaim.run('club', clubId);
+    if (delistedCount === 0) return;
     appendAuditEntry({
       actionType: 'admin.club_cleanup.delist_residue',
       actorType: 'admin',

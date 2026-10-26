@@ -257,12 +257,12 @@ export function insertEvent(db: BetterSqlite3.Database, o: EventOverrides = {}):
   return id;
 }
 
-// ── Event discipline ──────────────────────────────────────────────────────────
+// ── event_disciplines row ─────────────────────────────────────────────────────
 
 export interface DisciplineOverrides {
   id?: string;
   name?: string;
-  /** null only on a cross-sport aggregate standing. */
+  /** null only on a cross-discipline aggregate standing. */
   discipline_category?: string | null;
   team_type?: string;
   sort_order?: number;
@@ -1193,8 +1193,8 @@ export interface NetDisciplineGroupOverrides {
 }
 
 /**
- * Annotates a discipline with its canonical net group. conflict_flag = 1 means the
- * discipline matched more than one group pattern, so the stored group is a best guess
+ * Annotates an `event_disciplines` row with its canonical net group. conflict_flag = 1 means the
+ * row matched more than one group pattern, so the stored group is a best guess
  * and the public net events page shows that a review is outstanding.
  */
 export function insertNetDisciplineGroup(

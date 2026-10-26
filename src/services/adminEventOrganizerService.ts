@@ -19,6 +19,8 @@
  *   - Organizers are a flat set of equals with no primary, matching club
  *     leadership, so every assignment writes the same role and nothing an
  *     earlier organizer's row holds can block a new one.
+ *   - An event has at most five current organizers, a hard limit: assigning a
+ *     sixth is refused.
  *   - An organizer row outlives the member, matching club leadership, so "has
  *     an organizer" is decided by the current-organizer view, which leaves out
  *     deleted and deceased members, rather than by the row existing.
@@ -53,6 +55,7 @@ import type { OutcomeNoticeView } from '../lib/outcomeNotice';
 import type { ActionEnding } from '../lib/actionOutcome';
 
 const NEEDS_ORGANIZER_TASK = 'needs_organizer';
+const ORGANIZER_CAP = 5;
 const REASON_MIN = 3;
 const REASON_MAX = 500;
 
@@ -227,6 +230,14 @@ export const adminEventOrganizerService = {
       return ownStandingAct(adminMemberId, eventId, member.id, 'event.organizer_assigned')
         ? { ending: 'own_repeat', text: ASSIGNED_NOTICE }
         : { ending: 'already_held', text: ALREADY_ORGANIZES_NOTICE };
+    }
+
+    // Five organizers is a hard limit, the same one club leadership holds.
+    const count = (eventOrganizers.countLiveForEvent.get(eventId) as { c: number }).c;
+    if (count >= ORGANIZER_CAP) {
+      throw new ValidationError(
+        `This event already has ${ORGANIZER_CAP} organizers, the most an event can have.`,
+      );
     }
 
     const now = new Date().toISOString();

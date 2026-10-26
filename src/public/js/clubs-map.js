@@ -5,7 +5,9 @@
   if (dataNode) {
     try { data = JSON.parse(dataNode.textContent); } catch (_e) { data = null; }
   }
-  if (!container || !data || !data.length) return;
+  if (!container) return;
+  // The box is drawn before this runs, so a map that cannot be drawn hides it.
+  if (!data || !data.length) { container.hidden = true; return; }
 
   var tooltip = document.createElement('div');
   tooltip.className = 'clubs-map-tooltip';
@@ -17,7 +19,7 @@
     .then(function (svgText) {
       container.innerHTML = svgText;
       var svg = container.querySelector('svg');
-      if (!svg) return;
+      if (!svg) { container.hidden = true; return; }
       svg.setAttribute('class', 'clubs-map-svg');
 
       var byCode = {};
@@ -29,8 +31,8 @@
         if (!entry) return;
 
         path.classList.add('has-clubs');
-        // memberBin is a small integer 0-6 driven by the
-        // legacy_person_club_affiliations-per-country distribution.
+        // memberBin is a small integer 0-6 driven by the per-country
+        // count of club members, imported and joined here alike.
         // CSS classes clubs-map-tier-1..tier-6 carry the sequential
         // green palette. tier-0 falls through to the default has-clubs
         // styling (lit but at the lightest fill).
@@ -56,11 +58,8 @@
           window.location.href = '/clubs/' + entry.slug;
         });
       });
-
-      container.removeAttribute('hidden');
-      container.removeAttribute('aria-hidden');
     })
-    .catch(function () { /* silently degrade — list below still works */ });
+    .catch(function () { container.hidden = true; /* the list below still works */ });
 
   function positionTooltip(e) {
     var x = e.clientX + 14;

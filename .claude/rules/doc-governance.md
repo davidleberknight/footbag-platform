@@ -77,7 +77,7 @@ In any doc or plan, describe the thing in plain words a reader understands on it
 
 - **No "Last updated: <date>"** in any canonical doc header; git log is the authoritative source. Strip existing ones on audit passes.
 - **State what the system does** (the real mechanism), never what it lacks: write the positive behavior, not a negative like "there is no X" or "not gated".
-- **Where a canonical doc and current code disagree**, and no tracker issue records the gap, resolve it per the `design-intent` skill: settled and reported when the intent makes it clear, a question for the human when not. Never silently blend incompatible sources.
+- **Where a canonical doc and current code disagree**, and no tracker issue records the gap, the human adjudicates it, with the answer the `design-intent` skill recommends, presented as settled for validation when the sources make it certain. Never silently blend incompatible sources.
 
 ## DD-specific rules (`docs/DESIGN_DECISIONS.md`)
 

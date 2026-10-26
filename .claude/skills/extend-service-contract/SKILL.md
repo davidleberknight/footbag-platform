@@ -20,10 +20,11 @@ Use this skill (not general editing) when a task does any of the following:
 
 ## Step 1: Load authoritative docs before touching code
 
-1. **The maintainers' private tracker** (`gh issue list -R "$FOOTBAG_PRIVATE_REPO" --state open`; if unwired, note it in one line and proceed with the human's instruction as given): confirm an open issue covers the service change. Note any tracked deviations from target patterns.
+0. Invoke the `design-intent` skill, then name the passage that governs each service method, field, statement, error code or invariant the change adds or alters. If no user story or design decision grounds it and the human has not directed it, stop and ask under `.claude/rules/asking.md`; do not add it.
+1. **The maintainers' private tracker**: run the `tracker-ops` skill to confirm an open issue covers the service change. If the tracker is unwired, note it in one line and proceed with the human's instruction as given. Note any tracked deviations from target patterns.
 2. **`docs/USER_STORIES.md`**: locate the relevant user story by feature name, then read only that story's success criteria.
 3. **`docs/DATA_GOVERNANCE.md`**: when the service touches members, historical persons, search, contact fields, exports, stats, auth, or privacy boundaries, read the relevant section before proceeding.
-4. **`docs/DESIGN_DECISIONS.md`** (targeted): check for invariants relevant to the change. Read the controller-to-service pattern decision, the data-access pattern decision, the soft-deletes decision, the immutable-audit-logs decision, and any auth or security decisions the service touches.
+4. **`docs/DESIGN_DECISIONS.md`** (targeted): check for invariants relevant to the change. Read the controller-to-service pattern decision, the data-access pattern decision, the soft-deletes decision, the immutable-audit-logs decision, the safe-to-submit-twice decision when a method changes state on a covered path, and any auth or security decisions the service touches.
 5. **The affected service's file-header JSDoc** (`src/services/<name>.ts`): the authoritative service-layer contract. Read:
    - the ownership boundary (Owns / Does not own)
    - the required patterns the service must follow
@@ -43,7 +44,7 @@ After reading docs:
 
 ## Step 3: Architecture context
 
-Path-scoped rule files in `.claude/rules/` govern the paths the change touches. For service-contract work these are typically `service-layer.md` (ownership, shape, errors, discriminated-union returns, auth-conditional shaping, file-header JSDoc) and `db-layer.md` (named statements, views, transactions, SQL conventions). Read each touched path's rule yourself (the pre-writing-code gate in root `CLAUDE.md`); do not restate them in your plan.
+Path-scoped rule files in `.claude/rules/` govern the paths the change touches. For service-contract work these are typically `service-layer.md` (ownership, shape, errors, operational errors, audit log, rate limiting, discriminated-union returns and the submitted-twice repeat check, anti-enumeration, auth-conditional shaping, file-header JSDoc) and `db-layer.md` (named statements, views, transactions, SQL conventions). Read each touched path's rule yourself (the pre-writing-code gate in root `CLAUDE.md`); do not restate them in your plan.
 
 Naming:
 - Services: `{domain}Service.ts` -- camelCase, singular noun.
@@ -57,7 +58,7 @@ Before touching any file, state:
 - which user story success criteria are being satisfied
 - touched files: service, db.ts statement groups, serviceErrors.ts, tests
 - any data invariants that must be preserved (transactions, soft-delete, audit trail)
-- for a state-changing method on a path the submitted-twice rule covers: how a repeat is recognised (the already-holds check returning `own_repeat` or `already_held`), and that a repeat spends no audit row, outbox row or rate-limit slot
+- for a state-changing method on a path the submitted-twice rule covers: the repeat check that `.claude/rules/service-layer.md` ("Discriminated-union return shapes") requires
 - risks and edge cases
 - verification plan
 
@@ -65,5 +66,9 @@ Before touching any file, state:
 
 - write the tests through the `write-tests` skill, which owns the layer choice, the case floor and the sweeps a new route already gets
 - verify per the Verification default in root `CLAUDE.md`
-- **audit the service's file-header JSDoc** at the top of `src/services/<name>.ts`. If the change touches ownership, required patterns, invariants, transaction discipline, persistence tables, side-effect categories, or service shape, update the JSDoc block in the same change as the code. See `.claude/rules/service-layer.md` File-header JSDoc section for the update-obligation list.
+- **audit the service's file-header JSDoc** (when it carries one) at the top of `src/services/<name>.ts`. If the change touches ownership, required patterns, invariants, transaction discipline, persistence tables, side-effect categories, or service shape, update the JSDoc block in the same change as the code. See `.claude/rules/service-layer.md` File-header JSDoc section for the update-obligation list.
 - after changes, invoke `doc-sync` to check whether the service's file-header JSDoc or DATA_MODEL.md needs updating
+
+## Stop when
+
+The planned contract is implemented, every command that `bash scripts/test-targets.sh <changed paths>` prints has run and passed (the full gate stays with the maintainer, and any high-fan-out flag goes in the report), the file-header JSDoc matches the new contract, and doc-sync has run. Then report.

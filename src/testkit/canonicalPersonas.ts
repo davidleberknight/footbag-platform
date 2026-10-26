@@ -618,16 +618,6 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     coverageNotes: ['multiple club affiliations', 'one current+primary, one former'],
   },
   {
-    slug: 'club_contact',
-    displayName: 'Connie Tact',
-    tier: 'tier1',
-    dimension: 'Club affiliations',
-    purpose: 'Current club affiliation flagged as the listed contact.',
-    testingUsage: 'Confirm a current affiliation flagged as the listed contact renders as the club contact.',
-    clubs: [{ clubName: 'Riverside Footbag', current: true, contact: true }],
-    coverageNotes: ['current club affiliation flagged as listed contact'],
-  },
-  {
     slug: 'club_two_current',
     displayName: 'Dora Dual',
     tier: 'tier1',

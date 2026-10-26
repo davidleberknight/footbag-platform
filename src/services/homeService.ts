@@ -86,7 +86,7 @@ export const homeService = {
           description: 'Fast-paced foot volleyball over a 5-foot net.',
         },
         {
-          label: 'X Square',
+          label: 'X-Square',
           href: '/x-square',
           description: '2-Square, 4-Square and 5-Square.',
         },
@@ -108,7 +108,7 @@ export const homeService = {
         {
           label: 'Rules',
           href: '/rules',
-          description: 'Official IFPA rules for Footbag Net, Freestyle, X Square and Footbag Golf.',
+          description: 'Official IFPA rules for Footbag Net, Freestyle, X-Square and Footbag Golf.',
         },
         {
           label: 'Hall of Fame',

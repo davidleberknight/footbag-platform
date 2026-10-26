@@ -282,7 +282,7 @@ describe('parking takes a club off the working queue without losing it', () => {
     expect(parked.text).toContain('Parked Club');
     // The working row's recommendation is the tell that the item is live; a
     // parked club shows only in the parked listing.
-    expect(parked.text).not.toContain('Demote to inactive');
+    expect(parked.text).not.toContain('Make inactive, or dismiss the report');
 
     // A third member answering after the park is new evidence, so the club
     // rejoins the working queue on its own with no window to wait out.
@@ -303,7 +303,7 @@ describe('parking takes a club off the working queue without losing it', () => {
       .get('/admin/club-cleanup')
       .set('Cookie', adminCookie());
     expect(after.text).toContain('Parked Club');
-    expect(after.text).toContain('Demote to inactive');
+    expect(after.text).toContain('Make inactive, or dismiss the report');
   });
 });
 
@@ -319,7 +319,7 @@ describe('queue filter and sort query params', () => {
     expect(res.text).toContain('Stale Provisional Club');
     // The parked listing is deliberately unfiltered, so the filter is proved by
     // the absence of the other category's working row, not of the club name.
-    expect(res.text).not.toContain('Demote to inactive');
+    expect(res.text).not.toContain('Make inactive, or dismiss the report');
   });
 
   it('category=residue empties the predicate table', async () => {

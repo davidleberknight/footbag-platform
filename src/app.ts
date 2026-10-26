@@ -33,7 +33,7 @@ const NAV_SECTIONS: ReadonlyArray<{ href: string; section: string; label: string
   { href: '/clubs',     section: 'clubs',     label: 'Clubs' },
   { href: '/net',       section: 'net',       label: 'Net' },
   { href: '/freestyle', section: 'freestyle', label: 'Freestyle' },
-  { href: '/x-square',  section: 'x-square',  label: 'X Square' },
+  { href: '/x-square',  section: 'x-square',  label: 'X-Square' },
   { href: '/golf',      section: 'golf',      label: 'Golf' },
   { href: '/consecutives', section: 'consecutives', label: 'Consecutives' },
   { href: '/sideline',  section: 'sideline',  label: 'Sideline' },

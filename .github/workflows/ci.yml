@@ -216,8 +216,19 @@ jobs:
         # those cases and report green having executed none of them.
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg sqlite3 jq age
 
+      - name: Setup Terraform
+        # The base-address case evaluates the production locals with
+        # terraform console; without the binary it fails rather than skip.
+        uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          # Same version as the terraform job below.
+          terraform_version: 1.14.7
+          # The test pipes its query on stdin; the wrapper only captures
+          # output for later steps, which this job never reads.
+          terraform_wrapper: false
+
       - name: Check tool versions against the recorded pins
-        run: source scripts/lib/tool-report.sh && tool_report_require ffmpeg sqlite3 age jq
+        run: source scripts/lib/tool-report.sh && tool_report_require ffmpeg sqlite3 age jq terraform
 
       - name: Install dependencies
         run: npm ci

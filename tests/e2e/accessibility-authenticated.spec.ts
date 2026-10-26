@@ -159,7 +159,6 @@ test('admin surfaces have no WCAG 2.1 AA axe violations', { tag: ['@a11y'] }, as
       { path: '/admin/audit-log', name: 'audit log' },
       { path: '/admin/email-log', name: 'email log' },
       { path: '/admin/club-cleanup', name: 'club cleanup' },
-      { path: '/admin/clubs/leadership', name: 'club leadership' },
       { path: '/admin/freestyle/tricks', name: 'freestyle tricks admin' },
       { path: '/admin/freestyle/records', name: 'freestyle records admin' },
       { path: `/admin/freestyle/tricks/a11y_trick_${suffix}/edit`, name: 'freestyle trick edit' },

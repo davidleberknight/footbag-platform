@@ -10,7 +10,7 @@ const pages = {
   sideline: sidelineService.getSidelinePage(),
 };
 
-describe('sport section landing pages (X Square, Golf, Sideline)', () => {
+describe('game section landing pages (X-Square, Golf, Sideline)', () => {
   // Defect caught: a page carries the wrong section key, so analytics and the
   // per-section body class name a different section than the visitor is on.
   it('keys each page to its own section', () => {
@@ -19,8 +19,8 @@ describe('sport section landing pages (X Square, Golf, Sideline)', () => {
     }
   });
 
-  // Defect caught: a competitive game drifts back onto the open-play page, or
-  // the X Square and golf games go missing from their own sections.
+  // Defect caught: a game with its own section drifts back onto the open-play page, or
+  // the X-Square and golf games go missing from their own sections.
   it('places each game in its own section', () => {
     expect(pages['x-square'].content.games.map((g) => g.slug)).toEqual(['two-square', 'four-square']);
     expect(pages.golf.content.games.map((g) => g.slug)).toEqual(['footbag-golf']);
@@ -44,9 +44,9 @@ describe('sport section landing pages (X Square, Golf, Sideline)', () => {
     expect(checked).toBe(3);
   });
 
-  // Defect caught: the open-play page loses its pointer to the X Square games,
+  // Defect caught: the open-play page loses its pointer to the X-Square games,
   // which are also played as open play.
-  it('points the Sideline explainer at the X Square page', () => {
+  it('points the Sideline explainer at the X-Square page', () => {
     const segments = pages.sideline.content.explainer!.paragraphs.flat();
     expect(segments.some((s) => s.href === '/x-square')).toBe(true);
   });

@@ -207,7 +207,6 @@ describe('admin gate — GET (allow admin only, deny everyone else)', () => {
     '/admin/payments/health',
     '/admin/payments/reconciliation',
     '/admin/clubs',
-    '/admin/clubs/leadership',
     '/admin/tags',
     '/admin/events/organizers',
     '/admin/club-cleanup',

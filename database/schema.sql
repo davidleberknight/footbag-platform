@@ -198,10 +198,11 @@ CREATE UNIQUE INDEX ux_events_hashtag          ON events(hashtag_tag_id);
 CREATE INDEX        idx_events_sanction_status ON events(sanction_status);
 CREATE INDEX        idx_events_host_club       ON events(host_club_id);
 
--- Disciplines offered at a specific event (e.g., freestyle singles, net doubles).
--- Each discipline defines the participation format (singles/doubles/mixed_doubles)
+-- The competition categories offered at a specific event, one row per division
+-- of a category as played (e.g., Open Singles Net, Women's Doubles Net, Open Routines).
+-- Each row defines the participation format (singles/doubles/mixed_doubles)
 -- used at registration time to enforce partner requirements.
--- No soft-delete: disciplines are hard-deleted when removed from a draft event.
+-- No soft-delete: rows are hard-deleted when removed from a draft event.
 CREATE TABLE event_disciplines (
   id         TEXT PRIMARY KEY,
   created_at TEXT NOT NULL,
@@ -212,13 +213,14 @@ CREATE TABLE event_disciplines (
 
   event_id            TEXT NOT NULL REFERENCES events(id),
   name                TEXT NOT NULL,
-  -- The sport family. Empty only on an aggregate standing that spans several
-  -- sports; a contested discipline, and a standing over one sport, carry one.
+  -- The IFPA discipline (net, freestyle, golf, consecutives, x_square). Empty only
+  -- on an aggregate standing that spans several disciplines; a contested row, and
+  -- a standing over one discipline, carry one.
   discipline_category TEXT,
   team_type TEXT NOT NULL DEFAULT 'singles'
     CHECK (team_type IN ('singles', 'doubles', 'mixed_doubles')),
   sort_order    INTEGER NOT NULL DEFAULT 0,
-  -- 1 when the discipline ranks competitors over several of the event's contests
+  -- 1 when the row ranks competitors over several of the event's contests
   -- (an overall or club standing) rather than in one contest.
   is_aggregate_standing INTEGER NOT NULL DEFAULT 0
     CHECK (is_aggregate_standing IN (0, 1)),
@@ -2569,9 +2571,10 @@ CREATE INDEX idx_member_links_member ON member_links(member_id);
 -- SECTION 16: REGISTRATIONS & EVENT RESULTS
 -- =============================================================================
 
--- Discipline selections for a competitor registration: which disciplines a
--- competitor has entered, and partner info for doubles/mixed_doubles disciplines.
--- One row per (registration, discipline) pair.
+-- Division selections for a competitor registration: which event_disciplines rows
+-- (each a category's division) a competitor has entered, and partner info for
+-- doubles/mixed_doubles entries.
+-- One row per (registration, event_disciplines row) pair.
 CREATE TABLE registration_discipline_selections (
   id         TEXT PRIMARY KEY,
   created_at TEXT NOT NULL,
@@ -2610,8 +2613,8 @@ CREATE TABLE event_results_uploads (
 
 CREATE INDEX idx_results_uploads_event ON event_results_uploads(event_id);
 
--- One row per placement within a discipline. discipline_id is nullable
--- (NULL = discipline-agnostic / general ranking). Placement is deliberately not
+-- One row per placement within an event_disciplines row. discipline_id is
+-- nullable (NULL = tied to no row / general ranking). Placement is deliberately not
 -- unique: IFPA competition rules place tied competitors at the same, lower place
 -- and skip the next one, so two rows legitimately share a placement. The upload
 -- flow validates that a repeated placement is a declared tie.
@@ -2624,7 +2627,7 @@ CREATE TABLE event_result_entries (
   version    INTEGER NOT NULL DEFAULT 1,
 
   event_id          TEXT NOT NULL REFERENCES events(id),
-  -- NULL = discipline-agnostic (general ranking)
+  -- NULL = tied to no event_disciplines row (general ranking)
   discipline_id     TEXT REFERENCES event_disciplines(id),
   results_upload_id TEXT REFERENCES event_results_uploads(id),
 
@@ -4246,7 +4249,6 @@ CREATE TABLE member_club_affiliations (
   club_id    TEXT NOT NULL REFERENCES clubs(id),
   is_current INTEGER NOT NULL DEFAULT 1 CHECK (is_current IN (0,1)),
   is_primary INTEGER NOT NULL DEFAULT 0 CHECK (is_primary IN (0,1)),
-  is_contact INTEGER NOT NULL DEFAULT 0 CHECK (is_contact IN (0,1)),
   source     TEXT NOT NULL DEFAULT 'legacy_claim'
     CHECK (source IN ('legacy_claim','admin','member_self_service')),
 
@@ -4882,7 +4884,7 @@ CREATE INDEX idx_freestyle_records_type_confidence
 -- WFA-sanctioned consecutive kicks records. Covers four sections:
 --   Official World Records   — 12 current WFA world records with event details
 --   Highest Official Scores  — elite ranked lists (20000+ clubs, timed top-10)
---   World Record Progression — full progression history per discipline
+--   World Record Progression — full progression history per record type
 --   Milestone Firsts         — first player to reach milestone kick counts
 --
 -- id is the stable surrogate primary key, so an admin edit path and its audit
@@ -4934,8 +4936,8 @@ CREATE TABLE net_stat_policy (
   created_at          TEXT NOT NULL
 );
 
--- Canonical group mapping for net disciplines (~50 name variants → 13 groups)
--- SAFETY: conflict_flag=1 means this discipline matched multiple patterns ambiguously.
+-- Canonical division-group mapping for net event_disciplines rows (~50 name variants → 13 groups)
+-- SAFETY: conflict_flag=1 means this row's name matched multiple patterns ambiguously.
 -- These rows MUST be reviewed before their canonical_group is trusted.
 -- This table never overrides canonical event_disciplines data — it only annotates gaps.
 CREATE TABLE net_discipline_group (
@@ -4987,7 +4989,7 @@ CREATE TABLE net_team_member (
 CREATE INDEX idx_net_team_member_person ON net_team_member(person_id);
 CREATE INDEX idx_net_team_member_team   ON net_team_member(team_id);
 
--- One row per (team × event_discipline); denormalized placement cache
+-- One row per (team × event_disciplines row); denormalized placement cache
 -- appearance_count on net_team = count(distinct event_id, discipline_id) across these rows.
 -- STATISTICS FIREWALL: query via net_team_appearance_canonical view, not this table directly.
 CREATE TABLE net_team_appearance (

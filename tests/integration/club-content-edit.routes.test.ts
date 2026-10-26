@@ -64,19 +64,20 @@ function clubRow(clubId: string): Record<string, unknown> {
   return db.prepare('SELECT name, description, city, region, country, external_url, external_url_validated_at FROM clubs WHERE id = ?').get(clubId) as Record<string, unknown>;
 }
 
-// A co-leader's own edit records which fields moved, never their values: the
-// text is what a member typed, and the audit log outlives an erasure.
-function latestEditMetadata(clubId: string): string {
+// A co-leader's own edit records each field that moved with its value before
+// and after: a club is a shared record its co-leaders all edit, and the ledger
+// is how an overwritten value is recovered.
+function latestEditChanges(clubId: string): Record<string, { before: unknown; after: unknown }> {
   const row = db.prepare(
     `SELECT metadata_json FROM audit_entries
       WHERE action_type = 'club.content_edited' AND entity_id = ?
       ORDER BY rowid DESC LIMIT 1`,
   ).get(clubId) as { metadata_json: string };
-  return row.metadata_json;
+  return JSON.parse(row.metadata_json).changes;
 }
 
 function auditFields(clubId: string): string[] {
-  return JSON.parse(latestEditMetadata(clubId)).fields;
+  return Object.keys(latestEditChanges(clubId));
 }
 
 // The widened form posts every field on every save, so a test that changes one
@@ -110,8 +111,11 @@ describe('direct edit (authoritative editors)', () => {
     expect(res.status).toBe(303);
     expect(clubRow(clubId).description).toBe('Fresh description.');
 
-    expect(auditFields(clubId)).toEqual(['description']);
-    expect(latestEditMetadata(clubId)).not.toMatch(/Old description|Fresh description/);
+    // Defect caught: the ledger names the field but loses the value the edit
+    // overwrote, so another co-leader cannot recover it.
+    expect(latestEditChanges(clubId)).toEqual({
+      description: { before: 'Old description.', after: 'Fresh description.' },
+    });
   });
 
   it('a leader-supplied URL that fails verification changes nothing', async () => {
@@ -149,7 +153,7 @@ describe('a club does not move between countries', () => {
 });
 
 describe('the full club field set', () => {
-  it('a co-leader edits name, city and region, each audited by field name alone', async () => {
+  it('a co-leader edits name, city and region, each audited with its value before and after', async () => {
     const { clubId, clubKey, leaderId, name } = seedClubWithLeader();
 
     const res = await request(createApp())
@@ -165,9 +169,10 @@ describe('the full club field set', () => {
     expect(row.region).toBe('Oregon');
 
     // A field the save did not change earns no audit entry, so the trail says
-    // what moved rather than what was submitted, and no value it moved to.
+    // what moved rather than what was submitted, with the values it moved between.
     expect([...auditFields(clubId)].sort()).toEqual(['city', 'name', 'region']);
-    expect(latestEditMetadata(clubId)).not.toMatch(/Renamed Crew|Portland|Oregon|Testville/);
+    expect(latestEditChanges(clubId).name).toEqual({ before: name, after: 'Renamed Crew' });
+    expect(latestEditChanges(clubId).city).toEqual({ before: 'Testville', after: 'Portland' });
 
     // A co-leader who saves is told the save landed.
     const carried = (res.headers['set-cookie'] as unknown as string[])
@@ -453,7 +458,8 @@ describe('club content edit cleans the typed text', () => {
       city: 'Fresno',
       region: 'Oregon',
     });
-    expect(latestEditMetadata(clubId)).not.toContain('Clean Edit Club');
+    // The ledger records the value as stored, never the markup typed.
+    expect(latestEditChanges(clubId).name.after).toBe('Clean Edit Club');
   });
 
   // Defect caught: a markup-only name passes the required check and the club

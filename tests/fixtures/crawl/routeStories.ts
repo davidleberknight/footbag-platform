@@ -271,7 +271,6 @@ export const ROUTE_STORIES: Readonly<Record<string, RouteStory>> = {
   'POST /admin/events/:eventId/organizers/assign': { stories: ['A_Reassign_Event_Organizer'] },
   'POST /admin/events/:eventId/organizers/remove': { stories: ['A_Reassign_Event_Organizer'] },
   'GET /admin/clubs': { stories: ['A_Correct_Club_Data'] },
-  'GET /admin/clubs/leadership': { stories: ['A_Reassign_Club_Leader'] },
   'GET /admin/clubs/:clubId': { stories: ['A_Correct_Club_Data'] },
   'POST /admin/clubs/:clubId/content/confirm': { stories: ['A_Correct_Club_Data'] },
   'POST /admin/clubs/:clubId/content': { stories: ['A_Correct_Club_Data'] },

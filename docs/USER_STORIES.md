@@ -367,7 +367,7 @@ the build is not; the remaining deferred items are defined by their rulings on t
 **v2**, built first after launch, in this order: voting and elections; then the Hall of Fame
 nomination and voting flow, the first real consumer of that subsystem. Independent of that
 order: IFPA rankings computed from sanctioned-event results, the news feed with its authoring
-and moderation surfaces, the curated net topic gallery, per-discipline routine music on
+and moderation surfaces, the curated net topic gallery, per-division routine music on
 events, and native groups and committees.
 
 **v3**, unordered: administrator authority split into named lanes of expertise rather than one
@@ -396,10 +396,10 @@ Success Criteria:
 - The legacy footbag.org content is preserved as a read-only static archive at archive.footbag.org for authenticated members only.
 - The current footbagworldwide.com implementation is the basis of the new and improved footbag.org; domain and URL details for the final layout are deferred to the detailed design document.
 - Visitors can follow standard navigation (home, clubs, events, media) without leaving the modernized site. If they open the Legacy Archive, they see an access-denied page with a link to log in; only members can proceed to archive.footbag.org.
-- The top-level sport sections are public pages readable without logging in, rendering identically for every viewer: the Net section (`/net`, `/net/events`, `/net/teams`, `/net/teams/:teamId`), the X Square (`/x-square`), Golf (`/golf`) and Consecutives (`/consecutives`) landing pages, the Sideline landing page (`/sideline`), the Hall of Fame landing page (`/hof`), and the Big Add Posse landing page (`/bap`). Their content is pipeline-authoritative and read-only on the running site.
-- The Net section presents footbag net: the `/net` home page carries the introduction, competition formats, a demonstration video, and notable-team and notable-player highlights, and links the net rules and the net section of the equipment page; `/net/teams` lists teams with discipline and player-search filters, linking each team to `/net/teams/:teamId` (players, summary statistics, competition history by year); `/net/events` lists net events. Only canonical competition evidence reaches these public statistics, and a player name links to the member's profile when the person has a claimed account, otherwise to their historical-person page.
+- The top-level sections are public pages readable without logging in, rendering identically for every viewer: the Net section (`/net`, `/net/events`, `/net/teams`, `/net/teams/:teamId`), the X-Square (`/x-square`), Golf (`/golf`) and Consecutives (`/consecutives`) landing pages, the Sideline landing page (`/sideline`), the Hall of Fame landing page (`/hof`), and the Big Add Posse landing page (`/bap`). Their content is pipeline-authoritative and read-only on the running site.
+- The Net section presents footbag net: the `/net` home page carries the introduction, competition formats, a demonstration video, and notable-team and notable-player highlights, and links the net rules and the net section of the equipment page; `/net/teams` lists teams with division and player-search filters, linking each team to `/net/teams/:teamId` (players, summary statistics, competition history by year); `/net/events` lists net events. Only canonical competition evidence reaches these public statistics, and a player name links to the member's profile when the person has a claimed account, otherwise to their historical-person page.
 - `/x-square` presents 2-Square and 4-Square, and `/golf` presents footbag golf, each with demonstration clips and internal links to the matching rules pages and to the matching sections of the equipment page.
-- `/sideline` presents open play, which anyone joins with no registration and no bracket: circle kicking with its demonstration clip and equipment link, and a link to the X Square games, which are also played as open play.
+- `/sideline` presents open play, which anyone joins with no registration and no bracket: circle kicking with its demonstration clip and equipment link, and a link to the X-Square games, which are also played as open play.
 - `/consecutives` presents consecutives on one page: what it is, how it is contested, a featured demonstration video, and the official IFPA records (consecutive-kicks current world records, highest official scores, record progression, and milestone firsts). Freestyle passback records are freestyle records, not official IFPA records, and are not shown there. Record holders link per the standard person-link rule.
 - `/hof` and `/bap` are editorial landing pages telling each honor's history and linking to its authoritative external home; in-site inductee rosters and per-person honor pages are out of scope by design, and honor badges on member and historical-person surfaces are governed by the Hall of Fame and Big Add Posse global behavior.
 - The freestyle encyclopedia is a separate regime: its visitor surfaces are specified by the Freestyle Encyclopedia stories, and its content is curated in-app after cutover rather than served as read-only pipeline content.
@@ -429,7 +429,7 @@ Success Criteria:
 - Public canonical event pages are available only for events with status `reg_open`, `closed`, or `completed`.
 - Events with status `draft`, `pending_approval`, or `canceled` do not have public detail visibility.
 - Organizer contact details, registration actions, payment actions, and member-only state are excluded from this public slice.
-- The public event page shows how many competitors are registered in each discipline, as counts only. Registrant names are member-visible rather than public, and appear to authenticated members per `M_View_Event`.
+- The public event page shows how many competitors are registered in each competition category and division, as counts only. Registrant names are member-visible rather than public, and appear to authenticated members per `M_View_Event`.
 
 ### V_Browse_Past_Events
 
@@ -1055,14 +1055,14 @@ Club-affiliation task acceptance criteria:
 - Promotion of onboarding-visible or dormant candidates to live `clubs` rows happens when the prospective member completes the wizard, for each candidate they confirmed.
 - All outcomes (current, former, rejected, historical, reported-inactive) are held on the member's own task row so the member is not repeatedly prompted, and are written as records when the wizard is completed.
 - Alongside the two fixed answers, the club step invites one optional free-text note: on the member's last club card, asking what else they know about that club or any club in their area, and on the wrap-up landing, asking what they know about clubs in their area, so a member with no suggested club can still contribute local knowledge. It is asked once per member and never required. Notes are held with the answers and recorded in `club_insight_notes` when the wizard is completed, keyed to the club, to the candidate when no live club exists yet, or to neither when the note concerns the member's area. They are evidence for `A_Periodic_Club_Cleanup` and render on that admin surface only.
-- Wizard activity signals are held and, when the wizard is completed, recorded as structured rows in `club_viability_signals`; membership confirmations and rejections are written then as `legacy_person_club_affiliations` and bootstrap-row status transitions. The onboarding wizard is the only surface that collects activity signals, and club pages carry no feedback affordance. Activity signals feed the `crowdsource_club_viability` predicate in `A_Periodic_Club_Cleanup`, counted one vote per member (a member's latest signal for a club supersedes their earlier ones), combined with legacy classification and operational state; the cleanup queue lists the clubs whose own record leaves nothing to decide, which the rules demote when an admin presses "Apply the rules", and surfaces for review only the clubs whose record contradicts the member who reported them inactive.
+- Wizard activity signals are held and, when the wizard is completed, recorded as structured rows in `club_viability_signals`; membership confirmations and rejections are written then as `legacy_person_club_affiliations` and bootstrap-row status transitions. The onboarding wizard is the only surface that collects activity signals, and club pages carry no feedback affordance. Activity signals feed the `crowdsource_club_viability` predicate in `A_Periodic_Club_Cleanup`, counted one signal per member (a member's latest signal for a club supersedes their earlier ones), combined with legacy classification and operational state; the cleanup queue lists the clubs whose own record leaves nothing to decide, which the rules make inactive when an admin presses "Apply the rules", and surfaces for review only the clubs whose record contradicts the member who reported them inactive.
 - Junk candidates are never shown in any stage, and neither are candidates an admin has archived: archiving is a terminal decision, so a card must never offer one back to a registrant.
 
 Optional metadata task acceptance criteria:
 
 - `first_competition_year`: collected as a field within the `personal_details` task alongside city, region, country, and date of birth. Filled from `historical_persons.first_year` when a held claim of an HP record is applied at completion, only if the member's value is empty; otherwise left as entered. The value is editable later via M_Edit_Profile.
 - `show_competitive_results`: collected as a checkbox within the `personal_details` task. Default on. The toggle is editable later via M_Edit_Profile.
-- `gender` (competition eligibility): collected as a Male / Female / Prefer-not-to-say field within the `personal_details` task, alongside date of birth, stored as `male` / `female` / `undisclosed` and defaulting to `undisclosed`. Owner-and-admin by default; a member may later opt in (via M_Edit_Profile) to show it to signed-in members on the profile, in member search, and on club rosters. Used only for gender-gated event-category eligibility. The value and its visibility are editable later via M_Edit_Profile.
+- `gender` (competition eligibility): collected as a Male / Female / Prefer-not-to-say field within the `personal_details` task, alongside date of birth, stored as `male` / `female` / `undisclosed` and defaulting to `undisclosed`. Owner-and-admin by default; a member may later opt in (via M_Edit_Profile) to show it to signed-in members on the profile, in member search, and on club rosters. Used only for gender-based division eligibility. The value and its visibility are editable later via M_Edit_Profile.
 
 ## 3.2 Profile Management
 
@@ -1080,7 +1080,7 @@ Success Criteria:
 - **Date of birth:** editable, entered as three labelled parts (day, a month chosen by name, and a four-digit year). It is owner-and-admin private and never appears on any other surface. It is editable because it is the private matching anchor that ties a member to their old footbag.org account and their competition records, so a member who registered with a wrong one must be able to put it right. A change is audit-logged, naming the field but never the value, and raises nothing for an administrator: the member owns this field, so putting it right is an ordinary profile edit.
 - City, country, and email are mandatory fields; phone is optional.
 - **Contact fields and per-field visibility:** `phone` and `whatsapp` are optional, both editable here (`whatsapp` format-validated, rendered as a chat link). Each contact field (contact email, phone, WhatsApp) has its own visibility toggle, default off. When toggled on, the field is shown to authenticated members only (Sensitivity 2), never on public surfaces. Holding a club co-leader or event organizer role forces that member's contact email visible to authenticated members and locks its toggle on while the role is held (see DATA_GOVERNANCE §3). Changes are audit-logged.
-- **Gender (competition eligibility):** editable (Male / Female / Prefer not to say; stored `male` / `female` / `undisclosed`). Owner-and-admin by default; a member may opt in via a "Show my gender on my public profile" toggle (default off) to make it visible to signed-in members on the member profile, in member search, and on club rosters. Only Male / Female render when opted in (Prefer not to say stays hidden), and it is never shown to an unauthenticated visitor. Used only for gender-gated event-category eligibility (see M_Register_For_Event). The value and the visibility toggle are both editable here; changes are audit-logged.
+- **Gender (competition eligibility):** editable (Male / Female / Prefer not to say; stored `male` / `female` / `undisclosed`). Owner-and-admin by default; a member may opt in via a "Show my gender on my public profile" toggle (default off) to make it visible to signed-in members on the member profile, in member search, and on club rosters. Only Male / Female render when opted in (Prefer not to say stays hidden), and it is never shown to an unauthenticated visitor. Used only for gender-based division eligibility (see M_Register_For_Event). The value and the visibility toggle are both editable here; changes are audit-logged.
 - **Discoverable in member search** (`searchable`, default on): a self-service toggle labeled "Allow other members to find me in member search." When off, the member is excluded from `M_Search_Members` results (enforced by the `members_searchable` view), but their profile remains reachable by direct link and they still appear to club co-members on rosters; the toggle governs search inclusion only. Changes are audit-logged.
 - **Competition history fields:**
   - `first_competition_year` (optional): editable integer field. Shown as "Competing since {year}" on profile. Leave blank to hide (opt-out by clearing). Pre-populated from `historical_persons.first_year` during legacy claim if the member has not already set a value.
@@ -1253,13 +1253,13 @@ Success Criteria:
 - System confirms registration and sends reminder email one week before event.
 - After tournament, member profile will automatically link to event results page (for every event they have participated in that posted results).
 - Registration includes a required selection of registration type: Competitor or Attendee/Supporter (if the organizer has enabled both; otherwise the single available type is implied).
-- If Competitor: member selects one or more organizer-defined event disciplines.
-- If a selected discipline is doubles/team: member provides partner/team information (member-select when possible; otherwise free-text).
-- A discipline's gender eligibility is enforced at registration from the discipline's own gender part. A women's discipline requires every member on the entry to have declared female. A mixed discipline requires one member with gender Male and one with gender Female. An open discipline admits anyone, and is where men and women both play. A member whose gender is "Prefer not to say" (stored as undisclosed) enters open disciplines; recording a gender in their profile at any time unlocks the women's and mixed draws. Gender validation applies only between two member profiles. For a free-text (non-member) partner, the registrant attests and the organizer verifies eligibility at check-in. Class is self-selected: the competitor chooses the discipline whose class fits them, and the entry records that discipline.
-- In a discipline that offers prize money, the competitor chooses whether to enter as an Amateur. An Amateur takes no prize money and earns the same placing and ranking points as any other entrant. The choice appears on the registration confirmation and on the organizer's participant list, and is carried into the results so the organizer knows who is eligible for prize money; the organizer pays prize money outside the platform.
-- When a member selects a gender-gated discipline while their stored gender is `undisclosed`, the registration surface warns them that the gendered draw requires a declared gender and points them to set it in their profile; the member may still register for Open disciplines.
-- If Attendee/Supporter: no disciplines are required; optional fields may be collected if configured by organizer (e.g., t-shirt size, donation amount).
-- Confirmation email includes registration type and selected disciplines and/or partners (if any).
+- If Competitor: member selects one or more of the competition categories and divisions the organizer offers.
+- If a selected competition category is doubles/team: member provides partner/team information (member-select when possible; otherwise free-text).
+- A division's gender eligibility is enforced at registration from the division's own gender part. A women's division requires every member on the entry to have declared female. A mixed division requires one member with gender Male and one with gender Female. An open division admits anyone, and is where men and women both play. A member whose gender is "Prefer not to say" (stored as undisclosed) enters open divisions; recording a gender in their profile at any time unlocks the women's and mixed draws. Gender validation applies only between two member profiles. For a free-text (non-member) partner, the registrant attests and the organizer verifies eligibility at check-in. Class is self-selected: the competitor chooses the division whose class fits them, and the entry records that division.
+- In a division that offers prize money, the competitor chooses whether to enter as an Amateur. An Amateur takes no prize money and earns the same placing and ranking points as any other entrant. The choice appears on the registration confirmation and on the organizer's participant list, and is carried into the results so the organizer knows who is eligible for prize money; the organizer pays prize money outside the platform.
+- When a member selects a gender-gated division while their stored gender is `undisclosed`, the registration surface warns them that the gendered draw requires a declared gender and points them to set it in their profile; the member may still register for Open divisions.
+- If Attendee/Supporter: no competition categories or divisions are required; optional fields may be collected if configured by organizer (e.g., t-shirt size, donation amount).
+- Confirmation email includes registration type and selected competition categories and divisions and/or partners (if any).
 - Some events are free and others are paid.
 - For paid events, the member must complete the Stripe checkout process to be officially registered. Changes are applied only after webhook-confirmed success.
 - Event registration payments affect registration status only and do not directly change membership tier.
@@ -1268,11 +1268,11 @@ Success Criteria:
 << V2 SCOPE >> The five criteria below ship with routine music in v2. They are design
 intent for that build and are not part of the v1 launch.
 
-- A registration in a discipline that requires routine music additionally reaches `confirmed` once the required upload is attached.
-- If the registrant selects a discipline where the event organizer has set `requires_routine_music=true` (a boolean on event disciplines, settable in `EO_Edit_Event`), the registration is marked incomplete until the member uploads an mp3 routine-music file via `M_Upload_Routine_Music` for that registration entry.
+- A registration in a division that requires routine music additionally reaches `confirmed` once the required upload is attached.
+- If the registrant selects a division where the event organizer has set `requires_routine_music=true` (a boolean on the division's `event_disciplines` row, settable in `EO_Edit_Event`), the registration is marked incomplete until the member uploads an mp3 routine-music file via `M_Upload_Routine_Music` for that registration entry.
 - If the registrant has not uploaded the required routine music by the event registration deadline, the registration remains incomplete and is treated as not-confirmed for participant counts, exports, and check-in.
 - Registrants receive an email reminder at admin-configurable offsets before the deadline (`routine_music_reminder_days_1` default 7 days, `routine_music_reminder_days_2` default 1 day) when a required upload is missing.
-- For doubles routine disciplines, the registering member uploads on behalf of the entire entry, and the partner plays the attached track back for verification.
+- For doubles routine categories, the registering member uploads on behalf of the entire entry, and the partner plays the attached track back for verification.
 
 ### M_Withdraw_Registration
 
@@ -1293,16 +1293,16 @@ Success Criteria:
 ### M_Upload_Routine_Music
 
 << V2 SCOPE >> Routine music is version-two scope, shipping with the freestyle routine
-disciplines it serves. This story is design intent for that build and is not part of the v1
+categories it serves. This story is design intent for that build and is not part of the v1
 launch.
 
-Access: Members registered in an event discipline with `requires_routine_music=true` can upload, attach, replace, detach, and play back their own routine-music files. Members manage their personal routine-music library outside any single event via `M_Manage_Routine_Music_Library`. For doubles or team routine entries, the non-uploading partner(s) can play back the attached track for verification but cannot upload, replace, detach, or delete.
+Access: Members registered in a division of an event with `requires_routine_music=true` can upload, attach, replace, detach, and play back their own routine-music files. Members manage their personal routine-music library outside any single event via `M_Manage_Routine_Music_Library`. For doubles or team routine entries, the non-uploading partner(s) can play back the attached track for verification but cannot upload, replace, detach, or delete.
 
-Story: As a freestyle competitor registered in a routine discipline, I can upload my routine music as an mp3 file so that the event organizer can play it during my performance, I can verify my upload before the event, and I can reuse the same track for future event registrations without re-uploading.
+Story: As a freestyle competitor registered in a routine category, I can upload my routine music as an mp3 file so that the event organizer can play it during my performance, I can verify my upload before the event, and I can reuse the same track for future event registrations without re-uploading.
 
 Success Criteria:
 
-- The form is available to members with a registration in a discipline where `requires_routine_music=true`, and only before the event's registration deadline.
+- The form is available to members with a registration in a division where `requires_routine_music=true`, and only before the event's registration deadline.
 - The form offers two paths: (a) upload a new mp3 file, or (b) attach an existing file from the member's personal routine-music library on S3 without re-uploading.
 - Accepted format at launch: mp3 only. Other audio formats are rejected with a clear error message. Support for additional formats is a future addition, admin-configurable when added.
 - Sanitization (per §1 file upload safety model): the audio is processed through FFmpeg with arguments `-map 0:a:0 -map_metadata -1 -c:a libmp3lame -b:a 128k -ar 44100`, which selects only the audio stream, drops all metadata and embedded album art, and re-encodes to a normalized 128 kbps / 44.1 kHz mp3. The re-encoded output is stored; the original upload is discarded. This eliminates any non-audio payload (id3-tag malware, trailers, polyglot tricks) by construction.
@@ -1311,12 +1311,12 @@ Success Criteria:
 - Files are stored in private object storage (S3) as durable member-owned media, on the same storage pipeline as member-uploaded photos. Files persist permanently in the member's library; there is no auto-purge.
 - Files are served via short-lived signed URLs only to (a) the uploading competitor at any time, (b) the non-uploading partner(s) on any joint registration the file is attached to, and (c) the event organizer(s) of any event the file is currently attached to via a registration entry, through and after event end. Files are never publicly accessible.
 - At upload, the member supplies a short library label (required, max 60 characters, for example "Worlds 2026 routine"). The label is stored on the library row as that file's default.
-- Each upload creates one row in the member's routine-music library. Attaching a library file to a registration entry creates a separate join row tying the file to that registration's (event_id, discipline_id) pair. A single library file may be attached to many registration entries across events. Disciplines on attachment rows align with the EO-defined disciplines from `M_Create_Event` and `EO_Edit_Event` (freeform per event, as the EO defines them).
+- Each upload creates one row in the member's routine-music library. Attaching a library file to a registration entry creates a separate join row tying the file to that registration's (event_id, discipline_id) pair. A single library file may be attached to many registration entries across events. Each attachment row points at one of the event's own `event_disciplines` rows, a division of a competition category as the EO defines it in `M_Create_Event` and `EO_Edit_Event` (freeform per event).
 - At attachment time the member may override the library file's default label for that specific attachment. The override is stored on the attachment row; the library default is unchanged.
 - Within a single registration entry, replacement swaps which library file is attached; replacement does not delete the previously attached file from the member's library.
 - After the registration deadline closes, the competitor can no longer attach, replace, or detach the file for that event; the attachment is locked for the event.
 - Competitor can delete a library file at any time. Deletion removes the file from object storage and all attachment rows for past, current, and future events. Past-event registration records retain a tombstone reference noting the file was deleted by the competitor.
-- All upload, attach, replace, detach, delete actions are audit-logged with member ID, event ID (if applicable), discipline ID (if applicable), file ID, action, timestamp.
+- All upload, attach, replace, detach, delete actions are audit-logged with member ID, event ID (if applicable), division (`event_disciplines`) ID (if applicable), file ID, action, timestamp.
 
 ### M_Manage_Routine_Music_Library
 
@@ -1328,7 +1328,7 @@ Story: As a member who uses routine music for footbag events, I can manage my pe
 
 Success Criteria:
 
-- Library view lists all routine-music files the member has uploaded, showing label, filename, file size, upload date, and the list of past/current attachments rendered as (event name, EO-defined discipline) pairs.
+- Library view lists all routine-music files the member has uploaded, showing label, filename, file size, upload date, and the list of past/current attachments rendered as (event name, EO-defined category and division) pairs.
 - Member can play back any library file via a short-lived signed URL.
 - Member can upload a new library file independent of any event registration, supplying a label at upload.
 - Member can edit a library file's default label at any time. Editing the default does not retroactively change per-attachment label overrides; those remain on the attachment rows.
@@ -1348,8 +1348,8 @@ Success Criteria:
 - Past Events with Results section shows events where member participated AND the event has published results records.
 - Each entry shows event title, date, location, status or placement.
 - One-click access to event details, results, and media galleries.
-- For events the member is registered for, the event detail view displays the member’s registration type and selected disciplines/partner info (if applicable).
-- On any event detail page, an authenticated member sees who else is registered: display name, registration type, the disciplines each competitor entered, and partner or team information where the entry is a doubles or team entry. Only confirmed registrations are listed. Entering a competition is a public act within the community, so registrants appear on this list without an opt-out; the list carries no contact details.
+- For events the member is registered for, the event detail view displays the member’s registration type and selected competition categories and divisions/partner info (if applicable).
+- On any event detail page, an authenticated member sees who else is registered: display name, registration type, the competition categories and divisions each competitor entered, and partner or team information where the entry is a doubles or team entry. Only confirmed registrations are listed. Entering a competition is a public act within the community, so registrants appear on this list without an opt-out; the list carries no contact details.
 
 ## 3.5 Payments
 
@@ -1914,11 +1914,11 @@ Success Criteria:
 
 Event creation form includes: title, description, start date, end date, location (city, state or province (optional), country), registration deadline, competitor registration fee (optional, requires Tier 2 or Tier 3 and admin approval to set up), participant (spectator) fee (optional), t-shirt size (optional).
 
-The organizer then adds the disciplines the event contests. A discipline is a structured record: it names its game, its entry size (singles or doubles), its gender eligibility (open, women's, or mixed), and its class (novice, intermediate, open, or masters). The display name, for example "Women's Singles Net" or "Intermediate Doubles Net", is generated from those parts. Mixed is the doubles entry size with mixed gender, so a mixed doubles discipline is the pairing of those two parts. IFPA texts call the gender and class parts of a discipline its division.
+The organizer then adds the competition categories and divisions the event contests. Each division of a category is a structured record, an `event_disciplines` row: it names its game, its entry size (singles or doubles), its gender eligibility (open, women's, or mixed), and its class (novice, intermediate, open, or masters). The display name, for example "Women's Singles Net" or "Intermediate Doubles Net", is generated from those parts. Mixed is the doubles entry size with mixed gender, so a mixed doubles division is the pairing of those two parts. The game and entry size name the competition category, and the gender and class parts name the division.
 
-For each discipline the organizer states whether it offers prize money. A discipline that offers prize money lets players enter as an Amateur (see `M_Register_For_Event`).
+For each division the organizer states whether it offers prize money. A division that offers prize money lets players enter as an Amateur (see `M_Register_For_Event`).
 
-The game comes from a maintained list per category (net, freestyle, golf, consecutives, X Square), and each game declares which entry sizes, genders and classes apply to it, so the form offers doubles for routines and singles for a thirty-second shred. The lists are reference data seeded into the database and maintained without a software release; IFPA ratifies their contents through the published competition rules. Where an event runs a game the lists do not yet carry, the organizer supplies the game name directly and still chooses the entry size, gender and class from the standard parts, so the discipline stays legible while its game is new.
+The game comes from a maintained list per discipline (net, freestyle, golf, consecutives, X-Square), and each game declares which entry sizes, genders and classes apply to it, so the form offers doubles for routines and singles for a thirty-second shred. The lists are reference data seeded into the database and maintained without a software release; IFPA ratifies their contents through the published competition rules. Where an event runs a game the lists do not yet carry, the organizer supplies the game name directly and still chooses the entry size, gender and class from the standard parts, so the division stays legible while its game is new.
 
 Social kicking, also called free-flow or cooperative kicking, and circle kicking are recreational forms of the sport rather than competitive games, so the game lists carry the contested games only.
 
@@ -1945,16 +1945,16 @@ Success Criteria:
 - Submitting the request emails the IFPA Sanctioning Director directly, carrying the event details and the organizer's details, so the officeholder can take it up with the organizer before the decision is made. The Sanctioning Director also holds an administrator account and sees the request in the admin work queue like any other administrator; the direct email is required in addition, because a queue entry alone does not reach the officeholder. It is addressed to the officeholder's own address, because the apex sanctioning alias carries inbound correspondence and forwards it onward, and platform mail keeps its bounce and complaint signal by going direct. It is sent through the platform's own mail path so it is templated, logged and bounce-tracked like every other platform mail.
 - The request form carries the organizer's sanctioning attestation, which the organizer must affirm to submit: that the event will abide by IFPA's guidelines for sanctioned events, that it will use the competition formats and judging systems in the Official Rules of Footbag Sports or state on the request where it differs, that any alternative judging system will be communicated to all players before competition begins, and that the organizer will meet the after-event requirements. The attestation links to the published sanctioning guidelines (`/ifpa/sanctioning-guidelines`), and the form carries a free-text field where the organizer states where the event differs from the official formats and judging systems.
 - The request form asks, and the reviewing administrator sees every answer:
-  - Prize money: yes or no; if yes, the total amount and its currency, and which of the event's disciplines offer prize money.
+  - Prize money: yes or no; if yes, the total amount and its currency, and which of the event's divisions offer prize money.
   - What the entry fee includes (short text, optional).
   - Whether the event is held for the first time, annually, or occasionally; if annually, the years it has been held.
   - Expected number of players.
   - Expected number of spectators (optional).
   - Permits in place: yes, no, or not needed.
   - Insurance in place: yes, no, or not needed.
-- A sanctioned event must offer a Women's division and an Intermediate division in every game and entry size it offers, for example in both Singles Net and Doubles Net: for each, at least one discipline whose gender is women's and at least one whose class is intermediate. When any is missing, the request form warns the organizer before submission, naming what is missing; the organizer may still submit, and the administrator decides.
-- Every discipline that offers prize money must let players enter as an Amateur: an Amateur takes no prize money and earns the same placing and ranking points as any other entrant. The organizer cannot mark a discipline as offering prize money without that option, which the platform provides automatically.
-- The sanction request records which organizer submitted it. The obligations it carries belong to the event: any organizer of the event can meet them, and every organizer sees the work item and the "sanctioning requirements not met" badge. Within 20 days of the event's last day the organizers must (1) upload the complete results for every discipline (`EO_Upload_Results`), and (2) send a brief summary of the event, a paragraph or two on its highlights, to the IFPA announce list through the Send Announcement form, marked as this event's summary (`M_Send_Announce_Email`). The badge shows from day 21 until both are done.
+- A sanctioned tournament must offer a Women's division and an Intermediate division in every competition category it offers, for example in both Singles Net and Doubles Net, which are separate competition categories. When any is missing, the request form warns the organizer before submission, naming what is missing; the organizer may still submit, and the administrator decides.
+- Every division that offers prize money must let players enter as an Amateur: an Amateur takes no prize money and earns the same placing and ranking points as any other entrant. The organizer cannot mark a division as offering prize money without that option, which the platform provides automatically.
+- The sanction request records which organizer submitted it. The obligations it carries belong to the event: any organizer of the event can meet them, and every organizer sees the work item and the "sanctioning requirements not met" badge. Within 20 days of the event's last day the organizers must (1) upload the complete results for every competition category and division (`EO_Upload_Results`), and (2) send a brief summary of the event, a paragraph or two on its highlights, to the IFPA announce list through the Send Announcement form, marked as this event's summary (`M_Send_Announce_Email`). The badge shows from day 21 until both are done.
 - The Tier 2 or Tier 3 requirement is checked when the request is submitted and when it is approved. Once approved, the sanction belongs to the event; it is not withdrawn if the submitting organizer later leaves or their tier lapses.
 - The request form carries a fee justification when the organizer has configured registration fees.
 - Organizer receives email confirmation that request is pending.
@@ -1977,8 +1977,8 @@ Success Criteria:
 - All edits audit-logged with organizer ID, fields changed, old values, new values, timestamp.
 - Organizers see a clear success message when event is updated.
 - Organizer sees clear error messages for validation failures.
-- Organizers can add, rename, or remove disciplines on an existing event before the first registration in that discipline is confirmed. After the first confirmed registration, destructive changes to that specific discipline require admin override.
-- << V2 SCOPE >> Ships with routine music in v2: organizers can mark any discipline on the event as `requires_routine_music=true` (default `false`). The flag is freely editable until the first registration in that discipline is confirmed; after the first confirmed registration, changes to this flag for that discipline require admin override with a documented reason.
+- Organizers can add, rename, or remove divisions on an existing event before the first registration in that division is confirmed. After the first confirmed registration, destructive changes to that specific division require admin override.
+- << V2 SCOPE >> Ships with routine music in v2: organizers can mark any division on the event as `requires_routine_music=true` (default `false`). The flag is freely editable until the first registration in that division is confirmed; after the first confirmed registration, changes to this flag for that division require admin override with a documented reason.
 - Organizers can enable or disable the event's online registration acceptance via a toggle that stops new registrations without changing event status. This is the granular alternative to `EO_Close_Registration`, which closes the entire registration window irreversibly.
 
 ### EO_Delete_Event
@@ -2045,7 +2045,7 @@ Success Criteria:
 - List sortable by registration date or name.
 - Total participant count displayed.
 - Payment status visible if event has fees.
-- Participant list and exports include registration type (Competitor/Attendee-Supporter), selected disciplines (if competitor), and partner/team fields (if applicable).
+- Participant list and exports include registration type (Competitor/Attendee-Supporter), selected competition categories and divisions (if competitor), and partner/team fields (if applicable).
 
 Impact: For events officially registered through the IFPA website (including sanctioned events), the participant list supports marking confirmed participants as "Attended" after the event ends. Organizers can mark individual participants or use bulk-select to mark multiple participants at once. All attendance marks and any resulting Active Player grants or extensions are audit-logged with: actor member ID, affected member ID, event ID, old Active Player expiry, new Active Player expiry, timestamp, reason "official_event_attendance".
 
@@ -2098,7 +2098,7 @@ Success Criteria:
 - Export generates CSV file with: member name, email (if opted in), city, country, registration date, membership tier and Active Player status, payment status.
 - Export includes only confirmed participants (not pending or canceled).
 - Export filename: eventname_participants_YYYYMMDD.csv
-- Participant list and exports include registration type (Competitor/Attendee-Supporter), selected disciplines (if competitor), and partner/team fields (if applicable).
+- Participant list and exports include registration type (Competitor/Attendee-Supporter), selected competition categories and divisions (if competitor), and partner/team fields (if applicable).
 
 ### EO_View_Registration_Summary
 
@@ -2109,9 +2109,9 @@ Story: As an event organizer, I can view a registration summary dashboard for my
 Success Criteria:
 
 - Dashboard is scoped to a single event and accessible only to that event's organizer(s) and Admins.
-- Dashboard displays: total registered count, breakdown by registration type (Competitor / Attendee-Supporter), per-discipline registration counts, payment status summary (paid / pending / failed counts and amounts in the event's currency), registration timeline (count per day from registration open to current time).
+- Dashboard displays: total registered count, breakdown by registration type (Competitor / Attendee-Supporter), registration counts per competition category and division, payment status summary (paid / pending / failed counts and amounts in the event's currency), registration timeline (count per day from registration open to current time).
 - Dashboard displays t-shirt size summary if the event collects t-shirt sizes.
-- << V2 SCOPE >> Ships with routine music in v2: for disciplines with `requires_routine_music=true`, dashboard displays a routine-music status summary, counting registrations with a file uploaded against those still missing one.
+- << V2 SCOPE >> Ships with routine music in v2: for divisions with `requires_routine_music=true`, dashboard displays a routine-music status summary, counting registrations with a file uploaded against those still missing one.
 - Counts update via SQL query on demand; no caching beyond standard request scope.
 
 ### EO_Export_Check_In_Template
@@ -2123,7 +2123,7 @@ Story: As an event organizer, I can export a printable check-in template so that
 Success Criteria:
 
 - Export generates a print-styled HTML page or PDF, admin-configurable via `checkin_template_format` (default `html`). Distinct from the CSV produced by `EO_Export_Participants`.
-- Each row includes: participant display name, registration type, selected disciplines, partner or team info if applicable, payment status, a check-in checkbox column, and a notes column.
+- Each row includes: participant display name, registration type, selected competition categories and divisions, partner or team info if applicable, payment status, a check-in checkbox column, and a notes column.
 - Rows are sorted alphabetically by participant display name (default) or by registration type.
 - Document title or filename format: `eventname_checkin_YYYYMMDD`.
 
@@ -2159,19 +2159,19 @@ Success Criteria:
 
 - Results upload accepts CSV with enough information to create `event_results_uploads`, `event_result_entries`, and `event_result_entry_participants` database rows for singles and multi-participant placements (if that data is available for the event).
 - The upload is a two-step flow: the file is parsed into a preview the organizer reviews, and nothing is written to the event's public results, no participant profile is touched, and no attendance step runs until the organizer commits that preview.
-- The preview reports, per row, whether each named participant matched a confirmed registration in that event. Matching is quality assurance rather than a gate: an unmatched participant is flagged for the organizer to correct or accept, and accepting one records the participant by display name without a member link. This is expected rather than exceptional, because partners change on the day, non-members compete, and competitors are moved between disciplines as entries are combined or split at the event.
-- The preview refuses to commit a file that is malformed as results: a placement missing, a discipline the event does not carry and the organizer has not confirmed as contested, or a duplicate placement that the organizer has not declared as a tie.
-- Each group of results names the discipline that actually ran, whether or not it matches what the event advertised beforehand.
+- The preview reports, per row, whether each named participant matched a confirmed registration in that event. Matching is quality assurance rather than a gate: an unmatched participant is flagged for the organizer to correct or accept, and accepting one records the participant by display name without a member link. This is expected rather than exceptional, because partners change on the day, non-members compete, and competitors are moved between divisions as entries are combined or split at the event.
+- The preview refuses to commit a file that is malformed as results: a placement missing, a competition category or division the event does not carry and the organizer has not confirmed as contested, or a duplicate placement that the organizer has not declared as a tie.
+- Each group of results names the competition category and division that actually ran, whether or not it matches what the event advertised beforehand.
 - Ties are recorded as a shared placement: tied competitors take the same, lower place and the next place is skipped, as the IFPA competition rules specify.
-- Results record every competitor's placement, down to last place, and carry the scores of matches played where the discipline produces them, so a later ranking computation has the inputs the IFPA rules require without the organizer being asked for the data twice.
+- Results record every competitor's placement, down to last place, and carry the scores of matches played where the competition category produces them, so a later ranking computation has the inputs the IFPA rules require without the organizer being asked for the data twice.
 - Results visible on event detail page after commit.
 - Results displayed as sortable table.
 - Results also added to participant profiles (if participant linked to member account).
 - Results publication emits a news feed item, which ships with the news feed in v2; in v1 results publish on the event page directly.
 - Only organizers can upload results.
 - Results upload audit-logged, including the committed upload's row count and the count accepted without a registration match.
-- An entrant who entered a prize-money discipline as an Amateur is marked as Amateur in that discipline's results; the mark changes neither the placing nor the ranking points.
-- For a sanctioned event, uploading complete results for every discipline in the platform within 20 days of the event's last day is a sanctioning requirement, one deadline for every sport. Sending the event summary to the announce list within the same 20 days is the other (`EO_Request_Sanction`).
+- An entrant who entered a prize-money division as an Amateur is marked as Amateur in that division's results; the mark changes neither the placing nor the ranking points.
+- For a sanctioned event, uploading complete results for every competition category and division in the platform within 20 days of the event's last day is a sanctioning requirement, one deadline for every discipline. Sending the event summary to the announce list within the same 20 days is the other (`EO_Request_Sanction`).
 - A sanctioned event that has not met both requirements within those 20 days shows a "sanctioning requirements not met" badge, on its event page and on the organizer's results-upload surface for that event where the organizer acts on it; the badge clears once the results are uploaded and the summary is sent.
 - Results can be uploaded for any event (sanctioned status does not affect results posting).
 Impact:
@@ -2181,7 +2181,7 @@ For events officially registered through the IFPA website (including sanctioned 
 ## 4.5 Music Operations
 
 << V2 SCOPE >> Routine music is version-two scope, shipping with the freestyle routine
-disciplines it serves. The stories in this section are design intent for that build and are
+categories it serves. The stories in this section are design intent for that build and are
 not part of the v1 launch.
 
 Organizer-side audio operations during events. The scope is routine-music playback; draws, seeding, scheduling, live scoring and the rest of the tournament day are in Tournament Operations below.
@@ -2194,19 +2194,19 @@ Story: As an event organizer, I can list and play the routine-music files for my
 
 Success Criteria:
 
-- List shows all routine-music files currently attached to confirmed registrations in the event, grouped by discipline and sorted alphabetically by competitor display name within each discipline.
-- Each entry shows: competitor display name, partner or team info if applicable, discipline, the per-attachment label (the attachment's override if set, otherwise the library default), original filename, file size, upload timestamp.
+- List shows all routine-music files currently attached to confirmed registrations in the event, grouped by competition category and division and sorted alphabetically by competitor display name within each.
+- Each entry shows: competitor display name, partner or team info if applicable, competition category and division, the per-attachment label (the attachment's override if set, otherwise the library default), original filename, file size, upload timestamp.
 - Organizer can play any attached file directly in the browser via short-lived signed URLs; playback is HTML5 audio with standard controls (play, pause, seek, volume).
 - Organizer can download any attached file for offline use during the event.
 - Files persist indefinitely on the member's S3 library (see `M_Upload_Routine_Music`); organizer access is gated by the attachment row remaining present and the organizer being assigned to the event.
-- If a competitor deletes a library file that was attached to a past or current registration, the corresponding entry in this list shows a tombstone "Deleted by competitor" with no playback or download. The attachment metadata (event, discipline, competitor identity, label) is preserved for audit and historical reference.
+- If a competitor deletes a library file that was attached to a past or current registration, the corresponding entry in this list shows a tombstone "Deleted by competitor" with no playback or download. The attachment metadata (event, category and division, competitor identity, label) is preserved for audit and historical reference.
 
 ## 4.6 Tournament Operations
 
 << V3 SCOPE >> Native tournament-day operations are version-three scope, to be complete in time
 for Worlds 2027. These stories are design intent for that build and are not part of the v1 launch.
 They cover net, which runs on seeded pools and elimination draws, and freestyle, which runs on
-pools judged by a panel; golf scoring is a third category that the same machinery accommodates.
+pools judged by a panel; golf scoring is a third kind that the same machinery accommodates.
 
 Until this build lands, IFPA net championships run on an external tournament product under an
 IFPA organization account, and their draws, match scores and cross-event player history live
@@ -2216,7 +2216,7 @@ imported.
 How the published rules bind these stories: where a rulebook states a requirement, the platform
 holds the organizer to it. Where a rulebook recommends, the platform supplies the recommended
 value as the default, lets the organizer change it, names the rule the change departs from at the
-moment it is made, and records the departure with the discipline's results so a later dispute and
+moment it is made, and records the departure with the division's results so a later dispute and
 a later ranking both see what was actually run. Organizers decide the details their venue and
 their day demand.
 
@@ -2224,52 +2224,53 @@ their day demand.
 
 Access: Event organizers and co-organizers, for events they organize.
 
-Story: As an event organizer, I can define the disciplines my tournament actually contests so that
-entries, seeding, draws, scheduling and results all hang off one discipline list.
+Story: As an event organizer, I can define the competition categories and divisions my tournament
+actually contests so that entries, seeding, draws, scheduling and results all hang off one list.
 
 Success Criteria:
 
-- A discipline is the structured record defined in `M_Create_Event`: its category, its game, its
+- Each division a tournament offers in a competition category is the structured record defined in
+  `M_Create_Event`, an `event_disciplines` row: its discipline, its game, its
   entry size, its gender eligibility and its class, with the display name generated from those
   parts. The vocabulary is singles or doubles for entry size, open, women's or mixed for gender,
   and novice, intermediate, open or masters for class, so mixed doubles is the
   doubles entry size with mixed gender. Gender is enforced at entry; class is self-selection.
-  Amateur is never a class, and no event offers an Amateur discipline: Amateur is the entrant's
-  own choice in a discipline that offers prize money (see `M_Register_For_Event`).
+  Amateur is never a class, and no event offers an Amateur division: Amateur is the entrant's
+  own status choice in a division that offers prize money (see `M_Register_For_Event`).
   The older names in the historical record are superseded aliases for these, stay exactly as they
   were run, and carry the structured parts where those can be inferred confidently. An event
-  carries as many disciplines as it contests, and a competitor may enter more than one.
-- A discipline carries its scoring system, from the approved set its category publishes. For net
+  carries as many divisions as it contests, and a competitor may enter more than one.
+- A division carries its scoring system, from the approved set its discipline publishes. For net
   those are classic side-out scoring, rally scoring, and game-set-match, where games run to four
   points, six games make a set and a match is the best of three sets, so the match structure
   differs by system and the model carries sets as well as games. The tournament director chooses
-  per discipline, competitors are told which system at least twenty-four hours before play, and the
-  system stays fixed for every round of that discipline, which the rules state as a requirement
+  per division, competitors are told which system at least twenty-four hours before play, and the
+  system stays fixed for every round of that division, which the rules state as a requirement
   rather than a recommendation.
-- A discipline carries its match format: how many games decide a match, the points that win a game,
+- A division carries its match format: how many games decide a match, the points that win a game,
   whether a game must be won by two, and any points cap. Defaults come from the IFPA published
-  rules for that category, an organizer may vary them, and the variation is recorded with the
-  discipline's results.
-- A discipline's match format can differ by where the match sits in the draw, because the published
+  rules for that discipline, an organizer may vary them, and the variation is recorded with the
+  division's results.
+- A division's match format can differ by where the match sits in the draw, because the published
   rules already do this: net's double-elimination default is best of three games to eleven in the
   winners' bracket, a single game to fifteen in the losers' bracket, and best of three games to
-  fifteen for the last four matches of the event, meaning the final, the winners'-bracket final,
+  fifteen for the last four matches of the draw, meaning the final, the winners'-bracket final,
   and the last two losers'-bracket matches. The format is therefore set per bracket and per round
-  within a discipline, with the rulebook's pattern offered as the default.
-- Disciplines can be combined, split, or renamed after entries open, and every entry, draw and
+  within a division, with the rulebook's pattern offered as the default.
+- Divisions can be combined, split, or renamed after entries open, and every entry, draw and
   result follows the change rather than being re-keyed by hand.
-- Discipline setup and every later change to it are audit-logged.
+- Division setup and every later change to it are audit-logged.
 
 ### EO_Manage_Discipline_Entries
 
 Access: Event organizers and co-organizers, for events they organize.
 
-Story: As an event organizer, I can manage who is entered in each discipline, including doubles
+Story: As an event organizer, I can manage who is entered in each division, including doubles
 pairs, so that the draw is made from an accurate entry list.
 
 Success Criteria:
 
-- An entry is one competitor for a singles discipline and one team for a doubles or mixed discipline.
+- An entry is one competitor for a singles category and one team for a doubles category, mixed included.
   A team is an entity in its own right: it has its own entry, seed, draw position and result.
 - A team entry survives the day: a partner can be added, replaced, or removed after entry, an
   entry can sit incomplete while a partner is sought, and the change is recorded rather than
@@ -2277,21 +2278,21 @@ Success Criteria:
 - An entry links to a platform member where one exists and otherwise records a display name and
   country, because non-members compete and partners are found on site.
 - Entries carry the state the day needs: entered, waitlisted, checked in, withdrawn, no-show.
-- Entry caps, entry deadlines and withdrawal deadlines are per discipline.
+- Entry caps, entry deadlines and withdrawal deadlines are per division.
 - Entry changes are audit-logged with who made them.
 
 ### EO_Check_In_Competitors
 
 Access: Event organizers and co-organizers, for events they organize.
 
-Story: As an event organizer, I can check competitors in per discipline before the draw is made so
+Story: As an event organizer, I can check competitors in per division before the draw is made so
 that no-shows do not end up in the bracket.
 
 Success Criteria:
 
-- Check-in is per discipline and per entry, works from a phone at the venue, and shows who is still
+- Check-in is per division and per entry, works from a phone at the venue, and shows who is still
   outstanding as the deadline approaches.
-- An entry not checked in by the discipline's check-in deadline is marked no-show and is excluded
+- An entry not checked in by the division's check-in deadline is marked no-show and is excluded
   from the draw, and the organizer can reverse that up until the draw is made.
 - Check-in state is visible to every organizer of the event at once.
 
@@ -2299,12 +2300,12 @@ Success Criteria:
 
 Access: Event organizers and co-organizers, for events they organize.
 
-Story: As an event organizer, I can seed a discipline so that the strongest competitors do not meet
+Story: As an event organizer, I can seed a division so that the strongest competitors do not meet
 in the first round.
 
 Success Criteria:
 
-- The system proposes a seeding order from the IFPA rankings where the discipline's category
+- The system proposes a seeding order from the IFPA rankings where the division's discipline
   carries them, and from prior results at the same event series otherwise. The proposal is a
   starting point, never a lock.
 - The organizer can set, reorder and remove seeds by hand, and the final seeding is what the draw
@@ -2316,23 +2317,23 @@ Success Criteria:
 - Seeding into a subsequent round follows the pool result, and defaults to the constraint the net
   rules set: a pool runner-up is seeded no higher than one above the number of pools and no lower
   than twice it, and competitors level on match record are separated by their initial seeding.
-- The seeding used for a discipline is retained with its results, so a later ranking computation
+- The seeding used for a division is retained with its results, so a later ranking computation
   and a later dispute both have the input that was actually used.
 
 ### EO_Generate_Draw
 
 Access: Event organizers and co-organizers, for events they organize.
 
-Story: As an event organizer, I can generate the draw for a discipline so that play can start.
+Story: As an event organizer, I can generate the draw for a division so that play can start.
 
 Success Criteria:
 
-- A discipline's draw is one of: round-robin pools that qualify competitors into a main elimination
+- A division's draw is one of: round-robin pools that qualify competitors into a main elimination
   draw, a single elimination draw, a double elimination draw, or a round robin that stands alone
   and decides placement on standings.
 - A double elimination draw carries a winners' bracket and a losers' bracket, as the net rules
   describe: a first loss moves a competitor to the losers' bracket, a second loss ends their
-  event, and the losers'-bracket winner meets the winners'-bracket winner in the final, where the
+  run, and the losers'-bracket winner meets the winners'-bracket winner in the final, where the
   unbeaten finalist can take the title in one match. This is distinct from a consolation draw,
   whose winner wins that bracket alone and meets no other bracket's winner.
 - Pool play supports uneven pool sizes. Pools default to the sizes the net rules recommend, three
@@ -2342,11 +2343,11 @@ Success Criteria:
   that pool size, including which pairs of matches are played simultaneously in pools of four and
   five, and the organizer can reorder it.
 - An elimination draw supports byes, a consolation or back draw, and a third-place playoff.
-- A freestyle discipline runs on pools throughout rather than on a bracket, and the platform carries
+- A freestyle division runs on pools throughout rather than on a bracket, and the platform carries
   that shape: pools sized as the freestyle rules recommend, competitors advancing from preliminary
   pools through a qualifying round to a final, running order ranked so the top seed performs last,
-  and the option to place competitors from more than one discipline in a single pool so a panel can
-  judge them together while each is placed only against their own discipline.
+  and the option to place competitors from more than one division in a single pool so a panel can
+  judge them together while each is placed only against their own division.
 - Pool standings are computed and shown: matches played, won and lost, match record, game record,
   total points for and against, and standings points. Placement within a pool follows the net
   rules: match record first, then the head-to-head result where two competitors are level. Where
@@ -2372,22 +2373,22 @@ Success Criteria:
 - The event carries its playing surfaces (courts or fields) and their availability windows, and a
   match is assigned to a surface and a time slot or to a running order on that surface.
 - The schedule refuses, or warns on, a competitor assigned to two matches at once, including a
-  competitor entered in more than one discipline, and a match scheduled before the match that feeds
+  competitor entered in more than one competition category or division, and a match scheduled before the match that feeds
   it has been played.
 - The order of play is publishable and re-orderable during the day, because tournaments run late.
-- An official can be assigned to a match where the discipline uses officials.
+- An official can be assigned to a match where the division uses officials.
 
 ### EO_Record_Match_Result
 
 Access: Event organizers, co-organizers, and anyone an organizer designates as a scorer for a
-surface or a discipline.
+surface or a division.
 
 Story: As whoever is running a court, I can enter a match result from my phone as it finishes so
 that the draw advances and spectators see it immediately.
 
 Success Criteria:
 
-- Entry is per game, in the discipline's match format, and the match's winner and the advancement
+- Entry is per game, in the division's match format, and the match's winner and the advancement
   that follows are computed rather than typed.
 - A match can also be closed as a walkover, a retirement, a disqualification or a no-show, with
   the reason recorded.
@@ -2418,22 +2419,22 @@ Success Criteria:
 
 Access: Event organizers and co-organizers, for events they organize.
 
-Story: As an event organizer, I can set up how a freestyle discipline is judged so that judges score
+Story: As an event organizer, I can set up how a freestyle division is judged so that judges score
 into the platform and placings come out of it.
 
 Success Criteria:
 
-- A freestyle discipline names the judging system it runs. The judging systems are an extensible set
+- A freestyle division names the judging system it runs. The judging systems are an extensible set
   the platform holds as reference data, so one is added or amended between events without a
   software release. The published freestyle rules are where each system's criteria and formula
   live; the platform implements them rather than restating them.
 - The platform computes the systems it carries, and for a system it does not yet carry it records
   the placings and scores the panel produced, on the same path an uploaded result takes. A
-  director whose chosen system is not yet computed still runs the discipline on the platform.
+  director whose chosen system is not yet computed still runs the division on the platform.
 - A judging panel is assigned per pool. Competitors may be assigned to judge other pools, which is
-  how the sport staffs a panel, and pool assignments and judging assignments are published
+  how tournaments staff a panel, and pool assignments and judging assignments are published
   together so the day can be planned from one sheet.
-- A competitor who does not appear for a judging assignment is flagged on the discipline, and what
+- A competitor who does not appear for a judging assignment is flagged on the division, and what
   follows is the tournament director's to decide and to record.
 - Where a system counts difficulty from add values, the count is entered by two people in the
   roles the rules describe: one calling the add value of each move aloud, one recording it, with
@@ -2450,7 +2451,7 @@ updates as soon as the panel has finished.
 Success Criteria:
 
 - The screen shows only the competitor being judged and what comes next in the pool, and takes the
-  criteria the discipline's judging system asks that judge for.
+  criteria the division's judging system asks that judge for.
 - A score entered while the connection is down is held on the device and submitted when it
   returns, and the judge can see which of their scores have landed.
 - Once every judge on the panel has submitted for a competitor, the run's result is computed and
@@ -2469,11 +2470,11 @@ survives a venue with no usable network.
 
 Success Criteria:
 
-- Printable, page-sized output for: the draw sheet of a discipline, its pool sheets, blank and
+- Printable, page-sized output for: the draw sheet of a division, its pool sheets, blank and
   partly filled match score sheets, the order of play for a surface, and the entry list of a
-  discipline.
-- Output is a document the organizer can save and reprint, and it carries the event, discipline,
-  and the time it was produced, so a stale sheet on a wall is identifiable as stale.
+  division.
+- Output is a document the organizer can save and reprint, and it carries the event, competition
+  category and division, and the time it was produced, so a stale sheet on a wall is identifiable as stale.
 - Printed sheets are produced from the current state of the draw at the moment they are made, and
   producing them changes nothing.
 
@@ -2486,7 +2487,7 @@ tournament is played.
 
 Success Criteria:
 
-- The event page carries, per discipline, the current draw, the pool standings, the completed match
+- The event page carries, per competition category and division, the current draw, the pool standings, the completed match
   scores, and what is on court now or next, and it updates as results are entered without the
   reader reloading.
 - Each competitor shown links to their platform profile where they have one, and carries their
@@ -2498,7 +2499,7 @@ Success Criteria:
 
 Access: Event organizers and co-organizers, for events they organize.
 
-Story: As an event organizer, I can finalize a discipline so that its placements become the event's
+Story: As an event organizer, I can finalize a division so that its placements become the event's
 published results.
 
 Success Criteria:
@@ -2506,7 +2507,7 @@ Success Criteria:
 - Finalizing computes every competitor's placement down to last place from the draw and the pool
   standings, applying the IFPA tie convention that tied competitors take the same, lower place and
   the next place is skipped.
-- For a freestyle discipline, the placings come from the final round alone, with earlier rounds
+- For a freestyle division, the placings come from the final round alone, with earlier rounds
   feeding the seeding rather than the score, and a tie within a pool is broken as the freestyle
   rules direct: counting how many judges placed each tied competitor first, then second, and on
   down, before the shared-placement convention applies to whatever survives.
@@ -2519,9 +2520,9 @@ Success Criteria:
   including attendance, Active Player grants, participant profiles and ranking computation.
 - The match scores that produced the placements are retained with them, not discarded at
   finalization.
-- A discipline cannot be finalized while any of its matches is unplayed, unless the organizer
-  records why (an abandoned discipline, a format cut short) and that reason is retained.
-- Finalization is audit-logged, and a finalized discipline can be reopened by an administrator.
+- A division cannot be finalized while any of its matches is unplayed, unless the organizer
+  records why (an abandoned division, a format cut short) and that reason is retained.
+- Finalization is audit-logged, and a finalized division can be reopened by an administrator.
 
 # 5. Club Leader Stories
 
@@ -2564,7 +2565,7 @@ Story: As a co-leader, I can edit club information so that I can keep club detai
 Success Criteria:
 
 - Co-leaders can edit all club information except the club's hashtag and its country. The hashtag is the club's permanent handle and the address of its page; the country is set when the club is created, because a club does not move between countries. Only an administrator changes either, under A_Correct_Club_Data, to correct a mistake.
-- All edits audit-logged with leader ID, the names of the fields changed, and timestamp.
+- All edits audit-logged with leader ID, each changed field's before and after value, and timestamp.
 - Co-leaders see a clear success message when the club is updated.
 
 ### CL_Mark_Club_Inactive
@@ -2580,7 +2581,7 @@ Success Criteria:
 - Club members' `member_club_affiliations` rows are preserved with `is_current=1`; the club detail surface shows a warning that the club is inactive.
 - A co-leader can reactivate the club at any time.
 - Inactive status change audit-logged.
-- Inactive is the parked state: the club is out of the active listings and comes back the moment anyone joins, claims or reactivates it. Any co-leader may park a club at any time, and parking is what a club that has simply finished gets. Parking is the co-leader's only lifecycle action on the club record; archiving is for a junk club record, is terminal, and is an admin action.
+- An inactive club is off the public club list and comes back the moment anyone joins, claims or reactivates it. Any co-leader may make a club inactive at any time, and that is what a club that has simply finished gets. Making the club inactive is the co-leader's only lifecycle action on the club record; archiving is for a junk club record, is terminal, and is an admin action.
 
 ## 5.2 Leadership Management
 
@@ -2639,7 +2640,7 @@ Success Criteria:
 - Owner can edit: description (long-form text) and short member-facing notes (e.g., next meeting time, agenda link).
 - Owner cannot edit: name, type, official, policy (public/private), restrict_membership, email_enabled, state, parent_group_id. Those properties are Admin-only via `A_Edit_Group_Properties`.
 - Co-owners can edit all owner-editable fields.
-- All edits are audit-logged with actor identity, the names of the fields changed, and timestamp.
+- All edits are audit-logged with actor identity, each changed field's before and after value, and timestamp.
 - Owner sees a clear success message on save and clear validation errors otherwise.
 
 ### GO_Manage_Members
@@ -2722,8 +2723,8 @@ Story: As an admin, I can approve or reject an event's sanction request, and wit
 Success Criteria:
 
 - Review event details, the organizer's sanctioning attestation, the organizer's statement of where the event differs from the official formats and judging systems, every answer to the request-form questions (`EO_Request_Sanction`), and any fee structure in the approval queue.
-- See the event's disciplines, each with its game, entry size, gender, class, and whether it offers prize money.
-- Review checklist: a sanctioned event must offer a Women's division and an Intermediate division, meaning, in every game and entry size the event offers, at least one discipline whose gender is women's and at least one whose class is intermediate. A request missing any is flagged in the queue; the administrator decides, and a rejection names what is missing.
+- See the event's competition categories and divisions, each division with its game, entry size, gender, class, and whether it offers prize money.
+- Review checklist: a sanctioned tournament must offer a Women's division and an Intermediate division in every competition category it offers. A request missing any is flagged in the queue; the administrator decides, and a rejection names what is missing.
 - Approve or reject with reason.
 - On approval: event status changes to `reg_open`, payment configuration enabled where the organizer configured fees, Email sent to all event organizers to confirm. The approval email links to the published sanctioning guidelines (`/ifpa/sanctioning-guidelines`), states that the event may now use the IFPA logo in its publicity, and points to the logo download on that page. Event will appear in Upcoming Events list. The news item this emits ships with the news feed in v2.
 - On rejection: event status returns to `draft`, Outbox sends organizer notification with reason, and the organizer can revise and resubmit.
@@ -2859,17 +2860,16 @@ Success Criteria:
 
 Access: Only admins can add or remove a club's co-leaders on a member's behalf, and help clubs that have no co-leader.  
 
-Story: As an Administrator, I have full control over club co-leader rosters so that a club can regain a co-leader when it has none, a mis-added or unwanted co-leader can be removed, and the 5-co-leader cap can be overridden for legitimate growth.
+Story: As an Administrator, I have full control over club co-leader rosters so that a club can regain a co-leader when it has none, and a mis-added or unwanted co-leader can be removed.
 
 Success Criteria:
 
 - Admin can add a co-leader from the member base (audit-logged); the added member becomes a current affiliate if not already.
 - Admin can remove a co-leader (returning them to ordinary club member), or remove their affiliation entirely (audit-logged with mandatory reason text). Admin removal is the only way to remove a co-leader other than the co-leader stepping down themselves.
 - A member co-leads at most one club. Changing which club a member co-leads is the member's own action: they step down at their current club, then volunteer at the other.
-- Admin can override the 5-co-leader cap when adding a co-leader, with an explicit "cap-override" reason recorded in the audit row.
 - Admin can make an affiliated-only member (one whose wizard claim was capped out) a co-leader at any time.
 - Clubs with zero co-leaders are flagged "Needs Leader" and surface on the low-priority admin opportunity list (§5.1).
-- Admin can resolve a "Needs Leader" item by adding a co-leader, or by archiving the club only if it is confirmed defunct. Leaderless is a tolerated state (§5.1), so this is an opportunity, not an obligation.
+- Admin can resolve a "Needs Leader" item by adding a co-leader, or by archiving the club only if it is confirmed junk. Leaderless is a tolerated state (§5.1), so this is an opportunity, not an obligation.
 - Reassignment restores normal club management capabilities when a leadership gap was the blocking issue.
 - When resolving leadership for a bootstrapped club, the system marks the relevant `club_bootstrap_leaders` row as superseded.
 - All admin leadership actions are audit-logged with actor identity, timestamp, before/after values, and reason text; the audit trail is the canonical history and cannot be edited by admins.
@@ -2878,8 +2878,7 @@ Success Criteria:
 
 Access: Only admins can correct a club's own content outside its co-leaders' own tools.
 
-Story: As an administrator, I can correct a club's details and its hashtag where its co-leaders cannot, so that a club nobody is left to maintain is not stuck with details nobody can fix. A club with no co-leader is the case this exists for: the leaderless state is tolerated by design and the club still lists publicly. A club with active co-leaders maintains itself, and an administrator does not edit it on their behalf.
-
+Story: As an administrator, I can correct a club's details and its hashtag where its co-leaders cannot, so that a club nobody is left to maintain is not stuck with details nobody can fix. A club with no co-leader is the case this exists for: the leaderless state is tolerated by design and the club still lists publicly.
 Success Criteria:
 
 - Admin can find any club by id, hashtag, or part of its name or city, including the inactive and archived clubs the public directory does not list.
@@ -2911,8 +2910,8 @@ Story: As an administrator, I can correct event results and other official event
 
 Success Criteria:
 
-- Admins can open a specific event and view its official results (for example disciplines, placements, scores, and medalists) and other key event metadata that are treated as official records.
-- Admins can make limited corrections to official event results and metadata (for example fixing a misspelled competitor name, wrong placement, or swapped disciplines) without editing free-form content such as news posts or arbitrary descriptions.
+- Admins can open a specific event and view its official results (for example competition categories and divisions, placements, scores, and medalists) and other key event metadata that are treated as official records.
+- Admins can make limited corrections to official event results and metadata (for example fixing a misspelled competitor name, wrong placement, or swapped divisions) without editing free-form content such as news posts or arbitrary descriptions.
 - Every correction requires a mandatory “reason for correction” note entered by the admin.
 - Each correction is recorded in an audit log that includes before/after values, admin identity, timestamp, and the reason for correction.
 - Participants and organizers see the corrected results in all normal views; where appropriate.
@@ -2926,7 +2925,7 @@ Story: As an administrator, I can correct any event or registration record when 
 
 Success Criteria:
 
-- Admin can edit any event's fields, including fields the organizer is barred from changing after the fact, such as an event's sanctioned status or a discipline whose entries are already confirmed.
+- Admin can edit any event's fields, including fields the organizer is barred from changing after the fact, such as an event's sanctioned status or a division whose entries are already confirmed.
 - Admin can cancel any event, with the same registrant notification, reason, and audit trail the organizer's own cancellation carries.
 - Admin can cancel any registration, with the same member notification, reason, and audit trail the organizer's own cancellation carries.
 - Admin can assign an event organizer from the member base where an event has none (see `A_Reassign_Event_Organizer`).
@@ -3005,17 +3004,17 @@ Story: As an admin, I work a single on-demand cleanup queue. When I open it, the
 
 Success Criteria; On-demand evaluation:
 
-- The queue runs no unattended background process. When an admin opens it, the platform evaluates the following predicates fresh against current data, lists the clubs whose own record leaves nothing to decide, and surfaces the clubs that need a human decision; when the admin presses "Apply the rules", the rules demote the listed clubs, writing one `audit_entries` row with `actor_type='admin'` for each; every remaining item carries a recommended one-click action that only an admin applies. The rules never archive a club, because demotion to inactive keeps it listed and revivable while archival would lose sight of it. Each admin action writes one `audit_entries` row with `actor_type='admin'`.
-  - `leaderless_active_club`: a live `clubs` row with `status='active'` that has no co-leader able to act surfaces as a low-priority "could use a leader" opportunity item. A leadership row whose member has deleted their account or died does not count, because the club has nobody who can lead it; the row itself is kept so historical leadership stays attributable. Leaderless is a tolerated state (§5.1), so the recommended action is to add a co-leader (via `A_Reassign_Club_Leader`), not to demote; demotion to inactive is driven only by the `crowdsource_club_viability` inactivity signals below. The item offers two further one-click choices: **contact members** (sends the volunteer-to-co-lead invitation, see `V_Volunteer_To_CoLead`, to the club's current members, audit-logged) or **park** (take no action now; the item leaves the working queue and waits in the parked listing). As soon as anyone becomes a co-leader (self-volunteer, invite-accept, or admin add), the club is no longer leaderless and the item drops from the queue automatically on the next evaluation (the predicate is computed fresh on each open). A member stepping up to co-lead is also a strong positive viability signal, equivalent to a member-reported "active" vote: it resets the club's inactivity staleness, so the `crowdsource_club_viability` gates do not recommend demotion. Any future co-leader claim or current-affiliation insert is recorded normally and the club stays `'active'`.
+- The queue runs no unattended background process. When an admin opens it, the platform evaluates the following predicates fresh against current data, lists the clubs whose own record leaves nothing to decide, and surfaces the clubs that need a human decision; when the admin presses "Apply the rules", the rules make the listed clubs inactive, writing one `audit_entries` row with `actor_type='admin'` for each; every remaining item carries a recommended one-click action that only an admin applies. The rules never archive a club, because making it inactive keeps it revivable while archival is final. Each admin action writes one `audit_entries` row with `actor_type='admin'`.
+  - `leaderless_active_club`: a live `clubs` row with `status='active'` that has no co-leader able to act surfaces as a low-priority "could use a leader" opportunity item. A leadership row whose member has deleted their account or died does not count, because the club has nobody who can lead it; the row itself is kept so historical leadership stays attributable. Leaderless is a tolerated state (§5.1), so the recommended action is to add a co-leader (via `A_Reassign_Club_Leader`), not to make it inactive; making a club inactive is driven only by the `crowdsource_club_viability` inactivity signals below. The item offers two further one-click choices: **contact members** (sends the volunteer-to-co-lead invitation, see `V_Volunteer_To_CoLead`, to the club's current members, audit-logged) or **park** (take no action now; the item leaves the working queue and waits in the parked listing). As soon as anyone becomes a co-leader (self-volunteer, invite-accept, or admin add), the club is no longer leaderless and the item drops from the queue automatically on the next evaluation (the predicate is computed fresh on each open). A member stepping up to co-lead is also a strong positive viability signal, equivalent to a member-reported "active" signal: it resets the club's inactivity staleness, so the `crowdsource_club_viability` gates do not recommend making it inactive. Any future co-leader claim or current-affiliation insert is recorded normally and the club stays `'active'`.
   - `stale_provisional_leader`: `club_bootstrap_leaders` rows still `status='provisional'`, grouped by club, surface as a review-or-dismiss item.
-  - `crowdsource_club_viability`: one verdict per club, from facts that are true or false rather than from weighted signals. Activity answers are counted one vote per member, a member's latest answer superseding their earlier ones. The queue item names the members whose latest answer was negative, because negative answers are rare and the admin judges them by who cast them; authorship renders only on this admin surface. The first matching rule wins:
+  - `crowdsource_club_viability`: one verdict per club, from facts that are true or false rather than from weighted signals. Activity signals are counted one per member, a member's latest signal superseding their earlier ones. The queue item names the members whose latest signal was negative, because negative signals are rare and the admin judges them by who sent them; authorship renders only on this admin surface. The first matching rule wins:
     - Alive: the club has a current co-leader, a current member, or a member who answered "active". Nothing surfaces and nothing changes.
-    - Defunct: a member answered "not active" and the club's own record agrees, meaning it never hosted an event, the import pipeline did not classify it `pre_populate`, no admin promoted it from the legacy record, and no member left a note about it. The club is demoted to inactive, and its unconfirmed legacy residue is de-listed with it.
+    - Inactive: a member answered "not active" and the club's own record agrees, meaning it never hosted an event, the import pipeline did not classify it `pre_populate`, no admin promoted it from the legacy record, and no member left a note about it. The club is made inactive, and its unconfirmed legacy residue is de-listed with it.
     - Needs review: a member answered "not active" but the club's record contradicts them, because it hosted an event, the pipeline classified it `pre_populate`, an admin promoted it, or a member left a note about it. An admin's promotion is the strongest form of the record: a person looked at the candidate and decided the club is real, so the rules never undo it. A note is the record speaking in words the rules cannot read, so it goes to someone who can.
-    - Defunct with no answer at all: no member has answered, the pipeline classified the club `junk` or `dormant`, it never hosted an event, no admin promoted it, and no member left a note about it. Nothing on any side says the club exists, so it is demoted. Most clubs carry no answer and many never will, so the rules must be able to reach a verdict without one. A club carrying a member note instead reaches an admin, with the note on the row.
-    - Waiting: no member has answered and the record is not empty enough to rule on, which is every club the pipeline marked for members to confirm during onboarding. These are neither demoted nor queued; they wait for an answer.
+    - Inactive with no signal at all: no member has answered, the pipeline classified the club `junk` or `dormant`, it never hosted an event, no admin promoted it, and no member left a note about it. Nothing on any side says the club exists, so it is made inactive. Most clubs carry no answer and many never will, so the rules must be able to reach a verdict without one. A club carrying a member note instead reaches an admin, with the note on the row.
+    - Waiting: no member has answered and the record is not empty enough to rule on, which is every club the pipeline marked for members to confirm during onboarding. These are neither made inactive nor queued; they wait for an answer.
 - Unconfirmed `legacy_person_club_affiliations` residue (`'pending'` rows) is retired by an explicit per-club admin de-list, never on a timer; see the residue de-list under the admin residue queue below.
-- Applying the rules is idempotent: a club the rules have already demoted is skipped on the next apply, and opening the queue changes nothing. Adding a new predicate or loosening a threshold requires an explicit story extension; admins do not configure predicates from the queue surface.
+- Applying the rules is idempotent: a club the rules have already made inactive is skipped on the next apply, and opening the queue changes nothing. Adding a new predicate or loosening a threshold requires an explicit story extension; admins do not configure predicates from the queue surface.
 
 Success Criteria; Admin residue queue:
 
@@ -3026,7 +3025,7 @@ Success Criteria; Admin residue queue:
   - Junk-flagged candidates and admin force-keep or force-junk requests.
   - Non-junk `legacy_club_candidates` not yet promoted to live `clubs` rows.
   - `legacy_person_club_affiliations` rows still in `resolution_status='pending'` (unconfirmed legacy residue), grouped by live club, each with the club's pending count and the age of its oldest row.
-- Each queue item shows: the candidate or club or affiliation id, the source surface, the signal or pending counts, the display names of members whose latest activity answer was negative (when applicable), and any free-text notes members left about that club in the wizard, each with its author. Notes concerning a member's area rather than one club have no queue row and are listed in their own section of the queue surface.
+- Each queue item shows: the candidate or club or affiliation id, the source surface, the signal or pending counts, the display names of members whose latest activity signal was negative (when applicable), and any free-text notes members left about that club in the wizard, each with its author. Notes concerning a member's area rather than one club have no queue row and are listed in their own section of the queue surface.
 - Items render collapsed by source / category by default; admin expands a group to per-row view. Each group exposes a group-level bulk action where applicable.
 - Resolution actions available per item type:
   - **Flag (any source)**: dismiss with optional reason (terminal), or park. Parking carries no deadline and no expiry: the item leaves the working queue, keeps its place in a parked listing that names who parked it and why, and returns to the working queue by itself when evidence about that club arrives later than the park. Changed evidence, not an elapsed window, is what brings an item back.
@@ -3034,7 +3033,7 @@ Success Criteria; Admin residue queue:
   - **Force-keep or force-junk request**: apply, modify, or reject.
   - **Unpromoted candidate (onboarding-visible or dormant)**: promote to a live `clubs` row, demote (onboarding-visible to dormant), archive, or park.
   - **Live club with accumulated flags**: mark `status='inactive'`, archive (`status='archived'`), demote to dormant, or dismiss the flags. Merging two live clubs is deliberately not a queue action: duplicate clubs are resolved upstream by the curator pipeline's duplicate merge during data preparation.
-  - **Unconfirmed legacy residue (per live club)**: one click de-lists a club's `'pending'` rows, transitioning them to `'former_only'` (preserves historical fact, drops from the current-roster filter) in a single transaction. Each affected row carries the actor and timestamp; one summary audit row records the action and the de-listed count. The same de-list runs automatically when a club is demoted or archived. The oldest-row age shown on the item is an advisory grace signal; nothing transitions on a timer. Safe to re-run.
+  - **Unconfirmed legacy residue (per live club)**: one click de-lists a club's `'pending'` rows, transitioning them to `'former_only'` (preserves historical fact, drops from the current-roster filter) in a single transaction. Each affected row carries the actor and timestamp; one summary audit row records the action and the de-listed count. The same de-list runs automatically when a club is made inactive or archived. The oldest-row age shown on the item is an advisory grace signal; nothing transitions on a timer. Safe to re-run.
 - All resolutions are audit-logged with actor identity, item type, club or candidate or affiliation id, decision, optional note, and timestamp.
 - Concurrent admin coordination: when an admin claims an item for review, a lightweight "claimed by Admin X at time T" marker becomes visible to other admins. The marker auto-releases on resolve, dismiss, park, or after a 30-minute stale-claim timeout. The marker does not block other admins; it is a coordination signal.
 - The queue is sortable and filterable by category, age, region, flag count, and source surface.
@@ -3354,15 +3353,15 @@ Story: As an admin, I can add, edit, and remove a consecutive-kicks record row a
 
 Success Criteria, Listing:
 
-- Admin can list the rows grouped by section and discipline and open one to edit.
+- Admin can list the rows grouped by section and record type and open one to edit.
 
 Success Criteria, Row fields:
 
-- Editable fields are the section, subsection, discipline, year, rank, both player names, the score, the note, the event date, the event name, the location, and the display position.
+- Editable fields are the section, subsection, record type, year, rank, both player names, the score, the note, the event date, the event name, the location, and the display position.
 
 Success Criteria, Validation (enforced at the write; a save that fails any check is rejected with a clear message and the submitted values preserved):
 
-- The section, subsection, and discipline are non-empty.
+- The section, subsection, and record type are non-empty.
 - The score and the rank are each empty or a whole number.
 - The display position is a unique whole number.
 
@@ -3410,14 +3409,14 @@ Success Criteria:
 
 ### A_Archive_Club
 
-Access: Only admins can archive a club or mark it defunct. A co-leader can park a club but never archive one.
+Access: Only admins can archive a club or mark it junk. A co-leader can make a club inactive but never archive one.
 
-Story: As an admin, I can mark a club defunct/archived and notify members so that directories stay accurate. Archiving may be used for a club that has no co-leader (for example, a lingering “Needs Leader” item) when the club is confirmed defunct; a leaderless club is not archived merely for lacking a co-leader, since that state is tolerated per §5.1.
+Story: As an admin, I can archive a junk club so that directories stay accurate. Archiving may be used for a club that has no co-leader (for example, a lingering “Needs Leader” item) when the club is confirmed junk; a leaderless club is not archived merely for lacking a co-leader, since that state is tolerated per §5.1.
 
 Success Criteria:
 
 - Sets status: "archived" in club data.
-- Archiving is refused while the club still has a current member or co-leader. Only a member's own leave ends an affiliation, so archiving a club they still hold would leave them attached to something they can neither open nor leave, holding one of their two club slots. A club that looks defunct but still has people is demoted to inactive instead, which keeps it listed and lets any member who joins or claims it revive it.
+- Archiving is refused while the club still has a current member or co-leader. Archiving a club its members still hold would leave them attached to something they can neither open nor leave, holding one of their two club slots. A club that looks junk but still has people is made inactive instead, which takes it off the public club list and lets any member who joins or claims it revive it.
 - Preserves club data for 7 years per retention policy.
 - Records an audit log entry.
 

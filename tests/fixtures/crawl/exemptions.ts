@@ -186,7 +186,8 @@ export const ROUTE_EXEMPTIONS: readonly RouteExemption[] = [
     + 'avatar, deceased record, work-queue item of this kind, payment report, flagged media, curator '
     + 'media, notation candidate, net team, past event, recurring donation, '
     + 'organizer task, archive configuration, claimable record, second club for the persona, '
-    + 'club the cleanup rules would demote, or bounced address).', [
+    + 'club the cleanup rules would demote, admin club search result, or bounced address).', [
+      'GET /admin/clubs/:clubId',
       'POST /members/:memberKey/email-preferences/recover',
       'POST /admin/club-cleanup/apply-rules',
       'POST /admin/members/:memberId/avatar/remove', 'POST /admin/members/:memberId/deceased/revert',

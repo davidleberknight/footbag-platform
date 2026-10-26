@@ -1,6 +1,6 @@
 ---
 name: doc-sync
-description: Detect documentation drift against current code and confirmed decisions, then propose only the smallest accurate doc updates. Never edit docs without explicit human approval. Use when user asks whether docs need updating, code behavior has changed, interfaces or identifiers have changed, or suspected drift needs investigation. Its full-audit mode (FULL_AUDIT.md) runs the mechanical hygiene detectors across the whole documentation universe; that mode runs on a request by name for a "full doc-sync audit", "extended doc sync" or "doc hygiene audit", never inferred.
+description: Detect documentation drift against current code and confirmed decisions, then propose only the smallest accurate doc updates. Never edit docs without explicit human approval. Use when user asks whether docs need updating, code behavior has changed, interfaces or identifiers have changed, or suspected drift needs investigation. Not the whole-repository audit, which is the separate extended-doc-sync skill.
 ---
 
 # Doc Sync
@@ -24,17 +24,11 @@ Do not use this skill for:
 - speculative architecture work
 - broad documentation improvement passes unrelated to actual drift
 
-## Full audit (explicit request only)
+## Whole-repository audit
 
-When the user asks for a "full doc-sync audit", "extended doc sync" or "doc hygiene audit"
-by name, and never otherwise, run the method in `FULL_AUDIT.md` beside this file: enumerate
-the documentation universe, run the mechanical detectors (banned stale tokens, broken
-internal references, bare section-number locators, doc paths and section shorthands in
-code comments, sprint and date markers, console logging) over all of it, confirm every
-survivor by inspection, aggregate systemic patterns, and present the findings under the
-same human-in-the-loop and smallest-fix rules as the change-driven mode. A finding that is
-a code-against-document discrepancy about behavior, rather than a hygiene defect, is the
-`bug-hunt` skill's discrepancy lane, and is listed as a hand-off rather than fixed here.
+The whole-repository drift audit is the separate `extended-doc-sync` skill, run only when the
+maintainer asks for it by name. A pre-existing discrepancy this per-change pass notices goes on
+its "also noticed" list for that audit.
 
 ## Source-of-truth order
 
@@ -52,17 +46,17 @@ So when current code or infra disagrees with a canonical doc, **the default is N
 2. **The implementation has truly deviated from the final design** — a built thing works differently than the final design says. → record the deviation as a private-tracker issue labeled `bug` (drafted per the `tracker-ops` skill). **Never edit the canonical doc down to match the current implementation.**
 3. **The feature is simply not built yet** (future work). → neither a doc edit nor automatically a tracker issue; it is roadmap, not drift.
 
-This applies to design intent and target architecture. Purely descriptive facts a derived doc mirrors from code (a renamed identifier, a changed method signature, a schema column) still follow the code and are normal case-1 fixes.
+A recommended case is always derived from the intent down, never defaulted to the code, even for a renamed identifier, a changed method signature or a schema column.
 
-Never silently pick. After verifying each gap, present it with its classification and the passages behind it: where the intent makes the case clear, report the case as settled; where it does not, ask, recommending a case. Either way, a doc edit lands only under the documentation-edit approval in `.claude/rules/asking.md`. Editing a final-design doc to match a current shortcut destroys the design of record.
+Never silently pick. After verifying each gap, bring it to the human with the passages behind it and the case you recommend; where the sources make the case certain, present it as settled, asking only to validate it. Name-only gaps from one run go in one table, each row ruled on individually. Either way, a doc edit lands only under the documentation-edit approval in `.claude/rules/asking.md`. Editing a final-design doc to match a current shortcut destroys the design of record.
 
 ## Read first
 
 Before making any recommendation, read selectively:
 
 - `PROJECT_SUMMARY_CONCISE.md` if present
-- the open issues in the maintainers' private tracker (`gh issue list -R "$FOOTBAG_PRIVATE_REPO" --state open`; if unwired, note it in one line and continue)
-- `docs/USER_STORIES.md`
+- the maintainers' private tracker, only when deciding whether a gap is already a tracked deviation, searched by keyword (`gh issue list -R "$FOOTBAG_PRIVATE_REPO" --state open --search <term>`; if unwired, note it in one line and continue)
+- the user story or background job governing the change, found through the design-intent skill's "where intent lives" map, not the whole stories file
 - the most relevant derived documentation for the affected area
 - the touched code files
 - the file-header JSDoc of any touched service (the authoritative service contract; JSDoc that no longer matches the service is drift to fix in the same pass)
@@ -73,7 +67,7 @@ Before making any recommendation, read selectively:
 ## Workflow
 
 ### 1) Identify the actual change
-Determine exactly what changed or is under review.
+Run `npx tsx scripts/doc-sync-diff.ts --receipt <path>`, with the path the Stop gate names. It prints the changed files, every document, rule, skill, comment and private-ops line that names an added or removed entity, the entities nothing mentions, and the comments around each changed hunk. That output is the work list; a behaviour change that names no entity is judged from the diff itself. Rerun it after any further code edit.
 
 Focus on meaningful changes:
 - behavior
@@ -108,7 +102,9 @@ Drift exists only when the docs:
 - omit information needed to understand current behavior
 - describe old behavior as if it were current
 - use identifiers or boundaries that are no longer correct
-- narrate a superseded position: a reversed ruling kept under a banner, a dated "this replaces the earlier ...", an "an earlier version of this rule" paragraph. The fix is deletion, not a marker. See "No superseded history" in `.claude/rules/doc-governance.md`.
+- narrate a superseded position: a reversed ruling kept under a banner, a dated "this replaces the earlier ...", an "an earlier version of this rule" paragraph. The recommended fix is deletion, not a marker. See "No superseded history" in `.claude/rules/doc-governance.md`.
+
+Tag each hit as caused by this change, citing the hunk, or as pre-existing. A pre-existing one goes on a one-line "also noticed" list for the next extended doc sync, not into this pass.
 
 Do not treat these as drift:
 - style differences
@@ -116,15 +112,8 @@ Do not treat these as drift:
 - wording differences that preserve meaning
 - missing nice-to-have explanation when the docs are still accurate
 
-### 4) Escalate when meaning changes
-Always escalate to the human before any documentation edit (questions follow `.claude/rules/asking.md`):
-- user-visible behavior
-- interfaces or interface semantics
-- identifiers
-- data meaning or schema meaning
-- service, system, ownership, or architectural boundaries
-- feature scope
-- any case where the correct source of truth is not fully clear
+### 4) Bring every discrepancy to the human
+Every discrepancy goes to the human to adjudicate, with one recommended answer derived from the intent down, under `.claude/rules/asking.md`.
 
 ### 5) Propose the smallest correct fix
 When a doc update is appropriate, propose only the minimum necessary changes.
@@ -153,7 +142,7 @@ Change only the approved edits, or under a pre-approval only the edits this pass
 ## Guardrails
 Do not:
 - infer intent not supported by the design sources or explicit human direction
-- treat comments as authoritative if code behavior differs
+- treat a comment as authoritative over the code it describes, except a `Current:`/`Target:` deviation comment, which states intent (`.claude/rules/comments.md`)
 - edit a canonical (final-design) doc to match current code or infrastructure; an implementation that diverges from the final design is a deviation to record as a private-tracker issue, not a reason to rewrite the doc
 - mix confirmed drift with speculative improvements
 - expand scope beyond the area actually under review

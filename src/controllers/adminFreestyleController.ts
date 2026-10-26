@@ -559,7 +559,7 @@ export const adminFreestyleController = {
     }
   },
 
-  // Browse consecutive-kicks records, grouped by section and discipline.
+  // Browse consecutive-kicks records, grouped by section and record type.
   consecutiveIndex(_req: Request, res: Response, next: NextFunction): void {
     try {
       res.render('admin/consecutive-records', consecutiveKicksCurationService.getBrowsePage());

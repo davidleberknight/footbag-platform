@@ -123,7 +123,7 @@ interface NetHomeContent {
 const NET_LANDING_INTRO: NetLandingExplainer = {
   heading: 'What Is Footbag Net?',
   paragraphs: [
-    'Footbag Net is an acrobatic sport played on a badminton court. Players volley the footbag back and forth using only their feet or lower leg. Similar to Sepak Takraw, footbag net blends the court strategy of beach volleyball with the jumping and kicking skills of martial arts. Players demonstrate remarkable agility by flying through the air to spike the footbag over the net, or to block that spike on defense.',
+    'Footbag Net is an acrobatic discipline of footbag played on a badminton court. Players volley the footbag back and forth using only their feet or lower leg. Similar to Sepak Takraw, footbag net blends the court strategy of beach volleyball with the jumping and kicking skills of martial arts. Players demonstrate remarkable agility by flying through the air to spike the footbag over the net, or to block that spike on defense.',
   ],
 };
 
@@ -216,7 +216,7 @@ export interface NetTeamListViewModel {
 interface DisciplineFilterOption {
   value: string;
   label: string;
-  // Canonical appearance count for the discipline, not a unique-team count: a team
+  // Canonical appearance count for the division, not a unique-team count: a team
   // recurs across events, so this can exceed the unique-team total on the page.
   // Rendered with an explicit "appearances" unit so it is never read as teams.
   appearanceCount: number;
@@ -263,7 +263,7 @@ export interface NetEventViewModel {
   appearanceCount:  number;
   disciplineCount:  number;
   teamCount:        number;
-  // At least one discipline at this event matched its canonical group ambiguously, so
+  // At least one event_disciplines row at this event matched its canonical group ambiguously, so
   // the grouping shown elsewhere is a best guess rather than a settled classification.
   hasDisciplineReview: boolean;
 }
@@ -329,13 +329,13 @@ const GROUP_LABELS: Record<string, string> = {
 };
 
 export function disciplineLabel(disciplineName: string, canonicalGroup: string | null, conflictFlag: number): string {
-  // If conflict_flag=1 or no canonical_group, use the raw discipline name
+  // If conflict_flag=1 or no canonical_group, use the raw event_disciplines name
   if (conflictFlag || !canonicalGroup) return withoutNetSuffix(disciplineName);
   return GROUP_LABELS[canonicalGroup] || withoutNetSuffix(disciplineName);
 }
 
 // Every page this label appears on is about net, so a trailing "Net" or
-// "Footbag Net" on a raw discipline name says nothing ("Open Mixed Doubles Net"
+// "Footbag Net" on a raw event_disciplines name says nothing ("Open Mixed Doubles Net"
 // reads as "Open Mixed Doubles"). A name that is only the suffix stays as it is.
 function withoutNetSuffix(name: string): string {
   const rest = /^(.*?)\s+(?:footbag\s+)?net$/i.exec(name)?.[1];
@@ -512,7 +512,7 @@ export const netService = {
     const hasEvents = recentEventRows.length > 0;
 
     const exploreCards: NetExploreCard[] = [
-      { slug: 'teams',  label: 'Teams',  href: '/net/teams',  paragraph: 'Doubles teams with full competition records: wins, podiums, and active span. Filter by discipline or search by player.', linkLabel: 'Browse Teams',   comingSoon: !hasTeams },
+      { slug: 'teams',  label: 'Teams',  href: '/net/teams',  paragraph: 'Doubles teams with full competition records: wins, podiums, and active span. Filter by division or search by player.', linkLabel: 'Browse Teams',   comingSoon: !hasTeams },
       { slug: 'events', label: 'Events', href: '/net/events', paragraph: 'Archive of net doubles competitions with per-event appearance counts.',                                                linkLabel: 'Event Archive',  comingSoon: !hasEvents },
       { slug: 'rules',     label: 'Rules',     href: '/rules/net/footbag-net', paragraph: 'The official IFPA rules of footbag net: court, service, scoring and fouls.', linkLabel: 'Net Rules',     comingSoon: false },
       { slug: 'equipment', label: 'Equipment', href: '/equipment#net',         paragraph: 'Net footbags, shoes, and how to set up a court and net.',                 linkLabel: 'Net Equipment', comingSoon: false },
@@ -592,7 +592,7 @@ export const netService = {
 
     const disciplineRows = netTeams.listDisciplineOptions.all() as NetDisciplineOptionRow[];
     const disciplineOptions: DisciplineFilterOption[] = [
-      { value: '', label: 'All Disciplines', appearanceCount: 0, selected: !discipline },
+      { value: '', label: 'All Divisions', appearanceCount: 0, selected: !discipline },
       ...disciplineRows.map(r => ({
         value:    r.canonical_group,
         label:    GROUP_LABELS[r.canonical_group] || r.canonical_group,
@@ -610,7 +610,7 @@ export const netService = {
         sectionKey: 'net',
         pageKey:    'net_teams',
         title:      `Net Teams${titleSuffix}`,
-        intro:      'All doubles teams in footbag net history, sorted by competitive appearances. Filter by discipline or search by player name.',
+        intro:      'All doubles teams in footbag net history, sorted by competitive appearances. Filter by division or search by player name.',
       },
       content: {
         teams,

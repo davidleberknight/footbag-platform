@@ -49,7 +49,7 @@ beforeAll(async () => {
   // Need a member to own the results upload
   const memberId = insertMember(db);
 
-  // An event with a freestyle discipline
+  // An event with a freestyle competition category
   const eventId = insertEvent(db, {
     title: 'Test Freestyle Open',
     start_date: '2015-06-01',
@@ -80,7 +80,7 @@ beforeAll(async () => {
   const entry2   = insertResultEntry(db, event2Id, upload2, disc2Id, { placement: 1 });
   insertResultParticipant(db, entry2, 'Vera Champion', { historical_person_id: PERSON_A });
 
-  // A doubles event — should NOT count for singles competition page
+  // An event with a doubles category — should NOT count for singles competition page
   // A world-championship doubles win, which must not count as a singles world
   // title for either partner.
   const event3Id = insertEvent(db, {
@@ -190,7 +190,7 @@ describe('GET /freestyle/competition', () => {
     expect(res.text).toMatch(/href="\/events\/event_[a-z0-9_]+"/);
   });
 
-  it('does NOT count doubles discipline in singles competition table', async () => {
+  it('does NOT count a doubles category in the singles competition table', async () => {
     const res = await page('/freestyle/competition');
     // Vera has 2 singles golds; the doubles win should not inflate this
     // We verify by checking that the data note mentions "singles only"

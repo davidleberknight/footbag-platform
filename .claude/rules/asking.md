@@ -38,7 +38,13 @@ ratifies text you drafted is not primary grounding: trace any new surface (route
 to a user story, a governance document, or an explicit human decision, and never build feature-scale
 work inside a fix or remediation batch.
 
-Bright line: if analysis makes the answer certain, do not ask; act on it or state it settled. If
+Bright line: if analysis makes the answer certain, do not ask; act on it or state it settled.
+The one exception is a disagreement between code, a code comment, a document and the intent:
+it always goes to the human to adjudicate, never settled silently, with one recommended answer
+derived from the intent down: the functional requirements and the solution architecture that
+supports them first; then the design decisions, probably right but possibly stale; then the
+code, which is derived from both and is never the default winner. When the sources make the
+recommendation certain, present it as settled from the sources, asking only to validate it. If
 genuine doubt survives the sources, ask; never guess or assume. Multi-step analysis is not
 grounds to ask; only genuine undeterminability is. A design or implementation
 detail that precedent or the standard settles is never put to the human as a choice. Read-only investigation needs no permission:
@@ -107,8 +113,9 @@ Covers documentation, `.github/` and the harness (`.claude/`, every `CLAUDE.md`)
   wording, `.github/` or the harness, unless the human names that class. Each of those gets its own
   ask; a harness ask carries the literal before/after, under the harness governance rule. A
   tool-level "allow edits to .claude this session" answer is not a pre-approval.
-- One standing pre-approval: `footbag_private_repo/issue_review.md`, the maintainer's working
-  review list in the private operations checkout, is edited without an ask, whatever the edit.
+- One standing pre-approval: the maintainer's working walk files in the private operations
+  checkout, `footbag_private_repo/issue_review.md`, `EXTENDED_DOC_SYNC_REVIEW.md` and
+  `BUG_HUNT_REVIEW.md`, are edited without an ask, whatever the edit.
 - Every applied edit is surgical: the smallest change, untouched text left as it was. In the same
   turn that applies them, show every applied edit in the message itself as literal BEFORE/AFTER,
   with the document and enough context to locate it; never a summary, a file or a link. A change or

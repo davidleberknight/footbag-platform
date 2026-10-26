@@ -225,7 +225,7 @@ describe('GET /consecutives', () => {
 
   // Defect caught: the world records go back to a six-column table that runs
   // wide on a laptop and scrolls sideways on a phone, instead of one card per
-  // record carrying its discipline, holder, count and where and when.
+  // record carrying its record type, holder, count and where and when.
   it('shows each world record as a card', async () => {
     const res = await page('/consecutives');
     const section = res.text.match(/<section class="content-section" id="world-records">[\s\S]*?<\/section>/)?.[0] ?? '';
@@ -269,9 +269,9 @@ describe('GET /consecutives', () => {
     expect(res.text).toContain('132,011');
   });
 
-  // The card title can only come from the record's discipline; a blank title
-  // means the stored discipline never reached the view.
-  it('titles each world record card with its discipline', async () => {
+  // The card title can only come from the record's type; a blank title
+  // means the stored record type never reached the view.
+  it('titles each world record card with its record type', async () => {
     const res = await page('/consecutives');
     expect(res.text).toContain('<h3 class="card-title">Open Doubles</h3>');
   });

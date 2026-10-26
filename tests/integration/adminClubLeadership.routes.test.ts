@@ -1,18 +1,21 @@
 /**
- * Admin club-leadership remediation contract: the queue lists clubs that could
- * use a co-leader, computed fresh; assigning a co-leader from the member base
- * creates the missing affiliation, supersedes provisional bootstrap rows, and
- * audit-logs with reason; a member who already co-leads another club is refused
- * with direction; exceeding the five-co-leader cap demands an explicit
- * cap-override reason; removal requires a mandatory reason and can strip the
- * affiliation. Non-admins never reach any of it.
+ * Admin club-leadership contract on the per-club leadership page: assigning a
+ * co-leader from the member base creates the missing affiliation, supersedes
+ * provisional bootstrap rows, and audit-logs with reason; a member who already
+ * co-leads another club is refused with direction; five co-leaders is a hard
+ * limit; a member already holding two other clubs is refused a third; an
+ * archived club takes no co-leader, while an inactive one is revived; removal
+ * requires a mandatory reason, can strip the affiliation, and picks a main club
+ * only for a lone survivor. The list of clubs needing a leader lives in the club
+ * cleanup queue, not here. Non-admins never reach any of it.
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertMember, insertClub, createTestSessionJwt, insertClubBootstrapLeader } from '../fixtures/factories';
-import { rowPin, snapshotIds, oneRowAddedSince } from '../fixtures/rowPinning';
+import {
+  insertMember, insertClub, createTestSessionJwt, insertClubBootstrapLeader, insertMemberClubAffiliation,
+} from '../fixtures/factories';
 import { flashCookieOf } from '../fixtures/flashCookie';
 
 const { dbPath } = setTestEnv('3081');
@@ -127,11 +130,19 @@ describe('reporting the outcome', () => {
 });
 
 let _n = 0;
-function seedClub(): string {
+function seedClub(status: 'active' | 'inactive' | 'archived' = 'active'): string {
   _n += 1;
   const clubId = `acl-club-${_n}`;
-  insertClub(db, { id: clubId, name: `ACL Club ${_n}` });
+  insertClub(db, { id: clubId, name: `ACL Club ${_n}`, status });
   return clubId;
+}
+function clubStatus(clubId: string): string {
+  return (db.prepare('SELECT status FROM clubs WHERE id = ?').get(clubId) as { status: string }).status;
+}
+function currentClubs(memberId: string): Array<{ club_id: string; is_primary: number }> {
+  return db.prepare(
+    'SELECT club_id, is_primary FROM member_club_affiliations WHERE member_id = ? AND is_current = 1 ORDER BY club_id',
+  ).all(memberId) as Array<{ club_id: string; is_primary: number }>;
 }
 function seedMember(): string {
   _n += 1;
@@ -146,24 +157,27 @@ function leaders(clubId: string): Array<Record<string, unknown>> {
 describe('access', () => {
   it('non-admins never reach the surface', async () => {
     const member = seedMember();
+    const clubId = seedClub();
     const res = await request(createApp())
-      .get('/admin/clubs/leadership')
+      .get(`/admin/clubs/${clubId}/leadership`)
       .set('Cookie', `__Host-footbag_session=${createTestSessionJwt({ memberId: member })}`);
     expect(res.status).toBe(403);
   });
 });
 
-describe('queue', () => {
-  it('lists clubs that could use a co-leader, computed fresh', async () => {
-    const first = seedClub();
-    const second = seedClub();
-    void first;
+describe('one list of clubs needing a leader', () => {
+  // Defect caught: a second list of leaderless clubs survives beside the
+  // cleanup queue, so admins work two lists that can disagree. The detail page
+  // proves the admin session reaches a real club page beside it.
+  it('the retired leadership list answers not found, and the club page leads back to the cleanup queue', async () => {
+    const clubId = seedClub();
+    const gone = await request(createApp()).get('/admin/clubs/leadership').set('Cookie', adminCookie());
+    expect(gone.status).toBe(404);
 
-    const res = await request(createApp()).get('/admin/clubs/leadership').set('Cookie', adminCookie());
-    expect(res.status).toBe(200);
-    expect(res.text).toContain(`ACL Club ${_n - 1}`);
-    expect(res.text).toContain(`ACL Club ${_n}`);
-    void second;
+    const detail = await request(createApp()).get(`/admin/clubs/${clubId}/leadership`).set('Cookie', adminCookie());
+    expect(detail.status).toBe(200);
+    expect(detail.text).toContain('href="/admin/club-cleanup"');
+    expect(detail.text).not.toContain('href="/admin/clubs/leadership"');
   });
 });
 
@@ -259,52 +273,107 @@ describe('assign', () => {
     expect(leaders(clubB)).toHaveLength(0);
   });
 
-  it('the five-row cap demands an explicit cap-override reason', async () => {
+  // Defect caught: an admin gives a club a sixth co-leader, by an override
+  // field or by any submitted reason, past the hard limit of five.
+  it('refuses a sixth co-leader at five, whatever the form carries, and offers no override field', async () => {
     const clubId = seedClub();
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < 4; i++) {
       const m = seedMember();
-      await request(createApp())
+      const res = await request(createApp())
         .post(`/admin/clubs/${clubId}/leadership/assign`)
         .set('Cookie', adminCookie())
         .type('form')
-        .send({ member_key: m, role: 'co-leader', reason: 'setup' });
+        .send({ member_key: m, reason: 'setup' });
+      expect(res.status).toBe(303);
     }
-    const sixth = seedMember();
+    // The fifth lands: the limit is five, not four.
+    const fifth = await request(createApp())
+      .post(`/admin/clubs/${clubId}/leadership/assign`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ member_key: seedMember(), reason: 'setup' });
+    expect(fifth.status).toBe(303);
+    expect(leaders(clubId)).toHaveLength(5);
 
     const refused = await request(createApp())
       .post(`/admin/clubs/${clubId}/leadership/assign`)
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ member_key: sixth, role: 'co-leader', reason: 'growth' });
+      .send({ member_key: seedMember(), reason: 'growth', cap_override_reason: 'Large active club; board approved.' });
     expect(refused.status).toBe(422);
-    expect(refused.text).toContain('cap-override');
+    expect(refused.text).toContain('This club already has 5 co-leaders, the most a club can have.');
+    expect(refused.text).not.toContain('cap_override_reason');
+    expect(leaders(clubId)).toHaveLength(5);
+    expect(assignAuditCount(clubId)).toBe(5);
+  });
 
-    // Five assignments above this one already wrote `club.admin_leader_assigned`
-    // rows for this club, and only the override carries the reason asserted
-    // below. Pin the row by taking what this request adds: the five share a
-    // millisecond-resolution created_at, so ordering by it picks one of the six
-    // arbitrarily whichever tiebreaker follows.
-    const assignAudit = rowPin(
-      'audit_entries',
-      `action_type = 'club.admin_leader_assigned' AND entity_id = ?`,
-      [clubId],
-    );
-    const beforeOverride = snapshotIds(db, assignAudit);
+  // Defect caught: admin assignment puts a member already in two clubs on a
+  // third club's roster, past the two-club limit every member path holds.
+  it('refuses a member who already holds two other current clubs, and accepts one who holds one', async () => {
+    const clubId = seedClub();
+    const full = seedMember();
+    insertMemberClubAffiliation(db, full, seedClub(), { is_primary: 1 });
+    insertMemberClubAffiliation(db, full, seedClub(), { is_primary: 0 });
 
-    const allowed = await request(createApp())
+    const refused = await request(createApp())
       .post(`/admin/clubs/${clubId}/leadership/assign`)
       .set('Cookie', adminCookie())
       .type('form')
-      .send({ member_key: sixth, role: 'co-leader', reason: 'growth', cap_override_reason: 'Large active club; board approved.' });
-    expect(allowed.status).toBe(303);
-    expect(leaders(clubId)).toHaveLength(6);
+      .send({ member_key: full, reason: 'Leadership gap remediation.' });
+    expect(refused.status).toBe(422);
+    expect(refused.text).toContain('That member already belongs to two clubs');
+    expect(leaders(clubId)).toHaveLength(0);
+    expect(currentClubs(full)).toHaveLength(2);
 
-    const audit = oneRowAddedSince<{ metadata_json: string }>(
-      db,
-      assignAudit,
-      beforeOverride,
-    );
-    expect(JSON.parse(audit.metadata_json).cap_override_reason).toBe('Large active club; board approved.');
+    const one = seedMember();
+    insertMemberClubAffiliation(db, one, seedClub(), { is_primary: 1 });
+    const accepted = await request(createApp())
+      .post(`/admin/clubs/${clubId}/leadership/assign`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ member_key: one, reason: 'Leadership gap remediation.' });
+    expect(accepted.status).toBe(303);
+    expect(currentClubs(one)).toHaveLength(2);
+  });
+
+  // Defect caught: the two-club refusal also catches a member whose second
+  // club is this one, so an admin cannot make a current member its leader.
+  it('a member holding two clubs, one of them this club, can be made its co-leader', async () => {
+    const clubId = seedClub();
+    const m = seedMember();
+    insertMemberClubAffiliation(db, m, seedClub(), { is_primary: 1 });
+    insertMemberClubAffiliation(db, m, clubId, { is_primary: 0 });
+    const res = await request(createApp())
+      .post(`/admin/clubs/${clubId}/leadership/assign`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ member_key: m, reason: 'Leadership gap remediation.' });
+    expect(res.status).toBe(303);
+    expect(leaders(clubId)).toHaveLength(1);
+  });
+
+  // Defect caught: staffing an archived club brings it back to active,
+  // although archiving is final.
+  it('refuses an archived club and leaves it archived, while an inactive club is revived', async () => {
+    const archived = seedClub('archived');
+    const refused = await request(createApp())
+      .post(`/admin/clubs/${archived}/leadership/assign`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ member_key: seedMember(), reason: 'Someone asked for it back.' });
+    expect(refused.status).toBe(422);
+    expect(refused.text).toContain('This club is archived, which is final');
+    expect(clubStatus(archived)).toBe('archived');
+    expect(leaders(archived)).toHaveLength(0);
+
+    const inactive = seedClub('inactive');
+    const revived = await request(createApp())
+      .post(`/admin/clubs/${inactive}/leadership/assign`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ member_key: seedMember(), reason: 'Back in action.' });
+    expect(revived.status).toBe(303);
+    expect(clubStatus(inactive)).toBe('active');
   });
 });
 
@@ -334,33 +403,6 @@ describe('the reasons are cleaned before they are checked', () => {
       `SELECT reason_text FROM audit_entries WHERE action_type = 'club.admin_leader_assigned' AND entity_id = ?`,
     ).all(clubId) as Array<{ reason_text: string }>;
     expect(audit).toEqual([{ reason_text: 'Gap remediation now' }]);
-  });
-
-  // Defect caught: a cap-override reason that is only markup lifts the
-  // five-co-leader cap with no stated reason.
-  it('a markup-only cap-override reason does not lift the cap; a real one is recorded cleaned', async () => {
-    const clubId = seedClub();
-    for (let i = 0; i < 5; i++) {
-      expect((await assign(clubId, { member_key: seedMember(), reason: 'setup' })).status).toBe(303);
-    }
-    const sixth = seedMember();
-
-    const refused = await assign(clubId, { member_key: sixth, reason: 'growth', cap_override_reason: '<i></i>' });
-    expect(refused.status).toBe(422);
-    expect(leaders(clubId)).toHaveLength(5);
-
-    const assignAudit = rowPin(
-      'audit_entries',
-      `action_type = 'club.admin_leader_assigned' AND entity_id = ?`,
-      [clubId],
-    );
-    const before = snapshotIds(db, assignAudit);
-    const allowed = await assign(clubId, {
-      member_key: sixth, reason: 'growth', cap_override_reason: 'Board <b>approved</b>\u0085 it',
-    });
-    expect(allowed.status).toBe(303);
-    const audit = oneRowAddedSince<{ metadata_json: string }>(db, assignAudit, before);
-    expect(JSON.parse(audit.metadata_json).cap_override_reason).toBe('Board approved it');
   });
 });
 
@@ -403,6 +445,47 @@ describe('demote', () => {
       'SELECT is_current FROM member_club_affiliations WHERE member_id = ? AND club_id = ?',
     ).get(m, clubId) as { is_current: number };
     expect(aff.is_current).toBe(0);
+  });
+
+  // Defect caught: removal picks a main club automatically for a member left
+  // with two, a choice that is the member's own; or leaves a lone survivor
+  // designated secondary with no main club at all.
+  it('removal makes a lone surviving club main, and with two left makes neither main', async () => {
+    const lone = seedMember();
+    const loneLed = seedClub();
+    const loneOther = seedClub();
+    insertMemberClubAffiliation(db, lone, loneLed, { is_primary: 1 });
+    insertMemberClubAffiliation(db, lone, loneOther, { is_primary: 0 });
+    await request(createApp())
+      .post(`/admin/clubs/${loneLed}/leadership/assign`)
+      .set('Cookie', adminCookie()).type('form')
+      .send({ member_key: lone, reason: 'setup' });
+    const loneRes = await request(createApp())
+      .post(`/admin/clubs/${loneLed}/leadership/demote/confirm`)
+      .set('Cookie', adminCookie()).type('form')
+      .send({ member_id: lone, mode: 'remove_affiliation', reason: 'Unreachable for a year.' });
+    expect(loneRes.status).toBe(303);
+    expect(currentClubs(lone)).toEqual([{ club_id: loneOther, is_primary: 1 }]);
+
+    // Seeded past the two-club limit, the only way two can survive a removal.
+    const many = seedMember();
+    const led = seedClub();
+    const a = seedClub();
+    const b = seedClub();
+    insertMemberClubAffiliation(db, many, led, { is_primary: 1 });
+    insertMemberClubAffiliation(db, many, a, { is_primary: 0 });
+    insertMemberClubAffiliation(db, many, b, { is_primary: 0 });
+    await request(createApp())
+      .post(`/admin/clubs/${led}/leadership/assign`)
+      .set('Cookie', adminCookie()).type('form')
+      .send({ member_key: many, reason: 'setup' });
+    expect(leaders(led)).toHaveLength(1);
+    const res = await request(createApp())
+      .post(`/admin/clubs/${led}/leadership/demote/confirm`)
+      .set('Cookie', adminCookie()).type('form')
+      .send({ member_id: many, mode: 'remove_affiliation', reason: 'Unreachable for a year.' });
+    expect(res.status).toBe(303);
+    expect(currentClubs(many).map((r) => r.is_primary)).toEqual([0, 0]);
   });
 
   it('an unrecognized demote mode is rejected (422), leaving the leadership intact', async () => {

@@ -458,7 +458,7 @@ describe('GET /events/:eventKey', () => {
     expect(res.text).toContain('Corvallis');
   });
 
-  it('shows discipline name on detail page', async () => {
+  it('shows the competition category name on detail page', async () => {
     const res = await page(`/events/${BEAVER_OPEN_KEY}`);
     expect(res.text).toContain('Freestyle');
   });
@@ -477,7 +477,7 @@ describe('GET /events/:eventKey', () => {
     expect(res.text).not.toContain(`/members/${BOB_ID}`);
   });
 
-  it('shows multiple disciplines when event has them', async () => {
+  it('shows multiple competition categories when the event has them', async () => {
     const res = await page(`/events/${BEAVER_OPEN_KEY}`);
     expect(res.text).toContain('Freestyle');
     expect(res.text).toContain('Shred30');
@@ -491,8 +491,8 @@ describe('GET /events/:eventKey', () => {
     expect(res.text).toContain('Results are not yet available');
   });
 
-  it('shows the sparse-data notice on an event with fewer than 3 disciplines or 10 placements', async () => {
-    // Beaver Open has 2 disciplines and 3 placements — qualifies as sparse.
+  it('shows the sparse-data notice on an event with fewer than 3 competition categories or 10 placements', async () => {
+    // Beaver Open has 2 competition categories and 3 placements — qualifies as sparse.
     const res = await page(`/events/${BEAVER_OPEN_KEY}`);
     expect(res.status).toBe(200);
     expect(res.text).toContain("We know the data from this event is incomplete but we're showing what we have anyway.");
@@ -590,11 +590,11 @@ describe('GET /', () => {
   });
 });
 
-// ── Game sections: X Square, Golf, Sideline ───────────────────────────────
+// ── Game sections: X-Square, Golf, Sideline ───────────────────────────────
 
-describe('sport section pages (X Square, Golf, Sideline)', () => {
+describe('game section pages (X-Square, Golf, Sideline)', () => {
   const GAME_PAGES = [
-    { path: '/x-square', label: 'X Square', clips: ['/video/sideline/foursquare.webm'] },
+    { path: '/x-square', label: 'X-Square', clips: ['/video/sideline/foursquare.webm'] },
     { path: '/golf',     label: 'Golf',     clips: ['/video/sideline/golf.webm'] },
     { path: '/sideline', label: 'Sideline', clips: ['/video/sideline/hackysack.webm'] },
   ];
@@ -627,9 +627,9 @@ describe('sport section pages (X Square, Golf, Sideline)', () => {
     expect(xSquare.text.match(/<img class="sport-section-icon" src="\/img\/sideline-icon-twosquare\.svg/g)?.length).toBe(2);
   });
 
-  // Defect caught: the X Square hero loses its artwork, unlike every other
+  // Defect caught: the X-Square hero loses its artwork, unlike every other
   // section landing.
-  it('carries the 2-Square artwork as the X Square hero mascot', async () => {
+  it('carries the 2-Square artwork as the X-Square hero mascot', async () => {
     const res = await page('/x-square');
     const bodyStart = res.text.indexOf('class="wrapper sport-section"');
     expect(res.text.slice(0, bodyStart)).toContain('class="hero-mascot" src="/img/sideline-icon-twosquare.svg');
@@ -648,20 +648,20 @@ describe('sport section pages (X Square, Golf, Sideline)', () => {
   });
 
   // Defect caught: the 2-Square and 4-Square links point at the retired
-  // sideline rules addresses instead of the X Square rules.
-  it('links 2-Square and 4-Square to the X Square rules', async () => {
+  // sideline rules addresses instead of the X-Square rules.
+  it('links 2-Square and 4-Square to the X-Square rules', async () => {
     const res = await page('/x-square');
     expect(res.text).toContain('href="/rules/x-square/2-square"');
     expect(res.text).toContain('href="/rules/x-square/4-square"');
     expect(res.text).not.toContain('/rules/sideline/');
   });
 
-  // Defect caught: a competitive game or its clip drifts back onto the
-  // open-play page, or the page loses its pointer to the X Square games.
-  it('keeps Sideline to open play, pointing at the X Square games', async () => {
+  // Defect caught: a game with its own section, or its clip, drifts back onto the
+  // open-play page, or the page loses its pointer to the X-Square games.
+  it('keeps Sideline to open play, pointing at the X-Square games', async () => {
     const res = await page('/sideline');
     expect(res.text).toContain('/img/sideline-hackysack-hero.svg');
-    expect(res.text).toContain('<a href="/x-square">X Square games</a>');
+    expect(res.text).toContain('<a href="/x-square">X-Square games</a>');
     expect(res.text).not.toContain('/video/sideline/foursquare.webm');
     expect(res.text).not.toContain('/video/sideline/golf.webm');
     expect(res.text).not.toContain('href="/rules/');

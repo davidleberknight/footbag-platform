@@ -1,8 +1,8 @@
 /**
- * XSquareService -- public X Square landing page (read-only).
+ * XSquareService -- public X-Square landing page (read-only).
  *
  * Serves:
- *   - GET /x-square (public): canonical X Square section entry. X Square is the category of
+ *   - GET /x-square (public): canonical X-Square section entry. X-Square is the discipline of
  *     2-Square, 4-Square and 5-Square.
  *
  * Rendering contract:
@@ -69,19 +69,19 @@ const FOUR_SQUARE: SportSectionGame = {
 export const xSquareService = {
   getXSquarePage(): PageViewModel<XSquareContent> {
     return {
-      seo: { title: 'X Square' },
+      seo: { title: 'X-Square' },
       page: {
         sectionKey: 'x-square',
         pageKey: 'x_square_home',
-        title: 'X Square',
+        title: 'X-Square',
         intro: '2-Square, 4-Square and 5-Square.',
       },
       content: {
         mascot: { src: '/img/sideline-icon-twosquare.svg', alt: 'Two figures playing footbag across a line' },
         explainer: {
-          heading: 'What Is X Square?',
+          heading: 'What Is X-Square?',
           paragraphs: [
-            [{ text: 'X Square covers 2-Square, 4-Square and 5-Square. Each player defends a square and scores by making the footbag drop in another player\'s square. 2-Square is the one contested at tournaments. 4-Square and 5-Square are the same idea for more players.' }],
+            [{ text: 'X-Square covers 2-Square, 4-Square and 5-Square. Each player defends a square and scores by making the footbag drop in another player\'s square. All three are sideline games. A tournament director may offer X-Square, and each of its games, either for fun or as a competition.' }],
           ],
         },
         games: [TWO_SQUARE, FOUR_SQUARE],

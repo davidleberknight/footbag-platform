@@ -167,9 +167,6 @@ adminRouter.get('/events/:eventId/organizers',         adminEventOrganizerContro
 adminRouter.post('/events/:eventId/organizers/assign', adminEventOrganizerController.assign);
 adminRouter.post('/events/:eventId/organizers/remove', adminEventOrganizerController.remove);
 adminRouter.get('/clubs',                     adminClubController.index);
-// The literal leadership path is registered before the :clubId segment, or an
-// administrator opening the queue asks for a club called "leadership".
-adminRouter.get('/clubs/leadership',          adminClubLeadershipController.queue);
 adminRouter.get('/clubs/:clubId',             adminClubController.record);
 // The longer confirm path first, as elsewhere: each correction previews and
 // writes only on confirm.

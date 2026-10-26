@@ -46,9 +46,11 @@ function db<T>(fn: (conn: BetterSqlite3.Database) => T): T {
   }
 }
 
+// The cleanup queue's Needs Leader group is the one list of clubs that could
+// use a leader.
 async function needsLeaderPage(): Promise<string> {
   const res = await request(createApp())
-    .get('/admin/clubs/leadership').set('Cookie', adminCookie());
+    .get('/admin/club-cleanup?category=leaderless_active').set('Cookie', adminCookie());
   expect(res.status).toBe(200);
   return res.text;
 }
@@ -116,16 +118,6 @@ describe('a club whose only co-leader can no longer act', () => {
     // There is no restore from this state, so a second read must not quietly
     // drop it again.
     expect(await needsLeaderPage()).toContain('Bereaved Club');
-  });
-
-  it('reaches the administrator cleanup queue too, not only the member-facing list', async () => {
-    // The two predicates ask the same question from different surfaces. One
-    // repointed and the other not would leave a club visible as leaderless to
-    // members while never reaching the administrator who can act on it.
-    const res = await request(createApp())
-      .get('/admin/club-cleanup').set('Cookie', adminCookie());
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Bereaved Club');
   });
 
   it('keeps the leadership row, so the club history stays attributable', () => {

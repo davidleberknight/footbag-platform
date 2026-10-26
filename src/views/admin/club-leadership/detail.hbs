@@ -50,12 +50,6 @@
         <label for="assign_reason">Reason (required)</label>
         <input id="assign_reason" name="reason" required maxlength="500" />
       </div>
-      {{#if content.club.capReached}}
-        <div class="form-field">
-          <label for="cap_override">Cap-override reason (club already at 5 co-leaders)</label>
-          <input id="cap_override" name="cap_override_reason" maxlength="500" />
-        </div>
-      {{/if}}
       <button type="submit" class="btn btn-primary btn-sm">Assign</button>
     </form>
 
@@ -77,5 +71,5 @@
     <p class="fs-sm"><a href="/admin/members">Find a member</a> to get the id or profile URL this form takes.</p>
   </section>
 
-  <p class="mt-4"><a href="/admin/clubs/leadership">Back to the remediation queue</a></p>
+  <p class="mt-4"><a href="/admin/club-cleanup">Back to the club cleanup queue</a></p>
 </div>

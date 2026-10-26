@@ -28,6 +28,7 @@ Read the open issues in the maintainers' private tracker (`gh issue list -R "$FO
 - **Unit** (`tests/unit/`): exported pure functions with no database, such as `slugify()`, `personHref()`, `groupPlayerResults()` and the `ServiceError` classes. A non-exported function is tested through its integration surface; never widen production exports for a test.
 - **Integration** (`tests/integration/`): routes, database, auth, rendered HTML, and operator scripts (`<script>.script.test.ts`, driven through the script's test seam). Route contracts, auth and ownership gates, privacy boundaries, session edge cases, validation negatives, and business rules through routes.
 - **Browser** (`tests/e2e/`, Playwright): only what a real browser can show: cookie attributes and session behaviour across redirect chains, CSRF-protected form submission where browser semantics matter, the wizard happy paths plus the one negative case per wizard a browser reveals, and upload round-trips. Every business-rule branch belongs in integration. Sessions come from the persona switch (`GET /dev/switch?as=<slug>`).
+- **Rendered style and page stability**: a change to a view, stylesheet or layout is checked by the rendered-style check (`npm run test:rendered-style`, limited with `RENDERED_STYLE_VIEWS=<view>,<view>`; `scripts/test-targets.sh` prints the views). What that check cannot see, because it measures settled pages with scripts on, is a browser case: a box that moves while the page loads, or a page drawn with JavaScript off (`javaScriptEnabled: false`), as in `tests/e2e/layout-stability.spec.ts`. Anonymous deployed loads live in `tests/e2e/deployed/`.
 - **Smoke** (`tests/smoke/`): read-only live probes of staging wiring only. Read `SMOKE.md` first.
 - **Real-data leg** (`tests/dev/`): claims one real migrated record per claim shape and walks the surfaces that render it. Extend it only for a surface that renders migrated real-world data, adding the surface's shapes to the leg's shape query.
 - **Destructive staging tier**: a story check that must submit forms against staging's real data, run only by the bare `./run_all_tests.sh --staging`; it targets persona-owned rows or the named curated-content forms, and every case names its undo.
@@ -74,6 +75,8 @@ Follow the shapes in `EXAMPLES.md`, and these instructions:
 - Assert on rows the test seeded, not on template copy, so the assertion ties the render to the data.
 - `insertMember()` overrides cover member edge cases (`is_hof`, `is_deceased`, `personal_data_purged_at`).
 - A case that deliberately drives a `logger.error()` calls `expectLoggedError(pattern)` before the action, with a pattern naming the expected line.
+
+Before writing a helper, check the shared fixtures by purpose in `tests/CLAUDE.md`; the testing rule names the ones its gates enforce (`rowPinning`, `clock`, `scratchDir`, `spawnGuard`).
 
 Give the test its own inputs. For every input the test does not create (a file, a directory, an installed binary, an exported variable), write it, stub it, pass its path or set it; a default that resolves to the developer's machine is not an input the test owns.
 

@@ -190,6 +190,32 @@ describe('assigning an organizer', () => {
     expect(organizersOf(eventId).map((r) => r.role)).toEqual(['organizer', 'organizer']);
   });
 
+  // Defect caught: an admin gives an event a sixth current organizer, past
+  // the five the event story allows; or an organizer who has died still
+  // counts against the five, so a real fifth is refused.
+  it('refuses a sixth current organizer, counting only organizers who can still act', async () => {
+    const dead = makeMember('org_cap_dead', { isDeceased: true });
+    const live = ['org_cap_1', 'org_cap_2', 'org_cap_3', 'org_cap_4'].map((slug) => makeMember(slug));
+    const eventId = withDb((db) => {
+      const e = insertEvent(db, { title: 'Full Crew', start_date: '2099-09-09' });
+      insertEventOrganizer(db, e, dead);
+      for (const id of live) insertEventOrganizer(db, e, id);
+      return e;
+    });
+    makeMember('org_cap_5');
+    makeMember('org_cap_6');
+
+    const fifth = await assign(eventId, 'org_cap_5', 'Fifth pair of hands.');
+    expect(fifth.status).toBe(303);
+    const before = organizersOf(eventId);
+    expect(before).toHaveLength(6);
+
+    const sixth = await assign(eventId, 'org_cap_6', 'One more.');
+    expect(sixth.status).toBe(422);
+    expect(sixth.text).toContain('This event already has 5 organizers, the most an event can have.');
+    expect(organizersOf(eventId)).toEqual(before);
+  });
+
   it('assigns someone to an event whose only organizer deleted their account, keeping the departed row', async () => {
     const gone = makeMember('org_gone_assign', { deletedAt: new Date().toISOString() });
     const member = makeMember('org_replacement');

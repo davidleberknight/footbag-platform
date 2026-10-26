@@ -207,9 +207,9 @@ echo "  → Loading given_name_variants..."
 "${PYTHON}" legacy_data/scripts/load_given_name_variants_to_sqlite.py \
   --db "${DB_FILE}"
 
-# Net enrichment layer (discipline groups, teams, appearances, review queue).
+# Net enrichment layer (division groups, teams, appearances, review queue).
 # Reads canonical tables, writes net_* tables. Must run after script 08.
-echo "  → Building net discipline groups..."
+echo "  → Building net division groups..."
 "${PYTHON}" legacy_data/event_results/scripts/12_build_net_discipline_groups.py \
   --db "${DB_FILE}"
 

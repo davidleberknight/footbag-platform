@@ -160,7 +160,7 @@
               <p>{{evidence.linkHelp.statement}}</p>
             {{/if}}
             {{#if evidence.claimEvidence.attempts.length}}
-              <div class="section-heading"><h3>What This Member Has Already Tried</h3></div>
+              <h3>What This Member Has Already Tried</h3>
               {{#if evidence.claimEvidence.memberBirthDate}}
                 <p class="card-meta claim-evidence-revealed">Date of birth on this account: <strong>{{evidence.claimEvidence.memberBirthDate}}</strong></p>
               {{/if}}
@@ -188,7 +188,7 @@
             {{! What the platform can already see for this member, with the ids
                 the approve form takes. Without it the administrator is asked to
                 type an identifier the admin interface never showed them. }}
-            <div class="section-heading"><h3>What the Platform Can See for Them</h3></div>
+            <h3>What the Platform Can See for Them</h3>
             {{#if evidence.candidates.hasLegacyAccounts}}
               <p class="fs-sm">Old accounts their evidence reaches:</p>
               <ul class="claim-evidence-list">

@@ -1745,55 +1745,82 @@ expect_strip 'nope' '[ "$(cat "$proj/.claude/settings.local.json")" = nope ]' 'i
 expect_strip '' '[ ! -e "$proj/.claude/settings.local.json" ]' 'missing file not created'
 
 # track-doc-sync.sh (PostToolUse) and require-doc-sync.sh (Stop) together keep a turn
-# that changed project files from ending until the doc-sync skill has run since the
-# last change. Drive them with synthetic events against a throwaway scratch dir and a
-# fake project dir, then assert block or defer at Stop.
+# that changed code from ending until the per-change doc sync has checked that exact
+# change: the gate clears only for a receipt whose hash matches the tree, never for
+# loading the skill. Drive them with synthetic events against a throwaway scratch dir
+# and a throwaway git project carrying the real hash helper.
 ds_scratch="$(mktemp -d)"
 ds_proj="$(mktemp -d)"
+ds_bare="$(mktemp -d)"
+git -C "$ds_proj" init -q
+mkdir -p "$ds_proj/scripts/lib" "$ds_proj/lib"
+cp scripts/lib/doc-sync-diff-hash.sh "$ds_proj/scripts/lib/"
+printf 'one\n' > "$ds_proj/lib/app.ts"
+git -C "$ds_proj" add -A
+git -C "$ds_proj" -c user.email=fixture@example.com -c user.name=fixture \
+  -c commit.gpgsign=false commit -qm fixture
 ds_post() {
   # $1 = tool name, $2 = tool_input JSON, $3 = session id ("" for none)
   jq -cn --arg t "$1" --argjson i "$2" --arg s "$3" --arg d "$ds_scratch" \
     '{tool_name:$t,tool_input:$i,scratchpad_dir:$d} + (if $s == "" then {} else {session_id:$s} end)' \
-    | CLAUDE_PROJECT_DIR="$ds_proj" .claude/hooks/track-doc-sync.sh
+    | CLAUDE_PROJECT_DIR="${DS_PROJ:-$ds_proj}" .claude/hooks/track-doc-sync.sh
 }
 expect_ds() {
   # $1 = session id, $2 = permission mode, $3 = want (block|defer), $4 = label
   local out got
   out="$(jq -cn --arg s "$1" --arg m "$2" --arg d "$ds_scratch" \
     '{session_id:$s,permission_mode:$m,scratchpad_dir:$d,stop_hook_active:false}' \
-    | .claude/hooks/require-doc-sync.sh)"
+    | CLAUDE_PROJECT_DIR="${DS_PROJ:-$ds_proj}" .claude/hooks/require-doc-sync.sh)"
   if grep -q '"block"' <<< "$out"; then got=block; else got=defer; fi
   if [ "$got" != "$3" ]; then
     echo "[hooks] FAIL (require-doc-sync.sh): want $3, got $got: $4" >&2
     fail=1
   fi
 }
-# An edit in the source tree blocks the turn end; a doc-sync run then clears it.
-ds_post Edit "{\"file_path\":\"$ds_proj/src/app.ts\"}" s1
-expect_ds s1 default block 'edit under src/'
+ds_receipt() {
+  # $1 = session id: write the receipt the diff script writes, for the tree as it is now
+  jq -cn --arg h "$(cd "$ds_proj" && bash scripts/lib/doc-sync-diff-hash.sh)" '{hash:$h}' \
+    > "$ds_scratch/.doc-sync-receipt-$1"
+}
+# A code edit blocks the turn end, and loading the skill without the check does not clear it.
+printf 'two\n' > "$ds_proj/lib/app.ts"
+ds_post Edit "{\"file_path\":\"$ds_proj/lib/app.ts\"}" s1
+expect_ds s1 default block 'code edit'
 ds_post Skill '{"skill":"doc-sync"}' s1
-expect_ds s1 default defer 'doc-sync ran after the edit'
-# A later edit arms it again.
-ds_post Write "{\"file_path\":\"$ds_proj/.claude/hooks/x.sh\"}" s1
-expect_ds s1 default block 'edit after doc-sync'
-# Another skill does not clear it; a plugin-prefixed doc-sync does.
-ds_post Skill '{"skill":"write-tests"}' s1
-expect_ds s1 default block 'other skill run'
-ds_post Skill '{"skill":"footbag:doc-sync"}' s1
-expect_ds s1 default defer 'prefixed doc-sync name'
-# Doc edits and files outside the project never arm it.
+expect_ds s1 default block 'skill loaded without running the check'
+# A receipt for exactly this tree clears it.
+ds_receipt s1
+expect_ds s1 default defer 'receipt matches the tree'
+# A code edit after the check arms it again, and the earlier receipt no longer matches.
+printf 'three\n' > "$ds_proj/lib/app.ts"
+ds_post Edit "{\"file_path\":\"$ds_proj/lib/app.ts\"}" s1
+expect_ds s1 default block 'code edit after the receipt'
+# Applying an approved doc edit after the check leaves the receipt valid.
+ds_receipt s1
+mkdir -p "$ds_proj/docs"
+printf 'guide\n' > "$ds_proj/docs/GUIDE.md"
+ds_post Edit "{\"file_path\":\"$ds_proj/docs/GUIDE.md\"}" s1
+expect_ds s1 default defer 'doc edit after the receipt'
+# Markdown anywhere, the docs tree and files outside the project never arm it.
 ds_post Edit "{\"file_path\":\"$ds_proj/docs/GUIDE.md\"}" s2
+ds_post Edit "{\"file_path\":\"$ds_proj/.claude/rules/x.md\"}" s2
 ds_post Write '{"file_path":"/tmp/elsewhere/plan.md"}' s2
-expect_ds s2 default defer 'docs/ edit and outside-project edit'
+expect_ds s2 default defer 'markdown, docs/ and outside-project edits'
+# A hook script is code: its edit arms the gate.
+ds_post Write "{\"file_path\":\"$ds_proj/.claude/hooks/x.sh\"}" s4
+expect_ds s4 default block 'hook script edit'
 # A relative path is resolved against the project.
 ds_post Edit '{"file_path":"src/views/page.hbs"}' s3
 expect_ds s3 default block 'relative path inside the project'
 # Plan mode never blocks, even with the marker set.
 expect_ds s3 plan defer 'plan mode'
+# A project without the hash helper fails open rather than trapping the turn.
+DS_PROJ="$ds_bare" ds_post Edit "{\"file_path\":\"$ds_bare/src/a.ts\"}" s5
+DS_PROJ="$ds_bare" expect_ds s5 default defer 'project without the hash helper'
 # An event with no session id is ignored, and a Stop with no session id lets the turn end.
 ds_post Edit "{\"file_path\":\"$ds_proj/src/a.ts\"}" ''
 expect_ds '' default defer 'no session id'
-rm -rf "$ds_scratch" "$ds_proj"
+rm -rf "$ds_scratch" "$ds_proj" "$ds_bare"
 
 # guard-background-work.sh (Stop) keeps a turn from ending while this session's own
 # background tasks are still in flight, unless the final message names them on a

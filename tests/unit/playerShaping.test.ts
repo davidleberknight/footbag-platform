@@ -86,7 +86,7 @@ describe('groupPlayerResults', () => {
     expect(result[1].eventTitle).toBe('Event B');
   });
 
-  it('groups same discipline + placement into one result entry', () => {
+  it('groups the same competition category + placement into one result entry', () => {
     const rows = [
       makeRow({ participant_display_name: 'Alice', participant_person_id: 'p-a' }),
       makeRow({ participant_display_name: 'Bob', participant_person_id: 'p-b' }),
@@ -98,7 +98,7 @@ describe('groupPlayerResults', () => {
     expect(result[0].results[0].teammates.map(t => t.name)).toEqual(['Alice', 'Bob']);
   });
 
-  it('creates separate entries for different disciplines', () => {
+  it('creates separate entries for different competition categories', () => {
     const rows = [
       makeRow({ discipline_name: 'Freestyle', placement: 1 }),
       makeRow({ discipline_name: 'Net', placement: 1 }),
@@ -110,7 +110,7 @@ describe('groupPlayerResults', () => {
     expect(result[0].results[1].disciplineName).toBe('Net');
   });
 
-  it('creates separate entries for different placements in same discipline', () => {
+  it('creates separate entries for different placements in the same competition category', () => {
     const rows = [
       makeRow({ placement: 1, participant_display_name: 'Alice', participant_person_id: 'p-a' }),
       makeRow({ placement: 2, participant_display_name: 'Bob', participant_person_id: 'p-b' }),
@@ -151,18 +151,18 @@ describe('groupPlayerResults', () => {
     expect(result[0].results[0].teammates[0].playerHref).toBeUndefined();
   });
 
-  // ─── Sick-discipline trick-anomaly filter ────────────────────────────
+  // ─── Sick Trick category trick-anomaly filter ────────────────────────────
   //
   // Regression for the 2013 Todexon 14 / 2015 Worlds Copenhagen /
   // 2016 + 2025 Eurochamp Frankfurt etc. event-results bug:
   // the canonical event_result_participants.csv loaded the performed
   // trick name as a second participant (participant_order=2, no
   // person_id, no member_id) on solo "Sick Trick" / "Sick 3-Trick"
-  // disciplines. The renderer surfaced this as "Tied with: <trick name>"
+  // categories. The renderer surfaced this as "Tied with: <trick name>"
   // on player profile pages. Fix: filter these rows from the teammates
   // list (data stays in DB for a future performance-note surface).
 
-  describe('sick-discipline trick-anomaly filter', () => {
+  describe('Sick Trick category trick-anomaly filter', () => {
     it('skips a Sick 3-Trick row carrying a trick name as a second participant', () => {
       // Todexon 14 — Jindrich Smola, Open Sick 3-Trick, place 2.
       // Canonical CSV has two participant rows: Jindrich (order 1,
@@ -220,11 +220,11 @@ describe('groupPlayerResults', () => {
       expect(result[0].results[0].detailPrefix).toBe('');
     });
 
-    it('preserves legitimate doubles partners with no person_id (doubles disciplines)', () => {
+    it('preserves legitimate doubles partners with no person_id (doubles categories)', () => {
       // Negative case: a doubles-net partner whose person_id has not
       // been identity-resolved upstream. Display name only. Must STILL
       // render as a teammate (the trick-anomaly filter only applies to
-      // sick disciplines).
+      // Sick Trick categories).
       const rows = [
         makeRow({
           discipline_name:          'Open Doubles Net',
@@ -250,8 +250,8 @@ describe('groupPlayerResults', () => {
       expect(result[0].results[0].detailPrefix).toBe('With partner: ');
     });
 
-    it('preserves a sick-discipline teammate that DOES have a person_id (defensive)', () => {
-      // Belt-and-suspenders case: if a "sick" discipline ever had a
+    it('preserves a Sick Trick category teammate that DOES have a person_id (defensive)', () => {
+      // Belt-and-suspenders case: if a "sick" category ever had a
       // legitimate second human (collaborator, judge co-credit, etc.)
       // with an identity, do NOT silently drop them. The filter only
       // applies when both person_id AND member_id are missing.

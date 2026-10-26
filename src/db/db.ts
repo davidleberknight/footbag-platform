@@ -686,6 +686,14 @@ export const clubs = {
      WHERE id = ?
   `); },
 
+  // A hashtag move points the club at its new tag row; the old row stays, so
+  // the old hashtag remains reserved.
+  get updateHashtagTagId() { return db.prepare(`
+    UPDATE clubs
+       SET hashtag_tag_id = ?, updated_at = ?, updated_by = ?, version = version + 1
+     WHERE id = ?
+  `); },
+
   get listOpen() { return db.prepare(`
     SELECT
       c.id          AS club_id,
@@ -1140,14 +1148,30 @@ export const legacyClubCandidates = {
   `); },
 
   // Create-club duplicate check: same-country candidates the member could
-  // be duplicating. Junk-classified rows never surface; mapped candidates
-  // are already live clubs, which the clubs-table check covers.
+  // be duplicating. Junk-classified rows never surface, nor do archived or
+  // junk-confirmed ones, because retiring a candidate frees its name; mapped
+  // candidates are already live clubs, which the clubs-table check covers.
   get listDuplicateCheckCandidatesByCountry() { return db.prepare(`
     SELECT display_name, city, region, country, classification
       FROM legacy_club_candidates
      WHERE country = ? COLLATE NOCASE
        AND classification IN ('onboarding_visible', 'dormant')
        AND mapped_club_id IS NULL
+       AND lifecycle_state IS NULL
+  `); },
+
+  // Create-club exact-name block: a same-country candidate a member could still
+  // confirm holds the name. Junk-classified and archived or junk-confirmed
+  // candidates free it; mapped candidates are live clubs, checked separately.
+  get findExactByNameAndCountry() { return db.prepare(`
+    SELECT display_name
+      FROM legacy_club_candidates
+     WHERE display_name = ? COLLATE NOCASE
+       AND country = ? COLLATE NOCASE
+       AND classification IN ('onboarding_visible', 'dormant')
+       AND mapped_club_id IS NULL
+       AND lifecycle_state IS NULL
+     LIMIT 1
   `); },
 
   get findByMappedClubId() { return db.prepare(`
@@ -1503,8 +1527,9 @@ export const clubBootstrapLeaders = {
 
   // Provisional leadership candidates for a legacy member, joined to the
   // club to surface club metadata for the wizard card. Only 'provisional'
-  // rows surface; claimed/rejected/superseded are filtered. Sorted by
-  // club name to align with the membership-card ordering.
+  // rows surface; claimed/rejected/superseded are filtered, and so is an
+  // archived club, because archiving is final and its leadership is never
+  // offered. Sorted by club name to align with the membership-card ordering.
   get listProvisionalForLegacyMember() { return db.prepare(`
     SELECT
       cbl.id    AS candidate_id,
@@ -1516,7 +1541,7 @@ export const clubBootstrapLeaders = {
       c.description   AS club_description,
       c.external_url  AS club_external_url
       FROM club_bootstrap_leaders AS cbl
-      INNER JOIN clubs AS c
+      INNER JOIN clubs_open AS c
          ON c.id = cbl.club_id
      WHERE cbl.legacy_member_id = ?
        AND cbl.status           = 'provisional'
@@ -1614,18 +1639,6 @@ export const clubLeaders = {
   // Admin leadership remediation lookups.
   get findClubForAdminLeadership() { return db.prepare(`
     SELECT id, name, status FROM clubs WHERE id = ?
-  `); },
-
-  // A club is reachable through its co-leaders' member-visible contact emails;
-  // a club with zero co-leaders has no platform-surfaced contact, so the single
-  // "could use a leader" opportunity list keys solely off the absence of any
-  // club_leaders row.
-  get listClubsNeedingLeader() { return db.prepare(`
-    SELECT c.id, c.name, c.city, c.country
-    FROM clubs c
-    WHERE c.status = 'active'
-      AND NOT EXISTS (SELECT 1 FROM club_leaders_current l WHERE l.club_id = c.id)
-    ORDER BY c.name
   `); },
 
   get listLeadersWithNames() { return db.prepare(`
@@ -1752,9 +1765,9 @@ export const memberClubAffiliations = {
   get insertAffiliation() { return db.prepare(`
     INSERT INTO member_club_affiliations (
       id, created_at, created_by, updated_at, updated_by, version,
-      member_id, club_id, is_current, is_primary, is_contact, source
+      member_id, club_id, is_current, is_primary, source
     ) VALUES (?, ?, ?, ?, ?, 1,
-              ?, ?, 1, ?, 0, ?)
+              ?, ?, 1, ?, ?)
   `); },
 
   get countCurrentByMemberId() { return db.prepare(`
@@ -1880,7 +1893,7 @@ export const clubViabilitySignals = {
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
   `); },
 
-  // Counts feeding the G1-G4 viability gates. Signals are collected only
+  // Counts feeding the viability verdict ladder. Signals are collected only
   // in the onboarding wizard, so the filter names the wizard stages
   // explicitly, and the schema admits only the two answers the wizard's
   // activity question offers. Counting is one vote per member: a member's
@@ -1932,7 +1945,7 @@ export const clubViabilitySignals = {
     ORDER BY not_active_count DESC
   `); },
 
-  // Negative reporters for one club, one vote per member (latest signal
+  // Negative reporters for one club, one signal per member (latest signal
   // wins). Admin-queue use only: signal authorship is never exposed outside
   // admin surfaces. Negative reports are rare, so the queue item carries
   // the names inline.
@@ -1953,10 +1966,10 @@ export const clubViabilitySignals = {
     ORDER BY m.display_name COLLATE NOCASE
   `); },
 
-  // Candidate-keyed rows: activity answers about club candidates that have
+  // Candidate-keyed rows: activity signals about club candidates that have
   // no live clubs row yet (club_id is NULL; the candidate id lives in
   // source_entity_id). These rows are invisible to the club gates above,
-  // which filter on club_id. Counting mirrors the gates: one vote per
+  // which filter on club_id. Counting mirrors the gates: one signal per
   // member, latest signal wins.
   get countCandidateFlags() { return db.prepare(`
     WITH latest AS (
@@ -1979,9 +1992,9 @@ export const clubViabilitySignals = {
   `); },
 
   // Unpromoted, non-terminal candidates that carry wizard activity flags,
-  // with per-candidate signal counts (one vote per member, latest wins).
+  // with per-candidate signal counts (one signal per member, latest wins).
   // Promoted candidates are excluded here AND their flag rows are stamped
-  // with the club id at promotion time, so a vote never surfaces on both
+  // with the club id at promotion time, so a signal never surfaces on both
   // the candidate-flag group and the club gates.
   get listCandidatesWithFlags() { return db.prepare(`
     WITH latest AS (
@@ -2015,7 +2028,7 @@ export const clubViabilitySignals = {
     ORDER BY not_active_count DESC
   `); },
 
-  // Negative reporters for one candidate's flags, one vote per member
+  // Negative reporters for one candidate's flags, one signal per member
   // (latest signal wins). Admin-queue use only: signal authorship is never
   // exposed outside admin surfaces.
   get listNegativeCandidateReporters() { return db.prepare(`
@@ -2038,7 +2051,7 @@ export const clubViabilitySignals = {
   `); },
 
   // Promotion carry-forward: stamp the new live club id onto the
-  // candidate's flag rows so those votes start feeding the club gates and
+  // candidate's flag rows so those signals start feeding the club gates and
   // stop surfacing on the candidate-flag group. One-time stamp; the table
   // is otherwise append-only.
   get stampClubIdForCandidateFlags() { return db.prepare(`
@@ -3338,8 +3351,8 @@ export const freestyleTrickModifierLinks = {
 // freestylePartnerships
 //
 // Freestyle doubles partnership data derived from canonical result tables.
-// Filters to team_type='doubles' disciplines in the freestyle category,
-// excluding trick contests, shred, circle, and timed events.
+// Filters to team_type='doubles' event_disciplines rows in the freestyle discipline,
+// excluding trick contests, shred, circle, and timed categories.
 // ---------------------------------------------------------------------------
 
 export interface FreestylePartnershipRow {
@@ -3420,7 +3433,7 @@ export const freestylePartnerships = {
 // Results-derived freestyle competition data. Queries canonical tables only
 // no freestyle-domain tables are written; this is a read-only projection.
 //
-// Discipline filter: any discipline whose name contains 'freestyle', excluding
+// Row filter: any event_disciplines row whose name contains 'freestyle', excluding
 // doubles and team formats. This covers Open/Intermediate/Women's Singles
 // Freestyle, Open Freestyle, Freestyle, etc.
 //
@@ -3553,7 +3566,7 @@ export const consecutiveKicksRecords = {
   `); },
 
   // Admin curation browse: every row with its stable id and display position,
-  // ordered so the service can group by section and then discipline.
+  // ordered so the service can group by section and then record type.
   get listAllForCuration() { return db.prepare(`
     SELECT id, sort_order, section, subsection, discipline, year, rank,
            player_1, player_2, score, note, event_date, event_name, location
@@ -3726,7 +3739,7 @@ export const netTeams = {
 
   /** All net teams (with ≥1 canonical appearance), sorted by appearance count desc.
    *  No HAVING threshold and no LIMIT: this is the single public entry for browsing
-   *  all teams, with discipline/search filters handled via queryFilteredTeams. */
+   *  all teams, with division/search filters handled via queryFilteredTeams. */
   get listAll() { return db.prepare(`
     SELECT
       t.team_id,
@@ -3805,7 +3818,7 @@ export const netTeams = {
     )
   `); },
 
-  /** Discipline filter options, distinct canonical groups with appearance counts. */
+  /** Division filter options, distinct canonical groups with appearance counts. */
   get listDisciplineOptions() { return db.prepare(`
     SELECT dg.canonical_group, COUNT(DISTINCT a.id) AS appearance_count
     FROM net_discipline_group dg
@@ -3851,7 +3864,7 @@ export const netTeams = {
 };
 
 /**
- * Shared filter clauses for the optional discipline (canonical_group) and
+ * Shared filter clauses for the optional division (canonical_group) and
  * player-search filters, so the paginated fetch and the count query filter the
  * identical universe. The 'Unknown' placeholder is always excluded.
  */
@@ -3878,7 +3891,7 @@ function buildFilteredTeamsClauses(filters: { discipline?: string; search?: stri
 }
 
 /**
- * One page of teams matching the optional discipline / player-search filter, in the
+ * One page of teams matching the optional division / player-search filter, in the
  * same order and universe as the unfiltered directory. No HAVING or fixed LIMIT:
  * pagination (LIMIT ? OFFSET ?) governs how many rows render, so a filter can
  * never dump thousands of rows at once. Uses runtime db.prepare() for the
@@ -3951,7 +3964,7 @@ export function countFilteredTeams(filters: { discipline?: string; search?: stri
 // view, which enforces evidence_class = 'canonical_only' at the DB layer.
 // Never query net_team_appearance directly from this statement group.
 //
-// discipline_review_count = disciplines at this event whose canonical-group match was
+// discipline_review_count = event_disciplines rows at this event whose canonical-group match was
 // ambiguous (net_discipline_group.conflict_flag = 1), so the stored grouping is a best
 // guess. Public pages surface only that the ambiguity exists, never the annotation rows.
 //
@@ -4743,7 +4756,7 @@ export const account = {
    * to keep in step every time the first one moves.
    *
    * Deliberately not the public player-page statement, which filters on the same
-   * predicate but carries a different column set: it adds the discipline sort
+   * predicate but carries a different column set: it adds the event_disciplines sort
    * order and the participant order and omits the co-competitor's member id,
    * which is what links a teammate to their profile here.
    */
@@ -7394,8 +7407,8 @@ export const mediaTags = {
     SELECT id FROM media_tags WHERE media_id = ? AND tag_id = ?
   `); },
 
-  // Renames a club's hashtag identity. Carries the metadata stamp so the tag
-  // row names the leader who renamed it; the timestamp is passed in rather
+  // Renames a tag row in place. Carries the metadata stamp so the tag row
+  // names who renamed it; the timestamp is passed in rather
   // than taken from the database clock, so every row a rename transaction
   // touches carries the same instant.
   get updateTagDisplay() { return db.prepare(`
@@ -7417,6 +7430,28 @@ export const mediaTags = {
            updated_by  = ?,
            version     = version + 1
      WHERE tag_id = ?
+  `); },
+
+  // A club hashtag move carries everything tagged with the old hashtag onto the
+  // new tag row, display copy included, so media and galleries follow the club
+  // while the old row stays behind to keep the old hashtag reserved. The new
+  // row is fresh, so no item or gallery already carries it.
+  get moveMediaTagsToTag() { return db.prepare(`
+    UPDATE media_tags
+       SET tag_id      = ?,
+           tag_display = ?,
+           updated_at  = ?,
+           updated_by  = ?,
+           version     = version + 1
+     WHERE tag_id = ?
+  `); },
+
+  get moveGalleryCriteriaToTag() { return db.prepare(`
+    UPDATE member_gallery_tags SET tag_id = ? WHERE tag_id = ?
+  `); },
+
+  get moveGalleryExcludesToTag() { return db.prepare(`
+    UPDATE member_gallery_exclude_tags SET tag_id = ? WHERE tag_id = ?
   `); },
 };
 
@@ -10853,13 +10888,13 @@ export const clubCleanupPredicates = {
 // One row per live club carrying every piece of evidence a viability verdict
 // weighs, so the verdict is one read rather than a query per club per signal.
 //
-// Two families sit side by side here. Member votes and insight notes are what
-// the crowd tells us, counted one vote per member with the latest answer
+// Two families sit side by side here. Member signals and insight notes are what
+// the crowd tells us, counted one signal per member with the latest signal
 // winning. The rest is operational: what the club has actually done, drawn
 // from live rows (current members, co-leaders, events it hosted, results those
 // events produced, a verified website, a real description) and from the
 // mirror-derived evidence the import pipeline computed. That second family
-// matters because roughly a third of clubs can never receive a member vote at
+// matters because roughly a third of clubs can never receive a member signal at
 // all, and until now none of it was read by anything.
 //
 // newest_evidence_at is what lets a parked item return without a timer: it is
@@ -11068,7 +11103,7 @@ export const memberExport = {
   get clubAffiliations() { return db.prepare(`
     SELECT
       mca.club_id, c.name AS club_name, c.status AS club_status,
-      mca.is_current, mca.is_primary, mca.is_contact, mca.source,
+      mca.is_current, mca.is_primary, mca.source,
       mca.created_at, mca.updated_at
     FROM member_club_affiliations AS mca
     INNER JOIN clubs AS c ON c.id = mca.club_id

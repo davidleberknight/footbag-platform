@@ -62,7 +62,7 @@ EXPECTATIONS: list[Expectation] = [
     # Step 12b: load_given_name_variants_to_sqlite.py
     Expectation("given_name_variants", 10, "from committed inputs/curated/given_name_variants.csv"),
     # Step 13: 12_build_net_discipline_groups.py
-    Expectation("net_discipline_group", 1, "fixture has net disciplines so groups must build"),
+    Expectation("net_discipline_group", 1, "fixture has net event_disciplines rows so groups must build"),
     Expectation("net_stat_policy", 4, "exactly 4 registry rows by design"),
     # Step 14: 13_build_net_teams.py
     Expectation("net_team", 2, "4 doubles_net result pairs in fixture form distinct teams"),

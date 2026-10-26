@@ -1,11 +1,11 @@
 # Bug Hunt: implementation-layer reference
 
-The implementation lane's brief, read by the subagent that sweeps deployed code and never by the orchestrator. The design-layer method is the sibling `DESIGN.md`. Test and gate coverage is the `write-tests` skill's; the mechanical documentation detectors are the `doc-sync` skill's full-audit mode.
+The implementation lane's brief, read by the subagent that sweeps deployed code and never by the orchestrator. The design-layer method is the sibling `DESIGN.md`. Test and gate coverage is the `write-tests` skill's; documentation, comment and service-header drift is the `extended-doc-sync` skill's.
 
 ## Contents
 
 - Bug categories, catalog (4.4.1 to 4.4.54; 4.4.38, 4.4.39 and 4.4.41 retired): the security and correctness sweep classes, and the UI/UX lane's method (4.4.54)
-- Design-pattern divergence and hygiene (4.4B.1 to 4.4B.8; 4.4B.7 retired): code against the rules and contracts that govern it
+- Design-pattern divergence and hygiene (4.4B.1 to 4.4B.6): code against the rules and contracts that govern it
 - Cross-cutting observations
 - External security calibration references
 - High-signal static search recipes
@@ -294,7 +294,7 @@ Found by measuring, never by screenshot. The rendered-style check (`npm run test
 
 A separate, lower-priority sweep after 4.4, with its own `BUGS.md` group. Most findings are Low or Medium; escalate to High only when the divergence produces a behavioral or security failure (a template branching on a raw `role` that exposes an admin control). Ground every finding in the canonical pattern it violates: `.claude/rules/{controller-conventions,view-layer,service-layer,db-layer}.md` or the service file-header JSDoc, and cite it.
 
-The drift direction is not always code-violates-rule. A rule or skill clause whose stated behavior or identifier the code has outgrown is itself a divergence finding. For every behavior or identifier a change moved, grep `.claude/rules/*` and `.claude/skills/*` for the superseded term; a stale sentence buried in a current rule drifts silently.
+Skip every pattern `scripts/ci/assert_conventions.sh` already gates (its header lists them); a hit on one means the gate is broken, a configuration defect. The other direction, a rule or skill clause the code has outgrown, is drift and belongs to the extended doc sync.
 
 #### 4.4B.1 Controller-layer divergence
 
@@ -316,13 +316,9 @@ A public-page method not returning `Promise<PageViewModel<T>>` or not named `get
 
 `process.env` outside `src/config/env.ts`; AWS SDK or Stripe imports outside `src/adapters/`; `fs` writes in services bypassing the MediaStorageAdapter; hardcoded URLs.
 
-#### 4.4B.6 Stale comment and deviation-marker defects
+#### 4.4B.6 Comments and service headers
 
-A comment or JSDoc that describes behavior the code no longer has is a finding: it steers the next reader wrong, and it is read as code-against-doc discrepancy with the divergent line cited. A deviation comment missing its `Current:`/`Target:` lines or not self-contained is a finding. A comment naming a filesystem path the code might also read at runtime (`exploration/`, `legacy_data/`, `curated/`) is checked under 4.4.42. The mechanical detectors (doc paths and section shorthands in comments, sprint and date markers, console logging, em-dash scope) belong to the `doc-sync` skill's full-audit mode and are not run here.
-
-#### 4.4B.8 Service JSDoc contract consistency sweep
-
-Service JSDoc is a contract reader for future maintainers and agents; stale or missing JSDoc causes future defects. For every `src/services/*.ts` file, inspect the file-header JSDoc against the implementation and `service-layer.md`: presence on every write-path service (identity, membership, payments, voting, active-player, member, event, club, media, curator; judge by what the service does); purpose and ownership boundary; exported methods, return shapes, unions, nullability and thrown `ServiceError` types; side effects (writes, audit rows, outbox, work queue, storage, payment, token effects); security and privacy invariants it owns; the transaction boundary and post-commit effects; singleton versus factory shape. Report under Design-divergence and hygiene unless the wrong text masks a security or correctness failure, in which case the failure is the finding and the drift its evidence.
+A stale comment, a stale or missing service file-header JSDoc, a malformed deviation marker and every mechanical comment detector belong to the extended doc sync, which runs before this hunt; list one met here as a hand-off. Where the wrong text masks a security or correctness failure, the failure is the finding under its own class and the text its evidence. A comment naming a filesystem path the code might also read at runtime (`exploration/`, `legacy_data/`, `curated/`) is still checked under 4.4.42.
 
 ## Cross-cutting observations
 

@@ -1,6 +1,6 @@
 /**
  * View-model shapes shared by the sport section landing pages that present a
- * list of games (X Square, Golf, Sideline), all rendered through the
+ * list of games (X-Square, Golf, Sideline), all rendered through the
  * `sport-section` partial.
  */
 

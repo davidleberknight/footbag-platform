@@ -17,7 +17,7 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('GET /rules', () => {
-  it('lists the X Square rules with internal hrefs', async () => {
+  it('lists the X-Square rules with internal hrefs', async () => {
     const res = await page('/rules');
     expect(res.status).toBe(200);
     expect(res.text).toContain('/rules/x-square/2-square');
@@ -133,7 +133,7 @@ describe('GET /rules/golf/footbag-golf', () => {
 });
 
 describe('GET /rules with golf added', () => {
-  it('lists the Footbag Golf category group', async () => {
+  it('lists the Footbag Golf discipline group', async () => {
     const res = await page('/rules');
     expect(res.text).toContain('Footbag Golf');
     expect(res.text).toContain('/rules/golf/footbag-golf');
@@ -217,7 +217,7 @@ describe('rule page titles and orientation', () => {
     }
   });
 
-  it('introduces every category group on the index', async () => {
+  it('introduces every discipline group on the index', async () => {
     const res = await page('/rules');
     const groups = [...res.text.matchAll(/<section class="content-section" id="([^"]+)">([\s\S]*?)<\/section>/g)];
     expect(groups.length).toBeGreaterThan(0);
@@ -227,7 +227,7 @@ describe('rule page titles and orientation', () => {
     }
   });
 
-  it('anchors each index group on the category its rule links open under', async () => {
+  it('anchors each index group on the discipline its rule links open under', async () => {
     const res = await page('/rules');
     const groups = [...res.text.matchAll(/<section class="content-section" id="([^"]*)">([\s\S]*?)<\/section>/g)];
     expect(groups.length).toBeGreaterThan(0);
@@ -274,10 +274,10 @@ describe('GET /rules/freestyle/footbag-freestyle', () => {
   });
 });
 
-describe('GET /rules with all four categories', () => {
-  it('lists every category group on the index', async () => {
+describe('GET /rules with all four disciplines', () => {
+  it('lists every discipline group on the index', async () => {
     const res = await page('/rules');
-    expect(res.text).toContain('X Square');
+    expect(res.text).toContain('X-Square');
     expect(res.text).toContain('Footbag Net');
     expect(res.text).toContain('Footbag Golf');
     expect(res.text).toContain('Freestyle');
@@ -287,7 +287,7 @@ describe('GET /rules with all four categories', () => {
 });
 
 describe('GET /rules/:categorySlug/:ruleSlug 404 handling', () => {
-  it('returns 404 for unknown category slug', async () => {
+  it('returns 404 for unknown discipline slug', async () => {
     const res = await page('/rules/unknown/2-square');
     expect(res.status).toBe(404);
   });

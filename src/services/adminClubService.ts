@@ -615,6 +615,9 @@ export const adminClubService = {
         + "The '#club_' in front of it belongs to the platform and is not typed here.",
       );
     }
+    if (result.branch === 'too_long') {
+      throw new ValidationError('The hashtag is too long. Including #club_, it must be 100 characters or fewer.');
+    }
     if (result.branch === 'tag_conflict') {
       throw new ValidationError('Another tag already holds that hashtag.');
     }

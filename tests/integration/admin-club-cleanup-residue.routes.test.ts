@@ -186,7 +186,10 @@ describe('POST /admin/club-cleanup/:clubId/delist-residue — the reason is clea
   // markup and control characters.
   it('records the reason cleaned', async () => {
     const db = new BetterSqlite3(dbPath);
-    insertClub(db, { id: 'residue-club-clean', name: 'Residue Clean Club' });
+    // Something to de-list, since a de-list that retires nothing writes no row.
+    const cand = seedClub(db, 'residue-club-clean', '#club_residue_clean', 'Residue Clean Club');
+    const person = insertHistoricalPerson(db, { person_id: 'res-pend-clean', person_name: 'Clean Pending', country: 'US' });
+    insertLegacyPersonClubAffiliation(db, { historical_person_id: person, legacy_club_candidate_id: cand, resolution_status: 'pending' });
     db.close();
     const res = await request(createApp())
       .post(residueFormAction('residue-club-clean'))
@@ -239,11 +242,25 @@ describe('POST /admin/club-cleanup/:clubId/delist-residue — happy path', () =>
     }
   });
 
-  it('is idempotent: re-running leaves the rows former_only and still redirects', async () => {
+  // Defect caught: a re-run that de-lists nothing still writes a ledger row
+  // saying a de-listing happened.
+  it('is idempotent: re-running leaves the rows former_only, still redirects, and writes no second row', async () => {
+    const auditCount = (): number => {
+      const db = new BetterSqlite3(dbPath, { readonly: true });
+      try {
+        return (db.prepare(
+          "SELECT COUNT(*) AS n FROM audit_entries WHERE entity_id = ? AND action_type = 'admin.club_cleanup.delist_residue'",
+        ).get(CLUB_A) as { n: number }).n;
+      } finally {
+        db.close();
+      }
+    };
+    expect(auditCount()).toBe(1);
     const app = createApp();
     const res = await request(app).post(residueFormAction(CLUB_A)).set('Cookie', adminCookie());
     expect(res.status).toBe(303);
     expect(readStatus(aff.pendA1)).toBe('former_only');
+    expect(auditCount()).toBe(1);
   });
 
   it('unknown club id -> 303 with no error and no collateral change', async () => {

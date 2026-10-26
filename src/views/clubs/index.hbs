@@ -19,7 +19,9 @@
 
 <div class="wrapper">
 
-  <div id="clubs-map" hidden aria-hidden="true"></div>
+  {{! Drawn at its final size from the first paint, so the country index below
+      never jumps when the script fills it in; hidden where scripting is off. }}
+  <div id="clubs-map"></div>
 
   {{#if content.countries}}
   <ul class="club-country-index">

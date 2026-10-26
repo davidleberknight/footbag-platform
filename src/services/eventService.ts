@@ -3,7 +3,7 @@
  *
  * Owns:
  *   - Event lifecycle (create through completion or cancellation)
- *   - Discipline management
+ *   - Management of the event's categories and divisions (event_disciplines rows)
  *   - Co-organizer management
  *   - Sanction requests
  *   - Results upload
@@ -102,7 +102,7 @@ export interface PublicEventDiscipline {
   disciplineId: string;
   eventId: string;
   name: string;
-  /** null only on an aggregate standing that spans several sports. */
+  /** null only on an aggregate standing that spans several disciplines. */
   disciplineCategory: string | null;
   teamType: string;
   teamTypeLabel: string | null;
@@ -303,7 +303,7 @@ const DISCIPLINE_CATEGORY_PRIORITY: Record<string, number> = {
 // Priority 2: Men unqualified (top-level men's division)
 // Priority 3: Women unqualified (top-level women's division)
 // Priority 4: Masters
-// Priority 5: Advanced / Amateur / Ultra
+// Priority 5: names containing Advanced / Amateur / Ultra (legacy brackets)
 // Priority 6: Intermediate (many spelling variants and abbreviations)
 // Priority 7: Novice / Beginner / Junior
 // Priority 8: Unmatched (last)
@@ -321,7 +321,7 @@ const WOMEN_MARKERS = ['women', 'woman', 'ladies', 'girl'];
 const MEN_MARKERS = ["men's", 'mens', ' men', "man's", 'gents'];
 
 // An aggregate standing ranks competitors over the event's contests, so it follows
-// every contested discipline, including one whose category is unrecognised (5).
+// every contested event_disciplines row, including one whose discipline is unrecognised (5).
 const AGGREGATE_STANDING_PRIORITY = 6;
 
 function disciplineSortKey(category: string | null, name: string | null, isAggregateStanding: boolean): [number, number, string] {

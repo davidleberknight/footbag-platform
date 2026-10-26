@@ -1,4 +1,4 @@
-{{! /net/teams — doubles teams with discipline filter }}
+{{! /net/teams — doubles teams with division filter }}
 
 <div class="hero hero-sm">
   <div>
@@ -14,7 +14,7 @@
 
   <form method="GET" action="/net/teams" class="filter-bar">
     <label>
-      Discipline
+      Division
       <select name="discipline" data-auto-submit>
         {{#each content.disciplineOptions}}
         <option value="{{value}}"{{#if selected}} selected{{/if}}>{{label}}{{#if appearanceCount}} ({{appearanceCount}} appearances){{/if}}</option>
@@ -72,7 +72,7 @@
     </nav>
   {{/if}}
   {{else}}
-  <div class="empty-state">No teams found for this discipline.</div>
+  <div class="empty-state">No teams found for this division.</div>
   {{/if}}
 
 </div>

@@ -116,7 +116,7 @@ export function groupPlayerResults(rows: PlayerResultRow[], opts: GroupResultsOp
       (opts.selfPersonId && row.participant_person_id === opts.selfPersonId) ||
       (opts.selfMemberId && row.participant_member_id === opts.selfMemberId);
 
-    // Data-shape anomaly: "Sick Trick" / "Sick 3-Trick" disciplines are solo
+    // Data-shape anomaly: "Sick Trick" / "Sick 3-Trick" categories are solo
     // performances, but the canonical CSV sometimes carries the performed
     // trick name as a second participant (participant_order=2) with no
     // person_id or member_id. Rendering that as "Tied with: <trick name>"
