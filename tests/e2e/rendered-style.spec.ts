@@ -203,10 +203,22 @@ test('every page view meets the layout standard at phone and desktop width', asy
   }
   for (const r of REACH) if (!plan.has(r.template)) plan.set(r.template, r);
 
+  // A scoped run measures only the named views, so a per-change check sees a
+  // template's own layout without rendering the whole site. Whole-site claims
+  // (every view reached, the baseline rewritten or lowered) are left to the
+  // full run, because a partial run cannot speak for the views it skipped.
+  const scope = (process.env.RENDERED_STYLE_VIEWS ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+  const inScope = (t: string) => scope.length === 0 || scope.includes(t);
+  if (scope.length > 0 && process.env.RENDERED_STYLE_WRITE_BASELINE === '1') {
+    throw new Error('RENDERED_STYLE_WRITE_BASELINE needs the whole-site run; unset RENDERED_STYLE_VIEWS');
+  }
+
   const onDisk = listPageTemplates();
-  const unmeasured = onDisk.filter((t) => !plan.has(t) && !(t in EXEMPT));
-  const reachedButExempt = Object.keys(EXEMPT).filter((t) => plan.has(t));
-  const targets = [...[...plan.values()].filter((r) => !(r.template in EXEMPT)), ...STRESS];
+  const unmeasured = scope.length > 0
+    ? scope.filter((t) => !plan.has(t) && !STRESS.some((s) => s.template === t))
+    : onDisk.filter((t) => !plan.has(t) && !(t in EXEMPT));
+  const reachedButExempt = scope.length > 0 ? [] : Object.keys(EXEMPT).filter((t) => plan.has(t));
+  const targets = [...[...plan.values()].filter((r) => !(r.template in EXEMPT)), ...STRESS].filter((r) => inScope(r.template));
 
   // Measure each page at both widths.
   const findings: Finding[] = [];
@@ -299,7 +311,7 @@ test('every page view meets the layout standard at phone and desktop width', asy
   // runner, which voids a run whose tree changes mid-flight, a lower count
   // simply passes and is reported.
   const { entries, changes } = shrinkBaseline(baseline, findings, visited, new Set(onDisk));
-  const mayWrite = !process.env.CI && process.env.RENDERED_STYLE_READ_ONLY !== '1';
+  const mayWrite = !process.env.CI && process.env.RENDERED_STYLE_READ_ONLY !== '1' && scope.length === 0;
   if (changes.length > 0) {
     if (mayWrite) fs.writeFileSync(BASELINE, header + formatBaselineEntries(entries));
     test.info().annotations.push({
@@ -310,7 +322,9 @@ test('every page view meets the layout standard at phone and desktop width', asy
 
   const accept = 'fix it; to accept it as known instead, run RENDERED_STYLE_WRITE_BASELINE=1 npm run test:rendered-style';
   const report = [
-    ...unmeasured.map((t) => `unmeasured view ${t}: no walk reached it; add it to REACH with a URL or to EXEMPT with a reason`),
+    ...unmeasured.map((t) => scope.length > 0
+      ? `unmeasured view ${t}: named in RENDERED_STYLE_VIEWS but no walk, REACH or STRESS entry measures it`
+      : `unmeasured view ${t}: no walk reached it; add it to REACH with a URL or to EXEMPT with a reason`),
     ...reachedButExempt.map((t) => `exempt view ${t} is reached by the walk; remove its exemption`),
     ...verdict.unexpected.map((f) => `new finding (${accept}): ${formatFinding(f)}`),
     ...verdict.exceeded.map((e) => `more than listed (${accept}): ${e.entry.rule} ${e.entry.template} @${e.entry.viewport} found ${e.count}, listed ${e.entry.max}`),

@@ -102,31 +102,33 @@
 
   <section>
     <div class="section-heading">
-      <h2>Settled Volume</h2>
+      <h2 id="settled-volume">Settled Volume</h2>
     </div>
     {{#if content.volume.hasRows}}
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Category</th>
-            <th>Payments</th>
-            <th>Received</th>
-            <th>Returned</th>
-            <th>Net</th>
-          </tr>
-        </thead>
-        <tbody>
-          {{#each content.volume.rows}}
+      <div class="records-table-wrap" tabindex="0" role="region" aria-labelledby="settled-volume">
+        <table class="data-table">
+          <thead>
             <tr>
-              <td>{{this.categoryLabel}}</td>
-              <td>{{this.count}}</td>
-              <td>{{this.grossDisplay}}</td>
-              <td>{{#if this.hasRefunds}}{{this.refundedDisplay}}{{else}}<span class="text-muted">--</span>{{/if}}</td>
-              <td class="fw-600">{{this.netDisplay}}</td>
+              <th>Category</th>
+              <th>Payments</th>
+              <th>Received</th>
+              <th>Returned</th>
+              <th>Net</th>
             </tr>
-          {{/each}}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {{#each content.volume.rows}}
+              <tr>
+                <td>{{this.categoryLabel}}</td>
+                <td>{{this.count}}</td>
+                <td>{{this.grossDisplay}}</td>
+                <td>{{#if this.hasRefunds}}{{this.refundedDisplay}}{{else}}<span class="text-muted">--</span>{{/if}}</td>
+                <td class="fw-600">{{this.netDisplay}}</td>
+              </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      </div>
       <p class="fs-sm">Disputed charges are not deducted from these figures.</p>
     {{else}}
       <p>Nothing settled in this window.</p>

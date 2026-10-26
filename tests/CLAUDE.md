@@ -14,6 +14,8 @@ the layout: layers, fixtures, isolation, naming.
 - **Browser** (`tests/e2e/`): Playwright against a local throwaway stack (`npm run test:e2e`). The
   template-deduplicated rendered-style check (`rendered-style.spec.ts`) has its own config and runs as
   `npm run test:rendered-style`; which page it measures for each view is `tests/fixtures/pageLists.ts`.
+  `RENDERED_STYLE_VIEWS=<view>,<view>` measures only the named views, read-only against the baseline;
+  `scripts/test-targets.sh` prints it for the views a change can reach.
   Every finding in full is written to `tests/test-results/rendered-style-findings.txt`.
   `npm run style -- url <path> [--as <persona>]` measures one page on a running dev stack (`./run_dev.sh`);
   the header of `scripts/rendered-style.ts` lists `capture`, `judge`, `diff` and `coverage`.

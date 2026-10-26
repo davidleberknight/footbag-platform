@@ -53,6 +53,14 @@
 #     files naming it. A schema change that creates or drops a table reaches
 #     every vitest, browser and pytest file naming that table, because a test
 #     still naming a dropped table fails wherever it lives.
+#   - The rendered-style check measures the page views a change can reach,
+#     named in RENDERED_STYLE_VIEWS: a page template its own view, a partial
+#     every page including it, a controller the pages it renders, a service
+#     the pages its controllers render. The stylesheet, a layout, or a partial
+#     a layout includes reaches every page, so the whole site is measured.
+#   - The conventions gate and the linter read the source, and the conventions
+#     gate also the templates, the stylesheet and the tests, so a change to
+#     any of them runs that check.
 #
 # WHAT IT REFUSES TO DO.
 #
@@ -105,6 +113,7 @@ fi
 TESTS=()
 SPECS=()
 RENDERED_STYLE=0
+LAYOUT_VIEWS=()
 PYTESTS=()
 CHECKS=()
 NOTES=()
@@ -296,6 +305,69 @@ page_suites() {
     done < <(route_suites "$route")
   done < <(template_routes "$p" | sort -u)
   return "$found"
+}
+
+# The rendered-style check measures page views by name: a template's path below
+# src/views without its extension. Partials and layouts are not page views, and
+# a name with no template is dropped rather than failing the check.
+add_layout_view() {
+  case "$1" in partials/*|layouts/*) return 0 ;; esac
+  [ -f "src/views/$1.hbs" ] || return 0
+  local v
+  for v in "${LAYOUT_VIEWS[@]+"${LAYOUT_VIEWS[@]}"}"; do [ "$v" = "$1" ] && return 0; done
+  LAYOUT_VIEWS+=("$1")
+}
+
+# Every page view a partial can change the layout of: the pages including it,
+# and through each partial including it, theirs. A layout among them wraps every
+# page, so the whole site is measured.
+partial_layout_views() {
+  local queue=("$1") seen=" " name f v
+  while [ "${#queue[@]}" -gt 0 ]; do
+    name="${queue[0]}"; queue=("${queue[@]:1}")
+    case "$seen" in *" $name "*) continue ;; esac
+    seen+="$name "
+    while IFS= read -r f; do
+      [ -n "$f" ] || continue
+      v="${f#src/views/}"; v="${v%.hbs}"
+      case "$v" in
+        layouts/*) RENDERED_STYLE=1; return 0 ;;
+        partials/*) queue+=("${v#partials/}") ;;
+        *) add_layout_view "$v" ;;
+      esac
+    done < <(grep -rlE "\{\{#?>[[:space:]]*${name}([^A-Za-z0-9_/-]|$)" src/views 2>/dev/null || true)
+  done
+}
+
+# The page views a controller renders by a literal name: what it hands them can
+# break their layout as surely as an edit to the template.
+controller_layout_views() {
+  local v
+  while IFS= read -r v; do
+    [ -n "$v" ] && add_layout_view "$v"
+  done < <(grep -oE "render\(['\"][^'\"]+['\"]" "$1" 2>/dev/null | sed -E "s/^render\(['\"]//; s/['\"]$//" | sort -u)
+}
+
+# The page views a service feeds: those rendered by every controller importing
+# it, directly or through other services importing it, and any it names as the
+# template a controller should render.
+service_layout_views() {
+  local queue=("$(basename "${1%.ts}")") seen=" " stem f v
+  while [ "${#queue[@]}" -gt 0 ]; do
+    stem="${queue[0]}"; queue=("${queue[@]:1}")
+    case "$seen" in *" $stem "*) continue ;; esac
+    seen+="$stem "
+    while IFS= read -r v; do
+      [ -n "$v" ] && add_layout_view "$v"
+    done < <(grep -oE "template:[[:space:]]*['\"][^'\"]+['\"]" "src/services/${stem}.ts" 2>/dev/null \
+      | sed -E "s/^template:[[:space:]]*['\"]//; s/['\"]$//" | sort -u)
+    while IFS= read -r f; do
+      [ -n "$f" ] && controller_layout_views "$f"
+    done < <(grep -lE "from ['\"][./]*services/${stem}['\"]" src/controllers/*.ts 2>/dev/null || true)
+    while IFS= read -r f; do
+      [ -n "$f" ] && queue+=("$(basename "${f%.ts}")")
+    done < <(grep -lE "from ['\"]\./${stem}['\"]" src/services/*.ts 2>/dev/null || true)
+  done
 }
 
 high_fan_out() {
@@ -542,6 +614,16 @@ map_path() {
       return ;;
   esac
 
+  # The conventions gate reads the templates, the stylesheet, the source and the
+  # tests, and the linter reads the source, so a change to any of them is in
+  # their reach whatever else it maps to.
+  case "$p" in
+    src/*|tests/*) add_check "bash scripts/ci/assert_conventions.sh" ;;
+  esac
+  case "$p" in
+    src/*.ts|src/*.js) add_check "npm run lint" ;;
+  esac
+
   if is_high_fan_out "$p"; then
     add_check "npm run build"
     high_fan_out "$p"
@@ -642,8 +724,16 @@ map_path() {
       case "$domain" in
         partials|layouts)
           collect naming "$stem" || true
-          add_test "${CANARY[0]}" ;;
+          add_test "${CANARY[0]}"
+          if [ "$domain" = layouts ]; then
+            RENDERED_STYLE=1
+          else
+            local partial="${p#src/views/partials/}"
+            partial_layout_views "${partial%.hbs}"
+          fi ;;
         ?*)
+          local view="${p#src/views/}"
+          add_layout_view "${view%.hbs}"
           local named=0 routed=0
           if collect named_like "${domain}*${stem}*.test.ts" \
             || collect named_like "${domain}.routes.test.ts"; then
@@ -656,8 +746,10 @@ map_path() {
             note "$p: no route found that renders it; suites chosen by file name only"
             if [ "$named" -eq 0 ]; then no_tests "$p"; fi
           fi ;;
-        # A stylesheet: the asset, header and policy suites name it by file.
-        *) collect naming "$base" || true ;;
+        # A stylesheet: the asset, header and policy suites name it by file,
+        # and every page it styles is measured.
+        *) collect naming "$base" || true
+           RENDERED_STYLE=1 ;;
       esac
       for g in "${CONFORMANCE_GLOBS[@]}"; do
         collect find tests/unit -maxdepth 1 -name "$g" -type f || true
@@ -680,6 +772,7 @@ map_path() {
       collect naming "$stem" || true
       [ -n "$domain" ] && { collect domain_suites "$domain" '*.test.ts' src/services || true; }
       [ "${#TESTS[@]}" -gt "$before" ] || no_tests "$p"
+      service_layout_views "$p"
       return ;;
     src/controllers/*.ts)
       add_check "npm run build"; add_check "npm run typecheck:tests"
@@ -688,6 +781,7 @@ map_path() {
       collect naming "$stem" || true
       [ -n "$domain" ] && { collect domain_suites "$domain" '*.routes.test.ts' src/controllers || true; }
       [ "${#TESTS[@]}" -gt "$before" ] || no_tests "$p"
+      controller_layout_views "$p"
       return ;;
     src/*.ts|src/*/*.ts|src/*/*/*.ts)
       add_check "npm run build"; add_check "npm run typecheck:tests"
@@ -715,18 +809,13 @@ if [ "${#SPECS[@]}" -gt 0 ]; then
   mapfile -t SPECS < <(printf '%s\n' "${SPECS[@]}" | sort -u)
   add_check "npm run test:e2e -- ${SPECS[*]}"
 fi
+# The layout check measures exactly the page views a change can reach: the whole
+# site for the stylesheet, a layout or the check itself, otherwise only the named
+# views, which costs one page per view rather than every view on the site.
 if [ "$RENDERED_STYLE" -eq 1 ]; then
   add_check "npm run test:rendered-style"
-else
-  # The whole-site layout check judges every stylesheet and template change, but
-  # it renders every view twice, so it is named rather than run per change.
-  for p in "${PATHS[@]}"; do
-    case "$p" in
-      src/public/css/*|src/views/*.hbs|src/views/*/*.hbs|src/views/*/*/*.hbs)
-        note "the rendered-style check (npm run test:rendered-style) measures this change; the full gate runs it"
-        break ;;
-    esac
-  done
+elif [ "${#LAYOUT_VIEWS[@]}" -gt 0 ]; then
+  add_check "RENDERED_STYLE_VIEWS=$(printf '%s\n' "${LAYOUT_VIEWS[@]}" | sort -u | paste -sd, -) npm run test:rendered-style"
 fi
 if [ "${#PYTESTS[@]}" -gt 0 ]; then
   mapfile -t PYTESTS < <(printf '%s\n' "${PYTESTS[@]}" | sort -u)

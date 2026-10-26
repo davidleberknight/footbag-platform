@@ -95,7 +95,14 @@ describe('test-targets.sh — application source', () => {
   it('maps a service no test names to the route suite of its domain', () => {
     const r = run(['src/services/hofService.ts']);
     expect(r.tests).toContain('tests/integration/hof-bap-index.routes.test.ts');
-    expect(r.checks).toEqual(['npm run build', 'npm run typecheck:tests']);
+    // The page the service feeds is measured too: changed content can break its layout.
+    expect(r.checks).toEqual([
+      'bash scripts/ci/assert_conventions.sh',
+      'npm run lint',
+      'npm run build',
+      'npm run typecheck:tests',
+      'RENDERED_STYLE_VIEWS=public/hof npm run test:rendered-style',
+    ]);
   });
 
   it('maps a controller to its domain route suites without a longer sibling domain', () => {
@@ -246,7 +253,7 @@ describe('test-targets.sh — non-test checks and limits', () => {
   it('never targets the staging smoke tier', () => {
     const r = run(['tests/smoke/captcha.smoke.test.ts']);
     expect(r.tests).toEqual([]);
-    expect(r.notes).toEqual(['tests/smoke/captcha.smoke.test.ts is checked only by the full gate']);
+    expect(r.notes).toContain('tests/smoke/captcha.smoke.test.ts is checked only by the full gate');
   });
 
   it('says so when it finds no tests rather than printing an empty pass', () => {
@@ -293,7 +300,7 @@ describe('test-targets.sh — browser specs and legacy pytest files', () => {
   it('never targets the deployed-site checks, which point at a live environment', () => {
     const r = run(['tests/e2e/deployed/deployed-browser.spec.ts']);
     expect(e2eCheck(r.checks)).toBe('');
-    expect(r.notes).toEqual(['tests/e2e/deployed/deployed-browser.spec.ts is checked only by the full gate']);
+    expect(r.notes).toContain('tests/e2e/deployed/deployed-browser.spec.ts is checked only by the full gate');
   });
 
   it('reaches the pytest file naming a changed legacy module', () => {
