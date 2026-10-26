@@ -1,6 +1,6 @@
 ---
 name: footbag-curated-media
-description: Use when adding, modifying, validating, or troubleshooting curated freestyle media intake: Tricks of the Trade, PassBack Records, AnzTrikz, Shred Global, FootbagSpot, or any further tutorial / record / expert-review source added before go-live. Covers the curated-source pipeline through sidecars and tag-based galleries; the admin gallery-editor UI and schema are out of scope.
+description: "Use when adding, modifying, validating, or troubleshooting curated freestyle media intake: Tricks of the Trade, PassBack Records, AnzTrikz, Shred Global, FootbagSpot, or any further tutorial / record / expert-review source added before go-live. Covers the curated-source pipeline through sidecars and tag-based galleries; the admin gallery-editor UI and schema are out of scope."
 ---
 
 # Footbag Curated Media Skill

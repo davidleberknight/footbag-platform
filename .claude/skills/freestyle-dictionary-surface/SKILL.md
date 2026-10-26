@@ -1,6 +1,6 @@
 ---
 name: freestyle-dictionary-surface
-description: Use when building or changing a freestyle public page or /admin/freestyle/* editor: what dictionary content a page shows (aliases, decomposition, related tricks, records, media, per-section disclosure) and pedagogical authoring. Visual treatment is not here; see .claude/rules/view-layer.md.
+description: "Use when building or changing a freestyle public page or /admin/freestyle/* editor: what dictionary content a page shows (aliases, decomposition, related tricks, records, media, per-section disclosure) and pedagogical authoring. Visual treatment is not here; see .claude/rules/view-layer.md."
 paths:
   - "src/views/freestyle/**"
   - "src/views/admin/freestyle-*"

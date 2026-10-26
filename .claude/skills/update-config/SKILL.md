@@ -1,6 +1,6 @@
 ---
 name: update-config
-description: Change this repo's Claude Code harness: root and nested CLAUDE.md files, settings.json, hooks, permissions, env vars, MCP servers, rules, skills and agents. Use before any such edit, or when asked to review or audit the harness against current Claude Code docs.
+description: "Change this repo's Claude Code harness: root and nested CLAUDE.md files, settings.json, hooks, permissions, env vars, MCP servers, rules, skills and agents. Use before any such edit, or when asked to review or audit the harness against current Claude Code docs."
 ---
 
 # update-config (footbag-platform)
