@@ -1,19 +1,17 @@
 /**
- * scripts/set-host-env.sh — the rewrite contract, the refusals, and the single
- * definition of the proxy hop count.
+ * scripts/set-host-env.sh: the host's record of which environment it is, and
+ * the single definition of the proxy hop count it no longer writes.
  *
  * A real run stages /srv/footbag/env down from a host over ssh, with the sudo
- * password read from stdin, and reads the snapshots bucket name out of
- * Terraform state, neither of
- * which CI can do. The synthetic --env-file mode operates on a local file with
- * the bucket name supplied through BACKUP_S3_BUCKET_VALUE, reaching no host and
- * no AWS.
+ * password read from stdin, which CI cannot do. The synthetic --env-file mode
+ * operates on a local file, reaching no host and no AWS.
  *
- * The hop count is the reason this suite exists as much as the script is. Three
- * scripts have an opinion about the same host. The assertions below pin that
- * there is one definition, that each script reads it, and that nothing adds a
- * literal alongside it, because a disagreement between those copies would fail
- * nothing at runtime and would quietly coarsen rate limiting.
+ * The setter writes one value, FOOTBAG_ENV. Every other value in the host env
+ * file has an owner that runs on every deploy, so a second writer here would be
+ * a second owner, and a disagreement between them would fail nothing at
+ * runtime. The assertions below pin that it writes the record and nothing else,
+ * that it refuses the other environment's host, and that the hop count has one
+ * definition which the scripts with an opinion read.
  */
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
@@ -34,19 +32,10 @@ interface RunResult {
   stderr: string;
 }
 
-/** The two SNS topic ARNs the setter also writes. Real runs read them from the
- *  Terraform outputs; synthetic mode takes them from the environment, and every
- *  case below that is not about them supplies these so the suite stays about
- *  the hop count and the bucket. A case that IS about them overrides. */
-const SYNTHETIC_ARNS = {
-  ALARM_TOPIC_ARN_VALUE: 'arn:aws:sns:us-east-1:000000000000:footbag-alarms',
-  SES_FEEDBACK_TOPIC_ARN_VALUE: 'arn:aws:sns:us-east-1:000000000000:footbag-ses-feedback',
-} as const;
-
-function run(args: string[], extraEnv: Record<string, string> = {}): RunResult {
+function run(args: string[]): RunResult {
   const r = spawnSync('bash', [SCRIPT, ...args], {
     cwd: process.cwd(),
-    env: { ...process.env, ...SYNTHETIC_ARNS, ...extraEnv },
+    env: { ...process.env },
     encoding: 'utf-8',
     ...SPAWN_GUARD,
   });
@@ -91,177 +80,103 @@ describe('the proxy hop count has exactly one definition', () => {
     expect(r.status).not.toBe(0);
   });
 
+  it('reads the hop count from the committed host config of each environment', () => {
+    // Defect caught: the helper keeps a copy of its own, so the value the deploy
+    // applies and the value the verifier and the bring-up view expect can part.
+    for (const target of ['staging', 'production']) {
+      const committed = readFileSync(join(process.cwd(), `docker/env/${target}.env`), 'utf-8')
+        .split('\n')
+        .find((l) => l.startsWith('TRUST_PROXY='));
+      expect(committed, `docker/env/${target}.env declares the hop count`).toBeDefined();
+      expect(helper('expected_trust_proxy', target)).toBe(committed!.split('=')[1]);
+    }
+  });
+
   it('every script that has an opinion reads the helper rather than its own copy', () => {
-    for (const path of [SCRIPT, STATUS_SCRIPT, VERIFY_SCRIPT]) {
+    for (const path of [STATUS_SCRIPT, VERIFY_SCRIPT]) {
       const body = readFileSync(path, 'utf-8');
       expect(body, `${path} sources the shared definition`).toContain('host-env-expectations.sh');
-      // A bare hop-count literal beside the helper call is how the three copies
-      // came back last time. The helper is the only thing allowed to say 3.
-      const declaresOwn = /TRUST_PROXY=["']?[0-9]/.test(body)
-        && !body.includes('TRUST_PROXY=" ENVIRON')
-        && !body.includes('TRUST_PROXY=${TRUST_PROXY_VALUE}');
+      // A bare hop-count literal beside the helper call is how the copies came
+      // back last time. The committed host config is the only place to say 2.
+      const declaresOwn = /TRUST_PROXY=["']?[0-9]/.test(body);
       expect(declaresOwn, `${path} states no hop count of its own`).toBe(false);
     }
   });
+
+  it('the setter writes no hop count at all, leaving it to the deploy', () => {
+    // Defect caught: the setter becomes a second writer of a value the committed
+    // host config owns, so whichever ran last decides the host.
+    const body = readFileSync(SCRIPT, 'utf-8');
+    expect(body).not.toMatch(/TRUST_PROXY/);
+  });
 });
 
-describe('set-host-env.sh rewrite contract', () => {
-  it('replaces an existing assignment and appends a missing one', () => {
-    withEnvFile('NODE_ENV=production\nTRUST_PROXY=9\nOTHER=keep\n', (path) => {
-      const r = run(['--target', 'production', '--env-file', path], {
-        BACKUP_S3_BUCKET_VALUE: 'snapshots-bucket',
-      });
-      expect(r.exitCode).toBe(0);
-      const out = readFileSync(path, 'utf-8');
-      expect(out).toContain('TRUST_PROXY=2');
-      expect(out).toContain('BACKUP_S3_BUCKET=snapshots-bucket');
-      expect(out, 'unrelated lines survive verbatim').toContain('OTHER=keep');
-      expect(out).not.toContain('TRUST_PROXY=9');
-    });
-  });
-
-  it('writes the canonical origin, which nothing owned before and the deploy refuses without', () => {
-    withEnvFile('NODE_ENV=production\nOTHER=keep\n', (path) => {
-      const r = run(['--target', 'production', '--env-file', path], {
-        BACKUP_S3_BUCKET_VALUE: 'b',
-        ALARM_TOPIC_ARN_VALUE: 'arn:aws:sns:us-east-1:1:alarms',
-        SES_FEEDBACK_TOPIC_ARN_VALUE: 'arn:aws:sns:us-east-1:1:ses',
-        PUBLIC_BASE_URL_VALUE: 'https://example.invalid',
-      });
-      expect(r.exitCode).toBe(0);
-      expect(readFileSync(path, 'utf-8')).toContain('PUBLIC_BASE_URL=https://example.invalid');
-    });
-  });
-
-  it('replaces the canonical origin rather than leaving the pre-cutover value in place', () => {
-    withEnvFile('PUBLIC_BASE_URL=https://old.invalid\nA=1\n', (path) => {
-      const r = run(['--target', 'production', '--env-file', path], {
-        BACKUP_S3_BUCKET_VALUE: 'b',
-        ALARM_TOPIC_ARN_VALUE: 'arn:aws:sns:us-east-1:1:alarms',
-        SES_FEEDBACK_TOPIC_ARN_VALUE: 'arn:aws:sns:us-east-1:1:ses',
-        PUBLIC_BASE_URL_VALUE: 'https://new.invalid',
-      });
-      expect(r.exitCode).toBe(0);
-      const out = readFileSync(path, 'utf-8');
-      expect(out).toContain('PUBLIC_BASE_URL=https://new.invalid');
-      expect(out, 'the superseded origin is gone, not merely shadowed').not.toContain('old.invalid');
-    });
-  });
-
-  it('leaves an existing origin alone when this mode supplies none, rather than blanking it', () => {
-    withEnvFile('PUBLIC_BASE_URL=https://keep.invalid\nA=1\n', (path) => {
-      const r = run(['--target', 'production', '--env-file', path], {
-        BACKUP_S3_BUCKET_VALUE: 'b',
-        ALARM_TOPIC_ARN_VALUE: 'arn:aws:sns:us-east-1:1:alarms',
-        SES_FEEDBACK_TOPIC_ARN_VALUE: 'arn:aws:sns:us-east-1:1:ses',
-      });
-      expect(r.exitCode).toBe(0);
-      expect(readFileSync(path, 'utf-8')).toContain('PUBLIC_BASE_URL=https://keep.invalid');
-    });
-  });
-
-  it('collapses duplicate assignments, so last-wins parsing matches the diff shown', () => {
-    withEnvFile('TRUST_PROXY=9\nA=1\nTRUST_PROXY=7\nBACKUP_S3_BUCKET=old\nBACKUP_S3_BUCKET=older\n', (path) => {
-      const r = run(['--target', 'staging', '--env-file', path], {
-        BACKUP_S3_BUCKET_VALUE: 'new-bucket',
-      });
-      expect(r.exitCode).toBe(0);
-      const lines = readFileSync(path, 'utf-8').trim().split('\n');
-      expect(lines.filter((l) => l.startsWith('TRUST_PROXY='))).toEqual(['TRUST_PROXY=2']);
-      expect(lines.filter((l) => l.startsWith('BACKUP_S3_BUCKET='))).toEqual([
-        'BACKUP_S3_BUCKET=new-bucket',
-      ]);
-    });
-  });
-
-  it('corrects a host that carries a hop count one too generous', () => {
-    withEnvFile('TRUST_PROXY=3\n', (path) => {
-      const r = run(['--target', 'production', '--env-file', path], {
-        BACKUP_S3_BUCKET_VALUE: 'b',
-      });
-      expect(r.exitCode).toBe(0);
-      expect(readFileSync(path, 'utf-8')).toContain('TRUST_PROXY=2');
-    });
-  });
-
-  it('is a no-op when every value already reads as intended', () => {
-    const contents = [
-      'FOOTBAG_ENV=staging',
-      'TRUST_PROXY=2',
-      'BACKUP_S3_BUCKET=b',
-      `ALARM_TOPIC_ARN=${SYNTHETIC_ARNS.ALARM_TOPIC_ARN_VALUE}`,
-      `SES_FEEDBACK_TOPIC_ARN=${SYNTHETIC_ARNS.SES_FEEDBACK_TOPIC_ARN_VALUE}`,
-      '',
-    ].join('\n');
-    withEnvFile(contents, (path) => {
-      const r = run(['--target', 'staging', '--env-file', path], { BACKUP_S3_BUCKET_VALUE: 'b' });
-      expect(r.exitCode).toBe(0);
-      expect(r.stdout).toContain('Nothing to write');
-      expect(readFileSync(path, 'utf-8')).toBe(contents);
-    });
-  });
-
+describe('set-host-env.sh writes the environment record and nothing else', () => {
+  // Defect caught: a new host left with no record, which every later script
+  // refuses, or one recorded as something other than the target it was set up
+  // as. This is the step that writes the record the others read.
   it('records which environment the host is when it records none yet', () => {
-    // Defect caught: a new host left with no record, which every later script
-    // refuses, or one recorded as something other than the target it was set
-    // up as. This is the step that writes the record the others read.
-    withEnvFile('TRUST_PROXY=2\n', (path) => {
-      const r = run(['--target', 'production', '--env-file', path], { BACKUP_S3_BUCKET_VALUE: 'b' });
-      expect(r.exitCode).toBe(0);
+    withEnvFile('SESSION_SECRET=keep\n', (path) => {
+      const r = run(['--target', 'production', '--env-file', path]);
+      expect(r.exitCode, r.stderr).toBe(0);
       const lines = readFileSync(path, 'utf-8').trim().split('\n');
       expect(lines.filter((l) => l.startsWith('FOOTBAG_ENV='))).toEqual(['FOOTBAG_ENV=production']);
+      expect(lines).toContain('SESSION_SECRET=keep');
     });
   });
 
+  // Defect caught: rewriting the other environment's host under this label,
+  // which would make it this environment by record and every later guard would
+  // then agree with the mistake.
   it('refuses a host that records the other environment, and changes nothing', () => {
-    // Defect caught: rewriting the other environment's host under this label,
-    // which would make it this environment by record and every later guard
-    // would then agree with the mistake.
     const contents = 'FOOTBAG_ENV=production\nTRUST_PROXY=2\n';
     withEnvFile(contents, (path) => {
-      const r = run(['--target', 'staging', '--env-file', path], { BACKUP_S3_BUCKET_VALUE: 'b' });
+      const r = run(['--target', 'staging', '--env-file', path]);
       expect(r.exitCode).toBe(1);
       expect(r.stderr).toMatch(/records FOOTBAG_ENV=production, but this run is --target staging/);
       expect(readFileSync(path, 'utf-8')).toBe(contents);
     });
   });
 
-  it('writes the queue the worker polls when there is one to name', () => {
-    withEnvFile('TRUST_PROXY=2\n', (path) => {
-      const r = run(['--target', 'staging', '--env-file', path], {
-        BACKUP_S3_BUCKET_VALUE: 'b',
-        ALARM_QUEUE_URL_VALUE: 'https://sqs.us-east-1.amazonaws.com/000/alarm-feed',
-        SES_FEEDBACK_QUEUE_URL_VALUE: 'https://sqs.us-east-1.amazonaws.com/000/ses-feed',
-      });
+  // Defect caught: a re-run reports a change it did not make, or rewrites a
+  // correct file, which teaches an operator to stop reading the diff.
+  it('is a no-op when the host already records this environment', () => {
+    const contents = 'FOOTBAG_ENV=staging\nA=1\n';
+    withEnvFile(contents, (path) => {
+      const r = run(['--target', 'staging', '--env-file', path]);
       expect(r.exitCode).toBe(0);
-      const written = readFileSync(path, 'utf-8');
-      expect(written).toContain('ALARM_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/000/alarm-feed');
-      expect(written).toContain('SES_FEEDBACK_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/000/ses-feed');
+      expect(r.stdout).toContain('Nothing to write');
+      expect(readFileSync(path, 'utf-8')).toBe(contents);
     });
   });
 
-  it('adds no queue line for an environment that has no queues yet', () => {
-    // An empty assignment reads no feed either way, so appending one would put a
-    // line in the file that changes nothing and would make a re-run against an
-    // already-correct host report a change it did not make.
-    withEnvFile('TRUST_PROXY=2\n', (path) => {
-      const r = run(['--target', 'staging', '--env-file', path], { BACKUP_S3_BUCKET_VALUE: 'b' });
+  // Defect caught: two FOOTBAG_ENV lines, where last-wins parsing on the host
+  // and the diff shown here could disagree about which environment it is.
+  it('collapses duplicate records into one', () => {
+    withEnvFile('FOOTBAG_ENV=staging\nA=1\nFOOTBAG_ENV=staging\n', (path) => {
+      const r = run(['--target', 'staging', '--env-file', path]);
       expect(r.exitCode).toBe(0);
-      expect(readFileSync(path, 'utf-8')).not.toContain('QUEUE_URL');
+      const lines = readFileSync(path, 'utf-8').trim().split('\n');
+      expect(lines.filter((l) => l.startsWith('FOOTBAG_ENV='))).toEqual(['FOOTBAG_ENV=staging']);
     });
   });
 
-  it('clears a queue line already on the host when the queue is gone', () => {
-    // The host must stop polling a queue that no longer exists. A line already
-    // present is rewritten whatever its new value, empty included, which is what
-    // an existing assignment and an absent one differ on.
-    withEnvFile('TRUST_PROXY=2\nALARM_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/000/retired\n',
-      (path) => {
-        const r = run(['--target', 'staging', '--env-file', path], { BACKUP_S3_BUCKET_VALUE: 'b' });
-        expect(r.exitCode).toBe(0);
-        expect(readFileSync(path, 'utf-8')).toContain('ALARM_QUEUE_URL=\n');
-        expect(readFileSync(path, 'utf-8')).not.toContain('retired');
-      });
+  // Defect caught: the setter becomes a second writer of a value another owner
+  // writes on every deploy, so the host's value depends on which ran last.
+  it('leaves every other value exactly as it found it, stale or not', () => {
+    const others = [
+      'TRUST_PROXY=3',
+      'BACKUP_S3_BUCKET=stale-bucket',
+      'PUBLIC_BASE_URL=https://old.invalid',
+      'ALARM_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/000/retired',
+      'SES_FROM_IDENTITY=old@example.invalid',
+    ];
+    withEnvFile(`${others.join('\n')}\n`, (path) => {
+      const r = run(['--target', 'staging', '--env-file', path]);
+      expect(r.exitCode).toBe(0);
+      const lines = readFileSync(path, 'utf-8').trim().split('\n');
+      expect(lines).toEqual([...others, 'FOOTBAG_ENV=staging']);
+    });
   });
 });
 
@@ -273,65 +188,34 @@ describe('set-host-env.sh refusals', () => {
   });
 
   it('refuses to run without a target, rather than choosing an environment', () => {
-    // This defaulted to staging, so a run carrying the production credential on
-    // stdin resolved staging's Terraform outputs and opened a session to the
-    // staging host with the wrong environment's password.
+    // A defaulted target would send the credential on stdin at whichever host
+    // the default names.
     const r = run(['--dry-run']);
     expect(r.exitCode).toBe(2);
     expect(r.stderr).toContain('--target is required');
   });
 
-
   it('refuses a missing env file rather than creating one', () => {
-    const r = run(['--target', 'staging', '--env-file', '/nonexistent/footbag-env'], {
-      BACKUP_S3_BUCKET_VALUE: 'b',
-    });
+    const r = run(['--target', 'staging', '--env-file', '/nonexistent/footbag-env']);
     expect(r.exitCode).toBe(2);
     expect(r.stderr).toContain('does not exist');
   });
 
-  it('refuses synthetic mode without a bucket value rather than writing an empty one', () => {
-    withEnvFile('A=1\n', (path) => {
-      const r = run(['--target', 'staging', '--env-file', path]);
-      expect(r.exitCode).toBe(2);
-      expect(r.stderr).toContain('BACKUP_S3_BUCKET_VALUE');
-      expect(readFileSync(path, 'utf-8'), 'the file is untouched').toBe('A=1\n');
-    });
+  // Defect caught: a runbook step carried over from before the base address was
+  // Terraform's runs silently and the operator believes the window moved.
+  it('refuses --preview and names the step that replaced it', () => {
+    const r = run(['--target', 'production', '--preview', '--dry-run']);
+    expect(r.exitCode).toBe(2);
+    const said = r.stderr.replace(/\s+/g, ' ');
+    expect(said).toContain('--preview is no longer a step');
+    expect(said).toContain('apply the notice flag, then deploy');
   });
 
-  it('writes both SNS topic ARNs, because a feed missing one refuses every delivery', () => {
+  it('dry run names the record and writes nothing', () => {
     withEnvFile('A=1\n', (path) => {
-      const r = run(['--target', 'staging', '--env-file', path], { BACKUP_S3_BUCKET_VALUE: 'b' });
+      const r = run(['--target', 'production', '--dry-run', '--env-file', path]);
       expect(r.exitCode).toBe(0);
-      const out = readFileSync(path, 'utf-8');
-      expect(out).toContain(`ALARM_TOPIC_ARN=${SYNTHETIC_ARNS.ALARM_TOPIC_ARN_VALUE}`);
-      expect(out).toContain(`SES_FEEDBACK_TOPIC_ARN=${SYNTHETIC_ARNS.SES_FEEDBACK_TOPIC_ARN_VALUE}`);
-    });
-  });
-
-  it('refuses synthetic mode without the topic ARNs rather than writing empty ones', () => {
-    // An empty ARN is worse than an absent one: the webhook compares the
-    // publishing topic against it and refuses every delivery, quietly.
-    withEnvFile('A=1\n', (path) => {
-      const r = run(['--target', 'staging', '--env-file', path], {
-        BACKUP_S3_BUCKET_VALUE: 'b',
-        ALARM_TOPIC_ARN_VALUE: '',
-        SES_FEEDBACK_TOPIC_ARN_VALUE: '',
-      });
-      expect(r.exitCode).toBe(2);
-      expect(r.stderr).toContain('ALARM_TOPIC_ARN_VALUE');
-      expect(readFileSync(path, 'utf-8'), 'the file is untouched').toBe('A=1\n');
-    });
-  });
-
-  it('dry run resolves every value and writes nothing', () => {
-    withEnvFile('A=1\n', (path) => {
-      const r = run(['--target', 'production', '--dry-run', '--env-file', path], {
-        BACKUP_S3_BUCKET_VALUE: 'b',
-      });
-      expect(r.exitCode).toBe(0);
-      expect(r.stdout).toContain('TRUST_PROXY=2');
-      expect(r.stdout).toContain('BACKUP_S3_BUCKET=b');
+      expect(r.stdout).toContain('FOOTBAG_ENV=production');
       expect(r.stdout).toContain('Nothing was written');
       expect(readFileSync(path, 'utf-8')).toBe('A=1\n');
     });

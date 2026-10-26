@@ -51,8 +51,11 @@
 # Steps (referenced by --from-step, so a failure part-way is resumable):
 #   1  show the values-file change, confirm, pause the outbox, write it
 #   2  terraform plan, check it is only the retirement, confirm, apply that plan
-#   3  set-host-env.sh (writes the sender from the Terraform output onto the host)
-#   4  deploy (code-only), so the containers hold the new sender
+#   3  nothing of its own: the sender Terraform now publishes reaches the host with
+#      the deploy in step 4, which syncs it. Kept as a number so resuming with
+#      --from-step means what the runbooks say it means.
+#   4  deploy (code-only), which syncs the new sender onto the host and restarts
+#      the containers so they hold it
 #   5  verify the host and a send through SES as the new sender
 #   6  resume the outbox
 #
@@ -66,7 +69,7 @@
 #
 # Test seams (CI only; operators never set these). Each says so on stderr when set:
 #   SENDER_CUTOVER_AWS_BIN, SENDER_CUTOVER_TF_BIN, SENDER_CUTOVER_PAUSE_CMD,
-#   SENDER_CUTOVER_SET_HOST_ENV_CMD, SENDER_CUTOVER_DEPLOY_CMD,
+#   SENDER_CUTOVER_DEPLOY_CMD,
 #   SENDER_CUTOVER_VERIFY_HOST_ENV_CMD, SENDER_CUTOVER_VERIFY_EMAIL_CMD,
 #   SENDER_CUTOVER_EGRESS_CHECK (skips the firewall read, with the verdict given)
 #   and SENDER_CUTOVER_TFVARS (a values file in place of the environment's).
@@ -95,7 +98,6 @@ AWS_BIN="${SENDER_CUTOVER_AWS_BIN:-aws}"
 TF_BIN="${SENDER_CUTOVER_TF_BIN:-terraform}"
 TF_OUTPUT_BIN="$TF_BIN"
 PAUSE_CMD="${SENDER_CUTOVER_PAUSE_CMD:-$REPO_ROOT/scripts/outbound-mail-pause.sh}"
-SET_HOST_ENV_CMD="${SENDER_CUTOVER_SET_HOST_ENV_CMD:-$REPO_ROOT/scripts/set-host-env.sh}"
 # -k is load-bearing: a bare wrapper invocation treats schema drift as an
 # invitation to rebuild and offers to replace the deployed database. Moving the
 # sender must never be able to become a database replace.
@@ -105,7 +107,7 @@ VERIFY_HOST_ENV_CMD="${SENDER_CUTOVER_VERIFY_HOST_ENV_CMD:-$REPO_ROOT/scripts/ve
 VERIFY_EMAIL_CMD="${SENDER_CUTOVER_VERIFY_EMAIL_CMD:-$REPO_ROOT/scripts/verify-prod-email.sh}"
 
 for seam in SENDER_CUTOVER_AWS_BIN SENDER_CUTOVER_TF_BIN SENDER_CUTOVER_PAUSE_CMD \
-    SENDER_CUTOVER_SET_HOST_ENV_CMD SENDER_CUTOVER_DEPLOY_CMD \
+    SENDER_CUTOVER_DEPLOY_CMD \
     SENDER_CUTOVER_VERIFY_HOST_ENV_CMD SENDER_CUTOVER_VERIFY_EMAIL_CMD \
     SENDER_CUTOVER_EGRESS_CHECK SENDER_CUTOVER_TFVARS; do
   if [[ -n "${!seam:-}" ]]; then
@@ -207,8 +209,8 @@ if (( DRY_RUN )); then
   echo "     in $TFVARS_PATH (diff shown, APPLY), pause the outbox, write the file"
   echo "  2. terraform -chdir=$TF_DIR plan, refuse anything beyond retiring the interim"
   echo "     identity and updating the send policy, APPLY, apply that plan"
-  echo "  3. scripts/set-host-env.sh --target $TARGET (the sender from the Terraform output)"
-  echo "  4. ./deploy_to_aws.sh --target $TARGET ${DEPLOY_ARGS[*]}   (code-only)"
+  echo "  3. (nothing: the deploy in step 4 syncs the sender Terraform now publishes)"
+  echo "  4. ./deploy_to_aws.sh --target $TARGET ${DEPLOY_ARGS[*]}   (code-only; syncs the sender)"
   echo "  5. scripts/verify-host-env.sh and scripts/verify-prod-email.sh --sender $CANONICAL_SENDER"
   echo "  6. Resume the outbox"
   exit 0
@@ -525,18 +527,17 @@ if (( FROM_STEP <= 2 )); then
 fi
 APPLY_STARTED=1
 
-# ── Step 3: the sender onto the host ─────────────────────────────────────────
+# ── Step 3: nothing of its own ──────────────────────────────────────────────
+# The apply in step 2 changed the sender parameter Terraform publishes, and the
+# deploy in step 4 syncs it onto the host with every other published value, so
+# there is no separate host write for this step to make.
 if (( FROM_STEP <= 3 )); then
   CURRENT_STEP=3
-  echo "-- step 3: host env --"
-  if ! printf '%s\n' "$SUDO_PASS" | bash "$SET_HOST_ENV_CMD" --target "$TARGET" --yes; then
-    echo "ERROR: writing the host env failed." >&2
-    stop 1 3
-  fi
+  echo "-- step 3: host env -- written by the deploy in step 4, which syncs the sender"
   echo ""
 fi
 
-# ── Step 4: the deploy, so the containers hold the new sender ────────────────
+# ── Step 4: the deploy, which syncs the sender and restarts the containers ──
 if (( FROM_STEP <= 4 )); then
   CURRENT_STEP=4
   echo "-- step 4: deploy --"

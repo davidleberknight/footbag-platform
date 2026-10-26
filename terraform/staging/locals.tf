@@ -2,6 +2,9 @@ locals {
   # Short prefix used in resource names: "footbag-staging" or "footbag-production"
   prefix = "footbag-${var.environment}"
 
+  # The web instance's name: the original, or the one a restore recorded.
+  web_instance_name = var.lightsail_instance_name != "" ? var.lightsail_instance_name : "${local.prefix}-web"
+
   # SSM parameter namespace: /footbag/staging/... or /footbag/production/...
   ssm_prefix = "/footbag/${var.environment}"
 

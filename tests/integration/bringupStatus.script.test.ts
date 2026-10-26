@@ -56,12 +56,12 @@ function writeProbeFile(lines: string[]): string {
 
 const ALL_DONE_PRODUCTION = [
   'ENV_FETCHED=yes',
-  'ENV_TRUST_PROXY=3',
+  'ENV_TRUST_PROXY=2',
   'ENV_BACKUP_S3_BUCKET=set',
   'ENV_PAYMENT_ADAPTER=live',
   'ENV_WEBHOOK_SECRET=set',
   'TIMER_ACTIVE=active',
-  'CONTAINERS=footbag-web Up, footbag-nginx Up, footbag-worker Up',
+  'CONTAINERS=footbag-web-1 Up 2 hours (healthy), footbag-nginx-1 Up 2 hours (healthy), footbag-worker-1 Up 2 hours (healthy), footbag-image-1 Up 2 hours (healthy)',
   'TF_PLAN=insync',
   'TF_PLAN_SHARED=insync',
   'TF_PLAN_IDENTITY=insync',
@@ -99,7 +99,7 @@ describe('bringup-status.sh — fully provisioned production', () => {
     const probe = writeProbeFile(ALL_DONE_PRODUCTION);
     const result = runScript(['--target', 'production', '--probe-file', probe]);
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toMatch(/1\. Host env file\s+DONE\s+TRUST_PROXY=3, BACKUP_S3_BUCKET set/);
+    expect(result.stdout).toMatch(/1\. Host env file\s+DONE\s+TRUST_PROXY=2, BACKUP_S3_BUCKET set/);
     expect(result.stdout).toMatch(/2\. Terraform\s+DONE/);
     expect(result.stdout).toMatch(/3\. Payments\s+DONE/);
     expect(result.stdout).toMatch(/4\. Backup pipeline\s+DONE/);
@@ -190,11 +190,11 @@ describe('bringup-status.sh — pending steps name their next command', () => {
     const result = runScript(['--target', 'staging', '--probe-file', probe]);
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toMatch(/1\. Host env file\s+PENDING/);
-    // The host env row points at the setter that writes those values, not at
+    // The host env row points at the deploy that writes those values, not at
     // the verifier that only reports on them: an operator following the next
     // command should end up with the row DONE rather than told again that it
     // is not.
-    expect(result.stdout).toMatch(/scripts\/set-host-env\.sh --target staging/);
+    expect(result.stdout).toMatch(/\.\/deploy_to_aws\.sh --target staging \(every deploy writes/);
     expect(result.stdout).toMatch(/2\. Terraform\s+PENDING/);
     // The Terraform row points at the command that applies every tree the
     // environment stands on, and never at a hand-typed import: a resource made
@@ -234,10 +234,24 @@ describe('bringup-status.sh — pending steps name their next command', () => {
     expect(result.stdout).toMatch(/arming\.sh --target production --switch payments --state armed/);
   });
 
+  // Defect caught: a host one hop too generous, or one missing its backup
+  // bucket, reads DONE; or the row sends the operator to the setter, which
+  // writes neither and so cannot turn the row green.
+  it.each([
+    ['ENV_TRUST_PROXY=', 'ENV_TRUST_PROXY=3', 'TRUST_PROXY \\(integer hop count, production: 2 \\(CloudFront then nginx\\)\\)'],
+    ['ENV_BACKUP_S3_BUCKET=', 'ENV_BACKUP_S3_BUCKET=unset', 'BACKUP_S3_BUCKET'],
+  ])('a host whose %s is wrong is pending, and names the deploy that writes it', (prefix, wrong, reported) => {
+    const probe = writeProbeFile(ALL_DONE_PRODUCTION.map((l) => (l.startsWith(prefix) ? wrong : l)));
+    const result = runScript(['--target', 'production', '--probe-file', probe]);
+    expect(result.stdout).toMatch(new RegExp(`1\\. Host env file\\s+PENDING\\s+missing/invalid: ${reported}`));
+    expect(result.stdout).toMatch(/\.\/deploy_to_aws\.sh --target production \(every deploy writes the committed host config and the Terraform-published values\)/);
+    expect(result.stdout).not.toMatch(/set-host-env\.sh --target production/);
+  });
+
   it('production missing payments pieces points at activate-payments.sh', () => {
     const probe = writeProbeFile([
       'ENV_FETCHED=yes',
-      'ENV_TRUST_PROXY=3',
+      'ENV_TRUST_PROXY=2',
       'ENV_BACKUP_S3_BUCKET=set',
       'ENV_PAYMENT_ADAPTER=stub',
       'ENV_PAYMENTS_ARMED=armed',
@@ -498,5 +512,96 @@ describe('bringup-status.sh — email wording row', () => {
       { encoding: 'utf-8', ...SPAWN_GUARD },
     );
     expect((viaRelative.stdout ?? '').trim()).toBe(currentDigest());
+  });
+});
+
+describe('bringup-status.sh — the deployed runtime is all four containers healthy', () => {
+  const HEALTHY = ALL_DONE_PRODUCTION.find((l) => l.startsWith('CONTAINERS='))!.slice('CONTAINERS='.length);
+
+  it('reads pending when any one container is missing, unhealthy or still starting', () => {
+    // Defect caught: a host with no worker (no mail, no scheduled jobs) or no
+    // image service (no media) reads as deployed because web and nginx are up.
+    for (const svc of ['web', 'worker', 'image', 'nginx']) {
+      for (const variant of ['missing', 'unhealthy', 'starting']) {
+        const containers = variant === 'missing'
+          ? HEALTHY.split(', ').filter((c) => !c.startsWith(`footbag-${svc}-1 `)).join(', ')
+          : HEALTHY.replace(`footbag-${svc}-1 Up 2 hours (healthy)`, `footbag-${svc}-1 Up 5 seconds (health: ${variant})`);
+        const probe = writeProbeFile([...ALL_DONE_PRODUCTION.filter((l) => !l.startsWith('CONTAINERS=')), `CONTAINERS=${containers}`]);
+        const result = runScript(['--target', 'production', '--probe-file', probe]);
+        expect(result.stdout, `${svc} ${variant}`).toMatch(new RegExp(`8\\. Deployed runtime\\s+PENDING\\s+not healthy: ${svc} `));
+      }
+    }
+  });
+});
+
+describe('bringup-status.sh — one row per host bootstrap step', () => {
+  // The facts a finished host reports through the bootstrap status body, plus
+  // the workstation-side reads. A stand-in manifest pins the versions.
+  const FINISHED_HOST = [
+    'HOST_REACHED=yes', 'ACCOUNT_USER=footbag', 'ACCOUNT_WHEEL=yes', 'ACCOUNT_KEYS=1', 'SSHD_PORTS=22 2222',
+    'SSHD_ROOT=no', 'SSHD_PASSWORD=no', 'SSHD_KBD=no', 'SSHD_REVERT_PENDING=no', 'ARCH=x86_64',
+    'DOCKER_ACTIVE=active', 'DOCKER_ENABLED=enabled', 'COMPOSE_VERSION=2.29.7', 'SQLITE=yes', 'RSYNC=yes',
+    'AWSCLI=yes', 'SRV_DIR=root:root 755', 'ENV_FILE=root:root 600', 'DB_DIR=1000:1000', 'FOOTBAG_ENV=production',
+    'CRED_CHAIN=ok', 'CRED_KEY_ID=AKIAEXAMPLEEXAMPLE01', 'CWAGENT_ACTIVE=active', 'CWAGENT_ENABLED=enabled',
+    'CWAGENT_VERSION=1.300050.0b1', 'CWAGENT_KEY_ID=AKIAEXAMPLEEXAMPLE01',
+    'LOG_DRIVERS=footbag-web-1:awslogs footbag-worker-1:awslogs footbag-nginx-1:awslogs', 'SERVICE_ENABLED=enabled',
+    'TIMER_ENABLED=enabled', 'ZRAM_ACTIVE=yes', 'ZRAM_SUPPRESSED=no', 'SWAPFILE=yes',
+    'SSHD_LISTEN=22 2222', 'DB_FILE=present', 'REPLAY_PENDING=no', 'FEED_SES_QUEUE=set', 'FEED_ALARM_QUEUE=set',
+    'HOST_ENV_VERIFY=ok',
+    'PIN=current', 'IAM_SRC_KEYS=AKIAEXAMPLEEXAMPLE01', 'IAM_CW_KEYS=AKIAEXAMPLEEXAMPLE01', 'CW_METRICS=ok',
+    'SNAPSHOT=ok', 'FEEDS_FLAG=false', 'MARKER=false',
+  ];
+
+  function manifestEnv(): NodeJS.ProcessEnv {
+    const p = join(tmpDir, 'host-tools.env');
+    writeFileSync(p, 'COMPOSE_VERSION=v2.29.7\nCWAGENT_VERSION=1.300050.0b1\n');
+    return { ...process.env, FOOTBAG_HOST_TOOLS_MANIFEST: p };
+  }
+  function render(lines: string[]): string {
+    return runScript(['--target', 'production', '--probe-file', writeProbeFile([...ALL_DONE_PRODUCTION, ...lines])], manifestEnv()).stdout;
+  }
+  function override(key: string, value: string): string[] {
+    return [...FINISHED_HOST.filter((l) => !l.startsWith(`${key}=`)), `${key}=${value}`];
+  }
+
+  it('covers every fact the bootstrap status body emits', () => {
+    // Defect caught: a fact the body reports has no counterpart here, so the
+    // rows below pass on a host the real probe would describe differently.
+    const body = readFileSync(join(process.cwd(), 'scripts/internal/bootstrap-host-status-remote.sh'), 'utf-8');
+    const emitted = [...body.matchAll(/^emit ([A-Z_]+) /gm)].map((m) => m[1]);
+    const supplied = new Set([...FINISHED_HOST, ...ALL_DONE_PRODUCTION].map((l) => l.split('=')[0]));
+    expect(emitted.filter((k) => !supplied.has(k))).toEqual([]);
+  });
+
+  it('reads every bootstrap row done or informational on a finished host', () => {
+    const out = render(FINISHED_HOST);
+    const rows = out.split('-- host bootstrap')[1].split('\n').filter((l) => /^\s*\d+\.\s/.test(l));
+    expect(rows.length).toBe(13);
+    for (const r of rows) expect(r, r).toMatch(/\s(DONE|INFO)\s/);
+  });
+
+  const removals: Array<[string, string[], RegExp, RegExp]> = [
+    ['the pin', override('PIN', 'stale'), /Pinned host key\s+PENDING/, /install-known-hosts\.sh --target production/],
+    ['the shared account', override('HOST_REACHED', 'no'), /Shared account, sshd ports\s+PENDING/, /bootstrap-host\.sh --target production/],
+    ['the host tools', override('SQLITE', 'no'), /Host tools\s+PENDING/, /bootstrap-host\.sh --target production/],
+    ['the env file', override('ENV_FILE', 'absent'), /\/srv\/footbag and env file\s+PENDING/, /bootstrap-host\.sh/],
+    ['the environment record', override('FOOTBAG_ENV', ''), /Host environment record\s+PENDING/, /set-host-env\.sh --target production/],
+    ['the env file the verifier passes', override('HOST_ENV_VERIFY', 'fail'), /Host environment record\s+PENDING/, /verify-host-env\.sh --target production/],
+    ['sshd listening on its second port', override('SSHD_LISTEN', '22'), /Shared account, sshd ports\s+PENDING/, /bootstrap-host\.sh --target production/],
+    ['the database directory', override('DB_DIR', '0:0'), /Database directory\s+PENDING/, /bootstrap-host\.sh/],
+    ['the credential chain', override('CRED_CHAIN', 'fail'), /Host credential chain\s+PENDING/, /install-host-credentials\.sh --target production --rotate/],
+    ['the agent', override('CWAGENT_ENABLED', 'disabled'), /CloudWatch agent\s+PENDING/, /install-cwagent-production\.sh --rotate/],
+    ['log shipping', override('LOG_DRIVERS', 'footbag-web-1:awslogs'), /Deployed runtime\s+PENDING\s+not yet: worker shipping/, /deploy_to_aws\.sh/],
+    ['the sshd posture', override('SSHD_ROOT', 'prohibit-password'), /sshd posture\s+PENDING/, /harden-sshd\.sh --target production --apply/],
+    ['the swap file', override('SWAPFILE', 'no'), /Swap\s+PENDING/, /bootstrap-host\.sh/],
+    ['a recent snapshot', override('SNAPSHOT', 'fail'), /Recent host snapshot\s+PENDING/, /verify-host-snapshots\.sh --target production/],
+  ];
+  it.each(removals)('reports %s pending with its command', (_name, lines, row, next) => {
+    // Defect caught: a host missing this bootstrap step reads done on the
+    // dashboard the go-live sitting reads first.
+    const out = render(lines).split('-- host bootstrap')[1];
+    expect(out).toMatch(row);
+    const i = out.split('\n').findIndex((l) => row.test(l));
+    expect(out.split('\n')[i + 1]).toMatch(next);
   });
 });

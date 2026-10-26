@@ -194,8 +194,9 @@ export function readContainerMemoryUsedPercent(): number | null {
 /**
  * Operations service surface.
  *
- * Readiness composition belongs here, not in db.ts. Currently the only
- * implemented dependency check is the minimal DB probe from db.ts.
+ * Readiness composition belongs here, not in db.ts. The database check passes
+ * only when the schema is present, so a deploy onto a missing or empty
+ * database fails its readiness poll rather than reporting the stack healthy.
  */
 export class OperationsPlatformService {
   /**

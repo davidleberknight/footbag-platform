@@ -258,7 +258,14 @@ function fingerprintOf(path: string): string {
 }
 
 function terraformStub(): string {
-  return stub('terraform', `[[ "$*" == *"output -raw lightsail_static_ip"* ]] && { echo 203.0.113.10; exit 0; }; exit 1`);
+  return stub(
+    'terraform',
+    [
+      `[[ "$*" == *"output -raw lightsail_static_ip"* ]] && { echo 203.0.113.10; exit 0; }`,
+      `[[ "$*" == *"output -raw lightsail_instance_name"* ]] && { echo footbag-staging-web; exit 0; }`,
+      'exit 1',
+    ].join('; '),
+  );
 }
 
 beforeEach(() => {

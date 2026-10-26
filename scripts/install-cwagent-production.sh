@@ -43,16 +43,27 @@
 #
 #   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/install-cwagent-production.sh
 #
-# The retire and delete runs touch no host and take no password, so they are run
-# plainly:
-#   bash scripts/install-cwagent-production.sh --retire <old-key-id>
+# A version bump keeps the agent's key: --upgrade installs the pinned package
+# and the configuration and restarts the agent with the credentials file the
+# host already holds, and mints nothing:
+#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/install-cwagent-production.sh --upgrade
+#
+# The retirement asks the host which key it holds, so it takes the password too;
+# only the delete touches no host and is run plainly:
+#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/install-cwagent-production.sh --retire <old-key-id>
 #   bash scripts/install-cwagent-production.sh --delete <old-key-id>
 #
 # Flags:
 #   --rotate         Mint a second key alongside the existing one and install
 #                    it. The old key stays active so metrics never stop.
+#   --upgrade        Install the pinned version, keeping the key the host holds.
+#                    Refused unless that key is one of the publisher's.
 #   --retire <id>    Deactivate the predecessor, but only after proving the
-#                    three host metrics are still bound and live. Reversible.
+#                    three host metrics are still bound and live. Refuses the
+#                    key the host itself holds. Reversible. When the publisher
+#                    holds two keys and the host neither, no rotation can mint
+#                    the host its own and no metrics can be flowing from it, so
+#                    the retirement goes ahead without the metrics proof.
 #   --delete <id>    Remove a predecessor that is already inactive. The shared
 #                    library refuses this while the key is still active.
 #   --profile <p>    AWS profile for the IAM calls; else the identity this run
@@ -74,21 +85,24 @@ NAMESPACE="CWAgent/production"
 ENVIRONMENT="production"
 
 ROTATE=0
+UPGRADE=0
 AWS_PROFILE_ARG=""
 ACTION="install"
 OLD_KEY=""
 
 usage() {
   cat <<'EOF'
-Usage: < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/install-cwagent-production.sh [--rotate] [--profile <p>]
-   or: bash scripts/install-cwagent-production.sh --retire <old-key-id> [--profile <p>]
+Usage: < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/install-cwagent-production.sh [--rotate | --upgrade] [--profile <p>]
+   or: < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/install-cwagent-production.sh --retire <old-key-id> [--profile <p>]
    or: bash scripts/install-cwagent-production.sh --delete <old-key-id> [--profile <p>]
 
 The install reads the sudo password from stdin (line 1) and shows the new access
 key on the terminal, so it needs both the redirect and an interactive shell. The
-retire and delete runs reach no host and take no password.
+retirement asks the host which key it holds, so it takes the password too; the
+delete reaches no host and takes none.
 
   --rotate       mint a second key alongside the existing one and install it
+  --upgrade      install the pinned version, keeping the key the host holds
   --retire <id>  deactivate the predecessor, once the metrics check passes
   --delete <id>  delete a predecessor that is already inactive
   --profile <p>  AWS profile for the IAM calls; else the identity this run proves
@@ -98,6 +112,7 @@ EOF
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --rotate) ROTATE=1; shift ;;
+    --upgrade) UPGRADE=1; shift ;;
     --retire)
       ACTION="retire"
       OLD_KEY="${2:-}"
@@ -121,23 +136,28 @@ if [[ "$ACTION" != "install" && -z "$OLD_KEY" ]]; then
   echo "ERROR: --${ACTION} needs the id of the key to ${ACTION}." >&2
   exit 2
 fi
-if [[ "$ACTION" != "install" && "$ROTATE" == "1" ]]; then
-  echo "ERROR: --rotate mints a key and --${ACTION} cuts one; they are separate" >&2
-  echo "       runs with a metrics window between them, not one command." >&2
+if [[ "$ACTION" != "install" && ( "$ROTATE" == "1" || "$UPGRADE" == "1" ) ]]; then
+  echo "ERROR: --rotate and --upgrade install the agent and --${ACTION} cuts a key; they" >&2
+  echo "       are separate runs with a metrics window between them, not one command." >&2
+  exit 2
+fi
+if [[ "$ROTATE" == "1" && "$UPGRADE" == "1" ]]; then
+  echo "ERROR: --rotate mints a new key and --upgrade keeps the one the host holds; name one." >&2
   exit 2
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REMOTE="footbag-production"
 
-# Only the install carries a credential to a host. Demanding the redirect on the
-# retire runs would make the operator point a password file at a command that
-# has no use for one, which is how a password ends up answering a prompt.
+# The install and the retirement reach the host; only the delete does not.
+# Demanding the redirect on the delete would make the operator point a password
+# file at a command that has no use for one, which is how a password ends up
+# answering a prompt.
 #
 # The file it names comes from the shared rule, which picks it from the account
 # the alias connects as, so the line stays right if that ever changes rather
 # than naming a file outright.
-if [[ "$ACTION" == "install" && -t 0 ]]; then
+if [[ "$ACTION" != "delete" && -t 0 ]]; then
   # shellcheck source=lib/operator-credential.sh
   source "${SCRIPT_DIR}/lib/operator-credential.sh"
   _cred="~/AWS/<your credential file>"
@@ -158,8 +178,22 @@ source "${SCRIPT_DIR}/lib/ssh-known-hosts.sh"
 source "${SCRIPT_DIR}/lib/iam-access-key.sh"
 # shellcheck source=lib/host-env-remote.sh
 source "${SCRIPT_DIR}/lib/host-env-remote.sh"
+# The pinned agent package, and the refusal a rebuilt host gets.
+# shellcheck source=internal/bootstrap-host-tools.sh
+source "${SCRIPT_DIR}/internal/bootstrap-host-tools.sh"
+# shellcheck source=internal/bootstrap-host-rebuild-keys.sh
+source "${SCRIPT_DIR}/internal/bootstrap-host-rebuild-keys.sh"
 
 [[ -r "$REMOTE_HALF" ]] || { echo "ERROR: missing remote-half: $REMOTE_HALF" >&2; exit 1; }
+
+# The agent package is pinned to one version and one digest. Checked before
+# anything is minted or any host is reached, so an unfilled pin costs nothing.
+if [[ "$ACTION" == "install" ]]; then
+  host_tool_pinned CWAGENT_VERSION CWAGENT_URL CWAGENT_SHA256 || exit 1
+  host_tool CWAGENT_VERSION; CWAGENT_VERSION="$HOST_TOOL_VALUE"
+  host_tool CWAGENT_URL;     CWAGENT_URL="$HOST_TOOL_VALUE"
+  host_tool CWAGENT_SHA256;  CWAGENT_SHA256="$HOST_TOOL_VALUE"
+fi
 
 if [[ -n "$AWS_PROFILE_ARG" ]]; then
   IAM_KEY_AWS_ARGS=(--profile "$AWS_PROFILE_ARG")
@@ -188,10 +222,8 @@ anything, so no step of that depends on anyone remembering it."
 
 # ── Retirement ───────────────────────────────────────────────────────────────
 #
-# Neither of these reaches the host, so they run before the SSH options and the
-# reachability probe: a key retirement has nothing to do with whether the host
-# is answering, and failing it on an unreachable host would leave a rotation
-# stuck halfway with two live keys.
+# The delete reaches no host. The retirement asks the host one question, which
+# key its agent holds, so that the one key it must never cut is refused by id.
 #
 # The evidence is the point. "The agent is running" does not prove the new
 # credential is the one publishing, and the alarms bind to an exact namespace,
@@ -205,19 +237,40 @@ if [[ "$ACTION" != "install" ]]; then
 
   case "$ACTION" in
     retire)
+      # The key the agent on the host holds, read from its credentials file.
+      # Metrics arriving prove some key publishes; they cannot say which, so the
+      # host's own key is refused by id before the proof is consulted.
+      require_pinned_known_hosts || exit 1
+      IFS= read -r SUDO_PASS
+      require_host_is "$REMOTE" "$ENVIRONMENT" || exit 1
+      host_key_id_read "$REMOTE" /etc/amazon-cloudwatch-agent.aws/credentials "$CWAGENT_PROFILE_NAME" || exit 1
+      if [[ "$OLD_KEY" == "$HOST_KEY_ID" ]]; then
+        echo "REFUSING: ${OLD_KEY} is the key the agent on ${REMOTE} publishes with." >&2
+        echo "          Retiring it would stop the host's metrics. Nothing retired." >&2
+        exit 1
+      fi
+      if rebuild_key_slots_blocked "$PUBLISHER_USER" "$HOST_KEY_ID"; then
+        # Two keys on the publisher, neither on this host: no metrics can be
+        # arriving from it, so the proof could only fail, and no rotation can
+        # mint the host its own key until one of these is gone.
+        echo "==> ${PUBLISHER_USER} holds two keys and ${REMOTE} holds neither; retiring"
+        echo "    ${OLD_KEY} frees the slot a rotation needs. No metrics proof is possible"
+        echo "    or needed: neither key publishes from this host."
+      else
       echo "==> Proving the metrics still bind and are live before retiring ${OLD_KEY}"
       [[ -x "$VERIFY_METRICS" || -r "$VERIFY_METRICS" ]] || {
         echo "ERROR: missing ${VERIFY_METRICS}, which is the evidence this run" >&2
         echo "       requires. Nothing retired." >&2
         exit 1
       }
-      if ! bash "$VERIFY_METRICS" "${VERIFY_ARGS[@]}"; then
+      if ! bash "$VERIFY_METRICS" "${VERIFY_ARGS[@]}" </dev/null; then
         echo "" >&2
         echo "ERROR: the host metrics are not bound and live, so the replacement" >&2
         echo "       key has not been shown to be the one publishing. Retiring" >&2
         echo "       the predecessor now is how monitoring goes quiet without" >&2
         echo "       anyone noticing. Nothing retired." >&2
         exit 1
+      fi
       fi
       echo ""
       echo "Deactivating ${OLD_KEY} on ${PUBLISHER_USER}. Reversible: a deactivated"
@@ -260,6 +313,45 @@ echo "==> Deploy target: $REMOTE"
 IFS= read -r SUDO_PASS
 require_host_is "$REMOTE" production || exit 1
 
+# A bare install onto a host holding none of the publisher's keys, while the
+# publisher already holds one, is a rebuilt host: say so and name the rotation,
+# rather than the bare count the shared library would give.
+if (( ROTATE == 0 )); then
+  host_key_id_read "$REMOTE" /etc/amazon-cloudwatch-agent.aws/credentials "$CWAGENT_PROFILE_NAME" || exit 1
+  rebuild_key_check "$PUBLISHER_USER" "$HOST_KEY_ID" scripts/install-cwagent-production.sh production yes || exit 1
+fi
+
+if (( UPGRADE )); then
+  # Only a key the publisher still holds is kept. A host whose key is gone from
+  # the user, or holds none, would restart onto a credential that cannot
+  # publish; that host needs --rotate.
+  if [[ -z "$HOST_KEY_ID" ]] || ! rebuild_user_holds "$PUBLISHER_USER" "$HOST_KEY_ID"; then
+    _cred="<operator credential file>"
+    operator_credential_select "$REMOTE" production 2>/dev/null && _cred="$OPERATOR_CREDENTIAL_DISPLAY"
+    echo "REFUSING: --upgrade keeps the key the host holds, and ${REMOTE} holds" >&2
+    echo "          ${HOST_KEY_ID:-none}, which is not a key of ${PUBLISHER_USER}." >&2
+    echo "          Give it a key of its own instead:" >&2
+    echo "            < ${_cred} bash scripts/install-cwagent-production.sh --rotate" >&2
+    exit 1
+  fi
+  echo "==> Upgrading the agent to ${CWAGENT_VERSION}, keeping ${HOST_KEY_ID}"
+  {
+    printf '%s\n' "$SUDO_PASS"
+    printf 'CWAGENT_KEEP_CREDENTIALS=%q\n' 1
+    printf 'CWAGENT_VERSION=%q\n' "$CWAGENT_VERSION"
+    printf 'CWAGENT_URL=%q\n' "$CWAGENT_URL"
+    printf 'CWAGENT_SHA256=%q\n' "$CWAGENT_SHA256"
+    printf 'INSTANCE_NAME=%q\n' "$INSTANCE_NAME"
+    printf 'CWAGENT_PROFILE=%q\n' "$CWAGENT_PROFILE_NAME"
+    printf 'CWAGENT_NAMESPACE=%q\n' "$NAMESPACE"
+    cat "$REMOTE_HALF"
+  } | "$HOST_SSH_BIN" "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'
+  echo
+  echo "CloudWatch Agent upgraded on $REMOTE; no key was minted or changed."
+  echo "Prove the metrics still bind:  scripts/verify-cwagent-metrics.sh --target production"
+  exit 0
+fi
+
 trap iam_key_cleanup EXIT INT TERM
 iam_key_provision "$PUBLISHER_USER" "$VAULT_ENTRY" "$ROTATE" || exit 1
 
@@ -283,6 +375,9 @@ echo "==> Running remote-as-root cwagent install via cat-pipe..."
   printf 'INSTANCE_NAME=%q\n' "$INSTANCE_NAME"
   printf 'CWAGENT_PROFILE=%q\n' "$CWAGENT_PROFILE_NAME"
   printf 'CWAGENT_NAMESPACE=%q\n' "$NAMESPACE"
+  printf 'CWAGENT_VERSION=%q\n' "$CWAGENT_VERSION"
+  printf 'CWAGENT_URL=%q\n' "$CWAGENT_URL"
+  printf 'CWAGENT_SHA256=%q\n' "$CWAGENT_SHA256"
   cat "$REMOTE_HALF"
 } | "$HOST_SSH_BIN" "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'
 

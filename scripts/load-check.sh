@@ -241,7 +241,7 @@ if (( READ_BACK_ONLY == 0 )); then
   BASE_URL="${HOST_PUBLIC_BASE_URL%/}"
   if [[ -z "$BASE_URL" ]]; then
     echo "ERROR: footbag-staging records no PUBLIC_BASE_URL, so there is no address to load." >&2
-    echo "       Record it with: bash scripts/set-host-env.sh --target staging" >&2
+    echo "       The deploy syncs it from Terraform: deploy staging, then re-run." >&2
     exit 1
   fi
 fi

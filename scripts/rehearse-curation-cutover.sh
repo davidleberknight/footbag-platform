@@ -228,7 +228,7 @@ deploy_or_explain() {
   echo "           Resolve the drift, or set FOOTBAG_SKIP_SCHEMA_DRIFT_CHECK=1 once" >&2
   echo "           you have read what differs." >&2
   echo "         - the host records no PUBLIC_BASE_URL, so the post-deploy smoke has" >&2
-  echo "           no address. Record it with scripts/set-host-env.sh --target ${TARGET}." >&2
+  echo "           no address. The deploy syncs it from Terraform; deploy ${TARGET} first." >&2
   return 1
 }
 

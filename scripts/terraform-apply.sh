@@ -61,7 +61,11 @@
 # general passthrough would let any resource be destroyed and recreated by a
 # flag. Each address has one caller that owns the steps and the proof around the
 # replacement: scripts/rotate-origin-verify-secret.sh for the origin-verify
-# secret, scripts/rotate-jwt-signing-key.sh for the JWT signing key.
+# secret, scripts/rotate-jwt-signing-key.sh for the JWT signing key, and
+# scripts/bootstrap-host.sh --replace-instance for the web instance, which also
+# passes --instance-snapshot <name>: the snapshot it took first, which this
+# script proves complete, recent and of the running instance before it plans.
+# Any other plan that replaces or destroys the web instance is refused.
 #
 # --firewall-only and --require-empty-plan are for callers that know in advance
 # what the plan may contain. The first, run by the dev-and-tester address path on
@@ -124,7 +128,7 @@
 # terraform command at a stub, announced loudly when set, because a run that
 # silently used a stub would prove nothing about the estate.
 # TERRAFORM_APPLY_AWS_BIN does the same for the AWS CLI calls of the in-place
-# firewall write.
+# firewall write and of the instance-replacement snapshot proof.
 # TERRAFORM_APPLY_PROC_COUNT stands in for the local terraform process count the
 # state-lock report reads, so both of its branches are testable on a machine that
 # has no terraform running. TERRAFORM_APPLY_VALUES_FILE names the file the
@@ -171,6 +175,21 @@ SKIP_EMPTY=0
 # Anything else rotates by its own script or not by replacement at all.
 REPLACE_ADDR=""
 REPLACEABLE_ADDRESSES=("random_id.origin_verify_secret" "aws_kms_key.jwt_signing")
+# The web instance holds the only copy of everything on its disk that a backup
+# does not carry, and the member database between backups, so it is replaced by
+# one route only: scripts/bootstrap-host.sh --replace-instance, which takes a
+# manual snapshot first and proves it complete. That route passes the snapshot's
+# name with --instance-snapshot, and this script proves the snapshot again
+# itself rather than trusting the caller: it must exist, be complete, come from
+# this environment's instance after that instance was created, and be recent.
+# Every other plan that replaces or destroys the instance is refused in code
+# below, whatever flag or comment would otherwise have let it through.
+INSTANCE_ADDRESS="aws_lightsail_instance.web"
+INSTANCE_SNAPSHOT=""
+# How recent the protecting snapshot must be. The replacement follows the
+# snapshot within one run of the route above; a snapshot older than this misses
+# whatever the host wrote since, so it protects less than the operator was told.
+INSTANCE_SNAPSHOT_MAX_AGE_SECS=7200
 # The one resource a dev-and-tester address change may touch.
 FIREWALL_ADDRESS="aws_lightsail_instance_public_ports.web"
 # Set when the plan replaces the firewall and the replacement is instead written
@@ -192,6 +211,11 @@ source "${REPO_ROOT}/scripts/lib/host-env-remote.sh"
 source "${REPO_ROOT}/scripts/lib/aws-profile.sh"
 
 TF_BIN="${TERRAFORM_APPLY_BIN:-terraform}"
+# tf_instance_name, for the instance a replacement must be protected against.
+# Its reads go through the same binary as the plan, so one seam stands in for both.
+# shellcheck source=lib/terraform-output.sh
+source "${REPO_ROOT}/scripts/lib/terraform-output.sh"
+TF_OUTPUT_BIN="$TF_BIN"
 # The AWS CLI the in-place firewall write uses; a stub under test.
 AWS_FW_BIN="${TERRAFORM_APPLY_AWS_BIN:-aws}"
 
@@ -366,6 +390,10 @@ while [[ $# -gt 0 ]]; do
       REPLACE_ADDR="${2:-}"
       shift 2 || { echo "ERROR: --replace requires a resource address" >&2; exit 2; }
       ;;
+    --instance-snapshot)
+      INSTANCE_SNAPSHOT="${2:-}"
+      shift 2 || { echo "ERROR: --instance-snapshot requires a snapshot name" >&2; exit 2; }
+      ;;
     --firewall-add|--firewall-remove)
       if [[ -z "${2:-}" || "$2" == --* ]]; then
         echo "ERROR: $1 takes an address in CIDR form, e.g. 203.0.113.7/32." >&2
@@ -403,11 +431,29 @@ require_target "$TARGET" staging production shared identity || exit 2
 # address on the list, only on the two runtime trees, and never alongside a
 # restricted plan shape or a lock break, which are different operations.
 declare -a PLAN_EXTRA_ARGS=()
+if [[ -n "$INSTANCE_SNAPSHOT" && "$REPLACE_ADDR" != "$INSTANCE_ADDRESS" ]]; then
+  echo "ERROR: --instance-snapshot goes with --replace ${INSTANCE_ADDRESS}, and only through" >&2
+  echo "       scripts/bootstrap-host.sh --target <env> --replace-instance." >&2
+  exit 2
+fi
+if [[ "$REPLACE_ADDR" == "$INSTANCE_ADDRESS" && -z "$INSTANCE_SNAPSHOT" ]]; then
+  echo "ERROR: ${INSTANCE_ADDRESS} is replaced only by" >&2
+  echo "         bash scripts/bootstrap-host.sh --target ${TARGET} --replace-instance" >&2
+  echo "       which snapshots the instance first and proves the snapshot complete." >&2
+  echo "       The instance's disk holds what no backup carries. Nothing was planned." >&2
+  exit 2
+fi
+if [[ "$REPLACE_ADDR" == "$INSTANCE_ADDRESS" && "$ASSUME_YES" == "yes" ]] && (( ! DRY_RUN )); then
+  echo "ERROR: --yes does not carry replacing ${INSTANCE_ADDRESS}. Taking a host away is" >&2
+  echo "       confirmed by a person reading the plan, not by a flag passed in advance." >&2
+  exit 2
+fi
 if [[ -n "$REPLACE_ADDR" ]]; then
   allowed=0
   for addr in "${REPLACEABLE_ADDRESSES[@]}"; do
     [[ "$REPLACE_ADDR" == "$addr" ]] && allowed=1
   done
+  [[ "$REPLACE_ADDR" == "$INSTANCE_ADDRESS" ]] && allowed=1
   if (( ! allowed )); then
     echo "ERROR: --replace takes only: ${REPLACEABLE_ADDRESSES[*]} (got '${REPLACE_ADDR}')." >&2
     exit 2
@@ -588,6 +634,53 @@ aws_profile_ensure || exit 1
 # from the same place the credential came from is not a check.
 if [[ "$TARGET" == "identity" ]]; then
   aws_identity_require_direct_user "footbag-operator" || exit 1
+fi
+
+# ── The snapshot that protects an instance replacement ───────────────────────
+#
+# Proved here, by this script, before anything is planned, because the guarantee
+# is this script's to keep: a caller's word that a snapshot exists is not a
+# snapshot. Five facts, every one read from Lightsail: the name is one the
+# replacement route mints for this environment, the snapshot is complete, it was
+# taken of this environment's instance, it was taken after that instance was
+# created (so it is of the host about to be replaced, not of one replaced before
+# it under the same name), and it is recent.
+if [[ "$REPLACE_ADDR" == "$INSTANCE_ADDRESS" ]]; then
+  # The instance as Terraform records it, which a restore from snapshot renames;
+  # the original name would then prove a snapshot of the stopped old host.
+  tf_instance_name "$TARGET" || exit 1
+  snap_instance="$TF_INSTANCE_NAME"
+  snap_refuse() {
+    echo "ERROR: $1" >&2
+    echo "       ${INSTANCE_ADDRESS} is not replaced without a complete, recent snapshot" >&2
+    echo "       of it. Nothing was planned. Use: bash scripts/bootstrap-host.sh --target ${TARGET} --replace-instance" >&2
+    exit 1
+  }
+  [[ "$INSTANCE_SNAPSHOT" == "${snap_instance}-pre-replace-"* ]] \
+    || snap_refuse "'${INSTANCE_SNAPSHOT}' is not a name the replacement route mints for ${snap_instance}."
+  snap_row="$("$AWS_FW_BIN" lightsail get-instance-snapshot --region us-east-1 \
+      --instance-snapshot-name "$INSTANCE_SNAPSHOT" \
+      --query 'instanceSnapshot.[state,fromInstanceName,createdAt]' --output text </dev/null 2>/dev/null)" \
+    || snap_refuse "could not read snapshot '${INSTANCE_SNAPSHOT}' from Lightsail."
+  IFS=$'\t' read -r snap_state snap_from snap_created <<< "$snap_row"
+  [[ "$snap_state" == "available" ]] \
+    || snap_refuse "snapshot '${INSTANCE_SNAPSHOT}' is '${snap_state:-unknown}', not complete."
+  [[ "$snap_from" == "$snap_instance" ]] \
+    || snap_refuse "snapshot '${INSTANCE_SNAPSHOT}' was taken of '${snap_from:-unknown}', not ${snap_instance}."
+  inst_created="$("$AWS_FW_BIN" lightsail get-instance --region us-east-1 --instance-name "$snap_instance" \
+      --query 'instance.createdAt' --output text </dev/null 2>/dev/null)" \
+    || snap_refuse "could not read when ${snap_instance} was created."
+  snap_epoch="$(date -u -d "$snap_created" +%s 2>/dev/null)" \
+    || snap_refuse "snapshot '${INSTANCE_SNAPSHOT}' carries no readable creation time ('${snap_created}')."
+  inst_epoch="$(date -u -d "$inst_created" +%s 2>/dev/null)" \
+    || snap_refuse "${snap_instance} carries no readable creation time ('${inst_created}')."
+  (( snap_epoch > inst_epoch )) \
+    || snap_refuse "snapshot '${INSTANCE_SNAPSHOT}' predates the instance now running, so it is of a host already replaced."
+  snap_age=$(( $(date -u +%s) - snap_epoch ))
+  (( snap_age <= INSTANCE_SNAPSHOT_MAX_AGE_SECS )) \
+    || snap_refuse "snapshot '${INSTANCE_SNAPSHOT}' is $(( snap_age / 60 )) minutes old; the limit is $(( INSTANCE_SNAPSHOT_MAX_AGE_SECS / 60 ))."
+  echo "Instance replacement protected by ${INSTANCE_SNAPSHOT}: complete, of ${snap_instance}, $(( snap_age / 60 )) minutes old."
+  echo ""
 fi
 
 # Whether this run is a session of the job role, decided from the identity AWS
@@ -974,6 +1067,61 @@ else
   echo "      prompt it raises against the plan above." >&2
 fi
 
+# ── The web instance is replaced by one route, and destroyed by none ─────────
+#
+# Its name and key pair are force-new, so an innocent-looking edit to either, a
+# provider upgrade that changes a default, or a taint plans the instance for
+# replacement, and the plan says so in one line among many. A comment in the
+# tree asking the reader to refuse that is a precondition held in a person's
+# head. Here it is refused in code: any plan that deletes the instance is
+# stopped before the confirmation, unless this run is the replacement route
+# with its snapshot proved above, and even that route may only replace it,
+# never destroy it outright. Failing closed like the DNS read: a plan that
+# cannot be read is refused rather than assumed safe.
+INSTANCE_DELETES=""
+if command -v jq >/dev/null 2>&1 && [[ -n "${PLAN_JSON:-}" ]]; then
+  if ! INSTANCE_DELETES="$(printf '%s' "$PLAN_JSON" | jq -r --arg a "$INSTANCE_ADDRESS" '
+      .resource_changes[]?
+      | select(.address == $a and ((.change.actions // []) | index("delete")))
+      | (.change.actions | join("+"))
+    ')"; then
+    echo "ERROR: could not read the saved plan to check it for a change to ${INSTANCE_ADDRESS}." >&2
+    echo "       Nothing has been applied." >&2
+    exit 1
+  fi
+else
+  INSTANCE_GREP_STATUS=0
+  INSTANCE_DELETES="$(grep -E "^[[:space:]]*# ${INSTANCE_ADDRESS//./\\.} (will be destroyed|must be replaced|is tainted, so must be replaced)" "$TF_PLAN_LOG")" \
+    || INSTANCE_GREP_STATUS=$?
+  if (( INSTANCE_GREP_STATUS > 1 )); then
+    echo "ERROR: could not read the plan text to check it for a change to ${INSTANCE_ADDRESS}." >&2
+    echo "       Nothing has been applied." >&2
+    exit 1
+  fi
+  # The text form names a replacement and a destroy differently; carry which.
+  if [[ -n "$INSTANCE_DELETES" ]]; then
+    if grep -q 'will be destroyed' <<< "$INSTANCE_DELETES"; then INSTANCE_DELETES="delete"; else INSTANCE_DELETES="delete+create"; fi
+  fi
+fi
+if [[ -n "$INSTANCE_DELETES" ]]; then
+  if [[ "$REPLACE_ADDR" != "$INSTANCE_ADDRESS" ]]; then
+    echo "ERROR: this plan would ${INSTANCE_DELETES//+/ and } ${INSTANCE_ADDRESS}." >&2
+    echo "       The instance's disk holds the member database between backups and" >&2
+    echo "       everything a backup does not carry, so it is replaced only by" >&2
+    echo "         bash scripts/bootstrap-host.sh --target ${TARGET} --replace-instance" >&2
+    echo "       which snapshots it first, and never destroyed by an apply. Find what" >&2
+    echo "       forces the replacement in the plan above (a changed name or key pair," >&2
+    echo "       a taint) and undo it. Nothing has been applied." >&2
+    exit 1
+  fi
+  if [[ "$INSTANCE_DELETES" != "delete+create" && "$INSTANCE_DELETES" != "create+delete" ]]; then
+    echo "ERROR: this plan would destroy ${INSTANCE_ADDRESS} without recreating it (${INSTANCE_DELETES})." >&2
+    echo "       The replacement route replaces the instance; it never removes it." >&2
+    echo "       Nothing has been applied." >&2
+    exit 1
+  fi
+fi
+
 # ── Changes that are the directly authenticated identity's to apply ──────────
 #
 # The job role holds no IAM write and no iam:PassRole, so a plan that changes any
@@ -1047,11 +1195,16 @@ if [[ -n "${PLAN_JSON:-}" ]] && command -v jq >/dev/null 2>&1 \
    && printf '%s' "$PLAN_JSON" | jq -e --arg fw "$FIREWALL_ADDRESS" \
         'any(.resource_changes[]?; .address == $fw and (.change.actions | index("delete")) and (.change.actions | index("create")))' >/dev/null 2>&1; then
   fw_reason=""
+  # A plan that replaces the instance replaces its firewall with it, and the
+  # in-place write would land on the instance about to be deleted.
+  [[ -n "$INSTANCE_DELETES" ]] && fw_reason="the instance itself is replaced, so its firewall is created on the new one"
   # Only the values this step writes must be known. The plan always reports the
   # new resource's id, and the optional ipv6 and alias lists of a port that sets
   # none, as unknown until apply; none of those is written, so none of them
   # stops the in-place path. An unknown address list or instance name does.
-  if ! printf '%s' "$PLAN_JSON" | jq -e --arg fw "$FIREWALL_ADDRESS" '
+  if [[ -n "$fw_reason" ]]; then
+    :
+  elif ! printf '%s' "$PLAN_JSON" | jq -e --arg fw "$FIREWALL_ADDRESS" '
        ([.resource_changes[] | select(.address == $fw)][0].change.after_unknown // {}) as $u
        | ($u.instance_name // false) != true
          and ((($u.port_info // []) | if type == "array" then . else [{cidrs: .}] end)
@@ -1294,7 +1447,10 @@ fi
 # The plan is still printed in full on every tree, and the warning below still
 # says what to look for, because the reading is the part that matters and it is
 # not what the prompt was buying.
-if [[ "$TARGET" == "production" || "$TARGET" == "shared" || "$TARGET" == "identity" ]]; then
+# Replacing the web instance asks on staging too: it is the one plan that takes
+# a host away, and staging's host is what every dev-and-tester is working on.
+if [[ "$TARGET" == "production" || "$TARGET" == "shared" || "$TARGET" == "identity" \
+      || "$REPLACE_ADDR" == "$INSTANCE_ADDRESS" ]]; then
   echo "Read the plan above before answering. It covers this whole environment, not only"
   echo "the change you came for: anything else pending in the tree is applied with it."
   echo "A destroy or a replacement you did not expect is a reason to stop, not to confirm."

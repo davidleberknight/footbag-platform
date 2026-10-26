@@ -78,6 +78,13 @@ source "$ENV_PATH"
 set +a
 
 DB_DIR="${FOOTBAG_DB_DIR:-/srv/footbag/db}"
+# The release's compose files, which the erasure replay and the readiness probe
+# run against. A named test seam, because a test drives this body without a
+# release installed at the host's path.
+COMPOSE_DIR="${RESTORE_COMPOSE_DIR:-/srv/footbag/docker}"
+if [[ -n "${RESTORE_COMPOSE_DIR:-}" ]]; then
+  echo "SYNTHETIC: RESTORE_COMPOSE_DIR='${RESTORE_COMPOSE_DIR}' -- this run proves nothing about the estate." >&2
+fi
 DB_FILE="${DB_DIR}/footbag.db"
 MARKER="${DB_DIR}/.erasure-replay-pending"
 # The exit status of a run that leaves the erasure replay pending. Distinct from
@@ -158,8 +165,8 @@ clear_replay_pending() {
 run_erasure_replay() {
   local replay_status=0 replay_out
   replay_out="$(docker compose --env-file "${ENV_PATH}" \
-       -f /srv/footbag/docker/docker-compose.yml \
-       -f /srv/footbag/docker/docker-compose.prod.yml \
+       -f "${COMPOSE_DIR}/docker-compose.yml" \
+       -f "${COMPOSE_DIR}/docker-compose.prod.yml" \
        run --rm --no-deps -T web node dist/runErasureReplay.js </dev/null 2>&1)" || replay_status=$?
   [[ -n "$replay_out" ]] && printf '%s\n' "$replay_out"
   (( replay_status == 0 )) && grep -qx 'erasure-replay: ok' <<<"$replay_out"
@@ -174,8 +181,8 @@ wait_until_ready() {
   for _i in 1 2 3 4 5 6 7 8 9 10; do
     if systemctl is-active --quiet footbag.service \
        && docker compose --env-file "${ENV_PATH}" \
-            -f /srv/footbag/docker/docker-compose.yml \
-            -f /srv/footbag/docker/docker-compose.prod.yml \
+            -f "${COMPOSE_DIR}/docker-compose.yml" \
+            -f "${COMPOSE_DIR}/docker-compose.prod.yml" \
             exec -T web wget -qO- --timeout=3 http://localhost:3000/health/ready >/dev/null 2>&1 </dev/null; then
       return 0
     fi
@@ -237,7 +244,46 @@ command -v aws     >/dev/null 2>&1 || { echo "ERROR: aws CLI not installed on th
 # accepted, printed, and then dropped before the wire.
 BUCKET="${BUCKET:-${BACKUP_S3_BUCKET:-}}"
 [[ -n "$BUCKET" ]] || { echo "ERROR: no bucket: pass --bucket, or set BACKUP_S3_BUCKET in $ENV_PATH." >&2; exit 1; }
-[[ -f "$DB_FILE" ]] || { echo "ERROR: no database at ${DB_FILE}; nothing to restore over." >&2; exit 1; }
+# A host with no database is restored onto only when the operator said so, and a
+# host with one never takes that path: --onto-empty must not be able to stand in
+# for the ordinary restore and skip the copy-aside of a real database. The
+# placeholder is what lets the rest of this body run unchanged: it is copied
+# aside like any database, the snapshot replaces it, and its owner, the
+# container account, is the owner the restored file inherits.
+ONTO_EMPTY="${ONTO_EMPTY:-0}"
+# The container account. A named test seam, because a test drives this body as
+# an ordinary user who cannot hand a file to another account.
+CONTAINER_OWNER="${RESTORE_CONTAINER_OWNER:-1000:1000}"
+if [[ -n "${RESTORE_CONTAINER_OWNER:-}" ]]; then
+  echo "SYNTHETIC: RESTORE_CONTAINER_OWNER='${RESTORE_CONTAINER_OWNER}' -- this run proves nothing about the estate." >&2
+fi
+if [[ "$ONTO_EMPTY" == "1" ]]; then
+  if [[ -e "$DB_FILE" ]]; then
+    echo "ERROR: ${DB_FILE} exists, so this host is not empty. Nothing was changed." >&2
+    echo "       Restore over it with the ordinary restore, without --onto-empty." >&2
+    exit 1
+  fi
+  # The erasure replay below runs in a container of the release, and the service
+  # it starts is the release's unit. On a host that has neither, the restore
+  # would put the database in place, fail the replay, and leave the marker
+  # holding a service that does not exist. Refused before anything is created.
+  onto_empty_missing=""
+  [[ -f "${COMPOSE_DIR}/docker-compose.yml" && -f "${COMPOSE_DIR}/docker-compose.prod.yml" ]] \
+    || onto_empty_missing+="the release's compose files in ${COMPOSE_DIR}; "
+  systemctl cat footbag.service >/dev/null 2>&1 || onto_empty_missing+="footbag.service; "
+  docker image inspect docker-web >/dev/null 2>&1 || onto_empty_missing+="the web image; "
+  if [[ -n "$onto_empty_missing" ]]; then
+    echo "ERROR: this host does not carry the release the restore runs in: missing ${onto_empty_missing%; }." >&2
+    echo "       Install it first without starting it, which scripts/bootstrap-host.sh" >&2
+    echo "       does with: scripts/deploy-code.sh --first-install. Nothing was changed." >&2
+    exit 1
+  fi
+  install -d -m 750 "$(dirname "$DB_FILE")"
+  install -m 600 /dev/null "$DB_FILE"
+  chown "$CONTAINER_OWNER" "$(dirname "$DB_FILE")" "$DB_FILE"
+  echo "    No database on this host: created an empty placeholder owned by the container account."
+fi
+[[ -f "$DB_FILE" ]] || { echo "ERROR: no database at ${DB_FILE}; nothing to restore over. On a host built from nothing, pass --onto-empty." >&2; exit 1; }
 
 DRILL="${DRILL:-0}"
 # The drill's elapsed time is measured from here, the start of the download, to
@@ -358,6 +404,21 @@ if systemctl is-active --quiet footbag-backup.timer 2>/dev/null; then
   echo "    backup timer paused for the duration"
 fi
 
+# Whether the service was running before this restore stopped it, so a refusal
+# puts it back exactly as it was. A host whose release was installed without
+# starting it, waiting for this restore, had nothing running: started by a
+# refusal, it would serve an empty placeholder, and the database the app then
+# creates there is one the restore afterwards refuses as not empty.
+service_was_active=0
+systemctl is-active --quiet footbag 2>/dev/null && service_was_active=1
+restart_if_was_active() {
+  if (( service_was_active )); then
+    systemctl start footbag || true
+  else
+    echo "       footbag.service was not running before this restore, and is left stopped." >&2
+  fi
+}
+
 echo "==> Stopping the service"
 systemctl stop footbag
 
@@ -380,7 +441,7 @@ if [[ -z "$checkpoint_row" || "${checkpoint_row%%|*}" != "0" ]]; then
   echo "       a leading 1 means it was busy and did not complete). Refusing to" >&2
   echo "       restore over a database whose copy would be incomplete." >&2
   echo "       Restarting the service; nothing was replaced." >&2
-  systemctl start footbag || true
+  restart_if_was_active
   exit 1
 fi
 
@@ -401,14 +462,14 @@ if [[ ! "$db_kb" =~ ^[0-9]+$ || ! "$avail_kb" =~ ^[0-9]+$ ]]; then
   echo "       Refusing the restore rather than copying blind: a cp that runs out" >&2
   echo "       of disk leaves a truncated file, and this copy is the only way back." >&2
   echo "       Nothing was replaced; restarting the service." >&2
-  systemctl start footbag || true
+  restart_if_was_active
   exit 1
 fi
 if (( avail_kb < db_kb * 2 )); then
   echo "ERROR: not enough free space to copy the database aside." >&2
   echo "       database ${db_kb} KB, free ${avail_kb} KB, need at least $(( db_kb * 2 )) KB." >&2
   echo "       Nothing was replaced; restarting the service." >&2
-  systemctl start footbag || true
+  restart_if_was_active
   exit 1
 fi
 
@@ -419,7 +480,7 @@ superseded="${DB_FILE}.pre-restore.$(date -u +%Y%m%dT%H%M%SZ)"
 if ! cp -a "$DB_FILE" "$superseded"; then
   echo "ERROR: could not copy the database aside; nothing was replaced." >&2
   echo "       Restarting the service." >&2
-  systemctl start footbag || true
+  restart_if_was_active
   exit 1
 fi
 echo "    database in place copied to ${superseded}"
@@ -431,7 +492,7 @@ if ! mark_replay_pending; then
   echo "ERROR: could not write ${MARKER}; refusing to replace the database without" >&2
   echo "       it, since nothing would then hold backups and the site off if the" >&2
   echo "       erasure replay failed. Nothing was replaced; restarting the service." >&2
-  systemctl start footbag || true
+  restart_if_was_active
   exit 1
 fi
 
@@ -441,7 +502,7 @@ fi
 previous_database_back() {
   if (( prior_pending == 0 )); then
     clear_replay_pending
-    systemctl start footbag || true
+    restart_if_was_active
   fi
 }
 

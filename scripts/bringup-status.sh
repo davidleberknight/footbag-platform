@@ -3,7 +3,12 @@
 #
 # Read-only status view of the environment bring-up sequence: host env file,
 # terraform sync, payments activation, backup pipeline, SES feedback loop,
-# first admin, cutover login alarm, and the deployed runtime. Each step is
+# first admin, cutover login alarm, and the deployed runtime (all four
+# containers healthy), then one row per host bootstrap step: the pinned host
+# key, the shared account and sshd ports, the host tools, the layout, the
+# environment record, the database directory, the host credential chain, the
+# CloudWatch agent, log shipping and start at boot, the sshd posture, swap, the
+# administrators' keys and a recent host snapshot. Each step is
 # reported as DONE / PENDING / UNKNOWN / N-A / INFO with the exact next
 # command when something is pending, so the operator never has to remember
 # the sequence. The script mutates nothing and always exits 0 (usage errors
@@ -20,6 +25,10 @@
 #   terraform  local: plan -detailed-exitcode for drift, state list for the
 #              gated resources (backup-stale alarm, cutover login alarm,
 #              SES feedback subscription)
+#   bootstrap  a second ssh session reading the bootstrap status half, the pin
+#              check, the source-profile and agent-publisher users' keys, the
+#              agent's metrics, the automatic snapshot and the feeds flag in the
+#              values file (scripts/internal/bootstrap-host-steps.sh)
 #   aws        with --profile: Stripe key parameter mode (placeholder, test
 #              or live; the value itself is never printed), first-admin
 #              bootstrap-token presence, BackupAgeMinutes datapoint recency
@@ -51,6 +60,12 @@ source "${SCRIPT_DIR}/lib/host-env-expectations.sh"
 source "${SCRIPT_DIR}/lib/email-template-digest.sh"
 # shellcheck source=lib/host-env-remote.sh
 source "${SCRIPT_DIR}/lib/host-env-remote.sh"
+# The host bootstrap's steps and what proves each, shared with
+# scripts/bootstrap-host.sh so the two never disagree about "done".
+# shellcheck source=internal/bootstrap-host-tools.sh
+source "${SCRIPT_DIR}/internal/bootstrap-host-tools.sh"
+# shellcheck source=internal/bootstrap-host-steps.sh
+source "${SCRIPT_DIR}/internal/bootstrap-host-steps.sh"
 
 TARGET=""
 AWS_PROFILE_ARG=""
@@ -107,6 +122,8 @@ done
 require_target "$TARGET" staging production || exit 2
 
 SSH_ALIAS="footbag-$TARGET"
+BH_TARGET="$TARGET"
+bh_announce_seams
 
 # -----------------------------------------------------------------------------
 # Probe results. Everything defaults to unknown; live probes (or the probe
@@ -215,6 +232,14 @@ else
       P[CONTAINERS]="$(awk 'f{printf "%s%s", sep, $0; sep=", "} /^---$/{f=1}' <<< "$REPORT_RAW")"
       [[ -z "${P[CONTAINERS]}" ]] && P[CONTAINERS]="none running"
     fi
+    # The bootstrap steps' own facts, from the host that just confirmed it is
+    # the target. A host that did not confirm is not asked.
+    if [[ -n "$ENV_RAW" ]]; then
+      bh_probe_host "$SSH_ALIAS"
+      # The environment record's row is judged on the verifier, which holds every
+      # value on the host against what the estate declares.
+      bh_probe_host_env "$TARGET"
+    fi
   fi
 
   # --- terraform probe ------------------------------------------------------
@@ -268,6 +293,12 @@ else
       : # no profile supplied; the aws-backed rows stay unknown
     else
       PROBES_RUN+="aws "
+      # The bootstrap rows' AWS-side facts: the pin, the identities a rebuilt
+      # host takes over, the agent's metrics, the automatic snapshot and the
+      # feeds flag. Each reads unknown or failed rather than aborting, so the
+      # dashboard still renders.
+      AWS_PROFILE="$AWS_PROFILE_ARG" bh_probe_pin "$TARGET"
+      AWS_PROFILE="$AWS_PROFILE_ARG" bh_probe_aws "$TARGET"
       probe_param() {
         # Prints present|absent|unknown for an SSM parameter, never its value.
         local name="$1" err
@@ -340,6 +371,12 @@ else
   PROBES_RUN="${PROBES_RUN:-none}"
 fi
 
+# The versions the host-tools manifest pins, which the tools and agent rows are
+# judged against. Read after a probe file, which may not override them: the pin
+# is the repository's, not a probe result.
+bh_manifest_pins
+BH_CRED="$(operator_cred_file)"
+
 # -----------------------------------------------------------------------------
 # Render the steps.
 # -----------------------------------------------------------------------------
@@ -360,13 +397,16 @@ if [[ "${P[ENV_FETCHED]}" != "yes" ]]; then
 else
   EXPECTED_HOPS="$(expected_trust_proxy_note "$TARGET")"
   MISSING=""
-  [[ "${P[ENV_TRUST_PROXY]}" =~ ^[0-9]+$ ]] || MISSING+="TRUST_PROXY (integer hop count, $TARGET: $EXPECTED_HOPS) "
+  # The hop count comes from the committed host config and the bucket from the
+  # parameter Terraform publishes; every deploy writes both, so a gap in either
+  # is closed by the same step.
+  [[ "${P[ENV_TRUST_PROXY]}" == "$(expected_trust_proxy "$TARGET")" ]] || MISSING+="TRUST_PROXY (integer hop count, $TARGET: $EXPECTED_HOPS) "
   [[ "${P[ENV_BACKUP_S3_BUCKET]}" == "set" ]] || MISSING+="BACKUP_S3_BUCKET "
   if [[ -z "$MISSING" ]]; then
     row 1 "Host env file" DONE "TRUST_PROXY=${P[ENV_TRUST_PROXY]}, BACKUP_S3_BUCKET set"
   else
     row 1 "Host env file" PENDING "missing/invalid: $MISSING"
-    next_cmd "scripts/set-host-env.sh --target $TARGET${AWS_PROFILE_ARG:+ --profile <profile>}"
+    next_cmd "./deploy_to_aws.sh --target $TARGET (every deploy writes the committed host config and the Terraform-published values)"
   fi
 fi
 
@@ -458,7 +498,7 @@ case "${P[TF_SES_SUBSCRIPTION]}" in
     ;;
   absent)
     row 5 "SES feedback" PENDING "no queue subscribed to the feedback topic in terraform state"
-    next_cmd "set enable_feed_queues = true in this environment's tfvars and apply, which creates the queue and subscribes it; then scripts/set-host-env.sh --target <env> to put SES_FEEDBACK_QUEUE_URL on the host, redeploy so the worker polls it, and prove it with scripts/verify-prod-email.sh --profile <profile> --bounce-probe"
+    next_cmd "set enable_feed_queues = true in this environment's tfvars and apply, which creates the queue, subscribes it and publishes its URL; then redeploy, which syncs SES_FEEDBACK_QUEUE_URL onto the host so the worker polls it, and prove it with scripts/verify-prod-email.sh --profile <profile> --bounce-probe"
     ;;
   *)
     row 5 "SES feedback" UNKNOWN "terraform state unavailable"
@@ -500,15 +540,25 @@ else
   esac
 fi
 
-# 8. Deployed runtime
+# 8. Deployed runtime. Every one of the four containers has to report healthy:
+# a missing worker sends no mail and runs no scheduled job, a missing image
+# service serves no media, and either leaves the front page looking fine. A
+# container that is up but still starting or unhealthy is not yet serving.
 if [[ "${P[CONTAINERS]}" == "unknown" ]]; then
   row 8 "Deployed runtime" UNKNOWN "container state not probed"
   next_cmd "./deploy_to_aws.sh   (ships the local working tree)"
-elif grep -q "web" <<< "${P[CONTAINERS]}" && grep -q "nginx" <<< "${P[CONTAINERS]}"; then
-  row 8 "Deployed runtime" DONE "${P[CONTAINERS]}"
 else
-  row 8 "Deployed runtime" PENDING "containers: ${P[CONTAINERS]}"
-  next_cmd "./deploy_to_aws.sh   (ships the local working tree)"
+  RUNTIME_MISSING=""
+  for svc in "${BH_CONTAINERS[@]}"; do
+    svc_health="$(bh_container_health "$svc")"
+    [[ "$svc_health" == Up*"(healthy)"* ]] || RUNTIME_MISSING+="${svc} (${svc_health}); "
+  done
+  if [[ -z "$RUNTIME_MISSING" ]]; then
+    row 8 "Deployed runtime" DONE "${P[CONTAINERS]}"
+  else
+    row 8 "Deployed runtime" PENDING "not healthy: ${RUNTIME_MISSING%; }"
+    next_cmd "./deploy_to_aws.sh   (ships the local working tree)"
+  fi
 fi
 
 # 9. Email wording. The rows a running environment renders from are seeded by
@@ -547,6 +597,22 @@ else
       ;;
   esac
 fi
+
+# 11 onward. The host bootstrap's steps, one row each, judged by the same
+# verdicts scripts/bootstrap-host.sh skips on. Terraform, the backup timer and
+# the feeds have their rows above; the rest are here, so a host missing any
+# bootstrap step shows it pending with the command that finishes it.
+echo ""
+echo "-- host bootstrap (bash scripts/bootstrap-host.sh --target $TARGET runs these in order) --"
+BOOT_ROW=11
+for step in pin account packages layout envrecord dbdir credentials cwagent deploy sshd swap operatorkeys snapshot; do
+  bh_verdict "$step"
+  row "$BOOT_ROW" "$BH_TITLE" "$BH_STATE" "$BH_DETAIL"
+  if [[ -n "$BH_NEXT" && "$BH_STATE" != "DONE" && "$BH_STATE" != "N-A" ]]; then
+    next_cmd "$BH_NEXT"
+  fi
+  BOOT_ROW=$(( BOOT_ROW + 1 ))
+done
 
 echo ""
 exit 0

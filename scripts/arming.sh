@@ -830,12 +830,14 @@ if (( FROM_STEP <= 1 )) && [[ "$PRECONDITION" == "ses-readiness" ]]; then
     echo "  value at boot. The compose file interpolates it with no default, so the" >&2
     echo "  containers would crash-loop and $TARGET would be down rather than degraded." >&2
     echo "" >&2
-    echo "  A code-only deploy neither writes nor checks it, and verify-host-env.sh" >&2
-    echo "  cannot warn you while the host is still dark, because its SES checks" >&2
-    echo "  self-neutralise until the adapter is live. That is why this is checked here." >&2
+    echo "  A host missing it has not been deployed since the sender parameter existed," >&2
+    echo "  and verify-host-env.sh cannot warn you while the host is still dark, because" >&2
+    echo "  its SES checks self-neutralise until the adapter is live. That is why this is" >&2
+    echo "  checked here." >&2
     echo "" >&2
-    echo "  Write it, then re-run:" >&2
-    echo "    scripts/set-host-env.sh --target $TARGET" >&2
+    echo "  The deploy syncs it from the sender parameter Terraform publishes. Apply the" >&2
+    echo "  environment's tree, deploy, then re-run:" >&2
+    echo "    ./deploy_to_aws.sh --target $TARGET" >&2
     echo "" >&2
     echo "  Nothing has been changed. Email stays dark, which is the safe state." >&2
     exit 1
@@ -890,15 +892,15 @@ if (( FROM_STEP <= 1 )) && [[ "$PRECONDITION" == "ses-readiness" ]]; then
       echo "     Nothing will record a bounce: sending carries on while the"
       echo "     platform's view of which mailboxes are dead stops being updated."
       echo "     This does not stop the host, so it is yours to accept or fix:"
-      echo "     enable the feed queues in terraform, apply, then"
-      echo "     scripts/set-host-env.sh --target $TARGET"
+      echo "     scripts/activate-notification-feeds.sh --target $TARGET --state on"
+      echo "     (the flag, the apply that publishes the queue, and the deploy that syncs it)"
       ;;
     *)
       echo "  a. The bounce and complaint queue is on the host, as (host)"
       echo "     SES_FEEDBACK_QUEUE_URL. Without it nothing records a bounce: sending"
       echo "     carries on while the platform's view of which mailboxes are dead"
-      echo "     stops being updated. Enable the feed queues in terraform, apply, then"
-      echo "     scripts/set-host-env.sh --target $TARGET"
+      echo "     stops being updated. Turn the feeds on with"
+      echo "     scripts/activate-notification-feeds.sh --target $TARGET --state on"
       ;;
   esac
   echo "  b. The queue is subscribed to the feedback topic, which the same apply"

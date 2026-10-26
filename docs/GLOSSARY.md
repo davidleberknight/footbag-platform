@@ -112,7 +112,7 @@
 
 **Hashtag**: An organizational tag beginning with # symbol used to categorize and discover content. Footbag.org uses standardized hashtags for events/clubs (enforced uniqueness) and freeform hashtags for member-driven content organization.
 
-**Health Endpoint**: Lightweight HTTP endpoints reporting system status. Footbag.org exposes two endpoints: /health/live (liveness, confirms the process is running, no external calls) and /health/ready (readiness, validates SQLite connectivity and container memory pressure; returns 503 above the memory threshold to trigger CloudFront maintenance). Backup, SES, KMS, Stripe, and S3 health are surfaced via alarms, not via this endpoint.
+**Health Endpoint**: Lightweight HTTP endpoints reporting system status. Footbag.org exposes two endpoints: /health/live (liveness, confirms the process is running, no external calls) and /health/ready (readiness, validates SQLite connectivity with the schema present and container memory pressure; returns 503 above the memory threshold to trigger CloudFront maintenance). Backup, SES, KMS, Stripe, and S3 health are surfaced via alarms, not via this endpoint.
 
 **HMAC (Hash-based Message Authentication Code)**: Cryptographic technique ensuring message integrity and authenticity using secret key plus hash function. Footbag.org validates Stripe webhook signatures using HMAC-SHA256 to verify requests actually originated from Stripe.
 
@@ -222,7 +222,7 @@
 
 **SSE-S3 (Server-Side Encryption with S3-Managed Keys)**: S3's default encryption mode that transparently encrypts all stored objects using AES-256 with keys managed entirely by Amazon. Footbag.org enables SSE-S3 on all S3 buckets; encryption and decryption are automatic and transparent to the application, meeting security requirements for non-regulated data at zero additional cost or configuration.
 
-**Staging**: Three different things share this word. The *environment*, `FOOTBAG_ENV=staging`, is a configuration of the application. The *staging host* is the AWS Lightsail instance `footbag-staging-web` that runs it. `footbag-staging` is also an *SSH alias*: an entry in each person's own `~/.ssh/config` naming that host's address and port, written by script, which operator scripts connect through. None of these is local development, which is `FOOTBAG_ENV=development` on a contributor's own machine.
+**Staging**: Three different things share this word. The *environment*, `FOOTBAG_ENV=staging`, is a configuration of the application. The *staging host* is the AWS Lightsail instance `footbag-staging-web`, or the name a restore from snapshot gave it, that runs it. `footbag-staging` is also an *SSH alias*: an entry in each person's own `~/.ssh/config` naming that host's address and port, written by script, which operator scripts connect through. None of these is local development, which is `FOOTBAG_ENV=development` on a contributor's own machine.
 
 **Standardized Hashtag**: Enforced-format hashtag with uniqueness validation for events (for example `#event_2025_beaver_open`) and clubs (for example `#club_wellington_hack_crew`). Members uploading media can tag with these hashtags for automatic gallery linking; the system validates uniqueness at event or club creation.
 

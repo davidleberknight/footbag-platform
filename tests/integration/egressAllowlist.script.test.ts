@@ -74,6 +74,25 @@ interface PortRule {
   cidrListAliases?: string[];
 }
 
+/**
+ * A `terraform` answering the instance-name read the check makes before it reads
+ * the firewall, and an identity for that read to settle on.
+ */
+function terraformEnv(instance: string): NodeJS.ProcessEnv {
+  const identity = writeExecutable(join(scratch, 'identity.sh'), [
+    "printf '%s\\n' 'arn:aws:iam::000000000000:user/footbag-operator'",
+  ]);
+  return {
+    TF_OUTPUT_BIN: writeExecutable(join(scratch, 'terraform.sh'), [
+      `case "$*" in *lightsail_instance_name*) printf '%s' '${instance}'; exit 0 ;; esac`,
+      'exit 1',
+    ]),
+    AWS_PROFILE: 'stub-profile',
+    AWS_PROFILE_BIN: identity,
+    AWS_IDENTITY_BIN: identity,
+  };
+}
+
 /** An `aws` answering get-instance-port-states with the given firewall. */
 function awsStub(portStates: PortRule[] | 'refuses' | 'gibberish'): string {
   const path = join(scratch, 'aws-stub.sh');
@@ -116,6 +135,10 @@ function check(
     port: number | null;
     firewall: PortRule[] | 'refuses' | 'gibberish';
     target?: string;
+    /** The instance Terraform names; the original name unless a restore renamed it. */
+    instance?: string;
+    /** Replaces the firewall stand-in. */
+    awsBin?: string;
   },
 ): { verdict: string; address: string; port: string; detail: string; stderr: string } {
   if (opts.port !== null) stubSshOnPath(opts.port);
@@ -129,8 +152,9 @@ function check(
       'printf "%s\\n" "$EGRESS_DETAIL"',
     ].join('; '),
     {
+      ...terraformEnv(opts.instance ?? `footbag-${opts.target ?? 'production'}-web`),
       EGRESS_CHECKIP_CMD: checkipStub(opts.address),
-      EGRESS_AWS_BIN: awsStub(opts.firewall),
+      EGRESS_AWS_BIN: opts.awsBin ?? awsStub(opts.firewall),
     },
   );
   const out = res.stdout;
@@ -240,6 +264,29 @@ describe('the whole check, against a live firewall', () => {
     expect(r.port).toBe('2222');
     expect(r.detail).toContain('203.0.113.0/26');
     expect(r.detail).toContain('footbag-production-web');
+  });
+
+  // Defect caught: after a restore from snapshot the stopped old host keeps the
+  // original name, so a firewall read by that name judges a host the deploy will
+  // never reach and can report covered while the live host refuses the address.
+  it('reads the firewall of the instance Terraform names, which a restore renames', () => {
+    const restored = 'footbag-production-web-r202610260000';
+    const awsBin = writeExecutable(join(scratch, 'aws-renamed.sh'), [
+      `case "$*" in *"--instance-name ${restored}"*) cat <<'JSON'`,
+      JSON.stringify({ portStates: TWO_PORT_FIREWALL }),
+      'JSON',
+      'exit 0 ;; esac',
+      `echo '{"portStates":[]}'`,
+    ]);
+    const r = check({ address: '203.0.113.9', port: 2222, firewall: [], instance: restored, awsBin });
+    expect(r.verdict).toBe('covered');
+    expect(r.detail).toContain(restored);
+  });
+
+  it('answers unknown when the instance name cannot be read from Terraform', () => {
+    const r = check({ address: '203.0.113.9', port: 2222, firewall: TWO_PORT_FIREWALL, instance: '' });
+    expect(r.verdict).toBe('unknown');
+    expect(r.detail).toMatch(/web instance's name could\s+not be read from Terraform/);
   });
 
   it('reads the port the deploy uses, not port 22', () => {

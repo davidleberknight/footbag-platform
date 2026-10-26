@@ -48,7 +48,9 @@ const CLEAN_STAGING_ENV = [
   'ALARM_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/000/footbag-staging-alarm-feed',
   'ALARM_TOPIC_ARN=arn:aws:sns:us-east-1:000:footbag-staging-alarms',
   'PUBLIC_BASE_URL=https://staging.footbag.org',
-  'FOOTBAG_DB_PATH=/srv/footbag/data/footbag.db',
+  'AWS_PROFILE=footbag-staging-runtime',
+  'FOOTBAG_DB_DIR=/srv/footbag/db',
+  'FOOTBAG_DB_PATH=/srv/footbag/db/footbag.db',
   'PORT=3000',
   'IMAGE_PROCESSOR_URL=http://image-worker:4000',
   'TRUST_PROXY=2',
@@ -203,6 +205,32 @@ describe('verify-host-env.sh — critical invariant FAIL boundaries', () => {
     expect(result.stdout).toMatch(/FAIL +media bucket matches terraform/);
   });
 
+  // Defect caught: a host constant drifts from the committed config (the other
+  // environment's profile, the old beside-the-install database path, a wrong
+  // region) and the verifier, checking only that a value is set, calls it
+  // healthy while the host signs AWS calls with a chain it was never given or
+  // replaces a database no container opens.
+  it.each([
+    ['AWS_PROFILE', 'footbag-production-runtime', 'runtime profile matches committed host config'],
+    ['FOOTBAG_DB_PATH', '/srv/footbag/footbag.db', 'database path matches committed host config'],
+    ['FOOTBAG_DB_DIR', '/srv/footbag', 'database directory matches committed host config'],
+    ['AWS_REGION', 'us-west-2', 'AWS region matches committed host config'],
+  ])('%s drifted from the committed host config → FAIL', (key, wrong, label) => {
+    const env = mutate(new RegExp(`^${key}=.+$`, 'm'), `${key}=${wrong}`);
+    const result = runScript({ envFilePath: writeEnvFile(env) });
+    expect(result.exitCode).toBe(1);
+    expect(result.stdout).toContain(`FAIL  ${label}: ${key}=${wrong}`);
+  });
+
+  it('each host constant at its committed value → PASS on production too', () => {
+    // The positive control for the drift cases, on the other target, so the
+    // expectation is shown to follow the target rather than one fixed file.
+    const env = mutate(/^AWS_PROFILE=.+$/m, 'AWS_PROFILE=footbag-production-runtime');
+    const result = runScript({ envFilePath: writeEnvFile(env), target: 'production' });
+    expect(result.stdout).toContain('PASS  runtime profile matches committed host config: AWS_PROFILE=footbag-production-runtime');
+    expect(result.stdout).toContain('PASS  database path matches committed host config: FOOTBAG_DB_PATH=/srv/footbag/db/footbag.db');
+  });
+
   it('INTERNAL_EVENT_SECRET = dev-default literal → FAIL', () => {
     const env = mutate(
       /INTERNAL_EVENT_SECRET=.+/,
@@ -334,14 +362,25 @@ describe('verify-host-env.sh — advisory checks', () => {
     const env = mutate(/^TRUST_PROXY=.*\n?/m, '');
     const result = runScript({ envFilePath: writeEnvFile(env) });
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toMatch(/WARN +trust proxy: TRUST_PROXY is not an integer XFF hop count/);
+    expect(result.stdout).toMatch(/WARN +trust proxy: TRUST_PROXY=<unset> is not the committed hop count/);
   });
 
   it('TRUST_PROXY set to a named range → WARN advisory, still exit 0', () => {
     const env = mutate(/^TRUST_PROXY=.*$/m, 'TRUST_PROXY=loopback, linklocal, uniquelocal');
     const result = runScript({ envFilePath: writeEnvFile(env) });
     expect(result.exitCode).toBe(0);
-    expect(result.stdout).toMatch(/WARN +trust proxy: TRUST_PROXY is not an integer XFF hop count/);
+    expect(result.stdout).toMatch(/WARN +trust proxy: TRUST_PROXY=loopback, linklocal, uniquelocal is not the committed hop count/);
+  });
+
+  // Defect caught: a host one hop too generous lets any client spoof its own
+  // address with a longer forwarded header, and an integer check alone calls
+  // that healthy.
+  it('an integer hop count other than the committed one → WARN, naming the deploy as the fix', () => {
+    const env = mutate(/^TRUST_PROXY=.*$/m, 'TRUST_PROXY=3');
+    const result = runScript({ envFilePath: writeEnvFile(env) });
+    expect(result.exitCode).toBe(0);
+    expect(result.stdout).toMatch(/WARN +trust proxy: TRUST_PROXY=3 is not the committed hop count \(staging: 2 \(CloudFront then nginx\)\)/);
+    expect(result.stdout).toMatch(/next deploy applies the committed value/);
   });
 
   it('TRUST_PROXY=2 → PASS', () => {
@@ -481,91 +520,52 @@ describe('verify-host-env.sh — CLI / fixture errors', () => {
     expect(result.stderr).toMatch(/--target is required/);
   });
 
-  it('a host left on the pre-cutover origin fails, where presence alone would pass', () => {
-    // The failure this guards: after DNS moves, a host holding the previous
-    // origin still answers and still passes every health check, while building
-    // every absolute link, redirect and mail link against a hostname the site
-    // no longer serves. A non-empty check cannot see it.
-    const envFilePath = writeEnvFile(CLEAN_STAGING_ENV);
+  // Defect caught: a host left on a previous base address (before the freeze,
+  // across it, or across the launch apply) still answers and passes every health
+  // check while building every absolute link, redirect and mail link against a
+  // name that does not reach the platform. A non-empty check cannot see it.
+  it('a host whose base address differs from the one the tree decides fails, naming the deploy', () => {
+    const envFilePath = writeEnvFile(
+      mutate(/^PUBLIC_BASE_URL=.*$/m, 'PUBLIC_BASE_URL=https://www.footbag.org'),
+    );
     const result = runScript({
       envFilePath,
-      extraEnv: { TF_PLATFORM_URL: 'https://footbag.org' },
+      extraEnv: { TF_PUBLIC_BASE_URL: 'https://preview.footbag.org' },
     });
     expect(result.exitCode).not.toBe(0);
-    expect(`${result.stdout}${result.stderr}`).toMatch(/wrong host/);
+    expect(result.stdout).toContain(
+      "FAIL  public base URL: PUBLIC_BASE_URL=https://www.footbag.org, but the tree says the platform is reached at 'https://preview.footbag.org'",
+    );
+    expect(result.stdout).toMatch(/Deploy staging, which syncs it/);
   });
 
-  it('the matching origin passes', () => {
-    const envFilePath = writeEnvFile(CLEAN_STAGING_ENV);
+  it('the base address the tree decides passes', () => {
+    const envFilePath = writeEnvFile(
+      mutate(/^PUBLIC_BASE_URL=.*$/m, 'PUBLIC_BASE_URL=https://preview.footbag.org'),
+    );
     const result = runScript({
       envFilePath,
-      extraEnv: { TF_PLATFORM_URL: 'https://staging.footbag.org' },
+      extraEnv: { TF_PUBLIC_BASE_URL: 'https://preview.footbag.org' },
     });
-    expect(`${result.stdout}${result.stderr}`).toMatch(/PUBLIC_BASE_URL=https:\/\/staging\.footbag\.org/);
+    expect(result.stdout).toContain('PASS  public base URL: PUBLIC_BASE_URL=https://preview.footbag.org');
+  });
+
+  it('an unset base address fails against the tree, naming the deploy', () => {
+    const envFilePath = writeEnvFile(mutate(/^PUBLIC_BASE_URL=.*\n?/m, ''));
+    const result = runScript({
+      envFilePath,
+      extraEnv: { TF_PUBLIC_BASE_URL: 'https://staging.footbag.org' },
+    });
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stdout).toMatch(/PUBLIC_BASE_URL is unset \(expected 'https:\/\/staging\.footbag\.org'\); the deploy syncs it/);
   });
 
   it('falls back to a presence check when the tree supplies no expectation', () => {
-    // A fixture predating this value carries no expectation, and a synthetic run
-    // must not fail over one it was never given.
+    // A fixture that carries no expectation, and a synthetic run must not fail
+    // over one it was never given.
     const envFilePath = writeEnvFile(CLEAN_STAGING_ENV);
     const result = runScript({ envFilePath });
-    expect(`${result.stdout}${result.stderr}`).not.toMatch(/wrong host/);
-  });
-
-  // The cutover window is the one state where the canonical base address is
-  // deliberately not platform_url: www serves the migration notice and preview
-  // is the only public name reaching the platform. Three-way contract, because
-  // accepting the preview form unconditionally would let a host stay on it
-  // after launch — silently building every link and mail link against a name
-  // the operator intends to remove.
-
-  it('accepts the preview form while the notice flag is compiled in', () => {
-    const envFilePath = writeEnvFile(
-      mutate(/^PUBLIC_BASE_URL=.*$/m, 'PUBLIC_BASE_URL=https://preview.footbag.org'),
-    );
-    const result = runScript({
-      envFilePath,
-      extraEnv: {
-        TF_PLATFORM_URL: 'https://www.footbag.org',
-        TF_PREVIEW_URL: 'https://preview.footbag.org',
-        TF_NOTICE_ENABLED: 'true',
-      },
-    });
-    expect(`${result.stdout}${result.stderr}`).toMatch(/cutover window/);
-    expect(`${result.stdout}${result.stderr}`).not.toMatch(/wrong host/);
-  });
-
-  it('rejects the preview form once the notice has lifted, and says the window is over', () => {
-    const envFilePath = writeEnvFile(
-      mutate(/^PUBLIC_BASE_URL=.*$/m, 'PUBLIC_BASE_URL=https://preview.footbag.org'),
-    );
-    const result = runScript({
-      envFilePath,
-      extraEnv: {
-        TF_PLATFORM_URL: 'https://www.footbag.org',
-        TF_PREVIEW_URL: 'https://preview.footbag.org',
-        TF_NOTICE_ENABLED: 'false',
-      },
-    });
-    expect(result.exitCode).not.toBe(0);
-    expect(`${result.stdout}${result.stderr}`).toMatch(/the window is over/);
-  });
-
-  it('still rejects an unrelated wrong host during the window', () => {
-    // The window relaxes the check for exactly one value, not for any value.
-    const envFilePath = writeEnvFile(
-      mutate(/^PUBLIC_BASE_URL=.*$/m, 'PUBLIC_BASE_URL=https://footbag.org'),
-    );
-    const result = runScript({
-      envFilePath,
-      extraEnv: {
-        TF_PLATFORM_URL: 'https://www.footbag.org',
-        TF_PREVIEW_URL: 'https://preview.footbag.org',
-        TF_NOTICE_ENABLED: 'true',
-      },
-    });
-    expect(result.exitCode).not.toBe(0);
-    expect(`${result.stdout}${result.stderr}`).toMatch(/wrong host/);
+    expect(result.stdout).toContain('PASS  public base URL: PUBLIC_BASE_URL is set');
   });
 
   it('--env-file path does not exist → exit 2', () => {
@@ -719,5 +719,114 @@ describe('verify-host-env.sh — every remedy it prints is a command that runs',
         !/set-host-env\.sh --target/.test(line),
     );
     expect(offenders, offenders.join('\n')).toEqual([]);
+  });
+});
+
+describe('verify-host-env.sh — every Terraform-published value held against Parameter Store', () => {
+  // The catalogue read at test time, so a value added to it is covered here
+  // without anyone extending this suite.
+  const catalogue = spawnSync(
+    'bash',
+    [
+      '-c',
+      'source scripts/lib/host-values.sh; for k in $(host_values_keys param); do ' +
+        'printf "%s|%s|%s\\n" "$k" "$(host_value_field "$k" source)" "$(host_value_field "$k" required)"; done',
+    ],
+    { encoding: 'utf-8', ...SPAWN_GUARD },
+  )
+    .stdout.trim()
+    .split('\n')
+    .map((line) => {
+      const [key, source, required] = line.split('|');
+      return { key, source, required };
+    });
+
+  const HOST_ENV = [
+    CLEAN_STAGING_ENV,
+    'SES_CONFIGURATION_SET_TRANSACTIONAL=footbag-staging-transactional',
+    'SES_CONFIGURATION_SET_BULK=footbag-staging-bulk',
+  ].join('\n');
+  const hostValue = (env: string, key: string): string | undefined =>
+    env.split('\n').find((l) => l.startsWith(`${key}=`))?.slice(key.length + 1);
+
+  // The listing in the shape the by-path read prints: name, a tab, the value.
+  function listing(overrides: Record<string, string | null> = {}): string {
+    return catalogue
+      .map(({ key, source }) => {
+        const value = key in overrides ? overrides[key] : hostValue(HOST_ENV, key);
+        return value === null || value === undefined ? null : `/footbag/staging/${source}\t${value}`;
+      })
+      .filter((l): l is string => l !== null)
+      .join('\n');
+  }
+  function runWith(env: string, published: string): RunResult {
+    envFileCounter += 1;
+    const publishedPath = join(tmpDir, `published-${envFileCounter}.txt`);
+    writeFileSync(publishedPath, `${published}\n`);
+    return runScript({
+      envFilePath: writeEnvFile(env),
+      extraEnv: { HOST_VALUES_PUBLISHED_FILE: publishedPath },
+    });
+  }
+
+  it('reads the catalogue it compares against', () => {
+    // A catalogue read that printed nothing would make every case below vacuous.
+    expect(catalogue.length).toBeGreaterThan(5);
+    expect(catalogue.some((c) => c.required === 'optional')).toBe(true);
+  });
+
+  // Defect caught: a value the deploy should have synced but did not, or one an
+  // apply moved after the last deploy, leaves the host running configuration
+  // Terraform no longer declares, and nothing else in the verifier compares it.
+  it('passes each value the host holds as published, and says it read a stand-in listing', () => {
+    const result = runWith(HOST_ENV, listing());
+    expect(result.exitCode, result.stdout).toBe(0);
+    for (const { key, source } of catalogue) {
+      expect(result.stdout, key).toContain(`PASS  published at /footbag/staging/${source}: ${key}=`);
+    }
+    expect(result.stderr).toMatch(/SYNTHETIC: Parameter Store listing read from HOST_VALUES_PUBLISHED_FILE/);
+  });
+
+  it('fails on any one value that differs from its parameter, naming the published value', () => {
+    for (const { key, source } of catalogue) {
+      const result = runWith(HOST_ENV, listing({ [key]: `drifted-${key.toLowerCase()}` }));
+      expect(result.exitCode, key).not.toBe(0);
+      expect(result.stdout, key).toContain(
+        `FAIL  published at /footbag/staging/${source}: ${key}=${hostValue(HOST_ENV, key)} (expected 'drifted-${key.toLowerCase()}')`,
+      );
+    }
+  });
+
+  // Defect caught: a queue removed from Terraform but still on the host keeps
+  // the worker polling a queue that no longer exists.
+  it('fails an optional value the host still holds after its parameter is gone, and passes it absent', () => {
+    const optional = catalogue.find((c) => c.required === 'optional')!;
+    const stale = runWith(HOST_ENV, listing({ [optional.key]: null }));
+    expect(stale.exitCode).not.toBe(0);
+    expect(stale.stdout).toContain(
+      `FAIL  ${optional.key} is on the host but /footbag/staging/${optional.source} does not exist; deploy staging, which clears it`,
+    );
+
+    const cleared = HOST_ENV.split('\n').filter((l) => !l.startsWith(`${optional.key}=`)).join('\n');
+    const absent = runWith(cleared, listing({ [optional.key]: null }));
+    expect(absent.stdout).toContain(
+      `PASS  ${optional.key} absent, as /footbag/staging/${optional.source} is unpublished`,
+    );
+    expect(absent.stdout).not.toContain(`FAIL  ${optional.key}`);
+  });
+
+  it('fails a required value whose parameter is missing, naming the apply', () => {
+    const required = catalogue.find((c) => c.required === 'required')!;
+    const result = runWith(HOST_ENV, listing({ [required.key]: null }));
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stdout).toContain(
+      `FAIL  /footbag/staging/${required.source} does not exist; apply the staging Terraform tree`,
+    );
+  });
+
+  it('a synthetic run given no listing says the comparison was skipped rather than passed', () => {
+    const result = runScript({ envFilePath: writeEnvFile(HOST_ENV) });
+    expect(result.stdout).toContain('SKIP  Terraform-published values: synthetic run with no Parameter Store listing');
+    expect(result.stdout).not.toContain('PASS  published at');
   });
 });

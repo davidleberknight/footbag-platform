@@ -35,6 +35,24 @@
 #                       copies older than seven days are deleted. Requires a
 #                       typed confirmation.
 #
+#   --target <env> --onto-empty
+#                       The same in-place restore, onto a host that has no
+#                       database yet: a rebuilt host after go-live, when the
+#                       rebuild deploy is refused for good and a snapshot is the
+#                       only way the database comes back. The host's database
+#                       directory and an empty placeholder are created owned by
+#                       the container account, then the restore runs exactly as
+#                       above. Refused on a host that already has a database,
+#                       so the flag can never stand in for the ordinary restore,
+#                       and on one that does not yet carry the release, since
+#                       the erasure replay runs in a container of it: the release
+#                       is installed first without starting it
+#                       (scripts/deploy-code.sh --first-install, which
+#                       scripts/bootstrap-host.sh runs), and this restore starts
+#                       the service only once the replay has run. A refusal
+#                       leaves a service that was not running stopped. Requires
+#                       the typed confirmation.
+#
 #   --target <env> --resume-erasure-replay
 #                       Finishes a restore whose erasure replay did not
 #                       complete: re-runs the replay against the database in
@@ -132,6 +150,7 @@ DRY_RUN=0
 PRE_FLIP=0
 DRILL=0
 RESUME=0
+ONTO_EMPTY=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -143,6 +162,7 @@ while [[ $# -gt 0 ]]; do
     --profile)   AWS_PROFILE_ARG="${2:-}"; shift 2 || { echo "ERROR: --profile requires an argument" >&2; exit 2; } ;;
     --pre-flip)  PRE_FLIP=1; shift ;;
     --drill)     DRILL=1; shift ;;
+    --onto-empty) ONTO_EMPTY=1; shift ;;
     --resume-erasure-replay) RESUME=1; shift ;;
     --dry-run)   DRY_RUN=1; shift ;;
     --help|-h)
@@ -165,6 +185,9 @@ if [[ -z "$TARGET" && -z "$TO_LOCAL" ]]; then
   die "name a destination: --target <staging|production> --drill for a drill, --target to restore a host, or --to-local <path> for a staging snapshot"
 fi
 # The drill runs on the host whose data it is, so it needs a host to run on.
+if (( ONTO_EMPTY )) && { [[ -z "$TARGET" ]] || (( DRILL )) || (( RESUME )); }; then
+  die "--onto-empty restores onto a named host that has no database: use it with --target alone, not with --drill, --to-local or --resume-erasure-replay"
+fi
 if (( DRILL )) && [[ -z "$TARGET" ]]; then
   die "--drill runs on a host: name it with --target <staging|production>"
 fi
@@ -523,7 +546,12 @@ if [[ "$TARGET" != "production" ]]; then
 fi
 
 echo ""
-echo "This REPLACES the live database on ${SSH_ALIAS}."
+if (( ONTO_EMPTY )); then
+  echo "This restores a database onto ${SSH_ALIAS}, which must have none: the host refuses"
+  echo "if it finds one, and changes nothing."
+else
+  echo "This REPLACES the live database on ${SSH_ALIAS}."
+fi
 echo "  snapshot:        s3://${BUCKET}/${SNAPSHOT_KEY}"
 echo "  SES adapter:     ${SES_ADAPTER_ON_HOST:-unset}"
 echo "  payment adapter: ${PAYMENT_ADAPTER_ON_HOST:-unset}"
@@ -546,6 +574,7 @@ restore_status=0
   # silently restored the wrong database while displaying the right URI.
   printf 'BUCKET=%q\n' "$BUCKET"
   printf 'DRILL=%q\n' "$DRILL"
+  printf 'ONTO_EMPTY=%q\n' "$ONTO_EMPTY"
   cat "$PRUNE_LIB" "$REMOTE_HALF"
 } | ssh "${HOST_SSH_OPTS[@]}" "$SSH_ALIAS" 'sudo -k -S -p "" bash' || restore_status=$?
 if (( restore_status != 0 )); then

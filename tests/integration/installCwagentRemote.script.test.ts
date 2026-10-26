@@ -22,10 +22,19 @@ import {
 } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
+import { createHash } from 'node:crypto';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { createScratchDir } from '../fixtures/scratchDir';
 
 const REMOTE_HALF = resolve(__dirname, '..', '..', 'scripts', 'internal', 'install-cwagent-remote.sh');
+
+// The stand-in download writes "package\n"; the pin is that content's digest,
+// so a run that verifies goes through and a run with any other digest does not.
+const PINS = {
+  CWAGENT_VERSION: '1.300050.0b1',
+  CWAGENT_URL: 'https://example.test/amazon-cloudwatch-agent.rpm',
+  CWAGENT_SHA256: createHash('sha256').update('package\n').digest('hex'),
+};
 
 let work: string;
 let binDir: string;
@@ -90,6 +99,7 @@ describe('install-cwagent-remote.sh: an interrupt during a privileged write', ()
         TMPDIR: hostTmp,
         CWAGENT_AKID: 'stub-key-id',
         CWAGENT_SAK: 'stub-secret-not-real',
+        ...PINS,
       },
       stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -138,12 +148,118 @@ describe('install-cwagent-remote.sh: an interrupt during a privileged write', ()
         TMPDIR: hostTmp,
         CWAGENT_AKID: 'stub-key-id',
         CWAGENT_SAK: 'stub-secret-not-real',
+        ...PINS,
       },
       ...SPAWN_GUARD,
     });
     expect(res.status).toBe(1);
     expect(res.stderr).toContain('not running after the restart');
+    // The package matched its pin and went to the package manager.
+    expect(res.stdout).toContain('Package matches the pinned SHA-256');
     expect(readFileSync(installLog, 'utf8')).toContain('/etc/amazon-cloudwatch-agent.aws/credentials');
     expect(readdirSync(hostTmp)).toEqual([]);
+  });
+});
+
+describe('install-cwagent-remote.sh: the package is pinned and checked', () => {
+  function runHalf(pins: Record<string, string>) {
+    writeFileSync(`${fifo}.released`, '');
+    const dnfLog = join(work, 'dnf.log');
+    stub('dnf', [`echo "$*" >> ${JSON.stringify(dnfLog)}`, 'exit 0']);
+    stub('curl', [
+      `echo "$*" >> ${JSON.stringify(join(work, 'curl.log'))}`,
+      'out=""',
+      'while [[ $# -gt 0 ]]; do [[ "$1" == -o ]] && out="$2"; shift; done',
+      '[[ -n "$out" ]] && { echo package > "$out"; exit 0; }',
+      'exit 1',
+    ]);
+    const res = spawnSync('bash', [REMOTE_HALF], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        PATH: `${binDir}:${process.env.PATH ?? ''}`,
+        TMPDIR: hostTmp,
+        CWAGENT_AKID: 'stub-key-id',
+        CWAGENT_SAK: 'stub-secret-not-real',
+        ...pins,
+      },
+      ...SPAWN_GUARD,
+    });
+    return {
+      ...res,
+      dnf: existsSync(dnfLog) ? readFileSync(dnfLog, 'utf8') : '',
+      curl: existsSync(join(work, 'curl.log')) ? readFileSync(join(work, 'curl.log'), 'utf8') : '',
+    };
+  }
+
+  it('refuses a placeholder pin before downloading anything', () => {
+    // Defect caught: a caller that skipped its own check installs an
+    // unverified package as root.
+    const res = runHalf({ ...PINS, CWAGENT_SHA256: 'REPLACE_WITH_SHA256_OF_amazon-cloudwatch-agent.rpm' });
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('still a placeholder');
+    expect(res.curl).toBe('');
+    expect(res.dnf).toBe('');
+  });
+
+  it('refuses a package whose digest does not match, and installs nothing', () => {
+    // Defect caught: a replaced or corrupted upload at the publisher's address
+    // is installed as root on the host.
+    const res = runHalf({ ...PINS, CWAGENT_SHA256: 'c'.repeat(64) });
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('does not match the pinned SHA-256');
+    expect(res.curl).toContain(PINS.CWAGENT_URL);
+    expect(res.dnf).toBe('');
+    expect(readdirSync(hostTmp)).toEqual([]);
+  });
+
+  it('fetches the pinned version\'s address, never the publisher\'s latest', () => {
+    const res = runHalf(PINS);
+    // The instance-metadata probes also go through curl; only the package
+    // fetch is the one under test.
+    const fetches = res.curl.split('\n').filter((l) => l.includes('amazon-cloudwatch-agent.rpm'));
+    expect(fetches).toEqual([expect.stringContaining(PINS.CWAGENT_URL)]);
+    expect(fetches.join('\n')).not.toContain('/latest/');
+    expect(res.dnf).toMatch(/install -y .*amazon-cloudwatch-agent\.rpm/);
+  });
+});
+
+describe('install-cwagent-remote.sh: an upgrade keeps the host\'s credentials', () => {
+  function runUpgrade(creds: string | null) {
+    writeFileSync(`${fifo}.released`, '');
+    stub('systemctl', ['[[ "$1" == is-active ]] && exit 1', 'exit 0']);
+    const credsFile = join(work, 'cwagent-credentials');
+    if (creds !== null) writeFileSync(credsFile, creds);
+    const res = spawnSync('bash', [REMOTE_HALF], {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        PATH: `${binDir}:${process.env.PATH ?? ''}`,
+        TMPDIR: hostTmp,
+        CWAGENT_KEEP_CREDENTIALS: '1',
+        CWAGENT_CREDS_FILE: credsFile,
+        ...PINS,
+      },
+      ...SPAWN_GUARD,
+    });
+    return { ...res, promoted: existsSync(installLog) ? readFileSync(installLog, 'utf8') : '' };
+  }
+
+  it('installs the pinned package and leaves the credentials file unwritten', () => {
+    // Defect caught: a version bump rewrote the agent's credentials, which it
+    // can only do with a newly minted key.
+    const res = runUpgrade('[footbag-staging-cwagent]\naws_access_key_id = AKIAEXAMPLEEXAMPLE01\n');
+    expect(res.stdout).toContain('Package matches the pinned SHA-256');
+    expect(res.stdout).toContain('kept as it is');
+    expect(res.promoted).not.toContain('cwagent-credentials');
+    expect(res.promoted).toContain('common-config.toml');
+  });
+
+  it('refuses before installing anything when the host holds no credentials for the agent', () => {
+    // An agent restarted with nothing to publish with stops the host's metrics.
+    const res = runUpgrade(null);
+    expect(res.status).toBe(1);
+    expect(res.stderr).toMatch(/holds no\s+\[footbag-staging-cwagent\] profile/);
+    expect(res.stdout).not.toContain('Package matches');
   });
 });

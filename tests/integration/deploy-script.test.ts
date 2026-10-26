@@ -2255,30 +2255,14 @@ describe('both deploy halves sync the same Parameter Store set', () => {
     expect(code).toContain('app/reachability_armed');
   });
 
-  // The two identifiers are synced by a loop whose parameter name comes from a
-  // shell variable, so the path extractor above sees one template string in both
-  // halves and would stay green if one half lost an identifier or wrote it to a
-  // different variable. Parse the loop's word list instead of its interpolated
-  // path, or this pair is unprotected while appearing covered.
-  function identifierPairs(file: string): string[] {
-    const line = read(file)
-      .split('\n')
-      .find((l) => l.includes('for host_ident in '));
-    expect(line, `${file} has no identifier sync loop`).toBeDefined();
-    return (line as string)
-      .replace(/^.*for host_ident in /, '')
-      .replace(/;.*$/, '')
-      .trim()
-      .split(/\s+/)
-      .sort();
-  }
-
-  it('syncs the same identifier list, parsed from the loop rather than its template', () => {
-    const code = identifierPairs('scripts/internal/deploy-code-remote.sh');
-    const rebuild = identifierPairs('scripts/internal/deploy-rebuild-remote.sh');
-    expect(code).toEqual(rebuild);
-    expect(code).toContain('media_bucket:MEDIA_STORAGE_S3_BUCKET');
-    expect(code).toContain('jwt_kms_key_id:JWT_KMS_KEY_ID');
+  // The Terraform-published identifiers are no longer synced by a loop in each
+  // half: both call the catalogue's one sync, with the same arguments, which the
+  // host-values suite pins by driving it and by holding the catalogue to both
+  // Terraform trees.
+  it('both halves sync the published identifiers through the one catalogue call', () => {
+    const call = 'host_values_sync_params "$ENV_PATH" "$FOOTBAG_ENV_VAL" "$AWS_PROFILE_VAL" "$AWS_REGION_VAL"';
+    expect(read('scripts/internal/deploy-code-remote.sh')).toContain(call);
+    expect(read('scripts/internal/deploy-rebuild-remote.sh')).toContain(call);
   });
 
   // The parameter list above is what each half READS. This is what each half
@@ -2306,15 +2290,6 @@ describe('both deploy halves sync the same Parameter Store set', () => {
     expect(rebuild, 'the two deploy halves write different host env keys').toEqual(code);
   });
 
-  it('validates the mail configuration-set names to the same shape on both paths', () => {
-    // One half checked the shape and the other only that the value was
-    // non-empty, so a placeholder the code deploy refused was accepted by the
-    // rebuild deploy and reached a send, where it fails every message rather
-    // than one.
-    const shape = /ses_set_value["']?\s*=~\s*\^\[A-Za-z0-9_-\]\+\$/;
-    expect(read('scripts/internal/deploy-code-remote.sh')).toMatch(shape);
-    expect(read('scripts/internal/deploy-rebuild-remote.sh')).toMatch(shape);
-  });
 });
 
 describe('both deploy paths start from an empty upload directory', () => {
@@ -2450,6 +2425,11 @@ describe('container-sizing allowlists agree across both deploys and the verifier
     'JWT_SIGNER',
     'CAPTCHA_ADAPTER',
     'TURNSTILE_SITE_KEY',
+    'TRUST_PROXY',
+    'FOOTBAG_DB_DIR',
+    'FOOTBAG_DB_PATH',
+    'AWS_REGION',
+    'AWS_PROFILE',
   ];
 
   function allowlistRegex(file: string): string {
@@ -2491,7 +2471,12 @@ describe('container-sizing allowlists agree across both deploys and the verifier
     // than a shape, and a production host that lacks it does not boot.
     'TURNSTILE_SITE_KEY',
   ];
-  const SIZING_ONLY = EXPECTED.filter((k) => !SELECTOR_KEYS.includes(k));
+  // The host constants are compared against the committed value one by one,
+  // the way the selectors are, because each has one correct value.
+  const HOST_CONSTANT_KEYS = ['TRUST_PROXY', 'FOOTBAG_DB_DIR', 'FOOTBAG_DB_PATH', 'AWS_REGION', 'AWS_PROFILE'];
+  const SIZING_ONLY = EXPECTED.filter(
+    (k) => !SELECTOR_KEYS.includes(k) && !HOST_CONSTANT_KEYS.includes(k),
+  );
 
   it('the verifier checks every sizing key the deploys can seed', () => {
     const source = readFile('scripts/verify-host-env.sh');
@@ -2502,12 +2487,11 @@ describe('container-sizing allowlists agree across both deploys and the verifier
     });
   });
 
-  it('the verifier checks every adapter selector the deploys reconcile', () => {
+  it('the verifier checks every adapter selector and host constant the deploys reconcile', () => {
     const source = readFile('scripts/verify-host-env.sh');
-    SELECTOR_KEYS.forEach((key) => {
-      expect(source, `${key} is reconciled onto hosts but the verifier never reads it`).toContain(
-        `"${key}"`,
-      );
+    [...SELECTOR_KEYS, ...HOST_CONSTANT_KEYS].forEach((key) => {
+      const reads = source.includes(`"${key}"`) || source.includes(`HOST_ENV[${key}]`);
+      expect(reads, `${key} is reconciled onto hosts but the verifier never reads it`).toBe(true);
     });
   });
 
@@ -2652,14 +2636,13 @@ describe('deploy remote-half env preflights ask for the right values (static-tex
   const CODE = 'scripts/internal/deploy-code-remote.sh';
   const REBUILD = 'scripts/internal/deploy-rebuild-remote.sh';
 
-  it('the code half refuses a host env file carrying no canonical origin', () => {
-    const source = read(CODE);
-    expect(source).toMatch(/grep -qE '\^PUBLIC_BASE_URL=\.\+'/);
-    expect(source).toMatch(/carries no PUBLIC_BASE_URL/);
-  });
-
-  it('the rebuild half still refuses a host env file carrying no canonical origin', () => {
-    expect(read(REBUILD)).toMatch(/require_env PUBLIC_BASE_URL/);
+  it('neither half demands the canonical origin in advance, because the same run syncs it', () => {
+    // A first-ever deploy onto a bare host has no PUBLIC_BASE_URL line; the
+    // parameter sync writes it from Terraform and refuses there if Terraform has
+    // not published it. A check ahead of the sync refuses that host for a value
+    // the run was about to write.
+    expect(read(CODE)).not.toMatch(/grep -qE '\^PUBLIC_BASE_URL=/);
+    expect(read(REBUILD)).not.toMatch(/require_env PUBLIC_BASE_URL/);
   });
 
   it('neither half demands the runtime mode, which compose sets literally', () => {
@@ -2933,14 +2916,99 @@ describe('the code deploy protects host state at least as well as the rebuild de
       path.join(REPO_ROOT, 'scripts/internal/deploy-code-remote.sh'),
       'utf8',
     );
-    const validateAt = content.indexOf('seed_committed_host_config validate');
+    const applyAt = content.indexOf('seed_committed_host_config apply "$RELEASE_DIR"');
     const requireAt = content.indexOf('require_path "release dir"');
     const promoteAt = content.indexOf('rsync -a --delete');
-    expect(validateAt).toBeGreaterThan(-1);
+    expect(applyAt).toBeGreaterThan(-1);
     expect(requireAt).toBeGreaterThan(-1);
     expect(promoteAt).toBeGreaterThan(-1);
-    expect(validateAt).toBeLessThan(promoteAt);
+    expect(applyAt).toBeLessThan(promoteAt);
     expect(requireAt).toBeLessThan(promoteAt);
+  });
+});
+
+describe('both deploy halves own the host constants from the committed config', () => {
+  const HALVES = [
+    'scripts/internal/deploy-code-remote.sh',
+    'scripts/internal/deploy-rebuild-remote.sh',
+  ];
+  const executable = (file: string): string =>
+    fs.readFileSync(path.join(REPO_ROOT, file), 'utf8')
+      .split('\n')
+      .filter((l) => !/^\s*#/.test(l))
+      .join('\n');
+
+  // Defect caught: a host built from nothing is refused for an AWS profile or
+  // database path nobody set, or the deploy writes the host from a tree it has
+  // not yet proven is this run's. The committed config must land after the
+  // release stamp check and before the first read of any host constant.
+  it.each(HALVES)('%s applies the committed config from the proven release tree before reading a host constant', (file) => {
+    const code = executable(file);
+    const stampAt = code.indexOf('does not carry this run\'s release stamp');
+    const applyAt = code.indexOf('seed_committed_host_config apply "$RELEASE_DIR"');
+    const reads = [/(read|require)_env AWS_PROFILE/, /(read|require)_env AWS_REGION/, /(read|require)_env FOOTBAG_DB_(PATH|DIR)/]
+      .map((re) => code.search(re))
+      .filter((i) => i > -1);
+    expect(reads.length, `${file} reads no host constant, so this order proves nothing`).toBeGreaterThan(0);
+    expect(stampAt).toBeGreaterThan(-1);
+    expect(applyAt).toBeGreaterThan(stampAt);
+    expect(Math.min(...reads)).toBeGreaterThan(applyAt);
+  });
+
+  // Defect caught: a second, later apply reads the committed file from the live
+  // tree, or a seed that fires only on absence comes back as a second owner of
+  // a value the committed config already sets.
+  it.each(HALVES)('%s applies the committed config once and seeds no host constant on absence', (file) => {
+    const code = executable(file);
+    expect(code.match(/^[ \t]*seed_committed_host_config[ \t]+\S.*$/gm)).toEqual([
+      'seed_committed_host_config apply "$RELEASE_DIR"',
+    ]);
+    expect(code).not.toMatch(/grep -q '\^(FOOTBAG_DB_DIR|FOOTBAG_DB_PATH|AWS_PROFILE|AWS_REGION|TRUST_PROXY)=/);
+  });
+
+  // Defect caught: the committed file stops listing a host constant, the
+  // reconcile clears it from the host, and the deploy fails far from the cause.
+  it.each(HALVES)('%s refuses a committed config that omits a host constant', (file) => {
+    const code = executable(file);
+    expect(code).toContain(
+      'for required in TRUST_PROXY FOOTBAG_DB_DIR FOOTBAG_DB_PATH AWS_REGION AWS_PROFILE; do',
+    );
+  });
+
+  it('the code half creates a missing database directory for the container account before handing it over', () => {
+    // Defect caught: on a host built from nothing, compose creates the
+    // bind-mount source itself, owned by root, and the unprivileged container
+    // exits at startup on a database it cannot open while the unit reports active.
+    const code = executable('scripts/internal/deploy-code-remote.sh');
+    const createAt = code.indexOf('install -d -o "$APP_UID" -g "$APP_UID" -m 750 "$_db_dir_from_env"');
+    const chownAt = code.indexOf('chown -R "$APP_UID":"$APP_UID" "$_d"');
+    expect(createAt).toBeGreaterThan(-1);
+    expect(code.slice(code.lastIndexOf('\n', createAt - 40), createAt)).toMatch(/if \[\[ ! -d "\$_db_dir_from_env" \]\]; then/);
+    expect(chownAt).toBeGreaterThan(createAt);
+  });
+
+  it('the rebuild half still clears the database left beside the install by the old layout', () => {
+    // Defect caught: retiring the layout migration also retired its cleanup, so
+    // a stale copy of member data stays on a host that predates the move.
+    expect(executable('scripts/internal/deploy-rebuild-remote.sh')).toContain(
+      'rm -f /srv/footbag/footbag.db /srv/footbag/footbag.db-wal /srv/footbag/footbag.db-shm',
+    );
+  });
+
+  // Defect caught: the committed value and the deploy's check part ways, so
+  // every deploy to that environment refuses before it starts.
+  it.each(['staging', 'production'])('the committed %s config holds the values the deploy accepts', (target) => {
+    const values = Object.fromEntries(
+      fs.readFileSync(path.join(REPO_ROOT, `docker/env/${target}.env`), 'utf8')
+        .split('\n')
+        .filter((l) => /^[A-Z_]+=/.test(l))
+        .map((l) => [l.slice(0, l.indexOf('=')), l.slice(l.indexOf('=') + 1)]),
+    );
+    expect(values.TRUST_PROXY).toMatch(/^[0-9]+$/);
+    expect(values.FOOTBAG_DB_DIR).toBe('/srv/footbag/db');
+    expect(values.FOOTBAG_DB_PATH).toBe(`${values.FOOTBAG_DB_DIR}/footbag.db`);
+    expect(values.AWS_REGION).toMatch(/^[a-z]{2}-[a-z]+-[0-9]$/);
+    expect(values.AWS_PROFILE).toBe(`footbag-${target}-runtime`);
   });
 });
 
@@ -3084,5 +3152,153 @@ describe('production has two modes: code-only, and a database built in the run b
       const r = run('bash', ['scripts/deploy-to-aws.sh', ...args, '-ny'], { input: 'fake-pw\n' });
       expect((r.stderr ?? '') + (r.stdout ?? ''), args.join(' ')).not.toMatch(message);
     }
+  });
+});
+
+describe('deploy-code --first-install: the release installed without starting it', () => {
+  // A live production rebuilt onto a fresh instance gets its database back by
+  // restore, whose erasure replay runs in a container of the release and must
+  // finish before the site serves. The first install puts the release, the
+  // images and the unit in place and stops there.
+  const content = fs.readFileSync(path.join(REPO_ROOT, 'scripts/internal/deploy-code-remote.sh'), 'utf8');
+
+  /** A slice of the remote half, run against stand-in host tools and an env file. */
+  function runSlice(from: string, to: string, env: Record<string, string>, opts: { serviceActive?: boolean } = {}) {
+    const start = content.indexOf(from);
+    const end = content.indexOf(to, start);
+    expect(start, from).toBeGreaterThan(-1);
+    expect(end, to).toBeGreaterThan(start);
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-first-install-'));
+    try {
+      const log = path.join(dir, 'calls.log');
+      fs.writeFileSync(path.join(dir, 'systemctl'),
+        `#!/usr/bin/env bash\necho "systemctl $*" >> ${JSON.stringify(log)}\n[[ "$1" == is-active ]] && exit ${opts.serviceActive ? 0 : 3}\n[[ "$1" == is-enabled ]] && exit 1\nexit 0\n`);
+      fs.chmodSync(path.join(dir, 'systemctl'), 0o755);
+      const envFile = path.join(dir, 'env');
+      fs.writeFileSync(envFile, `FOOTBAG_DB_DIR=${path.join(dir, 'db')}\n`);
+      fs.mkdirSync(path.join(dir, 'db'));
+      const preamble = [
+        'set -euo pipefail',
+        `ENV_PATH=${JSON.stringify(envFile)}`,
+        `LIVE_DIR=${JSON.stringify(dir)}`,
+        'read_env() { awk -F= -v k="$1" \'$1==k {sub(/^[^=]*=/,""); print}\' "$ENV_PATH" | tail -1; }',
+      ].join('\n');
+      const r = spawnSync('bash', ['-c', `${preamble}\n${content.slice(start, end)}\necho REACHED-END`], {
+        encoding: 'utf8',
+        env: { ...process.env, PATH: `${dir}:${process.env.PATH ?? ''}`, ...env },
+        ...SPAWN_GUARD,
+      });
+      return {
+        status: r.status, out: (r.stdout ?? '') + (r.stderr ?? ''),
+        calls: fs.existsSync(log) ? fs.readFileSync(log, 'utf8') : '', dbDir: path.join(dir, 'db'),
+      };
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  }
+  const GUARD = ['FIRST_INSTALL="${FIRST_INSTALL:-0}"', '# MEDIA_STORAGE_ADAPTER, SECRETS_ADAPTER'] as const;
+
+  it('refuses a host that holds a database or a running service, and lets an empty one through', () => {
+    // Defect caught: the mode stands in for a code deploy, leaving new code on
+    // disk under a stack still running the old, or installs over a database.
+    const empty = runSlice(...GUARD, { FIRST_INSTALL: '1' });
+    expect(empty.status, empty.out).toBe(0);
+    expect(empty.out).toMatch(/REACHED-END/);
+
+    const running = runSlice(...GUARD, { FIRST_INSTALL: '1' }, { serviceActive: true });
+    expect(running.status).toBe(1);
+    expect(running.out).toMatch(/found footbag\.service running/);
+
+    const withDb = (() => {
+      const start = content.indexOf(GUARD[0]);
+      const end = content.indexOf(GUARD[1], start);
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-first-install-db-'));
+      try {
+        fs.writeFileSync(path.join(dir, 'footbag.db'), '');
+        fs.writeFileSync(path.join(dir, 'env'), `FOOTBAG_DB_DIR=${dir}\n`);
+        const r = spawnSync('bash', ['-c', [
+          'set -euo pipefail', `ENV_PATH=${JSON.stringify(path.join(dir, 'env'))}`,
+          'read_env() { awk -F= -v k="$1" \'$1==k {sub(/^[^=]*=/,""); print}\' "$ENV_PATH" | tail -1; }',
+          content.slice(start, end),
+        ].join('\n')], { encoding: 'utf8', env: { ...process.env, FIRST_INSTALL: '1' }, ...SPAWN_GUARD });
+        return { status: r.status, out: (r.stdout ?? '') + (r.stderr ?? '') };
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    })();
+    expect(withDb.status).toBe(1);
+    expect(withDb.out).toMatch(/found a database/);
+  });
+
+  it('leaves the unit disabled and the stack unstarted, where an ordinary deploy enables and restarts it', () => {
+    // Defect caught: the unit is enabled or started on a host with no database,
+    // so a reboot or the install itself starts the site on an empty database
+    // before the restore's erasure replay has run.
+    const from = 'if [[ "$FIRST_INSTALL" != "1" ]]; then\n  systemctl is-enabled';
+    const to = 'echo "==> Restarting service (compose up via systemctl, --no-build)..."';
+    // The slice spans the log-driver setup, which reaches AWS; it is cut out and
+    // the enable block and the early exit are run on their own.
+    const enable = content.slice(content.indexOf(from), content.indexOf('fi', content.indexOf(from)) + 2);
+    const tail = content.slice(content.indexOf('# A first install ends here'), content.indexOf(to));
+    const runParts = (first: string) => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-first-install-unit-'));
+      try {
+        const log = path.join(dir, 'calls.log');
+        fs.writeFileSync(path.join(dir, 'systemctl'), `#!/usr/bin/env bash\necho "systemctl $*" >> ${JSON.stringify(log)}\n[[ "$1" == is-enabled ]] && exit 1\nexit 0\n`);
+        fs.chmodSync(path.join(dir, 'systemctl'), 0o755);
+        const r = spawnSync('bash', ['-c', `set -euo pipefail\nFIRST_INSTALL=${first}\n${enable}\n${tail}\necho REACHED-RESTART`], {
+          encoding: 'utf8', env: { ...process.env, PATH: `${dir}:${process.env.PATH ?? ''}` }, ...SPAWN_GUARD,
+        });
+        return { status: r.status, out: r.stdout ?? '', calls: fs.existsSync(log) ? fs.readFileSync(log, 'utf8') : '' };
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true });
+      }
+    };
+    const first = runParts('1');
+    expect(first.status).toBe(0);
+    expect(first.calls).not.toMatch(/systemctl enable footbag/);
+    expect(first.out).not.toMatch(/REACHED-RESTART/);
+    const ordinary = runParts('0');
+    expect(ordinary.calls).toMatch(/systemctl enable footbag/);
+    expect(ordinary.out).toMatch(/REACHED-RESTART/);
+  });
+
+  it('refuses a first install carrying a migration, before anything is read', () => {
+    const r = run('bash', ['scripts/deploy-code.sh', '--first-install', '--target', 'production'], {
+      input: 'fake-pw\n', env: { MIGRATION_SQL: 'SELECT 1;' },
+    });
+    expect(r.status).toBe(2);
+    expect((r.stderr ?? '') + (r.stdout ?? '')).toMatch(/carries no migration/);
+  });
+
+  it('ends after the remote half without the smoke check or the env verification, which an ordinary deploy runs', () => {
+    // Defect caught: a first install smoke-checks a site that is deliberately
+    // not serving and fails, or an ordinary deploy stops before verifying.
+    const leaf = fs.readFileSync(path.join(REPO_ROOT, 'scripts/deploy-code.sh'), 'utf8');
+    const start = leaf.indexOf('if (( FIRST_INSTALL )); then\n  echo ""');
+    const end = leaf.indexOf('# ── Step 5: Smoke check');
+    expect(start).toBeGreaterThan(-1);
+    expect(end).toBeGreaterThan(start);
+    const runLeaf = (first: string) => spawnSync('bash', ['-c',
+      `set -euo pipefail\nFIRST_INSTALL=${first}\nREMOTE=footbag-production\nFOOTBAG_ENV=production\n${leaf.slice(start, end)}\necho REACHED-SMOKE`,
+    ], { encoding: 'utf8', ...SPAWN_GUARD });
+    const first = runLeaf('1');
+    expect(first.status).toBe(0);
+    expect(first.stdout).toMatch(/restore-db\.sh --target production --onto-empty/);
+    expect(first.stdout).not.toMatch(/REACHED-SMOKE/);
+    expect(runLeaf('0').stdout).toMatch(/REACHED-SMOKE/);
+  });
+
+  it('names its host with --target, and refuses a DEPLOY_TARGET naming another', () => {
+    // Defect caught: the first install reaches whichever host an exported
+    // DEPLOY_TARGET names rather than the one its caller asked for.
+    const bare = run('bash', ['scripts/deploy-code.sh', '--first-install'], { input: 'fake-pw\n' });
+    expect(bare.status).toBe(2);
+    expect((bare.stderr ?? '')).toMatch(/takes exactly --target/);
+    const other = run('bash', ['scripts/deploy-code.sh', '--first-install', '--target', 'production'], {
+      input: 'fake-pw\n', env: { DEPLOY_TARGET: 'footbag-staging' },
+    });
+    expect(other.status).toBe(2);
+    expect((other.stderr ?? '')).toMatch(/DEPLOY_TARGET names 'footbag-staging', but --target names production/);
   });
 });

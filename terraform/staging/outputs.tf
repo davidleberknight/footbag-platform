@@ -18,7 +18,12 @@ output "cloudfront_domain" {
 # state for this value to take here.
 output "platform_url" {
   description = "Canonical origin the site is served at, which the host holds as PUBLIC_BASE_URL. Declared here rather than derived by an operator, so the host is never left building absolute links, redirects and mail links against a hostname the site does not answer on."
-  value       = var.enable_cloudfront ? "https://${aws_cloudfront_distribution.main[0].domain_name}" : null
+  value       = local.platform_url
+}
+
+output "public_base_url" {
+  description = "The base address the host must hold as PUBLIC_BASE_URL, and the value the deploy syncs from app/public_base_url. Staging has one state, its distribution's own name. Read by verify-host-env.sh."
+  value       = local.platform_url
 }
 
 output "cloudfront_distribution_id" {

@@ -14,13 +14,46 @@
 # and runs the assignments and this body as root.)
 #
 # Required shell variables (provided by the caller's prepended assignments):
-#   CWAGENT_AKID  AWS access key id for the cwagent IAM user
-#   CWAGENT_SAK   AWS secret access key for the cwagent IAM user
+#   CWAGENT_AKID     AWS access key id for the cwagent IAM user (not with
+#                    CWAGENT_KEEP_CREDENTIALS=1, the upgrade, which keeps the
+#                    credentials file the host holds and sends no key)
+#   CWAGENT_SAK      AWS secret access key for the cwagent IAM user (likewise)
+#   CWAGENT_VERSION  the pinned agent version, from ops/host-tools.env
+#   CWAGENT_URL      where that version's package is published
+#   CWAGENT_SHA256   the digest the package must match before it is installed
+#
+# The package is pinned and checked rather than taken from the publisher's
+# "latest" address. An unpinned install puts whichever build was current that
+# day onto the host, so two hosts built a week apart run different agents, and
+# a package nothing compared against a known digest is one a mistaken or
+# hostile upload could replace unnoticed. A placeholder or malformed pin is
+# refused before anything is downloaded.
 
 set -euo pipefail
 
-: "${CWAGENT_AKID:?missing CWAGENT_AKID variable in pipe}"
-: "${CWAGENT_SAK:?missing CWAGENT_SAK variable in pipe}"
+# An upgrade keeps the key the host already holds: no key travels, and the
+# credentials file is left exactly as it is, so a version bump never turns into
+# a rotation nobody asked for.
+CWAGENT_KEEP_CREDENTIALS="${CWAGENT_KEEP_CREDENTIALS:-0}"
+if [[ "$CWAGENT_KEEP_CREDENTIALS" != "1" ]]; then
+  : "${CWAGENT_AKID:?missing CWAGENT_AKID variable in pipe}"
+  : "${CWAGENT_SAK:?missing CWAGENT_SAK variable in pipe}"
+fi
+: "${CWAGENT_VERSION:?missing CWAGENT_VERSION variable in pipe}"
+: "${CWAGENT_URL:?missing CWAGENT_URL variable in pipe}"
+: "${CWAGENT_SHA256:?missing CWAGENT_SHA256 variable in pipe}"
+
+# Checked here as well as on the workstation, because this body is what
+# installs, and a caller that skipped its own check must still not install an
+# unverified package.
+if [[ "${CWAGENT_VERSION}${CWAGENT_URL}${CWAGENT_SHA256}" == *REPLACE_WITH_* ]]; then
+  echo "ERROR: the CloudWatch agent pin is still a placeholder; nothing installed." >&2
+  exit 1
+fi
+if [[ ! "$CWAGENT_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
+  echo "ERROR: CWAGENT_SHA256 is not a SHA-256 digest; nothing installed." >&2
+  exit 1
+fi
 
 # Operator can override per env; defaults match staging. Production install
 # should pass these via env (e.g. INSTANCE_NAME=footbag-production-web
@@ -29,7 +62,22 @@ set -euo pipefail
 INSTANCE_NAME="${INSTANCE_NAME:-footbag-staging-web}"
 NAMESPACE="${CWAGENT_NAMESPACE:-CWAgent}"
 CWAGENT_PROFILE="${CWAGENT_PROFILE:-footbag-staging-cwagent}"
-RPM_URL="https://s3.amazonaws.com/amazoncloudwatch-agent/amazon_linux/amd64/latest/amazon-cloudwatch-agent.rpm"
+# The agent's credentials file. A named test seam, because a test drives this
+# body as an ordinary user with no /etc to write; announced, since a run against
+# another file proves nothing about the host's.
+CWAGENT_CREDS="${CWAGENT_CREDS_FILE:-/etc/amazon-cloudwatch-agent.aws/credentials}"
+if [[ -n "${CWAGENT_CREDS_FILE:-}" ]]; then
+  echo "SYNTHETIC: CWAGENT_CREDS_FILE='${CWAGENT_CREDS_FILE}' -- this run proves nothing about the estate." >&2
+fi
+
+# Checked before anything is installed: an upgrade that restarted the agent with
+# no credential to publish with would stop the host's metrics.
+if [[ "$CWAGENT_KEEP_CREDENTIALS" == "1" ]] \
+     && ! grep -qE "^[[:space:]]*\[${CWAGENT_PROFILE}\][[:space:]]*$" "$CWAGENT_CREDS" 2>/dev/null; then
+  echo "ERROR: an upgrade keeps the host's credentials, and ${CWAGENT_CREDS} holds no" >&2
+  echo "       [${CWAGENT_PROFILE}] profile. Nothing installed; give the host a key with --rotate." >&2
+  exit 1
+fi
 
 # Write stdin to a destination file via a user-owned tmpfile, then promote
 # with `install` (avoids piping secrets to a wrapped command's stdin, which
@@ -103,15 +151,36 @@ fi
 echo "  IMDS instance-id: ${imds_id}"
 
 echo
-echo "=== Step 1: install amazon-cloudwatch-agent (rpm) ==="
+echo "=== Step 1: install amazon-cloudwatch-agent ${CWAGENT_VERSION} (rpm) ==="
+# The version the installed agent reports about itself, which is the string the
+# publisher files the package under. Empty when no agent is installed.
+installed_version=""
 if rpm -q amazon-cloudwatch-agent >/dev/null 2>&1; then
-  echo "  Already installed: $(rpm -q amazon-cloudwatch-agent)"
+  installed_version="$(/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a status 2>/dev/null \
+    | grep -oE '"version"[[:space:]]*:[[:space:]]*"[^"]+"' | grep -oE '"[^"]+"$' | tr -d '"' || true)"
+fi
+if [[ -n "$installed_version" && "$installed_version" == "$CWAGENT_VERSION" ]]; then
+  echo "  Already installed at the pinned version: ${installed_version}"
 else
+  [[ -n "$installed_version" ]] && echo "  Installed version ${installed_version} is not the pinned ${CWAGENT_VERSION}; replacing it."
   # No trap of its own: the file-level handler above removes this directory, and a
   # second handler here would replace that one rather than add to it.
   tmpdir=$(mktemp -d)
-  curl -fsSL "$RPM_URL" -o "${tmpdir}/amazon-cloudwatch-agent.rpm"
-  dnf install -y "${tmpdir}/amazon-cloudwatch-agent.rpm"
+  curl -fsSL "$CWAGENT_URL" -o "${tmpdir}/amazon-cloudwatch-agent.rpm"
+  # The digest decides, before the package manager sees the file. A mismatch
+  # leaves whatever agent was already there untouched.
+  if ! printf '%s  %s\n' "$CWAGENT_SHA256" "${tmpdir}/amazon-cloudwatch-agent.rpm" \
+       | sha256sum -c --quiet - >/dev/null 2>&1; then
+    echo "ERROR: the downloaded agent package does not match the pinned SHA-256; nothing installed." >&2
+    echo "       pinned:     ${CWAGENT_SHA256}" >&2
+    echo "       downloaded: $(sha256sum "${tmpdir}/amazon-cloudwatch-agent.rpm" | cut -d' ' -f1)" >&2
+    exit 1
+  fi
+  echo "  Package matches the pinned SHA-256."
+  # install takes a newer package over an older one; downgrade covers a pin
+  # moved backwards, which install alone refuses.
+  dnf install -y "${tmpdir}/amazon-cloudwatch-agent.rpm" \
+    || dnf downgrade -y "${tmpdir}/amazon-cloudwatch-agent.rpm"
 fi
 
 echo
@@ -168,11 +237,15 @@ JSON
 echo
 echo "=== Step 3: dedicated credentials file + common-config.toml ==="
 install -d -m 0700 -o root -g root /etc/amazon-cloudwatch-agent.aws
-install_via_tmp /etc/amazon-cloudwatch-agent.aws/credentials 0600 <<CREDS
+if [[ "$CWAGENT_KEEP_CREDENTIALS" == "1" ]]; then
+  echo "  Upgrade: ${CWAGENT_CREDS} kept as it is."
+else
+install_via_tmp "$CWAGENT_CREDS" 0600 <<CREDS
 [$CWAGENT_PROFILE]
 aws_access_key_id = $CWAGENT_AKID
 aws_secret_access_key = $CWAGENT_SAK
 CREDS
+fi
 
 install_via_tmp /opt/aws/amazon-cloudwatch-agent/etc/common-config.toml 0644 <<CC
 [credentials]

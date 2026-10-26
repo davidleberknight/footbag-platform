@@ -103,16 +103,18 @@ require_pinned_known_hosts() {
 
 # known_hosts_pin_lines <target> <aws-bin>
 # Builds the pin lines for one environment's host from their authoritative
-# sources: the address from Terraform, the keys from the authenticated Lightsail
-# call. Sets KNOWN_HOSTS_PIN_IP, KNOWN_HOSTS_PIN_LINES and
-# KNOWN_HOSTS_PIN_COUNT, and returns 1 having said why on stderr. Two readers:
+# sources: the address and the instance's name from Terraform, the keys from the
+# authenticated Lightsail call. Sets KNOWN_HOSTS_PIN_IP, KNOWN_HOSTS_PIN_INSTANCE,
+# KNOWN_HOSTS_PIN_LINES and KNOWN_HOSTS_PIN_COUNT, and returns 1 having said why
+# on stderr. Two readers:
 # install-known-hosts.sh writes them into the operator's own pin, and
 # onboard-dev-tester.sh seals them to a newcomer, whose job role is denied the
 # Lightsail call. The caller has sourced terraform-output.sh and runs from the
 # repository root, which is where the Terraform directory is resolved from.
 known_hosts_pin_lines() {
-  local target="$1" aws_bin="$2" instance="footbag-${1}-web" key_rows
+  local target="$1" aws_bin="$2" instance key_rows
   KNOWN_HOSTS_PIN_IP=""
+  KNOWN_HOSTS_PIN_INSTANCE=""
   KNOWN_HOSTS_PIN_LINES=""
   KNOWN_HOSTS_PIN_COUNT=0
 
@@ -135,6 +137,11 @@ known_hosts_pin_lines() {
     echo "ERROR: the ${target} host address read back as '${KNOWN_HOSTS_PIN_IP}', which is not an address." >&2
     return 1
   fi
+  # The instance, from the same tree, because a restore renames it: keys read by
+  # the original name after a restore are the stopped old host's.
+  tf_instance_name "$target" || return 1
+  instance="$TF_INSTANCE_NAME"
+  KNOWN_HOSTS_PIN_INSTANCE="$instance"
 
   # ── The keys, from the authenticated API rather than from the SSH port ─────
   #

@@ -118,9 +118,10 @@ require_path() {
 
 # Reconcile the committed per-environment host config into /srv/footbag/env, so
 # it is governed by version control instead of an operator remembering to set
-# it. Two kinds of value: container sizing (memory limits, image concurrency,
-# video tuning), and the adapter selectors that are a constant of a deployed
-# environment rather than an operational choice. A selector an operator could
+# it. Three kinds of value: the host constants (proxy hop count, database
+# location, AWS region and runtime profile), container sizing (memory limits,
+# image concurrency, video tuning), and the adapter selectors that are a constant
+# of a deployed environment rather than an operational choice. A selector an operator could
 # legitimately want the other way without a code change is an arming switch,
 # owned by Terraform and synced from Parameter Store further down, not a line
 # in this file.
@@ -132,24 +133,23 @@ require_path() {
 # a secret or a malformed line into the runtime env. Because this runs on every
 # deploy rather than only when a line is absent, a hand edit on the host does
 # not survive.
-# The apply pass must run after the release tree is promoted into $LIVE_DIR.
-# Pass "validate" to parse and check the committed file without writing
-# anything, naming the incoming tree as the second argument. Both promotion paths
-# call it that way before they touch the live install, so a typo in a committed
-# value fails while the stack is still up rather than after the live tree has been
-# replaced or the database swapped.
+# Both deploy halves apply it from the incoming release tree, once the tree is
+# proven to be this run's and before any step reads a host constant, so a host
+# built from nothing needs none of these values set by hand. Every value is
+# checked before anything is written, so a typo in a committed value fails while
+# the stack is still up and the env file untouched. "validate" parses and checks
+# without writing.
 seed_committed_host_config() {
   local mode="${1:-apply}"
-  # Second argument is the tree to read the committed file from. Validation runs
-  # before the release is promoted, so it reads the incoming file rather than the
-  # one currently live; applying runs after, where the two are the same file.
+  # Second argument is the tree to read the committed file from: the incoming
+  # release, which has not been promoted when this runs.
   local cfg="${2:-$LIVE_DIR}/docker/env/${FOOTBAG_ENV}.env"
   # VIDEO_TRANSCODE_TIMEOUT_MS rides along with FFMPEG_TIMEOUT_SECONDS
   # deliberately: application boot refuses an encoder ceiling at or above the
   # caller deadline, so a committed file able to set one but not the other
   # could produce a config no container will boot with.
-  local key_re='^(NGINX|WEB|WORKER|IMAGE)_MEMORY_LIMIT$|^IMAGE_MAX_CONCURRENT$|^VIDEO_X264_(PRESET|THREADS|RC_LOOKAHEAD)$|^VIDEO_MAX_HEIGHT$|^FFMPEG_TIMEOUT_SECONDS$|^VIDEO_TRANSCODE_TIMEOUT_MS$|^VIDEO_MIN_HOST_AVAILABLE_MB$|^MEDIA_STORAGE_ADAPTER$|^SECRETS_ADAPTER$|^JWT_SIGNER$|^CAPTCHA_ADAPTER$|^TURNSTILE_SITE_KEY$'
-  local line_re='^(NGINX|WEB|WORKER|IMAGE)_MEMORY_LIMIT=|^IMAGE_MAX_CONCURRENT=|^VIDEO_X264_(PRESET|THREADS|RC_LOOKAHEAD)=|^VIDEO_MAX_HEIGHT=|^FFMPEG_TIMEOUT_SECONDS=|^VIDEO_TRANSCODE_TIMEOUT_MS=|^VIDEO_MIN_HOST_AVAILABLE_MB=|^MEDIA_STORAGE_ADAPTER=|^SECRETS_ADAPTER=|^JWT_SIGNER=|^CAPTCHA_ADAPTER=|^TURNSTILE_SITE_KEY='
+  local key_re='^(NGINX|WEB|WORKER|IMAGE)_MEMORY_LIMIT$|^IMAGE_MAX_CONCURRENT$|^VIDEO_X264_(PRESET|THREADS|RC_LOOKAHEAD)$|^VIDEO_MAX_HEIGHT$|^FFMPEG_TIMEOUT_SECONDS$|^VIDEO_TRANSCODE_TIMEOUT_MS$|^VIDEO_MIN_HOST_AVAILABLE_MB$|^MEDIA_STORAGE_ADAPTER$|^SECRETS_ADAPTER$|^JWT_SIGNER$|^CAPTCHA_ADAPTER$|^TURNSTILE_SITE_KEY$|^TRUST_PROXY$|^FOOTBAG_DB_DIR$|^FOOTBAG_DB_PATH$|^AWS_REGION$|^AWS_PROFILE$'
+  local line_re='^(NGINX|WEB|WORKER|IMAGE)_MEMORY_LIMIT=|^IMAGE_MAX_CONCURRENT=|^VIDEO_X264_(PRESET|THREADS|RC_LOOKAHEAD)=|^VIDEO_MAX_HEIGHT=|^FFMPEG_TIMEOUT_SECONDS=|^VIDEO_TRANSCODE_TIMEOUT_MS=|^VIDEO_MIN_HOST_AVAILABLE_MB=|^MEDIA_STORAGE_ADAPTER=|^SECRETS_ADAPTER=|^JWT_SIGNER=|^CAPTCHA_ADAPTER=|^TURNSTILE_SITE_KEY=|^TRUST_PROXY=|^FOOTBAG_DB_DIR=|^FOOTBAG_DB_PATH=|^AWS_REGION=|^AWS_PROFILE='
   if [[ ! -f "$cfg" ]]; then
     echo "ERROR: host config $cfg is missing; refusing to deploy with unmanaged container sizing and adapter selectors." >&2
     exit 1
@@ -191,9 +191,34 @@ seed_committed_host_config() {
       # the pair, which starts with the same prefix and must never land here.
       TURNSTILE_SITE_KEY)
         [[ "$val" =~ ^0x[A-Za-z0-9_-]{10,}$ ]] || { echo "ERROR: $cfg: $key='$val' is not a Turnstile site key (expected 0x followed by the key body)." >&2; rm -f "$adds"; exit 1; } ;;
+      # The host constants. The database location and the profile name each have
+      # one correct value, so the check pins it: a different directory would widen
+      # the recursive ownership fix below past the database, and a different
+      # profile names a credential chain the host was never given.
+      TRUST_PROXY)
+        [[ "$val" =~ ^[0-9]+$ ]] || { echo "ERROR: $cfg: $key='$val' is not an integer hop count." >&2; rm -f "$adds"; exit 1; } ;;
+      FOOTBAG_DB_DIR)
+        [[ "$val" == "/srv/footbag/db" ]] || { echo "ERROR: $cfg: $key='$val'; a deployed host keeps its database in /srv/footbag/db." >&2; rm -f "$adds"; exit 1; } ;;
+      FOOTBAG_DB_PATH)
+        [[ "$val" == "/srv/footbag/db/footbag.db" ]] || { echo "ERROR: $cfg: $key='$val'; the containers open /srv/footbag/db/footbag.db." >&2; rm -f "$adds"; exit 1; } ;;
+      AWS_REGION)
+        [[ "$val" =~ ^[a-z]{2}-[a-z]+-[0-9]$ ]] || { echo "ERROR: $cfg: $key='$val' is not an AWS region." >&2; rm -f "$adds"; exit 1; } ;;
+      AWS_PROFILE)
+        [[ "$val" == "footbag-${FOOTBAG_ENV}-runtime" ]] || { echo "ERROR: $cfg: $key='$val'; this host's runtime profile is footbag-${FOOTBAG_ENV}-runtime." >&2; rm -f "$adds"; exit 1; } ;;
     esac
     printf '%s=%s\n' "$key" "$val" >> "$adds"
   done < "$cfg"
+  # Every later step reads the host constants and none has a fallback, so a
+  # committed file that stopped listing one would clear it from the host and
+  # fail far from the cause. Refuse here, before anything is written.
+  local required
+  for required in TRUST_PROXY FOOTBAG_DB_DIR FOOTBAG_DB_PATH AWS_REGION AWS_PROFILE; do
+    if ! grep -q "^${required}=" "$adds"; then
+      echo "ERROR: $cfg does not set $required, a host constant every deploy needs." >&2
+      rm -f "$adds"
+      exit 1
+    fi
+  done
   if [[ "$mode" == "validate" ]]; then
     rm -f "$adds"
     echo "==> Validated committed host config for '$FOOTBAG_ENV' from $cfg"
@@ -297,21 +322,76 @@ elif [[ "$EXISTING_FOOTBAG_ENV" != "$FOOTBAG_ENV" ]]; then
   exit 1
 fi
 
-# The deployed compose overlay interpolates PUBLIC_BASE_URL with a fail marker
-# and no default, so a host whose env file has no such line cannot start the
-# stack at all. Every other value that overlay hard-requires is written by this
-# script before the stack comes up: the worker channel secret is seeded, the
-# origin-verify secret and the log level come from Parameter Store, the adapter
-# selectors are reconciled from the committed host config, and the environment
-# label is settled just above. This one is nobody's but the operator's, which is
-# why it is the only value worth refusing on. Checked here rather than at the
-# restart because a compose interpolation failure names the variable and nothing
-# else: no hint that the fix is a missing line in the host env file.
-if ! grep -qE '^PUBLIC_BASE_URL=.+' "$ENV_PATH"; then
-  echo "ERROR: $ENV_PATH carries no PUBLIC_BASE_URL." >&2
-  echo "       The deployed compose overlay requires it and nothing here writes it." >&2
-  echo "       Add PUBLIC_BASE_URL=<the site's canonical origin> and re-run." >&2
+# Everything from here to the promotion runs before it, deliberately, because the
+# promotion is the irreversible half: once the live tree has been replaced there is
+# no state in which refusing is still cheap.
+#
+# What the release tree must actually contain. The sender resolves the directory
+# and this half is handed the resolved value, so the two agree by construction even
+# when the value is wrong; agreement is not evidence. An empty or half-transferred
+# directory promoted with --delete empties the live install, and nothing downstream
+# would call that a failure.
+require_path "release dir"         "$RELEASE_DIR"
+require_path "env file"            "$ENV_PATH"
+require_path "service unit source" "$RELEASE_DIR/ops/systemd/footbag.service"
+require_path "compose file"        "$RELEASE_DIR/docker/docker-compose.yml"
+require_path "compose prod file"   "$RELEASE_DIR/docker/docker-compose.prod.yml"
+
+# And that the tree is THIS run's, which existence cannot answer. The sender writes
+# the stamp after its upload finishes, so a transfer that died part way leaves a
+# directory full of the previous run's files and no matching stamp, and this is
+# where that stops. Required rather than defaulted for the same reason the
+# directory is: a default would answer a sender that forgot to stamp by promoting
+# whatever was lying there.
+: "${RELEASE_STAMP:?RELEASE_STAMP must be sent by the calling deploy script}"
+# An absent stamp file is an ordinary outcome here rather than an error, and it is
+# the one the refusal below has the most to say about, so it is read into an empty
+# value and judged there rather than guarded inline.
+found_stamp=""
+if [[ -r "$RELEASE_DIR/.release-stamp" ]]; then
+  found_stamp="$(cat "$RELEASE_DIR/.release-stamp")"
+fi
+if [[ "$found_stamp" != "$RELEASE_STAMP" ]]; then
+  echo "ERROR: ${RELEASE_DIR} does not carry this run's release stamp." >&2
+  echo "       Expected '${RELEASE_STAMP}', found '${found_stamp:-none}'." >&2
+  echo "       Refusing to promote: this tree was not written by this run, so what" >&2
+  echo "       it holds is an earlier release or a transfer that did not finish." >&2
+  echo "       Re-run the deploy; the upload rewrites the tree from scratch." >&2
   exit 1
+fi
+
+# Apply the committed host config from the incoming tree, now that the tree is
+# proven to be this run's and before any step below reads a host constant: the
+# parameter preflight and the syncs read the AWS profile and region, and the
+# ownership fix reads the database directory. A rejected value exits here with
+# the env file untouched and the stack still up.
+seed_committed_host_config apply "$RELEASE_DIR"
+
+# The first install onto a host whose database comes back by restore. It installs
+# the release and stops short of starting it, so on any other host it would leave
+# new code on disk under a stack still running the old: refused unless the host
+# has no database and no running service, before anything is promoted. Read once
+# the committed config has named the database directory.
+FIRST_INSTALL="${FIRST_INSTALL:-0}"
+if [[ "$FIRST_INSTALL" == "1" ]]; then
+  _fi_db_dir="$(read_env FOOTBAG_DB_DIR)"
+  [[ -n "$_fi_db_dir" ]] || _fi_db_dir="/srv/footbag/db"
+  if [[ -e "${_fi_db_dir}/footbag.db" ]]; then
+    echo "ERROR: --first-install found a database at ${_fi_db_dir}/footbag.db, so this host is" >&2
+    echo "       not one whose database comes back by restore. Nothing was promoted." >&2
+    echo "       Deploy it with the ordinary code deploy instead." >&2
+    exit 1
+  fi
+  if systemctl is-active --quiet footbag 2>/dev/null; then
+    echo "ERROR: --first-install found footbag.service running. Nothing was promoted." >&2
+    exit 1
+  fi
+  [[ -z "${MIGRATION_SQL:-}" ]] || {
+    echo "ERROR: --first-install carries no migration; there is no database to apply it to." >&2
+    exit 1
+  }
+  unset _fi_db_dir
+  echo "==> First install: the release is installed and the service left stopped"
 fi
 
 # MEDIA_STORAGE_ADAPTER, SECRETS_ADAPTER, JWT_SIGNER and CAPTCHA_ADAPTER are
@@ -349,21 +429,6 @@ fi
 # seed provided still holds and now lives in Terraform: URL screening is seeded
 # dark on production, so a key landing in Parameter Store without the switch
 # being flipped stays in standby rather than silently in use.
-
-# One-shot migration: FOOTBAG_DB_DIR seed. Mirrors deploy-rebuild-remote.sh so a
-# code-only deploy onto a host whose env predates the directory-mount layout
-# still points at the right DB directory instead of the docker-compose default
-# fallback. Operator-set values are preserved.
-if ! grep -q '^FOOTBAG_DB_DIR=' "$ENV_PATH"; then
-  echo "==> Seeding FOOTBAG_DB_DIR=/srv/footbag/db into $ENV_PATH..."
-  env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
-  chmod 600 "$env_tmp"
-  chown root:root "$env_tmp"
-  cp "$ENV_PATH" "$env_tmp"
-  ensure_final_newline "$env_tmp"
-  printf 'FOOTBAG_DB_DIR=%s\n' '/srv/footbag/db' >> "$env_tmp"
-  mv "$env_tmp" "$ENV_PATH"
-fi
 
 # Reconcile SES_ADAPTER for non-production hosts. src/config/env.ts forces the
 # stub adapter on staging and development (so no real mail leaves a
@@ -457,18 +522,9 @@ _pf_region=$(read_env AWS_REGION)
 [[ -n "$_pf_env" ]] || { echo "ERROR: FOOTBAG_ENV missing from $ENV_PATH" >&2; exit 1; }
 [[ -n "$_pf_profile" ]] || { echo "ERROR: AWS_PROFILE missing from $ENV_PATH" >&2; exit 1; }
 [[ -n "$_pf_region"  ]] || { echo "ERROR: AWS_REGION missing from $ENV_PATH" >&2; exit 1; }
-for _pf_name in \
-  "app/payments_armed" \
-  "app/email_send_armed" \
-  "app/url_screening_armed" \
-  "app/reachability_armed" \
-  "app/media_bucket" \
-  "app/jwt_kms_key_id" \
-  "app/ses_configuration_set_transactional" \
-  "app/ses_configuration_set_bulk" \
-  "secrets/origin_verify_secret" \
-  "secrets/session_secret" \
-  "app/log_level"; do
+# The list is the catalogue's: every required value this deploy reads from
+# Parameter Store, whichever block below writes it.
+for _pf_name in $(host_values_required_parameters); do
   if ! AWS_PROFILE="$_pf_profile" aws ssm get-parameter \
       --region "$_pf_region" \
       --name "/footbag/${_pf_env}/${_pf_name}" >/dev/null 2>&1; then
@@ -480,51 +536,6 @@ for _pf_name in \
   fi
 done
 unset _pf_env _pf_profile _pf_region _pf_name
-
-# Everything below this point runs before the promotion, deliberately, because the
-# promotion is the irreversible half: once the live tree has been replaced there is
-# no state in which refusing is still cheap.
-#
-# What the release tree must actually contain. The sender resolves the directory
-# and this half is handed the resolved value, so the two agree by construction even
-# when the value is wrong; agreement is not evidence. An empty or half-transferred
-# directory promoted with --delete empties the live install, and nothing downstream
-# would call that a failure.
-require_path "release dir"         "$RELEASE_DIR"
-require_path "env file"            "$ENV_PATH"
-require_path "service unit source" "$RELEASE_DIR/ops/systemd/footbag.service"
-require_path "compose file"        "$RELEASE_DIR/docker/docker-compose.yml"
-require_path "compose prod file"   "$RELEASE_DIR/docker/docker-compose.prod.yml"
-
-# And that the tree is THIS run's, which existence cannot answer. The sender writes
-# the stamp after its upload finishes, so a transfer that died part way leaves a
-# directory full of the previous run's files and no matching stamp, and this is
-# where that stops. Required rather than defaulted for the same reason the
-# directory is: a default would answer a sender that forgot to stamp by promoting
-# whatever was lying there.
-: "${RELEASE_STAMP:?RELEASE_STAMP must be sent by the calling deploy script}"
-# An absent stamp file is an ordinary outcome here rather than an error, and it is
-# the one the refusal below has the most to say about, so it is read into an empty
-# value and judged there rather than guarded inline.
-found_stamp=""
-if [[ -r "$RELEASE_DIR/.release-stamp" ]]; then
-  found_stamp="$(cat "$RELEASE_DIR/.release-stamp")"
-fi
-if [[ "$found_stamp" != "$RELEASE_STAMP" ]]; then
-  echo "ERROR: ${RELEASE_DIR} does not carry this run's release stamp." >&2
-  echo "       Expected '${RELEASE_STAMP}', found '${found_stamp:-none}'." >&2
-  echo "       Refusing to promote: this tree was not written by this run, so what" >&2
-  echo "       it holds is an earlier release or a transfer that did not finish." >&2
-  echo "       Re-run the deploy; the upload rewrites the tree from scratch." >&2
-  exit 1
-fi
-
-# Parse and check the committed host config without writing anything, which is what
-# the rebuild half does before it stops the service and for the same reason: a typo
-# in a committed value should fail while the stack is still up and the live tree is
-# still the one that was working. Validated here and applied further down, after the
-# promotion, so a bad value costs nothing and a good one is written once.
-seed_committed_host_config validate "$RELEASE_DIR"
 
 echo "==> Promoting release (preserving env, DB, media)..."
 # deployed-from is excluded for a different reason than the three beside it.
@@ -624,16 +635,21 @@ case "$_db_dir_from_env" in
     exit 1
     ;;
 esac
+# The database directory is created here when absent, owned by the container
+# account. Left absent, compose creates the bind-mount source itself as root,
+# and the unprivileged container cannot open or create its database: the stack
+# then exits at startup while the service unit still reports active. A freshly
+# built host reaches this point with no directory at all.
+if [[ ! -d "$_db_dir_from_env" ]]; then
+  install -d -o "$APP_UID" -g "$APP_UID" -m 750 "$_db_dir_from_env"
+  echo "==> Created the database directory $_db_dir_from_env for the container account"
+fi
 for _d in "$_db_dir_from_env" "${FOOTBAG_MEDIA_DIR:-/srv/footbag/media}"; do
   if [[ -d "$_d" ]]; then
     chown -R "$APP_UID":"$APP_UID" "$_d"
   fi
 done
 unset _db_dir_from_env
-
-# Apply the committed per-environment container sizing now that the release
-# tree (and docker/env/<env>.env) is in place, before the service restart.
-seed_committed_host_config
 
 # Real disk swap on the host. The instances ship with zram swap only, which
 # compresses pages in RAM and is close to useless for the incompressible bytes
@@ -1038,88 +1054,15 @@ mv "$env_tmp" "$ENV_PATH"
 chmod 600 "$ENV_PATH"
 chown root:root "$ENV_PATH"
 
-# Sync the two SES configuration-set names. Outbound mail runs as two streams
-# with separate sending reputations, and naming a set on the send is what keeps
-# a complaint spike on bulk mail off the reputation that carries password
-# resets. Terraform owns both names (the parameter reads the configuration-set
-# resource, so a rename moves with it); this fetch puts them on the host so the
-# application can name them. A missing parameter is fatal with the same
-# instruction as the arming switches above: the alternative is a host that
-# silently sends on the account default while the operator believes the streams
-# are separated.
-for ses_set_stream in transactional bulk; do
-  ses_set_param="/footbag/${FOOTBAG_ENV_VAL}/app/ses_configuration_set_${ses_set_stream}"
-  echo "==> Syncing SES_CONFIGURATION_SET_${ses_set_stream^^} from $ses_set_param ..."
-  ses_set_value=$(
-    AWS_PROFILE="$AWS_PROFILE_VAL" aws ssm get-parameter \
-      --region "$AWS_REGION_VAL" \
-      --name "$ses_set_param" \
-      --query 'Parameter.Value' \
-      --output text
-  ) || {
-    echo "ERROR: aws ssm get-parameter failed for $ses_set_param" >&2
-    echo "       If the parameter does not exist yet, from the workstation run:" >&2
-    echo "         cd terraform/${FOOTBAG_ENV_VAL} && terraform init -upgrade && terraform apply" >&2
-    exit 1
-  }
-  # SES configuration-set names are limited to letters, digits, dashes and
-  # underscores. Checking the shape here keeps a malformed or placeholder value
-  # from reaching a send, where it would fail every message rather than one.
-  if [[ ! "$ses_set_value" =~ ^[A-Za-z0-9_-]+$ ]]; then
-    echo "ERROR: SSM $ses_set_param is '$ses_set_value'; expected a configuration-set name." >&2
-    exit 1
-  fi
-  env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
-  chmod 600 "$env_tmp"
-  chown root:root "$env_tmp"
-  grep -v "^SES_CONFIGURATION_SET_${ses_set_stream^^}=" "$ENV_PATH" > "$env_tmp" || [[ $? -eq 1 ]]
-  printf 'SES_CONFIGURATION_SET_%s=%s\n' "${ses_set_stream^^}" "$ses_set_value" >> "$env_tmp"
-  mv "$env_tmp" "$ENV_PATH"
-  chmod 600 "$ENV_PATH"
-  chown root:root "$ENV_PATH"
-done
-unset ses_set_stream ses_set_param ses_set_value
-
-# Sync the two identifiers Terraform creates and the host needs. Same shape as
-# the configuration-set names above and the same reason: the parameter reads the
-# resource, so a rename travels with it and no literal is composed here.
-#
-# The signing-key identifier is the one that bites. The signing adapter stamps
-# this exact string into every session token's key-id header and refuses a token
-# whose header does not match, so a host holding the key's ARN rather than its
-# alias publishes the AWS account id to every client with a session, and
-# correcting it later invalidates every live session. Syncing it on every deploy
-# is what stops that form taking hold in the first place.
-for host_ident in media_bucket:MEDIA_STORAGE_S3_BUCKET jwt_kms_key_id:JWT_KMS_KEY_ID; do
-  ident_param="/footbag/${FOOTBAG_ENV_VAL}/app/${host_ident%%:*}"
-  ident_var="${host_ident##*:}"
-  echo "==> Syncing ${ident_var} from $ident_param ..."
-  ident_value=$(
-    AWS_PROFILE="$AWS_PROFILE_VAL" aws ssm get-parameter \
-      --region "$AWS_REGION_VAL" \
-      --name "$ident_param" \
-      --query 'Parameter.Value' \
-      --output text
-  ) || {
-    echo "ERROR: aws ssm get-parameter failed for $ident_param" >&2
-    echo "       If the parameter does not exist yet, from the workstation run:" >&2
-    echo "         cd terraform/${FOOTBAG_ENV_VAL} && terraform init -upgrade && terraform apply" >&2
-    exit 1
-  }
-  if [[ -z "$ident_value" ]]; then
-    echo "ERROR: SSM $ident_param resolved empty; expected the value terraform published." >&2
-    exit 1
-  fi
-  env_tmp=$(mktemp /srv/footbag/.env.tmp.XXXXXX)
-  chmod 600 "$env_tmp"
-  chown root:root "$env_tmp"
-  grep -v "^${ident_var}=" "$ENV_PATH" > "$env_tmp" || [[ $? -eq 1 ]]
-  printf '%s=%s\n' "$ident_var" "$ident_value" >> "$env_tmp"
-  mv "$env_tmp" "$ENV_PATH"
-  chmod 600 "$ENV_PATH"
-  chown root:root "$ENV_PATH"
-done
-unset host_ident ident_param ident_var ident_value
+# Sync every value Terraform publishes for the host, as the catalogue declares
+# them: the media bucket, the signing-key alias, both SES configuration sets,
+# the snapshot bucket, both feed topics and queues, the sender identity and the
+# site's base address. One by-path read, every value checked against its
+# declared shape, one atomic rename; a missing required parameter refuses with
+# the host unchanged. The catalogue travels ahead of this half on the same
+# stream, so this half and the rebuild half cannot sync different sets.
+echo "==> Syncing the Terraform-published host values..."
+host_values_sync_params "$ENV_PATH" "$FOOTBAG_ENV_VAL" "$AWS_PROFILE_VAL" "$AWS_REGION_VAL" || exit 1
 
 # Assert the end state now that both writers have run: the committed host config
 # supplies the JWT signer, and the Terraform-published parameter supplies its key
@@ -1163,10 +1106,9 @@ if [[ "$FOOTBAG_ENV_VAL" == "production" ]]; then
     echo "ERROR: email is armed but $ENV_PATH carries no SES_FROM_IDENTITY." >&2
     echo "       The live mail adapter requires it at boot and compose supplies no" >&2
     echo "       default, so restarting now would crash-loop production." >&2
-    echo "       set-host-env.sh owns this value: it reads the environment's" >&2
-    echo "       terraform output ses_sender_identity and writes it here." >&2
-    echo "       Run 'scripts/set-host-env.sh --target <env>', then re-run this" >&2
-    echo "       deploy. Do not add the line by hand; host values have one owner" >&2
+    echo "       Terraform owns this value: the deploy syncs it from" >&2
+    echo "       app/ses_sender_identity. Apply the environment's tree, then re-run" >&2
+    echo "       this deploy. Do not add the line by hand; host values have one owner" >&2
     echo "       each, and a hand edit is overwritten by the next deploy." >&2
     exit 1
   fi
@@ -1353,7 +1295,14 @@ systemctl daemon-reload
 # an operator noticed. Enabling is idempotent. The backup timer below stays
 # operator-enabled: its first install is a deliberate procedure with its own
 # prerequisites, which this main unit does not have.
-systemctl is-enabled --quiet footbag || systemctl enable footbag
+#
+# A first install is the exception, and leaves the unit disabled: a reboot before
+# the restore would otherwise start the site on a host with no database, which
+# creates an empty one the restore then refuses as not empty. The code deploy
+# after the restore enables it.
+if [[ "$FIRST_INSTALL" != "1" ]]; then
+  systemctl is-enabled --quiet footbag || systemctl enable footbag
+fi
 # Only restart the timer if it was already enabled: installing the backup timer
 # for the first time is a deliberate operator step with its own procedure, not
 # something a code deploy should switch on.
@@ -1424,6 +1373,16 @@ rm -f "$awslogs_dropin_tmp"
 # docker save | docker load before this remote-half runs. The systemd unit
 # refuses to build (--no-build on ExecStart); compose up uses the already-
 # loaded images and fails fast if any image is missing.
+
+# A first install ends here: the release, the images, the env file's synced
+# values, the unit and the log driver are all in place, and the restore that
+# follows starts the service once its erasure replay has run. Nothing below
+# applies to a host with no database: there is no migration, the readiness poll
+# could only fail, and the provenance record describes a deploy that served.
+if [[ "$FIRST_INSTALL" == "1" ]]; then
+  echo "==> First install complete: footbag.service installed, not enabled and not started."
+  exit 0
+fi
 
 # ── Schema migration, when one was supplied ──────────────────────────────────
 #

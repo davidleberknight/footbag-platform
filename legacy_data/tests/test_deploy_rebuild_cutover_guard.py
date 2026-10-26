@@ -19,6 +19,7 @@ Run from repo root:
     python -m pytest legacy_data/tests/test_deploy_rebuild_cutover_guard.py -v
 """
 import os
+import re
 import subprocess
 from pathlib import Path
 
@@ -84,7 +85,12 @@ def test_deploy_script_wires_the_guards_ahead_of_the_remote_half():
     executable = "\n".join(
         line for line in deploy.splitlines() if not line.lstrip().startswith("#")
     )
-    assert 'cat "$CUTOVER_GUARD" "$PROD_LIVE_GUARD" "$REMOTE_HALF"' in executable, (
+    # Libraries the remote half needs may sit between the guards and it; the
+    # guards must still run first, in this order, ahead of the remote half.
+    assert re.search(
+        r'cat "\$CUTOVER_GUARD" "\$PROD_LIVE_GUARD"( "\$[A-Z_]+")* "\$REMOTE_HALF"',
+        executable,
+    ), (
         "deploy-rebuild.sh must prepend the cutover and production-live guards "
         "to the remote half"
     )

@@ -75,7 +75,7 @@ Success for this path means you can:
 
 ### 1.2 Supported machine setup
 
-This guide targets an **Ubuntu (Linux) shell** and works from any Ubuntu install. The newcomer path on Windows is WSL Ubuntu (Windows Subsystem for Linux); on a Mac, run Ubuntu in a VM (for example UTM) or adapt the same commands in your native terminal. Once you have an Ubuntu shell, the rest of this guide is the same everywhere.
+This guide targets an **Ubuntu (Linux) shell** and works from any Ubuntu install. The newcomer path on Windows is WSL Ubuntu (Windows Subsystem for Linux); on a Mac, run Ubuntu in a VM (for example UTM). The scripts need GNU tools and bash 4 or later, which a Mac's own terminal does not provide. Once you have an Ubuntu shell, the rest of this guide is the same everywhere.
 
 For Windows contributors, use this working model:
 
@@ -89,7 +89,7 @@ Recommended Windows + WSL working model:
 - enable the WSL 2 backend and WSL integration for your Ubuntu distro (essential).
 - run Node, npm, sqlite3, Git, SSH, and Claude Code from the WSL Ubuntu shell.
 
-macOS and native-Linux contributors are fully supported. The simplest Mac path is an Ubuntu VM (for example UTM); every step works the same except reaching the running site in your browser, which uses an SSH tunnel into the VM (see §1.8). The setup script (§1.5) supports x86_64 Ubuntu, native or under WSL. On an ARM machine, such as an Apple Silicon Mac or an ARM Ubuntu VM, adapt its steps by hand to the same pinned versions; there the Python loaders use Python's built-in SQLite module, because the pinned SQLite wheel is published for x86_64 only. Only §1.4 step 1 (WSL) is Windows-specific; on any non-Windows Ubuntu, start at §1.4 step 2.
+macOS and native-Linux contributors are fully supported. The simplest Mac path is an Ubuntu VM (for example UTM); every step works the same except reaching the running site in your browser, which uses an SSH tunnel into the VM (see §1.8). The setup script (§1.5) supports x86_64 Ubuntu, native or under WSL. On an ARM machine, such as an Apple Silicon Mac or an ARM Ubuntu VM, adapt its steps by hand to the same pinned versions; there the Python loaders use Python's built-in SQLite module, because the pinned SQLite wheel is published for x86_64 only. **Deploy from an x86_64 machine only.** The deploy builds the container images for the processor it runs on, and the hosts are x86_64, so on an ARM machine the deploy refuses after the build and sends nothing. An Intel Mac running an x86_64 Ubuntu VM deploys like any Ubuntu machine. Only §1.4 step 1 (WSL) is Windows-specific; on any non-Windows Ubuntu, start at §1.4 step 2.
 
 ### 1.3 Required tools
 
@@ -286,7 +286,7 @@ Open the running site in your browser. Pick the block for your machine; all path
 
 **Windows + WSL2.** WSL2 forwards the guest's `localhost` ports to Windows automatically, so open `http://localhost:3000` in your Windows browser. Nothing else to configure.
 
-**Native Ubuntu or native macOS (no VM).** The server runs on the same machine as the browser; open `http://localhost:3000` directly.
+**Native Ubuntu (no VM).** The server runs on the same machine as the browser; open `http://localhost:3000` directly.
 
 **macOS with Ubuntu in a VM (for example UTM).** The Mac host and the Ubuntu guest do not share `localhost`, so the Mac browser cannot reach the guest's `localhost:3000` on its own. Keep the browser on `http://localhost:3000` and forward that port into the VM over an SSH tunnel. This is required, not just tidier: the app rejects form POSTs whose `Origin` does not match `http://localhost:3000`, so browsing to the VM's IP would make every form submission fail with `403 Forbidden`.
 

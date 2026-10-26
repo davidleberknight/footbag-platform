@@ -1,63 +1,18 @@
 #!/usr/bin/env bash
 # set-host-env.sh
 #
-# Writes the operator-owned, non-secret values in /srv/footbag/env: the proxy
-# hop count, the site's canonical origin, the database-snapshot bucket name, and
-# the two SNS topic ARNs the webhook feeds authenticate against. Every other value in that file already
-# arrives through a script -- the payments activation writes the Stripe signing
-# secret, the SES activation writes the feedback key, and the deploy's remote
-# halves seed the one-shot values and sync the ones Terraform declares. These
-# had no owner, so they were hand-typed or forgotten.
+# Writes the host's record of which environment it is, FOOTBAG_ENV, into
+# /srv/footbag/env. That record is the one value in the file nothing else may
+# write: every deploy and host script asks the host which environment it is and
+# refuses a host that records none or the other one, and a deploy that wrote the
+# record itself would stamp whatever the workstation sent onto whichever host it
+# reached. So it is written once, by this bring-up step, and only checked after.
 #
-# What each value does, and what its absence costs:
-#
-#   TRUST_PROXY       the exact integer X-Forwarded-For hop count. Absent or
-#                     non-integer, env.ts falls back to named ranges and per-IP
-#                     rate limiting coarsens to per-edge buckets. The expected
-#                     value, and why it is the same in both environments and at
-#                     every milestone, lives in lib/host-env-expectations.sh.
-#   PUBLIC_BASE_URL   the canonical origin the site is served at, which every
-#                     absolute link, redirect and mail link is built against.
-#                     The deploy refuses to start without it and tells the
-#                     operator to add it by hand, which is how it came to be
-#                     edited in place with sed at each cutover step. Its value
-#                     changes when DNS moves, so it is read from the tree's
-#                     platform_url output, where the flag that moves it lives,
-#                     rather than typed: a host left on the previous value keeps
-#                     answering while building every link against a hostname the
-#                     site no longer serves, which no health check catches.
-#   BACKUP_S3_BUCKET  read by the footbag-backup systemd timer rather than at
-#                     application boot, so its absence does not show up as a
-#                     failure anywhere: backup-db.sh refuses to run, the
-#                     snapshots bucket stays empty, no backup-age metric is
-#                     emitted, and the timer still reports healthy. Installing
-#                     the timer before this value is set produces a backup
-#                     pipeline that runs and uploads nothing.
-#   ALARM_TOPIC_ARN   the publishing topic the platform-alarm feed accepts.
-#   SES_FEEDBACK_TOPIC_ARN
-#                     the same for the mail bounce and complaint feed. Each feed
-#                     authenticates on its shared key AND its publishing topic,
-#                     because a valid signature proves only that some topic in
-#                     some AWS account signed the payload. Absent, that feed
-#                     refuses every delivery, which reads as a quiet feed rather
-#                     than a broken one -- which is exactly why it is set here
-#                     rather than remembered.
-#   SES_FROM_IDENTITY the address every outbound message is sent as. It has to
-#                     be the identity SES has actually verified, which is not
-#                     always the canonical one: the canonical address cannot be
-#                     verified until mail for the domain is reachable, so an
-#                     interim identity carries sending until then. Set to the
-#                     canonical address early and nothing warns you, because the
-#                     application stamps it onto every outbox row at enqueue and
-#                     the refusal arrives later, at the drain, as an
-#                     authorization error naming a resource rather than a sender.
-#                     verify-host-env.sh has always compared this against the
-#                     Terraform sender identity, but nothing wrote it from there,
-#                     so the two could disagree for as long as the mail adapter
-#                     stayed stubbed and that comparison stayed dormant.
-#
-# The bucket name, both ARNs and the sender identity are read from Terraform
-# outputs rather than typed, so they cannot drift from what actually exists.
+# Every other value in that file has an owner that runs on every deploy, as the
+# catalogue in scripts/lib/host-values.sh declares: Terraform publishes the
+# identifiers and the site's base address and the deploy syncs them; the
+# committed docker/env/<target>.env carries the host constants; the deploy
+# generates the host-only secrets. None of them is this script's.
 #
 # Usage (the sudo password is read from stdin, line 1).
 #
@@ -70,33 +25,26 @@
 #
 # A run started without the redirect names the one it needs.
 #
-#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/set-host-env.sh --target production --profile <prod-profile>
+#   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/set-host-env.sh --target production
 #   < ~/AWS/DEV_TESTER_HOST.txt bash scripts/set-host-env.sh --target staging --yes
 #   scripts/set-host-env.sh --target staging --dry-run
 #
-# --dry-run resolves every value and prints the command plan without touching
-# the host, and needs no credential file because it opens no ssh session.
+# --dry-run prints the record it would write and the command plan without
+# touching the host, and needs no credential file because it opens no session.
 #
 # --yes accepts the install confirmation instead of asking for it, the same way
 # the deploy wrapper's -y does, so this can run where there is no terminal to
 # type into. The diff is still printed.
 #
-# --preview writes the cutover-window base address: PUBLIC_BASE_URL from the
-# tree's preview_url output instead of platform_url, for the window when www
-# serves the migration notice and preview is the only public name reaching the
-# platform. Refuses when preview_url is null (the window's preconditions are
-# not applied). At launch, re-run without it to move the address to the www
-# form. Not combinable with --env-file, whose values come from the environment.
+# It refuses a host that already records the other environment, and changes
+# nothing there: overwriting that record would turn the other environment's host
+# into this one by label, and every later guard would agree with the mistake.
 #
 # Synthetic mode (CI tests only; operators never use this):
-#   --env-file <path> treats the local file as the host env, skips ssh and
-#   terraform entirely, and takes the values from BACKUP_S3_BUCKET_VALUE,
-#   ALARM_TOPIC_ARN_VALUE and SES_FEEDBACK_TOPIC_ARN_VALUE.
+#   --env-file <path> treats the local file as the host env and skips ssh.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-# shellcheck source=lib/host-env-expectations.sh
-source "${REPO_ROOT}/scripts/lib/host-env-expectations.sh"
 # shellcheck source=lib/host-env-remote.sh
 source "${REPO_ROOT}/scripts/lib/host-env-remote.sh"
 
@@ -104,8 +52,6 @@ source "${REPO_ROOT}/scripts/lib/host-env-remote.sh"
 # this script must not make for the operator: the credential on stdin belongs to
 # one host, and a defaulted target would send it at the other.
 TARGET=""
-PREVIEW_MODE=0
-AWS_PROFILE_ARG=""
 ENV_FILE_OVERRIDE=""
 DRY_RUN=0
 HOST_ENV_PATH="/srv/footbag/env"
@@ -116,25 +62,18 @@ while [[ $# -gt 0 ]]; do
       TARGET="${2:-}"
       shift 2 || { echo "ERROR: --target requires an argument" >&2; exit 2; }
       ;;
-    --profile)
-      AWS_PROFILE_ARG="${2:-}"
-      shift 2 || { echo "ERROR: --profile requires an argument" >&2; exit 2; }
-      ;;
     --env-file)
       ENV_FILE_OVERRIDE="${2:-}"
       shift 2 || { echo "ERROR: --env-file requires an argument" >&2; exit 2; }
       ;;
     --preview)
-      # The cutover-window base address. While the migration notice is up, www
-      # serves the notice and preview is the only public name reaching the
-      # platform, so the host's canonical origin is the preview form for the
-      # length of the window. This flag reads the tree's preview_url output
-      # instead of platform_url — scripted, like every other move of this value,
-      # because the window's hand edits are how the value went wrong before. At
-      # launch the operator re-runs WITHOUT this flag, which moves the address
-      # to the www form platform_url now carries.
-      PREVIEW_MODE=1
-      shift
+      # Named rather than left to the unknown-argument branch, because runbooks
+      # carried this step: the window's base address is now Terraform's, decided
+      # by the notice flag and synced by every deploy.
+      echo "ERROR: --preview is no longer a step. The site's base address is published by" >&2
+      echo "       Terraform from the cutover-notice flag and synced by every deploy: apply" >&2
+      echo "       the notice flag, then deploy." >&2
+      exit 2
       ;;
     --yes)
       ASSUME_YES="yes"
@@ -165,148 +104,17 @@ if [[ "$TARGET" != "staging" && "$TARGET" != "production" ]]; then
   echo "ERROR: --target must be 'staging' or 'production' (got '$TARGET')" >&2
   exit 2
 fi
-
-if [[ "$PREVIEW_MODE" -eq 1 && -n "$ENV_FILE_OVERRIDE" ]]; then
-  echo "ERROR: --preview and --env-file are mutually exclusive. Synthetic mode takes" >&2
-  echo "       its values from the environment and reads no terraform output, so a" >&2
-  echo "       preview flag there would be silently meaningless." >&2
+if [[ -n "$ENV_FILE_OVERRIDE" && ! -f "$ENV_FILE_OVERRIDE" ]]; then
+  echo "ERROR: --env-file path '$ENV_FILE_OVERRIDE' does not exist" >&2
   exit 2
 fi
 
 SSH_ALIAS="footbag-${TARGET}"
 
-# ---- Resolve the values -----------------------------------------------------
-
-TRUST_PROXY_VALUE="$(expected_trust_proxy "$TARGET")"
-
-if [[ -n "$ENV_FILE_OVERRIDE" ]]; then
-  if [[ ! -f "$ENV_FILE_OVERRIDE" ]]; then
-    echo "ERROR: --env-file path '$ENV_FILE_OVERRIDE' does not exist" >&2
-    exit 2
-  fi
-  if [[ -z "${BACKUP_S3_BUCKET_VALUE:-}" ]]; then
-    echo "ERROR: --env-file mode requires BACKUP_S3_BUCKET_VALUE in the environment." >&2
-    exit 2
-  fi
-  BUCKET_VALUE="$BACKUP_S3_BUCKET_VALUE"
-  ALARM_TOPIC_VALUE="${ALARM_TOPIC_ARN_VALUE:-}"
-  SES_TOPIC_VALUE="${SES_FEEDBACK_TOPIC_ARN_VALUE:-}"
-  if [[ -z "$ALARM_TOPIC_VALUE" || -z "$SES_TOPIC_VALUE" ]]; then
-    echo "ERROR: --env-file mode requires ALARM_TOPIC_ARN_VALUE and SES_FEEDBACK_TOPIC_ARN_VALUE." >&2
-    exit 2
-  fi
-  # The queue URLs may legitimately be empty: an environment whose feed queues
-  # have not been created yet reads no feed, which is inert rather than wrong.
-  ALARM_QUEUE_VALUE="${ALARM_QUEUE_URL_VALUE:-}"
-  SES_QUEUE_VALUE="${SES_FEEDBACK_QUEUE_URL_VALUE:-}"
-  # Optional in this mode alone, so a fixture that predates this value still
-  # exercises the rewrite. The real path below requires it.
-  SES_SENDER_VALUE="${SES_FROM_IDENTITY_VALUE:-}"
-  PUBLIC_URL_VALUE="${PUBLIC_BASE_URL_VALUE:-}"
-else
-  # The bucket name is whatever Terraform actually built. Reading it rather than
-  # accepting one typed in is the difference between a timer that uploads and
-  # one that reports healthy into a bucket that does not exist.
-  TF_ENV=()
-  if [[ -n "$AWS_PROFILE_ARG" ]]; then
-    TF_ENV=(env "AWS_PROFILE=$AWS_PROFILE_ARG")
-  else
-    # No profile named on the command line, so the identity is the one the
-    # shared library settles and proves: whatever this shell already carries, or
-    # the operator profile. The reads below discard their own stderr, so without
-    # it a dead credential arrives as an empty value and is reported as a tree
-    # that was never initialised.
-    # shellcheck source=lib/aws-profile.sh
-    source "${REPO_ROOT}/scripts/lib/aws-profile.sh"
-    aws_profile_ensure || exit 1
-  fi
-  if ! BUCKET_VALUE="$("${TF_ENV[@]}" terraform -chdir="${REPO_ROOT}/terraform/${TARGET}" output -raw snapshots_bucket_name 2>/dev/null)"; then
-    echo "ERROR: could not read the snapshots bucket name from terraform/${TARGET}." >&2
-    echo "       Run 'terraform -chdir=terraform/${TARGET} init' first, and pass --profile if the state needs credentials." >&2
-    exit 1
-  fi
-  if [[ -z "$BUCKET_VALUE" ]]; then
-    echo "ERROR: the snapshots_bucket_name output resolved empty for ${TARGET}." >&2
-    exit 1
-  fi
-
-  # The two SNS feeds authenticate on their publishing topic as well as their
-  # shared key, so the host needs the exact ARNs Terraform built. Read them for
-  # the same reason the bucket is read rather than typed: an ARN that does not
-  # match what published the message makes the feed refuse every delivery, and
-  # a refused feed looks quiet rather than broken.
-  if ! ALARM_TOPIC_VALUE="$("${TF_ENV[@]}" terraform -chdir="${REPO_ROOT}/terraform/${TARGET}" output -raw alarm_topic_arn 2>/dev/null)"; then
-    echo "ERROR: could not read alarm_topic_arn from terraform/${TARGET}." >&2
-    exit 1
-  fi
-  if ! SES_TOPIC_VALUE="$("${TF_ENV[@]}" terraform -chdir="${REPO_ROOT}/terraform/${TARGET}" output -raw ses_feedback_topic_arn 2>/dev/null)"; then
-    echo "ERROR: could not read ses_feedback_topic_arn from terraform/${TARGET}." >&2
-    exit 1
-  fi
-  if [[ -z "$ALARM_TOPIC_VALUE" || -z "$SES_TOPIC_VALUE" ]]; then
-    echo "ERROR: an SNS topic ARN output resolved empty for ${TARGET}." >&2
-    exit 1
-  fi
-  # The queues the worker polls. Unlike the topic ARNs these are allowed to
-  # resolve empty: the outputs answer empty until the feed queues are enabled,
-  # and a host that holds no queue URL simply reads no feed. Writing the empty
-  # value is deliberate, so a host that once held a queue URL for a queue since
-  # removed stops polling one that no longer exists.
-  ALARM_QUEUE_VALUE="$("${TF_ENV[@]}" terraform -chdir="${REPO_ROOT}/terraform/${TARGET}" output -raw alarm_queue_url 2>/dev/null || true)"
-  SES_QUEUE_VALUE="$("${TF_ENV[@]}" terraform -chdir="${REPO_ROOT}/terraform/${TARGET}" output -raw ses_feedback_queue_url 2>/dev/null || true)"
-  # Required, like the ARNs and unlike the queue URLs: a host with no sender
-  # cannot boot the live adapter at all, and a host with the wrong one accepts
-  # every message and fails every send.
-  if ! SES_SENDER_VALUE="$("${TF_ENV[@]}" terraform -chdir="${REPO_ROOT}/terraform/${TARGET}" output -raw ses_sender_identity 2>/dev/null)"; then
-    echo "ERROR: could not read ses_sender_identity from terraform/${TARGET}." >&2
-    exit 1
-  fi
-  if [[ -z "$SES_SENDER_VALUE" ]]; then
-    echo "ERROR: the ses_sender_identity output resolved empty for ${TARGET}." >&2
-    exit 1
-  fi
-  # Required for the same reason as the sender: the deploy refuses to start
-  # without it, so writing a blank here only moves the failure later. It answers
-  # null until CloudFront is enabled on the environment, which is a real state
-  # and not an error, so that case is named rather than reported as a failure.
-  if [[ "$PREVIEW_MODE" -eq 1 ]]; then
-    PUBLIC_URL_VALUE="$("${TF_ENV[@]}" terraform -chdir="${REPO_ROOT}/terraform/${TARGET}" output -raw preview_url 2>/dev/null || true)"
-    if [[ -z "$PUBLIC_URL_VALUE" || "$PUBLIC_URL_VALUE" == "null" ]]; then
-      echo "ERROR: preview_url resolved empty for ${TARGET}, and --preview refuses to" >&2
-      echo "       write an address nothing serves. The output is non-null only once" >&2
-      echo "       enable_platform_custom_domain and enable_preview_record are both on" >&2
-      echo "       and applied — the window's preconditions. Outside them the host's" >&2
-      echo "       base address is platform_url: re-run without --preview." >&2
-      exit 1
-    fi
-  else
-    PUBLIC_URL_VALUE="$("${TF_ENV[@]}" terraform -chdir="${REPO_ROOT}/terraform/${TARGET}" output -raw platform_url 2>/dev/null || true)"
-    if [[ -z "$PUBLIC_URL_VALUE" || "$PUBLIC_URL_VALUE" == "null" ]]; then
-      echo "ERROR: platform_url resolved empty for ${TARGET}. Two causes, and the fix" >&2
-      echo "       is the same for both: apply the tree, then re-run." >&2
-      echo "         - The output is declared but not yet in state. Outputs are read from" >&2
-      echo "           state, so one added since the last apply reads empty however" >&2
-      echo "           correct the declaration is." >&2
-      echo "         - enable_cloudfront is off. The site has no canonical origin before" >&2
-      echo "           there is a distribution to serve it, and the output is null by" >&2
-      echo "           design until there is." >&2
-      exit 1
-    fi
-  fi
-fi
-
 echo "== set-host-env: ${TARGET} =="
 echo ""
-echo "Resolved values:"
+echo "Record to write:"
 echo "  FOOTBAG_ENV=${TARGET}    (the host's record of which environment it is; never changed once set)"
-echo "  TRUST_PROXY=${TRUST_PROXY_VALUE}    expected for ${TARGET}: $(expected_trust_proxy_note "$TARGET")"
-echo "  PUBLIC_BASE_URL=${PUBLIC_URL_VALUE:-<none: not supplied in this mode>}"
-echo "  BACKUP_S3_BUCKET=${BUCKET_VALUE}"
-echo "  ALARM_TOPIC_ARN=${ALARM_TOPIC_VALUE}"
-echo "  SES_FEEDBACK_TOPIC_ARN=${SES_TOPIC_VALUE}"
-echo "  ALARM_QUEUE_URL=${ALARM_QUEUE_VALUE:-<none: this feed is not read here>}"
-echo "  SES_FEEDBACK_QUEUE_URL=${SES_QUEUE_VALUE:-<none: this feed is not read here>}"
-echo "  SES_FROM_IDENTITY=${SES_SENDER_VALUE:-<none: not supplied in this mode>}"
 echo ""
 
 if [[ "$DRY_RUN" == "1" ]]; then
@@ -315,10 +123,9 @@ if [[ "$DRY_RUN" == "1" ]]; then
     echo "  1. Rewrite ${ENV_FILE_OVERRIDE} in place"
   else
     echo "  1. Read ${HOST_ENV_PATH} down from ${SSH_ALIAS} over the shared wire"
-    echo "  2. Rewrite every assignment locally, collapsing any duplicates"
+    echo "  2. Refuse if it records the other environment"
     echo "  3. Show the diff and ask for confirmation"
     echo "  4. Install the result back as root:root mode 0600, leaving no backup"
-    echo "  5. Remind you that the containers pick the values up on the next deploy"
   fi
   exit 0
 fi
@@ -337,7 +144,7 @@ HOST_ENV_SHA_AT_READ=""
 # Only local temp files need cleaning up: the wire leaves nothing on the host.
 cleanup() {
   # shred, not rm: both copies are the host's entire secret set, not just the
-  # four non-secret values this script rewrites.
+  # one value this script writes.
   shred -u "${OLD_LOCAL:-}" "${NEW_LOCAL:-}" 2>/dev/null \
     || rm -f "${OLD_LOCAL:-}" "${NEW_LOCAL:-}" 2>/dev/null || true
 }
@@ -367,9 +174,8 @@ fi
 # require_host_is, and refuses a host with no answer. This is the step that
 # writes the answer, so it cannot ask in the same way: on a new host there is
 # nothing recorded yet. It applies the same rule where the value is written
-# instead. A recorded value naming the other environment is refused, because
-# overwriting it would turn the other environment's host into this one by
-# label; a missing one is recorded as this run's target.
+# instead. A recorded value naming the other environment is refused; a missing
+# one is recorded as this run's target.
 RECORDED_ENV="$(awk -F= '$1=="FOOTBAG_ENV" {sub(/^[^=]*=/,""); print}' "$OLD_LOCAL" | tail -1)"
 if [[ -n "$RECORDED_ENV" && "$RECORDED_ENV" != "$TARGET" ]]; then
   echo "ERROR: ${SSH_ALIAS} records FOOTBAG_ENV=${RECORDED_ENV}, but this run is --target ${TARGET}." >&2
@@ -379,98 +185,24 @@ fi
 
 # ---- Rewrite ----------------------------------------------------------------
 
-# Replace-or-append, collapsing duplicate assignments so the file's last-wins
-# parsing cannot diverge from the diff shown below. Values travel through the
-# environment rather than argv, so nothing lands in the process table.
-TP_VALUE="$TRUST_PROXY_VALUE" BK_VALUE="$BUCKET_VALUE" \
-AT_VALUE="$ALARM_TOPIC_VALUE" ST_VALUE="$SES_TOPIC_VALUE" \
-AQ_VALUE="${ALARM_QUEUE_VALUE:-}" SQ_VALUE="${SES_QUEUE_VALUE:-}" \
-SI_VALUE="${SES_SENDER_VALUE:-}" PU_VALUE="${PUBLIC_URL_VALUE:-}" EV_VALUE="$TARGET" awk '
-  BEGIN { seen_tp = 0; seen_bk = 0; seen_at = 0; seen_st = 0; seen_aq = 0; seen_sq = 0; seen_si = 0; seen_pu = 0; seen_ev = 0 }
-  /^FOOTBAG_ENV=/ {
-    # Already checked above to be this target or absent, so writing the target
-    # here only collapses duplicates; it never changes which environment a host
-    # says it is.
-    if (!seen_ev) { print "FOOTBAG_ENV=" ENVIRON["EV_VALUE"]; seen_ev = 1 }
-    next
-  }
-  /^PUBLIC_BASE_URL=/ {
-    # Left alone when this mode supplied no value, matching the sender identity:
-    # a fixture that predates this value keeps whatever it carried rather than
-    # having it blanked, and a blank is the one thing the deploy refuses on.
-    if (!seen_pu) {
-      if (ENVIRON["PU_VALUE"] != "") { print "PUBLIC_BASE_URL=" ENVIRON["PU_VALUE"] }
-      else { print }
-      seen_pu = 1
-    }
-    next
-  }
-  /^TRUST_PROXY=/ {
-    if (!seen_tp) { print "TRUST_PROXY=" ENVIRON["TP_VALUE"]; seen_tp = 1 }
-    next
-  }
-  /^BACKUP_S3_BUCKET=/ {
-    if (!seen_bk) { print "BACKUP_S3_BUCKET=" ENVIRON["BK_VALUE"]; seen_bk = 1 }
-    next
-  }
-  /^ALARM_TOPIC_ARN=/ {
-    if (!seen_at) { print "ALARM_TOPIC_ARN=" ENVIRON["AT_VALUE"]; seen_at = 1 }
-    next
-  }
-  /^SES_FEEDBACK_TOPIC_ARN=/ {
-    if (!seen_st) { print "SES_FEEDBACK_TOPIC_ARN=" ENVIRON["ST_VALUE"]; seen_st = 1 }
-    next
-  }
-  /^ALARM_QUEUE_URL=/ {
-    if (!seen_aq) { print "ALARM_QUEUE_URL=" ENVIRON["AQ_VALUE"]; seen_aq = 1 }
-    next
-  }
-  /^SES_FEEDBACK_QUEUE_URL=/ {
-    if (!seen_sq) { print "SES_FEEDBACK_QUEUE_URL=" ENVIRON["SQ_VALUE"]; seen_sq = 1 }
-    next
-  }
-  /^SES_FROM_IDENTITY=/ {
-    if (!seen_si) {
-      # Left alone when this mode supplied no value, so a fixture that predates
-      # the sender identity keeps whatever it already carried rather than having
-      # it blanked. The real path always supplies one.
-      if (ENVIRON["SI_VALUE"] != "") { print "SES_FROM_IDENTITY=" ENVIRON["SI_VALUE"] }
-      else { print }
-      seen_si = 1
-    }
-    next
-  }
+# Already checked to be this target or absent, so writing the target only
+# collapses duplicates or appends the missing record; it never changes which
+# environment a host says it is.
+EV_VALUE="$TARGET" awk '
+  BEGIN { seen = 0 }
+  /^FOOTBAG_ENV=/ { if (!seen) { print "FOOTBAG_ENV=" ENVIRON["EV_VALUE"]; seen = 1 } next }
   { print }
-  END {
-    if (!seen_ev) print "FOOTBAG_ENV=" ENVIRON["EV_VALUE"]
-    if (!seen_tp) print "TRUST_PROXY=" ENVIRON["TP_VALUE"]
-    if (!seen_bk) print "BACKUP_S3_BUCKET=" ENVIRON["BK_VALUE"]
-    if (!seen_at) print "ALARM_TOPIC_ARN=" ENVIRON["AT_VALUE"]
-    if (!seen_st) print "SES_FEEDBACK_TOPIC_ARN=" ENVIRON["ST_VALUE"]
-    # Appended only when there is a queue to name. An environment whose feed
-    # queues do not exist yet reads no feed either way, so writing an empty
-    # assignment would add a line that changes nothing and would make a re-run
-    # against an already-correct file report a change. A line already present is
-    # rewritten above whatever its new value, including back to empty, which is
-    # what stops a host polling a queue that has since been removed.
-    if (!seen_aq && ENVIRON["AQ_VALUE"] != "") print "ALARM_QUEUE_URL=" ENVIRON["AQ_VALUE"]
-    if (!seen_sq && ENVIRON["SQ_VALUE"] != "") print "SES_FEEDBACK_QUEUE_URL=" ENVIRON["SQ_VALUE"]
-    if (!seen_si && ENVIRON["SI_VALUE"] != "") print "SES_FROM_IDENTITY=" ENVIRON["SI_VALUE"]
-    if (!seen_pu && ENVIRON["PU_VALUE"] != "") print "PUBLIC_BASE_URL=" ENVIRON["PU_VALUE"]
-  }
+  END { if (!seen) print "FOOTBAG_ENV=" ENVIRON["EV_VALUE"] }
 ' "$OLD_LOCAL" > "$NEW_LOCAL"
 
 if diff -q "$OLD_LOCAL" "$NEW_LOCAL" >/dev/null 2>&1; then
-  echo "Every value already reads as intended. Nothing to write."
+  echo "The host already records FOOTBAG_ENV=${TARGET}. Nothing to write."
   exit 0
 fi
 
-# The values this script writes are not secrets and are shown in full.
-# The file around them is not: diff prints unchanged neighbour lines, and an
-# append at the end prints the file's tail, so a session or webhook secret
-# sitting next to a rewritten line would be printed in the clear.
-echo "Diff (the rewritten values are non-secret and shown in full;"
-echo "other secrets in the surrounding context are masked):"
+# The value written is not a secret and is shown in full. The file around it is:
+# diff prints unchanged neighbour lines, and an append prints the file's tail.
+echo "Diff (the record is shown in full; other secrets in the context are masked):"
 echo ""
 diff -u <(host_env_mask "$OLD_LOCAL") <(host_env_mask "$NEW_LOCAL") || true
 echo ""
@@ -494,14 +226,5 @@ echo "Installing the rewritten env file..."
 host_env_install "$SSH_ALIAS" "$NEW_LOCAL" "$HOST_ENV_PATH" "$HOST_ENV_SHA_AT_READ" || exit 1
 
 echo ""
-echo "Done. ${HOST_ENV_PATH} now carries every operator-owned value."
-echo "The running containers keep their current environment until the next deploy."
-# The same file this run was given, named back rather than guessed at, so the
-# suggested command is pasteable by whoever is actually running it. A
-# dev-and-tester on their named account and a footbag-operator holder on the
-# shared account need different files.
-if operator_credential_select "$SSH_ALIAS" "$TARGET" 2>/dev/null; then
-  echo "Confirm with: < ${OPERATOR_CREDENTIAL_DISPLAY} bash scripts/bringup-status.sh --target ${TARGET}${AWS_PROFILE_ARG:+ --profile $AWS_PROFILE_ARG}"
-else
-  echo "Confirm with: bash scripts/bringup-status.sh --target ${TARGET}${AWS_PROFILE_ARG:+ --profile $AWS_PROFILE_ARG}, with this environment's credential file redirected in"
-fi
+echo "Done. ${SSH_ALIAS} now records FOOTBAG_ENV=${TARGET}."
+echo "Every other value in ${HOST_ENV_PATH} is written by the next deploy."

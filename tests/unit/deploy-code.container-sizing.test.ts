@@ -117,6 +117,12 @@ describe('the committed host config pins each adapter selector to one legal valu
     ['MEDIA_STORAGE_ADAPTER', '"s3"'],
     ['SECRETS_ADAPTER', '"live"'],
     ['JWT_SIGNER', '"kms"'],
+    // The host constants with one correct value: a different directory would
+    // widen the recursive ownership fix past the database, and a different
+    // profile names a credential chain the host was never given.
+    ['FOOTBAG_DB_DIR', '"/srv/footbag/db"'],
+    ['FOOTBAG_DB_PATH', '"/srv/footbag/db/footbag.db"'],
+    ['AWS_PROFILE', '"footbag-${FOOTBAG_ENV}-runtime"'],
   ];
 
   it.each(HALVES)('%s accepts only the deployed value for each pinned selector', (file) => {

@@ -19,7 +19,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import {
-  mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync, readdirSync, chmodSync,
+  mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync, readdirSync, chmodSync, statSync,
 } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -113,6 +113,10 @@ beforeEach(() => {
     '#!/usr/bin/env bash',
     `echo "systemctl $*" >> ${JSON.stringify(callLog)}`,
     'if [[ "$1" == "is-active" && "$*" == *footbag-backup.timer* && -n "${SYSTEMCTL_TIMER_INACTIVE:-}" ]]; then exit 3; fi',
+    // SYSTEMCTL_SERVICE_INACTIVE: the unit is installed and not running, as the
+    // release's first install leaves it. SYSTEMCTL_NO_UNIT: no unit installed.
+    'if [[ "$1" == "is-active" && "$*" == *" footbag" && -n "${SYSTEMCTL_SERVICE_INACTIVE:-}" ]]; then exit 3; fi',
+    'if [[ "$1" == "cat" && -n "${SYSTEMCTL_NO_UNIT:-}" ]]; then exit 1; fi',
     'exit 0',
   ].join('\n'));
   // The erasure replay runs in a throwaway container. Stubbed so the call is
@@ -469,6 +473,109 @@ describe('restoring a snapshot onto a host', () => {
     expect(res.stdout).toContain('database in place:');
     expect(res.stdout).toContain('members=1');
     expect(res.stdout).toContain('members=2');
+  });
+});
+
+describe('restoring onto a host that has no database yet', () => {
+  const owner = `${process.getuid!()}:${process.getgid!()}`;
+  // The release a first install leaves on the host: its compose files, beside
+  // the unit and the images the stand-ins answer for.
+  function release(): string {
+    const dir = join(workDir, 'release-docker');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'docker-compose.yml'), 'services: {}\n');
+    writeFileSync(join(dir, 'docker-compose.prod.yml'), 'services: {}\n');
+    return dir;
+  }
+
+  // Defect caught: a rebuilt host after go-live, where the rebuild deploy is
+  // refused for good, has no scripted way to get its database back, because the
+  // restore refuses a host with nothing to restore over.
+  it('restores onto a host with no database, the directory and file owned by the container account', () => {
+    rmSync(dbDir, { recursive: true, force: true });
+    const key = publishSnapshot(['snapshot-1']);
+    const res = runRemote(key, undefined, { ONTO_EMPTY: '1', RESTORE_CONTAINER_OWNER: owner, RESTORE_COMPOSE_DIR: release() });
+
+    expect(res.status, res.stderr).toBe(0);
+    expect(memberIds(dbPath)).toEqual(['snapshot-1']);
+    expect(statSync(dbPath).mode & 0o777).toBe(0o600);
+    expect(`${statSync(dbPath).uid}:${statSync(dbPath).gid}`).toBe(owner);
+    expect(res.stdout).toContain('created an empty placeholder owned by the container account');
+    expect(res.stderr).toContain('SYNTHETIC: RESTORE_CONTAINER_OWNER');
+    expect(calls()).toContain('systemctl start footbag');
+  });
+
+  it('restores onto a host whose release is installed and its service not running, replaying before it starts the service', () => {
+    // The live production rebuilt onto a fresh instance: the first install left
+    // the unit installed and inactive. Defect caught: the restore could not run
+    // there, or started the service before the erasure replay.
+    rmSync(dbDir, { recursive: true, force: true });
+    const res = runRemote(publishSnapshot(['snapshot-1']), undefined, {
+      ONTO_EMPTY: '1', RESTORE_CONTAINER_OWNER: owner, RESTORE_COMPOSE_DIR: release(), SYSTEMCTL_SERVICE_INACTIVE: '1',
+    });
+    expect(res.status, res.stderr).toBe(0);
+    expect(memberIds(dbPath)).toEqual(['snapshot-1']);
+    const log = calls();
+    expect(log.indexOf('runErasureReplay.js')).toBeGreaterThanOrEqual(0);
+    expect(log.indexOf('runErasureReplay.js')).toBeLessThan(log.search(/^systemctl start footbag$/m));
+  });
+
+  it('refuses a host that does not carry the release the replay runs in, creating nothing', () => {
+    // Defect caught: run before any deploy, the restore put the database in
+    // place, its erasure replay had no compose files or images to run in, and
+    // the pending marker then held a service that did not exist.
+    rmSync(dbDir, { recursive: true, force: true });
+    const res = runRemote(publishSnapshot(['snapshot-1']), undefined, {
+      ONTO_EMPTY: '1', RESTORE_CONTAINER_OWNER: owner, RESTORE_COMPOSE_DIR: join(workDir, 'no-release'), SYSTEMCTL_NO_UNIT: '1',
+    });
+    expect(res.status).toBe(1);
+    expect(res.stderr).toMatch(/does not carry the release the restore runs in/);
+    expect(res.stderr).toMatch(/footbag\.service/);
+    expect(res.stderr).toMatch(/deploy-code\.sh --first-install/);
+    expect(existsSync(dbPath)).toBe(false);
+    expect(calls()).not.toContain('systemctl stop footbag');
+  });
+
+  it('leaves a service that was not running stopped when it refuses after the stop', () => {
+    // Defect caught: a refusal "restarted" a service the first install had left
+    // stopped, starting the site on an empty placeholder, whose new database the
+    // restore then refuses as not empty.
+    rmSync(dbDir, { recursive: true, force: true });
+    const failingDu = join(workDir, 'no-du');
+    mkdirSync(failingDu, { recursive: true });
+    writeFileSync(join(failingDu, 'du'), ['#!/usr/bin/env bash', 'exit 1'].join('\n'));
+    chmodSync(join(failingDu, 'du'), 0o755);
+    const res = runRemote(publishSnapshot(['snapshot-1']), undefined, {
+      ONTO_EMPTY: '1', RESTORE_CONTAINER_OWNER: owner, RESTORE_COMPOSE_DIR: release(), SYSTEMCTL_SERVICE_INACTIVE: '1',
+      PATH: `${failingDu}:${binDir}:${process.env.PATH ?? ''}`,
+    });
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('could not measure the database');
+    expect(calls()).not.toMatch(/^systemctl start footbag$/m);
+    expect(res.stderr).toMatch(/was not running before this restore, and is left stopped/);
+  });
+
+  // Defect caught: the bare-host flag stands in for the ordinary restore and a
+  // real database is replaced without being treated as one.
+  it('refuses the flag on a host that already has a database, changing nothing', () => {
+    const before = memberIds(dbPath);
+    const key = publishSnapshot(['snapshot-1']);
+    const res = runRemote(key, undefined, { ONTO_EMPTY: '1', RESTORE_CONTAINER_OWNER: owner });
+
+    expect(res.status).not.toBe(0);
+    expect(res.stderr).toContain('exists, so this host is not empty. Nothing was changed.');
+    expect(memberIds(dbPath)).toEqual(before);
+    expect(calls()).not.toContain('systemctl stop footbag');
+  });
+
+  it('still refuses a host with no database when the flag is absent, and names it', () => {
+    rmSync(dbPath, { force: true });
+    const key = publishSnapshot(['snapshot-1']);
+    const res = runRemote(key);
+
+    expect(res.status).not.toBe(0);
+    expect(res.stderr).toContain('nothing to restore over. On a host built from nothing, pass --onto-empty.');
+    expect(calls()).not.toContain('systemctl stop footbag');
   });
 });
 

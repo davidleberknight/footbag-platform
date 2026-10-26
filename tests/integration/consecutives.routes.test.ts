@@ -195,14 +195,21 @@ describe('GET /consecutives', () => {
     expect(firstTable).toBeGreaterThan(explainer);
   });
 
-  // Defect caught: the featured clip goes missing from the explainer, or the
-  // upright clip is forced into the landscape frame and cropped to a strip.
-  it('shows the featured clip in a portrait frame inside the explainer', async () => {
+  // Defect caught: the featured clip goes missing, drifts back up into the
+  // explainer instead of sitting just above the world records, or the upright
+  // clip is forced into the landscape frame and cropped to a strip.
+  it('shows the featured clip in a portrait frame just above the world records', async () => {
     const res = await page('/consecutives');
+    const competitions = res.text.match(/<section class="content-section" id="competitions">[\s\S]*?<\/section>/)?.[0] ?? '';
+    expect(competitions).toContain('<figure class="demo-video demo-video--portrait">');
+    expect(competitions).toMatch(/\/media-store\/[^"]+-video\.mp4/);
+    expect(competitions).toContain('<figcaption>Demonstration of timed consecutives</figcaption>');
     const explainer = res.text.match(/<section class="content-section" id="what-are-consecutives">[\s\S]*?<\/section>/)?.[0] ?? '';
-    expect(explainer).toContain('<figure class="demo-video demo-video--portrait">');
-    expect(explainer).toMatch(/\/media-store\/[^"]+-video\.mp4/);
-    expect(explainer).toContain('<figcaption>Demonstration of timed consecutives</figcaption>');
+    expect(explainer).toContain('<h2>');
+    expect(explainer).not.toContain('class="demo-video');
+    const clip = res.text.indexOf('class="demo-video');
+    const worldRecords = res.text.indexOf('id="world-records"');
+    expect(worldRecords).toBeGreaterThan(clip);
   });
 
   // Defect caught: the section's artwork goes missing from the hero, where the

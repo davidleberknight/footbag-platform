@@ -68,14 +68,50 @@ Reads sudo password from stdin (line 1).
 
 Skip post-deploy direct-IP smoke check (staging only; production refuses it):
   SKIP_SMOKE=yes ...
+
+--first-install --target <env> (passed by scripts/bootstrap-host.sh only): onto a host with no
+database and no running service, promote the release, load the images and
+install the unit without starting or enabling it, for the restore that follows.
 EOF
 }
 
 # Arguments are refused rather than ignored. This script took none and parsed
 # none, so `--help` ran a full deploy to whatever DEPLOY_TARGET happened to hold.
+#
+# --first-install is the one it takes, and only scripts/bootstrap-host.sh passes
+# it, for a live production rebuilt onto a fresh instance. Such a host gets its
+# database back by restore, and the restore's erasure replay has to run before
+# the site serves, in a container of the release. So this mode promotes the
+# release, loads and verifies the images and installs the unit, and stops there:
+# it neither starts nor enables the service and does not wait for readiness,
+# which a host without its database could never reach. The host refuses it while
+# it holds a database or a running service, so it can never stand in for a code
+# deploy.
+#
+# It names its host with --target, as every operator command does, because its
+# caller is not one of the deploy entry points that hand the environment over in
+# DEPLOY_TARGET; a DEPLOY_TARGET naming anything else is refused.
+FIRST_INSTALL=0
+FIRST_INSTALL_TARGET=""
 if [[ $# -gt 0 ]]; then
   case "$1" in
     --help|-h) usage; exit 0 ;;
+    --first-install)
+      FIRST_INSTALL=1
+      shift
+      if [[ "${1:-}" != "--target" || $# -ne 2 ]]; then
+        echo "ERROR: --first-install takes exactly --target <staging|production>." >&2
+        exit 2
+      fi
+      FIRST_INSTALL_TARGET="$2"
+      # shellcheck source=lib/host-env-remote.sh
+      source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/host-env-remote.sh"
+      require_target "$FIRST_INSTALL_TARGET" staging production || exit 2
+      if [[ -n "${DEPLOY_TARGET:-}" && "$DEPLOY_TARGET" != "footbag-${FIRST_INSTALL_TARGET}" ]]; then
+        echo "ERROR: DEPLOY_TARGET names '${DEPLOY_TARGET}', but --target names ${FIRST_INSTALL_TARGET}." >&2
+        exit 2
+      fi
+      ;;
     *)
       echo "ERROR: unknown argument '$1'. This script takes none; deploy_to_aws.sh" >&2
       echo "       runs it with the environment named by its own --target." >&2
@@ -83,6 +119,10 @@ if [[ $# -gt 0 ]]; then
       exit 2
       ;;
   esac
+fi
+if (( FIRST_INSTALL )) && [[ -n "${MIGRATION_SQL:-}" ]]; then
+  echo "ERROR: --first-install installs onto a host with no database, so it carries no migration." >&2
+  exit 2
 fi
 
 if [[ -t 0 ]]; then
@@ -102,6 +142,7 @@ fi
 IFS= read -r SUDO_PASS
 
 REMOTE="${DEPLOY_TARGET:-footbag-staging}"
+[[ -n "$FIRST_INSTALL_TARGET" ]] && REMOTE="footbag-${FIRST_INSTALL_TARGET}"
 SKIP_SMOKE="${SKIP_SMOKE:-no}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
@@ -115,6 +156,9 @@ REMOTE_HALF="${SCRIPT_DIR}/internal/deploy-code-remote.sh"
 # Travels ahead of the remote half on the same stream and defines the function
 # that deletes set-aside database copies once they are more than seven days old.
 PRUNE_LIB="${SCRIPT_DIR}/internal/prune-db-copies.sh"
+# Travels the same way and declares every host value with its owner, plus the
+# sync the remote half calls to write the Terraform-published ones.
+HOST_VALUES_LIB="${SCRIPT_DIR}/lib/host-values.sh"
 
 # shellcheck source=lib/terminal.sh
 source "${REPO_ROOT}/scripts/lib/terminal.sh"
@@ -394,6 +438,10 @@ fi
     -f docker/docker-compose.yml \
     build )
 
+# Images built on another processor cannot start on the hosts, so refuse here,
+# before anything is sent.
+require_images_for_hosts || exit 1
+
 # Capture layer DiffIDs (RootFS.Layers) for end-to-end integrity verification:
 # the remote-half inspects the loaded images and exits non-zero if either layer
 # list does not match. Defends against a corrupted docker save | ssh |
@@ -543,21 +591,37 @@ echo "==> Running remote-as-root deploy (promote, restart)..."
   printf 'MIGRATION_NAME=%q\n'              "${MIGRATION_NAME:-}"
   printf 'MIGRATION_CHECKSUM=%q\n'          "${MIGRATION_CHECKSUM:-}"
   printf 'DEPLOY_ACTOR=%q\n'                "$DEPLOY_ACTOR"
-  # The pruning helper defines a function and runs nothing, so the remote half
-  # can call it once the new release reports ready.
-  cat "$PRUNE_LIB" "$REMOTE_HALF"
+  printf 'FIRST_INSTALL=%q\n'               "$FIRST_INSTALL"
+  # The pruning helper and the host-value catalogue define data and functions and
+  # run nothing, so the remote half can call them: the pruner once the new
+  # release reports ready, the catalogue's sync where the parameters land.
+  cat "$PRUNE_LIB" "$HOST_VALUES_LIB" "$REMOTE_HALF"
 } | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'
+
+# Nothing is serving yet, so there is nothing to smoke-check and the env file is
+# not yet the one a running site reads; the code deploy that follows the restore
+# runs both.
+if (( FIRST_INSTALL )); then
+  echo ""
+  echo "Release installed on $REMOTE without starting it. Next, restore the database"
+  echo "with its erasure replay, which starts the service:"
+  echo "  bash scripts/restore-db.sh --target $FOOTBAG_ENV --onto-empty"
+  echo "then run the code deploy, which verifies the site."
+  exit 0
+fi
 
 # ── Step 5: Smoke check ───────────────────────────────────────────────────────
 # Smoke runs against the public CloudFront URL, not the direct Lightsail
 # origin. The origin is fenced by X-Origin-Verify (returns 444 to anything
 # not coming through CloudFront), so direct-IP smoke would always fail under
 # the current production-like wiring. The address is the one the host records
-# it serves (its PUBLIC_BASE_URL), read when the host confirmed it was this
-# environment, before anything shipped. That record is the host's own and
-# follows it through the cutover, needs no Terraform read and so no private
+# it serves (its PUBLIC_BASE_URL), asked of the host again now, after the deploy:
+# the deploy syncs that value from Terraform, so a first deploy is what gives a
+# new host its address, and a deploy across a notice-flag flip is what moves it.
+# The record is the host's own, needs no Terraform read and so no private
 # checkout, and cannot be pointed at another environment's site by a value
 # typed or exported here.
+require_host_is "$REMOTE" "$FOOTBAG_ENV" || exit 1
 smoke_url="$HOST_PUBLIC_BASE_URL"
 
 if [[ "$SKIP_SMOKE" == "yes" ]]; then
@@ -568,7 +632,8 @@ elif [[ -z "$smoke_url" ]]; then
   # override; the release gate refuses it on production.
   echo "ERROR: $REMOTE records no PUBLIC_BASE_URL, so the deploy cannot be" >&2
   echo "       smoke-checked and will not report itself as done." >&2
-  echo "       Record it with: bash scripts/set-host-env.sh --target $FOOTBAG_ENV" >&2
+  echo "       The deploy syncs it from /footbag/$FOOTBAG_ENV/app/public_base_url, which" >&2
+  echo "       Terraform publishes once CloudFront is enabled; apply the tree and redeploy." >&2
   exit 1
 else
   echo "==> Running smoke check against $smoke_url ..."
@@ -586,6 +651,23 @@ else
     echo "Inspect the host logs over the pinned connection: bash scripts/host-diagnostics.sh --target $FOOTBAG_ENV web-logs 200" >&2
     exit 1
   fi
+fi
+
+# The host's whole env file, held against Terraform, the committed host config
+# and the production-hardening invariants. Smoke proves the site answers; this
+# proves it answers with the configuration the estate declares, so a value the
+# sync missed or a stale one left behind fails the deploy rather than waiting for
+# someone to remember to run the verifier. DEPLOY_VERIFY_HOST_ENV_CMD is the test
+# seam for the verifier.
+VERIFY_HOST_ENV_CMD="${DEPLOY_VERIFY_HOST_ENV_CMD:-$REPO_ROOT/scripts/verify-host-env.sh}"
+if [[ -n "${DEPLOY_VERIFY_HOST_ENV_CMD:-}" ]]; then
+  echo "SYNTHETIC: host env verifier replaced by DEPLOY_VERIFY_HOST_ENV_CMD=$DEPLOY_VERIFY_HOST_ENV_CMD" >&2
+fi
+echo "==> Verifying $REMOTE's env file ..."
+if ! printf '%s\n' "$SUDO_PASS" | bash "$VERIFY_HOST_ENV_CMD" --target "$FOOTBAG_ENV"; then
+  echo "ERROR: $REMOTE's env file failed verification after the deploy; each FAIL above names its fix." >&2
+  echo "       The release is live, so fix what failed and deploy again." >&2
+  exit 1
 fi
 
 echo ""

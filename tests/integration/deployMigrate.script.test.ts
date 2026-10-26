@@ -1168,6 +1168,6 @@ describe('pruning set-aside database copies after a code deploy', () => {
   it('is shipped ahead of the remote half by the code deploy', () => {
     const sender = readFileSync(join(process.cwd(), 'scripts/deploy-code.sh'), 'utf8');
     expect(sender).toContain('PRUNE_LIB="${SCRIPT_DIR}/internal/prune-db-copies.sh"');
-    expect(sender).toContain('cat "$PRUNE_LIB" "$REMOTE_HALF"');
+    expect(sender).toMatch(/cat "\$PRUNE_LIB" (?:"\$[A-Z_]+" )*"\$REMOTE_HALF"/);
   });
 });

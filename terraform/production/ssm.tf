@@ -1,18 +1,11 @@
 # =============================================================================
 # SSM Parameter Store — /footbag/{env}/...
-# All application secrets live here. SecureString type with KMS encryption.
-#
-# TODO: After apply, set actual secret values via AWS Console or CLI:
-#   aws ssm put-parameter --name "/footbag/production/app/secret_key" \
-#     --value "$(openssl rand -hex 32)" --type SecureString \
-#     --key-id alias/footbag-production --overwrite
+# Non-secret values live under app/ as String; secrets under secrets/ as
+# SecureString with KMS encryption. Every value the deploy syncs onto the host
+# is declared in scripts/lib/host-values.sh, which names this parameter as its
+# source. A secret whose value Terraform cannot know is written through its
+# provisioning script, never by a hand-typed put-parameter.
 # =============================================================================
-
-resource "aws_ssm_parameter" "app_port" {
-  name  = "${local.ssm_prefix}/app/port"
-  type  = "String"
-  value = "3000"
-}
 
 resource "aws_ssm_parameter" "app_log_level" {
   name  = "${local.ssm_prefix}/app/log_level"
@@ -113,25 +106,100 @@ resource "aws_ssm_parameter" "app_production_live" {
   lifecycle { ignore_changes = [value] }
 }
 
-# The site's own public address is deliberately not a parameter. It is set on the
-# host env file, which the application reads at startup, and the deploy syncs an
-# explicit list of keys from Parameter Store that does not include it. A parameter
-# nothing reads is state that can silently disagree with the running value, and
-# this one did: it was seeded with the bare apex while the canonical host is www.
+# The rest of the host values Terraform creates or decides, published so every
+# deploy syncs them onto the host and no operator script has to. Each reads the
+# resource or the flag it comes from, so a rename or a flag flip travels with it.
+# No ignore_changes: Terraform is the only writer, and a hand put-parameter
+# reverts on the next apply.
 
-resource "aws_ssm_parameter" "app_db_path" {
-  name = "${local.ssm_prefix}/app/db_path"
-  type = "String"
-  # /srv/footbag/db/footbag.db matches the host bind mount declared in
-  # docker/docker-compose.prod.yml. The earlier value (/srv/footbag/footbag.db)
-  # predated the directory-mount migration and would cause the app to look
-  # for the database outside the container's mounted directory on first
-  # boot, crash-looping the stack. Staging carries the same corrected value
-  # in terraform/staging/ssm.tf.
-  value = "/srv/footbag/db/footbag.db"
-  # Operators may switch the path on the host during a maintenance window;
-  # terraform re-apply must not clobber that change without explicit intent.
-  lifecycle { ignore_changes = [value] }
+resource "aws_ssm_parameter" "app_snapshots_bucket" {
+  name  = "${local.ssm_prefix}/app/snapshots_bucket"
+  type  = "String"
+  value = aws_s3_bucket.snapshots.bucket
+}
+
+resource "aws_ssm_parameter" "app_alarm_topic_arn" {
+  name  = "${local.ssm_prefix}/app/alarm_topic_arn"
+  type  = "String"
+  value = aws_sns_topic.alarms.arn
+}
+
+resource "aws_ssm_parameter" "app_ses_feedback_topic_arn" {
+  name  = "${local.ssm_prefix}/app/ses_feedback_topic_arn"
+  type  = "String"
+  value = aws_sns_topic.ses_feedback.arn
+}
+
+# The feed queues exist only once enable_feed_queues is on. Parameter Store
+# refuses an empty value, so the parameter exists exactly when the queue does,
+# and the deploy reads its absence as "no feed to poll".
+resource "aws_ssm_parameter" "app_alarm_queue_url" {
+  count = var.enable_feed_queues ? 1 : 0
+  name  = "${local.ssm_prefix}/app/alarm_queue_url"
+  type  = "String"
+  value = aws_sqs_queue.alarm_feed[0].url
+}
+
+resource "aws_ssm_parameter" "app_ses_feedback_queue_url" {
+  count = var.enable_feed_queues ? 1 : 0
+  name  = "${local.ssm_prefix}/app/ses_feedback_queue_url"
+  type  = "String"
+  value = aws_sqs_queue.ses_feedback_feed[0].url
+}
+
+resource "aws_ssm_parameter" "app_ses_sender_identity" {
+  name  = "${local.ssm_prefix}/app/ses_sender_identity"
+  type  = "String"
+  value = var.ses_sender_identity
+}
+
+# The site's canonical origin, which every absolute link, redirect and mail link
+# is built against, and which the CSRF origin pin compares against. It is the
+# public name that actually reaches the platform at each stage:
+#
+#   - www, once www serves the platform: the apex and www records point at the
+#     distribution and the migration notice is off. That is go-live. Also www
+#     for the launch dress rehearsal, while rehearse_launch_base_address is on,
+#     because testers then reach www through an edge address and their form
+#     posts must match the host's origin; its precondition below confines it.
+#   - preview, while its record exists and www does not yet serve the platform:
+#     from the custom-domain apply, while www still answers with the legacy
+#     site, through the notice window, when www serves the notice.
+#   - the distribution's own cloudfront.net name otherwise.
+#
+# Turning the custom domain on is not enough to move it to www: the records keep
+# serving legacy until the freeze apply, and a host given www in that gap would
+# build every mail link against the legacy site, permanently, since mail bodies
+# are rendered when they are queued. Deciding it here is what lets every deploy
+# put the right one on the host, with no operator flag on a separate script.
+locals {
+  platform_url        = var.enable_cloudfront ? "https://${var.enable_platform_custom_domain ? "www.${var.domain_name}" : aws_cloudfront_distribution.main[0].domain_name}" : null
+  preview_url         = var.enable_cloudfront && var.enable_platform_custom_domain && var.enable_preview_record ? "https://preview.${var.domain_name}" : null
+  distribution_url    = var.enable_cloudfront ? "https://${aws_cloudfront_distribution.main[0].domain_name}" : null
+  www_serves_platform = (var.enable_platform_custom_domain && var.enable_apex_alias_records && !var.enable_cutover_notice) || var.rehearse_launch_base_address
+  public_base_url = (
+    local.www_serves_platform ? "https://www.${var.domain_name}" :
+    local.preview_url != null ? local.preview_url :
+    local.distribution_url
+  )
+}
+
+resource "aws_ssm_parameter" "app_public_base_url" {
+  count = var.enable_cloudfront ? 1 : 0
+  name  = "${local.ssm_prefix}/app/public_base_url"
+  type  = "String"
+  value = local.public_base_url
+
+  lifecycle {
+    precondition {
+      condition     = !var.enable_cutover_notice || local.preview_url != null
+      error_message = "enable_cutover_notice needs the preview record and the custom domain on: while the notice is up, preview is the only name reaching the platform, so the host must be given it."
+    }
+    precondition {
+      condition     = !var.rehearse_launch_base_address || (local.preview_url != null && !var.enable_cutover_notice && !var.enable_apex_alias_records)
+      error_message = "rehearse_launch_base_address is for the launch dress rehearsal only: the custom domain and preview record on, the notice off, and the apex records still on the legacy site. Turn it off before the window state, the freeze or launch."
+    }
+  }
 }
 
 # Origin-bypass secret. CloudFront injects this as X-Origin-Verify; nginx

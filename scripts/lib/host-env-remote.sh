@@ -309,7 +309,7 @@ host_address_for() {
   (( rc == 0 )) || return 1
   if [[ -z "$HOST_ADDRESS" ]]; then
     echo "ERROR: ${alias} records no PUBLIC_BASE_URL, so there is no ${target} address to use." >&2
-    echo "       Record it with: bash scripts/set-host-env.sh --target ${target}" >&2
+    echo "       The deploy syncs it from Terraform: deploy ${target}, then re-run." >&2
     return 1
   fi
   return 0

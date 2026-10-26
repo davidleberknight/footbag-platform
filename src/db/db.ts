@@ -4315,8 +4315,11 @@ export const netHome = {
 };
 
 export const health = {
+  // A row only when the schema is present. Opening a missing database file
+  // creates an empty one, which answers SELECT 1 perfectly well, so a bare
+  // reachability probe called a host with no data ready.
   get checkReady() { return db.prepare(`
-    SELECT 1 AS is_ready
+    SELECT 1 AS is_ready FROM sqlite_master WHERE type = 'table' AND name = 'members'
   `); },
 };
 

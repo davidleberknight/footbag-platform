@@ -267,8 +267,29 @@ if [[ "$ACTION" != "install" ]]; then
 
   case "$ACTION" in
     retire)
-      echo "==> Proving ${TARGET}'s HOST resolves its chain, before retiring ${OLD_KEY}"
       confirm_host
+      # The key the host itself holds, read from its credentials file. Retiring
+      # that one takes this host off SSM, S3 and SES at its next call, whatever
+      # the chain proof below says, so it is refused by id before anything else.
+      # shellcheck source=internal/bootstrap-host-rebuild-keys.sh
+      source "${SCRIPT_DIR}/internal/bootstrap-host-rebuild-keys.sh"
+      host_key_id_read "$SSH_ALIAS" /root/.aws/credentials "$SOURCE_PROFILE_USER" || exit 1
+      if [[ "$OLD_KEY" == "$HOST_KEY_ID" ]]; then
+        echo "REFUSING: ${OLD_KEY} is the key ${TARGET}'s host holds in /root/.aws/credentials." >&2
+        echo "          Retiring it would take the host off its credential chain. Nothing done." >&2
+        exit 1
+      fi
+      skip_proof=0
+      rebuild_key_slots_blocked "$SOURCE_PROFILE_USER" "$HOST_KEY_ID" && skip_proof=1
+      if (( skip_proof )); then
+        # Two keys on the user, neither on this host: nothing here uses either,
+        # and no rotation can mint this host its own until one is gone. The chain
+        # proof could only fail, since the host has no working key to prove with.
+        echo "==> ${SOURCE_PROFILE_USER} holds two keys and ${TARGET}'s host holds neither;"
+        echo "    retiring ${OLD_KEY} frees the slot a rotation needs. No chain proof is"
+        echo "    possible or needed: neither key is in service on this host."
+      else
+      echo "==> Proving ${TARGET}'s HOST resolves its chain, before retiring ${OLD_KEY}"
       if ! {
         printf '%s\n' "$SUDO_PASS"
         printf 'RUNTIME_PROFILE=%q\n' "footbag-${TARGET}-runtime"
@@ -289,7 +310,7 @@ case "$run" in
     ;;
 esac
 PROOF
-      } | ssh "${SSH_OPTS[@]}" "$SSH_ALIAS" 'sudo -k -S -p "" bash'; then
+      } | "$HOST_SSH_BIN" "${SSH_OPTS[@]}" "$SSH_ALIAS" 'sudo -k -S -p "" bash'; then
         echo "" >&2
         echo "ERROR: ${TARGET}'s host does not resolve its credential chain, so" >&2
         echo "       the replacement has not been shown to be in service there." >&2
@@ -298,6 +319,7 @@ PROOF
         echo "" >&2
         echo "       Install the credential first, or fix the chain, then re-run." >&2
         exit 1
+      fi
       fi
       echo ""
       echo "Deactivating ${OLD_KEY} on ${SOURCE_PROFILE_USER}. Reversible."
@@ -360,6 +382,17 @@ if [[ -n "$KEYS_FILE" ]]; then
   confirm_host
 else
   confirm_host
+  # A bare install onto a host holding none of the user's keys, while the user
+  # already holds one, is a host rebuilt from nothing. The shared library would
+  # refuse with only the count, which reads as "already in service"; this names
+  # the rotation that gives the new host its own key and retires the dead one's.
+  if (( ROTATE == 0 )); then
+    # shellcheck source=internal/bootstrap-host-rebuild-keys.sh
+    source "${SCRIPT_DIR}/internal/bootstrap-host-rebuild-keys.sh"
+    host_key_id_read "$SSH_ALIAS" /root/.aws/credentials "$SOURCE_PROFILE_USER" || exit 1
+    rebuild_key_check "$SOURCE_PROFILE_USER" "$HOST_KEY_ID" \
+      "scripts/install-host-credentials.sh --target ${TARGET}" "$TARGET" yes || exit 1
+  fi
   IAM_KEY_VAULT_NOTES="Long-lived IAM access key for the ${TARGET} source-profile user, the
 identity a Lightsail host authenticates as before assuming its runtime
 role. Installed at /root/.aws/credentials on that host, root-owned,

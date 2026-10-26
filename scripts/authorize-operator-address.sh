@@ -135,6 +135,8 @@ AWS_BIN="${AUTHORIZE_ADDRESS_AWS_BIN:-aws}"
 AWS_IDENTITY_BIN="$AWS_BIN"
 APPLY_CMD="${AUTHORIZE_ADDRESS_APPLY_CMD:-${SCRIPT_DIR}/terraform-apply.sh}"
 TERRAFORM_BIN="${AUTHORIZE_ADDRESS_TERRAFORM_BIN:-terraform}"
+# The instance-name read goes through the same binary, so one seam stands in for both.
+TF_OUTPUT_BIN="$TERRAFORM_BIN"
 
 # Named as literals rather than read from the profile the shared library owns:
 # a check taking the name from the same place the credential came from is not a
@@ -508,7 +510,9 @@ if [[ -n "$DEV_TESTER" ]]; then
     || exit 1
   aws_identity_require_direct_user "$FOOTBAG_OPERATOR_USER" || exit 1
 
-  INSTANCE="footbag-${TARGET}-web"
+  # The instance as Terraform records it, which a restore from snapshot renames.
+  tf_instance_name "$TARGET" || exit 1
+  INSTANCE="$TF_INSTANCE_NAME"
   PARAM="${DEV_TESTER_PATH}/${DEV_TESTER}"
 
   # What the parameter holds now. Absent is a fact; a read that fails for any
@@ -740,7 +744,9 @@ else
   esac
 fi
 
-INSTANCE="footbag-${TARGET}-web"
+# The instance as Terraform records it, which a restore from snapshot renames.
+tf_instance_name "$TARGET" || exit 1
+INSTANCE="$TF_INSTANCE_NAME"
 
 # ── The values file ──────────────────────────────────────────────────────────
 

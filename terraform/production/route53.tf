@@ -513,6 +513,12 @@ resource "aws_route53_record" "www_aaaa" {
 # separately from the apex flip so it can exist through the whole pre-cutover
 # window and the freeze: once the apex and www serve the migration notice, this
 # name is the only route an operator has to the platform until launch.
+variable "rehearse_launch_base_address" {
+  description = "Give the host the www base address for the launch dress rehearsal, when testers reach www through a CloudFront edge address while www's public records still serve the legacy site. Without it the host stays on preview there, and the origin pin refuses form posts on www. On only for the rehearsal: the custom domain and preview record on, the notice off, the apex records off; off again when the rehearsal returns to the window state. The parameter's history records each use."
+  type        = bool
+  default     = false
+}
+
 variable "enable_preview_record" {
   description = "Create the preview.<domain> alias records to CloudFront for the pre-cutover exercises. On after the zone move once the name is re-verified absent from the zone snapshot. It stays on through the freeze: while the public names serve the migration notice this is the only hostname reaching the platform. Turned off in the launch apply, because from go-live the only names served are the apex, www and archive."
   type        = bool

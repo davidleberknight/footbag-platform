@@ -45,6 +45,11 @@
 #     versa. Replacing the file wholesale is how one environment's pin quietly
 #     disappears.
 #   - Report success on a file it could not verify.
+#   - Leave this environment's old lines behind after a rebuild moves the host
+#     to another address. Lines for the address the alias named before, and
+#     any line tagged for this environment, are replaced along with the current
+#     address's; a line tagged for the other environment is never touched.
+#     --check reports such a leftover as stale.
 #
 # Usage:
 #   bash scripts/install-known-hosts.sh --target staging
@@ -120,7 +125,6 @@ done
 # wording that drifts per script is what teaches an operator to skim it.
 require_target "$TARGET" staging production || exit 2
 
-INSTANCE="footbag-${TARGET}-web"
 PIN="${FOOTBAG_KNOWN_HOSTS:-$FOOTBAG_KNOWN_HOSTS_DEFAULT}"
 
 # The AWS profile, supplied rather than exported. Both reads below reach
@@ -128,45 +132,100 @@ PIN="${FOOTBAG_KNOWN_HOSTS:-$FOOTBAG_KNOWN_HOSTS_DEFAULT}"
 # with two different messages.
 aws_profile_ensure || exit 1
 
-echo "==> Pinning ${INSTANCE} into ${PIN}"
+echo "==> Pinning the ${TARGET} web instance into ${PIN}"
 
 # ── The lines, from the address in Terraform and the keys in Lightsail ───────
 #
 # Built by the shared library, which the onboarding script also uses to seal the same
-# lines to a newcomer whose job role is denied the Lightsail call.
+# lines to a newcomer whose job role is denied the Lightsail call. The instance
+# is the one Terraform names, which a restore from snapshot changes.
 known_hosts_pin_lines "$TARGET" "$AWS_BIN" || exit 1
 IP="$KNOWN_HOSTS_PIN_IP"
-NEW_LINES="$KNOWN_HOSTS_PIN_LINES"
+INSTANCE="$KNOWN_HOSTS_PIN_INSTANCE"
+# Each line carries the environment's name as its trailing comment field, which
+# OpenSSH ignores when matching. It is what lets a later run find this
+# environment's lines again after the address they name has moved on, and keep
+# its hands off the other environment's.
+TAG="footbag-${TARGET}"
+OTHER_TAG="footbag-$([[ "$TARGET" == staging ]] && echo production || echo staging)"
+NEW_LINES="$(printf '%s\n' "$KNOWN_HOSTS_PIN_LINES" | sed "/./s/\$/ ${TAG}/")"
 EXPECTED_COUNT="$KNOWN_HOSTS_PIN_COUNT"
+
+# ── Where this alias pointed before ──────────────────────────────────────────
+#
+# A rebuild can move the host to another address. Lines for the address the
+# alias named before are then this environment's stale pins: they verify a host
+# that no longer exists, and if that address is ever reassigned they verify
+# whoever holds it next. The alias's configured HostName is that previous
+# address when it differs from Terraform's. It is never taken when it is the
+# other environment's address, read from that tree where it can be, and never
+# when the lines there carry the other environment's tag.
+PREV_IP=""
+alias_host="$(ssh -G "$TAG" 2>/dev/null | grep '^hostname ' | tail -1 | cut -d' ' -f2 || true)"
+if [[ "$alias_host" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ && "$alias_host" != "$IP" ]]; then
+  PREV_IP="$alias_host"
+  other_tree="terraform/${OTHER_TAG#footbag-}"
+  if [[ -d "$other_tree" ]] && tf_output_read "$other_tree" lightsail_static_ip 2>/dev/null \
+     && [[ "$TF_OUTPUT_VALUE" == "$PREV_IP" ]]; then
+    PREV_IP=""
+  fi
+fi
 
 # ── What is already there, for this host and for every other ────────────────
 #
 # Other environments' lines are kept. The file holds every host an operator
 # reaches, so rewriting it wholesale is how production's pin disappears during a
-# staging run.
+# staging run. Dropped: every line for the current address, which is rewritten
+# below; every line tagged for this environment, wherever it points; and every
+# untagged line for the alias's previous address. A line tagged for the other
+# environment is kept whatever address it names.
+pin_line_is_ours() {
+  local line="$1" host comment
+  host="${line%% *}"
+  comment="$(cut -d' ' -f4- <<< "$line")"
+  [[ "$comment" == "$OTHER_TAG" ]] && return 1
+  [[ "$comment" == "$TAG" ]] && return 0
+  [[ "$host" == "$IP" || "$host" == "[${IP}]:2222" ]] && return 0
+  if [[ -n "$PREV_IP" ]]; then
+    [[ "$host" == "$PREV_IP" || "$host" == "[${PREV_IP}]:2222" ]] && return 0
+  fi
+  return 1
+}
 PRESERVED=""
+STALE=0
 if [[ -f "$PIN" ]]; then
-  PRESERVED="$(grep -v -F -e "${IP} " -e "[${IP}]:2222 " -- "$PIN" || true)"
+  while IFS= read -r line || [[ -n "$line" ]]; do
+    if [[ -n "$line" ]] && pin_line_is_ours "$line"; then
+      # A line that is neither the current address nor rewritten identically is
+      # one a check reports as stale.
+      grep -qxF -- "$line" <<< "$NEW_LINES" || grep -qxF -- "$line ${TAG}" <<< "$NEW_LINES" || STALE=$(( STALE + 1 ))
+      continue
+    fi
+    PRESERVED+="${line}"$'\n'
+  done < "$PIN"
+  PRESERVED="${PRESERVED%$'\n'}"
 fi
 
 if [[ "$CHECK" == "1" ]]; then
   # Counted in this shell rather than judged by a subshell's exit status: a
   # `while` on the right of a pipe runs in a subshell, and reasoning about which
   # status escapes it is exactly the kind of cleverness a check should not carry.
+  # A line written before lines were tagged still counts as present.
   MISSING=0
   if [[ -f "$PIN" ]]; then
     while IFS= read -r l; do
       [[ -n "$l" ]] || continue
-      grep -qxF -- "$l" "$PIN" || MISSING=$(( MISSING + 1 ))
+      grep -qxF -e "$l" -e "${l% "${TAG}"}" -- "$PIN" || MISSING=$(( MISSING + 1 ))
     done <<< "$NEW_LINES"
   else
     MISSING="$EXPECTED_COUNT"
   fi
-  if (( MISSING == 0 )); then
+  if (( MISSING == 0 && STALE == 0 )); then
     echo "    Pinned and current: ${EXPECTED_COUNT} lines for ${INSTANCE} at ${IP}"
     exit 0
   fi
-  echo "    ${MISSING} of ${EXPECTED_COUNT} pin lines for ${INSTANCE} at ${IP} are missing or stale." >&2
+  (( MISSING > 0 )) && echo "    ${MISSING} of ${EXPECTED_COUNT} pin lines for ${INSTANCE} at ${IP} are missing or stale." >&2
+  (( STALE > 0 )) && echo "    ${STALE} line(s) still pin ${INSTANCE} under a key or address it no longer has." >&2
   echo "    Re-run without --check to install them." >&2
   exit 1
 fi

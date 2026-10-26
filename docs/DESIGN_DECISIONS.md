@@ -200,7 +200,7 @@ Minimum Indexes (added when query \>500ms): members(login_email_normalized), mem
 
 Monitoring: Query latency P95, slow query log (\>500ms), transaction duration (alert if P95 \>10s), backup success rate and age (alert if \>15 min), database size (alert at 80%), WAL size (alert if \>1GB), checkpoint latency (alert if \>5s), SQLITE_BUSY frequency (alert if \>5%).
 
-Health Endpoints: `/health/live` is a process check. `/health/ready` validates the dependencies required to serve traffic: SQLite connectivity and container memory pressure (§7.6). Broader readiness coverage (backup freshness, dependency fan-out) remains later-phase operational design.
+Health Endpoints: `/health/live` is a process check. `/health/ready` validates the dependencies required to serve traffic: SQLite connectivity with the schema present, so a missing or empty database is not ready, and container memory pressure (§7.6). Broader readiness coverage (backup freshness, dependency fan-out) remains later-phase operational design.
 
 Recovery: Download the selected S3 snapshot, run `PRAGMA integrity_check`, replace the live file, re-apply the recorded erasures before anything serves it (a replay that does not complete leaves the site stopped), restart services, and verify health plus smoke checks. Target RTO remains approximately five minutes for the common restore case.
 
@@ -859,6 +859,8 @@ No deploy-time host value is established by a seed that runs only when its line 
 
 One class is deliberately not held anywhere but the host: a secret generated on the host for a channel that never leaves it, such as the worker-to-web authentication key. Its owner is the deploy, which regenerates it when absent, and that regeneration is what makes its loss recoverable without a store. The credential vault holds no copy for the same reason.
 
+One value is the host's own record of which environment it is. The first bring-up step writes it once, and every deploy and host script then checks it rather than writes it, refusing a host whose record is missing or differs. It cannot come from the committed per-environment file, which that record selects, and a deploy that wrote it would stamp the workstation's answer onto whichever host it reached.
+
 Rules:
 
 - Terraform owns a value when an operator could legitimately want the other value without a code change, or when the value names a resource Terraform creates. The committed per-environment file owns it otherwise.
@@ -885,13 +887,17 @@ Trade-offs:
 
 - Flipping a switch costs a values-file change, an apply and a deploy, which is slower than editing a host. That cost is the point: the slow path is the one that leaves a record.
 
+- Drift is detected by the host verifier, which compares every value against its owner, rather than by AWS Config or AppConfig. With one host per environment and the arming switches as the only values that change at run time, those services would add cost and failure modes without catching anything the verifier misses.
+
 Impact:
+
+- Every value, with its owner, its source, whether it is required and why it exists, is declared once in the host-value catalogue (`scripts/lib/host-values.sh`). The deploy's sync and preflight, the verifier and the bring-up view read it, so a value cannot be owned in one place and forgotten in another.
 
 - Switch-owned: payments, outbound email, URL screening, and outbound URL reachability. The first two are stubbed below production whatever their switch says, because money and mail must not leave a lower environment; the second two run for real in every deployed environment, so their switch is the only thing that decides and the deploy derives their selectors everywhere.
 
-- File-owned: the media storage selector, the secrets resolver, the JWT signer, and the captcha selector.
+- File-owned: the media storage selector, the secrets resolver, the JWT signer, the captcha selector, and the host constants: the proxy hop count, the database directory and path, the AWS region and the runtime profile.
 
-- Terraform-published identifiers: the media bucket name, the JWT signing key alias, and the two mail configuration-set names. Terraform also publishes values that are neither a switch nor an identifier and the deploy syncs them the same way: the log level, and the archive address and its login-redirect flag.
+- Terraform-published identifiers: the media and snapshot bucket names, the JWT signing key alias, the two mail configuration-set names, both feed topics and queues, and the sender identity. The site's base address is published the same way, computed from the custom-domain, record and notice flags so it always names the public name that reaches the platform. Terraform also publishes values that are neither a switch nor an identifier and the deploy syncs them the same way: the log level, and the archive address and its login-redirect flag.
 
 - The archive signing values follow the same test as everything else once the legacy archive is built: the cookie signer selector and the cookie domain are constants of each environment and are file-owned; the key-pair identifier names a CloudFront resource and is a Terraform-published identifier.
 
@@ -2041,7 +2047,7 @@ Requirements:
 
 Decision:
 
-Express's `trust proxy` setting is environment-variable driven via `TRUST_PROXY` in `/srv/footbag/env`. Each host sets the exact integer hop count of the proxy chain between the client and Express, so `req.ip` resolves to the true client address, which per-IP rate limiting keys on. Under the clean DNS cutover the chain is CloudFront edge then nginx, so both production and staging run 2; there is no legacy front-door hop. When `TRUST_PROXY` is unset, production falls back to the named-range string `'loopback, linklocal, uniquelocal'`; the boolean `true` form is rejected.
+Express's `trust proxy` setting is environment-variable driven via `TRUST_PROXY` in `/srv/footbag/env`. The committed per-environment host config declares the exact integer hop count of the proxy chain between the client and Express, and every deploy applies it, so `req.ip` resolves to the true client address, which per-IP rate limiting keys on. Under the clean DNS cutover the chain is CloudFront edge then nginx, so both production and staging run 2; there is no legacy front-door hop. When `TRUST_PROXY` is unset, production falls back to the named-range string `'loopback, linklocal, uniquelocal'`; the boolean `true` form is rejected.
 
 Rationale:
 

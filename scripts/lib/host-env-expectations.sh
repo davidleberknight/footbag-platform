@@ -1,15 +1,16 @@
-# Shared expectations for the operator-owned values in /srv/footbag/env.
+# Shared expectations for values in /srv/footbag/env.
 #
 # Sourced by every script that has an opinion about those values, so there is
 # exactly one place that states what each should be:
 #
-#   scripts/set-host-env.sh        writes them
 #   scripts/bringup-status.sh      reports whether they are present and valid
 #   scripts/verify-host-env.sh     warns when they are not
 #
-# None of them writes the hop count out itself, inline or inside a warning
-# string: three scripts describing the same host from three copies of one fact
-# is how they come to disagree, and nothing would fail when they did.
+# Neither writes the hop count out itself, inline or inside a warning string:
+# scripts describing the same host from separate copies of one fact
+# is how they come to disagree, and nothing would fail when they did. The hop
+# count is a host constant, declared in the committed docker/env/<target>.env
+# that every deploy reconciles onto the host, and read from there below.
 #
 # TRUST_PROXY is the exact integer X-Forwarded-For hop count of the proxy chain
 # in front of the application. It is not a boolean and not a guess: the value is
@@ -20,46 +21,46 @@
 # back to the named-range list in `src/config/env.ts`, which fails closed to
 # per-edge buckets rather than opening that hole.
 #
-#   staging     CloudFront -> nginx  = 2
-#   production  CloudFront -> nginx  = 2
-#
-# Both environments run the same two-hop chain, and it does not change at the
-# DNS cutover: the platform is reached through its own CloudFront distribution
-# whether or not the apex still points at the legacy site, so there is no legacy
-# front-door hop in front of it at any milestone. The design decision on proxy
-# trust and the private devops guide's host env table both state 2 for both
-# environments; 3 for production would be one hop too generous.
+# Both environments run the same two-hop chain, CloudFront then nginx, and it
+# does not change at the DNS cutover: the platform is reached through its own
+# CloudFront distribution whether or not the apex still points at the legacy
+# site, so there is no legacy front-door hop in front of it at any milestone.
 
-# expected_trust_proxy <staging|production>
-# Prints the integer hop count. Returns non-zero on an unknown target so a
-# caller cannot silently proceed with an empty value.
-expected_trust_proxy() {
-  local target="${1:-}"
+# expected_committed_value <staging|production> <KEY>
+# Prints KEY's value from the committed host config for the target. Returns
+# non-zero on an unknown target or a key the file does not set, so a caller
+# cannot silently proceed with an empty value.
+expected_committed_value() {
+  local target="${1:-}" key="${2:-}" cfg value
   case "$target" in
-    staging|production)
-      echo 2
-      ;;
+    staging|production) ;;
     *)
-      echo "expected_trust_proxy: unknown target '${target}'" >&2
+      echo "expected_committed_value: unknown target '${target}'" >&2
       return 1
       ;;
   esac
+  cfg="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/docker/env/${target}.env"
+  value="$(grep -E "^${key}=" "$cfg" 2>/dev/null | tail -1 | cut -d= -f2-)"
+  if [[ -z "$value" ]]; then
+    echo "expected_committed_value: ${cfg} does not set ${key}" >&2
+    return 1
+  fi
+  printf '%s\n' "$value"
+}
+
+# expected_trust_proxy <staging|production>
+# Prints the integer hop count the committed host config declares.
+expected_trust_proxy() {
+  expected_committed_value "${1:-}" TRUST_PROXY
 }
 
 # expected_trust_proxy_note <staging|production>
 # One human-readable phrase naming the expected value, for status output and
-# warnings, so those messages cannot drift from the number above.
+# warnings, so those messages cannot drift from the committed number.
 expected_trust_proxy_note() {
-  local target="${1:-}"
-  case "$target" in
-    staging|production)
-      echo "2 (CloudFront then nginx)"
-      ;;
-    *)
-      echo "expected_trust_proxy_note: unknown target '${target}'" >&2
-      return 1
-      ;;
-  esac
+  local hops
+  hops="$(expected_trust_proxy "${1:-}")" || return 1
+  echo "${hops} (CloudFront then nginx)"
 }
 
 # expected_jwt_kms_key_id <staging|production>

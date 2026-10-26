@@ -71,6 +71,8 @@ function writeTerraformStub(
   opts: {
     planFails?: boolean;
     applyFails?: boolean;
+    /** The instance Terraform names; footbag-<target>-web unless a restore renamed it. */
+    instanceName?: string;
     lockHeldBy?: string;
     lockOperation?: string;
     lockCreated?: string;
@@ -173,6 +175,11 @@ function writeTerraformStub(
     [
       '#!/usr/bin/env bash',
       `echo "terraform $*" >> "${callLog}"`,
+      // The instance Terraform names, which a restore from snapshot renames.
+      'case "$*" in *"output -raw lightsail_instance_name"*)',
+      opts.instanceName
+        ? `  printf '%s' ${JSON.stringify(opts.instanceName)}; exit 0 ;; esac`
+        : '  d="${1#-chdir=}"; printf \'footbag-%s-web\' "${d##*/}"; exit 0 ;; esac',
       'for arg in "$@"; do',
       '  case "$arg" in',
       '    force-unlock)',
@@ -1189,9 +1196,9 @@ describe('terraform-apply.sh: replacing one listed resource', () => {
 
   it('refuses any address not on the list, before terraform runs', () => {
     // Defect caught: a general passthrough lets one flag destroy and recreate
-    // the instance, a bucket or a key pair.
+    // a bucket or a key pair.
     writeTerraformStub();
-    const res = run(['--target', 'staging', '--replace', 'aws_lightsail_instance.web']);
+    const res = run(['--target', 'staging', '--replace', 'aws_lightsail_key_pair.operator']);
     expect(res.exitCode).toBe(2);
     expect(res.stderr).toContain('--replace takes only');
     expect(calls()).not.toMatch(/ plan /);
@@ -1659,5 +1666,162 @@ describe('terraform-apply.sh: the DNS approval gate', () => {
     const res = run(['--target', 'staging']);
     expect(res.exitCode, res.stderr).toBe(0);
     expect(res.stdout).not.toMatch(/THIS PLAN CHANGES DNS/);
+  });
+});
+
+describe('terraform-apply.sh: the web instance is replaced by one route and destroyed by none', () => {
+  // The instance's disk holds the member database between backups and
+  // everything no backup carries. Its name and key pair are force-new, so an
+  // ordinary-looking plan can carry its replacement in one line among many.
+  const INSTANCE = 'aws_lightsail_instance.web';
+  const SNAP = 'footbag-staging-web-pre-replace-20990101T000000Z';
+
+  /**
+   * Lightsail as the snapshot proof reads it: the snapshot's state, source and
+   * creation time, and the instance's creation time, each as an ISO timestamp
+   * relative to now so the age checks mean the same on any day.
+   */
+  function lightsail(opts: { state?: string; from?: string; snapAgeMins?: number; instAgeMins?: number } = {}): NodeJS.ProcessEnv {
+    const path = join(tmpDir, 'aws-snap-stub.sh');
+    writeFileSync(path, [
+      '#!/usr/bin/env bash',
+      `echo "aws $*" >> "${callLog}"`,
+      'case "$2" in',
+      `  get-instance-snapshot) printf '%s\\t%s\\t%s\\n' ${JSON.stringify(opts.state ?? 'available')} ${JSON.stringify(opts.from ?? 'footbag-staging-web')} "$(date -u -d '-${opts.snapAgeMins ?? 10} minutes' +%Y-%m-%dT%H:%M:%S+00:00)"; exit 0 ;;`,
+      `  get-instance) date -u -d '-${opts.instAgeMins ?? 43200} minutes' +%Y-%m-%dT%H:%M:%S+00:00; exit 0 ;;`,
+      'esac',
+      'exit 64',
+    ].join('\n'));
+    chmodSync(path, 0o755);
+    return { TERRAFORM_APPLY_AWS_BIN: path };
+  }
+
+  it('refuses a plain apply whose plan replaces the instance, before the apply', () => {
+    // Defect caught: a renamed instance or a changed key pair replaces the host
+    // on an ordinary apply, and the database since the last backup goes with it.
+    writeTerraformStub({ planResourceChanges: [{ type: 'aws_lightsail_instance', address: INSTANCE, actions: ['delete', 'create'] }] });
+    const res = run(['--target', 'staging']);
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/would delete and create aws_lightsail_instance\.web/);
+    expect(res.stderr).toMatch(/bootstrap-host\.sh --target staging --replace-instance/);
+    expect(calls()).not.toMatch(/\sapply\s/);
+  });
+
+  it('applies a plan that changes the instance in place, which is the ordinary case', () => {
+    // The passing case beside the refusal: the snapshot add-on is an in-place
+    // update and must not be caught by the instance guard.
+    writeTerraformStub({ planResourceChanges: [{ type: 'aws_lightsail_instance', address: INSTANCE, actions: ['update'] }] });
+    const res = run(['--target', 'staging']);
+    expect(res.exitCode, res.stderr).toBe(0);
+    expect(calls()).toMatch(/\sapply\s/);
+  });
+
+  it('refuses a plan that destroys the instance outright', () => {
+    writeTerraformStub({ planResourceChanges: [{ type: 'aws_lightsail_instance', address: INSTANCE, actions: ['delete'] }] });
+    const res = run(['--target', 'staging']);
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/would delete aws_lightsail_instance\.web/);
+    expect(calls()).not.toMatch(/\sapply\s/);
+  });
+
+  it('refuses --replace of the instance without the snapshot the route takes, before planning', () => {
+    writeTerraformStub();
+    const res = run(['--target', 'staging', '--replace', INSTANCE]);
+    expect(res.exitCode).toBe(2);
+    expect(res.stderr).toMatch(/replaced only by[\s\S]*--replace-instance/);
+    expect(calls()).not.toMatch(/ plan /);
+  });
+
+  it('refuses a snapshot named without the replacement it protects', () => {
+    writeTerraformStub();
+    const res = run(['--target', 'staging', '--instance-snapshot', SNAP]);
+    expect(res.exitCode).toBe(2);
+    expect(res.stderr).toMatch(/--instance-snapshot goes with --replace/);
+  });
+
+  it('refuses --yes on an instance replacement', () => {
+    writeTerraformStub();
+    const res = run(['--target', 'staging', '--replace', INSTANCE, '--instance-snapshot', SNAP, '--yes'], true, lightsail());
+    expect(res.exitCode).toBe(2);
+    expect(res.stderr).toMatch(/--yes does not carry replacing/);
+    expect(calls()).not.toMatch(/ plan /);
+  });
+
+  it('with a proved snapshot plans the replacement and stops for the typed word even on staging', () => {
+    // The passing case for the snapshot refusals below: everything but the
+    // person's confirmation has been satisfied, and the plan carries -replace.
+    writeTerraformStub({ planResourceChanges: [{ type: 'aws_lightsail_instance', address: INSTANCE, actions: ['delete', 'create'] }] });
+    const res = run(['--target', 'staging', '--replace', INSTANCE, '--instance-snapshot', SNAP], true, lightsail());
+    expect(res.stdout).toMatch(/protected by footbag-staging-web-pre-replace-/);
+    expect(calls()).toMatch(/-replace=aws_lightsail_instance\.web/);
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/no terminal to confirm on/);
+    expect(calls()).not.toMatch(/\sapply\s/);
+  });
+
+  // Defect caught: a replacement replaces the firewall with the instance, and the
+  // in-place firewall write would land on the instance about to be deleted, so
+  // the second plan still shows the firewall replaced and the replacement never
+  // applies.
+  it('on the replacement route lets the firewall be created on the new instance rather than written in place', () => {
+    const port = (from: number, extra: Record<string, unknown> = {}) => ({
+      from_port: from, to_port: from, protocol: 'tcp', cidrs: ['198.51.100.4/32'], ...extra,
+    });
+    const after = {
+      instance_name: 'footbag-staging-web',
+      port_info: [port(22, { cidr_list_aliases: ['lightsail-connect'] }), port(2222), port(80)],
+    };
+    writeTerraformStub({
+      planResourceChanges: [
+        { type: 'aws_lightsail_instance', address: INSTANCE, actions: ['delete', 'create'] },
+        { type: 'aws_lightsail_instance_public_ports', address: 'aws_lightsail_instance_public_ports.web', actions: ['delete', 'create'], before: after, after },
+      ],
+      planVariables: { aws_region: { value: 'us-east-1' } },
+    });
+    const res = run(['--target', 'staging', '--replace', INSTANCE, '--instance-snapshot', SNAP], true, lightsail());
+    expect(res.stdout).toMatch(/the instance itself is replaced, so its firewall is created on the new one/);
+    expect(res.stdout).not.toMatch(/written in place/);
+  });
+
+  it('refuses, even on the replacement route, a plan that destroys the instance without recreating it', () => {
+    // Defect caught: the one route allowed to take the instance away removes
+    // it outright, leaving no host at all, because only "not this route" was
+    // checked.
+    writeTerraformStub({ planResourceChanges: [{ type: 'aws_lightsail_instance', address: INSTANCE, actions: ['delete'] }] });
+    const res = run(['--target', 'staging', '--replace', INSTANCE, '--instance-snapshot', SNAP], true, lightsail());
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(/would destroy aws_lightsail_instance\.web without recreating it/);
+    expect(calls()).not.toMatch(/\sapply\s/);
+  });
+
+  // Defect caught: after a restore from snapshot the restored host runs under a
+  // new name and the stopped old host keeps the original, so a proof against the
+  // original name accepts a snapshot of the old host and lets Terraform replace
+  // the live one, which nothing has snapshotted.
+  it('proves the snapshot against the instance Terraform names, which a restore renames', () => {
+    const restored = 'footbag-staging-web-r202610260000';
+    writeTerraformStub({ instanceName: restored });
+    const res = run(['--target', 'staging', '--replace', INSTANCE, '--instance-snapshot', SNAP], true, lightsail());
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(new RegExp(`not a name the replacement route mints for ${restored}`));
+    expect(calls()).not.toMatch(/ plan /);
+  });
+
+  const snapshotRefusals: Array<{ why: string; env: () => NodeJS.ProcessEnv; snap?: string; message: RegExp }> = [
+    { why: 'is not complete', env: () => lightsail({ state: 'pending' }), message: /is 'pending', not complete/ },
+    { why: 'is of another instance', env: () => lightsail({ from: 'footbag-production-web' }), message: /taken of 'footbag-production-web'/ },
+    { why: 'predates the running instance', env: () => lightsail({ snapAgeMins: 60, instAgeMins: 30 }), message: /predates the instance now running/ },
+    { why: 'is too old', env: () => lightsail({ snapAgeMins: 121, instAgeMins: 43200 }), message: /minutes old; the limit is 120/ },
+    { why: 'is not a name the route mints', env: () => lightsail(), snap: 'my-own-snapshot', message: /not a name the replacement route mints/ },
+  ];
+  it.each(snapshotRefusals)('refuses before planning when the snapshot $why', ({ env, snap, message }) => {
+    // Defect caught: the replacement goes ahead on a caller's word that a
+    // snapshot protects it, when the snapshot is unfinished, of another host,
+    // of the host replaced last time, stale, or someone else's.
+    writeTerraformStub();
+    const res = run(['--target', 'staging', '--replace', INSTANCE, '--instance-snapshot', snap ?? SNAP], true, env());
+    expect(res.exitCode).toBe(1);
+    expect(res.stderr).toMatch(message);
+    expect(calls()).not.toMatch(/ plan /);
   });
 });

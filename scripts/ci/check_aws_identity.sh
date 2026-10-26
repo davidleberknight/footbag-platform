@@ -79,6 +79,10 @@ is_exempt() {
     # and the caller is what this gate holds to account.
     scripts/lib/iam-access-key.sh|scripts/lib/vendor-secret.sh) return 0 ;;
     scripts/lib/iam-dev-tester-user.sh) return 0 ;;
+    # Its one AWS call runs on the deployed host, inside a deploy half, and names
+    # the host's runtime profile, which the caller passes in. The operator
+    # identity must never be supplied underneath it.
+    scripts/lib/host-values.sh) return 0 ;;
     scripts/lib/aws-identity.sh) return 0 ;;
     # It is the library this gate asks every other script to use.
     scripts/lib/aws-profile.sh) return 0 ;;

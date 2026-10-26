@@ -98,7 +98,7 @@ resource "aws_lightsail_key_pair" "operator" {
 }
 
 resource "aws_lightsail_instance" "web" {
-  name              = "${local.prefix}-web"
+  name              = local.web_instance_name
   availability_zone = "${var.aws_region}a"
   blueprint_id      = var.lightsail_blueprint_id
   bundle_id         = var.lightsail_bundle_id
@@ -127,13 +127,40 @@ resource "aws_lightsail_instance" "web" {
   }
 }
 
+# A host restored from a snapshot is a new instance under a new name, because
+# Lightsail names are immutable and the old instance is kept, stopped, until the
+# restore has been proved. scripts/restore-host.sh records that name in the
+# values file and removes the old instance from state; this block then takes the
+# restored instance in on the next plan. With no name recorded it imports
+# nothing, so a fresh environment still creates its instance, and an import
+# whose address is already in state is ignored, so it is safe to leave in place.
+import {
+  for_each = var.lightsail_instance_name == "" ? toset([]) : toset([var.lightsail_instance_name])
+  to       = aws_lightsail_instance.web
+  id       = each.value
+}
+
 resource "aws_lightsail_static_ip" "web" {
   name = "${local.prefix}-web-ip"
 }
 
+# Replaced with the instance. A replacement keeps the instance's name, so
+# instance_name alone plans no change here, while Lightsail detaches the address
+# from the instance it deletes: without this the new instance comes up on a
+# fresh public address and the static one is left attached to nothing. The ARN
+# is new for every instance, so it triggers on a replacement and on nothing
+# else; the whole resource would also trigger on an in-place update such as its
+# tags, detaching the address from a running host for no reason. A restore's
+# adoption imports the restored instance under a new name, which this resource
+# follows through instance_name, a replacing argument, so the address moves then
+# too.
 resource "aws_lightsail_static_ip_attachment" "web" {
   static_ip_name = aws_lightsail_static_ip.web.name
   instance_name  = aws_lightsail_instance.web.name
+
+  lifecycle {
+    replace_triggered_by = [aws_lightsail_instance.web.arn]
+  }
 }
 
 resource "aws_lightsail_instance_public_ports" "web" {
@@ -197,5 +224,12 @@ resource "aws_lightsail_instance_public_ports" "web" {
       condition     = length(local.cloudfront_origin_facing_cidrs) > 0
       error_message = "No CloudFront origin-facing CIDRs in AWS IP ranges; refusing to apply (would close port 80 entirely)."
     }
+
+    # A new instance starts on Lightsail's default firewall, SSH and HTTP open to
+    # every address, and a replacement keeps the instance's name, so without
+    # this the rules above are never written to it. Triggered on the ARN, which
+    # changes only when the instance is replaced, for the reason given on the
+    # static address's attachment.
+    replace_triggered_by = [aws_lightsail_instance.web.arn]
   }
 }

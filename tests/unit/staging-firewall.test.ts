@@ -51,3 +51,27 @@ describe('the staging firewall keeps the administrators on SSH', () => {
     expect(block, 'port 22').toMatch(/cidr_list_aliases\s+=\s+\["lightsail-connect"\]/);
   });
 });
+
+describe('a replaced instance keeps its address and its firewall, in both trees', () => {
+  // A replacement keeps the instance's name, so neither the static address's
+  // attachment nor the firewall plans a change from instance_name alone, while
+  // Lightsail detaches the address from the instance it deletes and starts the
+  // new one on its default rules with SSH and HTTP open to every address.
+  // Defect caught: either resource stops being replaced with the instance, or is
+  // triggered by the whole instance, whose in-place updates (tags, the snapshot
+  // add-on) would then detach the address from a running host.
+  const resourceBlock = (tf: string, type: string): string => {
+    const start = tf.indexOf(`resource "${type}" "web"`);
+    expect(start, type).toBeGreaterThan(-1);
+    const next = tf.indexOf('\nresource "', start + 1);
+    return tf.slice(start, next === -1 ? undefined : next);
+  };
+  for (const tree of ['staging', 'production']) {
+    const tf = readFileSync(resolve(__dirname, `../../terraform/${tree}/lightsail.tf`), 'utf-8');
+    for (const type of ['aws_lightsail_static_ip_attachment', 'aws_lightsail_instance_public_ports']) {
+      it(`${tree}: ${type} is replaced when the instance's ARN changes, and only then`, () => {
+        expect(resourceBlock(tf, type)).toMatch(/\n\s+replace_triggered_by\s+=\s+\[aws_lightsail_instance\.web\.arn\]/);
+      });
+    }
+  }
+});

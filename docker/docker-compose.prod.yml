@@ -95,14 +95,14 @@ services:
       AWS_CONFIG_FILE: /aws-config/config
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
       # Exact X-Forwarded-For hop count of the chain in front of the app,
-      # set per host in /srv/footbag/env: staging (CloudFront -> nginx) 2;
-      # production 3 while the legacy front door proxies the apex, then 2 at
-      # DNS handover. Unset falls back to the named ranges, which fail
-      # closed: req.ip resolves to the CloudFront edge address and per-IP
-      # rate limiting coarsens to per-edge buckets.
+      # CloudFront then nginx in both environments, declared in the committed
+      # docker/env/<env>.env and applied to /srv/footbag/env by every deploy.
+      # Unset falls back to the named ranges, which fail closed: req.ip
+      # resolves to the CloudFront edge address and per-IP rate limiting
+      # coarsens to per-edge buckets.
       TRUST_PROXY: ${TRUST_PROXY:-loopback, linklocal, uniquelocal}
       SESSION_SECRET: ${SESSION_SECRET}
-      AWS_PROFILE: ${AWS_PROFILE:?must be set in /srv/footbag/env (assumed-role source profile)}
+      AWS_PROFILE: ${AWS_PROFILE:?must be set in /srv/footbag/env (the runtime profile; every deploy applies it from docker/env/<env>.env)}
       AWS_REGION: ${AWS_REGION}
       JWT_SIGNER: ${JWT_SIGNER}
       JWT_KMS_KEY_ID: ${JWT_KMS_KEY_ID}
@@ -267,7 +267,7 @@ services:
       PORT: "3000"
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
       SESSION_SECRET: ${SESSION_SECRET}
-      AWS_PROFILE: ${AWS_PROFILE:?must be set in /srv/footbag/env (assumed-role source profile)}
+      AWS_PROFILE: ${AWS_PROFILE:?must be set in /srv/footbag/env (the runtime profile; every deploy applies it from docker/env/<env>.env)}
       AWS_REGION: ${AWS_REGION}
       JWT_SIGNER: ${JWT_SIGNER}
       JWT_KMS_KEY_ID: ${JWT_KMS_KEY_ID}

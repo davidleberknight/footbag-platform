@@ -103,6 +103,8 @@ interface Estate {
   params?: Record<string, string>;
   /** A parameter read failing for a reason other than the parameter being absent. */
   ssmReadFails?: boolean;
+  /** The instance Terraform names; the firewall answers only for it. */
+  instance?: string;
 }
 
 const paramDir = () => join(workDir, 'params');
@@ -118,7 +120,10 @@ const paramOf = (account: string) => (existsSync(paramFile(account)) ? readFileS
  * made after the apply is answered by what the apply did.
  */
 function awsStub(estate: Estate = {}): string {
-  const { before = [EXISTING], after, after2222, callerArn = OPERATOR_ARN, live = 'ok', warn = false, ssmReadFails = false } = estate;
+  const {
+    before = [EXISTING], after, after2222, callerArn = OPERATOR_ARN, live = 'ok', warn = false, ssmReadFails = false,
+    instance = 'footbag-staging-web',
+  } = estate;
   const afterSet = after ?? before;
   const path = join(workDir, 'aws-stub.sh');
   const states = (on22: string[], on2222: string[]) =>
@@ -157,6 +162,8 @@ function awsStub(estate: Estate = {}): string {
       '  exit 0',
       'fi',
       'if [[ "$1" == "lightsail" && "$2" == "get-instance-port-states" ]]; then',
+      // Lightsail answers for the instance named and no other.
+      `  [[ "$*" == *"--instance-name ${instance} "* || "$*" == *"--instance-name ${instance}" ]] || { echo "An error occurred (NotFoundException) when calling the GetInstancePortStates operation" >&2; exit 254; }`,
       `  if [[ -e ${JSON.stringify(appliedMarker)} ]]; then`,
       ...liveAnswer(afterSet, after2222 ?? afterSet, true),
       '  fi',
@@ -202,10 +209,22 @@ function applyStub(exitCode = 0): string {
   return path;
 }
 
-/** Stands in for `terraform fmt -`, which the test runner does not install. */
-function terraformStub(exitCode = 0): string {
+/**
+ * Stands in for `terraform fmt -`, which the test runner does not install, and
+ * for the read of the instance Terraform names, which a restore renames.
+ */
+function terraformStub(exitCode = 0, instance = 'footbag-staging-web'): string {
   const path = join(workDir, 'terraform-stub.sh');
-  writeFileSync(path, ['#!/usr/bin/env bash', 'cat >/dev/null', `exit ${exitCode}`].join('\n'), 'utf-8');
+  writeFileSync(
+    path,
+    [
+      '#!/usr/bin/env bash',
+      `case "$*" in *"output -raw lightsail_instance_name"*) printf '%s' '${instance}'; exit 0 ;; esac`,
+      'cat >/dev/null',
+      `exit ${exitCode}`,
+    ].join('\n'),
+    'utf-8',
+  );
   chmodSync(path, 0o755);
   return path;
 }
@@ -240,7 +259,7 @@ function run(options: RunOptions = {}) {
       AWS_PROFILE_BIN: stub,
       AUTHORIZE_ADDRESS_AWS_BIN: stub,
       AUTHORIZE_ADDRESS_APPLY_CMD: applyStub(applyExit),
-      AUTHORIZE_ADDRESS_TERRAFORM_BIN: terraformStub(terraformExit),
+      AUTHORIZE_ADDRESS_TERRAFORM_BIN: terraformStub(terraformExit, estate.instance),
       TFVARS_OVERRIDE: tfvars,
       HOME: workDir,
     },
@@ -480,6 +499,17 @@ describe('authorize-operator-address edits exactly one entry', () => {
     expect(r.status, r.stderr).toBe(0);
     expect(values()).toContain(`"${NEW_ADDRESS}"`);
     expect(readFileSync(appliedMarker, 'utf-8')).toContain('--target staging');
+    expect(r.stdout).toMatch(/is admitted on ports 22 2222/);
+  });
+
+  // Defect caught: after a restore from snapshot the stopped old host keeps the
+  // original name, so an address proved against that name's firewall is not
+  // proved against the host operators actually reach.
+  it('proves the address on the instance Terraform names, which a restore renames', () => {
+    const restored = 'footbag-staging-web-r202610260000';
+    const r = run({ before: [EXISTING], after: [EXISTING, NEW_ADDRESS], instance: restored });
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toContain(`instance:  ${restored}`);
     expect(r.stdout).toMatch(/is admitted on ports 22 2222/);
   });
 

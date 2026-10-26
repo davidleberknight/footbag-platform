@@ -23,6 +23,7 @@ import { join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { NO_AWS_CREDENTIALS } from '../fixtures/awsIsolation';
+import { connectingAs, SHARED_ACCOUNT } from '../fixtures/sshConfigStub';
 
 const SCRIPT = join(process.cwd(), 'scripts/install-host-credentials.sh');
 
@@ -225,5 +226,172 @@ describe('install-host-credentials.sh — whether the material is fit to send', 
     const r = run(['--target', 'staging', keysFile(0o600, '{"AccessKey":{}}')]);
     expect(r.status).toBe(1);
     expect(r.stderr).toMatch(/does not contain/);
+  });
+});
+
+describe('install-host-credentials.sh — a bare install onto a rebuilt host', () => {
+  /**
+   * Up to the point where it would mint: a stand-in host confirming staging and
+   * reporting which source-profile key it holds, a stand-in IAM listing the
+   * user's keys, and `ssh -G` resolving the alias.
+   */
+  function runBare(hostKey: string, userKeys: string) {
+    const ssh = join(workDir, 'ssh-host.sh');
+    writeFileSync(ssh, [
+      '#!/usr/bin/env bash',
+      'cat >/dev/null',
+      'case "$*" in',
+      '  *footbag-host-identity*) printf -- "---FOOTBAG-HOST-ENV---\\nstaging\\n---FOOTBAG-HOST-URL---\\n\\n---FOOTBAG-END---\\n" ;;',
+      `  *footbag-host-key-id*) printf -- "---FOOTBAG-KEY-ID---\\n%s\\n---FOOTBAG-END---\\n" ${JSON.stringify(hostKey)} ;;`,
+      'esac',
+      'exit 0',
+    ].join('\n'));
+    chmodSync(ssh, 0o755);
+    const aws = join(workDir, 'iam.sh');
+    const count = userKeys.split(' ').filter(Boolean).length;
+    writeFileSync(aws, [
+      '#!/usr/bin/env bash',
+      `echo "$*" >> ${JSON.stringify(join(workDir, 'iam.log'))}`,
+      `case "$2" in list-access-keys) case "$*" in *length*) echo ${count} ;; *) echo ${JSON.stringify(userKeys)} ;; esac ;; esac`,
+      'exit 0',
+    ].join('\n'));
+    chmodSync(aws, 0o755);
+    const pin = join(workDir, 'known_hosts');
+    writeFileSync(pin, 'footbag-staging ssh-ed25519 AAAAstub\n', { mode: 0o600 });
+    const r = spawnSync('bash', [SCRIPT, '--target', 'staging'], {
+      cwd: process.cwd(),
+      encoding: 'utf-8',
+      input: 'fixture-sudo-password\n',
+      env: {
+        ...process.env,
+        ...NO_AWS_CREDENTIALS,
+        ...connectingAs(SHARED_ACCOUNT, workDir),
+        IAM_KEY_AWS_BIN: aws,
+        FOOTBAG_HOST_SSH_BIN: ssh,
+        FOOTBAG_KNOWN_HOSTS: pin,
+      },
+      ...SPAWN_GUARD,
+    });
+    return { status: r.status, stderr: r.stderr ?? '' };
+  }
+
+  it('names the rotation and every dead key when the host holds none of the user\'s keys', () => {
+    // Defect caught: the rebuilt host is told only "already holds 1 access
+    // key(s)", the operator reads it as in service, and the deploy then fails
+    // at the go-live marker guard on a host with no credential at all.
+    const r = runBare('', 'AKIAEXAMPLEEXAMPLE02');
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/footbag-staging-source-profile already holds an access key, and this host holds none of them/);
+    expect(r.stderr).toMatch(/install-host-credentials\.sh --target staging --rotate/);
+    expect(r.stderr).toMatch(/< ~\/AWS\/AWS_OPERATOR\.txt bash scripts\/install-host-credentials\.sh --target staging --retire AKIAEXAMPLEEXAMPLE02/);
+    expect(r.stderr).toMatch(/bash scripts\/install-host-credentials\.sh --target staging --delete AKIAEXAMPLEEXAMPLE02/);
+    expect(readFileSync(join(workDir, 'iam.log'), 'utf-8')).not.toMatch(/create-access-key/);
+  });
+
+  it('treats a host holding a key the user no longer has as rebuilt too', () => {
+    const r = runBare('AKIAEXAMPLEEXAMPLE03', 'AKIAEXAMPLEEXAMPLE02');
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/The host holds AKIAEXAMPLEEXAMPLE03, which is not a key of footbag-staging-source-profile/);
+  });
+
+  it('leaves a host whose key is in service to the library\'s own refusal', () => {
+    // The passing side: not a rebuild, so not sent off to rotate.
+    const r = runBare('AKIAEXAMPLEEXAMPLE01', 'AKIAEXAMPLEEXAMPLE01');
+    expect(r.status).toBe(1);
+    expect(r.stderr).not.toMatch(/this host holds none of them/);
+    expect(r.stderr).toMatch(/already holds 1 access key\(s\)/);
+  });
+});
+
+describe('install-host-credentials.sh --retire, against a stand-in host and IAM', () => {
+  /**
+   * A host confirming staging and reporting the key it holds, which records
+   * every session's stream so the chain proof can be seen to run or not; an IAM
+   * listing the user's keys and recording any change. With no terminal the run
+   * stops at the typed confirmation, so nothing is ever deactivated here: what
+   * is pinned is everything the retirement decides before it asks.
+   */
+  function runRetire(hostKey: string, userKeys: string, oldKey: string) {
+    const sessions = join(workDir, 'sessions.log');
+    const ssh = join(workDir, 'ssh-host.sh');
+    writeFileSync(ssh, [
+      '#!/usr/bin/env bash',
+      `{ echo "== $*"; cat; } >> ${JSON.stringify(sessions)}`,
+      'case "$*" in',
+      '  *footbag-host-identity*) printf -- "---FOOTBAG-HOST-ENV---\\nstaging\\n---FOOTBAG-HOST-URL---\\n\\n---FOOTBAG-END---\\n" ;;',
+      `  *footbag-host-key-id*) printf -- "---FOOTBAG-KEY-ID---\\n%s\\n---FOOTBAG-END---\\n" ${JSON.stringify(hostKey)} ;;`,
+      'esac',
+      'exit 0',
+    ].join('\n'));
+    chmodSync(ssh, 0o755);
+    const aws = join(workDir, 'iam.sh');
+    writeFileSync(aws, [
+      '#!/usr/bin/env bash',
+      `echo "$*" >> ${JSON.stringify(join(workDir, 'iam.log'))}`,
+      `case "$2" in list-access-keys) echo ${JSON.stringify(userKeys)} ;; esac`,
+      'exit 0',
+    ].join('\n'));
+    chmodSync(aws, 0o755);
+    const pin = join(workDir, 'known_hosts');
+    writeFileSync(pin, 'footbag-staging ssh-ed25519 AAAAstub\n', { mode: 0o600 });
+    const r = spawnSync('bash', [SCRIPT, '--target', 'staging', '--retire', oldKey], {
+      cwd: process.cwd(),
+      encoding: 'utf-8',
+      input: 'fixture-sudo-password\n',
+      env: {
+        ...process.env,
+        ...NO_AWS_CREDENTIALS,
+        ...connectingAs(SHARED_ACCOUNT, workDir),
+        IAM_KEY_AWS_BIN: aws,
+        FOOTBAG_HOST_SSH_BIN: ssh,
+        FOOTBAG_KNOWN_HOSTS: pin,
+      },
+      ...SPAWN_GUARD,
+    });
+    const log = (p: string) => { try { return readFileSync(p, 'utf-8'); } catch { return ''; } };
+    return {
+      status: r.status,
+      stderr: r.stderr ?? '',
+      stdout: r.stdout ?? '',
+      proofRan: /RUNTIME_PROFILE=/.test(log(sessions)),
+      iam: log(join(workDir, 'iam.log')),
+    };
+  }
+
+  it('refuses to retire the key the host itself holds, before any proof or change', () => {
+    // Defect caught: a retirement named with the host's own key passed the chain
+    // proof, which only says the host works right now, and then cut the key the
+    // host was running on.
+    const r = runRetire('AKIAEXAMPLEEXAMPLE01', 'AKIAEXAMPLEEXAMPLE01 AKIAEXAMPLEEXAMPLE02', 'AKIAEXAMPLEEXAMPLE01');
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/AKIAEXAMPLEEXAMPLE01 is the key staging's host holds/);
+    expect(r.proofRan).toBe(false);
+    expect(r.iam).not.toMatch(/update-access-key/);
+  });
+
+  it('proves the host\'s chain before retiring a key the host does not hold', () => {
+    // The passing side of the refusal above: a dead key goes through to the
+    // proof, and the run stops only at the typed confirmation.
+    const r = runRetire('AKIAEXAMPLEEXAMPLE01', 'AKIAEXAMPLEEXAMPLE01 AKIAEXAMPLEEXAMPLE02', 'AKIAEXAMPLEEXAMPLE02');
+    expect(r.proofRan).toBe(true);
+    expect(r.stderr).toMatch(/no terminal to confirm on/);
+    expect(r.iam).not.toMatch(/update-access-key/);
+  });
+
+  it('retires one of two keys without the proof when the host holds neither', () => {
+    // Defect caught: a user holding the two keys IAM allows while the host held
+    // neither could not be rotated, and the retirement that would free a slot
+    // demanded a proof from a host with no working key, so nothing could move.
+    const r = runRetire('', 'AKIAEXAMPLEEXAMPLE02 AKIAEXAMPLEEXAMPLE03', 'AKIAEXAMPLEEXAMPLE02');
+    expect(r.proofRan).toBe(false);
+    expect(r.stdout).toMatch(/holds two keys and staging's host holds neither/);
+    expect(r.stderr).toMatch(/no terminal to confirm on/);
+  });
+
+  it('still demands the proof from a host holding none of a single remaining key', () => {
+    // The bound of the exception: one key on the user is not the deadlock, and
+    // retiring it without proof would leave the identity with none.
+    const r = runRetire('', 'AKIAEXAMPLEEXAMPLE02', 'AKIAEXAMPLEEXAMPLE02');
+    expect(r.proofRan).toBe(true);
   });
 });

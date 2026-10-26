@@ -68,6 +68,10 @@ EGRESS_ADDRESS=""
 EGRESS_PORT=""
 EGRESS_DETAIL=""
 
+# tf_instance_name, for the instance whose firewall is read.
+# shellcheck source=terraform-output.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/terraform-output.sh"
+
 # egress_ip_to_int <dotted-quad>
 # Prints the address as a 32-bit integer. Returns 1 on anything that is not one.
 # Each octet is forced to base 10: an entry written 010.0.0.1 is octal to bash's
@@ -176,7 +180,16 @@ cannot be read against it."
   EGRESS_PORT="$port"
 
   # ── Live port state, from the instance rather than from a values file ──────
-  local instance="footbag-${target}-web"
+  #
+  # The instance as Terraform records it: a restore from snapshot renames it, and
+  # the original name then belongs to the stopped old host, whose firewall says
+  # nothing about the one the deploy will reach.
+  if ! tf_instance_name "$target" 2>/dev/null; then
+    EGRESS_DETAIL="Egress address ${addr}, port ${port}, but the ${target} web instance's name could
+not be read from Terraform, so the firewall was not read."
+    return 0
+  fi
+  local instance="$TF_INSTANCE_NAME"
   local states="" aws_err="" errfile rc=0
   errfile="$(mktemp)" || {
     EGRESS_DETAIL="Egress address ${addr}, port ${port}, but a temp file for the AWS error could

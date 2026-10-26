@@ -150,7 +150,6 @@ function world(w: World): NodeJS.ProcessEnv {
       'echo "outbound mail on production: $(cat "$f")"',
     ].join('\n'),
   );
-  const setHostEnv = stub('set-host-env', `IFS= read -r _password || true\n${log('set-host-env')}`);
   const deploy = stub('deploy', `${log('deploy')}\n${w.deployFails ? 'exit 1' : 'exit 0'}`);
   const verifyHost = stub(
     'verify-host-env',
@@ -172,7 +171,6 @@ function world(w: World): NodeJS.ProcessEnv {
     SENDER_CUTOVER_AWS_BIN: aws,
     SENDER_CUTOVER_TF_BIN: tf,
     SENDER_CUTOVER_PAUSE_CMD: pause,
-    SENDER_CUTOVER_SET_HOST_ENV_CMD: setHostEnv,
     SENDER_CUTOVER_DEPLOY_CMD: deploy,
     SENDER_CUTOVER_VERIFY_HOST_ENV_CMD: verifyHost,
     SENDER_CUTOVER_VERIFY_EMAIL_CMD: verifyEmail,
@@ -228,8 +226,9 @@ afterEach(() => {
 
 describe('ses-sender-cutover.sh: a full move', () => {
   // Defect caught: a step runs out of order, so the host holds the new sender
-  // before the identity exists, or sends resume before the deploy lands.
-  it('pauses, writes, applies, moves the host sender, deploys, verifies and resumes, in that order', () => {
+  // before the identity exists, or sends resume before the deploy lands; or a
+  // separate host write comes back as a second owner of the published sender.
+  it('pauses, writes, applies, deploys (which moves the host sender), verifies and resumes, in that order', () => {
     const r = run({});
     expect(r.status, r.out).toBe(0);
     expect(sequence(r.calls)).toEqual([
@@ -237,7 +236,6 @@ describe('ses-sender-cutover.sh: a full move', () => {
       'terraform plan',
       'terraform show',
       'terraform apply',
-      'set-host-env',
       'deploy -k',
       'verify-host-env',
       'verify-email',
@@ -358,7 +356,7 @@ describe('ses-sender-cutover.sh: the plan, and where a stop leaves the outbox', 
   it('leaves the outbox paused when a step after the apply fails, and names the resume point', () => {
     const r = run({ deployFails: true });
     expect(r.status).not.toBe(0);
-    expect(sequence(r.calls)).toEqual(['pause --pause', 'terraform plan', 'terraform show', 'terraform apply', 'set-host-env', 'deploy -k']);
+    expect(sequence(r.calls)).toEqual(['pause --pause', 'terraform plan', 'terraform show', 'terraform apply', 'deploy -k']);
     expect(r.outbox).toBe('PAUSED');
     expect(r.out).toContain('LEFT PAUSED');
     expect(r.out).toContain('--from-step 4');

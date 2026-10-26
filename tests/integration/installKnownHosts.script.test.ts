@@ -75,10 +75,15 @@ function writeAwsStubFailing(): void {
   chmodSync(awsStub, 0o755);
 }
 
-function writeTfStub(ip = STAGING_IP): void {
+function writeTfStub(ip = STAGING_IP, instance = 'footbag-staging-web'): void {
   writeFileSync(
     tfStub,
-    `#!/usr/bin/env bash\nfor a in "$@"; do if [ "$a" = "output" ]; then printf '%s' ${JSON.stringify(ip)}; exit 0; fi; done\nexit 0\n`,
+    [
+      '#!/usr/bin/env bash',
+      `case "$*" in *lightsail_instance_name*) printf '%s' ${JSON.stringify(instance)}; exit 0 ;; esac`,
+      `for a in "$@"; do if [ "$a" = "output" ]; then printf '%s' ${JSON.stringify(ip)}; exit 0; fi; done`,
+      'exit 0',
+    ].join('\n') + '\n',
     'utf-8',
   );
   chmodSync(tfStub, 0o755);
@@ -194,6 +199,29 @@ describe('install-known-hosts.sh — what it writes', () => {
     expect(pin).toContain(`[${STAGING_IP}]:2222 ssh-ed25519 AAAAED25519KEY`);
   });
 
+  // Defect caught: after a restore from snapshot the host runs as a new
+  // instance under a new name, and keys read by the original name are the
+  // stopped old host's, so every later connection to the restored host refuses.
+  it('pins the keys of the instance Terraform names, which a restore renames', () => {
+    const restored = 'footbag-staging-web-r202610260000';
+    writeTfStub(STAGING_IP, restored);
+    writeFileSync(
+      awsStub,
+      [
+        '#!/usr/bin/env bash',
+        `case "$*" in *"--instance-name ${restored}"*) printf '%b' 'ssh-ed25519\\tAAAARESTOREDKEY\\n'; exit 0 ;; esac`,
+        `printf '%b' 'ssh-ed25519\\tAAAAOLDHOSTKEY\\n'`,
+      ].join('\n') + '\n',
+      'utf-8',
+    );
+    chmodSync(awsStub, 0o755);
+    const r = run(['--target', 'staging']);
+    expect(r.status, r.stderr).toBe(0);
+    const pin = readFileSync(pinPath, 'utf-8');
+    expect(pin).toContain(`${STAGING_IP} ssh-ed25519 AAAARESTOREDKEY`);
+    expect(pin).not.toContain('AAAAOLDHOSTKEY');
+  });
+
   it('keeps another environment lines rather than replacing the file', () => {
     // The file holds every host an operator reaches. Rewriting it wholesale is
     // how production's pin disappears during a staging run, and the loss shows
@@ -224,6 +252,93 @@ describe('install-known-hosts.sh — what it writes', () => {
     const r = run(['--target', 'staging']);
     expect(r.status, r.stderr).toBe(0);
     expect(readFileSync(pinPath, 'utf-8')).toBe(first);
+  });
+});
+
+describe('install-known-hosts.sh — a rebuild that moved the host', () => {
+  const PREV_IP = '198.51.100.20';
+  const PREV_LINES = `${PREV_IP} ssh-ed25519 AAAAPREVKEY\n[${PREV_IP}]:2222 ssh-ed25519 AAAAPREVKEY\n`;
+
+  /** `ssh -G` reporting that the alias still names the previous address. */
+  function aliasNames(host: string): NodeJS.ProcessEnv {
+    const bin = join(workDir, 'alias-bin');
+    mkdirSync(bin, { recursive: true });
+    writeFileSync(join(bin, 'ssh'), [
+      '#!/usr/bin/env bash',
+      `[[ "$1" == "-G" ]] && { printf 'user footbag\\nhostname %s\\n' ${JSON.stringify(host)}; exit 0; }`,
+      'exit 255',
+    ].join('\n'));
+    chmodSync(join(bin, 'ssh'), 0o755);
+    return { PATH: `${bin}:${process.env.PATH ?? ''}` };
+  }
+
+  function runWith(args: string[], extra: NodeJS.ProcessEnv) {
+    const res = spawnSync('bash', [SCRIPT, ...args], {
+      encoding: 'utf-8',
+      env: {
+        ...process.env,
+        FOOTBAG_KNOWN_HOSTS: pinPath,
+        INSTALL_KNOWN_HOSTS_AWS_BIN: awsStub,
+        TF_OUTPUT_BIN: tfStub,
+        AWS_PROFILE_BIN: awsStub,
+        AWS_IDENTITY_BIN: identityStub,
+        AWS_PROFILE: 'stub-profile',
+        ...extra,
+      },
+      ...SPAWN_GUARD,
+    });
+    return { status: res.status, stdout: res.stdout ?? '', stderr: res.stderr ?? '' };
+  }
+
+  it('drops the lines for the address the alias named before, and keeps the other environment\'s', () => {
+    // Defect caught: a rebuild leaves the old address pinned, so if that
+    // address is ever reassigned the pin verifies whoever holds it next.
+    writeFileSync(pinPath, `${OTHER_ENV_LINE}\n${PREV_LINES}`, 'utf-8');
+    const r = runWith(['--target', 'staging'], aliasNames(PREV_IP));
+    expect(r.status, r.stderr).toBe(0);
+    const pin = readFileSync(pinPath, 'utf-8');
+    expect(pin).not.toContain(PREV_IP);
+    expect(pin).toContain(OTHER_ENV_LINE);
+    expect(pin).toContain(`[${STAGING_IP}]:2222 ssh-ed25519 AAAAED25519KEY footbag-staging`);
+  });
+
+  it('never drops a line the other environment\'s run wrote, whatever address it names', () => {
+    const otherTagged = `${PREV_IP} ssh-ed25519 AAAAPRODKEY footbag-production`;
+    writeFileSync(pinPath, `${otherTagged}\n`, 'utf-8');
+    const r = runWith(['--target', 'staging'], aliasNames(PREV_IP));
+    expect(r.status, r.stderr).toBe(0);
+    expect(readFileSync(pinPath, 'utf-8')).toContain(otherTagged);
+  });
+
+  it('drops a line this environment wrote at an address it no longer has, with no alias hint', () => {
+    writeFileSync(pinPath, `${PREV_IP} ssh-ed25519 AAAAPREVKEY footbag-staging\n${OTHER_ENV_LINE}\n`, 'utf-8');
+    const r = runWith(['--target', 'staging'], aliasNames(STAGING_IP));
+    expect(r.status, r.stderr).toBe(0);
+    const pin = readFileSync(pinPath, 'utf-8');
+    expect(pin).not.toContain('AAAAPREVKEY');
+    expect(pin).toContain(OTHER_ENV_LINE);
+  });
+
+  it('reports the leftover lines as stale under --check, and current once they are gone', () => {
+    run(['--target', 'staging']);
+    writeFileSync(pinPath, readFileSync(pinPath, 'utf-8') + PREV_LINES, 'utf-8');
+    const stale = runWith(['--target', 'staging', '--check'], aliasNames(PREV_IP));
+    expect(stale.status).toBe(1);
+    expect(stale.stderr).toMatch(/2 line\(s\) still pin footbag-staging-web/);
+    runWith(['--target', 'staging'], aliasNames(PREV_IP));
+    const current = runWith(['--target', 'staging', '--check'], aliasNames(PREV_IP));
+    expect(current.status, current.stderr).toBe(0);
+  });
+
+  it('still reads a pin written before lines carried their environment as current', () => {
+    // The lines an existing workstation holds carry no tag; the check must not
+    // report them stale and send every operator to rewrite a correct pin.
+    writeFileSync(pinPath, [
+      `${STAGING_IP} ssh-rsa AAAARSAKEY`, `[${STAGING_IP}]:2222 ssh-rsa AAAARSAKEY`,
+      `${STAGING_IP} ssh-ed25519 AAAAED25519KEY`, `[${STAGING_IP}]:2222 ssh-ed25519 AAAAED25519KEY`,
+    ].join('\n') + '\n', 'utf-8');
+    const r = run(['--target', 'staging', '--check']);
+    expect(r.status, r.stderr).toBe(0);
   });
 });
 

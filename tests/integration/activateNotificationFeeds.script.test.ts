@@ -119,20 +119,22 @@ describe('activate-notification-feeds.sh — argument validation', () => {
 });
 
 describe('activate-notification-feeds.sh — the plan states the safe order', () => {
-  it('puts the apply before the host write and the host write before the deploy', () => {
-    // The queues collect from the apply; the host cannot name them until the
-    // write; the worker cannot read them until the deploy. Any other order
-    // leaves a step that silently does nothing.
+  it('puts the apply before the deploy that syncs the URLs, and the deploy before the verify', () => {
+    // The apply creates the queues and publishes their URLs; the deploy syncs
+    // those URLs onto the host and restarts the worker that polls them. Any
+    // other order leaves a step that silently does nothing. No separate host
+    // write is named, because a second writer of a published value is a
+    // second owner.
     const res = dryRun(['--target', 'staging', '--state', 'on']);
     expect(res.exitCode).toBe(0);
     const applyStep = res.stdout.indexOf('terraform -chdir');
-    const hostStep = res.stdout.indexOf('set-host-env.sh');
     const deployStep = res.stdout.indexOf('deploy_to_aws.sh');
     const verifyStep = res.stdout.indexOf('verify-host-env.sh');
     expect(applyStep).toBeGreaterThan(-1);
-    expect(applyStep).toBeLessThan(hostStep);
-    expect(hostStep).toBeLessThan(deployStep);
+    expect(applyStep).toBeLessThan(deployStep);
     expect(deployStep).toBeLessThan(verifyStep);
+    expect(res.stdout).toMatch(/syncs the URLs/);
+    expect(res.stdout).not.toMatch(/set-host-env\.sh/);
   });
 
   it('says the deploy is code-only, so activation can never replace a database', () => {
@@ -241,8 +243,7 @@ describe('activate-notification-feeds.sh — synthetic mode stops before real in
     // The steps it would have taken are named, so the preview and the real
     // sequence cannot drift apart unnoticed.
     expect(res.stdout).toMatch(/terraform -chdir/);
-    expect(res.stdout).toMatch(/set-host-env\.sh/);
-    expect(res.stdout).toMatch(/deploy_to_aws\.sh/);
+    expect(res.stdout).toMatch(/deploy_to_aws\.sh.*syncs the queue URLs/);
     expect(res.stdout).toMatch(/verify-host-env\.sh/);
   });
 });

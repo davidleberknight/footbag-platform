@@ -1,18 +1,11 @@
 # =============================================================================
 # SSM Parameter Store — /footbag/{env}/...
-# All application secrets live here. SecureString type with KMS encryption.
-#
-# TODO: After apply, set actual secret values via AWS Console or CLI:
-#   aws ssm put-parameter --name "/footbag/staging/app/secret_key" \
-#     --value "$(openssl rand -hex 32)" --type SecureString \
-#     --key-id alias/footbag-staging --overwrite
+# Non-secret values live under app/ as String; secrets under secrets/ as
+# SecureString with KMS encryption. Every value the deploy syncs onto the host
+# is declared in scripts/lib/host-values.sh, which names this parameter as its
+# source. A secret whose value Terraform cannot know is written through its
+# provisioning script, never by a hand-typed put-parameter.
 # =============================================================================
-
-resource "aws_ssm_parameter" "app_port" {
-  name  = "${local.ssm_prefix}/app/port"
-  type  = "String"
-  value = "3000"
-}
 
 resource "aws_ssm_parameter" "app_log_level" {
   name  = "${local.ssm_prefix}/app/log_level"
@@ -96,18 +89,66 @@ resource "aws_ssm_parameter" "app_jwt_kms_key_id" {
   value = aws_kms_alias.jwt_signing.name
 }
 
-# The site's own public address is deliberately not a parameter here either, for
-# the reason the production tree records: nothing reads it, and the running value
-# lives in the host env file.
+# The rest of the host values Terraform creates or decides, published so every
+# deploy syncs them onto the host and no operator script has to. Each reads the
+# resource or the flag it comes from, so a rename or a flag flip travels with it.
+# No ignore_changes: Terraform is the only writer, and a hand put-parameter
+# reverts on the next apply.
 
-resource "aws_ssm_parameter" "app_db_path" {
-  name = "${local.ssm_prefix}/app/db_path"
-  type = "String"
-  # Matches the host bind mount the compose stack declares. Operators may move
-  # the path on the host during a maintenance window, and a re-apply must not
-  # clobber that without explicit intent, so the value is not reverted here.
-  value = "/srv/footbag/db/footbag.db"
-  lifecycle { ignore_changes = [value] }
+resource "aws_ssm_parameter" "app_snapshots_bucket" {
+  name  = "${local.ssm_prefix}/app/snapshots_bucket"
+  type  = "String"
+  value = aws_s3_bucket.snapshots.bucket
+}
+
+resource "aws_ssm_parameter" "app_alarm_topic_arn" {
+  name  = "${local.ssm_prefix}/app/alarm_topic_arn"
+  type  = "String"
+  value = aws_sns_topic.alarms.arn
+}
+
+resource "aws_ssm_parameter" "app_ses_feedback_topic_arn" {
+  name  = "${local.ssm_prefix}/app/ses_feedback_topic_arn"
+  type  = "String"
+  value = aws_sns_topic.ses_feedback.arn
+}
+
+# The feed queues exist only once enable_feed_queues is on. Parameter Store
+# refuses an empty value, so the parameter exists exactly when the queue does,
+# and the deploy reads its absence as "no feed to poll".
+resource "aws_ssm_parameter" "app_alarm_queue_url" {
+  count = var.enable_feed_queues ? 1 : 0
+  name  = "${local.ssm_prefix}/app/alarm_queue_url"
+  type  = "String"
+  value = aws_sqs_queue.alarm_feed[0].url
+}
+
+resource "aws_ssm_parameter" "app_ses_feedback_queue_url" {
+  count = var.enable_feed_queues ? 1 : 0
+  name  = "${local.ssm_prefix}/app/ses_feedback_queue_url"
+  type  = "String"
+  value = aws_sqs_queue.ses_feedback_feed[0].url
+}
+
+resource "aws_ssm_parameter" "app_ses_sender_identity" {
+  name  = "${local.ssm_prefix}/app/ses_sender_identity"
+  type  = "String"
+  value = var.ses_sender_identity
+}
+
+# The site's canonical origin, which every absolute link, redirect and mail link
+# is built against. Staging serves on its distribution's own name and has no
+# custom domain or notice window, so it has one state where production has
+# three; the parameter is the same so the deploy reads one contract.
+locals {
+  platform_url = var.enable_cloudfront ? "https://${aws_cloudfront_distribution.main[0].domain_name}" : null
+}
+
+resource "aws_ssm_parameter" "app_public_base_url" {
+  count = var.enable_cloudfront ? 1 : 0
+  name  = "${local.ssm_prefix}/app/public_base_url"
+  type  = "String"
+  value = local.platform_url
 }
 
 # Origin-bypass secret. CloudFront injects this as X-Origin-Verify; nginx

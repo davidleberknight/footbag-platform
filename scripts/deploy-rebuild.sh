@@ -89,6 +89,10 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 # ship another.
 cd "$REPO_ROOT"
 REMOTE_HALF="${SCRIPT_DIR}/internal/deploy-rebuild-remote.sh"
+# Travels ahead of the remote half on the same stream and declares every host
+# value with its owner, plus the sync the remote half calls to write the
+# Terraform-published ones. Defines data and functions and runs nothing.
+HOST_VALUES_LIB="${SCRIPT_DIR}/lib/host-values.sh"
 # shellcheck source=lib/image-transfer.sh
 source "${REPO_ROOT}/scripts/lib/image-transfer.sh"
 # Prepended ahead of the remote half in the root ssh stream: refuses the
@@ -478,6 +482,10 @@ fi
     -f docker/docker-compose.yml \
     build )
 
+# Images built on another processor cannot start on the hosts, so refuse here,
+# before anything is sent. Mirrors deploy-code.sh.
+require_images_for_hosts || exit 1
+
 # Capture layer DiffIDs (RootFS.Layers) for end-to-end integrity verification:
 # the remote-half inspects the loaded images and exits non-zero if either layer
 # list does not match. DiffIDs are sha256 of the uncompressed layer tars and
@@ -615,12 +623,13 @@ echo "==> Running remote-as-root rebuild deploy via cat-pipe..."
   # The guards run first inside the root session: on a post-cutover host, a
   # live-marked production, or a production database holding real members,
   # they exit non-zero before the remote half, so nothing live is touched.
-  cat "$CUTOVER_GUARD" "$PROD_LIVE_GUARD" "$REMOTE_HALF"
+  cat "$CUTOVER_GUARD" "$PROD_LIVE_GUARD" "$HOST_VALUES_LIB" "$REMOTE_HALF"
 } | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'
 
 # Smoke runs against the address the host records it serves (its
-# PUBLIC_BASE_URL), read when the host confirmed it was this environment,
-# before anything shipped. Mirrors deploy-code.sh.
+# PUBLIC_BASE_URL), asked of the host again now, after the deploy synced it from
+# Terraform. Mirrors deploy-code.sh.
+require_host_is "$REMOTE" "$FOOTBAG_ENV" || exit 1
 smoke_url="$HOST_PUBLIC_BASE_URL"
 
 if [[ "${SKIP_SMOKE:-no}" == "yes" ]]; then
@@ -630,7 +639,8 @@ elif [[ -z "$smoke_url" ]]; then
   # a staging-only override, refused on production by the release gate.
   echo "ERROR: $REMOTE records no PUBLIC_BASE_URL, so the deploy cannot be" >&2
   echo "       smoke-checked and will not report itself as done." >&2
-  echo "       Record it with: bash scripts/set-host-env.sh --target $FOOTBAG_ENV" >&2
+  echo "       The deploy syncs it from /footbag/$FOOTBAG_ENV/app/public_base_url, which" >&2
+  echo "       Terraform publishes once CloudFront is enabled; apply the tree and redeploy." >&2
   exit 1
 else
   echo "==> Running smoke check against $smoke_url ..."
@@ -723,6 +733,19 @@ if [[ "${SYNC_MEDIA:-no}" == "yes" ]]; then
     echo "       output above, and re-running the deploy will not change it." >&2
     exit 1
   fi
+fi
+
+# The host's whole env file, verified after the deploy. Mirrors deploy-code.sh,
+# including the DEPLOY_VERIFY_HOST_ENV_CMD test seam.
+VERIFY_HOST_ENV_CMD="${DEPLOY_VERIFY_HOST_ENV_CMD:-$REPO_ROOT/scripts/verify-host-env.sh}"
+if [[ -n "${DEPLOY_VERIFY_HOST_ENV_CMD:-}" ]]; then
+  echo "SYNTHETIC: host env verifier replaced by DEPLOY_VERIFY_HOST_ENV_CMD=$DEPLOY_VERIFY_HOST_ENV_CMD" >&2
+fi
+echo "==> Verifying $REMOTE's env file ..."
+if ! printf '%s\n' "$SUDO_PASS" | bash "$VERIFY_HOST_ENV_CMD" --target "$FOOTBAG_ENV"; then
+  echo "ERROR: $REMOTE's env file failed verification after the deploy; each FAIL above names its fix." >&2
+  echo "       The release is live, so fix what failed and deploy again." >&2
+  exit 1
 fi
 
 echo

@@ -123,3 +123,27 @@ tf_output_explain() {
   echo "         - no operator profile is set up on this machine at all" >&2
   echo "           (bash scripts/setup-operator-workstation.sh)." >&2
 }
+
+# tf_instance_name <target>
+#
+# Sets TF_INSTANCE_NAME to the environment's web instance as Terraform records
+# it, or returns 1 having said why on stderr. The name is footbag-<target>-web
+# until a restore from snapshot brings the host back as a new instance under a
+# new name, because a Lightsail name cannot be reused while the old instance is
+# kept. A script that spells the original name itself would then read and change
+# the stopped old host, so every reader asks Terraform instead.
+tf_instance_name() {
+  local dir
+  dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)/terraform/$1"
+  TF_INSTANCE_NAME=""
+  if ! tf_output_read "$dir" lightsail_instance_name; then
+    echo "ERROR: could not read the $1 web instance's name from Terraform." >&2
+    tf_output_explain "$dir" lightsail_instance_name
+    return 1
+  fi
+  if [[ -z "$TF_OUTPUT_VALUE" ]]; then
+    echo "ERROR: terraform/$1 records no web instance; apply the $1 tree first." >&2
+    return 1
+  fi
+  TF_INSTANCE_NAME="$TF_OUTPUT_VALUE"
+}

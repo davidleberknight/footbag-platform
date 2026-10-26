@@ -8,10 +8,10 @@
 # WHAT A FEED IS, AND WHY THE ORDER MATTERS.
 #
 # Each feed is a topic the provider publishes to, a queue subscribed to it, and
-# a worker that polls the queue. Turning it on is four separate actions that
+# a worker that polls the queue. Turning it on is three separate actions that
 # must all happen and must happen in order: the tfvars flag, `terraform apply`
-# to create the queues and subscribe them, `set-host-env.sh` to put the queue
-# URLs on the host, and a deploy so the running containers hold those URLs and
+# to create the queues, subscribe them and publish their URLs, and a deploy,
+# which syncs those URLs onto the host so the running containers hold them and
 # start polling.
 #
 # The order is load-bearing in one direction. A queue begins collecting the
@@ -37,9 +37,11 @@
 #
 # Steps (referenced by --from-step, so a failure part-way is resumable):
 #   1  rewrite the flag in the environment tfvars
-#   2  terraform apply (creates or removes the queues and their subscriptions)
-#   3  set-host-env.sh (writes the queue URLs onto the host)
-#   4  deploy (code-only), so the containers hold the URLs and poll
+#   2  terraform apply (creates or removes the queues, their subscriptions and the
+#      parameters that publish their URLs)
+#   3  nothing of its own: the deploy in step 4 syncs the URLs. Kept as a number
+#      so resuming with --from-step means what the runbooks say it means.
+#   4  deploy (code-only), which syncs the URLs so the containers hold them and poll
 #   5  verify the host and the live subscriptions
 #
 # Usage (the sudo password is read from stdin, line 1).
@@ -253,8 +255,8 @@ if (( DRY_RUN )); then
     echo "     REMOVES those queues and their subscriptions. Anything still"
     echo "     waiting on a queue goes with it."
   fi
-  echo "  3. scripts/set-host-env.sh --target $TARGET (writes the queue URLs onto the host)"
-  echo "  4. ./deploy_to_aws.sh --target $TARGET   (code-only; never --all-data)"
+  echo "  3. (nothing: the deploy in step 4 syncs the queue URLs Terraform publishes)"
+  echo "  4. ./deploy_to_aws.sh --target $TARGET   (code-only; never --all-data; syncs the URLs)"
   echo "  5. scripts/verify-host-env.sh --target $TARGET, and read back the live subscriptions"
   echo ""
   if [[ "$STATE" == "on" ]]; then
@@ -341,8 +343,7 @@ if (( SYNTHETIC )); then
   echo "-- synthetic mode: stopping before terraform, host-env and deploy --"
   echo "Would next run:"
   echo "  terraform -chdir=$TF_DIR plan -out=<temp>, then apply that plan"
-  echo "  scripts/set-host-env.sh --target $TARGET"
-  echo "  $DEPLOY_CMD --target $TARGET ${DEPLOY_ARGS[*]}"
+  echo "  $DEPLOY_CMD --target $TARGET ${DEPLOY_ARGS[*]}   (syncs the queue URLs)"
   echo "  scripts/verify-host-env.sh --target $TARGET"
   exit 0
 fi
@@ -412,21 +413,11 @@ if (( FROM_STEP <= 2 )); then
   echo ""
 fi
 
-# ── Step 3: the URLs onto the host ───────────────────────────────────────────
+# ── Step 3: nothing of its own ──────────────────────────────────────────────
+# The apply in step 2 published the queue URLs as parameters, and the deploy in
+# step 4 syncs them onto the host with every other published value.
 if (( FROM_STEP <= 3 )); then
-  echo "-- step 3: host env --"
-  echo ""
-  echo "Writing the queue URLs from the Terraform outputs onto the host."
-  echo ""
-  # The credential file this script is reading is the same one set-host-env
-  # needs, and a single stdin cannot serve two readers, so the password is
-  # passed on rather than the operator being asked to run it again themselves.
-  if ! printf '%s\n' "$SUDO_PASS" | bash "$REPO_ROOT/scripts/set-host-env.sh" \
-      --target "$TARGET" ${AWS_PROFILE_ARG:+--profile "$AWS_PROFILE_ARG"} --yes; then
-    echo "ERROR: writing the host env failed. The queues exist and are collecting;" >&2
-    echo "       resume with --from-step 3." >&2
-    exit 1
-  fi
+  echo "-- step 3: host env -- written by the deploy in step 4, which syncs the queue URLs"
   echo ""
 fi
 

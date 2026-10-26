@@ -3,8 +3,10 @@
 #
 # Diff /srv/footbag/env on a deployed Lightsail host against the env contract
 # implied by terraform output + the production-hardening invariants enforced by
-# src/config/env.ts. Reports each invariant as PASS / FAIL / WARN; exits 1 if
-# any critical invariant fails.
+# src/config/env.ts, and every Terraform-published value in the host value
+# catalogue against what Parameter Store holds under /footbag/<target>/app/.
+# Reports each invariant as PASS / FAIL / WARN; exits 1 if any critical
+# invariant fails. Every deploy runs it after its smoke checks.
 #
 # Run from the operator workstation. Reads terraform state locally via
 # `terraform -chdir=terraform/<target> output -raw <name>` (no AWS API calls
@@ -28,10 +30,10 @@
 #   < ~/AWS/DEV_TESTER_HOST.txt bash scripts/verify-host-env.sh --target staging
 #   < ~/AWS/AWS_OPERATOR_PRODUCTION.txt bash scripts/verify-host-env.sh --target production
 #
-# Why it exists: the operator-managed /srv/footbag/env file has no automatic
-# terraform reconciliation, so most deployed-host configuration drift reduces
-# to "what is actually in the host's env file?". This script makes that
-# question answerable without ssh-and-grep ad hoc.
+# Why it exists: most deployed-host configuration drift reduces to "what is
+# actually in the host's env file?". The deploy writes that file, and this
+# script proves the result against every owner the file answers to, so the
+# question is answered by a check rather than by ssh-and-grep.
 
 # Pipeline note: `set -o pipefail` below makes any SIGPIPE in a pipeline
 # surface as exit 141 (= 128 + signal 13). The typical offender is
@@ -51,6 +53,10 @@ source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/host-env-remote.sh"
 # whichever shell the operator started from.
 # shellcheck source=lib/aws-profile.sh
 source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/aws-profile.sh"
+# The catalogue of host values, so the Parameter Store comparison below checks
+# every Terraform-published value rather than a list kept here.
+# shellcheck source=lib/host-values.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/host-values.sh"
 
 # No default target. A verification that silently reports on the environment the
 # operator did not name is worse than one that refuses.
@@ -114,15 +120,10 @@ if [[ -n "$ENV_FILE_OVERRIDE" ]]; then
   TF_JWT_KMS_KEY_ARN="${TF_JWT_KMS_KEY_ARN:-}"
   TF_SES_SENDER="${TF_SES_SENDER:-}"
   TF_MEDIA_BUCKET="${TF_MEDIA_BUCKET:-}"
-  # Optional here, unlike the three above: a fixture written before this value
-  # was owned carries no expectation for it, and the check below degrades to
-  # presence rather than failing a synthetic run over a value it was not given.
-  TF_PLATFORM_URL="${TF_PLATFORM_URL:-}"
-  # Same optionality for the two window outputs, and for the same reason: a
-  # fixture that predates them carries neither, and their absence reads as
-  # "no cutover window", which is the correct default everywhere but the window.
-  TF_PREVIEW_URL="${TF_PREVIEW_URL:-}"
-  TF_NOTICE_ENABLED="${TF_NOTICE_ENABLED:-}"
+  # Optional here, unlike the three above: a fixture that carries no expectation
+  # for it degrades the check below to presence rather than failing a synthetic
+  # run over a value it was not given.
+  TF_PUBLIC_BASE_URL="${TF_PUBLIC_BASE_URL:-}"
   if [[ -z "$TF_JWT_KMS_KEY_ARN" || -z "$TF_SES_SENDER" || -z "$TF_MEDIA_BUCKET" ]]; then
     echo "ERROR: --env-file mode requires TF_JWT_KMS_KEY_ARN, TF_SES_SENDER, and TF_MEDIA_BUCKET in the environment." >&2
     exit 2
@@ -137,12 +138,11 @@ else
   TF_JWT_KMS_KEY_ARN="$(terraform -chdir="$TF_DIR" output -raw jwt_signing_key_arn 2>/dev/null || true)"
   TF_SES_SENDER="$(terraform -chdir="$TF_DIR" output -raw ses_sender_identity 2>/dev/null || true)"
   TF_MEDIA_BUCKET="$(terraform -chdir="$TF_DIR" output -raw media_bucket_name 2>/dev/null || true)"
-  TF_PLATFORM_URL="$(terraform -chdir="$TF_DIR" output -raw platform_url 2>/dev/null || true)"
-  # The two window outputs. Both legitimately read empty on a tree without
-  # them applied or on staging, which declares neither; the base-address check
-  # below treats empty as "no window", which is the safe reading.
-  TF_PREVIEW_URL="$(terraform -chdir="$TF_DIR" output -raw preview_url 2>/dev/null || true)"
-  TF_NOTICE_ENABLED="$(terraform -chdir="$TF_DIR" output -raw cutover_notice_enabled 2>/dev/null || true)"
+  # The base address the tree decides for this moment, which is also what the
+  # deploy syncs onto the host. Empty while CloudFront is off, when the site has
+  # no public name yet.
+  TF_PUBLIC_BASE_URL="$(terraform -chdir="$TF_DIR" output -raw public_base_url 2>/dev/null || true)"
+  [[ "$TF_PUBLIC_BASE_URL" == "null" ]] && TF_PUBLIC_BASE_URL=""
   if [[ -z "$TF_JWT_KMS_KEY_ARN" || -z "$TF_SES_SENDER" || -z "$TF_MEDIA_BUCKET" ]]; then
     echo "ERROR: required terraform outputs are empty. Has 'terraform apply' run for $TARGET?" >&2
     echo "  jwt_signing_key_arn = '$TF_JWT_KMS_KEY_ARN'" >&2
@@ -512,8 +512,69 @@ fi
 check_equals "MEDIA_STORAGE_ADAPTER" "s3" "media storage adapter"
 check_equals "MEDIA_STORAGE_S3_BUCKET" "$TF_MEDIA_BUCKET" "media bucket matches terraform"
 
-# AWS region + other live-adapter dependencies.
-check_set "AWS_REGION" "AWS region"
+# The host constants: declared in the committed docker/env/<target>.env and
+# applied by every deploy, so the host must hold exactly the committed value. An
+# unreadable committed file yields a placeholder no host carries, so the check
+# fails rather than comparing two empty strings.
+committed_value() {
+  expected_committed_value "$TARGET" "$1" 2>/dev/null || echo "<not set in docker/env/${TARGET}.env>"
+}
+check_equals "AWS_REGION" "$(committed_value AWS_REGION)" "AWS region matches committed host config"
+check_equals "AWS_PROFILE" "$(committed_value AWS_PROFILE)" "runtime profile matches committed host config"
+check_equals "FOOTBAG_DB_DIR" "$(committed_value FOOTBAG_DB_DIR)" "database directory matches committed host config"
+check_equals "FOOTBAG_DB_PATH" "$(committed_value FOOTBAG_DB_PATH)" "database path matches committed host config"
+
+# Every Terraform-published value, held against what Parameter Store holds now.
+# The deploy copies each one unchanged, so any difference means an apply landed
+# after the last deploy, or the file was edited by hand; either way the host is
+# not running what Terraform says. A published optional value must be on the
+# host, and an unpublished one must be absent, because the deploy clears it.
+# The list comes from the catalogue, so a value added there is checked here
+# without anyone remembering to add it.
+#
+# HOST_VALUES_PUBLISHED_FILE is the test seam for the read: a file in the shape
+# the by-path read prints, one "name<TAB>value" line per parameter. Without it, a
+# synthetic run has no Parameter Store to compare against and says so.
+PUBLISHED_LISTING=""
+PUBLISHED_READ="no"
+if [[ -n "${HOST_VALUES_PUBLISHED_FILE:-}" ]]; then
+  echo "SYNTHETIC: Parameter Store listing read from HOST_VALUES_PUBLISHED_FILE=$HOST_VALUES_PUBLISHED_FILE" >&2
+  if PUBLISHED_LISTING="$(cat "$HOST_VALUES_PUBLISHED_FILE")"; then
+    PUBLISHED_READ="yes"
+  fi
+elif [[ -z "$ENV_FILE_OVERRIDE" ]]; then
+  if PUBLISHED_LISTING="$(aws ssm get-parameters-by-path \
+      --region "$(committed_value AWS_REGION)" \
+      --path "/footbag/${TARGET}/app/" \
+      --query 'Parameters[].[Name,Value]' \
+      --output text)"; then
+    PUBLISHED_READ="yes"
+  fi
+fi
+if [[ "$PUBLISHED_READ" == "yes" ]]; then
+  declare -A PUBLISHED=()
+  while IFS=$'\t' read -r _pub_name _pub_value; do
+    [[ -n "$_pub_name" ]] && PUBLISHED["${_pub_name#/footbag/${TARGET}/}"]="$_pub_value"
+  done <<< "$PUBLISHED_LISTING"
+  while IFS= read -r _param_key; do
+    _param_source="$(host_value_field "$_param_key" source)"
+    if [[ -n "${PUBLISHED[$_param_source]+present}" ]]; then
+      check_equals "$_param_key" "${PUBLISHED[$_param_source]}" "published at /footbag/${TARGET}/${_param_source}"
+    elif [[ "$(host_value_field "$_param_key" required)" == "required" ]]; then
+      check_fail "/footbag/${TARGET}/${_param_source} does not exist; apply the $TARGET Terraform tree, which publishes it, then deploy"
+    elif [[ -n "${HOST_ENV[$_param_key]:-}" ]]; then
+      check_fail "$_param_key is on the host but /footbag/${TARGET}/${_param_source} does not exist; deploy $TARGET, which clears it"
+    else
+      check_pass "$_param_key absent, as /footbag/${TARGET}/${_param_source} is unpublished"
+    fi
+  done < <(host_values_keys param)
+elif [[ -n "$ENV_FILE_OVERRIDE" ]]; then
+  check_skip "Terraform-published values: synthetic run with no Parameter Store listing"
+else
+  check_fail "could not read /footbag/${TARGET}/app/ from Parameter Store, so the Terraform-published values went unchecked"
+fi
+
+# Other live-adapter dependencies.
 check_set_value "SECRETS_ADAPTER" "secrets adapter (expected: 'live' on $TARGET)"
 
 # The two protective selectors are derived from their switches on every deploy,
@@ -595,7 +656,7 @@ SES_FEEDBACK_QUEUE_ACTUAL="${HOST_ENV[SES_FEEDBACK_QUEUE_URL]:-}"
 if [[ "${HOST_ENV[SES_ADAPTER]:-}" != "live" ]]; then
   check_pass "ses feedback queue: not required (SES_ADAPTER is not 'live')"
 elif [[ -z "$SES_FEEDBACK_QUEUE_ACTUAL" ]]; then
-  check_fail "ses feedback queue: SES_FEEDBACK_QUEUE_URL is unset, so no bounce or complaint is ever recorded (enable the feed queues in terraform, then run scripts/set-host-env.sh --target $TARGET)"
+  check_fail "ses feedback queue: SES_FEEDBACK_QUEUE_URL is unset, so no bounce or complaint is ever recorded (enable the feed queues in terraform and apply, then deploy $TARGET, which syncs the queue URL)"
 else
   check_pass "ses feedback queue: SES_FEEDBACK_QUEUE_URL present"
 fi
@@ -609,7 +670,7 @@ SES_FEEDBACK_ARN_ACTUAL="${HOST_ENV[SES_FEEDBACK_TOPIC_ARN]:-}"
 if [[ "${HOST_ENV[SES_ADAPTER]:-}" != "live" ]]; then
   check_pass "ses feedback topic: not required (SES_ADAPTER is not 'live')"
 elif [[ -z "$SES_FEEDBACK_ARN_ACTUAL" ]]; then
-  check_fail "ses feedback topic: SES_FEEDBACK_TOPIC_ARN is unset, so every feedback delivery is refused (run scripts/set-host-env.sh --target $TARGET, which writes the topic ARNs from the Terraform outputs)"
+  check_fail "ses feedback topic: SES_FEEDBACK_TOPIC_ARN is unset, so every feedback delivery is refused (deploy $TARGET, which syncs the topic ARNs Terraform publishes)"
 elif [[ ! "$SES_FEEDBACK_ARN_ACTUAL" =~ ^arn:aws:sns: ]]; then
   check_fail "ses feedback topic: SES_FEEDBACK_TOPIC_ARN is not an SNS topic ARN"
 else
@@ -626,7 +687,7 @@ SES_SET_BULK="${HOST_ENV[SES_CONFIGURATION_SET_BULK]:-}"
 if [[ "${HOST_ENV[SES_ADAPTER]:-}" != "live" ]]; then
   check_pass "ses configuration sets: not required (SES_ADAPTER is not 'live')"
 elif [[ -z "$SES_SET_TRANSACTIONAL" || -z "$SES_SET_BULK" ]]; then
-  check_fail "ses configuration sets: SES_CONFIGURATION_SET_TRANSACTIONAL and _BULK must both be set, or bulk and transactional mail share one sending reputation (run scripts/set-host-env.sh --target $TARGET, which writes them from the Terraform outputs)"
+  check_fail "ses configuration sets: SES_CONFIGURATION_SET_TRANSACTIONAL and _BULK must both be set, or bulk and transactional mail share one sending reputation (deploy $TARGET, which syncs both from the parameters Terraform publishes)"
 elif [[ "$SES_SET_TRANSACTIONAL" == "$SES_SET_BULK" ]]; then
   check_fail "ses configuration sets: both names are '$SES_SET_BULK', so the two streams are not separated at all"
 else
@@ -647,32 +708,24 @@ fi
 
 # Public-facing required vars.
 #
-# Compared against the tree's own platform_url rather than merely checked for
-# presence, because the failure this guards is a host left on the previous value
-# after DNS moves. That host answers, passes every health check, and builds every
-# absolute link, redirect and mail link against a hostname the site no longer
-# serves. Presence cannot see it; only the comparison can.
+# Compared against the base address the tree decides for this moment rather than
+# merely checked for presence, because the failure this guards is a host left on
+# a previous value: before the freeze, after it, or across the launch apply. That
+# host answers, passes every health check, and builds every absolute link,
+# redirect and mail link against a name that does not reach the platform.
+# Presence cannot see it; only the comparison can. The tree's value is the one
+# the deploy syncs, so a mismatch means the host has not been deployed since the
+# flags last moved.
 PUBLIC_URL_ACTUAL="${HOST_ENV[PUBLIC_BASE_URL]:-}"
-if [[ -z "$TF_PLATFORM_URL" ]]; then
+if [[ -z "$TF_PUBLIC_BASE_URL" ]]; then
   check_set "PUBLIC_BASE_URL" "public base URL"
-elif [[ "$PUBLIC_URL_ACTUAL" == "$TF_PLATFORM_URL" ]]; then
-  check_pass "public base URL: PUBLIC_BASE_URL=$TF_PLATFORM_URL"
-elif [[ "$TF_NOTICE_ENABLED" == "true" && -n "$TF_PREVIEW_URL" && "$PUBLIC_URL_ACTUAL" == "$TF_PREVIEW_URL" ]]; then
-  # The cutover window is the one state where the canonical value is wrong on
-  # purpose: www serves the migration notice, preview is the only public name
-  # reaching the platform, and the host's base address is the preview form,
-  # written by set-host-env.sh --preview. Accepted only while the notice flag
-  # is compiled in — the moment it lifts, this same line becomes the failure
-  # below, which is what marches the operator through the launch move.
-  check_pass "public base URL: PUBLIC_BASE_URL=$TF_PREVIEW_URL (cutover window: the notice is up and preview is the platform's public name; at launch re-run scripts/set-host-env.sh --target $TARGET without --preview)"
+elif [[ "$PUBLIC_URL_ACTUAL" == "$TF_PUBLIC_BASE_URL" ]]; then
+  check_pass "public base URL: PUBLIC_BASE_URL=$TF_PUBLIC_BASE_URL"
 elif [[ -z "$PUBLIC_URL_ACTUAL" ]]; then
-  check_fail "public base URL: PUBLIC_BASE_URL is unset (expected '$TF_PLATFORM_URL'); scripts/set-host-env.sh --target $TARGET writes it"
-elif [[ -n "$TF_PREVIEW_URL" && "$PUBLIC_URL_ACTUAL" == "$TF_PREVIEW_URL" ]]; then
-  check_fail "public base URL: PUBLIC_BASE_URL=$TF_PREVIEW_URL is the window form, but the notice flag is off — the window is over and the host is still building every link against preview. Re-run scripts/set-host-env.sh --target $TARGET (no --preview) and restart"
+  check_fail "public base URL: PUBLIC_BASE_URL is unset (expected '$TF_PUBLIC_BASE_URL'); the deploy syncs it from Terraform, so deploy $TARGET"
 else
-  check_fail "public base URL: PUBLIC_BASE_URL=$PUBLIC_URL_ACTUAL, but this tree serves '$TF_PLATFORM_URL'; every absolute link and mail link is being built against the wrong host. Re-run scripts/set-host-env.sh --target $TARGET"
+  check_fail "public base URL: PUBLIC_BASE_URL=$PUBLIC_URL_ACTUAL, but the tree says the platform is reached at '$TF_PUBLIC_BASE_URL'; every absolute link and mail link is being built against the wrong name. Deploy $TARGET, which syncs it"
 fi
-check_set "FOOTBAG_DB_PATH" "database path"
 
 # PORT is hardcoded in docker/docker-compose.yml (web + worker services) and
 # docker/docker-compose.prod.yml. /srv/footbag/env doesn't need to set it;
@@ -740,14 +793,14 @@ echo ""
 echo "Advisory:"
 
 # TRUST_PROXY should be the exact integer X-Forwarded-For hop count of the
-# chain in front of the app (staging: CloudFront -> nginx = 2). Unset or
+# chain in front of the app, as the committed host config declares it. Unset or
 # non-integer falls back to named ranges in env.ts, which fails closed:
 # req.ip resolves to the CloudFront edge address and per-IP rate limiting
 # coarsens to per-edge buckets.
-if [[ "${HOST_ENV[TRUST_PROXY]:-}" =~ ^[0-9]+$ ]]; then
+if [[ "${HOST_ENV[TRUST_PROXY]:-}" == "$(committed_value TRUST_PROXY)" ]]; then
   check_pass "trust proxy: TRUST_PROXY=${HOST_ENV[TRUST_PROXY]} (integer hop count)"
 else
-  check_warn "trust proxy: TRUST_PROXY is not an integer XFF hop count ($TARGET: $(expected_trust_proxy_note "$TARGET")); rate limiting degrades to coarse per-edge buckets under the named-range fallback. Set it with scripts/set-host-env.sh --target $TARGET"
+  check_warn "trust proxy: TRUST_PROXY=${HOST_ENV[TRUST_PROXY]:-<unset>} is not the committed hop count ($TARGET: $(expected_trust_proxy_note "$TARGET" 2>/dev/null || echo unreadable)); rate limiting degrades under a wrong count. The next deploy applies the committed value"
 fi
 
 # BACKUP_S3_BUCKET feeds the footbag-backup systemd timer, not app boot:
@@ -822,15 +875,15 @@ if (( FAILS > 0 )); then
   echo "         Doing them by hand is how a switch and its selector end up disagreeing." >&2
   echo "  a derived selector (safe-browsing, reachability, SES, payment)" >&2
   echo "      -> not editable here: fix its switch above, or redeploy if the switch is right" >&2
-  echo "  a committed constant (media storage, secrets, JWT signer, captcha and its site key, sizing)" >&2
+  echo "  a committed constant (proxy hops, database location, AWS region and profile," >&2
+  echo "  media storage, secrets, JWT signer, captcha and its site key, sizing)" >&2
   echo "      -> docker/env/<environment>.env, then deploy" >&2
-  echo "  a deploy-synced value (session secret, origin verify, JWT key id, media bucket)" >&2
-  echo "      -> owned by Terraform and written by the deploy: redeploy" >&2
-  echo "  an operator-run value (proxy hops, backup bucket, topics, queues, sender," >&2
-  echo "  public base URL)" >&2
-  echo "      -> scripts/set-host-env.sh --target <env>" >&2
-  echo "  anything else (env label, DB path, AWS profile/region, captcha site key)" >&2
-  echo "  has no owning script yet and is set on the host at bootstrap." >&2
+  echo "  a Terraform-published value (session secret, origin verify, JWT key id, media" >&2
+  echo "  and backup buckets, topics, queues, sender, public base URL)" >&2
+  echo "      -> owned by Terraform and written by the deploy: apply if it changed, then redeploy" >&2
+  echo "  the environment record (FOOTBAG_ENV)" >&2
+  echo "      -> scripts/set-host-env.sh --target <env>, once, at bring-up" >&2
+  echo "  Every value's owner is declared in scripts/lib/host-values.sh." >&2
   exit 1
 fi
 

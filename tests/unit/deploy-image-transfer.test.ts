@@ -188,6 +188,62 @@ describe('image transfer to a deploy target', () => {
     }
   });
 
+  // Defect caught: a deploy from an ARM workstation builds images for ARM, ships
+  // them to the x86-64 hosts, replaces the running images and leaves the host
+  // down when the restart cannot start them.
+  describe('images built for another processor never reach a host', () => {
+    function checkWith(arches: Record<string, string | null>): { status: number; stderr: string } {
+      const dir = mkdtempSync(path.join(tmpdir(), 'footbag-test-image-arch-'));
+      const cases = Object.entries(arches)
+        .map(([image, arch]) => (arch === null ? `  ${image}) exit 1 ;;` : `  ${image}) echo ${arch} ;;`))
+        .join('\n');
+      writeFileSync(path.join(dir, 'docker'), `#!/usr/bin/env bash\ncase "\${@: -1}" in\n${cases}\nesac\n`);
+      chmodSync(path.join(dir, 'docker'), 0o755);
+      try {
+        execFileSync('bash', ['-c', `set -euo pipefail; source "${HELPER}"; require_images_for_hosts`], {
+          env: { ...process.env, PATH: `${dir}:${process.env.PATH}` },
+          stdio: ['ignore', 'ignore', 'pipe'],
+          ...SPAWN_GUARD,
+        });
+        return { status: 0, stderr: '' };
+      } catch (err) {
+        const e = err as { status?: number; stderr?: Buffer };
+        return { status: e.status ?? 1, stderr: e.stderr?.toString() ?? '' };
+      }
+    }
+
+    it('passes when every image is for the hosts\' processor', () => {
+      expect(checkWith({ 'docker-web': 'amd64', 'docker-worker': 'amd64', 'docker-image': 'amd64' }).status).toBe(0);
+    });
+
+    it('refuses any one image built for ARM, naming it', () => {
+      for (const image of ['docker-web', 'docker-worker', 'docker-image']) {
+        const arches = { 'docker-web': 'amd64', 'docker-worker': 'amd64', 'docker-image': 'amd64', [image]: 'arm64' };
+        const r = checkWith(arches);
+        expect(r.status, image).not.toBe(0);
+        expect(r.stderr, image).toContain(`${image} was built for arm64, but the hosts run amd64`);
+      }
+    });
+
+    it('refuses when an image\'s processor cannot be read', () => {
+      const r = checkWith({ 'docker-web': 'amd64', 'docker-worker': null, 'docker-image': 'amd64' });
+      expect(r.status).not.toBe(0);
+      expect(r.stderr).toContain('could not read the architecture of docker-worker');
+    });
+
+    it('both deploy paths check right after the build and before sending anything', () => {
+      for (const script of [DEPLOY_CODE, DEPLOY_REBUILD]) {
+        const lines = readFileSync(script, 'utf8').split('\n');
+        const build = lines.findIndex((l) => /^\s+build \)$/.test(l));
+        const check = lines.findIndex((l) => /^require_images_for_hosts \|\| exit 1$/.test(l));
+        const send = lines.findIndex((l) => /\bsend_images_to_host\b/.test(l) && !/^\s*#/.test(l));
+        expect(build, `${path.basename(script)} builds`).toBeGreaterThan(-1);
+        expect(check, `${path.basename(script)} checks the images`).toBeGreaterThan(build);
+        expect(send, `${path.basename(script)} sends after the check`).toBeGreaterThan(check);
+      }
+    });
+  });
+
   it('both deploy paths go through the helper and keep no bare pipeline', () => {
     for (const script of [DEPLOY_CODE, DEPLOY_REBUILD]) {
       const text = readFileSync(script, 'utf8');

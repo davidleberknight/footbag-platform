@@ -69,6 +69,17 @@ variable "lightsail_blueprint_id" {
   default     = "amazon_linux_2023"
 }
 
+variable "lightsail_instance_name" {
+  description = "Name of the web instance when it is not the original <prefix>-web: written by scripts/restore-host.sh after an in-region restore, never by hand. Empty means the original name."
+  type        = string
+  default     = ""
+
+  validation {
+    condition     = var.lightsail_instance_name == "" || can(regex("^footbag-${var.environment}-web-r[0-9]{12}$", var.lightsail_instance_name))
+    error_message = "lightsail_instance_name must be empty or footbag-<environment>-web-r<YYYYMMDDHHMM>, the name scripts/restore-host.sh gives a restored instance."
+  }
+}
+
 variable "ssh_public_key" {
   description = "SSH public key to inject into the Lightsail instance"
   type        = string

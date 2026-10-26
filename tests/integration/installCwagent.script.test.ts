@@ -59,6 +59,121 @@ beforeEach(() => {
   stubDir = mkdtempSync(join(tmpdir(), 'footbag-test-cwagent-install-'));
 });
 
+/** A host-tools manifest whose agent pin is filled in. */
+function pinnedManifest(sha = 'b'.repeat(64)): string {
+  const p = join(stubDir, 'host-tools.env');
+  writeFileSync(p, [
+    'CWAGENT_VERSION=1.300050.0b1',
+    'CWAGENT_URL=https://example.test/amazon-cloudwatch-agent.rpm',
+    `CWAGENT_SHA256=${sha}`,
+  ].join('\n') + '\n');
+  return p;
+}
+
+/**
+ * An install up to the point where it would mint: a stand-in host that
+ * confirms the environment and reports which publisher key it holds, and a
+ * stand-in IAM listing the publisher's keys. Nothing reaches a terminal, so a
+ * run that got past every check would stop at the vault prompt instead.
+ */
+function runInstall(script: string, environment: string, opts: { hostKey?: string; userKeys?: string; manifest?: string; args?: string[] }) {
+  const ssh = join(stubDir, 'ssh-host.sh');
+  writeFileSync(ssh, [
+    '#!/usr/bin/env bash',
+    `echo "$*" >> "${join(stubDir, 'ssh.log')}"`,
+    `cat >> "${join(stubDir, 'streams.log')}"`,
+    'case "$*" in',
+    `  *footbag-host-identity*) printf -- "---FOOTBAG-HOST-ENV---\\n${environment}\\n---FOOTBAG-HOST-URL---\\n\\n---FOOTBAG-END---\\n" ;;`,
+    `  *footbag-host-key-id*) printf -- "---FOOTBAG-KEY-ID---\\n%s\\n---FOOTBAG-END---\\n" ${JSON.stringify(opts.hostKey ?? '')} ;;`,
+    'esac',
+    'exit 0',
+  ].join('\n'));
+  chmodSync(ssh, 0o755);
+  const aws = join(stubDir, 'iam-keys.sh');
+  writeFileSync(aws, [
+    '#!/usr/bin/env bash',
+    `echo "$*" >> "${join(stubDir, 'calls.log')}"`,
+    'case "$2" in',
+    `  list-access-keys) case "$*" in *length*) echo ${(opts.userKeys ?? '').split(' ').filter(Boolean).length} ;; *) echo ${JSON.stringify(opts.userKeys ?? '')} ;; esac ;;`,
+    'esac',
+    'exit 0',
+  ].join('\n'));
+  chmodSync(aws, 0o755);
+  const knownHosts = join(stubDir, 'known_hosts');
+  writeFileSync(knownHosts, `footbag-${environment} ssh-ed25519 AAAAstub\n`, { mode: 0o600 });
+  const r = spawnSync('bash', [join(process.cwd(), script), ...(opts.args ?? [])], {
+    cwd: process.cwd(),
+    encoding: 'utf-8',
+    input: 'stub-sudo-pass\n',
+    env: {
+      ...process.env,
+      ...NO_AWS_CREDENTIALS,
+      ...awsIdentityStubEnv(stubDir),
+      IAM_KEY_AWS_BIN: aws,
+      FOOTBAG_HOST_SSH_BIN: ssh,
+      FOOTBAG_KNOWN_HOSTS: knownHosts,
+      FOOTBAG_HOST_TOOLS_MANIFEST: opts.manifest ?? pinnedManifest(),
+    },
+    ...SPAWN_GUARD,
+  });
+  return { status: r.status, stderr: r.stderr ?? '', stdout: r.stdout ?? '' };
+}
+
+describe.each(INSTALLERS)('$script — the pinned agent package and a rebuilt host', ({ environment, script, publisher }) => {
+  it('refuses a placeholder pin before reaching any host or minting anything', () => {
+    // Defect caught: the agent is installed from whatever the publisher serves
+    // that day, unchecked, because nobody filled the digest in.
+    const r = runInstall(script, environment, { manifest: pinnedManifest('REPLACE_WITH_SHA256_OF_amazon-cloudwatch-agent.rpm') });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/CWAGENT_SHA256 .* still a placeholder/);
+    expect(existsSync(join(stubDir, 'ssh.log'))).toBe(false);
+    expect(existsSync(join(stubDir, 'calls.log'))).toBe(false);
+  });
+
+  it('on a host holding none of the publisher\'s keys, names the rotation and the keys to retire', () => {
+    // Defect caught: a rebuilt host is told only that the publisher "already
+    // holds 1 access key", which reads as already in service, and the dead
+    // host's key is never retired.
+    const r = runInstall(script, environment, { hostKey: '', userKeys: 'AKIAEXAMPLEEXAMPLE02' });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(new RegExp(`REFUSING: ${publisher} already holds an access key, and this host holds none of them`));
+    expect(r.stderr).toMatch(new RegExp(`bash ${script.replace(/\./g, '\\.')} --rotate`));
+    expect(r.stderr).toMatch(/--retire AKIAEXAMPLEEXAMPLE02/);
+    expect(r.stderr).toMatch(/--delete AKIAEXAMPLEEXAMPLE02/);
+    expect(readFileSync(join(stubDir, 'calls.log'), 'utf-8')).not.toMatch(/create-access-key/);
+  });
+
+  it('upgrades the agent keeping the key the host holds, minting nothing and sending no key', () => {
+    // Defect caught: moving the agent's pinned version could only be done by a
+    // rotation, which mints a key for a package change and leaves a second live
+    // key behind it.
+    const r = runInstall(script, environment, { hostKey: 'AKIAEXAMPLEEXAMPLE01', userKeys: 'AKIAEXAMPLEEXAMPLE01', args: ['--upgrade'] });
+    expect(r.status, r.stderr).toBe(0);
+    const streams = readFileSync(join(stubDir, 'streams.log'), 'utf-8');
+    expect(streams).toMatch(/^CWAGENT_KEEP_CREDENTIALS=1$/m);
+    expect(streams).not.toMatch(/^CWAGENT_(AKID|SAK)=/m);
+    expect(readFileSync(join(stubDir, 'calls.log'), 'utf-8')).not.toMatch(/create-access-key/);
+  });
+
+  it('refuses an upgrade on a host that holds none of the publisher\'s keys', () => {
+    // The bound of the upgrade: a host with no working key restarted onto it
+    // would publish nothing.
+    const r = runInstall(script, environment, { hostKey: '', userKeys: '', args: ['--upgrade'] });
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/--upgrade keeps the key the host holds/);
+    expect(existsSync(join(stubDir, 'streams.log')) ? readFileSync(join(stubDir, 'streams.log'), 'utf-8') : '').not.toMatch(/CWAGENT_KEEP_CREDENTIALS/);
+  });
+
+  it('on a host already holding the publisher\'s key, leaves the refusal to the library\'s in-service message', () => {
+    // The passing side of the rebuild check: a host whose key is in service is
+    // not a rebuild, and is not sent off to rotate.
+    const r = runInstall(script, environment, { hostKey: 'AKIAEXAMPLEEXAMPLE01', userKeys: 'AKIAEXAMPLEEXAMPLE01' });
+    expect(r.status).toBe(1);
+    expect(r.stderr).not.toMatch(/this host holds none of them/);
+    expect(r.stderr).toMatch(/already holds 1 access key\(s\)/);
+  });
+});
+
 afterEach(() => {
   rmSync(stubDir, { recursive: true, force: true });
 });
@@ -82,7 +197,9 @@ function awsStub(opts: { datapoints?: string; keyRows?: string } = {}): string {
       'case "$2" in',
       `  get-metric-statistics) echo "${datapoints}";;`,
       '  describe-alarms) echo 3;;',
-      `  list-access-keys) printf '%b' "${keyRows}";;`,
+      // The key and its status for the library's listing; the ids alone for a
+      // listing that asks only for them.
+      `  list-access-keys) case "$*" in *"[AccessKeyId,Status]"*) printf '%b' "${keyRows}";; *) printf '%b' "${keyRows}" | cut -f1;; esac;;`,
       '  update-access-key) exit 0;;',
       '  delete-access-key) exit 0;;',
       'esac',
@@ -94,12 +211,32 @@ function awsStub(opts: { datapoints?: string; keyRows?: string } = {}): string {
   return path;
 }
 
-function run(script: string, args: string[], stubOpts: Parameters<typeof awsStub>[0] = {}) {
+/**
+ * A retirement asks the host which key its agent holds, so the run carries the
+ * password and reaches a stand-in host that confirms the environment and
+ * answers with `hostKey`; every session it is sent is recorded.
+ */
+function run(script: string, args: string[], stubOpts: Parameters<typeof awsStub>[0] & { hostKey?: string } = {}) {
   const stub = awsStub(stubOpts);
+  const environment = script.includes('production') ? 'production' : 'staging';
+  const ssh = join(stubDir, 'ssh-host.sh');
+  writeFileSync(ssh, [
+    '#!/usr/bin/env bash',
+    `echo "$*" >> "${join(stubDir, 'ssh.log')}"`,
+    'cat >/dev/null',
+    'case "$*" in',
+    `  *footbag-host-identity*) printf -- "---FOOTBAG-HOST-ENV---\\n${environment}\\n---FOOTBAG-HOST-URL---\\n\\n---FOOTBAG-END---\\n" ;;`,
+    `  *footbag-host-key-id*) printf -- "---FOOTBAG-KEY-ID---\\n%s\\n---FOOTBAG-END---\\n" ${JSON.stringify(stubOpts.hostKey ?? 'AKIANEW')} ;;`,
+    'esac',
+    'exit 0',
+  ].join('\n'));
+  chmodSync(ssh, 0o755);
+  const knownHosts = join(stubDir, 'known_hosts');
+  writeFileSync(knownHosts, `footbag-${environment} ssh-ed25519 AAAAstub\n`, { mode: 0o600 });
   const result = spawnSync('bash', [join(process.cwd(), script), ...args], {
     cwd: process.cwd(),
     encoding: 'utf-8',
-    input: '',
+    input: 'stub-sudo-pass\n',
     env: {
       ...process.env,
       ...NO_AWS_CREDENTIALS,
@@ -107,6 +244,8 @@ function run(script: string, args: string[], stubOpts: Parameters<typeof awsStub
       ...awsIdentityStubEnv(stubDir),
       IAM_KEY_AWS_BIN: stub,
       CWAGENT_VERIFY_AWS_BIN: stub,
+      FOOTBAG_HOST_SSH_BIN: ssh,
+      FOOTBAG_KNOWN_HOSTS: knownHosts,
     },
     ...SPAWN_GUARD,
   });
@@ -152,22 +291,42 @@ describe.each(INSTALLERS)(
       expect(r.stderr).toMatch(/separate/);
     });
 
-    it('reaches no host on a retirement', () => {
-      // A key retirement has nothing to do with whether the host is answering.
-      // Failing it on an unreachable host would leave a rotation halfway, with
-      // two live keys and nothing to say which is in service.
-      const r = run(script, ['--retire', 'AKIAOLD'], { datapoints: '0' });
-      expect(r.stdout).not.toContain('Deploy target');
-      expect(r.stdout).not.toContain('SSH OK');
+    it('asks the host only which key it holds on a retirement, and installs nothing', () => {
+      // The one question the retirement needs from the host; the install half
+      // never travels on a retirement.
+      run(script, ['--retire', 'AKIAOLD'], { datapoints: '0' });
+      const sessions = readFileSync(join(stubDir, 'ssh.log'), 'utf-8');
+      expect(sessions).toMatch(/footbag-host-key-id/);
+      expect(sessions.split('\n').filter(Boolean).every((s) => /footbag-host-(key-id|identity)/.test(s))).toBe(true);
+    });
+
+    it('refuses to retire the key the agent on the host publishes with, before any proof', () => {
+      // Defect caught: metrics arriving prove some key publishes, not which, so
+      // a retirement naming the host's own key passed the proof and stopped the
+      // host's metrics.
+      const r = run(script, ['--retire', 'AKIANEW'], { hostKey: 'AKIANEW' });
+      expect(r.status).toBe(1);
+      expect(r.stderr).toMatch(/AKIANEW is the key the agent on footbag-.* publishes with/);
+      expect(calls().join('\n')).not.toMatch(/get-metric-statistics|update-access-key/);
+    });
+
+    it('retires one of two keys without the metrics proof when the host holds neither', () => {
+      // Defect caught: a publisher holding the two keys IAM allows while the host
+      // held neither could never be rotated, and the retirement that would free
+      // a slot demanded metrics no key on this host could be publishing.
+      const r = run(script, ['--retire', 'AKIAOLD'], { hostKey: '', datapoints: '0' });
+      expect(r.stdout).toMatch(/holds two keys and footbag-.* holds neither/);
+      expect(calls().join('\n')).not.toMatch(/get-metric-statistics/);
+      expect(r.stderr).toMatch(/no terminal to confirm on/);
     });
 
     it('refuses to retire while the host metrics are not arriving', () => {
       const r = run(script, ['--retire', 'AKIAOLD'], { datapoints: '0' });
       expect(r.status).toBe(1);
       expect(r.stderr).toMatch(/Nothing retired/);
-      // Refused before IAM was touched at all, not after reading the key list
-      // and changing its mind.
-      expect(calls().join('\n')).not.toMatch(/access-key/);
+      // Refused before any key changed state. The key list is read first, to
+      // tell the two-keys-neither-on-the-host case apart, and nothing more.
+      expect(calls().join('\n')).not.toMatch(/(update|delete|create)-access-key/);
     });
 
     it(`proves ${environment}'s own metric namespace before retiring`, () => {
@@ -238,6 +397,9 @@ describe.each(INSTALLERS)('$script — the credential file reaches the host one 
         'case "$*" in *footbag-host-identity*)',
         `  printf -- "---FOOTBAG-HOST-ENV---\\n${environment}\\n---FOOTBAG-HOST-URL---\\n\\n---FOOTBAG-END---\\n"`,
         'esac',
+        'case "$*" in *footbag-host-key-id*)',
+        '  printf -- "---FOOTBAG-KEY-ID---\\n\\n---FOOTBAG-END---\\n"',
+        'esac',
         'exit 0',
       ].join('\n'),
     );
@@ -249,7 +411,8 @@ describe.each(INSTALLERS)('$script — the credential file reaches the host one 
       [
         '#!/usr/bin/env bash',
         'case "$2" in',
-        '  list-access-keys) echo 0 ;;',
+        // The count, for the shared library; the ids (none), for the rebuild check.
+        '  list-access-keys) case "$*" in *length*) echo 0 ;; *) echo ;; esac ;;',
         "  create-access-key) printf 'AKIAFIXTUREMINTED001\\tstub-secret-not-real\\n' ;;",
         'esac',
         'exit 0',
@@ -310,6 +473,7 @@ describe.each(INSTALLERS)('$script — the credential file reaches the host one 
           IAM_KEY_AWS_BIN: aws,
           FOOTBAG_HOST_SSH_BIN: ssh,
           FOOTBAG_KNOWN_HOSTS: knownHosts,
+          FOOTBAG_HOST_TOOLS_MANIFEST: pinnedManifest(),
         },
         ...SPAWN_GUARD,
       },
@@ -317,9 +481,13 @@ describe.each(INSTALLERS)('$script — the credential file reaches the host one 
     expect(r.status, r.stdout).toBe(0);
 
     const streams = readdirSync(sessions).map((f) => readFileSync(join(sessions, f), 'utf-8'));
-    // Two sessions: the host's identity, then the install carrying the key.
-    expect(streams).toHaveLength(2);
+    // Three sessions: the host's identity, the key it holds, then the install
+    // carrying the key and the pinned package.
+    expect(streams).toHaveLength(3);
     expect(streams.some((s) => s.includes('CWAGENT_AKID=AKIAFIXTUREMINTED001'))).toBe(true);
+    const install = streams.find((s) => s.includes('CWAGENT_AKID='))!;
+    expect(install).toMatch(new RegExp(`^CWAGENT_SHA256=${'b'.repeat(64)}$`, 'm'));
+    expect(install).toMatch(/^CWAGENT_VERSION=1\.300050\.0b1$/m);
     for (const s of streams) {
       expect(s.split('\n')[0]).toBe('stub-sudo-pass');
       expect(s).not.toContain('SECOND-LINE-MARKER');

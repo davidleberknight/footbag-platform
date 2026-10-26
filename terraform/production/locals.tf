@@ -6,6 +6,9 @@ locals {
   prefix     = "footbag-${var.environment}"
   ssm_prefix = "/footbag/${var.environment}"
 
+  # The web instance's name: the original, or the one a restore recorded.
+  web_instance_name = var.lightsail_instance_name != "" ? var.lightsail_instance_name : "${local.prefix}-web"
+
   # The monthly spend ceiling, read by both halves of the cost control in
   # budgets.tf: the budget's limit and the billing alarm's threshold. They are
   # the same number by definition, and two literals that must agree are two

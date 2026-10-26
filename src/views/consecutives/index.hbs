@@ -18,9 +18,6 @@
     {{#each content.explainer.paragraphs}}
     <p>{{this}}</p>
     {{/each}}
-    {{#if content.demoVideo}}
-    {{> demo-video content.demoVideo}}
-    {{/if}}
   </section>
 
   <section class="content-section" id="competitions">
@@ -28,6 +25,9 @@
     {{#each content.competitions.paragraphs}}
     <p>{{this}}</p>
     {{/each}}
+    {{#if content.demoVideo}}
+    {{> demo-video content.demoVideo}}
+    {{/if}}
   </section>
 
   {{#if content.worldRecords}}
