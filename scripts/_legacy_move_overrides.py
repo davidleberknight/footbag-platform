@@ -6,10 +6,10 @@ moves the same bare Name, and a move whose published name is not the name our
 dictionary gives the same movement. Both are settled here, keyed on the legacy
 move ID, which is stable and authoritative for the source page.
 
-All three footbag.org consumers read this map before name resolution, so an
-overridden move lands on one canonical trick everywhere: its provenance link,
-its community tips, and the pending-review queue that decides whether a scraped
-move still needs curating. Splitting that decision across loaders is what
+Both footbag.org consumers read this map before name resolution, so an
+overridden move lands on one canonical trick everywhere: its provenance link
+and the pending-review queue that decides whether a scraped move still needs
+curating. Splitting that decision across loaders is what
 produces a duplicate inactive row shadowing a trick already curated.
 
 Targets are asserted present and active before any write, so a stale entry

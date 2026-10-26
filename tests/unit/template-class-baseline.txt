@@ -168,10 +168,6 @@ combo-analysis-example-why-heading
 combo-analysis-topology-list
 combo-analysis-worked-example
 combo-analysis-worked-examples
-community-tip
-community-tips-collapsible
-community-tips-list
-community-tips-note
 compositional-ladder-conflict
 compositional-ladder-header
 compositional-ladder-reinterpretation

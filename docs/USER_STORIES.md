@@ -181,7 +181,6 @@ each release contains is §1.3.
     - [A_Register_Freestyle_Source](#a_register_freestyle_source)
     - [A_Edit_Freestyle_Record](#a_edit_freestyle_record)
     - [A_Edit_Consecutive_Kicks_Record](#a_edit_consecutive_kicks_record)
-    - [A_Moderate_Freestyle_Trick_Tip](#a_moderate_freestyle_trick_tip)
     - [A_Create_News_Item](#a_create_news_item)
     - [A_Moderate_News_Item](#a_moderate_news_item)
     - [A_Archive_Club](#a_archive_club)
@@ -631,7 +630,7 @@ Success Criteria:
 
 Access: Any visitor can view any trick detail page without logging in.
 
-Story: As a visitor, I can open a trick's detail page so that I understand its identity, structure, difficulty derivation, lineage, records, community tips, and media in one place.
+Story: As a visitor, I can open a trick's detail page so that I understand its identity, structure, difficulty derivation, lineage, records, technique notes, and media in one place.
 
 Success Criteria:
 
@@ -642,7 +641,7 @@ Success Criteria:
 - Known aliases in community use are listed on the page. Search resolves every alias; display surfaces the helpful ones.
 - Relationship blocks have strict ownership: same-family progression, conceptual related tricks, and structural neighbors are distinct sections that do not duplicate one another, and each entry links to a canonical trick page that renders (never an alias URL, never a dead link).
 - Freestyle world records set on the trick render on the page.
-- Published community tips render in a clearly labeled collapsible section, visually distinct from canonical content; unpublished or rejected tips never appear (moderation per A_Moderate_Freestyle_Trick_Tip).
+- Technique Notes, the trick's curated coaching (cues, common mistakes and drills, written in the site's own voice), are the page's single teaching surface and render in their own section.
 - The Media section and the browser-tab title follow V_View_Trick_Reference_Videos.
 
 ### V_Search_Tricks
@@ -3374,41 +3373,6 @@ Success Criteria, Row identity:
 Audit:
 
 - Every add, edit, and remove of a row appends one audit_entries row recording the admin actor, timestamp, a freestyle-namespaced action type (for example `freestyle.consecutive_record.updated`), and the row's stable identifier.
-
-### A_Moderate_Freestyle_Trick_Tip
-
-Access: Only admins can moderate freestyle trick tips, on behalf of the platform's freestyle curator identity. Non-admin authenticated members receive 403; unauthenticated visitors receive 302 to login. Moderating a tip id that has no row returns 404.
-
-Story: As an admin, I can moderate the legacy-imported freestyle trick tips, editing the text, hiding or unhiding a tip, and resolving an unresolved tip to a canonical trick, with an audit trail, so that the community advice shown on trick pages stays accurate once the live database is the source of truth for it.
-
-Success Criteria, Listing:
-
-- Admin can list tips filtered by status and by trick, and open one to moderate.
-
-Success Criteria, Moderation actions:
-
-- Admin can edit a tip's text.
-- Admin can hide a tip and unhide it, moving its status between published and hidden.
-- Admin can resolve an unresolved tip by re-pointing it to a canonical trick and publishing it.
-
-Success Criteria, Editable versus read-only:
-
-- Editable fields are the tip text, the status (published, hidden, or unresolved), the trick the tip attaches to, and the display order.
-- The tip id, the legacy provenance identifiers and timestamps, the source, and the loaded-at value are read-only.
-
-Success Criteria, Validation (enforced at the write; a save that fails any check is rejected with a clear message and the submitted values preserved):
-
-- The tip text is non-empty and passes the standard text sanitization.
-- The status is published, hidden, or one of the four unresolved classifications the column carries: unresolved freestyle, unresolved frontier, unresolved ambiguous, and future net. Moderation writes published and hidden; the unresolved classifications arrive with the content.
-- A published tip attaches to an existing published canonical trick.
-
-Success Criteria, Scope:
-
-- This story moderates existing legacy-imported tips only. It does not add a member-facing tip-submission flow; a member submit feature, if ever wanted, is a separate story.
-
-Audit:
-
-- Every edit, hide, unhide, and resolve of a tip appends one audit_entries row recording the admin actor, timestamp, a freestyle-namespaced action type (for example `freestyle.trick_tip.updated`), and the tip id, parallel to A_Moderate_Media and A_Moderate_News_Item.
 
 ### A_Create_News_Item
 

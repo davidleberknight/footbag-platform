@@ -204,10 +204,6 @@ export const COPY_COLUMN_REGISTER: Readonly<Record<string, TableClassification>>
   freestyle_trick_sources: {
     keep: ['id', 'source_type', 'source_label', 'source_url', 'retrieved_at', 'notes'],
   },
-  freestyle_trick_tips: {
-    keep: ['id', 'trick_slug', 'legacy_hint_id', 'legacy_move_id', 'tip_text', 'created_at_legacy',
-      'modified_at_legacy', 'display_order', 'status', 'source', 'loaded_at'],
-  },
   freestyle_tricks: {
     keep: ['slug', 'canonical_name', 'adds', 'base_trick', 'trick_family', 'category',
       'description', 'aliases_json', 'notation', 'operational_notation',

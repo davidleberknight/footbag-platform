@@ -3150,62 +3150,6 @@ export const freestyleTrickSourceLinks = {
   `); },
 };
 
-export const freestyleTrickTips = {
-  // Published legacy footbag.org Member Tips for one trick, in display order
-  // (chronological by legacy creation). Community advice rendered behind a
-  // compact control on the trick detail page; never canonical doctrine, and
-  // never carries author names in v1.
-  get listForTrick() { return db.prepare(`
-    SELECT tip_text, created_at_legacy
-    FROM freestyle_trick_tips
-    WHERE trick_slug = ? AND status = 'published'
-    ORDER BY display_order, id
-  `); },
-
-  // Admin moderation reads: every tip regardless of status, so a curator can
-  // find, edit, hide, restore, and remap the imported tips. The public read
-  // above stays filtered to published; these never reach a public route.
-  get getByIdForModeration() { return db.prepare(`
-    SELECT id, trick_slug, tip_text, status, display_order, created_at_legacy
-    FROM freestyle_trick_tips
-    WHERE id = ?
-  `); },
-  get listForModeration() { return db.prepare(`
-    SELECT id, trick_slug, tip_text, status, display_order, created_at_legacy
-    FROM freestyle_trick_tips
-    ORDER BY status, trick_slug, display_order, id
-  `); },
-  // Free-text moderation search over the advice text and the (canonical or
-  // unresolved:<name>) slug. Both bind the same LIKE pattern.
-  // Free-text moderation search over the advice and the slug. Separators are
-  // interchangeable on the slug side: an unresolved tip is keyed on a kebab-cased
-  // placeholder ("unresolved:pogo-op-whirling-swirl") that no curator would type
-  // from memory, so "whirling swirl" and "whirling_swirl" have to reach it as
-  // readily as the hyphenated form. Both the stored slug and the needle collapse
-  // to a single separator before matching. The advice side matches literally,
-  // since prose is what the curator actually read.
-  get searchForModeration() { return db.prepare(`
-    SELECT id, trick_slug, tip_text, status, display_order, created_at_legacy
-    FROM freestyle_trick_tips
-    WHERE tip_text LIKE ?
-       OR REPLACE(REPLACE(REPLACE(trick_slug, '-', ' '), '_', ' '), ':', ' ') LIKE ?
-    ORDER BY status, trick_slug, display_order, id
-  `); },
-
-  // Admin moderation writes, each paired with one audit entry in a transaction.
-  get updateText()   { return db.prepare(`UPDATE freestyle_trick_tips SET tip_text = ? WHERE id = ?`); },
-  get updateStatus() { return db.prepare(`UPDATE freestyle_trick_tips SET status = ? WHERE id = ?`); },
-  // Remap points the tip at an active canonical trick; the row becomes published
-  // in the same write. The original slug is preserved as provenance in the audit
-  // entry, so overwriting trick_slug here loses no history.
-  get remap()        { return db.prepare(`UPDATE freestyle_trick_tips SET trick_slug = ?, status = 'published' WHERE id = ?`); },
-  // Display order decides the sequence tips render in on a trick page, ahead of
-  // the id tiebreak both list statements above already apply. The import seeds it
-  // from the legacy chronology; this is its only write path once the live
-  // database is the source of truth.
-  get updateDisplayOrder() { return db.prepare(`UPDATE freestyle_trick_tips SET display_order = ? WHERE id = ?`); },
-};
-
 export const freestyleMediaLinks = {
   // Per-trick media-coverage rows joined to source_id. One row per
   // (trick_slug, source_id) pair (deduped). A media row tagged with a

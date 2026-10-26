@@ -26,7 +26,7 @@ import {
   insertEmailTemplate, insertMember, insertMemberTierGrant,
   insertFreestyleTrick, insertFreestyleTrickAlias, insertFreestyleTrickSource,
   insertFreestyleTrickSourceLink, insertFreestyleTrickModifier, insertFreestyleTrickModifierLink,
-  insertFreestyleTrickTip, insertFreestyleRecord, insertConsecutiveKicksRecord,
+  insertFreestyleRecord, insertConsecutiveKicksRecord,
   insertFreestyleEvAdjudication, insertMediaSource, insertVideoMediaItem, insertTag, attachMediaTag,
   insertMemberGallery, insertGalleryCriterionTag, insertGalleryExcludeTag, insertGalleryExternalLink,
 } from '../fixtures/factories';
@@ -861,7 +861,6 @@ describe('admin-authored content across a data-preserving deploy, on the real sc
     insertFreestyleTrickSourceLink(db, 'blender', source, { external_url: 'https://example.com/blender' });
     insertFreestyleTrickModifier(db, { slug: 'curator-mod' });
     insertFreestyleTrickModifierLink(db, 'blender', 'curator-mod');
-    insertFreestyleTrickTip(db, { trick_slug: 'blender', tip_text: 'Curator-approved tip', status: 'published' });
   }
 
   function seedRecords(db: BetterSqlite3.Database): void {
@@ -939,10 +938,10 @@ describe('admin-authored content across a data-preserving deploy, on the real sc
     expect(count('members_active')).toBe(activeBefore);
   });
 
-  it('keeps the freestyle dictionary: prose, aliases, citations, modifiers and tips', () => {
+  it('keeps the freestyle dictionary: prose, aliases, citations and modifiers', () => {
     // Defect caught: after cutover the database is the only copy, so a deploy
-    // that loses a trick's editorial prose, its alias redirect, its citation or
-    // its tips loses them for good.
+    // that loses a trick's editorial prose, its alias redirect or its citation
+    // loses them for good.
     seed(seedDictionary);
 
     const res = applyMigration('ALTER TABLE freestyle_tricks ADD COLUMN etymology TEXT;');
@@ -961,8 +960,6 @@ describe('admin-authored content across a data-preserving deploy, on the real sc
     expect(readDb((db) => (db.prepare("SELECT external_url FROM freestyle_trick_source_links WHERE trick_slug = 'blender'")
       .get() as { external_url: string }).external_url)).toBe('https://example.com/blender');
     expect(count('freestyle_trick_modifier_links')).toBe(1);
-    expect(readDb((db) => (db.prepare("SELECT tip_text FROM freestyle_trick_tips WHERE trick_slug = 'blender'")
-      .get() as { tip_text: string }).tip_text)).toBe('Curator-approved tip');
   });
 
   it('keeps freestyle and consecutive-kicks records, including an admin\'s ordering', () => {

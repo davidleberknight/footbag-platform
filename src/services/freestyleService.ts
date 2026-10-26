@@ -58,7 +58,6 @@ import {
   FreestyleRecentEventRow, FreestyleWorldChampionRow,
   FreestylePartnershipRow,
   freestyleRecords, freestyleTricks, freestyleTrickModifiers, freestyleTrickAliases,
-  freestyleTrickTips,
   freestyleMediaLinks,
   freestyleCompetition, freestylePartnerships, media,
   queryCuratorMediaTags,
@@ -1407,12 +1406,6 @@ export type TerminalDerivedView =
   | { mode: 'cohort'; tricks: { canonicalName: string; detailHref: string; addLabel: string }[] }
   | { mode: 'backlink'; terminalName: string; terminalHref: string };
 
-// A single recovered legacy footbag.org "Member Tip": community technique
-// advice rendered verbatim behind a compact control. No author name in v1.
-export interface TrickTipViewModel {
-  text: string;
-}
-
 /** Who is reading a trick-detail page.
  *
  *  The page is public and identical for every reader except the parser
@@ -1531,13 +1524,6 @@ export interface FreestyleTrickContent {
   // /media/browse?context=<slug>, the slug locked as context), shown when the
   // trick has reference media so the viewer can open it. Null when none.
   referenceGalleryHref: string | null;
-  // Legacy footbag.org "Member Tips": community technique advice recovered from
-  // the old site, shown behind a compact collapsible control so the page does
-  // not grow by default. Community guidance, never canonical doctrine; carries
-  // no author names in v1. Chronological (oldest first).
-  communityTips: TrickTipViewModel[];
-  communityTipsCount: number;      // pre-shaped count for the "Community Tips (N)" control
-  hasCommunityTips: boolean;       // render gate: control shows only when tips exist
   // Pathways block: pre-shaped summary of Learn / Watch / Family availability
   // for the new "What you can do with this trick" panel near the top of the
   // detail page. All anchor hrefs are pre-built so templates render only.
@@ -6885,12 +6871,6 @@ export const freestyleService = {
       throw new NotFoundError(`No freestyle trick found for slug: ${slug}`);
     }
 
-    // Legacy footbag.org Member Tips for this trick (community advice; display
-    // only, never doctrine). Loaded under the canonical slug, chronological.
-    const communityTips: TrickTipViewModel[] = runSqliteRead('freestyleTrickTips.listForTrick', () =>
-      (freestyleTrickTips.listForTrick.all(slug) as { tip_text: string }[]),
-    ).map(r => ({ text: r.tip_text }));
-
     // The hero title and breadcrumb show the canonical trick name. When this is a
     // dictionary trick the canonical name wins: a matched competition record may
     // carry a folk name, an abbreviation, or the name of a specific variant (the
@@ -7447,9 +7427,6 @@ export const freestyleService = {
           demoMedia,
           hasReferenceMedia,
           referenceGalleryHref,
-          communityTips,
-          communityTipsCount: communityTips.length,
-          hasCommunityTips: communityTips.length > 0,
           pathways,
           notationGrammar: viewer.isMaintainer && dictRow
             ? shapeNotationGrammar(

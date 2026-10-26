@@ -18,6 +18,6 @@ clubs:
 
 moves2:
   - moves            # trick metadata: name, pronunciation, nickname, family, ADD, notation, description, video, per-trick record
-  - movehints        # community Member Tips (already recovered to freestyle/inputs/footbag_org_member_tips.ndjson)
+  - movehints        # community Member Tips (kept as history; not loaded into the site)
   # NOT allowlisted: moves_journal (per-member private practice log; denylisted below),
   #                  move_tip_votes (per-member upvotes; abandoned, no value).

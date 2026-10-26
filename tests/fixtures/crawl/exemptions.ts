@@ -184,7 +184,7 @@ export const ROUTE_EXEMPTIONS: readonly RouteExemption[] = [
   ...group('fixture-gap',
     'The crawl fixture seeds no row or state that renders a link or form to this route (no '
     + 'avatar, deceased record, work-queue item of this kind, payment report, flagged media, curator '
-    + 'media, trick tip, notation candidate, net team, past event, recurring donation, '
+    + 'media, notation candidate, net team, past event, recurring donation, '
     + 'organizer task, archive configuration, claimable record, second club for the persona, '
     + 'club the cleanup rules would demote, or bounced address).', [
       'POST /members/:memberKey/email-preferences/recover',
@@ -205,9 +205,6 @@ export const ROUTE_EXEMPTIONS: readonly RouteExemption[] = [
       'POST /admin/freestyle/notation-backlog/:candidateId/author',
       'GET /admin/freestyle/notation-backlog/:candidateId/publish',
       'POST /admin/freestyle/notation-backlog/:candidateId/publish',
-      'POST /admin/freestyle/tips/:id/edit', 'POST /admin/freestyle/tips/:id/order',
-      'POST /admin/freestyle/tips/:id/hide', 'POST /admin/freestyle/tips/:id/restore',
-      'POST /admin/freestyle/tips/:id/remap',
       'GET /admin/curator/media/:id/edit', 'POST /admin/curator/media/:id/edit', 'POST /admin/curator/media/:id/delete',
       'POST /admin/media-flags/flags/:flagId/clear', 'POST /admin/media-flags/:mediaId/delete',
       'POST /admin/media-flags/:mediaId/no-action', 'POST /admin/media-flags/:mediaId/flag',

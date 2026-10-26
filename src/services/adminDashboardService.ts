@@ -145,7 +145,6 @@ const TOOL_GROUPS: DashboardLinkGroup[] = [
       { label: 'Flagged Media', href: '/admin/media-flags' },
       { label: 'Hashtags', href: '/admin/tags' },
       { label: 'Freestyle Tricks', href: '/admin/freestyle/tricks' },
-      { label: 'Trick Tips', href: '/admin/freestyle/tips' },
       { label: 'Freestyle Records', href: '/admin/freestyle/records' },
       { label: 'Consecutive Records', href: '/admin/freestyle/consecutive-records' },
       { label: 'Freestyle Sources', href: '/admin/freestyle/sources' },

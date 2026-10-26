@@ -70,10 +70,6 @@ echo "→ Rebuilding freestyle tables into ${DB}"
 # targets are rows 17, 19 and 21 create.
 "${PY}" "${L}/28_load_ev_adjudications.py"          --db "${DB}"
 
-# Legacy footbag.org Member Tips (community advice; display-only, never doctrine).
-# Runs after the dictionary loaders so every trick slug exists for mapping.
-"${PY}" "${L}/27_load_trick_tips.py"                --db "${DB}"
-
 # Parser population (structural_parse_json + computed_adds)
 "${PY}" "${S}/parse_freestyle_notation.py" --apply --db "${DB}"
 

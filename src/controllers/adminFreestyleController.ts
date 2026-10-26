@@ -676,53 +676,6 @@ export const adminFreestyleController = {
     }
   },
 
-  // Moderation index for the imported community trick tips: list every tip across
-  // every status, with optional free-text search over the advice text and slug.
-  tips(req: Request, res: Response, next: NextFunction): void {
-    try {
-      const vm = freestyleCurationService.getTipModerationPage({
-        query:     typeof req.query.q === 'string' ? req.query.q : undefined,
-        status:    typeof req.query.status === 'string' ? req.query.status : undefined,
-        trickSlug: typeof req.query.trick === 'string' ? req.query.trick : undefined,
-      });
-      res.render('admin/freestyle-tips', vm);
-    } catch (err) {
-      next(err);
-    }
-  },
-
-  // Edit one tip's advice text. Each of the four tip actions shares the same
-  // success (303 back to the index, search preserved) and failure handling (422
-  // re-render with an inline error, or 404 for an unknown tip).
-  editTip(req: Request, res: Response, next: NextFunction): void {
-    handleTipAction(req, res, next, (id, actor) =>
-      freestyleCurationService.editTipText(id, str(req.body.tipText), actor));
-  },
-
-  // Set one tip's display order, the sequence its trick page renders tips in.
-  setTipOrder(req: Request, res: Response, next: NextFunction): void {
-    handleTipAction(req, res, next, (id, actor) =>
-      freestyleCurationService.setTipDisplayOrder(id, str(req.body.displayOrder), actor));
-  },
-
-  // Hide a tip from the public trick page (reversible; no delete).
-  hideTip(req: Request, res: Response, next: NextFunction): void {
-    handleTipAction(req, res, next, (id, actor) =>
-      freestyleCurationService.hideTip(id, actor));
-  },
-
-  // Restore a hidden tip to visibility.
-  restoreTip(req: Request, res: Response, next: NextFunction): void {
-    handleTipAction(req, res, next, (id, actor) =>
-      freestyleCurationService.restoreTip(id, actor));
-  },
-
-  // Remap a tip to an active canonical trick.
-  remapTip(req: Request, res: Response, next: NextFunction): void {
-    handleTipAction(req, res, next, (id, actor) =>
-      freestyleCurationService.remapTip(id, str(req.body.targetSlug), actor));
-  },
-
   // The dictionary provenance-source registry: the existing sources plus the
   // create form.
   sources(req: Request, res: Response, next: NextFunction): void {
@@ -760,52 +713,6 @@ export const adminFreestyleController = {
     }
   },
 };
-
-// Shared glue for the four tip moderation POSTs: a non-integer id is a 404
-// (anti-enumeration), success redirects to the index preserving the search
-// query, a ValidationError re-renders the index in place at 422 with the message,
-// and an unknown tip is a 404.
-function handleTipAction(
-  req: Request,
-  res: Response,
-  next: NextFunction,
-  action: (tipId: number, actorMemberId: string) => void,
-): void {
-  const tipId = Number(req.params.id);
-  const query = str(req.body.q);
-  const status = str(req.body.status);
-  const trick = str(req.body.trick);
-  if (!Number.isInteger(tipId)) {
-    renderNotFound(res);
-    return;
-  }
-  try {
-    action(tipId, req.user!.userId);
-    // Carry the moderator's filters back so an action does not drop them out from
-    // under the list they were working through.
-    const params = new URLSearchParams();
-    if (query)  params.set('q', query);
-    if (status) params.set('status', status);
-    if (trick)  params.set('trick', trick);
-    const suffix = params.size > 0 ? `?${params.toString()}` : '';
-    res.redirect(303, `/admin/freestyle/tips${suffix}`);
-  } catch (err) {
-    if (err instanceof ValidationError) {
-      res.status(422).render('admin/freestyle-tips', freestyleCurationService.getTipModerationPage({
-        query: query || undefined,
-        status: status || undefined,
-        trickSlug: trick || undefined,
-        error: err.message,
-      }));
-      return;
-    }
-    if (err instanceof NotFoundError) {
-      renderNotFound(res);
-      return;
-    }
-    next(err);
-  }
-}
 
 function recordInputFromBody(body: Record<string, unknown>): FreestyleRecordScalarInput {
   return {

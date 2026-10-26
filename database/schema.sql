@@ -5291,35 +5291,6 @@ CREATE TABLE freestyle_trick_modifier_links (
 );
 CREATE INDEX idx_freestyle_trick_modifier_links_modifier ON freestyle_trick_modifier_links(modifier_slug);
 
--- Legacy footbag.org "Member Tips" — community technique advice recovered from
--- the legacy moves2.movehints table. This is community guidance, NOT canonical
--- doctrine: tips are display-only and never feed descriptions, notation, ADDs,
--- family membership, parser output, or first-class eligibility. Author member
--- names are intentionally NOT stored in v1. Loaded by loader 27 from the
--- committed freestyle/inputs/footbag_org_member_tips.ndjson (DELETE+INSERT).
---
--- A freestyle tip whose legacy trick name does not yet map to a canonical slug
--- is still preserved here with status='unresolved' under a stable slug of the
--- form 'unresolved:<kebab-legacy-name>' (e.g. 'unresolved:clipper-set-illusion').
--- These rows have no freestyle_tricks row yet, so trick_slug carries NO foreign
--- key; only status='published' rows reach public trick pages. When the canonical
--- trick is later authored, remap the unresolved slug to the final slug.
-CREATE TABLE freestyle_trick_tips (
-  id                  INTEGER PRIMARY KEY AUTOINCREMENT,
-  trick_slug          TEXT NOT NULL,                 -- canonical freestyle_tricks.slug (published) OR 'unresolved:<name>' (unresolved). No FK: unresolved slugs intentionally have no trick row.
-  legacy_hint_id      INTEGER,                       -- movehints.HintID (provenance, dedupe key)
-  legacy_move_id      INTEGER,                       -- movehints.MoveID (provenance)
-  tip_text            TEXT NOT NULL,                 -- sanitized, normalized community advice
-  created_at_legacy   INTEGER,                       -- movehints.HintCreated (unix seconds)
-  modified_at_legacy  INTEGER,                       -- movehints.HintModified (unix seconds)
-  display_order       INTEGER NOT NULL DEFAULT 0,    -- chronological by legacy creation
-  status              TEXT NOT NULL DEFAULT 'published',  -- published (only status shown publicly) | hidden | unresolved_freestyle | unresolved_frontier | unresolved_ambiguous | future_net (no CHECK)
-  source              TEXT NOT NULL DEFAULT 'footbag_org_moves2',
-  loaded_at           TEXT NOT NULL
-);
-CREATE INDEX idx_freestyle_trick_tips_trick
-  ON freestyle_trick_tips(trick_slug, status, display_order);
-
 -- The recovery-alias and team-correction approval tables are retired with the
 -- operator review subsystem that filled them. Both fed exports into curated
 -- files that are committed and complete: overrides/person_aliases.csv and

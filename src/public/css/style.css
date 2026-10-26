@@ -4645,23 +4645,18 @@ a.hashtag--media:hover {
 .notation-grammar-collapsible > *:not(summary):first-of-type { padding-top: var(--space-sm); }
 .notation-grammar-collapsible > *:last-child { padding-bottom: var(--space-sm); }
 
-/* Compact collapsible disclosures on trick-detail, collapsed by default so the
+/* Compact collapsible disclosure on trick-detail, collapsed by default so the
    page does not grow: curator Technique Notes (execution, learning,
-   prerequisites) and legacy footbag.org community Member Tips. Both are display
-   support beside the canonical About explanation, never canonical doctrine.
-   Long lists scroll internally. */
-.community-tips-collapsible,
+   prerequisites), display support beside the canonical About explanation. */
 .trick-technique-collapsible {
   padding: 0;
 }
-.community-tips-collapsible > summary,
 .trick-technique-collapsible > summary {
   cursor: pointer;
   padding: var(--space-sm) 0;
   font-weight: 600;
   font-size: 1rem;
 }
-.community-tips-collapsible[open] > summary,
 .trick-technique-collapsible[open] > summary { border-bottom: 1px solid var(--border); }
 /* The disclosure's title is the section's h2, so the h3s inside it sit under a
    heading of their own rank; inline keeps it on the line of the native marker. */
@@ -4771,21 +4766,6 @@ a.hashtag--media:hover {
   font-weight: 600;
   color: var(--text);
 }
-.community-tips-note {
-  padding: var(--space-sm) 0 0 var(--space-xl);
-  margin: 0;
-}
-.community-tips-list {
-  margin: 0;
-  padding: var(--space-sm) 0 var(--space-md) var(--space-2xl);
-  max-height: 26rem;
-  overflow-y: auto;
-}
-.community-tip { margin-bottom: var(--space-lg); }
-.community-tip:last-child { margin-bottom: 0; }
-.community-tip p { margin: 0 0 var(--space-sm); }
-.community-tip p:last-child { margin-bottom: 0; }
-
 /* Tier-4 executable-accounting values on trick-detail.
    The value leads and the components support it, so the two are sized apart
    rather than sharing one weight. */

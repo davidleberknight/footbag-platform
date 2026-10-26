@@ -55,8 +55,7 @@ tiers, and knowing which tier a datum sits in is the whole of making a safe edit
 
 1. **Live-database-owned curation.** Everything a curator edits in the running
    app: trick scalar and editorial-prose fields, aliases, source links, modifier
-   links, records, consecutive-kicks records, trick tips, and provenance-source
-   rows. Section 4 lists the surface for each.
+   links, records, consecutive-kicks records, and provenance-source rows. Section 4 lists the surface for each.
 2. **Code-managed doctrine and operator authority.** `freestyleOperatorReference.ts`
    is the single authority for operator ADD, structure, and X-Dex behavior; the
    rule and the secondary surfaces it binds are in the
@@ -106,17 +105,6 @@ and five `symbolic_*` tables.
 - **`freestyle_trick_modifiers`** and **`freestyle_trick_modifier_links`** - the
   operator/modifier registry (the data-side mirror of the operator reference) and
   its per-trick apply-ordered links.
-- **`freestyle_trick_tips`** - community advice recovered from the legacy
-  footbag.org member tips. Display-only and non-doctrinal: a tip never affects
-  notation, ADD values, parser output, family membership, or canonical
-  descriptions, and no author names are stored. `status` is one of `published`,
-  `hidden`, or the granular unresolved buckets (`unresolved_freestyle`,
-  `unresolved_frontier`, `unresolved_ambiguous`, `future_net`); only `published`
-  tips on an active trick render publicly. Nothing is discarded: a tip whose
-  legacy trick name has no canonical slug is preserved under a stable
-  placeholder slug with no foreign key (`unresolved:<name>`, or
-  `unresolved:net:<name>` for net techniques held for future Net pages) and is
-  remapped when the canonical trick or Net page is authored.
 - **`freestyle_ev_adjudications`** - the Emerging Vocabulary ruling record: one
   row per adjudicated observational name, carrying what the name is, what it
   resolved to, what evidence exists, what blocks it, and who owns the next step.
@@ -155,10 +143,6 @@ exception below.
 - World records (create and edit): the admin records surface.
 - Consecutive-kicks records (create, edit and delete): the admin
   consecutive-records surface.
-- Trick tips (edit text, set display order, hide, restore, remap to an active
-  canonical trick): the admin tips index at `/admin/freestyle/tips`. Hide and
-  restore toggle only published and hidden; the import's unresolved buckets are
-  never flattened.
 - Provenance-source rows (create): the admin dictionary-provenance registry at
   `/admin/freestyle/sources`. Distinct from the media-source registry.
 - Notation authoring and canonical trick creation: the admin notation backlog at
@@ -202,7 +186,11 @@ each owned:
 - The alias additions and override CSVs.
 - The curated expert-review addition and correction overlays.
 - The records masters.
-- The footbag.org moves snapshot and the imported member tips.
+- The footbag.org moves snapshot.
+- The legacy footbag.org member tips are not a site input. Their useful coaching
+  was folded into the trick pages' Technique Notes, and the per-tip grading
+  behind that is private evidence listed in DATA_INVENTORY.md (private GitHub
+  repo).
 - The Emerging Vocabulary ruling ledger.
 - The `freestyle/symbolic_grammar/` spreadsheets.
 

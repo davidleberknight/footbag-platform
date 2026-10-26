@@ -224,15 +224,6 @@ adminRouter.post('/freestyle/tricks/:slug/modifiers/:modifierSlug/:applyOrder/de
 // Emerging Vocabulary workbench (decision packet + full-dimension row table).
 // Read-only curator surface; adjudications land through the ruling ledger.
 adminRouter.get('/freestyle/emerging-vocabulary', emergingVocabController.workbenchPage);
-// Moderation of the imported community trick tips: a cross-trick index, and
-// per-tip edit / hide / restore / remap. Tips are keyed by numeric id (unresolved
-// tips have no trick page), so this is its own index rather than a per-trick sub-surface.
-adminRouter.get('/freestyle/tips',              adminFreestyleController.tips);
-adminRouter.post('/freestyle/tips/:id/edit',    adminFreestyleController.editTip);
-adminRouter.post('/freestyle/tips/:id/order',   adminFreestyleController.setTipOrder);
-adminRouter.post('/freestyle/tips/:id/hide',    adminFreestyleController.hideTip);
-adminRouter.post('/freestyle/tips/:id/restore', adminFreestyleController.restoreTip);
-adminRouter.post('/freestyle/tips/:id/remap',   adminFreestyleController.remapTip);
 // Dictionary provenance-source registry: list the existing sources and create one
 // (the trick-dictionary provenance registry, distinct from the media-source registry).
 adminRouter.get('/freestyle/sources',           adminFreestyleController.sources);

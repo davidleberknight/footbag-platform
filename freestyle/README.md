@@ -89,18 +89,17 @@ data is wholly derived from a committed file still replace their own rows.
 | 10 | `loaders/21b_apply_alias_overrides.py` | `inputs/base_dictionary/alias_overrides.csv` | `freestyle_trick_aliases` (class and display) | Enricher; fails closed on an override whose alias is absent |
 | 11 | `loaders/21c_retire_stale_tricks.py` | the complete desired ownership map | deletes stale committed `freestyle_tricks` rows | Runs last; removes only rows whose own producer stopped carrying them, never a curator's or an unclassified one, and fails closed on a surviving reference |
 | 12 | `loaders/28_load_ev_adjudications.py` | `inputs/observational/EV_FORMULA_IDENTITY_ROWS.csv` | `freestyle_ev_adjudications` | Inserts missing historical rulings, updates the ruling fields of one the app has never written to, and verifies the rest; never writes over app-authored work, and refuses rather than repairing a disagreement |
-| 13 | `loaders/27_load_trick_tips.py` | `inputs/footbag_org_member_tips.ndjson` | `freestyle_trick_tips` | Replaces its own rows; wholly derived |
-| 14 | `scripts/parse_freestyle_notation.py --apply` | reads `freestyle_tricks` | updates `structural_parse_json`, `computed_adds`, `add_formula_status` | Derived from the notation it reads |
-| 15 | `loaders/26_load_symbolic_grammar.py` | `symbolic_grammar/*.csv` | the six `symbolic_*` tables | Replaces its own rows; wholly derived |
-| 16 | `loaders/22_qc_trick_dictionary.py` | reads the DB | QC report in `out/` | Read-only; **hard gate**, non-zero exit aborts the refresh |
-| 17 | `loaders/24_qc_freestyle_media_coverage.py` | reads the DB | coverage report | Read-only; advisory |
-| 18 | `loaders/25_qc_media_tag_invariant.py` | reads the DB | tag-invariant report | Read-only; **hard gate**, non-zero exit aborts the refresh |
+| 13 | `scripts/parse_freestyle_notation.py --apply` | reads `freestyle_tricks` | updates `structural_parse_json`, `computed_adds`, `add_formula_status` | Derived from the notation it reads |
+| 14 | `loaders/26_load_symbolic_grammar.py` | `symbolic_grammar/*.csv` | the six `symbolic_*` tables | Replaces its own rows; wholly derived |
+| 15 | `loaders/22_qc_trick_dictionary.py` | reads the DB | QC report in `out/` | Read-only; **hard gate**, non-zero exit aborts the refresh |
+| 16 | `loaders/24_qc_freestyle_media_coverage.py` | reads the DB | coverage report | Read-only; advisory |
+| 17 | `loaders/25_qc_media_tag_invariant.py` | reads the DB | tag-invariant report | Read-only; **hard gate**, non-zero exit aborts the refresh |
 
 ## Artifacts: committed vs generated vs gitignored
 
 - **Committed inputs** (`inputs/`, `symbolic_grammar/`): the base-dictionary CSVs,
-  the curated expert overlays, the records masters, the footbag.org snapshot and
-  member-tips file, and the symbolic-grammar CSVs. The source of truth pre-cutover.
+  the curated expert overlays, the records masters, the footbag.org snapshot, and
+  the symbolic-grammar CSVs. The source of truth pre-cutover.
 - **Sealed provenance input** (committed, not consumed): see below.
 - **Generated content** (committed, but produced by a generator, never hand-edited):
   the TypeScript content module under `src/content/` for the observational

@@ -1430,10 +1430,6 @@ Former surnames and old email addresses declared by members to broaden the claim
 
 The freestyle trick dictionary (`freestyle_tricks` and related tables), the Net team-appearance tables (`net_team` and related), and the cross-sport records tables (`freestyle_records`, `consecutive_kicks_records`), and the five symbolic-grammar tables (`symbolic_*`) are populated before go-live by the pre-go-live data-load pipelines and read by `FreestyleService`, `NetService`, `ConsecutivesService`, and `SymbolicGrammarService` for the public `/freestyle/*`, `/net/*`, `/consecutives`, and `/freestyle/learn` surfaces. After cutover the database is their only source: freestyle and records content is changed through the audited admin curation surfaces, the symbolic tables are frozen (a trick page's educational links are decided from the trick's own fields when it renders), and the code-managed registries change through a reviewed database migration. The freestyle, records, and symbolic tables' table-level semantics are owned by the freestyle maintainer guide, `docs/FREESTYLE.md` (column-level detail in `database/schema.sql`); the Net team-appearance tables stay with the legacy_data track (`legacy_data/README.md`, the net enrichment phase). The freestyle taxonomy is governed as reversible/observational and is intentionally not hardened in this document. `given_name_variants` is a name-matching utility alongside §4.28.
 
-#### `freestyle_trick_tips` (legacy Footbag.org community tips)
-
-Display-only community advice recovered from the legacy Footbag.org `moves2.movehints` table. Its table semantics and public-rendering contract (only `status = 'published'` tips on an active trick render publicly; unresolved tips are preserved under placeholder slugs, never discarded) are owned by `docs/FREESTYLE.md` with the other freestyle tables.
-
 ---
 
 ### 4.32 Groups & Group Affiliations

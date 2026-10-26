@@ -12,7 +12,7 @@
  *
  * The snapshot covers the whole freestyle table set, not just the three tables a
  * public page reads directly: a stray runtime write to a composition, alias,
- * source-link, or tip table is exactly the silent mutation this guard
+ * or source-link table is exactly the silent mutation this guard
  * exists to catch, so every freestyle table is pinned.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -29,7 +29,6 @@ import {
   insertFreestyleTrickSourceLink,
   insertFreestyleTrickAlias,
   insertFreestyleTrickModifierLink,
-  insertFreestyleTrickTip,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3974');
@@ -54,7 +53,6 @@ function snapshotTables(): string {
     modifierLinks: q(
       'SELECT * FROM freestyle_trick_modifier_links ORDER BY trick_slug, modifier_slug, apply_order',
     ),
-    tips: q('SELECT * FROM freestyle_trick_tips ORDER BY id'),
   });
 }
 
@@ -107,10 +105,6 @@ beforeAll(async () => {
   insertFreestyleTrickSourceLink(db, 'immutable_trick', sourceId, { asserted_adds: 3 });
   insertFreestyleTrickAlias(db, 'immutable_alias', 'immutable_trick', 'Immutable Alias');
   insertFreestyleTrickModifierLink(db, 'immutable_trick', 'immutable_modifier');
-  insertFreestyleTrickTip(db, {
-    trick_slug: 'immutable_trick',
-    tip_text: 'Keep the set waist high and the head still.',
-  });
 
   createApp = await importApp();
 });
