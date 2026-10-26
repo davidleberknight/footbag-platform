@@ -3021,13 +3021,13 @@ CREATE INDEX idx_media_jobs_lease_recovery ON media_jobs(lease_expires_at)
 -- =============================================================================
 
 -- Club leadership assignments: a flat set of equal co-leaders per club (max 5
--- total; application-enforced). There is no head-leader role; every row is
+-- current; application-enforced). There is no head-leader role; every row is
 -- role='co-leader'.
 -- Uniqueness invariants (DB-enforced):
 --   ux_one_club_leader_per_member → a member co-leads at most one club
 --   ux_club_leaders               → a member appears at most once per club
 -- Max-5 cap is application-enforced; the application MUST reject inserts and
--- club_id reassignments that would exceed 5 total rows per club.
+-- club_id reassignments that would exceed 5 current co-leaders per club.
 CREATE TABLE club_leaders (
   id         TEXT PRIMARY KEY,
   created_at TEXT NOT NULL,
@@ -3061,12 +3061,12 @@ JOIN members_onboarded AS m ON m.id = cl.member_id
 WHERE m.is_deceased = 0;
 
 -- Event organizer assignments: a flat set of equal organizers per event (max 5
--- total; application-enforced). There is no primary organizer; every row is
+-- current; application-enforced). There is no primary organizer; every row is
 -- role='organizer'.
 -- Uniqueness invariant (DB-enforced):
 --   ux_event_organizers → a member appears at most once per event
 -- Max-5 cap is application-enforced; the application MUST reject inserts and
--- event_id reassignments that would exceed 5 total rows per event.
+-- event_id reassignments that would exceed 5 current organizers per event.
 CREATE TABLE event_organizers (
   id         TEXT PRIMARY KEY,
   created_at TEXT NOT NULL,

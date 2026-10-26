@@ -20,6 +20,7 @@ import {
   insertLegacyPersonClubAffiliation,
   insertMemberClubAffiliation,
   createMemberAtTier,
+  createTier0WithActivePlayer,
   createTestSessionJwt,
 } from '../fixtures/factories';
 import { stableClubId } from '../../src/services/clubTag';
@@ -129,8 +130,11 @@ describe('two-current-club cap: second current affiliation succeeds, third would
 
 // ── Tier 0 leadership gate ───────────────────────────────────────────────────
 
-describe('Tier 0 leadership: current implementation promotes regardless of tier', () => {
-  it('Tier 0 member confirming a leadership bootstrap candidate IS promoted to co-leader (no tier gate in wizard path)', async () => {
+describe('Tier 0 leadership: a claim joins the club but never leads it on the period the join grants', () => {
+  // Defect caught: a Tier 0 site member with no Active Player period confirms
+  // a legacy leadership card and is made a co-leader on the one-time period
+  // that same join grants, reaching leadership without Tier 1 benefits.
+  it('Tier 0 site member confirming a leadership bootstrap candidate joins the club and is not made a co-leader', async () => {
     const stamp = Date.now();
     const legacyId = `LM-T0L-${stamp}`;
     const memberId = `t0l-${stamp}`;
@@ -181,10 +185,31 @@ describe('Tier 0 leadership: current implementation promotes regardless of tier'
       activitySignal: 'active',
     });
 
-    const leaders = getClubLeaders(club);
-    const memberAsLeader = leaders.find((l) => l.member_id === memberId);
-    expect(memberAsLeader).toBeDefined();
-    expect(memberAsLeader!.role).toBe('co-leader');
+    expect(getClubLeaders(club).find((l) => l.member_id === memberId)).toBeUndefined();
+    expect(getAffiliations(memberId).filter((a) => a.is_current === 1).map((a) => a.club_id)).toEqual([club]);
+  });
+
+  // Defect caught: the rule overreaches and a Tier 0 site member who already
+  // holds a current Active Player period, earned some other way (an event, a
+  // vouch, an earlier club), is refused leadership the stories grant them.
+  it('Tier 0 site member with a current Active Player period from elsewhere is made a co-leader', async () => {
+    const stamp = Date.now();
+    const legacyId = `LM-T0AP-${stamp}`;
+    const club = insertClub(db, { id: `club-t0ap-${stamp}` });
+    const memberId = createTier0WithActivePlayer(db, {
+      id: `t0ap-${stamp}`, slug: `t0ap_${stamp}`, expiresAt: '2099-12-31T00:00:00.000Z',
+      memberOverrides: { legacy_member_id: legacyId },
+    });
+    insertHistoricalPerson(db, { legacy_member_id: legacyId, person_name: 'Tier Zero Active' });
+    const candidateId = insertClubBootstrapLeader(db, {
+      club_id: club, legacy_member_id: legacyId, role: 'leader', status: 'provisional',
+    });
+
+    svc.submitClubAffiliationsResponse(memberId, {
+      kind: 'leadership', candidateId, userDecision: 'confirm', activitySignal: 'active',
+    });
+
+    expect(getClubLeaders(club)).toEqual([{ member_id: memberId, role: 'co-leader' }]);
   });
 });
 
@@ -203,7 +228,7 @@ describe('onboarding wizard leadership confirmation writes the stable club ID', 
     createMemberAtTier(db, {
       id: memberId,
       slug: `wizid_${stamp}`,
-      tier: 'tier0',
+      tier: 'tier1',
       memberOverrides: { legacy_member_id: legacyId },
     });
     insertHistoricalPerson(db, { legacy_member_id: legacyId, person_name: 'Wiz Id' });

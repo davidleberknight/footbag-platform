@@ -11,6 +11,7 @@ import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
 import {
   insertMember,
+  insertMemberTierGrant,
   insertClub,
   insertHistoricalPerson,
   insertOnboardingTask,
@@ -62,7 +63,8 @@ function failCompletion(): () => void {
   return () => spy.mockRestore();
 }
 
-// A member on the club step: personal details and the claim are answered.
+// A member on the club step: personal details and the claim are answered. Tier
+// 1, because a leadership card leads only with Tier 1 benefits.
 function clubStepMember(tag: string): { memberId: string; legacyId: string } {
   const stamp = `${tag}_${Date.now()}`;
   const legacyId = `LM-ATOM-${stamp}`;
@@ -72,6 +74,7 @@ function clubStepMember(tag: string): { memberId: string; legacyId: string } {
     login_email: `atom-${stamp}@example.com`,
     legacy_member_id: legacyId,
   });
+  insertMemberTierGrant(db, { member_id: memberId, new_tier_status: 'tier1', reason_code: 'purchase.tier1' });
   insertOnboardingTask(db, memberId, 'personal_details', 'completed');
   insertOnboardingTask(db, memberId, 'legacy_claim', 'completed');
   insertOnboardingTask(db, memberId, 'club_affiliations', 'pending');

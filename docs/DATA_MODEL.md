@@ -1079,7 +1079,7 @@ An organizer row outlives the member's account, so that historical organizing st
 DB-enforced structural invariant:
 - `ux_event_organizers (event_id, member_id)`: a member appears at most once per event.
 
-**Max-5 cap is application-enforced** (APP-011). The application must reject inserts and `event_id` reassignments that would exceed 5 total rows per event.
+**Max-5 cap is application-enforced** (APP-011). The application must reject inserts and `event_id` reassignments that would exceed 5 current organizers per event.
 
 #### Anti-self-removal (event organizers only)
 The application must prevent an event organizer from removing themselves if they are the sole organizer (UI hides the button; API validates before delete). DB does not enforce this. Clubs are exempt: a co-leader may step down or leave even as the club's last co-leader, leaving the club leaderless (a tolerated state, US §5.1).
@@ -1594,7 +1594,7 @@ active | past_due → canceled (on customer.subscription.deleted)
 
 ### APP-011 — Max 5 event organizers
 
-**Reject inserts and `event_id` reassignments on `event_organizers` that would result in more than 5 total rows per event.** Source: US §4.1 EO_Manage_CoOrganizers ("Maximum 5 total organizers per event"). The DB enforces structural uniqueness (one row per member per event) but not the total count cap.
+**Reject inserts and `event_id` reassignments on `event_organizers` that would result in more than 5 current organizers per event.** Source: US §4.1 EO_Manage_CoOrganizers ("Maximum 5 total organizers per event"). The DB enforces structural uniqueness (one row per member per event) but not the total count cap.
 
 ---
 

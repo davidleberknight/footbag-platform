@@ -141,7 +141,9 @@
  *   - A tag an administrator has retired is refused at the one resolve-or-create
  *     lookup every tag application runs through, for media tags and for both
  *     gallery tag sets. The retired tag's row survives so its normalized form
- *     stays reserved, which is exactly why this lookup has to refuse it.
+ *     stays reserved, which is exactly why this lookup has to refuse it. A club
+ *     hashtag no club holds any more, which a hashtag move leaves reserved, is
+ *     refused there the same way.
  *
  * Persistence:
  *   media_items, media_tags, tags, audit_entries, members, member_galleries,
@@ -864,7 +866,9 @@ function defaultFindSystemMemberId(): string | null {
 // tags row standing so its normalized form stays reserved; this lookup would
 // otherwise find that row and hand the word straight back to the next member
 // who types it. Every other tag surface reads through media_tags or tag_stats,
-// which retirement emptied, so closing it here closes it everywhere.
+// which retirement emptied, so closing it here closes it everywhere. A club
+// hashtag no club holds any more (the old value a hashtag move leaves reserved)
+// is refused the same way, since media carrying it would reach no club.
 function resolveTagIdOrCreate(
   normalized: string,
   display: string,
@@ -872,10 +876,10 @@ function resolveTagIdOrCreate(
   field: string,
 ): string {
   const existing = mediaTagsDb.findTagByNormalized.get(normalized) as
-    | { id: string; retired_at: string | null }
+    | { id: string; retired_at: string | null; unheld: number }
     | undefined;
   if (existing) {
-    if (existing.retired_at !== null) {
+    if (existing.retired_at !== null || existing.unheld === 1) {
       const message = `The hashtag ${display} is no longer available.`;
       throw new ValidationError(message, { fieldErrors: { [field]: message } });
     }

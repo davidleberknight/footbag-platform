@@ -140,7 +140,8 @@
  *   legacy_club_candidates, legacy_person_club_affiliations,
  *   member_club_affiliations, club_viability_signals (promotion stamps the
  *   new club id onto the candidate's wizard flags), members, tags,
- *   audit_entries, outbox_emails.
+ *   media_tags, member_gallery_tags, member_gallery_exclude_tags and tag_stats
+ *   (a hashtag move carries them to the new tag), audit_entries, outbox_emails.
  *
  * Side effects:
  *   - audit_entries append
@@ -440,6 +441,14 @@ type VolunteerResult =
   | { branch: 'already_coleader' }
   | { branch: 'coleads_other_club' }
   | { branch: 'cap_reached' };
+
+// Thrown inside the volunteer transaction to roll back a join made in it when
+// the leadership checks that follow refuse; never escapes the service.
+class VolunteerRefusal extends Error {
+  constructor(readonly branch: 'not_member' | 'not_eligible' | 'coleads_other_club' | 'cap_reached') {
+    super(branch);
+  }
+}
 
 /**
  * Conservative name normalization for the near-match warning: lowercase,
@@ -1695,11 +1704,13 @@ export class ClubService {
           club.editForm = buildClubEditForm(row.club_id, opts);
         }
 
-        // Standing volunteer affordance: shown only to a current member who
-        // passes the full volunteerToCoLeadClub gate (Tier 1 benefits, not
-        // already co-leading another club, club under the 5-co-leader cap, and
-        // not already a co-leader here).
-        if (club.viewerIsMember && !club.viewerIsLeader && liveLeaders.length < 5) {
+        // Standing volunteer affordance: shown only to a viewer who passes the
+        // full volunteerToCoLeadClub gate: a current member, or a non-member
+        // who can join (volunteering joins them in the same step); Tier 1
+        // benefits; not already co-leading another club; club under the
+        // 5-co-leader cap; and not already a co-leader here.
+        const canBecomeMember = club.viewerIsMember || club.viewerCanJoin;
+        if (canBecomeMember && !club.viewerIsLeader && liveLeaders.length < 5) {
           const tier = getTierStatus(viewerMemberId);
           const ap = getActivePlayerStatus(viewerMemberId);
           const hasTier1Benefits = (tier != null && tier.tier_status !== 'tier0') || ap.is_active_player === 1;
@@ -1707,7 +1718,7 @@ export class ClubService {
           if (hasTier1Benefits && !coLeadsElsewhere) {
             club.viewerCanVolunteer = true;
             club.volunteerHref = `/clubs/${encodeURIComponent(clubKey)}/volunteer`;
-          } else if (hasTier1Benefits && coLeadsElsewhere) {
+          } else if (club.viewerIsMember && hasTier1Benefits && coLeadsElsewhere) {
             // Leading their own club is the only thing standing in the way, so
             // say so. The other blockers (tier benefits, the five-co-leader
             // cap) are deliberately not explained here: a note naming the
@@ -1746,8 +1757,10 @@ export class ClubService {
   /**
    * Promote a bootstrap leader candidate to a live co-leader and stamp the
    * member's affiliation. Called by the wizard's 'club_affiliations'
-   * confirm/correct branches. This bootstrap claim is tier-exempt: a legacy
-   * leader reclaims their own club regardless of tier.
+   * confirm/correct branches. Leading takes Tier 1 benefits held before the
+   * claim: a Tier 0 member without a current Active Player period is affiliated
+   * (and earns the one-time club-join period) but not made a co-leader; branch
+   * reports `affiliated_only`.
    *
    * Behavior:
    *   - Marks `club_bootstrap_leaders.status='claimed'` + stamps claimed_member_id.
@@ -1762,10 +1775,15 @@ export class ClubService {
    *     `affiliated_only`.
    *   - Idempotency: if this member already co-leads the club, the existing row
    *     is preserved; branch reports `idempotent`.
+   *   - Two-club cap: a co-leader is always a current member of the club, so a
+   *     member already holding two other current clubs gets neither the
+   *     co-leader row nor the affiliation, and `capHit` is set. A club they
+   *     already hold never counts as a third.
    *   - One club, one question: the member's still-pending membership
    *     suggestions about this same club are superseded in the same
    *     transaction (the claim already answers the relationship and collects
    *     the activity signal), so the wizard never asks about the club twice.
+   *     At the two-club cap they are kept as former membership instead.
    *
    * All writes happen in a single transaction so a partial failure rolls back.
    */
@@ -1789,9 +1807,10 @@ export class ClubService {
     actualRole: 'co-leader' | null;
     supersededMembershipRows: number;
     /**
-     * The member already held two current clubs, so this club is not one of
-     * them. The leadership outcome above still stands; only the affiliation
-     * was refused, and the caller must say so rather than report a club added.
+     * The member already held two other current clubs, so neither the
+     * co-leader row nor the affiliation was written: a co-leader is always a
+     * current member of the club. The caller must say so rather than report a
+     * club added.
      */
     capHit: boolean;
   } {
@@ -1837,6 +1856,23 @@ export class ClubService {
       );
     }
 
+    // Two-current-club cap (max 2 is_current=1 rows per member), decided
+    // before leadership because a co-leader is always a current member of
+    // the club: a member already holding two other clubs gets neither row. A
+    // club the member already holds is not a third club, so it never counts
+    // against them.
+    const alreadyCurrent = memberClubAffiliations.findCurrentByMemberAndClub.get(actorMemberId, clubId) !== undefined;
+    const currentCount = (memberClubAffiliations.countCurrentByMemberId.get(actorMemberId) as { c: number }).c;
+    capHit = !alreadyCurrent && currentCount >= 2;
+
+    // Leading takes Tier 1 benefits, read before this claim's own join: the
+    // one-time Active Player period that join grants is earned by belonging to
+    // the club, so a Tier 0 member without a current period becomes a member
+    // here and not a co-leader.
+    const tier = getTierStatus(actorMemberId);
+    const ap = getActivePlayerStatus(actorMemberId);
+    const mayLead = (tier != null && tier.tier_status !== 'tier0') || ap.is_active_player === 1;
+
     // Idempotency: member already co-leads this club? Preserve existing row.
     const existing = clubLeaders.memberInClubLeadership.get(clubId, actorMemberId) as
       | { id: string; role: 'co-leader' }
@@ -1845,6 +1881,9 @@ export class ClubService {
       branch = 'idempotent';
       actualRole = existing.role;
       clubLeaderId = existing.id;
+    } else if (capHit || !mayLead) {
+      branch = 'affiliated_only';
+      actualRole = null;
     } else {
       // App-level 5-co-leader cap. Best-effort under better-sqlite3's
       // serialized writes; not schema-enforced. Two concurrent claims
@@ -1876,18 +1915,14 @@ export class ClubService {
       }
     }
 
-    // Affiliation insert is independent of leadership outcome: members who
+    // Affiliation insert is independent of the co-leader cap: members who
     // don't get a leadership row still become club members.
-    // Two-current-club cap (max 2 is_current=1 rows per member).
     // First current club is primary; second is secondary.
-    const currentCount = (memberClubAffiliations.countCurrentByMemberId.get(actorMemberId) as { c: number }).c;
-    if (currentCount >= 2) {
-      // At the cap the claim still stands as leadership: the bootstrap row
-      // is claimed and the co-leader row is written above. Only the club
-      // membership is refused, and the caller has to tell the member that,
-      // rather than reporting a club they are not in.
+    if (capHit) {
+      // At the cap the claim is answered but lands nothing current: the
+      // bootstrap row is claimed, and the member's past tie to the club is
+      // kept as a former membership, as a membership Yes at the cap is.
       affiliationId = null;
-      capHit = true;
     } else {
       const isPrimary = currentCount === 0 ? 1 : 0;
       affiliationId = `mca_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
@@ -1919,8 +1954,9 @@ export class ClubService {
 
     // Revival: a successful leadership claim makes an inactive club live
     // again, in the same transaction, so the new leader's club is
-    // immediately visible in listings. An archived club was refused above.
-    if (club?.status === 'inactive') {
+    // immediately visible in listings. An archived club was refused above,
+    // and a claim at the club cap lands nobody in the club, so revives nothing.
+    if (club?.status === 'inactive' && !capHit) {
       clubs.updateStatus.run('active', now, 'onboarding_service', clubId);
       appendAuditEntry({
         actionType:    'club.revived_by_leadership_claim',
@@ -1945,7 +1981,10 @@ export class ClubService {
     const anchors = account.findLegacyAndHpIdsById.get(actorMemberId) as
       | { legacy_member_id: string | null; historical_person_id: string | null }
       | undefined;
-    const superseded = legacyPersonClubAffiliations.supersedePendingForClubAndAnchors.run(
+    const resolvePending = capHit
+      ? legacyPersonClubAffiliations.formerOnlyPendingForClubAndAnchors
+      : legacyPersonClubAffiliations.supersedePendingForClubAndAnchors;
+    const superseded = resolvePending.run(
       clubId,
       'onboarding_service',
       anchors?.legacy_member_id ?? null, anchors?.legacy_member_id ?? null,
@@ -2633,96 +2672,115 @@ export class ClubService {
       return { branch: 'already_member', affiliationId: null };
     }
 
-    const now = new Date().toISOString();
-    let affiliationId: string | null = null;
-    let isPrimary = 0;
-
+    let joined: { affiliationId: string | null; isPrimary: number } = { affiliationId: null, isPrimary: 0 };
     transaction(() => {
-      const currentCount = (memberClubAffiliations.countCurrentByMemberId.get(actorMemberId) as { c: number }).c;
-      if (currentCount >= 2) {
-        return;
-      }
-      isPrimary = currentCount === 0 ? 1 : 0;
-      affiliationId = `mca_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
-      try {
-        memberClubAffiliations.insertAffiliation.run(
-          affiliationId, now, 'club_service', now, 'club_service',
-          actorMemberId, clubId, isPrimary, 'member_self_service',
-        );
-      } catch (err) {
-        if (!isUniqueViolation(err)) throw err;
-        // Rejoin after a leave: UNIQUE(member_id, club_id) keeps one row per
-        // pair for life, so the violation here means a deactivated row exists
-        // (a CURRENT row was already handled by the already_member branch).
-        // Reactivate it; reporting this as cap_reached would wrongly tell a
-        // zero-club member they are in two clubs.
-        const revived = memberClubAffiliations.reactivate.run(
-          isPrimary, now, 'club_service', actorMemberId, clubId,
-        );
-        if (revived.changes === 1) {
-          const row = memberClubAffiliations.findCurrentByMemberAndClub.get(actorMemberId, clubId) as
-            | { id: string } | undefined;
-          affiliationId = row?.id ?? null;
-        } else {
-          affiliationId = null;
-        }
-      }
-
-      if (affiliationId) {
-        appendAuditEntry({
-          actionType: 'club.member_joined',
-          actorType: 'member',
-          actorMemberId,
-          entityType: 'member_club_affiliation',
-          entityId: affiliationId,
-          metadata: { club_id: clubId, club_name: club.name, is_primary: isPrimary },
-        });
-
-        // Revival: a new current member returns an inactive club to
-        // 'active' (demote is reversible by interest). Archived clubs are
-        // not joinable at all (guarded above), so revival-by-join applies
-        // to inactive only; archived clubs revive only via a leadership
-        // claim.
-        if (club.status === 'inactive') {
-          clubs.updateStatus.run('active', now, 'club_service', clubId);
-          appendAuditEntry({
-            actionType:    'club.revived_by_affiliation',
-            actorType:     'member',
-            actorMemberId,
-            entityType:    'club',
-            entityId:      clubId,
-            metadata:      { prior_status: 'inactive', affiliation_id: affiliationId },
-          });
-        }
-      }
-
-      if (affiliationId) {
-        // The one-time club-join Active Player grant co-commits with the
-        // self-join affiliation in this same transaction.
-        applyActivePlayerClubJoinInTx(actorMemberId, actorMemberId, affiliationId);
-      }
+      joined = this.joinWriteInTx(actorMemberId, club, new Date().toISOString());
     });
+    const { affiliationId, isPrimary } = joined;
 
-    if (!affiliationId && !existing) {
+    if (!affiliationId) {
       return { branch: 'cap_reached', affiliationId: null };
     }
 
-    if (affiliationId) {
-      const current = memberClubAffiliations.findCurrentByMemberAndClub.get(actorMemberId, clubId) as
-        | { id: string; version: number } | undefined;
-      enqueueClubMembershipEmails({
-        kind: 'join',
-        memberId: actorMemberId,
-        clubId,
-        clubName: club.name,
-        notificationKey: `${affiliationId}:v${current?.version ?? 1}`,
-      });
-    }
+    this.enqueueJoinEmails(actorMemberId, club, affiliationId);
 
     return {
       branch: isPrimary ? 'joined_primary' : 'joined_secondary',
       affiliationId,
     };
+  }
+
+  /**
+   * The writes of a member's own join, inside the caller's transaction, so a
+   * volunteer who is not yet a member joins and co-leads in one commit. Writes
+   * nothing at the two-current-club cap, which the caller reads as a null
+   * `affiliationId`. The caller has already refused an archived club and
+   * handled an affiliation the member already holds.
+   */
+  private joinWriteInTx(
+    actorMemberId: string,
+    club: { club_id: string; name: string; status: string },
+    now: string,
+  ): { affiliationId: string | null; isPrimary: number } {
+    const clubId = club.club_id;
+    const currentCount = (memberClubAffiliations.countCurrentByMemberId.get(actorMemberId) as { c: number }).c;
+    if (currentCount >= 2) {
+      return { affiliationId: null, isPrimary: 0 };
+    }
+    const isPrimary = currentCount === 0 ? 1 : 0;
+    let affiliationId: string | null = `mca_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
+    try {
+      memberClubAffiliations.insertAffiliation.run(
+        affiliationId, now, 'club_service', now, 'club_service',
+        actorMemberId, clubId, isPrimary, 'member_self_service',
+      );
+    } catch (err) {
+      if (!isUniqueViolation(err)) throw err;
+      // Rejoin after a leave: UNIQUE(member_id, club_id) keeps one row per
+      // pair for life, so the violation here means a deactivated row exists
+      // (a CURRENT row was already handled by the already_member branch).
+      // Reactivate it; reporting this as cap_reached would wrongly tell a
+      // zero-club member they are in two clubs.
+      const revived = memberClubAffiliations.reactivate.run(
+        isPrimary, now, 'club_service', actorMemberId, clubId,
+      );
+      if (revived.changes === 1) {
+        const row = memberClubAffiliations.findCurrentByMemberAndClub.get(actorMemberId, clubId) as
+          | { id: string } | undefined;
+        affiliationId = row?.id ?? null;
+      } else {
+        affiliationId = null;
+      }
+    }
+
+    if (affiliationId) {
+      appendAuditEntry({
+        actionType: 'club.member_joined',
+        actorType: 'member',
+        actorMemberId,
+        entityType: 'member_club_affiliation',
+        entityId: affiliationId,
+        metadata: { club_id: clubId, club_name: club.name, is_primary: isPrimary },
+      });
+
+      // Revival: a new current member returns an inactive club to
+      // 'active' (demote is reversible by interest). Archived clubs are
+      // not joinable at all (guarded above), and archiving is final, so
+      // revival-by-join applies to inactive only.
+      if (club.status === 'inactive') {
+        clubs.updateStatus.run('active', now, 'club_service', clubId);
+        appendAuditEntry({
+          actionType:    'club.revived_by_affiliation',
+          actorType:     'member',
+          actorMemberId,
+          entityType:    'club',
+          entityId:      clubId,
+          metadata:      { prior_status: 'inactive', affiliation_id: affiliationId },
+        });
+      }
+
+      // The one-time club-join Active Player grant co-commits with the
+      // self-join affiliation in this same transaction.
+      applyActivePlayerClubJoinInTx(actorMemberId, actorMemberId, affiliationId);
+    }
+    return { affiliationId, isPrimary };
+  }
+
+  /** Join notifications to the member and the club's co-leaders, after the join commits. */
+  private enqueueJoinEmails(
+    actorMemberId: string,
+    club: { club_id: string; name: string },
+    affiliationId: string,
+  ): void {
+    const current = memberClubAffiliations.findCurrentByMemberAndClub.get(actorMemberId, club.club_id) as
+      | { id: string; version: number } | undefined;
+    enqueueClubMembershipEmails({
+      kind: 'join',
+      memberId: actorMemberId,
+      clubId: club.club_id,
+      clubName: club.name,
+      notificationKey: `${affiliationId}:v${current?.version ?? 1}`,
+    });
   }
 
   leaveClub(
@@ -3216,14 +3274,17 @@ export class ClubService {
   }
 
   /**
-   * A current member with Tier 1 benefits self-adds as a co-leader. Immediate,
-   * no approval step. This single write backs the standing club-page volunteer
+   * A member with Tier 1 benefits self-adds as a co-leader. Immediate, no
+   * approval step. This single write backs the standing club-page volunteer
    * affordance.
    *
-   * Eligibility (all required): the actor is a current confirmed member of the
-   * club; has Tier 1 benefits (Tier 1+ OR Active Player); does not already
+   * Eligibility (all required): the actor is a current member of the club, or
+   * joins it in this same commit, held to every rule their own join is (the
+   * two-current-club cap included); has Tier 1 benefits (Tier 1+ OR Active
+   * Player, which the route also requires before this runs); does not already
    * co-lead another club (a member co-leads at most one); the club is under the
-   * 5-co-leader cap; and the actor does not already co-lead this club.
+   * 5-co-leader cap; and the actor does not already co-lead this club. A
+   * refusal leaves no join behind.
    *
    * On a self-add to a club that already has co-leaders, the existing
    * co-leaders are notified. A member stepping up is a positive viability
@@ -3240,41 +3301,43 @@ export class ClubService {
       return { branch: 'club_not_found' };
     }
 
-    const affiliation = memberClubAffiliations.findCurrentByMemberAndClub.get(actorMemberId, clubId) as
-      | { id: string } | undefined;
-    if (!affiliation) {
-      return { branch: 'not_member' };
-    }
-
     const here = clubLeaders.memberInClubLeadership.get(clubId, actorMemberId) as
       | { id: string } | undefined;
     if (here) {
       return { branch: 'already_coleader' };
     }
 
-    // Tier 1 benefits = Tier 1+ OR an active Active-Player period.
-    const tier = getTierStatus(actorMemberId);
-    const ap = getActivePlayerStatus(actorMemberId);
-    const hasTier1Benefits = (tier != null && tier.tier_status !== 'tier0') || ap.is_active_player === 1;
-    if (!hasTier1Benefits) {
-      return { branch: 'not_eligible' };
-    }
-
-    const coLeadsElsewhere = clubLeaders.memberCoLeadsAnyClub.get(actorMemberId) as
-      | { x: number } | undefined;
-    if (coLeadsElsewhere) {
-      return { branch: 'coleads_other_club' };
-    }
-
-    const existingCount = (clubLeaders.countByClubId.get(clubId) as { c: number }).c;
-    if (existingCount >= 5) {
-      return { branch: 'cap_reached' };
-    }
-
     const now = new Date().toISOString();
     const clubLeaderId = `cl_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
+    let existingCount = 0;
+    let joinedAffiliationId: string | null = null;
     try {
       transaction(() => {
+        // Tier 1 benefits = Tier 1+ OR an active Active-Player period, read
+        // before any join below: the one-time Active Player period a join
+        // grants is earned by belonging to the club, so it never counts toward
+        // leading it in the same step.
+        const tier = getTierStatus(actorMemberId);
+        const ap = getActivePlayerStatus(actorMemberId);
+        const hasTier1Benefits = (tier != null && tier.tier_status !== 'tier0') || ap.is_active_player === 1;
+        if (!hasTier1Benefits) throw new VolunteerRefusal('not_eligible');
+
+        // A co-leader is always a current member, so a volunteer who is not
+        // yet in the club joins it first, in this same commit, exactly as their
+        // own join would. Any refusal after it rolls the join back too.
+        const affiliation = memberClubAffiliations.findCurrentByMemberAndClub.get(actorMemberId, clubId);
+        if (!affiliation) {
+          joinedAffiliationId = this.joinWriteInTx(actorMemberId, club, now).affiliationId;
+          if (!joinedAffiliationId) throw new VolunteerRefusal('not_member');
+        }
+
+        if (clubLeaders.memberCoLeadsAnyClub.get(actorMemberId)) {
+          throw new VolunteerRefusal('coleads_other_club');
+        }
+
+        existingCount = (clubLeaders.countByClubId.get(clubId) as { c: number }).c;
+        if (existingCount >= 5) throw new VolunteerRefusal('cap_reached');
+
         clubLeaders.insertClubLeader.run(
           clubLeaderId, now, 'club_service', now, 'club_service',
           clubId, actorMemberId, 'co-leader', now,
@@ -3302,6 +3365,7 @@ export class ClubService {
         }
       });
     } catch (err) {
+      if (err instanceof VolunteerRefusal) return { branch: err.branch };
       // A member co-leads at most one club (ux_one_club_leader_per_member); a
       // co-lead grabbed elsewhere between the pre-check and the insert lands here.
       if (isUniqueViolation(err)) {
@@ -3309,6 +3373,8 @@ export class ClubService {
       }
       throw err;
     }
+
+    if (joinedAffiliationId) this.enqueueJoinEmails(actorMemberId, club, joinedAffiliationId);
 
     // Existing co-leaders are notified only when the club already had some.
     if (existingCount > 0) {
@@ -3458,10 +3524,11 @@ export class ClubService {
    *
    * The hashtag is the club's permanent handle, so only an administrator moves
    * it, correcting one that is wrong and naming a reason. The move gives the
-   * club a new tag row and carries every media item and gallery criterion
-   * carrying the old hashtag onto it, so they follow the club. The old tag row
-   * stays: a standardized hashtag is reserved permanently and never reused, so
-   * no later club can take it. The new hashtag meets the rules creation holds
+   * club a new tag row and carries every media item, gallery criterion and
+   * usage count carrying the old hashtag onto it, so they follow the club. The
+   * old tag row stays: a standardized hashtag is reserved permanently and never
+   * reused, so no later club can take it, and with no club holding it nobody
+   * can apply it to media either. The new hashtag meets the rules creation holds
    * it to, at most 100 characters included.
    *
    * The old address dies at that moment and nothing redirects from it, which is
@@ -3530,6 +3597,7 @@ export class ClubService {
       mediaTags.moveMediaTagsToTag.run(newTagId, tagDisplay, now, actorMemberId, club.hashtag_tag_id);
       mediaTags.moveGalleryCriteriaToTag.run(newTagId, club.hashtag_tag_id);
       mediaTags.moveGalleryExcludesToTag.run(newTagId, club.hashtag_tag_id);
+      mediaTags.moveTagStatsToTag.run(newTagId, now, club.hashtag_tag_id);
 
       auditId = appendAuditEntry({
         actionType: 'club.hashtag_corrected',

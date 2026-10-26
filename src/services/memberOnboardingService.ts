@@ -327,16 +327,9 @@ export type OnboardingTaskState = typeof TASK_STATES[number];
 // Member-facing notice wording for the club step's transient banners. Shaped
 // here so the controller stays pass-through and the template never branches
 // on a decision code.
-function buildClubCapHitNoticeMessage(
-  clubName: string,
-  kind: 'membership' | 'leadership' = 'membership',
-): string {
-  // A capped leadership claim is not a former membership: the member is a
-  // co-leader of the club and simply not one of its members, so the two cases
-  // need different words for what actually happened.
-  if (kind === 'leadership') {
-    return `You are at the two current-club limit, so you lead ${clubName} but it is not one of your current clubs. To add it, leave one of your current clubs from your profile after onboarding.`;
-  }
+// A capped membership Yes and a capped leadership claim record the same thing,
+// a former membership, because a co-leader is always a current member.
+function buildClubCapHitNoticeMessage(clubName: string): string {
   return `You are at the two current-club limit, so ${clubName} was recorded as a former membership. To make it current, leave one of your current clubs from your profile after onboarding.`;
 }
 
@@ -1598,9 +1591,7 @@ export type WizardFlash =
     }
   | {
       kind: 'WIZARD_CLUB_CAP_HIT';
-      // The card the cap was hit on, because what the platform recorded
-      // differs between the two and the notice has to say which happened.
-      payload: { clubName: string; capKind: 'membership' | 'leadership' };
+      payload: { clubName: string };
     };
 
 // Per-method `formState` shapes carried in the `validation_error` arm
@@ -2394,23 +2385,27 @@ async function processClubAffiliationsSubmit(
     if (err instanceof ValidationError) {
       return { kind: 'validation_error', formState: null, message: err.message };
     }
+    // A card answered from a stale page: its club was archived, or its
+    // leadership claimed, after the page rendered. The card is no longer
+    // offered, so the step re-renders without it.
+    if (err instanceof ConflictError) {
+      return { kind: 'retry_same', flash: null };
+    }
     throw err;
   }
   const { result, clubName } = held;
 
   if (result.branch === 'cap_hit') {
-    // At the two-current-club cap the card still resolves, but what was
-    // recorded differs by card: a membership Yes becomes a former membership,
-    // while a leadership claim makes the member a co-leader of a club they are
-    // not a member of. Either way the notice comes before any advance, so the
-    // member learns how the answer was recorded; when this was the last card
-    // the answer has already completed the step, and the club page shows the
-    // notice with a way onward.
+    // At the two-current-club cap the card still resolves and the Yes is
+    // recorded as a former membership. The notice comes before any advance,
+    // so the member learns how the answer was recorded; when this was the
+    // last card the answer has already completed the step, and the club page
+    // shows the notice with a way onward.
     return {
       kind: 'retry_same',
       flash: {
         kind: 'WIZARD_CLUB_CAP_HIT',
-        payload: { clubName, capKind: kindRaw },
+        payload: { clubName },
       },
     };
   }

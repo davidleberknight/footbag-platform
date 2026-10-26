@@ -16,7 +16,7 @@ import request from '../fixtures/supertestWithOrigin';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import {
   insertMember, insertClub, insertClubLeader, insertTag, completeOnboarding, createTestSessionJwt,
-  insertMediaItem, insertMemberGallery, insertGalleryCriterionTag,
+  insertMediaItem, insertMemberGallery, insertGalleryCriterionTag, insertTagStat,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3440');
@@ -562,6 +562,8 @@ describe('the hashtag is the club address, so moving it is its own act', () => {
 describe('a moved hashtag stays reserved, and what carried it follows the club', () => {
   const MOVER_ID = 'club-test-ac-mover';
   const LONG_ID = 'club-test-ac-long';
+  const STATS_ID = 'club-test-ac-stats';
+  const STATS_OLD_TAG_ID = 'tag-_club_ac_stats';
   // The media factory attaches a tag by this id, so the club's own tag uses it.
   const OLD_TAG_ID = 'tag-_club_ac_mover';
 
@@ -571,6 +573,14 @@ describe('a moved hashtag stays reserved, and what carried it follows the club',
       .set('Cookie', adminCookie())
       .type('form')
       .send({ hashtag_slug: slug, reason: 'Correcting the club address.' });
+  }
+
+  function editGalleryCriteria(galleryId: string, criteriaTags: string) {
+    return request(createApp())
+      .post(`/members/ac-admin/galleries/${galleryId}/edit`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ name: 'Club Sessions', description: '', sortOrder: 'upload_desc', criteriaTags, excludeTags: '' });
   }
 
   beforeAll(() => {
@@ -620,6 +630,52 @@ describe('a moved hashtag stays reserved, and what carried it follows the club',
     expect(taken.status).toBe(422);
     expect(taken.text).toContain('already holds that hashtag');
     expect(clubTag(RIVAL_ID)).toBe('#club_ac_rival');
+  });
+
+  // Defect caught: the usage counts stay on the old tag after a move, so until
+  // the daily rebuild the tag lists show the dead hashtag and leave out the
+  // club's new one; or a member can still type the old hashtag, and their media
+  // lands on a tag no club holds and never reaches the club's gallery.
+  it('moves the usage counts and stops anyone applying or being offered the old hashtag', async () => {
+    insertClub(conn, {
+      id: STATS_ID,
+      hashtag_tag_id: insertTag(conn, {
+        id: STATS_OLD_TAG_ID, tag_normalized: '#club_ac_stats', tag_display: '#club_ac_stats', standard_type: 'club',
+      }),
+      name: 'Stats Footbag',
+      city: 'Nelson',
+      country: 'New Zealand',
+    });
+    insertTagStat(conn, { tag_id: STATS_OLD_TAG_ID, usage_count: 7, distinct_member_count: 3 });
+
+    const res = await moveTo(STATS_ID, 'ac_counted');
+    expect(res.status).toBe(303);
+    const newTagId = (conn.prepare('SELECT hashtag_tag_id AS id FROM clubs WHERE id = ?').get(STATS_ID) as { id: string }).id;
+    expect(conn.prepare('SELECT tag_id, usage_count, distinct_member_count FROM tag_stats WHERE tag_id IN (?, ?)')
+      .all(STATS_OLD_TAG_ID, newTagId))
+      .toEqual([{ tag_id: newTagId, usage_count: 7, distinct_member_count: 3 }]);
+
+    const suggested = await request(createApp()).get('/tags/suggest?q=club_ac_').set('Cookie', adminCookie());
+    expect(suggested.status).toBe(200);
+    expect(suggested.text).toContain('#club_ac_counted');
+    expect(suggested.text).not.toContain('#club_ac_stats');
+
+    const galleryId = insertMemberGallery(conn, { owner_member_id: ADMIN_ID, created_by: ADMIN_ID });
+    const refused = await editGalleryCriteria(galleryId, '#club_ac_stats');
+    expect(refused.status).toBe(422);
+    expect(refused.text).toContain('no longer available');
+    expect(conn.prepare('SELECT COUNT(*) AS n FROM member_gallery_tags WHERE gallery_id = ?').get(galleryId))
+      .toEqual({ n: 0 });
+
+    // An archived club still holds its own hashtag, so it stays usable, and so
+    // does the club's new one.
+    const kept = await editGalleryCriteria(galleryId, '#club_ac_archived #club_ac_counted');
+    expect(kept.status).toBe(303);
+    const criteria = (conn.prepare(
+      'SELECT t.tag_normalized FROM member_gallery_tags g JOIN tags t ON t.id = g.tag_id WHERE g.gallery_id = ?',
+    ).all(galleryId) as Array<{ tag_normalized: string }>).map((r) => r.tag_normalized);
+    expect(criteria).toEqual(expect.arrayContaining(['#club_ac_archived', '#club_ac_counted']));
+    expect(criteria).not.toContain('#club_ac_stats');
   });
 
   // Defect caught: an admin moves a club to a hashtag longer than club

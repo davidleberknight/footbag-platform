@@ -1315,6 +1315,26 @@ export const legacyPersonClubAffiliations = {
        )
   `); },
 
+  // The same close as above for a leadership claim at the two-current-club
+  // cap: the claim lands no current membership, so the member's open
+  // membership suggestions about the club are kept as former membership, the
+  // record a membership Yes at the cap leaves.
+  // Params: clubId, updatedBy, legacyMemberId x2, historicalPersonId x2, clubId.
+  get formerOnlyPendingForClubAndAnchors() { return db.prepare(`
+    UPDATE legacy_person_club_affiliations
+       SET resolution_status = 'former_only',
+           resolved_club_id  = ?,
+           updated_at        = strftime('%Y-%m-%dT%H:%M:%fZ','now'),
+           updated_by        = ?,
+           version           = version + 1
+     WHERE resolution_status = 'pending'
+       AND ((? IS NOT NULL AND legacy_member_id = ?)
+         OR (? IS NOT NULL AND historical_person_id = ?))
+       AND legacy_club_candidate_id IN (
+         SELECT id FROM legacy_club_candidates WHERE mapped_club_id = ?
+       )
+  `); },
+
   // Pending -> rejected transition for the 'decline' wizard branch. Guarded
   // by status='pending' so a concurrent transition (admin override, replay)
   // is a no-op rather than an overwrite.
@@ -1550,8 +1570,14 @@ export const clubBootstrapLeaders = {
 
   // Any-status count: distinguishes a member whose leadership suggestions
   // were all resolved (wrap-up guidance renders) from one who never had any.
+  // A still-provisional row on an archived club was never shown as a card, so
+  // it is no suggestion the member had.
   get countByLegacyMember() { return db.prepare(`
-    SELECT COUNT(*) AS c FROM club_bootstrap_leaders WHERE legacy_member_id = ?
+    SELECT COUNT(*) AS c
+      FROM club_bootstrap_leaders cbl
+      JOIN clubs_all c ON c.id = cbl.club_id
+     WHERE cbl.legacy_member_id = ?
+       AND NOT (cbl.status = 'provisional' AND c.status = 'archived')
   `); },
 };
 
@@ -7362,8 +7388,15 @@ export const mediaTags = {
   // Carries retired_at because this is the resolve-or-create lookup every tag
   // application runs through, and a retired tag's row deliberately survives:
   // the caller has to refuse it rather than hand the abusive word back.
+  // `unheld` marks a club hashtag no club holds any more, the row a hashtag
+  // move leaves behind to keep the old value reserved; the caller refuses it
+  // the same way. An archived or inactive club still holds its own.
   get findTagByNormalized() { return db.prepare(`
-    SELECT id, retired_at FROM tags WHERE tag_normalized = ?
+    SELECT t.id, t.retired_at,
+           (t.is_standard = 1 AND t.standard_type = 'club'
+            AND NOT EXISTS (SELECT 1 FROM clubs_all c WHERE c.hashtag_tag_id = t.id)) AS unheld
+      FROM tags t
+     WHERE t.tag_normalized = ?
   `); },
 
   get insertTag() { return db.prepare(`
@@ -7452,6 +7485,13 @@ export const mediaTags = {
 
   get moveGalleryExcludesToTag() { return db.prepare(`
     UPDATE member_gallery_exclude_tags SET tag_id = ? WHERE tag_id = ?
+  `); },
+
+  // The usage counts move with the media they count, so tag listings show the
+  // new hashtag and drop the old one at once rather than at the daily rebuild.
+  // Every media_tags row moves, so the counts carry over unchanged.
+  get moveTagStatsToTag() { return db.prepare(`
+    UPDATE tag_stats SET tag_id = ?, updated_at = ? WHERE tag_id = ?
   `); },
 };
 
@@ -7886,7 +7926,8 @@ export const tagStats = {
 // as a modifier (so typing "pixie" surfaces #set_pixie, #concept_pixie_sets, and
 // modifier-carrying folk names like #pigbeater, none of which share the `#pixie`
 // prefix). A term with no set/concept/modifier matches gains nothing from the
-// extra branches, so ordinary prefix suggestions are unchanged.
+// extra branches, so ordinary prefix suggestions are unchanged. A tag nobody may
+// apply is never suggested: a retired one, or a club hashtag no club holds.
 export function suggestTagsForTerm(term: string, limit: number): TagSuggestRow[] {
   const escaped = term.replace(/[%_\\]/g, c => '\\' + c);
   const pattern = `#${escaped}%`;
@@ -7907,6 +7948,8 @@ export function suggestTagsForTerm(term: string, limit: number): TagSuggestRow[]
       AND t.tag_normalized NOT LIKE '#by_%'
       AND t.tag_normalized <> '#unavailable_embed'
       AND t.retired_at IS NULL
+      AND NOT (t.is_standard = 1 AND t.standard_type = 'club'
+               AND NOT EXISTS (SELECT 1 FROM clubs_all c WHERE c.hashtag_tag_id = t.id))
     ORDER BY COALESCE(ts.distinct_member_count, 0) DESC,
              COALESCE(ts.usage_count, 0) DESC
     LIMIT ?

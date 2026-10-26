@@ -15,6 +15,7 @@ import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import {
   insertMember, insertClub, createTestSessionJwt, insertClubBootstrapLeader, insertMemberClubAffiliation,
+  insertClubLeader,
 } from '../fixtures/factories';
 import { flashCookieOf } from '../fixtures/flashCookie';
 
@@ -305,6 +306,39 @@ describe('assign', () => {
     expect(refused.text).not.toContain('cap_override_reason');
     expect(leaders(clubId)).toHaveLength(5);
     expect(assignAuditCount(clubId)).toBe(5);
+  });
+
+  // Defect caught: a co-leader who has died still counts toward five, so a
+  // club whose leader died can never be given a replacement at the limit; or
+  // the leadership page reads 6/5 beside a limit that counts five.
+  it('does not count a deceased co-leader toward five, on the limit or on the page', async () => {
+    const clubId = seedClub();
+    const gone = 'acl-mem-deceased';
+    insertMember(db, { id: gone, slug: 'acl_mem_deceased', login_email: `${gone}@example.com`, is_deceased: 1 });
+    insertClubLeader(db, { club_id: clubId, member_id: gone });
+    for (let i = 0; i < 5; i++) {
+      const res = await request(createApp())
+        .post(`/admin/clubs/${clubId}/leadership/assign`)
+        .set('Cookie', adminCookie())
+        .type('form')
+        .send({ member_key: seedMember(), reason: 'setup' });
+      expect(res.status).toBe(303);
+    }
+    expect(leaders(clubId)).toHaveLength(6);
+
+    const page = await request(createApp())
+      .get(`/admin/clubs/${clubId}/leadership`)
+      .set('Cookie', adminCookie());
+    expect(page.status).toBe(200);
+    expect(page.text).toContain('Current Leadership (5/5)');
+
+    const refused = await request(createApp())
+      .post(`/admin/clubs/${clubId}/leadership/assign`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({ member_key: seedMember(), reason: 'setup' });
+    expect(refused.status).toBe(422);
+    expect(leaders(clubId)).toHaveLength(6);
   });
 
   // Defect caught: admin assignment puts a member already in two clubs on a

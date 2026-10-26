@@ -23,6 +23,7 @@ import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
 import {
   insertMember,
+  insertMemberTierGrant,
   insertClub,
   insertClubBootstrapLeader,
   insertClubBootstrapLeaderSignal,
@@ -67,6 +68,12 @@ interface TaskRow {
   state: string;
   completed_at: string | null;
   answer_json: string | null;
+}
+
+// Leading a club takes Tier 1 benefits held before the claim, so every claimant
+// whose card is meant to promote holds Tier 1.
+function grantTier1(db: BetterSqlite3.Database, memberId: string): void {
+  insertMemberTierGrant(db, { member_id: memberId, new_tier_status: 'tier1', reason_code: 'purchase.tier1' });
 }
 
 function readBootstrapLeader(id: string): BootstrapLeaderRow {
@@ -231,6 +238,7 @@ beforeAll(async () => {
     // The member carries the same legacy anchor the candidate below names: a
     // card is answerable only by the member whose own anchor its row matches.
     insertMember(db, { id: memberId, slug: memberId.replace(/-/g, '_'), login_email: `${memberId}@example.com`, onboarding: 'none', legacy_member_id: `lm-${cell.key}` });
+    grantTier1(db, memberId);
     insertOnboardingTask(db, memberId, 'personal_details', 'completed');
     insertOnboardingTask(db, memberId, 'legacy_claim', 'completed');
     const clubId = insertClub(db, { name: `Club ${cell.key}` });
@@ -247,6 +255,7 @@ beforeAll(async () => {
   cohortClubId = insertClub(db, { name: 'Cohort Club' });
   for (const mid of COHORT_MEMBERS) {
     insertMember(db, { id: mid, slug: mid.replace(/-/g, '_'), login_email: `${mid}@example.com`, legacy_member_id: `lm-${mid}` });
+    grantTier1(db, mid);
     const candidateId = seedCandidate(db, {
       clubId: cohortClubId,
       legacyMemberId: `lm-${mid}`,
@@ -263,6 +272,7 @@ beforeAll(async () => {
     login_email: 'idempotent@example.com',
     legacy_member_id: 'lm-idempotent',
   });
+  grantTier1(db, IDEMPOTENT_MEMBER);
   idempotentClubId = insertClub(db, { name: 'Idempotent Club' });
   idempotentCandidateId = seedCandidate(db, {
     clubId: idempotentClubId,
@@ -277,6 +287,7 @@ beforeAll(async () => {
     login_email: 'cross_club@example.com',
     legacy_member_id: 'lm-cross',
   });
+  grantTier1(db, CROSS_CLUB_MEMBER);
   crossClubA = insertClub(db, { name: 'Cross Club A' });
   crossClubB = insertClub(db, { name: 'Cross Club B' });
   // Both candidates carry this member's one legacy anchor. A member holds a
@@ -501,6 +512,7 @@ describe('memberOnboardingService.submitClubAffiliationsResponse — affiliation
     const db = new BetterSqlite3(dbPath);
     const memberId = 'member-d1-current-elsewhere';
     insertMember(db, { id: memberId, slug: memberId.replace(/-/g, '_'), login_email: `${memberId}@example.com`, legacy_member_id: 'lm-d1' });
+    grantTier1(db, memberId);
     const clubX = insertClub(db, { name: 'D1 Club X (pre-existing current)' });
     const clubY = insertClub(db, { name: 'D1 Club Y (new claim)' });
     // The pre-existing is_current=1 primary affiliation at clubX.

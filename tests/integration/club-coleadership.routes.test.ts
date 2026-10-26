@@ -78,6 +78,11 @@ function tier0ApActor(id: string, slug: string): string {
 function leaderRows(clubId: string): Array<{ member_id: string; role: string }> {
   return db.prepare('SELECT member_id, role FROM club_leaders WHERE club_id = ?').all(clubId) as Array<{ member_id: string; role: string }>;
 }
+function currentAffiliations(memberId: string): Array<{ club_id: string; is_primary: number }> {
+  return db.prepare(
+    'SELECT club_id, is_primary FROM member_club_affiliations WHERE member_id = ? AND is_current = 1',
+  ).all(memberId) as Array<{ club_id: string; is_primary: number }>;
+}
 function emailCount(memberId: string): number {
   return (db.prepare(`SELECT COUNT(*) AS n FROM outbox_emails WHERE recipient_member_id = ?`).get(memberId) as { n: number }).n;
 }
@@ -139,13 +144,69 @@ describe('POST /clubs/:key/volunteer', () => {
     expect(leaderRows(clubId)).toHaveLength(0);
   });
 
-  it('a non-member of the club is refused', async () => {
+  // Defect caught: a member not yet in the club has to join and then volunteer
+  // as two acts, or volunteering makes them a co-leader of a club they are not
+  // a member of; or the join half skips what a join records (the primary flag,
+  // its audit row, its notices).
+  it('a non-member joins the club and becomes a co-leader in the same step', async () => {
     const { clubId, clubKey } = seedClub();
     const m = tier1Actor(`v-nonmem-${_n}`, `v_nonmem_${_n}`);
 
     const res = await request(createApp()).post(`/clubs/${clubKey}/volunteer`).set('Cookie', cookieFor(m));
     expect(res.status).toBe(303);
+    expect(leaderRows(clubId)).toEqual([{ member_id: m, role: 'co-leader' }]);
+    expect(currentAffiliations(m)).toEqual([{ club_id: clubId, is_primary: 1 }]);
+    expect(auditCount('club.member_joined', 'actor_member_id = ?', m)).toBe(1);
+    expect(auditCount('club.coleader_volunteered', 'actor_member_id = ?', m)).toBe(1);
+    expect(emailCount(m)).toBe(1);
+  });
+
+  // Defect caught: a Tier 0 site member with no Active Player period, not in
+  // the club, is offered the volunteer button, or posts it directly, and joins
+  // the club, collects the one-time club-join period and leads it on that period.
+  it('a Tier 0 site member without Active Player is not offered volunteering at a club they are not in, and cannot post it', async () => {
+    const { clubId, clubKey } = seedClub();
+    const m = tier0Actor(`v-t0-out-${_n}`, `v_t0_out_${_n}`);
+
+    const page = await request(createApp()).get(`/clubs/${clubKey}`).set('Cookie', cookieFor(m));
+    expect(page.status).toBe(200);
+    expect(page.text).toContain(`action="/clubs/${clubKey}/join"`);
+    expect(page.text).not.toContain(`action="/clubs/${clubKey}/volunteer"`);
+
+    const res = await request(createApp()).post(`/clubs/${clubKey}/volunteer`).set('Cookie', cookieFor(m));
+    expect(res.status).toBe(403);
     expect(leaderRows(clubId)).toHaveLength(0);
+    expect(currentAffiliations(m)).toEqual([]);
+    expect(auditCount('club.member_joined', 'actor_member_id = ?', m)).toBe(0);
+    expect(db.prepare(
+      "SELECT COUNT(*) AS n FROM active_player_grants WHERE member_id = ? AND reason_code = 'club_join_one_time_active_player_grant'",
+    ).get(m)).toEqual({ n: 0 });
+  });
+
+  // Defect caught: a volunteer refused for leadership reasons is still left
+  // holding the membership the same click made, or a member already in two
+  // other clubs reaches a third through the volunteer button.
+  it('a refused non-member volunteer is left with no join, at the co-leader cap or the club cap', async () => {
+    const full = seedClub();
+    for (let i = 0; i < 5; i++) {
+      const ldr = insertMember(db, { id: `v-full-${_n}-${i}`, slug: `v_full_${_n}_${i}` });
+      insertClubLeader(db, { club_id: full.clubId, member_id: ldr });
+    }
+    const m = tier1Actor(`v-rollback-${_n}`, `v_rollback_${_n}`);
+    const capped = await request(createApp()).post(`/clubs/${full.clubKey}/volunteer`).set('Cookie', cookieFor(m));
+    expect(capped.status).toBe(303);
+    expect(leaderRows(full.clubId)).toHaveLength(5);
+    expect(currentAffiliations(m)).toEqual([]);
+    expect(auditCount('club.member_joined', 'actor_member_id = ?', m)).toBe(0);
+
+    const { clubId, clubKey } = seedClub();
+    const two = tier1Actor(`v-twoclubs-${_n}`, `v_twoclubs_${_n}`);
+    insertMemberClubAffiliation(db, two, seedClub().clubId, { is_primary: 1 });
+    insertMemberClubAffiliation(db, two, seedClub().clubId, { is_primary: 0 });
+    const third = await request(createApp()).post(`/clubs/${clubKey}/volunteer`).set('Cookie', cookieFor(two));
+    expect(third.status).toBe(303);
+    expect(leaderRows(clubId)).toHaveLength(0);
+    expect(currentAffiliations(two)).toHaveLength(2);
   });
 
   it('a member who already co-leads another club cannot volunteer again', async () => {
@@ -209,6 +270,20 @@ describe('club page leadership block', () => {
     expect(memberPage.status).toBe(200);
     expect(memberPage.text).toContain('<h2>Leadership</h2>');
     expect(memberPage.text).toContain(`action="/clubs/${clubKey}/volunteer"`);
+
+    // A member not in the club who could join it is offered the same button,
+    // which joins them as it makes them a co-leader; one already in two other
+    // clubs cannot join, so is offered nothing.
+    const outsider = tier1Actor(`lb-outsider-${_n}`, `lb_outsider_${_n}`);
+    const outsiderPage = await request(createApp()).get(`/clubs/${clubKey}`).set('Cookie', cookieFor(outsider));
+    expect(outsiderPage.status).toBe(200);
+    expect(outsiderPage.text).toContain(`action="/clubs/${clubKey}/volunteer"`);
+    const twoClubs = tier1Actor(`lb-twoclubs-${_n}`, `lb_twoclubs_${_n}`);
+    insertMemberClubAffiliation(db, twoClubs, seedClub().clubId, { is_primary: 1 });
+    insertMemberClubAffiliation(db, twoClubs, seedClub().clubId, { is_primary: 0 });
+    const fullPage = await request(createApp()).get(`/clubs/${clubKey}`).set('Cookie', cookieFor(twoClubs));
+    expect(fullPage.status).toBe(200);
+    expect(fullPage.text).not.toContain(`action="/clubs/${clubKey}/volunteer"`);
 
     const outboxBefore = outboxTotal();
     const res = await request(createApp())

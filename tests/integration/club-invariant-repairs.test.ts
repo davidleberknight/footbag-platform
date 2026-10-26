@@ -6,6 +6,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import {
   insertMember,
+  insertMemberTierGrant,
   insertClub,
   insertClubBootstrapLeader,
   insertLegacyClubCandidate,
@@ -125,6 +126,8 @@ describe('a main club is chosen automatically only for a lone remaining club', (
 describe('a wizard card brings back an affiliation an admin ended', () => {
   it('confirming a leadership card reactivates the ended row rather than reporting a membership that does not exist', () => {
     const memberId = seedMember();
+    // Leading takes Tier 1 benefits held before the claim.
+    insertMemberTierGrant(db, { member_id: memberId, new_tier_status: 'tier1', reason_code: 'purchase.tier1' });
     const clubId = seedClub('Revive');
 
     // Admin gives them the affiliation, then ends it. The lifelong

@@ -592,6 +592,33 @@ describe('POST /clubs/create — near-match duplicate warning', () => {
     expect(clubsNamed('Vaasa Kickers')).toBe(1);
   });
 
+  // Defect caught: an archived live club still holds its exact name, so the
+  // real club an admin archived the junk record for can never be created; or
+  // the block stops applying to live clubs at all.
+  it('an exact name held only by an archived club does not block creation, while a live club of that name does', async () => {
+    const db = new BetterSqlite3(dbPath);
+    db.pragma('foreign_keys = ON');
+    insertClub(db, { name: 'Kotka Kickers', country: 'Finland', city: 'Kotka', status: 'archived' });
+    insertClub(db, { name: 'Pori Kickers', country: 'Finland', city: 'Pori' });
+    db.close();
+
+    const freed = await request(createApp())
+      .post('/clubs/create')
+      .set('Cookie', authCookie(seedCreator()))
+      .type('form')
+      .send(formData({ name: 'Kotka Kickers', country: 'Finland', city: 'Kotka', slug: 'kotka_k', confirm_near_matches: '1' }));
+    expect(freed.status).toBe(303);
+    expect(clubsNamed('Kotka Kickers')).toBe(2);
+
+    const held = await request(createApp())
+      .post('/clubs/create')
+      .set('Cookie', authCookie(seedCreator()))
+      .type('form')
+      .send(formData({ name: 'Pori Kickers', country: 'Finland', city: 'Pori', slug: 'pori_k', confirm_near_matches: '1' }));
+    expect(held.status).toBe(422);
+    expect(clubsNamed('Pori Kickers')).toBe(1);
+  });
+
   it('a legacy candidate with the same normalized name in the same country triggers the warning; confirming proceeds and is audit-flagged', async () => {
     seedCandidate('Tampere Kickers', 'onboarding_visible', 'Finland');
     const creator = seedCreator();

@@ -123,6 +123,10 @@ function getClubLeadershipPage(
       slug:        m.slug,
       recordHref:  `/admin/members/${m.member_id}`,
     }));
+  // The list keeps every leadership row so an admin can remove one, but the
+  // count is the one the five-leader limit reads: a leader who has died or
+  // deleted their account no longer counts.
+  const currentLeaderCount = (clubLeaders.countByClubId.get(clubId) as { c: number }).c;
   return {
     seo:  { title: `Leadership: ${club.name}` },
     page: { sectionKey: '', pageKey: 'admin_club_leadership', title: `Leadership: ${club.name}` },
@@ -131,10 +135,10 @@ function getClubLeadershipPage(
         clubId: club.id,
         clubKey: club.id,
         name: club.name,
-        needsLeader: leaders.length === 0,
+        needsLeader: currentLeaderCount === 0,
         leaders,
         affiliatedMembers: affiliated,
-        leadershipCount: leaders.length,
+        leadershipCount: currentLeaderCount,
         notice: opts.notice ?? null,
         errorMessage: opts.errorMessage ?? null,
       },
@@ -212,36 +216,38 @@ function assignLeader(
       : { ending: 'already_held', text: ALREADY_LEADS_NOTICE };
   }
 
-  // A member co-leads at most one club; the existingRow check above already
-  // cleared this club, so any co-leadership is elsewhere.
-  const coLeadsElsewhere = clubLeaders.memberCoLeadsAnyClub.get(member.id) as { x: number } | undefined;
-  if (coLeadsElsewhere) {
-    throw new ValidationError(
-      'That member already co-leads another club. Clubs are local groups, so a member leads their own club and is a guest at any other. They step down at their club first if they want to lead this one.',
-    );
-  }
-
-  const count = (clubLeaders.countByClubId.get(clubId) as { c: number }).c;
-  if (count >= LEADERSHIP_CAP) {
-    throw new ValidationError(
-      `This club already has ${LEADERSHIP_CAP} co-leaders, the most a club can have.`,
-    );
-  }
-
-  // Leading a club puts the member on its roster, so a member who is not
-  // already a current member here and holds two other clubs would reach three.
-  const aff = clubLeaders.findCurrentAffiliation.get(member.id, clubId) as
-    | { id: string; is_current: number }
-    | undefined;
-  const currentCount = (memberClubAffiliations.countCurrentByMemberId.get(member.id) as { c: number }).c;
-  if (!aff?.is_current && currentCount >= CURRENT_CLUB_CAP) {
-    throw new ValidationError(
-      'That member already belongs to two clubs, the most a member can hold. They leave one first if they want to lead this one.',
-    );
-  }
-
   const now = new Date().toISOString();
+  // The limits are read inside the write's transaction, so the counts they
+  // check are the ones the insert lands against.
   transaction(() => {
+    // A member co-leads at most one club; the existingRow check above already
+    // cleared this club, so any co-leadership is elsewhere.
+    const coLeadsElsewhere = clubLeaders.memberCoLeadsAnyClub.get(member.id) as { x: number } | undefined;
+    if (coLeadsElsewhere) {
+      throw new ValidationError(
+        'That member already co-leads another club. Clubs are local groups, so a member leads their own club and is a guest at any other. They step down at their club first if they want to lead this one.',
+      );
+    }
+
+    const count = (clubLeaders.countByClubId.get(clubId) as { c: number }).c;
+    if (count >= LEADERSHIP_CAP) {
+      throw new ValidationError(
+        `This club already has ${LEADERSHIP_CAP} co-leaders, the most a club can have.`,
+      );
+    }
+
+    // Leading a club puts the member on its roster, so a member who is not
+    // already a current member here and holds two other clubs would reach three.
+    const aff = clubLeaders.findCurrentAffiliation.get(member.id, clubId) as
+      | { id: string; is_current: number }
+      | undefined;
+    const currentCount = (memberClubAffiliations.countCurrentByMemberId.get(member.id) as { c: number }).c;
+    if (!aff?.is_current && currentCount >= CURRENT_CLUB_CAP) {
+      throw new ValidationError(
+        'That member already belongs to two clubs, the most a member can hold. They leave one first if they want to lead this one.',
+      );
+    }
+
     clubLeaders.insertClubLeader.run(
       `cl_${randomUUID().replace(/-/g, '').slice(0, 24)}`,
       now, adminMemberId, now, adminMemberId,

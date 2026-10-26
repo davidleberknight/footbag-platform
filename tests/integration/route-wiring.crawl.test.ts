@@ -175,8 +175,15 @@ function crawls(): Promise<CrawlSet> {
     ];
     const byPersona = new Map<string, CrawlResult>();
     for (const persona of personas) {
+      // Volunteering to co-lead publishes the volunteer's contact email to
+      // members, since holding the role is the consent; the canary owner's
+      // hidden email is what the privacy oracle watches, so its walk never
+      // takes the role.
+      const skip = persona.name === 'canary-owner'
+        ? (p: string) => shouldSkip(p) || /^\/clubs\/[^/?#]+\/volunteer$/.test(p)
+        : shouldSkip;
       byPersona.set(persona.name, await crawl({
-        ...common, persona, seeds: [...SEED_ROOTS, ...CANARY_ROOTS], maxPages: MAX_PAGES, shouldSkip,
+        ...common, persona, seeds: [...SEED_ROOTS, ...CANARY_ROOTS], maxPages: MAX_PAGES, shouldSkip: skip,
       }));
     }
     for (const s of SCOPED_PERSONAS) {

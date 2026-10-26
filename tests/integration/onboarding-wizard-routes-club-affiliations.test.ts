@@ -31,6 +31,8 @@ const MEMBER_EMPTY     = 'wiz-clubaff-empty';
 const MEMBER_MEMBERSHIP = 'wiz-clubaff-membership';
 const MEMBER_LEADERSHIP = 'wiz-clubaff-leadership';
 const MEMBER_LEAD_CAPPED = 'wiz-clubaff-lead-capped';
+const MEMBER_LEAD_OWN    = 'wiz-clubaff-lead-own';
+const MEMBER_LEAD_ARCHIVED = 'wiz-clubaff-lead-archived';
 const MEMBER_MULTI     = 'wiz-clubaff-multi';
 const MEMBER_F1_OTHER  = 'wiz-clubaff-other';
 const MEMBER_JUNK      = 'wiz-clubaff-junk';
@@ -48,6 +50,12 @@ let membershipAffId  = '';
 let leadershipClubId = '';
 let leadershipCblId  = '';
 let cappedCblId      = '';
+let cappedClubId     = '';
+let cappedAffId      = '';
+let archivedLedClubId = '';
+let archivedLedCblId  = '';
+let ownLedClubId     = '';
+let ownLedCblId      = '';
 let multiClubAlpha   = '';
 let multiClubBeta    = '';
 let multiAffAlpha    = '';
@@ -114,9 +122,11 @@ beforeAll(async () => {
     status:           'provisional',
   });
 
-  // A returning leader who already holds two current clubs. Their leadership
-  // claim can still make them a co-leader, but the club cannot become one of
-  // their clubs, and the wizard has to say so rather than report it added.
+  // A returning leader who already holds two current clubs. A co-leader is
+  // always a current member of the club, so their claim on a third club lands
+  // neither role: it is kept as a former membership, as a membership Yes at the
+  // cap is. The club is inactive and carries a still-open membership
+  // suggestion about it, so the claim's effect on both is visible.
   insertMember(db, { onboarding: 'none',
     id: MEMBER_LEAD_CAPPED,
     slug: 'wiz_clubaff_lead_capped',
@@ -125,9 +135,65 @@ beforeAll(async () => {
   });
   insertMemberClubAffiliation(db, MEMBER_LEAD_CAPPED, insertClub(db, { name: 'Capped First Club' }), { is_primary: 1 });
   insertMemberClubAffiliation(db, MEMBER_LEAD_CAPPED, insertClub(db, { name: 'Capped Second Club' }), { is_primary: 0 });
+  cappedClubId = insertClub(db, { name: 'Capped Leadership Club', status: 'inactive' });
   cappedCblId = insertClubBootstrapLeader(db, {
-    club_id:          insertClub(db, { name: 'Capped Leadership Club' }),
+    club_id:          cappedClubId,
     legacy_member_id: 'lm-wiz-lead-capped',
+    role:             'leader',
+    status:           'provisional',
+  });
+  cappedAffId = insertLegacyPersonClubAffiliation(db, {
+    legacy_member_id:         'lm-wiz-lead-capped',
+    legacy_club_candidate_id: insertLegacyClubCandidate(db, {
+      classification: 'pre_populate',
+      mapped_club_id: cappedClubId,
+      display_name:   'Capped Leadership Club',
+    }),
+    confidence_score:         0.9,
+  });
+
+  // A leadership card answered from a page drawn before an admin archived its
+  // club: archiving is final, so the claim must land nothing.
+  insertMember(db, { onboarding: 'none',
+    id: MEMBER_LEAD_ARCHIVED,
+    slug: 'wiz_clubaff_lead_archived',
+    login_email: 'wiz-lead-archived@example.com',
+    legacy_member_id: 'lm-wiz-lead-archived',
+  });
+  archivedLedClubId = insertClub(db, { name: 'Archived Led Club', status: 'archived' });
+  archivedLedCblId = insertClubBootstrapLeader(db, {
+    club_id:          archivedLedClubId,
+    legacy_member_id: 'lm-wiz-lead-archived',
+    role:             'leader',
+    status:           'provisional',
+  });
+
+  // A member at two current clubs whose leadership claim is on one of those
+  // two: that club is not a third, so the claim makes them a co-leader.
+  insertMember(db, { onboarding: 'none',
+    id: MEMBER_LEAD_OWN,
+    slug: 'wiz_clubaff_lead_own',
+    login_email: 'wiz-lead-own@example.com',
+    legacy_member_id: 'lm-wiz-lead-own',
+  });
+  insertMemberTierGrant(db, {
+    id: 'wiz-lead-own-tier1',
+    created_at: '2026-01-01T00:00:00.000Z',
+    member_id: MEMBER_LEAD_OWN,
+    actor_member_id: null,
+    change_type: 'grant',
+    old_tier_status: 'tier0',
+    new_tier_status: 'tier1',
+    old_underlying_tier_status: null,
+    new_underlying_tier_status: null,
+    reason_code: 'test.tier_grant',
+  });
+  ownLedClubId = insertClub(db, { name: 'Own Led Club' });
+  insertMemberClubAffiliation(db, MEMBER_LEAD_OWN, ownLedClubId, { is_primary: 1 });
+  insertMemberClubAffiliation(db, MEMBER_LEAD_OWN, insertClub(db, { name: 'Own Other Club' }), { is_primary: 0 });
+  ownLedCblId = insertClubBootstrapLeader(db, {
+    club_id:          ownLedClubId,
+    legacy_member_id: 'lm-wiz-lead-own',
     role:             'leader',
     status:           'provisional',
   });
@@ -142,6 +208,8 @@ beforeAll(async () => {
     login_email: 'wiz-multi@example.com',
     legacy_member_id: 'lm-wiz-multi',
   });
+  // Tier 1, because the Beta leadership card is meant to lead.
+  insertMemberTierGrant(db, { member_id: MEMBER_MULTI, new_tier_status: 'tier1', reason_code: 'purchase.tier1' });
   multiClubAlpha = insertClub(db, { name: 'Alpha Club (membership)' });
   multiClubBeta  = insertClub(db, { name: 'Beta Club (leadership)' });
   const multiCandAlpha = insertLegacyClubCandidate(db, {
@@ -342,7 +410,8 @@ beforeAll(async () => {
   // the wrap-up landing, or a club-card submit has both steps ahead of it
   // answered first.
   for (const id of [
-    MEMBER_EMPTY, MEMBER_MEMBERSHIP, MEMBER_LEADERSHIP, MEMBER_LEAD_CAPPED, MEMBER_MULTI,
+    MEMBER_EMPTY, MEMBER_MEMBERSHIP, MEMBER_LEADERSHIP, MEMBER_LEAD_CAPPED, MEMBER_LEAD_OWN,
+    MEMBER_LEAD_ARCHIVED, MEMBER_MULTI,
     MEMBER_JUNK, MEMBER_CAP, MEMBER_CAP_LAST, MEMBER_DISAMBIG_CAP, MEMBER_PROMOTE, MEMBER_NOPROMOTE,
     MEMBER_NOSTATE,
   ]) {
@@ -394,6 +463,10 @@ function readHeldClubAnswers(memberId: string): Array<Record<string, unknown>> {
     .get(memberId) as { answer_json: string | null } | undefined;
   if (!row?.answer_json) return [];
   return (JSON.parse(row.answer_json) as { answers: Array<Record<string, unknown>> }).answers;
+}
+
+function readClubStatus(clubId: string): string {
+  return (testDb.prepare(`SELECT status FROM clubs WHERE id = ?`).get(clubId) as { status: string }).status;
 }
 
 function readLeaderClubIds(memberId: string): string[] {
@@ -670,9 +743,14 @@ describe('POST /register/wizard/club_affiliations/submit — per-card flow', () 
     // which fires the one-time club-join Active Player grant for a Tier 0 member.
     expect(clubJoinGrantCount(MEMBER_LEADERSHIP)).toBe(1);
     expect(isActivePlayer(MEMBER_LEADERSHIP)).toBe(1);
+    // That period is earned by belonging to the club, so it never counts toward
+    // leading it in the same step: a Tier 0 member without a current period
+    // joins the club and is not made a co-leader.
+    expect(readCurrentAffiliationCount(MEMBER_LEADERSHIP)).toBe(1);
+    expect(readLeaderClubIds(MEMBER_LEADERSHIP)).toEqual([]);
   });
 
-  it('leadership confirm at the two-club cap says so, and never reports the club added', async () => {
+  it('leadership confirm at the two-club cap leads nothing, keeps a former membership, and says so', async () => {
     const app = createApp();
     const res = await request(app)
       .post('/register/wizard/club_affiliations/submit')
@@ -681,9 +759,15 @@ describe('POST /register/wizard/club_affiliations/submit — per-card flow', () 
       .send({ kind: 'leadership', candidateId: cappedCblId, userDecision: 'confirm', activitySignal: 'active' });
     expect(res.status).toBe(303);
 
-    // The claim itself stands: the bootstrap row is claimed and the member
-    // co-leads the club. Only the club membership was refused.
+    // The claim is answered, but a co-leader is always a current member, so a
+    // member already in two other clubs is neither: no co-leader row, no third
+    // club, and the open suggestion about the club is kept as former membership.
     expect(readBootstrapStatus(cappedCblId)).toBe('claimed');
+    expect(readLeaderClubIds(MEMBER_LEAD_CAPPED)).toEqual([]);
+    expect(readCurrentAffiliationCount(MEMBER_LEAD_CAPPED)).toBe(2);
+    expect(readAffiliationStatus(cappedAffId)).toBe('former_only');
+    // Nobody landed in the inactive club, so the claim revives nothing.
+    expect(readClubStatus(cappedClubId)).toBe('inactive');
 
     const flashCookie = ((res.headers['set-cookie'] ?? []) as unknown as string[])
       .map((c) => c.split(';')[0])
@@ -701,8 +785,54 @@ describe('POST /register/wizard/club_affiliations/submit — per-card flow', () 
     expect(page.status).toBe(200);
     expect(page.text).toContain('two current-club limit');
     expect(page.text).toContain('Capped Leadership Club');
-    expect(page.text).toContain('you lead');
+    expect(page.text).toContain('recorded as a former membership');
+    expect(page.text).not.toContain('you lead');
     expect(page.text).not.toContain('Added Capped Leadership Club to your clubs');
+  });
+
+  it('a leadership card answered after its club was archived returns to the step and lands nothing', async () => {
+    const res = await request(createApp())
+      .post('/register/wizard/club_affiliations/submit')
+      .set('Cookie', cookieFor(MEMBER_LEAD_ARCHIVED))
+      .type('form')
+      .send({ kind: 'leadership', candidateId: archivedLedCblId, userDecision: 'confirm', activitySignal: 'active' });
+
+    // A stale page is not a server fault: the member is sent back to the step,
+    // which no longer offers the card, and the archived club stays archived.
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/register/wizard/club_affiliations');
+    expect(readBootstrapStatus(archivedLedCblId)).toBe('provisional');
+    expect(readLeaderClubIds(MEMBER_LEAD_ARCHIVED)).toEqual([]);
+    expect(readCurrentAffiliationCount(MEMBER_LEAD_ARCHIVED)).toBe(0);
+    expect(readClubStatus(archivedLedClubId)).toBe('archived');
+
+    // The step the member returns to offers no card for the archived club, and
+    // an archived club's suggestion was never theirs to answer, so the landing
+    // says no past club was found rather than that their cards resolved.
+    const step = await request(createApp())
+      .get('/register/wizard/club_affiliations')
+      .set('Cookie', cookieFor(MEMBER_LEAD_ARCHIVED));
+    expect(step.status).toBe(200);
+    expect(step.text).not.toContain(`value="${archivedLedCblId}"`);
+    expect(step.text).toContain('We did not find a past club affiliation for you');
+  });
+
+  it('leadership confirm on one of the member’s own two clubs is not a third club', async () => {
+    const res = await request(createApp())
+      .post('/register/wizard/club_affiliations/submit')
+      .set('Cookie', cookieFor(MEMBER_LEAD_OWN))
+      .type('form')
+      .send({ kind: 'leadership', candidateId: ownLedCblId, userDecision: 'confirm', activitySignal: 'active' });
+    expect(res.status).toBe(303);
+
+    // The member already holds this club, so the cap is not hit: they lead it
+    // and still hold the same two clubs, with no cap notice.
+    expect(readLeaderClubIds(MEMBER_LEAD_OWN)).toEqual([ownLedClubId]);
+    expect(readCurrentAffiliationCount(MEMBER_LEAD_OWN)).toBe(2);
+    const flashCookie = ((res.headers['set-cookie'] ?? []) as unknown as string[])
+      .map((c) => c.split(';')[0])
+      .find((c) => c.startsWith('footbag_flash='));
+    expect(flashCookie).toBeUndefined();
   });
 
   it('multi-card flow: submit Beta leadership (Stage 1A) first -> 303 retry_same; second GET renders Alpha membership (Stage 1B); second submit advances', async () => {

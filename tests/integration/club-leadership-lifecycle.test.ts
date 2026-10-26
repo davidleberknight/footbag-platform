@@ -19,6 +19,7 @@ import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import {
   insertMember,
+  insertMemberTierGrant,
   insertClub,
   insertTag,
   insertClubBootstrapLeader,
@@ -72,8 +73,9 @@ function seedMember(): string {
     legacy_member_id: anchorFor(memberId),
   });
   // Settled onboarding keeps authenticated page reads from redirecting into
-  // the wizard.
+  // the wizard. Tier 1, because leading a club takes Tier 1 benefits.
   completeOnboarding(db, memberId);
+  insertMemberTierGrant(db, { member_id: memberId, new_tier_status: 'tier1', reason_code: 'purchase.tier1' });
   return memberId;
 }
 

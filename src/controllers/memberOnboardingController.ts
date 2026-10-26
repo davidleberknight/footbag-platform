@@ -178,7 +178,7 @@ function clubCapHitFlashPending(req: Request): boolean {
 function readClubCapHitFlash(
   req: Request,
   res: Response,
-): { clubName: string; capKind: 'membership' | 'leadership' } | null {
+): { clubName: string } | null {
   const flash = readFlash(req);
   if (!flash) return null;
   if (flash.kind !== FLASH_KIND.WIZARD_CLUB_CAP_HIT) return null;
@@ -186,10 +186,7 @@ function readClubCapHitFlash(
   try {
     const payload = JSON.parse(flash.payload ?? '{}');
     if (typeof payload.clubName === 'string') {
-      return {
-        clubName: payload.clubName,
-        capKind: payload.capKind === 'leadership' ? 'leadership' : 'membership',
-      };
+      return { clubName: payload.clubName };
     }
   } catch { /* garbage payload: drop the notice */ }
   return null;
@@ -208,7 +205,7 @@ function capHitNoticeFrom(
   const flash = readClubCapHitFlash(req, res);
   if (!flash) return null;
   return {
-    message: memberOnboardingService.buildClubCapHitNoticeMessage(flash.clubName, flash.capKind),
+    message: memberOnboardingService.buildClubCapHitNoticeMessage(flash.clubName),
     manageClubsHref: dashboardHrefFor(req),
   };
 }

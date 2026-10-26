@@ -232,17 +232,18 @@ export const adminEventOrganizerService = {
         : { ending: 'already_held', text: ALREADY_ORGANIZES_NOTICE };
     }
 
-    // Five organizers is a hard limit, the same one club leadership holds.
-    const count = (eventOrganizers.countLiveForEvent.get(eventId) as { c: number }).c;
-    if (count >= ORGANIZER_CAP) {
-      throw new ValidationError(
-        `This event already has ${ORGANIZER_CAP} organizers, the most an event can have.`,
-      );
-    }
-
     const now = new Date().toISOString();
 
     transaction(() => {
+      // Five organizers is a hard limit, the same one club leadership holds,
+      // counted inside the write's transaction so the insert lands against it.
+      const count = (eventOrganizers.countLiveForEvent.get(eventId) as { c: number }).c;
+      if (count >= ORGANIZER_CAP) {
+        throw new ValidationError(
+          `This event already has ${ORGANIZER_CAP} organizers, the most an event can have.`,
+        );
+      }
+
       eventOrganizers.insertRow.run(
         `eorg_${randomUUID().replace(/-/g, '').slice(0, 24)}`,
         now, adminMemberId, now, adminMemberId,
