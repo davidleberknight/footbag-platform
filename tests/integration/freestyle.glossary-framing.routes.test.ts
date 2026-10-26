@@ -257,7 +257,7 @@ describe('Freestyle Concepts families: parent, child and descendant lineage', ()
   it('teaches the family-ish kinds with a two-axis Family entry (family / atom / ecosystem / anchor)', async () => {
     const html = await concepts();
     expect(html).toContain('<dt>Family</dt>');
-    expect(html).toContain('<dt>Atom / primitive</dt>');
+    expect(html).toContain('<dt>Entry movement</dt>');
     expect(html).toContain('<dt>Modifier ecosystem</dt>');
     expect(html).toContain('<dt>Family anchor</dt>');
     // The Family entry carries both axes (lineage position + tier) with examples.

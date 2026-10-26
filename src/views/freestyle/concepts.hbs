@@ -759,7 +759,7 @@
         family view without one. A branch can be a Family Parent (Torque), and a
         root can be a Minor Lineage (Eclipse). The family cards below show
         both.</dd>
-      <dt>Atom / primitive</dt>
+      <dt>Entry movement</dt>
       <dd>A foundational building block performed <em>within</em> tricks (an
         entry, orbit, or swing move), never a terminal lineage.
         Around-the-world and orbit are the clearest cases.</dd>
@@ -882,9 +882,9 @@
         (#term-swirl / -rev-whirl / -torque / -blender / -drifter / -barrage /
         -blur / -phoenix); the service excludes family-card slugs from this
         grid, so each #term-{slug} renders exactly once. }}
-    <h3 class="section-heading">Other foundational atoms</h3>
+    <h3 class="section-heading">Other foundational moves</h3>
     <p class="detail-muted">
-      The atoms that are not family roots: the two foundational stalls (toe and
+      The foundational moves that are not family roots: the two foundational stalls (toe and
       clipper) and the two entry movements used within tricks (around-the-world
       and orbit).
     </p>
@@ -1394,16 +1394,16 @@ RIGHT dex &gt; OP catch = LEFT catch</code></pre>
 
     <h3>Base trick weights</h3>
     <p>
-      The twelve canonical atoms each have a fixed ADD value; modifier
+      The twelve foundational moves each have a fixed ADD value; modifier
       stacks compose onto them.
     </p>
     <div class="records-table-wrap" tabindex="0" role="region" aria-label="Base trick weights">
       <table class="data-table">
-        <thead><tr><th>Atom</th><th>ADD</th><th>Role</th></tr></thead>
+        <thead><tr><th>Move</th><th>ADD</th><th>Role</th></tr></thead>
         <tbody>
           <tr><td>toe-stall</td><td>1</td><td>foundational stall</td></tr>
           <tr><td>clipper-stall</td><td>2</td><td>cross-body traversal + stall</td></tr>
-          <tr><td>around-the-world</td><td>2</td><td>1-dex atom</td></tr>
+          <tr><td>around-the-world</td><td>2</td><td>1-dex move</td></tr>
           <tr><td>orbit</td><td>2</td><td>reverse around-the-world</td></tr>
           <tr><td>legover</td><td>2</td><td>1-dex toe terminal</td></tr>
           <tr><td>pickup</td><td>2</td><td>reverse legover</td></tr>
@@ -1730,7 +1730,7 @@ RIGHT dex &gt; OP catch = LEFT catch</code></pre>
     </p>
     <ul class="glossary-equivalence-worked-example">
       <li><strong><a href="/freestyle/tricks/smear">smear</a></strong> &equiv; pixie mirage</li>
-      <li><strong><a href="/freestyle/tricks/ripwalk">ripwalk</a></strong> <span class="glossary-flagship-marker" title="Flagship teaching example: clean atom-level structural compression">&#9733;</span> &equiv; stepping butterfly</li>
+      <li><strong><a href="/freestyle/tricks/ripwalk">ripwalk</a></strong> <span class="glossary-flagship-marker" title="Flagship teaching example: one operator on a foundational move">&#9733;</span> &equiv; stepping butterfly</li>
       <li><strong><a href="/freestyle/tricks/atom_smasher">atom smasher</a></strong> &equiv; atomic mirage</li>
       <li><strong><a href="/freestyle/tricks/eggbeater">eggbeater</a></strong> &equiv; atomic legover</li>
       <li>
@@ -1991,12 +1991,11 @@ RIGHT dex &gt; OP catch = LEFT catch</code></pre>
       for deep reference; a first read does not need them.
     </p>
 
-    <h3 class="section-heading" id="primitives-and-compounds">Primitives and compounds</h3>
+    <h3 class="section-heading" id="primitives-and-compounds">Foundational moves and compounds</h3>
     <p>
-      A <strong>foundational primitive</strong> (also called a
-      <em>core atom</em> or simply an <em>atom</em>) is an irreducible
-      movement, treated as a single unit rather than a composition of smaller
-      parts: the twelve core atoms of
+      A <strong>foundational move</strong> is a basic move that other tricks
+      are built from, treated as a single unit rather than a composition of
+      smaller parts: the twelve foundational moves of
       <a href="#core-trick-atoms">Movement Basics</a>. Each carries an internal
       structural reading (xbody + dex + stall, for instance) that names the
       components of the motion, but there is no shallower trick it decomposes
@@ -2005,7 +2004,8 @@ RIGHT dex &gt; OP catch = LEFT catch</code></pre>
     <p>
       A <strong>compound</strong> (also called a
       <em>compositional structure</em>) is a trick built by applying
-      modifiers, operators, or composition rules to one or more atoms:
+      modifiers, operators, or composition rules to one or more foundational
+      moves:
       paradox-mirage, atomsmasher, <a href="/freestyle/tricks/mobius">mobius</a>,
       <a href="/freestyle/tricks/blur">blur</a>, and baroque. Compounds read as
       decomposition chains and may have several equivalence paths, which
@@ -2015,30 +2015,29 @@ RIGHT dex &gt; OP catch = LEFT catch</code></pre>
       The distinction matters in two places:
     </p>
     <dl class="glossary-primitives-compounds">
-      <dt>Equivalence and compression analysis applies to compounds, not primitives.</dt>
+      <dt>Equivalence and compression analysis applies to compounds, not foundational moves.</dt>
       <dd>
         When a compound has more than one structurally-valid decomposition,
         the trick-detail page surfaces both readings as alternate
-        derivations. Atoms intentionally omit this layer; they are
-        the substrate the compositions are built from, not themselves
-        further compressible.
+        derivations. Foundational moves leave this layer out: other tricks
+        are built from them, and they do not break down further.
       </dd>
       <dt>Decomposition is a structural claim, not a difficulty claim.</dt>
       <dd>
-        Primitive vs compound is about ontology, not difficulty or scoring.
-        Some atoms are mechanically demanding; some compounds are easier
-        than the atoms they are built on. ADD values are independent of
-        the distinction: atoms span 1&ndash;3 ADD, compounds span 2
-        to 8 ADD, and primitive-vs-compound tracks movement structure,
-        not scored complexity.
+        Foundational versus compound is about ontology, not difficulty or
+        scoring. Some foundational moves are mechanically demanding; some
+        compounds are easier than the moves they are built on. ADD values
+        are independent of the distinction: foundational moves span
+        1&ndash;3 ADD, compounds span 2 to 8 ADD, and the distinction tracks
+        movement structure, not scored complexity.
       </dd>
     </dl>
     <p class="detail-muted">
-      The same primitive/compound distinction applies to modifiers and
-      operators. Stepping, paradox, atomic, and the other named modifiers
-      are primitive operators; blurry (= stepping paradox) and the other
-      operator-compositions are compound operators. The doctrine is the
-      same in either case: primitives compose, compounds decompose.
+      The same distinction applies to modifiers and operators. Stepping,
+      paradox, atomic, and the other named modifiers are basic operators;
+      blurry (= stepping paradox) and the other operator-compositions are
+      compound operators. In either case the basic ones compose and the
+      compounds decompose.
     </p>
 
     <h3 class="section-heading" id="tracking-vs-canonization">Tracking is not canonization</h3>

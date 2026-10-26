@@ -302,7 +302,7 @@ describe('GET /freestyle/add-analysis', () => {
     expect(res.text).toContain('add-analysis-callout--spin');
     expect(res.text).toMatch(/spin flag is a rotational/i);
     expect(res.text).toMatch(/spinning operator is a body modifier/i);
-    expect(res.text).toMatch(/rotational character describes atoms/i);
+    expect(res.text).toMatch(/rotational character describes moves/i);
     expect(res.text).toMatch(/atomic is \+1 on every base/i);
   });
 
@@ -348,7 +348,8 @@ describe('GET /freestyle/add-analysis', () => {
     const res = await page('/freestyle/add-analysis');
     // From ATOMIC_FLAG_DECOMPOSITIONS — surfacing chains on this page
     // gives parity with the trick-detail first-class Notation summary.
-    expect(res.text).toMatch(/leggy in dex &gt; ss clipper/);
+    // Whirl lands on the opposite-side clipper (OP CLIP in its notation).
+    expect(res.text).toMatch(/leggy in dex &gt; op clipper/);
     expect(res.text).toMatch(/hippy out dex &gt; ss clipper/);
     expect(res.text).toMatch(/\(downtime\) spin &gt; ss clipper/);
   });

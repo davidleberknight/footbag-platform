@@ -131,7 +131,7 @@ describe('GET /freestyle/progression/walking-family', () => {
     const res = await page('/freestyle/progression/walking-family');
     // Symbolic notes pre-shaped; spot-check
     expect(res.text).toMatch(/Anchor of the butterfly-wing topology/i);
-    expect(res.text).toMatch(/Self-atom in the butterfly-walking family/i);
+    expect(res.text).toMatch(/A base trick of its own in the butterfly-walking family/i);
     expect(res.text).toContain('Symbolic note');
   });
 

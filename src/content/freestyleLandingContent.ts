@@ -122,12 +122,9 @@ export interface CoreTrickSpec {
 // the glossary §2/§3 entries. Readings are editorially safe (no
 // unresolved-doctrine commitment, no fabricated operational notation).
 // Where the structural form is settled per Red rulings, the reading
-// reflects it; where the form remains under discussion, a neutral "core
-// atom" label appears so no foundational card renders blank against the
-// rich compound cards on the same surface.
-//
-// Per user direction: "if any are doctrine-sensitive, show a neutral
-// 'core atom' reading instead of leaving blank."
+// reflects it; where the form remains under discussion, a neutral
+// "foundational move" label appears so no foundational card renders blank
+// against the rich compound cards on the same surface.
 export const CORE_TRICK_SPEC: readonly CoreTrickSpec[] = [
   // Second equivalence is the foundational ADD-accounting formula (where
   // each ADD comes from). Educational accounting treated as a teaching
@@ -137,18 +134,18 @@ export const CORE_TRICK_SPEC: readonly CoreTrickSpec[] = [
   // blocked on unresolved doctrine); its numeric ADD value displays as
   // em-dash via the addPending path until the canonical row lands, while
   // the formula provides the structural reading.
-  { slug: 'toe_stall',        equivalences: ['core atom: foundational single-stall primitive', 'stall(1) = 1 ADD'], operationalNotation: 'SET > SAME TOE [DEL]' },
-  { slug: 'clipper_stall',    displaySlug: 'clipper', equivalences: ['core atom: inside-shoe stall',           'xbody(1) + stall(1) = 2 ADD'], operationalNotation: 'SET > OP CLIP [XBD] [DEL]' },
-  { slug: 'mirage',           equivalences: ['core atom: cross-body rotational dex',           'dex(1) + stall(1) = 2 ADD'], operationalNotation: 'SET > OP IN [DEX] > OP TOE [DEL]' },
-  { slug: 'legover',          equivalences: ['core atom: dex over the supporting leg',         'dex(1) + stall(1) = 2 ADD'], operationalNotation: 'SET > OP OUT [DEX] > SAME TOE [DEL]' },
-  { slug: 'pickup',           equivalences: ['core atom: dex catching from below',             'dex(1) + stall(1) = 2 ADD'], operationalNotation: 'SET > OP IN [DEX] > SAME TOE [DEL]' },
-  { slug: 'illusion',         equivalences: ['core atom: dex with mid-flight rotation',        'dex(1) + stall(1) = 2 ADD'], operationalNotation: 'SET > OP OUT [DEX] > OP TOE [DEL]' },
-  { slug: 'whirl',            equivalences: ['core atom: rotational dex',                      'xbody(1) + dex(1) + stall(1) = 3 ADD'], operationalNotation: 'SET > OP IN [DEX] > OP CLIP [XBD] [DEL]' },
-  { slug: 'butterfly',        equivalences: ['core atom: rotational dex on a different beat',  'dex(1) + xbody(1) + stall(1) = 3 ADD'], operationalNotation: 'SET > OP OUT [DEX] > OP CLIP [XBD] [DEL]' },
-  { slug: 'swirl',            equivalences: ['core atom: same-side out dex to a clipper',      'xbody(1) + dex(1) + stall(1) = 3 ADD'], operationalNotation: 'SET > SAME OUT [DEX] > SAME CLIP [XBD] [DEL]' },
-  { slug: 'osis',             equivalences: ['core atom: double-pass rotational dex',          'spin(1) + xbody(1) + stall(1) = 3 ADD'], operationalNotation: 'SET > (back or front) SPIN [BOD] > SAME/OP CLIP [XBD] [DEL]' },
-  { slug: 'around_the_world', equivalences: ['core atom: dex with full bag orbit',             'full-orbit dex(1) + stall(1) = 2 ADD'], operationalNotation: 'TOE > SAME IN [DEX] > SAME TOE [DEL]' },
-  { slug: 'orbit',            equivalences: ['core atom: dex with reverse full bag orbit',      'reverse full-orbit dex(1) + stall(1) = 2 ADD'], operationalNotation: 'TOE > SAME OUT [DEX] > SAME TOE [DEL]' },
+  { slug: 'toe_stall',        equivalences: ['foundational move: a single resting stall', 'stall(1) = 1 ADD'], operationalNotation: 'SET > SAME TOE [DEL]' },
+  { slug: 'clipper_stall',    displaySlug: 'clipper', equivalences: ['foundational move: inside-shoe stall',           'xbody(1) + stall(1) = 2 ADD'], operationalNotation: 'SET > OP CLIP [XBD] [DEL]' },
+  { slug: 'mirage',           equivalences: ['foundational move: cross-body rotational dex',           'dex(1) + stall(1) = 2 ADD'], operationalNotation: 'SET > OP IN [DEX] > OP TOE [DEL]' },
+  { slug: 'legover',          equivalences: ['foundational move: dex over the supporting leg',         'dex(1) + stall(1) = 2 ADD'], operationalNotation: 'SET > OP OUT [DEX] > SAME TOE [DEL]' },
+  { slug: 'pickup',           equivalences: ['foundational move: dex catching from below',             'dex(1) + stall(1) = 2 ADD'], operationalNotation: 'SET > OP IN [DEX] > SAME TOE [DEL]' },
+  { slug: 'illusion',         equivalences: ['foundational move: dex with mid-flight rotation',        'dex(1) + stall(1) = 2 ADD'], operationalNotation: 'SET > OP OUT [DEX] > OP TOE [DEL]' },
+  { slug: 'whirl',            equivalences: ['foundational move: rotational dex',                      'xbody(1) + dex(1) + stall(1) = 3 ADD'], operationalNotation: 'SET > OP IN [DEX] > OP CLIP [XBD] [DEL]' },
+  { slug: 'butterfly',        equivalences: ['foundational move: rotational dex on a different beat',  'dex(1) + xbody(1) + stall(1) = 3 ADD'], operationalNotation: 'SET > OP OUT [DEX] > OP CLIP [XBD] [DEL]' },
+  { slug: 'swirl',            equivalences: ['foundational move: same-side out dex to a clipper',      'xbody(1) + dex(1) + stall(1) = 3 ADD'], operationalNotation: 'SET > SAME OUT [DEX] > SAME CLIP [XBD] [DEL]' },
+  { slug: 'osis',             equivalences: ['foundational move: double-pass rotational dex',          'spin(1) + xbody(1) + stall(1) = 3 ADD'], operationalNotation: 'SET > (back or front) SPIN [BOD] > SAME/OP CLIP [XBD] [DEL]' },
+  { slug: 'around_the_world', equivalences: ['foundational move: dex with full bag orbit',             'full-orbit dex(1) + stall(1) = 2 ADD'], operationalNotation: 'TOE > SAME IN [DEX] > SAME TOE [DEL]' },
+  { slug: 'orbit',            equivalences: ['foundational move: dex with reverse full bag orbit',      'reverse full-orbit dex(1) + stall(1) = 2 ADD'], operationalNotation: 'TOE > SAME OUT [DEX] > SAME TOE [DEL]' },
 ];
 
 // Demonstrations are a plain FreestyleDemonstration[] hardcoded in

@@ -289,7 +289,7 @@ export const UPTIME_REINTERPRETATION_LADDERS: readonly UptimeReinterpretationLad
     setNotation:     'SET > OP IN [DEX] >',
     reinterpretation:'Mirage-family descriptive language (not a modern set)',
     steps: [
-      'mirage   (atom)     =  SET > OP IN [DEX] > OP TOE [DEL]',
+      'mirage   (trick)    =  SET > OP IN [DEX] > OP TOE [DEL]',
       'miraging (reading)  =  SET > OP IN [DEX] >   (the toe-stall terminal omitted as the dex continues into the next move)',
       'Reading: the inward mirage shape read as descriptive language. Miraging is retained as descriptive mirage-family language for the inward standalone movement; Quantum is the same inward movement realized with a set role, and miraging is not treated as a launch set or a Quantum equivalent.',
     ],
@@ -301,7 +301,7 @@ export const UPTIME_REINTERPRETATION_LADDERS: readonly UptimeReinterpretationLad
     setNotation:     'SET > OP OUT [DEX] >   (structurally implied)',
     reinterpretation:'Illusion-family descriptive language (not a modern set)',
     steps: [
-      'illusion    (atom)    =  SET > OP OUT [DEX] > OP TOE [DEL]',
+      'illusion    (trick)   =  SET > OP OUT [DEX] > OP TOE [DEL]',
       'illusioning (reading) =  SET > OP OUT [DEX] >   (structurally analogous to miraging, but not explicitly in Holden\'s compilation)',
       'Reading: the illusion shape read as descriptive language. Illusioning is retained as descriptive illusion-family language for the outward standalone movement; Atomic is the same outward movement realized with a set role, and illusioning is not a launch set or an Atomic equivalent.',
     ],

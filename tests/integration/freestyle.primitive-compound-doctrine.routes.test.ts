@@ -2,22 +2,20 @@
  * Integration tests for the Primitive vs Compound doctrine surfaces.
  *
  * Contracts under test:
- *   - Core-atom trick-detail pages render the "Core movement atom"
- *     callout (primitiveNote) with the curator-locked label and
- *     explainer prose. Non-atom (compound) pages do NOT render it.
+ *   - Trick pages never call a move an "atom": the twelve foundational
+ *     moves' pages render without the retired "Core movement atom"
+ *     callout or any other visitor-facing "atom" wording (trick names
+ *     such as Atom Smasher aside).
  *   - Core-atom trick-detail pages do NOT render the equivalence-
  *     topology section (gated by the F2 service-layer rule;
  *     re-verified here as a doctrine surface).
  *   - Compound trick-detail pages with a ratified equivalence-topology
  *     entry render the doctrine footer note inside the panel.
- *   - The Freestyle Concepts "Primitives and compounds" doctrine section is
- *     present at the canonical anchor #primitives-and-compounds
- *     with the locked terminology (atom / primitive / compound /
- *     compositional structure).
- *
- * The primitive-note wording is locked at the service layer; this
- * test asserts the prose appears verbatim so future drift surfaces
- * here before it ships.
+ *   - The Freestyle Concepts "Foundational moves and compounds" section is
+ *     present at its deep-link anchor #primitives-and-compounds, in plain
+ *     words, and keeps its structure-not-difficulty guardrail.
+ *   - Concepts, the Glossary, ADD analysis and Sets render no
+ *     visitor-facing "atom" wording.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { cachedGet } from '../fixtures/cachedGet';
@@ -63,34 +61,29 @@ beforeAll(async () => {
 
 afterAll(() => cleanupTestDb(dbPath));
 
-describe('Primitive vs Compound — atom-page callout', () => {
-  it('mirage page renders the "Core movement atom" primitive-note callout', async () => {
-    const res = await page('/freestyle/tricks/mirage');
-    expect(res.status).toBe(200);
-    // Section wrapper present with stable test class.
-    expect(res.text).toContain('class="content-section trick-primitive-note"');
-    // Locked label + explainer prose render verbatim.
-    expect(res.text).toContain('Core movement atom');
-    expect(res.text).toContain('Foundational primitive');
-    expect(res.text).toContain('functions as a compositional base rather than a recursively decomposed structure');
-    // Cross-link to the Freestyle Concepts doctrine section.
-    expect(res.text).toContain('href="/freestyle/concepts#primitives-and-compounds"');
-  });
+/** The words a visitor reads on a page: tags, scripts and comments removed. */
+function visibleText(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/g, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/<[^>]+>/g, ' ');
+}
 
-  it('whirl page renders the same callout (locked wording across all atoms)', async () => {
-    const res = await page('/freestyle/tricks/whirl');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('class="content-section trick-primitive-note"');
-    expect(res.text).toContain('Core movement atom');
-    expect(res.text).toContain('Foundational primitive');
-  });
+// "atom" as a classification, not as part of a trick name.
+const ATOM_WORD = /\batoms?\b(?![\s-]*(smasher|bomb))/i;
 
-  it('compound trick-detail does NOT render the primitive-note callout', async () => {
-    const res = await page('/freestyle/tricks/paradox-mirage');
-    expect(res.status).toBe(200);
-    expect(res.text).not.toContain('class="content-section trick-primitive-note"');
-    expect(res.text).not.toContain('Core movement atom');
-  });
+describe('Trick pages never call a move an atom', () => {
+  for (const slug of ['mirage', 'whirl', 'paradox-mirage']) {
+    it(`/freestyle/tricks/${slug} renders with no visitor-facing "atom" wording`, async () => {
+      const res = await page(`/freestyle/tricks/${slug}`);
+      expect(res.status).toBe(200);
+      const text = visibleText(res.text);
+      // The page rendered its trick, so the absence below is not an empty page.
+      expect(text.toLowerCase()).toContain(slug.replace('-', ' '));
+      expect(text).not.toMatch(/Core movement atom/);
+      expect(text, `${slug} page text`).not.toMatch(ATOM_WORD);
+    });
+  }
 });
 
 describe('Primitive vs Compound — equivalence-topology suppression on atoms', () => {
@@ -108,51 +101,45 @@ describe('Primitive vs Compound — equivalence-topology suppression on atoms', 
   });
 });
 
-describe('Primitive vs Compound — Freestyle Concepts doctrine section', () => {
-  it('Freestyle Concepts renders the "Primitives and compounds" section at the canonical anchor', async () => {
+/** The Concepts section on foundational moves and compounds, up to the next h3. */
+function foundationalSection(html: string): string {
+  const start = html.indexOf('id="primitives-and-compounds"');
+  expect(start, 'section anchor').toBeGreaterThan(-1);
+  return html.slice(start, html.indexOf('id="tracking-vs-canonization"', start));
+}
+
+describe('Foundational moves and compounds — the Freestyle Concepts section', () => {
+  it('keeps the section at its deep-link anchor, in plain words', async () => {
     const res = await page('/freestyle/concepts');
     expect(res.status).toBe(200);
-    // Canonical anchor for deep-link stability.
-    expect(res.text).toContain('id="primitives-and-compounds"');
-    // Section heading text.
-    expect(res.text).toMatch(/Primitives and compounds/);
+    const section = foundationalSection(res.text);
+    expect(section).toMatch(/Foundational moves and compounds/);
+    expect(section).toMatch(/<strong>foundational move<\/strong>/);
+    expect(section).toMatch(/<strong>compound<\/strong>/);
+    expect(section).toMatch(/compositional structure/);
+    // Points to the twelve moves themselves rather than re-listing them.
+    expect(section).toContain('href="#core-trick-atoms"');
   });
 
-  it('doctrine prose names all four locked terms (atom / primitive / compound / compositional structure)', async () => {
-    const res = await page('/freestyle/concepts');
-    expect(res.status).toBe(200);
-    // Terminology surfaces (case-insensitive, since prose mixes inline emphasis).
-    expect(res.text).toMatch(/foundational primitive/i);
-    expect(res.text).toMatch(/core atom/i);
-    expect(res.text).toMatch(/compound/i);
-    expect(res.text).toMatch(/compositional structure/i);
+  it('keeps the guardrail that the distinction is structure, not difficulty or ADD', async () => {
+    const section = foundationalSection((await page('/freestyle/concepts')).text);
+    expect(section).toMatch(/structural claim, not a difficulty claim/);
+    expect(section).toMatch(/ontology, not difficulty or\s+scoring/);
   });
+});
 
-  it('doctrine prose names each of the 12 core atoms', async () => {
-    const res = await page('/freestyle/concepts');
-    expect(res.status).toBe(200);
-    // Each atom enumerated by name in the doctrine paragraph.
-    for (const atom of [
-      'toe-stall', 'clipper-stall', 'around-the-world', 'orbit',
-      'legover', 'mirage', 'pickup', 'illusion',
-      'butterfly', 'osis', 'whirl', 'swirl',
-    ]) {
-      expect(res.text, `atom name "${atom}" expected in doctrine prose`).toContain(atom);
-    }
-  });
-
-  it('doctrine prose preserves the constraint framing (not difficulty / not ADD)', async () => {
-    const res = await page('/freestyle/concepts');
-    expect(res.status).toBe(200);
-    // The "decomposition is a structural claim, not a difficulty claim"
-    // paragraph is the doctrine's key guardrail — assert verbatim.
-    expect(res.text).toMatch(/structural claim, not a difficulty claim/);
-    expect(res.text).toMatch(/ontology, not difficulty or scoring/);
-  });
-
-  it('renders the primitives-and-compounds section with its deep-link anchor', async () => {
-    const res = await page('/freestyle/concepts');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('id="primitives-and-compounds"');
-  });
+describe('Public freestyle reference pages never call a move an atom', () => {
+  for (const path of ['/freestyle/concepts', '/freestyle/glossary', '/freestyle/add-analysis', '/freestyle/sets']) {
+    it(`${path} renders with no visitor-facing "atom" wording`, async () => {
+      const res = await page(path);
+      expect(res.status).toBe(200);
+      const html = res.text;
+      const attrs = [...html.matchAll(/(?:title|aria-label|alt)="([^"]*)"/g)].map(m => m[1]).join(' ');
+      const text = `${visibleText(html)} ${attrs}`;
+      // The page rendered real content, so the absence below is not an empty page.
+      expect(text.length, `${path} content`).toBeGreaterThan(2000);
+      const hit = text.match(new RegExp(`.{0,40}${ATOM_WORD.source}.{0,40}`, 'i'));
+      expect(hit?.[0] ?? null, `${path} still says atom`).toBeNull();
+    });
+  }
 });

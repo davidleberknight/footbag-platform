@@ -159,8 +159,8 @@ export const GLOSSARY_TERMS: readonly GlossaryTerm[] = [
     moreHref: `${CONCEPTS}#section-families`, moreLabel: 'Family Encyclopedia',
   },
   {
-    term: 'Atom',
-    slug: 'atom',
+    term: 'Entry movement',
+    slug: 'entry-movement',
     definition: 'A foundational building block performed within tricks, such as an entry, orbit, or swing move, never a terminal lineage of its own. Around the World and Orbit are the clearest cases.',
     moreHref: `${CONCEPTS}#section-core-concepts`, moreLabel: 'Movement Basics',
   },

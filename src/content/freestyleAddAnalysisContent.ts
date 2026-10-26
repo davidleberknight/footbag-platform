@@ -176,7 +176,7 @@ const COMPONENT_CLASSES: readonly AddAnalysisComponent[] = [
     example:        'the kick portion of a clipper; the body-cross in whirl',
   },
   {
-    componentClass: 'Spin flag: a rotational primitive in an atom’s flag breakdown',
+    componentClass: 'Spin flag: a rotational component in a base trick’s flag breakdown',
     contribution:   '1 ADD',
     example:        'osis carries a spin flag: spin(1) + xbod(1) + stall(1) = 3 ADD. See the note below on the three meanings of "spin".',
   },
@@ -227,12 +227,12 @@ const INCOMPLETENESS_NOTE =
 // are not read as one concept.
 const SPIN_NOTE =
   '"Spin" means three different things here. A spin flag is a rotational ' +
-  'primitive inside an atom: osis is spin(1) + xbody(1) + stall(1) = 3. The ' +
+  'component inside a base trick: osis is spin(1) + xbody(1) + stall(1) = 3. The ' +
   'spinning operator is a body modifier that adds +1 on top of a base, so ' +
-  'spinning osis = 4. Rotational character describes atoms like osis, mirage, ' +
+  'spinning osis = 4. Rotational character describes moves like osis, mirage, ' +
   'and whirl, where the body turns or arcs during the dex. It does not change ' +
   'how atomic counts: atomic is +1 on every base. Any extra point comes from a ' +
-  'separate [XDEX] component in the notation. Same word, three layers: the flag is part of the atom, ' +
+  'separate [XDEX] component in the notation. Same word, three layers: the flag is part of the base trick, ' +
   'the operator is added on top, and rotational character just describes the ' +
   'movement, not a separate scoring rule.';
 
@@ -379,9 +379,9 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
     trickName:  'Whirl',
     trickSlug:  'whirl',
     addLabel:   '3 ADD',
-    components: 'Operational chain: [set] > leggy in dex > ss clipper. Cross-body + dex + stall walked flag-by-flag.',
+    components: 'Operational chain: [set] > leggy in dex > op clipper. Cross-body + dex + stall walked flag-by-flag.',
     derivation: 'xbody(1) + dex(1) + stall(1) = 3 ADD',
-    whyNote:    'A rotational dex with same-side clipper terminal: three flag-counting primitives combine into the foundational rotational atom. Anchors a deep family (paradox-whirl, spinning-whirl, ducking-whirl, blurry-whirl, symposium-whirl, mobius via torque branch).',
+    whyNote:    'A rotational dex with an opposite-side clipper terminal: three scoring components combine into this foundational move. Anchors a deep family (paradox-whirl, spinning-whirl, ducking-whirl, blurry-whirl, symposium-whirl, mobius via torque branch).',
   },
   {
     trickName:  'Swirl',
@@ -405,7 +405,7 @@ const WORKED_EXAMPLES: readonly AddAnalysisWorkedExample[] = [
     addLabel:   '3 ADD',
     components: 'Operational chain: [set] > (downtime) spin > ss clipper. Spin flag + cross-body + stall walked flag-by-flag.',
     derivation: 'spin(1) + xbody(1) + stall(1) = 3 ADD',
-    whyNote:    'A spin flag built into the atom: osis owns the spin-flag sense of the word (see the spin note above). Two major branch compounds, Torque and Blender, are its 4-ADD derivatives, each spawning its own family.',
+    whyNote:    'A spin flag built into the move: osis owns the spin-flag sense of the word (see the spin note above). Two major branch compounds, Torque and Blender, are its 4-ADD derivatives, each spawning its own family.',
   },
 
   // ── Operator visibility: paradox stacked on a base ───────────────────
@@ -472,7 +472,7 @@ export interface AddAnalysisBranchStep {
 }
 
 const OSIS_BRANCH_FRAMING =
-  'One atom, three operators, a whole lineage. Each step is a single operator ' +
+  'One foundational move, three operators, a whole lineage. Each step is a single operator ' +
   'on the trick before it: read the name, add the operator, get the number.';
 
 const OSIS_BRANCH_LADDER: readonly AddAnalysisBranchStep[] = [

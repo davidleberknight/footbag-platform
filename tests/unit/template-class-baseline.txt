@@ -962,10 +962,6 @@ trick-pathway-primary
 trick-pathway-secondary
 trick-pathway-title
 trick-pathways
-trick-primitive-note
-trick-primitive-note-explainer
-trick-primitive-note-label
-trick-primitive-note-link
 trick-prose-paragraph
 trick-quantity-ladder
 trick-scoring-notes

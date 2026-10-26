@@ -7,7 +7,7 @@
  * categories:
  *   - Progressions (curated chains)
  *   - Modifier pedagogy (per-modifier teaching pages)
- *   - Reference (Freestyle Concepts connective panels)
+ *   - Reference (the historical move-set compilation)
  *
  * Observational layer only. No DB writes; no canonical references modified.
  */

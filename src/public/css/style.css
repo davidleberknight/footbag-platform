@@ -4801,37 +4801,9 @@ a.hashtag--media:hover {
   color: var(--text-muted);
 }
 
-/* Primitive-note callout on core-atom trick-detail pages.
-   Pairs with the service-layer suppression of addAnalysis + equivalenceTopology
-   on atoms: the suppressed sections are replaced editorially by a
-   compact two-line callout explaining the ontological role.
-   Restrained styling; never dominates the trick-about above it. */
-.trick-primitive-note {
-  margin: var(--space-md) 0;
-}
-.trick-primitive-note-label {
-  margin: 0 0 var(--space-xs);
-  font-weight: 600;
-  font-size: 1rem;
-  color: var(--slate-800);
-  letter-spacing: 0.01em;
-}
-.trick-primitive-note-explainer {
-  margin: 0;
-  font-size: 0.9rem;
-  color: var(--text);
-  line-height: 1.5;
-}
-.trick-primitive-note-link {
-  margin-left: var(--space-sm);
-  font-size: 0.9rem;
-  white-space: nowrap;
-}
-
 /* Equivalence-topology doctrine footer. Appears inside the expanded
-   <details> panel after the derivation list. Explains why atoms do
-   not carry alternate derivations (the companion to the atom-side
-   primitive-note callout above). */
+   <details> panel after the derivation list. Explains why the
+   foundational moves do not carry alternate derivations. */
 .trick-equivalence-topology-doctrine-note {
   margin: var(--space-md) var(--space-lg) var(--space-lg) var(--space-lg);
   padding-top: var(--space-md);
@@ -4868,9 +4840,9 @@ a.hashtag--media:hover {
 }
 
 /* Naming & interpretation overlay. Compact card; visually modest;
-   never more prominent than JOB/ADD notation. Mirrors the
-   .trick-primitive-note vocabulary (small bordered block with accent
-   border-left) so the editorial overlays feel like one design family.
+   never more prominent than JOB/ADD notation: a small bordered block
+   with an accent border-left, so the editorial overlays feel like one
+   design family.
    Curator-locked per freestyleTrickInterpretations.ts. */
 .trick-interpretation {
   background: var(--white);

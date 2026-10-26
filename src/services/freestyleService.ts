@@ -1682,21 +1682,6 @@ export interface FreestyleTrickContent {
     provenanceNote:  string;
     isAdvanced:      boolean;  // true: collapsed behind a disclosure; false: always visible
   } | null;
-  // Primitive-note callout.
-  // Populated only when the slug is one of the 12 core atoms (per
-  // isCoreAtom). Surfaces a lightweight "Core movement atom" callout
-  // on atom trick-detail pages so readers understand the ontological
-  // role behind the suppressed compound-shaped sections (addAnalysis,
-  // equivalenceTopology).
-  //
-  // Doctrine: primitive vs compound is a structural distinction, not
-  // a difficulty claim or an ADD valuation. See the glossary's
-  // "Primitives and Compounds" section (#primitives-and-compounds)
-  // for the full doctrine framing.
-  primitiveNote: {
-    label:     string;
-    explainer: string;
-  } | null;
   // Reverse-pair transform overlay.
   // Populated only for the five curator-locked reverse-direction
   // pairs (illusion, pickup, rev-whirl, rev-swirl, orbit). Surfaces
@@ -3783,12 +3768,9 @@ export interface FreestyleConceptsContent {
   // note). Demonstrates the compositional system upfront, before the
   // reference content begins.
   derivationAtlas:      readonly DerivationPanelEntry[];
-  // §1 Core trick atoms — twelve curator-authoritative atoms with
-  // movement-physical educational prose (curator-authored). Surfaces
-  // a beginner-facing pedagogical layer ABOVE the existing symbolic /
-  // structural reference content. Authoring principle: movement
-  // intuition + foundational/cultural significance lead; compositional
-  // pointers are explicitly secondary. Sourced from
+  // The twelve foundational moves of Movement Basics: each card is a
+  // "Movement:" line plus titled collapsible panels, a beginner-facing layer
+  // above the structural reference content. Sourced from
   // src/content/freestyleCoreAtomEducational.ts. Each card carries a
   // detail-page href for navigation outward.
   coreAtomEducationalCards: readonly LanguageOfFreestyleAtomCard[];
@@ -7689,28 +7671,6 @@ export const freestyleService = {
             return entry && !entry.curatorConfirmPending
               ? shapeEquivalenceTopologyView(entry)
               : null;
-          })(),
-          primitiveNote: (() => {
-            // Primitive-note callout. The companion to the core-atom
-            // suppression rule above: where atoms suppress compound-
-            // shaped partials, this surfaces a small pedagogical note
-            // explaining the ontological role.
-            //
-            // Wording is locked here at the service layer (not in the
-            // template) so the doctrine framing stays consistent across
-            // all 12 atom pages. The glossary section
-            // #primitives-and-compounds carries the full doctrine.
-            //
-            // Constraints (do not relax without curator review):
-            // - never implies "simple" or "easy"
-            // - never implies compounds are harder
-            // - never implies ADD valuation
-            // - never collapses movement semantics into scoring semantics
-            if (!isCoreAtom(slug)) return null;
-            return {
-              label:     'Core movement atom',
-              explainer: 'Foundational primitive: functions as a compositional base rather than a recursively decomposed structure.',
-            };
           })(),
           transform: (() => {
             // Reverse-pair transform overlay. Populated only for the

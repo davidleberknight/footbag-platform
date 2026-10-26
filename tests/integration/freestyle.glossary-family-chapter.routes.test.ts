@@ -63,7 +63,7 @@ describe('Freestyle Concepts — Family Encyclopedia topic (destination card + i
   it('keeps all the family reference content present (nothing dropped by wrapping)', async () => {
     const html = await concepts();
     expect(html).toContain('id="edge-cases-special-structures"');
-    expect(html).toContain('Other foundational atoms');
+    expect(html).toContain('Other foundational moves');
     expect(html).toContain('id="section-families"'); // the section element is preserved
   });
 });

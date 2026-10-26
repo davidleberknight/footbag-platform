@@ -35,18 +35,18 @@ export const GLOSSARY_CORE_CONCEPTS: readonly GlossaryConceptCard[] = [
   {
     key:     'direction',
     line:    "A dexterity circles the bag one of two ways, inward or outward. The direction is set the instant the foot starts the bag moving, and it is one of the two choices that make one dex a different move from another.",
-    relates: "Direction pairs with side to distinguish the two-point atoms. Reversing a dex's direction gives a different trick with its own name, not a variant (the lesson of mirage and illusion). Every atom has a direction mirror: around the world and orbit, mirage and illusion, whirl and reverse whirl (also called whip).",
+    relates: "Direction pairs with side to distinguish the two-point moves. Reversing a dex's direction gives a different trick with its own name, not a variant (the lesson of mirage and illusion). The one-dex foundational moves come in direction mirrors: around the world and orbit, mirage and illusion, whirl and reverse whirl (also called whip).",
   },
   {
     key:     'side',
     line:    "A dexterity works either on the same side or the opposite side, read against the most recent side-bearing component rather than a fixed plant leg. Same-side means the same leg as that component; opposite-side means the other leg, and two opposite relations in a row return to where they started.",
-    relates: "Side is the second of the two choices that define a dex, alongside direction. The four two-point atoms lay both axes out: around the world and orbit are same-side, mirage and illusion opposite-side. Which leg does the dex is part of what the trick is, not a matter of style or reach.",
-    reveal:  "Two tricks can share landing, difficulty, even direction, and still be different tricks because one dexes with the same leg and the other with the opposite leg. Side is a full structural axis, not a variation. Hold direction and side as two independent switches, and the crowd of near-identical pairs stops being confusing: each atom flips on either switch, and each flip is a separately named trick.",
+    relates: "Side is the second of the two choices that define a dex, alongside direction. The four two-point moves lay both axes out: around the world and orbit are same-side, mirage and illusion opposite-side. Which leg does the dex is part of what the trick is, not a matter of style or reach.",
+    reveal:  "Two tricks can share landing, difficulty, even direction, and still be different tricks because one dexes with the same leg and the other with the opposite leg. Side is a full structural axis, not a variation. Hold direction and side as two independent switches, and the crowd of near-identical pairs stops being confusing: each move flips on either switch, and each flip is a separately named trick.",
   },
   {
     key:     'cross-body',
     line:    "Cross-body describes what the working foot does with the body: instead of working the bag in front of you on your open side, the foot reaches across and works behind the opposite leg, the legs crossing so the bag is handled on the far side.",
-    relates: "Cross-body is the body relationship that defines the clipper: a clipper stall is a cross-body catch, and it is the shared signature of the atoms that land there (whirl, swirl, butterfly, osis) and their compounds. It is a body configuration, not a travel direction: whirl finishes cross-body on the opposite side and swirl on its own side, yet both are cross-body, so it is a distinct axis from side. In notation it appears as the scored cross-body bracket, one reason clipper-side atoms such as whirl score differently from toe-side relatives such as mirage.",
+    relates: "Cross-body is the body relationship that defines the clipper: a clipper stall is a cross-body catch, and it is the shared signature of the foundational moves that land there (whirl, swirl, butterfly, osis) and their compounds. It is a body configuration, not a travel direction: whirl finishes cross-body on the opposite side and swirl on its own side, yet both are cross-body, so it is a distinct axis from side. In notation it appears as the scored cross-body bracket, one reason clipper-side moves such as whirl score differently from toe-side relatives such as mirage.",
   },
   {
     key:     'set-vs-operator',

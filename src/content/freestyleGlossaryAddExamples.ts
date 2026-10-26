@@ -87,6 +87,6 @@ export const ADD_WORKED_EXAMPLES: readonly GlossaryAddExample[] = [
     officialAdd:       5,
     derivation:        'furious(+2) + osis(3) = 5 ADD',
     status:            'canonical',
-    observationalNote: 'Furious is the two-dex uptime set (barraging is a legacy name for it): the two dex steps inside the set are each count-bearing, giving a structural +2 weight. The Baroque total of 5 converges mechanically as the two-dex contribution stacked on the osis atom.',
+    observationalNote: 'Furious is the two-dex uptime set (barraging is a legacy name for it): the two dex steps inside the set are each count-bearing, giving a structural +2 weight. The Baroque total of 5 converges mechanically as the two-dex contribution stacked on the osis base.',
   },
 ];
