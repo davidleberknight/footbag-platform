@@ -330,11 +330,12 @@ describe('GET /freestyle/modifier/paradox — happy path', () => {
     expect(res.text).toMatch(/does not change the official IFPA family classifications/i);
   });
 
-  it('renders cross-link footer to walking-progression, never the retired learning index', async () => {
+  it('renders cross-link footer to the Butterfly family page, never a retired address', async () => {
     const res = await page('/freestyle/modifier/paradox');
     expect(res.text).toContain('symbolic-crosslinks');
-    expect(res.text).toContain('href="/freestyle/progression/walking-family"');
+    expect(res.text).toContain('href="/freestyle/families/butterfly"');
     expect(res.text).not.toContain('href="/freestyle/learn"');
+    expect(res.text).not.toContain('href="/freestyle/progression/walking-family"');
   });
 });
 
@@ -418,11 +419,12 @@ describe('GET /freestyle/modifier/ducking — happy path', () => {
     expect(res.text).toMatch(/does not change the official IFPA family classifications/i);
   });
 
-  it('renders cross-link footer to walking-progression, never the retired learning index', async () => {
+  it('renders cross-link footer to the Butterfly family page, never a retired address', async () => {
     const res = await page('/freestyle/modifier/ducking');
     expect(res.text).toContain('symbolic-crosslinks');
-    expect(res.text).toContain('href="/freestyle/progression/walking-family"');
+    expect(res.text).toContain('href="/freestyle/families/butterfly"');
     expect(res.text).not.toContain('href="/freestyle/learn"');
+    expect(res.text).not.toContain('href="/freestyle/progression/walking-family"');
   });
 });
 

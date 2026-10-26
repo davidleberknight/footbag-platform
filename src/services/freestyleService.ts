@@ -23,8 +23,9 @@
  *     (getAddAnalysisPage), /freestyle/combo-analysis (getComboAnalysisPage),
  *     /freestyle/by-the-numbers (getByTheNumbersPage).
  *   - Pedagogy: /freestyle/start (getStartPage, ending with the six next-step lessons),
- *     /freestyle/progression/walking-family, /freestyle/about, /freestyle/history.
- *     /freestyle/learn redirects permanently to /freestyle/start (LEARN_PAGE_REDIRECT).
+ *     /freestyle/about, /freestyle/history. /freestyle/learn redirects permanently to
+ *     /freestyle/start (LEARN_PAGE_REDIRECT), and /freestyle/progression/walking-family
+ *     to the Butterfly family page (WALKING_FAMILY_REDIRECT).
  *
  * Rendering contract:
  *   - Every trick-dictionary browse view renders the same shared two-line trick row; the
@@ -110,10 +111,6 @@ import {
   SymbolicEducationCta,
   buildSymbolicEducationCtas,
 } from './symbolicTrickPanels';
-import {
-  WalkingFamilyProgressionContent,
-  buildWalkingFamilyProgression,
-} from './symbolicProgressions';
 import {
   ModifierFamilyPageContent,
   buildModifierFamilyPage,
@@ -810,6 +807,10 @@ const OPERATOR_BOARD_PROSE: Record<OperatorBoardSurface, { heading: string; lede
 
 // The retired learning index now lives at the end of the getting-started page.
 export const LEARN_PAGE_REDIRECT = '/freestyle/start#next-steps';
+
+// The retired walking-family progression page: the Butterfly family page owns
+// that family's progression.
+export const WALKING_FAMILY_REDIRECT = '/freestyle/families/butterfly';
 
 // Getting-started page content: the frame's copy is in the template; the
 // service supplies the six next-step lessons that close it.
@@ -2994,7 +2995,7 @@ export interface FreestyleFamilyGroup {
   // Anchor = the family's base trick (slug === familySlug) when present.
   cards: DictionaryTrickCard[];
   // Optional cross-link to a symbolic educational surface for this family
-  // (e.g., butterfly family → walking-family progression). Null when no
+  // (e.g., butterfly family → the Butterfly family page). Null when no
   // corresponding surface is shipped.
   crossLink: { label: string; href: string } | null;
   // Family-level shared-terminal-structure
@@ -5890,7 +5891,7 @@ function applyDictionaryFamilyFilter<T extends { trick_family: string | null }>(
 // Map of family-slug → optional symbolic cross-link. Conservative: only
 // surfaces that have shipped pedagogy / progression pages get a link.
 const FAMILY_CROSS_LINKS: Record<string, { label: string; href: string } | undefined> = {
-  butterfly: { label: 'Walking-family progression', href: '/freestyle/progression/walking-family' },
+  butterfly: { label: 'Butterfly family: how the walking tricks branch', href: WALKING_FAMILY_REDIRECT },
 };
 
 function sortFamilyEntries(
@@ -8123,7 +8124,7 @@ export const freestyleService = {
     // array using anchor-first ordering (the family base trick first when
     // present, then ADD ascending, then name alphabetical) and an optional
     // crossLink to a symbolic educational surface (e.g., butterfly family →
-    // walking-family progression). The legacy `members` array is preserved
+    // the Butterfly family page). The legacy `members` array is preserved
     // for backwards compatibility while other surfaces migrate.
     // Bucketing (overrides, sub-label folds, ancestor containment, umbrella
     // aggregation) lives in the builder shared with the family-detail page.
@@ -8980,39 +8981,6 @@ export const freestyleService = {
         breadcrumbs: [
           { label: 'Freestyle', href: '/freestyle' },
           { label: content.displayName },
-        ],
-      },
-      content,
-    };
-  },
-
-  /**
-   * GET /freestyle/progression/walking-family
-   *
-   * Observational symbolic-grammar layer — hand-authored Walking Family
-   * progression chain. Returns null content when any
-   * required dictionary slug is missing (curated chain expects all 7 rows).
-   */
-  getWalkingFamilyProgressionPage(): PageViewModel<WalkingFamilyProgressionContent | null> {
-    const allDictRows = runSqliteRead('freestyleTricks.listAll', () =>
-      freestyleTricks.listAll.all() as FreestyleTrickRow[],
-    );
-    const content = buildWalkingFamilyProgression(allDictRows);
-    return {
-      seo: {
-        title: 'Walking-family progression (Freestyle)',
-        description:
-          'Educational symbolic-grammar progression for the walking family: butterfly through ripwalk, dimwalk, sidewalk, dada-curve, matador, and phoenix. Observational layer.',
-      },
-      page: {
-        sectionKey: 'freestyle',
-        pageKey:    'freestyle_walking_progression',
-        title:      'Walking-family progression',
-      },
-      navigation: {
-        breadcrumbs: [
-          { label: 'Freestyle', href: '/freestyle' },
-          { label: 'Walking-family progression' },
         ],
       },
       content,

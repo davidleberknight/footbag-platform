@@ -2,15 +2,14 @@
  * Integration tests for Freestyle Concepts fragment-anchor support.
  *
  * The Concepts foundational-tricks chapter and the modifier quick-reference
- * subsection carry id="term-{slug}" anchors. Progression / modifier-family
- * pages deep-link to the entry that teaches each term via conceptsHrefForTerm,
- * and the retired connective-panel ids still resolve inside those entries.
+ * subsection carry id="term-{slug}" anchors. Modifier-family pages deep-link
+ * to the entry that teaches each term via conceptsHrefForTerm, and the retired
+ * connective-panel ids still resolve inside those entries.
  *
  * Covers:
  *   - Concepts page renders id="term-X" anchors for foundational tricks
  *   - Concepts page renders id="term-X" anchors for modifier quick-reference
- *   - Walking-progression page concept links deep-link via fragments
- *   - Every Concepts link on the modifier and progression pages resolves
+ *   - Every Concepts link on the modifier pages resolves
  *   - Retired panel ids land inside their replacement entries
  *   - Fallback path: conceptsHrefForTerm returns bare URL for unknown terms
  */
@@ -34,7 +33,7 @@ const page = cachedGet(() => createApp());
 beforeAll(async () => {
   const db = createTestDb(dbPath);
 
-  // Seed walking-progression chain (so the page renders + emits concept links)
+  // Seed butterfly-based tricks so the pages under test render their links
   insertFreestyleTrick(db, { slug: 'butterfly',  canonical_name: 'butterfly',  adds: '3', base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound' });
   insertFreestyleTrick(db, { slug: 'ripwalk',    canonical_name: 'ripwalk',    adds: '4', base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound' });
   insertFreestyleTrick(db, { slug: 'dimwalk',    canonical_name: 'dimwalk',    adds: '4', base_trick: 'butterfly', trick_family: 'butterfly', category: 'compound' });
@@ -197,34 +196,6 @@ describe('GET /freestyle/concepts — fragment anchors render', () => {
   });
 });
 
-describe('walking-progression page — concept links deep-link via fragments', () => {
-  it('butterfly references go to /freestyle/concepts#term-butterfly', async () => {
-    const res = await page('/freestyle/progression/walking-family');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('href="/freestyle/concepts#term-butterfly"');
-  });
-
-  it('paradox, stepping, pixie and ducking references go to the entries that teach them', async () => {
-    const res = await page('/freestyle/progression/walking-family');
-    expect(res.text).toContain('href="/freestyle/concepts#term-paradox"');
-    expect(res.text).toContain('href="/freestyle/concepts#term-stepping"');
-    expect(res.text).toContain('href="/freestyle/concepts#term-set-launches"');
-    expect(res.text).toContain('href="/freestyle/concepts#term-ducking"');
-  });
-
-  it('no concept links remain at the bare /freestyle/concepts URL', async () => {
-    const res = await page('/freestyle/progression/walking-family');
-    // Match Related-concepts links specifically (the step concept-links region).
-    // Any "Related concepts:" link should carry a fragment.
-    const stepLinksRegion = res.text.match(/Related concepts:[\s\S]*?<\/p>/g) ?? [];
-    expect(stepLinksRegion.length).toBeGreaterThan(0);
-    for (const region of stepLinksRegion) {
-      const hasBareLink = /href="\/freestyle\/concepts"/.test(region);
-      expect(hasBareLink, `step concept-links region should not contain a bare /freestyle/concepts link: ${region}`).toBe(false);
-    }
-  });
-});
-
 describe('deep links into Concepts land on an element of the Concepts page', () => {
   async function conceptsIds(): Promise<Set<string>> {
     const res = await page('/freestyle/concepts');
@@ -232,14 +203,13 @@ describe('deep links into Concepts land on an element of the Concepts page', () 
     return new Set([...res.text.matchAll(/id="([^"]+)"/g)].map(m => m[1]));
   }
 
-  it('every Concepts link on the modifier and progression pages resolves', async () => {
+  it('every Concepts link on the modifier pages resolves', async () => {
     // The pages that link into Concepts by term; a link whose fragment the
     // Concepts page does not carry lands the reader at the top of the page.
     const ids = await conceptsIds();
     const sources = [
       '/freestyle/modifier/spinning', '/freestyle/modifier/paradox',
       '/freestyle/modifier/ducking', '/freestyle/modifier/symposium',
-      '/freestyle/progression/walking-family',
     ];
     let checked = 0;
     for (const path of sources) {

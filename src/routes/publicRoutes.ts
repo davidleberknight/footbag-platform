@@ -136,7 +136,9 @@ publicRouter.get('/freestyle/by-the-numbers', freestyleController.byTheNumbers);
 // six next-step lessons. The retired /freestyle/learn redirects permanently to them.
 publicRouter.get('/freestyle/learn',       freestyleController.learnRedirect);
 publicRouter.get('/freestyle/start',       freestyleController.start);
-publicRouter.get('/freestyle/progression/walking-family', freestyleController.walkingProgression);
+// The retired walking-family progression redirects permanently to the Butterfly
+// family page, which owns that family's progression.
+publicRouter.get('/freestyle/progression/walking-family', freestyleController.walkingProgressionRedirect);
 publicRouter.get('/freestyle/modifier/:slug', freestyleController.modifierFamily);
 // Family detail pages: first-class Family Parents only (anything else 404s
 // in the service). The bare /freestyle/families path redirects to the

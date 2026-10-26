@@ -2,12 +2,11 @@
  * Integration tests for the DISCOVERABILITY phase of the symbolic subsystem.
  *
  * Covers three surfaces:
- *   2. Trick-page educational CTAs, decided from the trick's own structure:
- *      built on the butterfly → walking-family progression
+ *   1. Trick-page educational CTAs, decided from the trick's own structure:
+ *      built on the butterfly → the Butterfly family page
  *      built on the whirl, or carrying the spinning modifier → spinning modifier page
- *   3. Cross-links rendered on /freestyle/progression/walking-family and
- *      /freestyle/modifier/spinning footers.
- *   4. Landing-page educational pointer paragraph at /freestyle.
+ *   2. The cross-links rendered on the /freestyle/modifier/spinning footer.
+ *   3. Landing-page educational pointer paragraph at /freestyle.
  *
  * Observational-layer separation invariants verified throughout.
  */
@@ -86,12 +85,12 @@ describe('trick-page educational CTAs — butterfly-wing-topology members', () =
   const BUTTERFLY_SLUGS = ['butterfly', 'ripwalk', 'sidewalk', 'dimwalk', 'matador', 'phoenix'];
 
   for (const slug of BUTTERFLY_SLUGS) {
-    it(`/freestyle/tricks/${slug} renders the walking-family CTA`, async () => {
+    it(`/freestyle/tricks/${slug} renders the Butterfly family CTA`, async () => {
       const res = await page(`/freestyle/tricks/${slug}`);
       expect(res.status).toBe(200);
       expect(res.text).toContain('symbolic-trick-ctas-block');
-      expect(res.text).toContain('href="/freestyle/progression/walking-family"');
-      expect(res.text).toMatch(/Walking-family progression/);
+      expect(ctaBlock(res.text)).toContain('href="/freestyle/families/butterfly"');
+      expect(res.text).toMatch(/Butterfly family: how the walking tricks branch/);
     });
   }
 });
@@ -141,12 +140,12 @@ function ctaBlock(html: string): string {
 }
 
 describe('trick-page educational CTAs follow the trick, not a stored grouping', () => {
-  it('a trick no grouping has heard of gets the walking-family link from its butterfly base', async () => {
+  it('a trick no grouping has heard of gets the Butterfly family link from its butterfly base', async () => {
     // A trick published in the application has no stored grouping row, and
-    // without this it would never be pointed at the progression it belongs to.
+    // without this it would never be pointed at the family it belongs to.
     const res = await page('/freestyle/tricks/fresh_walk');
     expect(res.status).toBe(200);
-    expect(ctaBlock(res.text)).toContain('href="/freestyle/progression/walking-family"');
+    expect(ctaBlock(res.text)).toContain('href="/freestyle/families/butterfly"');
   });
 
   it('the spinning modifier alone earns the spinning link, on a base that is not the whirl', async () => {
@@ -154,7 +153,7 @@ describe('trick-page educational CTAs follow the trick, not a stored grouping', 
     expect(res.status).toBe(200);
     const block = ctaBlock(res.text);
     expect(block).toContain('href="/freestyle/modifier/spinning"');
-    expect(block).not.toContain('href="/freestyle/progression/walking-family"');
+    expect(block).not.toContain('href="/freestyle/families/butterfly"');
   });
 
   it('a trick with no modifier link rows takes its modifiers from the curated formula, as its Structural Facts do', async () => {
@@ -178,23 +177,14 @@ describe('trick-page educational CTAs follow the trick, not a stored grouping', 
 // 3. Cross-links between symbolic full-pages
 // ─────────────────────────────────────────────────────────────────────────
 
-describe('symbolic full-page cross-links — walking-progression footer', () => {
-  it('walking-progression page renders the symbolic-crosslinks block', async () => {
-    const res = await page('/freestyle/progression/walking-family');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('symbolic-crosslinks');
-    expect(res.text).toContain('href="/freestyle/modifier/spinning"');
-    expect(res.text).not.toContain('href="/freestyle/learn"');
-  });
-});
-
 describe('symbolic full-page cross-links — modifier-family footer', () => {
   it('spinning modifier page renders the symbolic-crosslinks block', async () => {
     const res = await page('/freestyle/modifier/spinning');
     expect(res.status).toBe(200);
     expect(res.text).toContain('symbolic-crosslinks');
-    expect(res.text).toContain('href="/freestyle/progression/walking-family"');
+    expect(res.text).toContain('href="/freestyle/families/butterfly"');
     expect(res.text).not.toContain('href="/freestyle/learn"');
+    expect(res.text).not.toContain('href="/freestyle/progression/walking-family"');
   });
 });
 

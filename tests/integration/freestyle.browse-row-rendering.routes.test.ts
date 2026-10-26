@@ -478,11 +478,10 @@ describe('GET /freestyle/tricks?view=family — trick rows', () => {
     expect(res.text).toContain('data-trick-slug="ripwalk"');
   });
 
-  it('butterfly family heading renders the walking-progression cross-link', async () => {
+  it('butterfly family heading links to the Butterfly family page for the walking tricks', async () => {
     const res = await page('/freestyle/tricks?view=family');
-    expect(res.text).toContain('trick-family-cross-link');
-    expect(res.text).toContain('href="/freestyle/progression/walking-family"');
-    expect(res.text).toContain('Walking-family progression');
+    expect(res.text).toMatch(/class="trick-family-cross-link"><a class="action-link" href="\/freestyle\/families\/butterfly">Butterfly family: how the walking tricks branch</);
+    expect(res.text).not.toContain('href="/freestyle/progression/walking-family"');
   });
 
   it('anchor-first ordering: butterfly base trick renders before its compound members', async () => {

@@ -489,9 +489,6 @@ glossary-thesis
 glossary-timing-clock
 glossary-timing-clock-caption
 glossary-timing-clock-figure
-glossary-walking-family-formula
-glossary-walking-family-note
-glossary-walking-family-progression
 hashtag
 hashtag--block
 hashtag--media
@@ -602,7 +599,6 @@ nav-primary
 no-results-notice
 notation-article-text
 notation-core-family
-notation-directionality
 notation-display
 notation-display-tokens
 notation-glossary-link
@@ -687,7 +683,6 @@ profile-section
 profile-section-heading
 profile-sidebar
 progression-chain
-progression-intro
 queue-ask-member
 queue-member-question
 queue-question-body
@@ -799,13 +794,11 @@ sport-section-header
 sport-section-icon
 sport-section-more-info
 step-adds
-step-glossary-links
 step-header
 step-modifier
 step-name
 step-number
 step-rationale
-step-symbolic
 structural-fact
 structural-fact-note
 symbolic-crosslinks

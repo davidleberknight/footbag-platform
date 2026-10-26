@@ -116,42 +116,16 @@ describe('Freestyle Concepts §7 — visible glyph quick-reference', () => {
   });
 });
 
-describe('Freestyle Concepts §8 — walking-family progression', () => {
-  it('renders the walking-family progression heading and anchor', async () => {
+describe('Freestyle Concepts — the family worked example', () => {
+  it('keeps its deep-link anchor and hands the progression to the Butterfly family page', async () => {
+    // The Butterfly family page owns that family's progression, so Concepts names
+    // it as the worked example rather than repeating the ladder.
     const res = await page('/freestyle/concepts');
-    expect(res.text).toContain('id="walking-family-progression"');
-    expect(res.text).toMatch(/Walking-family progression/);
-  });
-
-  it('renders all seven canonical compounds with detail-page links', async () => {
-    const res = await page('/freestyle/concepts');
-    const compounds = [
-      'butterfly', 'ripwalk', 'dimwalk', 'sidewalk',
-      'dada_curve', 'matador', 'phoenix',
-    ];
-    for (const slug of compounds) {
-      expect(
-        res.text,
-        `walking-family progression missing link for ${slug}`,
-      ).toContain(`href="/freestyle/tricks/${slug}"`);
-    }
-  });
-
-  it('renders the compositional formula next to each non-base compound', async () => {
-    // Walking-family formulas are token-colored — each word renders
-    // inside <span class="notation-token notation-...">; markup
-    // interleaves between tokens. Match token-by-token rather than
-    // contiguous-substring.
-    const res = await page('/freestyle/concepts');
-    expect(res.text).toMatch(/notation-token[^>]*>stepping<[\s\S]*?notation-token[^>]*>butterfly</);
-    expect(res.text).toMatch(/notation-token[^>]*>pixie<[\s\S]*?notation-token[^>]*>butterfly</);
-    expect(res.text).toMatch(/notation-token[^>]*>stepping<[\s\S]*?notation-token[^>]*>near<[\s\S]*?notation-token[^>]*>butterfly</);
-    // dada-curve's "miraging far symposium butterfly" formula is held for curator
-    // review (miraging is not a settled scored component), so it renders a held
-    // note instead of the formula chip.
-    expect(res.text).toContain('decomposition held for curator review');
-    expect(res.text).toMatch(/notation-token[^>]*>nuclear<[\s\S]*?notation-token[^>]*>butterfly</);
-    expect(res.text).toMatch(/notation-token[^>]*>pixie<[\s\S]*?notation-token[^>]*>ducking<[\s\S]*?notation-token[^>]*>butterfly</);
+    const start = res.text.indexOf('id="walking-family-progression"');
+    expect(start).toBeGreaterThan(-1);
+    const block = res.text.slice(start, res.text.indexOf('</p>', start));
+    expect(block).toContain('href="/freestyle/families/butterfly"');
+    expect(res.text).not.toContain('glossary-walking-family-progression');
   });
 });
 

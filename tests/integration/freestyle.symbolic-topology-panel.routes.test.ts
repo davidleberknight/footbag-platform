@@ -81,10 +81,10 @@ describe('trick pages carry no observational topology panel', () => {
 
   it('keeps the educational links the same memberships drive', async () => {
     // Removing the panel took only the panel: ripwalk sits in the butterfly-wing
-    // group and still links to the walking-family progression, and montage sits
+    // group and still links to the Butterfly family page, and montage sits
     // in the spinning family and still links to the spinning modifier page.
     const ripwalk = await page('/freestyle/tricks/ripwalk');
-    expect(ripwalk.text).toContain('href="/freestyle/progression/walking-family"');
+    expect(ripwalk.text).toContain('href="/freestyle/families/butterfly"');
     const montage = await page('/freestyle/tricks/montage');
     expect(montage.text).toContain('href="/freestyle/modifier/spinning"');
   });

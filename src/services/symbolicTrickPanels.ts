@@ -21,7 +21,7 @@
  */
 
 export interface SymbolicEducationCta {
-  label:        string;   // "Walking-family progression" or "Spinning modifier educational page"
+  label:        string;   // "Butterfly family: how the walking tricks branch" or "Spinning modifier educational page"
   href:         string;
   layerSource:  'observational';
 }
@@ -48,8 +48,8 @@ const CTA_DEFINITIONS: readonly {
   applies: (trick: SymbolicEducationInput) => boolean;
 }[] = [
   {
-    label:   'Walking-family progression',
-    href:    '/freestyle/progression/walking-family',
+    label:   'Butterfly family: how the walking tricks branch',
+    href:    '/freestyle/families/butterfly',
     applies: (t) => effectiveBase(t) === 'butterfly',
   },
   {

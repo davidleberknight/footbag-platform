@@ -58,7 +58,6 @@ const STATIC_PUBLIC_PATHS = [
   '/freestyle/add-analysis',
   '/freestyle/combo-analysis',
   '/freestyle/media',
-  '/freestyle/progression/walking-family',
   '/media',
   '/media/browse',
   '/media/member-galleries',

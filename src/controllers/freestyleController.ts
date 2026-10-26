@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { freestyleService, RETIRED_SET_PAGE_REDIRECTS, LEARN_PAGE_REDIRECT } from '../services/freestyleService';
+import { freestyleService, RETIRED_SET_PAGE_REDIRECTS, LEARN_PAGE_REDIRECT, WALKING_FAMILY_REDIRECT } from '../services/freestyleService';
 import { handleControllerError, renderNotFound } from '../lib/controllerErrors';
 
 /**
@@ -340,14 +340,9 @@ export const freestyleController = {
     }
   },
 
-  /** GET /freestyle/progression/walking-family — observational symbolic-grammar layer */
-  walkingProgression(_req: Request, res: Response, next: NextFunction): void {
-    try {
-      const vm = freestyleService.getWalkingFamilyProgressionPage();
-      res.render('freestyle/walking-progression', vm);
-    } catch (err) {
-      handleControllerError(err, res, next, 'freestyle controller');
-    }
+  /** GET /freestyle/progression/walking-family — retired; the Butterfly family page owns that progression. */
+  walkingProgressionRedirect(_req: Request, res: Response): void {
+    res.redirect(301, WALKING_FAMILY_REDIRECT);
   },
 
   /** GET /freestyle/learn — retired; its six lessons close the getting-started page. */

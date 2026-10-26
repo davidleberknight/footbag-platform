@@ -715,7 +715,7 @@ Story: As a visitor new to freestyle, I can start from the freestyle landing pag
 Success Criteria:
 
 - `/freestyle` is the landing page: it previews and links into the encyclopedia's surfaces (dictionary, search, records, learning, media, reference) without embedding any of them wholesale, and links the freestyle rules and the freestyle section of the equipment page.
-- `/freestyle/start` is the novice entry page targeted by the landing page's "Start here" call to action, and ends with six short lessons, in order, as its next steps; `/freestyle/learn` permanently redirects to `/freestyle/start`; `/freestyle/progression/walking-family` presents a worked progression through one family.
+- `/freestyle/start` is the novice entry page targeted by the landing page's "Start here" call to action, and ends with six short lessons, in order, as its next steps; `/freestyle/learn` permanently redirects to `/freestyle/start`; `/freestyle/progression/walking-family` permanently redirects to the Butterfly family page.
 - `/freestyle/families/{slug}` renders a family detail page for each official family. A lineage below the family-page threshold has no page (404), and no other surface links to it.
 - Family pages own same-family progression: ladders and next-step guidance within a family live on the family page, and trick pages link into them rather than duplicating them.
 - `/freestyle/about`, `/freestyle/history`, `/freestyle/competition`, and `/freestyle/partnerships` present editorial orientation content.

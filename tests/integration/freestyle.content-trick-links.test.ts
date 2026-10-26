@@ -47,7 +47,6 @@ const CONTENT_DRIVEN_PAGES = [
   '/freestyle/sets',
   '/freestyle/operators',
   '/freestyle/observational',
-  '/freestyle/progression/walking-family',
   '/freestyle/notation-article',
 ];
 
