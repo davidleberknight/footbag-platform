@@ -35,7 +35,6 @@ describe('paradox is a single-dex relationship on every live teaching surface', 
   for (const path of [
     '/freestyle/modifier/paradox',
     '/freestyle/modifier/spinning',
-    '/freestyle/learn',
     '/freestyle/glossary',
   ]) {
     it(`${path} never describes paradox as happening between two dexes`, async () => {

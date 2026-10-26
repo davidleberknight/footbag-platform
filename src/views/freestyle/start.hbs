@@ -144,7 +144,6 @@
       together:
     </p>
     <ul>
-      <li><a href="/freestyle/learn">Learn the movement vocabulary</a>: guided lessons and progressions.</li>
       <li><a href="/freestyle/tricks">Look up a trick</a>: the full dictionary.</li>
       <li><a href="/freestyle/glossary">Look up a term</a>: plain-language definitions, A to Z.</li>
       <li><a href="/freestyle/concepts">Understand the concepts</a>: chapters on how tricks are built, named, and scored.</li>
@@ -152,6 +151,16 @@
       <li><a href="/freestyle/by-the-numbers">Freestyle by the Numbers</a>: how the trick dictionary breaks down by difficulty, dexterity, entry set, family ending, and body movement.</li>
       <li><a href="/freestyle/observational">Emerging Vocabulary</a>: trick names and readings still being confirmed.</li>
     </ul>
+  </section>
+
+  <section class="content-section" id="next-steps">
+    <h2 class="section-heading">Next steps</h2>
+    <p>{{content.nextStepsIntro}}</p>
+    <ol>
+      {{#each content.nextSteps}}
+      <li><a href="{{href}}">{{name}}</a>: {{lesson}}</li>
+      {{/each}}
+    </ol>
   </section>
 
 </div>

@@ -67,7 +67,7 @@ export const ROUTE_STORIES: Readonly<Record<string, RouteStory>> = {
   'GET /freestyle/tricks': { stories: ['V_Browse_Trick_Dictionary'] },
   'GET /freestyle/insights': { none: 'compatibility-redirect', why: 'Permanently redirects the retired insights page to /freestyle/by-the-numbers.' },
   'GET /freestyle/by-the-numbers': { stories: ['V_View_Freestyle_Reference'] },
-  'GET /freestyle/learn': { stories: ['V_Learn_Freestyle'] },
+  'GET /freestyle/learn': { none: 'compatibility-redirect', why: 'Permanently redirects the retired learning index to the six next-step lessons that close /freestyle/start.' },
   'GET /freestyle/start': { stories: ['V_Learn_Freestyle'] },
   'GET /freestyle/progression/walking-family': { stories: ['V_Learn_Freestyle'] },
   'GET /freestyle/modifier/:slug': { stories: ['V_View_Freestyle_Reference'] },

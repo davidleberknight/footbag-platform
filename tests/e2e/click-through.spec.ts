@@ -188,7 +188,7 @@ test('Freestyle public surfaces render end-to-end for an anonymous visitor', { t
     '/freestyle/records',
     '/freestyle/glossary',
     '/freestyle/concepts',
-    '/freestyle/learn',
+    '/freestyle/start',
     '/freestyle/media',
   ];
   for (const walkPath of walk) {

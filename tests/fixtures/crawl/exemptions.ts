@@ -144,7 +144,7 @@ export const ROUTE_EXEMPTIONS: readonly RouteExemption[] = [
     ]),
   ...group('compatibility-redirect', 'A permanent redirect from a retired address; nothing current links to it.', [
     'GET /tags', 'GET /freestyle/insights', 'GET /freestyle/families',
-    'GET /freestyle/compositional-sets', 'GET /freestyle/sets/reference',
+    'GET /freestyle/compositional-sets', 'GET /freestyle/sets/reference', 'GET /freestyle/learn',
   ]),
   ...group('mailed-token',
     'Reached only from a link mailed to the member carrying a one-time token; no crawl seeds a captured message.', [

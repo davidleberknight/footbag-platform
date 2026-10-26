@@ -12,7 +12,9 @@
  *     never as a synonym for an ordinary inside kick.
  *   - Butterfly is gated behind clipper control and never described as two
  *     dexterities.
- *   - The page hands off to Learn, the dictionary, the glossary, and Freestyle Concepts.
+ *   - The page hands off to the dictionary, the glossary, and Freestyle Concepts,
+ *     and ends with the six next-step lessons in reading order.
+ *   - The retired /freestyle/learn redirects permanently to those lessons.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { cachedGet } from '../fixtures/cachedGet';
@@ -96,42 +98,57 @@ describe('GET /freestyle/start — novice page contract', () => {
     expect(html).not.toMatch(/two dexterities/i);
   });
 
-  it('hands off to Learn, the dictionary, the glossary, and Freestyle Concepts', async () => {
+  it('hands off to the dictionary, the glossary, and Freestyle Concepts, never the retired learning index', async () => {
     const html = await page('/freestyle/start');
-    expect(html).toContain('href="/freestyle/learn"');
     expect(html).toContain('href="/freestyle/tricks"');
     expect(html).toContain('href="/freestyle/glossary"');
     expect(html).toContain('href="/freestyle/concepts"');
     expect(html).toContain('href="/freestyle/families/mirage"');
+    expect(html).not.toContain('href="/freestyle/learn"');
   });
 });
 
-describe('GET /freestyle/learn — reframed as the pathways index', () => {
-  it('presents the six lessons as a vocabulary tour, not a physical beginner curriculum', async () => {
-    const html = await page('/freestyle/learn');
-    expect(html).toContain('Six lessons: how the vocabulary fits together');
-    expect(html).not.toContain('shortest path from your first dexterity');
+/** The page from its next-steps section to the end of the main content. */
+function nextSteps(html: string): string {
+  const start = html.indexOf('id="next-steps"');
+  expect(start, 'next-steps section').toBeGreaterThan(-1);
+  return html.slice(start, html.indexOf('</main>', start));
+}
+
+describe('GET /freestyle/start — ends with the six next-step lessons', () => {
+  it('closes the page with the six lessons, each linked, in reading order', async () => {
+    const html = await page('/freestyle/start');
+    const section = nextSteps(html);
+    // The lessons are the last section, after the page's other hand-offs.
+    expect(html.indexOf('id="next-steps"')).toBeGreaterThan(html.indexOf('href="/freestyle/concepts"'));
+    expect(section).toContain('Six short lessons, in order. Start with the first.');
+    // Dexterity, complete trick, catch structure, family, set, modifier.
+    const order = [
+      '/freestyle/tricks/around_the_world',
+      '/freestyle/tricks/mirage',
+      '/freestyle/families/butterfly',
+      '/freestyle/families/whirl',
+      '/freestyle/sets/pixie',
+      '/freestyle/modifier/spinning',
+    ];
+    let last = -1;
+    for (const href of order) {
+      const at = section.indexOf(`href="${href}"`);
+      expect(at, href).toBeGreaterThan(last);
+      last = at;
+    }
+    expect((section.match(/<li>/g) ?? []).length).toBe(order.length);
   });
 
   it('never describes Butterfly as two dexterities', async () => {
-    const html = await page('/freestyle/learn');
-    expect(html).not.toMatch(/two dexterities/i);
+    expect(nextSteps(await page('/freestyle/start'))).not.toMatch(/two dexterities/i);
   });
+});
 
-  it('does not claim the operator board must be learned first, and does not miscount it', async () => {
-    const html = await page('/freestyle/learn');
-    expect(html).not.toContain('Learn these fourteen primitives first');
-    expect(html).not.toContain('fourteen primitives');
-    expect(html).toContain('Explore the movement-language index');
-  });
-
-  it('renders the lessons before the operator board', async () => {
-    const html = await page('/freestyle/learn');
-    const lessons = html.indexOf('Six lessons: how the vocabulary fits together');
-    const board = html.indexOf('Explore the movement-language index');
-    const progressions = html.indexOf('Progressions');
-    expect(lessons).toBeGreaterThan(0);
-    expect(progressions).toBeGreaterThan(lessons);
-    expect(board).toBeGreaterThan(progressions);
+describe('GET /freestyle/learn — retired, redirects to the lessons', () => {
+  it('redirects permanently to the next-steps section of the getting-started page', async () => {
+    const res = await getPage('/freestyle/learn');
+    expect(res.status).toBe(301);
+    expect(res.headers.location).toBe('/freestyle/start#next-steps');
   });
 });

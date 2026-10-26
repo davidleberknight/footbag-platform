@@ -53,7 +53,6 @@ const EDITORIAL_SURFACES = new Map<string, string>([
 const EXCEPTED_SERVICES = new Map<string, string>([
   ['countryUtils.ts', 'country names: proper nouns the platform does not author'],
   ['freestyleService.ts', 'authors the long-form freestyle reference, template text included'],
-  ['symbolicLearnIndex.ts', 'the freestyle reference index: article content, not chrome'],
   ['symbolicProgressions.ts', 'hand-authored freestyle progression prose'],
   ['symbolicTrickPanels.ts', 'freestyle reference panels woven into the article pages'],
 ]);

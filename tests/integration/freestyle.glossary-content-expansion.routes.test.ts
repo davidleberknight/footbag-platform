@@ -22,8 +22,7 @@
  *      with no individual contributors named inline.
  *
  *   Landing page: the "Educational pathways →" chip is removed from the
- *      Tutorials & Learning card. The /freestyle/learn route remains
- *      reachable from other surfaces (modifier-family, symbolic-discoverability).
+ *      Tutorials & Learning card.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { cachedGet } from '../fixtures/cachedGet';

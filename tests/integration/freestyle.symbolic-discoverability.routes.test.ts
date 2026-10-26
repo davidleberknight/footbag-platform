@@ -1,8 +1,7 @@
 /**
  * Integration tests for the DISCOVERABILITY phase of the symbolic subsystem.
  *
- * Covers four surfaces:
- *   1. NEW route GET /freestyle/learn — symbolic-subsystem index page.
+ * Covers three surfaces:
  *   2. Trick-page educational CTAs, decided from the trick's own structure:
  *      built on the butterfly → walking-family progression
  *      built on the whirl, or carrying the spinning modifier → spinning modifier page
@@ -78,146 +77,6 @@ beforeAll(async () => {
 });
 
 afterAll(() => cleanupTestDb(dbPath));
-
-// ─────────────────────────────────────────────────────────────────────────
-// 1. /freestyle/learn — symbolic-subsystem index page
-// ─────────────────────────────────────────────────────────────────────────
-
-describe('GET /freestyle/learn', () => {
-  it('returns 200 and renders the symbolic-subsystem index page', async () => {
-    const res = await page('/freestyle/learn');
-    expect(res.status).toBe(200);
-    expect(res.text).toContain('Educational pathways through freestyle footbag');
-  });
-
-  it('renders the six-lesson vocabulary tour: the six lessons in reading order, linked, above the advanced pathways', async () => {
-    const res = await page('/freestyle/learn');
-    expect(res.text).toContain('Six lessons: how the vocabulary fits together');
-    // The six lessons appear in reading order, each linked to its concept
-    // page: dexterity, complete trick, catch structure, family, set, modifier.
-    const order = [
-      '/freestyle/tricks/around_the_world',
-      '/freestyle/tricks/mirage',
-      '/freestyle/families/butterfly',
-      '/freestyle/families/whirl',
-      '/freestyle/sets/pixie',
-      '/freestyle/modifier/spinning',
-    ];
-    let last = -1;
-    for (const href of order) {
-      const at = res.text.indexOf(`href="${href}"`);
-      expect(at, href).toBeGreaterThan(last);
-      last = at;
-    }
-    // The lesson tour sits above the more advanced Progressions section.
-    expect(res.text.indexOf('Six lessons: how the vocabulary fits together')).toBeLessThan(res.text.indexOf('Progressions'));
-  });
-
-  it('renders all three sections in order: Progressions, Modifier pedagogy, Reference surfaces', async () => {
-    const res = await page('/freestyle/learn');
-    const a = res.text.indexOf('Progressions');
-    const b = res.text.indexOf('Modifier pedagogy');
-    const c = res.text.indexOf('Reference surfaces');
-    expect(a).toBeGreaterThan(-1);
-    expect(b).toBeGreaterThan(a);
-    expect(c).toBeGreaterThan(b);
-  });
-
-  it('renders all four currently shipped entries as links', async () => {
-    const res = await page('/freestyle/learn');
-    expect(res.text).toMatch(/href="\/freestyle\/progression\/walking-family"[^>]*>Walking-family progression/);
-    expect(res.text).toMatch(/href="\/freestyle\/modifier\/spinning"[^>]*>Spinning/);
-    expect(res.text).toMatch(/href="\/freestyle\/modifier\/paradox"[^>]*>Paradox/);
-    expect(res.text).toMatch(/href="\/freestyle\/modifier\/ducking"[^>]*>Ducking/);
-    // The Concepts page carries no movement-topology panels, so the learn
-    // index links to none.
-    expect(res.text).not.toContain('href="/freestyle/concepts#connective-panels"');
-  });
-
-  it('no entries render with the planned status badge (all three modifier pages now ship)', async () => {
-    const res = await page('/freestyle/learn');
-    expect(res.text).not.toContain('learn-entry-planned');
-    expect(res.text).not.toContain('learn-entry-status');
-  });
-
-  it('learn hero carries no layer badge (page-standard cleanup)', async () => {
-    const res = await page('/freestyle/learn');
-    expect(res.status).toBe(200);
-    expect(res.text).not.toContain('symbolic-layer-badge');
-  });
-
-  it('renders breadcrumb back to /freestyle', async () => {
-    const res = await page('/freestyle/learn');
-    expect(res.text).toMatch(/href="\/freestyle">Freestyle</);
-  });
-
-  it('layer footer references canonical surfaces, not symbolic-layer ones', async () => {
-    const res = await page('/freestyle/learn');
-    expect(res.text).toContain('/freestyle/tricks');
-    expect(res.text).toContain('/freestyle/concepts');
-    expect(res.text).toContain('/freestyle/glossary');
-  });
-});
-
-// ─────────────────────────────────────────────────────────────────────────
-// 1b. /freestyle/learn — operator-board onboarding surface
-// ─────────────────────────────────────────────────────────────────────────
-
-describe('GET /freestyle/learn — operator-board onboarding surface', () => {
-  it('renders the learn-surface operator-board heading and reference-board lede', async () => {
-    // The board is a reference index, never a learn-first mandate, and no
-    // hardcoded count appears (the rendered card count is what it is).
-    const res = await page('/freestyle/learn');
-    expect(res.text).toContain('Explore the movement-language index');
-    expect(res.text).toContain('A reference board of named sets, body movements, and structural relationships');
-    expect(res.text).not.toContain('fourteen primitives');
-    expect(res.text).not.toMatch(/learn these .* first/i);
-  });
-
-  it('does not render the landing- or Concepts-surface operator-board prose', async () => {
-    const res = await page('/freestyle/learn');
-    expect(res.text).not.toContain('The operators of freestyle');
-    expect(res.text).not.toContain('The compositional vocabulary');
-  });
-
-  it('renders all 13 Tier-1 operator glyphs', async () => {
-    // The OP cell is absent: its example "OP + BUTTERFLY →
-    // BUTTERFLY" was a no-op that taught nothing visible.
-    const res = await page('/freestyle/learn');
-    const glyphs = [
-      'PIX', 'AT', 'Q', 'BL', 'FAIRY', 'STEP',
-      'SPIN', 'GY', 'DUCK', 'PDX', 'SYMP',
-      'XBODY', 'SAME',
-    ];
-    for (const glyph of glyphs) {
-      expect(res.text).toMatch(new RegExp(`<p class="operator-glyph">${glyph}</p>`));
-    }
-  });
-
-  it('demotes the operator board below the guided pathway sections', async () => {
-    // The card wall never sits between a reader and the lessons or the
-    // pathway sections; it closes the page as reference material.
-    const res = await page('/freestyle/learn');
-    const introIdx    = res.text.indexOf('class="learn-intro"');
-    const boardIdx    = res.text.indexOf('class="operator-board');
-    const firstSecIdx = res.text.indexOf('class="learn-entries"');
-    expect(introIdx).toBeGreaterThan(0);
-    expect(firstSecIdx).toBeGreaterThan(introIdx);
-    expect(boardIdx).toBeGreaterThan(firstSecIdx);
-  });
-
-  it('renders eleven restrained operator-card deep-links onboarding to mature surfaces', async () => {
-    // Eleven, not ten: the BL operator carries a Concepts-entry deeplink to
-    // the blurry term.
-    const res = await page('/freestyle/learn');
-    const matches = res.text.match(/class="operator-card-deeplink"/g) ?? [];
-    expect(matches.length).toBe(11);
-    // Spot-check one destination per category (notation / Concepts / pedagogy).
-    expect(res.text).toContain('href="/freestyle/sets#move-pixie"');
-    expect(res.text).toContain('href="/freestyle/concepts#term-stepping"');
-    expect(res.text).toContain('href="/freestyle/modifier/ducking"');
-  });
-});
 
 // ─────────────────────────────────────────────────────────────────────────
 // 2. Trick-page educational CTAs
@@ -325,7 +184,7 @@ describe('symbolic full-page cross-links — walking-progression footer', () => 
     expect(res.status).toBe(200);
     expect(res.text).toContain('symbolic-crosslinks');
     expect(res.text).toContain('href="/freestyle/modifier/spinning"');
-    expect(res.text).toContain('href="/freestyle/learn"');
+    expect(res.text).not.toContain('href="/freestyle/learn"');
   });
 });
 
@@ -335,7 +194,7 @@ describe('symbolic full-page cross-links — modifier-family footer', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('symbolic-crosslinks');
     expect(res.text).toContain('href="/freestyle/progression/walking-family"');
-    expect(res.text).toContain('href="/freestyle/learn"');
+    expect(res.text).not.toContain('href="/freestyle/learn"');
   });
 });
 
@@ -346,8 +205,7 @@ describe('symbolic full-page cross-links — modifier-family footer', () => {
 describe('GET /freestyle — beginner on-ramp', () => {
   it('landing page carries a beginner on-ramp linking to the getting-started page', async () => {
     // The landing page opens with a beginner on-ramp that points newcomers at
-    // the novice getting-started page; /freestyle/learn remains the
-    // educational-pathways index cross-linked from modifier-family pages.
+    // the novice getting-started page.
     const res = await page('/freestyle');
     expect(res.status).toBe(200);
     expect(res.text).toMatch(/New to freestyle\?/i);

@@ -42,7 +42,7 @@ const CONTENT_DRIVEN_PAGES = [
   '/freestyle',
   '/freestyle/add-analysis',
   '/freestyle/combo-analysis',
-  '/freestyle/learn',
+  '/freestyle/start',
   '/freestyle/glossary',
   '/freestyle/sets',
   '/freestyle/operators',

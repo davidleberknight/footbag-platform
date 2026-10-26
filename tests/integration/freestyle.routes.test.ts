@@ -401,11 +401,12 @@ describe('GET /freestyle/about', () => {
     expect(res.text).not.toContain('variety (breadth of tricks');
   });
 
-  it('links onward to the trick dictionary, glossary, and learn pages', async () => {
+  it('links onward to the trick dictionary, glossary, and notation article', async () => {
     const res = await page('/freestyle/about');
     expect(res.text).toContain('href="/freestyle/tricks"');
     expect(res.text).toContain('href="/freestyle/glossary"');
-    expect(res.text).toContain('href="/freestyle/learn"');
+    // "Learn the Notation" lands on the notation article, not the retired learning index.
+    expect(res.text).toMatch(/href="\/freestyle\/notation-article"[^>]*>Learn the Notation/);
   });
 });
 
@@ -506,11 +507,6 @@ describe('Set-notation reference cross-links', () => {
     const linkIdx         = res.text.indexOf('href="/freestyle/sets#historical-move-set-reference"', intermediateIdx);
     expect(intermediateIdx).toBeGreaterThan(0);
     expect(linkIdx).toBeGreaterThan(intermediateIdx);
-  });
-
-  it('/freestyle/learn lists the historical move-set compilation as a shipped entry, named as historical', async () => {
-    const res = await page('/freestyle/learn');
-    expect(res.text).toMatch(/href="\/freestyle\/sets#historical-move-set-reference"[^>]*>Historical Move-Set Reference/);
   });
 
   it('landing surfaces Operators & Modifiers as a banner tile linking to /freestyle/operators', async () => {
@@ -870,28 +866,6 @@ describe('GET /freestyle/concepts', () => {
 
 // ---------------------------------------------------------------------------
 
-describe('GET /freestyle/concepts — operator board is NOT rendered in §3 (authority boundary)', () => {
-  // The operator-board partial lives on the landing page (movement-language overview)
-  // and /freestyle/learn (educational pathways). The Concepts page's role is terminology
-  // and execution detail, not visual taxonomy; rendering it here would be a duplication.
-  it('does not render the operator-board partial on the Concepts page', async () => {
-    const res = await page('/freestyle/concepts');
-    expect(res.text).not.toContain('class="operator-board ');
-    expect(res.text).not.toContain('class="operator-glyph"');
-  });
-
-  it('§6 (Modifiers & Operators) renders without embedding the operator-board partial', async () => {
-    // The operator-board orientation strip is intentionally left to the
-    // landing page and /freestyle/learn. The Concepts page's §6 carries the
-    // modifier-reference + intermediate-operator + execution-mechanics
-    // content without the operator-board visual taxonomy.
-    const res = await page('/freestyle/concepts');
-    const sec6Idx = res.text.indexOf('id="section-modifiers"');
-    const sec7Idx = res.text.indexOf('id="section-notation"');
-    expect(sec6Idx).toBeGreaterThan(0);
-    expect(sec7Idx).toBeGreaterThan(sec6Idx);
-  });
-});
 
 // ---------------------------------------------------------------------------
 
@@ -1661,7 +1635,7 @@ describe('Freestyle Concepts framing paragraphs + history page contracts', () =>
 
   it('history page links onward to the learning path, dictionary, glossary, and Freestyle Concepts', async () => {
     const res = await page('/freestyle/history');
-    expect(res.text).toContain('href="/freestyle/learn"');
+    expect(res.text).toContain('href="/freestyle/start#next-steps"');
     expect(res.text).toContain('href="/freestyle/tricks"');
     expect(res.text).toContain('href="/freestyle/glossary"');
     expect(res.text).toContain('href="/freestyle/concepts"');
@@ -1831,17 +1805,6 @@ describe('Freestyle IA realignment — landing and Concepts contract', () => {
     const res = await page('/freestyle/concepts');
     expect(res.text).toContain('href="/freestyle/tricks"');
     expect(res.text).toContain('href="/freestyle/sets#historical-move-set-reference"');
-  });
-
-  it('operator board renders a Symposium definition consistent with its single-leg-jump mechanics', async () => {
-    // /freestyle carries no embedded operator-board. The
-    // Symposium-action invariant holds on the operator-board partial
-    // wherever it renders; we assert it against /freestyle/learn, the
-    // operator-board host surface.
-    const res = await page('/freestyle/learn');
-    expect(res.text).toMatch(/Active leg jumps \+ lands solo/i);
-    // The retired "illusion + body rotation" misreading must not reappear.
-    expect(res.text).not.toContain('An illusion combined with body rotation');
   });
 
   it('the family chapter renders the registry-style core-trick grid; pixie/fairy stay in the set-modifiers reference', async () => {

@@ -132,9 +132,9 @@ publicRouter.get('/freestyle/observational', freestyleController.observational);
 publicRouter.get('/freestyle/tricks',      freestyleController.tricksIndex);
 publicRouter.get('/freestyle/insights',    freestyleController.insights);
 publicRouter.get('/freestyle/by-the-numbers', freestyleController.byTheNumbers);
-publicRouter.get('/freestyle/learn',       freestyleController.symbolicLearn);
-// Novice entry page: the landing "Start here" CTA destination. /freestyle/learn
-// stays the broader educational-pathways index.
+// Novice entry page: the landing "Start here" CTA destination, ending with the
+// six next-step lessons. The retired /freestyle/learn redirects permanently to them.
+publicRouter.get('/freestyle/learn',       freestyleController.learnRedirect);
 publicRouter.get('/freestyle/start',       freestyleController.start);
 publicRouter.get('/freestyle/progression/walking-family', freestyleController.walkingProgression);
 publicRouter.get('/freestyle/modifier/:slug', freestyleController.modifierFamily);

@@ -41,14 +41,14 @@ describe('Freestyle onboarding — foundations vs lessons framing', () => {
   });
 
   it('the learning path presents six lessons, not foundations', async () => {
-    const res = await request(await createApp()).get('/freestyle/learn');
+    const res = await request(await createApp()).get('/freestyle/start');
     expect(res.status).toBe(200);
-    expect(res.text).toContain('Six lessons: how the vocabulary fits together');
+    expect(res.text).toContain('Six short lessons, in order.');
     expect(res.text).not.toMatch(/six foundations/i);
   });
 
   it('no public onboarding copy calls the six-page path "six foundations"', async () => {
-    for (const path of ['/freestyle', '/freestyle/learn', '/freestyle/tricks', '/freestyle/history']) {
+    for (const path of ['/freestyle', '/freestyle/start', '/freestyle/tricks', '/freestyle/history']) {
       const res = await request(await createApp()).get(path);
       expect(res.status, path).toBe(200);
       expect(res.text, path).not.toMatch(/six foundations/i);

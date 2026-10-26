@@ -22,8 +22,9 @@
  *     /freestyle/competition, /freestyle/partnerships, /freestyle/add-analysis
  *     (getAddAnalysisPage), /freestyle/combo-analysis (getComboAnalysisPage),
  *     /freestyle/by-the-numbers (getByTheNumbersPage).
- *   - Pedagogy: /freestyle/learn (getSymbolicLearnPage), /freestyle/progression/walking-family,
- *     /freestyle/about, /freestyle/history.
+ *   - Pedagogy: /freestyle/start (getStartPage, ending with the six next-step lessons),
+ *     /freestyle/progression/walking-family, /freestyle/about, /freestyle/history.
+ *     /freestyle/learn redirects permanently to /freestyle/start (LEARN_PAGE_REDIRECT).
  *
  * Rendering contract:
  *   - Every trick-dictionary browse view renders the same shared two-line trick row; the
@@ -294,10 +295,7 @@ import {
   type EquivalenceTopologyEntry,
 } from '../content/freestyleEquivalenceTopology';
 import { CORE_TRICKS, isCoreTrick } from './coreTrickRegistry';
-import {
-  SymbolicLearnIndexContent,
-  buildSymbolicLearnIndex,
-} from './symbolicLearnIndex';
+import { START_NEXT_STEPS, START_NEXT_STEPS_INTRO, type StartNextStep } from '../content/freestyleStartNextSteps';
 // ---------------------------------------------------------------------------
 // Record type labels
 // ---------------------------------------------------------------------------
@@ -796,7 +794,7 @@ export interface OperatorBoardData {
 // Surface tag for the connective-prose lookup. The tiers are surface-invariant;
 // only heading + lede change. Default is 'landing' to keep the original call
 // site (FreestyleService.getLandingPage) unchanged.
-export type OperatorBoardSurface = 'landing' | 'concepts' | 'learn';
+export type OperatorBoardSurface = 'landing' | 'concepts';
 const OPERATOR_BOARD_PROSE: Record<OperatorBoardSurface, { heading: string; lede: string }> = {
   // Ledes are one short sentence each; the tier eyebrow + card grid
   // do the structural teaching.
@@ -808,11 +806,17 @@ const OPERATOR_BOARD_PROSE: Record<OperatorBoardSurface, { heading: string; lede
     heading: 'The compositional vocabulary',
     lede:    'Named sets, body movements, and structural relationships. The sections below define each in depth.',
   },
-  learn: {
-    heading: 'Explore the movement-language index',
-    lede:    'A reference board of named sets, body movements, and structural relationships. The lessons and progressions above teach them in context; come back here when a name needs a definition.',
-  },
 };
+
+// The retired learning index now lives at the end of the getting-started page.
+export const LEARN_PAGE_REDIRECT = '/freestyle/start#next-steps';
+
+// Getting-started page content: the frame's copy is in the template; the
+// service supplies the six next-step lessons that close it.
+export interface StartPageContent {
+  nextStepsIntro: string;
+  nextSteps:      readonly StartNextStep[];
+}
 
 interface TrickRefMediaRow {
   id: string;
@@ -8709,7 +8713,7 @@ export const freestyleService = {
           // Title Case, and each ends in a full stop except the one that asks
           // a question and keeps its question mark.
           links: [
-            { label: 'Start With the Six Vocabulary Lessons.', href: '/freestyle/learn' },
+            { label: 'Start With the Six Vocabulary Lessons.', href: LEARN_PAGE_REDIRECT },
             { label: 'What Is an ADD?', href: '/freestyle/concepts#section-add-accounting' },
             { label: 'How Trick Names Work.', href: '/freestyle/concepts#section-notation' },
             { label: 'Movement Basics.', href: '/freestyle/concepts#section-core-concepts' },
@@ -8856,11 +8860,10 @@ export const freestyleService = {
 
   /** The novice entry page: a first session for a visitor with no freestyle
    *  background. Copy lives in the template (static, like About); the service
-   *  supplies only the frame. The demo video renders on the freestyle landing
-   *  alone, so the two pages a newcomer crosses in sequence do not repeat it.
-   *  The educational pathways index at /freestyle/learn stays the broader
-   *  vocabulary surface. */
-  getStartPage(): PageViewModel<Record<string, never>> {
+   *  supplies the frame and the six next-step lessons that close the page. The
+   *  demo video renders on the freestyle landing alone, so the two pages a
+   *  newcomer crosses in sequence do not repeat it. */
+  getStartPage(): PageViewModel<StartPageContent> {
     return {
       seo: {
         title: 'Getting Started',
@@ -8879,7 +8882,10 @@ export const freestyleService = {
           { label: 'Getting Started' },
         ],
       },
-      content: {},
+      content: {
+        nextStepsIntro: START_NEXT_STEPS_INTRO,
+        nextSteps:      START_NEXT_STEPS,
+      },
     };
   },
 
@@ -8929,35 +8935,6 @@ export const freestyleService = {
         articleTitle: JOBS_NOTATION_ARTICLE_TITLE,
         articleText:  JOBS_NOTATION_ARTICLE,
       },
-    };
-  },
-
-  /**
-   * GET /freestyle/learn
-   *
-   * Observational symbolic-grammar layer — index of all educational surfaces.
-   * Per DISCOVERABILITY phase. Hand-authored content; no DB access.
-   */
-  getSymbolicLearnPage(): PageViewModel<SymbolicLearnIndexContent> {
-    const content = buildSymbolicLearnIndex(this.getOperatorBoard('learn'));
-    return {
-      seo: {
-        title:       'Educational pathways (Freestyle)',
-        description:
-          'Index of observational educational surfaces alongside the canonical freestyle trick dictionary: progressions, modifier pedagogy, and glossary connective panels.',
-      },
-      page: {
-        sectionKey: 'freestyle',
-        pageKey:    'freestyle_learn',
-        title:      content.pageHeading,
-      },
-      navigation: {
-        breadcrumbs: [
-          { label: 'Freestyle', href: '/freestyle' },
-          { label: 'Learn' },
-        ],
-      },
-      content,
     };
   },
 
@@ -10375,10 +10352,9 @@ export const freestyleService = {
   },
 
   // ── Operator board — Tier-1 movement-language vocabulary.
-  // Renders on the freestyle landing page, glossary §3, and /freestyle/learn
-  // via the same operator-board partial. Tiers (the 13 operators) are
-  // surface-invariant; heading + lede vary per surface (see
-  // OPERATOR_BOARD_PROSE). Captions are curator-confirmed except on cells
+  // Freestyle Concepts renders its tiers as the glyph quick-reference strip.
+  // Tiers (the 13 operators) are surface-invariant; heading + lede vary per
+  // surface (see OPERATOR_BOARD_PROSE). Captions are curator-confirmed except on cells
   // still flagged curatorConfirmPending.
   getOperatorBoard(surface: OperatorBoardSurface = 'landing'): OperatorBoardData {
     const op = (

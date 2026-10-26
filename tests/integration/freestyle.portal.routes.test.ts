@@ -284,9 +284,10 @@ describe('GET /freestyle/history', () => {
     expect(res.text).toContain('href="/freestyle/notation-article"');
   });
 
-  it('points the reader onward to the learning path', async () => {
+  it('points the reader onward to the six lessons, not the retired learning index', async () => {
     const res = await page('/freestyle/history');
-    expect(res.text).toContain('href="/freestyle/learn"');
+    expect(res.text).toContain('href="/freestyle/start#next-steps"');
+    expect(res.text).not.toContain('href="/freestyle/learn"');
   });
 });
 

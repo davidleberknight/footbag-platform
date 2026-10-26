@@ -247,7 +247,7 @@ describe('Retired set addresses', () => {
 
   it('no freestyle page links to a retired set address', async () => {
     // Defect caught: an internal link that sends every reader through a redirect.
-    for (const path of ['/freestyle', '/freestyle/sets', '/freestyle/sets/pixie', '/freestyle/concepts', '/freestyle/learn']) {
+    for (const path of ['/freestyle', '/freestyle/sets', '/freestyle/sets/pixie', '/freestyle/concepts', '/freestyle/start']) {
       const res = await page(path);
       expect(res.status, path).toBe(200);
       expect(res.text, `${path} links /freestyle/compositional-sets`).not.toContain('href="/freestyle/compositional-sets');

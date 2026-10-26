@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { freestyleService, RETIRED_SET_PAGE_REDIRECTS } from '../services/freestyleService';
+import { freestyleService, RETIRED_SET_PAGE_REDIRECTS, LEARN_PAGE_REDIRECT } from '../services/freestyleService';
 import { handleControllerError, renderNotFound } from '../lib/controllerErrors';
 
 /**
@@ -350,14 +350,9 @@ export const freestyleController = {
     }
   },
 
-  /** GET /freestyle/learn — observational symbolic-grammar layer index */
-  symbolicLearn(_req: Request, res: Response, next: NextFunction): void {
-    try {
-      const vm = freestyleService.getSymbolicLearnPage();
-      res.render('freestyle/learn', vm);
-    } catch (err) {
-      handleControllerError(err, res, next, 'freestyle controller');
-    }
+  /** GET /freestyle/learn — retired; its six lessons close the getting-started page. */
+  learnRedirect(_req: Request, res: Response): void {
+    res.redirect(301, LEARN_PAGE_REDIRECT);
   },
 
   /** GET /freestyle/modifier/:slug — teaching page when authored, else a

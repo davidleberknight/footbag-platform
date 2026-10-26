@@ -30,7 +30,7 @@ const PUBLIC_PAGES: Array<{ path: string; name: string }> = [
   { path: '/freestyle/concepts', name: 'freestyle concepts' },
   { path: '/freestyle/tricks', name: 'freestyle trick dictionary' },
   { path: '/freestyle/sets', name: 'freestyle set encyclopedia' },
-  { path: '/freestyle/learn', name: 'freestyle learn' },
+  { path: '/freestyle/start', name: 'freestyle getting started' },
   { path: '/consecutives', name: 'consecutives and records' },
   { path: '/events', name: 'events' },
   { path: '/clubs', name: 'clubs' },
