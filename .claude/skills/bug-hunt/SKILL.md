@@ -80,7 +80,12 @@ finding-count target: a short findings list is a valid result.
   graduation to the maintainers' private tracker happen in a later session; the `BUGS.md`
   header carries the standing re-audit instruction (section 9).
 - **Every genuine question is answered before finalizing**, asked per
-  `.claude/rules/asking.md`.
+  `.claude/rules/asking.md`, each message in the shape the extended doc sync skill's Ask step
+  fixes: the "Question N of M" heading, then "What this is:" in everyday words, then the
+  problem, the settled lines, and the one recommended answer. Homework comes first, as that
+  step also fixes: every fact about the site a question states (a page, its title and address,
+  a button or link label, a notice, who sees it) is read this turn from the template, route and
+  service and quoted verbatim, or checked by a fresh-context subagent; never stated from memory.
 - **Dispatch research, verify centrally.** Read-only subagents each sweep one lane and read
   that lane's brief. A subagent conclusion is a lead, never a finding: the main session
   re-verifies every candidate against the cited lines. Subagents have no channel to the
