@@ -850,6 +850,9 @@ section { margin-top: var(--space-2xl); }
   transition: transform 0.2s ease, box-shadow 0.2s ease;
   display: flex;
   flex-direction: column;
+  /* A long unbroken path or identifier anywhere in a card breaks rather than
+     widening the card, and with it a phone-width grid, past the viewport. */
+  overflow-wrap: anywhere;
 }
 .card .btn { margin-top: auto; align-self: flex-start; }
 /* Cards stacked straight in the page flow sit one card gap apart, the same as

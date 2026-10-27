@@ -105,6 +105,17 @@ describe('test-targets.sh — application source', () => {
     ]);
   });
 
+  it('measures the pages a module outside the controllers renders, or feeds through one that does', () => {
+    // The persona listing renders the catalog's own text: a catalog edit alone
+    // can push that page sideways at phone width, and an unmeasured page ships red.
+    const view = 'RENDERED_STYLE_VIEWS=dev/persona-listing npm run test:rendered-style';
+    expect(run(['src/testkit/personaListingRoute.ts']).checks, 'the module rendering the page').toContain(view);
+    expect(run(['src/testkit/canonicalPersonas.ts']).checks, 'a module the renderer imports').toContain(view);
+    expect(run(['src/lib/controllerErrors.ts']).checks, 'a renderer outside the testkit').toContain(
+      'RENDERED_STYLE_VIEWS=errors/error npm run test:rendered-style',
+    );
+  });
+
   it('maps a controller to its domain route suites without a longer sibling domain', () => {
     const r = run(['src/controllers/adminClubController.ts']);
     expect(r.tests).toContain('tests/integration/admin-clubs.routes.test.ts');

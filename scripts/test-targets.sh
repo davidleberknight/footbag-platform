@@ -56,7 +56,8 @@
 #   - The rendered-style check measures the page views a change can reach,
 #     named in RENDERED_STYLE_VIEWS: a page template its own view, a partial
 #     every page including it, a controller the pages it renders, a service
-#     the pages its controllers render. The stylesheet, a layout, or a partial
+#     the pages its controllers render, any other module the pages it or a
+#     renderer importing it renders. The stylesheet, a layout, or a partial
 #     a layout includes reaches every page, so the whole site is measured.
 #   - The conventions gate and the linter read the source, and the conventions
 #     gate also the templates, the stylesheet and the tests, so a change to
@@ -348,6 +349,20 @@ controller_layout_views() {
   done < <(grep -oE "render\(['\"][^'\"]+['\"]" "$1" 2>/dev/null | sed -E "s/^render\(['\"]//; s/['\"]$//" | sort -u)
 }
 
+# The page views a module outside the controllers and services can change: those
+# it renders itself, and those rendered by any non-controller module importing
+# it directly. The dev persona listing is rendered from the testkit and shows the
+# persona catalog's own text, so a catalog edit can widen that page.
+module_layout_views() {
+  local stem f
+  stem="$(basename "${1%.ts}")"
+  controller_layout_views "$1"
+  while IFS= read -r f; do
+    [ -n "$f" ] && [ "$f" != "$1" ] || continue
+    if grep -qE "from ['\"][./A-Za-z0-9_-]*/${stem}['\"]" "$f"; then controller_layout_views "$f"; fi
+  done < <(grep -rlE "render\(['\"]" src --include='*.ts' 2>/dev/null | grep -v '^src/controllers/' || true)
+}
+
 # The page views a service feeds: those rendered by every controller importing
 # it, directly or through other services importing it, and any it names as the
 # template a controller should render.
@@ -384,6 +399,7 @@ high_fan_out() {
     db_statements "$p" && return 0
   fi
   for f in "${CANARY[@]}"; do add_test "$f"; done
+  case "$p" in src/testkit/*) module_layout_views "$p" ;; esac
   case "$p" in
     src/testkit/*|tests/fixtures/factories.ts) test_data_builders "$p" && return 0 ;;
   esac
@@ -786,6 +802,7 @@ map_path() {
     src/*.ts|src/*/*.ts|src/*/*/*.ts)
       add_check "npm run build"; add_check "npm run typecheck:tests"
       collect naming "$stem" || no_tests "$p"
+      module_layout_views "$p"
       return ;;
   esac
 
