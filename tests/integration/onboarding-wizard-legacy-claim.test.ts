@@ -50,8 +50,8 @@ function insertMemberReady(dbh: BetterSqlite3.Database, o: Parameters<typeof ins
 }
 
 // The member's verified login email matches an address on the old account,
-// so the claim carries the modern-email tier.
-function claimAtLoginEmailTier(memberId: string, legacyMemberId: string): void {
+// so the claim carries the modern-email strength.
+function claimAtLoginEmailStrength(memberId: string, legacyMemberId: string): void {
   identity.identityAccessService.claimLegacyAccount(
     memberId, legacyMemberId, 'currently_controls_modern_email_matching_legacy',
   );
@@ -99,7 +99,7 @@ describe('legacy-account claim (login email matches an old address)', () => {
       country: null,
     });
 
-    claimAtLoginEmailTier(memberId, legacyId);
+    claimAtLoginEmailStrength(memberId, legacyId);
 
     const member = getMember(memberId)!;
     expect(member.legacy_member_id).toBe(legacyId);
@@ -126,7 +126,7 @@ describe('legacy-account claim (login email matches an old address)', () => {
       bio: '',
     });
 
-    claimAtLoginEmailTier(memberId, legacyId);
+    claimAtLoginEmailStrength(memberId, legacyId);
 
     expect(getMember(memberId)!.bio).toBe('legacy bio content');
   });
@@ -146,7 +146,7 @@ describe('legacy-account claim (login email matches an old address)', () => {
       real_name: 'Active Name',
     });
 
-    claimAtLoginEmailTier(memberId, legacyId);
+    claimAtLoginEmailStrength(memberId, legacyId);
 
     expect(getMember(memberId)!.real_name).toBe('Active Name');
   });
@@ -168,7 +168,7 @@ describe('legacy-account claim (login email matches an old address)', () => {
       country: null,
     });
 
-    claimAtLoginEmailTier(memberId, legacyId);
+    claimAtLoginEmailStrength(memberId, legacyId);
 
     // The claim merge holds imported location to the same rules the member's
     // own forms apply, so the legacy record's ISO code lands as the one name
@@ -193,7 +193,7 @@ describe('legacy-account claim (login email matches an old address)', () => {
       is_hof: 0,
     });
 
-    claimAtLoginEmailTier(memberId, legacyId);
+    claimAtLoginEmailStrength(memberId, legacyId);
 
     expect(getMember(memberId)!.is_hof).toBe(1);
   });
@@ -215,7 +215,7 @@ describe('legacy-account claim (login email matches an old address)', () => {
       is_bap: 0,
     });
 
-    claimAtLoginEmailTier(memberId, legacyId);
+    claimAtLoginEmailStrength(memberId, legacyId);
 
     expect(getMember(memberId)!.is_bap).toBe(1);
   });
@@ -237,7 +237,7 @@ describe('legacy-account claim (login email matches an old address)', () => {
 
     const grantsBefore = getTierGrants(memberId);
 
-    claimAtLoginEmailTier(memberId, legacyId);
+    claimAtLoginEmailStrength(memberId, legacyId);
 
     const grantsAfter = getTierGrants(memberId);
     expect(grantsAfter.length).toBe(grantsBefore.length + 1);
@@ -262,7 +262,7 @@ describe('legacy-account claim (login email matches an old address)', () => {
       real_name: 'Tier Hof',
     });
 
-    claimAtLoginEmailTier(memberId, legacyId);
+    claimAtLoginEmailStrength(memberId, legacyId);
 
     const claimGrant = getTierGrants(memberId).find((g) => g.reason_code === 'legacy.claim_tier_grant');
     expect(claimGrant).toBeDefined();
@@ -298,7 +298,7 @@ describe('transitive competition-record claim through the legacy back-link', () 
       real_name: 'Trans Claim',
     });
 
-    claimAtLoginEmailTier(memberId, legacyId);
+    claimAtLoginEmailStrength(memberId, legacyId);
 
     const member = getMember(memberId)!;
     expect(member.legacy_member_id).toBe(legacyId);
@@ -332,7 +332,7 @@ describe('transitive competition-record claim through the legacy back-link', () 
       is_hof: 0,
     });
 
-    claimAtLoginEmailTier(memberId, legacyId);
+    claimAtLoginEmailStrength(memberId, legacyId);
 
     const member = getMember(memberId)!;
     expect(member.country).toBe('Japan');
@@ -359,11 +359,11 @@ describe('claim idempotency', () => {
       real_name: 'Idemp Claim',
     });
 
-    claimAtLoginEmailTier(memberId, legacyId);
+    claimAtLoginEmailStrength(memberId, legacyId);
     const grantsAfterFirst = getTierGrants(memberId);
     const memberAfterFirst = getMember(memberId)!;
 
-    expect(() => claimAtLoginEmailTier(memberId, legacyId)).toThrow(/already linked/);
+    expect(() => claimAtLoginEmailStrength(memberId, legacyId)).toThrow(/already linked/);
 
     expect(getTierGrants(memberId).length).toBe(grantsAfterFirst.length);
     expect(getMember(memberId)!.legacy_member_id).toBe(memberAfterFirst.legacy_member_id);
@@ -397,7 +397,7 @@ describe('legacy row already claimed', () => {
       real_name: 'Clash Legacy',
     });
 
-    expect(() => claimAtLoginEmailTier(secondMemberId, legacyId)).toThrow(/already been claimed/);
+    expect(() => claimAtLoginEmailStrength(secondMemberId, legacyId)).toThrow(/already been claimed/);
 
     expect(getMember(secondMemberId)!.legacy_member_id).toBeNull();
     expect(getLegacyMember(legacyId)!.claimed_by_member_id).toBe(firstMemberId);
@@ -424,7 +424,7 @@ describe('claim audit trail', () => {
 
     const before = countAuditEntries(memberId, 'claim.legacy_account');
 
-    claimAtLoginEmailTier(memberId, legacyId);
+    claimAtLoginEmailStrength(memberId, legacyId);
 
     expect(countAuditEntries(memberId, 'claim.legacy_account')).toBe(before + 1);
   });

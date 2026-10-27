@@ -16,15 +16,28 @@
  * other is never measured.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import BetterSqlite3 from 'better-sqlite3';
 import request from '../fixtures/supertestWithOrigin';
+import { hashTestPassword } from '../fixtures/hashTestPassword';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
-import { insertSystemConfig } from '../fixtures/factories';
+import { insertMember, insertSystemConfig } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('4207');
 
 const ACCOUNT_CAP = 3;
+const MEMBER_ID = 'account-bucket-member-001';
+const MEMBER_EMAIL = 'account-bucket-member@example.com';
 
 let app: import('express').Express;
+
+function readLockoutRows(): { metadata_json: string }[] {
+  const db = new BetterSqlite3(dbPath, { readonly: true });
+  const rows = db.prepare(
+    "SELECT metadata_json FROM audit_entries WHERE action_type = 'auth.login_rate_limited' AND entity_id = ?",
+  ).all(MEMBER_ID) as { metadata_json: string }[];
+  db.close();
+  return rows;
+}
 
 beforeAll(async () => {
   const db = createTestDb(dbPath);
@@ -32,6 +45,10 @@ beforeAll(async () => {
     config_key: 'login_account_rate_limit_max_attempts',
     value_json: String(ACCOUNT_CAP),
     reason_text: 'Lowered below the seeded per-address ceiling so this bucket refuses first',
+  });
+  insertMember(db, {
+    id: MEMBER_ID, slug: 'account_bucket_member', login_email: MEMBER_EMAIL,
+    password_hash: await hashTestPassword('Correct!Pass1'),
   });
   db.close();
 
@@ -56,5 +73,16 @@ describe('POST /login — the account-keyed ceiling is a separate bucket', () =>
     expect(blocked.status).toBe(429);
     expect(blocked.text).toContain('Too many failed login attempts');
     expect(blocked.headers['retry-after']).toBeDefined();
+  });
+
+  it("records one lockout row naming the account bucket, however many attempts it then refuses", async () => {
+    // A row per refusal would read as several lockouts; a row naming the
+    // per-address bucket would send a reviewer after the wrong attack.
+    for (let i = 0; i < ACCOUNT_CAP + 3; i++) {
+      await request(app).post('/login').type('form').send({ email: MEMBER_EMAIL, password: 'wrong-password' });
+    }
+    const rows = readLockoutRows();
+    expect(rows).toHaveLength(1);
+    expect(JSON.parse(rows[0].metadata_json).bucket).toBe('account');
   });
 });

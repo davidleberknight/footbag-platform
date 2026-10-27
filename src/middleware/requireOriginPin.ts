@@ -6,11 +6,12 @@ import { renderForbidden } from '../lib/controllerErrors';
 
 export const MUTATION_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
-// `/ipc/*` authenticates with a shared-secret header inside the controller and
-// is intentionally callable without an Origin header (server-to-server).
+// `/ipc/*` is exempt as a whole namespace: it is machine-only, called
+// server-to-server without an Origin header, and the requireInternalSecret
+// guard checks the shared secret on every route in it.
 export const EXEMPT_PREFIXES = ['/ipc/'];
 
-// Per DD §3.3, the exemption is per-route (exact), not per-prefix: the Stripe
+// Every other exemption is an exact route, never a prefix: the Stripe
 // webhook receiver is server-to-server (no Origin) and authenticates via the
 // Stripe-Signature HMAC, verified before any state write. Exact-match so sibling
 // browser routes (e.g. /payments/checkout/:id/confirm) stay origin-pinned.

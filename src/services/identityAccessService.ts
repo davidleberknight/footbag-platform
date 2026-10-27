@@ -21,7 +21,7 @@
  *     do with it) and writing nothing it did not decide:
  *       - The claim: the member's evidence is matched afresh inside the claim
  *         transaction before any write, and only a candidate that is claimable
- *         now is claimed, with the evidence tier the live match proves and the
+ *         now is claimed, with the evidence strength the live match proves and the
  *         full evidence block on its audit row. An old account and the record
  *         the pipeline linked to it are claimed whole. A target already held by
  *         the member reports success and writes nothing.
@@ -187,7 +187,7 @@
  *     re-cleaned.
  *
  * Transaction discipline:
- *   - Multi-write paths (claim merge, password reset + version bump, register + audit)
+ *   - Multi-write paths (claim merge, password reset + version bump)
  *     wrap in transaction(() => { ... }) from db.ts. All DB ops inside are synchronous;
  *     external I/O (SES, etc.) happens BEFORE the transaction opens. Enqueuing an
  *     email is not external I/O: it inserts an outbox row in this same database,
@@ -228,19 +228,19 @@
  *   matching; written only by a claim revert clearing a deceased flag that the
  *   member's own deceased marking cascaded onto the record),
  *   account_tokens,
- *   member_onboarding_tasks (the checklist rows inserted at verification, and
- *   personal_details reopened by a claim revert),
+ *   member_onboarding_tasks (the checklist rows inserted at verification),
  *   audit_entries, outbox_emails,
  *   member_declared_anchors (add-only; deleted wholesale on PII purge by
  *   MemberService), work_queue_items (link help requests: insert + resolve).
  *   Tier-grant writes delegated to MembershipTieringService.
  *
  * Side effects:
- *   - audit_entries append (auth, claim, claim refused, candidate declined,
- *     claim step answered, anchor declared, dev/staging admin allowlist grant,
- *     revert, dispute opened / revert applied, help request submitted /
- *     approved / rejected, registration conflict prompted / disputed,
- *     registration duplicate email, address recovery requested)
+ *   - audit_entries append (login lockout, password change and reset, claim,
+ *     claim refused, claim step answered, anchor declared, claim revert,
+ *     dispute opened / revert applied, help request approved / rejected,
+ *     administrator name and profile-URL corrections, address recovery
+ *     requested, and the failure rows for a password or help-request notice
+ *     and for a recovery link)
  *   - SES suppression lift for a bounced address, on its member's request,
  *     through EmailSubscriptionService
  *   - outbox_emails enqueue (verification, account-exists notice on a duplicate
@@ -262,7 +262,8 @@
  */
 import { randomUUID, randomBytes } from 'crypto';
 import argon2 from 'argon2';
-import { hashPassword } from '../lib/passwordHash';
+import { hashPassword, CURRENT_PASSWORD_HASH_VERSION } from '../lib/passwordHash';
+import { accountExistsAttemptHash } from '../lib/accountExistsNoticeKey';
 import { auth, registration, legacyClaim, legacyMembers, account, memberOnboarding, workQueue, declaredAnchors, MemberAuthRow, LegacyMemberRow, AlreadyClaimedRow, HistoricalPersonClaimRow } from '../db/db';
 import { legacyMatchingService, type Candidate, type Confidence } from './legacyMatchingService';
 import { transaction, rehearse, auditEntries } from '../db/db';
@@ -272,6 +273,7 @@ import { workQueueService } from './workQueueService';
 import { hit as rateLimitHit, refund as rateLimitRefund } from './rateLimitService';
 import { readIntConfig } from './configReader';
 import { config } from '../config/env';
+import type { PageViewModel } from '../types/page';
 import { getCaptchaAdapter } from '../adapters/captchaAdapter';
 // The permanent dev/staging register-allowlist bootstrap: applyDevStagingBootstrapAdmin
 // promotes a registrant whose email is on the operator allowlist to admin. It is
@@ -381,6 +383,9 @@ export interface CheckEmailContent {
   error?: string;
   turnstileSiteKey?: string | null;
   captchaStubbed?: boolean;
+  /** How long the verification link lives, from the same setting that sets the
+   *  link's own expiry, so the page never states a lifetime the link lacks. */
+  verifyLinkHours: number;
 }
 
 export interface VerifyResultContent {
@@ -431,47 +436,6 @@ export interface PasswordResetContent {
   resetButSignedOut?: string;
   turnstileSiteKey?: string | null;
   captchaStubbed?: boolean;
-}
-
-export interface ClaimFormContent {
-  identifier?: string;
-  message?: string;
-  error?: string;
-  candidates?: Array<{ personId: string; personName: string }>;
-  sent?: boolean;
-  /**
-   * Low-confidence banner gate. Rendered as a one-line preamble when the
-   * user landed on /history/claim from a registration redirect or from an
-   * auto-link drift redirect that reported low confidence. Decouples the
-   * page's generic "search for your record" copy from the registration
-   * context "we tried, we couldn't confirm" framing.
-   */
-  lowConfidenceBanner?: boolean;
-  /**
-   * Simulated-email card for the post-submit sent state. Populated only
-   * when SES_ADAPTER=stub (dev, staging, and production while email is dark);
-   * null once email is live. Mirrors the pattern in /register/check-email so
-   * developers can complete the claim flow without leaving the page.
-   */
-  emailPreview?: SimulatedEmailPreview;
-  /**
-   * Operator note shown above the simulated-email card on the sent
-   * state when no email was actually enqueued (anti-enumeration silent paths:
-   * no_match, target_rate_limited). Lets the operator distinguish a real
-   * enqueue from a silent no-op without leaking the reason in the public
-   * banner. Always undefined once email is live (the simulated-email card
-   * itself does not render then).
-   */
-  outcomeNote?: string;
-}
-
-export interface AutoLinkConfirmContent {
-  personId?: string;
-  personName?: string;
-  confidence?: 'high' | 'medium';
-  matchedVariantNormalized?: string;
-  error?: string;
-  declineHref: string;
 }
 
 export interface ClaimHpConfirmContent {
@@ -573,7 +537,7 @@ export interface LinkHistoryContent {
   birthDateNoticeTone?: 'ok' | 'info';
   /** Where "carry on" goes: the member's next outstanding task. */
   continueHref?: string;
-  /** Always-rendered "Back to dashboard" link, points at `/members`. */
+  /** Always-rendered "Back to dashboard" link, to the member's own profile. */
   dashboardHref: string;
   /** The cards, in the matching order: claimable first, strongest first. */
   candidates: LinkHistoryCandidate[];
@@ -618,8 +582,8 @@ export interface RegisterResult {
 // the present-user verify path and the absent-user no-row path. argon2.verify
 // always returns false against this hash for any input the caller supplies,
 // so the result is unconditionally discarded; only the wall-clock matters.
-// Anti-enumeration contract per DD §3.3: response timing must not leak
-// whether an email is registered.
+// Anti-enumeration: response timing must not leak whether an email is
+// registered.
 let _dummyHashPromise: Promise<string> | null = null;
 function getDummyArgonHash(): Promise<string> {
   if (_dummyHashPromise === null) {
@@ -676,6 +640,13 @@ async function verifyMemberCredentials(
   const now = new Date().toISOString();
   auth.updateMemberLastLogin.run(now, now, member.id);
 
+  // A verified sign-in is the one moment the plaintext is in hand, so a hash
+  // made under an older scheme is re-derived here at the current cost.
+  if (member.password_hash_version < CURRENT_PASSWORD_HASH_VERSION) {
+    const rehashed = await hashPassword(password);
+    auth.updatePasswordHash.run(rehashed, CURRENT_PASSWORD_HASH_VERSION, now, member.id, member.password_hash);
+  }
+
   return member;
 }
 
@@ -705,13 +676,15 @@ async function attemptLogin(
   const accountMaxAttempts = readIntConfig('login_account_rate_limit_max_attempts', 30);
   const accountWindowMinutes = readIntConfig('login_account_rate_limit_window_minutes', 60);
   const accountRl = rateLimitHit(`login-account:${normalized}`, accountMaxAttempts, accountWindowMinutes);
-  if (!rl.allowed || !accountRl.allowed) {
-    const retryAfterSeconds = Math.max(rl.retryAfterSeconds ?? 0, accountRl.retryAfterSeconds ?? 0);
-    // Audited only when the address is a member's, and then by id: a typed
-    // address that names no member is not a person the ledger should hold.
-    // The caller's response is the same either way.
+  // One lockout is one audit row, written on the attempt that crossed a
+  // ceiling; the refusals that follow write nothing, or the ledger would read
+  // as many lockouts. Audited only when the address is a member's, and then by
+  // id: a typed address that names no member is not a person the ledger should
+  // hold. The caller's response is the same either way.
+  if (rl.crossed || accountRl.crossed) {
     const member = auth.findOnboardedMemberIdByEmail.get(normalized) as { id: string } | undefined;
     if (member) {
+      const crossed = rl.crossed ? rl : accountRl;
       appendAuditEntry({
         actionType: 'auth.login_rate_limited',
         actorType: 'system',
@@ -719,13 +692,16 @@ async function attemptLogin(
         entityType: 'member',
         entityId: member.id,
         metadata: {
-          retryAfterSeconds,
-          bucket: !rl.allowed ? 'email_ip' : 'account',
-          windowMinutes: !rl.allowed ? windowMinutes : accountWindowMinutes,
-          maxAttempts: !rl.allowed ? maxAttempts : accountMaxAttempts,
+          retryAfterSeconds: crossed.retryAfterSeconds,
+          bucket: rl.crossed ? 'email_ip' : 'account',
+          windowMinutes: rl.crossed ? windowMinutes : accountWindowMinutes,
+          maxAttempts: rl.crossed ? maxAttempts : accountMaxAttempts,
         },
       });
     }
+  }
+  if (!rl.allowed || !accountRl.allowed) {
+    const retryAfterSeconds = Math.max(rl.retryAfterSeconds ?? 0, accountRl.retryAfterSeconds ?? 0);
     throw new RateLimitedError(
       'Too many failed login attempts. Please try again later.',
       retryAfterSeconds,
@@ -1009,17 +985,22 @@ function validateSlug(
  * enqueue so an outbox outage fails the same way the new-account verify enqueue
  * does (503 on both branches), never a status difference that leaks existence.
  */
-function enqueueAccountExistsNotice(existing: { id: string; login_email: string }): void {
+function enqueueAccountExistsNotice(
+  existing: { id: string; login_email: string },
+  attemptHash: string,
+): void {
   const baseUrl = config.publicBaseUrl.replace(/\/+$/, '');
-  // One notice per attempt, keyed on the attempt itself. A registration attempt
-  // changes nothing on the existing account, so it writes no audit row; the
-  // outbox row is the record that the notice went.
+  // One notice per attempt, keyed on the member and a keyed hash of what the
+  // attempt submitted: the same attempt sent again collapses onto the notice
+  // already queued, and a different attempt still reaches the owner. A
+  // registration attempt changes nothing on the existing account, so it writes
+  // no audit row; the outbox row is the record that the notice went.
   emailService.send({
     template: 'account_exists_notice',
     params: { loginUrl: `${baseUrl}/login`, resetUrl: `${baseUrl}/password/forgot` },
     recipientEmail: existing.login_email,
     recipientMemberId: existing.id,
-    idempotencyKey: `account_exists_notice:${existing.id}:${randomUUID()}`,
+    idempotencyKey: `account_exists_notice:${existing.id}:${attemptHash}`,
     strict: true,
   });
 }
@@ -1051,7 +1032,8 @@ async function registerMember(
 ): Promise<RegisterResult> {
   // Rate-limit by caller IP before any validation or argon2 hashing, so a tight
   // loop of distinct-email registrations from one source cannot flood the outbox
-  // or exhaust CPU. Mirrors attemptLogin's IP-keyed bucket.
+  // or exhaust CPU. Keyed on the IP alone because there is no account, and so no
+  // address to key on, until the registration lands.
   const maxAttempts = readIntConfig('register_rate_limit_max_attempts', 10);
   const windowMinutes = readIntConfig('register_rate_limit_window_minutes', 15);
   const rl = rateLimitHit(`register:${ip}`, maxAttempts, windowMinutes);
@@ -1115,11 +1097,14 @@ async function registerMember(
   const hash = await hashPassword(password);
   const now = new Date().toISOString();
 
+  const attemptHash = accountExistsAttemptHash(
+    trimmedGivenNames, trimmedFamilyName, trimmedDisplayName, normalizedEmail,
+  );
   const existingAccount = registration.findForDuplicateNotice.get(normalizedEmail) as
     | { id: string; login_email: string; email_verified_at: string | null }
     | undefined;
   if (existingAccount) {
-    if (!isRegistrationRepeat(existingAccount)) enqueueAccountExistsNotice(existingAccount);
+    if (!isRegistrationRepeat(existingAccount)) enqueueAccountExistsNotice(existingAccount, attemptHash);
     return { status: 'registered' };
   }
 
@@ -1164,7 +1149,7 @@ async function registerMember(
         const raced = registration.findForDuplicateNotice.get(normalizedEmail) as
           | { id: string; login_email: string; email_verified_at: string | null }
           | undefined;
-        if (raced && !isRegistrationRepeat(raced)) enqueueAccountExistsNotice(raced);
+        if (raced && !isRegistrationRepeat(raced)) enqueueAccountExistsNotice(raced, attemptHash);
         return { status: 'registered' };
       }
       if (msg.includes('slug')) {
@@ -1204,46 +1189,84 @@ export interface VerifyEmailResult {
   isAdmin: number;
 }
 
+/** The verification link's lifetime: the one setting both the link's expiry
+ *  and every sentence that states it read. */
+function verifyLinkHours(): number {
+  return readIntConfig('email_verify_expiry_hours', 24);
+}
+
+/**
+ * The page a registrant lands on after registering or asking for a resend.
+ * The caller supplies what only the request knows (which arrival this is, the
+ * captcha settings, any simulated-mail card); the link lifetime comes from the
+ * setting, so the page states the same lifetime the link has.
+ */
+async function getCheckEmailPage(
+  content: Omit<CheckEmailContent, 'verifyLinkHours'>,
+): Promise<PageViewModel<CheckEmailContent>> {
+  return {
+    seo: { title: 'Check Your Email', noindex: true },
+    page: { sectionKey: '', pageKey: 'check_email', title: 'Check Your Email' },
+    content: { ...content, verifyLinkHours: verifyLinkHours() },
+  };
+}
+
+/**
+ * Issue a verify token and queue its link. Throws on a token-store or enqueue
+ * failure and records nothing: who the failure is about decides how it is
+ * recorded, so each caller records it. `progress.tokenRowId` is set once the
+ * token exists, for the caller's record.
+ */
+function queueVerifyLink(
+  memberId: string,
+  recipientEmail: string,
+  progress: { tokenRowId?: string } = {},
+): void {
+  const ttlHours = verifyLinkHours();
+  const issued = accountTokenService.issueToken({
+    memberId,
+    tokenType: 'email_verify',
+    ttlHours,
+  });
+  progress.tokenRowId = issued.tokenRowId;
+  const baseUrl = config.publicBaseUrl.replace(/\/+$/, '');
+  const verifyUrl = `${baseUrl}/verify/${issued.rawToken}`;
+  emailService.send({
+    template: 'account_verify',
+    params: { verifyUrl, ttlHours },
+    recipientEmail,
+    recipientMemberId: memberId,
+    // tokenRowId is the natural single-use key: re-issuing on a worker
+    // restart between SES-send and outbox-mark-sent collapses to the same
+    // outbox row instead of double-delivering.
+    idempotencyKey: `verify:${issued.tokenRowId}`,
+    strict: true,
+  });
+}
+
 async function issueAndEnqueueVerifyEmail(memberId: string, recipientEmail: string): Promise<void> {
   // Token issuance is inside the try so a token-store failure (e.g. SQLITE_BUSY)
   // is audited and re-thrown on the same path as an enqueue failure. resendVerifyEmail
   // swallows the re-throw for anti-enumeration, so an un-audited token-store error here
   // would otherwise vanish silently.
-  let tokenRowId: string | undefined;
+  const progress: { tokenRowId?: string } = {};
   try {
-    const ttlHours = readIntConfig('email_verify_expiry_hours', 24);
-    const issued = accountTokenService.issueToken({
-      memberId,
-      tokenType: 'email_verify',
-      ttlHours,
-    });
-    tokenRowId = issued.tokenRowId;
-    const baseUrl = config.publicBaseUrl.replace(/\/+$/, '');
-    const verifyUrl = `${baseUrl}/verify/${issued.rawToken}`;
-    emailService.send({
-      template: 'account_verify',
-      params: { verifyUrl, ttlHours },
-      recipientEmail,
-      recipientMemberId: memberId,
-      // tokenRowId is the natural single-use key: re-issuing on a worker
-      // restart between SES-send and outbox-mark-sent collapses to the same
-      // outbox row instead of double-delivering.
-      idempotencyKey: `verify:${issued.tokenRowId}`,
-      strict: true,
-    });
+    queueVerifyLink(memberId, recipientEmail, progress);
   } catch (err) {
     // Member row (or, for resend, the existing unverified member) committed
     // but no verify email was queued. Operator review should treat this as
     // a possible outbox / SES degradation signal; the affected member can
     // self-recover via /verify/resend. The account is a registrant, not a
-    // member, so the operator is told and the audit log gets no row.
+    // member, so the operator is told and the audit log gets no row. Address
+    // recovery, whose account is a member, queues its link through
+    // queueVerifyLink and records its own failure.
     logOperationalError({
       actionType: 'auth.register_notification_failed',
       entityType: 'member',
       entityId: memberId,
       reasonText: 'Member row committed but verify-email token issuance or enqueue failed.',
       cause: err,
-      metadata: { tokenRowId: tokenRowId ?? null },
+      metadata: { tokenRowId: progress.tokenRowId ?? null },
     });
     throw err;
   }
@@ -1269,9 +1292,11 @@ async function verifyEmailByToken(rawToken: string): Promise<VerifyEmailResult |
     if (!c) return null;
 
     const now = new Date().toISOString();
-    // Verifying the address starts onboarding, so the account is never a
-    // member here and the audit log takes no row; the account row records when
-    // the address was verified.
+    // For a registrant, verifying the address starts onboarding; a registrant
+    // is not a member, so the audit log takes no row and the account row
+    // records when the address was verified. A member opening an address
+    // recovery link is already verified and already holds the checklist, so
+    // the verified mark and the checklist insert below change nothing for them.
     auth.markEmailVerified.run(now, now, c.memberId);
     // Opening a link sent to the address proves it receives mail, so a bounce
     // on it clears here, in the same transaction that spends the proof.
@@ -1623,7 +1648,25 @@ async function requestAddressRecovery(memberId: string): Promise<AddressRecovery
   }
 
   await liftOwnAddressSuppression(memberId, row.login_email);
-  await issueAndEnqueueVerifyEmail(memberId, row.login_email);
+  // This person is a member, so a link that fails to issue or queue after the
+  // unblock goes on their record and reaches them as a temporary outage, the
+  // same answer the unblock itself gives when it fails.
+  try {
+    queueVerifyLink(memberId, row.login_email);
+  } catch (err) {
+    recordOperationalError({
+      actionType: 'email.recovery_link_failed',
+      entityType: 'member',
+      entityId: memberId,
+      actorType: 'member',
+      actorMemberId: memberId,
+      reasonText: 'The address came off the provider\'s suppression list, but the verification link could not be issued or queued.',
+      cause: err,
+    });
+    throw new ServiceUnavailableError(
+      'We could not resume mail to your address just now. Please try again in a few minutes.',
+    );
+  }
   appendAuditEntry({
     actionType: 'email.recovery_requested',
     actorType: 'member',
@@ -1641,71 +1684,6 @@ async function requestAddressRecovery(memberId: string): Promise<AddressRecovery
 // claimed_by_member_id + claimed_at); the row is never deleted. If the claimed
 // legacy account has a matching historical_persons.legacy_member_id,
 // members.historical_person_id is also set in the same transaction.
-
-export interface LegacyAccountLookupResult {
-  legacyMemberId: string;
-  displayName: string | null;
-  country: string | null;
-  isHof: boolean;
-  isBap: boolean;
-  birthDate: string | null;
-}
-
-/**
- * Outcome of a legacy-account lookup by identifier (email / username / id).
- *
- * The lookup matches the identifier against a legacy account's primary and two
- * secondary email columns, so a member who arrives under a secondary address
- * still links. The `ambiguous_email` branch signals that the identifier matches
- * 2+ rows, which includes an address that collides across accounts (primary on
- * one, secondary on another) when the legacy-data validation gate did not catch
- * it first. Callers MUST NOT silently pick one. Verify-time paths surface this as
- * classification `low / ambiguous_email_anchor`; the manual claim form
- * surfaces it as a form-level error asking the user to disambiguate.
- */
-export type LegacyAccountLookup =
-  | { kind: 'none' }
-  | { kind: 'single'; result: LegacyAccountLookupResult }
-  | { kind: 'ambiguous_email'; count: number };
-
-function lookupLegacyAccount(
-  requestingMemberId: string,
-  identifier: string,
-): LegacyAccountLookup {
-  const trimmed = identifier.trim();
-  if (!trimmed) {
-    throw new ValidationError('Please enter a legacy identifier.');
-  }
-
-  const already = legacyClaim.checkAlreadyClaimed.get(requestingMemberId) as AlreadyClaimedRow | undefined;
-  if (already) {
-    throw new ValidationError('Your account is already linked to a legacy record.');
-  }
-
-  // The email value is bound once per legacy email column (primary plus two
-  // secondary); a match on any column links the account.
-  const normalizedEmail = normalizeEmail(identifier);
-  const rows = legacyMembers.findAllByIdentifier.all(
-    trimmed, trimmed, normalizedEmail, normalizedEmail, normalizedEmail,
-  ) as LegacyMemberRow[];
-  if (rows.length === 0) return { kind: 'none' };
-  if (rows.length > 1) {
-    return { kind: 'ambiguous_email', count: rows.length };
-  }
-
-  const row = rows[0]!;
-  return {
-    kind: 'single',
-    result: {
-      legacyMemberId: row.legacy_member_id,
-      displayName: row.display_name ?? row.real_name ?? null,
-      country: row.country,
-      isHof: Boolean(row.is_hof),
-      isBap: Boolean(row.is_bap),
-      birthDate: row.birth_date ?? null,
-    },
-  };
-}
 
 // Shown wherever a claim is refused because the name did not reconcile. It
 // names the two remedies rather than the failure, because both are self-serve,
@@ -1746,9 +1724,9 @@ function compareDobToHistoricalPerson(
  * Evidence-strength tag carried on every confirmed-claim audit row, set by the
  * anchor that proved the match. Name-only evidence (the surname rule alone, as
  * on a direct record claim) and a declared old email tag the
- * declared_anchor_only floor tier, the weakest evidence band an admin sees when
+ * declared_anchor_only strength, the weakest evidence band an admin sees when
  * reviewing a disputed claim. A name-variant match found through the login
- * email carries that email's tier.
+ * email carries that email's strength.
  */
 export type EvidenceStrength =
   | 'declared_anchor_only'
@@ -1762,10 +1740,10 @@ const EVIDENCE_STRENGTHS: ReadonlySet<string> = new Set<EvidenceStrength>([
 ]);
 
 /**
- * Narrow a stored tier back to the vocabulary, falling to the floor for anything
- * unrecognised.
+ * Narrow a stored strength back to the vocabulary, falling to the weakest for
+ * anything unrecognised.
  *
- * The floor is the safe direction: the tier is read when a disputed claim is
+ * The weakest is the safe direction: the strength is read when a disputed claim is
  * judged, and understating evidence asks an administrator to look harder, while
  * overstating it would tell them a claim was better proven than it was.
  */
@@ -1773,10 +1751,10 @@ export function readEvidenceStrength(raw: string | null | undefined): EvidenceSt
   return raw && EVIDENCE_STRENGTHS.has(raw) ? raw as EvidenceStrength : 'declared_anchor_only';
 }
 
-/** How strong each tier is, in words an administrator can act on. */
+/** How strong each evidence strength is, in words an administrator can act on. */
 const EVIDENCE_STRENGTH_LABELS: Record<EvidenceStrength, string> = {
   declared_anchor_only:
-    'Name only. The member asserted this identity and nothing else was proven.',
+    'Asserted only. The claim rests on what the member declared (a name, an old email address, or a surname with a date of birth); nothing they control was proven.',
   currently_controls_modern_email_matching_legacy:
     'Controls the verified sign-in address that matches the old account.',
   admin_vetted_evidence:
@@ -1810,7 +1788,7 @@ export interface ClaimEvidenceAttempt {
   /** The record the attempt was aimed at, as far as the ledger names it. */
   targetLabel: string | null;
   comparisonLabel: string;
-  /** Null on a refused attempt, which records no tier because nothing linked. */
+  /** Null on a refused attempt, which records no strength because nothing linked. */
   evidenceLabel: string | null;
   /** True where the date actively contradicted the claim. */
   isContradicted: boolean;
@@ -2294,7 +2272,7 @@ export type ClaimCandidateOutcome =
  * claimable, is refused with nothing written. A target the member already
  * holds reports that and writes nothing, so a double submit lands as the
  * success it already was. The claim then runs the ordinary claim transaction
- * with the evidence tier the live match proves and the full evidence block.
+ * with the evidence strength the live match proves and the full evidence block.
  */
 function claimCandidateInTx(memberId: string, target: ClaimTarget): ClaimCandidateOutcome {
   const evidence = legacyMatchingService.readMemberEvidence(memberId);
@@ -2303,15 +2281,15 @@ function claimCandidateInTx(memberId: string, target: ClaimTarget): ClaimCandida
   const candidate = result.candidates.find((c) => holdsTarget(c, target)) ?? null;
   if (candidate?.refusal === 'already_mine') return { status: 'already_mine' };
   if (!candidate || candidate.status !== 'claimable') return { status: 'refused', candidate };
-  const tier = legacyMatchingService.evidenceTier(candidate);
+  const strength = legacyMatchingService.evidenceStrength(candidate);
   const block = legacyMatchingService.auditEvidence(
-    candidate, evidence, legacyMatchingService.shownCandidates(result), { proposed: tier, written: tier },
+    candidate, evidence, legacyMatchingService.shownCandidates(result), { proposed: strength, written: strength },
   );
   const actor: ClaimActor = { type: 'member', id: memberId };
   if (candidate.accountId) {
-    claimLegacyAccountInTx(memberId, candidate.accountId, tier, actor, block);
+    claimLegacyAccountInTx(memberId, candidate.accountId, strength, actor, block);
   } else {
-    claimHistoricalPersonInTx(memberId, candidate.recordId!, tier, actor, block);
+    claimHistoricalPersonInTx(memberId, candidate.recordId!, strength, actor, block);
   }
   return { status: 'claimed', candidate };
 }
@@ -3037,8 +3015,8 @@ async function changePassword(
     // an ordinary change.
     if (!member?.login_email) {
       // Not defensive: the schema permits a null address only on an account
-      // whose personal data is purged, and such an account has no password hash
-      // to authenticate the change that got us here.
+      // whose personal data is purged or on the system account, and neither has
+      // a password hash to authenticate the change that got us here.
       throw new Error(
         'password change reached notification with no recipient address; schema invariant violated',
       );
@@ -3328,19 +3306,16 @@ function getLinkHistoryViewForWizard(memberId: string): LinkHistoryContent | nul
 //   2. Clear legacy_members.claimed_by_member_id + claimed_at so the legacy
 //      account becomes claimable again.
 //   3. Conditionally clear members.historical_person_id: the HP is cleared
-//      only when its legacy_member_id matches the cleared linkage. Direct-HP
-//      claims (HP rows whose legacy_member_id is NULL or does not match) are
-//      preserved on revert.
+//      when it came from the claim being reverted (its legacy_member_id
+//      matches the cleared linkage, or it is a direct record claim held with
+//      no legacy link), or when it is the record an upheld dispute names. A
+//      direct record held beside a separate reverted legacy account is kept.
 //   4. Append a member_tier_grants 'revoke' row with reason_code
 //      'legacy.auto_link_reported_incorrect'.
 //   5. Append an audit_entries row with action_type 'legacy.auto_link_revert'
 //      carrying metadata_json.original_claim_audit_id. This append-only row is
 //      the revert's durable trail; the revert deliberately enqueues no admin
 //      work-queue task, since the admin is already acting when they revert.
-//
-// Anti-enumeration: an unrecognized original_claim_audit_id and an already-
-// reverted link both return a non-revealing reason discriminator so a
-// tokened email link cannot be used to probe which claims exist.
 export interface RevertAutoLinkActor {
   actorType: 'member' | 'admin';
   actorMemberId: string;
@@ -3571,8 +3546,8 @@ export type DisputeRevertResult =
  * of separation is enforced as well, since the requester cannot be the resolver.
  */
 /**
- * Shared per-admin throttle for work-queue resolution actions, including
- * ContactRequestService.resolve (same bucket key). Compromised-admin is the
+ * Shared per-admin throttle for work-queue resolution actions, including those
+ * AdminWorkQueueService resolves (same bucket key). Compromised-admin is the
  * threat model, so the admin role never bypasses it.
  */
 export function enforceWorkQueueResolveLimit(adminMemberId: string): void {
@@ -3668,9 +3643,9 @@ function resolveDisputeRevert(
         | { id: string }
         | undefined)?.id ?? '');
   if (!targetMemberId) {
-    // Nobody holds the disputed record: it was never claimed, was already
-    // reverted, or is held by a deceased member whose link the contact scrub
-    // deliberately preserves.
+    // Nobody holds the disputed record: it was never claimed, or was already
+    // reverted. A deceased member who holds it is found here like any other
+    // holder, and the revert goes ahead.
     return { status: 'nothing_to_revert' as const };
   }
   // The holder must be the one the dispute was filed against. Binding by record
@@ -4234,8 +4209,8 @@ export interface LinkHelpApprovalPreview {
  * character linked the wrong person silently and the administrator saw nothing
  * about whose record it was.
  *
- * Runs the same refusals the apply path runs, in the same order, so the
- * confirmation never offers a step that will then be refused.
+ * Runs the same refusals the apply path runs, so the confirmation never offers
+ * a step that will then be refused.
  */
 function previewLinkHelpApproval(
   adminMemberId: string,
@@ -4728,14 +4703,6 @@ function correctMemberNames(
 }
 
 /**
- * Run a proposed profile URL through the rules and hand back the normalized
- * form, writing nothing.
- *
- * The confirmation an administrator reads is produced from this, so an address
- * the rules refuse is refused before they are asked to confirm it, the same way
- * the name correction behaves.
- */
-/**
  * Tell a member an administrator corrected their record. Best-effort and after
  * the commit, so a delivery problem never unwinds a correction already made.
  * Carries what changed and why, never the values: the address on file may be
@@ -4754,6 +4721,14 @@ function notifyRecordCorrected(
   });
 }
 
+/**
+ * Run a proposed profile URL through the rules and hand back the normalized
+ * form, writing nothing.
+ *
+ * The confirmation an administrator reads is produced from this, so an address
+ * the rules refuse is refused before they are asked to confirm it, the same way
+ * the name correction behaves.
+ */
 function previewMemberSlug(memberId: string, requestedSlug: string): string {
   const row = account.findMemberForAdminRecord.get(memberId) as
     | { slug: string | null; is_system: number; personal_data_purged_at: string | null }
@@ -4925,4 +4900,4 @@ async function verifyHumanChallenge(token: string, remoteIp?: string): Promise<b
   return (await getCaptchaAdapter().verify(token, remoteIp)).ok;
 }
 
-export const identityAccessService = { verifyHumanChallenge, attemptLogin, registerMember, lookupLegacyAccount, claimLegacyAccount, lookupHistoricalPersonForClaim, claimHistoricalPerson, claimHistoricalPersonInTx, claimCandidateInTx, claimWithFormerSurnameInTx, recordClaimRefused, recordClaimStepAnswered, changePassword, verifyEmailByToken, wasVerifiedByToken, resendVerifyEmail, requestAddressRecovery, requestPasswordReset, completePasswordReset, recognisesResetRepeat, getLinkHistoryViewForWizard, revertAutoLink, revertClaimForDispute, previewClaimDisputeRevert, listClaimedLegacyIdentities, declareAnchor, listDeclaredAnchors, submitLinkHelpRequest, approveLinkHelpRequest, rejectLinkHelpRequest, enforceHistoricalPersonClaimLimit, getClaimEvidenceForMember, getLinkCandidatesForAdmin, previewLinkHelpApproval, previewMemberNames, correctMemberNames, previewMemberSlug, correctMemberSlug };
+export const identityAccessService = { verifyHumanChallenge, attemptLogin, registerMember, getCheckEmailPage, claimLegacyAccount, lookupHistoricalPersonForClaim, claimHistoricalPerson, claimHistoricalPersonInTx, claimCandidateInTx, claimWithFormerSurnameInTx, recordClaimRefused, recordClaimStepAnswered, changePassword, verifyEmailByToken, wasVerifiedByToken, resendVerifyEmail, requestAddressRecovery, requestPasswordReset, completePasswordReset, recognisesResetRepeat, getLinkHistoryViewForWizard, revertAutoLink, revertClaimForDispute, previewClaimDisputeRevert, listClaimedLegacyIdentities, declareAnchor, listDeclaredAnchors, submitLinkHelpRequest, approveLinkHelpRequest, rejectLinkHelpRequest, enforceHistoricalPersonClaimLimit, getClaimEvidenceForMember, getLinkCandidatesForAdmin, previewLinkHelpApproval, previewMemberNames, correctMemberNames, previewMemberSlug, correctMemberSlug };

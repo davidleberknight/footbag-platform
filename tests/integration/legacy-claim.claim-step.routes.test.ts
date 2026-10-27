@@ -167,7 +167,7 @@ describe('claiming a card', () => {
     expect(meta.evidence_strength).toBe('currently_controls_modern_email_matching_legacy');
     expect(meta.evidence).toMatchObject({
       account_id: account, record_id: record, curated_pair: true, corroborated: true,
-      written_tier: 'currently_controls_modern_email_matching_legacy',
+      written_strength: 'currently_controls_modern_email_matching_legacy',
     });
     expect(claimRow.metadata_json.toLowerCase()).not.toContain(sn.toLowerCase());
     expect(claimRow.metadata_json).not.toContain('1975-06-12');
@@ -176,7 +176,7 @@ describe('claiming a card', () => {
 
   // Defect caught: an account found through a declared old address is
   // recorded as proven control of a mailbox nobody proved.
-  it('records the floor tier for an account reached through a declared old address', async () => {
+  it('records the weakest evidence strength for an account reached through a declared old address', async () => {
     const sn = surname();
     const old = `cs-old-${sn}@example.com`.toLowerCase();
     const account = insertLegacyMember(db, { real_name: `Bea ${sn}`, legacy_email2: old });

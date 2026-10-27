@@ -11,7 +11,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
-import { insertMember, insertAuditEntry, insertAccountToken, insertSystemConfig } from '../fixtures/factories';
+import { insertMember, insertAuditEntry, insertSystemConfig } from '../fixtures/factories';
 import { isoDaysAgo } from '../fixtures/clock';
 import { rowPin, snapshotIds, oneRowAddedSince } from '../fixtures/rowPinning';
 
@@ -97,15 +97,6 @@ describe('the audit retention purge', () => {
     } finally {
       setRetention('2555');
     }
-  });
-
-  it('keeps an old row an account token still points at', async () => {
-    auditAged('ret-pinned', 2700);
-    withDb((db) => insertAccountToken(db, memberId, { target_audit_entry_id: 'ret-pinned' }));
-
-    await operationsPlatformService.runAuditRetentionPurge();
-
-    expect(remainingIds()).toContain('ret-pinned');
   });
 
   it('leaves its trail on the job-run row and writes no audit row about itself', async () => {

@@ -92,6 +92,27 @@ describe('R1 email key', () => {
     insertLegacyMember(db, { real_name: `Cid ${surname()}`, legacy_email: `r1-unv-${sn}@example.com`.toLowerCase() });
     expect(matchFor(unverified).candidates.some((c) => c.hits.some((h) => h.key === 'email'))).toBe(false);
   });
+
+  // Defect caught: a member whose sign-in address sits in an old account's
+  // third slot is never offered their own account.
+  it('reaches the third slot through the sign-in address', () => {
+    const sn = surname();
+    const login = `r1-third-${sn}@example.com`.toLowerCase();
+    const a = insertLegacyMember(db, { real_name: `Dot ${sn}`, legacy_email3: login });
+    const m = insertMember(db, { real_name: `Dot ${sn}`, login_email: login });
+    expect(candidateFor(m, { accountId: a })?.hits)
+      .toContainEqual({ key: 'email', side: 'account', address: { kind: 'login' }, slot: 3 });
+  });
+
+  // Defect caught: a member who typed their sign-in address with capitals is
+  // not matched to the old account holding the same address.
+  it('matches a sign-in address typed in mixed case', () => {
+    const sn = surname();
+    const a = insertLegacyMember(db, { real_name: `Eve ${sn}`, legacy_email: `r1-case-${sn}@example.com`.toLowerCase() });
+    const m = insertMember(db, { real_name: `Eve ${sn}`, login_email: `R1-Case-${sn}@Example.COM` });
+    expect(candidateFor(m, { accountId: a })?.hits)
+      .toContainEqual({ key: 'email', side: 'account', address: { kind: 'login' }, slot: 1 });
+  });
 });
 
 describe('R2 ambiguous address', () => {
@@ -435,10 +456,10 @@ describe('R15 to R23 status', () => {
   });
 });
 
-describe('R24 evidence tier', () => {
+describe('R24 evidence strength', () => {
   // Defect caught: a claim found through a declared old address is recorded as
   // proven control of the account's mailbox.
-  it('is the modern-email tier only when the verified login email reached the account', () => {
+  it('is the modern-email strength only when the verified login email reached the account', () => {
     const sn = surname();
     const login = `r24-login-${sn}@example.com`.toLowerCase();
     const old = `r24-old-${sn}@example.com`.toLowerCase();
@@ -446,8 +467,8 @@ describe('R24 evidence tier', () => {
     const viaOld = insertLegacyMember(db, { real_name: `May ${sn}`, legacy_email: old });
     const m = insertMember(db, { real_name: `May ${sn}`, login_email: login });
     insertMemberDeclaredAnchor(db, { member_id: m, anchor_type: 'old_email', anchor_value: old });
-    expect(svc.evidenceTier(candidateFor(m, { accountId: viaLogin })!)).toBe('currently_controls_modern_email_matching_legacy');
-    expect(svc.evidenceTier(candidateFor(m, { accountId: viaOld })!)).toBe('declared_anchor_only');
+    expect(svc.evidenceStrength(candidateFor(m, { accountId: viaLogin })!)).toBe('currently_controls_modern_email_matching_legacy');
+    expect(svc.evidenceStrength(candidateFor(m, { accountId: viaOld })!)).toBe('declared_anchor_only');
   });
 });
 
@@ -470,7 +491,7 @@ describe('R26 audit evidence', () => {
     expect(json).not.toContain(email);
     expect(block).toMatchObject({
       account_id: acct, corroborated: true, dob_comparison: 'identical', confidence: 'high',
-      proposed_tier: 'currently_controls_modern_email_matching_legacy',
+      proposed_strength: 'currently_controls_modern_email_matching_legacy',
     });
     const emailHit = (block.hits as Array<Record<string, unknown>>).find((h) => h.key === 'email');
     expect((emailHit?.address as { address_hash: string }).address_hash).toMatch(/^[0-9a-f]{64}$/);

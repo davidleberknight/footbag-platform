@@ -5,7 +5,6 @@ import {
   identityAccessService,
   LoginContent,
   RegisterContent,
-  CheckEmailContent,
   VerifyResultContent,
   VerifyLandingContent,
   PasswordForgotContent,
@@ -25,7 +24,8 @@ import { isSafePath } from '../lib/safePath';
 // Shown when the Turnstile challenge fails. Kept generic and identical across
 // every gated surface so a failed challenge reveals nothing about whether an
 // account exists (anti-enumeration). The stub adapter on dev and staging passes
-// every real token, so this never appears there.
+// every token, including the empty one its placeholder card submits, except the
+// sentinel test token, so there this appears only when that token is sent.
 const CAPTCHA_FAILED_MESSAGE = 'Please complete the verification challenge and try again.';
 
 // The login page is the single visitor entry: legacy-claim card, sign-in form,
@@ -219,11 +219,9 @@ async function getCheckEmail(req: Request, res: Response, next: NextFunction): P
     } else if (config.sesAdapter === 'stub') {
       emailPreview = { mode: 'dev', messages: [] };
     }
-    res.render('auth/check-email', {
-      seo: { title: 'Check Your Email', noindex: true },
-      page: { sectionKey: '', pageKey: 'check_email', title: 'Check Your Email' },
-      content: { emailPreview, turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
-    } satisfies PageViewModel<CheckEmailContent>);
+    res.render('auth/check-email', await identityAccessService.getCheckEmailPage(
+      { emailPreview, turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
+    ));
   } catch (err) {
     next(err);
   }
@@ -316,11 +314,9 @@ async function postVerifyResend(req: Request, res: Response, next: NextFunction)
 
   const captcha = await identityAccessService.verifyHumanChallenge(String(req.body['cf-turnstile-response'] ?? ''), req.ip);
   if (!captcha) {
-    res.status(422).render('auth/check-email', {
-      seo: { title: 'Check Your Email', noindex: true },
-      page: { sectionKey: '', pageKey: 'check_email', title: 'Check Your Email' },
-      content: { error: CAPTCHA_FAILED_MESSAGE, turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
-    } satisfies PageViewModel<CheckEmailContent>);
+    res.status(422).render('auth/check-email', await identityAccessService.getCheckEmailPage(
+      { error: CAPTCHA_FAILED_MESSAGE, turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
+    ));
     return;
   }
 
@@ -342,11 +338,9 @@ async function postVerifyResend(req: Request, res: Response, next: NextFunction)
         urlPathPrefix: '/verify/',
         recipientEmail: email ?? undefined,
       })) ?? undefined;
-    res.render('auth/check-email', {
-      seo: { title: 'Check Your Email', noindex: true },
-      page: { sectionKey: '', pageKey: 'check_email', title: 'Check Your Email' },
-      content: { resent: true, emailPreview, turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
-    } satisfies PageViewModel<CheckEmailContent>);
+    res.render('auth/check-email', await identityAccessService.getCheckEmailPage(
+      { resent: true, emailPreview, turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
+    ));
   } catch (err) {
     if (err instanceof ServiceUnavailableError) {
       // Defense-in-depth for any ServiceUnavailableError surfacing from

@@ -211,7 +211,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     coverageNotes: [
       'old account found by name alone needs an administrator',
       'a declared old email corroborates the account and makes it claimable',
-      'claimed at the declared-anchor evidence tier when onboarding completes',
+      'claimed at the declared-anchor evidence strength when onboarding completes',
     ],
   },
   {
@@ -263,7 +263,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     displayName: 'Kenny Highmatch',
     tier: 'tier0',
     dimension: 'Legacy claim',
-    purpose: 'An old account carrying the member\'s own sign-in address, and the record the pipeline linked to it: a strong match, claimed whole from one card at the evidence tier that proves control of the address.',
+    purpose: 'An old account carrying the member\'s own sign-in address, and the record the pipeline linked to it: a strong match, claimed whole from one card at the evidence strength that proves control of the address.',
     testingUsage: 'On the claim step, confirm one strong card for the account and record together. Claim it with "This Is Me, Link My History", confirm the club step follows, and that going back to the claim step offers nothing further.',
     legacy: { legacyEmailIsLogin: true },
     onboardingTasks: { personal_details: 'completed', legacy_claim: 'pending' },
@@ -284,7 +284,7 @@ export const CANONICAL_PERSONAS: PersonaSpec[] = [
     onboardingTasks: { personal_details: 'completed', legacy_claim: 'pending' },
     coverageNotes: [
       'record with no account: claimable on the name alone',
-      'confirmation page claim at the floor evidence tier, applied when onboarding completes',
+      'confirmation page claim at the weakest evidence strength, applied when onboarding completes',
     ],
   },
   {

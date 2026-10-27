@@ -1,12 +1,12 @@
 /**
  * Declared-anchor integration across the claim machinery:
  *  - the matching reaches old accounts through declared old emails (not just
- *    the login email) and proposes only the asserted-identity floor tier for
+ *    the login email) and proposes only the asserted-identity weakest strength for
  *    them;
  *  - the direct historical-person claim's surname rule accepts a declared
  *    former surname;
  *  - a match through a declared old email confirms like any other, at the
- *    floor tier, because an old email address is a matching key only;
+ *    weakest evidence strength, because an old email address is a matching key only;
  *  - anchor declarations are rate-limited per member;
  *  - registration against a surname already claimed records the conflict
  *    event, the wizard renders the "is one of these you?" prompt, and the
@@ -62,7 +62,7 @@ function audits(memberId: string, actionType: string): Array<Record<string, unkn
 }
 
 describe('declared old email feeds the classifier', () => {
-  it('matches through a declared old email and proposes the floor evidence tier', () => {
+  it('matches through a declared old email and proposes the weakest evidence strength', () => {
     insertLegacyMember(db, {
       legacy_member_id: 'LM-anchor-batch', legacy_email: 'old-self@old.example.com',
       real_name: 'Anchor Batcher', display_name: 'Anchor Batcher',
@@ -80,9 +80,9 @@ describe('declared old email feeds the classifier', () => {
     const candidate = candidateHolding(memberId, 'HP-anchor-batch');
     expect(candidate).toMatchObject({ status: 'claimable', confidence: 'high', accountId: 'LM-anchor-batch' });
     expect(candidate!.hits.some((h) => h.key === 'email' && h.address.kind === 'old')).toBe(true);
-    // Declared anchors are asserted, not proven: floor tier despite the
-    // high-confidence match.
-    expect(matching.evidenceTier(candidate!)).toBe('declared_anchor_only');
+    // Declared anchors are asserted, not proven: the weakest strength despite
+    // the high-confidence match.
+    expect(matching.evidenceStrength(candidate!)).toBe('declared_anchor_only');
   });
 
   it('matches a mixed-case declared old email against a lowercase-stored legacy email', () => {
@@ -110,7 +110,7 @@ describe('declared old email feeds the classifier', () => {
 });
 
 describe('an old email address is a matching key only', () => {
-  it('a match through a declared old email confirms at once, at the floor evidence tier', () => {
+  it('a match through a declared old email confirms at once, at the weakest evidence strength', () => {
     insertLegacyMember(db, {
       legacy_member_id: 'LM-oldproof', legacy_email: 'proof-old@old.example.com',
       real_name: 'Proof Person', display_name: 'Proof Person',
@@ -150,7 +150,7 @@ describe('an old email address is a matching key only', () => {
     expect(linkedId()).toBe('HP-oldproof');
 
     // The address was asserted, not proven, so the claim is recorded at the
-    // floor tier an administrator weighs a dispute against.
+    // weakest strength an administrator weighs a dispute against.
     const claim = JSON.parse(String(audits(memberId, 'claim.legacy_account')[0].metadata_json)) as Record<string, unknown>;
     expect(claim.evidence_strength).toBe('declared_anchor_only');
   });

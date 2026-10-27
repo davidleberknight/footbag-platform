@@ -1450,7 +1450,6 @@ export interface AccountTokenOverrides {
   expires_at?: string;
   used_at?: string | null;
   token_hash?: string;
-  target_audit_entry_id?: string | null;
 }
 
 export function insertAccountToken(
@@ -1464,8 +1463,8 @@ export function insertAccountToken(
     INSERT INTO account_tokens (
       id, created_at, created_by, updated_at, updated_by, version,
       member_id, token_type, token_hash, token_hash_version,
-      issued_at, expires_at, used_at, target_audit_entry_id
-    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, 1, ?, ?, ?, ?)
+      issued_at, expires_at, used_at
+    ) VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, 1, ?, ?, ?)
   `).run(
     id, issuedAt, SYS, issuedAt, SYS,
     memberId,
@@ -1475,7 +1474,6 @@ export function insertAccountToken(
     // A day after issue: live until a case asks for an expired token.
     o.expires_at ?? new Date(Date.parse(issuedAt) + DAY_MS).toISOString(),
     o.used_at ?? null,
-    o.target_audit_entry_id ?? null,
   );
   return id;
 }

@@ -4,7 +4,7 @@
  * The catalog is seeded whole, as /dev/personas seeds it, because the claim
  * step's name key scans every account and record and one persona's rows can
  * reach another's. Each claim persona is then matched through the real matching
- * service, and its card's status, confidence and evidence tier are asserted
+ * service, and its card's status, confidence and evidence strength are asserted
  * against what its catalog text tells a tester to expect.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -49,11 +49,11 @@ function accountCard(slug: string) {
 
 describe('claim personas reach the outcomes their catalog text promises', () => {
   // Defect caught: a tester following the email-pair persona finds a weaker or
-  // unclaimable card, or one that records the wrong evidence tier.
-  it('the email-matched pair is one strong claimable card at the sign-in address tier', () => {
+  // unclaimable card, or one that records the wrong evidence strength.
+  it('the email-matched pair is one strong claimable card at the sign-in address strength', () => {
     const c = accountCard('claim_email_pair');
     expect(c).toMatchObject({ status: 'claimable', confidence: 'high', curatedPair: true });
-    expect(matching.evidenceTier(c!)).toBe('currently_controls_modern_email_matching_legacy');
+    expect(matching.evidenceStrength(c!)).toBe('currently_controls_modern_email_matching_legacy');
     expect(shownFor('claim_email_pair')).toHaveLength(1);
   });
 
@@ -67,21 +67,21 @@ describe('claim personas reach the outcomes their catalog text promises', () => 
 
   // Defect caught: the name-only persona's record is withheld because the
   // pipeline linked an old account to it, so the tester finds no claim control.
-  it('a record with a linked account found by name alone is claimable at the floor tier', () => {
+  it('a record with a linked account found by name alone is claimable at the weakest strength', () => {
     const c = accountCard('claim_name_only');
     expect(c).toMatchObject({ status: 'claimable', corroborated: false, curatedPair: true });
-    expect(matching.evidenceTier(c!)).toBe('declared_anchor_only');
+    expect(matching.evidenceStrength(c!)).toBe('declared_anchor_only');
   });
 
   // Defect caught: the old-email persona stays stuck after the tester adds the
-  // address its catalog text names, or claims at the sign-in address tier.
-  it('declaring the old address the catalog names makes the account claimable at the declared tier', () => {
+  // address its catalog text names, or claims at the sign-in address strength.
+  it('declaring the old address the catalog names makes the account claimable at the declared strength', () => {
     insertMemberDeclaredAnchor(db, {
       member_id: 'member_persona_claim_old_email', anchor_type: 'old_email', anchor_value: 'pat.match@legacy.test',
     });
     const c = accountCard('claim_old_email');
     expect(c).toMatchObject({ status: 'claimable', confidence: 'high' });
-    expect(matching.evidenceTier(c!)).toBe('declared_anchor_only');
+    expect(matching.evidenceStrength(c!)).toBe('declared_anchor_only');
   });
 
   // Defect caught: a record with no account behind it is not claimable on the

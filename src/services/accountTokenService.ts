@@ -47,13 +47,11 @@ export interface IssuedToken {
 export interface ConsumedToken {
   memberId: string;
   tokenRowId: string;
-  targetAuditEntryId: string | null;
 }
 
 export interface PeekedToken {
   memberId: string;
   tokenRowId: string;
-  targetAuditEntryId: string | null;
   expiresAt: string;
 }
 
@@ -79,7 +77,6 @@ export function issueToken(opts: {
   memberId: string;
   tokenType: AccountTokenType;
   ttlHours: number;
-  targetAuditEntryId?: string;
 }): IssuedToken {
   if (opts.ttlHours <= 0) {
     throw new Error('ttlHours must be > 0');
@@ -97,7 +94,6 @@ export function issueToken(opts: {
     nowIso,
     nowIso,
     opts.memberId,
-    opts.targetAuditEntryId ?? null,
     opts.tokenType,
     tokenHash,
     nowIso,
@@ -139,7 +135,6 @@ export function consumeToken(
   return {
     memberId: row.member_id,
     tokenRowId: row.id,
-    targetAuditEntryId: row.target_audit_entry_id,
   };
 }
 
@@ -169,7 +164,6 @@ export function consumeIfUnusedInTx(
   // Snapshot bindings before the UPDATE so we can return them if it wins.
   const memberId = row.member_id;
   const tokenRowId = row.id;
-  const targetAuditEntryId = row.target_audit_entry_id;
   const nowIso = new Date().toISOString();
   const result = accountTokens.consumeIfUnusedAndUnexpired.run(
     nowIso,
@@ -178,7 +172,7 @@ export function consumeIfUnusedInTx(
     nowIso,
   );
   if (result.changes !== 1) return null;
-  return { memberId, tokenRowId, targetAuditEntryId };
+  return { memberId, tokenRowId };
 }
 
 /**
@@ -203,7 +197,6 @@ export function peekToken(
   return {
     memberId: row.member_id,
     tokenRowId: row.id,
-    targetAuditEntryId: row.target_audit_entry_id,
     expiresAt: row.expires_at,
   };
 }

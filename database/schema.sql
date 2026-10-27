@@ -2532,10 +2532,9 @@ CREATE VIEW members_of_record AS
 -- endpoint. Built on members_onboarded, so soft-deleted accounts and pending
 -- registrants never appear, then filters four more conditions that must exclude
 -- a member from search: deceased, opted-out (searchable=0), PII-purged, and
--- unverified (email_verified_at IS NULL). The last condition is the primary
--- enforcement preventing imported placeholder rows from appearing in search
--- results; searchable=0 is defense-in-depth. Do not add extra WHERE clauses on
--- top of members or the bare table.
+-- unverified (email_verified_at IS NULL), which keeps out registrants who never
+-- verified their address. Do not add extra WHERE clauses on top of members or
+-- the bare table.
 CREATE VIEW members_searchable AS
   SELECT * FROM members_onboarded
   WHERE is_deceased = 0
@@ -3160,10 +3159,6 @@ CREATE TABLE account_tokens (
   updated_by TEXT NOT NULL,
   version    INTEGER NOT NULL DEFAULT 1,
   member_id  TEXT NOT NULL REFERENCES members(id),
-  -- target_audit_entry_id: binds a token to the audit_entries row of the
-  -- action the token authorizes acting upon (for example a claim a dispute
-  -- token may revert). NULL for token types with no audit binding.
-  target_audit_entry_id TEXT REFERENCES audit_entries(id) ON DELETE NO ACTION,
   -- token_type maps to the token "purpose" concept.
   token_type TEXT NOT NULL
     CHECK (token_type IN ('email_verify','password_reset')),
@@ -3410,7 +3405,7 @@ VALUES
 --   active_player_expiry_reminder_days_1   First Active Player expiry reminder offset (days)
 --   active_player_expiry_reminder_days_2   Second Active Player expiry reminder offset (days)
 --   vouch_rate_limit_max_per_hour          Max vouch submissions per voucher per window
---   vouch_rate_limit_window_minutes        Sliding window (minutes) for vouch rate limiting
+--   vouch_rate_limit_window_minutes        Fixed window (minutes) for vouch rate limiting
 --   outbox_max_retry_attempts       Max email retries before dead-letter queue
 --   outbox_poll_interval_seconds    Outbox worker polling interval (seconds)
 --   outbox_batch_limit              Messages sent per polling pass (both streams)
@@ -3421,11 +3416,13 @@ VALUES
 --   bulk_send_paused                Operator stop for the bulk stream only
 --   token_cleanup_threshold_days    Age threshold (days) for expired/consumed token cleanup
 --   deceased_cleanup_grace_days     Grace period (days) before PII removal after marked deceased
---   login_rate_limit_max_attempts   Max failed login attempts before account lockout
---   login_rate_limit_window_minutes Sliding window (minutes) for failed login counting
---   login_cooldown_minutes          Lockout duration (minutes) after rate-limit exceeded
+--   login_rate_limit_max_attempts   Max login attempts per email address and IP address per window; no account is locked
+--   login_rate_limit_window_minutes Fixed window (minutes) for login attempt counting
+--   login_cooldown_minutes          Minutes that email address and IP address are refused once the limit is reached
 --   login_account_rate_limit_max_attempts    Max login attempts per account across all IPs per window (distributed credential-stuffing cap)
---   login_account_rate_limit_window_minutes  Sliding window (minutes) for the per-account login cap
+--   login_account_rate_limit_window_minutes  Fixed window (minutes) for the per-account login cap
+--   register_rate_limit_max_attempts   Max registration attempts per source IP per window
+--   register_rate_limit_window_minutes Fixed window (minutes) for registration attempt counting
 --   password_reset_rate_limit_max_attempts  Max password reset requests per window
 --   password_reset_rate_limit_window_minutes Window for password reset rate limiting
 --   password_change_rate_limit_max_attempts  Max authenticated password-change attempts per window
@@ -3434,7 +3431,7 @@ VALUES
 --   verify_resend_rate_limit_window_minutes Window for verify-email resend rate limiting
 --   hp_claim_rate_limit_max_per_member  Max claim confirmations (direct record claim, wizard card confirm) per member per window
 --   hp_claim_rate_limit_max_per_ip      Max claim confirmations per source IP per window
---   hp_claim_rate_limit_window_minutes  Sliding window for claim-confirmation rate limiting
+--   hp_claim_rate_limit_window_minutes  Fixed window forclaim-confirmation rate limiting
 --   jwt_expiry_hours                Main site session JWT lifetime (hours)
 --   photo_upload_rate_limit_per_hour Max photo uploads per member per hour
 --   video_submission_rate_limit_per_hour Max video submissions per member per hour
@@ -3451,15 +3448,15 @@ VALUES
 --   gallery_write_rate_limit_per_hour Max gallery creates, renames and deletes per member per hour
 --   onboarding_birth_date_change_max Max date-of-birth changes a member may make before onboarding completes
 --   declared_anchor_rate_limit_max_per_member Max declared former surnames and old emails per member per window
---   declared_anchor_rate_limit_window_minutes Sliding window for declared-anchor rate limiting
+--   declared_anchor_rate_limit_window_minutes Fixed window fordeclared-anchor rate limiting
 --   link_help_request_rate_limit_max_per_member Max identity link-help requests per member per window
---   link_help_request_rate_limit_window_minutes Sliding window for link-help request rate limiting
+--   link_help_request_rate_limit_window_minutes Fixed window forlink-help request rate limiting
 --   bootstrap_claim_rate_limit_max_per_member Max first-administrator bootstrap claim attempts per member per window
 --   bootstrap_claim_rate_limit_max_per_ip     Max bootstrap claim attempts per source IP per window
---   bootstrap_claim_rate_limit_window_minutes Sliding window for bootstrap claim rate limiting
+--   bootstrap_claim_rate_limit_window_minutes Fixed window forbootstrap claim rate limiting
 --   member_search_rate_limit_max_per_member   Max member searches per member per window
 --   member_search_rate_limit_max_per_ip       Max member searches per source IP per window
---   member_search_rate_limit_window_minutes   Sliding window for member-search rate limiting
+--   member_search_rate_limit_window_minutes   Fixed window formember-search rate limiting
 -- Pricing keys:
 --   tier1_price_cents               Tier 1 IFPA Member dues (integer cents; $10.00 = 1000)
 --   tier2_price_cents               Tier 2 IFPA Organizer Member dues (integer cents; $50.00 = 5000)
@@ -3704,7 +3701,7 @@ VALUES
    '2000-01-01T00:00:00.000Z',
    'login_rate_limit_window_minutes', '15',
    '2000-01-01T00:00:00.000Z',
-   'Sliding window in minutes for counting failed login attempts (default: 15).',
+   'Fixed window in minutes for counting login attempts (default: 15).',
    NULL
   ),
 
@@ -3731,7 +3728,7 @@ VALUES
    '2000-01-01T00:00:00.000Z',
    'register_rate_limit_window_minutes', '15',
    '2000-01-01T00:00:00.000Z',
-   'Sliding window in minutes for counting registration attempts (default: 15).',
+   'Fixed window in minutes for counting registration attempts (default: 15).',
    NULL
   ),
 
@@ -3749,7 +3746,7 @@ VALUES
    '2000-01-01T00:00:00.000Z',
    'login_account_rate_limit_window_minutes', '60',
    '2000-01-01T00:00:00.000Z',
-   'Sliding window in minutes for the per-account login cap (default: 60).',
+   'Fixed window in minutes for the per-account login cap (default: 60).',
    NULL
   ),
 
@@ -3767,7 +3764,7 @@ VALUES
    '2000-01-01T00:00:00.000Z',
    'password_reset_rate_limit_window_minutes', '60',
    '2000-01-01T00:00:00.000Z',
-   'Sliding window in minutes for counting password reset requests per email (default: 60).',
+   'Fixed window in minutes for counting password reset requests per email (default: 60).',
    NULL
   ),
 
@@ -3785,7 +3782,7 @@ VALUES
    '2000-01-01T00:00:00.000Z',
    'password_change_rate_limit_window_minutes', '15',
    '2000-01-01T00:00:00.000Z',
-   'Sliding window in minutes for counting password-change attempts per member (default: 15).',
+   'Fixed window in minutes for counting password-change attempts per member (default: 15).',
    NULL
   ),
 
@@ -3803,7 +3800,7 @@ VALUES
    '2000-01-01T00:00:00.000Z',
    'verify_resend_rate_limit_window_minutes', '60',
    '2000-01-01T00:00:00.000Z',
-   'Sliding window in minutes for counting verify-email resend requests per email (default: 60).',
+   'Fixed window in minutes for counting verify-email resend requests per email (default: 60).',
    NULL
   ),
 
@@ -3830,7 +3827,7 @@ VALUES
    '2000-01-01T00:00:00.000Z',
    'hp_claim_rate_limit_window_minutes', '60',
    '2000-01-01T00:00:00.000Z',
-   'Sliding window in minutes for claim-confirmation rate limiting (default: 60).',
+   'Fixed window in minutes for claim-confirmation rate limiting (default: 60).',
    NULL
   ),
 
@@ -4083,7 +4080,7 @@ VALUES
    '2000-01-01T00:00:00.000Z',
    'vouch_rate_limit_window_minutes', '60',
    '2000-01-01T00:00:00.000Z',
-   'Sliding window in minutes for counting vouch submissions per voucher (default: 60).',
+   'Fixed window in minutes for counting vouch submissions per voucher (default: 60).',
    NULL
   ),
 
@@ -4146,7 +4143,7 @@ VALUES
    '2000-01-01T00:00:00.000Z',
    'declared_anchor_rate_limit_window_minutes', '60',
    '2000-01-01T00:00:00.000Z',
-   'Sliding window in minutes for counting declared-anchor additions (default: 60).',
+   'Fixed window in minutes for counting declared-anchor additions (default: 60).',
    NULL
   ),
 
@@ -4164,7 +4161,7 @@ VALUES
    '2000-01-01T00:00:00.000Z',
    'link_help_request_rate_limit_window_minutes', '1440',
    '2000-01-01T00:00:00.000Z',
-   'Sliding window in minutes for counting link-help requests (default: 1440).',
+   'Fixed window in minutes for counting link-help requests (default: 1440).',
    NULL
   ),
 
@@ -4191,7 +4188,7 @@ VALUES
    '2000-01-01T00:00:00.000Z',
    'bootstrap_claim_rate_limit_window_minutes', '60',
    '2000-01-01T00:00:00.000Z',
-   'Sliding window in minutes for counting bootstrap claim attempts (default: 60).',
+   'Fixed window in minutes for counting bootstrap claim attempts (default: 60).',
    NULL
   ),
 
@@ -4218,7 +4215,7 @@ VALUES
    '2000-01-01T00:00:00.000Z',
    'member_search_rate_limit_window_minutes', '1',
    '2000-01-01T00:00:00.000Z',
-   'Sliding window in minutes for counting member searches (default: 1).',
+   'Fixed window in minutes for counting member searches (default: 1).',
    NULL
   ),
 

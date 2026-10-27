@@ -837,6 +837,13 @@ describe('email_verify token TTL honors system_config', () => {
         (new Date(tok.expires_at).getTime() - new Date(tok.issued_at).getTime()) / 3_600_000;
       expect(Math.round(diffHours)).toBe(48);
       expect(sent[0].bodyText).toContain('expires in 48 hours');
+
+      // The page the registrant lands on states the same lifetime as the link,
+      // or it tells them to hurry, or to wait, for a link that behaves otherwise.
+      const page = await request(app).get('/register/check-email');
+      expect(page.status).toBe(200);
+      expect(page.text).toContain('The verification link expires in 48 hours.');
+      expect(page.text).not.toContain('expires in 24 hours');
     } finally {
       // system_config is append-only (DELETE is trigger-blocked), so restore the
       // 24h default by appending a later-effective override.

@@ -1071,7 +1071,7 @@ export const adminWorkQueueService = {
     // An identity-link request is the one category an administrator answers by
     // applying a link rather than by writing back, so it raises the link-help
     // item that carries the apply path, the claim evidence and the vetted
-    // evidence tier. Claiming is confined to the onboarding wizard, so this is
+    // evidence strength. Claiming is confined to the onboarding wizard, so this is
     // the only way a member reaches that queue once signing up is behind them.
     if (category === 'identity_link_issue') {
       const result = identityAccessService.submitLinkHelpRequest(input.requestingMemberId, {

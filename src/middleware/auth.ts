@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import { auth as authDb } from '../db/db';
 import { getJwtSigningAdapter } from '../adapters/jwtSigningAdapter';
+import { logger } from '../config/logger';
 import { createSessionJwt } from '../services/jwtService';
 import { issueSessionCookie } from '../lib/sessionCookie';
 import { memberOnboardingService } from '../services/memberOnboardingService';
@@ -89,7 +90,15 @@ export function authMiddleware() {
     let claims: Awaited<ReturnType<ReturnType<typeof getJwtSigningAdapter>['verifyJwt']>>;
     try {
       claims = await getJwtSigningAdapter().verifyJwt(cookie);
-    } catch {
+    } catch (err) {
+      // verifyJwt answers a bad token with null; it throws only when the public
+      // key cannot be fetched, which signs every member out. That is an outage
+      // an operator must hear about, so it logs at error level (the class only,
+      // since the message may carry provider detail) and the request still
+      // continues signed out.
+      logger.error('session verification key unavailable', {
+        error_class: err instanceof Error ? err.name : typeof err,
+      });
       next();
       return;
     }

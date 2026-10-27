@@ -1559,7 +1559,7 @@ Rationale:
 
 Requirements:
 
-- Submitted passwords are length-capped at 128 bytes before hashing so a multi-megabyte password body cannot drive argon2id into a denial-of-service path.
+- Submitted passwords are length-capped at 128 characters before hashing so a multi-megabyte password body cannot drive argon2id into a denial-of-service path.
 - argon2id parameters (memory, iterations, parallelism) are pinned in code constants and recorded in the stored hash via a version tag, so older hashes can be re-derived to current cost on next login without ambiguity.
 - The hash-algorithm version (`password_hash_version`) is distinct from the session-invalidation counter (`password_version`, §3.2): the former changes only when the hashing parameters or algorithm change, the latter increments on every password reset or change. They are never conflated.
 
@@ -1579,7 +1579,7 @@ Impact:
 
 Decision:
 
-An authenticated session is represented by a JSON Web Token (JWT) issued at login and at completion of the email-verify, password-reset, and password-change flows. The token travels in the `__Host-footbag_session` cookie. Cookie attributes set at issue: `HttpOnly`, `SameSite=Lax`, `Secure`, `Path=/`, host-only scope (no `Domain` attribute, so the cookie returns only to the host that issued it; the archive's own signed cookies carry the parent-domain scope co-residency needs, per §6.4), `Max-Age` equal to the configured session lifetime (86400 seconds by default, expressed in seconds at the wire; the Express helper passes milliseconds). The name and every one of those attributes are unconditional, on every transport and in every environment, and no other cookie name is ever read. The `__Host-` name prefix is enforced by the browser rather than by the server: a cookie so named is discarded unless it carries `Secure`, carries no `Domain` attribute, and has `Path=/`. That is the defense host-only scope cannot supply on its own, for two reasons: cookie scope is evaluated against a request's destination host rather than against whoever set the cookie, and the `Cookie` request header carries only names and values, so the application cannot distinguish a cookie it set from one another host planted. Without the prefix, any other `footbag.org` name, including one still served by another operator, could set a parent-domain cookie of the same name that shadows the real session and silently substitutes its own identity for the member's. Deriving either the name or `Secure` from the request, the environment, or `NODE_ENV` would be fail-open, since losing that signal would silently restore the shadowing surface; browsers exempt `localhost` from the HTTPS requirement for `Secure` cookies, so the unconditional form holds in development as well. No per-session server-side state is maintained; the JWT's RS256 signature, produced by a non-exportable AWS KMS key in production (or a local PEM keypair in dev and test) per §3.5, authenticates the credential on every request.
+An authenticated session is represented by a JSON Web Token (JWT) issued at login and at completion of the email-verify, password-reset, and password-change flows. The token travels in the `__Host-footbag_session` cookie. Cookie attributes set at issue: `HttpOnly`, `SameSite=Lax`, `Secure`, `Path=/`, host-only scope (no `Domain` attribute, so the cookie returns only to the host that issued it; the archive's own signed cookies carry the parent-domain scope co-residency needs, per Legacy Archive (old footbag.org)), `Max-Age` equal to the configured session lifetime (86400 seconds by default, expressed in seconds at the wire; the Express helper passes milliseconds). The name and every one of those attributes are unconditional, on every transport and in every environment, and no other cookie name is ever read. The `__Host-` name prefix is enforced by the browser rather than by the server: a cookie so named is discarded unless it carries `Secure`, carries no `Domain` attribute, and has `Path=/`. That is the defense host-only scope cannot supply on its own, for two reasons: cookie scope is evaluated against a request's destination host rather than against whoever set the cookie, and the `Cookie` request header carries only names and values, so the application cannot distinguish a cookie it set from one another host planted. Without the prefix, any other `footbag.org` name, including one still served by another operator, could set a parent-domain cookie of the same name that shadows the real session and silently substitutes its own identity for the member's. Deriving either the name or `Secure` from the request, the environment, or `NODE_ENV` would be fail-open, since losing that signal would silently restore the shadowing surface; browsers exempt `localhost` from the HTTPS requirement for `Secure` cookies, so the unconditional form holds in development as well. No per-session server-side state is maintained; the JWT's RS256 signature, produced by a non-exportable AWS KMS key in production (or a local PEM keypair in dev and test) per JWT Signing with AWS KMS Asymmetric Keys, authenticates the credential on every request.
 
 The system does not support targeted revocation of one JWT while leaving other JWTs for the same member valid. The available revocation operations are:
 
@@ -1591,11 +1591,11 @@ Three cookie surfaces:
 
 | Cookie | Issuer (code path) | Integrity | Lifetime | Payload |
 |---|---|---|---|---|
-| `__Host-footbag_session` | `issueSessionCookie` in `src/lib/sessionCookie.ts` | RS256 signature; private key in AWS KMS (production) or a local PEM (dev and test), per §3.5 | 24 hours by default, administrator-configurable via `jwt_expiry_hours` | JWT claims: `sub` (member id), `passwordVersion`, `role` hint, standard `iat`/`exp` (§3.4) |
+| `__Host-footbag_session` | `issueSessionCookie` in `src/lib/sessionCookie.ts` | RS256 signature; private key in AWS KMS (production) or a local PEM (dev and test), per JWT Signing with AWS KMS Asymmetric Keys | 24 hours by default, administrator-configurable via `jwt_expiry_hours` | JWT claims: `sub` (member id), `passwordVersion`, `role` hint, standard `iat`/`exp` (JWT Token Lifecycle and Configuration) |
 | `footbag_flash` | `writeFlash` in `src/lib/flashCookie.ts` | HMAC produced by `cookie-parser` using `SESSION_SECRET` as the signing key | 60 seconds | Opaque string in the form `<kind>` or `<kind>:<payload>` (§5.2) |
-| CloudFront signed cookie for `archive.footbag.org` | Main app at session issue and at session re-issue, for a member only (per §6.4) | RSA signature verified by CloudFront against a trusted-signer key group | Equal to the session JWT lifetime, so a single re-issue cycle covers both | CloudFront access policy (resource, expiry) |
+| CloudFront signed cookie for `archive.footbag.org` | Main app at session issue and at session re-issue, for a member only (per Legacy Archive (old footbag.org)) | RSA signature verified by CloudFront against a trusted-signer key group | Equal to the session JWT lifetime, so a single re-issue cycle covers both | CloudFront access policy (resource, expiry) |
 
-The three cookies use three different integrity mechanisms because each protects a different surface: 24 hours of authenticated capability on the main domain (high blast radius if forged, so the signing key is non-exportable HSM-backed RS256), a 60-second one-shot display notice on a single host (low stakes, so a per-host HMAC is sufficient), and edge access control for the archive subdomain (verified inside CloudFront with no origin round-trip, which rules out HMAC and requires public-key verification). The environment variable `SESSION_SECRET`, despite its name, does not sign the session JWT. It is the `cookie-parser` signing key used for any cookie set with the `signed: true` option; the flash cookie (§3.3) is its only consumer.
+The three cookies use three different integrity mechanisms because each protects a different surface: 24 hours of authenticated capability on the main domain (high blast radius if forged, so the signing key is non-exportable HSM-backed RS256), a 60-second one-shot display notice on a single host (low stakes, so a per-host HMAC is sufficient), and edge access control for the archive subdomain (verified inside CloudFront with no origin round-trip, which rules out HMAC and requires public-key verification). The environment variable `SESSION_SECRET`, despite its name, does not sign the session JWT. It is the `cookie-parser` signing key for display-state cookies (any cookie set with the `signed: true` option, such as the flash cookie), and the root from which three purpose-labelled keys are derived: the unsubscribe-token key, the claim-address hash key, and the account-exists notice key.
 
 Rationale:
 
@@ -1607,7 +1607,7 @@ Rationale:
 Requirements:
 
 - `Secure` is always set on the session cookie, and is never conditioned on `req.secure`, the `X-Forwarded-Proto` header, `NODE_ENV`, or anything else. The cookie's `__Host-` name requires it, so a conditional flag would mean a conditional session: on any request where the condition failed, the browser would refuse the cookie outright. Browsers exempt `localhost` from the HTTPS requirement for `Secure` cookies, which is what lets the same unconditional attribute set serve local development. The archive's three CloudFront signed cookies do derive `Secure` from the request, since they are presented to a different host whose transport this request does not determine.
-- Integrity for the session JWT comes from the JWT signature (§3.5). The cookie is not additionally HMAC-signed via `cookie-parser`. `SESSION_SECRET` is reserved for display-state cookies (§3.3); the session JWT does not consume it.
+- Integrity for the session JWT comes from the JWT signature (JWT Signing with AWS KMS Asymmetric Keys). The cookie is not additionally HMAC-signed via `cookie-parser`. `SESSION_SECRET` signs display-state cookies and roots the purpose-labelled keys named above; the session JWT does not consume it.
 
 Trade-offs:
 
@@ -1633,11 +1633,11 @@ Server-side session store (Redis, Memcached, or a per-session DB table). Rejecte
 
 Opaque session token with a DB lookup keyed by the token. Rejected: doubles the per-request DB read load (token-row lookup, then member-row lookup) with no security improvement over JWT-as-session. The JWT carries `sub` directly, so the token-keyed first lookup is unnecessary.
 
-Long-lived "remember me" cookie alongside the short session JWT. Rejected: a second credential with its own integrity mechanism, its own re-issue path, and its own revocation story doubles the credential surface. A stolen long-lived credential extends the blast radius of every other compromise. Near-expiry JWT re-issue (§3.4) provides the same "stay logged in during active use" behaviour with one credential.
+Long-lived "remember me" cookie alongside the short session JWT. Rejected: a second credential with its own integrity mechanism, its own re-issue path, and its own revocation story doubles the credential surface. A stolen long-lived credential extends the blast radius of every other compromise. Near-expiry JWT re-issue (JWT Token Lifecycle and Configuration) provides the same "stay logged in during active use" behaviour with one credential.
 
 In-memory revocation list (token blacklist). Rejected: requires either a per-instance list that must be pruned on a schedule (memory leak otherwise) or a distributed store (the same central session store this section is designed to avoid). `passwordVersion` provides global revocation as a DB read already on the per-request path.
 
-Custom session token format (non-JWT, e.g. branca, signed JSON). Rejected: would require an in-house verification implementation and an in-house rotation mechanism. JWT plus KMS gives signed-credential semantics with a public-key verification path that does not call KMS per request, and a documented rotation pattern via the `kid` header.
+Custom session token format (non-JWT, e.g. branca, signed JSON). Rejected: would require an in-house verification implementation and an in-house rotation mechanism. JWT plus KMS gives signed-credential semantics with a public-key verification path that does not call KMS per request, and a `kid` header naming the signing key, so a token outliving its key is refused.
 
 ## 3.3 CSRF Protection via SameSite Cookies and Origin Pinning
 
@@ -1656,7 +1656,7 @@ Rationale (CSRF, three layers):
 Rationale (cookie integrity):
 
 - A display-state cookie is read back by the server on the next request and its content drives a server-rendered branch (which banner to show, which kind of flash to surface, what payload to display). Without HMAC integrity, the cookie jar (which is writable by the user's browser, by other scripts on the cookie's domain in some configurations, or by anyone with brief physical access to the device) becomes an unsigned input that the server treats as if it had set. An attacker with cookie-jar access could inject a chosen banner, a chosen kind, or a payload that triggers an unintended branch.
-- HMAC via `cookie-parser` is sufficient at this scale: per-host secret (`SESSION_SECRET`), single-domain cookie scope, and at most a 60-second forgery window before the cookie expires. KMS-signed JWT integrity (§3.5) is reserved for the session credential, whose forgery would grant 24 hours of authenticated capability and which justifies the KMS round-trip on every session-issue path. KMS round-trips on every banner emit would multiply per-request latency for no comparable security gain.
+- HMAC via `cookie-parser` is sufficient at this scale: per-host secret (`SESSION_SECRET`), single-domain cookie scope, and at most a 60-second forgery window before the cookie expires. KMS-signed JWT integrity (JWT Signing with AWS KMS Asymmetric Keys) is reserved for the session credential, whose forgery would grant 24 hours of authenticated capability and which justifies the KMS round-trip on every session-issue path. KMS round-trips on every banner emit would multiply per-request latency for no comparable security gain.
 - The flash cookie's `HttpOnly` attribute plus `SameSite=Lax` scope plus HMAC integrity together make it (a) unreadable to script on any origin, (b) unsendable from any cross-site context, and (c) unwriteable to any value the server did not produce. The receiving GET handler can therefore trust the kind and payload without re-validating who the user is.
 
 Requirements:
@@ -1665,7 +1665,7 @@ Requirements:
 - GET handlers change no stored state, as Every GET Is Read-only specifies. Mutations use POST or another non-safe method; a state change over GET is a defect.
 - Every state-changing browser request (POST, PUT, PATCH, DELETE) must carry an `Origin` header matching the canonical `PUBLIC_BASE_URL` origin exactly. A mismatched `Origin` is rejected with 403 by `requireOriginPin`. A missing `Origin` falls back to `Referer` validation against the same origin; a request missing both is rejected with 403. The fallback exists for legitimate user-agent configurations that strip `Origin` but not `Referer`.
 - JSON-only routes (webhooks; explicitly-designated JSON-only progressive-enhancement endpoints) additionally enforce `Content-Type: application/json`. This blocks a cross-site HTML form that smuggles JSON via `enctype="text/plain"`, which would otherwise bypass the same-origin check that browsers apply to non-simple Content-Types.
-- Server-to-server endpoints that legitimately omit `Origin` (intra-cluster `/ipc/*` shared-secret routes; future webhook routes with their own HMAC authentication) are explicitly exempt from the Origin check. Each exempt route documents its own authentication scheme; the exemption is per-route, not per-prefix.
+- Server-to-server endpoints that legitimately omit `Origin` are explicitly exempt from the Origin check, and each documents its own authentication scheme. Every exemption is an exact route except the `/ipc` namespace, which is exempt whole because it is machine-only and every route in it requires the shared secret. The exact routes are the Stripe webhook, which authenticates by its signature check, and one-click unsubscribe, which authenticates by its signed token.
 - Display-state cookies are emitted only through helpers in `src/lib/*Cookie.ts` with `signed: true`. Helpers set the cookie attributes (`httpOnly`, `sameSite`, `secure`, `path`, `maxAge`); controllers and middleware do not hand-roll cookie options. Services do not write or read cookies; flash is an HTTP-layer concern.
 
 Trade-offs:
@@ -1692,7 +1692,7 @@ Unsigned display-state cookies. Rejected: the receiving GET handler branches its
 
 Decision:
 
-The session JWT (§3.2) has a 24-hour lifetime by default (`exp = iat + 86400` seconds), administrator-configurable through the `jwt_expiry_hours` parameter and read at every issue, so a change reaches the next sign-in without a redeploy. The rationale below is for that default. The signing key is an AWS KMS asymmetric RSA-2048 key in production and a local PEM keypair in dev and test (§3.5). The JOSE header carries `alg: RS256` and `kid` (the active signing-key identifier) so the verifier can resolve which key signed each token across rotation overlap windows. The payload carries `sub` (member id), `passwordVersion`, `role`, and the standard `iat` and `exp` claims. The platform does not issue refresh tokens; instead, the authorization middleware re-issues the session JWT in place when the existing token is within 6 hours of expiry, replacing the cookie with a freshly-signed token carrying the configured lifetime on the same response that performed the check. The re-issue window is fixed, so a configured lifetime at or below six hours re-issues on every authenticated request rather than once per session. A token allowed to expire without an intervening authenticated request is not renewed; the next request lands unauthenticated and the user must authenticate again. The session cookie's transport attributes are defined in §3.2 and not restated here.
+The session JWT (§3.2) has a 24-hour lifetime by default (`exp = iat + 86400` seconds), administrator-configurable through the `jwt_expiry_hours` parameter and read at every issue, so a change reaches the next sign-in without a redeploy. The rationale below is for that default. The signing key is an AWS KMS asymmetric RSA-2048 key in production and a local PEM keypair in dev and test (JWT Signing with AWS KMS Asymmetric Keys). The JOSE header carries `alg: RS256` and `kid` (the active signing-key identifier), which names the key that signed the token, so a token outliving its key is refused. The payload carries `sub` (member id), `passwordVersion`, `role`, and the standard `iat` and `exp` claims. The platform does not issue refresh tokens; instead, the authorization middleware re-issues the session JWT in place when the existing token is within 6 hours of expiry, replacing the cookie with a freshly-signed token carrying the configured lifetime on the same response that performed the check. The re-issue window is fixed, so a configured lifetime at or below six hours re-issues on every authenticated request rather than once per session. A token allowed to expire without an intervening authenticated request is not renewed; the next request lands unauthenticated and the user must authenticate again. The session cookie's transport attributes are defined in §3.2 and not restated here.
 
 Rationale (24-hour TTL):
 
@@ -1726,7 +1726,7 @@ JWT payload, emitted at sign time:
 JWT header, emitted at sign time:
 
 - `alg`: `RS256` (RSASSA-PKCS1-v1_5 over SHA-256).
-- `kid`: the KMS key id in production; the local key fingerprint in dev and test. Drives public-key resolution at verify time.
+- `kid`: the KMS key id in production; a fixed local identifier in dev and test. Names the signing key, so a token whose `kid` is not the current key's is refused at verify time.
 
 Session refresh:
 
@@ -1737,7 +1737,7 @@ Session refresh:
 
 Key rotation:
 
-- The signing key carries a `kid` in every JWT header. The verifier resolves the public key by `kid` from a small in-process cache, populated at startup and on first miss from KMS `GetPublicKey`.
+- The signing key carries a `kid` in every JWT header. The verifier caches the one current public key in process, fetched from KMS `GetPublicKey` at startup and refreshed every 24 hours.
 - A rotation replaces the signing key outright: the new key signs from the moment it is installed, and a token naming the prior key is refused immediately, so every active session ends and members sign in again. The prior key is disabled in KMS once the rotation is recorded.
 - The verifier never calls KMS `Sign` and never calls `Decrypt`. Only `GetPublicKey` on cache miss. Steady-state verification is in-process RS256 against the cached public key.
 
@@ -1758,19 +1758,19 @@ Authorization decisions read from JWT claims (no per-request DB read). Rejected:
 
 Stateless JWT with no `passwordVersion` claim. Rejected: a stolen JWT would remain valid for its full 24-hour TTL with no invalidation mechanism short of KMS key rotation (which logs every member out). `passwordVersion` is a per-member invalidation lever that does not require a token blacklist or a global key rotation.
 
-No `kid` in the JWT header (single static signing key). Rejected: key rotation would require a flag day on which every active token is simultaneously invalidated, forcing a mass logout. `kid` is the JWT-standard mechanism for the overlap pattern in which two keys are valid during a rotation window.
+No `kid` in the JWT header (single static signing key). Rejected: without `kid` a token signed by a key that has since been replaced cannot be told apart from one signed by the current key. `kid` names the signing key, so a token outliving its key is refused rather than checked against the wrong one.
 
 ## 3.5 JWT Signing with AWS KMS Asymmetric Keys
 
 Decision:
 
-The session JWT (§3.2, §3.4) is signed with `RS256` (RSASSA-PKCS1-v1_5 over SHA-256) using an AWS KMS customer-managed asymmetric RSA-2048 key. Every session-issue and re-issue path calls KMS `Sign` to produce the signature: login, email-verify completion, password-reset completion, password-change response, and the near-expiry refresh defined in §3.4. Verification uses the corresponding public key, fetched from KMS `GetPublicKey` and cached in process for the container's lifetime; a steady-state verification never calls KMS. The JOSE header carries `kid` so the verifier can resolve which key signed each token across rotation overlap windows. The `JwtSigningAdapter` interface (`src/adapters/jwtSigningAdapter.ts`) lets production wire to KMS and dev and test wire to a local PEM keypair; both implementations produce identically-shaped tokens.
+The session JWT (§3.2, JWT Token Lifecycle and Configuration) is signed with `RS256` (RSASSA-PKCS1-v1_5 over SHA-256) using an AWS KMS customer-managed asymmetric RSA-2048 key. Every session-issue and re-issue path calls KMS `Sign` to produce the signature: login, email-verify completion, password-reset completion, password-change response, and the near-expiry refresh defined in JWT Token Lifecycle and Configuration. Verification uses the corresponding public key, fetched from KMS `GetPublicKey` and cached in process with a 24-hour refresh; a steady-state verification never calls KMS. The JOSE header carries `kid`, which names the signing key, so a token outliving its key is refused. The `JwtSigningAdapter` interface (`src/adapters/jwtSigningAdapter.ts`) lets production wire to KMS and dev and test wire to a local PEM keypair; both implementations produce identically-shaped tokens.
 
 Rationale:
 
 - Private key material never leaves the KMS HSM. A container compromise that obtains the runtime AWS credentials can still call KMS `Sign` while those credentials remain valid, but cannot exfiltrate a reusable signing key. Once the runtime credentials are revoked or the KMS key is disabled, the attacker can no longer forge tokens. A symmetric secret shipped to the container (the HS256 alternative below) would survive credential revocation as long as the attacker retained the captured copy and would require key rotation, not credential revocation, to end the forge window.
 - Verification is fast and runs entirely in process. The hot path (every authenticated request) does in-process RS256 verification against a cached public key; the KMS round-trip cost is paid only at startup and on key-rotation events. The verify-side cost profile is comparable to HMAC despite the asymmetric algorithm.
-- The `kid` header names the signing key that produced a token, so a token outliving its key is refused rather than verified against the wrong one. Verification accepts one key at a time: a token whose `kid` is not the current one is rejected, in both the KMS-backed adapter and its local counterpart. Rotation is therefore a flag day by design — every active session ends the moment the key changes, and members sign in again. That is the ruled trade rather than an omission. Rotation here is a scheduled operator action on a runbook, the signing key is asymmetric and so unsupported by KMS automatic rotation in any case, and in the case that matters most, a suspected key compromise, ending every session at once is the wanted behaviour rather than one to work around. Holding several public keys through an overlap window would remove the logout at the cost of a two-phase rotation and a verification path that must decide which of several keys to trust; that was considered and declined.
+- The `kid` header names the signing key that produced a token, so a token outliving its key is refused rather than verified against the wrong one. Verification accepts one key at a time: a token whose `kid` is not the current one is rejected, in both the KMS-backed adapter and its local counterpart. Rotation is therefore a flag day by design — every active session ends the moment the key changes, and members sign in again. That is the ruled trade rather than an omission. Rotation here is a deliberate operator action, taken for cause, the signing key is asymmetric and so unsupported by KMS automatic rotation in any case, and in the case that matters most, a suspected key compromise, ending every session at once is the wanted behaviour rather than one to work around. Holding several public keys through an overlap window would remove the logout at the cost of a two-phase rotation and a verification path that must decide which of several keys to trust; that was considered and declined.
 
 Requirements:
 
@@ -1783,23 +1783,23 @@ Trade-offs:
 
 - A compromise of the runtime AWS credentials gives the attacker the ability to call KMS `Sign` for any payload (and therefore to forge a JWT against any member id) for as long as those credentials remain valid. The mitigation is that runtime credentials are short-lived via the assumed-role chain (§3.6), every KMS call is logged in CloudTrail for forensic reconstruction, and credential revocation immediately ends the forge window without requiring key rotation. The non-exportable property prevents the attacker from carrying the signing key off the host.
 - KMS key deletion is irreversible and would force a mass re-authentication. AWS gates key deletion behind a 7-to-30-day pending-deletion window, which is the period in which an accidental deletion can still be cancelled. Nothing watches for it: alarming a rotation date needs a key-age metric no part of this system publishes, so a deletion surfaces as the KMS error alarm firing once signing stops. An accidentally-deleted key forces every active session to re-authenticate; this is a known cost of the non-exportable property.
-- KMS `Sign` is billed per signing operation. The 6-hour refresh window (§3.4) bounds the cost at roughly one re-issue per active session. Very high session turnover would increase KMS spend, but the cost is predictable and easy to model from authenticated-request volume.
+- KMS `Sign` is billed per signing operation. The 6-hour refresh window (JWT Token Lifecycle and Configuration) bounds the cost at roughly one re-issue per active session. Very high session turnover would increase KMS spend, but the cost is predictable and easy to model from authenticated-request volume.
 
 Impact:
 
 Adapter contract (`src/adapters/jwtSigningAdapter.ts`):
 
 - `signJwt(claims, header)` returns a serialized JWT. Production: KMS `Sign` with `SigningAlgorithm: RSASSA_PKCS1_V1_5_SHA_256`. Dev and test: in-process RSA signature against the local PEM keypair.
-- `verifyJwt(token)` returns the verified claims or `null`. Production: RS256 verification against the cached public key resolved by the token's `kid`. Dev and test: the same RS256 verification against the local public key.
+- `verifyJwt(token)` returns the verified claims or `null`. Production: RS256 verification against the one cached current public key, refusing a token whose `kid` names another key. Dev and test: the same RS256 verification against the local public key.
 - `getKid()` returns the active signing key's identifier; embedded in every emitted JWT header.
 
 Sign-side call sites (controllers and middleware that issue or re-issue a session JWT):
 
 - `authController.postLogin` (login).
-- `authController.getVerify` (email-verify completion).
+- `authController.postVerify` (email-verify completion).
 - `authController.postPasswordReset` (password-reset completion).
-- `memberController.postPasswordEdit` (re-issue with the new `passwordVersion`).
-- `authMiddleware` (re-issue inside the 6-hour refresh window per §3.4).
+- `identityAccessService.changePassword` (re-issue with the new `passwordVersion`; the controller sets the cookie).
+- `authMiddleware` (re-issue inside the 6-hour refresh window per JWT Token Lifecycle and Configuration).
 
 Verify-side call sites:
 
@@ -1815,15 +1815,15 @@ HS256 with a symmetric shared secret (e.g. `JWT_SECRET`). Rejected: a symmetric 
 
 Local-only RSA keypair on disk in production. Rejected: a host snapshot, backup tarball, or filesystem read by a compromised process recovers the private key. The keypair has no rotation primitive comparable to KMS key disable. The `LocalJwtAdapter` is used in dev and test only, where the threat model is "developer's laptop" and the convenience of file-backed signing outweighs the lower assurance.
 
-Per-request KMS `Verify` (no cached public key). Rejected: every authenticated page view would pay a KMS round-trip plus the network latency to the KMS regional endpoint. Caching the public key in process pays the KMS round-trip once per startup and once per rotation, not once per request.
+Per-request KMS `Verify` (no cached public key). Rejected: every authenticated page view would pay a KMS round-trip plus the network latency to the KMS regional endpoint. Caching the public key in process pays the KMS round-trip once per startup and once every 24 hours, not once per request.
 
-Envelope encryption (encrypting the JWT payload, not just signing it). Rejected: the JWT payload carries non-sensitive claims (member id, role hint, tier hint, `passwordVersion`, timestamps) and must be readable by the verifier in process. Encryption would require KMS `Decrypt` on every authenticated request, defeating the per-request-KMS-free property and adding nothing the signature does not already provide.
+Envelope encryption (encrypting the JWT payload, not just signing it). Rejected: the JWT payload carries non-sensitive claims (member id, role hint, `passwordVersion`, timestamps) and must be readable by the verifier in process. Encryption would require KMS `Decrypt` on every authenticated request, defeating the per-request-KMS-free property and adding nothing the signature does not already provide.
 
 Ephemeral signing keys (a new keypair per process, public key registered with a discovery endpoint). Rejected: would require an in-house service-discovery mechanism for public keys keyed by `kid`, adding a new operational surface. KMS already serves as that discovery mechanism (`GetPublicKey` returns the public key for the given `kid`) without an additional service.
 
 ECDSA (e.g. P-256 with ES256) instead of RSA-2048. Rejected: RSA-2048 with RS256 is the most widely-tooled JWT signing algorithm and is fully supported by AWS KMS. ECDSA would offer smaller signatures at comparable security but at the cost of a less widely-tested verifier path and a less standard JWT shape. No operational driver to prefer the smaller signature.
 
-In-house JWT signing (not via the `JwtSigningAdapter`). Rejected: production-versus-dev parity (per §5.3) requires a single interface with two implementations. Inlining the KMS calls into controllers would duplicate JWT shape logic and would prevent the local-PEM dev path that keeps dev and test running without AWS credentials.
+In-house JWT signing (not via the `JwtSigningAdapter`). Rejected: production-versus-dev parity (per Dedicated Adapters for External Services) requires a single interface with two implementations. Inlining the KMS calls into controllers would duplicate JWT shape logic and would prevent the local-PEM dev path that keeps dev and test running without AWS credentials.
 
 ## 3.6 Secrets Management via AWS Parameter Store
 
@@ -1866,7 +1866,7 @@ Parameter Store contains:
 - Stripe webhook secret (HMAC verification).
 - Email delivery configuration (if any), admin bootstrap tokens, and other exportable credentials and configuration that must not be committed to source control.
 
-`SESSION_SECRET` is held in Parameter Store as a SecureString and mirrored into the host env file `/srv/footbag/env` (root:root 0600) on every deploy. Terraform owns the parameter's existence and its KMS reference, never its value: the resource carries a placeholder under `ignore_changes`, because a Terraform-generated random value is written into state in plaintext by construction, so Terraform owning the value would mean the state file held a live secret. `scripts/provision-ssm-secret.sh` is the only writer; it generates the value, checks the destination before writing, keeps the value off the command line and out of shell history, and shreds its own copy afterwards. Rotation is a fresh store followed by any deploy, which invalidates every active session; a hand edit on the host is reverted by the next deploy. The value is generated fresh per environment and never reused across staging and production. The placeholder is refused by the deploy's own shape gate and by the application's boot check, so a deploy before the store step fails loudly rather than serving with an unset secret. The application and the deploy script both reject any value containing the literal placeholder substring `changeme` or shorter than 32 characters. Because recovery from a lost value is a fresh store rather than a restore, no copy is held in the credential vault. Rotation runbook: DEVOPS_GUIDE.md (private GitHub repo), "SESSION_SECRET rotation runbook".
+`SESSION_SECRET` is held in Parameter Store as a SecureString and mirrored into the host env file `/srv/footbag/env` (root:root 0600) on every deploy. Terraform owns the parameter's existence and its KMS reference, never its value: the resource carries a placeholder under `ignore_changes`, because a Terraform-generated random value is written into state in plaintext by construction, so Terraform owning the value would mean the state file held a live secret. `scripts/provision-ssm-secret.sh` is the only writer; it generates the value, checks the destination before writing, keeps the value off the command line and out of shell history, and shreds its own copy afterwards. Rotation is a fresh store followed by any deploy. It signs no one out; it voids in-flight flash messages and outstanding unsubscribe links, breaks claim-address hash matching across the rotation, and lets one identical registration resubmitted across it send a second account-exists notice. A hand edit on the host is reverted by the next deploy. The value is generated fresh per environment and never reused across staging and production. The placeholder is refused by the deploy's own shape gate and by the application's boot check, so a deploy before the store step fails loudly rather than serving with an unset secret. The application and the deploy script both reject any value containing the literal placeholder substring `changeme` or shorter than 32 characters. Because recovery from a lost value is a fresh store rather than a restore, no copy is held in the credential vault. Rotation runbook: DEVOPS_GUIDE.md (private GitHub repo), "SESSION_SECRET rotation runbook".
 
 KMS is used for:
 
@@ -1891,7 +1891,7 @@ Impact:
 - Cryptographic signing/encryption paths depend on KMS-backed adapters (`JwtSigningAdapter` for sessions today; `BallotEncryptionAdapter` for envelope encryption when ballots land), not Parameter Store.
 - CloudTrail/CloudWatch monitoring should watch for unusual Parameter Store access patterns and KMS error rates.
 - Parameter Store secrets rotate through new parameter version + controlled container restart / redeploy.
-- KMS keys rotate through an explicit key-rotation procedure (update kid/public key cache; deploy archive verifier update if applicable).
+- KMS keys rotate through an explicit key-rotation procedure (the new key signs at once and a token naming the old key is refused; deploy archive verifier update if applicable).
 
 
 ## 3.7 Ballot Encryption with AWS KMS
@@ -1983,7 +1983,7 @@ Requirements:
 
 - URL-path redaction in request logs covers every token-bearing route (email-verify, password-reset, and any future token-in-path additions). The redactor is a single helper module, and any new token-in-path route registers its pattern with the helper so logs cannot leak a usable token via path emission.
 
-Impact: Token generation/validation logic is centralized in the `identityAccessService` helper to avoid copy/paste drift across flows (verification, reset, onboarding).
+Impact: Token generation/validation logic is centralized in `accountTokenService` to avoid copy/paste drift across flows (verification, reset, onboarding).
 
 ## 3.9 Security, Privacy, and Historical Record Governance
 

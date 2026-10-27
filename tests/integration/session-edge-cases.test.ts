@@ -385,14 +385,19 @@ describe('session edge cases — the middleware separates a bad cookie from a br
   // answering "not signed in" there would sign a real member out and file the
   // outage under ordinary logged-out traffic where nobody would ever see it.
 
-  it('an unverifiable cookie degrades to signed out rather than erroring', async () => {
+  it('an unverifiable cookie degrades to signed out, and the key failure reaches the operator', async () => {
+    // A verifier that cannot fetch its public key signs every member out; left
+    // unlogged, that looks like ordinary signed-out traffic and nobody is told.
+    expectLoggedError(/^session verification key unavailable$/);
+    const { logger } = await import('../../src/config/logger');
+    const errorSpy = vi.spyOn(logger, 'error');
     const adapterMod = await import('../../src/adapters/jwtSigningAdapter');
     const real = adapterMod.getJwtSigningAdapter();
     adapterMod.setJwtSigningAdapterForTests({
       kid: real.kid,
       signJwt: (claims, ttl) => real.signJwt(claims, ttl),
       verifyJwt: () => {
-        throw new Error('verification key unavailable');
+        throw new TypeError('verification key unavailable for kid secret-detail');
       },
     });
     try {
@@ -401,6 +406,10 @@ describe('session edge cases — the middleware separates a bad cookie from a br
         .get(PROTECTED_ROUTE)
         .set('Cookie', `__Host-footbag_session=${token}`);
       expectUnauthenticated(res);
+      const calls = errorSpy.mock.calls.filter((c) => c[0] === 'session verification key unavailable');
+      expect(calls).toHaveLength(1);
+      // The error's class only: its message may carry provider detail.
+      expect(calls[0][1]).toEqual({ error_class: 'TypeError' });
     } finally {
       adapterMod.resetJwtSigningAdapterForTests();
     }

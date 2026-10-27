@@ -1,6 +1,6 @@
 /**
- * Integration tests for identityAccessService.lookupLegacyAccount and
- * claimLegacyAccount (three-table claim flow: members + legacy_members +
+ * Integration tests for identityAccessService.claimLegacyAccount
+ * (three-table claim flow: members + legacy_members +
  * historical_persons; claim marks the legacy row, never deletes).
  *
  * Exercises the service methods directly without going through HTTP.
@@ -24,8 +24,6 @@ const MEMBER_B = 'member-b-preclaimed';
 const LEGACY_UNCLAIMED = 'legmem-unclaimed-1';
 const LEGACY_WITH_HP   = 'legmem-with-hp-1';
 const LEGACY_PRECLAIMED = 'legmem-preclaimed-1';
-const LEGACY_EMAIL_MATCH = 'legmem-email-1';
-const LEGACY_USERID_MATCH = 'legmem-userid-1';
 
 // HP that will be linked via legacy_member_id at claim time.
 const HP_PERSON_ID = 'hp-linked-001';
@@ -70,18 +68,6 @@ beforeAll(async () => {
     claimed_at: '2026-01-01T00:00:00.000Z',
   });
 
-  insertLegacyMember(db, {
-    legacy_member_id: LEGACY_EMAIL_MATCH,
-    real_name: 'Email Lookup',
-    legacy_email: 'findme@example.com',
-  });
-
-  insertLegacyMember(db, {
-    legacy_member_id: LEGACY_USERID_MATCH,
-    real_name: 'UserId Lookup',
-    legacy_user_id: 'legacy_name_42',
-  });
-
   db.close();
 
   const mod = await import('../../src/services/identityAccessService');
@@ -103,104 +89,6 @@ function legacyRow(id: string): Record<string, unknown> {
   db.close();
   return row;
 }
-
-describe('lookupLegacyAccount', () => {
-  it('finds an unclaimed legacy_members row by legacy_member_id', () => {
-    const lookup = svc.lookupLegacyAccount(MEMBER_A, LEGACY_UNCLAIMED);
-    expect(lookup.kind).toBe('single');
-    if (lookup.kind === 'single') {
-      expect(lookup.result.legacyMemberId).toBe(LEGACY_UNCLAIMED);
-      expect(lookup.result.country).toBe('Canada');
-    }
-  });
-
-  it('finds by legacy_email', () => {
-    const lookup = svc.lookupLegacyAccount(MEMBER_A, 'findme@example.com');
-    expect(lookup.kind).toBe('single');
-    if (lookup.kind === 'single') {
-      expect(lookup.result.legacyMemberId).toBe(LEGACY_EMAIL_MATCH);
-    }
-  });
-
-  it('finds by legacy_user_id', () => {
-    const lookup = svc.lookupLegacyAccount(MEMBER_A, 'legacy_name_42');
-    expect(lookup.kind).toBe('single');
-    if (lookup.kind === 'single') {
-      expect(lookup.result.legacyMemberId).toBe(LEGACY_USERID_MATCH);
-    }
-  });
-
-  it('returns none for non-matching identifier', () => {
-    const lookup = svc.lookupLegacyAccount(MEMBER_A, 'nonexistent-id-999');
-    expect(lookup).toEqual({ kind: 'none' });
-  });
-
-  it('returns none when the legacy_members row is already claimed', () => {
-    const lookup = svc.lookupLegacyAccount(MEMBER_A, LEGACY_PRECLAIMED);
-    expect(lookup).toEqual({ kind: 'none' });
-  });
-
-  it('throws when the requesting member has already claimed a legacy record', () => {
-    expect(() => svc.lookupLegacyAccount(MEMBER_B, LEGACY_UNCLAIMED)).toThrow(
-      /already linked/i,
-    );
-  });
-
-  it('throws on empty identifier', () => {
-    expect(() => svc.lookupLegacyAccount(MEMBER_A, '   ')).toThrow(/enter a legacy identifier/i);
-  });
-
-  it('matches legacy_email case-insensitively (declared old-email anchors are stored lowercased)', () => {
-    const db = new BetterSqlite3(dbPath);
-    insertLegacyMember(db, {
-      legacy_member_id: 'legmem-mixedcase-email',
-      real_name: 'Mixed Case Email',
-      legacy_email: 'Mixed.Case@Example.COM',
-    });
-    db.close();
-
-    const lookup = svc.lookupLegacyAccount(MEMBER_A, 'mixed.case@example.com');
-    expect(lookup.kind).toBe('single');
-    if (lookup.kind === 'single') {
-      expect(lookup.result.legacyMemberId).toBe('legmem-mixedcase-email');
-    }
-  });
-
-  it('keeps legacy_user_id matching case-sensitive (only the email arm is case-folded)', () => {
-    const db = new BetterSqlite3(dbPath);
-    insertLegacyMember(db, {
-      legacy_member_id: 'legmem-mixedcase-user',
-      real_name: 'Mixed Case User',
-      legacy_user_id: 'Legacy_Name_99',
-    });
-    db.close();
-
-    // A differently-cased username must not match; no legacy_email equals this value either.
-    const lookup = svc.lookupLegacyAccount(MEMBER_A, 'legacy_name_99');
-    expect(lookup).toEqual({ kind: 'none' });
-  });
-
-  it('returns ambiguous_email when an identifier collides across email and username columns', () => {
-    const db = new BetterSqlite3(dbPath);
-    insertLegacyMember(db, {
-      legacy_member_id: 'legmem-collide-email',
-      real_name: 'Collide Email',
-      legacy_email: 'collide@example.com',
-    });
-    insertLegacyMember(db, {
-      legacy_member_id: 'legmem-collide-user',
-      real_name: 'Collide User',
-      legacy_user_id: 'collide@example.com',
-    });
-    db.close();
-
-    const lookup = svc.lookupLegacyAccount(MEMBER_A, 'collide@example.com');
-    expect(lookup.kind).toBe('ambiguous_email');
-    if (lookup.kind === 'ambiguous_email') {
-      expect(lookup.count).toBe(2);
-    }
-  });
-});
 
 describe('claimLegacyAccount', () => {
   it('marks legacy_members claimed, transfers fields, and sets historical_person_id when HP matches', () => {

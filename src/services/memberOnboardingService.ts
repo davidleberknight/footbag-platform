@@ -108,10 +108,10 @@
  *     it is still open. This governs sequencing only: isOnboardingComplete reads the task
  *     rows alone, so an open row never takes membership away from a member who has already
  *     finished.
- *   - A claim confirmation records the evidence tier the member's anchor proves at that
+ *   - A claim confirmation records the evidence strength the member's anchor proves at that
  *     moment, re-derived from the live match when it still names the same person; the
  *     confidence band never sets it. An old email address is a matching key only: a match
- *     through one confirms like any other, at the declared-anchor tier.
+ *     through one confirms like any other, at the declared-anchor strength.
  *   - Claim confirmations share the direct record claim's rate-limit bucket. A confirmation
  *     repeated after it already landed reports the success it already had rather than a
  *     refusal.

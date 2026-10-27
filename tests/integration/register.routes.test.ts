@@ -208,6 +208,39 @@ describe('POST /register', () => {
     for (const k of keys) expect(k).toMatch(/^account_exists_notice:member-existing-001:./);
   });
 
+  // Defect caught: a double click or a back-button re-post of one attempt mails
+  // the owner twice, or a repeat is let off the per-address limit and becomes a
+  // free way to keep submitting.
+  it('sends one notice for the same attempt submitted again, and still counts every submit', async () => {
+    const app = createApp();
+    const body = {
+      givenNames: 'Repeat', familyName: 'Submitter',
+      email: 'existing@example.com',
+      password: 'securepass123',
+      confirmPassword: 'securepass123',
+    };
+    const countNotices = () => {
+      const db = new BetterSqlite3(dbPath, { readonly: true });
+      const n = (db.prepare(
+        `SELECT COUNT(*) AS n FROM outbox_emails
+           WHERE recipient_member_id = ? AND template_key = 'account_exists_notice'`,
+      ).get('member-existing-001') as { n: number }).n;
+      db.close();
+      return n;
+    };
+    const before = countNotices();
+
+    // The registration ceiling is ten requests per address in the window.
+    for (let i = 0; i < 10; i++) {
+      const res = await request(app).post('/register').type('form').send(body);
+      expect(res.status, `submit ${i + 1}`).toBe(303);
+    }
+    expect(countNotices()).toBe(before + 1);
+
+    const refused = await request(app).post('/register').type('form').send(body);
+    expect(refused.status).toBe(429);
+  });
+
   it('short password → 422 with error', async () => {
     const app = createApp();
     const res = await request(app)

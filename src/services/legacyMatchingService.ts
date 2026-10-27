@@ -18,7 +18,7 @@
  *     account, confidence, the order cards are shown in, and each candidate's
  *     status: claimable, needing a former surname, needing an administrator,
  *     or hidden with the reason it is never offered.
- *   - The evidence tier a self-serve claim records, the re-check a claim runs
+ *   - The evidence strength a self-serve claim records, the re-check a claim runs
  *     inside its transaction, and the audit evidence block every claim-step
  *     write records.
  *
@@ -68,6 +68,7 @@ import {
 } from '../db/db';
 import { compareBirthDates, type RecordedBirthDateComparison } from '../lib/birthDate';
 import { claimAddressHash } from '../lib/claimAddressHash';
+import type { EvidenceStrength } from './identityAccessService';
 import { foldNameWords, nameMatchParts, wordGroupIn, displaySurname } from './nameUtils';
 import { normalizeForMatch, nicknameAlternates, wholeNameVariants } from './nameVariantsService';
 
@@ -151,8 +152,6 @@ export interface MatchResult {
   candidates: Candidate[];
   ambiguousAddresses: Array<{ address: AddressRef; accountCount: number }>;
 }
-
-export type EvidenceTier = 'currently_controls_modern_email_matching_legacy' | 'declared_anchor_only';
 
 // ── Member evidence ─────────────────────────────────────────────────────────
 
@@ -677,9 +676,9 @@ function recheckInTx(
 /**
  * R24. The verified login email reaching the claimed account proves current
  * control of an address the old account carried; everything else a member
- * claims rests on the floor tier.
+ * claims rests on the weakest evidence strength.
  */
-function evidenceTier(candidate: Candidate): EvidenceTier {
+function evidenceStrength(candidate: Candidate): EvidenceStrength {
   return candidate.hits.some((h) => h.key === 'email' && h.address.kind === 'login')
     ? 'currently_controls_modern_email_matching_legacy'
     : 'declared_anchor_only';
@@ -713,7 +712,7 @@ function auditEvidence(
   candidate: Candidate,
   evidence: MemberEvidence,
   shown: ReadonlyArray<Pick<Candidate, 'accountId' | 'recordId' | 'status'>>,
-  tiers?: { proposed?: string | null; written?: string | null },
+  strengths?: { proposed?: string | null; written?: string | null },
 ): Record<string, unknown> {
   return {
     account_id: candidate.accountId,
@@ -737,8 +736,8 @@ function auditEvidence(
     signals: candidate.signals,
     tied_with: candidate.tiedWith,
     dob_changes_during_onboarding: evidence.dobChangesDuringOnboarding,
-    proposed_tier: tiers?.proposed ?? evidenceTier(candidate),
-    written_tier: tiers?.written ?? null,
+    proposed_strength: strengths?.proposed ?? evidenceStrength(candidate),
+    written_strength: strengths?.written ?? null,
     shown: shown.map((s) => ({ account_id: s.accountId, record_id: s.recordId, status: s.status })),
   };
 }
@@ -753,7 +752,7 @@ export const legacyMatchingService = {
   match,
   shownCandidates,
   recheckInTx,
-  evidenceTier,
+  evidenceStrength,
   auditEvidence,
   surnamePasses,
   isPlaceholderBirthDate,
@@ -775,6 +774,6 @@ export const legacyMatchingRules = {
   confidence,
   statusFor,
   compareCandidates,
-  evidenceTier,
+  evidenceStrength,
   auditEvidence,
 };

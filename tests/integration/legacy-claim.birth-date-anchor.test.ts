@@ -502,7 +502,7 @@ describe('birth-date disambiguation among tied same-name candidates', () => {
     }
   });
 
-  it('a namesake who shares the member\'s date is corroborated by it, and the email-reached account keeps its tier', async () => {
+  it('a namesake who shares the member\'s date is corroborated by it, and the email-reached account keeps its evidence strength', async () => {
     // Twins or a namesake with the same date: the date corroborates them, the
     // card names them, and the member declines the one that is not theirs.
     const stamp = nextId('percand');
@@ -531,8 +531,8 @@ describe('birth-date disambiguation among tied same-name candidates', () => {
     expect(a?.status).toBe('claimable');
     expect(b?.status).toBe('claimable');
     // Email evidence is never recorded for a record the email said nothing about.
-    expect(matching.evidenceTier(a!)).toBe('currently_controls_modern_email_matching_legacy');
-    expect(matching.evidenceTier(b!)).toBe('declared_anchor_only');
+    expect(matching.evidenceStrength(a!)).toBe('currently_controls_modern_email_matching_legacy');
+    expect(matching.evidenceStrength(b!)).toBe('declared_anchor_only');
     const view = await svc.getLinkHistoryViewForWizard(memberId);
     expect(view!.candidates.map((card) => card.accountId)).toEqual(
       expect.arrayContaining([`${stamp}_leg_a`, `${stamp}_leg_b`]),

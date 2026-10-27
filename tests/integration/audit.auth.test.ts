@@ -262,6 +262,24 @@ describe('audit_entries — login rate-limit', () => {
     expect(meta.bucket).toBe('email_ip');
   });
 
+  it('a lockout keeps refusing without writing a row per refused attempt', async () => {
+    const app = createApp();
+    const email = 'audit-repeat-locked@example.com';
+    const id = 'audit-repeat-locked-001';
+    const db = new BetterSqlite3(dbPath);
+    insertMember(db, { id, slug: 'audit_repeat_locked', login_email: email, password_hash: await hashTestPassword(OLD_PASSWORD) });
+    db.close();
+
+    // Ten failures reach the ceiling; the attacker keeps going. One lockout is
+    // one row, or the ledger reads as several lockouts and buries the real ones.
+    await exhaustLoginBucket(app, email);
+    for (let i = 0; i < 3; i++) {
+      const refused = await request(app).post('/login').type('form').send({ email, password: 'wrong' });
+      expect(refused.status).toBe(429);
+    }
+    expect(readAudits({ action_type: 'auth.login_rate_limited', entity_id: id })).toHaveLength(1);
+  });
+
   it('a lockout on an address that belongs to no member is refused the same way and writes no row', async () => {
     const app = createApp();
     // An unknown address, a prospective member still onboarding, and a deleted

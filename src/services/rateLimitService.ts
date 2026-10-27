@@ -1,6 +1,21 @@
 export interface RateLimitResult {
   allowed: boolean;
+  /** How long attempts on this key will be refused. Set on a refusal, and on
+   *  the attempt that crossed the ceiling, where the refusals start next. */
   retryAfterSeconds?: number;
+  /** Set only on the one attempt that brought the count to the ceiling. That
+   *  attempt is still allowed; it is the moment the lockout starts, so a caller
+   *  that records a lockout records it here, once, rather than on every
+   *  refusal that follows. */
+  crossed?: true;
+}
+
+function crossedResult(bucket: Bucket, t: number): RateLimitResult {
+  return {
+    allowed: true,
+    crossed: true,
+    retryAfterSeconds: Math.max(1, Math.ceil((expiresAt(bucket) - t) / 1000)),
+  };
 }
 
 interface Bucket {
@@ -124,7 +139,7 @@ export function hit(
       opened.blockedUntil = t + cooldownMs;
     }
     buckets.set(key, opened);
-    return { allowed: true };
+    return opened.count >= maxAttempts ? crossedResult(opened, t) : { allowed: true };
   }
 
   if (bucket.count < maxAttempts) {
@@ -134,7 +149,7 @@ export function hit(
     if (cooldownMs !== undefined && bucket.count >= maxAttempts) {
       bucket.blockedUntil = t + cooldownMs;
     }
-    return { allowed: true };
+    return bucket.count >= maxAttempts ? crossedResult(bucket, t) : { allowed: true };
   }
 
   const retryAfterMs = expiresAt(bucket) - t;

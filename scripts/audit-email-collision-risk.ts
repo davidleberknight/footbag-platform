@@ -16,10 +16,9 @@
  *   2. Invariant watchdog: if the UNIQUE index is ever relaxed, this
  *      script catches the regression.
  *
- * Runtime ambiguity from within the app is possible via cross-column
- * collisions (same string appearing in `legacy_email` on one row and
- * `legacy_user_id` on another); that path is covered by the
- * `ambiguous_email` branch in `lookupLegacyAccount`, not by this audit.
+ * An address held by two accounts across different email columns (primary on
+ * one, secondary on another) is caught at claim time instead: the claim step
+ * reaches neither account and reports the address to an administrator.
  *
  * Usage:
  *   npx tsx scripts/audit-email-collision-risk.ts [--db path]

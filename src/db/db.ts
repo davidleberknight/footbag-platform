@@ -4311,6 +4311,7 @@ export interface MemberAuthRow {
   slug: string | null;
   display_name: string;
   password_hash: string;
+  password_hash_version: number;
   password_version: number;
   is_admin: number;
 }
@@ -5110,6 +5111,7 @@ export const auth = {
       m.slug,
       m.display_name,
       m.password_hash,
+      m.password_hash_version,
       m.password_version,
       m.is_admin
     FROM members_active AS m
@@ -5117,6 +5119,20 @@ export const auth = {
       m.login_email_normalized = ?
       AND m.email_verified_at IS NOT NULL
       AND m.is_deceased = 0
+  `); },
+
+  // Replaces a hash made under an older scheme with one under the current
+  // scheme. Matched on the hash it replaces, so a password changed between the
+  // sign-in's read and this write is never overwritten. The session counter is
+  // left alone: the password is the same, so no session ends.
+  get updatePasswordHash() { return db.prepare(`
+    UPDATE members
+    SET password_hash         = ?,
+        password_hash_version = ?,
+        updated_at            = ?,
+        updated_by            = 'system',
+        version               = version + 1
+    WHERE id = ? AND password_hash = ?
   `); },
 
   get findMemberForSession() { return db.prepare(`
@@ -5279,7 +5295,6 @@ export interface OutboxRow {
 export interface AccountTokenRow {
   id: string;
   member_id: string;
-  target_audit_entry_id: string | null;
   token_type: string;
   expires_at: string;
   used_at: string | null;
@@ -5322,17 +5337,17 @@ export const accountTokens = {
   get insert() { return db.prepare(`
     INSERT INTO account_tokens (
       id, created_at, created_by, updated_at, updated_by, version,
-      member_id, target_audit_entry_id, token_type,
+      member_id, token_type,
       token_hash, token_hash_version,
       issued_at, expires_at
     ) VALUES (?, ?, 'system', ?, 'system', 1,
-      ?, ?, ?,
+      ?, ?,
       ?, 1,
       ?, ?)
   `); },
 
   get findByHash() { return db.prepare(`
-    SELECT id, member_id, target_audit_entry_id,
+    SELECT id, member_id,
            token_type, expires_at, used_at
     FROM account_tokens
     WHERE token_hash = ? AND token_type = ?
@@ -5378,17 +5393,11 @@ export const auditEntries = {
     SELECT 1 AS m FROM members_onboarded WHERE id = ?
   `); },
 
-  // The retention purge: rows older than the cutoff, except one an account
-  // token still points at, which its foreign key keeps until the token goes.
-  // The delete trigger refuses any row inside the retention window, whatever
-  // cutoff is passed here.
+  // The retention purge: rows older than the cutoff. The delete trigger refuses
+  // any row inside the retention window, whatever cutoff is passed here.
   get deleteOlderThan() { return db.prepare(`
     DELETE FROM audit_entries
     WHERE occurred_at < ?
-      AND id NOT IN (
-        SELECT target_audit_entry_id FROM account_tokens
-        WHERE target_audit_entry_id IS NOT NULL
-      )
   `); },
 
   get oldestOccurredAt() { return db.prepare(`
@@ -8478,32 +8487,6 @@ export const legacyMembers = {
     ) VALUES (
       ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1
     )
-  `); },
-
-  // Returns every unclaimed legacy row matching the identifier (member id, user
-  // id, or any of the three emails) so the service can detect ambiguity, e.g. a
-  // duplicate email address across accounts. Legacy emails are stored lowercase
-  // (the loader lowercases them at write) and the service lowercases the lookup
-  // value, so the plain email indexes are used with an equality seek. A
-  // COLLATE NOCASE predicate here would defeat those BINARY indexes and force a
-  // full table scan per lookup, which is O(members x rows) across a batch
-  // auto-link pass.
-  get findAllByIdentifier() { return db.prepare(`
-    SELECT
-      legacy_member_id,
-      legacy_user_id, legacy_email, legacy_email2, legacy_email3,
-      real_name, display_name,
-      bio, birth_date, street_address, postal_code,
-      city, region, country,
-      ifpa_join_date, first_competition_year,
-      is_hof, is_bap, legacy_is_admin,
-      claimed_by_member_id, claimed_at
-    FROM legacy_members
-    WHERE claimed_by_member_id IS NULL
-      AND (legacy_member_id = ? OR legacy_user_id = ?
-           OR legacy_email = ?
-           OR legacy_email2 = ?
-           OR legacy_email3 = ?)
   `); },
 
   get findByLegacyMemberId() { return db.prepare(`

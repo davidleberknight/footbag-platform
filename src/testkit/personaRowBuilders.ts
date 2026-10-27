@@ -93,6 +93,9 @@ export interface MemberOverrides {
   birth_date?: string | null;
   searchable?: 0 | 1;
   password_version?: number;
+  /** The hashing scheme the stored hash was made under. The schema default by
+   *  default; set it lower to seed a hash the next sign-in must re-derive. */
+  password_hash_version?: number;
   stripe_customer_id?: string | null;
   email_status?: 'ok' | 'bounced' | 'complained' | 'suppressed';
   whatsapp?: string | null;
@@ -158,7 +161,7 @@ export function insertMember(db: BetterSqlite3.Database, o: MemberOverrides = {}
     INSERT INTO members (
       id, slug,
       login_email, login_email_normalized, email_verified_at, email_status,
-      password_hash, password_changed_at, password_version,
+      password_hash, password_changed_at, password_version, password_hash_version,
       family_name, given_names, real_name, display_name, display_name_normalized,
       bio, birth_date, city, region, country,
       is_admin, is_system, is_board, is_hof, hof_inducted_year, is_bap, bap_inducted_year, is_deceased, deceased_at,
@@ -167,11 +170,11 @@ export function insertMember(db: BetterSqlite3.Database, o: MemberOverrides = {}
       show_competitive_results, show_first_competition_year, gender, show_gender, legacy_member_id, historical_person_id, first_competition_year,
       stripe_customer_id, whatsapp, whatsapp_visible, last_login_at,
       created_at, created_by, updated_at, updated_by, version
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
   `).run(
     id, slug,
     email, emailNormalized, emailVerifiedAt, o.email_status ?? 'ok',
-    passwordHash, passwordChanged, o.password_version ?? 1,
+    passwordHash, passwordChanged, o.password_version ?? 1, o.password_hash_version ?? 1,
     familyName, givenNames, name, display, display.toLowerCase(),
     // Location defaults are a LEGAL member state under the live rules: the
     // canonical picker country plus a real state code, since region is

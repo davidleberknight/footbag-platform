@@ -21,7 +21,7 @@
  * Every case seeds its own member under its own address, so a rate-limit
  * bucket, an outbox row or an audit row belongs to exactly one case.
  */
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import { flashValueOf } from '../fixtures/flashCookie';
 import BetterSqlite3 from 'better-sqlite3';
@@ -462,5 +462,35 @@ describe('what the recovery request refuses', () => {
     expect(verifyMailsTo(m.email)).toHaveLength(0);
     expect(emailStatusOf(m.id)).toBe('bounced');
     expect(auditCount('email.recovery_requested', m.id)).toBe(0);
+  });
+
+  it('a link that fails to queue after the unblock is a temporary outage on the member\'s record', async () => {
+    // The provider took the address off its list, then the link could not be
+    // queued. Answered as an unexpected crash, the member reads a server fault
+    // and the operator gets a registrant's alarm about a member, with nothing
+    // on the member's record saying their request failed.
+    const m = seedMember('bounced', { newsletter: 'bounced' });
+    const { emailService } = await import('../../src/services/emailService');
+    const spy = vi.spyOn(emailService, 'send').mockImplementation(() => {
+      throw new Error('synthetic outbox failure queuing a verification link');
+    });
+    expectLoggedError(/^audit: email\.recovery_link_failed$/);
+    try {
+      const res = await recover(m);
+      expect(res.status).toBe(503);
+    } finally {
+      spy.mockRestore();
+    }
+
+    expect(auditCount('email.recovery_link_failed', m.id)).toBe(1);
+    const row = withDb((db) => db.prepare(
+      "SELECT actor_type, actor_member_id, metadata_json FROM audit_entries WHERE action_type = 'email.recovery_link_failed' AND entity_id = ?",
+    ).get(m.id) as { actor_type: string; actor_member_id: string; metadata_json: string });
+    expect(row.actor_type).toBe('member');
+    expect(row.actor_member_id).toBe(m.id);
+    // The class only: the message can quote the address.
+    expect(row.metadata_json).not.toContain(m.email);
+    expect(auditCount('email.recovery_requested', m.id)).toBe(0);
+    expect(verifyMailsTo(m.email)).toHaveLength(0);
   });
 });

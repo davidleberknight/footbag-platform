@@ -22,6 +22,14 @@ import { config } from '../config/env';
 const CHEAP_OPTS: argon2.Options = { memoryCost: 8192, timeCost: 2, parallelism: 1 };
 
 /**
+ * The hashing scheme every new hash is made under, stored beside each hash as
+ * `password_hash_version`. Raise it whenever the algorithm or its cost
+ * parameters change: a stored hash under a lower number is re-derived at the
+ * member's next successful sign-in, the one moment the plaintext is in hand.
+ */
+export const CURRENT_PASSWORD_HASH_VERSION = 1;
+
+/**
  * Hash a plaintext password. Strong cost in production/dev/staging; cheap cost
  * only under the Vitest-gated test switch. Passing no options on the strong
  * path keeps production output byte-for-byte identical to the prior direct

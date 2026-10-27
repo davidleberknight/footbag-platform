@@ -813,7 +813,7 @@ describe('POST /history/:personId/claim/confirm — claim audit metadata', () =>
     return memberId;
   }
 
-  it('records the weakest evidence tier and no name difference when the names match exactly', async () => {
+  it('records the weakest evidence strength and no name difference when the names match exactly', async () => {
     const hp = 'hp-audit-exact-name';
     const memberId = seedClaimant(hp, 'Fiona Mockingbird', 'Fiona Mockingbird', 'hpc_audit_exact');
     const res = await request(createApp())

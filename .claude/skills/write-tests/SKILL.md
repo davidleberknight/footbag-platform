@@ -55,7 +55,7 @@ The case floor is the edge-case and adversarial lists in the rule, and its real-
 - Privacy: purged members excluded, honours-gated public profiles, no PII to unauthorised viewers.
 - A form-bearing page: the primary form is not nested and its submit control posts to the intended handler. A nested `<form>` orphans the submit button and is invisible to a handler-only POST test.
 - A state-changing route on a covered path (an email link, a checkout or payment start, an outward send): a submitted-twice case asserting the same redirect and message and unchanged domain, audit, outbox and rate-limit counts, unless the route carries a named exemption. An own-repeat case gets a sibling proving another actor's act is not treated as this actor's repeat.
-- A stub adapter on the path: the case feeds it an input the live implementation would refuse (an absent captcha field, a suppressed address, an unsigned payload) and asserts the refusal, because a stub more permissive than live hides the defect below production.
+- A stub adapter on the path: the case feeds it an input the live implementation would refuse (a suppressed address, an unsigned payload) and asserts the refusal, because a stub more permissive than live hides the defect below production.
 
 For the high-risk areas (auth and session, member privacy, payments, identity claim, erasure, and any destructive, irreversible or outward-facing action), also walk the risk classification and STRIDE vocabulary in `docs/TESTING.md`.
 

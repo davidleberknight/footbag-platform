@@ -2,12 +2,10 @@
  * Integration tests for pre-dump email-collision safety.
  *
  * Verifies that duplicate legacy_email rows never produce a silent
- * mis-claim. The lookup returns `{ kind: 'ambiguous_email' }`, and in the
- * claim step an address reaching two accounts reaches neither, and is
- * reported to the administrator instead.
+ * mis-claim: in the claim step an address reaching two accounts reaches
+ * neither, and is reported to the administrator instead.
  *
- * Also asserts existing 0-match and 1-match behavior is unchanged, and
- * that no DB rows are mutated during any of these paths.
+ * Also asserts that no DB rows are mutated during any of these paths.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
@@ -29,23 +27,10 @@ let identitySvc: typeof import('../../src/services/identityAccessService');
 let tokenSvc: typeof import('../../src/services/accountTokenService');
 
 // Scenario: the same identifier string appears in DIFFERENT columns across
-// two legacy rows (e.g. an email on row A and a legacy_user_id on row B).
-// The email columns are non-unique by design; the claim lookup matches across
-// them, so cross-column ambiguity is the realistic collision shape the lookup
-// must surface as ambiguous rather than silently picking a row.
+// two legacy rows (an email on row A and a legacy_user_id on row B).
 const AMBIG_EMAIL  = 'shared@example.com';
 const LM_AMBIG_A   = 'lm-ambig-a';
 const LM_AMBIG_B   = 'lm-ambig-b';
-
-// Scenario: a member arrives under a legacy account's SECONDARY email. A legacy
-// row carries the address in legacy_email2 / legacy_email3 (not the primary);
-// the lookup must still resolve to that single row.
-const SECONDARY_EMAIL = 'Second.Address@Example.com'; // mixed case: matches case-insensitively
-const LM_SECONDARY    = 'lm-secondary';
-const MEM_SECONDARY   = 'mem-secondary';
-const TERTIARY_EMAIL  = 'third.address@example.com';
-const LM_TERTIARY     = 'lm-tertiary';
-const MEM_TERTIARY    = 'mem-tertiary';
 
 // Scenario: a cross-account collision where one address is the PRIMARY on one
 // legacy row and a SECONDARY on another. The legacy-data validation gate is the
@@ -71,8 +56,7 @@ beforeAll(async () => {
   const db = createTestDb(dbPath);
 
   // Row A holds the email. Row B holds the same string in legacy_user_id.
-  // Both individually satisfy the partial UNIQUE constraints but together
-  // they produce a 2-row match through findAllByIdentifier.
+  // Both individually satisfy the partial UNIQUE constraints.
   insertLegacyMember(db, { legacy_member_id: LM_AMBIG_A, legacy_email: AMBIG_EMAIL });
   insertLegacyMember(db, { legacy_member_id: LM_AMBIG_B, legacy_user_id: AMBIG_EMAIL });
   insertMember(db, {
@@ -107,35 +91,6 @@ beforeAll(async () => {
     email_verified_at: null,
   });
 
-  // Secondary-email match: the address lives in legacy_email2, the primary is a
-  // different address. A member logging in under the secondary still links.
-  insertLegacyMember(db, {
-    legacy_member_id: LM_SECONDARY,
-    legacy_email: 'primary-of-secondary@example.com',
-    legacy_email2: SECONDARY_EMAIL,
-  });
-  insertMember(db, {
-    id: MEM_SECONDARY,
-    slug: 'mem_secondary',
-    login_email: SECONDARY_EMAIL.toLowerCase(),
-    real_name: 'Secondary Arrival',
-    email_verified_at: null,
-  });
-
-  // Tertiary-email match: same shape against legacy_email3.
-  insertLegacyMember(db, {
-    legacy_member_id: LM_TERTIARY,
-    legacy_email: 'primary-of-tertiary@example.com',
-    legacy_email3: TERTIARY_EMAIL,
-  });
-  insertMember(db, {
-    id: MEM_TERTIARY,
-    slug: 'mem_tertiary',
-    login_email: TERTIARY_EMAIL,
-    real_name: 'Tertiary Arrival',
-    email_verified_at: null,
-  });
-
   // Cross-account collision across columns: XCOL_EMAIL is the primary on row A
   // and a secondary on row B.
   insertLegacyMember(db, { legacy_member_id: LM_XCOL_A, legacy_email: XCOL_EMAIL });
@@ -164,59 +119,6 @@ function issueVerifyToken(memberId: string): string {
     ttlHours: 24,
   }).rawToken;
 }
-
-describe('lookupLegacyAccount — union shape', () => {
-  it('returns kind:"single" for exactly one match (unchanged behavior)', () => {
-    const lookup = identitySvc.identityAccessService
-      .lookupLegacyAccount(MEM_SINGLE, 'single@example.com');
-    expect(lookup.kind).toBe('single');
-    if (lookup.kind === 'single') {
-      expect(lookup.result.legacyMemberId).toBe(LM_SINGLE);
-    }
-  });
-
-  it('returns kind:"none" for zero matches (unchanged behavior)', () => {
-    const lookup = identitySvc.identityAccessService
-      .lookupLegacyAccount(MEM_NONE, 'alone@example.com');
-    expect(lookup.kind).toBe('none');
-  });
-
-  it('returns kind:"ambiguous_email" when two legacy rows share the email', () => {
-    const lookup = identitySvc.identityAccessService
-      .lookupLegacyAccount(MEM_AMBIG, AMBIG_EMAIL);
-    expect(lookup.kind).toBe('ambiguous_email');
-    if (lookup.kind === 'ambiguous_email') {
-      expect(lookup.count).toBe(2);
-    }
-  });
-
-  it('matches an address held in a legacy account\'s secondary email column', () => {
-    const lookup = identitySvc.identityAccessService
-      .lookupLegacyAccount(MEM_SECONDARY, SECONDARY_EMAIL.toLowerCase());
-    expect(lookup.kind).toBe('single');
-    if (lookup.kind === 'single') {
-      expect(lookup.result.legacyMemberId).toBe(LM_SECONDARY);
-    }
-  });
-
-  it('matches an address held in a legacy account\'s tertiary email column', () => {
-    const lookup = identitySvc.identityAccessService
-      .lookupLegacyAccount(MEM_TERTIARY, TERTIARY_EMAIL);
-    expect(lookup.kind).toBe('single');
-    if (lookup.kind === 'single') {
-      expect(lookup.result.legacyMemberId).toBe(LM_TERTIARY);
-    }
-  });
-
-  it('returns kind:"ambiguous_email" when an address is primary on one row and secondary on another', () => {
-    const lookup = identitySvc.identityAccessService
-      .lookupLegacyAccount(MEM_XCOL, XCOL_EMAIL);
-    expect(lookup.kind).toBe('ambiguous_email');
-    if (lookup.kind === 'ambiguous_email') {
-      expect(lookup.count).toBe(2);
-    }
-  });
-});
 
 describe('claim step — an address two old accounts share', () => {
   // Defect caught: an address that slipped the legacy-data validation hands the

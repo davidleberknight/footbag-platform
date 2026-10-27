@@ -71,6 +71,29 @@ describe('rateLimitService.hit', () => {
   });
 });
 
+// A caller that records a lockout records it once, on the attempt that reached
+// the ceiling. Reporting it on every refusal is what gave one lockout an audit
+// row per refused attempt.
+describe('rateLimitService.hit reports the attempt that crossed the ceiling', () => {
+  it('marks only the attempt that brings the count to the ceiling', () => {
+    const results = Array.from({ length: 6 }, () => hit('k', 3, 5));
+    expect(results.map((r) => r.crossed === true)).toEqual([false, false, true, false, false, false]);
+    expect(results[2].allowed).toBe(true);
+    expect(results[2].retryAfterSeconds).toBeGreaterThan(0);
+  });
+
+  it('marks the opening attempt when the ceiling is one', () => {
+    expect(hit('k', 1, 5).crossed).toBe(true);
+    expect(hit('k', 1, 5).crossed).toBeUndefined();
+  });
+
+  it('marks the crossing again once a refund has returned the attempt that crossed', () => {
+    for (let i = 0; i < 3; i++) hit('k', 3, 5);
+    refund('k');
+    expect(hit('k', 3, 5).crossed).toBe(true);
+  });
+});
+
 // Keys are built partly from unauthenticated input, so anyone able to reach a
 // login form can create entries at will. Without a bound the map grows for the
 // life of the process.
