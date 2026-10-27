@@ -91,8 +91,13 @@
  *     volunteers, so none pays for a tier in order to serve. Revoke is self-revoke-guarded (an admin cannot revoke their
  *     own role, so at least one admin always remains); it sets `is_admin=0`,
  *     audits, and unsubscribes the member from `admin-alerts` only, leaving
- *     other list subscriptions untouched. Both enqueue the affected-member
- *     notification after the transaction commits.
+ *     other list subscriptions untouched. Both queue the affected-member
+ *     notification inside the same transaction.
+ *   - Every administrator act here that tells its member (a tier override that
+ *     changes the tier, board standing set or cleared, an honor grant, an
+ *     admin-role grant or revoke) queues that notice best-effort inside the
+ *     act's transaction, keyed on the act's audit row. Removing an honor
+ *     granted in error leaves the tier alone, so it sends nothing.
  *   - An automatic tier write never leaves a sitting administrator below
  *     Tier 2: a Tier 3 removal or auto-link revert that would do so is followed
  *     in the same transaction by the role's Tier 2 grant, recorded on that
@@ -126,8 +131,9 @@
  *
  * Side effects:
  *   - audit_entries append
- *   - outbox_emails enqueue (tier change, congratulatory HoF/BAP, admin-role
- *     change, admin-alerts fan-out on an administrator-loss raise)
+ *   - outbox_emails enqueue (tier change on an override or a board standing
+ *     change, congratulatory HoF/BAP, admin-role change, admin-alerts fan-out
+ *     on an administrator-loss raise)
  *   - mailing_list_subscriptions upsert (admin-alerts subscribe on admin
  *     provisioning/grant; unsubscribe on revoke)
  *   - work_queue_items insert (administrator-loss recruitment alert)
@@ -308,8 +314,8 @@ function audit(opts: {
   memberId: string;
   reasonText: string | null;
   metadata: Record<string, unknown>;
-}): void {
-  appendAuditEntry({
+}): string {
+  return appendAuditEntry({
     actionType: opts.actionType,
     actorType: opts.actorType,
     actorMemberId: opts.actorId,
@@ -320,20 +326,21 @@ function audit(opts: {
   });
 }
 
-// Member notifications send AFTER the tier transaction commits, so a delivery
-// problem never unwinds the committed grant; emailService.sendToMember skips a
-// member with no deliverable recipient and keys idempotency on the grant id.
+// An administrator's tier act notifies its member inside the act's own
+// transaction, so the change and its notice commit or roll back together; the
+// shared act-notice send skips a member who cannot be mailed and keys on the
+// act's audit row.
 function enqueueHonorCongrats(
   memberId: string,
   honor: 'hof' | 'bap',
   staysTier3: boolean,
-  grantId: string,
+  auditId: string,
 ): void {
-  emailService.sendToMember({
+  emailService.sendActNotice({
     memberId,
     template: 'honor_congratulation',
     params: { honor, staysTier3 },
-    idempotencyKey: `honor_congrats:${grantId}`,
+    actId: auditId,
   });
 }
 
@@ -341,13 +348,13 @@ function enqueueTierChangeNotice(
   memberId: string,
   newTier: MemberTier,
   reasonText: string,
-  grantId: string,
+  auditId: string,
 ): void {
-  emailService.sendToMember({
+  emailService.sendActNotice({
     memberId,
     template: 'tier_change_notice',
     params: { newTier, reasonText },
-    idempotencyKey: `tier_change_notice:${grantId}`,
+    actId: auditId,
   });
 }
 
@@ -601,8 +608,8 @@ function keepAdminAtTier2InTx(memberId: string): boolean {
  * target must not already be an admin. In one transaction this sets
  * `is_admin=1`, applies the role's Tier 2 invariant through the same helper the
  * bootstrap paths use, appends an admin-actor audit row carrying the mandatory
- * reason, and subscribes the member to admin-alerts. The affected-member email
- * enqueues after commit.
+ * reason, subscribes the member to admin-alerts, and queues the affected-member
+ * email.
  *
  * Tier 2 is an invariant the grant establishes, not a precondition the target
  * must arrive with: a `member_tier_grants` row is written when they hold less,
@@ -664,7 +671,6 @@ export function grantAdminRole(
   const { trimmedReason } = assertGrantAdminRoleAllowed(targetMemberId, reason);
 
   const now = new Date().toISOString();
-  const eventId = `evt_${uuidv7Hex()}`;
   transaction(() => {
     adminRole.setAdminFlag.run(1, now, 'admin_role_grant', targetMemberId);
     // Carries the role's Tier 2 invariant and the admin-alerts subscription, the
@@ -676,23 +682,22 @@ export function grantAdminRole(
       {},
       { emitAudit: false },
     );
-    audit({
+    const auditId = audit({
       actionType: 'admin.role_granted',
       actorType: 'admin',
       actorId: adminMemberId,
       memberId: targetMemberId,
       reasonText: trimmedReason,
       metadata: tier.applied
-        ? { event_id: eventId, tier_from: tier.fromTier, tier_to: 'tier2' }
-        : { event_id: eventId, tier_from: tier.fromTier, tier_to: tier.fromTier },
+        ? { tier_from: tier.fromTier, tier_to: 'tier2' }
+        : { tier_from: tier.fromTier, tier_to: tier.fromTier },
     });
-  });
-
-  emailService.sendToMember({
-    memberId: targetMemberId,
-    template: 'admin_role_change',
-    params: { action: 'granted' },
-    idempotencyKey: `admin_role_grant:${eventId}`,
+    emailService.sendActNotice({
+      memberId: targetMemberId,
+      template: 'admin_role_change',
+      params: { action: 'granted' },
+      actId: auditId,
+    });
   });
 
   return { status: 'advance' };
@@ -895,8 +900,8 @@ function adminRevokeAlreadyHolds(
  * one transaction this sets `is_admin=0`, appends an admin-actor audit row with
  * the mandatory reason, unsubscribes the member from admin-alerts only, leaving
  * their other list subscriptions untouched, and raises the administrator-loss
- * recruitment alert so the shrinking admin team is prompted to recruit. The
- * affected-member email enqueues after commit. A repeat finds the role already
+ * recruitment alert so the shrinking admin team is prompted to recruit, and
+ * queues the affected-member email. A repeat finds the role already
  * gone and reports `own_repeat` when this actor's revoke is the one standing,
  * `already_held` when another act removed it; neither writes anything.
  */
@@ -914,26 +919,24 @@ export function revokeAdminRole(
   const { trimmedReason } = assertRevokeAdminRoleAllowed(adminMemberId, targetMemberId, reason);
 
   const now = new Date().toISOString();
-  const eventId = `evt_${uuidv7Hex()}`;
   transaction(() => {
     adminRole.setAdminFlag.run(0, now, 'admin_role_revoke', targetMemberId);
     unsubscribeAdminAlertsInTx(targetMemberId, now, 'admin_role_revoke');
-    audit({
+    const auditId = audit({
       actionType: 'admin.role_revoked',
       actorType: 'admin',
       actorId: adminMemberId,
       memberId: targetMemberId,
       reasonText: trimmedReason,
-      metadata: { event_id: eventId },
+      metadata: {},
     });
     raiseAdminLossAlertInTx(targetMemberId, 'revoked', adminMemberId);
-  });
-
-  emailService.sendToMember({
-    memberId: targetMemberId,
-    template: 'admin_role_change',
-    params: { action: 'revoked' },
-    idempotencyKey: `admin_role_revoke:${eventId}`,
+    emailService.sendActNotice({
+      memberId: targetMemberId,
+      template: 'admin_role_change',
+      params: { action: 'revoked' },
+      actId: auditId,
+    });
   });
 
   return { status: 'advance' };
@@ -1083,9 +1086,8 @@ export function applyHonorGrant(
     const now = new Date().toISOString();
     const current = getCurrent(memberId);
 
-    let newGrantRowId: string;
     if (current.tier_status === 'tier3') {
-      newGrantRowId = insertGrant({
+      insertGrant({
         actorId,
         memberId,
         changeType: 'governance_set',
@@ -1103,7 +1105,7 @@ export function applyHonorGrant(
       if (current.tier_status === 'tier0') {
         endOnTierUpgrade(memberId, now);
       }
-      newGrantRowId = insertGrant({
+      insertGrant({
         actorId,
         memberId,
         changeType: 'grant',
@@ -1131,7 +1133,7 @@ export function applyHonorGrant(
       memberId,
     );
 
-    audit({
+    const auditId = audit({
       actionType: honor === 'hof' ? 'tier.hof_grant' : 'tier.bap_grant',
       actorType: 'admin',
       actorId,
@@ -1144,17 +1146,12 @@ export function applyHonorGrant(
         from_underlying: current.underlying_tier_status,
       },
     });
+    enqueueHonorCongrats(memberId, honor, current.tier_status === 'tier3', auditId);
 
-    return {
-      status: 'advance' as const,
-      grantId: newGrantRowId,
-      staysTier3: current.tier_status === 'tier3',
-    };
+    return { status: 'advance' as const };
   });
 
-  if (result.status !== 'advance') return { status: result.status };
-  enqueueHonorCongrats(memberId, honor, result.staysTier3, result.grantId);
-  return { status: 'advance' };
+  return { status: result.status };
 }
 
 export type RemoveHonorGrantResult =
@@ -1450,7 +1447,7 @@ export function setGovernanceTier3(
     if (current.tier_status === 'tier3') {
       throw new ConflictError(`member ${memberId} is already Tier 3`);
     }
-    setGovernanceTier3InTx({
+    const { auditId } = setGovernanceTier3InTx({
       actorId,
       actorType:  'admin',
       memberId,
@@ -1459,6 +1456,9 @@ export function setGovernanceTier3(
       reasonText: reason,
       metadata:   {},
     });
+    // Board standing moves the member to Tier 3, a change of tier like any
+    // other an administrator makes, so it sends the same notice.
+    enqueueTierChangeNotice(memberId, 'tier3', reason ?? '', auditId);
     return { ok: true as const };
   });
 }
@@ -1477,7 +1477,7 @@ function setGovernanceTier3InTx(args: {
   reasonCode: 'governance.tier3_set' | 'legacy.claim_board_grant';
   reasonText: string | null;
   metadata: Record<string, unknown>;
-}): UnderlyingTier {
+}): { underlying: UnderlyingTier; auditId: string } {
   const { actorId, memberId, current } = args;
   const now = new Date().toISOString();
 
@@ -1506,7 +1506,7 @@ function setGovernanceTier3InTx(args: {
   // The board badge every surface reads, set with the tier it belongs to.
   memberTier.setBoardFlag.run(1, now, actorId, memberId);
 
-  audit({
+  const auditId = audit({
     actionType: 'tier.governance_set',
     actorType: args.actorType,
     actorId,
@@ -1519,7 +1519,7 @@ function setGovernanceTier3InTx(args: {
     },
   });
 
-  return newUnderlying;
+  return { underlying: newUnderlying, auditId };
 }
 
 export type LegacyClaimBoardGrantResult =
@@ -1554,7 +1554,7 @@ export function applyLegacyClaimBoardGrantInTx(
   if (current.tier_status === 'tier3') {
     return { status: 'noop', reason: 'already_tier3' };
   }
-  const underlying = setGovernanceTier3InTx({
+  const { underlying } = setGovernanceTier3InTx({
     actorId:    actor.id,
     actorType:  actor.type,
     memberId,
@@ -1624,7 +1624,7 @@ export function removeGovernanceTier3(
     // the role's floor then brings them back to Tier 2.
     const adminKeptAtTier2 = keepAdminAtTier2InTx(memberId);
 
-    audit({
+    const auditId = audit({
       actionType: 'tier.governance_removed',
       actorType: 'admin',
       actorId,
@@ -1635,6 +1635,9 @@ export function removeGovernanceTier3(
         ...(adminKeptAtTier2 ? { admin_tier2_invariant_to: 'tier2' } : {}),
       },
     });
+    // The notice names the tier the member actually holds now, which for a
+    // sitting administrator is the role's Tier 2 rather than the reverted one.
+    enqueueTierChangeNotice(memberId, adminKeptAtTier2 ? 'tier2' : revertTo, reason ?? '', auditId);
 
     return { ok: true as const };
   });
@@ -1660,12 +1663,12 @@ export function adminOverride(
     throw new ValidationError('reason_text is required for admin override');
   }
 
-  const result = transaction(() => {
+  transaction(() => {
     const now = new Date().toISOString();
     const current = getCurrent(memberId);
     const tierChanged = current.tier_status !== newTier;
 
-    const newGrantRowId = insertGrant({
+    insertGrant({
       actorId,
       memberId,
       changeType: 'correct',
@@ -1679,7 +1682,7 @@ export function adminOverride(
       now,
     });
 
-    audit({
+    const auditId = audit({
       actionType: 'tier.admin_override',
       actorType: 'admin',
       actorId,
@@ -1691,14 +1694,10 @@ export function adminOverride(
       },
     });
 
-    return { grantId: newGrantRowId, tierChanged };
+    // A same-tier correction (an admin re-recording the current tier with a
+    // new reason) is not a status change, so it sends no notification.
+    if (tierChanged) enqueueTierChangeNotice(memberId, newTier, validatedReason, auditId);
   });
-
-  // A same-tier correction (an admin re-recording the current tier with a new
-  // reason) is not a status change, so it sends no notification.
-  if (result.tierChanged) {
-    enqueueTierChangeNotice(memberId, newTier, reasonText, result.grantId);
-  }
   return { ok: true as const };
 }
 

@@ -87,7 +87,7 @@ export const CRAWL_FINDING_EXEMPTIONS: readonly FindingExemption[] = [
   },
   {
     oracle: 'shown-but-refused', reason: 'harness-by-design',
-    url: /^\/dev\/login\?as=(?:deceased|del_grace_elapsed|del_grace_open|unverified)$/,
+    url: /^\/dev\/login\?as=(?:deceased|deceased_past_revert|deceased_with_record|del_grace_elapsed|del_grace_open|unverified)$/,
     problem: /^signed-in persona redirected to log in/,
     why: 'The persona catalog offers a login link for each persona whose login is refused, so a '
       + 'tester can see the refusal; landing on the login page is the behaviour being shown.',
@@ -169,6 +169,8 @@ export const ROUTE_EXEMPTIONS: readonly RouteExemption[] = [
       'POST /admin/historical-records/:personId/deceased/confirm',
       'POST /admin/historical-records/:personId/deceased/revert/confirm',
       'POST /admin/historical-records/:personId/correction/confirm',
+      'POST /admin/events/:eventId/results/entries/:entryId/confirm',
+      'POST /admin/events/:eventId/results/disciplines/:disciplineId/confirm',
       'POST /admin/work-queue/:id/link-help/approve/confirm',
       'POST /admin/clubs/:clubId/content/confirm', 'POST /admin/clubs/:clubId/hashtag/confirm',
       'POST /admin/clubs/:clubId/leadership/demote/confirm', 'POST /admin/tags/retire/confirm',
@@ -186,13 +188,17 @@ export const ROUTE_EXEMPTIONS: readonly RouteExemption[] = [
     + 'avatar, deceased record, work-queue item of this kind, payment report, flagged media, curator '
     + 'media, notation candidate, net team, past event, recurring donation, '
     + 'organizer task, archive configuration, claimable record, second club for the persona, '
-    + 'club the cleanup rules would demote, admin club search result, or bounced address).', [
+    + 'club the cleanup rules would demote, admin club or event search result, or bounced address).', [
       'GET /admin/clubs/:clubId',
       'POST /members/:memberKey/email-preferences/recover',
       'POST /admin/club-cleanup/apply-rules',
-      'POST /admin/members/:memberId/avatar/remove', 'POST /admin/members/:memberId/deceased/revert',
+      'POST /admin/members/:memberId/avatar/remove',
       'POST /admin/historical-records/:personId/deceased', 'POST /admin/historical-records/:personId/deceased/revert',
       'GET /admin/historical-records/:personId/correction', 'POST /admin/historical-records/:personId/correction',
+      'GET /admin/events/:eventId/results', 'GET /admin/events/:eventId/results/entries/:entryId',
+      'POST /admin/events/:eventId/results/entries/:entryId',
+      'GET /admin/events/:eventId/results/disciplines/:disciplineId',
+      'POST /admin/events/:eventId/results/disciplines/:disciplineId',
       'POST /admin/work-queue/:id/resolve', 'POST /admin/work-queue/:id/dismiss', 'POST /admin/work-queue/:id/unpark',
       'POST /admin/work-queue/:id/link-help/dispute-revert',
       'POST /admin/work-queue/:id/link-help/dispute-revert/confirm',

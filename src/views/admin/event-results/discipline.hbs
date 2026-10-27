@@ -1,0 +1,41 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{> admin-instructions}}
+  {{> outcome-notice text=content.errorMessage tone='no'}}
+
+  <section>
+    <div class="card card-static mb-6">
+      <p class="m-0 fw-500">{{content.eventTitle}} &middot; {{content.divisionName}}</p>
+    </div>
+
+    <form method="POST" action="{{content.previewAction}}" class="form-block">
+      <div class="form-field">
+        <label for="ed_family">Sport family</label>
+        <select id="ed_family" name="sport_family">
+          {{#each content.familyOptions}}
+            <option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+          {{/each}}
+        </select>
+      </div>
+      <div class="form-field">
+        <label for="ed_kind">Kind</label>
+        <select id="ed_kind" name="aggregate_standing">
+          <option value="0" {{#unless content.isAggregateStanding}}selected{{/unless}}>Single contest</option>
+          <option value="1" {{#if content.isAggregateStanding}}selected{{/if}}>Aggregate standing (an overall or club ranking)</option>
+        </select>
+      </div>
+      <div class="form-field">
+        <label for="ed_reason">Reason (required)</label>
+        <input type="text" id="ed_reason" name="reason" maxlength="500" required />
+      </div>
+      <button type="submit" class="btn btn-primary">Review the Correction</button>
+    </form>
+
+    <p class="mt-4"><a href="{{content.cancelHref}}">Cancel</a></p>
+  </section>
+</div>

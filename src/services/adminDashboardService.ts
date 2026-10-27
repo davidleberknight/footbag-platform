@@ -131,6 +131,7 @@ const TOOL_GROUPS: DashboardLinkGroup[] = [
       { label: 'Members', href: '/admin/members' },
       { label: 'Official IFPA Roster', href: '/ifpa/roster' },
       { label: 'Historical Records', href: '/admin/historical-records' },
+      { label: 'Event Results', href: '/admin/events/results' },
       { label: 'Legacy Accounts', href: '/admin/legacy-accounts' },
       { label: 'Clubs', href: '/admin/clubs' },
       { label: 'Club Cleanup', href: '/admin/club-cleanup' },
@@ -277,7 +278,14 @@ export const adminDashboardService = {
       // An administrator's home page is authenticated and has nothing to offer
       // a search engine that reaches it.
       seo: { title: 'Admin Dashboard', noindex: true },
-      page: { sectionKey: 'admin', pageKey: 'admin_dashboard', title: 'Admin Dashboard' },
+      page: {
+        sectionKey: 'admin', pageKey: 'admin_dashboard', title: 'Admin Dashboard',
+        instructions: {
+          what: 'Shows everything waiting on an administrator, then links to every admin tool.',
+          why: 'So no queue, alarm or request waits unseen.',
+          how: 'Open a queue from its row, or pick a tool from the groups at the bottom.',
+        },
+      },
       content: {
         needsYouNow,
         hasNeedsYouNow: needsYouNow.length > 0,

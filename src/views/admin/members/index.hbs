@@ -5,11 +5,11 @@
 </div>
 
 <div class="wrapper">
+  {{> admin-instructions}}
   {{> outcome-notice text=content.errorMessage tone='no'}}
 
   <section>
     <div class="section-heading"><h2>Find a Member</h2></div>
-    <p class="fs-sm">This lookup reads every member account, including those held back from member search, those inside the deletion grace period, and those marked deceased.</p>
     <div class="search-box-section">
       <form method="GET" action="/admin/members" class="search-box-form" role="search">
         <input type="text" name="q" maxlength="200"

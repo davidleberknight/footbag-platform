@@ -35,7 +35,7 @@ read only from `freestyle/inputs/` and `freestyle/symbolic_grammar/` (and
   what made a destructive refresh look safe.
 - **Loaders that clear what they load are the ones whose data is wholly derived**:
   consecutive records, modifier registry rows absent from the input, and symbolic
-  grammar clear their whole table; tips clear only the rows from their own source.
+  grammar clear their whole table.
   The records loader is additive (`INSERT OR IGNORE`, no `DELETE`), so a change to an
   existing record needs a fresh database build to take effect.
 - **The record CSVs are hand-curated, not generated.**

@@ -190,6 +190,10 @@ const ISO_DAY_RE = /^\d{4}-\d{2}-\d{2}$/;
 // Footbag did not exist before 1970, so an earlier year is a placeholder rather
 // than an achievement date; the public pages already show such a date as unknown.
 const EARLIEST_RECORD_YEAR = 1970;
+const RECORD_FORM_INSTRUCTIONS = {
+  what: 'Adds or edits one freestyle world record.',
+  headsUp: ['Records are never deleted. Retire a beaten one by pointing it at the record that beat it.'],
+};
 
 /**
  * Why this achieved date cannot be stored at this precision, or null when it can.
@@ -308,7 +312,17 @@ export const freestyleRecordCurationService = {
 
     return {
       seo:  { title: 'Freestyle Records' },
-      page: { sectionKey: 'admin', pageKey: 'admin_freestyle_records', title: 'Freestyle Records' },
+      page: {
+        sectionKey: 'admin', pageKey: 'admin_freestyle_records', title: 'Freestyle Records',
+        instructions: {
+          what: 'Lists the freestyle world records, including the superseded and low-confidence ones the public page hides.',
+          how: 'Search by holder or trick, filter by record type, then open a record to edit it, or add a new one.',
+          headsUp: [
+            'Records are never deleted. A beaten record is retired by pointing it at the record that beat it, and a doubtful one is marked by its confidence rating.',
+            'Changes are recorded in the audit log.',
+          ],
+        },
+      },
       content: {
         rows,
         totalCount: rows.length,
@@ -358,7 +372,7 @@ export const freestyleRecordCurationService = {
 
     return {
       seo:  { title: 'Freestyle Records' },
-      page: { sectionKey: 'admin', pageKey: 'admin_freestyle_record_edit', title: row.trick_name ?? 'Record' },
+      page: { sectionKey: 'admin', pageKey: 'admin_freestyle_record_edit', title: row.trick_name ?? 'Record', instructions: RECORD_FORM_INSTRUCTIONS },
       content: {
         id: row.id,
         isNew: false,
@@ -407,7 +421,7 @@ export const freestyleRecordCurationService = {
 
     return {
       seo:  { title: 'Freestyle Records' },
-      page: { sectionKey: 'admin', pageKey: 'admin_freestyle_record_new', title: 'New Record' },
+      page: { sectionKey: 'admin', pageKey: 'admin_freestyle_record_new', title: 'New Record', instructions: RECORD_FORM_INSTRUCTIONS },
       content: {
         id: '',
         isNew: true,

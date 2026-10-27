@@ -41,6 +41,10 @@ import {
   type TextShape,
 } from '../lib/textSanitizer';
 
+const CONSECUTIVE_FORM_INSTRUCTIONS = {
+  what: 'Adds or edits one consecutive-kicks record.',
+};
+
 // One typed field, cleaned before its own checks run. Unreadable text is recorded
 // beside the form's other field errors and reads as empty.
 function cleanRowText(
@@ -224,7 +228,17 @@ export const consecutiveKicksCurationService = {
 
     return {
       seo:  { title: 'Consecutive Kicks Records' },
-      page: { sectionKey: 'admin', pageKey: 'admin_consecutive_records', title: 'Consecutive Kicks Records' },
+      page: {
+        sectionKey: 'admin', pageKey: 'admin_consecutive_records', title: 'Consecutive Kicks Records',
+        instructions: {
+          what: 'Lists the consecutive-kicks records, grouped by section and record type.',
+          how: 'Open a record to edit or delete it, or add a new one.',
+          headsUp: [
+            'Deleting a record removes it from the public records and cannot be undone.',
+            'Changes are recorded in the audit log.',
+          ],
+        },
+      },
       content: { sections, totalCount: rows.length, hasRows: rows.length > 0 },
     };
   },
@@ -258,7 +272,7 @@ export const consecutiveKicksCurationService = {
 
     return {
       seo:  { title: 'Consecutive Kicks Records' },
-      page: { sectionKey: 'admin', pageKey: 'admin_consecutive_record_edit', title: 'Edit Consecutive-kicks Record' },
+      page: { sectionKey: 'admin', pageKey: 'admin_consecutive_record_edit', title: 'Edit Consecutive-kicks Record', instructions: CONSECUTIVE_FORM_INSTRUCTIONS },
       content: {
         id: row.id,
         isNew: false,
@@ -291,7 +305,10 @@ export const consecutiveKicksCurationService = {
 
     return {
       seo:  { title: 'Consecutive Kicks Records' },
-      page: { sectionKey: 'admin', pageKey: 'admin_consecutive_record_delete', title: 'Delete Consecutive-kicks Record' },
+      page: {
+        sectionKey: 'admin', pageKey: 'admin_consecutive_record_delete', title: 'Delete Consecutive-kicks Record',
+        instructions: { what: 'Review deleting this record before it happens.' },
+      },
       content: {
         id: row.id,
         summary,
@@ -327,7 +344,7 @@ export const consecutiveKicksCurationService = {
 
     return {
       seo:  { title: 'Consecutive Kicks Records' },
-      page: { sectionKey: 'admin', pageKey: 'admin_consecutive_record_new', title: 'New Consecutive-kicks Record' },
+      page: { sectionKey: 'admin', pageKey: 'admin_consecutive_record_new', title: 'New Consecutive-kicks Record', instructions: CONSECUTIVE_FORM_INSTRUCTIONS },
       content: {
         id: '',
         isNew: true,

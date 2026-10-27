@@ -1,11 +1,11 @@
 <div class="hero hero-sm">
   <div>
     <h1>{{page.title}}</h1>
-    <p>Settings the platform reads while it runs. A change here takes effect without a deployment, the next time the job or flow that reads it runs. Every change is kept with the reason you give for it.</p>
   </div>
 </div>
 
 <div class="wrapper">
+  {{> admin-instructions}}
   {{> outcome-notice text=content.savedMessage tone='ok'}}
 
   <section>

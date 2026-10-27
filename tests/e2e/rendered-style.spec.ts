@@ -32,7 +32,8 @@ import { openLiveDb } from './helpers/liveDb';
 import { seedCrawlWorld } from '../fixtures/crawl/seedCrawlFixture';
 import { submitForm } from './helpers/submitForm';
 import {
-  insertAuditEntry, insertClub, insertClubLeader, insertCuratorVideo, insertEmailArchive, insertEvent, insertFreeformTag,
+  insertAuditEntry, insertClub, insertClubLeader, insertCuratorVideo, insertDiscipline, insertEmailArchive, insertEvent, insertFreeformTag,
+  insertResultEntry, insertResultParticipant, insertResultsUpload,
   insertFreestyleEvAdjudication, insertFreestyleTrick, insertFreestyleTrickAlias,
   insertHistoricalPerson, insertLegacyMember, insertMediaItem, insertMediaJob, insertMember,
   insertMemberClubAffiliation, insertMemberGallery, insertNetTeam, insertPayment,
@@ -69,6 +70,11 @@ test.beforeAll(() => {
   insertEvent(db, { id: REACH_ROWS.eventId, hashtag_tag_id: eventTag, title: 'Rendered Style Open' });
   const playerA = insertHistoricalPerson(db, { person_id: REACH_ROWS.playerAId, person_name: 'Rendered Style Player A' });
   const playerB = insertHistoricalPerson(db, { person_name: 'Rendered Style Player B' });
+  // One published result, so the administrator's correction pages have a row to open.
+  insertDiscipline(db, REACH_ROWS.eventId, { id: REACH_ROWS.resultDisciplineId, name: 'Open Singles Net', discipline_category: 'net' });
+  const upload = insertResultsUpload(db, REACH_ROWS.eventId, 'member_persona_admin_t2');
+  insertResultEntry(db, REACH_ROWS.eventId, upload, REACH_ROWS.resultDisciplineId, { id: REACH_ROWS.resultEntryId, score_text: '15-11' });
+  insertResultParticipant(db, REACH_ROWS.resultEntryId, 'Rendered Style Player A', { historical_person_id: playerA });
   insertNetTeam(db, { team_id: REACH_ROWS.netTeamId, person_id_a: playerA, person_id_b: playerB });
   insertMemberGallery(db, { id: REACH_ROWS.memberGalleryId, owner_member_id: member, created_by: member, name: 'Rendered Style Gallery', description: '', is_default: 0 });
   insertMediaItem(db, { id: REACH_ROWS.memberMediaId, uploader_member_id: member, caption: 'Rendered style upload' });

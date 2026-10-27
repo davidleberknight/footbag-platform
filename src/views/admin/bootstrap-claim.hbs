@@ -5,6 +5,7 @@
 </div>
 
 <div class="wrapper">
+  {{> admin-instructions}}
   <section>
     {{#if content.isGranted}}
       {{> outcome-notice text="Administrator access granted. The bootstrap token has been consumed." tone='ok'}}
@@ -16,7 +17,6 @@
       {{#if content.isRateLimited}}
         {{> outcome-notice text="Too many attempts in a short time. Your token was not read. Please wait a little and try again." tone='no'}}
       {{/if}}
-      <p>If a System Administrator provisioned a bootstrap token for you, enter it below. The token works exactly once.</p>
       <form method="POST" action="/admin/bootstrap-claim" class="login-form">
         <div class="form-field">
           <label for="token">Bootstrap token</label>

@@ -5,11 +5,7 @@
 </div>
 
 <div class="wrapper">
-  <p>
-    Public named galleries owned by the FH/curator system account. Membership is computed
-    at request time by tag-AND match against each gallery's criteria-tag set, minus any
-    item that carries an exclude tag.
-  </p>
+  {{> admin-instructions}}
   <p>
     {{#if content.sidecarWritesEnabled}}
     Edit metadata, sort order, or tag sets below. Use the Create button to add a new

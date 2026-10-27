@@ -175,9 +175,9 @@ afterAll(async () => {
 describe('authentication-state axis', () => {
   it('email-unverified, deceased, and soft-deleted personas cannot obtain a session', async () => {
     const cannot = CANONICAL_PERSONAS.filter((p) => !canHoldSession(p));
-    // The four account-state personas the catalog carries for this purpose.
+    // The account-state personas the catalog carries for this purpose.
     expect(cannot.map((p) => p.slug).sort()).toEqual(
-      ['deceased', 'del_grace_elapsed', 'del_grace_open', 'unverified'],
+      ['deceased', 'deceased_past_revert', 'deceased_with_record', 'del_grace_elapsed', 'del_grace_open', 'unverified'],
     );
     for (const p of cannot) {
       const res = await request(createApp()).get(`/dev/switch?as=${p.slug}`);
@@ -209,6 +209,7 @@ describe('admin gate — GET (allow admin only, deny everyone else)', () => {
     '/admin/clubs',
     '/admin/tags',
     '/admin/events/organizers',
+    '/admin/events/results',
     '/admin/club-cleanup',
     '/admin/curator/media',
     '/admin/curator/galleries',
@@ -248,6 +249,10 @@ describe('admin gate — GET (allow admin only, deny everyone else)', () => {
         break;
       case 'allow':
         expect(res.status, `${cell} (admin allow)`).toBe(200);
+        // A page, not a download, opens with the instructions block its service fills.
+        if (String(res.headers['content-type']).startsWith('text/html')) {
+          expect(res.text, `${cell} (instructions block)`).toContain('<aside class="admin-instructions"');
+        }
         break;
       case 'deny':
         expect(res.status, `${cell} (non-admin deny)`).toBe(403);
@@ -298,6 +303,8 @@ describe('admin gate — parameterized GET (detail routes sit behind the gate)',
     '/admin/payments/ph', '/admin/members/ph', '/admin/clubs/ph',
     '/admin/mailing-lists/ph', '/admin/mailing-lists/ph/edit', '/admin/mailing-lists/ph/compose',
     '/admin/broadcasts/ph', '/admin/historical-records/ph/correction',
+    '/admin/events/ph/results', '/admin/events/ph/results/entries/ph',
+    '/admin/events/ph/results/disciplines/ph',
   ];
 
   it('redirects the unauthenticated, 403s a non-admin, and 404s an admin on a placeholder id', async () => {
@@ -345,6 +352,10 @@ describe('admin gate — POST (every state-changing admin route sits behind the 
     '/admin/historical-records/ph/deceased/revert/confirm',
     '/admin/historical-records/ph/correction',
     '/admin/historical-records/ph/correction/confirm',
+    '/admin/events/ph/results/entries/ph',
+    '/admin/events/ph/results/entries/ph/confirm',
+    '/admin/events/ph/results/disciplines/ph',
+    '/admin/events/ph/results/disciplines/ph/confirm',
     '/admin/honor-grants/remove',
     '/admin/honor-grants/remove/confirm',
     '/admin/honor-grants/board/set',

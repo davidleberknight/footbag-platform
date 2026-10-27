@@ -334,7 +334,15 @@ export const auditLogService = {
 
     return {
       seo: { title: 'Audit Log', noindex: true },
-      page: { sectionKey: 'admin', pageKey: 'admin_audit_log', title: 'Audit Log' },
+      page: {
+        sectionKey: 'admin', pageKey: 'admin_audit_log', title: 'Audit Log',
+        instructions: {
+          what: 'Searches the record of every significant change on the platform: who did what, when, and why.',
+          why: 'To investigate a member\'s complaint, or to confirm an action was recorded as it should be.',
+          how: 'Filter by category, action, member or dates. With no dates and no member filter it shows the last 90 days. A member\'s history shows all of it. Export a window of up to 90 days as a CSV or JSON file, or open the monthly summary.',
+          headsUp: ['Entries cannot be edited or deleted here. The platform removes them only after seven years.'],
+        },
+      },
       content: {
         entries: rows.map(shapeRow),
         hasEntries: rows.length > 0,
@@ -404,7 +412,13 @@ export const auditLogService = {
 
     return {
       seo: { title: 'Audit Summary', noindex: true },
-      page: { sectionKey: 'admin', pageKey: 'admin_audit_summary', title: 'Audit Summary' },
+      page: {
+        sectionKey: 'admin', pageKey: 'admin_audit_summary', title: 'Audit Summary',
+        instructions: {
+          what: 'Monthly counts of audit entries by category, for the filters you chose.',
+          how: 'With no dates it covers the last 12 months.',
+        },
+      },
       content: {
         months,
         hasMonths: months.length > 0,

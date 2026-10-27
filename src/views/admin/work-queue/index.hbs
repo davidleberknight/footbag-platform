@@ -6,6 +6,7 @@
 </div>
 
 <div class="wrapper">
+  {{> admin-instructions}}
   {{#if content.isFiltered}}
     <p class="fs-sm">
       Showing {{content.filterLabel}} only, out of {{content.wholeQueueTotal}} open across the whole queue.

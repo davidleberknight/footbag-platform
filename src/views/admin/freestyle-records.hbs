@@ -1,11 +1,12 @@
 <div class="hero hero-sm">
   <div>
     <h1>{{page.title}}</h1>
-    <p class="hero-subtitle">Browse the freestyle world records, including superseded and low-confidence rows the public page hides. {{content.totalCount}} row(s).</p>
+    <p class="hero-subtitle">{{content.totalCount}} row(s).</p>
   </div>
 </div>
 
 <div class="wrapper">
+  {{> admin-instructions}}
   <section>
     <p><a href="/admin/freestyle/records/new" class="btn btn-primary btn-sm">New Record</a></p>
 

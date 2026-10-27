@@ -3,7 +3,6 @@
 <div class="hero hero-sm">
   <div>
     <h1>{{page.title}}</h1>
-    <p class="hero-subtitle">{{page.intro}}</p>
     <div class="hero-stats">
       <span>{{content.rowTotal}} rows</span>
       <span>{{content.shownTotal}} shown</span>
@@ -12,6 +11,7 @@
 </div>
 
 <div class="wrapper">
+  {{> admin-instructions}}
 
   {{! A released ruling's next stage is authoring its movement, so the backlog is
       reached from here as well as from the dashboard. }}

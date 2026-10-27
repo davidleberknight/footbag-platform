@@ -512,6 +512,17 @@ export const adminSystemParametersService = {
           sectionKey: 'admin',
           pageKey: 'admin_system_parameters',
           title: 'System Parameters',
+          instructions: {
+            what: 'Settings the platform reads while it runs, such as limits, time windows and membership prices.',
+            why: 'To change how the platform behaves without a deployment.',
+            how: 'Edit a value and give a reason. Schedule a new membership price together with the date it starts.',
+            headsUp: [
+              'A change takes effect the next time the job or flow that reads it runs.',
+              'Every change is recorded in the audit log with your reason, and every scheduled price with its start date.',
+              'The emergency switches are shown for reference only. An operator changes them with a script.',
+              'A value outside its safe range is refused, and a price cannot start in the past.',
+            ],
+          },
         },
         content: {
           sections,

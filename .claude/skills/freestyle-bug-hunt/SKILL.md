@@ -149,7 +149,7 @@ In scope:
   data, and the freestyle entries in `/sitemap.xml` (`siteMetaService`).
 - Freestyle DB tables as loaded (`freestyle_tricks`, `freestyle_trick_modifiers`,
   `freestyle_trick_aliases`, modifier/source link tables, `freestyle_trick_sources`,
-  `freestyle_trick_tips`, `freestyle_ev_adjudications`, `freestyle_records`, the
+  `freestyle_ev_adjudications`, `freestyle_records`, the
   consecutive-records table, the five `symbolic_*` tables, `media_items` / `media_tags`
   for curated media), and the freestyle `audit_entries` rows the write paths append.
 - Generated content modules (`src/content/freestyle*.ts` and peers) and their agreement

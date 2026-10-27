@@ -794,7 +794,7 @@ function claimNotAppliedAtCompletion(memberId: string): boolean {
 }
 
 const CLAIM_NOT_APPLIED_NOTICE =
-  "We couldn't link the old footbag.org record you chose, because it is no longer available. You can ask the IFPA administrator to look into it with the Contact IFPA admin link on your profile.";
+  "We couldn't link the old footbag.org record you chose, because it is no longer available. You can ask the IFPA administrator to look into it with the Ask an administrator link on your profile.";
 
 
 /**
@@ -1129,7 +1129,7 @@ function listWizardCardsForMember(memberId: string): WizardCard[] {
       isLeadership:        true as const,
       isDisambiguation:    false as const,
       questionLabel:       `Were you a leader or organizer of ${r.club_name}?`,
-      consequencesNote:    `The old footbag.org site listed you as a contact for ${r.club_name}. Confirming makes you a co-leader of the club, brings it back to active if it is inactive, and grants you a one-time Active Player period. If you already co-lead another club, you will be added as a member instead.`,
+      consequencesNote:    `The old footbag.org site listed you as a contact for ${r.club_name}. Confirming makes you a co-leader of the club, brings it back to active if it is inactive, and grants you a one-time Active Player period. Leading a club needs Tier 1 or higher, or an Active Player period you already hold, so without one, or if you already co-lead another club, you will be added as a member instead.`,
       candidateId:         r.candidate_id,
       clubId:              r.club_id,
       clubName:            r.club_name,

@@ -161,6 +161,10 @@ export const adminEventOrganizerService = {
         sectionKey: 'admin',
         pageKey:    'admin_event_organizers',
         title:      'Events Needing an Organizer',
+        instructions: {
+          what: 'Lists events that have nobody left to run them.',
+          how: 'Open an event to assign an organizer.',
+        },
       },
       content: {
         events: rows.map((e) => ({
@@ -188,6 +192,16 @@ export const adminEventOrganizerService = {
         pageKey:    'admin_event_organizer_detail',
         title:      'Event Organizers',
         eyebrow:    event.title,
+        instructions: {
+          what: 'Shows who runs this event, and assigns or removes an organizer.',
+          how: 'Enter a member and a reason to assign them, or give a reason beside an organizer to remove them.',
+          headsUp: [
+            'An event has at most five organizers.',
+            'Both actions take a reason and are recorded in the audit log.',
+            'Nobody is emailed.',
+            'Removing the last organizer puts the event back in the queue.',
+          ],
+        },
       },
       navigation: {
         contextLinks: [{ label: 'Back to Events Needing an Organizer', href: '/admin/events/organizers' }],

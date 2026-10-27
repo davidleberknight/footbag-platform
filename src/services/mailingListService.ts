@@ -437,6 +437,13 @@ function formPage(
       sectionKey: 'admin',
       pageKey: isNew ? 'admin_mailing_list_new' : 'admin_mailing_list_edit',
       title: isNew ? 'New Mailing List' : 'Edit Mailing List',
+      instructions: {
+        what: 'Creates a mailing list, or changes a list\'s settings.',
+        headsUp: [
+          'A list\'s web address is set when it is created and cannot be changed later, because every subscription and past send refers to it.',
+          'A new list takes its recipients from its own subscribers.',
+        ],
+      },
     },
     content: {
       formAction,
@@ -487,7 +494,20 @@ export const mailingListService = {
 
     return {
       seo: { title: 'Mailing Lists', noindex: true },
-      page: { sectionKey: 'admin', pageKey: 'admin_mailing_lists', title: 'Mailing Lists' },
+      page: {
+        sectionKey: 'admin', pageKey: 'admin_mailing_lists', title: 'Mailing Lists',
+        instructions: {
+          what: 'The lists the platform can send to.',
+          why: 'To manage who receives each kind of mailing.',
+          how: 'Open a list to see its subscribers, change its settings, adjust one member\'s subscription, or write a message to it. Create a new list from here.',
+          headsUp: [
+            'A list takes its recipients either from its own subscribers, who manage themselves, or from a group\'s roster.',
+            'A list backed by a group\'s roster is created by turning on that group\'s mail, not here.',
+            'Archiving keeps every subscription and past send, and stops the list being offered.',
+            'Creating, editing and archiving are recorded in the audit log.',
+          ],
+        },
+      },
       content: {
         rows,
         totalCount: rows.length,
@@ -529,7 +549,14 @@ export const mailingListService = {
 
     return {
       seo: { title: 'Mailing Lists', noindex: true },
-      page: { sectionKey: 'admin', pageKey: 'admin_mailing_list_detail', title: row.name },
+      page: {
+        sectionKey: 'admin', pageKey: 'admin_mailing_list_detail', title: row.name,
+        instructions: {
+          what: 'One list: its subscribers by status, its settings, and the actions for it.',
+          how: 'Edit or archive the list, write to it, or adjust one member\'s subscription.',
+          headsUp: ['Adjusting a member\'s subscription is for exceptions, such as releasing a bounced address. It takes a reason and is recorded in the audit log.'],
+        },
+      },
       content: {
         slug: row.slug,
         name: row.name,

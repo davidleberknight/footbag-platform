@@ -966,10 +966,12 @@ describe('POST /members/:memberKey/galleries/:id/edit', () => {
       expect(audits).toHaveLength(2);
       const keys = (db.prepare(
         "SELECT idempotency_key FROM outbox_emails WHERE template_key = 'gallery_moderated_member'"
-        + ' AND recipient_member_id = ? AND idempotency_key LIKE ?',
-      ).all(OWNER_ID, `gallery-moderated:${id}:%`) as Array<{ idempotency_key: string }>)
-        .map((r) => r.idempotency_key).sort();
-      expect(keys).toEqual(audits.map((a) => `gallery-moderated:${id}:${a.id}`).sort());
+        + ' AND recipient_member_id = ?',
+      ).all(OWNER_ID) as Array<{ idempotency_key: string }>)
+        .map((r) => r.idempotency_key)
+        .filter((k) => audits.some((a) => k.includes(a.id)))
+        .sort();
+      expect(keys).toEqual(audits.map((a) => `gallery_moderated_member:${a.id}:${OWNER_ID}`).sort());
     } finally { db.close(); }
   });
 });

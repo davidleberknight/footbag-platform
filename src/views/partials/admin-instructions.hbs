@@ -1,0 +1,21 @@
+{{!-- The instructions block that opens every administrator page, shaped by
+     the page service as page.instructions. --}}
+{{#if page.instructions}}
+<aside class="admin-instructions" aria-label="About this page">
+  <p><strong>What this page does:</strong> {{page.instructions.what}}</p>
+  {{#if page.instructions.why}}
+  <p><strong>Why:</strong> {{page.instructions.why}}</p>
+  {{/if}}
+  {{#if page.instructions.how}}
+  <p><strong>How to use it:</strong> {{page.instructions.how}}</p>
+  {{/if}}
+  {{#if page.instructions.headsUp.length}}
+  <p><strong>Heads-up:</strong></p>
+  <ul>
+    {{#each page.instructions.headsUp}}
+    <li>{{this}}</li>
+    {{/each}}
+  </ul>
+  {{/if}}
+</aside>
+{{/if}}

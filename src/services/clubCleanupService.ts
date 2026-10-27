@@ -92,7 +92,8 @@
  *   audit_entries (append).
  *
  * Side effects: audit_entries append; outbox_emails enqueue (the
- * contact-members action only), best-effort after the read.
+ * contact-members action only), best-effort inside the contact's own
+ * transaction with its audit row, which records how many it reached.
  *
  * Service shape: singleton object (no external adapters).
  */
@@ -112,12 +113,13 @@ import {
   clubs as clubsDb,
   transaction,
 } from '../db/db';
-import { appendAuditEntry } from './auditService';
+import { randomUUID } from 'crypto';
+import { appendAuditEntry, findOwnLatestAudit } from './auditService';
 import { NotFoundError, ValidationError } from './serviceErrors';
 import { cleanUserText } from '../lib/textSanitizer';
+import { REPEAT_REQUEST_SECONDS } from '../lib/repeatRequest';
 import { clubService } from './clubService';
 import { emailService } from './emailService';
-import { logger } from '../config/logger';
 import { PageViewModel } from '../types/page';
 import type { OutcomeNoticeView } from '../lib/outcomeNotice';
 import { canonicalCountryName, subdivisionsForCountry } from './countryUtils';
@@ -1356,6 +1358,17 @@ function getCleanupQueuePage(filter?: CleanupQueueFilter): PageViewModel<Cleanup
     seo: { title: 'Club Cleanup Queue' },
     page: {
       sectionKey: 'admin', pageKey: 'admin_club_cleanup', title: 'Club Cleanup Queue',
+      instructions: {
+        what: 'Lists the clubs whose records need a decision: clubs with nothing saying they exist, clubs without a leader, and club candidates members mentioned.',
+        why: 'To keep the public club list to real, active clubs.',
+        how: 'Claim an item, then resolve, park, promote or dismiss it. Press Apply the Rules to make the listed clubs inactive.',
+        headsUp: [
+          'Nothing happens on its own. The rules act only when you press Apply the Rules.',
+          'An inactive club can come back. An archived club cannot.',
+          'Archiving is refused while a club still has members or co-leaders. Make it inactive instead.',
+          'Contacting a leaderless club\'s members emails them an invitation to co-lead, and is recorded in the audit log.',
+        ],
+      },
       ...(filter?.actionNotice
         ? { notice: filter.actionNotice.text, noticeTone: filter.actionNotice.tone }
         : {}),
@@ -1557,7 +1570,14 @@ function resolveClub(
 // members the volunteer-to-co-lead invitation. This does not resolve the queue
 // item (the club stays leaderless until a member steps up); the item simply
 // resurfaces on the next open. The email carries no link (anti-phishing); it
-// gives precise log-in-and-navigate instructions. Audit-logged.
+// gives precise log-in-and-navigate instructions.
+//
+// The contact's emails and its audit row commit together. Each email is keyed
+// on the contact and the member, so a later deliberate contact reaches people
+// again; the audit row comes last because it records how many the contact
+// reached, and carries the contact's id. The same administrator pressing again
+// within the repeat window is the same contact submitted twice: it sends
+// nothing and reports the count the first one recorded.
 function contactMembersToVolunteer(
   adminMemberId: string,
   clubId: string,
@@ -1566,53 +1586,46 @@ function contactMembersToVolunteer(
     | { club_id: string; name: string; status: string } | undefined;
   if (!club) throw new NotFoundError('Club not found.');
 
-  const members = clubLeaders.listCurrentMemberContactsForClub.all(clubId) as Array<{
-    id: string; display_name: string; login_email: string | null;
-  }>;
+  return transaction(() => {
+    const earlier = findOwnLatestAudit(
+      adminMemberId, 'admin.club_cleanup.contact_members', 'club', clubId,
+    );
+    if (earlier
+      && Date.now() - Date.parse(earlier.occurred_at) < REPEAT_REQUEST_SECONDS * 1000) {
+      const recorded = JSON.parse(earlier.metadata_json) as { recipient_count?: number };
+      return { recipientCount: recorded.recipient_count ?? 0 };
+    }
 
-  let recipientCount = 0;
-  for (const m of members) {
-    if (!m.login_email) continue;
-    // One member's failure skips that member only. A single guard around the
-    // whole loop abandoned every remaining recipient on the first error, and
-    // the audit row below then reported a contact count for people who were
-    // never reached.
-    try {
-      const sent = emailService.send({
+    const members = clubLeaders.listCurrentMemberContactsForClub.all(clubId) as Array<{
+      id: string; display_name: string;
+    }>;
+    const contactId = `contact_${randomUUID().replace(/-/g, '')}`;
+    // A member who cannot be mailed is skipped by the send and not counted:
+    // counting them would record a contact that did not happen.
+    let recipientCount = 0;
+    for (const m of members) {
+      const sent = emailService.sendActNotice({
         template: 'club_leaderless_contact',
         params: {
           memberName: m.display_name,
           clubName: club.name,
         },
-        recipientEmail: m.login_email,
-        recipientMemberId: m.id,
-        idempotencyKey: `club-leaderless-contact:${clubId}:${m.id}`,
+        memberId: m.id,
+        actId: contactId,
       });
-      // A suppressed send never leaves the platform: the template is disabled,
-      // or the mailbox has already bounced or complained. Counting it would
-      // record a contact that did not happen. A duplicate counts, because the
-      // idempotency key means the invitation is already queued for them.
-      if (sent.status !== 'suppressed') recipientCount++;
-    } catch (err) {
-      logger.warn('club leaderless contact-members enqueue failed for one member', {
-        clubId,
-        recipientMemberId: m.id,
-        error: err instanceof Error ? err.message : String(err),
-      });
+      if (sent) recipientCount++;
     }
-  }
-
-  appendAuditEntry({
-    actionType: 'admin.club_cleanup.contact_members',
-    actorType: 'admin',
-    actorMemberId: adminMemberId,
-    entityType: 'club',
-    entityId: clubId,
-    reasonText: null,
-    metadata: { recipient_count: recipientCount, club_name: club.name },
+    appendAuditEntry({
+      actionType: 'admin.club_cleanup.contact_members',
+      actorType: 'admin',
+      actorMemberId: adminMemberId,
+      entityType: 'club',
+      entityId: clubId,
+      reasonText: null,
+      metadata: { contact_id: contactId, recipient_count: recipientCount, club_name: club.name },
+    });
+    return { recipientCount };
   });
-
-  return { recipientCount };
 }
 
 // Claim a queue item for review: a non-blocking coordination hint shown to

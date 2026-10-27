@@ -11,6 +11,7 @@
 </div>
 
 <div class="wrapper">
+  {{> admin-instructions}}
   {{#if content.notFound}}
     <p class="form-field-error">Gallery <code>{{content.galleryId}}</code> not found.</p>
     <p><a href="{{content.cancelHref}}">&lsaquo; Back to galleries</a></p>

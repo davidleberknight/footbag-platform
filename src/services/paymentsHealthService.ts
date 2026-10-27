@@ -318,7 +318,14 @@ export const paymentsHealthService = {
 
     return {
       seo: { title: 'Payments Health', noindex: true },
-      page: { sectionKey: 'admin', pageKey: 'admin_payments_health', title: 'Payments Health' },
+      page: {
+        sectionKey: 'admin', pageKey: 'admin_payments_health', title: 'Payments Health',
+        instructions: {
+          what: 'Shows whether payments are working right now: which credential the platform holds, whether the provider\'s notices are arriving and being accepted, what settled, and what reconciliation still asks about.',
+          why: 'To catch a payment problem before members report it.',
+          how: 'Read it top to bottom. Counts cover the window shown unless a row says otherwise. For the detail behind a discrepancy, open Reconciliation.',
+        },
+      },
       content: {
         windowLabel: `the last ${windowHours} hour${windowHours === 1 ? '' : 's'}`,
         credential: {

@@ -1074,7 +1074,14 @@ export const paymentReconciliationService = {
 
     return {
       seo: { title: 'All Payments', noindex: true },
-      page: { sectionKey: 'admin', pageKey: 'admin_payments', title: 'All Payments' },
+      page: {
+        sectionKey: 'admin', pageKey: 'admin_payments', title: 'All Payments',
+        instructions: {
+          what: 'Lists every payment the platform has recorded: donations, memberships and event registrations.',
+          why: 'To look up a payment, or check one against the payment provider.',
+          how: 'Filter by type, date, status, member, event or reference, then open a payment for its detail.',
+        },
+      },
       content: {
         rows: rows.map((r) => ({
           id: String(r.id),
@@ -1144,7 +1151,13 @@ export const paymentReconciliationService = {
     );
     return {
       seo: { title: 'Payment Detail', noindex: true },
-      page: { sectionKey: 'admin', pageKey: 'admin_payment_detail', title: 'Payment Detail' },
+      page: {
+        sectionKey: 'admin', pageKey: 'admin_payment_detail', title: 'Payment Detail',
+        instructions: {
+          what: 'One payment\'s full record.',
+          headsUp: ['A donor\'s comment is shown as written and cannot be edited.'],
+        },
+      },
       content: {
         id: String(r.id),
         dateDisplay: dateDisplay(String(r.created_at)),
@@ -1196,6 +1209,12 @@ export const paymentReconciliationService = {
         sectionKey: 'admin',
         pageKey: 'admin_payment_reports',
         title: 'Financial Reports',
+        instructions: {
+          what: 'One report for each nightly comparison of our payment records against the payment provider\'s.',
+          why: 'The newest report is the current state of the money, and older ones show what each day found.',
+          how: 'Open a report to see what that run found.',
+          headsUp: ['Totals are gross. Fees, payouts and net proceeds are read at the payment provider.'],
+        },
       },
       content: {
         rows: runs.map((run) => reportRowFrom(run)),
@@ -1226,6 +1245,9 @@ export const paymentReconciliationService = {
         sectionKey: 'admin',
         pageKey: 'admin_payment_report',
         title: `Financial Report for ${row.dateDisplay}`,
+        instructions: {
+          what: 'What one nightly comparison found, kept as the run left it.',
+        },
       },
       content: {
         run: row,
@@ -1312,6 +1334,12 @@ export const paymentReconciliationService = {
         sectionKey: 'admin',
         pageKey: 'admin_reconciliation',
         title: 'Reconciliation Issues',
+        instructions: {
+          what: 'Lists where our payment records and the payment provider\'s disagree.',
+          why: 'Each disagreement needs a person to find out why and settle it.',
+          how: 'Show outstanding, resolved or all issues. Resolve one by saying what you did about it.',
+          headsUp: ['Resolving records your name, the time and your note, closes the matching queue item, and changes nothing at the payment provider.'],
+        },
       },
       content: {
         rows: rows.map((r) => ({
@@ -1377,7 +1405,6 @@ const MEMBER_SEARCH_RESOLVE_LIMIT = 500;
 const PAYMENT_TYPE_OPTIONS = ['donation', 'membership', 'event_registration'] as const;
 const PAYMENT_STATUS_OPTIONS = ['pending', 'succeeded', 'failed', 'canceled', 'refunded'] as const;
 const ISSUE_STATUS_OPTIONS = ['outstanding', 'resolved', 'all'] as const;
-
 const PAYMENT_TYPE_LABELS: Record<string, string> = {
   donation: 'Donation',
   membership: 'Membership',

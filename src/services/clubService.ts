@@ -149,7 +149,7 @@
  *     current club leaders; co-leader-volunteered notifications to existing leaders; an
  *     administrator's correction of a club's content or hashtag to every
  *     current co-leader, since they are a flat equal set with no first among
- *     them; best-effort after the commit)
+ *     them, queued best-effort inside the correction's transaction)
  *
  * Service shape: singleton object (no external adapters).
  */
@@ -3217,21 +3217,20 @@ export class ClubService {
           reasonText:    null,
           metadata:      { changes },
         });
+      // A correction is a past event on a record the co-leaders are
+      // responsible for, which is what the notification rule sends by mail;
+      // the dashboard carries obligations the platform is waiting on, and this
+      // is not one.
+      if (actor.kind === 'administrator') {
+        this.notifyLeadersOfCorrection(
+          clubId,
+          club.name,
+          describeClubChanges(changed),
+          actor.reason,
+          auditId,
+        );
+      }
     });
-
-    // After the commit, so a rolled-back correction cannot announce itself. A
-    // correction is a past event on a record the co-leaders are responsible
-    // for, which is what the notification rule sends by mail; the dashboard
-    // carries obligations the platform is waiting on, and this is not one.
-    if (actor.kind === 'administrator') {
-      this.notifyLeadersOfCorrection(
-        clubId,
-        club.name,
-        describeClubChanges(changed),
-        actor.reason,
-        auditId,
-      );
-    }
     return changed;
   }
 
@@ -3244,8 +3243,8 @@ export class ClubService {
    * others could be expected to hear it from. A club with none is a tolerated
    * state, and then there is simply nobody to tell.
    *
-   * The message is keyed on the correction's audit row, so each correction
-   * sends once per co-leader however often the send is attempted.
+   * Queued inside the correction's transaction, keyed on its audit row and
+   * the co-leader, so each correction tells each co-leader once.
    */
   private notifyLeadersOfCorrection(
     clubId: string,
@@ -3259,7 +3258,7 @@ export class ClubService {
       display_name: string;
     }>;
     leaders.forEach((leader) => {
-      emailService.sendToMember({
+      emailService.sendActNotice({
         template: 'club_record_corrected',
         params:   {
           leaderName: leader.display_name,
@@ -3268,7 +3267,7 @@ export class ClubService {
           note: reason,
         },
         memberId: leader.member_id,
-        idempotencyKey: `club-record-corrected:${clubId}:${leader.member_id}:${correctionAuditId}`,
+        actId:    correctionAuditId,
       });
     });
   }
@@ -3587,7 +3586,6 @@ export class ClubService {
       throw new Error(`updateClubHashtag called with the club's own hashtag: ${clubId}`);
     }
 
-    let auditId = '';
     transaction(() => {
       const newTagId = `tag_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
       mediaTags.insertStandardTag.run(
@@ -3599,7 +3597,7 @@ export class ClubService {
       mediaTags.moveGalleryExcludesToTag.run(newTagId, club.hashtag_tag_id);
       mediaTags.moveTagStatsToTag.run(newTagId, now, club.hashtag_tag_id);
 
-      auditId = appendAuditEntry({
+      const auditId = appendAuditEntry({
         actionType: 'club.hashtag_corrected',
         actorType: 'admin',
         actorMemberId,
@@ -3608,15 +3606,14 @@ export class ClubService {
         reasonText: actor.reason,
         metadata: { old_tag: club.tag_normalized, new_tag: tagNormalized },
       });
+      this.notifyLeadersOfCorrection(
+        clubId,
+        club.name,
+        describeClubChanges([{ field: 'hashtag', before: club.tag_normalized, after: tagNormalized }]),
+        actor.reason,
+        auditId,
+      );
     });
-
-    this.notifyLeadersOfCorrection(
-      clubId,
-      club.name,
-      describeClubChanges([{ field: 'hashtag', before: club.tag_normalized, after: tagNormalized }]),
-      actor.reason,
-      auditId,
-    );
 
     return moved;
   }

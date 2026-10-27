@@ -31,7 +31,7 @@ import {
   type EnqueueOutcome,
   type MailingListEnqueueResult,
 } from './communicationService';
-import { account, emailTemplates, type EmailTemplateRow } from '../db/db';
+import { account, emailTemplates, inTransaction, type EmailTemplateRow } from '../db/db';
 import { logger } from '../config/logger';
 import {
   shapeEmail,
@@ -102,6 +102,15 @@ function renderVariant(shaped: ShapedEmail): RenderOutcome {
 }
 
 export type SendResult = EnqueueResult | { id: null; status: 'suppressed' };
+
+/**
+ * The outbox key of an administrator's act notice: one per template, act and
+ * recipient. A repeat of the act reads it to report whether the first submit's
+ * notice went out.
+ */
+export function actNoticeKey(template: EmailTemplateKey, actId: string, memberId: string): string {
+  return `${template}:${actId}:${memberId}`;
+}
 
 /**
  * Narrows the enqueue outcome to the single-recipient answer callers of `send`
@@ -186,6 +195,58 @@ export const emailService = {
         err: err instanceof Error ? err.message : String(err),
         memberId: input.memberId,
       });
+    }
+  },
+
+  /**
+   * The notice an administrator's act sends to the member it changed. Queued
+   * inside the act's own transaction, so the change and its notice commit or
+   * roll back together: a crash between them can neither lose the notice of a
+   * change that stands nor send one about a change that never happened.
+   *
+   * Best-effort: a deceased, deleted, erased or undeliverable recipient is
+   * skipped and logged, and the act still commits, because an administrator's
+   * correction must not hinge on whether its notice can go. Keyed on the
+   * template, the act and the recipient, so a repeat of one act queues nothing
+   * more and a later act notifies again. Returns whether a notice for this act
+   * is in the outbox.
+   */
+  sendActNotice<K extends EmailTemplateKey>(input: {
+    template: K;
+    params: TemplateParams<K>;
+    memberId: string;
+    /** The act's audit row id; for an act whose audit row is written after its
+     *  notices, because the row records what they reached, the id that row
+     *  records for the act. */
+    actId: string;
+  }): boolean {
+    if (!inTransaction()) {
+      throw new Error(`${input.template} notice must be queued inside its act's transaction`);
+    }
+    const row = account.findNotificationContactById.get(input.memberId) as
+      | { login_email: string | null }
+      | undefined;
+    if (!row?.login_email) {
+      logger.warn(`${input.template} skipped: no deliverable recipient`, {
+        memberId: input.memberId,
+      });
+      return false;
+    }
+    try {
+      const sent = emailService.send({
+        template: input.template,
+        params: input.params,
+        recipientEmail: row.login_email,
+        recipientMemberId: input.memberId,
+        idempotencyKey: actNoticeKey(input.template, input.actId, input.memberId),
+      });
+      return sent.status !== 'suppressed';
+    } catch (err) {
+      logger.warn(`${input.template} email enqueue failed`, {
+        err: err instanceof Error ? err.message : String(err),
+        memberId: input.memberId,
+      });
+      return false;
     }
   },
 

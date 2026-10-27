@@ -47,9 +47,9 @@
  *     the administrator's note in reason_text, both of which the account-erasure
  *     purge and the deceased contact scrub redact. The resolution email is
  *     templated and does not echo the member's message back.
- *   - Work-queue UPDATE and the resolution audit row commit in one
- *     transaction; the member notification enqueue happens after commit and
- *     records an operational error on failure instead of rolling back.
+ *   - Work-queue UPDATE, the resolution audit row and the member's reply
+ *     commit in one transaction. The reply is best-effort: a recipient who
+ *     cannot be mailed is skipped and the page says the member was not told.
  *   - A decision is validated against the vocabulary the acting action itself
  *     declares, so a payments decision on a contact request (or the reverse) is
  *     impossible by construction rather than by two validators agreeing not to
@@ -97,8 +97,8 @@ import {
   enforceWorkQueueResolveLimit, identityAccessService,
   type ClaimEvidence,
 } from './identityAccessService';
-import { appendAuditEntry } from './auditService';
-import { emailService } from './emailService';
+import { appendAuditEntry, findOwnLatestAudit } from './auditService';
+import { emailService, actNoticeKey } from './emailService';
 import { workQueueService, claimIsLive, claimStaleCutoffIso } from './workQueueService';
 import {
   workQueueDescriptorFor, workQueueActionFor, requireWorkQueueDescriptor,
@@ -107,7 +107,6 @@ import {
 import {
   questionRecipientFor, ANSWER_KINDS, type ExpectedAnswerKind,
 } from './memberMessageService';
-import { recordOperationalError } from './operationalErrors';
 import { runSqliteRead } from './sqliteRetry';
 import { NotFoundError, RateLimitedError, ValidationError } from './serviceErrors';
 import { cleanUserText } from '../lib/textSanitizer';
@@ -135,6 +134,7 @@ const TASK_TYPE = 'member_contact_request';
 // The other queue a member can put work into themselves. Everything else in the
 // queue is raised by the platform about a member, not by the member.
 const LINK_HELP_TASK_TYPE = 'member_link_help_request';
+const DECISION_CONFIRM_INSTRUCTIONS = { what: 'Review this decision before it is written.' };
 
 // Human labels for the entity a queue card points at, so the admin sees "Stripe
 // dispute di_123" rather than a bare id. A member entity is intentionally absent:
@@ -874,18 +874,11 @@ function buildMemberQuestions(queueItemId: string): MemberQuestionAdminView[] {
   }));
 }
 
-/** The outbox key of a decide resolve's member email. A repeat of the resolve
- *  reads it to report whether the first submit's email went out. */
-function resolveNotificationKey(queueItemId: string): string {
-  return `contact-request-resolve:${queueItemId}`;
-}
-
 /**
  * Resolve an item whose type declares a decide action: record the decision and
  * the note, and answer the member where that type says the answer is theirs to
- * receive. The queue UPDATE and the audit row commit together; any email is
- * enqueued after commit and a failure there surfaces as a 503 without rolling
- * the resolution back.
+ * receive. The queue UPDATE, the audit row and the member's reply commit
+ * together.
  *
  * The decision vocabulary, the audit event, and whether a member hears about it
  * are read off the action rather than branched on the task family here, so a
@@ -916,7 +909,7 @@ async function resolveDecidedItem(
   }
 
   const nowIso = new Date().toISOString();
-  transaction(() => {
+  const memberNotified = transaction(() => {
     const result = workQueue.resolve.run(
       nowIso,
       input.adminMemberId,
@@ -929,7 +922,7 @@ async function resolveDecidedItem(
     if (result.changes === 0) {
       throw new NotFoundError(`Open work-queue item not found: ${input.queueItemId}`);
     }
-    appendAuditEntry({
+    const auditId = appendAuditEntry({
       actionType:    action.auditActionType,
       actorType:     'admin',
       actorMemberId: input.adminMemberId,
@@ -948,63 +941,31 @@ async function resolveDecidedItem(
         decision_label: decisionLabel,
       },
     });
-  });
 
-  // A decision on a provider-side record reaches no member: the row points at a
-  // payment record rather than a person, and any member-facing message went out
-  // when the underlying event was recorded.
-  if (!action.notifiesSubject) {
-    return { status: 'resolved', memberNotified: false };
-  }
-
-  const member = account.findContactInfoById.get(row.entity_id) as
-    | { id: string; slug: string; display_name: string; login_email: string }
-    | undefined;
-  if (!member || !member.login_email) {
-    return { status: 'resolved', memberNotified: false };
-  }
-  const displayDecision = decision.label;
-
-  // Strict enqueue: an outbox failure after the resolve committed must surface to
-  // the admin as a 503 rather than silently drop the member's resolution
-  // notification. The queue row stays resolved and the audit row is in place;
-  // recordOperationalError pairs a *_notification_failed audit row with a
-  // logger.error marker for operator triage. The terminal-state idempotency key
-  // collapses re-enqueue attempts.
-  // The send reports suppression rather than throwing when the template has
-  // been disabled, so its result decides what the page says. Claiming the member
-  // was notified when no mail was enqueued sends the administrator away
-  // believing the request is closed on both sides; the page already has a
-  // quiet-resolution banner for exactly this case.
-  let notified: boolean;
-  try {
-    const sent = emailService.send({
+    // A decision on a provider-side record reaches no member: the row points at
+    // a payment record rather than a person, and any member-facing message went
+    // out when the underlying event was recorded.
+    if (!action.notifiesSubject) return false;
+    const member = account.findContactInfoById.get(row.entity_id) as
+      | { display_name: string }
+      | undefined;
+    if (!member) return false;
+    // Whether the reply reached the outbox decides what the page says. Claiming
+    // the member was notified when nothing was queued (a disabled template, an
+    // undeliverable mailbox) sends the administrator away believing the request
+    // is closed on both sides; the page has a quiet-resolution banner for that.
+    return emailService.sendActNotice({
       template: 'contact_request_resolution',
       params: {
         memberName: member.display_name,
-        displayDecision,
+        displayDecision: decision.label,
         note,
       },
-      recipientEmail:    member.login_email,
-      recipientMemberId: member.id,
-      idempotencyKey:    resolveNotificationKey(input.queueItemId),
-      strict: true,
+      memberId: row.entity_id,
+      actId: auditId,
     });
-    notified = sent.status !== 'suppressed';
-  } catch (err) {
-    recordOperationalError({
-      actionType:    'support.contact_request_resolve_notification_failed',
-      actorType:     'admin',
-      actorMemberId: input.adminMemberId,
-      entityType:    'member',
-      entityId:      member.id,
-      reasonText:    'Queue resolve committed but resolve-notification enqueue failed.',
-      cause:         err,
-      metadata:      { queue_item_id: input.queueItemId },
-    });
-    throw err;
-  }
-  return { status: 'resolved', memberNotified: notified };
+  });
+  return { status: 'resolved', memberNotified };
 }
 
 export const adminWorkQueueService = {
@@ -1146,8 +1107,16 @@ export const adminWorkQueueService = {
     if (row && row.status === 'resolved' && row.resolved_by_member_id === input.adminMemberId
       && action?.kind === 'decide'
       && row.decision_label === input.decisionLabel && row.reason_text === note) {
-      const queued = outbox.findByIdempotencyKey.get(resolveNotificationKey(input.queueItemId));
-      return { status: 'resolved', memberNotified: queued !== undefined };
+      const resolve = findOwnLatestAudit(
+        input.adminMemberId, action.auditActionType, row.entity_type, row.entity_id,
+      );
+      const queued = action.notifiesSubject && resolve !== null
+        && (JSON.parse(resolve.metadata_json) as { queue_item_id?: string }).queue_item_id
+          === input.queueItemId
+        && outbox.findByIdempotencyKey.get(
+          actNoticeKey('contact_request_resolution', resolve.id, row.entity_id),
+        ) !== undefined;
+      return { status: 'resolved', memberNotified: queued };
     }
 
     enforceWorkQueueResolveLimit(input.adminMemberId);
@@ -1181,7 +1150,7 @@ export const adminWorkQueueService = {
     const title = 'Confirm: Link This Record to This Member';
     return {
       seo:  { title, noindex: true },
-      page: { sectionKey: 'admin', pageKey: 'admin_link_help_confirm', title },
+      page: { sectionKey: 'admin', pageKey: 'admin_link_help_confirm', title, instructions: DECISION_CONFIRM_INSTRUCTIONS },
       content: {
         summary: 'Linking merges the record into the member\'s account and grants any tier the '
           + 'record carries. It is recorded as vetted by you. Check that these are the same person.',
@@ -1246,7 +1215,7 @@ export const adminWorkQueueService = {
     const title = 'Confirm: Revert a Disputed Claim';
     return {
       seo:  { title, noindex: true },
-      page: { sectionKey: 'admin', pageKey: 'admin_dispute_revert_confirm', title },
+      page: { sectionKey: 'admin', pageKey: 'admin_dispute_revert_confirm', title, instructions: DECISION_CONFIRM_INSTRUCTIONS },
       content: {
         summary: 'Upholding this dispute takes the record away from the member who holds it. '
           + 'Check what the revert removes before you confirm.',
@@ -1528,7 +1497,21 @@ export const adminWorkQueueService = {
     const parked = this.listParkedForAdmin();
     return {
       seo:  { title: 'Admin Work Queue' },
-      page: { sectionKey: 'admin', pageKey: 'admin_work_queue', title: 'Admin Work Queue' },
+      page: {
+        sectionKey: 'admin', pageKey: 'admin_work_queue', title: 'Admin Work Queue',
+        instructions: {
+          what: 'Every open task the platform has raised for an administrator, grouped by kind.',
+          why: 'A shared, current picture of what needs a person.',
+          how: 'Claim an item to show you are handling it, then resolve it, or park it if you cannot move it forward yet. Where one member is involved, you can ask them a question.',
+          headsUp: [
+            'A claim tells other administrators you are on it. It does not lock the item, and it lapses.',
+            'Resolving a member\'s contact request or link-help request emails them your answer.',
+            'Upholding an identity dispute takes the record away from the member who holds it, after a confirm page.',
+            'You cannot decide a request about your own record or role.',
+            'Asking a member a question emails them a short note to read it on the site. Their answer brings a parked item back.',
+          ],
+        },
+      },
       content: {
         groups,
         parked,

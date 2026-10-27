@@ -249,7 +249,7 @@ describe('the correction writes the values and records them', () => {
     const auditIds = correctionAuditIds();
     expect(notices).toHaveLength(1);
     expect(auditIds).toHaveLength(1);
-    expect(notices[0]).toBe(`member-record-corrected:${TARGET_ID}:${auditIds[0]}`);
+    expect(notices[0]).toBe(`member_record_corrected:${auditIds[0]}:${TARGET_ID}`);
   });
 
   it('leaves the biography exactly as the member wrote it', () => {
@@ -283,7 +283,7 @@ describe('the correction writes the values and records them', () => {
     const auditIds = correctionAuditIds();
     expect(auditIds).toHaveLength(2);
     expect(correctionNotices().sort()).toEqual(
-      auditIds.map((id) => `member-record-corrected:${TARGET_ID}:${id}`).sort(),
+      auditIds.map((id) => `member_record_corrected:${id}:${TARGET_ID}`).sort(),
     );
   });
 });

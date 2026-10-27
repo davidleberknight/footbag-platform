@@ -9373,7 +9373,11 @@ export const freestyleService = {
         sectionKey: 'freestyle',
         pageKey:    'internal_emerging_vocabulary',
         title:      'Emerging Vocabulary workbench',
-        intro:      'The curator decision packet and the full-dimension row table behind the public Emerging Vocabulary page.',
+        instructions: {
+          what: 'The curator\'s working list of observed names awaiting a ruling, and the table behind the public Emerging Vocabulary page.',
+          why: 'To see which observed names still need a ruling, and the evidence for each.',
+          how: 'Filter the table by a dimension and a value. Open the notation backlog for rulings ready for a notation.',
+        },
       },
       navigation: { breadcrumbs: [{ label: 'Internal' }, { label: 'Emerging Vocabulary workbench' }] },
       content: {

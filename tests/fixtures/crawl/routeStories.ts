@@ -221,6 +221,14 @@ export const ROUTE_STORIES: Readonly<Record<string, RouteStory>> = {
   'POST /admin/historical-records/:personId/deceased/revert': { stories: ['A_Mark_Member_Deceased'] },
   'POST /admin/historical-records/:personId/deceased/confirm': { stories: ['A_Mark_Member_Deceased'] },
   'POST /admin/historical-records/:personId/deceased': { stories: ['A_Mark_Member_Deceased'] },
+  'GET /admin/events/results': { stories: ['A_Fix_Event_Results'] },
+  'GET /admin/events/:eventId/results': { stories: ['A_Fix_Event_Results'] },
+  'GET /admin/events/:eventId/results/entries/:entryId': { stories: ['A_Fix_Event_Results'] },
+  'POST /admin/events/:eventId/results/entries/:entryId/confirm': { stories: ['A_Fix_Event_Results'] },
+  'POST /admin/events/:eventId/results/entries/:entryId': { stories: ['A_Fix_Event_Results'] },
+  'GET /admin/events/:eventId/results/disciplines/:disciplineId': { stories: ['A_Fix_Event_Results'] },
+  'POST /admin/events/:eventId/results/disciplines/:disciplineId/confirm': { stories: ['A_Fix_Event_Results'] },
+  'POST /admin/events/:eventId/results/disciplines/:disciplineId': { stories: ['A_Fix_Event_Results'] },
   'GET /admin/work-queue': { stories: ['A_Manage_Work_Queue', 'A_Resolve_Contact_IFPA_Admin_Request', 'A_Review_Member_Link_Help_Requests'] },
   'POST /admin/work-queue/:id/claim': { stories: ['A_Manage_Work_Queue'] },
   'POST /admin/work-queue/:id/resolve': { stories: ['A_Manage_Work_Queue', 'A_Resolve_Contact_IFPA_Admin_Request'] },
@@ -440,7 +448,6 @@ export const STORIES_WITHOUT_ROUTE: Readonly<Record<string, { status: StoryWitho
 
   // Admin
   'A_Approve_Sanctioned_Event': { status: 'designed-not-deployed', why: 'No sanction approval route is mounted.' },
-  'A_Fix_Event_Results': { status: 'designed-not-deployed', why: 'No admin event-results correction route is mounted.' },
   'A_Correct_Event_Data': { status: 'designed-not-deployed', why: 'No admin event or registration correction route is mounted.' },
   'A_Create_News_Item': { status: 'designed-not-deployed', why: 'The news feed is second-version scope and no news route is mounted.' },
   'A_Moderate_News_Item': { status: 'designed-not-deployed', why: 'The news feed is second-version scope and no news route is mounted.' },

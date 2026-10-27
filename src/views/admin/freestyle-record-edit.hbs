@@ -2,7 +2,6 @@
   <div>
     {{#if content.isNew}}
     <h1>New Record</h1>
-    <p class="hero-subtitle">Add a freestyle world-record row.</p>
     {{else}}
     <h1>Edit Record</h1>
     <p class="hero-subtitle">Editing freestyle record <code>{{content.id}}</code>. Holder: {{content.holderName}}.</p>
@@ -11,6 +10,7 @@
 </div>
 
 <div class="wrapper">
+  {{> admin-instructions}}
   <section>
     {{#if content.saved}}
     {{> outcome-notice text="Saved." tone='ok'}}

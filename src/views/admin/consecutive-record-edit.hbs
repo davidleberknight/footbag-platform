@@ -2,7 +2,6 @@
   <div>
     {{#if content.isNew}}
     <h1>New Consecutive-kicks Record</h1>
-    <p class="hero-subtitle">Add a consecutive-kicks record.</p>
     {{else}}
     <h1>Edit Consecutive-kicks Record</h1>
     <p class="hero-subtitle">Editing record <code>{{content.id}}</code>.</p>
@@ -11,6 +10,7 @@
 </div>
 
 <div class="wrapper">
+  {{> admin-instructions}}
   <section>
     {{#if content.saved}}
     {{> outcome-notice text="Saved." tone='ok'}}

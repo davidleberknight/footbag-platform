@@ -5,14 +5,13 @@
 </div>
 
 <div class="wrapper">
+  {{> admin-instructions}}
   {{> outcome-notice text=content.errorMessage tone='no'}}
 
   <section>
     <div class="card mb-6">
       <p class="m-0 fw-500">{{content.personName}} &middot; {{content.personId}}</p>
     </div>
-
-    <p class="fs-sm">Correct a mistake in the imported competition record. The correction is shown for review before anything is written, takes a reason, and is recorded in the audit log. Leave the country or a year blank to clear it.</p>
 
     <form method="POST" action="{{content.previewAction}}" class="form-block">
       <div class="form-field">

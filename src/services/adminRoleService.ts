@@ -103,6 +103,17 @@ export const adminRoleService = {
         sectionKey: '',
         pageKey: 'admin_admin_roles',
         title: 'Admin Roles',
+        instructions: {
+          what: 'Lists the administrators, and grants or revokes the administrator role.',
+          why: 'To keep the administrator team current.',
+          how: 'To grant, enter the member\'s id or profile address and a reason. To revoke, give a reason beside the administrator. Either way you review it on a confirm page before it is written.',
+          headsUp: [
+            'Both actions email the member and are recorded in the audit log.',
+            'Granting also gives the member Tier 2 if they lack it and subscribes them to administrator alerts. Revoking unsubscribes them.',
+            'Revoking also raises a queue item to recruit a replacement.',
+            'You cannot revoke your own role.',
+          ],
+        },
         notice: opts.outcome?.text,
         noticeTone: opts.outcome?.tone,
       },
@@ -148,7 +159,10 @@ export const adminRoleService = {
     const { trimmedReason, tierStatus } = assertGrantAdminRoleAllowed(member.id, reason);
     return {
       seo: { title: 'Grant Admin Role', noindex: true },
-      page: { sectionKey: '', pageKey: 'admin_admin_roles_grant_confirm', title: 'Confirm: Grant Admin Role' },
+      page: {
+        sectionKey: '', pageKey: 'admin_admin_roles_grant_confirm', title: 'Confirm: Grant Admin Role',
+        instructions: { what: 'Review granting the administrator role before it is written.' },
+      },
       content: {
         action: 'grant',
         memberKey: key,
@@ -177,7 +191,10 @@ export const adminRoleService = {
       | undefined;
     return {
       seo: { title: 'Revoke Admin Role', noindex: true },
-      page: { sectionKey: '', pageKey: 'admin_admin_roles_revoke_confirm', title: 'Confirm: Revoke Admin Role' },
+      page: {
+        sectionKey: '', pageKey: 'admin_admin_roles_revoke_confirm', title: 'Confirm: Revoke Admin Role',
+        instructions: { what: 'Review revoking the administrator role before it is written.' },
+      },
       content: {
         action: 'revoke',
         memberKey: targetMemberId,

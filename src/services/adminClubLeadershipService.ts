@@ -129,7 +129,19 @@ function getClubLeadershipPage(
   const currentLeaderCount = (clubLeaders.countByClubId.get(clubId) as { c: number }).c;
   return {
     seo:  { title: `Leadership: ${club.name}` },
-    page: { sectionKey: '', pageKey: 'admin_club_leadership', title: `Leadership: ${club.name}` },
+    page: {
+      sectionKey: '', pageKey: 'admin_club_leadership', title: `Leadership: ${club.name}`,
+      instructions: {
+        what: 'Shows a club\'s co-leaders, and assigns or removes one.',
+        how: 'Enter any member\'s id or profile address and a reason to assign them, or remove a co-leader with a reason.',
+        headsUp: [
+          'A club has at most five co-leaders, and a member co-leads at most one club.',
+          'Assigning a co-leader to an inactive club makes it active again. An archived club accepts no assignment, and a member who already holds two clubs cannot be assigned.',
+          'Assigning and removing both take a reason and are recorded in the audit log.',
+          'Nobody is emailed.',
+        ],
+      },
+    },
     content: {
       club: {
         clubId: club.id,
@@ -333,7 +345,10 @@ function previewDemote(
     : 'Confirm: Demote to Ordinary Member';
   return {
     seo:  { title, noindex: true },
-    page: { sectionKey: '', pageKey: 'admin_club_demote_confirm', title },
+    page: {
+      sectionKey: '', pageKey: 'admin_club_demote_confirm', title,
+      instructions: { what: 'Review removing this co-leader before it is written.' },
+    },
     content: {
       clubId:           club.id,
       clubName:         club.name,

@@ -1,11 +1,12 @@
 <div class="hero hero-sm">
   <div>
     <h1>{{page.title}}</h1>
-    <p>How the platform is running right now: outbound email, delivery feedback, scheduled jobs, and open alarms. Counts cover {{content.windowLabel}} unless a row says otherwise. Read-only.</p>
+    <p>Counts cover {{content.windowLabel}} unless a row says otherwise.</p>
   </div>
 </div>
 
 <div class="wrapper">
+  {{> admin-instructions}}
   <section>
     <div class="section-heading">
       <h2>Outbound Email</h2>

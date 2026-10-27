@@ -5,6 +5,7 @@
 </div>
 
 <div class="wrapper">
+  {{> admin-instructions}}
   {{> outcome-notice text=page.notice tone=page.noticeTone}}
   {{> outcome-notice text=content.errorMessage tone='no'}}
 
@@ -71,7 +72,6 @@
 
   <section>
     <div class="section-heading"><h2>Corrections</h2></div>
-    <p class="fs-sm">Every correction is shown for review before anything is written and is recorded in this member's audit history. Those with more than one possible motive also take a reason.</p>
 
     <details class="admin-action-disclosure">
       <summary>Correct the Name</summary>

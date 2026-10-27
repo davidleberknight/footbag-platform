@@ -5,11 +5,11 @@
 </div>
 
 <div class="wrapper">
+  {{> admin-instructions}}
   {{> outcome-notice text=content.errorMessage tone='no'}}
 
   <section>
     <div class="section-heading"><h2>Find an Unclaimed Legacy Account</h2></div>
-    <p class="fs-sm">A legacy account is a sign-in from the old footbag.org that no member has claimed yet. This is where the account id comes from when a member link-help request asks you to apply a link. Accounts already held by a member are not listed; those are reached from the member record.</p>
     <div class="search-box-section">
       <form method="GET" action="/admin/legacy-accounts" class="search-box-form" role="search">
         <input type="text" name="q" maxlength="200"

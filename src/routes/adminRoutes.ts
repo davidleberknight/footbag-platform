@@ -9,6 +9,7 @@ import { adminClubController } from '../controllers/adminClubController';
 import { adminClubLeadershipController } from '../controllers/adminClubLeadershipController';
 import { adminTagController } from '../controllers/adminTagController';
 import { adminEventOrganizerController } from '../controllers/adminEventOrganizerController';
+import { adminEventResultController } from '../controllers/adminEventResultController';
 import { adminAdminRolesController } from '../controllers/adminAdminRolesController';
 import { adminHonorGrantsController } from '../controllers/adminHonorGrantsController';
 import { adminMemberController } from '../controllers/adminMemberController';
@@ -166,6 +167,17 @@ adminRouter.get('/events/organizers',                  adminEventOrganizerContro
 adminRouter.get('/events/:eventId/organizers',         adminEventOrganizerController.detail);
 adminRouter.post('/events/:eventId/organizers/assign', adminEventOrganizerController.assign);
 adminRouter.post('/events/:eventId/organizers/remove', adminEventOrganizerController.remove);
+// Correcting an event's published results: the finder, the event's results,
+// and for a result or a division the form, its preview, and the write on
+// confirm, longer path first.
+adminRouter.get('/events/results',                    adminEventResultController.index);
+adminRouter.get('/events/:eventId/results',           adminEventResultController.event);
+adminRouter.get('/events/:eventId/results/entries/:entryId',          adminEventResultController.entry);
+adminRouter.post('/events/:eventId/results/entries/:entryId/confirm', adminEventResultController.confirmEntry);
+adminRouter.post('/events/:eventId/results/entries/:entryId',         adminEventResultController.previewEntry);
+adminRouter.get('/events/:eventId/results/disciplines/:disciplineId',          adminEventResultController.discipline);
+adminRouter.post('/events/:eventId/results/disciplines/:disciplineId/confirm', adminEventResultController.confirmDiscipline);
+adminRouter.post('/events/:eventId/results/disciplines/:disciplineId',         adminEventResultController.previewDiscipline);
 adminRouter.get('/clubs',                     adminClubController.index);
 adminRouter.get('/clubs/:clubId',             adminClubController.record);
 // The longer confirm path first, as elsewhere: each correction previews and

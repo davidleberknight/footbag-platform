@@ -60,6 +60,8 @@ interface PersonaListRow {
    * login-blocked persona be an exercisable link instead of a dead row.
    */
   loginHref?: string;
+  /** Why a backed persona cannot sign in, shown in place of a silent refusal. */
+  signInNote?: string;
   switchHref: string;
   /** State chips (deny half, account state, blocked). */
   statusBadges: PersonaStatusBadge[];
@@ -87,20 +89,34 @@ const TIER_LABELS: Record<string, string> = {
  */
 function deriveStatusBadges(spec: PersonaSpec): PersonaStatusBadge[] {
   const badges: PersonaStatusBadge[] = [];
-  if (spec.negative) badges.push({ text: 'deny / adjacent', muted: false });
+  if (spec.negative) badges.push({ text: 'refusal case', muted: false });
   if (spec.emailVerified === false) badges.push({ text: 'unverified email', muted: false });
   if (spec.isDeceased) badges.push({ text: 'deceased', muted: false });
-  if (spec.deletionState === 'grace_open') badges.push({ text: 'restore window open', muted: false });
-  if (spec.deletionState === 'grace_elapsed') badges.push({ text: 'restore window elapsed', muted: false });
+  if (spec.deletionState === 'grace_open') badges.push({ text: 'deleted, in grace period', muted: false });
+  if (spec.deletionState === 'grace_elapsed') badges.push({ text: 'deleted, grace period over', muted: false });
+  if (spec.profile?.emailStatus && spec.profile.emailStatus !== 'ok') {
+    badges.push({ text: `email ${spec.profile.emailStatus}`, muted: false });
+  }
   if (spec.blockedBy) badges.push({ text: 'blocked', muted: true });
   return badges;
+}
+
+/**
+ * Why a seeded persona has no Switch button, in the words a tester needs. Its
+ * Log In link still runs the real sign-in, which refuses without saying why.
+ */
+function signInNote(spec: PersonaSpec): string | undefined {
+  if (spec.emailVerified === false) return 'Cannot sign in: the email address is not verified.';
+  if (spec.isDeceased) return 'Cannot sign in: the member is marked deceased.';
+  if (spec.deletionState) return 'Cannot sign in: the account is deleted.';
+  return undefined;
 }
 
 /** The authorization roles a persona holds, beyond the bare tier ladder. */
 function deriveRoles(spec: PersonaSpec): string[] {
   const roles: string[] = [];
   if (spec.isAdmin) roles.push('admin');
-  if (spec.club?.role === 'co-leader' || spec.club?.leader) roles.push('club co-leader');
+  if (spec.club?.role === 'co-leader') roles.push('club co-leader');
   if (spec.honors?.hof) roles.push('HoF');
   if (spec.honors?.bap) roles.push('BAP');
   if (spec.honors?.board) roles.push('IFPA Board');
@@ -128,7 +144,10 @@ function toRow(
     backed,
     switchable,
     ...(backed && !switchable
-      ? { loginHref: `/dev/login?as=${encodeURIComponent(spec.slug)}` }
+      ? {
+        loginHref: `/dev/login?as=${encodeURIComponent(spec.slug)}`,
+        ...(signInNote(spec) ? { signInNote: signInNote(spec) } : {}),
+      }
       : {}),
     switchHref: `/dev/switch?as=${encodeURIComponent(spec.slug)}`,
   };
@@ -184,6 +203,7 @@ export function getDevPersonas(_req: Request, res: Response, next: NextFunction)
       page: { sectionKey: '', pageKey: 'dev_personas', title: 'Test personas' },
       groups: groupByDimension(CANONICAL_PERSONAS, rows),
       personaCount: rows.length,
+      seededCount: rows.filter((r) => r.backed).length,
     });
   } catch (err) {
     next(err);

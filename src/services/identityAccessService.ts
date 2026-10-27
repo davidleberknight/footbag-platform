@@ -50,8 +50,10 @@
  *     ledger.
  *   - Registration-time conflict detection: a registrant whose surname
  *     matches an already-claimed record gets the prompted event and the
- *     wizard's "is one of these you?" card; the dispute affordance files a
- *     help request
+ *     wizard's "is one of these you?" card, which names no holder and offers
+ *     no way to write to an administrator; once a member, the registrant
+ *     raises a dispute through the identity-link category of the contact-admin
+ *     form
  *   - Member link help requests: structured intake into the admin work
  *     queue (one open item per member); admin approve applies the link
  *     (exactly one target type: a legacy account or a historical-person
@@ -239,8 +241,8 @@
  *     claim refused, claim step answered, anchor declared, claim revert,
  *     dispute opened / revert applied, help request approved / rejected,
  *     administrator name and profile-URL corrections, address recovery
- *     requested, and the failure rows for a password or help-request notice
- *     and for a recovery link)
+ *     requested, and the failure rows for a password notice and for a
+ *     recovery link)
  *   - SES suppression lift for a bounced address, on its member's request,
  *     through EmailSubscriptionService
  *   - outbox_emails enqueue (verification, account-exists notice on a duplicate
@@ -248,9 +250,9 @@
  *     and the reply telling a
  *     member their link request was answered, which carries the decision and,
  *     on a refusal, the administrator's reason, and the notice telling a member
- *     an administrator corrected their recorded name or their profile address)
- *   - operational-error audit + alarm when that reply cannot be enqueued after
- *     the resolve has committed (support.help_request_resolve_notification_failed)
+ *     an administrator corrected their recorded name or their profile address;
+ *     each of these administrator notices is queued best-effort inside the
+ *     act's own transaction, keyed on its audit row)
  *   - work_queue_items insert (member_link_help_request intake with
  *     admin-alerts fan-out), raised from the identity-link category of the
  *     member contact form, which is the only way a member reaches this queue
@@ -264,6 +266,10 @@ import { randomUUID, randomBytes } from 'crypto';
 import argon2 from 'argon2';
 import { hashPassword, CURRENT_PASSWORD_HASH_VERSION } from '../lib/passwordHash';
 import { accountExistsAttemptHash } from '../lib/accountExistsNoticeKey';
+// A password-reset or verify-resend token issued within the repeat window marks
+// a further request as the same request submitted twice. The rate-limit bucket
+// still counts every request, as anti-enumeration needs.
+import { REPEAT_REQUEST_SECONDS } from '../lib/repeatRequest';
 import { auth, registration, legacyClaim, legacyMembers, account, memberOnboarding, workQueue, declaredAnchors, MemberAuthRow, LegacyMemberRow, AlreadyClaimedRow, HistoricalPersonClaimRow } from '../db/db';
 import { legacyMatchingService, type Candidate, type Confidence } from './legacyMatchingService';
 import { transaction, rehearse, auditEntries } from '../db/db';
@@ -591,13 +597,6 @@ function getDummyArgonHash(): Promise<string> {
   }
   return _dummyHashPromise;
 }
-
-// How recently a password-reset or verify-resend token must have been issued
-// for a further request to count as the same request submitted twice. Long
-// enough to cover a double click, a back-button re-post or a second tab; short
-// enough that a member whose email never arrived can ask again a minute later.
-// The rate-limit bucket still counts every request, as anti-enumeration needs.
-const REPEAT_REQUEST_SECONDS = 60;
 
 // Anti-enumeration timing equaliser for the single-use-token email flows
 // (password-reset request, verify-email resend). The exists branch generates a
@@ -4409,7 +4408,7 @@ function approveLinkHelpRequest(
         : `Approved: linked to historical person ${personId}.`,
       now, adminMemberId, workQueueItemId,
     );
-    appendAuditEntry({
+    const auditId = appendAuditEntry({
       actionType:    'support.help_request_approved',
       actorType:     'admin',
       actorMemberId: adminMemberId,
@@ -4432,13 +4431,12 @@ function approveLinkHelpRequest(
         evidence_strength:  'admin_vetted_evidence',
       },
     });
-  });
-  notifyLinkHelpResolved({
-    adminMemberId,
-    memberId:        item.entity_id,
-    workQueueItemId,
-    displayDecision: 'your records are now linked',
-    note:            'Sign in and you will find them on your profile.',
+    notifyLinkHelpResolved({
+      memberId:        item.entity_id,
+      auditId,
+      displayDecision: 'your records are now linked',
+      note:            'Sign in and you will find them on your profile.',
+    });
   });
 }
 
@@ -4451,47 +4449,29 @@ function approveLinkHelpRequest(
  * member is told to expect an answer and hears nothing, whether their records
  * were linked or the request was refused.
  *
- * Enqueued after the resolve has committed: the decision stands whatever the
- * outbox does, and a lost notification surfaces to the administrator rather
- * than being dropped in silence.
+ * Queued inside the resolve's transaction, so the decision and its reply
+ * commit together.
  */
 function notifyLinkHelpResolved(input: {
-  adminMemberId: string;
   memberId: string;
-  workQueueItemId: string;
+  auditId: string;
   displayDecision: string;
   note: string;
 }): void {
   const member = account.findContactInfoById.get(input.memberId) as
-    | { id: string; display_name: string; login_email: string }
+    | { display_name: string }
     | undefined;
-  if (!member?.login_email) return;
-  try {
-    emailService.send({
-      template: 'link_help_request_resolution',
-      params: {
-        memberName:      member.display_name,
-        displayDecision: input.displayDecision,
-        note:            input.note,
-      },
-      recipientEmail:    member.login_email,
-      recipientMemberId: member.id,
-      idempotencyKey:    `link-help-resolve:${input.workQueueItemId}`,
-      strict:            true,
-    });
-  } catch (err) {
-    recordOperationalError({
-      actionType:    'support.help_request_resolve_notification_failed',
-      actorType:     'admin',
-      actorMemberId: input.adminMemberId,
-      entityType:    'member',
-      entityId:      member.id,
-      reasonText:    'Link-help resolve committed but resolve-notification enqueue failed.',
-      cause:         err,
-      metadata:      { queue_item_id: input.workQueueItemId },
-    });
-    throw err;
-  }
+  if (!member) return;
+  emailService.sendActNotice({
+    template: 'link_help_request_resolution',
+    params: {
+      memberName:      member.display_name,
+      displayDecision: input.displayDecision,
+      note:            input.note,
+    },
+    memberId: input.memberId,
+    actId:    input.auditId,
+  });
 }
 
 function rejectLinkHelpRequest(
@@ -4515,7 +4495,7 @@ function rejectLinkHelpRequest(
       `Rejected: ${trimmed}`,
       now, adminMemberId, workQueueItemId,
     );
-    appendAuditEntry({
+    const auditId = appendAuditEntry({
       actionType:    'support.help_request_rejected',
       actorType:     'admin',
       actorMemberId: adminMemberId,
@@ -4529,16 +4509,15 @@ function rejectLinkHelpRequest(
         work_queue_item_id: workQueueItemId,
       },
     });
-  });
-  // The administrator's reason travels, the way the contact-request resolution
-  // reply already carries its note: a refusal a member cannot see the reason for
-  // leaves them with no way to answer it.
-  notifyLinkHelpResolved({
-    adminMemberId,
-    memberId:        item.entity_id,
-    workQueueItemId,
-    displayDecision: 'no link was applied',
-    note:            trimmed,
+    // The administrator's reason travels, the way the contact-request resolution
+    // reply already carries its note: a refusal a member cannot see the reason for
+    // leaves them with no way to answer it.
+    notifyLinkHelpResolved({
+      memberId:        item.entity_id,
+      auditId,
+      displayDecision: 'no link was applied',
+      note:            trimmed,
+    });
   });
 }
 
@@ -4673,7 +4652,6 @@ function correctMemberNames(
   if (changedFields.length === 0) return { status: 'unchanged' as const };
 
   const now = new Date().toISOString();
-  let correctionAuditId = '';
   transaction(() => {
     account.updateMemberNames.run(
       names.familyName || null,
@@ -4685,7 +4663,7 @@ function correctMemberNames(
       actorId,
       memberId,
     );
-    correctionAuditId = appendAuditEntry({
+    const correctionAuditId = appendAuditEntry({
       actionType:    'member.name_corrected',
       actorType:     'admin',
       actorMemberId: actorId,
@@ -4694,30 +4672,27 @@ function correctMemberNames(
       reasonText:    reason,
       metadata:      { fields: changedFields, before, after },
     });
+    // Without the values: the recorded name is what a member is identified by,
+    // so a correction to it is the case where the address on file is most
+    // likely to be wrong too.
+    notifyRecordCorrected(memberId, names.displayName, 'the name on your account', reason, correctionAuditId);
   });
-  // After the commit, and without the values: the recorded name is what a
-  // member is identified by, so a correction to it is the case where the
-  // address on file is most likely to be wrong too.
-  notifyRecordCorrected(memberId, names.displayName, 'the name on your account', reason, correctionAuditId);
   return { status: 'corrected' as const, changedFields };
 }
 
 /**
- * Tell a member an administrator corrected their record. Best-effort and after
- * the commit, so a delivery problem never unwinds a correction already made.
- * Carries what changed and why, never the values: the address on file may be
- * exactly what was wrong.
+ * Tell a member an administrator corrected their record, inside the
+ * correction's transaction. Carries what changed and why, never the values:
+ * the address on file may be exactly what was wrong.
  */
 function notifyRecordCorrected(
   memberId: string, displayName: string, whatChanged: string, reason: string, correctionAuditId: string,
 ): void {
-  // Keyed on the correction's audit row, so each correction sends once however
-  // often the send is attempted.
-  emailService.sendToMember({
+  emailService.sendActNotice({
     template: 'member_record_corrected',
     params:   { memberName: displayName, whatChanged, note: reason },
     memberId,
-    idempotencyKey: `member-record-corrected:${memberId}:${correctionAuditId}`,
+    actId:    correctionAuditId,
   });
 }
 

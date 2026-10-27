@@ -706,7 +706,7 @@ describe('each correction notice is keyed on the correction it reports', () => {
     expect(corrections).toHaveLength(4);
     for (const leader of [LEADER_ID, COLEAD_ID]) {
       expect(noticeKeysTo(leader).sort(), leader).toEqual(
-        corrections.map((id) => `club-record-corrected:${CLUB_ID}:${leader}:${id}`).sort(),
+        corrections.map((id) => `club_record_corrected:${id}:${leader}`).sort(),
       );
     }
   });

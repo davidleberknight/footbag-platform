@@ -34,6 +34,7 @@ add-lineage-header
 admin-action-disclosure
 admin-goto-grid
 admin-goto-group
+admin-instructions
 admin-queue-row
 admin-queue-row-label
 admin-queue-row-meta

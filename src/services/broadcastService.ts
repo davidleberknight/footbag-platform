@@ -287,7 +287,19 @@ export const broadcastService = {
 
     return {
       seo: { title: 'Mailing Lists', noindex: true },
-      page: { sectionKey: 'admin', pageKey: 'admin_mailing_list_compose', title: 'Compose a Message' },
+      page: {
+        sectionKey: 'admin', pageKey: 'admin_mailing_list_compose', title: 'Compose a Message',
+        instructions: {
+          what: 'Sends one plain-text email to everyone subscribed to this list.',
+          how: 'Write the subject and message, then send.',
+          headsUp: [
+            'Sending happens straight away and cannot be undone.',
+            'The list\'s subject prefix is added to your subject.',
+            'Anyone who has unsubscribed, bounced or is otherwise undeliverable is left out.',
+            'The send is recorded in the broadcast archive and the audit log.',
+          ],
+        },
+      },
       content: {
         slug: list.slug,
         listName: list.name,
@@ -488,7 +500,15 @@ export const broadcastService = {
 
     return {
       seo: { title: 'Broadcasts', noindex: true },
-      page: { sectionKey: 'admin', pageKey: 'admin_broadcasts', title: 'Broadcasts' },
+      page: {
+        sectionKey: 'admin', pageKey: 'admin_broadcasts', title: 'Broadcasts',
+        instructions: {
+          what: 'Every mailing-list send, one entry per send.',
+          why: 'To check what went out, when, and to which list.',
+          how: 'Open an entry to read the subject and message as sent.',
+          headsUp: ['No recipient is named here.'],
+        },
+      },
       content: {
         rows,
         hasRows: rows.length > 0,
@@ -506,7 +526,12 @@ export const broadcastService = {
 
     return {
       seo: { title: 'Broadcasts', noindex: true },
-      page: { sectionKey: 'admin', pageKey: 'admin_broadcast_detail', title: row.subject },
+      page: {
+        sectionKey: 'admin', pageKey: 'admin_broadcast_detail', title: row.subject,
+        instructions: {
+          what: 'One send: its subject, its message, and how many copies were queued.',
+        },
+      },
       content: {
         id: row.id,
         subject: row.subject,

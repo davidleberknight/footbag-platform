@@ -259,6 +259,16 @@ export const emailLogService = {
       page: {
         sectionKey: 'admin', pageKey: 'admin_email_log', title: 'Email Log',
         ...(notice ? { notice: notice[1], noticeTone: notice[0] } : {}),
+        instructions: {
+          what: 'Lists outbound email: who it was addressed to, which template produced it, and whether it was sent.',
+          why: 'To find out why a member did or did not get a message.',
+          how: 'Filter the list, then open a message. A message the sender gave up on can be marked reviewed. A note is required.',
+          headsUp: [
+            'Message bodies show the template with its merge fields empty, never the recipient\'s personal data.',
+            'Nothing can be resent from here.',
+            'Marking a message reviewed is recorded in the audit log and does not change the message\'s status.',
+          ],
+        },
       },
       content: {
         entries: rows.map(shapeRow),

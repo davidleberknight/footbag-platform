@@ -5,6 +5,7 @@
 </div>
 
 <div class="wrapper">
+  {{> admin-instructions}}
   {{#if content.notFound}}
     {{#> outcome-notice tone='no'}}
       No curator media item with id <code>{{content.mediaId}}</code> exists.

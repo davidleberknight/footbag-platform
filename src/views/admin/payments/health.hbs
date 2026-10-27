@@ -1,11 +1,12 @@
 <div class="hero hero-sm">
   <div>
     <h1>{{page.title}}</h1>
-    <p>Whether payments are working right now: which credential the running process holds, whether the provider's webhooks are arriving and being accepted, what settled, and what reconciliation is still asking about. Counts cover {{content.windowLabel}} unless a row says otherwise. Read-only.</p>
+    <p>Counts cover {{content.windowLabel}} unless a row says otherwise.</p>
   </div>
 </div>
 
 <div class="wrapper">
+  {{> admin-instructions}}
   <section>
     <div class="section-heading">
       <h2>Provider Credential</h2>

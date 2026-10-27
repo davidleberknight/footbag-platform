@@ -10464,6 +10464,132 @@ export const historicalRecordCorrection = {
   `); },
 };
 
+// ---------------------------------------------------------------------------
+// eventResultCorrection
+//
+// The administrator's correction of an event's published results. Only events
+// whose results are public are found or read here; the service refuses the rest.
+// ---------------------------------------------------------------------------
+export interface EventResultFinderRow {
+  event_id: string;
+  title: string;
+  start_date: string;
+  city: string;
+  country: string;
+  entry_count: number;
+}
+
+export interface EventResultEventRow {
+  event_id: string;
+  title: string;
+  start_date: string;
+  end_date: string;
+  city: string;
+  region: string | null;
+  country: string;
+  status: string;
+  sanction_status: string;
+  tag_normalized: string;
+}
+
+export interface EventResultEntryRow {
+  result_entry_id: string;
+  event_id: string;
+  discipline_id: string | null;
+  discipline_name: string | null;
+  team_type: string | null;
+  placement: number;
+  score_text: string | null;
+}
+
+export interface EventResultParticipantRow {
+  participant_row_id: string;
+  participant_order: number;
+  display_name: string;
+}
+
+export interface EventResultDisciplineRow {
+  discipline_id: string;
+  event_id: string;
+  name: string;
+  discipline_category: string | null;
+  team_type: string;
+  is_aggregate_standing: number;
+}
+
+export const eventResultCorrection = {
+  // Events with public results whose title contains the text, or that started
+  // in the given year. Newest first.
+  get searchEvents() { return db.prepare(`
+    SELECT e.id AS event_id, e.title, e.start_date, e.city, e.country,
+           (SELECT COUNT(*) FROM event_result_entries AS ere WHERE ere.event_id = e.id) AS entry_count
+    FROM events AS e
+    WHERE e.status IN (${PUBLIC_EVENT_DETAIL_VISIBLE_STATUS_SQL})
+      AND EXISTS (SELECT 1 FROM event_result_entries AS ere WHERE ere.event_id = e.id)
+      AND (LOWER(e.title) LIKE '%' || ? || '%' ESCAPE '\\' OR substr(e.start_date, 1, 4) = ?)
+    ORDER BY e.start_date DESC, e.id DESC
+    LIMIT ?
+  `); },
+
+  get findEvent() { return db.prepare(`
+    SELECT e.id AS event_id, e.title, e.start_date, e.end_date, e.city, e.region,
+           e.country, e.status, e.sanction_status, t.tag_normalized
+    FROM events AS e
+    INNER JOIN tags AS t ON t.id = e.hashtag_tag_id
+    WHERE e.id = ?
+  `); },
+
+  get findEntry() { return db.prepare(`
+    SELECT ere.id AS result_entry_id, ere.event_id, ere.discipline_id,
+           ed.name AS discipline_name, ed.team_type, ere.placement, ere.score_text
+    FROM event_result_entries AS ere
+    LEFT JOIN event_disciplines AS ed ON ed.id = ere.discipline_id
+    WHERE ere.id = ? AND ere.event_id = ?
+  `); },
+
+  get listEntryParticipants() { return db.prepare(`
+    SELECT id AS participant_row_id, participant_order, display_name
+    FROM event_result_entry_participants
+    WHERE result_entry_id = ?
+    ORDER BY participant_order ASC, id ASC
+  `); },
+
+  get findDiscipline() { return db.prepare(`
+    SELECT id AS discipline_id, event_id, name, discipline_category, team_type,
+           is_aggregate_standing
+    FROM event_disciplines
+    WHERE id = ? AND event_id = ?
+  `); },
+
+  get listEventDisciplines() { return db.prepare(`
+    SELECT id AS discipline_id, event_id, name, discipline_category, team_type,
+           is_aggregate_standing
+    FROM event_disciplines
+    WHERE event_id = ?
+    ORDER BY sort_order ASC, name COLLATE NOCASE ASC, id ASC
+  `); },
+
+  get updateEntry() { return db.prepare(`
+    UPDATE event_result_entries
+       SET placement = ?, score_text = ?, discipline_id = ?,
+           updated_at = ?, updated_by = ?, version = version + 1
+     WHERE id = ?
+  `); },
+
+  get updateParticipantName() { return db.prepare(`
+    UPDATE event_result_entry_participants
+       SET display_name = ?, updated_at = ?, updated_by = ?, version = version + 1
+     WHERE id = ?
+  `); },
+
+  get updateDiscipline() { return db.prepare(`
+    UPDATE event_disciplines
+       SET discipline_category = ?, is_aggregate_standing = ?,
+           updated_at = ?, updated_by = ?, version = version + 1
+     WHERE id = ?
+  `); },
+};
+
 export const systemJobRuns = {
   // Insert a new run row in the 'running' state. UPDATE-on-finish writes
   // status, finished_at, details_json, and last_error. The single-row

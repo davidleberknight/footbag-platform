@@ -139,7 +139,18 @@ export const adminLegacyAccountService = {
 
     return {
       seo:  { title, noindex: true },
-      page: { sectionKey: '', pageKey: 'admin_legacy_accounts', title },
+      page: {
+        sectionKey: '', pageKey: 'admin_legacy_accounts', title,
+        instructions: {
+          what: 'Finds sign-ins from the old footbag.org that no member has claimed yet.',
+          why: 'When a member asks for help linking their old account, this is where you get the account id to apply.',
+          how: 'Search by name, account id, username, or an exact email address.',
+          headsUp: [
+            'This page shows private details.',
+            'Accounts a member already holds are not listed. Reach those from the member\'s record.',
+          ],
+        },
+      },
       content: {
         query,
         hasQuery: query !== '',

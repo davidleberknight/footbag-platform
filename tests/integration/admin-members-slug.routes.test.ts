@@ -155,7 +155,7 @@ describe('correcting a profile URL', () => {
        WHERE recipient_member_id = ? AND template_key = 'member_record_corrected'`,
     ).all(MOVER_ID)) as Array<{ idempotency_key: string }>;
     expect(auditIds).toHaveLength(1);
-    expect(keys.map((k) => k.idempotency_key)).toEqual([`member-record-corrected:${MOVER_ID}:${auditIds[0].id}`]);
+    expect(keys.map((k) => k.idempotency_key)).toEqual([`member_record_corrected:${auditIds[0].id}:${MOVER_ID}`]);
   });
 
   it('leaves the gallery identifier alone, since it was fixed when the gallery was made', () => {

@@ -1,11 +1,12 @@
 <div class="hero hero-sm">
   <div>
     <h1>Edit Email Template</h1>
-    <p>Editing <code>{{content.templateKey}}</code>. Plain text only; merge fields are filled at send time.</p>
+    <p>Editing <code>{{content.templateKey}}</code>.</p>
   </div>
 </div>
 
 <div class="wrapper">
+  {{> admin-instructions}}
   <section>
     {{#if content.saved}}
     {{> outcome-notice text="Saved. The next send of this email uses the new wording." tone='ok'}}

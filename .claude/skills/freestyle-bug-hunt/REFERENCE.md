@@ -12,7 +12,7 @@ embedded copy here would drift. Method:
 
 1. List every open issue with the compact listing form in the `tracker-ops` skill
    (`--state open --limit 200`; without a limit gh stops at 30), and take every card
-   whose title or labels touch freestyle, curated media, tips or records, not only the
+   whose title or labels touch freestyle, curated media or records, not only the
    `freestyle` and `pipeline` lanes; add the `BUGS.md` entries step 0 re-verified.
 2. Read every listed issue in full with the detail form in the `tracker-ops` skill (body
    and every comment, in order), plus every card a doctrine file cites, and record "N
@@ -55,7 +55,6 @@ row any category flags. Record the selected slugs in the report.
 | Notation | operational notation with scoring brackets, with `[KICK]`, `[set]` shorthand, empty |
 | Alias shape | no aliases, and each alias type present (common, historical, structural, technical, typo, suppressed, positional, ambiguous), displayed and not; an alias demoted from a retired row |
 | Adjudication | open with a draft, open without, resolved to a trick, a published candidate's row hidden |
-| Tips | published, hidden, each unresolved bucket |
 | Records | each confidence value, a superseded record, an unresolved holder name |
 | Media | no media, one clip, several clips, unavailable embed, media reached through an alias tag |
 | Hashtag role | a trick, a set, an operator, a family, and a name that is both a trick and a set (pixie, fairy) |
@@ -364,7 +363,7 @@ That site goes dark at cutover, so every link into it becomes a dead end.
 After cutover the admin freestyle surfaces are the only way freestyle data changes, so
 their refusals are the dictionary's last line of defence. For each admin freestyle story
 (trick editing, alias, source-link and modifier-link attach and detach, notation
-authoring, publishing from a draft, source registration, tip moderation, record and
+authoring, publishing from a draft, source registration, record and
 consecutive-record editing, and curated-gallery management and curator upload):
 
 1. Trace every validation clause to the line that enforces it in the owning service, and
@@ -428,14 +427,12 @@ error body is a finding.
 
 The public prose rules in the `freestyle-dictionary-surface` skill (attribution and
 internal language) bind curator prose stored in the database as much as template text.
-Scan `freestyle_trick_tips.tip_text` and every editorial column of `freestyle_tricks`
+Scan every editorial column of `freestyle_tricks`
 (description, short description, execution summary, learning, prerequisite and
 pronunciation notes, the notation source note) for: absolute URLs and their hosts (§F18
 applies), email addresses, individuals named as a source or contributor (exempt: Ben Job
 as author of the notation system, and a record holder named for the record), and
-internal-process terms (exempt on the attribution surfaces the surface skill lists). Also:
-a published tip whose target trick is missing, inactive or unresolved, and a tip status
-outside the known set (the schema carries no constraint on it).
+internal-process terms (exempt on the attribution surfaces the surface skill lists).
 
 ### §F23 Records and consecutive-records integrity
 

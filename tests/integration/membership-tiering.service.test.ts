@@ -24,8 +24,10 @@ import { uuidv7Hex } from '../../src/services/uuidv7';
 
 const { dbPath } = setTestEnv('3091');
 
-// eslint-disable-next-line @typescript-eslint/consistent-type-imports
+/* eslint-disable @typescript-eslint/consistent-type-imports */
 let mts: typeof import('../../src/services/membershipTieringService');
+let transaction: typeof import('../../src/db/db').transaction;
+/* eslint-enable @typescript-eslint/consistent-type-imports */
 
 const ADMIN_ID = 'member-admin';
 const FUTURE_AP = '2099-01-01T00:00:00.000Z';
@@ -35,6 +37,7 @@ beforeAll(async () => {
   insertMember(db, { id: ADMIN_ID, slug: 'tier_admin', is_admin: 1 });
   db.close();
   mts = await import('../../src/services/membershipTieringService');
+  transaction = (await import('../../src/db/db')).transaction;
 });
 
 afterAll(() => cleanupTestDb(dbPath));
@@ -158,13 +161,17 @@ function outboxFor(memberId: string): Array<{
 }
 
 function auditFor(memberId: string, actionType: string): Array<{ metadata_json: string | null }> {
+  return auditRowsFor(memberId, actionType);
+}
+
+function auditRowsFor(memberId: string, actionType: string): Array<{ id: string; metadata_json: string | null }> {
   const db = new BetterSqlite3(dbPath, { readonly: true });
   const rows = db
     .prepare(
-      `SELECT metadata_json FROM audit_entries
+      `SELECT id, metadata_json FROM audit_entries
        WHERE entity_id = ? AND action_type = ?`,
     )
-    .all(memberId, actionType) as Array<{ metadata_json: string | null }>;
+    .all(memberId, actionType) as Array<{ id: string; metadata_json: string | null }>;
   db.close();
   return rows;
 }
@@ -319,7 +326,10 @@ describe('applyHonorGrant', () => {
     expect(mail[0].recipient_email).toBe('hof-winner@example.com');
     expect(mail[0].subject).toBe(expected.subject);
     expect(mail[0].body_text).toBe(expected.bodyText);
-    expect(mail[0].idempotency_key).toMatch(/^honor_congrats:/);
+    // Keyed on the grant's own audit row, so one grant congratulates once.
+    const grantAudit = auditRowsFor(id, 'tier.hof_grant');
+    expect(grantAudit).toHaveLength(1);
+    expect(mail[0].idempotency_key).toBe(`honor_congratulation:${grantAudit[0].id}:${id}`);
   });
 
   it('BAP grant enqueues a congratulatory email naming the Big Add Posse', () => {
@@ -340,7 +350,9 @@ describe('applyHonorGrant', () => {
     mts.applyHonorGrant(ADMIN_ID, id, 'hof');
 
     const expected = renderSidecarTemplate('honor_congratulation_hof_tier3');
-    const mail = outboxFor(id);
+    // The board grant above sent its own tier-change notice; only the
+    // congratulation is under test here.
+    const mail = outboxFor(id).filter((m) => m.idempotency_key?.startsWith('honor_congratulation:'));
     expect(mail).toHaveLength(1);
     expect(mail[0].body_text).toBe(expected.bodyText);
     // The Tier 3 variant must not claim Tier 2 is the member's current tier.
@@ -513,6 +525,69 @@ describe('removeGovernanceTier3', () => {
     expect(JSON.parse(audits[0].metadata_json ?? '{}')).toMatchObject({
       revert_to: 'tier1', admin_tier2_invariant_to: 'tier2',
     });
+    // Defect caught: the notice names the reverted Tier 1 when the role's
+    // floor has put the administrator back at Tier 2.
+    const [removedAudit] = auditRowsFor(id, 'tier.governance_removed');
+    const notice = outboxFor(id).find((m) => m.idempotency_key === `tier_change_notice:${removedAudit.id}:${id}`);
+    expect(notice?.body_text).toBe(renderSidecarTemplate('tier_change_notice', {
+      tierLabel: 'Tier 2 (IFPA Organizer Member)', reasonText: '',
+    }).bodyText);
+  });
+});
+
+describe('admin-role notices', () => {
+  // Defect caught: the notice is keyed on something other than the act, so a
+  // member granted the role again after a revoke is never told the second time.
+  it('a grant, a revoke and a second grant each tell the member', () => {
+    const id = freshMember();
+    mts.grantAdminRole(ADMIN_ID, id, 'Joining the team.');
+    mts.revokeAdminRole(ADMIN_ID, id, 'Stepping back.');
+    mts.grantAdminRole(ADMIN_ID, id, 'Returning.');
+
+    const notices = outboxFor(id).filter((m) => m.idempotency_key?.startsWith('admin_role_change:'));
+    const acts = [
+      ...auditRowsFor(id, 'admin.role_granted'),
+      ...auditRowsFor(id, 'admin.role_revoked'),
+    ];
+    expect(acts).toHaveLength(3);
+    expect(notices.map((m) => m.idempotency_key).sort())
+      .toEqual(acts.map((a) => `admin_role_change:${a.id}:${id}`).sort());
+  });
+});
+
+describe('board standing tells the member their tier changed', () => {
+  // Defect caught: an administrator puts a member on the board, or takes them
+  // off it, and the member's tier changes with no word to them, unlike every
+  // other tier change an administrator makes.
+  it('setting and clearing board standing each send the tier-change notice, keyed on the act', () => {
+    const id = freshMember({ login_email: 'board-notice@example.com' });
+    mts.applyPurchaseGrant(id, id, freshPayment(id, 'tier2'), 'tier2');
+
+    mts.setGovernanceTier3(ADMIN_ID, id, 'Elected to the board.');
+    mts.removeGovernanceTier3(ADMIN_ID, id, 'Term ended.');
+
+    const [setAudit] = auditRowsFor(id, 'tier.governance_set');
+    const [removedAudit] = auditRowsFor(id, 'tier.governance_removed');
+    const byKey = new Map(outboxFor(id).map((m) => [m.idempotency_key, m]));
+    expect(byKey.get(`tier_change_notice:${setAudit.id}:${id}`)?.body_text).toBe(
+      renderSidecarTemplate('tier_change_notice', {
+        tierLabel: 'Tier 3 (IFPA Director)', reasonText: 'Elected to the board.',
+      }).bodyText,
+    );
+    expect(byKey.get(`tier_change_notice:${removedAudit.id}:${id}`)?.body_text).toBe(
+      renderSidecarTemplate('tier_change_notice', {
+        tierLabel: 'Tier 2 (IFPA Organizer Member)', reasonText: 'Term ended.',
+      }).bodyText,
+    );
+  });
+
+  // Defect caught: a director inheriting board standing through their legacy
+  // claim is sent an administrator's tier-change notice for an act no
+  // administrator took.
+  it('a board grant inherited at claim sends no tier-change notice', () => {
+    const id = freshMember();
+    transaction(() => mts.applyLegacyClaimBoardGrantInTx({ type: 'member', id }, id, {}));
+    expect(outboxFor(id).filter((m) => m.idempotency_key?.startsWith('tier_change_notice:'))).toEqual([]);
   });
 });
 

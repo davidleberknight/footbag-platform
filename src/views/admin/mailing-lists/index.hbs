@@ -1,11 +1,11 @@
 <div class="hero hero-sm">
   <div>
     <h1>{{page.title}}</h1>
-    <p>The lists the platform can send to. A list takes its recipients either from its own subscribers, who manage themselves, or from a group's roster. Archiving a list keeps everything it has and stops it being offered.</p>
   </div>
 </div>
 
 <div class="wrapper">
+  {{> admin-instructions}}
   <p class="text-muted">{{content.totalCount}} lists{{#if content.hasArchived}} &middot; {{content.archivedCount}} archived{{/if}}</p>
 
   <p><a href="{{content.newHref}}" class="btn btn-primary">Create a Mailing List</a></p>

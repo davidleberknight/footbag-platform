@@ -1651,6 +1651,7 @@ Success Criteria:
 - Club and Event galleries aggregate both content types by hashtag matching.
 - Video tiles render as click-to-play facades with lazy-loaded thumbnails, so a gallery can mix any number of videos without a performance penalty.
 - Gallery creation and rename controls are rendered for members with Tier 1 benefits. A Tier 0 member without current Active Player status sees the benefit text in their place rather than the controls.
+- An administrator who changes a gallery a member owns emails that member, naming the gallery, what changed, and the administrator's reason, and nothing else.
 
 ### M_Delete_Own_Media
 
@@ -2785,6 +2786,7 @@ Success Criteria:
 - Mandatory reason field for manual adjustment (typically: payment issue resolution, complimentary access, error correction).
 - Confirmation dialog before applying with member name, old tier, new tier, and reason.
 - Every correction on this surface previews before it writes, and the confirmation names the reason and every changed value before and after.
+- Every correction to a member's name, profile URL, profile fields or Active Player expiry emails the member, naming what changed and the admin's reason, and never the values themselves, because the address on file may be exactly what was wrong.
 - Member receives email notification of membership-status change with key points: new membership tier, Active Player status or expiry where changed, reason.
 - All manual data overrides audit-logged with admin ID, member ID, old values, new values, reason, timestamp.
 - Admin sees a clear success message when adjustment completes successfully.
@@ -2826,6 +2828,7 @@ Success Criteria:
 - The IFPA Board flag is temporary, as long as the member is an active board member only.
 - This story is the one place board standing is conferred or cleared. The member record's tier control sets the three membership tiers and not this one, because director standing carries a badge and a record of the tier the member returns to that a plain tier correction would not write. Where a `type='board'` group exists, setting a member's standing adds their roster row and clearing it ends that row, in the same transaction, so the published roster and the standing can never disagree; the roster reflects standing and never confers it (see `A_Manage_Group_Roster`).
 - All status grants audit-logged with admin ID, member ID, reason, timestamp.
+- Setting or clearing the IFPA Board flag emails the member, naming their new membership tier and the admin's reason, as every other tier change an administrator makes does.
 
 ### A_View_Member_History
 
@@ -3608,7 +3611,7 @@ Success Criteria:
 - Granting admin requires a confirmation dialog and a mandatory reason. Tier 2 is an invariant of the role rather than a precondition on the person: a target holding less is granted Tier 2 in the same transaction, by the same rule the bootstrap paths apply, and a target already at Tier 2 or Tier 3 keeps the tier they hold. The audit row for the grant records the tier movement.
 - Revoking admin requires: confirmation dialog, mandatory reason.
 - Admin cannot revoke their own admin status (ensures there is always at least one admin).
-- All role changes send email notification to affected member.
+- Every role change emails the affected member, saying whether the role was granted or revoked, and nothing else.
 - All role changes audit-logged with admin ID, target member ID, action, reason, timestamp.
 - Granting the admin role automatically subscribes the member to the Admin mailing list used for admin alerts.
 - Revoking the admin role automatically unsubscribes the member from the Admin mailing list, without changing any of their other email subscriptions.

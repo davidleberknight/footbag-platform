@@ -1,11 +1,11 @@
 <div class="hero hero-sm">
   <div>
     <h1>{{page.title}}</h1>
-    <p>Search the audit trail to investigate a member complaint or to confirm a flow logged what it should. Read-only.</p>
   </div>
 </div>
 
 <div class="wrapper">
+  {{> admin-instructions}}
   {{> outcome-notice text=page.notice tone=page.noticeTone}}
   <form method="GET" action="/admin/audit-log" class="mb-6">
     <p>

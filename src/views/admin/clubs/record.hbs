@@ -5,6 +5,7 @@
 </div>
 
 <div class="wrapper">
+  {{> admin-instructions}}
   {{> outcome-notice text=page.notice tone=page.noticeTone}}
   {{> outcome-notice text=content.errorMessage tone='no'}}
 
@@ -42,7 +43,6 @@
 
   <section>
     <div class="section-heading"><h2>Corrections</h2></div>
-    <p class="fs-sm">Every correction is shown for review before anything is written, takes a reason, is recorded in this club's audit history, and is emailed to its co-leaders.</p>
 
     <details class="admin-action-disclosure">
       <summary>Correct the Club's Details</summary>

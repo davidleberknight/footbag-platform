@@ -72,12 +72,13 @@ export const FLASH_KIND = {
   // tone, so the list page reports that nothing was changed.
   ADMIN_ROLE_OUTCOME: 'admin_role_outcome',
   HONOR_GRANT_OUTCOME: 'honor_grant_outcome',
-  // An administrator's change to a club's co-leaders, an event's organizers, a
-  // historical person's deceased marking, or a freestyle trick's publication.
-  // The payload is the sentence and its tone, so the page reports what was done,
-  // or that nothing needed changing.
+  // An administrator's change to a club's co-leaders, an event's organizers or
+  // results, a historical person's deceased marking, or a freestyle trick's
+  // publication. The payload is the sentence and its tone, so the page reports
+  // what was done, or that nothing needed changing.
   CLUB_LEADERSHIP_OUTCOME: 'club_leadership_outcome',
   EVENT_ORGANIZER_OUTCOME: 'event_organizer_outcome',
+  EVENT_RESULT_OUTCOME: 'event_result_outcome',
   HISTORICAL_RECORD_OUTCOME: 'historical_record_outcome',
   TRICK_PUBLISHED: 'trick_published',
   // An attach on the freestyle trick edit page that found its link already in

@@ -161,13 +161,18 @@ function readInductionYear(raw: string): number | null {
   return Number(value);
 }
 
+const HONOR_CONFIRM_INSTRUCTIONS = { what: 'Review this honor change before it is written.' };
+
 function confirmEnvelope(
   title: string,
   content: HonorActionConfirmContent,
 ): PageViewModel<HonorActionConfirmContent> {
   return {
     seo:  { title, noindex: true },
-    page: { sectionKey: '', pageKey: 'admin_honor_action_confirm', title },
+    page: {
+      sectionKey: '', pageKey: 'admin_honor_action_confirm', title,
+      instructions: HONOR_CONFIRM_INSTRUCTIONS,
+    },
     content,
   };
 }
@@ -204,6 +209,17 @@ export const adminHonorGrantService = {
         sectionKey: '',
         pageKey: 'admin_honor_grants',
         title: 'Grant an Honor Tier',
+        instructions: {
+          what: 'Grants or takes back the Hall of Fame and Big Add Posse honors, and puts directors on or takes them off the board.',
+          why: 'Honors and board standing are never self-served, and each carries a membership tier only an administrator can confer.',
+          how: 'Use the form for what you need. Taking back a grant and board changes also take a reason. Each is reviewed on a confirm page before it is written.',
+          headsUp: [
+            'A grant gives Tier 2 (a Tier 3 director stays at Tier 3) and emails the member a congratulation.',
+            'Putting a director on or off the board changes their tier and emails them, and the email includes your reason.',
+            'Taking back a grant made in error leaves the tier alone and sends nothing.',
+            'Every act is recorded in the audit log.',
+          ],
+        },
         notice: opts.outcome?.text,
         noticeTone: opts.outcome?.tone,
       },
@@ -234,7 +250,10 @@ export const adminHonorGrantService = {
     const inductionYear = readInductionYear(inductionYearRaw);
     return {
       seo: { title: 'Confirm Honor Tier Grant', noindex: true },
-      page: { sectionKey: '', pageKey: 'admin_honor_grants_confirm', title: 'Confirm: Grant an Honor Tier' },
+      page: {
+        sectionKey: '', pageKey: 'admin_honor_grants_confirm', title: 'Confirm: Grant an Honor Tier',
+        instructions: HONOR_CONFIRM_INSTRUCTIONS,
+      },
       content: {
         memberKey: memberKey.trim(),
         honor,

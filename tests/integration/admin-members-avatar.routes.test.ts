@@ -205,11 +205,11 @@ describe('the removal takes the picture off the profile and records why', () => 
 
     const audit = db((conn) =>
       conn.prepare(`
-        SELECT actor_type, actor_member_id, entity_type, reason_text, metadata_json
+        SELECT id, actor_type, actor_member_id, entity_type, reason_text, metadata_json
         FROM audit_entries
         WHERE action_type = 'media.deleted' AND entity_id = ?
       `).get('av_media_1')) as {
-        actor_type: string; actor_member_id: string; entity_type: string;
+        id: string; actor_type: string; actor_member_id: string; entity_type: string;
         reason_text: string; metadata_json: string;
       };
     expect(audit.actor_type).toBe('admin');
@@ -226,7 +226,7 @@ describe('the removal takes the picture off the profile and records why', () => 
       conn.prepare(`
         SELECT recipient_member_id, template_key, body_text FROM outbox_emails
         WHERE idempotency_key = ?
-      `).get('media-moderation:av_media_1:deleted')) as
+      `).get(`media_moderation_decision:${audit.id}:${WITH_PICTURE_ID}`)) as
       { recipient_member_id: string; template_key: string; body_text: string } | undefined;
     expect(mail?.recipient_member_id).toBe(WITH_PICTURE_ID);
     // Nobody reported it, so the mail must not say anybody did.

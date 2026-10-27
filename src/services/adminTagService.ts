@@ -252,6 +252,17 @@ export const adminTagService = {
         title,
         notice:     outcomeNotice ? outcomeNotice[1] : undefined,
         ...(outcomeNotice ? { noticeTone: outcomeNotice[0] } : {}),
+        instructions: {
+          what: 'Takes an abusive hashtag out of circulation.',
+          why: 'Members choose their own hashtags. This page is for removing an abusive one, not for tidying members\' words.',
+          how: 'Search for the hashtag, give a reason, and review the retirement before it is written.',
+          headsUp: [
+            'Retiring is permanent.',
+            'It takes the hashtag off every photo, video and gallery, and stops anyone using it again. The media itself stays.',
+            'Club and event hashtags are corrected on their own pages, not here. #curated and uploader tags cannot be retired.',
+            'Nobody is emailed.',
+          ],
+        },
       },
       content: {
         query,
@@ -272,7 +283,10 @@ export const adminTagService = {
 
     return {
       seo:  { title, noindex: true },
-      page: { sectionKey: '', pageKey: 'admin_tag_confirm', title },
+      page: {
+        sectionKey: '', pageKey: 'admin_tag_confirm', title,
+        instructions: { what: 'Review retiring this hashtag before it is written.' },
+      },
       content: {
         tagDisplay:    row.tag_display,
         tagNormalized: row.tag_normalized,

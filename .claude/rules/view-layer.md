@@ -57,7 +57,7 @@ Compose every public page from one small set: site frame (header / main / footer
 discipline tag, result section, year navigation, metadata / summary rows, data table (`.data-table`,
 the one table treatment), queue row, grouped link
 index, prominent action link,
-empty state, and notice / coming-soon block. A new page
+empty state, notice / coming-soon block, and admin instructions block. A new page
 joins the standard only if it can be expressed through these. A genuinely new reusable primitive is
 added to the standard first, then applied across the relevant pages, never invented per page.
 
@@ -75,6 +75,13 @@ the primitive for a page listing many queues at once, where a card each would bu
 chrome and description. A **grouped link index** (`.admin-goto-grid`) is columns of plain links
 under group headings, carrying no counts and no descriptions, for the navigation half of a page
 whose destinations a reader learns the position of. Both are used on the administrator's home page.
+
+An **admin instructions block** (the `admin-instructions` partial) opens every administrator page,
+directly below the hero: what the screen does, why it exists, how to use it, and a heads-up list of
+the consequences a reader would not guess, such as a member being emailed, the act being permanent,
+or a reason being required. The page service shapes it as `PageMeta.instructions`, and a page with
+nothing non-obvious to warn about omits the heads-up list. On a confirm page the block names the
+step, and its heads-up is the page's existing caution, never a second copy of it.
 
 The page hero carries only its own parts (eyebrow, title, subtitle, notice). Primary navigation, back
 links, and item pagers belong in the page body, never in the hero. Breadcrumbs sit in the hero, above

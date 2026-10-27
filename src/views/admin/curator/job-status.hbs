@@ -9,6 +9,7 @@
 </div>
 
 <div class="wrapper">
+  {{> admin-instructions}}
   {{#if content.notFound}}
     {{#> outcome-notice tone='no'}}
       No curator upload job with id <code>{{content.jobId}}</code> exists, or it

@@ -59,6 +59,7 @@ let createStubSesAdapter: typeof import('../../src/adapters/sesAdapter').createS
 let workQueueService: typeof import('../../src/services/workQueueService').workQueueService;
 let runDailyPass: typeof import('../../src/services/activePlayerExpiryService').runDailyPass;
 let emailService: typeof import('../../src/services/emailService').emailService;
+let transaction: typeof import('../../src/db/db').transaction;
 let identityAccessService: typeof import('../../src/services/identityAccessService').identityAccessService;
 let adminWorkQueueService: typeof import('../../src/services/adminWorkQueueService').adminWorkQueueService;
 let accountTokenService: typeof import('../../src/services/accountTokenService').accountTokenService;
@@ -79,6 +80,7 @@ beforeAll(async () => {
   workQueueService = (await import('../../src/services/workQueueService')).workQueueService;
   runDailyPass = (await import('../../src/services/activePlayerExpiryService')).runDailyPass;
   emailService = (await import('../../src/services/emailService')).emailService;
+  transaction = (await import('../../src/db/db')).transaction;
   identityAccessService = (await import('../../src/services/identityAccessService')).identityAccessService;
   adminWorkQueueService = (await import('../../src/services/adminWorkQueueService')).adminWorkQueueService;
   accountTokenService = (await import('../../src/services/accountTokenService')).accountTokenService;
@@ -289,6 +291,10 @@ const AUDIENCE_ROWS: SenderRow[] = [
  *
  * - `member`: `sendToMember`, which resolves the member's own address through a
  *   lookup that skips deceased and removed accounts, then enqueues best-effort.
+ * - `act`: `sendActNotice`, an administrator's notice to the member their act
+ *   changed, through the same lookup and the same best-effort enqueue, queued
+ *   inside the act's transaction. Every administrator-triggered member email
+ *   takes this route and no other.
  * - `admins`: `sendToAdmins`, the administrator alert list, a broadcast.
  * - `address`: `send` to an address the caller resolved, best-effort, naming
  *   the member, so the enqueue gate holds whatever lookup the caller used.
@@ -301,7 +307,7 @@ const AUDIENCE_ROWS: SenderRow[] = [
  *   member-state authentication sweep proves no excluded state can do.
  */
 type Route =
-  | { via: 'member' | 'admins' | 'address' | 'role' }
+  | { via: 'member' | 'act' | 'admins' | 'address' | 'role' }
   | { via: 'strict'; driver: StrictDriver }
   | { via: 'self'; why: string };
 
@@ -309,10 +315,7 @@ type StrictDriver =
   | 'registration'
   | 'verificationResend'
   | 'passwordResetRequest'
-  | 'passwordResetCompletion'
-  | 'contactRequestResolution'
-  | 'linkHelpResolution'
-  | 'mediaTakedown';
+  | 'passwordResetCompletion';
 
 const SELF_ACTED = 'sent only to the signed-in member about an act on their own account';
 
@@ -327,21 +330,21 @@ const POLICY: Record<EmailTemplateKey, Route> = {
   // The deliberate exception to the soft-delete rule: the confirmation of the
   // deletion itself, addressed to the account it has just made unreachable.
   account_deletion_requested:             { via: 'self', why: SELF_ACTED },
-  contact_request_resolution:             { via: 'strict', driver: 'contactRequestResolution' },
-  link_help_request_resolution:           { via: 'strict', driver: 'linkHelpResolution' },
-  media_moderation_decision:              { via: 'strict', driver: 'mediaTakedown' },
+  contact_request_resolution:             { via: 'act' },
+  link_help_request_resolution:           { via: 'act' },
+  media_moderation_decision:              { via: 'act' },
   member_question_waiting:                { via: 'member' },
   vouch_confirmation:                     { via: 'address' },
-  honor_congratulation:                   { via: 'member' },
-  tier_change_notice:                     { via: 'member' },
-  admin_role_change:                      { via: 'member' },
-  member_record_corrected:                { via: 'member' },
-  club_record_corrected:                  { via: 'member' },
-  gallery_moderated_member:               { via: 'member' },
+  honor_congratulation:                   { via: 'act' },
+  tier_change_notice:                     { via: 'act' },
+  admin_role_change:                      { via: 'act' },
+  member_record_corrected:                { via: 'act' },
+  club_record_corrected:                  { via: 'act' },
+  gallery_moderated_member:               { via: 'act' },
   club_membership_member:                 { via: 'address' },
   club_membership_leader:                 { via: 'address' },
   club_volunteer_leadership:              { via: 'address' },
-  club_leaderless_contact:                { via: 'address' },
+  club_leaderless_contact:                { via: 'act' },
   active_player_expiry_reminder:          { via: 'address' },
   payment_receipt:                        { via: 'address' },
   donation_subscription_started:          { via: 'address' },
@@ -358,6 +361,7 @@ const POLICY: Record<EmailTemplateKey, Route> = {
 /** Which send method each route's sites must use, and whether strict. */
 const ROUTE_SHAPE: Record<Route['via'], { methods: string[]; strict: boolean; memberIdNull: boolean }> = {
   member:  { methods: ['sendToMember'], strict: false, memberIdNull: false },
+  act:     { methods: ['sendActNotice'], strict: false, memberIdNull: false },
   admins:  { methods: ['sendToAdmins', 'sendToMailingList'], strict: false, memberIdNull: false },
   address: { methods: ['send'], strict: false, memberIdNull: false },
   role:    { methods: ['send'], strict: false, memberIdNull: true },
@@ -413,7 +417,7 @@ function readSendSites(): SendSite[] {
   const files = scanSource('emailService.', { roots: ['src'], exts: ['.ts'] })
     .filter((f) => f !== 'src/services/emailService.ts');
   const sites: SendSite[] = [];
-  const call = /emailService\.(send|sendToMember|sendToMailingList|sendToAdmins)\s*(?:<[^>(]*>)?\(/g;
+  const call = /emailService\.(send|sendToMember|sendActNotice|sendToMailingList|sendToAdmins)\s*(?:<[^>(]*>)?\(/g;
   for (const file of files) {
     const src = stripComments(readFileSync(path.join(REPO_ROOT, file), 'utf8'));
     for (const m of src.matchAll(call)) {
@@ -518,6 +522,16 @@ const STRICT_DRIVERS: Record<StrictDriver, SenderRow> = {
       return matrix;
     },
   },
+};
+
+/**
+ * The real flows of the administrator replies that once bypassed the enqueue
+ * gate, kept so the states they reached (deceased, deleted, bouncing and
+ * complaining members) stay unreachable now that they take the act route.
+ */
+type ActFlow = 'contactRequestResolution' | 'linkHelpResolution' | 'mediaTakedown';
+
+const ACT_FLOWS: Record<ActFlow, SenderRow> = {
   contactRequestResolution: {
     // A member asks the administrators something, and their state changes
     // before the answer goes out.
@@ -594,27 +608,11 @@ const KNOWN_LEAKS: Partial<Record<StrictDriver, Partial<Record<MemberState, stri
     deceased: 'the duplicate-registration lookup reads every non-purged account, deceased included, and the notice is strict, so it skips the enqueue gate',
     softDeleted: 'the same lookup reads soft-deleted accounts too, and a strict send passes the soft-delete rule that only the deletion confirmation may',
   },
-  contactRequestResolution: {
-    deceased: 'the reply resolves its recipient through a lookup that skips removed accounts but not deceased ones, and the strict send skips the enqueue gate',
-    bounced: 'the reply is strict, so it bypasses the bounce suppression that only security mail may',
-    complained: 'the reply is strict, so it bypasses the complaint suppression that only security mail may',
-  },
-  linkHelpResolution: {
-    deceased: 'the reply resolves its recipient through a lookup that skips removed accounts but not deceased ones, and the strict send skips the enqueue gate',
-    bounced: 'the reply is strict, so it bypasses the bounce suppression that only security mail may',
-    complained: 'the reply is strict, so it bypasses the complaint suppression that only security mail may',
-  },
-  mediaTakedown: {
-    deceased: 'the moderation read joins the bare members table, and the notice is strict, so neither a lookup nor the gate filters the uploader',
-    softDeleted: 'the same read reaches a soft-deleted uploader, and the strict send passes the soft-delete rule',
-    bounced: 'the notice is strict, so it bypasses the bounce suppression that only security mail may',
-    complained: 'the notice is strict, so it bypasses the complaint suppression that only security mail may',
-  },
 };
 
 // ── Route proofs ────────────────────────────────────────────────────────────
 
-const ROUTE_PROOFS: Record<'member' | 'admins' | 'address', SenderRow> = {
+const ROUTE_PROOFS: Record<'member' | 'act' | 'admins' | 'address', SenderRow> = {
   member: {
     name: 'templated member notification',
     excludes: GATE_EXCLUDED,
@@ -626,6 +624,22 @@ const ROUTE_PROOFS: Record<'member' | 'admins' | 'address', SenderRow> = {
           memberId: matrix[state], idempotencyKey: `${prefix}-${state}`,
         });
       }
+      return matrix;
+    },
+  },
+  act: {
+    name: "an administrator act's notice",
+    excludes: GATE_EXCLUDED,
+    run: (prefix) => {
+      const matrix = withDb((db) => seedMemberStateMatrix(db, { prefix }));
+      transaction(() => {
+        for (const state of MEMBER_STATES) {
+          emailService.sendActNotice({
+            template: 'admin_role_change', params: { action: 'granted' },
+            memberId: matrix[state], actId: `${prefix}-${state}`,
+          });
+        }
+      });
       return matrix;
     },
   },
@@ -684,6 +698,15 @@ describe('member-state mail sweep', () => {
     // is the only filter, and a lookup that forgets a state mails it.
     it(`strict ${row.name}: reaches ${(row.reaches ?? ['live']).join(', ')} and none of ${row.excludes.join(', ')}`, async () => {
       await assertRow(row, `mst-${name}`, KNOWN_LEAKS[name]);
+    });
+  }
+
+  for (const [name, row] of Object.entries(ACT_FLOWS)) {
+    // Defect caught: an administrator's reply resolves its recipient outside
+    // the act route's lookup and gate, so a deceased, deleted or undeliverable
+    // member is written to about a decision on their record.
+    it(`administrator ${row.name}: reaches the live member and none of ${row.excludes.join(', ')}`, async () => {
+      await assertRow(row, `msa-${name}`);
     });
   }
 });

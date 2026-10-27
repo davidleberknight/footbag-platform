@@ -1192,7 +1192,13 @@ export const freestyleCurationService = {
 
     return {
       seo:  { title: 'Freestyle Content' },
-      page: { sectionKey: 'admin', pageKey: 'admin_freestyle_browse', title: 'Freestyle Content' },
+      page: {
+        sectionKey: 'admin', pageKey: 'admin_freestyle_browse', title: 'Freestyle Content',
+        instructions: {
+          what: 'Lists every trick in the dictionary, including the inactive and unreviewed ones the public pages hide.',
+          how: 'Search by name or address, filter by active or review status, then open a trick to edit it.',
+        },
+      },
       content: {
         rows,
         totalCount: rows.length,
@@ -1250,7 +1256,11 @@ export const freestyleCurationService = {
         sectionKey: 'admin',
         pageKey:    'admin_freestyle_notation_backlog',
         title:      'Notation Authoring Backlog',
-        intro:      'Rulings whose identity and difficulty are settled and whose movement notation is not yet authored.',
+        instructions: {
+          what: 'Lists rulings whose identity and difficulty are settled and whose movement notation is not yet written.',
+          why: 'Each needs a notation before it can become a trick in the dictionary.',
+          how: 'Open a ruling to write its notation.',
+        },
       },
       content: {
         groups,
@@ -1291,7 +1301,15 @@ export const freestyleCurationService = {
         sectionKey: 'admin',
         pageKey:    'admin_freestyle_notation_authoring',
         title:      `Author notation: ${row.submitted_name}`,
-        intro:      'Write the movement, and record where it came from and what was done to produce it.',
+        instructions: {
+          what: 'Writes the movement notation for one ruling, with where it came from and what was done to produce it.',
+          how: 'Fill in the notation and its provenance, then save the draft.',
+          headsUp: [
+            'Saving a draft does not create a trick.',
+            'A ruling that is already resolved cannot be changed.',
+            'Each save is recorded in the audit log.',
+          ],
+        },
       },
       content: {
         candidateId:   row.candidate_id,
@@ -1462,7 +1480,15 @@ export const freestyleCurationService = {
         sectionKey: 'admin',
         pageKey:    'admin_freestyle_trick_publication',
         title:      `Publish: ${row.submitted_name}`,
-        intro:      'Create the canonical trick from this authored draft.',
+        instructions: {
+          what: 'Creates the dictionary trick from this authored draft.',
+          how: 'Check the details and publish.',
+          headsUp: [
+            'Publishing makes the trick public and removes the ruling from the backlog.',
+            'Publishing is refused, with the reason shown, when something is missing.',
+            'Publishing is recorded in the audit log.',
+          ],
+        },
       },
       content: {
         candidateId:   row.candidate_id,
@@ -1894,7 +1920,10 @@ export const freestyleCurationService = {
         sectionKey: 'admin',
         pageKey:    'admin_freestyle_notation_drafts',
         title:      'Authored Notation Drafts',
-        intro:      'Movements written and not yet published as canonical tricks.',
+        instructions: {
+          what: 'Lists movements with a notation written but not yet published as tricks.',
+          how: 'Open a draft to publish it.',
+        },
       },
       content: {
         rows:        shaped,
@@ -2047,7 +2076,17 @@ export const freestyleCurationService = {
 
     return {
       seo:  { title: 'Freestyle Content' },
-      page: { sectionKey: 'admin', pageKey: 'admin_freestyle_edit', title: row.canonical_name },
+      page: {
+        sectionKey: 'admin', pageKey: 'admin_freestyle_edit', title: row.canonical_name,
+        instructions: {
+          what: 'Edits one trick\'s fields, and its aliases, sources and modifier links.',
+          how: 'The trick\'s fields save with their own button. Aliases, sources and modifier links each save separately.',
+          headsUp: [
+            'A trick is hidden by making it inactive. It is never deleted.',
+            'Every change is recorded in the audit log.',
+          ],
+        },
+      },
       content: {
         slug: row.slug,
         fields,
@@ -2722,7 +2761,19 @@ export const freestyleCurationService = {
 
     return {
       seo:  { title: 'Freestyle Sources' },
-      page: { sectionKey: 'admin', pageKey: 'admin_freestyle_sources', title: 'Dictionary Provenance Source Creation' },
+      page: {
+        sectionKey: 'admin', pageKey: 'admin_freestyle_sources', title: 'Dictionary Provenance Source Creation',
+        instructions: {
+          what: 'Creates a source for the trick dictionary: who or what asserted that a trick exists, or gave its ADD or its notation.',
+          why: 'So a new source can be cited when it is linked to a trick.',
+          how: 'Fill in the new source, including its permanent id, and save.',
+          headsUp: [
+            'A source\'s id is permanent, and sources cannot be edited or deleted here.',
+            'This is not the media-source registry.',
+            'Creating a source is recorded in the audit log.',
+          ],
+        },
+      },
       content: {
         rows,
         totalCount: rows.length,

@@ -1,11 +1,12 @@
 <div class="hero hero-sm">
   <div>
     <h1>{{page.title}}</h1>
-    <p class="hero-subtitle">Create a provenance source for the freestyle trick dictionary, so a new source can be cited when linking it to a trick. This is the dictionary provenance registry (who or what asserted a trick's existence, ADD, or notation), not the separate media-source registry. {{content.totalCount}} source(s).</p>
+    <p class="hero-subtitle">{{content.totalCount}} source(s).</p>
   </div>
 </div>
 
 <div class="wrapper">
+  {{> admin-instructions}}
   <section>
     <h2 class="section-heading">New Source</h2>
 

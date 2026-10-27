@@ -136,8 +136,8 @@
  *   - audit_entries append (profile/PII mutations)
  *   - a warning log line when member search is rate limited
  *   - outbox_emails enqueue: the notice telling a member an administrator
- *     corrected their profile, sent after the commit and carrying what changed
- *     and why but never the values
+ *     corrected their profile, queued best-effort inside the correction's
+ *     transaction and carrying what changed and why but never the values
  *
  * Service shape: singleton object. Avatar upload is delegated to the factory
  * `createAvatarService(deps)` in `avatarService.ts` (uses MediaStorageAdapter).
@@ -1759,7 +1759,6 @@ export const memberService = {
     takeSlot();
 
     const now = new Date().toISOString();
-    let correctionAuditId = '';
     transaction(() => {
       account.updateMemberProfile.run(
         bio,
@@ -1810,7 +1809,7 @@ export const memberService = {
         // A correction that moves nothing writes nothing, rather than recording
         // a change that did not happen. An administrator re-confirming the
         // values already on file is not an event.
-        correctionAuditId = appendAuditEntry({
+        const correctionAuditId = appendAuditEntry({
           actionType:    'member.profile_corrected',
           actorType:     'admin',
           actorMemberId: actor.memberId,
@@ -1823,16 +1822,13 @@ export const memberService = {
             after:  Object.fromEntries(changes.map((c) => [c.field, c.after])),
           },
         });
+        // Only when something moved. A correction is a past event on somebody's
+        // own record, which is what the notification rule sends by mail: the
+        // dashboard carries obligations the platform is waiting on, and this is
+        // not one.
+        notifyRecordCorrected(row, describeProfileChanges(changedFields), actor.reason, correctionAuditId);
       }
     });
-
-    // After the commit, so a rolled-back correction cannot announce itself, and
-    // only when something moved. A correction is a past event on somebody's own
-    // record, which is what the notification rule sends by mail: the dashboard
-    // carries obligations the platform is waiting on, and this is not one.
-    if (actor.kind === 'administrator' && changes.length > 0) {
-      notifyRecordCorrected(row, describeProfileChanges(changedFields), actor.reason, correctionAuditId);
-    }
     return changes;
   },
 
@@ -2537,11 +2533,9 @@ function describeProfileChanges(fields: string[]): string {
 /**
  * Tell a member that an administrator corrected their record.
  *
- * Best-effort and after the commit: a delivery problem must never unwind a
- * correction that has already been made. The values themselves are not sent,
- * only what changed and why, because the address on file may be exactly what
- * was wrong. Keyed on the correction's audit row, so each correction sends
- * once however often the send is attempted.
+ * Queued inside the correction's transaction, so a rolled-back correction
+ * cannot announce itself. The values themselves are not sent, only what
+ * changed and why, because the address on file may be exactly what was wrong.
  */
 function notifyRecordCorrected(
   row: { id: string; display_name: string },
@@ -2549,11 +2543,11 @@ function notifyRecordCorrected(
   reason: string,
   correctionAuditId: string,
 ): void {
-  emailService.sendToMember({
+  emailService.sendActNotice({
     template: 'member_record_corrected',
     params:   { memberName: row.display_name, whatChanged, note: reason },
     memberId: row.id,
-    idempotencyKey: `member-record-corrected:${row.id}:${correctionAuditId}`,
+    actId:    correctionAuditId,
   });
 }
 

@@ -104,7 +104,6 @@ describe('GET /admin/freestyle/sources — admin gate and listing', () => {
     const res = await get('/admin/freestyle/sources', admin());
     expect(res.status).toBe(200);
     expect(res.text).toContain('Dictionary Provenance Source Creation');
-    expect(res.text).toContain('not the separate media-source registry');
   });
 
   it('redirects an unauthenticated visitor to login', async () => {

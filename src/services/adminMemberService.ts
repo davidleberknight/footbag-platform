@@ -455,7 +455,10 @@ function confirmEnvelope(
 ): PageViewModel<AdminMemberConfirmContent> {
   return {
     seo:  { title, noindex: true },
-    page: { sectionKey: '', pageKey: 'admin_member_confirm', title },
+    page: {
+      sectionKey: '', pageKey: 'admin_member_confirm', title,
+      instructions: { what: 'Review this correction before it is written.' },
+    },
     content,
   };
 }
@@ -743,7 +746,15 @@ export const adminMemberService = {
 
     return {
       seo:  { title, noindex: true },
-      page: { sectionKey: '', pageKey: 'admin_members', title },
+      page: {
+        sectionKey: '', pageKey: 'admin_members', title,
+        instructions: {
+          what: 'Finds any member account by exact id, exact profile address, exact login email, or part of the name.',
+          why: 'It reaches accounts that member search hides: those held back from search, those inside the deletion grace period, and those marked deceased.',
+          how: 'Type at least two characters, then open a result. Every correction starts from the member\'s record.',
+          headsUp: ['This page shows private details.'],
+        },
+      },
       content: {
         query,
         hasQuery:   query !== '',
@@ -806,6 +817,18 @@ export const adminMemberService = {
         // an outcome, so it carries no tone and reads neutral.
         notice:     outcomeNotice ? outcomeNotice[1] : recordNotice(row),
         ...(outcomeNotice ? { noticeTone: outcomeNotice[0] } : {}),
+        instructions: {
+          what: 'Shows one member\'s standing and details, and offers every correction an administrator can make to them.',
+          why: 'It is the one place to fix what a member cannot fix for themselves.',
+          how: 'Open the correction you need, fill it in, and review it on the confirm page before it is written.',
+          headsUp: [
+            'Every correction except marking someone deceased takes a reason.',
+            'Every correction is recorded in the member\'s audit history.',
+            'Correcting the name, profile address, tier, Active Player standing or profile, or removing the profile photo, emails the member, and the email includes the reason you give.',
+            'Removing a profile photo deletes the files for good.',
+            'Marking someone deceased sends nothing.',
+          ],
+        },
       },
       navigation: {
         contextLinks: [{ label: 'Back to the Member Lookup', href: '/admin/members' }],

@@ -1,11 +1,12 @@
 <div class="hero hero-sm">
   <div>
     <h1>{{page.title}}</h1>
-    <p class="hero-subtitle">Browse the freestyle trick dictionary. {{content.totalCount}} row(s) shown.</p>
+    <p class="hero-subtitle">{{content.totalCount}} row(s) shown.</p>
   </div>
 </div>
 
 <div class="wrapper">
+  {{> admin-instructions}}
   <section>
     <form method="GET" action="/admin/freestyle/tricks" class="filter-bar">
       <label>

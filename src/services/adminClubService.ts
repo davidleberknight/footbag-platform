@@ -247,7 +247,10 @@ function confirmEnvelope(
 ): PageViewModel<AdminClubConfirmContent> {
   return {
     seo:  { title, noindex: true },
-    page: { sectionKey: '', pageKey: 'admin_club_confirm', title },
+    page: {
+      sectionKey: '', pageKey: 'admin_club_confirm', title,
+      instructions: { what: 'Review this correction before it is written.' },
+    },
     content,
   };
 }
@@ -363,7 +366,13 @@ export const adminClubService = {
 
     return {
       seo:  { title, noindex: true },
-      page: { sectionKey: '', pageKey: 'admin_clubs', title },
+      page: {
+        sectionKey: '', pageKey: 'admin_clubs', title,
+        instructions: {
+          what: 'Finds any club, including the inactive ones the public directory leaves out and the archived ones kept for history.',
+          how: 'Search, then open a club\'s record to correct it or manage its leaders.',
+        },
+      },
       content: {
         query,
         hasQuery:   query !== '',
@@ -402,6 +411,16 @@ export const adminClubService = {
         title,
         notice:     outcomeNotice ? outcomeNotice[1] : undefined,
         ...(outcomeNotice ? { noticeTone: outcomeNotice[0] } : {}),
+        instructions: {
+          what: 'One club\'s details, its co-leaders, and the corrections an administrator can make.',
+          why: 'Co-leaders keep their own club\'s details, and this covers what they cannot.',
+          how: 'Open a correction, change what is wrong, give a reason, and review it before it is written.',
+          headsUp: [
+            'Every correction is recorded in the club\'s audit history and emailed to its co-leaders along with your reason.',
+            'A club with no co-leader gets no email.',
+            'Moving a club\'s hashtag moves its address, and nothing redirects from the old one.',
+          ],
+        },
       },
       navigation: {
         contextLinks: [{ label: 'Back to the Club Lookup', href: '/admin/clubs' }],

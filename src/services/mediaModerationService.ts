@@ -63,10 +63,11 @@
  *     administrative control, then decide it.
  *
  * Transaction discipline:
- *   Each decision writes the media row, its open flags, the queue twin and the
- *   audit row in one transaction. Object-storage removal happens after it commits;
- *   the uploader's mail is enqueued after it commits too, so a rolled-back decision
- *   cannot announce itself.
+ *   Each decision writes the media row, its open flags, the queue twin, the
+ *   audit row and the uploader's mail in one transaction, so a rolled-back
+ *   decision cannot announce itself. The mail is best-effort: an uploader who
+ *   cannot be mailed is skipped and the decision still stands. Object-storage
+ *   removal happens after it commits.
  *
  * Persistence:
  *   media_flags, media_items, work_queue_items, audit_entries, members.
@@ -536,11 +537,11 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
     row: ModerationRow,
     displayDecision: string,
     reason: string,
-    key: string,
+    auditId: string,
     wasReported: boolean,
   ): boolean {
     if (row.uploader_is_system === 1) return false;
-    const sent = emailService.send({
+    return emailService.sendActNotice({
       template: 'media_moderation_decision',
       params: {
         memberName: row.uploader_display_name,
@@ -549,12 +550,9 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
         wasReported,
         isAvatar: row.is_avatar === 1,
       },
-      recipientEmail:    row.uploader_login_email,
-      recipientMemberId: row.uploader_member_id,
-      idempotencyKey:    key,
-      strict: true,
+      memberId: row.uploader_member_id,
+      actId: auditId,
     });
-    return sent.status !== 'suppressed';
   }
 
   function recordFlag(input: {
@@ -652,9 +650,9 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
     resolutionLabel: 'deleted' | 'no_action';
     nowIso: string;
     hide: boolean;
-  }): { settled: boolean; flagsResolved: number } {
+  }): { settled: boolean; uploaderNotified: boolean } {
     let settled = false;
-    let flagsResolved = 0;
+    let uploaderNotified = false;
     transaction(() => {
       if (input.hide) {
         // The decisive write, guarded on the item still being visible, so a
@@ -700,7 +698,7 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
         TASK_TYPE, 'media_item', input.row.id,
       );
 
-      appendAuditEntry({
+      const auditId = appendAuditEntry({
         actionType: input.resolutionLabel === 'deleted' ? 'media.deleted' : 'media.flag_resolved',
         actorType:  'admin',
         actorMemberId: input.adminMemberId,
@@ -717,10 +715,15 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
           flagsResolved:  flagRes.changes,
         },
       });
-      flagsResolved = flagRes.changes;
+      // No Action is only reachable on a reported item: it is the decision to
+      // leave a report's subject alone, so there was always a report. A Delete
+      // was reported only when it closed a report.
+      uploaderNotified = input.resolutionLabel === 'deleted'
+        ? notifyUploader(input.row, 'Removed', input.reason, auditId, flagRes.changes > 0)
+        : notifyUploader(input.row, 'No action taken', input.reason, auditId, true);
       settled = true;
     });
-    return { settled, flagsResolved };
+    return { settled, uploaderNotified };
   }
 
   return {
@@ -818,17 +821,13 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
         return { status: 'already_hidden', storageRemoved: retried };
       }
 
-      const { settled, flagsResolved } = settleFlagsAndQueue({
+      const { settled, uploaderNotified } = settleFlagsAndQueue({
         row, adminMemberId: input.adminMemberId, reason,
         resolutionLabel: 'deleted', nowIso: new Date().toISOString(), hide: true,
       });
       if (!settled) return { status: 'already_settled' };
 
       const storageRemoved = await removeStoredObjectsAndRecord(row, input.adminMemberId);
-      const uploaderNotified = notifyUploader(
-        row, 'Removed', reason, `media-moderation:${input.mediaId}:deleted`, flagsResolved > 0,
-      );
-
       return { status: 'decided', storageRemoved, uploaderNotified };
     },
 
@@ -843,17 +842,11 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
       assertNotDecidingOwnUpload(row, input.adminMemberId);
       const nowIso = new Date().toISOString();
 
-      const { settled } = settleFlagsAndQueue({
+      const { settled, uploaderNotified } = settleFlagsAndQueue({
         row, adminMemberId: input.adminMemberId, reason,
         resolutionLabel: 'no_action', nowIso, hide: false,
       });
       if (!settled) return { status: 'already_settled' };
-
-      // No Action is only reachable on a reported item: it is the decision to
-      // leave a report's subject alone, so there was always a report.
-      const uploaderNotified = notifyUploader(
-        row, 'No action taken', reason, `media-moderation:${input.mediaId}:no_action`, true,
-      );
       return { status: 'decided', storageRemoved: true, uploaderNotified };
     },
 
@@ -957,7 +950,17 @@ export function createMediaModerationService(deps: MediaModerationServiceDeps) {
           sectionKey: 'admin',
           pageKey:    'admin-media-flags',
           title:      'Flagged Media',
-          intro:      'Media members have reported. Decide each item by removing it or closing the reports with no action.',
+          instructions: {
+            what: 'Lists media that members have reported.',
+            why: 'A reported item comes down only when an administrator decides.',
+            how: 'For each item, remove it or close it with no action, giving a reason. You can also clear a single report.',
+            headsUp: [
+              'Removing an item deletes its files for good.',
+              'The reason for removing an item, or for closing it with no action, is sent to the uploader.',
+              'The reason for clearing a single report stays internal.',
+              'You cannot decide a report on your own upload.',
+            ],
+          },
           // Every caller of the error path is a refusal: a decision rejected
           // for its reason text, or one aimed at an item that is gone. Carried
           // without a tone it rendered in the neutral treatment, which reads

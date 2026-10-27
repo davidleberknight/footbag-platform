@@ -5,12 +5,12 @@
 </div>
 
 <div class="wrapper">
+  {{> admin-instructions}}
   {{> outcome-notice text=content.notice.text tone=content.notice.tone}}
   {{> outcome-notice text=content.errorMessage tone='no'}}
 
   <section>
     <div class="section-heading"><h2>Find a Historical Record</h2></div>
-    <p class="fs-sm">A historical record is a competitor from the archive who has no member account. Here you can correct the record's name, country and competition years, and record that the person is recognized as deceased, which stops the platform offering their record for direct claiming. Recording a death leaves their results, honours and name published.</p>
     <div class="search-box-section">
       <form method="GET" action="/admin/historical-records" class="search-box-form" role="search">
         <input type="text" name="q" maxlength="200"

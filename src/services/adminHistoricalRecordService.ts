@@ -60,6 +60,7 @@ const MIN_LOOKUP_QUERY = 2;
 const MAX_NAME = 200;
 const MAX_REASON = 500;
 const CORRECTED = 'legacy.historical_person_corrected';
+const CONFIRM_INSTRUCTIONS = { what: 'Review this change before it is written.' };
 
 interface HistoricalRecordRow {
   person_id: string;
@@ -340,7 +341,19 @@ export const adminHistoricalRecordService = {
 
     return {
       seo:  { title, noindex: true },
-      page: { sectionKey: '', pageKey: 'admin_historical_records', title },
+      page: {
+        sectionKey: '', pageKey: 'admin_historical_records', title,
+        instructions: {
+          what: 'Finds competitors in the results archive who have no member account.',
+          why: 'To correct a mistake in an imported record, or to record that the person has died.',
+          how: 'Search by name or exact record id, then choose Correct the Record or the deceased action.',
+          headsUp: [
+            'Nobody is emailed, because no member holds these records.',
+            'A record a member has claimed is corrected through that member\'s record.',
+            'Recording a death stops the record being offered for claiming, and leaves the person\'s results and name published.',
+          ],
+        },
+      },
       content: {
         query,
         hasQuery: query !== '',
@@ -366,7 +379,7 @@ export const adminHistoricalRecordService = {
 
     return {
       seo:  { title, noindex: true },
-      page: { sectionKey: '', pageKey: 'admin_historical_record_confirm', title },
+      page: { sectionKey: '', pageKey: 'admin_historical_record_confirm', title, instructions: CONFIRM_INSTRUCTIONS },
       content: {
         personId:   row.person_id,
         personName: row.person_name,
@@ -436,7 +449,17 @@ export const adminHistoricalRecordService = {
     const title = 'Correct a Historical Record';
     return {
       seo:  { title, noindex: true },
-      page: { sectionKey: '', pageKey: 'admin_historical_record_correction', title },
+      page: {
+        sectionKey: '', pageKey: 'admin_historical_record_correction', title,
+        instructions: {
+          what: 'Corrects the name, country and competition years on an imported record.',
+          how: 'Change what is wrong, give a reason, and review the correction before it is written.',
+          headsUp: [
+            'Leaving the country or a year blank clears it.',
+            'A corrected name can move the person\'s player hashtag, and the preview says so.',
+          ],
+        },
+      },
       content: {
         personId:       row.person_id,
         personName:     row.person_name,
@@ -468,7 +491,7 @@ export const adminHistoricalRecordService = {
     const title = 'Confirm: Correct the Historical Record';
     return {
       seo:  { title, noindex: true },
-      page: { sectionKey: '', pageKey: 'admin_historical_record_confirm', title },
+      page: { sectionKey: '', pageKey: 'admin_historical_record_confirm', title, instructions: CONFIRM_INSTRUCTIONS },
       content: {
         personId:   row.person_id,
         personName: row.person_name,

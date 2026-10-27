@@ -395,7 +395,14 @@ export const systemHealthService = {
 
     return {
       seo: { title: 'System Health', noindex: true },
-      page: { sectionKey: 'admin', pageKey: 'admin_system_health', title: 'System Health' },
+      page: {
+        sectionKey: 'admin', pageKey: 'admin_system_health', title: 'System Health',
+        instructions: {
+          what: 'Shows how the platform is running right now: outbound email, delivery feedback, scheduled jobs and open alarms.',
+          why: 'To spot a failing job or a mail problem early.',
+          how: 'Read it top to bottom. Counts cover the window shown unless a row says otherwise.',
+        },
+      },
       content: {
         windowLabel: windowLabelFor(windowHours),
         outbox: {

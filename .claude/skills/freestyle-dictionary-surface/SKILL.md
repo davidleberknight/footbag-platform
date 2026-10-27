@@ -66,7 +66,7 @@ Public dictionary content is public. Login is reserved for member-private surfac
 
 ### Decomposition is pedagogy at the trick level
 
-A trick-detail page always shows its structural decomposition (`gyro + torque = 5 ADD ✓`); it is content, never removed and never gated. It is not the page's opening: plain-words orientation comes first and the decomposition sits below it. At family-page level, decomposition is compact annotation; at trick level, it's content.
+A trick-detail page always shows its structural decomposition (`gyro + torque = 5 ADD ✓`); it is content, never removed and never gated. It is not the page's opening: plain-words orientation comes first and the decomposition sits below it. At family-page level, decomposition is compact annotation; at trick level, it's content. The notation-parser diagnostic panel (`partials/trick-structural.hbs`) is a separate thing: it is shaped only for a signed-in admin, and this rule does not cover it.
 
 ### Single mapping site
 
@@ -169,7 +169,7 @@ The curator's alias type, set in the trick editor, is the tiebreaker.
 ### Disclosure model
 
 - A trick page has no modes and no depth toggle. One URL, one rendering.
-- Sections that can be folded away are independent collapsible regions: technique notes, community tips, the explanation surrounding the structural decomposition, and the ADD derivation panel. The decomposition formula itself is never inside a closed region.
+- Sections that can be folded away are independent collapsible regions: technique notes, the explanation surrounding the structural decomposition, and the ADD derivation panel. The decomposition formula itself is never inside a closed region.
 - Each starts closed and each is opened on its own. Opening one never changes another, and nothing about the choice persists across pages.
 - Decomposition is always present at trick level; the region controls how much explanation sits around it, not whether the formula exists.
 
@@ -200,7 +200,7 @@ Family pages weight Q3 high (selling the family). Trick pages downweight Q3 (int
 
 ### Public prose: attribution and internal language
 
-Two rules bind every word a visitor reads on a freestyle page: rendered template text, service-shaped copy, and curator prose stored in the database (descriptions, technique notes, tips).
+Two rules bind every word a visitor reads on a freestyle page: rendered template text, service-shaped copy, and curator prose stored in the database (descriptions and technique notes).
 
 - **No individual named as a source or contributor.** A freestyle page never credits a person for a trick, a notation, a description, a ruling or a reference. The one standing exception is Ben Job, named as the author of the Job notation system on the notation article. A record holder named for the record is not attribution and is outside this rule. Any further exception needs an explicit ruling from the freestyle maintainer before it is written.
 - **No internal-process language.** Rendered prose never carries the working vocabulary of curation: the rules expert's name, ruling identifiers, "adjudication", maintainer names, sprint or phase labels, or dated "curator-reviewed" notes. A specific outside source is named as "an outside source", except on the surfaces whose job is attribution: the glossary's sources sections, media, the observational pages, the sets pages and the notation article.

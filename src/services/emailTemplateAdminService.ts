@@ -171,7 +171,20 @@ export const emailTemplateAdminService = {
     const disabledCount = rows.filter((r) => r.isDisabled).length;
     return {
       seo: { title: 'Email Templates', noindex: true },
-      page: { sectionKey: 'admin', pageKey: 'admin_email_templates', title: 'Email Templates' },
+      page: {
+        sectionKey: 'admin', pageKey: 'admin_email_templates', title: 'Email Templates',
+        instructions: {
+          what: 'The wording of every email the platform sends.',
+          why: 'To fix or improve a message without a code change.',
+          how: 'Open a template to edit its subject and body, or turn it off.',
+          headsUp: [
+            'Templates cannot be created or deleted here. New ones arrive with code changes.',
+            'Turning a template off stops that email being sent at all.',
+            'Turning off a template that carries a sign-in or password link stops members completing that step.',
+            'Every save is recorded in the audit log.',
+          ],
+        },
+      },
       content: {
         rows,
         totalCount: rows.length,
@@ -202,7 +215,14 @@ export const emailTemplateAdminService = {
 
     return {
       seo: { title: 'Email Templates', noindex: true },
-      page: { sectionKey: 'admin', pageKey: 'admin_email_template_edit', title: row.template_key },
+      page: {
+        sectionKey: 'admin', pageKey: 'admin_email_template_edit', title: row.template_key,
+        instructions: {
+          what: 'Edits one email\'s subject, body, privacy class, and whether it is sent.',
+          how: 'Edit the text and save, using exactly the merge fields listed.',
+          headsUp: ['Plain text only.'],
+        },
+      },
       content: {
         templateKey: row.template_key,
         formAction: `/admin/email-templates/${row.template_key}/edit`,

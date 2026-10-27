@@ -55,6 +55,7 @@ import {
   insertAuditEntry,
   insertWorkQueueItem,
   insertMemberMessage,
+  insertRecurringDonationSubscription,
   insertGivenNameVariant,
   insertMemberDeclaredAnchor,
   insertLegacyClubCandidate,
@@ -94,11 +95,47 @@ export interface PersonaPaymentSpec {
   amountCents?: number;
   purchasedTier?: 'tier1' | 'tier2' | null;
   /**
-   * Stripe subscription id, which makes the payment a recurring donation rather
-   * than a one-off. The member-facing cancel route is addressed by this id, so
-   * a persona without one cannot reach that surface at all.
+   * Stripe subscription id carried on the payment row. It marks the charge as
+   * one made by a subscription; the recurring donation itself, which the
+   * payments page lists and cancels, is the separate `recurringDonation` spec.
    */
   stripeSubscriptionId?: string;
+  /**
+   * The checkout session the payment came from. The page a member returns to
+   * from an abandoned or failed checkout is addressed by this id, so a failed
+   * payment without one cannot reach its Try Again page.
+   */
+  checkoutSessionId?: string;
+}
+
+/**
+ * A recurring donation the payment provider is still collecting. The payments
+ * page lists and cancels recurring donations from their own table, so a
+ * persona needs this row, not only a payment carrying a subscription id.
+ */
+export interface PersonaRecurringDonationSpec {
+  amountCents?: number;
+  status?: 'active' | 'past_due' | 'canceled';
+}
+
+/**
+ * Profile choices and contact state on the member row, each a gate some page
+ * reads: who may find the member in search, which contact details other
+ * members see, whether gender and competition history show, and whether mail
+ * to the login address is still delivered.
+ */
+export interface PersonaProfileSpec {
+  searchable?: boolean;
+  emailVisibility?: 'private' | 'members';
+  phone?: string;
+  phoneVisible?: boolean;
+  whatsapp?: string;
+  whatsappVisible?: boolean;
+  gender?: 'male' | 'female' | 'undisclosed';
+  showGender?: boolean;
+  showCompetitiveResults?: boolean;
+  showFirstCompetitionYear?: boolean;
+  emailStatus?: 'ok' | 'bounced' | 'complained' | 'suppressed';
 }
 
 /**
@@ -173,6 +210,18 @@ export interface PersonaLegacySpec {
    * must never confer a live admin role, so the member's own is_admin stays 0.
    */
   legacyIsAdmin?: boolean;
+  /**
+   * Flags the persona's record as belonging to someone who has died. A deceased
+   * record is never offered for a claim, and an administrator can revert the
+   * flag.
+   */
+  recordDeceased?: boolean;
+  /**
+   * The old account's billing history shows a lifetime Tier 1 membership, so a
+   * claim of it grants Tier 1. Applied when onboarding completes, before the
+   * club answers, which is how a new member can lead a club in the same step.
+   */
+  everPaidTier1Lifetime?: boolean;
 }
 
 export interface PersonaAdminQuestionSpec {
@@ -210,6 +259,14 @@ export interface PersonaClubSpec {
    * `leader` (the bootstrap claim).
    */
   role?: 'co-leader';
+  /** The club's lifecycle state; an inactive club is one a co-leader can reactivate. */
+  status?: 'active' | 'inactive';
+  /**
+   * Hold this affiliation and role in the club another persona's `club`
+   * seeded, by that persona's slug, instead of a club of its own: two
+   * co-leaders of one club. That persona must come earlier in the catalog.
+   */
+  ofPersona?: string;
 }
 
 /**
@@ -220,6 +277,13 @@ export interface PersonaClubSpec {
  */
 export interface PersonaClubAffiliationSpec {
   clubName?: string;
+  /**
+   * Join the club another persona's `club` seeded, by that persona's slug,
+   * instead of creating a club of its own: the only way to put a plain member
+   * and a co-leader in the same club. That persona must come earlier in the
+   * catalog.
+   */
+  ofPersona?: string;
   /** Current membership (is_current=1) when true/omitted; former (0) when false. */
   current?: boolean;
   primary?: boolean;
@@ -300,8 +364,9 @@ export interface PersonaMailingListSpec {
   status?: MailingListSubscriptionStatus;
 }
 
-/** A single member-owned named gallery seeded for this persona, with one
- *  matching uploaded media item so it has a non-zero item count. */
+/** A single member-owned named gallery seeded for this persona. It seeds empty:
+ *  its media comes from a real upload, so the upload path is exercised rather
+ *  than faked with a row that has no stored file. */
 export interface PersonaGallerySpec {
   /** Stable gallery id; defaults to gallery_persona_<slug>. */
   id?: string;
@@ -327,6 +392,22 @@ export interface PersonaSpec {
   emailVerified?: boolean;
   /** Marks the member deceased (login blocked, search-excluded, honors preserved on render). */
   isDeceased?: boolean;
+  /**
+   * How long ago the member was marked deceased. Omitted means at seed time.
+   * Past the configured revert window an administrator can no longer undo the
+   * mark.
+   */
+  deceasedDaysAgo?: number;
+  /** Profile choices and contact state; see PersonaProfileSpec. */
+  profile?: PersonaProfileSpec;
+  /** A recurring donation still being collected; see PersonaRecurringDonationSpec. */
+  recurringDonation?: PersonaRecurringDonationSpec;
+  /**
+   * Story ids this persona serves (for example `M_Edit_Profile`), the same key
+   * the success-criterion ledger uses, so a test can pick the personas for a
+   * story without reading prose.
+   */
+  stories?: string[];
   /**
    * Soft-deletion lifecycle position, the boundary pair around
    * member_cleanup_grace_days. Both are refused at sign-in identically, because
@@ -391,7 +472,7 @@ export interface PersonaSpec {
   club?: PersonaClubSpec;
   /** Additional plain club memberships (current or former) beyond `club`. */
   clubs?: PersonaClubAffiliationSpec[];
-  /** One member-owned named gallery (with one matching media item). */
+  /** One member-owned named gallery, seeded empty. */
   gallery?: PersonaGallerySpec;
   /** Legacy-club-candidate cards (pending / declined / resolved / junk). */
   legacyClubCandidates?: PersonaLegacyClubCandidateSpec[];
@@ -462,6 +543,40 @@ export interface SeedPersonaOpts {
 // the curated club seed does not actually have.
 const PERSONA_CLUB_LOCATION = { region: 'CO', country: 'United States' } as const;
 
+/** The id of the club a persona's `club` spec seeds. */
+export function personaClubId(slug: string): string {
+  return `club-test-persona-${slug}`;
+}
+
+/** Another persona's seeded club, which must exist already. */
+function existingPersonaClub(db: BetterSqlite3.Database, slug: string, ofPersona: string): string {
+  const id = personaClubId(ofPersona);
+  if (!db.prepare(`SELECT 1 FROM clubs WHERE id = ?`).get(id)) {
+    throw new Error(`persona '${slug}': joins the club of '${ofPersona}', which must be seeded first`);
+  }
+  return id;
+}
+
+/** The member-row columns a profile spec sets; the schema defaults hold otherwise. */
+function profileColumns(p: PersonaProfileSpec | undefined) {
+  if (!p) return {};
+  const flag = (v: boolean | undefined) => (v === undefined ? undefined : (v ? 1 as const : 0 as const));
+  const cols = {
+    searchable: flag(p.searchable),
+    email_visibility: p.emailVisibility,
+    phone: p.phone,
+    phone_visible: flag(p.phoneVisible),
+    whatsapp: p.whatsapp,
+    whatsapp_visible: flag(p.whatsappVisible),
+    gender: p.gender,
+    show_gender: flag(p.showGender),
+    show_competitive_results: flag(p.showCompetitiveResults),
+    show_first_competition_year: flag(p.showFirstCompetitionYear),
+    email_status: p.emailStatus,
+  };
+  return Object.fromEntries(Object.entries(cols).filter(([, v]) => v !== undefined));
+}
+
 export function composePersonaBio(spec: PersonaSpec): string {
   return spec.purpose
     ? `${TEST_PERSONA_BIO_PREFIX} ${spec.purpose}`
@@ -509,12 +624,15 @@ export function seedPersona(
         ...(legacyEmail ? { legacy_email: legacyEmail.toLowerCase() } : {}),
         ...(accountBirthDate ? { birth_date: accountBirthDate } : {}),
         ...(spec.legacy.legacyIsAdmin ? { legacy_is_admin: 1 as const } : {}),
+        ...(spec.legacy.everPaidTier1Lifetime ? { legacy_ever_paid_tier1_lifetime: 1 as const } : {}),
       });
     }
+    const recordDeceased = spec.legacy.recordDeceased ? { is_deceased: 1 as const } : {};
     if (shape === 'pair') {
       personId = insertHistoricalPerson(db, {
         legacy_member_id: legacyMemberId,
         person_name: recordName,
+        ...recordDeceased,
       });
     } else if (shape === 'record_only' || spec.legacy.separateRecord) {
       // A record with no account behind it: the persona's own record, or the
@@ -522,6 +640,7 @@ export function seedPersona(
       const recordId = insertHistoricalPerson(db, {
         person_id: `person_persona_${spec.slug}_rec`,
         person_name: recordName,
+        ...recordDeceased,
       });
       if (shape === 'record_only') personId = recordId;
     }
@@ -607,7 +726,13 @@ export function seedPersona(
     // into a loud seed failure.
     onboarding: 'none',
     ...(spec.emailVerified === false ? { email_verified_at: null } : {}),
-    ...(spec.isDeceased ? { is_deceased: 1 as const, deceased_at: new Date().toISOString() } : {}),
+    ...(spec.isDeceased
+      ? {
+        is_deceased: 1 as const,
+        deceased_at: new Date(Date.now() - (spec.deceasedDaysAgo ?? 0) * DAY_MS).toISOString(),
+      }
+      : {}),
+    ...profileColumns(spec.profile),
     ...(spec.honors?.hof ? { is_hof: 1 as const } : {}),
     ...(spec.honors?.bap ? { is_bap: 1 as const } : {}),
     ...(spec.honors?.board ? { is_board: 1 as const } : {}),
@@ -635,11 +760,16 @@ export function seedPersona(
   // existing legacy_members row in place).
   if (linkedNow && spec.legacy && legacyMemberId) {
     const legacyEmail = spec.legacy.legacyEmailIsLogin ? memberLoginEmail : spec.legacy.legacyEmail;
+    // The upsert rewrites every column it is given, so the account's date of
+    // birth is passed again or the claim would erase it.
+    const accountBirthDate = spec.legacy.legacyBirthDate ?? spec.legacy.birthDate;
     insertLegacyMember(db, {
       legacy_member_id: legacyMemberId,
       real_name: legacyDisplayName,
       ...(legacyEmail ? { legacy_email: legacyEmail.toLowerCase() } : {}),
+      ...(accountBirthDate ? { birth_date: accountBirthDate } : {}),
       ...(spec.legacy.legacyIsAdmin ? { legacy_is_admin: 1 as const } : {}),
+      ...(spec.legacy.everPaidTier1Lifetime ? { legacy_ever_paid_tier1_lifetime: 1 as const } : {}),
       claimed_by_member_id: memberId,
       claimed_at: new Date().toISOString(),
     });
@@ -685,6 +815,21 @@ export function seedPersona(
       ...(p.purchasedTier !== undefined ? { purchased_tier_status: p.purchasedTier } : {}),
       ...(p.stripeSubscriptionId !== undefined
         ? { stripe_subscription_id: p.stripeSubscriptionId }
+        : {}),
+      ...(p.checkoutSessionId !== undefined
+        ? { stripe_checkout_session_id: p.checkoutSessionId }
+        : {}),
+    });
+  }
+
+  if (spec.recurringDonation) {
+    insertRecurringDonationSubscription(db, {
+      member_id: memberId,
+      stripe_subscription_id: `sub_persona_${spec.slug}`,
+      stripe_customer_id: `cus_persona_${spec.slug}`,
+      status: spec.recurringDonation.status ?? 'active',
+      ...(spec.recurringDonation.amountCents !== undefined
+        ? { amount_cents: spec.recurringDonation.amountCents }
         : {}),
     });
   }
@@ -744,11 +889,16 @@ export function seedPersona(
   if (spec.club) {
     // Persona clubs are reachable public pages the route-wiring crawl exercises,
     // so they use ordinary public tags; they keep the 'club-test-' id for teardown.
-    clubId = insertClub(db, {
-      name: spec.club.clubName ?? 'Persona Club',
-      publiclyVisible: true,
-      ...PERSONA_CLUB_LOCATION,
-    });
+    // A deterministic id, so another persona can join this club by slug.
+    clubId = spec.club.ofPersona
+      ? existingPersonaClub(db, spec.slug, spec.club.ofPersona)
+      : insertClub(db, {
+        id: personaClubId(spec.slug),
+        name: spec.club.clubName ?? 'Persona Club',
+        publiclyVisible: true,
+        ...PERSONA_CLUB_LOCATION,
+        ...(spec.club.status ? { status: spec.club.status } : {}),
+      });
     insertMemberClubAffiliation(db, memberId, clubId, {
       is_current: 1,
       is_primary: derivePrimary(true, false),
@@ -786,11 +936,16 @@ export function seedPersona(
   }
 
   for (const c of spec.clubs ?? []) {
-    const cid = insertClub(db, {
-      name: c.clubName ?? 'Persona Club',
-      publiclyVisible: true,
-      ...PERSONA_CLUB_LOCATION,
-    });
+    let cid: string;
+    if (c.ofPersona) {
+      cid = existingPersonaClub(db, spec.slug, c.ofPersona);
+    } else {
+      cid = insertClub(db, {
+        name: c.clubName ?? 'Persona Club',
+        publiclyVisible: true,
+        ...PERSONA_CLUB_LOCATION,
+      });
+    }
     insertMemberClubAffiliation(db, memberId, cid, {
       is_current: c.current === false ? 0 : 1,
       is_primary: derivePrimary(c.current !== false, c.primary === true),

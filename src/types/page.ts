@@ -23,6 +23,20 @@ export interface PageMeta {
    * each tone takes live in the view-layer rule.
    */
   noticeTone?: OutcomeTone;
+  /**
+   * The instructions block that opens every administrator page: what the
+   * screen does, why it exists, how to use it, and the consequences a reader
+   * would not guess. A confirm page names its step in `what` and carries its
+   * caution as the heads-up, so `why` and `how` are optional there.
+   */
+  instructions?: AdminInstructions;
+}
+
+export interface AdminInstructions {
+  what: string;
+  why?: string;
+  how?: string;
+  headsUp?: string[];
 }
 
 export interface NavLink {

@@ -1,0 +1,45 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{> admin-instructions}}
+  {{> outcome-notice text=content.notice.text tone=content.notice.tone}}
+
+  <div class="card card-static mb-6">
+    <div class="card-title">{{content.eventTitle}}</div>
+    <p class="card-meta">{{#each content.facts}}{{this}}{{#unless @last}} &middot; {{/unless}}{{/each}}</p>
+    <p class="m-0 mt-1"><a href="{{content.publicHref}}">Open the public event page</a></p>
+  </div>
+
+  {{#each content.sections}}
+    <section>
+      <div class="section-heading"><h2>{{name}}</h2></div>
+      {{#if correctHref}}
+        <p class="m-0 text-muted fs-sm">{{#each facts}}{{this}}{{#unless @last}} &middot; {{/unless}}{{/each}}</p>
+        <p class="m-0 mt-1"><a href="{{correctHref}}" class="btn btn-outline btn-sm">Correct the Division</a></p>
+      {{/if}}
+      <div class="records-table-wrap mt-2" tabindex="0" role="region" aria-label="Results for {{name}}">
+        <table class="data-table">
+          <thead>
+            <tr><th scope="col">Place</th><th scope="col">Competitors</th><th scope="col">Score</th><th scope="col"><span class="visually-hidden">Action</span></th></tr>
+          </thead>
+          <tbody>
+            {{#each entries}}
+              <tr>
+                <td>{{placement}}</td>
+                <td>{{names}}</td>
+                <td>{{scoreText}}</td>
+                <td><a href="{{correctHref}}" class="btn btn-outline btn-sm">Correct</a></td>
+              </tr>
+            {{/each}}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {{/each}}
+
+  <p class="mt-4"><a href="{{content.finderHref}}" class="action-link">Back to Event Results</a></p>
+</div>

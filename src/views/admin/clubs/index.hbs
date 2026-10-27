@@ -5,11 +5,11 @@
 </div>
 
 <div class="wrapper">
+  {{> admin-instructions}}
   {{> outcome-notice text=content.errorMessage tone='no'}}
 
   <section>
     <div class="section-heading"><h2>Find a Club</h2></div>
-    <p class="fs-sm">This lookup reads every club, including the inactive ones the directory leaves out and the archived ones kept for history.</p>
     <div class="search-box-section">
       <form method="GET" action="/admin/clubs" class="search-box-form" role="search">
         <input type="text" name="q" maxlength="200"

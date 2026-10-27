@@ -27,7 +27,8 @@
  * tester session can mint as a persona through deployed flows: account tokens,
  * declared anchors, claim-step declines (including a real member's decline of a
  * persona record), outbox emails, audit rows the persona acted in, media items,
- * galleries, payments and their status transitions, work-queue items about the
+ * galleries, payments and their status transitions, recurring donations and
+ * their transitions, vouches given or received, work-queue items about the
  * persona, media jobs, and expiry-reminder rows. Work-queue items a persona RESOLVED about other
  * entities keep their decision history and only lose the resolver reference.
  * Claim flows converge in both directions: a real legacy account a persona
@@ -41,7 +42,7 @@
  * touched, with one counted exception: tier/active-player grants a persona
  * AUTHORED on other members are removed (reverting those members to pre-test
  * state) and the count is reported in the result. If a tester reached a table
- * this routine still does not own (e.g. vouches), the member delete hits a FK
+ * this routine still does not own, the member delete hits a FK
  * RESTRICT and the whole transaction rolls back loudly rather than corrupting
  * state. Accepted residue after a refresh: orphaned media files on disk for
  * persona uploads, and TEXT created_by/updated_by stamps on real rows that
@@ -66,9 +67,10 @@ import type { PersonaSpec } from './personaFactory';
 /**
  * The append-only BEFORE DELETE triggers covering tables a persona writes. These
  * are dropped for the duration of the teardown and recreated from their captured
- * sqlite_master definitions. The payment-transition and expiry-reminder ledgers
- * are included because deployed flows (tier purchase, the expiry worker) append
- * rows for personas; leaving either trigger in place would abort the teardown.
+ * sqlite_master definitions. The payment-transition, expiry-reminder, vouch and
+ * recurring-donation-transition ledgers are included because deployed flows
+ * (tier purchase, the expiry worker, a vouch, a donation) append rows for
+ * personas; leaving any of those triggers in place would abort the teardown.
  */
 const APPEND_ONLY_DELETE_TRIGGERS = [
   'trg_tier_grants_no_delete',
@@ -76,6 +78,8 @@ const APPEND_ONLY_DELETE_TRIGGERS = [
   'trg_audit_no_delete',
   'trg_payment_transitions_no_delete',
   'trg_active_player_reminder_sent_no_delete',
+  'trg_active_player_vouches_no_delete',
+  'trg_recurring_sub_transitions_no_delete',
 ];
 
 export interface RefreshPersonasOptions {
@@ -355,6 +359,24 @@ export function refreshAllPersonas(
       ).run(...memberIds);
     }
     delIn('media_jobs', 'admin_member_id', memberIds);
+    // Rows a tester session mints as a persona on its own record or in its own
+    // name: profile links, an organizer assignment an administrator gave it,
+    // and the archive of an announcement it sent.
+    delIn('member_links', 'member_id', memberIds);
+    delIn('event_organizers', 'member_id', memberIds);
+    delIn('email_archives', 'sender_member_id', memberIds);
+    // Shared rows a persona administrator acted on keep their history and lose
+    // only the actor reference, as resolved work-queue items do.
+    if (memberIds.length > 0) {
+      db.prepare(
+        `UPDATE system_alarm_events SET acknowledged_by_member_id = NULL
+          WHERE acknowledged_by_member_id IN (${placeholders(memberIds.length)})`,
+      ).run(...memberIds);
+      db.prepare(
+        `UPDATE tags SET retired_by_member_id = NULL
+          WHERE retired_by_member_id IN (${placeholders(memberIds.length)})`,
+      ).run(...memberIds);
+    }
     // media_tags and media_flags cascade; members.avatar_media_id is SET NULL,
     // so no ordering hazard. The uploaded
     // media's storage-object keys are captured first so the async refresh route
@@ -412,6 +434,20 @@ export function refreshAllPersonas(
     const tierActorRowsRemoved = delIn('member_tier_grants', 'actor_member_id', memberIds); // counted: reverts other members' tiers
     delIn('payment_status_transitions', 'payment_id', personaPaymentIds); // guard dropped
     delIn('payments', 'member_id', memberIds);
+    // A persona's recurring donations, seeded or started by a tester: their
+    // transition ledger and any reconciliation issue about them go first.
+    const personaSubscriptionIds = memberIds.length
+      ? col(
+          `SELECT id FROM recurring_donation_subscriptions WHERE member_id IN (${placeholders(memberIds.length)})`,
+          memberIds,
+        )
+      : [];
+    delIn('recurring_donation_subscription_transitions', 'recurring_subscription_id', personaSubscriptionIds); // guard dropped
+    delIn('reconciliation_issues', 'subscription_record_id', personaSubscriptionIds);
+    delIn('recurring_donation_subscriptions', 'id', personaSubscriptionIds);
+    // A vouch given by or to a persona; the Active Player grant it produced is
+    // removed with the grants above.
+    delIn2('active_player_vouches', 'voucher_member_id', memberIds, 'target_member_id', memberIds); // guard dropped
     // Audit rows where a persona was the actor block the member delete. Rows
     // merely ABOUT a persona but written by a non-persona actor survive: they
     // carry no member FK and deleting them would erase real audit history.

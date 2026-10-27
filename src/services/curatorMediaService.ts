@@ -157,8 +157,8 @@
  *   - audit_entries append per upload or gallery mutation, including
  *     `media.member_gallery_moderated` when an administrator acts on a gallery
  *     another member owns
- *   - outbox enqueue of the gallery owner's notice on that moderation, after the
- *     transaction commits so a rolled-back change cannot announce itself
+ *   - outbox enqueue of the gallery owner's notice on that moderation, inside
+ *     the same transaction so a rolled-back change cannot announce itself
  *
  * Service shape: factory `createCuratorMediaService(deps)`. Deps include
  * MediaStorageAdapter, ImageProcessingAdapter, and VideoTranscodingAdapter (the
@@ -2910,6 +2910,10 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
                 after:  Object.fromEntries(changed.map((c) => [c.field, c.after])),
               },
             });
+            notifyGalleryOwnerOfModeration(
+              existing.owner_member_id, existing.owner_display_name,
+              existing.name, changed, moderationReason, moderationAuditId,
+            );
           }
         } else {
           appendAuditEntry({
@@ -2928,13 +2932,6 @@ export function createCuratorMediaService(deps: CuratorMediaServiceDeps) {
           });
         }
       });
-
-      if (isModeration && changed.length > 0) {
-        notifyGalleryOwnerOfModeration(
-          existing.owner_member_id, existing.owner_display_name,
-          galleryId, existing.name, changed, moderationReason, moderationAuditId,
-        );
-      }
 
       if (existing.is_system === 1) {
         await writeFhGallerySidecar({
@@ -4027,20 +4024,19 @@ function describeGalleryChanges(changed: GalleryFieldChange[]): string {
 /**
  * Tell the member an administrator acted on their gallery. Every other
  * administrative correction on somebody else's record writes to the person
- * whose record it is, and this is one. The idempotency key carries the act's
- * own audit row, so a second act on the same gallery is a second message while
- * one act sends once however often the send is attempted.
+ * whose record it is, and this is one. Queued inside the act's transaction,
+ * so a rolled-back change cannot announce itself, and keyed on the act's own
+ * audit row, so a second act on the same gallery is a second message.
  */
 function notifyGalleryOwnerOfModeration(
   ownerMemberId: string,
   ownerDisplayName: string,
-  galleryId: string,
   galleryName: string,
   changed: GalleryFieldChange[],
   reason: string,
   moderationAuditId: string,
 ): void {
-  emailService.sendToMember({
+  emailService.sendActNotice({
     template: 'gallery_moderated_member',
     params: {
       memberName:  ownerDisplayName,
@@ -4049,7 +4045,7 @@ function notifyGalleryOwnerOfModeration(
       note:        reason,
     },
     memberId: ownerMemberId,
-    idempotencyKey: `gallery-moderated:${galleryId}:${moderationAuditId}`,
+    actId:    moderationAuditId,
   });
 }
 
@@ -4889,7 +4885,19 @@ export function getCuratorUploadPage(
   const existingCategories = opts.existingCategories ?? [];
   return {
     seo: { title: 'Upload Curated Media' },
-    page: { sectionKey: 'admin', pageKey: 'admin_curator_upload', title: 'Upload Curated Media' },
+    page: {
+      sectionKey: 'admin', pageKey: 'admin_curator_upload', title: 'Upload Curated Media',
+      instructions: {
+        what: 'Uploads curated photos and videos, or adds a YouTube or Vimeo link, credited to the platform\'s curator account.',
+        why: 'To publish IFPA\'s own media alongside what members share.',
+        how: 'Choose the kind of media, add the file or link, its caption and hashtags, and upload.',
+        headsUp: [
+          'Uploads are credited to the curator account, not to you. Your name is kept in the audit log.',
+          'The #curated hashtag is added automatically.',
+          'A video is converted after upload, which usually takes one to three minutes. Its status page shows the progress.',
+        ],
+      },
+    },
     content: {
       errorMessage: opts.errorMessage ?? null,
       formValues: opts.formValues ?? {},
@@ -4948,7 +4956,14 @@ export function getCuratorMediaListPage(
 
   return {
     seo: { title: 'Curated Media' },
-    page: { sectionKey: 'admin', pageKey: 'admin_curator_list', title: 'Curated Media' },
+    page: {
+      sectionKey: 'admin', pageKey: 'admin_curator_list', title: 'Curated Media',
+      instructions: {
+        what: 'Lists the media uploaded through the curator account.',
+        how: 'Open an item to edit it, or delete it. Upload new media from the Upload page.',
+        headsUp: ['Deleting an item is permanent.'],
+      },
+    },
     content: {
       items: result.items.map((item) => ({
         ...item,
@@ -4989,7 +5004,16 @@ function curatorMediaEditEnvelope(
 ): PageViewModel<CuratorMediaEditContent> {
   return {
     seo: { title },
-    page: { sectionKey: 'admin', pageKey: 'admin_curator_edit', title },
+    page: {
+      sectionKey: 'admin', pageKey: 'admin_curator_edit', title,
+      instructions: {
+        what: 'Edits one curated item\'s caption, hashtags and source, and for a linked video its address and clip times.',
+        headsUp: [
+          'The file itself cannot be replaced. Delete the item and upload it again.',
+          'The #curated hashtag cannot be removed.',
+        ],
+      },
+    },
     content,
   };
 }
@@ -5088,6 +5112,15 @@ export function getCuratorGalleryListPage(
       sectionKey: 'admin',
       pageKey: 'admin_curator_galleries_list',
       title: 'Curator Galleries',
+      instructions: {
+        what: 'Lists the public galleries owned by the curator account.',
+        why: 'A gallery collects media by hashtag, so it stays current as media is added.',
+        how: 'Edit a gallery\'s name, description, order or hashtag rules, create a new one, or delete one.',
+        headsUp: [
+          'An item appears in a gallery when it carries every one of the gallery\'s hashtags and none of its excluded ones.',
+          'Deleting a gallery removes only the gallery, not the media in it.',
+        ],
+      },
     },
     content: {
       items: items.map((item) => ({
@@ -5116,6 +5149,10 @@ export function getCuratorGalleryNewPage(
       sectionKey: 'admin',
       pageKey: 'admin_curator_galleries_new',
       title: 'New Curator Gallery',
+      instructions: {
+        what: 'Creates a public gallery owned by the curator account.',
+        how: 'Give it an id, a name and its hashtag rules, then save.',
+      },
     },
     content: {
       formAction: '/admin/curator/galleries',
@@ -5140,7 +5177,12 @@ function curatorGalleryEditEnvelope(
 ): PageViewModel<CuratorGalleryEditContent> {
   return {
     seo: { title, noindex: true },
-    page: { sectionKey: 'admin', pageKey: 'admin_curator_galleries_edit', title },
+    page: {
+      sectionKey: 'admin', pageKey: 'admin_curator_galleries_edit', title,
+      instructions: {
+        what: 'Edits one gallery: its name, description, order and hashtag rules.',
+      },
+    },
     content,
   };
 }
@@ -5265,7 +5307,13 @@ function curatorJobStatusEnvelope(
 ): PageViewModel<CuratorJobStatusContent> {
   return {
     seo: { title },
-    page: { sectionKey: 'admin', pageKey: 'admin_curator_upload', title },
+    page: {
+      sectionKey: 'admin', pageKey: 'admin_curator_upload', title,
+      instructions: {
+        what: 'Shows the progress of one video upload.',
+        how: 'The page shows the latest step. Reload it if it stops changing.',
+      },
+    },
     content,
   };
 }

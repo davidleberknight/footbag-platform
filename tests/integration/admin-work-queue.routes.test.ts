@@ -52,6 +52,27 @@ function resolveAuditCount(queueItemId: string): number {
     db.close();
   }
 }
+/** The outbox key of the member's reply to one queue item's resolve, which is
+ *  keyed on the resolve's own audit row; null while the item is unresolved. */
+function replyKeyFor(queueItemId: string): string | null {
+  const db = new BetterSqlite3(dbPath);
+  try {
+    const row = db.prepare(
+      `SELECT id, entity_id FROM audit_entries
+        WHERE json_extract(metadata_json, '$.queue_item_id') = ?
+          AND json_extract(metadata_json, '$.decision_label') IS NOT NULL`,
+    ).get(queueItemId) as { id: string; entity_id: string } | undefined;
+    return row ? `contact_request_resolution:${row.id}:${row.entity_id}` : null;
+  } finally {
+    db.close();
+  }
+}
+
+function replyCountFor(queueItemId: string): number {
+  const key = replyKeyFor(queueItemId);
+  return key === null ? 0 : outboxCountForKey(key);
+}
+
 function outboxCountForKey(key: string): number {
   const db = new BetterSqlite3(dbPath);
   try {
@@ -343,17 +364,13 @@ describe('POST /admin/work-queue/:id/resolve', () => {
 
     // Services enqueue notification emails via the outbox table; the SES
     // adapter is never called directly from a service or controller.
-    // The resolve enqueues under an idempotency key naming the queue row, so the
-    // key identifies the mail outright and no ordering is needed.
+    // The resolve enqueues under an idempotency key naming its own audit row, so
+    // the key identifies the mail outright and no ordering is needed.
     const outboxRow = theOnlyRow<{
       recipient_email: string; subject: string; body_text: string; idempotency_key: string;
     }>(
       db,
-      rowPin(
-        'outbox_emails',
-        `recipient_member_id = ? AND idempotency_key LIKE 'contact-request-resolve:%'`,
-        [MEMBER_ID],
-      ),
+      rowPin('outbox_emails', 'recipient_member_id = ? AND idempotency_key = ?', [MEMBER_ID, replyKeyFor(queueId)]),
     );
     expect(outboxRow).toBeDefined();
     expect(outboxRow!.recipient_email).toBe('wq-member@example.com');
@@ -362,7 +379,6 @@ describe('POST /admin/work-queue/:id/resolve', () => {
     // Best practice: the templated resolution email does not echo the member's
     // own message back; their free text stays in the operational store only.
     expect(outboxRow!.body_text).not.toContain('please fix my name');
-    expect(outboxRow!.idempotency_key).toBe(`contact-request-resolve:${queueId}`);
     db.close();
   });
 
@@ -405,7 +421,7 @@ describe('POST /admin/work-queue/:id/resolve', () => {
     const row = db.prepare('SELECT reason_text FROM work_queue_items WHERE id = ?')
       .get(queueId) as { reason_text: string };
     const mail = theOnlyRow<{ body_text: string }>(
-      db, rowPin('outbox_emails', 'idempotency_key = ?', [`contact-request-resolve:${queueId}`]),
+      db, rowPin('outbox_emails', 'idempotency_key = ?', [replyKeyFor(queueId)]),
     );
     db.close();
     expect(row.reason_text).toBe(CLEAN_MULTI_LINE);
@@ -429,7 +445,7 @@ describe('POST /admin/work-queue/:id/resolve', () => {
     const row = db.prepare('SELECT status FROM work_queue_items WHERE id = ?').get(queueId) as { status: string };
     db.close();
     expect(row.status).toBe('open');
-    expect(outboxCountForKey(`contact-request-resolve:${queueId}`)).toBe(0);
+    expect(replyCountFor(queueId)).toBe(0);
   });
 
   // Defect caught: the repeat check compares the raw re-post with the cleaned
@@ -446,7 +462,7 @@ describe('POST /admin/work-queue/:id/resolve', () => {
     expect((await send(DIRTY_MULTI_LINE)).status).toBe(303);
     expect((await send(DIRTY_MULTI_LINE.replace('\r\n\r\n\r\n\r\n\r\n', '\n\n\n'))).status).toBe(303);
     expect(resolveAuditCount(queueId)).toBe(1);
-    expect(outboxCountForKey(`contact-request-resolve:${queueId}`)).toBe(1);
+    expect(replyCountFor(queueId)).toBe(1);
   });
 
   it('resolution_note longer than 500 chars → 422', async () => {
@@ -495,7 +511,7 @@ describe('POST /admin/work-queue/:id/resolve', () => {
     // repeat says so rather than guessing.
     expect(flashOf(second)).toBe(flashOf(first));
     expect(resolveAuditCount(queueId)).toBe(1);
-    expect(outboxCountForKey(`contact-request-resolve:${queueId}`)).toBe(1);
+    expect(replyCountFor(queueId)).toBe(1);
   });
 
   it("another admin re-posting a resolve this admin made gets the closed item's not-found answer, and nothing is written", async () => {
@@ -544,12 +560,10 @@ describe('POST /admin/work-queue/:id/resolve', () => {
     expect(res.status).toBe(403);
   });
 
-  // A failure to enqueue the resolve-notification email surfaces
-  // as a truthful 503 rather than being swallowed. The queue row stays resolved + the audit row stays
-  // written (both committed inside the resolve transaction before the
-  // enqueue runs); the operator sees a 503 banner driven by
-  // handleControllerError's ServiceUnavailableError → 503 mapping.
-  describe('enqueueEmailOrFail failure on resolve', () => {
+  // The member's reply is best-effort inside the resolve's transaction: a reply
+  // that cannot be queued leaves the decision standing, and the page tells the
+  // administrator the member was not notified rather than claiming they were.
+  describe('reply enqueue failure on resolve', () => {
     // eslint-disable-next-line @typescript-eslint/consistent-type-imports
     let commsMod: typeof import('../../src/services/communicationService');
 
@@ -561,22 +575,18 @@ describe('POST /admin/work-queue/:id/resolve', () => {
       commsMod.resetCommunicationServiceForTests();
     });
 
-    it('enqueueEmailOrFail throws → 503 + queue resolved + audit row + notification_failed audit + no outbox row', async () => {
-      expectLoggedError('audit: support.contact_request_resolve_notification_failed');
+    // Defect caught: a reply that fails to queue either rolls the decision back
+    // or fails the request after the decision saved, and a retry then loses the
+    // reply, which is the failure strict mode used to produce.
+    it('a reply that cannot be queued → 303 + queue resolved + audit row + no outbox row + the not-notified banner', async () => {
       const app = createApp();
       const queueId = await postOneOpenRequest(app, MEMBER_ID, MEMBER_SLUG);
 
-      // Break the strict send only, so the ordinary sends the submit path
-      // already made are not implicated.
-      const { ServiceUnavailableError } = await import('../../src/services/serviceErrors');
+      // Broken only after the submit, so the sends the submit path already
+      // made are not implicated.
       commsMod.setCommunicationServiceForTests({
-        enqueue: (input: { strict?: boolean }) => {
-          if (!input.strict) {
-            return { stream: 'transactional', recipients: 0, enqueued: 0, duplicates: 0, suppressed: 0, ids: [] };
-          }
-          throw new ServiceUnavailableError(
-            'synthetic strict-send failure for contact-request-resolve',
-          );
+        enqueue: () => {
+          throw new Error('synthetic enqueue failure for the resolve reply');
         },
         liftAddressSuppression: async () => {},
         processSendQueue: async () => ({
@@ -590,46 +600,35 @@ describe('POST /admin/work-queue/:id/resolve', () => {
         .set('Cookie', adminCookie())
         .type('form')
         .send({ decision_label: 'corrected', resolution_note: 'Fixed your display name.' });
-      expect(res.status).toBe(503);
+      expect(res.status).toBe(303);
 
       const db = new BetterSqlite3(dbPath);
       try {
-        // Queue row resolved despite the enqueue failure (mutation committed
-        // before the strict enqueue ran).
         const queueRow = db
-          .prepare(`SELECT status, decision_label FROM work_queue_items WHERE id = ?`)
-          .get(queueId) as { status: string; decision_label: string } | undefined;
-        expect(queueRow).toBeDefined();
+          .prepare(`SELECT status FROM work_queue_items WHERE id = ?`)
+          .get(queueId) as { status: string } | undefined;
         expect(queueRow!.status).toBe('resolved');
-
-        // Audit row written inside the same transaction as the resolve.
-        const resolvedAudit = db
-          .prepare(`SELECT id FROM audit_entries WHERE action_type = 'support.contact_request_resolved' AND entity_id = ?`)
-          .get(MEMBER_ID) as { id: string } | undefined;
-        expect(resolvedAudit).toBeDefined();
-
-        // R4 operational-error audit row: persistent forensic record paired
-        // with the logger.error marker so operators can triage outbox / SES
-        // degradation.
-        const failedAudit = db
-          .prepare(`SELECT id FROM audit_entries WHERE action_type = 'support.contact_request_resolve_notification_failed' AND entity_id = ?`)
-          .get(MEMBER_ID) as { id: string } | undefined;
-        expect(failedAudit).toBeDefined();
-
-        // No outbox row for the resolve-notification: the strict enqueue
-        // threw before any outbox row could land.
-        const outbox = db
-          .prepare(`SELECT id FROM outbox_emails WHERE idempotency_key = ?`)
-          .get(`contact-request-resolve:${queueId}`) as { id: string } | undefined;
-        expect(outbox).toBeUndefined();
       } finally {
         db.close();
       }
+      expect(resolveAuditCount(queueId)).toBe(1);
+      expect(replyCountFor(queueId)).toBe(0);
+
+      // The banner is the quiet one, not the one a delivered reply earns.
+      commsMod.resetCommunicationServiceForTests();
+      const notifiedId = await postOneOpenRequest(app, MEMBER_ID, MEMBER_SLUG);
+      const notified = await request(app)
+        .post(`/admin/work-queue/${notifiedId}/resolve`)
+        .set('Cookie', adminCookie())
+        .type('form')
+        .send({ decision_label: 'corrected', resolution_note: 'Fixed your display name.' });
+      expect(replyCountFor(notifiedId)).toBe(1);
+      expect(flashOf(res)).not.toBe(flashOf(notified));
     });
 
     it('member with no email address skips the enqueue entirely → 303 + no outbox row', async () => {
       // Defensive regression: if member.login_email is empty, resolve must
-      // not attempt the enqueue (no synthetic 503 from a missing recipient).
+      // not attempt the enqueue for a recipient who has no address.
       const db = new BetterSqlite3(dbPath);
       db.prepare(`UPDATE members SET login_email = '', login_email_normalized = '' WHERE id = ?`).run(MEMBER_ID);
       db.close();

@@ -311,13 +311,13 @@ export function insertResultEntry(
   eventId: string,
   uploadId: string,
   disciplineId: string,
-  o: { id?: string; placement?: number } = {},
+  o: { id?: string; placement?: number; score_text?: string | null } = {},
 ): string {
   const id = o.id ?? `entry-test-${uid()}`;
   db.prepare(`
-    INSERT INTO event_result_entries (id, event_id, results_upload_id, discipline_id, placement, created_at, created_by, updated_at, updated_by, version)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-  `).run(id, eventId, uploadId, disciplineId, o.placement ?? 1, nowIso(), SYS, nowIso(), SYS);
+    INSERT INTO event_result_entries (id, event_id, results_upload_id, discipline_id, placement, score_text, created_at, created_by, updated_at, updated_by, version)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+  `).run(id, eventId, uploadId, disciplineId, o.placement ?? 1, o.score_text ?? null, nowIso(), SYS, nowIso(), SYS);
   return id;
 }
 

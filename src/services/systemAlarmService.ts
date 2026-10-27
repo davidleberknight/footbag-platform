@@ -438,7 +438,18 @@ export const systemAlarmService = {
     const lastShown = offset + rows.length;
     return {
       seo: { title: 'Platform Alarms', noindex: true },
-      page: { sectionKey: 'admin', pageKey: 'admin_alarms', title: 'Platform Alarms' },
+      page: {
+        sectionKey: 'admin', pageKey: 'admin_alarms', title: 'Platform Alarms',
+        instructions: {
+          what: 'Lists the alarms the monitoring service has reported.',
+          why: 'So the team knows each alarm has someone handling it.',
+          how: 'Acknowledge an alarm to record that you are handling it, with an optional note on what you did.',
+          headsUp: [
+            'Acknowledging does not clear an alarm. It clears by itself when the monitored condition returns to normal.',
+            'Each acknowledgment is recorded in the audit log.',
+          ],
+        },
+      },
       content: {
         alarms: rows.map((row) => shapeAlarmRow(row, opts.rejected)),
         hasAlarms: rows.length > 0,

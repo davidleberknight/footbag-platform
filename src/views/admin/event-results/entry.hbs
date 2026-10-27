@@ -1,0 +1,50 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{> admin-instructions}}
+  {{> outcome-notice text=content.errorMessage tone='no'}}
+
+  <section>
+    <div class="card card-static mb-6">
+      <p class="m-0 fw-500">{{content.eventTitle}} &middot; {{content.divisionName}}</p>
+    </div>
+
+    <form method="POST" action="{{content.previewAction}}" class="form-block">
+      <div class="form-field">
+        <label for="er_placement">Placement</label>
+        <input type="text" id="er_placement" name="placement" value="{{content.form.placement}}" inputmode="numeric" maxlength="4" required />
+      </div>
+      <div class="form-field">
+        <label for="er_score">Score</label>
+        <input type="text" id="er_score" name="score_text" value="{{content.form.scoreText}}" maxlength="200" />
+      </div>
+      {{#if content.canMoveDivision}}
+        <div class="form-field">
+          <label for="er_division">Division</label>
+          <select id="er_division" name="discipline_id">
+            {{#each content.divisionOptions}}
+              <option value="{{value}}" {{#if selected}}selected{{/if}}>{{label}}</option>
+            {{/each}}
+          </select>
+        </div>
+      {{/if}}
+      {{#each content.form.names}}
+        <div class="form-field">
+          <label for="{{inputId}}">{{label}}</label>
+          <input type="text" id="{{inputId}}" name="{{fieldName}}" value="{{value}}" maxlength="200" required />
+        </div>
+      {{/each}}
+      <div class="form-field">
+        <label for="er_reason">Reason (required)</label>
+        <input type="text" id="er_reason" name="reason" maxlength="500" required />
+      </div>
+      <button type="submit" class="btn btn-primary">Review the Correction</button>
+    </form>
+
+    <p class="mt-4"><a href="{{content.cancelHref}}">Cancel</a></p>
+  </section>
+</div>

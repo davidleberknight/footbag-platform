@@ -1,15 +1,11 @@
 <div class="hero hero-sm">
   <div>
     <h1>{{page.title}}</h1>
-    {{#if content.isNew}}
-    <p>A new list takes its recipients from its own subscribers. A list backed by a group's roster is created by enabling that group's mail, not here.</p>
-    {{else}}
-    <p>The list's web address is fixed when it is created, because every subscription and every past send refers to it.</p>
-    {{/if}}
   </div>
 </div>
 
 <div class="wrapper">
+  {{> admin-instructions}}
   <section>
     {{> outcome-notice lines=content.errorList tone='no'}}
 

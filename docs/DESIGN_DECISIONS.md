@@ -2648,7 +2648,7 @@ Impact:
 
 Decision:
 
-The public site has a single reusable rendering standard that every public page consumes: the page contract (`PageViewModel<TContent>` in `src/types/page.ts`), a small set of reusable primitives (site frame, hero, content section, cards, queue rows, grouped link index, result sections, year navigation, metadata rows, empty state, notice), and a shared CSS vocabulary. A page composes from these; it does not define its own structure or chrome. Home is the one composition-page exception (see "Server-rendered HTML with Handlebars Templates").
+The public site has a single reusable rendering standard that every public page consumes: the page contract (`PageViewModel<TContent>` in `src/types/page.ts`), a small set of reusable primitives (site frame, hero, content section, cards, queue rows, grouped link index, result sections, year navigation, metadata rows, empty state, notice, admin instructions block), and a shared CSS vocabulary. A page composes from these; it does not define its own structure or chrome. Home is the one composition-page exception (see "Server-rendered HTML with Handlebars Templates").
 
 Rationale:
 

@@ -25,7 +25,19 @@ function render(
 ): void {
   res.status(status).render('admin/bootstrap-claim', {
     seo:  { title: 'Administrator Bootstrap' },
-    page: { sectionKey: '', pageKey: 'admin_bootstrap_claim', title: 'Administrator Bootstrap' },
+    page: {
+      sectionKey: '', pageKey: 'admin_bootstrap_claim', title: 'Administrator Bootstrap',
+      instructions: {
+        what: 'Gives you administrator access with the one-time token an operator set up.',
+        why: 'A new platform has no administrator, and this is how the first one is made.',
+        how: 'Enter the token and choose Claim Administrator Access.',
+        headsUp: [
+          'It works only while the platform has no administrator, and only once.',
+          'Claiming also gives you Tier 2.',
+          'Repeated attempts are blocked for a while.',
+        ],
+      },
+    },
     content: {
       isGranted: result === 'granted',
       isInvalid: result === 'invalid',

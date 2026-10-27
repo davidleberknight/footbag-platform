@@ -1,0 +1,35 @@
+<div class="hero hero-sm">
+  <div>
+    <h1>{{page.title}}</h1>
+  </div>
+</div>
+
+<div class="wrapper">
+  {{> admin-instructions}}
+  {{> outcome-notice text=content.errorMessage tone='no'}}
+
+  <section>
+    <div class="section-heading"><h2>Find an Event</h2></div>
+    <div class="search-box-section">
+      <form method="GET" action="/admin/events/results" class="search-box-form" role="search">
+        <input type="text" name="q" maxlength="200"
+               placeholder="Part of the event name, or a year"
+               value="{{content.query}}"
+               aria-label="Find an event by name or year"
+               class="search-box-input" />
+        <button type="submit" class="btn btn-primary">Search</button>
+      </form>
+    </div>
+
+    <p>{{content.resultSummary}}</p>
+
+    {{#each content.results}}
+      <div class="card">
+        <div class="card-title"><a href="{{resultsHref}}">{{title}}</a></div>
+        <p class="m-0 text-muted fs-sm">{{#each facts}}{{this}}{{#unless @last}} &middot; {{/unless}}{{/each}}</p>
+      </div>
+    {{/each}}
+  </section>
+
+  <p class="mt-4"><a href="/admin">Back to the admin dashboard</a></p>
+</div>

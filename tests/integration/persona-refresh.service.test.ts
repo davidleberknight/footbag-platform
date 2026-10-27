@@ -32,6 +32,8 @@ import {
   insertActivePlayerReminderSent,
   insertCandidateCleanupResolution,
   insertClubCleanupClaim,
+  insertRecurringDonationSubscription,
+  insertMemberLink,
 } from '../../src/testkit/personaRowBuilders';
 import {
   insertOutboxEmail,
@@ -42,6 +44,10 @@ import {
   insertGalleryCriterionTag,
   insertMediaJob,
   insertActivePlayerVouch,
+  insertEvent,
+  insertRegistration,
+  insertEventOrganizer,
+  insertEmailArchive,
 } from '../fixtures/factories';
 
 const { dbPath } = setTestEnv('3097');
@@ -544,14 +550,10 @@ describe('refreshAllPersonas', () => {
     });
     expect(tierOf(T1)).toBe('tier2');
 
-    // A vouch whose target is a persona member RESTRICTs the member delete mid-teardown.
-    insertActivePlayerVouch(db, {
-      id: 'apv-block-1',
-      created_at: '2026-01-01T00:00:00.000Z',
-      voucher_member_id: T2,
-      target_member_id: T1,
-      vouched_at: '2026-01-01T00:00:00.000Z',
-    });
+    // An event registration is a row no tester flow can create yet, so the
+    // teardown does not own it, and it RESTRICTs the member delete mid-teardown.
+    const eventId = insertEvent(db);
+    const registrationId = insertRegistration(db, eventId, T1);
 
     expect(() => refreshAllPersonas(db)).toThrow();
 
@@ -561,9 +563,35 @@ describe('refreshAllPersonas', () => {
          AND name IN ('trg_tier_grants_no_delete','trg_active_player_grants_no_delete','trg_audit_no_delete')`,
     );
     expect(guards).toBe(3);
-    // Pre-refresh state intact: the upgrade grant and the vouch both survive.
+    // Pre-refresh state intact: the upgrade grant and the registration both survive.
     expect(tierOf(T1)).toBe('tier2');
-    expect(count(`SELECT COUNT(*) AS n FROM active_player_vouches WHERE id = 'apv-block-1'`)).toBe(1);
+    expect(count(`SELECT COUNT(*) AS n FROM registrations WHERE id = ?`, registrationId)).toBe(1);
     expect(count(`SELECT COUNT(*) AS n FROM members WHERE id = ?`, T1)).toBe(1);
+  });
+
+  it('tears down what a tester mints acting as a persona: vouches, recurring donations, profile links, organizer assignments and sent announcements', () => {
+    // A vouch between two personas; each side alone would block the member delete.
+    insertActivePlayerVouch(db, {
+      id: 'apv-persona-1',
+      created_at: '2026-01-01T00:00:00.000Z',
+      voucher_member_id: T2,
+      target_member_id: T1,
+      vouched_at: '2026-01-01T00:00:00.000Z',
+    });
+    insertRecurringDonationSubscription(db, { id: 'rds-persona-1', member_id: T1 });
+    insertMemberLink(db, T1);
+    insertEventOrganizer(db, insertEvent(db), T1);
+    insertEmailArchive(db, { sender_member_id: T2 });
+
+    refreshAllPersonas(db);
+
+    expect(count(`SELECT COUNT(*) AS n FROM active_player_vouches WHERE id = 'apv-persona-1'`)).toBe(0);
+    expect(count(`SELECT COUNT(*) AS n FROM recurring_donation_subscriptions WHERE id = 'rds-persona-1'`)).toBe(0);
+    expect(count(`SELECT COUNT(*) AS n FROM member_links WHERE member_id = ?`, T1)).toBe(0);
+    expect(count(`SELECT COUNT(*) AS n FROM event_organizers WHERE member_id = ?`, T1)).toBe(0);
+    expect(count(`SELECT COUNT(*) AS n FROM email_archives WHERE sender_member_id = ?`, T2)).toBe(0);
+    // The personas themselves come back, reseeded.
+    expect(count(`SELECT COUNT(*) AS n FROM members WHERE id = ?`, T1)).toBe(1);
+    expect(db.pragma('foreign_key_check')).toEqual([]);
   });
 });

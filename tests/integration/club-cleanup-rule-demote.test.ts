@@ -260,7 +260,7 @@ describe('the cleanup rules demote the clubs they settle', () => {
     expect(clubs.status).toBe(200);
     const queue = await request(app).get('/admin/club-cleanup').set('Cookie', adminCookie());
     expect(queue.status).toBe(200);
-    expect(queue.text).toContain('Apply the Rules');
+    expect(queue.text).toContain('>Apply the Rules</button>');
     expect(queue.text).toContain('Dead Voted Club');
 
     expect(dataVersion()).toBe(before);
@@ -510,7 +510,7 @@ describe('the cleanup rules demote the clubs they settle', () => {
     const page = await request(app).get('/admin/club-cleanup')
       .set('Cookie', [adminCookie(), flash!.split(';')[0]].join('; '));
     expect(page.text).toContain('Nothing changed: no club still meets the rules for being made inactive.');
-    expect(page.text).not.toContain('Apply the Rules');
+    expect(page.text).not.toContain('>Apply the Rules</button>');
 
     expect(autoDemoteAuditCount(CLUB_DEAD)).toBe(1);
     expect(autoDemoteAuditCount(CLUB_DEAD_VOTED)).toBe(1);

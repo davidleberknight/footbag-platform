@@ -4,7 +4,7 @@
  * It does not resolve the queue item (the club stays leaderless until a member
  * steps up).
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
@@ -61,7 +61,9 @@ describe('POST /admin/club-cleanup/:clubId/contact-members', () => {
     expect(leaders.n).toBe(0);
   });
 
-  it('contacting the same leaderless club twice enqueues no duplicate emails (stable idempotency key)', async () => {
+  // Defect caught: a double click on the contact button mails every member of
+  // the club twice and records two contacts.
+  it('the same administrator pressing again within the repeat window sends nothing and records nothing more', async () => {
     const dupClubId = insertClub(db, { id: 'ccm-club-dup', name: 'Leaderless Dup Club' });
     for (const i of [1, 2]) {
       insertMember(db, { id: `ccm-dup-mem-${i}`, slug: `ccm_dup_mem_${i}`, login_email: `ccm-dup-mem-${i}@example.com` });
@@ -77,12 +79,47 @@ describe('POST /admin/club-cleanup/:clubId/contact-members', () => {
       expect(res.status).toBe(303);
     }
 
-    // The idempotency key is stable per club and member, so the second send
-    // collapses onto the first outbox rows rather than enqueuing duplicates.
     const emails = db.prepare(
       `SELECT COUNT(*) AS n FROM outbox_emails WHERE recipient_member_id IN ('ccm-dup-mem-1','ccm-dup-mem-2')`,
     ).get() as { n: number };
     expect(emails.n).toBe(2);
+    const contacts = db.prepare(
+      `SELECT COUNT(*) AS n FROM audit_entries WHERE action_type = 'admin.club_cleanup.contact_members' AND entity_id = ?`,
+    ).get(dupClubId) as { n: number };
+    expect(contacts.n).toBe(1);
+  });
+
+  // Defect caught: the invitation is keyed on the club and member alone, so an
+  // administrator who deliberately contacts the club again later reaches
+  // nobody.
+  it('a later deliberate contact reaches the members again', async () => {
+    const clubId = insertClub(db, { id: 'ccm-club-later', name: 'Leaderless Later Club' });
+    insertMember(db, { id: 'ccm-later-mem', slug: 'ccm_later_mem', login_email: 'ccm-later-mem@example.com' });
+    insertMemberClubAffiliation(db, 'ccm-later-mem', clubId);
+    const contact = () => request(createApp())
+      .post(`/admin/club-cleanup/${clubId}/contact-members`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({});
+
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(new Date('2031-03-01T10:00:00.000Z'));
+      expect((await contact()).status).toBe(303);
+      vi.setSystemTime(new Date('2031-03-08T10:00:00.000Z'));
+      expect((await contact()).status).toBe(303);
+    } finally {
+      vi.useRealTimers();
+    }
+
+    const emails = db.prepare(
+      "SELECT COUNT(*) AS n FROM outbox_emails WHERE recipient_member_id = 'ccm-later-mem'",
+    ).get() as { n: number };
+    expect(emails.n).toBe(2);
+    const contacts = db.prepare(
+      `SELECT metadata_json FROM audit_entries WHERE action_type = 'admin.club_cleanup.contact_members' AND entity_id = ?`,
+    ).all(clubId) as Array<{ metadata_json: string }>;
+    expect(contacts.map((c) => JSON.parse(c.metadata_json).recipient_count)).toEqual([1, 1]);
   });
 
   // A send to a mailbox that has already bounced or complained is suppressed
