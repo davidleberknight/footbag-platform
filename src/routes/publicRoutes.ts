@@ -64,9 +64,6 @@ publicRouter.post('/clubs/:key/mark-inactive',  requireMember, clubController.po
 publicRouter.post('/clubs/:key/reactivate',     requireMember, clubController.postReactivate);
 publicRouter.post('/clubs/:key/content/edit',    requireMember, clubController.postContentEdit);
 publicRouter.get('/tags/suggest',       tagSuggestController.suggest);
-// The hashtag index moved onto the browse landing; this path redirects there.
-// The autocomplete endpoint above is an exact path, so it is unaffected.
-publicRouter.get('/tags',               mediaController.tagsIndex);
 publicRouter.get('/media',              mediaController.hub);
 // IMPORTANT: /media/browse is a literal sub-route and MUST be registered
 // before /media/:galleryId. Without this ordering, "browse" would be
@@ -130,7 +127,6 @@ publicRouter.get('/freestyle/notation-article', freestyleController.notationArti
 publicRouter.get('/freestyle/operators',   freestyleController.operators);
 publicRouter.get('/freestyle/observational', freestyleController.observational);
 publicRouter.get('/freestyle/tricks',      freestyleController.tricksIndex);
-publicRouter.get('/freestyle/insights',    freestyleController.insights);
 publicRouter.get('/freestyle/by-the-numbers', freestyleController.byTheNumbers);
 // Novice entry page: the landing "Start here" CTA destination, ending with the
 // six next-step lessons. The retired /freestyle/learn redirects permanently to them.

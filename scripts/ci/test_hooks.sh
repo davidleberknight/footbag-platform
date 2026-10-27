@@ -190,6 +190,38 @@ expect_file "$H" "$CLAUDE_PROJECT_DIR/src/x/.env" deny
 expect_file "$H" "$CLAUDE_PROJECT_DIR/../footbag-ops/.env.local" deny
 expect_file "$H" "$CLAUDE_PROJECT_DIR/src/x/.env.example" defer
 
+# guard-companion-paths.sh: a companion repository is reached only through its
+# repo-root link, so its rules and its own CLAUDE.md load. A scratch project with
+# one link outside it and one inside stands in for the companion checkouts CI lacks.
+H=guard-companion-paths.sh
+cp_dir="$(mktemp -d)"
+cp_dir="$(cd "$cp_dir" && pwd -P)"
+mkdir -p "$cp_dir/proj/data/mirror" "$cp_dir/ops/sub"
+ln -s "$cp_dir/ops" "$cp_dir/proj/footbag_private_repo"
+ln -s data/mirror "$cp_dir/proj/footbag_legacy_mirror"
+saved_project_dir="$CLAUDE_PROJECT_DIR"
+export CLAUDE_PROJECT_DIR="$cp_dir/proj"
+# The real path, a file not yet created under it, and a `..` back into it: denied.
+expect_file "$H" "$cp_dir/ops/README.md" deny
+expect_file "$H" "$cp_dir/ops/sub/new/file.md" deny
+expect_file "$H" "$cp_dir/proj/../ops/README.md" deny
+# Through the link, a new file through the link, and the link itself: allowed.
+expect_file "$H" "$cp_dir/proj/footbag_private_repo/README.md" defer
+expect_file "$H" "$cp_dir/proj/footbag_private_repo/sub/new/file.md" defer
+expect_file "$H" "$cp_dir/proj/footbag_private_repo" defer
+# A link whose target is inside the project, ordinary project files, other paths.
+expect_file "$H" "$cp_dir/proj/data/mirror/page.html" defer
+expect_file "$H" "$cp_dir/proj/src/app.ts" defer
+expect_file "$H" "/etc/hosts" defer
+# Grep and Glob carry the directory in `path`; the deny names the link spelling.
+cp_out="$(jq -n --arg p "$cp_dir/ops/sub" '{tool_input:{pattern:"x",path:$p}}' | ".claude/hooks/$H")"
+case "$(printf '%s' "$cp_out" | jq -r '.hookSpecificOutput.permissionDecisionReason // ""')" in
+  *"Retry with: $cp_dir/proj/footbag_private_repo/sub"*) : ;;
+  *) echo "[hooks] FAIL ($H): a path into a companion's real target is not denied with the link spelling" >&2; fail=1 ;;
+esac
+export CLAUDE_PROJECT_DIR="$saved_project_dir"
+rm -rf "$cp_dir"
+
 H=block-git-mutations.sh
 
 # The staging/commit/push/pull mutations are hard-denied, including behind a git global

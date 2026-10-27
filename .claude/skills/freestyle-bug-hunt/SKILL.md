@@ -172,8 +172,9 @@ with no deterministic check is handed there as a named defect class, never recor
    can check a lane's classifications first-hand.
 2. Root `CLAUDE.md` — authority order.
 3. The maintainers' private tracker: list the open `freestyle` and `pipeline` issues, then
-   read every one in full (body and every comment, in order) with the detail form in
-   `.claude/skills/tracker-ops/SKILL.md`, plus every card a doctrine file cites, plus the
+   read every one in full (body and every comment, in order) with
+   `gh issue view <n> -R "$FOOTBAG_PRIVATE_REPO" --json number,title,state,labels,body,comments`,
+   plus every card a doctrine file cites, plus the
    `footbag_private_repo/BUGS.md`. Build the tracked-work exclusion list fresh from them
    (REFERENCE.md describes how); never trust a title, a description elsewhere, or a
    remembered list.
@@ -265,8 +266,8 @@ Freestyle findings go in a dedicated **Freestyle bugs (domain invariants)** grou
 after the bug-hunt skill's groups and before Leads. The group follows the established
 discipline:
 
-- Ephemeral entries: remove each finding once its issue is filed in the maintainers'
-  private tracker or its fix lands; no closures, dates, commit hashes, or RESOLVED markers.
+- Ephemeral entries: remove each finding once its fix lands; no closures, dates, commit
+  hashes, or RESOLVED markers.
 - Own sub-sequence `FBH-###` with a `Next freestyle finding ID:` pointer at the top of the
   group; never reuse or renumber. A separate counter prevents contention with the `B<N>`
   sequence, which a different skill and owner produce.
@@ -280,7 +281,6 @@ Per-finding format:
 
 - **Category:** <one of §F1–§F25 in this skill's REFERENCE.md>
 - **Severity:** Catastrophic | High | Medium | Low
-- **Lane:** <the tracker lane the issue would carry>
 - **Owner:** curator | rules expert | freestyle maintainer | primary maintainer
 - **Evidence:** <path:line / table+row / rendered URL, concrete>
 - **Reproduction:** <the read-only command or URL, and the exact string observed>
@@ -313,13 +313,6 @@ Medium or High; a tag-invariant break that corrupts gallery membership is High; 
 write path that accepts a row its story refuses, or writes without its audit row, is High;
 anything that crosses into privacy, security, or payment territory is bug-hunt's rubric and
 severity.
-
-**Graduation to the maintainers' private tracker.** Graduate each confirmed finding into an
-issue per the `tracker-ops` skill, the single home for the procedure, under the finding's
-own lane plus `bug`, with the assignee handle taken from the private tracker guide's roster
-for the finding's owner and confirmed by the human in the one batch ask. Claude drafts the
-issue body and the exact `gh issue create`, run under that skill's mutation policy. A
-finding leaves `BUGS.md` when its issue is filed or its fix lands.
 
 ## Stopping condition and self-review
 

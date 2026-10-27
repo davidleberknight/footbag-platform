@@ -251,7 +251,7 @@ describe('admin gate — GET (allow admin only, deny everyone else)', () => {
         expect(res.status, `${cell} (admin allow)`).toBe(200);
         // A page, not a download, opens with the instructions block its service fills.
         if (String(res.headers['content-type']).startsWith('text/html')) {
-          expect(res.text, `${cell} (instructions block)`).toContain('<aside class="admin-instructions"');
+          expect(res.text, `${cell} (instructions block)`).toContain('<aside class="admin-instructions card card-static"');
         }
         break;
       case 'deny':

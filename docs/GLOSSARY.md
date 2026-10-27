@@ -22,7 +22,7 @@
 
 **better-sqlite3**: Synchronous Node.js library for SQLite providing a simple, high-performance API. Footbag.org uses better-sqlite3 as its only database dependency; it auto-resets prepared statements after execution, supports typed results, and enforces synchronous-only transactions, which aligns with the platform's constraint that transactions cannot span async operations.
 
-**Bug report**: A report of a defect, an error or confusing wording, filed by a developer or tester in the private dev-tester repository and triaged once by the maintainer. Distinct from a tracker card labelled `bug`, which is the maintainers' tracked work (some carded from a bug report), and from a bug-hunt finding, an entry the bug-hunt skills write to the local, gitignored `BUGS.md` before it is filed or fixed.
+**Bug report**: A report of a defect, an error or confusing wording, filed by a developer or tester in the private dev-tester repository and triaged once by the maintainer.
 
 **CAA (Certification Authority Authorization)**: A DNS record naming which certificate authorities may issue certificates for a domain. Footbag.org publishes one at the apex permitting only the authority its own certificates come from, plus an explicit refusal of wildcards. It constrains *which* authority may issue, not *who* may prove control to that authority, so it works as one half of a pair with IFPA holding the five system addresses an authority accepts as proof. An authority reads the record set at the closest node in the name tree, so a delegated child publishing its own overrides the parent's for that branch.
 

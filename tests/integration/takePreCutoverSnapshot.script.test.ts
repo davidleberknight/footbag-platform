@@ -167,3 +167,59 @@ describe('take-pre-cutover-snapshot.sh produces a restorable artifact', () => {
     expect(res.stderr).toContain('DB file not found');
   });
 });
+
+describe('take-pre-cutover-snapshot.sh uploads only from the host its bucket belongs to', () => {
+  // Defect caught: one environment's database lands in the other's locked,
+  // one-object pre-flip slot, because nothing checked which host ran the upload.
+  function upload(bucket: string, recorded: string | null) {
+    buildDb(path.join(workDir, 'footbag.db'));
+    const envFile = path.join(workDir, 'host.env');
+    if (recorded !== null) fs.writeFileSync(envFile, `FOOTBAG_ENV=${recorded}\n`);
+    const binDir = path.join(workDir, 'bin');
+    fs.mkdirSync(binDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(binDir, 'aws'),
+      `#!/usr/bin/env bash\nprintf '%s\\n' "$*" >> ${JSON.stringify(path.join(workDir, 'aws-calls.log'))}\nexit 0\n`,
+      { mode: 0o755 },
+    );
+    return run({
+      FOOTBAG_SNAPSHOT_LOCAL_ONLY: '',
+      FOOTBAG_DR_BUCKET: bucket,
+      FOOTBAG_ENV_FILE: envFile,
+      PATH: `${binDir}:${process.env.PATH ?? ''}`,
+    });
+  }
+  const uploaded = () => fs.existsSync(path.join(workDir, 'aws-calls.log'));
+  const snapshotWritten = () => fs.existsSync(path.join(workDir, 'snapshots'));
+
+  it('uploads when the host records the environment the bucket names, and says the seam is in use', () => {
+    const res = upload('footbag-production-db-snapshots-dr', 'production');
+    expect(res.status, res.stderr).toBe(0);
+    expect(res.stderr).toContain('FOOTBAG_ENV_FILE');
+    expect(uploaded()).toBe(true);
+  });
+
+  it('refuses a host recording the other environment, before anything is written', () => {
+    const res = upload('footbag-production-db-snapshots-dr', 'staging');
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('REFUSING');
+    expect(snapshotWritten()).toBe(false);
+    expect(uploaded()).toBe(false);
+  });
+
+  it('refuses a host that records no environment', () => {
+    const res = upload('footbag-staging-db-snapshots-dr', null);
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('REFUSING');
+    expect(snapshotWritten()).toBe(false);
+    expect(uploaded()).toBe(false);
+  });
+
+  it('refuses a bucket that names no environment', () => {
+    const res = upload('footbag-test-dr', 'production');
+    expect(res.status).toBe(1);
+    expect(res.stderr).toContain('REFUSING');
+    expect(snapshotWritten()).toBe(false);
+    expect(uploaded()).toBe(false);
+  });
+});

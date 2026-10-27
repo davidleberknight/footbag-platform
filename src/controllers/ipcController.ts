@@ -5,8 +5,7 @@
  *
  * /ipc is the inter-process channel: machine-to-machine, shared-secret auth
  * (X-Internal-Secret header, checked by route middleware), no human session.
- * Distinct from /internal, which is admin-session-authed QC tooling. The
- * endpoint is reachable only from the docker-internal network in production
+ * The endpoint is reachable only from the docker-internal network in production
  * (nginx drops /ipc/* from public traffic). The shared secret is the second
  * line of defense: even if the route reaches the public side, nothing without
  * the secret can publish.

@@ -16,18 +16,18 @@ paths:
 
 Long-term canonical docs describe **design intent**, not implementation status:
 
-- `docs/USER_STORIES.md`, `docs/BACKGROUND_JOBS.md`, `docs/DESIGN_DECISIONS.md`, `PROJECT_SUMMARY_CONCISE.md`, `docs/DATA_MODEL.md`, `docs/TESTING.md` — pure design.
+- Every document under `docs/` other than `docs/DEV_ONBOARDING.md`, and `PROJECT_SUMMARY_CONCISE.md` — pure design.
 - `docs/DEV_ONBOARDING.md` — permanent design + permanent operating procedure. Same no-current-slice rule applies.
 
 Never add current-slice notes, deviation qualifiers, shortcut descriptions, completion status, "Last updated" dates, or sprint tracking to any of these.
 
 All implementation-state language belongs exclusively in the maintainers' private tracker (the `tracker-ops` skill).
 
-**Where implementation detail lives.** Durable technical and security design and rationale live in `docs/DESIGN_DECISIONS.md`, which discusses behaviour only where it drives a technical decision; functional requirements live in `docs/USER_STORIES.md`, and those of the background jobs, the system actor, in `docs/BACKGROUND_JOBS.md`; the per-service and per-page contract (ownership, rendering, audience, sensitive-page invariants) lives in each service's file-header JSDoc; cross-cutting AI coding rules live in the path-scoped `.claude/rules/*.md` files; repeatable procedures (how to add a public page, run a review, sync docs) live in `.claude/skills/*`. A canonical doc states the design; it does not restate a contract that a service JSDoc, a rule, or a skill already owns. Page-rendering contracts live in service JSDoc and `.claude/rules/view-layer.md`, the route list lives in `src/routes/publicRoutes.ts`, and durable view design intent lives in DESIGN_DECISIONS §4.
+**Where implementation detail lives.** Durable technical and security design and rationale live in `docs/DESIGN_DECISIONS.md`, which discusses behaviour only where it drives a technical decision; functional requirements live in `docs/USER_STORIES.md`, and those of the background jobs, the system actor, in `docs/BACKGROUND_JOBS.md`; the per-service and per-page contract (ownership, rendering, audience, sensitive-page invariants) lives in each service's file-header JSDoc; cross-cutting AI coding rules live in the path-scoped `.claude/rules/*.md` files; repeatable procedures (how to add a public page, run a review, sync docs) live in `.claude/skills/*`. A canonical doc states the design; it does not restate a contract that a service JSDoc, a rule, or a skill already owns. Page-rendering contracts live in service JSDoc and `.claude/rules/view-layer.md`, the route list lives in `src/routes/publicRoutes.ts`, and durable view design intent lives in the design decisions' "Front-End / UI Technology" section.
 
 ## No superseded history
 
-A canonical doc states the design in force. It never narrates how it got there. A ruling that has been reversed is DELETED: not marked superseded, not dated, not kept "so the reasoning is not relitigated". A reader who meets both the old position and the new one has to work out which binds them, and that is the failure this rule prevents.
+A canonical doc states the design in force. It never narrates how it got there. A ruling that has been reversed is deleted: not marked superseded, not dated, not kept "so the reasoning is not relitigated". A reader who meets both the old position and the new one has to work out which binds them, and that is the failure this rule prevents.
 
 Delete on sight rather than write:
 
@@ -90,22 +90,22 @@ In any doc or plan, describe the thing in plain words a reader understands on it
 
 When a drift-fix surfaces disagreement between a doc and another source:
 
-1. **Separate the two questions:** (a) is the FACT drifted? (b) is the DESIGN drifted?
+1. **Separate the two questions:** (a) is the fact drifted? (b) is the design drifted?
 2. **Fix only (a)** unless the maintainer has explicitly approved a design change.
 3. Current-slice or implementation-state language in a long-term doc is drift to delete. Design decisions in Decision/Rationale blocks are intentional and must be preserved.
 4. Framework-style rewrites ("broaden X to cover three credential paths", "pick simpler option") are scope expansions, not drift fixes. Require explicit approval.
-5. "Lock in final design now" in response to option-framing does NOT license replacing a long-standing design. Re-verify: does the existing design still stand? If yes, lock-in means confirming it.
+5. "Lock in final design now" in response to option-framing does not license replacing a long-standing design. Re-verify: does the existing design still stand? If yes, lock-in means confirming it.
 6. When in doubt, ask: "I see drift X. Minimal fix Y removes the contradiction. Current design Z appears intentional. Fix only the drift, or change the design?"
 
 ## Bootstrap code is not a design signal
 
 Current code includes bootstrap stubs that will be replaced, so it is evidence of current behavior, never of design intent (the `design-intent` skill); tracked deviations live in the maintainers' private tracker.
 
-When reviewing DD drift, cite the design sources as evidence. Do NOT cite current code unless it's explicitly marked as the final implementation. Adapter gaps (DD specifies `SesAdapter` / `JwtSigningAdapter` / `MediaStorageAdapter` / `BallotEncryptionAdapter` / `SecretsAdapter`; code must provide it) are real parity gaps, not paper architecture to delete from the DD.
+When reviewing DD drift, cite the design sources as evidence. Do not cite current code unless it's explicitly marked as the final implementation. Adapter gaps (DD specifies `SesAdapter` / `JwtSigningAdapter` / `MediaStorageAdapter` / `BallotEncryptionAdapter` / `SecretsAdapter`; code must provide it) are real parity gaps, not paper architecture to delete from the DD.
 
 ## Team-member names
 
-Use role-based labels for internal team members in the **design docs** — DEV_ONBOARDING, DATA_MODEL, DESIGN_DECISIONS, USER_STORIES, PROJECT_SUMMARY_CONCISE, GLOSSARY, DIAGRAMS, PROJECT_SUMMARY. These describe the design, not who is doing the work, so they name no one:
+Use role-based labels for internal team members in the **design docs**, every document under `docs/` and `PROJECT_SUMMARY_CONCISE.md`. These describe the design, not who is doing the work, so they name no one:
 
 - "James" / "James Leberknight" → "the historical-pipeline and freestyle maintainer" (owns all legacy work).
 - "Dave" / "David" / "David Leberknight" → "the primary maintainer" / "the project maintainer".

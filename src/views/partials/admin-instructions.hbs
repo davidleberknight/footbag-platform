@@ -1,7 +1,7 @@
 {{!-- The instructions block that opens every administrator page, shaped by
      the page service as page.instructions. --}}
 {{#if page.instructions}}
-<aside class="admin-instructions" aria-label="About this page">
+<aside class="admin-instructions card card-static" aria-label="About this page">
   <p><strong>What this page does:</strong> {{page.instructions.what}}</p>
   {{#if page.instructions.why}}
   <p><strong>Why:</strong> {{page.instructions.why}}</p>

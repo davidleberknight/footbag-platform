@@ -143,7 +143,7 @@ export const ROUTE_EXEMPTIONS: readonly RouteExemption[] = [
       'POST /dev/personas/refresh',
     ]),
   ...group('compatibility-redirect', 'A permanent redirect from a retired address; nothing current links to it.', [
-    'GET /tags', 'GET /freestyle/insights', 'GET /freestyle/families',
+    'GET /freestyle/families',
     'GET /freestyle/compositional-sets', 'GET /freestyle/sets/reference', 'GET /freestyle/learn',
     'GET /freestyle/progression/walking-family',
   ]),

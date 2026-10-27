@@ -76,9 +76,9 @@ finding-count target: a short findings list is a valid result.
   forked skill, because only the main session can ask the human. The sole writes are
   `BUGS.md`, after the maintainer approves the finalized plan, and in a chunked walk the
   chunk's Walked line in `footbag_private_repo/BUG_HUNT_REVIEW.md`.
-- **Single deliverable, then a clean handoff.** Triage, fresh-context re-verification and
-  graduation to the maintainers' private tracker happen in a later session; the `BUGS.md`
-  header carries the standing re-audit instruction (section 9).
+- **Single deliverable, then a clean handoff.** Triage and fresh-context re-verification
+  happen in a later session; the `BUGS.md` header carries the standing re-audit
+  instruction (section 9).
 - **Every genuine question is answered before finalizing**, asked per
   `.claude/rules/asking.md`, each message in the shape the extended doc sync skill's Ask step
   fixes: the "Question N of M" heading, then "What this is:" in everyday words, then the
@@ -102,7 +102,7 @@ finding-count target: a short findings list is a valid result.
   alone; static tracing locates, the orchestrator renders. When the kickoff does not
   authorize running the app, the candidate is a Lead naming the render as its step.
 - **Never stage, commit, push or pull.** No done-tracking: findings leave `BUGS.md` when
-  their issue is filed or their fix lands; no closures, dates or RESOLVED markers.
+  their fix lands; no closures, dates or RESOLVED markers.
 - **No diagnose-and-remediate in one step.** Diagnose, report, stop. Concise output: no
   filler, no preamble, no emojis.
 
@@ -313,7 +313,7 @@ Every finding carries a remediation recommendation, derived top-down:
 Never recommend patching code to match a doc, or editing a doc to match code, without first
 establishing which one is wrong.
 
-## 9. Severity, output and graduation
+## 9. Severity and output
 
 **Severity** is one scale for all layers, per the risk rubric in `docs/TESTING.md`, and it
 is calibrated from the reproduction: what the reproduction showed decides, not what the
@@ -374,11 +374,9 @@ cited locations, re-derives the design intent from the named sources, attempts t
 the finding, and confirms the recommended fix is minimal at the correct layer. A finding
 that fails the re-audit is returned to the maintainer with the refutation.
 
-**Graduation.** After the human approves the findings, graduate them into issues per the
-`tracker-ops` skill, the single home for the procedure, which batches them into
-session-sized cards. No finding is fixed in the hunt or graduation session. A finding leaves `BUGS.md` when its
-issue is filed or its fix lands. A test-gap hand-off goes to `write-tests` as a named defect
-class, never as a `BUGS.md` finding.
+**Remediation.** No finding is fixed in the hunt session. A finding leaves `BUGS.md` when
+its fix lands. A test-gap hand-off goes to `write-tests` as a named defect class, never as
+a `BUGS.md` finding.
 
 ## 10. Anti-patterns: what not to flag
 

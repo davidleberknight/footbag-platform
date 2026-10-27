@@ -3020,10 +3020,6 @@ main fieldset > :not(:has(~ :not([type="hidden"]))) { margin-bottom: 0; }
 /* ── Admin instructions block: opens every administrator page ─── */
 .admin-instructions {
   margin-bottom: var(--space-xl);
-  padding: var(--space-md) var(--space-lg);
-  border-left: 4px solid var(--secondary);
-  border-radius: var(--radius-xs);
-  background: var(--info-teal-bg);
   color: var(--text);
 }
 .admin-instructions p { margin: 0; }

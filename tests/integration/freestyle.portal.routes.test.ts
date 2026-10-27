@@ -372,10 +372,9 @@ describe('GET /freestyle — two-band landing', () => {
     expect(records.text).toContain('href="/freestyle/leaders"');
   });
 
-  it('the retired Insights address redirects permanently to By the Numbers and nothing links to it', async () => {
+  it('the retired Insights address is not found and nothing links to it', async () => {
     const res = await request(createApp()).get('/freestyle/insights');
-    expect(res.status).toBe(301);
-    expect(res.headers.location).toBe('/freestyle/by-the-numbers');
+    expect(res.status).toBe(404);
     for (const path of ['/freestyle', '/freestyle/history', '/freestyle/combo-analysis']) {
       const linking = await page(path);
       expect(linking.text, `${path} links to the retired Insights page`).not.toContain('href="/freestyle/insights"');

@@ -11,9 +11,6 @@ accepted implementation deviations. Claude reads it freely and drafts issue bodi
 files, and exact commands, and runs tracker mutations itself once the human has
 agreed to the specific change, per Mutations below. Git writes stay human-run.
 
-Bug reports from developers and testers live in the private dev-tester repository, not here;
-reading and triaging them is the `triage-bugs` skill, which hands carded reports back here.
-
 ## Wiring and polite degradation
 
 Two optional machine-local pieces, wired per developer (the private repo is
@@ -85,8 +82,8 @@ the human's instruction as given.
   the env var, works when the symlink is absent) — do not hard-code it here, it drifts.
   Every issue: one lane label, the applicable markers, one assignee, and the milestone when
   go-live-scoped. `blocked` needs a first body line `Blocked on: <person> - <what unblocks
-  it>`. Unwired (no env var and no symlink): fall back to the labels `BUGS.md` or
-  the human names, and note the wiring gap in one line.
+  it>`. Unwired (no env var and no symlink): fall back to the labels the human names,
+  and note the wiring gap in one line.
 - Files drafted into `footbag_private_repo/` are working drafts: a human reviews,
   commits, and pushes them.
 - **Companion-doc sync (hard rule).** Nothing drafted into the private checkout — a
@@ -99,22 +96,6 @@ the human's instruction as given.
   before declaring the drafting done, and draft any missing ones yourself. An
   undocumented stash in an access-controlled repo is invisible data — the failure
   mode this rule exists to prevent.
-
-## Graduating hunt findings
-
-Single home for turning an approved `BUGS.md` finding into an issue; the `bug-hunt` and
-`freestyle-bug-hunt` skills cite this rather than restating it. After the human approves a
-hunt's or an audit's findings, draft one issue per session-sized batch: the confirmed findings
-in one domain (a service and its pages) share an issue, one step each, and a new issue starts
-only for another domain or for work too large for one session. Each is an issue body meeting
-the issue-body standard above, plus the exact `gh issue create -R "$FOOTBAG_PRIVATE_REPO" --title "..."
---label <lane> --label bug --assignee <handle> --body "..."` (the finding's lane, plus other
-markers as they apply). Claude runs it under the mutation policy above once the human has
-agreed to the set: ask once, listing each issue's title, lane and proposed owner, rather than
-one question per issue.
-`footbag_private_repo/BUGS.md` is the hunts' working sink; a finding leaves it
-when its issue is filed or its fix lands. When the tracker is not wired, skip drafting with
-the one-line degradation note above.
 
 ## Mutations: prepared always, one ask per batch
 

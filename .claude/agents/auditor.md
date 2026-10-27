@@ -18,36 +18,52 @@ hooks:
       hooks:
         - type: command
           command: "$CLAUDE_PROJECT_DIR/.claude/hooks/block-git-mutations.sh"
+          onFailure: block
         - type: command
           command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-secret-reads.sh"
+          onFailure: block
         - type: command
           command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-prod-ops.sh"
+          onFailure: block
         - type: command
           command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-aws-reach.sh"
+          onFailure: block
         - type: command
           command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-db-destructive.sh"
+          onFailure: block
         - type: command
           command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-dangerous-git.sh"
+          onFailure: block
         - type: command
           command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-rm.sh"
+          onFailure: block
         - type: command
           command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-full-suite-vitest.sh"
+          onFailure: block
         - type: command
           command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-foreground-tests.sh"
+          onFailure: block
         - type: command
           command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-readonly-bash.sh"
+          onFailure: block
         - type: command
           command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-find-exec.sh"
+          onFailure: block
         - type: command
           command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-leading-cd.sh"
+          onFailure: block
         - type: command
           command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-shell-loop.sh"
+          onFailure: block
         - type: command
           command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-process-substitution.sh"
+          onFailure: block
         - type: command
           command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-interpreter-writes.sh"
+          onFailure: block
         - type: command
           command: "$CLAUDE_PROJECT_DIR/.claude/hooks/guard-maintainer-gate.sh"
+          onFailure: block
         - type: command
           command: "$CLAUDE_PROJECT_DIR/.claude/hooks/allow-readonly-bash.sh"
 ---

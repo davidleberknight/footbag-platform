@@ -53,8 +53,15 @@ function stubTools(): { path: string; argsFile: string } {
   rmSync(join(workDir, 'mkbin'));
   spawnSync('mkdir', ['-p', binDir], SPAWN_GUARD);
 
+  // The host's recorded environment is read through `sudo awk` from a file the
+  // suite cannot create at its real path, so the stand-in answers that one read
+  // with STUB_HOST_ENV (staging unless a case says otherwise) and runs the rest.
   const sudo = join(binDir, 'sudo');
-  writeFileSync(sudo, ['#!/usr/bin/env bash', 'exec "$@"', ''].join('\n'), 'utf-8');
+  writeFileSync(
+    sudo,
+    ['#!/usr/bin/env bash', 'if [[ "$1" == awk ]]; then printf \'%s\\n\' "${STUB_HOST_ENV-staging}"; exit 0; fi', 'exec "$@"', ''].join('\n'),
+    'utf-8',
+  );
   chmodSync(sudo, 0o755);
 
   const docker = join(binDir, 'docker');
@@ -70,11 +77,11 @@ function stubTools(): { path: string; argsFile: string } {
   return { path: `${binDir}:${process.env.PATH ?? ''}`, argsFile };
 }
 
-function runSubcommand(sub: string) {
+function runSubcommand(sub: string, hostEnv?: string) {
   const { path, argsFile } = stubTools();
   const res = spawnSync('bash', [SCRIPT, sub], {
     encoding: 'utf-8',
-    env: { PATH: path, HOME: workDir },
+    env: { PATH: path, HOME: workDir, ...(hostEnv === undefined ? {} : { STUB_HOST_ENV: hostEnv }) },
     ...SPAWN_GUARD,
   });
   let dockerArgs = '';
@@ -97,6 +104,36 @@ describe('the diagnostics read the live install', () => {
   it('still reaches the compose subcommand it was asked for', () => {
     const r = runSubcommand('status');
     expect(r.dockerArgs.trim().endsWith(' ps')).toBe(true);
+  });
+});
+
+describe('the diagnostics run only on a host that records a deployed environment', () => {
+  // Defect caught: the toolkit runs against a host that has not confirmed it is
+  // staging or production, and reports confidently about the wrong machine.
+  it('runs on a host recording production, which the host-diagnostics wrapper targets', () => {
+    const r = runSubcommand('status', 'production');
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.dockerArgs.trim().endsWith(' ps')).toBe(true);
+  });
+
+  it('refuses a host recording any other environment, before touching docker', () => {
+    const r = runSubcommand('status', 'development');
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('REFUSING');
+    expect(r.dockerArgs).toBe('');
+  });
+
+  it('refuses a host that records no environment', () => {
+    const r = runSubcommand('status', '');
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain('REFUSING');
+    expect(r.dockerArgs).toBe('');
+  });
+
+  it('prints help without asking the host anything', () => {
+    const r = runSubcommand('help', '');
+    expect(r.status).toBe(0);
+    expect(r.stderr).not.toContain('REFUSING');
   });
 });
 

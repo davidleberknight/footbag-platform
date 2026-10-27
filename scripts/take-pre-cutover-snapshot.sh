@@ -23,6 +23,11 @@
 # FOOTBAG_DR_BUCKET is refused unless FOOTBAG_SNAPSHOT_LOCAL_ONLY=1 is set
 # explicitly (local rehearsals), so a cutover run can never silently produce
 # a local-only snapshot.
+#
+# An upload is refused unless FOOTBAG_DR_BUCKET is footbag-<staging|production>-
+# db-snapshots-dr and this host records that same environment as its FOOTBAG_ENV
+# (read from /srv/footbag/env; FOOTBAG_ENV_FILE replaces it in tests), so one
+# environment's database never lands in the other's locked pre-flip slot.
 
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -39,6 +44,24 @@ if [[ "${LOCAL_ONLY}" != "1" && -z "${FOOTBAG_DR_BUCKET:-}" ]]; then
 fi
 if [[ "${LOCAL_ONLY}" != "1" ]]; then
   command -v aws >/dev/null || { echo "aws CLI not installed (required for the DR upload)" >&2; exit 1; }
+  if [[ ! "${FOOTBAG_DR_BUCKET}" =~ ^footbag-(staging|production)-db-snapshots-dr$ ]]; then
+    echo "REFUSING: FOOTBAG_DR_BUCKET='${FOOTBAG_DR_BUCKET}' is not footbag-<staging|production>-db-snapshots-dr. Nothing was changed." >&2
+    exit 1
+  fi
+  BUCKET_ENV="${BASH_REMATCH[1]}"
+  HOST_ENV_FILE="${FOOTBAG_ENV_FILE:-/srv/footbag/env}"
+  if [[ -n "${FOOTBAG_ENV_FILE:-}" ]]; then
+    echo "NOTE: using a stand-in host environment file (FOOTBAG_ENV_FILE); this run proves nothing about any host." >&2
+  fi
+  RECORDED_ENV="$(grep -E '^FOOTBAG_ENV=' "${HOST_ENV_FILE}" 2>/dev/null | tail -1 | cut -d= -f2- || true)"
+  if [[ -z "${RECORDED_ENV}" ]]; then
+    echo "REFUSING: ${HOST_ENV_FILE} records no FOOTBAG_ENV (missing or unreadable), so this host cannot confirm its environment. Nothing was changed." >&2
+    exit 1
+  fi
+  if [[ "${RECORDED_ENV}" != "${BUCKET_ENV}" ]]; then
+    echo "REFUSING: this host records FOOTBAG_ENV='${RECORDED_ENV}', but ${FOOTBAG_DR_BUCKET} is ${BUCKET_ENV}'s DR bucket. Nothing was changed." >&2
+    exit 1
+  fi
 fi
 
 if [[ ! -f "${DB_FILE}" ]]; then

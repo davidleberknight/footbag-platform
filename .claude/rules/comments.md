@@ -22,13 +22,13 @@ paths:
 ## Scope
 
 All human-readable text authored in code files: `//` and `/* */` comments, JSDoc, Handlebars
-`{{! }}` / `{{!-- --}}` comments, CSS comments, AND human-readable string VALUES (governance
+`{{! }}` / `{{!-- --}}` comments, CSS comments, and human-readable string values (governance
 `reason:` fields, editorial / content strings, labels, descriptions). The rules below apply to
 all of it, not just `//` lines.
 
 ## Standard
 
-Human-readable text states the WHY in plain words a future reader understands on its own. It is
+Human-readable text states the why in plain words a future reader understands on its own. It is
 self-contained. Forbidden everywhere:
 
 - **Sprint / slice / phase / wave labels** — `UX-SHIP-1`, `Phase 6`, `Phase 2.5`, `Slice 1`,
@@ -41,7 +41,7 @@ self-contained. Forbidden everywhere:
   sketch used …".
 - **Caller references** — "called by X", "see also `fooController`". Same-file helper names used
   as inline navigation are tolerated only when they do not replace the explanation.
-- **Doc references.** Doc PATHS (`docs/FOO.md §X`, `see BAR.md`, `exploration/…`) are ALWAYS
+- **Doc references.** Doc paths (`docs/FOO.md §X`, `see BAR.md`, `exploration/…`) are always
   forbidden — doc and code evolve independently and the reference rots. Bare section shorthands
   (`DD §2.9`, `US §198`) are tolerated only as a locator sitting beside a complete
   self-contained explanation, never as a substitute for one.
@@ -51,7 +51,7 @@ self-contained. Forbidden everywhere:
 ## Deviations
 
 Code that does X today but is intended to do Y uses `Current:` / `Target:` lines, self-contained,
-AND the deviation is recorded as an issue in the maintainers' private tracker. The comment never
+and the deviation is recorded as an issue in the maintainers' private tracker. The comment never
 carries a private issue number (the issue cites the file and line instead). No other
 planning-style content is permitted in code text.
 
@@ -62,12 +62,12 @@ takes no `Current:` / `Target:` markers.
 ## Test comments (stricter)
 
 Test filenames, `describe` blocks, test names, file-header comments, and inline comments describe
-the **long-term contract** being verified in plain words ONLY — "Staging AWS wiring: assumed-role
+the **long-term contract** being verified in plain words only — "Staging AWS wiring: assumed-role
 chain + KMS signing + SES send" beats "Phase H readiness probe". A test failing today because a
 precondition is not yet wired is a long-term parity test with a failing precondition, not a
 sprint test.
 
-Test comments must NEVER reference any doc or finding id: no `BUG_HUNT` / `B##` /
+Test comments must never reference any doc or finding id: no `BUG_HUNT` / `B##` /
 `Regression for B##` / `(B##)`, no `DD §` / `US §` / `DATA_GOVERNANCE §`, no `docs/*.md`
 or bare `*.md` filenames, no sprint or section numbers. This is stricter than `src`: in tests even
 a section shorthand beside prose is not allowed.
@@ -90,6 +90,6 @@ Pick the level deliberately, because production runs at `LOG_LEVEL=warn` and dro
 - `debug` — high-frequency or diagnostic detail (per-cycle heartbeats, per-request traces); shown
   only in development.
 
-A line that feeds a CloudWatch metric filter MUST emit at a level production shows (`warn` or above)
+A line that feeds a CloudWatch metric filter must emit at a level production shows (`warn` or above)
 or the metric is silently starved. A high-frequency per-cycle line belongs at `debug` (or as a
 metric), never `info`.

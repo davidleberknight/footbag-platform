@@ -39,14 +39,14 @@ so rather than close it.
 
 ## Reading (approval-free)
 
-- Every open bug report, oldest first:
+- Every open report, bug or idea, oldest first:
   `gh issue list -R "$FOOTBAG_DEVTESTER_REPO" --state open --limit 200 --json number,title,labels,createdAt`
 - One bug report whole, body and every comment in order:
   `gh issue view <n> -R "$FOOTBAG_DEVTESTER_REPO" --json number,title,state,labels,author,body,comments`
 
 ## The list
 
-The list is every open bug report except those waiting on their reporter. Build it at the start
+The list is every open report, bug or idea, except those waiting on their reporter. Build it at the start
 of each run:
 
 - An open report without `needs-info` is on the list.
@@ -67,8 +67,10 @@ at the next. Then take the next, until the list is empty or the human stops.
    first.
 2. **Secrets first.** If it carries a password, key, token or other secret, the first action
    proposed is an edit removing it (`gh issue edit -R "$FOOTBAG_DEVTESTER_REPO" <n> --body-file
-   <file>`), and the human is told the secret needs replacing. Member names and details may stay:
-   the repository is private.
+   <file>`), and the human is told the secret needs replacing. A secret in a comment, which Claude
+   cannot edit, goes to the human to remove in GitHub, with the same warning: GitHub keeps earlier
+   versions of an edited report or comment, so removing it does not retire it. Member names and
+   details may stay: the repository is private.
 3. **Check for a duplicate** among open and closed bug reports and open tracker cards.
 4. **Reproduce it** by following the steps exactly: on the local dev stack (`./run_dev.sh`,
    persona switching, lightweight Playwright driving), or on staging read-only. Never deploy to
@@ -85,8 +87,13 @@ at the next. Then take the next, until the list is empty or the human stops.
    | duplicate | already reported, or already on a card | `duplicate` |
    | needs-info | it cannot be reproduced or judged from what the report says | `needs-info` |
 
+   An idea takes the same outcomes: fixed when the change is small enough to make now, carded when
+   it needs planning, not-a-bug when it is declined (the comment says why, from the governing story
+   or decision), duplicate when already suggested or planned, needs-info when it is unclear. An idea
+   is not reproduced; it is read against the page it names.
+
    Comments, in plain words a tester understands:
-   - fixed: what was wrong and that it is fixed.
+   - fixed: what was wrong, that it is fixed in the code, and that the fix reaches the site with the next deploy.
    - carded: that it is real and now tracked by the maintainers. No card number: testers cannot
      see the tracker.
    - not-a-bug: why it works as intended, from the governing story or decision.
@@ -99,7 +106,7 @@ at the next. Then take the next, until the list is empty or the human stops.
    - **fixed:** load the matching skill and rules, make the fix with the regression test the
      testing rule requires, run the targeted verification, then label, comment and close. The fix
      stays in the working tree for the human to commit.
-   - **carded:** file the tracker card per `tracker-ops` (its body carries the reproduction and
+   - **carded:** file the tracker card per `tracker-ops` "Drafting" and "Mutations" (its body carries the reproduction and
      cites the bug report's URL; filing it prompts), then label, comment and close.
    - **not-a-bug, duplicate:** label, comment and close.
    - **needs-info:** label and comment; it stays open, off the list until answered.

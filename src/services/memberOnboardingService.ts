@@ -173,7 +173,6 @@ import {
   ConflictError,
   NotFoundError,
   RateLimitedError,
-  ServiceError,
   ValidationError,
 } from './serviceErrors';
 
@@ -341,12 +340,6 @@ function buildClubResolvedNoticeMessage(
     case 'confirm': return `Added ${clubName} to your clubs.`;
     case 'decline': return `Marked ${clubName} as not yours.`;
     case 'correct': return `Noted that the ${clubName} record needs correction.`;
-  }
-}
-
-export class NotImplementedError extends ServiceError {
-  constructor(message: string, details?: Record<string, unknown>) {
-    super('not_implemented', message, details);
   }
 }
 
@@ -1579,8 +1572,8 @@ function submitTaskResponse(memberId: string, taskType: string, response: unknow
     submitClubAffiliationsResponse(memberId, body);
     return;
   }
-  throw new NotImplementedError(
-    `submitTaskResponse handler for task_type "${taskType}" is not implemented`,
+  throw new Error(
+    `submitTaskResponse does not answer the "${taskType}" task: the claim decision completes it`,
   );
 }
 

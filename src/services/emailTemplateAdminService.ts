@@ -9,13 +9,18 @@
  * an admin may edit. Does not own rendering or sending (`emailService`) or
  * seeding (`scripts/seed_email_templates.py`).
  *
- * Required patterns: every save appends one `audit_entries` row
- * (`email_template.updated`) in the same transaction as the update. Where the
+ * Required patterns: every save that changes the template appends one
+ * `audit_entries` row (`email_template.updated`) in the same transaction as the
+ * update; a save that changes nothing writes nothing, neither the row, its
+ * version, the audit log nor the sidecar, and reports `unchanged`. Where the
  * authoring tree is written (`allowCuratedSidecarWrites`, a developer machine
  * before go-live), a save also writes the template's committed sidecar,
  * `curated/email_templates/<key>.json`, after the transaction commits, so the
  * edit survives the next seeding; on a deployed host the database is the whole
- * write.
+ * write. Where the authoring tree is written, a seeded test persona's save is
+ * refused (ForbiddenError) before anything is written, so a switchable test
+ * identity cannot rewrite committed source; on a deployed host any admin may
+ * save.
  * The subject and body are cleaned with the shared write-time sanitizer before
  * validation, and the stored text is passed through the same cleaner before the
  * audit's changed-field comparison.
@@ -34,7 +39,8 @@ import { logger } from '../config/logger';
 import { writeEmailTemplateSidecarFile } from '../lib/emailTemplateSidecar';
 import { resolveCuratedRootDir } from './curatorMediaService';
 import { appendAuditEntry } from './auditService';
-import { NotFoundError, ValidationError } from './serviceErrors';
+import { ForbiddenError, NotFoundError, ValidationError } from './serviceErrors';
+import { isSeededTestPersonaMemberId } from '../lib/personaGuards';
 import {
   INVALID_TEXT_ENCODING_MESSAGE, sanitizeUserText, type TextShape,
 } from '../lib/textSanitizer';
@@ -82,6 +88,7 @@ export interface EmailTemplateEditContent {
   isRestricted: boolean;
   backHref: string;
   saved: boolean;
+  unchanged: boolean;
   fieldErrors: Record<string, string>;
   errorList: string[];
   hasErrors: boolean;
@@ -94,8 +101,13 @@ export interface EmailTemplateEditInput {
   isEnabled?: boolean;
 }
 
+export type UpdateTemplateResult =
+  | { status: 'saved' }
+  | { status: 'unchanged' };
+
 interface EditPageOptions {
   saved?: boolean;
+  unchanged?: boolean;
   submitted?: EmailTemplateEditInput;
   fieldErrors?: Record<string, string>;
 }
@@ -237,6 +249,7 @@ export const emailTemplateAdminService = {
         isRestricted: row.pii_classification === 'restricted',
         backHref: '/admin/email-templates',
         saved: opts.saved === true,
+        unchanged: opts.unchanged === true,
         fieldErrors,
         errorList,
         hasErrors: errorList.length > 0,
@@ -245,11 +258,18 @@ export const emailTemplateAdminService = {
   },
 
   // Update one template's editable fields, then append one audit entry, in a
-  // single transaction. Throws NotFoundError for an unknown key and
-  // ValidationError (with per-field messages) on bad input.
-  updateTemplate(templateKey: string, input: EmailTemplateEditInput, actorMemberId: string): void {
+  // single transaction; a submission identical to the stored template writes
+  // nothing and returns `unchanged`. Throws NotFoundError for an unknown key,
+  // ForbiddenError for a test persona where the committed sidecar would be
+  // written, and ValidationError (with per-field messages) on bad input.
+  updateTemplate(templateKey: string, input: EmailTemplateEditInput, actorMemberId: string): UpdateTemplateResult {
     const current = emailTemplates.getByKey.get(templateKey) as EmailTemplateRow | undefined;
     if (!current) throw new NotFoundError(`No email template "${templateKey}"`);
+    if (config.allowCuratedSidecarWrites && isSeededTestPersonaMemberId(actorMemberId)) {
+      throw new ForbiddenError(
+        'Email templates cannot be edited by a test persona on a developer machine, where the save would rewrite the committed template file.',
+      );
+    }
 
     // Cleaned before every check, so the brace and merge-field checks judge the
     // text that is stored. The cleaner keeps single-brace {token} fields.
@@ -297,6 +317,7 @@ export const emailTemplateAdminService = {
     if (body !== cleanedStored(current.body_template, 'multi_line')) changedFields.push('body_template');
     if ((isEnabled ? 1 : 0) !== current.is_enabled) changedFields.push('is_enabled');
     if (classification !== current.pii_classification) changedFields.push('pii_classification');
+    if (changedFields.length === 0) return { status: 'unchanged' };
 
     const now = new Date().toISOString();
     transaction(() => {
@@ -333,5 +354,6 @@ export const emailTemplateAdminService = {
         });
       }
     }
+    return { status: 'saved' };
   },
 };

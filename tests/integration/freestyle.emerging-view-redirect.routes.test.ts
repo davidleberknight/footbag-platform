@@ -29,9 +29,9 @@ beforeAll(async () => {
 afterAll(() => cleanupTestDb(dbPath));
 
 describe('/freestyle/tricks?view=emerging redirect', () => {
-  it('redirects to /freestyle/observational with status 302', async () => {
+  it('redirects to /freestyle/observational with status 301', async () => {
     const res = await page('/freestyle/tricks?view=emerging');
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(301);
     expect(res.headers['location']).toBe('/freestyle/observational');
   });
 

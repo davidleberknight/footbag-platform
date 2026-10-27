@@ -231,7 +231,7 @@ discipline and the shared classes; per-section classes are in the stylesheet.
   (`.card`, `.card-title`, `.card-meta`, `.card-description`); status chips use `.badge`. Which of
   these a control takes is fixed by the action hierarchy above, not chosen per surface.
 - Interface chrome is Title Case: button and call-to-action labels, page titles, hero titles, and
-  section headings. Capitalize the first letter of each word EXCEPT the minor words
+  section headings. Capitalize the first letter of each word except the minor words
   `a an as the and or nor but to of in on at by for`, unless the minor word is the first or last word
   ("Create a New Club", "Browse All Matching Media", "Log In", "Go to Home", "Payment History").
   `toTitleCase()` in `src/lib/titleCase.ts` is the executable definition and the only place that word
@@ -409,8 +409,10 @@ render it. Middleware adds the pre-shaped booleans the layout uses (`res.locals.
 Registered helpers, from `src/app.ts`:
 
 - `formatDate(iso)`: ISO `YYYY-MM-DD` to `D Month YYYY`.
+- `formatDateRange(value)`: a date or a `/`-delimited two-date range in the shortest unambiguous form (`21-22 March 1998`); a legacy day-first slash date renders the same way, and anything unrecognised passes through unchanged.
 - `yearFromDate(iso)`: the 4-digit year.
 - `countryFlag(country)`: flag for a country code.
+- `asset(path)`: the versioned static-asset URL the static-asset rule above requires.
 - `externalLink(url, label, class)`: an external `<a>` with `rel="noopener noreferrer"`.
 - `formatLocation(city, region, country)`: location parts joined with commas.
 - `splitParagraphs(text)`: curator prose split on blank lines into paragraph strings.

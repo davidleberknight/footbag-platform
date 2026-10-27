@@ -154,7 +154,7 @@ describe('GET /payments/cancel', () => {
       const res = await request(createApp())
         .get(`/payments/cancel?session_id=${sessionId}&returnTo=%2Fclubs`)
         .set('Cookie', cookie(OWNER_ID));
-      expect(res.status, sessionId).toBe(302);
+      expect(res.status, sessionId).toBe(303);
       expect(res.headers.location, sessionId)
         .toBe(`/payments/success?session_id=${sessionId}&returnTo=%2Fclubs`);
     }

@@ -24,9 +24,9 @@ COMMAND="$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')"
 
 GIT_DENY="HARD BLOCK: the human owns every change to this repository. Claude may read history and working-tree state, and may never stage, commit, push, pull, branch, switch, checkout, merge, rebase, tag, stash, reset, or otherwise write to the repository. Say what needs running and let the human run it."
 
-GH_DENY="HARD BLOCK: the human owns every change to the GitHub repository. Claude may read GitHub and may operate issues in the maintainers' private tracker and the private bug-intake repository, and may never create or modify branches, pull requests, releases, workflow runs, keys, or repository settings."
+GH_DENY="HARD BLOCK: the human owns every change to the GitHub repository. Claude may read GitHub and may operate issues in the maintainers' private tracker and the private dev-tester repository, and may never create or modify branches, pull requests, releases, workflow runs, keys, or repository settings."
 
-GH_ISSUE_API_DENY="HARD BLOCK: write to an issue with the gh issue subcommands, not gh api. Their repo-flag form is what the tracker permission rules grant, so rewrite the command rather than hand it back: a body, title, label or assignee change as gh issue edit -R \"\$FOOTBAG_PRIVATE_REPO\" <n> --body-file <file>; a new comment as gh issue comment -R \"\$FOOTBAG_PRIVATE_REPO\" <n> --body-file <file>; your own latest comment on that issue as the same comment command plus --edit-last; close or reopen as gh issue close or gh issue reopen -R \"\$FOOTBAG_PRIVATE_REPO\" <n>. Use \$FOOTBAG_DEVTESTER_REPO for the bug-intake repository. A comment that is not your latest is edited with gh api -X PATCH repos/\$FOOTBAG_PRIVATE_REPO/issues/comments/<id> -F body=@<file>, exactly that shape and nothing else."
+GH_ISSUE_API_DENY="HARD BLOCK: write to an issue with the gh issue subcommands, not gh api. Their repo-flag form is what the tracker permission rules grant, so rewrite the command rather than hand it back: a body, title, label or assignee change as gh issue edit -R \"\$FOOTBAG_PRIVATE_REPO\" <n> --body-file <file>; a new comment as gh issue comment -R \"\$FOOTBAG_PRIVATE_REPO\" <n> --body-file <file>; your own latest comment on that issue as the same comment command plus --edit-last; close or reopen as gh issue close or gh issue reopen -R \"\$FOOTBAG_PRIVATE_REPO\" <n>. Use \$FOOTBAG_DEVTESTER_REPO for the dev-tester repository. A comment that is not your latest is edited with gh api -X PATCH repos/\$FOOTBAG_PRIVATE_REPO/issues/comments/<id> -F body=@<file>, exactly that shape and nothing else."
 
 deny() {
   jq -n --arg reason "$1" '{
@@ -129,7 +129,7 @@ judge_config() {
 
 # The GitHub CLI reaches the same repository over the API, so the same rule holds
 # there. The one sanctioned exception is issue operations, which is how the
-# maintainers' private tracker and the private bug-intake repository are worked;
+# maintainers' private tracker and the private dev-tester repository are worked;
 # the permission rules decide which repositories they auto-approve for. Everything
 # else that changes repository state is refused.
 # A GraphQL call is always a POST carrying its query in a field, so the field rule

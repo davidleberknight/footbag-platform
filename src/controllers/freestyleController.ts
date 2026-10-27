@@ -152,7 +152,7 @@ export const freestyleController = {
       const view   = typeof req.query['view']   === 'string' ? req.query['view']   : undefined;
       const redirectTo = freestyleService.tricksIndexRedirectTarget(view);
       if (redirectTo) {
-        res.redirect(302, redirectTo);
+        res.redirect(301, redirectTo);
         return;
       }
       const sort = typeof req.query['sort'] === 'string' ? req.query['sort'] : undefined;
@@ -176,11 +176,6 @@ export const freestyleController = {
     } catch (err) {
       handleControllerError(err, res, next, 'freestyle controller');
     }
-  },
-
-  /** GET /freestyle/insights — retired; By the Numbers carries the live corpus statistics. */
-  insights(_req: Request, res: Response): void {
-    res.redirect(301, '/freestyle/by-the-numbers');
   },
 
   /** GET /freestyle/by-the-numbers */
@@ -292,7 +287,7 @@ export const freestyleController = {
    * browse is the family index.
    */
   familiesHub(_req: Request, res: Response): void {
-    res.redirect(302, '/freestyle/tricks?view=family');
+    res.redirect(301, '/freestyle/tricks?view=family');
   },
 
   /** GET /freestyle/compositional-sets — retired; a section of /freestyle/sets now. */

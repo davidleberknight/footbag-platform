@@ -23,6 +23,6 @@ export const homeController = {
       next();
       return;
     }
-    res.redirect(302, config.archiveUrl);
+    res.redirect(303, config.archiveUrl);
   },
 };

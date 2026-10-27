@@ -3595,7 +3595,7 @@ Success Criteria:
 - Subject and body are both required, and bounded at 300 and 20000 characters.
 - Disabling a template suppresses that email type at send time without deleting its content. The edit view warns before a disable takes effect, most strongly for a restricted template, because those are the emails a member cannot complete an action without.
 - The PII classification (public, internal, confidential, restricted) is a property of the template rather than of any one message, and it bounds how much of a sent message an admin may read afterwards on the email log: public and internal bodies may be shown, a confidential body only behind a justification-logged reveal, and a restricted body never, because it holds a live credential link until the post-send scrub clears it.
-- Every save appends exactly one audit entry in the same transaction as the update, so a wording change that committed always carries its record.
+- Every save that changes the template appends exactly one audit entry in the same transaction as the update, so a wording change that committed always carries its record; a save that changes nothing writes nothing.
 - Editing an unknown template key is a 404.
 - Template content is seeded from committed sidecars before go-live; from go-live the database is the sole source, per the curator content source-of-truth model.
 

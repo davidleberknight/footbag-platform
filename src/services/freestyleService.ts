@@ -6607,9 +6607,7 @@ function measureFamilyHistogram(): TopologyHistogramRow[] {
 // a legacy name for the Furious set (the two-dex, +2 set), never a set or modifier
 // of its own; its old modifier, trick, AND set URLs all redirect permanently to
 // the Furious set page so the name keeps working without presenting a standalone
-// identity. Maps the old slug to its canonical set slug. A retired nickname with
-// no single canonical set (miraging, illusioning) is not here; its set URL goes
-// to a glossary explanation instead.
+// identity. Maps the old slug to its canonical set slug.
 const RETIRED_SET_NICKNAME_REDIRECTS: ReadonlyMap<string, string> = new Map([
   ['barraging', 'furious'],
 ]);
@@ -9596,7 +9594,7 @@ export const freestyleService = {
         let href: string | null = null;
         if (redirect) href = redirect;
         else if (isKnownModifier(s, sRow)) href = `/freestyle/modifier/${s}`;
-        else if (findCanonicalSetBySlug(s) && !resolveSetRouteRedirect(s)) href = `/freestyle/sets/${s}`;
+        else if (findCanonicalSetBySlug(s)) href = `/freestyle/sets/${s}`;
         return { slug: s, name, href };
       })
       .filter((m): m is { slug: string; name: string; href: string } => m.href !== null);
@@ -9647,14 +9645,11 @@ export const freestyleService = {
 
   /**
    * Canonical set slugs whose /freestyle/sets/:slug page renders directly.
-   * Slugs that 301-redirect (to a glossary term for a non-set concept) are
-   * excluded. Drives the sitemap enumeration of set-detail pages, parallel to the
+   * Drives the sitemap enumeration of set-detail pages, parallel to the
    * freestyle trick pages.
    */
   listSitemapSetSlugs(): string[] {
-    return CANONICAL_SETS
-      .filter((s) => !resolveSetRouteRedirect(s.slug))
-      .map((s) => s.slug);
+    return CANONICAL_SETS.map((s) => s.slug);
   },
 
   /**
@@ -9892,10 +9887,10 @@ export const freestyleService = {
   },
 
   /**
-   * GET /freestyle/sets/:slug — for a slug that is not a confirmed set page but a
-   * non-set concept (illusioning, miraging, barraging), send its old set URL to
-   * the glossary term that explains it as a non-set concept. Returns the redirect
-   * path, or null when the slug is a live set (render it) or unknown (404).
+   * GET /freestyle/sets/:slug — the redirect for a retired set address whose set
+   * lives under another name (barraging, whose set is Furious; whirling, whose set
+   * is Blazing). Returns the redirect path, or null when the slug is a live set
+   * (render it) or unknown (404).
    */
   setRouteRedirectTarget(slug: string): string | null {
     const retiredSet = RETIRED_SET_NICKNAME_REDIRECTS.get(slug);

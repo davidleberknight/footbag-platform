@@ -31,7 +31,7 @@ import { createScratchDir } from '../fixtures/scratchDir';
 const REPO_ROOT = resolve(__dirname, '..', '..');
 const REMOTE_HALF = join(REPO_ROOT, 'scripts', 'internal', 'take-pre-cutover-snapshot-remote.sh');
 const SNAPSHOT_SCRIPT = join(REPO_ROOT, 'scripts', 'take-pre-cutover-snapshot.sh');
-const BUCKET = 'footbag-test-dr';
+const BUCKET = 'footbag-production-db-snapshots-dr';
 
 let work: string;
 let liveDir: string;
@@ -76,6 +76,9 @@ beforeEach(() => {
   const aws = join(binDir, 'aws');
   writeFileSync(aws, `#!/usr/bin/env bash\nprintf '%s\\n' "$*" >> ${JSON.stringify(callLog)}\nexit 0\n`);
   chmodSync(aws, 0o755);
+  // The stand-in host records itself as the environment the bucket names, so the
+  // snapshot script's host check passes; the check itself is pinned in its own suite.
+  writeFileSync(join(work, 'host.env'), 'FOOTBAG_ENV=production\n');
 
 });
 
@@ -93,6 +96,7 @@ function runHalf(env: Record<string, string> = {}) {
       FOOTBAG_DB_DIR: dbDir,
       FOOTBAG_SNAPSHOT_DIR: snapDir,
       DR_BUCKET: BUCKET,
+      FOOTBAG_ENV_FILE: join(work, 'host.env'),
       ...env,
     },
     ...SPAWN_GUARD,

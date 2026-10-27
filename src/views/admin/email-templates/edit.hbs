@@ -11,6 +11,9 @@
     {{#if content.saved}}
     {{> outcome-notice text="Saved. The next send of this email uses the new wording." tone='ok'}}
     {{/if}}
+    {{#if content.unchanged}}
+    {{> outcome-notice text="Nothing changed, so nothing was saved."}}
+    {{/if}}
     {{> outcome-notice lines=content.errorList tone='no'}}
 
     {{#if content.hasMergeFields}}

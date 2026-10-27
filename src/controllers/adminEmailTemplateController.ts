@@ -31,8 +31,10 @@ export const adminEmailTemplateController = {
   edit(req: Request, res: Response, next: NextFunction): void {
     try {
       const key = String(req.params.key);
+      const flash = takeFlash(req, res, FLASH_KIND.ADMIN_SAVED);
       const vm = emailTemplateAdminService.getTemplateEditPage(key, {
-        saved: takeFlash(req, res, FLASH_KIND.ADMIN_SAVED) === `email_template:${key}`,
+        saved: flash === `email_template:${key}`,
+        unchanged: flash === `email_template_unchanged:${key}`,
       });
       if (!vm) {
         renderNotFound(res);
@@ -49,8 +51,9 @@ export const adminEmailTemplateController = {
     const input = editInputFromBody(req.body as Record<string, unknown>);
 
     try {
-      emailTemplateAdminService.updateTemplate(key, input, req.user!.userId);
-      writeFlash(res, req, FLASH_KIND.ADMIN_SAVED, `email_template:${key}`);
+      const result = emailTemplateAdminService.updateTemplate(key, input, req.user!.userId);
+      const outcome = result.status === 'saved' ? 'email_template' : 'email_template_unchanged';
+      writeFlash(res, req, FLASH_KIND.ADMIN_SAVED, `${outcome}:${key}`);
       res.redirect(303, `/admin/email-templates/${key}/edit`);
     } catch (err) {
       if (err instanceof ValidationError) {

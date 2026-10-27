@@ -169,7 +169,7 @@ describe('finding an event', () => {
     // Defect caught: the page loses the block that tells an administrator what
     // the screen does and which events it reaches.
     const res = await get('/admin/events/results');
-    expect(res.text).toContain('<aside class="admin-instructions" aria-label="About this page">');
+    expect(res.text).toContain('<aside class="admin-instructions card card-static" aria-label="About this page">');
   });
 });
 

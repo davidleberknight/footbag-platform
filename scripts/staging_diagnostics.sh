@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 #
-# staging_diagnostics.sh: single-file diagnostic toolkit for the footbag
-# staging host. Read-only by default. The only state-changing operation is
-# `force-tick`, which must be invoked explicitly with `-y`.
+# staging_diagnostics.sh: single-file diagnostic toolkit for a footbag host,
+# staging by hand or either environment through scripts/host-diagnostics.sh.
+# Read-only by default. The only state-changing operation is `force-tick`,
+# which must be invoked explicitly with `-y`. Every subcommand but `help`
+# refuses a host whose recorded FOOTBAG_ENV is not staging or production.
 #
 # ----------------------------------------------------------------------------
 # Upload instructions
@@ -1044,8 +1046,27 @@ HELP
 
 # ---------------- Dispatcher ----------------
 
+# The host confirms its own environment before anything reports on it: a host
+# recording no deployed environment is not one these diagnostics describe.
+require_deployed_host() {
+  local recorded
+  recorded="$(sudo awk -F= '$1=="FOOTBAG_ENV"{sub(/^[^=]*=/,""); print}' "$ENV_FILE" 2>/dev/null | tail -1 || true)"
+  if [[ -z "$recorded" ]]; then
+    echo "REFUSING: ${ENV_FILE} records no FOOTBAG_ENV (missing or unreadable), so this host cannot confirm its environment. Nothing was run." >&2
+    exit 1
+  fi
+  if [[ "$recorded" != "staging" && "$recorded" != "production" ]]; then
+    echo "REFUSING: ${ENV_FILE} records FOOTBAG_ENV='${recorded}', not staging or production. Nothing was run." >&2
+    exit 1
+  fi
+}
+
 main() {
   local sub="${1:-help}"; shift || true
+  case "$sub" in
+    help|-h|--help) ;;
+    *) require_deployed_host ;;
+  esac
   case "$sub" in
     status)               cmd_status ;;
     health)               cmd_health ;;

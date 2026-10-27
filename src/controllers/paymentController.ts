@@ -203,7 +203,7 @@ export const paymentController = {
       const continueHref = safeReturnTo(req.query.returnTo, `/members/${user.slug}`);
       const confirmed = paymentService.getPaymentCancelRedirect(payment, continueHref);
       if (confirmed) {
-        res.redirect(302, confirmed);
+        res.redirect(303, confirmed);
         return;
       }
       res.render(

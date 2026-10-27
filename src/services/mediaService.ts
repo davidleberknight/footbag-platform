@@ -41,9 +41,6 @@
  *   - /media/freestyle-tutorials: permanent 301 redirect to /freestyle/media,
  *     where the freestyle media surface lives (registered before
  *     /media/:galleryId so the literal path matches first)
- *   - /tags: permanent 301 redirect to /media/browse, which absorbed the
- *     hashtag index, so there is one place to find media by hashtag rather than
- *     two that look alike
  *
  * Does not own:
  *   - Any media or gallery write: uploads, edits, deletes, gallery
@@ -2117,14 +2114,12 @@ export function resolveTagFilterAdd(args: {
 // posts its include and exclude fields, any quick-add suggestion chip, and an
 // `apply` marker; the controller folds them here and redirects (PRG), so every
 // applied filter lands on one clean shareable URL (normalized, de-duped, empty
-// and raw-cased tokens dropped) however the visitor assembled it. `curatedOff`
-// replays a broadened named-gallery view.
+// and raw-cased tokens dropped) however the visitor assembled it.
 export function canonicalFilterPath(args: {
   basePath: string;
   rawContext?: string[];
   rawTags: string[];
   rawExcludes: string[];
-  curatedOff?: boolean;
 }): string {
   const context = uniqStrings((args.rawContext ?? []).map(normalizeTagToken).filter(notEmpty));
   const include = uniqStrings(args.rawTags.map(normalizeTagToken).filter(notEmpty))
@@ -2132,9 +2127,7 @@ export function canonicalFilterPath(args: {
   // Context and include win over exclude on the same token, matching the read path.
   const exclude = uniqStrings(args.rawExcludes.map(normalizeTagToken).filter(notEmpty))
     .filter((t) => !include.includes(t) && !context.includes(t));
-  const path = buildFilterPath(args.basePath, context, include, exclude);
-  if (!args.curatedOff) return path;
-  return `${path}${path.includes('?') ? '&' : '?'}curated=off`;
+  return buildFilterPath(args.basePath, context, include, exclude);
 }
 
 // The /media/browse case of buildTagFilterView. Context tags (from `?context=`,

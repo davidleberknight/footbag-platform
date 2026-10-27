@@ -44,12 +44,13 @@ one follow-up has tried to get the answer, and the report then says what was tri
    against what it should have shown.
 3. **Which site:** their own computer, or the shared test site.
 4. **Which page:** the web address, or the path after the site name, starting with `/`.
-5. **Who they were signed in as:** a test persona's display name, a real member's record id, or
-   not signed in.
+5. **Who they were signed in as:** a test persona's display name, a real member's record id,
+   their own account, or not signed in.
 6. **The steps**, starting from a page anyone can reach, one action per line: which link or
    button by its words, which box, and the exact made-up value typed. A step like "filled in the
    form" is not a step.
-7. **Any record involved:** the id of the member, club, event or other record the steps touched.
+7. **Any record involved:** the id of the member, club, event or other record the steps touched;
+   failing an id, the last part of that record's page address (the `my-club` in `/clubs/my-club`).
 8. **Whether it happens again:** they repeat the steps once now, unless that would change real
    data, and say every time, sometimes, or once only.
 9. **When:** date, time and time zone. On the test site this is how the matching log lines are

@@ -916,6 +916,87 @@ describe('POST /members/:memberKey/galleries/:id/edit', () => {
     } finally { db.close(); }
   });
 
+  // Defect caught: the admin's moderation form fills its criteria box with the
+  // gallery's stored tags, including the owner's automatic `#by_` tag, and the
+  // save refuses that tag, so no administrator can moderate a member's gallery
+  // through the page as it renders.
+  it('accepts the moderation form posted back exactly as the page renders it', async () => {
+    await createGalleryViaApi('Form As Rendered');
+    const id = findGalleryIdByName('Form As Rendered')!;
+    const page = await request(createApp())
+      .get(`/admin/curator/galleries/${id}/edit`)
+      .set('Cookie', adminCookie());
+    expect(page.status).toBe(200);
+    // Read each field as the server rendered it, a hidden input or a text box.
+    const field = (name: string): string => {
+      const input = page.text.match(new RegExp(`<input[^>]*name="${name}"[^>]*value="([^"]*)"`));
+      const area = page.text.match(new RegExp(`<textarea[^>]*name="${name}"[^>]*>([^<]*)</textarea>`));
+      return (input?.[1] ?? area?.[1] ?? '').replace(/&#x23;|&#35;/g, '#').trim();
+    };
+    expect(page.text, 'the form carries a criteria field').toMatch(/name="criteriaTags"/);
+    expect(field('criteriaTags')).not.toMatch(/#by_/);
+    const res = await request(createApp())
+      .post(`/admin/curator/galleries/${id}/edit`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({
+        name: field('name'),
+        description: field('description'),
+        sortOrder: 'upload_desc',
+        criteriaTags: field('criteriaTags'),
+        excludeTags: field('excludeTags'),
+        uploadTags: field('uploadTags'),
+        clearName: '1',
+        reason: 'The name insults another member.',
+      });
+    expect(res.status, 'the moderation saves rather than refusing the rendered tags').toBe(303);
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    try {
+      const row = db.prepare('SELECT name FROM member_galleries WHERE id = ?').get(id) as { name: string };
+      expect(row.name).toBe('Gallery');
+    } finally { db.close(); }
+  });
+
+  // Defect caught: an admin clears a member's abusive gallery name and
+  // description, and the trail loses what the member had written, so the
+  // intervention cannot be reviewed or undone, or the owner is never told why.
+  it('records both cleared values, before and after, when an admin clears the name and description', async () => {
+    await createGalleryViaApi('Cleared Both');
+    const id = findGalleryIdByName('Cleared Both')!;
+    const reason = 'The name and description insult another member.';
+    const res = await request(createApp())
+      .post(`/admin/curator/galleries/${id}/edit`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({
+        name: 'Cleared Both', description: 'desc', sortOrder: 'upload_desc',
+        criteriaTags: '#tag1', excludeTags: '',
+        clearName: '1', clearDescription: '1', reason,
+      });
+    expect(res.status).toBe(303);
+    const db = new BetterSqlite3(TEST_DB_PATH);
+    try {
+      const row = db.prepare(
+        "SELECT reason_text, metadata_json FROM audit_entries"
+        + " WHERE action_type = 'media.member_gallery_moderated' AND entity_id = ?",
+      ).get(id) as { reason_text: string; metadata_json: string };
+      expect(row.reason_text).toBe(reason);
+      const meta = JSON.parse(row.metadata_json) as {
+        fields: string[]; before: Record<string, unknown>; after: Record<string, unknown>;
+      };
+      expect([...meta.fields].sort()).toEqual(['description', 'name']);
+      expect(meta.before).toEqual({ name: 'Cleared Both', description: 'desc' });
+      expect(meta.after['name']).toBe('Gallery');
+      expect(meta.after['description']).not.toBe('desc');
+
+      const notices = db.prepare(
+        "SELECT body_text FROM outbox_emails WHERE template_key = 'gallery_moderated_member'"
+        + ' AND recipient_member_id = ?',
+      ).all(OWNER_ID) as Array<{ body_text: string }>;
+      expect(notices.some((n) => n.body_text.includes(reason))).toBe(true);
+    } finally { db.close(); }
+  });
+
   it('writes no audit row and no notice when the moderation changed nothing', async () => {
     await createGalleryViaApi('Unchanged By Admin');
     const id = findGalleryIdByName('Unchanged By Admin')!;

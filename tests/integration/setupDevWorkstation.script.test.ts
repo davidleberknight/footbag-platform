@@ -14,7 +14,7 @@
  *   - a download whose checksum does not match is refused before it is unpacked;
  *   - a machine that already has everything is told so, with no prompt at all,
  *     which is what makes running it again safe;
- *   - the bug-intake link is made only to a clone, never over something that is
+ *   - the dev-tester link is made only to a clone, never over something that is
  *     not a link, and a machine GitHub does not admit carries on without it.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
@@ -719,12 +719,12 @@ describe('setup-dev-workstation.sh — the named key pair a dev-and-tester is on
   });
 });
 
-describe('setup-dev-workstation.sh — the link to the bug-intake clone', () => {
+describe('setup-dev-workstation.sh — the link to the dev-tester clone', () => {
   const link = () => join(repo, 'footbag_dev_tester_repo');
   const sibling = () => join(root, 'footbag-dev-tester');
   const gitLog = () => join(root, 'github-git.log');
 
-  /** A clone of the bug-intake repository beside the checkout. */
+  /** A clone of the dev-tester repository beside the checkout. */
   function makeSibling() {
     spawnSync('git', ['init', '-q', sibling()], SPAWN_GUARD);
     spawnSync('git', ['-C', sibling(), 'remote', 'add', 'origin', 'git@github.com:acme/footbag-dev-tester.git'], SPAWN_GUARD);

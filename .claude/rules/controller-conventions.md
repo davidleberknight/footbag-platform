@@ -21,15 +21,17 @@ Templates branch only on pre-shaped fields. Controllers do not mutate service ou
 
 ## HTTP status conventions
 
-Controllers emit these statuses by convention. Service errors route through `handleControllerError(err, res, next, context)` from `src/lib/controllerErrors.ts`; controllers MAY catch a specific error class locally to re-render a form (e.g., validation on login/register) instead of delegating.
+Controllers emit these statuses by convention. Service errors route through `handleControllerError(err, res, next, context)` from `src/lib/controllerErrors.ts`; controllers may catch a specific error class locally to re-render a form (e.g., validation on login/register) instead of delegating.
 
 | Status | When | Trigger |
 |---|---|---|
 | 303 | Post-redirect-get on state-changing POST (success path, and a repeat of an action that already landed: `own_repeat` or `already_held`) | Controller `res.redirect(303, ...)` after a successful write |
-| 404 | Resource not found; anti-enumeration (owner-only routes where slug mismatches authenticated user); OR any `ValidationError` delegated to `handleControllerError` (validation detail is never leaked to public visitors) | `NotFoundError`, or a delegated `ValidationError`, from service; or explicit controller-side ownership check |
+| 404 | Resource not found; anti-enumeration (owner-only routes where slug mismatches authenticated user); or any `ValidationError` delegated to `handleControllerError` (validation detail is never leaked to public visitors) | `NotFoundError`, or a delegated `ValidationError`, from service; or explicit controller-side ownership check |
 | 422 | Controller-emitted validation/conflict re-render with submitted values preserved (the discriminated-union `validation_error` result, or a locally-caught `ConflictError`). A thrown `ValidationError` *delegated* to `handleControllerError` renders 404, not 422. A repeat of an action that already landed is never a conflict re-render; it takes the 303 row. | Controller renders the form at 422; or `ConflictError` caught locally |
 | 429 | Rate-limit exceeded; `Retry-After` header set from `retryAfterSeconds` | `RateLimitedError` caught locally by the controller; `handleControllerError` does not handle it (delegating would 500) |
 | 503 | Service-layer unavailability (SQLite busy/locked, adapter down) | `ServiceUnavailableError` from service |
+
+The other codes are fixed by the design decision "HTTP Response Convention" and are emitted only in its cases: 403 for authenticated but not permitted (the admin and tier gates), 400 for parser-level errors, 301 for a permanent canonical URL change, and 302 for the authentication gate's redirect to `/login?returnTo=...` alone.
 
 ## Cookies
 

@@ -38,7 +38,7 @@
 #   11. With --account only: the named key pair a dev-and-tester is onboarded
 #       with, at ~/.ssh/id_ed25519_<account>, where the acceptance looks for it,
 #       made with no passphrase.
-#   12. The link footbag_dev_tester_repo to the private bug-intake repository's
+#   12. The link footbag_dev_tester_repo to the private dev-tester repository's
 #       clone, beside this checkout as ../footbag-dev-tester, cloning it over SSH
 #       first when GitHub admits this machine to it. The owner is taken from this
 #       checkout's own origin. Without access it says so and carries on: plain
@@ -102,7 +102,7 @@
 #
 # Test seam (CI only): SETUP_DEV_AWS_BIN replaces the aws CLI used for the
 # dead-identity proof, and SETUP_DEV_GIT the git that reaches GitHub for the
-# bug-intake clone; a run using either says so.
+# dev-tester clone; a run using either says so.
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -363,7 +363,7 @@ if [[ -n "$ACCOUNT" ]]; then
   fi
 fi
 
-# What the bug-intake link needs: nothing, "link", or "clone" (then link).
+# What the dev-tester link needs: nothing, "link", or "clone" (then link).
 # Settled before the plan, so something other than a link in its place stops
 # the run before anything is installed. A link that already resolves is kept
 # wherever it points; one that resolves to nothing is replaced, losing nothing.
@@ -580,7 +580,7 @@ if [[ -n "$KEY_ACTION" ]]; then
   ssh-keygen -q -t ed25519 -N '' -f "$NAMED_KEY" -C "${ACCOUNT} footbag"
 fi
 
-# ── 12. The bug-intake repository link ───────────────────────────────────────
+# ── 12. The dev-tester repository link ───────────────────────────────────────
 if [[ "$DEVTESTER_ACTION" == "clone" ]]; then
   echo "==> clone ${DEVTESTER_URL}"
   GIT_SSH_COMMAND="ssh -o BatchMode=yes" "$GITHUB_GIT" clone -q "$DEVTESTER_URL" "$DEVTESTER_DIR"
@@ -605,7 +605,7 @@ if (( WITH_AWS )) && ! aws_ok; then
   remaining=1
 fi
 if [[ -n "$DEVTESTER_ACTION" ]] && ! git -C "$DEVTESTER_LINK" rev-parse --git-dir >/dev/null 2>&1; then
-  echo "  still missing: ${DEVTESTER_LINK}, the link to the bug-intake clone" >&2
+  echo "  still missing: ${DEVTESTER_LINK}, the link to the dev-tester clone" >&2
   remaining=1
 fi
 tool_report node python3 sqlite3 ffmpeg ffprobe jq age docker gitleaks terraform

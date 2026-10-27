@@ -15,6 +15,8 @@ Design and specification documents for the footbag-platform modernization projec
 - [`TESTING.md`](TESTING.md): test strategy, risk-classification rubric, coverage expectations, and verification gates
 - [`DIAGRAMS.md`](DIAGRAMS.md): architecture and data-flow diagrams
 - [`GLOSSARY.md`](GLOSSARY.md): cross-document terminology
+- [`FREESTYLE.md`](FREESTYLE.md): the freestyle maintainer guide: what the subsystem is, who owns each fact, and how to change it safely
+- [`CLAUDE_CODE_GUIDE.md`](CLAUDE_CODE_GUIDE.md): how this repository's Claude Code harness works and why, for every contributor before using Claude Code here
 - [`DEV_ONBOARDING.md`](DEV_ONBOARDING.md): developer setup and local iteration guidance
 - Legacy-data migration: the design lives in the Legacy Data Migration decision in [`DESIGN_DECISIONS.md`](DESIGN_DECISIONS.md) and the claim and onboarding user stories; the pipeline validation gates are in [`TESTING.md`](TESTING.md). The go-live gate index, operational readiness, rollback posture, cutover sequencing and stakeholder coordination live in GO_LIVE_PLAN.md (private GitHub repo), which is the source of truth for go-live planning
 

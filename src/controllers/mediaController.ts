@@ -29,18 +29,6 @@ export const mediaController = {
   namedGallery(req: Request, res: Response, next: NextFunction): void {
     try {
       const galleryId = req.params.galleryId;
-      // The batch filter form posts an `apply` marker; fold the submitted state
-      // into one canonical URL and redirect (PRG), so the rendered gallery never
-      // carries the form's transient or empty fields. The saved row is untouched.
-      if (req.query.apply !== undefined) {
-        res.redirect(302, canonicalFilterPath({
-          basePath: `/media/${galleryId}`,
-          rawTags: collectQueryArg(req.query.tag),
-          rawExcludes: collectQueryArg(req.query.exclude),
-          curatedOff: req.query.curated === 'off',
-        }));
-        return;
-      }
       const vm = mediaService.getNamedGalleryPage(
         galleryId,
         {
@@ -93,7 +81,7 @@ export const mediaController = {
       // into one canonical, shareable URL and redirect (PRG, GET-only, no JS) so
       // the rendered page never carries the form's transient or empty fields.
       if (req.query.apply !== undefined) {
-        res.redirect(302, canonicalFilterPath({
+        res.redirect(301, canonicalFilterPath({
           basePath: '/media/browse',
           rawContext: collectQueryArg(req.query.context),
           rawTags: collectQueryArg(req.query.tag),
@@ -129,12 +117,6 @@ export const mediaController = {
   // old path working by sending it to the consolidated page.
   freestyleTutorials(_req: Request, res: Response): void {
     res.redirect(301, '/freestyle/media');
-  },
-
-  // The hashtag index lives on the browse landing, so there is one place to find
-  // media by hashtag rather than two that look alike. This path keeps working.
-  tagsIndex(_req: Request, res: Response): void {
-    res.redirect(301, '/media/browse');
   },
 };
 

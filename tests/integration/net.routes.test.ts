@@ -198,18 +198,9 @@ describe('GET /net/teams', () => {
     expect(res.text).toContain('2 teams');
   });
 
-  it('redirects the former `division` parameter to `discipline`, keeping the other filters', async () => {
-    // A link written before the vocabulary changed must not quietly render the
-    // unfiltered page, which looks like a working result rather than a stale
-    // link. One permanent redirect keeps a single canonical URL.
+  it('treats a `division` parameter as unknown: no redirect', async () => {
     const res = await page('/net/teams?division=open_doubles&q=smith&page=2');
-    expect(res.status).toBe(301);
-    const target = new URL(res.headers['location'] as string, 'http://localhost');
-    expect(target.pathname).toBe('/net/teams');
-    expect(target.searchParams.get('discipline')).toBe('open_doubles');
-    expect(target.searchParams.get('q')).toBe('smith');
-    expect(target.searchParams.get('page')).toBe('2');
-    expect(target.searchParams.get('division')).toBeNull();
+    expect(res.status).toBe(200);
   });
 
   it('does not redirect when the current parameter is used', async () => {

@@ -3266,7 +3266,7 @@ CREATE INDEX        idx_media_tags_tag   ON media_tags(tag_id);
 -- =============================================================================
 -- SECTION 22: TAG STATS CACHE
 -- =============================================================================
--- Denormalized read cache for tag discovery and browsing on the public /tags page.
+-- Denormalized read cache for tag discovery and browsing on the public /media/browse page.
 -- One row per tag, tracking usage_count, distinct_member_count, and last_used_at.
 -- distinct_member_count drives the "community tag" threshold (≥2 distinct members).
 -- computed_at records the last recomputation. Fully recomputable from source tables;

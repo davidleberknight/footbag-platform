@@ -10,11 +10,12 @@ The freestyle lane carries deliberate deviations, blocked decisions, and intenti
 all tracked in the maintainers' private tracker. Re-derive the list fresh each run; an
 embedded copy here would drift. Method:
 
-1. List every open issue with the compact listing form in the `tracker-ops` skill
-   (`--state open --limit 200`; without a limit gh stops at 30), and take every card
+1. List every open issue with `gh issue list -R "$FOOTBAG_PRIVATE_REPO" --state open
+   --limit 200 --json number,title,labels` (without a limit gh stops at 30), and take every card
    whose title or labels touch freestyle, curated media or records, not only the
    `freestyle` and `pipeline` lanes; add the `BUGS.md` entries step 0 re-verified.
-2. Read every listed issue in full with the detail form in the `tracker-ops` skill (body
+2. Read every listed issue in full with
+   `gh issue view <n> -R "$FOOTBAG_PRIVATE_REPO" --json number,title,state,labels,body,comments` (body
    and every comment, in order), plus every card a doctrine file cites, and record "N
    listed, N read in full" in the report. A title is a lead, never the card's state. Before
    recording a candidate finding, also search all states

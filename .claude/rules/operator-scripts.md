@@ -1,6 +1,7 @@
 ---
 paths:
   - "scripts/**"
+  - "deploy_to_aws.sh"
 ---
 
 # Operator script rules
@@ -10,7 +11,7 @@ paths:
 Writing or changing anything under `scripts/` that an operator runs against a real environment:
 an install, an apply, an activation, a provisioning step, a diagnostic; and fixture stagers under
 `scripts/ci/`, which can meet real data on a workstation. Secret transport has its
-own rule and is not restated here; this one covers the shape of the script around it.
+own rule; this one covers the shape of the script around it.
 
 ## What a script owns
 
@@ -38,10 +39,10 @@ mutating step in the middle of it. In practice:
   library never opens it, because the password arrives on stdin, so a run that did not name its
   choice is ambiguous about the identity it meant.
 - **The word is always `APPLY`.** One word for every confirmation in the tree, whatever the script
-  and whatever the direction. State what is being confirmed in full, immediately before the prompt,
+  and whatever the direction; a yes-or-no question is answered yes or no. State what is being
+  confirmed in full, immediately before the prompt,
   and never encode it in the word: a phrase per script gives the operator something to look up, and
-  looking it up is what teaches them to reach for whatever flag skips the prompt. A script that asks
-  for anything else fails the conventions suite, which counts the prompts rather than sampling them.
+  looking it up is what teaches them to reach for whatever flag skips the prompt.
   Where a confirmation carries a direction, the direction comes from the flag and the prose, not from
   the word.
 - **A production deploy asks every time.** Whatever the mode, including a code-only deploy that
@@ -177,7 +178,7 @@ invalidation, and the pause levers, which report the switch they read back, are 
 examples. Nothing real is reached or mutated.
 Synchronous spawns use the shared bound from `tests/fixtures/spawnGuard.ts`.
 
-## Do NOT
+## Do not
 
 - Leave a step in a runbook that the script could take.
 - Judge success by the exit status of a command whose failure you have documented as normal.

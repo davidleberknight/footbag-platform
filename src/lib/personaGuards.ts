@@ -6,8 +6,8 @@
  * present signal that a member is a synthetic test persona rather than a real
  * account, so guards that must treat test personas differently key on it.
  *
- * The pre-go-live curated-media guardrail uses this to refuse curated/sidecar
- * writes from test-persona admins: real maintainer accounts register through the
+ * The pre-go-live curated-media and email-template guardrails use this to
+ * refuse curated/sidecar writes from test-persona admins: real maintainer accounts register through the
  * real flow and so carry ordinary uuid ids, never this prefix, and pass; a
  * seeded persona admin is blocked.
  *

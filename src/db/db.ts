@@ -21,26 +21,40 @@ import { config } from '../config/env';
  * - backup/checkpoint orchestration
  * - a repository layer, ORM, or generic query-builder abstraction
  *
- * Currently supported route/use-case slice:
- * - GET /clubs
- * - GET /clubs/:countrySlug
- * - GET /clubs/club_:clubSlug
- * - GET /events
- * - GET /events/year/:year
- * - GET /events/:eventKey
- * - GET /freestyle
- * - GET /freestyle/about
- * - GET /freestyle/sets
- * - GET /freestyle/records
- * - GET /freestyle/leaders
- * - GET /freestyle/tricks/:slug
- * - GET /consecutive
- * - GET /history
- * - GET /history/:personId
- * - GET /members/:memberId
- * - GET /members/:memberId/edit + POST
- * - GET /health/live   (process-only; this file does not participate)
- * - GET /health/ready  (minimal DB-readiness input only)
+ * Index of statement groups by domain. Find one with
+ * grep -n "^export const <name> =" src/db/db.ts; its row interfaces sit
+ * just above it. Dynamic-SQL functions (query*, count*, list*, summarize*)
+ * sit beside their domain's groups; grep -n "^export function" lists them.
+ * - Connection: db, transaction, rehearse, savepoint, inTransaction,
+ *   checkpointAndCloseDatabase, health
+ * - Events and history: publicEvents, publicPlayers, historicalPersonLookup,
+ *   eventOrganizers, eventResultCorrection, historicalRecordCorrection
+ * - Clubs: clubs, clubContent, clubLeaders, memberClubAffiliations,
+ *   memberLinks, legacyClubCandidates, legacyPersonClubAffiliations,
+ *   clubBootstrapLeaders, clubBootstrapLeaderSignals, clubViabilitySignals,
+ *   clubInsightNotes, clubCleanupResolutions, candidateCleanupResolutions,
+ *   clubCleanupClaims, clubCleanupPredicates, clubEvidence, candidateEvidence
+ * - Freestyle: freestyleRecords, freestyleTricks, freestyleEvAdjudications,
+ *   freestyleTrickAliases, freestyleTrickSources, freestyleTrickSourceLinks,
+ *   freestyleMediaLinks, freestyleTrickModifiers, freestyleTrickModifierLinks,
+ *   freestylePartnerships, freestyleCompetition, symbolicGrammar,
+ *   searchFreestyleTricksByText
+ * - Consecutive and net: consecutiveKicksRecords, netTeams, netEvents,
+ *   netHome, queryFilteredTeams, countFilteredTeams
+ * - Accounts and members: account, registration, auth, accountTokens,
+ *   adminRole, memberTier, legacyClaim, legacyMembers, memberOnboarding,
+ *   declaredAnchors, unfinishedAccounts, memberPurge, erasureLog,
+ *   nameVariants, deceasedMarking, memberExport, officialRoster
+ * - Active Player: activePlayer, activePlayerVouches, activePlayerExpiry
+ * - Mail: emailTemplates, outbox, sesFeedback, sesEvents, mailingLists,
+ *   mailingListSubscriptions, emailArchives, memberMessages
+ * - Media: media, mediaTags, tagRetirement, mediaFlags, tagStats, mediaJobs
+ * - Admin and operations: systemConfig, auditEntries, workQueue,
+ *   systemJobRuns, systemAlarms
+ * - Payments: memberBilling, payments, paymentStatusTransitions,
+ *   memberPaymentObligations, paymentMoneyHistory,
+ *   recurringDonationSubscriptions, recurringDonationSubscriptionTransitions,
+ *   reconciliationIssues, stripeEvents, stripeWebhookFailures
  *
  * Architectural rules preserved here:
  * - Services call prepared statements exported by this module directly.
@@ -1047,7 +1061,7 @@ export const clubs = {
 
 // ---------------------------------------------------------------------------
 // legacyClubCandidates -- candidate-row reads scoped to the wizard's
-// affiliation-confirm path. Public/QC reads for legacy_club_candidates live
+// affiliation-confirm path. Public reads for legacy_club_candidates live
 // in the `clubs` group above.
 // ---------------------------------------------------------------------------
 

@@ -11,7 +11,7 @@ Modernizing footbag.org for the International Footbag Players Association (IFPA)
 3. Clear design intent, as recorded in `docs/USER_STORIES.md`, `docs/BACKGROUND_JOBS.md`, `docs/DESIGN_DECISIONS.md`, `docs/DATA_MODEL.md`, the `.claude/rules/*` and service file-header JSDoc. These records can be stale or incomplete; what design intent is and when it is clear: the `design-intent` skill.
 4. Current code, including the schema, Terraform and scripts: evidence of implemented behavior only, never of design intent.
 
-A gap that a private-tracker issue records is a known deviation. When the code, a document and the intent disagree otherwise, resolve it from the intent down and report it as settled, citing the passages; ask the human only when it stays genuinely unclear, recommending the answer the intent supports, with why.
+A gap that a private-tracker issue records is a known deviation. When the code, a document and the intent disagree otherwise, resolve it from the intent down and take it to the human with the answer the intent supports, citing the passages, as the asking rule sets out (`.claude/rules/asking.md`).
 
 ### Read order : what to load first, to save tokens (not an authority ranking)
 
@@ -36,7 +36,7 @@ Read only what the task needs, starting with the requirement passages the pre-de
 
 - Verification: define success first, then run `bash scripts/test-targets.sh <changed paths>` and exactly the commands it prints, every test run among them (and any red-first or ad-hoc one) in the background logging to the scratchpad while you keep working, showing each command with its result; re-read doc- or comment-only changes instead. The full gate (`./run_all_tests.sh` in any mode, `npm test`, any whole unit, integration, browser or coverage tier) is the maintainer's: run it only when the maintainer asks in this session, in the background logging to the scratchpad, and report its closing summary. Where the helper flags a high-fan-out change or a full-gate-only check, say so in the report. A plan's or handover's verification step names the maintainer as the one who runs the full gate.
 - Skill composition order when several apply: `extend-service-contract`, `add-public-page`, `write-tests`, `doc-sync`, `prepare-pr`.
-- Delegate broad multi-file searches and genuinely independent tracks of work to a subagent, but never spawn one to verify your own work; the review skills and `write-tests` keep the reviewers they name.
+- Delegate research and independent work to subagents to keep the main context lean; never to verify your own work, except the reviewers the review skills and `write-tests` name.
 - Lead with the outcome, then supporting detail. Keep output short by selecting, not by compressing into fragments, arrow chains, or jargon; after a long run, write for a reader who watched none of it. No emojis, no em-dashes in prose, no preamble or filler.
 - Give the human commands that survive a paste: break long lines yourself with a trailing `\` and nothing after it, each line under 80 characters, a long argument in a variable first. Flag a command that cannot go through the `!` prefix, which pipes, so anything prompting for a credential fails there. Never leave a teardown for them to remember: one command runs start to cleanup, on a trap.
 - Make surgical changes scoped to the current slice: no speculative abstraction, scope creep, or unrelated refactoring or reformatting.

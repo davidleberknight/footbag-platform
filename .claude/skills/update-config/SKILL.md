@@ -13,13 +13,14 @@ Every line of a CLAUDE.md, rule or skill costs context and adherence. Before add
 
 - Apply the removal test: would removing this cause Claude to make mistakes? If not, cut it. Do not restate default good practice.
 - Keep the root `CLAUDE.md` under 200 lines and to facts needed in every session; never cut the maintainer's stated intent from it without a ruling. A procedure goes in a skill; guidance for one area goes in a path-scoped rule (`paths:` frontmatter), which loads only when a matching file is read or edited. A rule without `paths:` loads every session.
+- Keep each path-scoped rule under 40,000 characters, the per-file limit at a 200K-token context window; past it Claude receives only the start of the file.
 - Never restate what a hook, a permission rule, a skill or an always-loaded rule already enforces or states; point to it, or say nothing.
 - Put a point-of-use instruction in the output of the script or tool it governs (as `scripts/test-targets.sh` prints how to run its command), not in an always-loaded file.
 - Make anything that must hold every time a hook, not an instruction; instructions are advisory.
 - Read-only commands are allowed generally; no instruction asks permission for a read. Screenshots and other heavy browser-tool reads are the exception and run only on request.
 - Emphasis (IMPORTANT, MUST) on at most one line Claude keeps skipping.
 - No history, incident stories or dated narration; state the rule in force.
-- A subagent does not see CLAUDE.md: a rule it must follow goes in its prompt or its agent file.
+- Explore, Plan and any agent setting `omitClaudeMd` skip CLAUDE.md and the unscoped rules, and no fresh subagent sees the conversation or memory: a rule a subagent must follow goes in its prompt or its agent file.
 
 ## Harness review (on request)
 

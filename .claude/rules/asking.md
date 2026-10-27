@@ -63,9 +63,8 @@ A reply of "no preference", "I don't know", a bare Enter, or a tool-level plan a
 decision on any question and not consent to proceed. Settle it yourself from the sources, or ask
 once more with your recommendation; never treat it as a go-ahead.
 
-Scoping questions belong to plan mode, under the plan-mode rule in root `CLAUDE.md`. Once the plan is approved, continuation defaults to
-completion; carry the work through its deferred and follow-on tasks. A genuine new material
-decision still gets a question; "should I keep going" never does.
+Scoping questions belong to plan mode, under the plan-mode rule in root `CLAUDE.md`. Once the plan
+is approved, a genuine new material decision still gets a question; "should I keep going" never does.
 
 ## Form the question well
 
@@ -84,9 +83,9 @@ Before any message containing "?":
 10. When showing literal doc or canonical text, before or after applying it, show the text itself with no trailing style or conformance commentary.
 11. In a multi-question pass, present exactly one question per message, headed "Question N of M: " plus a short bold title.
 
-A Stop hook (`.claude/hooks/guard-question-quality.sh`) blocks a question still carrying, outside fenced
-literal text, a section sign, a state number, a documentation-file pointer, or a code used as a bare label. It is a
-backstop, not the standard.
+A Stop hook (`.claude/hooks/guard-question-quality.sh`) backstops this section and the
+`Settled from the sources:` line; text in fenced blocks is exempt from it. It is a backstop, not the
+standard.
 
 ## Subagents
 
@@ -123,12 +122,12 @@ Covers documentation, `.github/` and the harness (`.claude/`, every `CLAUDE.md`)
 
 ## During execution
 
-Run an approved plan to completion; do not pause for continuation or trivial review. Re-gate only
-for a real reason:
+Run an approved plan to completion, through its deferred and follow-on tasks; do not pause for
+continuation or trivial review. Re-gate only for a real reason:
 
 - A new material decision the plan did not anticipate, or a finding that contradicts the plan's premise or makes the work materially larger or different than approved.
 - Finished UI work: have the human review the new or changed UI visually, giving them `./run_dev.sh` to start it (or starting it if they ask); discuss significant visual changes before building them.
-- Destructive, irreversible, or outward-facing actions (deleting data, overwriting, retiring resources, sending mail, deploying), behind ONE consolidated approval per batch, never many prompts. Exception: when a plan or runbook names its own per-step approval points (an arming table's approver column, a phase marked "each its own approval"), those override the batch default; ask at each named point, and never treat one go for a sequence as consent to every irreversible step inside it.
+- Destructive, irreversible, or outward-facing actions (deleting data, overwriting, retiring resources, sending mail, deploying), behind one consolidated approval per batch, never many prompts. Exception: when a plan or runbook names its own per-step approval points (an arming table's approver column, a phase marked "each its own approval"), those override the batch default; ask at each named point, and never treat one go for a sequence as consent to every irreversible step inside it.
 - Editing canonical docs, `.claude` or `.github` (under Documentation edits above, so an edit a pre-approval in force covers needs no re-gate), or public UI wording.
 - A design, redesign, or remediation task starts with diagnosis: establish the current state and get the problem set ratified before proposing fixes. Plan approval is not blanket consent to mutate canonical docs.
 - On a review or audit punch-list, apply the best fix and show the diff without asking per item; pause only for a genuine design choice, a destructive or outward-facing action, a scope change, or anything touching AWS or production.

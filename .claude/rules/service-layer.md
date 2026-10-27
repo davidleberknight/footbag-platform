@@ -41,6 +41,7 @@ All thrown errors are subclasses of `ServiceError` from `src/services/serviceErr
 
 - `ValidationError` -- user-fixable input errors; carries optional `fieldErrors: Record<string,string>`.
 - `NotFoundError` -- missing resources (controller maps to 404, including anti-enumeration cases).
+- `ServiceUnavailableError` -- a transient outage the caller can retry (database contention, a dependency down); controller maps to 503.
 - `ConflictError` -- unique-constraint or business-conflict situations. A repeat of an action whose result already holds is not a conflict: the method returns `own_repeat` or `already_held` instead of throwing.
 - `RateLimitedError` -- throttle hits; carries `retryAfterSeconds`.
 - `ForbiddenError` -- explicit authorization denials.
@@ -90,7 +91,7 @@ A repeat is recognised only when every submitted field matches what the first su
 ## Anti-enumeration
 
 Endpoints that could leak account existence (login, register, password-reset request,
-email-verify/resend, member lookup, legacy claim) run the SAME code path whether or not the
+email-verify/resend, member lookup, legacy claim) run the same code path whether or not the
 account exists: always reach the hash-compare, always run the rate-limit bucket, return identical
 UX and timing both ways. The service owns this; never add an existence-dependent early return.
 Controllers may gate on facts independent of account existence (CAPTCHA, input shape) before
@@ -119,5 +120,5 @@ Drift between JSDoc and the actual service contract is a real bug, not a doc nic
 
 - No `db.prepare()` calls outside `src/db/db.ts` -- services use named prepared statements from `db.ts`.
 - No AWS SDK / Stripe imports outside `src/adapters/` -- services obtain adapters via `get<Purpose>Adapter()` only.
-- No `process.env` reads outside `src/config/env.ts` -- services read deploy-time config via the typed `config` singleton, runtime config via `readIntConfig(key, fallback)` from `configReader.ts`.
+- No `process.env` reads outside `src/config/env.ts` and the non-service exemptions the gate names -- services read deploy-time config via the typed `config` singleton, runtime config via `readIntConfig(key, fallback)` from `configReader.ts`.
 - Every audit `action_type` literal in `src/` is lowercase, dotted, domain-prefixed -- `appendAuditEntry` also asserts the same shape at runtime via `assertCanonicalActionType`.

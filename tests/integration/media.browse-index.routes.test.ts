@@ -177,10 +177,9 @@ describe('GET /media/browse — recent events and tutorials highlight', () => {
 });
 
 describe('the hashtag index has one home', () => {
-  it('sends the retired index path to the browse landing', async () => {
+  it('the retired index path is not found', async () => {
     const res = await page('/tags');
-    expect(res.status).toBe(301);
-    expect(res.headers.location).toBe('/media/browse');
+    expect(res.status).toBe(404);
   });
 
   it('does not capture the autocomplete endpoint', async () => {

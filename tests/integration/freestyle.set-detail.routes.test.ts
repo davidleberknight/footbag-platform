@@ -294,11 +294,10 @@ describe('GET /freestyle/sets/:slug — S5 sibling navigation strip', () => {
   });
 });
 
-describe('GET /freestyle/sets/:slug — non-set slug redirects to its Freestyle Concepts term', () => {
-  it('illusioning is not a set; its old link 301s to the illusioning Concepts term, not atomic', async () => {
+describe('GET /freestyle/sets/:slug — a retired non-set name is not found', () => {
+  it('illusioning is not a set; its old set address gets the standard not-found page', async () => {
     const res = await request(await createApp()).get('/freestyle/sets/illusioning').redirects(0);
-    expect(res.status).toBe(301);
-    expect(res.headers['location']).toBe('/freestyle/concepts#term-illusioning');
+    expect(res.status).toBe(404);
   });
 
   it('a live canonical set is never redirected', async () => {
@@ -368,16 +367,9 @@ describe('GET /freestyle/sets/:slug — set vs non-set concepts', () => {
     expect(res.headers['location']).toBe('/freestyle/sets/furious');
   });
 
-  it('miraging does not render a set page; it redirects to its Freestyle Concepts term', async () => {
+  it('miraging does not render a set page; its old set address is not found', async () => {
     const res = await request(await createApp()).get('/freestyle/sets/miraging').redirects(0);
-    expect(res.status).toBe(301);
-    expect(res.headers['location']).toBe('/freestyle/concepts#term-miraging-not-a-set');
-  });
-
-  it('illusioning redirects to its Freestyle Concepts term, not to atomic', async () => {
-    const res = await request(await createApp()).get('/freestyle/sets/illusioning').redirects(0);
-    expect(res.status).toBe(301);
-    expect(res.headers['location']).toBe('/freestyle/concepts#term-illusioning');
+    expect(res.status).toBe(404);
   });
 });
 

@@ -600,7 +600,7 @@ Dev and continuous integration keep the unit, route and service integration, the
 - Exercise the legacy-claim surface across its risk classes with the deterministic strata sample (linked-with-email, paid-tier evidence, honoree, same-name disambiguated only by birth date, no-email, bare collision stub, and historical-person-without-account): for each sampled row, register on staging with the row's address, read the captured mail on the outbox viewer, and confirm the claim wizard does exactly what the sample expects, including the enumeration-safe outcomes for an absent and an already-claimed record.
 - Validate whole-population invariants by query, not by sampling: loaded counts reconcile against the source minus the held-out and excluded cohorts; no claimed account lacks its claim audit row; no historical-person link points at a missing account; every stored email is lowercased.
 - Never rehearse a deceased-member flow against a real person's record — use the seeded persona for that.
-- PII discipline: never put real member data into anything public or committed, including test output, which is treated as potentially public (§2.1, §10.6). The private bug-intake repository, the maintainers' private tracker and the team Discord may carry real member details where they help reproduce a defect. Secrets go nowhere.
+- PII discipline: never put real member data into anything public or committed, including test output, which is treated as potentially public (§2.1, §10.6). The private dev-tester repository, the maintainers' private tracker and the team Discord may carry real member details where they help reproduce a defect. Secrets go nowhere.
 
 ---
 

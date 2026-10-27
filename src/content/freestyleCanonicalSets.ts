@@ -1131,21 +1131,15 @@ export function resolveCanonicalSetAlias(slug: string): string | null {
 }
 
 /**
- * Old /freestyle/sets/:slug routes for retired concepts that are NOT confirmed
- * sets. Illusioning is a standalone movement, and Miraging is a descriptive
- * inward-dex name with no single set destination: their old set URLs redirect
- * to the Freestyle Concepts term explaining each as a non-set concept. Whirling
- * is not a set either; the uptime whirling set is Blazing, so the old Whirling
- * set URL lands on the Blazing page. Only the set URL moves: whirling stays a
- * body modifier, and its modifier and trick routes resolve as any modifier's do.
- * A retired nickname that names exactly one canonical set and nothing else
- * (barraging names the Furious set) redirects all its routes to that set page
- * instead, resolved ahead of this map. Only fires for slugs that are not
- * themselves a live canonical set.
+ * Old /freestyle/sets/:slug routes for a retired concept that is not a confirmed
+ * set. Whirling is not a set; the uptime whirling set is Blazing, so the old
+ * Whirling set URL lands on the Blazing page. Only the set URL moves: whirling stays a body modifier, and its
+ * modifier and trick routes resolve as any modifier's do. A retired nickname
+ * that names exactly one canonical set and nothing else (barraging names the
+ * Furious set) redirects all its routes to that set page instead, resolved ahead
+ * of this map. Only fires for slugs that are not themselves a live canonical set.
  */
 const SET_ROUTE_RETIRED_REDIRECTS: ReadonlyMap<string, string> = new Map([
-  ['illusioning', '/freestyle/concepts#term-illusioning'],
-  ['miraging',    '/freestyle/concepts#term-miraging-not-a-set'],
   ['whirling',    '/freestyle/sets/blazing'],
 ]);
 

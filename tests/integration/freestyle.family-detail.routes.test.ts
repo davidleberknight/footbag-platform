@@ -506,7 +506,7 @@ describe('GET /freestyle/families/:slug — route ordering', () => {
 describe('GET /freestyle/families — bare path redirects to the By-family browse', () => {
   it('redirects to /freestyle/tricks?view=family', async () => {
     const res = await request(await createApp()).get('/freestyle/families').redirects(0);
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(301);
     expect(res.headers['location']).toBe('/freestyle/tricks?view=family');
   });
 });

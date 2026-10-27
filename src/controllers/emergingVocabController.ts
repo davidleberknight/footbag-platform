@@ -4,8 +4,7 @@ import { freestyleService } from '../services/freestyleService';
 /**
  * Emerging Vocabulary workbench (admin-gated at the /admin mount): the curator
  * decision packet plus the full-dimension row table with query-param filters.
- * A freestyle-curation surface backed by the keeper freestyleService, kept off
- * the internal-QC router so it survives the QC-subsystem retirement. Read-only;
+ * A freestyle-curation surface backed by freestyleService. Read-only;
  * adjudications are data changes made through the ruling ledger, never here.
  */
 export const emergingVocabController = {

@@ -3,7 +3,7 @@
  *
  * Exercises the scaffold contract: task list lifecycle, state transitions,
  * audit emission per transition, a missing task row reading as pending, and
- * the NotImplementedError thrown by submitTaskResponse pending per-task handlers.
+ * submitTaskResponse refusing the legacy_claim task, which only the claim decision completes.
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
@@ -14,8 +14,6 @@ const { dbPath } = setTestEnv('3140');
 
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let svc: typeof import('../../src/services/memberOnboardingService').memberOnboardingService;
-// eslint-disable-next-line @typescript-eslint/consistent-type-imports
-let NotImplementedError: typeof import('../../src/services/memberOnboardingService').NotImplementedError;
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports
 let TASK_CATALOG: typeof import('../../src/services/memberOnboardingService').TASK_CATALOG;
 import type { ValidationError as ValidationErrorType } from '../../src/services/serviceErrors';
@@ -47,7 +45,6 @@ beforeAll(async () => {
 
   const mod = await import('../../src/services/memberOnboardingService');
   svc = mod.memberOnboardingService;
-  NotImplementedError = mod.NotImplementedError;
   TASK_CATALOG = mod.TASK_CATALOG;
 
   const errs = await import('../../src/services/serviceErrors');
@@ -281,9 +278,9 @@ describe('memberOnboardingService completion audit row', () => {
 });
 
 describe('memberOnboardingService.submitTaskResponse', () => {
-  it('throws NotImplementedError for a valid task type', () => {
+  it('refuses the legacy_claim task, which only the claim decision completes', () => {
     expect(() => svc.submitTaskResponse(MEMBER_NO_TASKS, 'legacy_claim', {}))
-      .toThrow(NotImplementedError);
+      .toThrow('the claim decision completes it');
   });
 
   it('throws ValidationError for an unknown task type', () => {

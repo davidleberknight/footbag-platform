@@ -20,8 +20,7 @@ checkout, and the bring-up runbooks live there too. Without that checkout the sy
 no environment can be planned or applied and no runbook step can be followed. This is a hard
 prerequisite for all operations work, while a developer or tester without it stays a fully
 supported configuration for everything else. When it is absent, say so in one line, carry on with
-the part of the task that does not need it, and never improvise a values file: a real
-`terraform.tfvars` is never created in this tree.
+the part of the task that does not need it, and never improvise a values file.
 
 ## New optional infrastructure ships behind a default-false gate
 

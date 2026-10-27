@@ -215,6 +215,29 @@ else
   echo "[harness] all SKILL.md within ${CEILING} lines"
 fi
 
+# --- Check 5b: each path-scoped rule stays under the per-file load limit ---
+# A rule with a paths: glob loads on demand, and an on-demand file over the limit
+# reaches Claude cut short, with only a note to read the rest; at a 200K-token
+# context window the limit is 40,000 characters. Bytes are counted, which never
+# undercounts characters. A rule without paths: loads whole at launch.
+RULE_LIMIT=40000
+bad_rule_size=""
+for f in .claude/rules/*.md; do
+  [ -f "$f" ] || continue
+  awk 'NR==1&&/^---[[:space:]]*$/{f=1;next} f&&/^---[[:space:]]*$/{exit} f&&/^paths:/{p=1} END{exit !p}' "$f" || continue
+  size=$(wc -c < "$f")
+  if [ "$size" -gt "$RULE_LIMIT" ]; then
+    bad_rule_size="${bad_rule_size}  ${f} (${size} bytes)"$'\n'
+  fi
+done
+if [ -n "$bad_rule_size" ]; then
+  echo "[harness] FAIL: path-scoped rule over ${RULE_LIMIT} bytes; Claude would receive only its start:" >&2
+  printf '%s' "$bad_rule_size" >&2
+  fail=1
+else
+  echo "[harness] all path-scoped rules within ${RULE_LIMIT} bytes"
+fi
+
 # --- Check 6: sqlite3 is never auto-allowed without -readonly ---
 sqlite_bad=$(jq -r '(.permissions.allow // [])[]' "$SETTINGS" 2>/dev/null \
   | grep -iE 'sqlite3' | grep -v -- '-readonly' || true)
@@ -360,6 +383,28 @@ if [ -n "$agent_bad" ]; then
   fail=1
 else
   echo "[harness] agent frontmatter hooks resolve and mirror the settings Bash chain"
+fi
+
+# --- Check 12b: every pre-tool security guard blocks the call when it fails ---
+# A guard that cannot start, or that times out, otherwise lets the call it guards
+# through to the normal permission flow. The read-only approver is the one exception:
+# when it fails, the call only prompts, which is already the safe outcome.
+unblocked=$(jq -r '(.hooks.PreToolUse // [])[].hooks[] | select((.command | test("allow-readonly-bash")) | not) | select(.onFailure != "block") | .command' "$SETTINGS" 2>/dev/null | sed 's#.*/##')
+for f in .claude/agents/*.md; do
+  [ -f "$f" ] || continue
+  fm=$(awk 'NR==1&&/^---[[:space:]]*$/{f=1;next} f&&/^---[[:space:]]*$/{exit} f{print}' "$f")
+  guards=$(printf '%s\n' "$fm" | grep -E '^[[:space:]]*command:' | grep -vc 'allow-readonly-bash' || true)
+  blocking=$(printf '%s\n' "$fm" | grep -cE '^[[:space:]]*onFailure:[[:space:]]*"?block"?[[:space:]]*$' || true)
+  if [ "$guards" != "$blocking" ]; then
+    unblocked="${unblocked}${unblocked:+$'\n'}${f}: ${guards} guard(s), ${blocking} set to block on failure"
+  fi
+done
+if [ -n "$unblocked" ]; then
+  echo "[harness] FAIL: security guard(s) without onFailure \"block\":" >&2
+  printf '  %s\n' "$unblocked" >&2
+  fail=1
+else
+  echo "[harness] every pre-tool security guard blocks the call when it fails"
 fi
 
 # --- Check 13: every project MCP server starts with its committed config ---

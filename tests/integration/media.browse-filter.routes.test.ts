@@ -164,7 +164,7 @@ describe('GET /media/browse — context tags: topic editable, owner locked', () 
 
   it('an Apply submit preserves the locked #by_ context in the canonical URL', async () => {
     const res = await page('/media/browse?apply=1&context=by_filter_regular&tag=butterfly');
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(301);
     expect(res.headers.location).toBe('/media/browse?context=by_filter_regular&tag=butterfly');
   });
 });
@@ -172,25 +172,25 @@ describe('GET /media/browse — context tags: topic editable, owner locked', () 
 describe('GET /media/browse — Apply folds the submitted set into one canonical URL', () => {
   it('redirects an Apply submit to the canonical include URL', async () => {
     const res = await page('/media/browse?apply=1&tag=butterfly&tag=spike');
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(301);
     expect(res.headers.location).toBe('/media/browse?tag=butterfly&tag=spike');
   });
 
   it('redirects an Apply submit carrying an exclude to the canonical URL', async () => {
     const res = await page('/media/browse?apply=1&tag=butterfly&exclude=tutorial');
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(301);
     expect(res.headers.location).toBe('/media/browse?tag=butterfly&exclude=tutorial');
   });
 
   it('strips empty free-text fields from the canonical URL', async () => {
     const res = await page('/media/browse?apply=1&tag=butterfly&tag=&exclude=');
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(301);
     expect(res.headers.location).toBe('/media/browse?tag=butterfly');
   });
 
   it('normalizes a typed tag (case + missing #) before folding it in', async () => {
     const res = await page('/media/browse?apply=1&tag=butterfly&tag=%23Spike');
-    expect(res.status).toBe(302);
+    expect(res.status).toBe(301);
     expect(res.headers.location).toBe('/media/browse?tag=butterfly&tag=spike');
   });
 });

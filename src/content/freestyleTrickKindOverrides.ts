@@ -116,8 +116,8 @@ const OPERATOR_SLUGS = new Set<string>([
 // a bare surface name at the kind layer.
 const SURFACE_SLUGS = new Set<string>([]);
 
-// Curator-flagged ambiguities. Each carries an inline note that surfaces
-// in the QC panel; never on public browse views.
+// Curator-flagged ambiguities. Each carries an inline note; never on public
+// browse views.
 const PENDING_REVIEW_SLUGS = new Set<string>([
   // User-flagged: should this be a set/modifier or a true
   // trick? Compound rows with `base_trick='surging'` exist; the trick's
@@ -140,11 +140,3 @@ export function resolveTrickKind(slug: string): FreestyleTrickKind {
   if (SURFACE_SLUGS.has(slug))        return 'surface';
   return 'trick';
 }
-
-/** Exposed for tests + the future QC panel. */
-export const TRICK_KIND_OVERRIDE_SETS = {
-  modifier:       MODIFIER_SLUGS,
-  operator:       OPERATOR_SLUGS,
-  surface:        SURFACE_SLUGS,
-  'pending-review': PENDING_REVIEW_SLUGS,
-} as const;

@@ -23,6 +23,7 @@ import { flashCookieOf } from '../fixtures/flashCookie';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, createTestSessionJwt } from '../fixtures/factories';
+import { SEEDED_PERSONA_MEMBER_ID_PREFIX } from '../../src/lib/personaGuards';
 
 const { dbPath } = setTestEnv('3971');
 
@@ -30,6 +31,9 @@ let createApp: Awaited<ReturnType<typeof importApp>>;
 
 const ADMIN_ID = 'aaaaaaaa-0000-0000-0000-00000000et01';
 const MEMBER_ID = 'bbbbbbbb-0000-0000-0000-00000000et02';
+// A seeded test persona carries this id prefix; the persona harness's admins are
+// switchable identities, not real maintainers.
+const PERSONA_ADMIN_ID = `${SEEDED_PERSONA_MEMBER_ID_PREFIX}et_admin`;
 
 function cookieFor(memberId: string, role: 'admin' | 'member'): string {
   return `__Host-footbag_session=${createTestSessionJwt({ memberId, role })}`;
@@ -76,6 +80,7 @@ beforeAll(async () => {
   const db = createTestDb(dbPath);
   insertMember(db, { id: ADMIN_ID, slug: 'et_admin', display_name: 'ET Admin', login_email: 'et-admin@example.com', is_admin: 1 });
   insertMember(db, { id: MEMBER_ID, slug: 'et_member', display_name: 'ET Member', login_email: 'et-member@example.com' });
+  insertMember(db, { id: PERSONA_ADMIN_ID, slug: 'et_persona_admin', display_name: 'ET Persona Admin', login_email: 'et-persona@example.com', is_admin: 1 });
   db.close();
   createApp = await importApp();
   const svcMod = await import('../../src/services/curatorMediaService');
@@ -236,7 +241,8 @@ describe('POST /admin/email-templates/:key/edit', () => {
     expect(templateRow('vouch_confirmation').body_template).toBe(before.body_template);
   });
 
-  it('rejects a template that drops a required merge field (a linkless verification email)', async () => {
+  it('rejects a template that drops a required merge field (a linkless verification email), saving nothing', async () => {
+    const before = templateRow('account_verify');
     const res = await request(createApp())
       .post('/admin/email-templates/account_verify/edit')
       .set('Cookie', admin())
@@ -247,15 +253,21 @@ describe('POST /admin/email-templates/:key/edit', () => {
       }));
     expect(res.status).toBe(422);
     expect(res.text).toContain('missing {verifyUrl}');
+    expect(templateRow('account_verify')).toEqual(before);
+    expect(auditRowsFor('account_verify')).toHaveLength(0);
   });
 
-  it('rejects conditional-syntax braces', async () => {
+  it('rejects conditional-syntax braces, saving nothing', async () => {
+    const before = templateRow('avatar_removed_member');
     const res = await request(createApp())
-      .post('/admin/email-templates/password_changed/edit')
+      .post('/admin/email-templates/avatar_removed_member/edit')
       .set('Cookie', admin())
       .type('form')
       .send(validBody({ subjectTemplate: 'Changed', bodyTemplate: '{{#if x}}nope{{/if}}' }));
     expect(res.status).toBe(422);
+    expect(res.text).toContain('doubled braces are not supported');
+    expect(templateRow('avatar_removed_member')).toEqual(before);
+    expect(auditRowsFor('avatar_removed_member')).toHaveLength(0);
   });
 
   it('rejects an empty subject and a bad classification with per-field errors', async () => {
@@ -345,9 +357,9 @@ describe('POST /admin/email-templates/:key/edit', () => {
   });
 
   // Defect caught: a template stored before write-time cleaning existed is
-  // resubmitted unchanged, and the audit row reports the body as edited only
-  // because the cleaner tidied it, so the trail claims a change nobody made.
-  it('records no body change when a template saved before cleaning is resubmitted unchanged', async () => {
+  // resubmitted unchanged, and the save records an edit only because the
+  // cleaner tidied it, so the trail claims a change nobody made.
+  it('writes nothing when a template saved before cleaning is resubmitted unchanged', async () => {
     const stored = 'Hi {leaderName},   \n\n\n\n{clubName}: {whatChanged}.\n\nNote: {note}';
     const db = new BetterSqlite3(dbPath);
     db.prepare('UPDATE email_templates SET body_template = ? WHERE template_key = ?')
@@ -368,9 +380,71 @@ describe('POST /admin/email-templates/:key/edit', () => {
         isEnabled: current.is_enabled ? '1' : '',
       });
     expect(res.status).toBe(303);
-    const audits = auditRowsFor('club_record_corrected');
-    expect(audits).toHaveLength(1);
-    expect(JSON.parse(audits[0]!.metadata_json).changedFields).toEqual([]);
+    expect(auditRowsFor('club_record_corrected')).toHaveLength(0);
+    expect(templateRow('club_record_corrected')).toEqual(current);
+  });
+
+  // Defect caught: an admin who presses save without changing anything leaves
+  // an audit entry claiming the template was updated, bumps its version, and is
+  // told the wording was saved, though nothing changed.
+  it('writes nothing for a save that changes nothing, and says nothing changed', async () => {
+    const before = templateRow('password_changed');
+    const sidecar = path.join(CURATED_TMP_ROOT, 'email_templates', 'password_changed.json');
+    const res = await request(createApp())
+      .post('/admin/email-templates/password_changed/edit')
+      .set('Cookie', admin())
+      .type('form')
+      .send({
+        subjectTemplate: before.subject_template,
+        bodyTemplate: before.body_template,
+        piiClassification: before.pii_classification,
+        isEnabled: before.is_enabled ? '1' : '',
+      });
+    expect(res.status).toBe(303);
+    expect(templateRow('password_changed')).toEqual(before);
+    expect(auditRowsFor('password_changed')).toHaveLength(0);
+    expect(fs.existsSync(sidecar)).toBe(false);
+
+    const page = await request(createApp())
+      .get(res.headers.location).set('Cookie', `${admin()}; ${flashCookieOf(res)}`);
+    expect(page.text).toMatch(/class="form-notice" role="status">Nothing changed/);
+    expect(page.text).not.toContain('form-success-banner');
+
+    // The same form with one field changed is a real save: the no-op test is on
+    // the submitted values, not on the act of pressing save.
+    const changed = await request(createApp())
+      .post('/admin/email-templates/password_changed/edit')
+      .set('Cookie', admin())
+      .type('form')
+      .send({
+        subjectTemplate: `${before.subject_template} (edited)`,
+        bodyTemplate: before.body_template,
+        piiClassification: before.pii_classification,
+        isEnabled: before.is_enabled ? '1' : '',
+      });
+    expect(changed.status).toBe(303);
+    expect(templateRow('password_changed').version).toBe(before.version + 1);
+    expect(auditRowsFor('password_changed')).toHaveLength(1);
+  });
+
+  // Defect caught: on a developer machine, where a save rewrites the committed
+  // template file, a switchable test persona with the admin role overwrites
+  // real wording in the repository.
+  it('refuses a test persona\'s save on a developer machine, writing no row, audit entry or file', async () => {
+    const before = templateRow('vouch_confirmation');
+    const sidecar = path.join(CURATED_TMP_ROOT, 'email_templates', 'vouch_confirmation.json');
+    const res = await request(createApp())
+      .post('/admin/email-templates/vouch_confirmation/edit')
+      .set('Cookie', cookieFor(PERSONA_ADMIN_ID, 'admin'))
+      .type('form')
+      .send(validBody({
+        subjectTemplate: 'Persona edit',
+        bodyTemplate: 'From {voucherName} until {expiryDate}.',
+      }));
+    expect(res.status).toBe(403);
+    expect(templateRow('vouch_confirmation')).toEqual(before);
+    expect(auditRowsFor('vouch_confirmation')).toHaveLength(0);
+    expect(fs.existsSync(sidecar)).toBe(false);
   });
 
   it('ignores overposted privileged fields (key, id, version stay server-owned)', async () => {
