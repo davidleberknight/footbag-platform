@@ -118,7 +118,6 @@ export const REACH: readonly Reach[] = [
   { template: 'dev/persona-listing', viewer: 'anonymous', url: '/dev/personas', why: 'the tester harness is linked from no page' },
   { template: 'dev/outbox', viewer: 'anonymous', url: '/dev/outbox', why: 'the tester harness is linked from no page' },
   { template: 'members/questions', viewer: 'member', url: '/members/t1_paid/questions', why: 'linked only while a question is waiting' },
-  { template: 'members/stub', viewer: 'member', url: '/members/t1_paid/settings', why: 'the placeholder sections are linked from no page' },
   { template: 'members/galleries/edit', viewer: 'member', url: `/members/t1_paid/galleries/${R.memberGalleryId}/edit`, why: 'the walk does not follow the gallery list into each edit form' },
   { template: 'members/media/edit', viewer: 'member', url: `/members/t1_paid/media/${R.memberMediaId}/edit`, why: 'linked from an item page the walk reaches as another viewer' },
   { template: 'members/media/delete-confirm', viewer: 'member', url: `/members/t1_paid/media/${R.memberMediaId}/delete`, why: 'linked from an item page the walk reaches as another viewer' },

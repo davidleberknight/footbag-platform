@@ -24,11 +24,6 @@ interface HomeFeaturePanel {
   ctaLabel?: string;
 }
 
-interface HomeComingSoonSection {
-  heading: string;
-  body: string;
-}
-
 export interface HomePageViewModel {
   seo: SeoMeta;
   page: {
@@ -42,7 +37,6 @@ export interface HomePageViewModel {
   primaryLinks: HomePrimaryLink[];
   featuredUpcomingEvents?: PublicEventSummary[];
   featurePanels?: HomeFeaturePanel[];
-  comingSoonSections?: HomeComingSoonSection[];
 }
 
 export const homeService = {

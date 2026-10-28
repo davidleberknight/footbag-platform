@@ -57,7 +57,7 @@ Compose every public page from one small set: site frame (header / main / footer
 discipline tag, result section, year navigation, metadata / summary rows, data table (`.data-table`,
 the one table treatment), queue row, grouped link
 index, prominent action link,
-empty state, notice / coming-soon block, and admin instructions block. A new page
+empty state, notice block, and admin instructions block. A new page
 joins the standard only if it can be expressed through these. A genuinely new reusable primitive is
 added to the standard first, then applied across the relevant pages, never invented per page.
 

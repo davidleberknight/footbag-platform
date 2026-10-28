@@ -494,7 +494,6 @@ describe('owner gate — member-owned routes (BOLA anti-enumeration)', () => {
   const EXCLUDED = new Map<string, string>([
     ['GET ', 'the public profile page: readable by any signed-in member, so not an ownership cell'],
     ['GET /edit', 'covered by the self-edit describe above, which also asserts the pending-registrant branch'],
-    ['GET /:section', 'the unknown-section catch-all, which answers not-found on shape before ownership is reached'],
     ['POST /vouch', 'the Active Player vouch, the one route under this prefix whose member key names the target rather than the signed-in member. A Tier 2 or Tier 3 member acting on somebody else\'s key is the feature, so a cross-owner 404 here would mean the surface does not work; the ownership check is inverted and answers 404 to a self-vouch instead. Its own suite proves the tier gate, the self-vouch, the unknown and pending targets, and the rate limit'],
   ]);
 

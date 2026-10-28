@@ -6,7 +6,7 @@
  *   GET  /members/:memberKey           — profile view (own vs other)
  *   GET  /members/:memberKey/edit      — edit form (own vs other)
  *   POST /members/:memberKey/edit      — save profile (validation, auth, cross-member guard)
- *   GET  /members/:memberKey/:section  — stub pages (own vs other, known vs unknown section)
+ *   GET  /members/:memberKey/<section> — no placeholder sections; unknown sections are not found
  *
  * All routes require auth. Each unauthenticated test asserts a 302 redirect to
  * /login with a returnTo param.
@@ -659,30 +659,31 @@ describe('gender public visibility', () => {
   });
 });
 
-// ── GET /members/:memberKey/:section — stub pages ───────────────────────────────
+// ── GET /members/:memberKey/<section> — no placeholder pages ────────────────────
 
-describe('GET /members/:memberKey/:section — stub pages', () => {
-  // `password`, `download` and `delete` are not stub sections: each has a real
-  // route of its own (the password form, the signed-in data download, and the
-  // account deletion confirmation), registered ahead of this catch-all.
-  const VALID_SECTIONS = ['media', 'settings'];
-
-  it('unauthenticated → 302 to /login with returnTo', async () => {
-    const app = createApp();
-    const res = await request(app).get(`/members/${OWN_SLUG}/settings`);
-    expect(res.status).toBe(302);
-    expect(res.headers.location).toBe(`/login?returnTo=%2Fmembers%2F${OWN_SLUG}%2Fsettings`);
-  });
-
-  for (const section of VALID_SECTIONS) {
-    it(`own profile /${section} → 200`, async () => {
+describe('GET /members/:memberKey/<section> — no placeholder pages', () => {
+  // Defect caught: a "coming soon" placeholder comes back under the member's
+  // own profile, telling a member a feature exists that does not. The two
+  // former placeholder sections are no page at all, for the owner too.
+  for (const section of ['media', 'settings']) {
+    it(`own profile /${section} is not found`, async () => {
       const app = createApp();
       const res = await request(app)
         .get(`/members/${OWN_SLUG}/${section}`)
         .set('Cookie', ownCookie());
-      expect(res.status).toBe(200);
+      expect(res.status).toBe(404);
+      expect(res.text).not.toMatch(/coming soon/i);
     });
   }
+
+  // Defect caught: an unknown member URL answers a signed-out visitor with the
+  // sign-in form, telling them the page exists and they need only log in.
+  it('a signed-out visitor gets not-found for an unknown section, not the sign-in form', async () => {
+    const app = createApp();
+    const res = await request(app).get(`/members/${OWN_SLUG}/settings`);
+    expect(res.status).toBe(404);
+    expect(res.headers.location).toBeUndefined();
+  });
 
   it('the account-deletion section is a real confirmation page, not a stub', async () => {
     const app = createApp();
@@ -692,14 +693,6 @@ describe('GET /members/:memberKey/:section — stub pages', () => {
     expect(res.status).toBe(200);
     expect(res.text).not.toContain('coming soon');
     expect(res.text).toContain('Deleting your account is permanent');
-  });
-
-  it("another member's stub page → 404", async () => {
-    const app = createApp();
-    const res = await request(app)
-      .get(`/members/${OWN_SLUG}/settings`)
-      .set('Cookie', otherCookie());
-    expect(res.status).toBe(404);
   });
 
   it('unknown section → 404', async () => {

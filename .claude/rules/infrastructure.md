@@ -88,8 +88,19 @@ resources do not restate them.
 ## Staging and production stay at parity
 
 A divergence between the two trees is either removed or asserted in the Terraform
-with a stated reason in a comment. Staging is smaller and its adapters are
-stubbed; it is not structurally different. Staging serves on its default
+with a stated reason in a comment, in the tree that lacks the resource, and the
+reason says how the production-only behaviour is proved before go-live: on
+staging where a staging-side trigger exists (a staging-origin call reaches every
+account-wide trail, detector and analyzer), otherwise on production before any
+DNS change, otherwise the go-live verification step that first proves it. An
+account property that belongs to no environment (a control, detector or
+analyzer) lives in `terraform/shared`, which holds no notification path; what
+routes its output to a person is declared in each environment tree against that
+environment's own alarm topic, and staging's is applied first. An account-global
+resource that is part of one environment's working path (the sender identity
+production sends through, the trail whose log group production's alarms read)
+lives in production. Staging is smaller and its adapters are stubbed; it is not
+structurally different. Staging serves on its default
 CloudFront name and attaches no custom domain, so `terraform/staging/route53.tf`
 is commented-out reference shape by design and no DNS change can be rehearsed
 there.

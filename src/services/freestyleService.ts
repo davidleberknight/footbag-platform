@@ -6099,9 +6099,9 @@ function shapeModifierEntry(row: FreestyleTrickModifierRow): FreestyleModifierEn
 // record holder. Rows with records steer the reader to the Passback Records
 // section below; rows without records steer to family-adjacent demonstrations.
 const FEATURED_MEDIA_EMPTY_GENERIC =
-  "Curated tutorial coming soon. Until then, see family-adjacent demonstrations below.";
+  "See family-adjacent demonstrations below.";
 const FEATURED_MEDIA_EMPTY_WITH_RECORD =
-  "Curated tutorial coming soon. See the record-holder demonstration in the records below.";
+  "See the record-holder demonstration in the records below.";
 
 function shapeUx2PilotFromRow(
   row: FreestyleTrickRowWithParse | undefined,

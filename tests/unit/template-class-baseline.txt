@@ -97,7 +97,6 @@ caption-mask-frame
 caption-mask-fullscreen
 card
 card-actions
-card-coming-soon
 card-description
 card-grid
 card-grid-2col
@@ -535,7 +534,6 @@ mb-6
 mb-8
 media-blocks
 media-hub-grid
-media-hub-soon
 media-layout
 media-layout--rail-end
 media-layout-main

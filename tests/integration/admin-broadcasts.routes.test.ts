@@ -220,12 +220,17 @@ describe('sending to a list', () => {
 
     expect(res.status).toBe(303);
     expect(res.headers.location).toBe('/admin/mailing-lists/send-list');
-    expect(flashValueOf(res)).toBe('mailing_list_result:sent');
+    expect(flashValueOf(res)).toBe('mailing_list_result:sent:2');
 
-    // The administrator lands on the list and is told the send was queued.
+    // Defect caught: the sender is told only that "the message was queued" and
+    // never how many copies went out, so a send that reached a fraction of the
+    // list reads the same as one that reached everyone. The bounced subscriber
+    // is not counted among those queued.
     const page = await request(createApp())
       .get(res.headers.location).set('Cookie', `${adminCookie()}; ${flashCookieOf(res)}`);
-    expect(page.text).toMatch(/class="form-success-banner" role="status">Message queued for the list\./);
+    expect(page.text).toMatch(
+      /class="form-success-banner" role="status">Message queued for 2 subscribers\. Anyone whose address cannot take mail was left out\./,
+    );
 
     // The bounced subscriber is left out: the audience resolver applies the
     // deliverability filter, and the composer never enumerates anyone itself.
@@ -291,10 +296,32 @@ describe('sending to a list', () => {
 
     expect(second.headers.location).toBe(first.headers.location);
     expect(second.headers.location).toBe('/admin/mailing-lists/twice-list');
+    expect(flashValueOf(first)).toBe('mailing_list_result:sent:2');
     expect(flashValueOf(second)).toBe('mailing_list_result:sent');
     expect(outboxRows()).toHaveLength(2);
     expect(archiveRows()).toHaveLength(1);
     expect(sendAuditCount('twice-list')).toBe(1);
+
+    // Defect caught: the repeat claims a fresh count of copies queued when it
+    // queued none; it reports the first send's success in plain words instead.
+    const page = await request(createApp())
+      .get(second.headers.location).set('Cookie', `${adminCookie()}; ${flashCookieOf(second)}`);
+    expect(page.text).toMatch(/class="form-success-banner" role="status">Message queued for the list\./);
+  });
+
+  // Defect caught: a send flash that does not parse (a cookie from an older
+  // deploy, a truncated value) leaves the sender with no word that the send
+  // happened at all.
+  it('falls back to the plain send notice when the send count does not parse', async () => {
+    withDb((db) => insertMailingList(db, { slug: 'fallback-list', name: 'Fallback List' }));
+    const { mailingListService } = await import('../../src/services/mailingListService');
+
+    const vm = mailingListService.getMailingListDetailPage('fallback-list', { notice: 'sent:not-a-number' });
+
+    expect(vm!.content.savedNotice).toBe(
+      'Message queued for the list. It goes out in paced batches, and it is recorded under Broadcasts.',
+    );
+    expect(vm!.content.savedNoticeTone).toBe('ok');
   });
 
   // Defect caught: an administrator edits a sent message and submits the same

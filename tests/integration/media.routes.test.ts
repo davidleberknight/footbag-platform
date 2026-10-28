@@ -411,33 +411,19 @@ describe('GET /freestyle/media (consolidated Freestyle Media section)', () => {
     db.close();
   });
 
-  it('renders the shared folder structure with a single consolidated PassBack Tutorials pair', async () => {
+  // Only the folders whose galleries this suite seeds with items render; every
+  // other folder in the structure is left off until it has something to watch.
+  it('renders the seeded folders under their heading with a single consolidated PassBack Tutorials folder', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/media');
     expect(res.status).toBe(200);
     expect(res.text).toContain('Freestyle Media');
     expect(res.text).toContain('Tutorials &amp; Demos');
-    for (const label of [
-      'Foundations of Freestyle',
-      'All PassBack Tutorials',
-      'How to Footbag Freestyle',
-      'Tricks of the Trade',
-      'Anz Trikz',
-      'Shred Global',
-      'Footbag Finland',
-      'Footbag.org',
-      'Freestyle Records',
-      'Curated Trick Videos',
-      'Individual Shred Videos',
-      'All Shredders',
-      'Originators (1992)',
-      'Golden Age (1995-1999)',
-      'Expansion (2000-2009)',
-      'Modern (2010-2019)',
-      'Current (2020-present)',
-    ]) {
-      expect(res.text).toContain(label);
-    }
+    expect(res.text).toContain('Foundations of Freestyle');
+    expect(res.text).toContain('All PassBack Tutorials');
+    // Defect caught: an unseeded folder (no gallery, nothing to watch) is still
+    // offered as a card.
+    expect(res.text).not.toContain('Golden Age (1995-1999)');
     // The Beginner/Advanced PassBack split is retired; neither card appears.
     expect(res.text).not.toContain('Beginner PassBack Tutorials');
     expect(res.text).not.toContain('Advanced PassBack Tutorials');
@@ -458,12 +444,21 @@ describe('GET /freestyle/media (consolidated Freestyle Media section)', () => {
     expect(res.text).toContain('class="card-grid card-grid-2col"');
   });
 
-  it('links folders whose gallery has items and marks unseeded folders coming soon', async () => {
+  // Defect caught: a folder whose gallery is unseeded or empty is offered to the
+  // visitor as a dead "coming soon" card instead of being left off until it has
+  // something to watch.
+  it('links folders whose gallery has items and leaves unseeded folders off', async () => {
     const app = createApp();
     const res = await request(app).get('/freestyle/media');
     expect(res.text).toContain('href="/media/gallery_passback_tutorials"');
     expect(res.text).toContain('href="/media/gallery_foundations_of_freestyle"');
-    expect(res.text).toContain('Coming soon');
+    expect(res.text).not.toMatch(/coming soon/i);
+    // Every folder card the page renders opens a gallery.
+    const cards = res.text.match(/<div class="card">[\s\S]*?<\/div>\s*<\/div>/g) ?? [];
+    expect(cards.length).toBeGreaterThan(0);
+    for (const card of cards) {
+      expect(card, 'a folder card with no gallery link').toMatch(/href="\/media\//);
+    }
   });
 });
 

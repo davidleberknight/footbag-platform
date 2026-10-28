@@ -88,7 +88,7 @@ const PRIVACY_SECTION: LegalSection = {
     {
       subheading: 'Human verification',
       body: prose(
-        'Sign-in, registration, the two password-reset pages, the confirm-your-email page, and the legacy-account claim step in the registration wizard use Cloudflare Turnstile to tell people apart from automated scripts. On those pages your browser loads a script from Cloudflare, which receives your IP address and browser details in order to run the check. It is used only on those pages and only to prevent abuse, not for analytics or advertising. No other third-party services are loaded.'),
+        'Sign-in, registration, the two password-reset pages and the confirm-your-email page use Cloudflare Turnstile to tell people apart from automated scripts. On those pages your browser loads a script from Cloudflare, which receives your IP address and browser details in order to run the check. It is used only on those pages and only to prevent abuse, not for analytics or advertising. No other third-party services are loaded.'),
     },
     {
       subheading: 'Your rights',

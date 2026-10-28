@@ -133,7 +133,6 @@ export const ROUTE_STORIES: Readonly<Record<string, RouteStory>> = {
   'POST /members/:memberKey/media/:mediaId/edit': { stories: ['M_Organize_Media_Galleries'] },
   'GET /members/:memberKey/media/:mediaId/delete': { stories: ['M_Delete_Own_Media'] },
   'POST /members/:memberKey/media/:mediaId/delete': { stories: ['M_Delete_Own_Media'] },
-  'GET /members/:memberKey/:section': { none: 'needs-ruling', why: 'Owner-only "coming soon" placeholder pages for the media and settings sections, which no user story specifies.' },
   'GET /legal': { stories: ['V_Browse_Static_Content'] },
 
   // Authentication, registration, onboarding

@@ -1655,14 +1655,7 @@ p.badge { display: block; width: fit-content; }
   object-fit: contain;
 }
 
-/* ── Coming-soon sport cards ──────────────────────────── */
-.card-coming-soon {
-  background: var(--gray-50);
-  border-style: dashed;
-  opacity: 0.85;
-}
-.card-coming-soon .card-title { color: var(--gray-700); }
-.card-coming-soon .card-description { color: var(--gray-600); }
+/* ── Muted status badge (an expired Active Player period) ── */
 .badge-coming-soon {
   display: inline-block;
   margin-top: var(--space-md);
@@ -8779,15 +8772,14 @@ a.by-numbers-card:hover {
   .by-numbers-grid { columns: 1; }
 }
 
-/* Footbag Media hub: six equal media-collection cards in a 3x2 grid. Cards
-   share identical weight; coming-soon cards differ only by their footer label. */
+/* Footbag Media hub: equal media-collection cards in a three-column grid. Cards
+   share identical weight. */
 .media-hub-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: var(--space-lg);
   align-items: stretch;
 }
-.media-hub-soon { margin-top: var(--space-xs); font-size: 0.9rem; font-weight: 600; color: var(--text-muted); }
 /* Browse-by-hashtag leads the grid with a distinct green fill at the same card
    size as its siblings, so it reads as the primary tag-driven entry point. */
 .media-hub-card--browse {

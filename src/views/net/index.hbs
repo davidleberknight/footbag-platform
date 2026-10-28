@@ -41,16 +41,12 @@
   <section class="content-section">
     <div class="card-grid card-grid-2col">
       {{#each content.exploreCards}}
-      <div class="card{{#if comingSoon}} card-coming-soon{{/if}}">
+      <div class="card">
         <div class="card-title">{{label}}</div>
         <p>{{paragraph}}</p>
-        {{#if comingSoon}}
-        <span class="badge badge-coming-soon">Coming soon</span>
-        {{else}}
         <div class="card-actions">
           <a href="{{href}}" class="btn btn-outline">{{linkLabel}}</a>
         </div>
-        {{/if}}
       </div>
       {{/each}}
     </div>

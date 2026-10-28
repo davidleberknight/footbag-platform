@@ -101,7 +101,6 @@ interface NetExploreCard {
   href:       string;
   paragraph:  string;
   linkLabel:  string;
-  comingSoon: boolean;
 }
 
 interface NetHomeContent {
@@ -506,17 +505,21 @@ export const netService = {
     const pcB = playerByPartners.slice(0, BUCKET_SIZE).map(shapeNotablePlayer);
     if (pcB.length) notablePlayers.push({ title: 'Most Partner Connections', players: pcB });
 
-    // Grey-out rule: an explore card is "coming soon" when its underlying
-    // data is thin enough that the linked sub-page would be an empty stub.
+    // An explore card whose data is thin enough that the linked sub-page would
+    // be empty is left off rather than shown greyed out; it reappears once its
+    // data exists, so the page never promises a section it cannot open.
     const hasTeams  = notablePool.length > 0;
     const hasEvents = recentEventRows.length > 0;
 
-    const exploreCards: NetExploreCard[] = [
-      { slug: 'teams',  label: 'Teams',  href: '/net/teams',  paragraph: 'Doubles teams with full competition records: wins, podiums, and active span. Filter by division or search by player.', linkLabel: 'Browse Teams',   comingSoon: !hasTeams },
-      { slug: 'events', label: 'Events', href: '/net/events', paragraph: 'Archive of net doubles competitions with per-event appearance counts.',                                                linkLabel: 'Event Archive',  comingSoon: !hasEvents },
-      { slug: 'rules',     label: 'Rules',     href: '/rules/net/footbag-net', paragraph: 'The official IFPA rules of footbag net: court, service, scoring and fouls.', linkLabel: 'Net Rules',     comingSoon: false },
-      { slug: 'equipment', label: 'Equipment', href: '/equipment#net',         paragraph: 'Net footbags, shoes, and how to set up a court and net.',                 linkLabel: 'Net Equipment', comingSoon: false },
+    const allExploreCards: Array<NetExploreCard & { available: boolean }> = [
+      { slug: 'teams',  label: 'Teams',  href: '/net/teams',  paragraph: 'Doubles teams with full competition records: wins, podiums, and active span. Filter by division or search by player.', linkLabel: 'Browse Teams',   available: hasTeams },
+      { slug: 'events', label: 'Events', href: '/net/events', paragraph: 'Archive of net doubles competitions with per-event appearance counts.',                                                linkLabel: 'Event Archive',  available: hasEvents },
+      { slug: 'rules',     label: 'Rules',     href: '/rules/net/footbag-net', paragraph: 'The official IFPA rules of footbag net: court, service, scoring and fouls.', linkLabel: 'Net Rules',     available: true },
+      { slug: 'equipment', label: 'Equipment', href: '/equipment#net',         paragraph: 'Net footbags, shoes, and how to set up a court and net.',                 linkLabel: 'Net Equipment', available: true },
     ];
+    const exploreCards: NetExploreCard[] = allExploreCards
+      .filter((c) => c.available)
+      .map(({ available: _available, ...card }) => card);
 
     return {
       seo:  { title: 'Net' },

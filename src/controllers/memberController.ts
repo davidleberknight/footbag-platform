@@ -22,20 +22,9 @@ interface MemberPasswordEditContent {
   success?: boolean;
 }
 
-type MemberStubContent = Record<string, never>;
 import { logger } from '../config/logger';
 import { isSafePath } from '../lib/safePath';
 
-
-interface StubConfig {
-  pageKey: string;
-  title: string;
-}
-
-const STUB_SEGMENTS: Record<string, StubConfig> = {
-  media:    { pageKey: 'member_media',    title: 'Share Media' },
-  settings: { pageKey: 'member_settings', title: 'Account Settings' },
-};
 
 // Repeated form fields (e.g. three `link_label` inputs) arrive as an array;
 // a single one arrives as a string. Normalize both to a string[].
@@ -46,21 +35,6 @@ function coerceStringArray(value: unknown): string[] {
 }
 
 export const memberController = {
-  /** Gate-before-the-gate for /members/:memberKey/:section. A section this app
-   * does not have is not a protected page, it is no page at all, so it is
-   * answered here with the not-found page before authentication is considered.
-   * Otherwise an unrecognized URL — an old member-profile link out of
-   * pre-cutover mail, a mistyped path — is answered with the sign-in form,
-   * which tells the visitor the page exists and they merely need to log in.
-   * A real section falls through to the ordinary auth and ownership gates. */
-  rejectUnknownSection(req: Request, res: Response, next: NextFunction): void {
-    if (!STUB_SEGMENTS[req.params.section]) {
-      renderNotFound(res);
-      return;
-    }
-    next();
-  },
-
   /** GET /members/:memberKey: own profile, any member profile for a
    * member viewer, or the HoF/BAP public read-only exception for
    * anonymous visitors (others redirect to login). A profile page exists only
@@ -460,35 +434,6 @@ export const memberController = {
         });
         return;
       }
-      next(err);
-    }
-  },
-
-  /** GET /members/:memberKey/:section, stub pages (own profile only). */
-  getStub(req: Request, res: Response, next: NextFunction): void {
-    if (!isOwnMemberRoute(req)) {
-      renderNotFound(res);
-      return;
-    }
-    const config = STUB_SEGMENTS[req.params.section];
-    if (!config) {
-      // Explicit 404 render rather than falling through to the Express
-      // 404 handler. The non-owner branch above already does this; the
-      // own-profile branch should behave symmetrically. Falling through
-      // via next() risks a future route silently matching `/:section`.
-      renderNotFound(res);
-      return;
-    }
-    try {
-      res.render('members/stub', {
-        seo:  { title: config.title },
-        page: { sectionKey: 'members', pageKey: config.pageKey, title: config.title },
-        navigation: {
-          contextLinks: [{ label: 'Back to Profile', href: `/members/${req.params.memberKey}` }],
-        },
-        content: {},
-      } satisfies PageViewModel<MemberStubContent>);
-    } catch (err) {
       next(err);
     }
   },

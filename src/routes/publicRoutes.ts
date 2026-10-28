@@ -199,10 +199,11 @@ publicRouter.get('/history/:personId/claim',         requireAuth, claimControlle
 publicRouter.post('/history/:personId/claim/confirm', requireAuth, claimController.postClaimHpConfirm);
 publicRouter.get('/history/:personId',   historyController.detail);
 
-// IMPORTANT: /members/:memberKey/edit and /members/:memberKey/avatar must be
-// registered before /members/:memberKey/:section so literal segments are not
-// captured as :section. The /members/:memberKey/galleries/* tree must
-// also precede the catch-all so "galleries" is not captured as :section.
+// The /members/:memberKey tree has no /:section catch-all: every member page is
+// a literal segment, so an unrecognized /members/<a>/<b> URL (an old site's
+// member-profile link out of pre-cutover mail, a mistyped path) reaches the
+// not-found page signed in or not, and never a sign-in form implying the page
+// exists.
 publicRouter.get('/members/:memberKey',             memberController.getProfile);
 publicRouter.get('/members/:memberKey/edit',          requireMember, memberController.getProfileEdit);
 publicRouter.post('/members/:memberKey/edit',         requireMember, memberController.postProfileEdit);
@@ -236,7 +237,6 @@ publicRouter.post('/members/:memberKey/email-preferences/recover', requireMember
 publicRouter.get('/members/:memberKey/contact-admin',  requireMember, contactRequestController.getForm);
 publicRouter.post('/members/:memberKey/contact-admin', requireMember, contactRequestController.postSubmit);
 // The other direction: questions an administrator has put to this member.
-// "questions" is a literal segment and must precede the :section catch-all.
 publicRouter.get('/members/:memberKey/questions', requireMember, memberQuestionController.index);
 publicRouter.post('/members/:memberKey/questions/:messageId/answer',
   requireMember, memberQuestionController.answer);
@@ -279,15 +279,6 @@ publicRouter.get('/members/:memberKey/media/:mediaId/edit',  requireMember, requ
 publicRouter.post('/members/:memberKey/media/:mediaId/edit', requireMember, requireTier1Benefits('media'), refuseUploadAsMediaId, memberMediaEditController.postUpdate);
 publicRouter.get('/members/:memberKey/media/:mediaId/delete',  requireMember, requireTier1Benefits('media'), refuseUploadAsMediaId, memberMediaEditController.getDeleteConfirm);
 publicRouter.post('/members/:memberKey/media/:mediaId/delete', requireMember, requireTier1Benefits('media'), refuseUploadAsMediaId, memberMediaEditController.postDelete);
-
-// The catch-all for this prefix, so it decides what every unrecognized
-// /members/<a>/<b> URL looks like — including the old site's member-profile
-// links, which keep arriving from mail sent before cutover. Whether the page
-// exists is settled before whether the visitor may see it: an unknown section
-// gets the not-found page signed in or not, while a real section gates on
-// authentication as usual and a signed-out visitor is sent to sign in and back.
-publicRouter.get('/members/:memberKey/:section',
-                 memberController.rejectUnknownSection, requireMember, memberController.getStub);
 
 publicRouter.get('/legal',      legalController.index);
 publicRouter.get('/equipment',  equipmentController.index);

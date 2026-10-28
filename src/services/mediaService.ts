@@ -415,18 +415,16 @@ export interface GalleryOwner {
   isSystem: boolean;
 }
 
-// One media-collection card on the /media hub. A null href is a forward-looking
-// collection shown as "coming soon" (or the card's `emptyNote` when set, e.g.
-// the Member galleries card's "None yet"). `accent` marks the browse-by-hashtag
-// card, which leads the grid with a distinct green treatment at the same card size.
+// One media-collection card on the /media hub. A null href is a collection with
+// no live destination yet; the hub drops it before rendering, so every card the
+// page shows links somewhere. `accent` marks the browse-by-hashtag card, which
+// leads the grid with a distinct green treatment at the same card size.
 export interface MediaHubCard {
   title: string;
   description: string;
   href: string | null;
   cta: string | null;
   accent?: boolean;
-  // Fallback note rendered when href is null; defaults to "Coming soon".
-  emptyNote?: string;
 }
 
 export interface MediaHubContent {
@@ -475,15 +473,14 @@ export interface MemberGalleriesContent {
   pagination: GalleryPagination;
 }
 
-// One folder in the Freestyle Media section. A null href is a folder whose
-// backing gallery has no items yet, shown as "coming soon" rather than dropped
-// so the structure stays stable as content is curated.
+// One folder in the Freestyle Media section. Only a folder whose backing
+// gallery has items is listed; an empty or unseeded one is left off until it
+// has content, so the page never offers a folder it cannot open.
 export interface FreestyleMediaFolderView {
   label: string;
   description: string;
   itemCount: number;
-  href: string | null;
-  available: boolean;
+  href: string;
 }
 
 // One section of the Freestyle Media page: an optional heading plus its folders.
@@ -1144,7 +1141,6 @@ export const mediaService = {
           description: 'Photo and video galleries created by IFPA members.',
           href: hasMemberGalleries ? '/media/member-galleries' : null,
           cta: hasMemberGalleries ? 'Browse member galleries' : null,
-          emptyNote: hasMemberGalleries ? undefined : 'None yet',
         },
         {
           title: 'Freestyle',
@@ -1175,7 +1171,7 @@ export const mediaService = {
       // Only surface a category that has a live destination. Empty or not-yet-built
       // categories (Net, Sideline, an empty Member galleries, or an unseeded Related
       // Sports) are hidden until they have content, so the hub never reads as a
-      // list of "Coming soon" / "None yet" placeholders. Each reappears the moment
+      // list of placeholders. Each reappears the moment
       // its href resolves (a member gallery gains its first item, the Net collection is seeded).
       const liveCards = cards.filter((c) => c.href != null);
 
@@ -1312,13 +1308,10 @@ export const mediaService = {
       );
       const sections: FreestyleMediaSectionView[] = FREESTYLE_MEDIA_STRUCTURE.map((section) => ({
         heading: section.heading,
-        folders: section.folders.map((f) => {
+        folders: section.folders.flatMap((f): FreestyleMediaFolderView[] => {
           const g = byId.get(f.galleryId);
-          if (g == null) {
-            // Gallery not seeded yet: keep the folder visible as a
-            // forward-looking entry so the structure does not silently shrink.
-            return { label: f.label, description: '', itemCount: 0, href: null, available: false };
-          }
+          // A gallery not seeded yet, or one with no items, is left off.
+          if (g == null) return [];
           const tagIds = (media.listFhNamedGalleryTags.all(g.id) as FhNamedGalleryTagRow[]).map(
             (t) => t.id,
           );
@@ -1326,15 +1319,10 @@ export const mediaService = {
             media.listFhNamedGalleryExcludeTags.all(g.id) as FhNamedGalleryTagRow[]
           ).map((t) => t.id);
           const itemCount = countGalleryItemsByCriteria(tagIds, excludeTagIds);
-          return {
-            label: f.label,
-            description: g.description,
-            itemCount,
-            href: itemCount > 0 ? `/media/${g.id}` : null,
-            available: itemCount > 0,
-          };
+          if (itemCount === 0) return [];
+          return [{ label: f.label, description: g.description, itemCount, href: `/media/${g.id}` }];
         }),
-      }));
+      })).filter((section) => section.folders.length > 0);
       return {
         seo: { title: 'Freestyle Media' },
         page: {

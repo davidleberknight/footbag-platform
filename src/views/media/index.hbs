@@ -16,11 +16,7 @@
       <div class="card card-static{{#if accent}} media-hub-card--browse{{/if}}">
         <div class="card-title">{{title}}</div>
         <p>{{description}}</p>
-        {{#if href}}
-          <a href="{{href}}" class="btn {{#if accent}}btn-inverse{{else}}btn-outline{{/if}}">{{cta}}</a>
-        {{else}}
-          <span class="media-hub-soon">{{#if emptyNote}}{{emptyNote}}{{else}}Coming soon{{/if}}</span>
-        {{/if}}
+        <a href="{{href}}" class="btn {{#if accent}}btn-inverse{{else}}btn-outline{{/if}}">{{cta}}</a>
       </div>
       {{/each}}
     </div>

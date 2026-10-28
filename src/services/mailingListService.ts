@@ -380,6 +380,26 @@ const DETAIL_NOTICES: Record<string, [OutcomeTone, string]> = {
   no_recipients:    ['no',   'Nothing was sent: this list resolved to no deliverable subscribers.'],
 };
 
+/**
+ * The detail-page notice for a flash payload. A send's payload carries the
+ * number of copies queued, `sent:<queued>`, so the sender sees what went out.
+ * The send's audience already leaves out every subscriber whose address cannot
+ * take mail, so the notice says so rather than counting them; the list's own
+ * status counts on the same page give the breakdown, and bounces arrive later
+ * and show per message in the email log. Any other payload is a fixed key, and
+ * a send payload that does not parse falls back to the plain send notice
+ * rather than showing nothing.
+ */
+function detailNotice(notice: string): [OutcomeTone, string] | undefined {
+  const sent = /^sent:(\d+)$/.exec(notice);
+  if (!sent) return DETAIL_NOTICES[notice] ?? (notice.startsWith('sent:') ? DETAIL_NOTICES.sent : undefined);
+  const queued = Number(sent[1]);
+  return [
+    'ok',
+    `Message queued for ${queued} subscriber${queued === 1 ? '' : 's'}. Anyone whose address cannot take mail was left out. It goes out in paced batches and is recorded under Broadcasts; any bounces show in the email log as they come back.`,
+  ];
+}
+
 function audienceLabelOf(row: { recipient_source: string }): string {
   return row.recipient_source === 'group' ? 'A group roster' : 'Its own subscribers';
 }
@@ -545,7 +565,7 @@ export const mailingListService = {
     const isGroupBacked = row.recipient_source === 'group';
     const fieldErrors = opts.fieldErrors ?? {};
     const errorList = Object.values(fieldErrors);
-    const outcome = opts.notice ? DETAIL_NOTICES[opts.notice] : undefined;
+    const outcome = opts.notice ? detailNotice(opts.notice) : undefined;
 
     return {
       seo: { title: 'Mailing Lists', noindex: true },

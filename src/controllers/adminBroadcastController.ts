@@ -41,9 +41,12 @@ export const adminBroadcastController = {
 
     try {
       const outcome = broadcastService.sendToList(slug, input, req.user!.userId);
-      // A repeat of a send already made under this form reports that send's
-      // success, as the member announce does, rather than a no-op note.
-      const notice = outcome.status === 'sent' || outcome.reason === 'already_sent' ? 'sent' : outcome.reason;
+      // A send carries the number of copies queued, so the sender sees what
+      // went out. A repeat of a send already made under this form reports that
+      // send's success, as the member announce does, rather than a no-op note.
+      const notice = outcome.status === 'sent'
+        ? `sent:${outcome.enqueued}`
+        : outcome.reason === 'already_sent' ? 'sent' : outcome.reason;
       writeFlash(res, req, FLASH_KIND.MAILING_LIST_RESULT, notice);
       res.redirect(303, `/admin/mailing-lists/${slug}`);
     } catch (err) {
