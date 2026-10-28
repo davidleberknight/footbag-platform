@@ -260,7 +260,8 @@
  * Service shape: singleton object (no external adapters beyond db.ts, the KMS-backed
  * JwtSigningAdapter resolved via getJwtSigningAdapter(), and the CaptchaAdapter the
  * human-challenge check resolves via getCaptchaAdapter(), so the entry forms'
- * controllers never select an adapter themselves).
+ * controllers never select an adapter themselves; a verifier that cannot answer
+ * surfaces as ServiceUnavailableError, never as a failed challenge).
  */
 import { randomUUID, randomBytes } from 'crypto';
 import argon2 from 'argon2';
@@ -4870,9 +4871,20 @@ function correctMemberSlug(
  * the form's own service call reads anything. The answer depends only on the
  * token, never on whether an account exists, so an entry form may refuse on it
  * up front without opening an enumeration path.
+ *
+ * Throws ServiceUnavailableError when the verifier cannot answer (its secret
+ * unreadable, the provider down): the check fails closed, so the form is
+ * refused with a retry-later answer rather than let through or told its
+ * challenge failed.
  */
 async function verifyHumanChallenge(token: string, remoteIp?: string): Promise<boolean> {
-  return (await getCaptchaAdapter().verify(token, remoteIp)).ok;
+  const result = await getCaptchaAdapter().verify(token, remoteIp);
+  if (result.outcome === 'unavailable') {
+    throw new ServiceUnavailableError(
+      'Human verification is temporarily unavailable. Please try again in a few minutes.',
+    );
+  }
+  return result.outcome === 'passed';
 }
 
 export const identityAccessService = { verifyHumanChallenge, attemptLogin, registerMember, getCheckEmailPage, claimLegacyAccount, lookupHistoricalPersonForClaim, claimHistoricalPerson, claimHistoricalPersonInTx, claimCandidateInTx, claimWithFormerSurnameInTx, recordClaimRefused, recordClaimStepAnswered, changePassword, verifyEmailByToken, wasVerifiedByToken, resendVerifyEmail, requestAddressRecovery, requestPasswordReset, completePasswordReset, recognisesResetRepeat, getLinkHistoryViewForWizard, revertAutoLink, revertClaimForDispute, previewClaimDisputeRevert, listClaimedLegacyIdentities, declareAnchor, listDeclaredAnchors, submitLinkHelpRequest, approveLinkHelpRequest, rejectLinkHelpRequest, enforceHistoricalPersonClaimLimit, getClaimEvidenceForMember, getLinkCandidatesForAdmin, previewLinkHelpApproval, previewMemberNames, correctMemberNames, previewMemberSlug, correctMemberSlug };

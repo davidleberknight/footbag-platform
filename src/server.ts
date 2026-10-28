@@ -7,6 +7,7 @@ import { createApp } from './app';
 import { checkpointAndCloseDatabase } from './db/db';
 import { initCloudFrontSigningAdapter } from './adapters/cloudFrontSigningAdapter';
 import { initJwtSigningAdapter } from './adapters/jwtSigningAdapter';
+import { initCaptchaAdapter } from './adapters/captchaAdapter';
 import { initDataOrigin } from './services/dataOriginService';
 import { operationsPlatformService } from './services/operationsPlatformService';
 
@@ -56,15 +57,18 @@ async function probeImageWorkerForDev(): Promise<void> {
 // proxy depends on, so the proxy never starts and the site 504s. Seeded rows
 // render as-is until a separate, non-boot verification path stamps a
 // quarantine_reason; the public read hides only rows that carry one.
-// Two signing backends preload BEFORE the server accepts requests, and a
-// failed preload refuses to start rather than reporting healthy while every
-// login fails:
+// Two signing backends and the captcha secret preload BEFORE the server accepts
+// requests, and a failed preload refuses to start rather than reporting healthy
+// while every login fails:
 //   - The archive cookie signer loads its private key: cookie issuance inside
 //     issueSessionCookie is synchronous, so the key must already be in memory
 //     when the first login arrives. No-op where no signer is configured.
 //   - The session-JWT signer makes its first KMS call (GetPublicKey): the
 //     adapter is otherwise lazy, so broken KMS wiring would surface only at
 //     the first login. No-op for the local signer.
+//   - The live captcha reads its Turnstile secret: a missing or placeholder
+//     secret would otherwise refuse every sign-in form as unavailable. No-op
+//     for the stub.
 //
 // The data-origin resolution joins them because audit rows are appended inside
 // database transactions, where an async read is a crash: the go-live marker has
@@ -72,7 +76,7 @@ async function probeImageWorkerForDev(): Promise<void> {
 // honestly. It never rejects; an unreadable marker degrades the stamp rather
 // than refusing the boot.
 let server: ReturnType<typeof app.listen> | undefined;
-Promise.all([initCloudFrontSigningAdapter(), initJwtSigningAdapter(), initDataOrigin()])
+Promise.all([initCloudFrontSigningAdapter(), initJwtSigningAdapter(), initCaptchaAdapter(), initDataOrigin()])
   .then(() => {
     // The declared payment mode is recorded at boot, and only when it changed,
     // so the admin payments-health page can say since when it has held without

@@ -71,15 +71,15 @@ async function postLogin(req: Request, res: Response, next: NextFunction): Promi
     }));
   };
 
-  const captcha = await identityAccessService.verifyHumanChallenge(String(req.body['cf-turnstile-response'] ?? ''), req.ip);
-  if (!captcha) {
-    renderError(CAPTCHA_FAILED_MESSAGE, 422);
-    return;
-  }
-
   const ip = req.ip ?? 'unknown';
 
   try {
+    const captcha = await identityAccessService.verifyHumanChallenge(String(req.body['cf-turnstile-response'] ?? ''), req.ip);
+    if (!captcha) {
+      renderError(CAPTCHA_FAILED_MESSAGE, 422);
+      return;
+    }
+
     const member = await identityAccessService.attemptLogin(email ?? '', password ?? '', ip);
 
     if (member !== null) {
@@ -104,6 +104,10 @@ async function postLogin(req: Request, res: Response, next: NextFunction): Promi
     if (err instanceof RateLimitedError) {
       if (err.retryAfterSeconds) res.setHeader('Retry-After', String(err.retryAfterSeconds));
       renderError(err.message, 429);
+      return;
+    }
+    if (err instanceof ServiceUnavailableError) {
+      renderServiceUnavailable(res);
       return;
     }
     next(err);
@@ -144,13 +148,13 @@ async function postRegister(req: Request, res: Response, next: NextFunction): Pr
     } satisfies PageViewModel<RegisterContent>);
   };
 
-  const captcha = await identityAccessService.verifyHumanChallenge(String(req.body['cf-turnstile-response'] ?? ''), req.ip);
-  if (!captcha) {
-    renderError(CAPTCHA_FAILED_MESSAGE);
-    return;
-  }
-
   try {
+    const captcha = await identityAccessService.verifyHumanChallenge(String(req.body['cf-turnstile-response'] ?? ''), req.ip);
+    if (!captcha) {
+      renderError(CAPTCHA_FAILED_MESSAGE);
+      return;
+    }
+
     await identityAccessService.registerMember(
       email ?? '',
       password ?? '',
@@ -181,10 +185,11 @@ async function postRegister(req: Request, res: Response, next: NextFunction): Pr
       return;
     }
     if (err instanceof ServiceUnavailableError) {
-      // Verify-email enqueue failed AFTER the member row committed: the
-      // verification send is strict, so a transport failure surfaces here
-      // rather than being swallowed. The member can self-recover via
-      // /verify/resend once outbox / SES is healthy; the audit row in
+      // Either the human-challenge verifier could not answer, before anything
+      // was written, or the verify-email enqueue failed AFTER the member row
+      // committed: the verification send is strict, so a transport failure
+      // surfaces here rather than being swallowed. The member can self-recover
+      // via /verify/resend once outbox / SES is healthy; the audit row in
       // identityAccessService records the failure for operator triage.
       renderServiceUnavailable(res);
       return;
@@ -312,18 +317,18 @@ async function postVerify(req: Request, res: Response, next: NextFunction): Prom
 async function postVerifyResend(req: Request, res: Response, next: NextFunction): Promise<void> {
   const { email } = req.body as { email?: string };
 
-  const captcha = await identityAccessService.verifyHumanChallenge(String(req.body['cf-turnstile-response'] ?? ''), req.ip);
-  if (!captcha) {
-    res.status(422).render('auth/check-email', await identityAccessService.getCheckEmailPage(
-      { error: CAPTCHA_FAILED_MESSAGE, turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
-    ));
-    return;
-  }
-
   // Service rate-limits internally and no-ops when the bucket is exceeded or
   // no unverified member matches; response is identical either way for
   // anti-enumeration.
   try {
+    const captcha = await identityAccessService.verifyHumanChallenge(String(req.body['cf-turnstile-response'] ?? ''), req.ip);
+    if (!captcha) {
+      res.status(422).render('auth/check-email', await identityAccessService.getCheckEmailPage(
+        { error: CAPTCHA_FAILED_MESSAGE, turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
+      ));
+      return;
+    }
+
     await identityAccessService.resendVerifyEmail(email ?? '');
     // On a host holding the stub sender (dev, staging, and production while email
     // is dark) the resend card shows the resent verification link scoped to the
@@ -343,8 +348,9 @@ async function postVerifyResend(req: Request, res: Response, next: NextFunction)
     ));
   } catch (err) {
     if (err instanceof ServiceUnavailableError) {
-      // Defense-in-depth for any ServiceUnavailableError surfacing from
-      // resendVerifyEmail's config/DB reads. Verify-email token issuance and enqueue
+      // The human-challenge verifier could not answer, or defense-in-depth for
+      // any ServiceUnavailableError surfacing from resendVerifyEmail's config/DB
+      // reads. Verify-email token issuance and enqueue
       // failures are audited (auth.register_notification_failed) and swallowed inside
       // resendVerifyEmail to preserve anti-enumeration, so they never reach here.
       renderServiceUnavailable(res);
@@ -416,6 +422,10 @@ async function postPasswordForgot(req: Request, res: Response, next: NextFunctio
       content: { emailPreview },
     } satisfies PageViewModel<PasswordForgotSentContent>);
   } catch (err) {
+    if (err instanceof ServiceUnavailableError) {
+      renderServiceUnavailable(res);
+      return;
+    }
     next(err);
   }
 }
@@ -457,24 +467,25 @@ async function postPasswordReset(req: Request, res: Response, next: NextFunction
   // because a captcha token is good for one check and the repeat carries the one
   // its first submit spent. It tells only the link's holder that the link was
   // used, and does nothing.
-  const firstCheck = await identityAccessService.recognisesResetRepeat(token, String(newPassword ?? ''));
-  if (firstCheck === 'repeat') {
-    renderAlreadyReset();
-    return;
-  }
-
-  const captcha = await identityAccessService.verifyHumanChallenge(String(req.body['cf-turnstile-response'] ?? ''), req.ip);
-  if (!captcha) {
-    setNoStore(res);
-    res.status(422).render('auth/password-reset', {
-      seo: { title: 'Set a New Password', noindex: true },
-      page: { sectionKey: '', pageKey: 'password_reset', title: 'Set a New Password' },
-      content: { token, error: CAPTCHA_FAILED_MESSAGE, turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
-    } satisfies PageViewModel<PasswordResetContent>);
-    return;
-  }
-
+  let firstCheck: Awaited<ReturnType<typeof identityAccessService.recognisesResetRepeat>> | undefined;
   try {
+    firstCheck = await identityAccessService.recognisesResetRepeat(token, String(newPassword ?? ''));
+    if (firstCheck === 'repeat') {
+      renderAlreadyReset();
+      return;
+    }
+
+    const captcha = await identityAccessService.verifyHumanChallenge(String(req.body['cf-turnstile-response'] ?? ''), req.ip);
+    if (!captcha) {
+      setNoStore(res);
+      res.status(422).render('auth/password-reset', {
+        seo: { title: 'Set a New Password', noindex: true },
+        page: { sectionKey: '', pageKey: 'password_reset', title: 'Set a New Password' },
+        content: { token, error: CAPTCHA_FAILED_MESSAGE, turnstileSiteKey: config.turnstileSiteKey, captchaStubbed: config.captchaAdapter === 'stub' },
+      } satisfies PageViewModel<PasswordResetContent>);
+      return;
+    }
+
     const result = await identityAccessService.completePasswordReset(
       token,
       newPassword ?? '',
@@ -519,9 +530,21 @@ async function postPasswordReset(req: Request, res: Response, next: NextFunction
     // A submit overlapping its own twin found the link unspent above, then met
     // it used once the twin consumed it; that is the same repeat. Only that case
     // checks again, so a guess on an already-spent link is counted once.
-    if (err instanceof ValidationError && firstCheck === 'link_unspent'
-      && await identityAccessService.recognisesResetRepeat(token, String(newPassword ?? '')) === 'repeat') {
-      renderAlreadyReset();
+    if (err instanceof ValidationError && firstCheck === 'link_unspent') {
+      let secondCheck: Awaited<ReturnType<typeof identityAccessService.recognisesResetRepeat>>;
+      try {
+        secondCheck = await identityAccessService.recognisesResetRepeat(token, String(newPassword ?? ''));
+      } catch (checkErr) {
+        next(checkErr);
+        return;
+      }
+      if (secondCheck === 'repeat') {
+        renderAlreadyReset();
+        return;
+      }
+    }
+    if (err instanceof ServiceUnavailableError) {
+      renderServiceUnavailable(res);
       return;
     }
     if (err instanceof ValidationError) {

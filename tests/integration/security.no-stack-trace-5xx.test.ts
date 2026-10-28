@@ -3,7 +3,8 @@
  * exception bubbles to the global error middleware, the rendered 500 page
  * carries the static service-unavailable view only: no exception message, no
  * V8 stack frames, and no source-file paths. Asserts the staging-safe pentest
- * contract that an error response never leaks internals.
+ * contract that an error response never leaks internals, and that an outage
+ * reaching that middleware is still reported as one.
  */
 import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest';
 import request from 'supertest';
@@ -72,5 +73,25 @@ describe('5xx responses -- no stack-trace or path disclosure', () => {
 
     const res = await request(createApp()).get('/clubs');
     expect(res.status).toBe(500);
+  });
+
+  it('a dependency outage that reaches the global handler answers 503 with a retry hint', async () => {
+    // Reported as a 500, an outage tells the visitor the site is broken and
+    // gives a client no hint to come back, though a retry shortly will work.
+    expectLoggedError('unhandled error');
+    const { identityAccessService } = await import('../../src/services/identityAccessService');
+    const { ServiceUnavailableError } = await import('../../src/services/serviceErrors');
+    vi.spyOn(identityAccessService, 'verifyEmailByToken').mockImplementation(async () => {
+      throw new ServiceUnavailableError('database busy');
+    });
+
+    const res = await request(createApp())
+      .post('/verify')
+      .set('Origin', process.env.PUBLIC_BASE_URL ?? 'http://localhost')
+      .type('form')
+      .send({ token: 'any-token' });
+    expect(res.status).toBe(503);
+    expect(res.headers['retry-after']).toMatch(/^\d+$/);
+    expect(res.text).not.toContain('database busy');
   });
 });

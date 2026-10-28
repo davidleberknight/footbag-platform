@@ -107,11 +107,12 @@ export interface AppConfig {
   // from it in every deployed environment.
   urlScreeningArmed: 'armed' | 'dark';
   safeBrowsingAdapter: 'live' | 'stub';
-  // CaptchaAdapter: server-side Cloudflare Turnstile verification on
-  // claim-initiation surfaces. 'live' calls Turnstile siteverify (secret via
-  // SecretsAdapter); 'stub' passes locally. Required to be explicit in prod.
+  // CaptchaAdapter: server-side Cloudflare Turnstile verification on the
+  // sign-in, registration, verify-email resend and password-reset forms. 'live'
+  // calls Turnstile siteverify (secret via SecretsAdapter); 'stub' passes any
+  // non-empty answer locally. Required to be explicit in prod.
   captchaAdapter: 'live' | 'stub';
-  // Public Turnstile site key, rendered into the claim form widget. Null in
+  // Public Turnstile site key, rendered into those forms' widget. Null in
   // stub/dev (no widget); required when captchaAdapter is 'live'.
   turnstileSiteKey: string | null;
   // SecretsAdapter: Node consumers read SSM-stored third-party secrets

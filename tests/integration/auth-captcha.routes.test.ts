@@ -3,7 +3,8 @@
  * registration, login, verify-email resend, and the password-reset request and
  * completion. Each surface rejects a failed challenge before any DB read,
  * returns a generic 422 that looks identical to any other non-result, and
- * performs no account mutation.
+ * performs no account mutation. When the verifier cannot answer, each answers
+ * 503 with Retry-After, changes nothing, and keeps the process serving.
  *
  * User story anchors: V_Register_Account, M_Login, M_Verify_Email,
  * M_Reset_Password.
@@ -13,6 +14,7 @@ import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember } from '../fixtures/factories';
+import { expectLoggedError } from '../setup-env';
 
 const { dbPath } = setTestEnv('3231');
 
@@ -185,6 +187,114 @@ describe('captcha gate on password-reset request', () => {
       .prepare('SELECT COUNT(*) AS n FROM account_tokens WHERE member_id = ?')
       .get(memberId) as { n: number };
     expect(tokens.n).toBe(0);
+  });
+});
+
+describe('captcha gate refuses a blank answer', () => {
+  it('a sign-in post with an empty challenge field gets the challenge re-render and no session', async () => {
+    // The stub passing a blank answer would hide a form that never rendered the
+    // challenge until its first submit in production.
+    insertMember(db, {
+      slug: 'login_blank_cap',
+      login_email: 'login-blank-captcha@example.com',
+      real_name: 'Login Blank Cap',
+    });
+    const res = await request(createApp())
+      .post('/login')
+      .type('form')
+      .send({
+        email: 'login-blank-captcha@example.com',
+        password: 'whatever-password',
+        'cf-turnstile-response': '',
+      });
+
+    expect(res.status).toBe(422);
+    expect(sessionCookies(res)).toHaveLength(0);
+  });
+
+  it('the stub card posts an answer the stub passes, so the rendered form works below production', async () => {
+    const page = await request(createApp()).get('/login');
+    const answer = page.text.match(/name="cf-turnstile-response" value="([^"]+)"/)?.[1];
+    expect(answer).toBeDefined();
+    const { getCaptchaAdapter } = await import('../../src/adapters/captchaAdapter');
+    expect(await getCaptchaAdapter().verify(answer!)).toEqual({ outcome: 'passed' });
+  });
+});
+
+describe('captcha gate when the verifier cannot answer', () => {
+  // Each gated form, with what a submit would change if it got past the gate.
+  // A verifier outage must refuse the form with a retry-later answer: never let
+  // the submit through, never tell the visitor their challenge failed, and
+  // never take the web process down.
+  let run = 0;
+  async function postEach(token: string): Promise<{ path: string; res: import('supertest').Response }[]> {
+    run += 1;
+    const email = `outage-${run}@example.com`;
+    const memberId = insertMember(db, { slug: `outage_cap_${run}`, login_email: email, real_name: 'Outage Cap' });
+    const app = createApp();
+    const posts: { path: string; body: Record<string, string> }[] = [
+      { path: '/login', body: { email, password: 'whatever-password' } },
+      {
+        path: '/register',
+        body: {
+          givenNames: 'Outage', familyName: 'Register', displayName: 'Outage Register',
+          slug: `outage_reg_${run}`,
+          email: `outage-reg-${run}@example.com`,
+          password: 'sufficiently-long-pw', confirmPassword: 'sufficiently-long-pw',
+        },
+      },
+      { path: '/verify/resend', body: { email } },
+      { path: '/password/forgot', body: { email } },
+      { path: '/password/reset/some-reset-token', body: { newPassword: 'new-strong-password', confirmPassword: 'new-strong-password' } },
+    ];
+    const before = snapshot(memberId);
+    const results = [];
+    for (const { path, body } of posts) {
+      const res = await request(app).post(path).type('form').send({ ...body, 'cf-turnstile-response': token });
+      results.push({ path, res });
+    }
+    expect(snapshot(memberId), 'a refused submit changed nothing').toEqual(before);
+    return results;
+  }
+
+  function snapshot(memberId: string) {
+    const count = (sql: string, ...args: unknown[]) => (db.prepare(sql).get(...args) as { n: number }).n;
+    return {
+      members: count('SELECT COUNT(*) AS n FROM members'),
+      tokens: count('SELECT COUNT(*) AS n FROM account_tokens'),
+      outbox: count('SELECT COUNT(*) AS n FROM outbox_emails'),
+      audit: count('SELECT COUNT(*) AS n FROM audit_entries'),
+      passwordVersion: (db.prepare('SELECT password_version FROM members WHERE id = ?').get(memberId) as { password_version: number }).password_version,
+    };
+  }
+
+  it('every gated form answers 503 with Retry-After and changes nothing', async () => {
+    const { STUB_CAPTCHA_UNAVAILABLE_TOKEN } = await import('../../src/adapters/captchaAdapter');
+    for (const { path, res } of await postEach(STUB_CAPTCHA_UNAVAILABLE_TOKEN)) {
+      expect(res.status, path).toBe(503);
+      expect(res.headers['retry-after'], path).toMatch(/^\d+$/);
+      expect(sessionCookies(res), path).toHaveLength(0);
+    }
+  });
+
+  it('a check that throws reaches the error page on every gated form instead of escaping the handler', async () => {
+    // A failure thrown from the check outside the handler's try was dropped by
+    // Express, and Node then exited the whole web process: one anonymous post
+    // took the site down for everyone.
+    const { setCaptchaAdapterForTests, resetCaptchaAdapterForTests } = await import('../../src/adapters/captchaAdapter');
+    setCaptchaAdapterForTests({
+      async verify() {
+        throw new Error('verifier exploded');
+      },
+    });
+    try {
+      expectLoggedError(/unhandled error/);
+      for (const { path, res } of await postEach('any-answer')) {
+        expect(res.status, path).toBe(500);
+      }
+    } finally {
+      resetCaptchaAdapterForTests();
+    }
   });
 });
 

@@ -1,10 +1,13 @@
 {{! Human-verification field. Receives the page content as context. In
     production the live Cloudflare Turnstile widget renders; on dev and staging
     the adapter is stubbed and no real challenge exists, so a labeled card
-    stands in its place to make the bypass obvious to anyone testing. }}
+    stands in its place to make the bypass obvious to anyone testing. The stub
+    refuses a blank answer as the live verifier does, so the card posts a fixed
+    answer in the field the live widget would fill. }}
 {{#if turnstileSiteKey}}
   <div class="cf-turnstile" data-sitekey="{{turnstileSiteKey}}"></div>
 {{else if captchaStubbed}}
+  <input type="hidden" name="cf-turnstile-response" value="stub-captcha-pass">
   <div class="card card-static mb-4">
     <p class="card-title">You are human</p>
     <p class="fs-sm m-0">Developer stub: the live Cloudflare Turnstile challenge is bypassed in this environment. Production shows the real challenge here.</p>

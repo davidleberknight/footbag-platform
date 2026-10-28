@@ -25,7 +25,7 @@ import { assetUrl, renderStylesheet } from './lib/assetVersion';
 import { countryFlag } from './services/countryUtils';
 import { externalLinkHelper } from './web/helpers/externalLink';
 import { formatDate, formatDateRange } from './lib/handlebarsHelpers';
-import { ForbiddenError, RateLimitedError } from './services/serviceErrors';
+import { ForbiddenError, RateLimitedError, ServiceUnavailableError } from './services/serviceErrors';
 
 const NAV_SECTIONS: ReadonlyArray<{ href: string; section: string; label: string }> = [
   { href: '/',          section: 'home',      label: 'Home' },
@@ -586,7 +586,9 @@ export function createApp(): express.Express {
       url: redactTokenPaths(req.url),
       error: err instanceof Error ? err.message : String(err),
     });
-    renderServiceUnavailable(res, 500);
+    // A dependency outage that reached here unhandled is still an outage: it
+    // answers 503 with a retry hint, not a 500.
+    renderServiceUnavailable(res, err instanceof ServiceUnavailableError ? 503 : 500);
   });
 
   return app;

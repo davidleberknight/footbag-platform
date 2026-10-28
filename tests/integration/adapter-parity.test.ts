@@ -14,7 +14,7 @@
  * nothing else, so real sending is first exercised on production by the
  * operator-run scripts/verify-prod-email.sh.
  */
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi, type MockInstance } from 'vitest';
 import * as crypto from 'node:crypto';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
@@ -46,7 +46,9 @@ import {
 import {
   createStubCaptchaAdapter,
   createLiveCaptchaAdapter,
+  type CaptchaResult,
 } from '../../src/adapters/captchaAdapter';
+import { logger } from '../../src/config/logger';
 import {
   createStubPaymentAdapter,
   createLivePaymentAdapter,
@@ -725,50 +727,179 @@ describe('adapter-parity: SecretsAdapter (Stub vs. Live interface)', () => {
 });
 
 describe('adapter-parity: CaptchaAdapter (Stub vs. Live interface)', () => {
-  it('both return { ok: true } when the token verifies', async () => {
+  // One scripted siteverify reply per attempt; the last repeats once the script
+  // runs out. 'network' throws as fetch does when the host is unreachable.
+  type SiteverifyStep = { status?: number; body?: unknown; raw?: string } | 'network';
+
+  function scriptedSiteverify(steps: SiteverifyStep[]) {
+    const captured: CapturedFetchCall[] = [];
+    let attempt = 0;
+    const fake: typeof fetch = async (input, init) => {
+      captured.push({ url: String(input), init });
+      const step = steps[Math.min(attempt++, steps.length - 1)];
+      if (step === 'network') throw new TypeError('fetch failed');
+      return new Response(step.raw ?? JSON.stringify(step.body ?? {}), {
+        status: step.status ?? 200,
+        headers: { 'content-type': 'application/json' },
+      });
+    };
+    return { fetch: fake, captured };
+  }
+
+  function liveAdapter(fetchClient: typeof fetch, secret: string | null = 'test-secret') {
+    const secrets = createStubSecretsAdapter();
+    if (secret !== null) secrets.setSecret('turnstile_secret_key', secret);
+    return createLiveCaptchaAdapter({ secrets, fetchClient });
+  }
+
+  function idempotencyKeys(captured: CapturedFetchCall[]): string[] {
+    return captured.map((c) => new URLSearchParams(String(c.init?.body)).get('idempotency_key') ?? '');
+  }
+
+  let warn: MockInstance<typeof logger.warn>;
+  beforeEach(() => {
+    warn = vi.spyOn(logger, 'warn');
+  });
+  afterEach(() => {
+    warn.mockRestore();
+  });
+
+  function unavailableWarnings(): unknown[] {
+    return warn.mock.calls.filter((call) => call[0] === 'captcha.unavailable');
+  }
+
+  it('both pass a token that verifies', async () => {
     const stub = createStubCaptchaAdapter();
-    const fakeFetch = makeFakeSafeBrowsingFetch({ success: true });
-    const secretsForLive = createStubSecretsAdapter();
-    secretsForLive.setSecret('turnstile_secret_key', 'test-secret');
-    const live = createLiveCaptchaAdapter({
-      secrets: secretsForLive,
-      fetchClient: fakeFetch.fetch,
-    });
+    const live = liveAdapter(scriptedSiteverify([{ body: { success: true } }]).fetch);
     for (const result of [await stub.verify('any-token'), await live.verify('any-token')]) {
-      expect(result.ok).toBe(true);
+      expect(result).toEqual<CaptchaResult>({ outcome: 'passed' });
     }
   });
 
-  it('both return { ok: false } when verification is rejected', async () => {
+  it('both reject a bad token, so the visitor is asked to solve the challenge again', async () => {
+    // A rejected token must never read as an outage: the visitor would be told
+    // to come back later for a challenge they can simply retry now.
     const stub = createStubCaptchaAdapter();
     stub.addFailToken('bad-token');
-    const fakeFetch = makeFakeSafeBrowsingFetch({ success: false });
-    const secretsForLive = createStubSecretsAdapter();
-    secretsForLive.setSecret('turnstile_secret_key', 'test-secret');
-    const live = createLiveCaptchaAdapter({
-      secrets: secretsForLive,
-      fetchClient: fakeFetch.fetch,
-    });
-    expect((await stub.verify('bad-token')).ok).toBe(false);
-    expect((await live.verify('bad-token')).ok).toBe(false);
+    expect(await stub.verify('bad-token')).toEqual<CaptchaResult>({ outcome: 'rejected' });
+    for (const code of ['invalid-input-response', 'timeout-or-duplicate', 'missing-input-response']) {
+      const siteverify = scriptedSiteverify([{ body: { success: false, 'error-codes': [code] } }]);
+      const result = await liveAdapter(siteverify.fetch).verify('bad-token');
+      expect(result, `error code ${code}`).toEqual<CaptchaResult>({ outcome: 'rejected' });
+      expect(siteverify.captured, `error code ${code} is not retried`).toHaveLength(1);
+    }
+    expect(unavailableWarnings()).toHaveLength(0);
   });
 
-  it('live adapter posts the token + secret to the Turnstile siteverify endpoint', async () => {
-    const fakeFetch = makeFakeSafeBrowsingFetch({ success: true });
-    const secretsForLive = createStubSecretsAdapter();
-    secretsForLive.setSecret('turnstile_secret_key', 'test-secret');
-    const live = createLiveCaptchaAdapter({
-      secrets: secretsForLive,
-      fetchClient: fakeFetch.fetch,
-    });
-    await live.verify('tok-123', '1.2.3.4');
-    expect(fakeFetch.captured).toHaveLength(1);
-    const call = fakeFetch.captured[0];
-    expect(call.url).toContain('challenges.cloudflare.com/turnstile/v0/siteverify');
+  it('both refuse a blank answer, the live one without calling Cloudflare', async () => {
+    // A stub that passed a blank answer would let a form that never rendered the
+    // challenge work everywhere below production and fail on its first live submit.
+    const stub = createStubCaptchaAdapter();
+    const siteverify = scriptedSiteverify([{ body: { success: true } }]);
+    const live = liveAdapter(siteverify.fetch);
+    expect(await stub.verify('')).toEqual<CaptchaResult>({ outcome: 'rejected' });
+    expect(await live.verify('')).toEqual<CaptchaResult>({ outcome: 'rejected' });
+    expect(siteverify.captured).toHaveLength(0);
+  });
+
+  it('both answer unavailable, and log it for the alarm, when the verifier cannot answer', async () => {
+    // Without the warning the outage alarm never fires and visitors are refused
+    // silently; without the retries one dropped packet refuses a visitor.
+    const stub = createStubCaptchaAdapter();
+    stub.addUnavailableToken('outage-token');
+    const stubResult = await stub.verify('outage-token');
+    const siteverify = scriptedSiteverify([{ body: { success: false, 'error-codes': ['internal-error'] } }]);
+    const liveResult = await liveAdapter(siteverify.fetch).verify('tok');
+    for (const result of [stubResult, liveResult]) {
+      expect(result.outcome).toBe('unavailable');
+    }
+    expect(siteverify.captured).toHaveLength(3);
+    expect(unavailableWarnings()).toHaveLength(2);
+  });
+
+  it('live retries a transient failure with one idempotency key, and passes once Cloudflare answers', async () => {
+    // A fresh key per retry would make Cloudflare refuse a token its first,
+    // unanswered attempt already spent, turning a blip into a failed challenge.
+    const siteverify = scriptedSiteverify(['network', { status: 502 }, { body: { success: true } }]);
+    const result = await liveAdapter(siteverify.fetch).verify('tok');
+    expect(result).toEqual<CaptchaResult>({ outcome: 'passed' });
+    const keys = idempotencyKeys(siteverify.captured);
+    expect(keys).toHaveLength(3);
+    expect(keys[0]).toMatch(/^[0-9a-f-]{36}$/);
+    expect(new Set(keys).size).toBe(1);
+    expect(unavailableWarnings()).toHaveLength(0);
+  });
+
+  it('live answers unavailable, without retrying, when Cloudflare refuses the request itself', async () => {
+    // A rotated or wrong secret refuses every token; reporting it as a failed
+    // challenge would leave every visitor retrying a challenge that cannot pass.
+    const cases: { step: SiteverifyStep; label: string }[] = [
+      { step: { body: { success: false, 'error-codes': ['invalid-input-secret'] } }, label: 'secret refused' },
+      { step: { body: { success: false, 'error-codes': ['bad-request'] } }, label: 'malformed request' },
+      { step: { body: { success: false } }, label: 'no error code' },
+      { step: { status: 403 }, label: 'client error status' },
+      { step: { raw: '<html>not json</html>' }, label: 'unreadable reply' },
+    ];
+    for (const { step, label } of cases) {
+      const siteverify = scriptedSiteverify([step]);
+      const result = await liveAdapter(siteverify.fetch).verify('tok');
+      expect(result.outcome, label).toBe('unavailable');
+      expect(siteverify.captured, `${label} is not retried`).toHaveLength(1);
+    }
+  });
+
+  it('live answers unavailable, and never throws, when its secret cannot be read', async () => {
+    // A throw here escaped the sign-in handlers and exited the web process.
+    for (const secret of [null, 'TODO-replace-me']) {
+      const siteverify = scriptedSiteverify([{ body: { success: true } }]);
+      const result = await liveAdapter(siteverify.fetch, secret).verify('tok');
+      expect(result, `secret ${secret ?? 'absent'}`).toEqual<CaptchaResult>({ outcome: 'unavailable', cause: 'secret' });
+      expect(siteverify.captured).toHaveLength(0);
+    }
+  });
+
+  it('live answers unavailable when Cloudflare does not reply within the budget', async () => {
+    // A hung verifier would otherwise hold the visitor's request open indefinitely.
+    vi.useFakeTimers();
+    try {
+      let calls = 0;
+      const hanging: typeof fetch = (_input, init) => {
+        calls += 1;
+        return new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+        });
+      };
+      const pending = liveAdapter(hanging).verify('tok');
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(await pending).toEqual<CaptchaResult>({ outcome: 'unavailable', cause: 'timeout' });
+      expect(calls).toBe(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('live preload refuses an absent or placeholder secret and accepts a real one', async () => {
+    // The boot preload is what stops a production container starting with a
+    // secret that would refuse every sign-in form.
+    const fetchClient = scriptedSiteverify([{ body: { success: true } }]).fetch;
+    await expect(liveAdapter(fetchClient, null).preloadSecret?.()).rejects.toThrow(/not configured/);
+    await expect(liveAdapter(fetchClient, 'TODO-replace-me').preloadSecret?.()).rejects.toThrow(/placeholder/);
+    await expect(liveAdapter(fetchClient, 'test-secret').preloadSecret?.()).resolves.toBeUndefined();
+    expect(createStubCaptchaAdapter().preloadSecret).toBeUndefined();
+  });
+
+  it('live adapter posts the token, secret, address and idempotency key to the Turnstile siteverify endpoint', async () => {
+    const siteverify = scriptedSiteverify([{ body: { success: true } }]);
+    await liveAdapter(siteverify.fetch).verify('tok-123', '1.2.3.4');
+    expect(siteverify.captured).toHaveLength(1);
+    const call = siteverify.captured[0];
+    expect(call.url).toBe('https://challenges.cloudflare.com/turnstile/v0/siteverify');
     expect(call.init?.method).toBe('POST');
-    const body = String(call.init?.body);
-    expect(body).toContain('response=tok-123');
-    expect(body).toContain('secret=test-secret');
+    const body = new URLSearchParams(String(call.init?.body));
+    expect(body.get('response')).toBe('tok-123');
+    expect(body.get('secret')).toBe('test-secret');
+    expect(body.get('remoteip')).toBe('1.2.3.4');
+    expect(body.get('idempotency_key')).toMatch(/^[0-9a-f-]{36}$/);
   });
 });
 

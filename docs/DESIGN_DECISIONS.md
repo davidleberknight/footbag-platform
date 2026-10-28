@@ -5018,7 +5018,7 @@ Trade-offs:
 
 - Distributed app-layer abuse on non-form routes cannot be blocked above the application; the origin-spike alarm escalates rather than auto-blocks.
 
-- Turnstile depends on a third-party service. Fail-mode is fail-open with an alarm: if the siteverify endpoint is unreachable, the form submission proceeds without the CAPTCHA check, preserving user access during a Cloudflare outage. An env override flips to fail-closed during an active attack.
+- Turnstile depends on a third-party service. Fail-mode is fail-closed with an alarm: if the siteverify endpoint is unreachable or the secret cannot be read, the form submission is refused with a 503 and a `Retry-After` header, never let through, and a warning log line raises the operator alarm. A Cloudflare outage therefore blocks sign-in, registration and password reset until it clears, and the form boundary stays guarded throughout.
 
 - Turnstile may escalate to an interactive checkbox for users on privacy-hardened browsers, Tor, or accessibility software, adding friction for a small fraction of legitimate users.
 

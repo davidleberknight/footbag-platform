@@ -489,6 +489,42 @@ resource "aws_cloudwatch_metric_alarm" "webhook_delivery_failures" {
   ok_actions         = [aws_sns_topic.alarms.arn]
 }
 
+# ── Human-verification outage ─────────────────────────────────────────────────
+# When the captcha verifier cannot answer (its secret unreadable, Cloudflare
+# erroring or unreachable) every sign-in, registration, verify-email resend and
+# password-reset form is refused with a retry-later page, and the app logs
+# captcha.unavailable at warn, which the blanket AppErrorCount alarm does not
+# see. One line is enough to alarm: no visitor can sign in while it lasts. The
+# cause field on the logged line names which part failed. Staging runs the stub,
+# whose unavailable sentinel token drives this alarm for the staging proof.
+
+resource "aws_cloudwatch_log_metric_filter" "captcha_unavailable" {
+  name           = "${local.prefix}-captcha-unavailable"
+  log_group_name = aws_cloudwatch_log_group.app.name
+  pattern        = "{ $.msg = \"captcha.unavailable\" }"
+  metric_transformation {
+    namespace     = "Footbag/${var.environment}"
+    name          = "CaptchaUnavailable"
+    value         = "1"
+    default_value = "0"
+  }
+}
+
+resource "aws_cloudwatch_metric_alarm" "captcha_unavailable" {
+  alarm_name          = "${local.prefix}-captcha-unavailable"
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  evaluation_periods  = 1
+  metric_name         = "CaptchaUnavailable"
+  namespace           = "Footbag/${var.environment}"
+  period              = 300
+  statistic           = "Sum"
+  threshold           = 1
+  treat_missing_data  = "notBreaching"
+  alarm_description   = "Human verification could not answer in the last 5 minutes, so the sign-in forms are refusing visitors; check the cause field on captcha.unavailable"
+  alarm_actions       = [aws_sns_topic.alarms.arn]
+  ok_actions          = [aws_sns_topic.alarms.arn]
+}
+
 # ── SES reputation ────────────────────────────────────────────────────────────
 # Account-level bounce/complaint rates. SES pauses sending around 10% bounce /
 # 0.5% complaint; alarm early at half those levels.

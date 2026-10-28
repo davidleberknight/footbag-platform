@@ -8,13 +8,14 @@
  * never attaches anywhere. A glob under a gitignored companion checkout is exempt:
  * that tree is never tracked, so matching nothing is its normal state.
  *
- * Each case builds a throwaway repository holding the real gate script, an empty
- * settings file and one rule whose glob matches a real file, which passes every
- * check; the case then adds the one defect it is about.
+ * Each case builds a throwaway repository holding the real gate script and the
+ * AWS-isolation library it sources, a settings file wiring only the hooks the gate
+ * requires, and one rule whose glob matches a real file, which passes every check;
+ * the case then adds the one defect it is about.
  */
 import { describe, it, expect, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { copyFileSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import * as path from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
@@ -22,6 +23,21 @@ import { createScratchDir } from '../fixtures/scratchDir';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const GATE_REL = path.join('scripts', 'ci', 'assert_claude_harness.sh');
+const ISOLATION_REL = path.join('scripts', 'lib', 'aws-isolation.sh');
+
+// The gate requires the public wording guard wired once on the file-writing tools,
+// blocking when it fails, and pointing at an executable file.
+const WORDING_GUARD = '.claude/hooks/guard-ui-wording.sh';
+const WIRED_SETTINGS = `${JSON.stringify({
+  hooks: {
+    PreToolUse: [
+      {
+        matcher: 'Edit|Write|MultiEdit',
+        hooks: [{ type: 'command', command: `"$CLAUDE_PROJECT_DIR"/${WORDING_GUARD}`, onFailure: 'block' }],
+      },
+    ],
+  },
+})}\n`;
 
 const scratch = createScratchDir('harness-gate-references');
 
@@ -41,7 +57,8 @@ function runGate(label: string, extra: Record<string, string>): GateRun {
   const files: Record<string, string> = {
     'CLAUDE.md': '# Root\n\nSee `.claude/rules/layer.md`.\n',
     'PROJECT_SUMMARY_CONCISE.md': '# Summary\n',
-    '.claude/settings.json': '{}\n',
+    '.claude/settings.json': WIRED_SETTINGS,
+    [WORDING_GUARD]: '#!/usr/bin/env bash\nexit 0\n',
     '.claude/rules/layer.md': rule(['src/**']),
     'src/app.ts': 'export {};\n',
     'docs/CLAUDE_CODE_GUIDE.md': '# Guide\n',
@@ -52,8 +69,11 @@ function runGate(label: string, extra: Record<string, string>): GateRun {
     mkdirSync(path.dirname(full), { recursive: true });
     writeFileSync(full, contents);
   }
+  chmodSync(path.join(root, WORDING_GUARD), 0o755);
   mkdirSync(path.join(root, 'scripts', 'ci'), { recursive: true });
   copyFileSync(path.join(REPO_ROOT, GATE_REL), path.join(root, GATE_REL));
+  mkdirSync(path.join(root, 'scripts', 'lib'), { recursive: true });
+  copyFileSync(path.join(REPO_ROOT, ISOLATION_REL), path.join(root, ISOLATION_REL));
 
   const init = spawnSync('git', ['init', '-q'], { cwd: root, encoding: 'utf8', ...SPAWN_GUARD });
   expect(init.status).toBe(0);

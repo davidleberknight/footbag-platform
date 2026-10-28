@@ -13,8 +13,7 @@
  * error code Cloudflare returns: a rejected token yields
  * `invalid-input-response`, while a bad secret yields `invalid-input-secret`.
  * Asserting the first and the absence of the second is what distinguishes "the
- * secret works and the token was bad" from "the secret is wrong", a
- * distinction the adapter's boolean result deliberately discards.
+ * secret works and the token was bad" from "the secret is wrong".
  *
  * Run with: npm run test:smoke -- --target production (gated behind
  * RUN_STAGING_SMOKE=1). Requires TURNSTILE_SECRET_KEY in the environment,
@@ -34,8 +33,19 @@
  *     another site or another environment fails exactly this way.
  *   - Network error: outbound HTTPS to challenges.cloudflare.com is blocked
  *     from the host running the smoke suite.
- *   - Adapter returns ok=true for a garbage token: the adapter is no longer
- *     reading `success` from the response and is failing open.
+ *   - Adapter passes a garbage token: the adapter is no longer reading
+ *     `success` from the response and is failing open.
+ *
+ * A second block runs on any smoke target, with no deployed secret: it drives
+ * the live adapter against the real endpoint with Cloudflare's published
+ * testing secret keys, whose answers are fixed. It proves the request the
+ * adapter sends is one Cloudflare accepts and that the adapter reads Cloudflare's
+ * real replies as the right outcome.
+ *   - The always-validating key answers unavailable: Cloudflare refused the
+ *     request shape the adapter sends (an added or renamed field).
+ *   - The always-failing or already-spent key answers unavailable: Cloudflare
+ *     changed the error code for a bad token, so every visitor who mistypes a
+ *     challenge would be told the site is down instead of to try again.
  *
  * Excluded from the default `npm test` suite via the test:smoke script's
  * scope, so dev and CI never reach Cloudflare.
@@ -116,6 +126,34 @@ describe.skipIf(!RUN)('Cloudflare Turnstile live API: siteverify', () => {
     secrets.setSecret('turnstile_secret_key', secret as string);
     const adapter = createLiveCaptchaAdapter({ secrets });
     const result = await adapter.verify(REJECTED_TOKEN);
-    expect(result.ok).toBe(false);
+    expect(result).toEqual({ outcome: 'rejected' });
   });
 });
+
+// Cloudflare's published testing secret keys, assembled rather than written out
+// so they read as what they are: public test values with fixed behaviour, not
+// credentials. "1x" always validates, "2x" always fails, and "3x" always
+// answers that the token was already spent.
+function cloudflareTestSecret(prefix: '1x' | '2x' | '3x'): string {
+  return `${prefix}${'0'.repeat(31)}AA`;
+}
+
+describe.skipIf(process.env.RUN_STAGING_SMOKE !== '1')(
+  'Cloudflare Turnstile live API: the live adapter reads the real endpoint correctly',
+  () => {
+    async function verifyWith(secretValue: string) {
+      const secrets = createStubSecretsAdapter();
+      secrets.setSecret('turnstile_secret_key', secretValue);
+      return createLiveCaptchaAdapter({ secrets }).verify(REJECTED_TOKEN);
+    }
+
+    it('a token Cloudflare validates passes', async () => {
+      expect(await verifyWith(cloudflareTestSecret('1x'))).toEqual({ outcome: 'passed' });
+    });
+
+    it('a token Cloudflare refuses, or reports as already spent, is rejected rather than read as an outage', async () => {
+      expect(await verifyWith(cloudflareTestSecret('2x'))).toEqual({ outcome: 'rejected' });
+      expect(await verifyWith(cloudflareTestSecret('3x'))).toEqual({ outcome: 'rejected' });
+    });
+  },
+);
