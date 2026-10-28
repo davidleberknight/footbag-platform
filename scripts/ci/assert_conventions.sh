@@ -423,10 +423,12 @@ fi
 # is how a generated module arrives. A script under freestyle/, legacy_data/ or
 # scripts/ fails when it redirects shell output into src/, calls a write on a
 # path literal under src/, or binds a name to a path under src/ and then writes
-# through that name. Scripts that only read src/ pass. Two exemptions: the
-# Emerging Vocabulary generator, deleted with its module, and the world-map
+# through that name. Scripts that only read src/ pass. Three exemptions: the
+# Emerging Vocabulary generator, deleted with its module; the world-map
 # builder, which draws one static image from a public map dataset once and
-# never needs rerunning, so its committed output is a site asset, not code.
+# never needs rerunning, so its committed output is a site asset, not code;
+# and the hook self-test, whose src/ writes land in a mktemp scratch project
+# standing in for the repository, never in the repository's own src/.
 check "no script writes into src/"
 src_write_out=$(git ls-files -z --cached --others --exclude-standard -- freestyle legacy_data scripts \
   | python3 -c '
@@ -435,6 +437,7 @@ EXEMPT = {
     "freestyle/scripts/build_observational_universe_content.py",
     "legacy_data/scripts/generate_world_map_svg.py",
     "scripts/ci/assert_conventions.sh",
+    "scripts/ci/test_hooks.sh",
 }
 SRC = r"""(?:["\x27]src["\x27/]|/src/)"""
 SHELL_REDIRECT = re.compile(r"""(?:>>?|\btee(?:\s+-a)?)\s*["\x27]?(?:\$\{?\w+\}?/)?src/""")

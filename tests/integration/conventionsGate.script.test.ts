@@ -595,6 +595,8 @@ describe('the convention gate: nothing under src/ is generated', () => {
         'from pathlib import Path\nREPO = Path(__file__).parents[2]\nOUT = REPO / "src/content/freestyleObservationalUniverse.ts"\nOUT.write_text("x")\n',
       'legacy_data/scripts/generate_world_map_svg.py':
         'from pathlib import Path\nOUTPUT = Path(__file__).parent / "src" / "public" / "img" / "world-map.svg"\nOUTPUT.write_text("x")\n',
+      'scripts/ci/test_hooks.sh':
+        'uw_dir="$(mktemp -d)"\nprintf x > "$uw_dir/src/services/clubService.ts"\n',
     });
     expect(res.exitCode, res.stderr).toBe(0);
     expectCheckRan(res, 'no script writes into src/');
