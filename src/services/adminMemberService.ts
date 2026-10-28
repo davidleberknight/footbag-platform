@@ -7,8 +7,10 @@
  * nothing written, and committed by the service that owns the data. The name
  * correction goes to IdentityAccessService, the tier change and the honor and
  * governance flags to MembershipTieringService, the Active Player expiry to
- * ActivePlayerService, and the profile-picture removal to MediaModerationService,
- * which owns every takedown whether or not a report led to it. Keeping the
+ * ActivePlayerService, the profile-picture removal to MediaModerationService,
+ * which owns every takedown whether or not a report led to it, and the deletion
+ * of a registration that broke the rules to AccountDeletionService, the one path
+ * every account deletion takes. Keeping the
  * writes there is what stops this surface becoming a second home for member
  * rules.
  *
@@ -39,6 +41,8 @@ import {
 import { identityAccessService } from './identityAccessService';
 import { memberService, type ProfileEditInput } from './memberService';
 import { deceasedMarkingService } from './deceasedMarkingService';
+import { getDefaultAccountDeletionService } from './accountDeletionService';
+import { findOwnLatestAudit } from './auditService';
 import { memberOnboardingService } from './memberOnboardingService';
 import { buildAvatarUrl } from './avatarService';
 import { getDefaultMediaModerationService } from './mediaModerationService';
@@ -78,6 +82,9 @@ export type CorrectionOutcome =
   | 'deceased_already_marked'
   | 'deceased_reverted'
   | 'deceased_grace_elapsed'
+  | 'account_deleted'
+  | 'account_already_deleted'
+  | 'account_delete_storage_failed'
   | 'slug_corrected'
   | 'slug_unchanged'
   | 'avatar_removed'
@@ -107,6 +114,11 @@ const OUTCOME_NOTICE: Record<CorrectionOutcome, [OutcomeTone, string]> = {
   deceased_reverted: ['ok', 'The deceased marking has been removed, and the reversal is recorded in the audit log.'],
   deceased_grace_elapsed:
     ['no', 'The window for reversing this marking has passed, so nothing was changed. Past that window the member\'s contact details are cleared, and full account deletion is the remaining path.'],
+  account_deleted:
+    ['ok', 'The account is deleted and the member has been emailed your reason. Their media is gone, and their personal details are erased when the grace period ends.'],
+  account_already_deleted: ['info', 'This account was already deleted, so nothing was changed.'],
+  account_delete_storage_failed:
+    ['no', "The account was not deleted, because some of the member's media could not be removed from storage. Try again. A recurring donation, if they had one, has already been cancelled."],
   slug_corrected:
     ['ok', 'The profile URL has been corrected and the uploader tag moved with it, so the member\'s media and galleries still resolve. The old URL no longer works.'],
   slug_unchanged: ['info', 'That is the profile URL the record already held, so nothing changed.'],
@@ -302,6 +314,13 @@ export interface AdminMemberRecordContent {
   deceasedMarkAction: string;
   deceasedRevertAction: string;
   deceasedGraceNote: string;
+  /**
+   * Whether this account may be deleted from here. Absent for an administrator
+   * (who hands the role on first), the platform's own account, and an account
+   * already deleted or erased.
+   */
+  canDeleteAccount: boolean;
+  deleteAccountAction: string;
   /** Named for where each one goes, since all three leave this record. */
   elsewhereLinks: Array<{ label: string; href: string }>;
   errorMessage?: string;
@@ -443,7 +462,7 @@ function recordNotice(row: AdminMemberRow): string | undefined {
       + 'details are cleared once the grace period ends.';
   }
   if (row.deleted_at) {
-    return 'This account is deleted and inside its grace period. The member can still restore it, '
+    return 'This account is deleted and inside its grace period. Deletion cannot be undone, '
       + 'and the platform sends them no email meanwhile.';
   }
   return undefined;
@@ -471,6 +490,28 @@ function deceasedGraceDays(): number {
 function deceasedGraceNote(): string {
   return `A marking made in error can be removed within ${deceasedGraceDays()} days. Past that `
     + "window the member's contact details are cleared, so there is nothing left to restore.";
+}
+
+/**
+ * Whether this account may be deleted by an administrator. An administrator
+ * hands their role to someone else first, the platform's own account attributes
+ * curated media, and an account already deleted or erased has nothing left to
+ * delete.
+ */
+function accountIsDeletable(row: AdminMemberRow): boolean {
+  return row.is_admin === 0 && row.is_system === 0 && !row.deleted_at && !row.personal_data_purged_at;
+}
+
+function refuseUndeletable(row: AdminMemberRow): void {
+  if (row.is_admin === 1) {
+    throw new ValidationError("An administrator's account cannot be deleted. Remove their administrator role first.");
+  }
+  if (row.is_system === 1) {
+    throw new ValidationError("The platform's own account cannot be deleted.");
+  }
+  if (row.deleted_at || row.personal_data_purged_at) {
+    throw new ValidationError('This account is already deleted.');
+  }
 }
 
 const MAX_REASON = 500;
@@ -826,6 +867,7 @@ export const adminMemberService = {
             'Every correction is recorded in the member\'s audit history.',
             'Correcting the name, profile address, tier, Active Player standing or profile, or removing the profile photo, emails the member, and the email includes the reason you give.',
             'Removing a profile photo deletes the files for good.',
+            'Deleting an account is permanent: their media goes at once, and the member is emailed your reason.',
             'Marking someone deceased sends nothing.',
           ],
         },
@@ -918,6 +960,8 @@ export const adminMemberService = {
         deceasedMarkAction:   `/admin/members/${row.id}/deceased`,
         deceasedRevertAction: `/admin/members/${row.id}/deceased/revert`,
         deceasedGraceNote:    deceasedGraceNote(),
+        canDeleteAccount:     accountIsDeletable(row),
+        deleteAccountAction:  `/admin/members/${row.id}/delete`,
         elsewhereLinks: [
           { label: "This member's history in the audit log", href: `/admin/audit-log?member=${row.id}` },
           { label: 'The honour tier grant page, where a grant names its own member', href: '/admin/honor-grants' },
@@ -1183,6 +1227,73 @@ export const adminMemberService = {
     }
     const result = deceasedMarkingService.revertDeceased(actorId, memberId);
     return result.status === 'reverted' ? 'deceased_reverted' : 'deceased_grace_elapsed';
+  },
+
+  /**
+   * Preview deleting a registration that broke the rules: a fake name, a bogus
+   * location, an account a club's co-leaders reported. Nothing is written. The
+   * confirmation names everything that goes, because none of it comes back.
+   */
+  previewAccountDeletion(
+    memberId: string,
+    rawReason: string,
+  ): PageViewModel<AdminMemberConfirmContent> {
+    const row = readMember(memberId);
+    const reason = requireReason(rawReason);
+    refuseUndeletable(row);
+    const graceDays = readIntConfig('member_cleanup_grace_days', 90);
+
+    return confirmEnvelope('Confirm: Delete the Account', {
+      memberId:    row.id,
+      displayName: row.display_name,
+      slugLabel:   displayOrDash(row.slug),
+      summary: "The member's photos, videos and galleries are deleted now. They are withdrawn from "
+        + 'events that have not happened yet, any recurring donation is cancelled, and they can no '
+        + 'longer sign in. Their past competition results stay on the site. Their personal details '
+        + `are erased after ${graceDays} days, and their email address cannot register again until `
+        + 'then. The member is emailed that an administrator deleted the account, with your reason.',
+      changes: [{ label: 'Account', before: 'Active', after: 'Deleted' }],
+      hasChanges:      true,
+      noChangeMessage: null,
+      caution: 'This cannot be undone. The media is gone the moment this is applied, and the '
+        + 'platform has no way to bring the account back.',
+      reason,
+      hiddenFields: [{ name: 'reason', value: reason }],
+      confirmAction: `/admin/members/${row.id}/delete/confirm`,
+      confirmLabel:  'Yes, Delete the Account',
+      cancelHref:    recordHref(row.id),
+    });
+  },
+
+  /** Commit the deletion through the service that owns every account deletion. */
+  async applyAccountDeletion(
+    actorId: string,
+    memberId: string,
+    rawReason: string,
+  ): Promise<CorrectionOutcome> {
+    const row = readMember(memberId);
+    const reason = requireReason(rawReason);
+    // A deletion already landed: this administrator's own reports as it was,
+    // anyone else's (the member's own, or another administrator's) as held.
+    if (row.deleted_at) {
+      return findOwnLatestAudit(actorId, 'auth.account_deleted', 'member', row.id)
+        ? 'account_deleted'
+        : 'account_already_deleted';
+    }
+    refuseUndeletable(row);
+    const result = await getDefaultAccountDeletionService().requestAccountDeletion({
+      memberId:                row.id,
+      recurringDonationChoice: 'cancel',
+      byAdmin:                 { adminMemberId: actorId, reason },
+    });
+    switch (result.status) {
+      case 'deleted':          return 'account_deleted';
+      case 'already_deleted':  return 'account_already_deleted';
+      case 'storage_failed':   return 'account_delete_storage_failed';
+      case 'not_found':        throw new NotFoundError('member not found');
+      case 'administrator':
+        throw new ValidationError("An administrator's account cannot be deleted. Remove their administrator role first.");
+    }
   },
 
   /** Preview an Active Player expiry correction. Nothing is written. */

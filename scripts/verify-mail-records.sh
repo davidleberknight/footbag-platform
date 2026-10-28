@@ -25,7 +25,10 @@
 #                      the domain verification token is still present; the
 #                      reporting policy is served at p=none, the staged starting
 #                      point; the bounce-domain records and the signing key are
-#                      all served.
+#                      all served; and ifpa.footbag.org, the IFPA list domain
+#                      kept in the Workspace as a secondary domain for its
+#                      legacy aliases, routes mail to Google alone, with a sender
+#                      policy naming Google only and its verification token kept.
 #   --stage rollback   after the mail-day apply is reverted: the apex mail routing
 #                      and the apex sender policy are the legacy values the values
 #                      file carries, served again, with the verification token
@@ -223,6 +226,17 @@ judge_apex_txt() {
     && grep -qxF 'v=spf1 include:amazonses.com include:_spf.google.com ~all' <<< "$(printf '%s\n' "$1" | join_txt_lines)" \
     && [[ "$token" -ge 1 ]]
 }
+# Nothing sends as an ifpa.footbag.org address, but its own sender policy still
+# replaces the legacy one naming the old host, whose power-down would otherwise
+# leave a policy authorising a machine nobody controls.
+judge_ifpa_txt() {
+  local spf token
+  spf="$(printf '%s\n' "$1" | join_txt_lines | grep -c '^v=spf1' || true)"
+  token="$(printf '%s\n' "$1" | join_txt_lines | grep -c '^google-site-verification=' || true)"
+  [[ "$spf" -eq 1 ]] \
+    && grep -qxF 'v=spf1 include:_spf.google.com ~all' <<< "$(printf '%s\n' "$1" | join_txt_lines)" \
+    && [[ "$token" -ge 1 ]]
+}
 judge_dmarc() {
   local v
   v="$(printf '%s\n' "$1" | head -1 | join_txt)"
@@ -262,6 +276,8 @@ case "$STAGE" in
     check "bounce domain routes to SES feedback" "mail.${APEX}" MX judge_bounce_mx
     check "bounce domain sender policy" "mail.${APEX}" TXT judge_bounce_txt
     check "the Google signing key is still served" "google._domainkey.${APEX}" TXT judge_key
+    check "the IFPA list domain routes to Google alone" "ifpa.${APEX}" MX judge_mx
+    check "the IFPA list domain sender policy names Google only, and its verification token is kept" "ifpa.${APEX}" TXT judge_ifpa_txt
     ;;
   rollback)
     check "apex mail routes to the legacy host again" "$APEX" MX judge_rollback_mx

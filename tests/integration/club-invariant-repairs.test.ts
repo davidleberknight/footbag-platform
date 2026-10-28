@@ -55,6 +55,12 @@ function seedMember(): string {
   completeOnboarding(db, memberId);
   return memberId;
 }
+// The test clubs have no co-leader, and joining one takes Tier 1 benefits.
+function seedJoiner(): string {
+  const memberId = seedMember();
+  insertMemberTierGrant(db, { member_id: memberId, new_tier_status: 'tier1', reason_code: 'purchase.tier1' });
+  return memberId;
+}
 function seedClub(name: string): string {
   _n += 1;
   return insertClub(db, { id: `inv-club-${_n}`, name: `${name} ${_n}`, status: 'active' });
@@ -75,7 +81,7 @@ describe('a main club is chosen automatically only for a lone remaining club', (
   // Defect caught: leaving the main club leaves the member's only remaining
   // club designated secondary, with no main club at all.
   it('leaving the main club makes a lone remaining club main', () => {
-    const memberId = seedMember();
+    const memberId = seedJoiner();
     const clubX = seedClub('Repair X');
     const clubY = seedClub('Repair Y');
     clubSvc.joinClub(memberId, clubX);
@@ -108,7 +114,7 @@ describe('a main club is chosen automatically only for a lone remaining club', (
   });
 
   it('an admin demote that removes the affiliation makes the lone remaining club main', () => {
-    const memberId = seedMember();
+    const memberId = seedJoiner();
     const clubLed = seedClub('Demote Led');
     const clubOther = seedClub('Demote Other');
 
@@ -152,7 +158,7 @@ describe('a wizard card brings back an affiliation an admin ended', () => {
   });
 
   it('a club the member already holds is left exactly as it is', () => {
-    const memberId = seedMember();
+    const memberId = seedJoiner();
     const clubId = seedClub('Already In');
 
     clubSvc.joinClub(memberId, clubId);

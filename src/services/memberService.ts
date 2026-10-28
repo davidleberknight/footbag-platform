@@ -2146,7 +2146,7 @@ function welcomeTierContent(): MemberWelcomeTier[] {
       price: 'Free',
       benefits: [
         'Browse the platform and search the membership',
-        'Earn Active Player status (730 days) through qualifying event attendance or a vouch, or once by joining your first club if you have never held it',
+        'Earn Active Player status (730 days) through qualifying event attendance or a vouch, or once by joining your first club that has a co-leader, if you have never held it',
         'Active Player status unlocks Tier 1 benefits while current, including Official IFPA Roster inclusion',
       ],
     },
@@ -2214,7 +2214,7 @@ function tierBenefitsBlurb(tier: MemberTier, hasEverHeldActivePlayer: boolean): 
     case 'tier0':
       return hasEverHeldActivePlayer
         ? 'You can browse the platform and search the membership. Active Player status gives you Tier 1 benefits while it is current: you earn it by attending a qualifying event, and a Tier 2 or Tier 3 member can also vouch for you.'
-        : 'You can browse the platform and search the membership. Active Player status gives you Tier 1 benefits while it is current: you earn it by attending a qualifying event, or once by joining your first club, and a Tier 2 or Tier 3 member can also vouch for you.';
+        : 'You can browse the platform and search the membership. Active Player status gives you Tier 1 benefits while it is current: you earn it by attending a qualifying event, or once by joining your first club that has a co-leader, and a Tier 2 or Tier 3 member can also vouch for you.';
     case 'tier1':
       return 'You support the IFPA, are listed on the Official IFPA Roster, vote in IFPA elections, and can create clubs and basic events.';
     case 'tier2':

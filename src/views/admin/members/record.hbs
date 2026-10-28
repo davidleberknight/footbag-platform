@@ -281,6 +281,20 @@
         </form>
       </details>
     {{/if}}
+
+    {{#if content.canDeleteAccount}}
+      <details class="admin-action-disclosure">
+        <summary>Delete the Account</summary>
+        <p class="fs-sm">For a registration that breaks the rules, such as a fake name or a bogus location. The member's photos, videos and galleries are deleted at once, they are withdrawn from upcoming events, any recurring donation is cancelled, and they can no longer sign in. The member is emailed the reason you give. Deletion cannot be undone.</p>
+        <form method="POST" action="{{content.deleteAccountAction}}" class="form-block">
+          <div class="form-field">
+            <label for="delete_reason">Reason (required)</label>
+            <input type="text" id="delete_reason" name="reason" maxlength="500" required />
+          </div>
+          <button type="submit" class="btn btn-outline">Review Deleting the Account</button>
+        </form>
+      </details>
+    {{/if}}
   </section>
 
   <section>

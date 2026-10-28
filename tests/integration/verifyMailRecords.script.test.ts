@@ -39,6 +39,8 @@ const KEY_TXT = `"${KEY_HEAD}" "${KEY_TAIL}"`;
 const NEW_SPF = '"v=spf1 include:amazonses.com include:_spf.google.com ~all"';
 const TOKEN = '"google-site-verification=WPyKAx6yf5JX7FuFKbDx5FWSwm7EI2g9r9erW_SxOQI"';
 const LEGACY_SPF = 'v=spf1 a mx ip4:173.8.190.50 ip4:74.50.54.203 a:google.com ~all';
+const IFPA_SPF = '"v=spf1 include:_spf.google.com ~all"';
+const IFPA_TOKEN = TOKEN;
 
 let dir: string;
 let fakeDig: string;
@@ -66,6 +68,8 @@ function seedMailDay(): void {
   serveEverywhere('mail.footbag.org', 'MX', ['10 feedback-smtp.us-east-1.amazonses.com.']);
   serveEverywhere('mail.footbag.org', 'TXT', ['"v=spf1 include:amazonses.com ~all"']);
   serveEverywhere('google._domainkey.footbag.org', 'TXT', [KEY_TXT]);
+  serveEverywhere('ifpa.footbag.org', 'MX', ['1 smtp.google.com.']);
+  serveEverywhere('ifpa.footbag.org', 'TXT', [IFPA_TOKEN, IFPA_SPF]);
 }
 
 function run(args: string[]): { status: number | null; stdout: string; stderr: string } {
@@ -222,6 +226,25 @@ describe('verify-mail-records: the mail-day stage', () => {
     seedMailDay();
     serveEverywhere('mail.footbag.org', 'MX', []);
     expect(run(mailDay()).status).toBe(1);
+  });
+
+  it('fails while the IFPA list domain still routes mail to the legacy host, which stops receiving at its power-down', () => {
+    seedMailDay();
+    serveEverywhere('ifpa.footbag.org', 'MX', ['10 rimu3.footbag.org.', '20 llic.net.']);
+    const res = run(mailDay());
+    expect(res.status).toBe(1);
+    expect(res.stdout).toContain('FAIL: the IFPA list domain routes to Google alone');
+  });
+
+  it('fails while the IFPA list domain keeps the legacy sender policy or has lost its verification token', () => {
+    seedMailDay();
+    serveEverywhere('ifpa.footbag.org', 'TXT', [IFPA_TOKEN, '"v=spf1 a mx ip4:74.50.54.203 ~all"']);
+    expect(run(mailDay()).status).toBe(1);
+    seedMailDay();
+    serveEverywhere('ifpa.footbag.org', 'TXT', [IFPA_SPF]);
+    const res = run(mailDay());
+    expect(res.status).toBe(1);
+    expect(res.stdout).toContain('FAIL: the IFPA list domain sender policy names Google only');
   });
 
   it('fails when the signing key has gone missing by mail day', () => {

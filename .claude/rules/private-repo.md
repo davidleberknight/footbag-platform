@@ -29,3 +29,8 @@ private operations checkout). Workflow and tracker practice live in the
   filename is not the slug, owner, or an issue number, so naming one leaks nothing.
   Every line naming one carries the word "private", so a mention never reads as a file
   in the public repository; the harness self-check enforces it.
+- A runbook, plan or card step that changes AWS, a values file or a host
+  names the script that makes the change, with its flags. "Set <var> and
+  apply", "edit the values file" or a console click on AWS is not a step:
+  where no script exists the step is "write it", tracked on a card. An
+  existing step in that shape is drift to fix, never precedent to copy.

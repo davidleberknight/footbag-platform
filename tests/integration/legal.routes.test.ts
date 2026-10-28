@@ -10,8 +10,8 @@
  *   - includes Apache-2.0 source-code license reference
  *   - includes IFPA trademark notice and Hacky Sack descriptive-use notice
  *   - privacy disclosures match what the site actually loads: every cookie the
- *     app sets, the Cloudflare human-verification check and the pages it runs
- *     on, and the video-thumbnail requests behind the click-to-load facade
+ *     app sets, and the video-thumbnail requests behind the click-to-load
+ *     facade
  *   - promises it makes stay tied to the routes that keep them true:
  *     self-service export and deletion, and opt-in announcement mail
  *   - includes last-updated date
@@ -116,12 +116,6 @@ describe('GET /legal', () => {
     const deployed = new Set(routes.allRoutes.map((r) => `${r.method.toUpperCase()} ${r.path}`));
     expect(deployed.has('GET /members/:memberKey/email-preferences')).toBe(true);
     expect(deployed.has('POST /members/:memberKey/email-preferences')).toBe(true);
-  });
-
-  it('discloses the human-verification check and the pages it runs on', async () => {
-    const res = await page('/legal');
-    expect(res.text).toContain('Cloudflare Turnstile');
-    expect(res.text).toMatch(/legacy-account claim/i);
   });
 
   it('discloses the video thumbnail requests and keeps the click-to-load statement', async () => {

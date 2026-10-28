@@ -51,6 +51,9 @@ const CATALOG: CatalogEntry[] = [
   { template: 'account_deletion_requested', services: ['accountDeletionService'], samples: [
     { params: { memberName: 'A Member', graceDays: 90 }, variant: 'account_deletion_requested' },
   ] },
+  { template: 'account_deleted_by_admin', services: ['accountDeletionService'], samples: [
+    { params: { memberName: 'A Member', graceDays: 90, note: 'Not a real full name' }, variant: 'account_deleted_by_admin' },
+  ] },
   // Admin-alerts fan-out, sent from the single work-queue enqueue path.
   { template: 'admin_loss_recruitment', services: ['workQueueService'], samples: [
     { params: { entityId: 'e', queueUrl: 'https://x/admin/work-queue' }, variant: 'admin_loss_recruitment' },

@@ -1,8 +1,11 @@
 #!/usr/bin/env bash
 # terraform-apply.sh
 #
-# Applies one environment's Terraform tree, for every change that needs nothing
-# but a plan read and a confirmation.
+# Applies one environment's Terraform tree as its values file already stands, for
+# a change that needs nothing but a plan read and a confirmation. It never edits
+# the values file, and an operator never edits it by hand before running this: a
+# change that must first set a value is a script that writes the value and then
+# applies, as scripts/arming.sh does.
 #
 # WHY THIS EXISTS.
 #
@@ -25,7 +28,8 @@
 # scripts/apply-snapshot-retention.sh refuses to apply until the promoted backup
 # tiers hold history, scripts/arming.sh rewrites an arming flag and sequences the
 # deploy behind it, and scripts/activate-notification-feeds.sh brings queues up
-# in the one order that is safe. Reach for this script for the rest.
+# in the one order that is safe. Reach for this script only to apply values
+# already written; a flag flip or a map move gets its own script.
 #
 # Some runbook steps also carry work around the apply that stays in the runbook,
 # because absorbing it here would mean claiming to handle it: the two-pass

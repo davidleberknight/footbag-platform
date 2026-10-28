@@ -274,7 +274,8 @@ resource "aws_route53_record" "legacy_apex_cnames" {
 # These names retire in the launch apply (the go-live cutover change) rather
 # than at the alias flip, so they are gated on the mirror flag alone. The mail-carrying ones among
 # them are removed only after inbound mail has moved, never before, or an address
-# is left with no delivery path.
+# is left with no delivery path. A name whose mail moves to the Workspace rather
+# than retiring leaves these maps for the Workspace maps below instead.
 #
 # One deliberate and harmless departure from "every record": the zone publishes
 # four records of the obsolete SPF resource type alongside identical TXT records
@@ -369,10 +370,13 @@ resource "aws_route53_record" "legacy_mirror_txt" {
 # secretary rules: the `my` entries stay until the Workspace's primary domain is
 # the apex, so no `@my` mailbox loses delivery first, while the `g` entries
 # leave in the launch apply once IFPA's material is off that domain, ahead of
-# its removal in the console.
+# its removal in the console. `ifpa` belongs here too: the IFPA list domain is a
+# Workspace secondary domain, so legacy addresses the secretary keeps there work
+# as aliases on the apex groups. Its MX and TXT stay past the launch apply, while
+# its address record stays in the legacy mirror and leaves with it.
 
 variable "workspace_mx_records" {
-  description = "Google Workspace tenant names carrying mail routing, as name => list of MX strings. Not gated on the legacy mirror: these outlive the launch apply's mirror removal and retire only by removing the entry, when the IFPA secretary rules (my after the apex becomes the Workspace's primary domain; g in the launch apply)."
+  description = "Google Workspace tenant names carrying mail routing, as name => list of MX strings. Not gated on the legacy mirror: these outlive the launch apply's mirror removal and retire only by removing the entry, when the IFPA secretary rules (my after the apex becomes the Workspace's primary domain; g in the launch apply; ifpa only when the secretary retires the last alias on it)."
   type        = map(list(string))
   default     = {}
 }
@@ -449,6 +453,16 @@ moved {
 moved {
   from = aws_route53_record.legacy_mirror_txt["my"]
   to   = aws_route53_record.workspace_txt["my"]
+}
+
+moved {
+  from = aws_route53_record.legacy_mirror_mx["ifpa"]
+  to   = aws_route53_record.workspace_mx["ifpa"]
+}
+
+moved {
+  from = aws_route53_record.legacy_mirror_txt["ifpa"]
+  to   = aws_route53_record.workspace_txt["ifpa"]
 }
 
 moved {

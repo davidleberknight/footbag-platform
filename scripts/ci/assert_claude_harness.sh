@@ -461,6 +461,18 @@ else
   echo "[harness] every maintainer-gated command is an ask rule"
 fi
 
+# --- Check 15: the public wording guard runs on every file-writing tool ---
+# Root CLAUDE.md forbids silent changes to public UI wording; guard-ui-wording.sh asks
+# unless the human approved the text, and only while it is wired on Edit, Write and
+# MultiEdit. Its behaviour is pinned by the hook fixture suite.
+if jq -e '[(.hooks.PreToolUse // [])[] | select(.matcher == "Edit|Write|MultiEdit")
+    | .hooks[].command | select(test("guard-ui-wording\\.sh"))] | length == 1' "$SETTINGS" >/dev/null 2>&1; then
+  echo "[harness] the public wording guard runs on Edit, Write and MultiEdit"
+else
+  echo "[harness] FAIL: guard-ui-wording.sh is not wired once on the Edit|Write|MultiEdit matcher in $SETTINGS" >&2
+  fail=1
+fi
+
 if [ "$fail" -ne 0 ]; then
   echo "[harness] FAIL: one or more harness checks failed." >&2
   exit 1

@@ -166,6 +166,9 @@ describe('POST /clubs/:key/volunteer', () => {
   // the club, collects the one-time club-join period and leads it on that period.
   it('a Tier 0 site member without Active Player is not offered volunteering at a club they are not in, and cannot post it', async () => {
     const { clubId, clubKey } = seedClub();
+    // A club with a co-leader, so the Join control this member may use shows.
+    const leader = tier1Actor(`v-t0-out-ldr-${_n}`, `v_t0_out_ldr_${_n}`);
+    insertClubLeader(db, { club_id: clubId, member_id: leader });
     const m = tier0Actor(`v-t0-out-${_n}`, `v_t0_out_${_n}`);
 
     const page = await request(createApp()).get(`/clubs/${clubKey}`).set('Cookie', cookieFor(m));
@@ -175,7 +178,7 @@ describe('POST /clubs/:key/volunteer', () => {
 
     const res = await request(createApp()).post(`/clubs/${clubKey}/volunteer`).set('Cookie', cookieFor(m));
     expect(res.status).toBe(403);
-    expect(leaderRows(clubId)).toHaveLength(0);
+    expect(leaderRows(clubId)).toHaveLength(1);
     expect(currentAffiliations(m)).toEqual([]);
     expect(auditCount('club.member_joined', 'actor_member_id = ?', m)).toBe(0);
     expect(db.prepare(

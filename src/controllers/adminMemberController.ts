@@ -247,6 +247,34 @@ export const adminMemberController = {
     };
   },
 
+  /** POST /admin/members/:memberId/delete */
+  previewDelete(req: Request, res: Response, next: NextFunction): void {
+    const memberId = req.params['memberId'] ?? '';
+    try {
+      res.render('admin/members/confirm', adminMemberService.previewAccountDeletion(
+        memberId, bodyValue(req, 'reason'),
+      ));
+    } catch (err) {
+      if (isHandled(err)) { renderRecordError(res, memberId, err, next); return; }
+      handleControllerError(err, res, next, CONTEXT);
+    }
+  },
+
+  /** POST /admin/members/:memberId/delete/confirm */
+  async confirmDelete(req: Request, res: Response, next: NextFunction): Promise<void> {
+    const memberId = req.params['memberId'] ?? '';
+    try {
+      const outcome = await adminMemberService.applyAccountDeletion(
+        req.user!.userId, memberId, bodyValue(req, 'reason'),
+      );
+      writeFlash(res, req, FLASH_KIND.MEMBER_RECORD_CORRECTED, outcome);
+      res.redirect(303, `/admin/members/${memberId}`);
+    } catch (err) {
+      if (isHandled(err)) { renderRecordError(res, memberId, err, next); return; }
+      handleControllerError(err, res, next, CONTEXT);
+    }
+  },
+
   /** POST /admin/members/:memberId/active-player */
   previewActivePlayer(req: Request, res: Response, next: NextFunction): void {
     const memberId = req.params['memberId'] ?? '';

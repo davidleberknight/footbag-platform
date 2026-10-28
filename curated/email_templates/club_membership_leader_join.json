@@ -1,7 +1,7 @@
 {
   "templateKey": "club_membership_leader_join",
   "subjectTemplate": "A new member joined {clubName}",
-  "bodyTemplate": "Hi {leaderName},\n\n{memberName} joined your club \"{clubName}\".\n\nYou can review the roster on the club page.\n\n-- IFPA platform",
+  "bodyTemplate": "Hi {leaderName},\n\n{memberName} joined your club \"{clubName}\".\n\nYou can review the roster on the club page.\n\nIf you don't know this person, or the name doesn't look like a real full name, please tell an IFPA admin: log in, open your profile, choose Edit Profile, use the \"Contact IFPA admin\" link and choose the topic Other. Reports like this are how IFPA catches fake accounts.\n\n-- IFPA platform",
   "piiClassification": "confidential",
   "isEnabled": true
 }

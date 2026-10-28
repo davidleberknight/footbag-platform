@@ -141,6 +141,8 @@
         <form method="POST" action="{{content.club.joinHref}}">
           <button type="submit" class="btn btn-primary">Join This Club</button>
         </form>
+      {{else if content.club.joinBlockedNote}}
+        <p>{{#each content.club.joinBlockedNote}}{{#if href}}<a href="{{href}}">{{text}}</a>{{else}}{{text}}{{/if}}{{/each}}</p>
       {{/if}}
     </div>
 

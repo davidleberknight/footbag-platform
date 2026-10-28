@@ -338,7 +338,7 @@ Glossary:
 - **Active Player:** Temporary status for Tier 0 members only. While current, gives the Tier 0 member Tier 1 benefits. Active Player does not change membership tier.
 - **Qualifying event attendance:** Attendance at any event officially registered through the IFPA website. Grants or extends Active Player for Tier 0 targets only.
 - **Vouch:** A Tier 2 or Tier 3 member granting or extending Active Player for a Tier 0 member. No-op against any Tier 1, Tier 2, or Tier 3 target.
-- **One-time club-join grant:** A single Active Player period granted when a Tier 0 member who has never previously been Active Player joins their first existing IFPA club. Not regranted on subsequent joins. Creating a club is not a qualifying join and grants no Active Player period.
+- **One-time club-join grant:** A single Active Player period granted when a Tier 0 member who has never previously been Active Player joins their first existing IFPA club that has a co-leader. Not regranted on subsequent joins. Creating a club is not a qualifying join and grants no Active Player period.
 - **No-shorten rule:** An older qualifying event, club-join grant, or vouch must not shorten an existing later Active Player expiry date.
 - **Tier 1 benefits:** Shorthand for "Tier 1, Tier 2, or Tier 3 member, or Tier 0 member with current Active Player status." Used in Access lines below where the gate is the Tier 1 capability set rather than strict Tier 1, Tier 2, or Tier 3 membership.
 - **Official IFPA Roster:** Tier 1 members, Tier 2 members, Tier 3 members, and Tier 0 members with current Active Player status. Excludes Tier 0 members without current Active Player status. Not public, and served on screen only. Tier 2 or Tier 3 members and administrators may view it for official IFPA event and organizer purposes.
@@ -866,7 +866,7 @@ Success Criteria:
 - Member receives email confirmation that the account is deleted, stating that the deletion is permanent, how long their personal details are held before erasure, how long the email address stays reserved, and that anyone who did not ask for this should contact IFPA.
 - Member sees a confirmation screen before deletion that asks whether they are sure and states plainly that deletion is permanent, that their photos, videos and galleries go now, that upcoming event registrations are withdrawn, that their personal details are erased within the configured grace period, and that the email address cannot be reused for that long.
 - Member sees a confirmation after deletion stating that the account is deleted, that it cannot be undone from the site, and how long their personal details are held before erasure.
-- If the member was the club's only co-leader, the club becomes leaderless, a tolerated state (see §5.1): the club persists and stays joinable, and surfaces on the low-priority "could use a leader" admin list (label "Needs Leader") as an opportunity, not a remediation obligation. If the member was the only event organizer, the event is added to the admin work queue with the "Needs Organizer" label for reassignment.
+- If the member was the club's only co-leader, the club becomes leaderless, a tolerated state (see §5.1): the club persists, stays listed, and stays joinable by members with Tier 1 benefits, and surfaces on the low-priority "could use a leader" admin list (label "Needs Leader") as an opportunity, not a remediation obligation. If the member was the only event organizer, the event is added to the admin work queue with the "Needs Organizer" label for reassignment.
 - Photo deletion from S3 occurs synchronously during the account deletion request. If S3 deletion fails, the deletion request fails and the member account is NOT deleted (transactional consistency: the account is only marked deleted after all photos are confirmed removed from S3).
 - Named gallery records belonging to the deleted member are hard-deleted when the member's photos are deleted. Gallery rows have no downstream referential integrity concerns (they are leaf nodes). Gallery deletion is part of the same atomic operation as photo deletion.
 
@@ -1199,7 +1199,8 @@ Success Criteria:
 - Club member roster visible to all logged-in members (not visitors).
 - Roster shows member display name, membership tier badge, current Active Player badge where applicable, any special flags (HoF, BAP, Board), and city/country.
 - Roster does NOT show member email addresses unless member has opted in to email visibility.
-- Joining sends an email notification to the member, and all current co-leaders.
+- Joining sends an email notification to the member, and all current co-leaders. The co-leaders' email asks them to tell an IFPA admin when they do not know the new member or the name does not look like a real full name, and says how: from their own profile, choose Edit Profile, use the Contact IFPA admin link and choose the topic Other.
+- A member without Tier 1 benefits cannot join a club that has no current co-leader. In place of the Join control the club page tells them why and names every way through, linked where the site has a page: upgrade their membership, attend an event listed on the site, ask a Tier 2 or Tier 3 member to vouch for them, or ask a member with Tier 1 benefits to volunteer as the club's co-leader; a member below the two-club limit is also told they can join any club that has a co-leader. A join attempt anyway is refused with nothing written.
 - When joining a club, the member sees the club's current description and external URL. Co-leaders edit these directly via `CL_Edit_Club` or wizard Stage 1A; other members report inaccuracies to a co-leader out of band (a co-leader's contact email is visible to authenticated members). Club content has no in-app suggestion or review queue.
 - If the joining member is Tier 0 and has never previously been an Active Player, the first IFPA club join grants one 730-day Active Player period.
 - The one-time club-join Active Player grant does not change membership tier.
@@ -2532,11 +2533,11 @@ Club leadership is a flat set of equal co-leaders (up to 5 per club), each with 
 
 ## 5.1 Club Lifecycle
 
-Club leadership rule: a club should have at least one co-leader, but a club with none is still a valid, persisting entity: it keeps its roster, stays joinable, and stays listed. A club is reachable through its co-leaders' member-visible contact emails; there is no separate club-level contact field, so a club with no co-leaders simply has no platform-surfaced contact and no platform-side editor until a member steps up. Such clubs surface on a single low-priority "could use a leader" admin list (an opportunity, not a remediation obligation, with no deadline and no escalation); a current member can volunteer to co-lead (see V_Volunteer_To_CoLead), or an admin can assign one. Governance groups are different: a committee with zero owners is genuinely adrift (see §3.10).
+Club leadership rule: a club should have at least one co-leader, but a club with none is still a valid, persisting entity: it keeps its roster and stays listed, and only a member with Tier 1 benefits may join it. A Tier 0 member's first club join grants an Active Player period, and the co-leaders' join email is the human check on that grant, so a club with nobody to receive it does not take that join. A club is reachable through its co-leaders' member-visible contact emails; there is no separate club-level contact field, so a club with no co-leaders simply has no platform-surfaced contact and no platform-side editor until a member steps up. Such clubs surface on a single low-priority "could use a leader" admin list (an opportunity, not a remediation obligation, with no deadline and no escalation); a current member can volunteer to co-lead (see V_Volunteer_To_CoLead), or an admin can assign one. Governance groups are different: a committee with zero owners is genuinely adrift (see §3.10).
 
 ### M_Create_Club
 
-Access: Members who do not already co-lead a club and who hold Tier 1 benefits can create a new club. A Tier 0 member without current Active Player status cannot create a club; they first earn Active Player by joining an existing club, attending a qualifying event, or being vouched for.
+Access: Members who do not already co-lead a club and who hold Tier 1 benefits can create a new club. A Tier 0 member without current Active Player status cannot create a club; they first earn Active Player by joining an existing club that has a co-leader, attending a qualifying event, or being vouched for.
 
 Story: As an eligible member, I can create a club so that I can become its first co-leader, and organize a local footbag community.
 
@@ -2551,7 +2552,7 @@ Success Criteria:
 - Near-match candidates (high name similarity in the same country, below the exact-match threshold) trigger a warning that lists the candidates with their location; the creator may proceed if confident the new club is distinct or pick an existing entry. Junk-flagged candidates are not surfaced as potential duplicates.
 
 - The standardised hashtag is `#club_` followed by a slug the creating member supplies, defaulting to a slug of the club's city and overridable by the member. The slug is at least two characters of lowercase letters, digits and single underscores, starts and ends with a letter or digit, and the whole hashtag is globally unique and at most 100 characters.
-- Creating a club requires Tier 1 benefits and grants no Active Player period. A Tier 0 member without current Active Player status cannot create a club and is shown that creating requires Tier 1 benefits, with a pointer to the ways to earn Active Player (join an existing club, attend a qualifying event, or be vouched for) or to upgrade their membership tier.
+- Creating a club requires Tier 1 benefits and grants no Active Player period. A Tier 0 member without current Active Player status cannot create a club and is shown that creating requires Tier 1 benefits, with a pointer to the ways to earn Active Player (join an existing club that has a co-leader, attend a qualifying event, or be vouched for) or to upgrade their membership tier.
 - Leader sees a clear success message when club is created.
 - Leader sees clear error messages for validation failures.
 - Member becomes the club's first co-leader. A member may co-lead only one club at a time.
@@ -2767,7 +2768,7 @@ Access: Only admins can override member data in exceptional cases where manual c
 
 Story: As an Admin, I can manually override member data in exceptional cases so that I resolve issues, grant access, correct errors, or anything else allowed by the system.
 
-Admin can delete member accounts that violate registration rules (real full name, correct location) upon discovery. This is designed for exceptional cases where a member account was created with invalid data (fake name, bogus location) that was not caught by initial validation. Member receives notification email that account was deleted for policy violation."
+Admin can delete member accounts that violate registration rules (real full name, correct location; the location is collected during onboarding, not at registration) upon discovery. This is designed for exceptional cases where a member account was created with invalid data (fake name, bogus location) that was not caught by initial validation. Member receives notification email that account was deleted for policy violation."
 
 Success Criteria:
 
@@ -2790,6 +2791,7 @@ Success Criteria:
 - Every correction to a member's name, profile URL, profile fields or Active Player expiry emails the member, naming what changed and the admin's reason, and never the values themselves, because the address on file may be exactly what was wrong.
 - Member receives email notification of membership-status change with key points: new membership tier, Active Player status or expiry where changed, reason.
 - All manual data overrides audit-logged with admin ID, member ID, old values, new values, reason, timestamp.
+- Admin can delete a registration that breaks the registration rules from the member detail view, with a mandatory reason. The preview names everything that goes before anything is written. The deletion is refused for an administrator, the platform's own system account, and an account already deleted or erased, and the control is not offered for them. Any recurring gift is cancelled, one audit row names the administrator and the reason, and the member is emailed that an administrator deleted the account, with the reason, unless they are deceased or their mailbox is undeliverable. Otherwise it is the same deletion a member's own request performs (M_Delete_Account): media gone at once, upcoming registrations withdrawn, sign-in ended, and personal data purged after the grace period.
 - Admin sees a clear success message when adjustment completes successfully.
 - Admin sees a clear error message when adjustment fails, including a short explanation.
 

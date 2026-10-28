@@ -84,6 +84,8 @@ adminRouter.post('/members/:memberId/deceased/revert/confirm', adminMemberContro
 adminRouter.post('/members/:memberId/deceased/revert',         adminMemberController.previewDeceased(true));
 adminRouter.post('/members/:memberId/deceased/confirm',        adminMemberController.confirmDeceased(false));
 adminRouter.post('/members/:memberId/deceased',                adminMemberController.previewDeceased(false));
+adminRouter.post('/members/:memberId/delete',                  adminMemberController.previewDelete);
+adminRouter.post('/members/:memberId/delete/confirm',          adminMemberController.confirmDelete);
 // The old sign-ins nobody has claimed. Read-only: this is where the account id
 // a link-help approval asks for actually comes from.
 adminRouter.get('/legacy-accounts',                                   adminLegacyAccountController.index);

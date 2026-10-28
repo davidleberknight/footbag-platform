@@ -32,7 +32,10 @@
  *     member co-leads at most one club (`ux_one_club_leader_per_member`). A
  *     co-leader acts only on themselves (edit own contact, step down, leave);
  *     removing another co-leader is admin-only. Zero co-leaders is a tolerated
- *     leaderless state: the club persists, stays joinable, and stays listed.
+ *     leaderless state: the club persists and stays listed, and only a member
+ *     with Tier 1 benefits may join it. A Tier 0 member's first join grants an
+ *     Active Player period, and the co-leaders' join email is the human check
+ *     on that grant, so a club with nobody to receive it refuses the join.
  *   - Standard hashtag (`#club_{slug}`) persisted via `mediaTags.insertStandardTag` at
  *     creation; permanent (not HD). A standardized hashtag is reserved for
  *     good: an administrator's move gives the club a new tag row and leaves the
@@ -185,6 +188,7 @@ import type { OutcomeNoticeView } from '../lib/outcomeNotice';
 import { appendAuditEntry, findOwnLatestAudit, findStandingOwnAct } from './auditService';
 import { applyClubJoinInTx as applyActivePlayerClubJoinInTx, getStatus as getActivePlayerStatus } from './activePlayerService';
 import { getTierStatus, tierBadgeShort } from './membershipTieringService';
+import { hasTier1Benefits as actorHasTier1Benefits } from './tierPredicates';
 import { runSqliteRead } from './sqliteRetry';
 import { PageViewModel } from '../types/page';
 import { canonicalCountryName, countryCode, countrySlug, subdivisionsForCountry } from './countryUtils';
@@ -432,6 +436,50 @@ type CreateClubResult =
   | { branch: 'exact_candidate_exists'; existingClubName: string }
   | { branch: 'near_matches_found'; nearMatches: ClubNearMatch[] }
   | { branch: 'tag_conflict'; tagNormalized: string };
+
+// A join's writes: the affiliation, or the refusal that left nothing written.
+type JoinWriteResult = {
+  affiliationId: string | null;
+  isPrimary: number;
+  refusal: 'no_leader' | 'cap_reached' | null;
+};
+
+/**
+ * The refusal after a join attempt by a member without Tier 1 benefits on a
+ * club with no current co-leader. A flash carries no links, so it points at
+ * the note the club page shows below it, which does.
+ */
+export const NO_LEADER_JOIN_REFUSAL =
+  'This club has no co-leader right now, so you cannot join it yet. See below for ways to get '
+  + 'Tier 1 benefits, or to get the club a co-leader.';
+
+/** A run of the note's text; one carrying `href` renders as a link. */
+export interface ClubNoteSegment {
+  text: string;
+  href?: string;
+}
+
+/**
+ * Shown on the club page in place of the Join control to a member without
+ * Tier 1 benefits on a club with no current co-leader: every way through,
+ * linked where the site has a page for it. The closing pointer to other clubs
+ * is left out for a member already in two, for whom it is not true.
+ */
+function noLeaderJoinNote(viewerSlug: string | null, atClubCap: boolean): ClubNoteSegment[] {
+  const upgrade: ClubNoteSegment = viewerSlug
+    ? { text: 'upgrading your membership', href: `/members/${viewerSlug}#membership` }
+    : { text: 'upgrading your membership' };
+  return [
+    { text: 'This club has no co-leader right now, so joining it takes Tier 1 benefits. You can get them by ' },
+    upgrade,
+    { text: ', by attending an ' },
+    { text: 'event', href: '/events' },
+    { text: ' listed on this site, or by asking a Tier 2 or Tier 3 member to vouch for you. '
+      + "Or ask a member with Tier 1 benefits to volunteer as this club's co-leader; once it has one, "
+      + 'you can join.'
+      + (atClubCap ? '' : ' You can also join any club that has a co-leader.') },
+  ];
+}
 
 type VolunteerResult =
   | { branch: 'volunteered'; clubLeaderId: string }
@@ -708,6 +756,9 @@ export interface PublicClubDetail extends PublicClubSummary {
   leaders: ClubLeader[];
   viewerIsMember: boolean;
   viewerCanJoin: boolean;
+  // Why the Join control is absent for this viewer: the club has no co-leader
+  // to vet a newcomer, and the viewer lacks Tier 1 benefits.
+  joinBlockedNote: ClubNoteSegment[] | null;
   /** Co-leaders edit club content directly; there is no suggestion loop. */
   viewerIsLeader: boolean;
   // No live co-leader: drives the "could use a co-leader" nudge above the
@@ -977,6 +1028,7 @@ function toPublicClubDetail(
     members,
     viewerIsMember: false,
     viewerCanJoin: false,
+    joinBlockedNote: null,
     viewerIsLeader: false,
     isLeaderless: false,
     viewerCanVolunteer: false,
@@ -1688,7 +1740,12 @@ export class ClubService {
         club.viewerIsMember = viewerAff != null;
         if (!viewerAff) {
           const viewerCount = (memberClubAffiliations.countCurrentByMemberId.get(viewerMemberId) as { c: number }).c;
-          club.viewerCanJoin = viewerCount < 2;
+          if (club.isLeaderless && !actorHasTier1Benefits(viewerMemberId)) {
+            const viewer = account.findOwnSlugById.get(viewerMemberId) as { slug: string | null } | undefined;
+            club.joinBlockedNote = noLeaderJoinNote(viewer?.slug ?? null, viewerCount >= 2);
+          } else {
+            club.viewerCanJoin = viewerCount < 2;
+          }
         }
         if (club.viewerCanJoin) {
           club.joinHref = `/clubs/${encodeURIComponent(clubKey)}/join`;
@@ -2645,7 +2702,7 @@ export class ClubService {
     actorMemberId: string,
     clubId: string,
   ): {
-    branch: 'joined_primary' | 'joined_secondary' | 'already_member' | 'cap_reached' | 'club_not_found';
+    branch: 'joined_primary' | 'joined_secondary' | 'already_member' | 'no_leader' | 'cap_reached' | 'club_not_found';
     affiliationId: string | null;
   } {
     const club = clubs.findById.get(clubId) as { club_id: string; name: string; status: string } | undefined;
@@ -2672,14 +2729,14 @@ export class ClubService {
       return { branch: 'already_member', affiliationId: null };
     }
 
-    let joined: { affiliationId: string | null; isPrimary: number } = { affiliationId: null, isPrimary: 0 };
+    let joined: JoinWriteResult = { affiliationId: null, isPrimary: 0, refusal: 'cap_reached' };
     transaction(() => {
       joined = this.joinWriteInTx(actorMemberId, club, new Date().toISOString());
     });
     const { affiliationId, isPrimary } = joined;
 
     if (!affiliationId) {
-      return { branch: 'cap_reached', affiliationId: null };
+      return { branch: joined.refusal ?? 'cap_reached', affiliationId: null };
     }
 
     this.enqueueJoinEmails(actorMemberId, club, affiliationId);
@@ -2693,19 +2750,30 @@ export class ClubService {
   /**
    * The writes of a member's own join, inside the caller's transaction, so a
    * volunteer who is not yet a member joins and co-leads in one commit. Writes
-   * nothing at the two-current-club cap, which the caller reads as a null
-   * `affiliationId`. The caller has already refused an archived club and
-   * handled an affiliation the member already holds.
+   * nothing, and names the refusal, when a member without Tier 1 benefits joins
+   * a club with no current co-leader, or at the two-current-club cap. The
+   * caller has already refused an archived club and handled an affiliation the
+   * member already holds.
+   *
+   * The leaderless refusal exists because a first join grants a Tier 0 member
+   * an Active Player period, and with it Tier 1 benefits such as media upload.
+   * The co-leaders' join email, asking them to report a name they do not
+   * recognise, is the human check on that grant; a club with no co-leader has
+   * nobody to make it.
    */
   private joinWriteInTx(
     actorMemberId: string,
     club: { club_id: string; name: string; status: string },
     now: string,
-  ): { affiliationId: string | null; isPrimary: number } {
+  ): JoinWriteResult {
     const clubId = club.club_id;
+    if (!actorHasTier1Benefits(actorMemberId)
+      && (clubLeaders.countByClubId.get(clubId) as { c: number }).c === 0) {
+      return { affiliationId: null, isPrimary: 0, refusal: 'no_leader' };
+    }
     const currentCount = (memberClubAffiliations.countCurrentByMemberId.get(actorMemberId) as { c: number }).c;
     if (currentCount >= 2) {
-      return { affiliationId: null, isPrimary: 0 };
+      return { affiliationId: null, isPrimary: 0, refusal: 'cap_reached' };
     }
     const isPrimary = currentCount === 0 ? 1 : 0;
     let affiliationId: string | null = `mca_${randomUUID().replace(/-/g, '').slice(0, 24)}`;
@@ -2763,7 +2831,7 @@ export class ClubService {
       // self-join affiliation in this same transaction.
       applyActivePlayerClubJoinInTx(actorMemberId, actorMemberId, affiliationId);
     }
-    return { affiliationId, isPrimary };
+    return { affiliationId, isPrimary, refusal: affiliationId ? null : 'cap_reached' };
   }
 
   /** Join notifications to the member and the club's co-leaders, after the join commits. */

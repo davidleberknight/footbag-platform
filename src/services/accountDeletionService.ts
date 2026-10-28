@@ -1,6 +1,7 @@
 /**
- * AccountDeletionService -- the member-facing entry point that puts an account
- * into the grace-period deleted state.
+ * AccountDeletionService -- the one path that puts an account into the
+ * grace-period deleted state, whether the member deletes their own account or
+ * an administrator deletes a registration that broke the rules.
  *
  * Owns:
  *   - The deletion request itself: the administrator refusal, the recurring-gift
@@ -10,7 +11,10 @@
  *     stopping of queued mail, the
  *     work-queue item for an event left with no organizer, the soft-delete write
  *     and its audit row, and the one message that tells the member what was
- *     deleted and how long their personal details are held before erasure.
+ *     deleted and how long their personal details are held before erasure. An
+ *     administrator's deletion always ends a recurring gift, names the
+ *     administrator and their reason in the audit row, and sends the message
+ *     that gives the member that reason.
  *
  * Does not own:
  *   - Row-level PII clearing after the grace period (MemberService owns
@@ -38,7 +42,8 @@
  *
  * Side effects:
  *   - audit_entries append (`auth.account_deleted`)
- *   - outbox enqueue (the deletion confirmation)
+ *   - outbox enqueue (the deletion confirmation, or the administrator's
+ *     deletion notice)
  *   - work-queue insert (an event left without an organizer)
  *   - object-storage deletes (the member's media)
  *
@@ -157,9 +162,13 @@ export function createAccountDeletionService(deps: AccountDeletionServiceDeps) {
     async requestAccountDeletion(input: {
       memberId: string;
       recurringDonationChoice: RecurringDonationChoice;
+      /** An administrator deleting a registration that broke the rules, with
+       *  their reason. Absent when the member deletes their own account. */
+      byAdmin?: { adminMemberId: string; reason: string };
     }): Promise<RequestAccountDeletionResult> {
       const row = account.readForDeletionRequest.get(input.memberId) as DeletionMemberRow | undefined;
       const graceDays = readIntConfig('member_cleanup_grace_days', 90);
+      const byAdmin = input.byAdmin;
       if (!row) return { status: 'not_found' };
       if (row.deleted_at !== null) return { status: 'already_deleted', graceDays };
       // An administrator cannot drop their own role, so an administrator who
@@ -167,13 +176,20 @@ export function createAccountDeletionService(deps: AccountDeletionServiceDeps) {
       // offers any more. They hand the role to someone else first.
       if (row.is_admin === 1) return { status: 'administrator' };
 
+      // An administrator's deletion always ends a recurring gift: the account
+      // holder is not there to choose, and nobody should go on being charged
+      // for an account that no longer exists.
       let recurringDonationCanceled = false;
-      if (input.recurringDonationChoice === 'cancel') {
+      if (byAdmin || input.recurringDonationChoice === 'cancel') {
         const subs = recurringDonationSubscriptions.listActiveByMember.all(input.memberId) as {
           stripe_subscription_id: string;
         }[];
         for (const sub of subs) {
-          await paymentService.cancelRecurringDonation(input.memberId, sub.stripe_subscription_id);
+          await paymentService.cancelRecurringDonation(
+            input.memberId,
+            sub.stripe_subscription_id,
+            byAdmin ? { adminMemberId: byAdmin.adminMemberId, reason: 'account_deleted_by_admin' } : undefined,
+          );
           recurringDonationCanceled = true;
         }
       }
@@ -214,8 +230,31 @@ export function createAccountDeletionService(deps: AccountDeletionServiceDeps) {
       const graceExpiresAt = new Date(now.getTime() + graceDays * 86_400_000).toISOString();
 
       const committed = transaction(() => {
+        const actorId = byAdmin ? byAdmin.adminMemberId : input.memberId;
+        if (byAdmin) {
+          // A deletion that landed while the media went is the first outcome;
+          // checked before the notice below, which must not be queued for it.
+          const current = account.readForDeletionRequest.get(input.memberId) as DeletionMemberRow | undefined;
+          if (!current || current.deleted_at !== null) return null;
+          // An administrator's deletion is an administrator's act, so its notice
+          // takes the gated path every act notice takes, which skips a deceased,
+          // erased or undeliverable recipient. It is queued while the account is
+          // still live, after the sweep that stops the member's other queued
+          // mail, so the gate judges the member as they were and the sweep does
+          // not catch the notice. The soft delete then commits with it, or the
+          // whole act rolls back.
+          outbox.deadLetterQueuedForMember.run('recipient_soft_deleted', nowIso, input.memberId);
+          emailService.sendActNotice({
+            template: 'account_deleted_by_admin',
+            params:   { memberName: row.display_name, graceDays, note: byAdmin.reason },
+            memberId: input.memberId,
+            // An account is deleted once and never restored, so the member
+            // alone identifies the act.
+            actId:    input.memberId,
+          });
+        }
         const res = account.softDeleteMember.run(
-          nowIso, input.memberId, nowIso, graceExpiresAt, nowIso, input.memberId,
+          nowIso, actorId, nowIso, graceExpiresAt, nowIso, byAdmin ? actorId : 'member', input.memberId,
         );
         if (res.changes === 0) return null;
 
@@ -225,8 +264,7 @@ export function createAccountDeletionService(deps: AccountDeletionServiceDeps) {
         const withdrawn = deceasedMarking.cancelUpcomingRegistrations.run(
           'Account deleted', nowIso, nowIso, input.memberId, input.memberId, nowIso.slice(0, 10),
         );
-        outbox.deadLetterQueuedForMember.run('recipient_soft_deleted', nowIso, input.memberId);
-        // Enqueued after the dead-letter sweep above, or it would be caught by
+        // Enqueued after the dead-letter sweep below, or it would be caught by
         // it, and addressed by the literal address read before the soft delete,
         // because the member-resolving send path reads the active view and would
         // find nothing here. This is the deliberate exception to the rule that a
@@ -235,7 +273,10 @@ export function createAccountDeletionService(deps: AccountDeletionServiceDeps) {
         // the last one they get. It offers no way back, because there is none.
         // Strict, because the enqueue gate refuses every routine send to a
         // soft-deleted member and only a strict send passes it.
-        if (row.login_email) {
+        if (!byAdmin) {
+          outbox.deadLetterQueuedForMember.run('recipient_soft_deleted', nowIso, input.memberId);
+        }
+        if (!byAdmin && row.login_email) {
           emailService.send({
             template: 'account_deletion_requested',
             params:   { memberName: row.display_name, graceDays },
@@ -259,17 +300,19 @@ export function createAccountDeletionService(deps: AccountDeletionServiceDeps) {
             entityId:      event.event_id,
             priority:      0,
             actorId:       'system',
-            reasonText:    `${event.event_title} has no organizer: the last one deleted their account.`,
+            reasonText:    byAdmin
+              ? `${event.event_title} has no organizer: an administrator deleted the last one's account.`
+              : `${event.event_title} has no organizer: the last one deleted their account.`,
             detailText:    null,
           });
         }
         appendAuditEntry({
           actionType:    'auth.account_deleted',
-          actorType:     'member',
-          actorMemberId: input.memberId,
+          actorType:     byAdmin ? 'admin' : 'member',
+          actorMemberId: actorId,
           entityType:    'member',
           entityId:      input.memberId,
-          reasonText:    null,
+          reasonText:    byAdmin ? byAdmin.reason : null,
           metadata: {
             grace_days:                  graceDays,
             media_deleted:               mediaDeleted,

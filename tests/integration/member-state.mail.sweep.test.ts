@@ -330,6 +330,7 @@ const POLICY: Record<EmailTemplateKey, Route> = {
   // The deliberate exception to the soft-delete rule: the confirmation of the
   // deletion itself, addressed to the account it has just made unreachable.
   account_deletion_requested:             { via: 'self', why: SELF_ACTED },
+  account_deleted_by_admin:               { via: 'act' },
   contact_request_resolution:             { via: 'act' },
   link_help_request_resolution:           { via: 'act' },
   media_moderation_decision:              { via: 'act' },

@@ -209,6 +209,8 @@ export const ROUTE_STORIES: Readonly<Record<string, RouteStory>> = {
   'POST /admin/members/:memberId/deceased/revert': { stories: ['A_Mark_Member_Deceased'] },
   'POST /admin/members/:memberId/deceased/confirm': { stories: ['A_Mark_Member_Deceased'] },
   'POST /admin/members/:memberId/deceased': { stories: ['A_Mark_Member_Deceased'] },
+  'POST /admin/members/:memberId/delete': { stories: ['A_Override_Member_Data'] },
+  'POST /admin/members/:memberId/delete/confirm': { stories: ['A_Override_Member_Data'] },
   'GET /admin/legacy-accounts': { stories: ['A_Review_Member_Link_Help_Requests'] },
   'GET /admin/historical-records': { stories: ['A_Mark_Member_Deceased', 'A_Correct_Historical_Person'] },
   'GET /admin/historical-records/:personId/correction': { stories: ['A_Correct_Historical_Person'] },

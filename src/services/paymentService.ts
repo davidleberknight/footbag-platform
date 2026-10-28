@@ -4237,8 +4237,9 @@ async function startDonation(
  * only `customer.subscription.deleted` moves it to canceled, which is what keeps
  * local state a mirror of Stripe rather than a second opinion.
  *
- * An administrator marking the member deceased ends the gift through this same
- * path, passing `byAdmin`: the ledger and the audit row then name the
+ * An administrator marking the member deceased, or deleting the account, ends
+ * the gift through this same path, passing `byAdmin`: the ledger and the audit
+ * row then name the
  * administrator and the reason, so the trail never reads as the member's own
  * request, and the member's per-person throttle does not apply because the
  * marking that triggers it commits once.
@@ -4246,7 +4247,7 @@ async function startDonation(
 async function cancelRecurringDonation(
   memberId: string,
   stripeSubscriptionId: string,
-  byAdmin?: { adminMemberId: string; reason: 'member_deceased' },
+  byAdmin?: { adminMemberId: string; reason: 'member_deceased' | 'account_deleted_by_admin' },
 ): Promise<
   | { status: 'cancel_requested' | 'already_requested' }
   | { status: 'already_held'; message: string }
@@ -4322,9 +4323,11 @@ async function cancelRecurringDonation(
       lifecycleEventCode: 'cancel_requested',
       oldStatus: sub.status,
       newStatus: sub.status,
-      reasonText: byAdmin
-        ? 'cancelled at period end because the member was marked deceased'
-        : 'member requested cancellation at period end',
+      reasonText: !byAdmin
+        ? 'member requested cancellation at period end'
+        : byAdmin.reason === 'member_deceased'
+          ? 'cancelled at period end because the member was marked deceased'
+          : 'cancelled at period end because an administrator deleted the account',
     });
     appendAuditEntry({
       actionType: 'payment.recurring_cancel_requested',

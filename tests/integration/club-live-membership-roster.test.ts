@@ -106,6 +106,8 @@ beforeAll(async () => {
     historical_person_id: 'person-roster-leaver',
   });
   completeOnboarding(db, LEAVER);
+  // The imported club has no co-leader, and joining one takes Tier 1 benefits.
+  insertMemberTierGrant(db, { member_id: LEAVER, new_tier_status: 'tier1', reason_code: 'purchase.tier1' });
 
   insertClub(db, {
     id: CLUB_IMPORTED,

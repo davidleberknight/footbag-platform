@@ -395,6 +395,11 @@
             "type": "command",
             "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-memory-write.sh",
             "onFailure": "block"
+          },
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/guard-ui-wording.sh",
+            "onFailure": "block"
           }
         ]
       },

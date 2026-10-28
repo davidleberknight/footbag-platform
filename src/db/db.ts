@@ -4519,6 +4519,12 @@ export const account = {
     WHERE m.id = ? AND m.personal_data_purged_at IS NULL
   `); },
 
+  // A signed-in member's profile slug, for a link a page shapes to their own
+  // profile (the membership section a join refusal points at).
+  get findOwnSlugById() { return db.prepare(`
+    SELECT slug FROM members_onboarded WHERE id = ?
+  `); },
+
   // Recipient lookup for automated member notifications (tier change, honor
   // congratulation, vouch confirmation). Excludes the deceased so a posthumous
   // honor or an admin correction on a deceased member's record sends no mail to
@@ -4942,16 +4948,18 @@ export const account = {
     WHERE id = ?
   `); },
 
-  // Whether the account may still be deleted by its own holder, read before
+  // Whether the account may still be deleted, by its holder or an administrator, read before
   // anything irreversible happens. An administrator is refused: the platform
   // does not let anyone drop their own administrator role, so an administrator
   // who deleted their account would take the role out of reach of every screen
   // that manages it while leaving the row behind. The honor flags ride along
   // because they decide how much of the record keeps publishing afterwards.
+  // The platform's own account is exempt from erasure, so it is never found
+  // here and no deletion can reach it.
   get readForDeletionRequest() { return db.prepare(`
     SELECT id, display_name, login_email, is_admin, is_system, is_hof, is_bap, deleted_at
     FROM members
-    WHERE id = ?
+    WHERE id = ? AND is_system = 0
   `); },
 
   // The soft delete itself. The grace expiry is stored for the administrator
@@ -4969,7 +4977,7 @@ export const account = {
       deletion_requested_at     = ?,
       deletion_grace_expires_at = ?,
       updated_at                = ?,
-      updated_by                = 'member',
+      updated_by                = ?,
       version                   = version + 1
     WHERE id = ? AND deleted_at IS NULL
   `); },

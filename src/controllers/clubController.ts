@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { clubService } from '../services/clubService';
+import { clubService, NO_LEADER_JOIN_REFUSAL } from '../services/clubService';
 import { locationPickers } from '../services/memberService';
 import { ValidationError } from '../services/serviceErrors';
 import { handleControllerError, renderNotFound } from '../lib/controllerErrors';
@@ -209,7 +209,9 @@ export const clubController = {
         renderNotFound(res, { title: 'Club Not Found' });
         return;
       }
-      if (result.branch === 'cap_reached') {
+      if (result.branch === 'no_leader') {
+        writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload('no', NO_LEADER_JOIN_REFUSAL));
+      } else if (result.branch === 'cap_reached') {
         writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload('no', 'You are already in 2 clubs. Leave one before joining another.'));
       } else if (result.branch === 'already_member') {
         writeFlash(res, req, FLASH_KIND.CLUB_ACTION, outcomePayload('info', 'You are already a member of this club.'));
@@ -334,7 +336,7 @@ export const clubController = {
         volunteered:        ['ok',   'You are now a co-leader of this club.'],
         club_not_found:     ['no',   'Club not found.'],
         not_member:         ['no',   'Join this club before volunteering to co-lead it.'],
-        not_eligible:       ['no',   'Co-leading requires Tier 1 benefits (Tier 1+ or an active Active Player period).'],
+        not_eligible:       ['no',   'Co-leading requires Tier 1 benefits: a paid Tier 1 membership or a current Active Player period.'],
         already_coleader:   ['info', 'You already co-lead this club.'],
         coleads_other_club: ['no',   'You already co-lead another club. Clubs are local groups, so you lead your own club and are a guest at any other. To lead this one instead, step down at your club first.'],
         cap_reached:        ['no',   'This club already has the maximum of 5 co-leaders.'],

@@ -346,6 +346,8 @@ describe('admin gate — POST (every state-changing admin route sits behind the 
     '/admin/members/ph/deceased/confirm',
     '/admin/members/ph/deceased/revert',
     '/admin/members/ph/deceased/revert/confirm',
+    '/admin/members/ph/delete',
+    '/admin/members/ph/delete/confirm',
     '/admin/historical-records/ph/deceased',
     '/admin/historical-records/ph/deceased/confirm',
     '/admin/historical-records/ph/deceased/revert',

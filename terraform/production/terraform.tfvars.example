@@ -120,24 +120,29 @@ legacy_mirror_cname_records = {
 }
 
 legacy_mirror_mx_records = {
-  # ifpa = ["10 mail.example."]
+  # lists = ["10 mail.example."]
 }
 
 legacy_mirror_txt_records = {
-  # ifpa = ["v=spf1 ... ~all"]
+  # lists = ["v=spf1 ... ~all"]
 }
 
 # The Workspace tenant's own names, kept apart from the legacy mirror so the
 # launch apply leaves them; each goes when the IFPA secretary rules (my after the
-# apex becomes the Workspace's primary domain, g in the launch apply).
+# apex becomes the Workspace's primary domain, g in the launch apply, ifpa when
+# no alias is left on it).
 workspace_mx_records = {
-  # my = ["10 ASPMX.L.GOOGLE.COM."]   # the Workspace's own domain, served from
-  #                                   # this zone rather than delegated; omitting
-  #                                   # it stops every mailbox and group on it
+  # my   = ["10 ASPMX.L.GOOGLE.COM."]   # the Workspace's own domain, served from
+  #                                     # this zone rather than delegated; omitting
+  #                                     # it stops every mailbox and group on it
+  # ifpa = ["1 smtp.google.com"]        # the IFPA list domain, a Workspace
+  #                                     # secondary domain; the legacy values
+  #                                     # until the mail-day apply
 }
 
 workspace_txt_records = {
-  # my = ["v=spf1 ... ~all"]
+  # my   = ["v=spf1 ... ~all"]
+  # ifpa = ["google-site-verification=...", "v=spf1 include:_spf.google.com ~all"]
 }
 
 workspace_cname_records = {

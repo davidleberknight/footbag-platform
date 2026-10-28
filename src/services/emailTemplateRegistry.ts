@@ -85,7 +85,8 @@ export const TEMPLATE_VARIANTS = {
   account_exists_notice:           v('restricted',   ['loginUrl', 'resetUrl']),
   password_reset_request:          v('restricted',   ['resetUrl', 'ttlPhrase']),
   account_deletion_requested:      v('restricted',   ['memberName', 'gracePhrase']),
-  password_reset_confirm:          v('internal',     []),
+  account_deleted_by_admin:        v('restricted',   ['memberName', 'gracePhrase', 'note']),
+  password_reset_confirm:         v('internal',     []),
   password_changed:                v('internal',     []),
   // Carries nothing about the question it announces: the question itself may
   // concern a date of birth, which is owner-and-admin private and never leaves
@@ -180,6 +181,12 @@ const SHAPERS = {
   account_deletion_requested: (p: { memberName: string; graceDays: number }): ShapedEmail => ({
     variant: 'account_deletion_requested',
     merge: { memberName: p.memberName, gracePhrase: dayPhrase(p.graceDays) },
+  }),
+  // The same last message when an administrator deleted the account, carrying
+  // their reason, since the member did not ask for it.
+  account_deleted_by_admin: (p: { memberName: string; graceDays: number; note: string }): ShapedEmail => ({
+    variant: 'account_deleted_by_admin',
+    merge: { memberName: p.memberName, gracePhrase: dayPhrase(p.graceDays), note: p.note },
   }),
   password_reset_confirm: (_p: Empty): ShapedEmail => ({
     variant: 'password_reset_confirm',
