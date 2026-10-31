@@ -53,7 +53,7 @@ Write each case's expected outcome from the story or decision text before readin
 The case floor is the edge-case and adversarial lists in the rule, and its real-data-shape, factory-parity and real-path rules; read them now, not from memory. Cases the rule does not spell out:
 
 - Privacy: purged members excluded, honours-gated public profiles, no PII to unauthorised viewers.
-- A form-bearing page: the primary form is not nested and its submit control posts to the intended handler. A nested `<form>` orphans the submit button and is invisible to a handler-only POST test.
+- A form-bearing page: the primary form is not nested and its submit control posts to the intended handler. A nested `<form>` orphans the submit button and is invisible to a handler-only POST test. Then the real starting state (the testing rule): the controls a first visit renders, the options re-offered after a refusal, and that resubmitting the page as rendered succeeds.
 - A state-changing route on a covered path (an email link, a checkout or payment start, an outward send): a submitted-twice case asserting the same redirect and message and unchanged domain, audit, outbox and rate-limit counts, unless the route carries a named exemption. An own-repeat case gets a sibling proving another actor's act is not treated as this actor's repeat.
 - A stub adapter on the path: the case feeds it an input the live implementation would refuse (a suppressed address, an unsigned payload) and asserts the refusal, because a stub more permissive than live hides the defect below production.
 

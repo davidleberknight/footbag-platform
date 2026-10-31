@@ -14,11 +14,11 @@ COMMAND="$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')"
 # only command position: start, or after a separator, optionally via a VAR= prefix
 # or a bash/sh/env/source launcher.
 if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|`({]|&&|\|\|)[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*((bash|sh|source|\.|env)[[:space:]]+)?(\./)?scripts/reset-local-db\.sh([[:space:];&|)>`]|$)'; then
-  jq -n '{
+  jq -n --arg cmd "$COMMAND" '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
       permissionDecision: "ask",
-      permissionDecisionReason: "Destructive database reset detected. Confirm data-loss intent before proceeding."
+      permissionDecisionReason: ("APPROVE DATABASE WRITE OR DELETE: " + $cmd + " wipes and rebuilds the local database. Approve only if losing its current data is intended.")
     }
   }'
   exit 0
@@ -30,11 +30,11 @@ fi
 AT_CMD='(^|[;&|`({]|&&|\|\|)[[:space:]]*([A-Za-z_][A-Za-z0-9_]*=[^[:space:]]*[[:space:]]+)*((sudo|env|command|nohup)[[:space:]]+)*([^[:space:];&|]*/)?'
 
 if printf '%s' "$COMMAND" | grep -Eq "${AT_CMD}rm[[:space:]].*(footbag\.db|\.db-wal|\.db-shm)"; then
-  jq -n '{
+  jq -n --arg cmd "$COMMAND" '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
       permissionDecision: "ask",
-      permissionDecisionReason: "SQLite file deletion detected. Confirm before proceeding."
+      permissionDecisionReason: ("APPROVE DATABASE WRITE OR DELETE: " + $cmd + " deletes a database file. Approve only if losing that data is intended.")
     }
   }'
   exit 0
@@ -42,11 +42,11 @@ fi
 
 # Inline destructive SQL
 if printf '%s' "$COMMAND" | grep -Eqi "${AT_CMD}sqlite3[[:space:]].*(DROP[[:space:]]+TABLE|DROP[[:space:]]+INDEX|DELETE[[:space:]]+FROM|TRUNCATE|ALTER[[:space:]]+TABLE.*DROP)"; then
-  jq -n '{
+  jq -n --arg cmd "$COMMAND" '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
       permissionDecision: "ask",
-      permissionDecisionReason: "Potentially destructive inline SQLite command detected. Confirm before proceeding."
+      permissionDecisionReason: ("APPROVE DATABASE WRITE OR DELETE: " + $cmd + " drops or deletes database rows or tables. Approve only if losing that data is intended.")
     }
   }'
   exit 0
@@ -54,11 +54,11 @@ fi
 
 # Piped destructive SQL into sqlite3
 if printf '%s' "$COMMAND" | grep -Eqi "(DROP[[:space:]]+TABLE|DROP[[:space:]]+INDEX|DELETE[[:space:]]+FROM|TRUNCATE|ALTER[[:space:]]+TABLE.*DROP).*[|][[:space:]]*([^[:space:];&|]*/)?sqlite3([[:space:]]|\$)|${AT_CMD}sqlite3[[:space:]].*<.*(DROP|DELETE|TRUNCATE|ALTER)"; then
-  jq -n '{
+  jq -n --arg cmd "$COMMAND" '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
       permissionDecision: "ask",
-      permissionDecisionReason: "Potentially destructive piped SQLite command detected. Confirm before proceeding."
+      permissionDecisionReason: ("APPROVE DATABASE WRITE OR DELETE: " + $cmd + " feeds SQL that drops or deletes into a database. Approve only if losing that data is intended.")
     }
   }'
   exit 0
@@ -70,11 +70,11 @@ fi
 # auto-allow; this guard makes that ask explicit rather than leaving it to chance. Ask, never
 # silently allow.
 if printf '%s' "$COMMAND" | grep -Eqi "${AT_CMD}sqlite3[[:space:]].*(INSERT[[:space:]]+INTO|UPDATE[[:space:]]+|REPLACE[[:space:]]+INTO|CREATE[[:space:]]+(TABLE|INDEX|VIEW|TRIGGER|VIRTUAL)|ALTER[[:space:]]+TABLE|ATTACH([[:space:]]+DATABASE)?[[:space:]]|VACUUM[[:space:]]+INTO|\.(read|import|restore|output|save|backup|clone|dump)[[:space:]])"; then
-  jq -n '{
+  jq -n --arg cmd "$COMMAND" '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
       permissionDecision: "ask",
-      permissionDecisionReason: "Potentially writable SQLite operation (write DML/DDL, ATTACH, VACUUM INTO, or a write dot-command). Confirm before proceeding."
+      permissionDecisionReason: ("APPROVE DATABASE WRITE OR DELETE: " + $cmd + " changes a database (a write, ATTACH, VACUUM INTO or a write dot-command); a read uses sqlite3 -readonly. Approve only if changing that data is intended.")
     }
   }'
   exit 0

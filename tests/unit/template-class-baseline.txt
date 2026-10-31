@@ -203,7 +203,6 @@ curator-pagination
 curator-thumb
 d-inline
 data-table
-demo-video
 detail-muted
 dev-outbox-body
 dev-persona-coverage

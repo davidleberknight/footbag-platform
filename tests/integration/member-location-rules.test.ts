@@ -18,6 +18,7 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb } from '../fixtures/testDb';
 import { insertMember } from '../fixtures/factories';
+import { REGION_CODE_MESSAGE } from '../../src/services/memberLocationRules';
 
 const { dbPath } = setTestEnv('3077');
 
@@ -68,6 +69,31 @@ function editInput(over: Record<string, unknown> = {}): Parameters<typeof svc.up
     ...over,
   } as Parameters<typeof svc.updateOwnProfile>[1];
 }
+
+describe('a region the form does not ask for', () => {
+  // The form asks for no region outside the USA, Canada and Australia, and an
+  // Australian may leave it blank. Defect caught: saving any other profile
+  // field silently erases a region already on file, such as one migrated from
+  // the old site, that the member was never shown and never chose to remove.
+  it('is kept when the member saves with the same country', async () => {
+    const { id, slug } = seedMember({ country: 'New Zealand', region: 'Canterbury', city: 'Christchurch' });
+    await svc.updateOwnProfile(slug, editInput({ country: 'New Zealand', region: '', city: 'Christchurch', bio: 'New bio' }));
+    expect(stored(id).region).toBe('Canterbury');
+  });
+
+  it('is kept for an Australian who leaves the state blank', async () => {
+    const { id, slug } = seedMember({ country: 'Australia', region: 'Vic', city: 'Melbourne' });
+    await svc.updateOwnProfile(slug, editInput({ country: 'Australia', region: '', city: 'Melbourne', bio: 'New bio' }));
+    expect(stored(id).region).toBe('Vic');
+  });
+
+  it('is dropped when the member moves to another country', async () => {
+    // It names a place in the old country.
+    const { id, slug } = seedMember({ country: 'New Zealand', region: 'Canterbury', city: 'Christchurch' });
+    await svc.updateOwnProfile(slug, editInput({ country: 'Germany', region: '', city: 'Berlin' }));
+    expect(stored(id).region).toBeNull();
+  });
+});
 
 describe('country canonicalization on the profile edit path', () => {
   it('folds an alias spelling to the name the picker offers', async () => {
@@ -121,11 +147,17 @@ describe('country spelling cannot be used to escape the region rule', () => {
   // country spelled in a way the lookup does not recognize matches no list, so
   // its region skips the two-letter-code rule entirely and free text reaches
   // the roster export -- the exact failure the region rule exists to prevent.
-  it('refuses a full state name even when the country is spelled with dots', async () => {
+  it('stores the code for a full state name even when the country is spelled with dots', async () => {
+    const { id, slug } = seedMember({ country: 'Canada', region: 'ON', city: 'Toronto' });
+    await svc.updateOwnProfile(slug, editInput({ country: 'U.S.', region: 'Oregon' }));
+    expect(stored(id).region).toBe('OR');
+  });
+
+  it('refuses free text for a region even when the country is spelled with dots', async () => {
     const { id, slug } = seedMember({ country: 'Canada', region: 'ON', city: 'Toronto' });
     await expect(
-      svc.updateOwnProfile(slug, editInput({ country: 'U.S.', region: 'Oregon' })),
-    ).rejects.toThrow('two-letter state or province code');
+      svc.updateOwnProfile(slug, editInput({ country: 'U.S.', region: 'Oregn' })),
+    ).rejects.toThrow(REGION_CODE_MESSAGE);
     expect(stored(id).region).toBe('ON');
   });
 

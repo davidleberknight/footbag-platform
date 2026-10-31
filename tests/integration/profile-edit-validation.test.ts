@@ -17,6 +17,7 @@ import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, insertMemberLink, insertSystemConfig, createTestSessionJwt } from '../fixtures/factories';
 import { rowPin, snapshotIds, oneRowAddedSince } from '../fixtures/rowPinning';
+import { REGION_CODE_MESSAGE, REGION_COUNTRY_MISMATCH_MESSAGE } from '../../src/services/memberLocationRules';
 
 const { dbPath } = setTestEnv('3062');
 
@@ -141,7 +142,7 @@ describe('region requirement by country', () => {
 
 // ── The official code is the whole vocabulary where a country has one ────────
 
-describe('region must be an official state or province code', () => {
+describe('region is stored as the official state or province code', () => {
   function storedRegion(): string | null {
     const db = new BetterSqlite3(dbPath, { readonly: true });
     const row = db.prepare('SELECT region FROM members WHERE slug = ?').get(MEMBER_SLUG) as
@@ -151,22 +152,26 @@ describe('region must be an official state or province code', () => {
     return row?.region ?? null;
   }
 
-  it('refuses a full state name', async () => {
+  // A member never has to know the two-letter code: a full name in any casing
+  // is stored as the code, so the roster still sees one spelling per place.
+  it('accepts a full state name and stores its code', async () => {
     const res = await postEdit({ region: 'Oregon' });
-    expect(res.status).toBe(422);
-    expect(res.text).toContain('official two-letter state or province code');
+    expect(res.status).toBe(303);
+    expect(storedRegion()).toBe('OR');
   });
 
-  it('refuses a code that is not a real state', async () => {
+  it('refuses a code that is not a real state, keeping the stored region', async () => {
+    await postEdit({ region: 'OR' });
     const res = await postEdit({ region: 'ZZ' });
     expect(res.status).toBe(422);
-    expect(res.text).toContain('official two-letter state or province code');
+    expect(res.text).toContain(REGION_CODE_MESSAGE);
+    expect(storedRegion()).toBe('OR');
   });
 
-  it('refuses a full province name for Canada', async () => {
-    const res = await postEdit({ region: 'Ontario', country: 'Canada' });
-    expect(res.status).toBe(422);
-    expect(res.text).toContain('official two-letter state or province code');
+  it('accepts a full province name for Canada in any casing and stores its code', async () => {
+    const res = await postEdit({ region: ' ontario ', country: 'Canada' });
+    expect(res.status).toBe(303);
+    expect(storedRegion()).toBe('ON');
   });
 
   it('accepts a Canadian province code', async () => {
@@ -183,10 +188,32 @@ describe('region must be an official state or province code', () => {
     expect(storedRegion()).toBe('OR');
   });
 
-  it('leaves the region free text for a country with no official set', async () => {
+  it('stores the state picked from the list, telling a shared code apart by country', async () => {
+    // WA is both Washington and Western Australia.
+    const res = await postEdit({ region: 'AU-WA', country: 'Australia' });
+    expect(res.status).toBe(303);
+    expect(storedRegion()).toBe('WA');
+    const refused = await postEdit({ region: 'US-WA', country: 'Australia' });
+    expect(refused.status).toBe(422);
+    expect(refused.text).toContain(REGION_COUNTRY_MISMATCH_MESSAGE);
+  });
+
+  it('opens the form with the stored state selected by its own country', async () => {
+    // A stored WA must select Washington for an American and nothing else.
+    await postEdit({ region: 'US-WA' });
+    const res = await request(createApp()).get(`/members/${MEMBER_SLUG}/edit`).set('Cookie', ownCookie());
+    const select = /<select id="region"[\s\S]*?<\/select>/.exec(res.text)?.[0] ?? '';
+    const selected = select.match(/<option [^>]*selected[^>]*>/g) ?? [];
+    expect(selected).toHaveLength(1);
+    expect(selected[0]).toContain('value="US-WA"');
+  });
+
+  it('stores no region typed for a country the form asks none of', async () => {
+    // Moving to New Zealand drops the old state, and a region carried by a
+    // hand-built request is not stored: the form never asked for one.
     const res = await postEdit({ region: 'Canterbury', country: 'New Zealand' });
     expect(res.status).toBe(303);
-    expect(storedRegion()).toBe('Canterbury');
+    expect(storedRegion()).toBeNull();
   });
 });
 
@@ -565,12 +592,15 @@ describe('validation re-render preserves the submitted values', () => {
     expect(res.text).toContain('not-a-valid-url');
   });
 
-  it('keeps the picked country and its region control after a validation error', async () => {
-    const res = await postEdit({ country: 'Canada', region: 'ON', whatsapp: 'not a phone number' });
+  it('keeps the picked country and its state or province after a validation error', async () => {
+    // The member picked Canada and Ontario; a refusal for another field must
+    // leave exactly that entry selected, not the stored US state.
+    const res = await postEdit({ country: 'Canada', region: 'CA-ON', whatsapp: 'not a phone number' });
     expect(res.status).toBe(422);
-    // Ontario is a Canadian province, so the region picker must have re-rendered
-    // for Canada rather than for the stored country.
-    expect(res.text).toContain('Ontario');
+    const select = /<select id="region"[\s\S]*?<\/select>/.exec(res.text)?.[0] ?? '';
+    const selected = select.match(/<option [^>]*selected[^>]*>/g) ?? [];
+    expect(selected).toHaveLength(1);
+    expect(selected[0]).toContain('value="CA-ON"');
   });
 });
 

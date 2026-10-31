@@ -532,3 +532,32 @@ const SUBDIVISIONS: Record<string, ReadonlyArray<{ code: string; label: string }
 export function subdivisionsForCountry(country: string): ReadonlyArray<{ code: string; label: string }> {
   return SUBDIVISIONS[countryCode(country).toUpperCase()] ?? [];
 }
+
+// Australia's states and territories, offered to members as an optional pick
+// because nearly every Australian on the old site gave one, and spelled it a
+// dozen ways ("Vic", "VIC", "Victoria"). It is kept out of the list above, which
+// also decides where a club must name a state and where a member's region is
+// required; neither applies to Australia.
+const OPTIONAL_MEMBER_REGIONS: Record<string, ReadonlyArray<{ code: string; label: string }>> = {
+  AU: [
+    { code: 'ACT', label: 'Australian Capital Territory' },
+    { code: 'NSW', label: 'New South Wales' },  { code: 'NT', label: 'Northern Territory' },
+    { code: 'QLD', label: 'Queensland' },       { code: 'SA', label: 'South Australia' },
+    { code: 'TAS', label: 'Tasmania' },         { code: 'VIC', label: 'Victoria' },
+    { code: 'WA', label: 'Western Australia' },
+  ],
+};
+
+/**
+ * The list a member picks their state, province or territory from, or an
+ * empty list for a country where the member forms ask for no region.
+ */
+export function memberRegionListForCountry(country: string): ReadonlyArray<{ code: string; label: string }> {
+  const code = countryCode(country).toUpperCase();
+  return SUBDIVISIONS[code] ?? OPTIONAL_MEMBER_REGIONS[code] ?? [];
+}
+
+/** Every country whose members pick a region from a list, by ISO code. */
+export function memberRegionListCountryCodes(): string[] {
+  return [...Object.keys(SUBDIVISIONS), ...Object.keys(OPTIONAL_MEMBER_REGIONS)];
+}

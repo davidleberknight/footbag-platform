@@ -610,6 +610,22 @@ describe('game section pages (X-Square, Golf, Sideline)', () => {
     }
   });
 
+  // Defect caught: a section's demo clip sits still until clicked, plays with
+  // sound, or is joined by a second autoplaying clip, where the page may carry
+  // one muted demo clip that plays on arrival and no more; or it loses the
+  // landscape frame the featured demo clips are drawn in.
+  it('plays each section\'s one demo clip on arrival, muted and looping', async () => {
+    for (const { path } of GAME_PAGES) {
+      const res = await page(path);
+      expect(res.text, path).toContain('<figure class="demo-video">');
+      const videos = res.text.match(/<video\b[^>]*>/g) ?? [];
+      expect(videos, path).toHaveLength(1);
+      for (const attr of ['autoplay', 'muted', 'loop', 'playsinline', 'controls']) {
+        expect(videos[0], `${path} ${attr}`).toMatch(new RegExp(`\\s${attr}(\\s|>|=)`));
+      }
+    }
+  });
+
   // Defect caught: the golf artwork leaves the hero, where the net and
   // freestyle landings carry theirs, or turns up twice on the page.
   it('carries the golf artwork as the Golf hero mascot, once', async () => {
@@ -633,18 +649,6 @@ describe('game section pages (X-Square, Golf, Sideline)', () => {
     const res = await page('/x-square');
     const bodyStart = res.text.indexOf('class="wrapper sport-section"');
     expect(res.text.slice(0, bodyStart)).toContain('class="hero-mascot" src="/img/sideline-icon-twosquare.svg');
-  });
-
-  // These pages can carry several demo clips at once, so none of them may
-  // start on its own: simultaneous autoplaying videos would pull megabytes of
-  // footage on every page load and give the visitor no way to stop the motion.
-  it('leaves every demo clip click-to-play with its own controls', async () => {
-    for (const { path } of GAME_PAGES) {
-      const res = await page(path);
-      expect(res.text, path).not.toContain('autoplay');
-      expect(res.text, path).toMatch(/<video[^>]*\bcontrols\b/);
-      expect(res.text, path).toContain('preload="metadata"');
-    }
   });
 
   // Defect caught: the 2-Square and 4-Square links point at the retired

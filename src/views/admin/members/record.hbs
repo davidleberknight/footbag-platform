@@ -158,13 +158,12 @@
           <label for="p_city">City</label>
           <input type="text" id="p_city" name="city" value="{{content.profileForm.city}}" maxlength="64" />
         </div>
-        <div class="form-field">
-          <label for="p_region">Region</label>
-          <input type="text" id="p_region" name="region" value="{{content.profileForm.region}}" maxlength="64" />
-        </div>
+        {{#> region-picker id="p_region" pickers=content.profileForm placeholder="No state or province"}}
+          <label for="p_region">State or province <span class="text-muted">(USA, Canada and Australia only)</span></label>
+        {{/region-picker}}
         <div class="form-field">
           <label for="p_country">Country</label>
-          <input type="text" id="p_country" name="country" value="{{content.profileForm.country}}" maxlength="64" />
+          <input type="text" id="p_country" name="country" value="{{content.profileForm.country}}" maxlength="64" data-country-picker />
         </div>
         <div class="form-field">
           <label for="p_birth_day">Date of birth: day</label>
@@ -308,3 +307,4 @@
     <p class="mt-4"><a href="{{href}}" class="btn btn-outline">{{label}}</a></p>
   {{/each}}
 </div>
+<script src="{{{asset 'js/region-picker.js'}}}" defer></script>

@@ -24,18 +24,14 @@ export async function installMeasure(page: Page): Promise<void> {
 }
 
 /**
- * Captures the page as currently drawn; defines the script first if this
- * document has not got it. The site's content security policy refuses an
- * injected script tag, as it should, so the source is evaluated directly, which
- * the policy does not govern.
+ * Captures the page as currently drawn, defining the script and measuring in
+ * one round trip; the script only defines functions, so defining it again is
+ * harmless. The site's content security policy refuses an injected script tag,
+ * as it should, so the source is evaluated directly, which the policy does not
+ * govern.
  */
 export async function capture(page: Page, template: string | null = null): Promise<Capture> {
-  const present = await page.evaluate(() => typeof (globalThis as { __footbagMeasure?: unknown }).__footbagMeasure === 'function');
-  if (!present) await page.evaluate(fs.readFileSync(MEASURE_SCRIPT, 'utf8'));
-  return page.evaluate(
-    (t) => (globalThis as unknown as { __footbagMeasure: (o: { template: string | null }) => Promise<Capture> }).__footbagMeasure({ template: t }),
-    template,
-  );
+  return page.evaluate<Capture>(`${fs.readFileSync(MEASURE_SCRIPT, 'utf8')};globalThis.__footbagMeasure({ template: ${JSON.stringify(template)} })`);
 }
 
 /** Well above the controls on the site's longest pages; a page with more is judged on its first ones. */

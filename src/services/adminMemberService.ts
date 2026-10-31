@@ -39,7 +39,7 @@ import {
   getStatus as getActivePlayerStatus,
 } from './activePlayerService';
 import { identityAccessService } from './identityAccessService';
-import { memberService, type ProfileEditInput } from './memberService';
+import { locationPickers, memberService, type ProfileEditInput, type RegionOption } from './memberService';
 import { deceasedMarkingService } from './deceasedMarkingService';
 import { getDefaultAccountDeletionService } from './accountDeletionService';
 import { findOwnLatestAudit } from './auditService';
@@ -269,6 +269,14 @@ export interface AdminMemberRecordContent {
   profileForm: {
     city: string;
     region: string;
+    /** The state or province picker the member forms use: the stored country's
+     *  entries with the stored one selected, every entry for the script that
+     *  swaps the list when the country changes, and whether the field is hidden
+     *  or required, so an administrator picks the same codes a member does. */
+    regionOptions: RegionOption[];
+    regionTemplateOptions: RegionOption[];
+    regionFieldHidden: boolean;
+    regionRequired: boolean;
     country: string;
     phone: string;
     whatsapp: string;
@@ -571,10 +579,15 @@ function requireCorrectableProfile(row: AdminMemberRow): void {
  */
 function profileFormFor(row: AdminMemberRow): AdminMemberRecordContent['profileForm'] {
   const parts = memberService.getBirthDateParts(row.id);
+  const pickers = locationPickers(row.country ?? '', row.region ?? '');
   return {
-    city:                 row.city ?? '',
-    region:               row.region ?? '',
-    country:              row.country ?? '',
+    city:                  row.city ?? '',
+    region:                row.region ?? '',
+    regionOptions:         pickers.regionOptions,
+    regionTemplateOptions: pickers.regionTemplateOptions,
+    regionFieldHidden:     pickers.regionFieldHidden,
+    regionRequired:        pickers.regionRequired,
+    country:               row.country ?? '',
     phone:                row.phone ?? '',
     whatsapp:             row.whatsapp ?? '',
     birthDay:             parts.day,

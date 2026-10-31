@@ -32,20 +32,33 @@
  *     value it does not list, so holding an untouched value to the rule would
  *     trap the member on a form they cannot submit over a field they never
  *     chose.
- *   - On the member's own forms a full state name is refused rather than folded
- *     to its code, because the member is answering a picker and a name means
- *     the submission did not come from it. On the import paths a name IS folded,
- *     because there was no picker and the imported record is free text.
+ *   - Every path folds a full state or province name to its two-letter code.
+ *     The member's own forms offer only a list, so a name there comes from a
+ *     request built by hand or an older page; it costs nothing to accept, and
+ *     a member never has to know the code. What differs is a value that names
+ *     no state or province: the member's own forms refuse it, while the import
+ *     paths drop it.
+ *
+ * The member's own forms ask for a region only where it is picked from a list:
+ * required in the USA and Canada, optional in Australia, and not asked at all
+ * anywhere else, since nothing reads it beyond showing it. A region already on
+ * file that the form does not ask about is kept, not erased.
  */
 import { ValidationError } from './serviceErrors';
-import { canonicalCountryName, countryCode, subdivisionsForCountry } from './countryUtils';
+import {
+  canonicalCountryName,
+  countryCode,
+  memberRegionListCountryCodes,
+  memberRegionListForCountry,
+  subdivisionsForCountry,
+} from './countryUtils';
 
 export const MAX_LOCATION_FIELD = 64;
 export const FIRST_COMPETITION_YEAR_MIN = 1972;
 
 export const REGION_REQUIRED_MESSAGE = 'Region or state is required for the USA and Canada.';
 export const REGION_CODE_MESSAGE =
-  'Region must be the official two-letter state or province code, such as CO, CA, or NY.';
+  'Region must be a state or province name, such as Oregon or Ontario.';
 export const COUNTRY_CHOICE_MESSAGE =
   'Country must be one of the countries offered in the list, such as United States or Canada.';
 
@@ -77,17 +90,103 @@ export function regionRequiredForCountry(country: string): boolean {
   return REGION_REQUIRED_COUNTRY_CODES.has(countryCode(trimmed(country)).toUpperCase());
 }
 
+// The official code for a region given as either its code or its full name, in
+// any case, or null when it names none of the country's states or provinces.
+export function subdivisionCodeFor(country: string, region: string): string | null {
+  const wanted = region.trim().toLowerCase();
+  return subdivisionsForCountry(country).find(
+    (s) => s.code.toLowerCase() === wanted || s.label.toLowerCase() === wanted,
+  )?.code ?? null;
+}
+
+export const REGION_COUNTRY_MISMATCH_MESSAGE =
+  'The state or province you picked is not in the country you chose.';
+
+export interface RegionPickerEntry {
+  value: string;   // the country's ISO code and the region's, as 'US-OR'
+  label: string;   // the name the member reads and clicks, as 'Oregon'
+  countryCode: string;
+  code: string;
+}
+
+// Every state, province and territory a member can pick, from every country
+// whose members pick one, as one alphabetical list of names. The form cannot
+// know the country before it is submitted and must work without a script, so
+// the whole list is on the page and a script narrows it to the chosen country.
+// Each value carries its country because two countries can share a code: 'WA'
+// is both Washington and Western Australia.
+export function regionPickerEntries(): RegionPickerEntry[] {
+  return memberRegionListCountryCodes()
+    .flatMap((cc) => memberRegionListForCountry(cc).map((s) => ({
+      value: `${cc}-${s.code}`, label: s.label, countryCode: cc, code: s.code,
+    })))
+    .sort((a, b) => a.label.localeCompare(b.label));
+}
+
+function sameCountry(a: string, b: string): boolean {
+  return countryCode(a.trim()).toUpperCase() === countryCode(b.trim()).toUpperCase();
+}
+
+/**
+ * The region to store from a member's form, which offers a region only as a
+ * pick from a list, and only for the countries that have one.
+ *
+ * In the USA and Canada the pick is the answer, and a blank one is left for
+ * the required-region check to refuse. In Australia the pick is optional. Every
+ * other country is asked for no region at all, so whatever the form carried is
+ * ignored.
+ *
+ * Where the form leaves the region unanswered and it is not required, a region
+ * already on file is kept while the country stays the same, because the forms
+ * never ask for it: a migrated "Canterbury" or "Vic" is not the member's to
+ * lose by saving their profile. A changed country drops it, since it names a
+ * place in the old one.
+ *
+ * A pick from another country's list is refused rather than guessed at,
+ * because either half could be the mistake. A value with no country prefix
+ * (a request built by hand, or an older page) is matched by code or name
+ * within the chosen country's list.
+ */
+export function resolveSubmittedRegion(input: {
+  country: string;
+  picked: string;
+  storedRegion: string | null;
+  storedCountry: string | null;
+}): string | null {
+  const list = memberRegionListForCountry(input.country);
+  const pick = input.picked.trim();
+  const kept = input.storedCountry !== null && sameCountry(input.storedCountry, input.country)
+    ? input.storedRegion
+    : null;
+  if (list.length === 0) return kept;
+  if (!pick) return regionRequiredForCountry(input.country) ? null : kept;
+
+  const prefixed = /^([A-Za-z]{2})-(.+)$/.exec(pick);
+  if (prefixed) {
+    if (!sameCountry(prefixed[1], input.country)) {
+      throw new ValidationError(REGION_COUNTRY_MISMATCH_MESSAGE);
+    }
+    const wanted = prefixed[2].toUpperCase();
+    const match = list.find((s) => s.code === wanted);
+    if (!match) throw new ValidationError(REGION_CODE_MESSAGE);
+    return match.code;
+  }
+  const wanted = pick.toLowerCase();
+  const match = list.find((s) => s.code.toLowerCase() === wanted || s.label.toLowerCase() === wanted);
+  if (!match) throw new ValidationError(REGION_CODE_MESSAGE);
+  return match.code;
+}
+
 // Where a country writes its addresses with an official state or province set,
 // that set is the whole vocabulary and the server decides membership in it.
 // The form renders a picker, but a picker is not the only way a value reaches
 // this method. A country with no official set keeps a free-text region.
 export function canonicalRegionOrThrow(country: string, region: string | null): string | null {
   if (!region) return region;
-  const subdivisions = subdivisionsForCountry(country);
-  if (subdivisions.length === 0) return region;
-  const match = subdivisions.find((s) => s.code.toLowerCase() === region.trim().toLowerCase());
-  if (!match) throw new ValidationError(REGION_CODE_MESSAGE);
-  return match.code;
+  if (subdivisionsForCountry(country).length === 0) return region;
+  const code = subdivisionCodeFor(country, region);
+  if (!code) throw new ValidationError(REGION_CODE_MESSAGE);
+  return code;
 }
 
 export function canonicalCountryOrThrow(country: string, storedCountry: string | null): string {
@@ -139,25 +238,34 @@ export interface ValidatedMemberLocation {
  * word it differently: the wizard asks for one field at a time, while the edit
  * form can report both missing at once.
  *
- * Order matters. The region-required check runs first, on the country as
- * submitted, so a member who omitted a required region is told that rather than
- * being sent down an argument about spelling. The country folds next, because
- * the state and province list is looked up by country: without the fold, a
- * country spelled 'U.S.' matches no list and its region silently escapes the
- * two-letter-code rule.
+ * Order matters. The form's pick is resolved to the region to store first
+ * (see `resolveSubmittedRegion`), then the region-required check runs on the
+ * country as submitted, so a
+ * member who omitted a required region is told that rather than being sent down
+ * an argument about spelling. The country folds next, because the state and
+ * province list is looked up by country: without the fold, a country spelled
+ * 'U.S.' matches no list and its region silently escapes the two-letter-code
+ * rule.
  */
 export function validateMemberLocationAndYear(input: {
   city: string;
   region: string | null;
   country: string;
+  storedRegion: string | null;
   storedCountry: string | null;
   rawYear: string;
 }): ValidatedMemberLocation {
-  if (!input.region && regionRequiredForCountry(input.country)) {
+  const submittedRegion = resolveSubmittedRegion({
+    country: input.country,
+    picked: input.region ?? '',
+    storedRegion: input.storedRegion,
+    storedCountry: input.storedCountry,
+  });
+  if (!submittedRegion && regionRequiredForCountry(input.country)) {
     throw new ValidationError(REGION_REQUIRED_MESSAGE);
   }
   const country = canonicalCountryOrThrow(input.country, input.storedCountry);
-  const region = canonicalRegionOrThrow(country, input.region);
+  const region = canonicalRegionOrThrow(country, submittedRegion);
 
   if (input.city.length > MAX_LOCATION_FIELD) {
     throw new ValidationError(`City must be ${MAX_LOCATION_FIELD} characters or fewer.`);
@@ -206,16 +314,10 @@ export function normalizeImportedLocation(input: ImportedLocation): ImportedLoca
 
   let region: string | null = null;
   if (input.region) {
-    const wanted = input.region.trim().toLowerCase();
-    const subdivisions = country ? subdivisionsForCountry(country) : [];
-    if (subdivisions.length > 0) {
-      // An imported record answered no picker, so it may carry either the code
-      // or the full name; both are recognizable, and anything else is the free
-      // text the export cannot reconcile.
-      region =
-        subdivisions.find(
-          (s) => s.code.toLowerCase() === wanted || s.label.toLowerCase() === wanted,
-        )?.code ?? null;
+    if (country && subdivisionsForCountry(country).length > 0) {
+      // Anything that is neither a code nor a full name is the free text the
+      // export cannot reconcile.
+      region = subdivisionCodeFor(country, input.region);
     } else if (input.region.length <= MAX_LOCATION_FIELD) {
       region = input.region;
     }

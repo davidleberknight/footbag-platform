@@ -35,13 +35,7 @@
     <p>{{this}}</p>
     {{/each}}
     {{#if demoVideo}}
-    <figure class="demo-video">
-      <video controls loop muted playsinline preload="metadata">
-        <source src="{{demoVideo.webmUrl}}" type="video/webm">
-        <p>{{demoVideo.caption}}</p>
-      </video>
-      <figcaption>{{demoVideo.caption}}</figcaption>
-    </figure>
+    {{> demo-video demoVideo}}
     {{/if}}
     {{#if moreInfo.length}}
     <div class="sport-section-more-info">

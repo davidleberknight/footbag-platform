@@ -11,7 +11,7 @@ import {
   PersonalDetailsFormState,
   readClaimTarget,
 } from '../services/memberOnboardingService';
-import { memberService, birthMonthOptions } from '../services/memberService';
+import { memberService, birthMonthOptions, type RegionOption } from '../services/memberService';
 import { logger } from '../config/logger';
 import { handleControllerError, renderNotFound } from '../lib/controllerErrors';
 import { PageViewModel } from '../types/page';
@@ -70,7 +70,8 @@ interface PersonalDetailsContent {
   gender: string;
   yearValue: string;
   showCompetitiveResults: boolean;
-  regionRequired: boolean;
+  regionOptions: RegionOption[];
+  regionFieldHidden: boolean;
   error: string | null;
   submitLabel: string;
 }

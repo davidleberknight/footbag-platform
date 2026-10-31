@@ -21,7 +21,7 @@
 set -uo pipefail
 
 ask_static() {
-  printf '%s\n' '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"PUBLIC UI WORDING CHECK FAILED: the wording guard could not read this edit or the conversation, so it cannot tell whether the visible site text was approved. Approve only if you have seen and want the exact text this edit writes."}}'
+  printf '%s\n' '{"systemMessage":"Do you approve of the UI wording change in this edit? The wording guard could not check it, so look at the diff before approving.","hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"APPROVE SITE WORDING (check failed): the wording guard could not read this edit or the conversation, so it cannot tell whether the visible site text was approved. Approve only if you have seen and want the exact wording this edit writes."}}'
   exit 0
 }
 
@@ -118,12 +118,42 @@ const unapproved = changes.filter((c) => !msgs.some((m) => m.h.includes(c.key) |
 if (!unapproved.length) process.exit(0);
 
 const short = (s) => (s.length > 200 ? s.slice(0, 197) + '...' : s);
-const reason = 'PUBLIC UI WORDING CHANGE in ' + rel + '. No approval of this text was found earlier in the conversation.\n'
+const reason = 'APPROVE SITE WORDING: visitors will read new text on ' + rel + '. No approval of this text was found earlier in the conversation.\n'
   + unapproved.map((c) => 'Before: "' + (c.before ? short(c.beforeCtx) : '(none)') + '"\nAfter:  "'
     + (c.after ? short(c.afterCtx) : '(removed)') + '"').join('\n')
-  + '\nApprove only if this is the exact text you want site visitors to see.';
-process.stdout.write(JSON.stringify({ hookSpecificOutput: {
-  hookEventName: 'PreToolUse', permissionDecision: 'ask', permissionDecisionReason: reason } }) + '\n');
+  + '\nApprove only if this is the exact wording you want.';
+// An Edit prompt shows the human the diff but not this reason, so a prompt here would ask
+// without saying why. The first time an unapproved change is attempted in a session it is
+// denied instead, telling Claude to write the reason and the exact text into its message;
+// the same change retried then prompts, directly under that explanation. Modelled on
+// guard-maintainer-gate.sh. A mark that cannot be written falls through to the prompt.
+const shownChanges = unapproved.map((c) => 'Before: "' + (c.before ? short(c.beforeCtx) : '(none)') + '"\nAfter:  "'
+  + (c.after ? short(c.afterCtx) : '(removed)') + '"').join('\n');
+let explained = true;
+try {
+  const crypto = require('crypto');
+  const os = require('os');
+  const session = String(ev.session_id || 'nosession').replace(/[^A-Za-z0-9_-]/g, '');
+  const markDir = path.join(process.env.TMPDIR || os.tmpdir(), 'claude-wording-gate', session);
+  const mark = path.join(markDir, crypto.createHash('sha1')
+    .update(rel + '\0' + unapproved.map((c) => c.key).join('\0')).digest('hex').slice(0, 16));
+  if (!fs.existsSync(mark)) {
+    fs.mkdirSync(markDir, { recursive: true });
+    fs.writeFileSync(mark, '');
+    explained = false;
+  }
+} catch { explained = true; }
+if (!explained) {
+  const why = 'WORDING PROMPT NOT YET EXPLAINED: the edit prompt will show the human only the diff, never a reason. '
+    + 'End your message with: "Next: an edit prompt for ' + rel + '. Visible wording changes:" followed by each '
+    + 'Before and After below, then "Do you approve of the UI wording change as shown?". Then retry the same edit '
+    + 'on its own; it will prompt.\n' + shownChanges;
+  process.stdout.write(JSON.stringify({ hookSpecificOutput: {
+    hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: why } }) + '\n');
+  process.exit(0);
+}
+process.stdout.write(JSON.stringify({ systemMessage: 'Do you approve of the UI wording change as shown? ' + reason,
+  hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'ask', permissionDecisionReason: reason } }) + '\n');
 JS
 )"
 

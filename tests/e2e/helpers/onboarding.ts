@@ -514,8 +514,8 @@ export function seedAllTasksCompleted(
 // factories.ts resets on each import, causing email collisions. These
 // wrappers inject a unique email so every persona gets a collision-free row.
 
-export function seedBrandNewPlayer(db: BetterSqlite3.Database, opts: { slug?: string } = {}) {
-  return _seedBrandNewPlayer(db, { slug: opts.slug, overrides: { login_email: uniqueEmail('bnp') } });
+export function seedBrandNewPlayer(db: BetterSqlite3.Database, opts: { slug?: string; overrides?: Record<string, unknown> } = {}) {
+  return _seedBrandNewPlayer(db, { slug: opts.slug, overrides: { login_email: uniqueEmail('bnp'), ...opts.overrides } as any });
 }
 
 export function seedTier0Member(db: BetterSqlite3.Database, opts: { slug?: string; overrides?: Record<string, unknown> } = {}) {

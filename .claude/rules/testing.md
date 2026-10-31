@@ -86,6 +86,7 @@ The strategy behind these four rules is in `docs/TESTING.md`. Each closes a clas
 - **One test per real data shape.** A story that reads migrated data is tested once per distinct shape the built database holds (counted, with a sample record id), never on one representative record.
 - **Factory parity.** A factory's column pattern (set, null, blank) matches what the pipeline builds, or the difference is named beside the factory. Never set a column by hand in a factory that the pipeline leaves empty, without that name.
 - **The real path.** A test helper or `src/testkit/` journey calls the entry a controller calls, never a function that entry wraps. Drive a journey over HTTP through the real forms where the story is a journey.
+- **The real starting state.** A test of a form submits from the state a real person starts in (a fresh account with nothing on file, for a form a new member meets), using only what the page renders: the options a select offers, the box a text input is. A body posted with values the page never offers proves the server's validation, not the form. A test of a refused submission also checks that the re-rendered form offers a valid way forward, and that resubmitting it as rendered, with the one correction a person would make, succeeds.
 - **Whole-population invariants.** A rule over migrated data is checked over the whole built database in `scripts/validate-realdata-ri.sh` or a built-database Python check, and skips rather than passes on an empty table.
 
 ## Adversarial testing

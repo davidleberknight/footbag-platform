@@ -1,7 +1,6 @@
 ---
 name: triage-bugs
-disable-model-invocation: true
-description: Maintainer-only. Triage the bug reports developers and testers file in the private dev-tester repository, one at a time, oldest first, each settled on the spot - fixed now, carded into the private tracker, closed as not-a-bug or duplicate, or, the one exception, sent back to the reporter with specific questions. Invoke only when the human explicitly asks to triage bug reports.
+description: Maintainer-only. Use first, before reading or analysing it, whenever the maintainer brings up a bug report or idea a developer or tester filed in the private dev-tester repository ("a tester filed a bug, find it and analyze it", "look at issue 4", "triage the bug reports"). Settles each report on the spot, one at a time, oldest first - fixed now, carded into the private tracker, closed as not-a-bug or duplicate, or sent back to the reporter with specific questions - showing the exact comment, which posts as the maintainer, before any label, comment or close.
 ---
 
 # Triage bug reports
@@ -77,7 +76,12 @@ at the next. Then take the next, until the list is empty or the human stops.
    staging or reset its data to reproduce a report. Record what was done and what happened.
 5. **Judge it against the design**, not the code: the governing user story or design decision
    says whether the behaviour is wrong (the pre-design gate in root `CLAUDE.md`). Name the passage.
-6. **Propose exactly one outcome**, with its label, the exact comment, and the fix or the card:
+6. **Propose exactly one outcome**, with its label, the exact comment, and the fix or the card.
+   The comment posts under the human's own GitHub account, so the message shows its full text
+   verbatim and says it will appear as them. Before showing it, check every claim it makes
+   against the code and tests as they stand now (what the page offers, what the reporter can do,
+   what was fixed), and rewrite any claim the current code does not bear out. The same holds for
+   editing a comment already posted:
 
    | Outcome | When | Label |
    |---|---|---|
@@ -102,7 +106,10 @@ at the next. Then take the next, until the list is empty or the human stops.
      specific ("which button did you press, by the words on it?", never "more details please"),
      and how to answer: reply on this report, or ask Claude Code to answer it with the `file-bug`
      skill. GitHub notifies the reporter of the comment.
-7. **Ask once**, for this one bug report, then carry the outcome out without pausing:
+7. **Ask once**, for this one bug report, showing the label, the exact comment and the close, then
+   carry the outcome out without pausing. A fix made in this session follows this step too: it is
+   `fixed` once it is in the code with its tests, not once it is deployed. If the fix changes after
+   the comment is posted, re-verify the comment and propose the corrected text the same way:
    - **fixed:** load the matching skill and rules, make the fix with the regression test the
      testing rule requires, run the targeted verification, then label, comment and close. The fix
      stays in the working tree for the human to commit.

@@ -15,8 +15,8 @@ if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])find([[:space:]][^;&|]*)
   jq -n '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
-      permissionDecision: "ask",
-      permissionDecisionReason: "find with -delete detected. Confirm before running."
+      permissionDecision: "deny",
+      permissionDecisionReason: "HARD BLOCK: no find -delete. List the files with a read-only find, then remove them by name with rm, so the prompt names each path."
     }
   }'
   exit 0
@@ -30,8 +30,8 @@ if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])sort([[:space:]][^;&|]*)
   jq -n '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
-      permissionDecision: "ask",
-      permissionDecisionReason: "sort -o / --output writes a file, or --compress-program runs an external program. Confirm before running."
+      permissionDecision: "deny",
+      permissionDecisionReason: "HARD BLOCK: sort writes a file with -o and runs a program with --compress-program. Sort to stdout, and write any file with the Write tool or into the session scratchpad by redirect."
     }
   }'
   exit 0
@@ -44,8 +44,8 @@ if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])find([[:space:]][^;&|]*)
   jq -n '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
-      permissionDecision: "ask",
-      permissionDecisionReason: "find with -fprint/-fprintf/-fls writes a file. Confirm before running."
+      permissionDecision: "deny",
+      permissionDecisionReason: "HARD BLOCK: find -fprint/-fprintf/-fls writes a file. Print to stdout, and redirect into the session scratchpad if you need it saved."
     }
   }'
   exit 0
@@ -54,13 +54,15 @@ fi
 # sed writing or executing without -i: the `w`/`W` commands and the `s///w file`
 # flag write a file, and GNU sed's `e` command runs a shell command. `sed` is on the
 # read-only allow-list (its common form only reads), so these need an explicit ask.
-# The -i / --in-place form is also in settings.json ask, mirrored here for subagents.
+# The -i / --in-place form is also in settings.json deny, mirrored here for subagents.
+# Files are edited only through the Edit and Write tools, so this is denied with the
+# rewrite named rather than put to the human as a prompt.
 if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])sed([[:space:]][^;&|]*)?[[:space:]](-[a-zA-Z]*i([[:space:]]|=|$|[.'"'"'"/])|--in-place)'; then
   jq -n '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
-      permissionDecision: "ask",
-      permissionDecisionReason: "sed -i / --in-place edits a file. Confirm before running."
+      permissionDecision: "deny",
+      permissionDecisionReason: "HARD BLOCK: never edit a file with sed -i / --in-place. Make the change with the Edit tool (Read the file first), or Write for a whole file. A read-only sed (no -i) is fine."
     }
   }'
   exit 0
@@ -69,8 +71,8 @@ if printf '%s' "$COMMAND" | grep -Eq "(^|[;&|[:space:]])sed([[:space:]]|$)[^;&|]
   jq -n '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
-      permissionDecision: "ask",
-      permissionDecisionReason: "sed with a w/W write-command, s///w write-flag, or e exec-command detected. Confirm before running."
+      permissionDecision: "deny",
+      permissionDecisionReason: "HARD BLOCK: this sed writes a file (w, W, s///w) or runs a command (e). Use a read-only sed and the Edit or Write tool for any change."
     }
   }'
   exit 0
@@ -82,8 +84,8 @@ if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])tree([[:space:]][^;&|]*)
   jq -n '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
-      permissionDecision: "ask",
-      permissionDecisionReason: "tree -o / --output writes a file. Confirm before running."
+      permissionDecision: "deny",
+      permissionDecisionReason: "HARD BLOCK: tree -o writes a file. Print to stdout, and redirect into the session scratchpad if you need it saved."
     }
   }'
   exit 0
@@ -95,8 +97,8 @@ if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])curl([[:space:]][^;&|]*)
   jq -n '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
-      permissionDecision: "ask",
-      permissionDecisionReason: "curl with mutating HTTP method detected. Confirm before sending."
+      permissionDecision: "deny",
+      permissionDecisionReason: "HARD BLOCK: curl may only read. Use WebFetch for a web read, or a test through supertest for the local app. A request that changes something elsewhere is the human'"'"'s to run: show the exact request in your message."
     }
   }'
   exit 0
@@ -107,8 +109,8 @@ if printf '%s' "$COMMAND" | grep -Eq '(^|[;&|[:space:]])curl([[:space:]][^;&|]*)
   jq -n '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
-      permissionDecision: "ask",
-      permissionDecisionReason: "curl with request-body or upload flag detected. Confirm before running."
+      permissionDecision: "deny",
+      permissionDecisionReason: "HARD BLOCK: curl may only read. Use WebFetch for a web read, or a test through supertest for the local app. A request that changes something elsewhere is the human'"'"'s to run: show the exact request in your message."
     }
   }'
   exit 0
@@ -126,8 +128,8 @@ if printf '%s' "$CURL_STRIPPED" | grep -Eq '(^|[;&|[:space:]])curl([[:space:]][^
   jq -n '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
-      permissionDecision: "ask",
-      permissionDecisionReason: "curl -o / --output writes a file. Confirm before running."
+      permissionDecision: "deny",
+      permissionDecisionReason: "HARD BLOCK: curl -o writes a file. Redirect curl'"'"'s output into the session scratchpad instead, or use WebFetch to read."
     }
   }'
   exit 0
@@ -228,8 +230,8 @@ if printf '%s' "$RSCAN" | grep -q '>'; then
   jq -n '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
-      permissionDecision: "ask",
-      permissionDecisionReason: "Shell output redirection (>, >>) to a real file would write it, and a static allow rule for the leading command could auto-approve it. Confirm before running. The discard device (/dev/null) and the session scratch dir are exempt."
+      permissionDecision: "deny",
+      permissionDecisionReason: "HARD BLOCK: no shell redirect into a real file. Use the Write or Edit tool, or redirect into the session scratchpad. The discard device (/dev/null) is fine too."
     }
   }'
   exit 0

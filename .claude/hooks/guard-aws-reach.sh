@@ -21,8 +21,10 @@ COMMAND="$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')"
 
 [ -n "$COMMAND" ] || exit 0
 
+# Every reason opens with what the human is approving and the command it is about, so the
+# prompt stands on its own.
 ask() {
-  jq -n --arg reason "$1" '{
+  jq -n --arg reason "APPROVE AWS ACCESS: $COMMAND. $1" '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
       permissionDecision: "ask",

@@ -178,24 +178,20 @@ export async function buildRealClaimJourney(legacyMemberId: string): Promise<Bui
   if (!memberRow) throw new Error(`buildRealClaimJourney: no members row for verified member ${memberId}`);
   const slug = memberRow.slug;
 
-  // 4. Personal details first, as the wizard orders the steps: synthetic,
-  //    obviously-test values (the claimed record's own migrated data is what the
-  //    crawl verifies, not these). The city carries the obviously-synthetic
-  //    signal; the country has to be a real one because the location rules hold
-  //    a changed country to the canonical set, and a country with no state or
-  //    province list keeps the region blank.
-  memberService.setPersonalDetails(memberId, {
-    city: 'Testville',
-    region: '',
-    country: 'Estonia',
-    birthDay: '8',
-    birthMonth: '8',
-    birthYear: '2008',
-    gender: 'undisclosed',
-    yearValue: '2000',
-    showCompetitiveResults: true,
-  });
-  memberOnboardingService.completeTaskIfOutstanding(memberId, 'personal_details');
+  // 4. Personal details first, as the wizard orders the steps, through the entry
+  //    the wizard's submit route calls, with the values its form offers: a US
+  //    state picked from the list, as the most common registrant answers it. The
+  //    values are synthetic and obviously test (the claimed record's own migrated
+  //    data is what the crawl verifies, not these); the city carries the
+  //    obviously-synthetic signal, and the country has to be a real one because
+  //    the location rules hold a changed country to the canonical set.
+  const details = memberOnboardingService.processPersonalDetailsSubmit(
+    memberId, 'Testville', 'US-OR', 'United States',
+    { day: '8', month: '8', year: '2008' }, 'undisclosed', '2000', true,
+  );
+  if (details.kind === 'validation_error') {
+    throw new Error(`buildRealClaimJourney: personal details refused: ${details.message}`);
+  }
 
   // 5. Claim the real legacy record through the claim step, as a person does:
   //    the registrant carries the record's own name, which reaches an old
@@ -268,8 +264,8 @@ export async function buildRealClaimJourney(legacyMemberId: string): Promise<Bui
   await memberService.updateOwnProfile(slug, {
     bio: bioFor(),
     city: 'Testville',
-    region: '',
-    country: 'Estonia',
+    region: 'US-OR',
+    country: 'United States',
     phone: '',
     whatsapp: '',
     emailVisibility: 'members',

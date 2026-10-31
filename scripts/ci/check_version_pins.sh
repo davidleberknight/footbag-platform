@@ -63,8 +63,10 @@ for file in "${FILES[@]}"; do
     *.sh|*.bash|*.yml|*.yaml|*Dockerfile*) ;;
     *) continue ;;
   esac
-  # This file's own patterns describe the forms it refuses.
+  # This file's own patterns describe the forms it refuses, and the permission
+  # gate lists permission rules such as 'Bash(pip install*)', which install nothing.
   [[ "$file" == "scripts/ci/check_version_pins.sh" ]] && continue
+  [[ "$file" == ".claude/hooks/guard-maintainer-gate.sh" ]] && continue
   [[ -f "$file" ]] || continue
 
   # ── pip install ────────────────────────────────────────────────────────────

@@ -53,6 +53,7 @@ When a custom agent gains or loses `Bash`, keep its frontmatter `hooks:` block i
 ## Hook authoring (`.claude/hooks/**`)
 
 - Emit valid PreToolUse JSON (`hookSpecificOutput.permissionDecision` of allow, deny or ask; `defer` is ignored in interactive sessions), or exit 0 with no output to leave the call to the normal flow, which approves nothing. When hooks disagree, deny beats ask beats allow, and a hook's allow never overrides a deny or ask rule.
+- An ask is only for a decision that is the human's. Where Claude can always avoid or fix the trigger, deny and name the exact rewrite. Every ask reason opens with what the human is approving and names the command, path or text, so it stands alone in the prompt. A Bash ask rule, which carries no reason, is listed in `guard-maintainer-gate.sh`, so Claude explains it in its message first.
 - Choose the failure mode deliberately: security gates fail closed; informational checks fail open. A hook that times out lets the call through to the normal flow, so a gate must decide fast and fail closed inside the script.
 - Prefer exec-form over interpolating untrusted strings into a shell; review each guard for bypass via command/process substitution, redirection, pipes, `xargs`, quoting, multiline input, compound commands (judge each subcommand on its own), and globs.
 - A hook's fixture test pipes a synthetic event on stdin (`scripts/ci/test_hooks.sh`), and every hook is wired in `settings.json`.

@@ -1,10 +1,11 @@
 {{! Partial: demo-video
-    Context: a SiteVideo { mp4Url, posterUrl, caption, isPortrait }, the featured clip of a sport
-    landing page; an upright clip takes the portrait frame instead of the landscape one.
-    Used by: net/index.hbs, freestyle/landing.hbs, consecutives/index.hbs. }}
+    Context: { mp4Url or webmUrl, posterUrl?, caption, isPortrait? }, the one demo clip a page
+    plays on arrival, muted and looping, whether it is a sport landing page's featured clip or a
+    game section's clip; an upright clip takes the portrait frame instead of the landscape one. }}
 <figure class="demo-video{{#if isPortrait}} demo-video--portrait{{/if}}">
-  <video autoplay loop muted playsinline controls preload="metadata" poster="{{posterUrl}}">
-    <source src="{{mp4Url}}" type="video/mp4">
+  <video autoplay loop muted playsinline controls preload="metadata"{{#if posterUrl}} poster="{{posterUrl}}"{{/if}}>
+    {{#if mp4Url}}<source src="{{mp4Url}}" type="video/mp4">{{/if}}
+    {{#if webmUrl}}<source src="{{webmUrl}}" type="video/webm">{{/if}}
     <p>{{caption}}</p>
   </video>
   <figcaption>{{caption}}</figcaption>

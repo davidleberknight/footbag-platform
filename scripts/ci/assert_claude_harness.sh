@@ -461,6 +461,21 @@ else
   echo "[harness] every maintainer-gated command is an ask rule"
 fi
 
+# --- Check 14b: every Bash ask rule is gated ---
+# An ask rule's prompt shows only the command and the rule, never a reason. The gate makes
+# Claude explain each gated command in its message before the prompt, so a Bash ask entry
+# missing from the gate's list would prompt the human with no explanation at all.
+if [ -f "$GATE_HOOK" ]; then
+  ungated=$(printf '%s\n' "$ask_rules" | grep -E '^Bash\(' | grep -vxF -f <(printf '%s\n' "$gate_rules") || true)
+  if [ -n "$ungated" ]; then
+    echo "[harness] FAIL: Bash ask rule(s) in $SETTINGS not gated by $GATE_HOOK, so they would prompt unexplained:" >&2
+    ( IFS=$'\n'; printf '  %s\n' $ungated >&2 )
+    fail=1
+  else
+    echo "[harness] every Bash ask rule is gated, so Claude explains it before the prompt"
+  fi
+fi
+
 # --- Check 15: the public wording guard runs on every file-writing tool ---
 # Root CLAUDE.md forbids silent changes to public UI wording; guard-ui-wording.sh asks
 # unless the human approved the text, and only while it is wired on Edit, Write and

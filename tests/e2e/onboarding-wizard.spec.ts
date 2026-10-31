@@ -43,10 +43,11 @@ test('a registrant who signs out part-way through and signs back in is returned 
   // A freshly verified registrant is pending, never a member with a profile.
   await expect(page).toHaveURL(/\/register\/wizard\/personal_details$/);
 
-  // A country with no state or province list, so the form asks for no region:
-  // a new account has no country on file, and the region picker for the USA
-  // and Canada appears only once the country is saved.
-  await wizard.fillPersonalDetailsAndSave(/\/register\/wizard\/legacy_claim$/, { city: 'Lyon', country: 'France' });
+  // A brand-new American registrant clicks their state from the list that is
+  // on the page from the first visit, with nothing on file and nothing typed.
+  await wizard.fillPersonalDetailsAndSave(/\/register\/wizard\/legacy_claim$/, {
+    city: 'Eugene', country: 'United States', region: 'Oregon',
+  });
   await wizard.answerCurrentTask(/\/register\/wizard\/club_affiliations$/);
 
   await page.getByRole('button', { name: 'Logout' }).click();

@@ -106,7 +106,10 @@ export class WizardPage {
     } = {},
   ): Promise<void> {
     await this.page.locator('#city').fill(opts.city ?? 'Portland');
-    await this.selectCountry(opts.country ?? 'United States', opts.region ?? 'OR');
+    await this.selectCountry(
+      opts.country ?? 'United States',
+      opts.region ?? (opts.country === undefined ? 'Oregon' : undefined),
+    );
     await this.fillBirthDate(opts);
     if (opts.year !== undefined) await this.yearInput.fill(opts.year);
     await this.saveButton.click();
@@ -122,14 +125,18 @@ export class WizardPage {
     await this.page.locator('#birthYear').fill(opts.birthYear ?? '2000');
   }
 
-  // Country is a picker, and choosing the USA or Canada turns the region field
-  // into a state/province picker the form requires. The region control is
-  // whichever one the server rendered for the country already on file, so this
-  // sets it when it is a picker and leaves a free-text region alone.
-  async selectCountry(country: string, region: string): Promise<void> {
+  // Picks the country, then the state, province or territory by the name a
+  // member reads ("Oregon"), from the one list that is on the page from the
+  // first visit. Naming no region asserts the field is hidden, as it is for a
+  // country that asks for none. Either way a missing control fails the test
+  // rather than being skipped.
+  async selectCountry(country: string, region?: string): Promise<void> {
     await this.page.locator('#country').selectOption({ label: country });
-    const regionSelect = this.page.locator('select#region');
-    if (await regionSelect.count()) await regionSelect.selectOption(region);
+    if (region === undefined) {
+      await expect(this.page.locator('[data-region-field]')).toBeHidden();
+      return;
+    }
+    await this.page.locator('select#region').selectOption({ label: region });
   }
 
   // Club affiliations task

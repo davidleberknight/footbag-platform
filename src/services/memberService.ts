@@ -175,8 +175,13 @@ import { paymentService } from './paymentService';
 import { mediaService, type ProfileMediaView } from './mediaService';
 import { formatDateDisplay } from './dateFormat';
 import type { OutcomeNoticeView } from '../lib/outcomeNotice';
-import { countryNames, subdivisionsForCountry } from './countryUtils';
 import {
+  canonicalCountryName,
+  countryCode,
+  countryNames,
+} from './countryUtils';
+import {
+  regionPickerEntries,
   regionRequiredForCountry,
   validateMemberLocationAndYear,
 } from './memberLocationRules';
@@ -488,8 +493,6 @@ export interface AccountDeletionDoneContent {
 }
 
 export interface ProfileEditContent extends OwnProfileContent, LocationPickers {
-  /** Whether this member's country is one whose addresses need a state or province. */
-  regionRequired: boolean;
   memberKey: string;
   loginEmail: string;
   profileUrl: string;
@@ -813,22 +816,60 @@ function selectOptions(
   return all.map((c) => ({ ...c, selected: c.value === selected }));
 }
 
-// The country picker, plus the state or province picker for the countries that
-// use one. A country with no subdivisions returns none, and the region stays a
-// free-text field there.
+// The country picker and the state, province or territory picker. A member only
+// ever sees their own country's entries: the select is drawn with the chosen
+// country's names alone, and hidden when no country is chosen or the chosen one
+// has no list, so the form works without a script. Every entry is also drawn,
+// inert, in a template the script reads, so choosing a country swaps the list
+// at once with no save; each carries whether its country requires a pick.
+//
+// The region list is the whole vocabulary, so unlike the country picker it
+// never re-offers a value it does not list: a refused entry offered back as
+// its own option looks like the real one beside it, and choosing it submits
+// the refused value again.
+export interface RegionOption extends SelectOption {
+  // The country picker's name for the entry's country, so the script can match
+  // it against the chosen country.
+  countryName: string;
+  // Whether the entry's country requires a pick, so the script can mark the
+  // select required for it.
+  required: boolean;
+}
+
 export interface LocationPickers {
   countryOptions: SelectOption[];
-  regionOptions: SelectOption[];
-  regionHasOptions: boolean;
+  /** The chosen country's entries only, with the stored or submitted one selected. */
+  regionOptions: RegionOption[];
+  /** Every entry of every country with a list, for the script's template. */
+  regionTemplateOptions: RegionOption[];
+  regionFieldHidden: boolean;
+  /** Whether the chosen country requires a pick, for the select's required attribute. */
+  regionRequired: boolean;
 }
 
 export function locationPickers(country: string, region: string): LocationPickers {
   const countryOptions = selectOptions(countryNames().map((n) => ({ value: n, label: n })), country);
-  const subdivisions = subdivisionsForCountry(country);
-  const regionOptions = subdivisions.length
-    ? selectOptions(subdivisions.map((s) => ({ value: s.code, label: s.label })), region)
-    : [];
-  return { countryOptions, regionOptions, regionHasOptions: regionOptions.length > 0 };
+  const chosenCode = countryCode(country.trim()).toUpperCase();
+  const wanted = region.trim().toLowerCase();
+  const regionTemplateOptions = regionPickerEntries().map((s) => ({
+    value: s.value,
+    label: s.label,
+    countryName: canonicalCountryName(s.countryCode) ?? s.countryCode,
+    required: regionRequiredForCountry(s.countryCode),
+    // A stored region is a bare code or a name, and a resubmitted pick carries
+    // its country; either is matched within the member's own country.
+    selected: s.countryCode === chosenCode && wanted !== '' && (
+      s.value.toLowerCase() === wanted || s.code.toLowerCase() === wanted || s.label.toLowerCase() === wanted
+    ),
+  }));
+  const regionOptions = regionTemplateOptions.filter((s) => countryCode(s.countryName).toUpperCase() === chosenCode);
+  return {
+    countryOptions,
+    regionOptions,
+    regionTemplateOptions: regionTemplateOptions.map((s) => ({ ...s, selected: false })),
+    regionFieldHidden: regionOptions.length === 0,
+    regionRequired: regionRequiredForCountry(country),
+  };
 }
 
 // The month of birth is chosen by name rather than typed as a number, so a
@@ -1563,7 +1604,6 @@ export const memberService = {
       content: {
         ...rowToContent(row),
         ...locationPickers(effectiveCountry, effectiveRegion),
-        regionRequired: regionRequiredForCountry(effectiveCountry),
         memberKey: slug,
         loginEmail: row.login_email,
         profileUrl: `/members/${slug}`,
@@ -1716,7 +1756,7 @@ export const memberService = {
     // Shared with the onboarding form, so the rules cannot be undone by editing
     // the profile afterwards.
     const location = validateMemberLocationAndYear({
-      city, region, country, storedCountry: row.country, rawYear,
+      city, region, country, storedRegion: row.region, storedCountry: row.country, rawYear,
     });
     if (whatsapp && whatsappDigits(whatsapp) === null) {
       throw new ValidationError(WHATSAPP_MESSAGE);
@@ -1916,14 +1956,13 @@ export const memberService = {
 
   /**
    * The personal-details form's fields: what is on file, with any resubmitted
-   * values layered over it. `regionRequired` follows the effective country, so
-   * the marker on the form and the rule enforced on save cannot disagree.
+   * values layered over it.
    */
   getPersonalDetailsForm(
     memberId: string,
     overrides: Partial<PersonalDetailsFormFields> = {},
   ): PersonalDetailsFormFields & LocationPickers & {
-    regionRequired: boolean; birthMonthOptions: SelectOption[];
+    birthMonthOptions: SelectOption[];
   } {
     const p = this.getPersonalDetailsPrefill(memberId);
     const stored = splitBirthDateParts(p.birthDate);
@@ -1939,7 +1978,6 @@ export const memberService = {
       ...fields,
       ...locationPickers(fields.country, fields.region),
       birthMonthOptions: birthMonthOptions(fields.birthMonth),
-      regionRequired: regionRequiredForCountry(fields.country),
     };
   },
 
@@ -1981,12 +2019,14 @@ export const memberService = {
     }
     // Shared with the profile edit form. The stored country is read so that a
     // member re-submitting this step is held to the country rule only if they
-    // changed the value, exactly as the edit form treats them.
+    // changed the value, exactly as the edit form treats them; the stored
+    // region is read so a region the form does not ask about is kept.
     const stored = runSqliteRead('findPersonalDetails', () =>
       account.findPersonalDetails.get(memberId),
-    ) as { country: string | null } | undefined;
+    ) as { country: string | null; region: string | null } | undefined;
     const location = validateMemberLocationAndYear({
       city, region, country,
+      storedRegion: stored?.region ?? null,
       storedCountry: stored?.country ?? null,
       rawYear: normalizeText(input.yearValue),
     });

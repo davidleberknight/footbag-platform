@@ -1,0 +1,24 @@
+{{!--
+  The state, province or territory field, shared by every form that asks a
+  member's location. Called as a block whose content is the field's label:
+    {{#> region-picker id="region" pickers=content}}<label for="region">...</label>{{/region-picker}}
+  `pickers` is a LocationPickers shape. The select holds only the chosen
+  country's entries and the field is hidden when there are none, so it works
+  without a script. The template holds every entry, inert and never shown, for
+  region-picker.js to swap in when the country changes; the country select it
+  watches carries data-country-picker. `placeholder` overrides the empty option.
+--}}
+<div class="form-field" data-region-field {{#if pickers.regionFieldHidden}}hidden{{/if}}>
+  {{> @partial-block}}
+  <select id="{{id}}" name="region" autocomplete="address-level1" data-region-picker {{#if pickers.regionRequired}}required{{/if}}>
+    <option value="">{{#if placeholder}}{{placeholder}}{{else}}Select your state or province{{/if}}</option>
+    {{#each pickers.regionOptions}}
+      <option value="{{this.value}}" {{#if this.selected}}selected{{/if}}>{{this.label}}</option>
+    {{/each}}
+  </select>
+  <template data-region-options>
+    {{#each pickers.regionTemplateOptions}}
+      <option value="{{this.value}}" data-country="{{this.countryName}}"{{#if this.required}} data-required{{/if}}>{{this.label}}</option>
+    {{/each}}
+  </template>
+</div>

@@ -237,20 +237,34 @@ uw_human() { jq -cn --arg t "$1" '{type:"user",origin:{kind:"human"},message:{co
 uw_claude() { jq -cn --arg t "$1" '{type:"assistant",message:{content:[{type:"text",text:$t}]}}'; }
 uw_edit() { jq -cn --arg p "$uw_dir/$1" --arg o "$2" --arg n "$3" '{file_path:$p,old_string:$o,new_string:$n}'; }
 # expect_wording <tool-input-json> <transcript-lines> <ask|defer>
+# An unapproved change ("ask") is first denied, so Claude writes the reason and the text
+# into its message, and the same change retried then asks; each case gets its own marks.
 expect_wording() {
-  local tf out decision
+  local tf out decision gate_dir
   tf="$(mktemp)"; printf '%s\n' "$2" > "$tf"
-  out="$(jq -cn --argjson i "$1" --arg t "$tf" '{tool_input:$i,transcript_path:$t}' | ".claude/hooks/$H")"
-  rm -f "$tf"
+  gate_dir="$(mktemp -d)"
+  out="$(jq -cn --argjson i "$1" --arg t "$tf" '{tool_input:$i,transcript_path:$t,session_id:"s1"}' | TMPDIR="$gate_dir" ".claude/hooks/$H")"
   decision="$(printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecision // "defer"')"
   [ -n "$out" ] || decision=defer
+  if [ "$3" = ask ]; then
+    if [ "$decision" != deny ]; then
+      echo "[hooks] FAIL ($H): an unexplained wording change must first deny, got $decision: $1" >&2; fail=1
+    fi
+    case "$(printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecisionReason')" in
+      "WORDING PROMPT NOT YET EXPLAINED: "*"Do you approve of the UI wording change as shown?"*) : ;;
+      *) echo "[hooks] FAIL ($H): the first deny does not tell Claude to explain the prompt" >&2; fail=1 ;;
+    esac
+    out="$(jq -cn --argjson i "$1" --arg t "$tf" '{tool_input:$i,transcript_path:$t,session_id:"s1"}' | TMPDIR="$gate_dir" ".claude/hooks/$H")"
+    decision="$(printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecision // "defer"')"
+  fi
+  rm -rf "$tf" "$gate_dir"
   if [ "$decision" != "$3" ]; then
     echo "[hooks] FAIL ($H): want $3, got $decision: $1 / $2" >&2; fail=1
   fi
   if [ "$3" = ask ]; then
     case "$(printf '%s' "$out" | jq -r '.hookSpecificOutput.permissionDecisionReason')" in
-      "PUBLIC UI WORDING CHANGE in "*) : ;;
-      *) echo "[hooks] FAIL ($H): reason does not lead with PUBLIC UI WORDING CHANGE" >&2; fail=1 ;;
+      "APPROVE SITE WORDING: visitors will read new text on "*) : ;;
+      *) echo "[hooks] FAIL ($H): reason does not lead with APPROVE SITE WORDING" >&2; fail=1 ;;
     esac
   fi
 }
@@ -527,14 +541,24 @@ expect "$H" 'git log --oneline -20' defer
 # A command-running or file-writing git flag on ANY subcommand asks -- notably git fetch,
 # which is a static allow yet shell-execs via --upload-pack; a plain fetch and a read-only
 # mention still defer.
-expect "$H" 'git fetch --upload-pack=/tmp/evil.sh repo' ask
-expect "$H" 'git fetch --upload-pack="touch /tmp/x; git-upload-pack" origin' ask
-expect "$H" 'git ls-remote --receive-pack=cmd repo' ask
-expect "$H" 'git grep --open-files-in-pager=cmd foo' ask
-expect "$H" 'git log --output=/tmp/f -1' ask
+expect "$H" 'git fetch --upload-pack=/tmp/evil.sh repo' deny
+expect "$H" 'git fetch --upload-pack="touch /tmp/x; git-upload-pack" origin' deny
+expect "$H" 'git ls-remote --receive-pack=cmd repo' deny
+expect "$H" 'git grep --open-files-in-pager=cmd foo' deny
+expect "$H" 'git log --output=/tmp/f -1' deny
 expect "$H" 'git fetch origin' defer
 expect "$H" 'git fetch --depth=1 origin main' defer
 expect "$H" 'echo "run git fetch --upload-pack=x to exploit"' defer
+# A destructive verb inside a quoted search pattern is not a command, but inside a
+# string a shell runs as code it is.
+expect "$H" "grep -nE '\"Bash\\(git branch -D\\*\\)\"' .claude/settings.json" defer
+expect "$H" "bash -c 'git reset --hard HEAD'" ask
+expect "$H" "xargs -I{} sh -c 'git branch -D {}'" ask
+# Quoting a single flag, or hiding the verb in a command substitution, still asks.
+expect "$H" 'git clean "-fd"' ask
+expect "$H" 'git branch "-D" x' ask
+expect "$H" "git checkout '--' f" ask
+expect "$H" 'echo "$(git reset --hard)"' ask
 
 H=guard-prod-ops.sh
 
@@ -793,42 +817,42 @@ expect "$H" 'bash scripts/rotate-operator-key.sh' ask
 
 H=guard-readonly-bash.sh
 
-# Writes hidden behind read-only command heads must gate; a redirect into the working
-# tree is denied outright.
+# Writes hidden behind read-only command heads are denied with the rewrite named, never
+# put to the human: Claude always has a read-only form or the Edit and Write tools.
 expect "$H" 'echo x > notes.txt' deny
 expect "$H" 'printf "%s" x >> notes.txt' deny
 expect "$H" 'awk "{print}" a.txt > b.txt' deny
 expect "$H" 'jq . a.json > b.json' deny
 expect "$H" 'cat a.txt >> b.txt' deny
-expect "$H" 'find . -name "*.bak" -delete' ask
-expect "$H" 'sort -o out.txt in.txt' ask
+expect "$H" 'find . -name "*.bak" -delete' deny
+expect "$H" 'sort -o out.txt in.txt' deny
 # A dangerous-flag token belonging to a DIFFERENT command than the guarded head -- past a
 # ; & or | separator, or only argument text -- must not false-trigger: the span between a
 # head and its flag cannot cross a command separator. A real flag in the head's own
-# command still asks, including when the head follows a pipe.
+# command is still denied, including when the head follows a pipe.
 expect "$H" 'echo "x sort y"; ls -o /tmp/z' defer
 expect "$H" 'echo find here; grep -delete x' defer
-expect "$H" 'sort -n -o out.txt in.txt' ask
-expect "$H" 'ls | sort -o out.txt' ask
-expect "$H" 'curl -X POST https://example.com' ask
-expect "$H" 'curl -d @payload https://example.com' ask
+expect "$H" 'sort -n -o out.txt in.txt' deny
+expect "$H" 'ls | sort -o out.txt' deny
+expect "$H" 'curl -X POST https://example.com' deny
+expect "$H" 'curl -d @payload https://example.com' deny
 # curl to a discard target (/dev/null, or - for stdout) is a read-only probe, not a
-# write, and must defer; a real output filename still asks.
+# write, and must defer; a real output filename is denied.
 expect "$H" 'curl -sf -o /dev/null https://example.com/health' defer
 expect "$H" 'curl -s -o - https://example.com' defer
-expect "$H" 'curl -o report.json https://example.com' ask
+expect "$H" 'curl -o report.json https://example.com' deny
 # Redirecting a read-only command to the discard device writes nothing; a real file
-# target still asks.
+# target is denied.
 expect "$H" 'grep foo bar.txt > /dev/null' defer
 # A read-only command redirecting into the AI session scratch directory writes only scratch,
-# so it must defer, like /dev/null; a scratch path escaping via .. still asks.
+# so it must defer, like /dev/null; a scratch path escaping via .. is denied.
 expect "$H" 'grep foo src > /tmp/claude-1000/x/scratchpad/list.txt' defer
-expect "$H" 'grep foo src > /tmp/claude-1000/x/../etc/o.txt' ask
+expect "$H" 'grep foo src > /tmp/claude-1000/x/../etc/o.txt' deny
 # Only the scratchpad is exempt, not the whole /tmp/claude-* namespace: a /tmp/claude-* path
-# without a scratchpad segment still asks (write must gate exactly where delete gates in guard-rm).
-expect "$H" 'grep foo src > /tmp/claude-1000/notscratch.txt' ask
-expect "$H" 'grep foo src > /tmp/claude-x' ask
-expect "$H" 'grep foo f > /tmp/claude-1000scratchpad.txt' ask
+# without a scratchpad segment is denied (write must gate exactly where delete gates in guard-rm).
+expect "$H" 'grep foo src > /tmp/claude-1000/notscratch.txt' deny
+expect "$H" 'grep foo src > /tmp/claude-x' deny
+expect "$H" 'grep foo f > /tmp/claude-1000scratchpad.txt' deny
 
 # A redirect target written as a shell variable cannot be proven to land in the scratchpad,
 # so it is DENIED for rewrite rather than put to the human: read-only research that writes
@@ -845,14 +869,14 @@ expect "$H" 'cat >> tests/x.test.ts <<'"'"'EOF'"'"'
 const a = 1;
 EOF' deny
 expect "$H" "grep foo src > $(pwd)/notes.txt" deny
-expect "$H" 'grep foo src > ../outside.txt' ask
-expect "$H" 'grep foo src > ~/outside.txt' ask
-expect "$H" 'grep foo src > /var/tmp/outside.txt' ask
-# A > glued to text is not a redirect, so read-only commands never meet that deny: an
-# arrow in a heredoc printed to stdout keeps today's ask (arithmetic is pinned below).
+expect "$H" 'grep foo src > ../outside.txt' deny
+expect "$H" 'grep foo src > ~/outside.txt' deny
+expect "$H" 'grep foo src > /var/tmp/outside.txt' deny
+# An arrow in a heredoc printed to stdout is read as a possible redirect, the safe
+# direction, so it is denied too (arithmetic is pinned below).
 expect "$H" 'cat <<EOF
 a => b
-EOF' ask
+EOF' deny
 
 # A write redirect must gate no matter which command head precedes it, because a static allow
 # rule for that head (egrep, fgrep, date, pgrep, a read-only git subcommand) would otherwise
@@ -905,37 +929,37 @@ expect "$H" 'echo "path=$HOME -> $PWD"' defer
 expect "$H" 'echo "$user wrote a->b"' defer
 # ...but a command substitution in the region runs a command, so a > stays gated (a real
 # hidden redirect must be caught); a real redirect after a substitution, a backtick, and
-# arithmetic all keep asking as the conservative, safe direction.
-expect "$H" 'echo "a -> $(date)"' ask
+# arithmetic are all denied as the conservative, safe direction.
+expect "$H" 'echo "a -> $(date)"' deny
 expect "$H" 'echo "$(cat f)" > realfile.txt' deny
-expect "$H" 'echo "a -> `date`"' ask
-expect "$H" 'echo "$((3>2))"' ask
+expect "$H" 'echo "a -> `date`"' deny
+expect "$H" 'echo "$((3>2))"' deny
 
 # sed writing or executing without -i: w/W write-command, s///w write-flag, e exec.
-expect "$H" 'sed -i "s/a/b/" f.txt' ask
-expect "$H" 'sed --in-place "s/a/b/" f.txt' ask
-expect "$H" "sed -n 'w out.txt' f.txt" ask
-expect "$H" "sed 's/a/b/w out.txt' f.txt" ask
-expect "$H" "sed '3e touch x' f.txt" ask
+expect "$H" 'sed -i "s/a/b/" f.txt' deny
+expect "$H" 'sed --in-place "s/a/b/" f.txt' deny
+expect "$H" "sed -n 'w out.txt' f.txt" deny
+expect "$H" "sed 's/a/b/w out.txt' f.txt" deny
+expect "$H" "sed '3e touch x' f.txt" deny
 # tree writing to a file.
-expect "$H" 'tree -o out.txt src' ask
-expect "$H" 'tree --output out.txt src' ask
+expect "$H" 'tree -o out.txt src' deny
+expect "$H" 'tree --output out.txt src' deny
 # sort running an external program on its temp-file spill (--compress-program) is an exec
 # vector, like sort -o is a write; a plain read-only sort still defers.
-expect "$H" 'sort --compress-program=/tmp/evil.sh f' ask
-expect "$H" 'sort -S1 --compress-program=id big.txt' ask
+expect "$H" 'sort --compress-program=/tmp/evil.sh f' deny
+expect "$H" 'sort -S1 --compress-program=id big.txt' deny
 expect "$H" 'sort -u file.txt' defer
-# curl writes one output file per URL, so a second real-file -o must ask even when an
+# curl writes one output file per URL, so a second real-file -o is denied even when an
 # earlier -o discards to /dev/null; a lone discard probe still defers.
-expect "$H" 'curl -o /dev/null http://localhost/a -o real.txt http://localhost/b' ask
-expect "$H" 'curl --output /dev/null http://localhost/a --output real.txt http://localhost/b' ask
-expect "$H" 'curl http://localhost/a -o real.txt http://localhost/b -o /dev/null' ask
+expect "$H" 'curl -o /dev/null http://localhost/a -o real.txt http://localhost/b' deny
+expect "$H" 'curl --output /dev/null http://localhost/a --output real.txt http://localhost/b' deny
+expect "$H" 'curl http://localhost/a -o real.txt http://localhost/b -o /dev/null' deny
 expect "$H" 'curl -sf -o /dev/null http://localhost:3000/health' defer
 # sed in-place in attached / bundled spellings the -i prefix rule misses.
-expect "$H" 'sed -i.bak "s/a/b/" f.txt' ask
-expect "$H" "sed -i's/a/b/' f.txt" ask
-expect "$H" "sed -ni 's/a/b/' f.txt" ask
-expect "$H" 'sed --in-place=bak "s/a/b/" f' ask
+expect "$H" 'sed -i.bak "s/a/b/" f.txt' deny
+expect "$H" "sed -i's/a/b/' f.txt" deny
+expect "$H" "sed -ni 's/a/b/' f.txt" deny
+expect "$H" 'sed --in-place=bak "s/a/b/" f' deny
 
 # Plain reads and pipelines with no file write must defer.
 expect "$H" 'grep -rn "foo" src/' defer
@@ -964,43 +988,44 @@ expect "$H" 'find . -delete' defer
 H=guard-full-suite-vitest.sh
 
 # A run that names nothing narrower than a whole tier is the full gate, which is the
-# maintainer's to start, so it asks: an untargeted run with or without excludes, a bare
-# tests/ target, and a whole tests/unit or tests/integration tier. A run naming a file
-# or folder below a tier defers, as do the npm scripts, which sit in permissions.ask.
-expect "$H" 'npx vitest run' ask
-expect "$H" 'vitest run' ask
-expect "$H" 'node_modules/.bin/vitest run' ask
-expect "$H" 'LOG_LEVEL=info npx vitest run -t "a name"' ask
-expect "$H" 'npx vitest run tests/' ask
-expect "$H" 'npx vitest run ./tests/' ask
-expect "$H" 'npx vitest run tests' ask
-expect "$H" "npx vitest run --exclude 'tests/smoke/**'" ask
-expect "$H" 'npx vitest run --exclude=tests/dev/**' ask
+# maintainer's to start through the runner, so it is denied with the targeted run named:
+# an untargeted run with or without excludes, a bare tests/ target, and a whole
+# tests/unit or tests/integration tier. A run naming a file or folder below a tier
+# defers, as do the npm scripts, which sit in permissions.ask.
+expect "$H" 'npx vitest run' deny
+expect "$H" 'vitest run' deny
+expect "$H" 'node_modules/.bin/vitest run' deny
+expect "$H" 'LOG_LEVEL=info npx vitest run -t "a name"' deny
+expect "$H" 'npx vitest run tests/' deny
+expect "$H" 'npx vitest run ./tests/' deny
+expect "$H" 'npx vitest run tests' deny
+expect "$H" "npx vitest run --exclude 'tests/smoke/**'" deny
+expect "$H" 'npx vitest run --exclude=tests/dev/**' deny
 # A name filter is not a target, and an exclude of something inside or merely
 # beginning with tests/e2e still leaves the specs collected.
-expect "$H" 'npx vitest run -t tests/x' ask
-expect "$H" 'npx vitest run --testNamePattern=tests/x' ask
-expect "$H" "npx vitest run --exclude 'tests/e2e/helpers/**'" ask
-expect "$H" "npx vitest run --exclude 'tests/e2e-old/**'" ask
+expect "$H" 'npx vitest run -t tests/x' deny
+expect "$H" 'npx vitest run --testNamePattern=tests/x' deny
+expect "$H" "npx vitest run --exclude 'tests/e2e/helpers/**'" deny
+expect "$H" "npx vitest run --exclude 'tests/e2e-old/**'" deny
 expect "$H" 'npx vitest run -t "a name" tests/unit/x.test.ts' defer
-expect "$H" 'npx vitest run --exclude tests/e2e' ask
+expect "$H" 'npx vitest run --exclude tests/e2e' deny
 expect "$H" 'npx vitest run tests/integration/x.test.ts' defer
-expect "$H" 'npx vitest run ./tests/unit/' ask
-expect "$H" 'npx vitest run tests/integration' ask
-expect "$H" 'npx vitest run tests/integration --shard=1/3' ask
+expect "$H" 'npx vitest run ./tests/unit/' deny
+expect "$H" 'npx vitest run tests/integration' deny
+expect "$H" 'npx vitest run tests/integration --shard=1/3' deny
 expect "$H" 'npx vitest run tests/unit/fixtures/' defer
 # One targeted run in a compound command cannot clear a whole-tree run beside it, and
 # a glob or a dot over a tier is the whole tier.
-expect "$H" 'npx vitest run tests/unit/a.test.ts && npx vitest run' ask
-expect "$H" 'npx vitest run tests/unit/a.test.ts; npx vitest run tests/integration' ask
-expect "$H" 'npx vitest run tests/unit/*' ask
-expect "$H" 'npx vitest run tests/u*' ask
-expect "$H" 'npx vitest run tests/unit/.' ask
+expect "$H" 'npx vitest run tests/unit/a.test.ts && npx vitest run' deny
+expect "$H" 'npx vitest run tests/unit/a.test.ts; npx vitest run tests/integration' deny
+expect "$H" 'npx vitest run tests/unit/*' deny
+expect "$H" 'npx vitest run tests/u*' deny
+expect "$H" 'npx vitest run tests/unit/.' deny
 expect "$H" 'npx vitest run tests/unit/a.test.ts && npx vitest run tests/integration/b.test.ts' defer
 expect "$H" 'npx vitest run tests/unit/a*.test.ts' defer
 expect "$H" "npx vitest run tests/integration/x.test.ts --exclude 'tests/smoke/**'" defer
-expect "$H" "npx vitest run --exclude 'tests/e2e/**'" ask
-expect "$H" "vitest run --exclude 'tests/smoke/**' --exclude 'tests/e2e/**' --exclude 'tests/dev/**'" ask
+expect "$H" "npx vitest run --exclude 'tests/e2e/**'" deny
+expect "$H" "vitest run --exclude 'tests/smoke/**' --exclude 'tests/e2e/**' --exclude 'tests/dev/**'" deny
 expect "$H" 'npm test' defer
 expect "$H" 'npm run test:integration' defer
 expect "$H" './run_all_tests.sh' defer
@@ -1791,9 +1816,17 @@ expect_gate() {
 gate_tmp="$(mktemp -d)"
 # A gated command is denied once per session, with the why and what to do, and the
 # reissue in that session falls through to the ask rule; another session starts over.
-expect_gate s1 'npm run test:persona-crawl' deny 'Say in your message the exact command and why'
+expect_gate s1 'npm run test:persona-crawl' deny 'Say in your message the exact command, what it changes, and why now'
 expect_gate s1 'npm run test:persona-crawl' defer
 expect_gate s2 'npm run test:persona-crawl' deny
+# Every Bash ask rule is gated, and each distinct command is explained once: a second
+# command matching the same rule is denied again, its own reissue falls through.
+expect_gate s8 'mv a.txt b.txt' deny 'PERMISSION GATE'
+expect_gate s8 'mv a.txt b.txt' defer
+expect_gate s8 'mv c.txt d.txt' deny
+expect_gate s8 'npm install left-pad' deny
+expect_gate s8 'gh issue create --title x' deny
+expect_gate s8 'aws sts get-caller-identity' deny
 # Combined with anything else it is always denied, so the prompt names it alone.
 expect_gate s1 'RUN_PERSONA_CRAWL=1 npm run test:persona-crawl > /tmp/x/log 2>&1; echo "exit=$?"' deny 'must run as its own Bash call'
 expect_gate s3 'git status && npm test' deny

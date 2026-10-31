@@ -4,7 +4,7 @@
  * controls.
  */
 import { test, expect } from '@playwright/test';
-import { openLiveDb, createAuthenticatedContext } from './helpers/wizard-auth';
+import { openLiveDb, createAuthenticatedContext, authenticateContext } from './helpers/wizard-auth';
 import { seedBrandNewPlayer, seedMemberMidWizard, seedAllTasksCompleted, getTaskState, completePersonalDetails } from './helpers/onboarding';
 import { WizardPage } from './pages/wizard.page';
 
@@ -43,7 +43,7 @@ test('personal_details: a future year is refused by the server with an inline er
 
   await wizard.goto('personal_details');
   await page.locator('#city').fill('Portland');
-  await wizard.selectCountry('United States', 'OR');
+  await wizard.selectCountry('United States', 'Oregon');
   await wizard.fillBirthDate();
   await wizard.yearInput.fill('2099');
   await wizard.saveButton.click();
@@ -58,6 +58,89 @@ test('personal_details: a future year is refused by the server with an inline er
   expect(getTaskState(db2, persona.memberId, 'personal_details')).toBe('pending');
   db2.close();
 
+  await ctx.close();
+});
+
+// A member only ever sees their own country's states. Defect caught: another
+// country's entries are offered, the list does not follow the country, or a
+// US registrant can save with no state.
+test('personal_details: the state list appears for the chosen country only and follows it', async ({ browser, baseURL }) => {
+  const db = openLiveDb();
+  // A real new registrant has no location on file.
+  const persona = seedBrandNewPlayer(db, { slug: `m_rg_${Date.now()}`, overrides: { country: null, region: null } });
+  db.close();
+
+  const ctx = await createAuthenticatedContext(browser, baseURL!, persona);
+  const page = await ctx.newPage();
+  const wizard = new WizardPage(page);
+  await wizard.goto('personal_details');
+  const field = page.locator('[data-region-field]');
+  const region = page.locator('select#region');
+  const offered = () => region.locator('option[value]:not([value=""])').evaluateAll(
+    (opts) => opts.map((o) => (o as HTMLOptionElement).value),
+  );
+
+  await expect(field).toBeHidden();
+
+  await page.locator('#country').selectOption({ label: 'United States' });
+  await expect(field).toBeVisible();
+  await expect(region).toBeFocused();
+  await expect(region).toHaveAttribute('required', '');
+  const us = await offered();
+  expect(us.length).toBeGreaterThan(40);
+  expect(us.every((v) => v.startsWith('US-'))).toBe(true);
+  await region.selectOption({ label: 'Oregon' });
+
+  await page.locator('#country').selectOption({ label: 'Canada' });
+  const ca = await offered();
+  expect(ca.length).toBeGreaterThan(0);
+  expect(ca.every((v) => v.startsWith('CA-'))).toBe(true);
+  await expect(region).toHaveValue('');
+
+  await page.locator('#country').selectOption({ label: 'New Zealand' });
+  await expect(field).toBeHidden();
+
+  await page.locator('#city').fill('Eugene');
+  await wizard.selectCountry('United States', 'Oregon');
+  await wizard.fillBirthDate();
+  await wizard.saveButton.click();
+  await expect(page).toHaveURL(/\/register\/wizard\/legacy_claim$/);
+  await ctx.close();
+});
+
+// Without JavaScript the form still works and still never shows another
+// country's states: the first save asks for the state, offering the chosen
+// country's list only.
+test('personal_details: without JavaScript, the chosen country\'s list follows the first save', async ({ browser, baseURL }) => {
+  const db = openLiveDb();
+  const persona = seedBrandNewPlayer(db, { slug: `m_rgnj_${Date.now()}`, overrides: { country: null, region: null } });
+  db.close();
+
+  const ctx = await browser.newContext({ javaScriptEnabled: false });
+  await authenticateContext(ctx, baseURL!, persona);
+  const page = await ctx.newPage();
+  const wizard = new WizardPage(page);
+  await wizard.goto('personal_details');
+  await expect(page.locator('[data-region-field]')).toBeHidden();
+
+  // A click's stability check needs page scripts, which this browser has turned
+  // off, so the form is submitted from the keyboard, as a keyboard user does.
+  await page.locator('#city').fill('Eugene');
+  await page.locator('#country').selectOption({ label: 'United States' });
+  await wizard.fillBirthDate();
+  await wizard.saveButton.press('Enter');
+  await expect(page.locator('[data-region-field]')).toBeVisible();
+  await expect(page).toHaveURL(/\/register\/wizard\/personal_details/);
+  const values = await page.locator('select#region option[value]:not([value=""])').evaluateAll(
+    (opts) => opts.map((o) => (o as HTMLOptionElement).value),
+  );
+  expect(values.length).toBeGreaterThan(40);
+  expect(values.every((v) => v.startsWith('US-'))).toBe(true);
+
+  await page.locator('select#region').selectOption({ label: 'Oregon' });
+  await wizard.fillBirthDate();
+  await wizard.saveButton.press('Enter');
+  await expect(page).toHaveURL(/\/register\/wizard\/legacy_claim$/);
   await ctx.close();
 });
 

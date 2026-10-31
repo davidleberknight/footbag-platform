@@ -4,11 +4,14 @@
 # maintainer's to start, and a whole-tree run also bypasses the --exclude flags baked
 # into the `npm test` script, so it collects the Playwright specs under tests/e2e,
 # which cannot run under vitest. Each `vitest run` in a compound command is judged on
-# its own targets, so one targeted run cannot clear a whole-tree one beside it. Ask
-# unless every run names a path below tests/ that is narrower than a whole tier. A bare
+# its own targets, so one targeted run cannot clear a whole-tree one beside it. Deny,
+# naming the targeted run to use instead, unless every run names a path below tests/
+# that is narrower than a whole tier: Claude always has the narrower run, and the
+# maintainer starts the full gate through the runner, whose own ask rule prompts. A bare
 # `tests/` target, a whole `tests/unit` or `tests/integration` tier (including a glob
-# or `.` standing for one), and an untargeted run with any excludes all ask. The static
-# exact-match ask entries in settings.json back this up. Fail-open on any parse issue.
+# or `.` standing for one), and an untargeted run with any excludes are all denied. The
+# static exact-match ask entries in settings.json back this up. Fail-open on any parse
+# issue.
 set -euo pipefail
 # Targets are split on whitespace below; a glob in one must stay text, never expand.
 set -f
@@ -23,10 +26,10 @@ RUN_RE='(^|[^[:alnum:]_])vitest[[:space:]]+run([[:space:]]|$)'
 printf '%s' "$COMMAND" | grep -Eq "$RUN_RE" || exit 0
 
 ask() {
-  jq -n --arg reason "$1" '{
+  jq -n --arg reason "HARD BLOCK: $1" '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
-      permissionDecision: "ask",
+      permissionDecision: "deny",
       permissionDecisionReason: $reason
     }
   }'

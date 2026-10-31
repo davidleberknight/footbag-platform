@@ -12,6 +12,12 @@ import request from '../fixtures/supertestWithOrigin';
 import BetterSqlite3 from 'better-sqlite3';
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, insertHistoricalPerson, insertOnboardingTask, createTestSessionJwt } from '../fixtures/factories';
+import {
+  REGION_CODE_MESSAGE,
+  REGION_COUNTRY_MISMATCH_MESSAGE,
+  REGION_REQUIRED_MESSAGE,
+  regionPickerEntries,
+} from '../../src/services/memberLocationRules';
 
 const { dbPath } = setTestEnv('3133');
 
@@ -307,10 +313,13 @@ describe('POST /register/wizard/personal_details/submit — collects details and
     expect(row.birth_date).toBeNull();
   });
 
-  // Defect caught: the city or region the registrant typed is stored with
-  // markup, a C1 control character or a decomposed accent, so the same place
-  // typed two ways compares unequal on the roster and in claim matching.
-  it('stores the city and region as the cleaner leaves them', async () => {
+  // Defect caught: the city the registrant typed is stored with markup, a C1
+  // control character or a decomposed accent, so the same place typed two ways
+  // compares unequal on the roster and in claim matching. The form asks New
+  // Zealand for no region, so a region carried by a hand-built request is not
+  // stored either: free text would reach the roster through a field no member
+  // was shown.
+  it('stores the city as the cleaner leaves it, and no region the form does not ask for', async () => {
     const stamp = Date.now();
     const memberId = insertMember(testDb, { onboarding: 'none', slug: `wiz_pd_clean_${stamp}`, login_email: `wiz-pd-clean-${stamp}@example.com` });
     const res = await request(createApp())
@@ -326,7 +335,7 @@ describe('POST /register/wizard/personal_details/submit — collects details and
     expect(res.status).toBe(303);
     const row = testDb.prepare('SELECT city, region FROM members WHERE id = ?')
       .get(memberId) as { city: string; region: string };
-    expect(row).toEqual({ city: `Montr${COMPOSED_E_ACUTE}al Nord`, region: 'Canterbury' });
+    expect(row).toEqual({ city: `Montr${COMPOSED_E_ACUTE}al Nord`, region: null });
   });
 
   // Defect caught: a city that was only markup passes the required check
@@ -445,29 +454,161 @@ describe('POST /register/wizard/personal_details/submit — collects details and
     expect(getTaskState(memberId, 'personal_details')).toBe('completed');
   });
 
-  it('refuses a full state name where the country has an official code set', async () => {
-    // The wizard is where location is collected, so the rule is enforced at the
-    // point of collection rather than only on the profile-edit form.
-    const stamp = Date.now();
-    const memberId = insertMember(testDb, { onboarding: 'none', slug: `wiz_pd_badregion_${stamp}`, login_email: `wiz-pd-badregion-${stamp}@example.com` });
-    await request(createApp())
-      .get('/register/wizard/personal_details')
-      .set('Cookie', cookieFor(memberId));
+});
 
-    const res = await request(createApp())
+// ── State or province: picked from one preloaded list, never typed ──────────
+
+describe('the personal-details state or province picker', () => {
+  function freshRegistrant(tag: string): string {
+    const stamp = `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    // A real new registrant has no location on file; the factory's default
+    // country is cleared so the form meets the state a person starts in.
+    return insertMember(testDb, {
+      onboarding: 'none',
+      slug: `wiz_pd_${tag}_${stamp}`,
+      login_email: `wiz-pd-${tag}-${stamp}@example.com`,
+      country: null,
+      region: null,
+    });
+  }
+
+  async function submit(memberId: string, fields: Record<string, string>) {
+    await request(createApp()).get('/register/wizard/personal_details').set('Cookie', cookieFor(memberId));
+    return request(createApp())
       .post('/register/wizard/personal_details/submit')
       .set('Cookie', cookieFor(memberId))
       .type('form')
-      .send({
-        city: 'Eugene',
-        region: 'Oregon',
-        country: 'USA',
-        birthDay: '5', birthMonth: '5', birthYear: '1990',
-        gender: 'male',
-      });
-    expect(res.status).not.toBe(303);
-    expect(res.text).toContain('official two-letter state or province code');
-    expect(getTaskState(memberId, 'personal_details')).toBe('pending');
+      .send({ city: 'Eugene', birthDay: '5', birthMonth: '5', birthYear: '1990', ...fields });
+  }
+
+  function storedRegion(memberId: string): string | null {
+    return (testDb.prepare('SELECT region FROM members WHERE id = ?').get(memberId) as { region: string | null }).region;
+  }
+
+  function optionTags(html: string): string[] {
+    const select = /<select id="region"[\s\S]*?<\/select>/.exec(html)?.[0] ?? '';
+    return select.match(/<option [^>]*value="[^"]+"[^>]*>/g) ?? [];
+  }
+
+  function templateTags(html: string): string[] {
+    const template = /<template data-region-options>[\s\S]*?<\/template>/.exec(html)?.[0] ?? '';
+    return template.match(/<option [^>]*value="[^"]+"[^>]*>/g) ?? [];
+  }
+
+  it('shows no state list until a country is chosen, with every entry ready for the script', async () => {
+    // A member never sees another country's states. With no country on file
+    // the field is hidden and its list empty; every entry waits, inert, in the
+    // template the script copies from once a country is picked, so nothing is
+    // ever typed.
+    const memberId = freshRegistrant('first');
+    const res = await request(createApp())
+      .get('/register/wizard/personal_details')
+      .set('Cookie', cookieFor(memberId));
+    expect(res.status).toBe(200);
+    expect(res.text).not.toMatch(/<input[^>]*id="region"/);
+    expect(res.text).toMatch(/data-region-field\s+hidden/);
+    expect(optionTags(res.text)).toHaveLength(0);
+    const ready = templateTags(res.text);
+    const expected = regionPickerEntries();
+    expect(expected.length).toBeGreaterThan(60);
+    expect(ready).toHaveLength(expected.length);
+    for (const entry of expected) {
+      expect(ready.some((tag) => tag.includes(`value="${entry.value}"`)), entry.value).toBe(true);
+    }
+  });
+
+  it('lists only the chosen country\'s entries once the country is known', async () => {
+    // A save refused for another reason re-renders with the submitted country:
+    // only its own states are offered, and they are required in the USA.
+    const memberId = freshRegistrant('onlyus');
+    const res = await submit(memberId, { country: 'United States', region: 'US-CO', birthDay: '30', birthMonth: '2' });
+    expect(res.status).toBe(422);
+    const offered = optionTags(res.text);
+    const us = regionPickerEntries().filter((e) => e.countryCode === 'US');
+    expect(offered).toHaveLength(us.length);
+    for (const tag of offered) expect(tag, tag).toMatch(/value="US-/);
+    expect(res.text).toMatch(/<select id="region"[^>]*\srequired/);
+  });
+
+  it('stores the two-letter code of the state picked for the USA', async () => {
+    const memberId = freshRegistrant('pickus');
+    const res = await submit(memberId, { country: 'United States', region: 'US-OR' });
+    expect(res.status).toBe(303);
+    expect(getTaskState(memberId, 'personal_details')).toBe('completed');
+    expect(storedRegion(memberId)).toBe('OR');
+  });
+
+  it('tells a shared code apart by its country', async () => {
+    // WA is both Washington and Western Australia. Storing the wrong one would
+    // put an Australian in an American state on the roster.
+    const memberId = freshRegistrant('pickau');
+    const res = await submit(memberId, { country: 'Australia', region: 'AU-WA' });
+    expect(res.status).toBe(303);
+    expect(storedRegion(memberId)).toBe('WA');
+    const mismatched = freshRegistrant('pickwa');
+    const refused = await submit(mismatched, { country: 'Australia', region: 'US-WA' });
+    expect(refused.status).toBe(422);
+    expect(refused.text).toContain(REGION_COUNTRY_MISMATCH_MESSAGE);
+  });
+
+  it('lets an Australian leave the state blank, and requires one in the USA', async () => {
+    const australian = freshRegistrant('blankau');
+    const ok = await submit(australian, { country: 'Australia', region: '' });
+    expect(ok.status).toBe(303);
+    expect(storedRegion(australian)).toBeNull();
+
+    const american = freshRegistrant('blankus');
+    const refused = await submit(american, { country: 'United States', region: '' });
+    expect(refused.status).toBe(422);
+    expect(refused.text).toContain(REGION_REQUIRED_MESSAGE);
+    expect(getTaskState(american, 'personal_details')).toBe('pending');
+  });
+
+  it('refuses a province picked with another country, offering only the chosen country\'s list', async () => {
+    // Either half could be the mistake, so nothing is guessed. The page comes
+    // back with the chosen country's states only, never the other country's.
+    const memberId = freshRegistrant('mismatch');
+    const before = storedRegion(memberId);
+    const res = await submit(memberId, { country: 'United States', region: 'CA-ON' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain(REGION_COUNTRY_MISMATCH_MESSAGE);
+    const offered = optionTags(res.text);
+    expect(offered.length).toBeGreaterThan(0);
+    for (const tag of offered) expect(tag, tag).toMatch(/value="US-/);
+    expect(storedRegion(memberId)).toBe(before);
+    expect(before).not.toBe('ON');
+  });
+
+  it('refuses a code on no list without offering it back as an option', async () => {
+    // A refused value offered back as its own entry would be selected and
+    // submitted again, trapping the member on the step.
+    const memberId = freshRegistrant('badcode');
+    const res = await submit(memberId, { country: 'United States', region: 'US-ZZ' });
+    expect(res.status).toBe(422);
+    expect(res.text).toContain(REGION_CODE_MESSAGE);
+    expect(res.text).not.toContain('value="US-ZZ"');
+    expect(res.text).toMatch(/<option value="US-OR"/);
+  });
+
+  it('keeps the picked state selected when the save is refused for another reason', async () => {
+    const memberId = freshRegistrant('reoffer');
+    const res = await submit(memberId, { country: 'United States', region: 'US-CO', birthDay: '30', birthMonth: '2' });
+    expect(res.status).toBe(422);
+    const selected = optionTags(res.text).filter((tag) => /\sselected/.test(tag));
+    expect(selected).toHaveLength(1);
+    expect(selected[0]).toContain('value="US-CO"');
+  });
+
+  it('hides the field for a country that asks for no region', async () => {
+    // A member in New Zealand is asked nothing about a region, so the field is
+    // drawn hidden from the first render rather than shown and then removed.
+    const memberId = freshRegistrant('nz');
+    const res = await submit(memberId, { country: 'New Zealand', region: '', birthDay: '30', birthMonth: '2' });
+    expect(res.status).toBe(422);
+    expect(res.text).toMatch(/data-region-field\s+hidden/);
+    const american = freshRegistrant('nzcontrol');
+    const shown = await submit(american, { country: 'United States', region: '', birthDay: '30', birthMonth: '2' });
+    expect(shown.text).not.toMatch(/data-region-field\s+hidden/);
   });
 });
 

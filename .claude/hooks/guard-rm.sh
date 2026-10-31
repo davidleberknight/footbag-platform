@@ -22,11 +22,11 @@ COMMAND="$(printf '%s' "$INPUT" | jq -r '.tool_input.command // empty')"
 printf '%s' "$COMMAND" | grep -Eq '(^|[;&|`({]|&&|\|\|)[[:space:]]*rm([[:space:]]|$)' || exit 0
 
 ask() {
-  jq -n '{
+  jq -n --arg cmd "$COMMAND" '{
     hookSpecificOutput: {
       hookEventName: "PreToolUse",
       permissionDecision: "ask",
-      permissionDecisionReason: "rm outside the AI session scratch directory, or a non-trivial rm. Confirm before deleting."
+      permissionDecisionReason: ("APPROVE DELETE: " + $cmd + " removes files outside the session scratchpad. Approve only if these files should go.")
     }
   }'
   exit 0

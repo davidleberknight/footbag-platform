@@ -15,6 +15,7 @@ import request from '../fixtures/supertestWithOrigin';
 
 import { setTestEnv, createTestDb, cleanupTestDb, importApp } from '../fixtures/testDb';
 import { insertMember, completeOnboarding, createTestSessionJwt } from '../fixtures/factories';
+import { regionPickerEntries } from '../../src/services/memberLocationRules';
 
 const { dbPath } = setTestEnv('3439');
 
@@ -127,6 +128,37 @@ describe('the record offers the correction form on the current values', () => {
     expect(res.text).toContain('Correct the Profile Details');
     expect(res.text).toContain('value="Aukland"');
     expect(res.text).toContain('value="New Zealand"');
+  });
+
+  it('offers the state or province as the same picked list the member forms use', async () => {
+    // An administrator typing a region would store a spelling the member forms
+    // never could, and a typed region for a country the forms ask none of is
+    // ignored on save, so a correction would vanish silently.
+    const res = await request(createApp())
+      .get(`/admin/members/${TARGET_ID}`)
+      .set('Cookie', adminCookie());
+    // The member lives in New Zealand, which has no list: the field is hidden
+    // with nothing in it, and every entry waits in the template for the script
+    // to copy in if the administrator changes the country.
+    expect(res.text).not.toMatch(/<input[^>]*id="p_region"/);
+    const select = /<select id="p_region"[\s\S]*?<\/select>/.exec(res.text)?.[0] ?? '';
+    expect(select).not.toMatch(/<option [^>]*value="[A-Z]{2}-/);
+    const template = /<template data-region-options>[\s\S]*?<\/template>/.exec(res.text)?.[0] ?? '';
+    for (const entry of regionPickerEntries()) {
+      expect(template, entry.value).toContain(`value="${entry.value}"`);
+    }
+  });
+
+  it('previews a picked state as its two-letter code', async () => {
+    const res = await request(createApp())
+      .post(`/admin/members/${TARGET_ID}/profile`)
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send(submission({ city: 'Aukland', country: 'Australia', region: 'AU-VIC' }));
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('VIC');
+    expect(res.text).not.toContain('AU-VIC</');
+    expect(targetRow().region).toBeNull();
   });
 
   it('does not offer the biography, which is the member\'s own words', async () => {
