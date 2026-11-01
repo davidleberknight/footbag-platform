@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # scripts/backup-db.sh -- routine SQLite backup producer (host-side).
 #
-# Checkpoints the WAL into the main file, snapshots the live SQLite file with
-# `sqlite3 .backup`, gzips it, uploads it to the primary snapshots bucket under
+# Copies the live SQLite database with `VACUUM INTO`, checks the copy's
+# integrity, gzips it, uploads it to the primary snapshots bucket under
 # routine/YYYY/MM/DD/ with bounded retry, and emits three CloudWatch metrics:
 # BackupAgeMinutes (the db-backup-stale alarm watches it; threshold 15 minutes,
 # treat_missing_data=breaching), BackupConsecutiveFailures (raised once a run
@@ -30,6 +30,19 @@
 # something the alarm does not mean. It answers to an alarm of its own instead,
 # on every run in an hour failing, which is the state where the generations stop
 # advancing and the recovery window collapses to the routine/ window alone.
+#
+# The copy. `VACUUM INTO` writes a consistent snapshot of the database from one
+# read transaction, including every committed change still in the write-ahead
+# log, so no checkpoint is needed first and none is run: a checkpoint changes
+# nothing about what the copy holds, and a reader holding the database open
+# blocks it for the whole busy timeout on every run. `.backup` is not used
+# because it copies page by page and starts over whenever another process
+# commits, so while members are writing it can run indefinitely without
+# finishing. Needs sqlite3 3.27 or newer; the host's version is the pinned one.
+#
+# A run killed by a signal, including the final backup the service unit takes on
+# stop, counts as a failed run, so a backup that is killed every time raises the
+# consecutive-failure metric instead of leaving only a journal line.
 #
 # Cross-region DR copies ride the bucket's S3 replication, which is scoped to
 # the promoted generations: the off-region copy carries hourly and daily points, not
@@ -60,9 +73,10 @@ DB_FILE="${DB_DIR}/footbag.db"
 STATE_FILE="${FOOTBAG_BACKUP_STATE:-${DB_DIR}/.last-backup-epoch}"
 # Consecutive-failure counter, reset to 0 on every success.
 FAIL_FILE="${FOOTBAG_BACKUP_FAIL_STATE:-${DB_DIR}/.backup-consecutive-failures}"
-# A WAL checkpoint waits up to this long for in-flight writers to release the
-# lock, so the snapshot drains active transactions rather than racing them.
-CHECKPOINT_BUSY_TIMEOUT_MS="${FOOTBAG_BACKUP_BUSY_TIMEOUT_MS:-30000}"
+# How long the copy waits if its read lock is momentarily busy (a writer
+# recovering the log, the application's own checkpoint at shutdown) before it
+# counts as a failed run. Matches the application's 30-second transaction cap.
+COPY_BUSY_TIMEOUT_MS="${FOOTBAG_BACKUP_BUSY_TIMEOUT_MS:-30000}"
 UPLOAD_MAX_ATTEMPTS=3
 
 fail() { echo "backup-db: $*" >&2; exit 1; }
@@ -106,11 +120,12 @@ command -v aws >/dev/null     || fail "aws CLI not installed"
 
 WORK_DIR=$(mktemp -d /tmp/footbag-backup.XXXXXX)
 trap 'rm -rf "${WORK_DIR}"' EXIT
-# A signal ends the run through the EXIT trap, never through bash's own
-# fatal-signal handling, where a second signal can cut the cleanup short.
-trap "trap '' HUP INT TERM; exit 129" HUP
-trap "trap '' HUP INT TERM; exit 130" INT
-trap "trap '' HUP INT TERM; exit 143" TERM
+# A signal ends the run as a counted failure and then through the EXIT trap,
+# never through bash's own fatal-signal handling, where a second signal can cut
+# the cleanup short. The traps are cleared first so the failure is recorded once.
+trap "trap '' HUP INT TERM; record_failure 'killed by SIGHUP'" HUP
+trap "trap '' HUP INT TERM; record_failure 'killed by SIGINT'" INT
+trap "trap '' HUP INT TERM; record_failure 'killed by SIGTERM'" TERM
 
 TS=$(date -u +%Y%m%dT%H%M%SZ)
 # Derived from TS rather than read from a second clock call, so the key and the
@@ -120,14 +135,10 @@ TS=$(date -u +%Y%m%dT%H%M%SZ)
 DAY_PREFIX="${TS:0:4}/${TS:4:2}/${TS:6:2}"
 SNAP="${WORK_DIR}/footbag-${TS}.db"
 
-# 1. Fold the WAL back into the main DB file. busy_timeout makes the checkpoint
-#    wait for in-flight writers instead of failing fast under contention.
-sqlite3 "${DB_FILE}" "PRAGMA busy_timeout=${CHECKPOINT_BUSY_TIMEOUT_MS}; PRAGMA wal_checkpoint(TRUNCATE);" >/dev/null \
-  || record_failure "WAL checkpoint failed"
-
-# 2. Consistent point-in-time snapshot (safe against in-flight writes).
-sqlite3 "${DB_FILE}" ".backup '${SNAP}'" \
-  || record_failure "sqlite .backup failed"
+# 1. Consistent point-in-time copy from one read transaction, write-ahead log
+#    included. The busy_timeout pragma prints its value, hence the redirect.
+sqlite3 "${DB_FILE}" "PRAGMA busy_timeout=${COPY_BUSY_TIMEOUT_MS}; VACUUM INTO '${SNAP}';" >/dev/null \
+  || record_failure "snapshot (VACUUM INTO) failed"
 
 integrity=$(sqlite3 "${SNAP}" "PRAGMA integrity_check;" 2>/dev/null || echo "unreadable")
 [[ "${integrity}" == "ok" ]] || record_failure "snapshot integrity check failed: ${integrity}"
@@ -135,7 +146,7 @@ integrity=$(sqlite3 "${SNAP}" "PRAGMA integrity_check;" 2>/dev/null || echo "unr
 gzip -9 "${SNAP}" || record_failure "gzip failed"
 KEY="routine/${DAY_PREFIX}/footbag-${TS}.db.gz"
 
-# 3. Upload with bounded retry and exponential backoff (1s, 2s between tries).
+# 2. Upload with bounded retry and exponential backoff (1s, 2s between tries).
 uploaded=0
 for attempt in $(seq 1 "${UPLOAD_MAX_ATTEMPTS}"); do
   if aws s3 cp --only-show-errors "${SNAP}.gz" "s3://${BACKUP_S3_BUCKET}/${KEY}"; then
@@ -147,7 +158,7 @@ for attempt in $(seq 1 "${UPLOAD_MAX_ATTEMPTS}"); do
 done
 [[ "${uploaded}" -eq 1 ]] || record_failure "S3 upload failed after ${UPLOAD_MAX_ATTEMPTS} attempts"
 
-# 4. Success: clear the failure counter and refresh the health timestamp.
+# 3. Success: clear the failure counter and refresh the health timestamp.
 echo "0" > "${FAIL_FILE}" 2>/dev/null || true
 put_metric BackupConsecutiveFailures 0
 
@@ -163,7 +174,7 @@ fi
 echo "${NOW_EPOCH}" > "${STATE_FILE}"
 put_metric BackupAgeMinutes "${AGE_MINUTES}"
 
-# 5. Retention generations. Copy this snapshot into hourly/ and daily/ when it is the
+# 4. Retention generations. Copy this snapshot into hourly/ and daily/ when it is the
 #    first of its window. The probe asks S3 rather than keeping local state, so
 #    a host rebuild, a clock step, or a skipped run cannot leave a window
 #    permanently unfilled: the next run in that window promotes instead.

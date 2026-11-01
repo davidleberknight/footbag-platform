@@ -59,9 +59,9 @@ beforeEach(() => {
   stubDir = mkdtempSync(join(tmpdir(), 'footbag-test-cwagent-install-'));
 });
 
-/** A host-tools manifest whose agent pin is filled in. */
+/** A tool-version list whose agent pin is filled in. */
 function pinnedManifest(sha = 'b'.repeat(64)): string {
-  const p = join(stubDir, 'host-tools.env');
+  const p = join(stubDir, 'tool-versions.env');
   writeFileSync(p, [
     'CWAGENT_VERSION=1.300050.0b1',
     'CWAGENT_URL=https://example.test/amazon-cloudwatch-agent.rpm',
@@ -112,7 +112,7 @@ function runInstall(script: string, environment: string, opts: { hostKey?: strin
       IAM_KEY_AWS_BIN: aws,
       FOOTBAG_HOST_SSH_BIN: ssh,
       FOOTBAG_KNOWN_HOSTS: knownHosts,
-      FOOTBAG_HOST_TOOLS_MANIFEST: opts.manifest ?? pinnedManifest(),
+      FOOTBAG_TOOL_VERSIONS: opts.manifest ?? pinnedManifest(),
     },
     ...SPAWN_GUARD,
   });
@@ -473,7 +473,7 @@ describe.each(INSTALLERS)('$script — the credential file reaches the host one 
           IAM_KEY_AWS_BIN: aws,
           FOOTBAG_HOST_SSH_BIN: ssh,
           FOOTBAG_KNOWN_HOSTS: knownHosts,
-          FOOTBAG_HOST_TOOLS_MANIFEST: pinnedManifest(),
+          FOOTBAG_TOOL_VERSIONS: pinnedManifest(),
         },
         ...SPAWN_GUARD,
       },

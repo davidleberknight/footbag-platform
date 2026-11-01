@@ -23,8 +23,13 @@ wording that asserts nothing. Each claim is an object:
 - `label`: `contradiction-relevant` when it states a fact that could be false; `omission` when
   it only adds detail that could be missing elsewhere.
 - `entities`: the named things it is about, as `kind:name` with the kinds `table`, `column`,
-  `route`, `env`, `export`, `css-class`, `story`, `service`, `decision`, `term`. Use the names
-  in the vocabulary file your task names; a claim about an unnamed thing has an empty list.
+  `route`, `env`, `export`, `css-class`, `story`, `service`, `decision`, `term`, `rule` and
+  `quantity`. Use the names in the vocabulary file your task names. A `rule` is a business rule
+  stated in words (a limit, a default, an eligibility condition) and a `quantity` a number the
+  claim states (a price, a retention period, a size limit), each named by what it governs in
+  lowercase words joined by hyphens, as another reader of a different document would name it:
+  `rule:club-affiliation-limit`, `quantity:lightsail-monthly-cost`. A claim about an unnamed
+  thing has an empty list.
 
 Write the claims as one JSON array to the output file your task names, then return the count
 and the path. One pass: do not revise, rank or verify.

@@ -272,10 +272,11 @@ fi
 bash scripts/install-git-hooks.sh
 
 # The tools the dev loop itself needs, reported together before anything uses
-# one. The full set is the test runner's to report.
+# one, and the loop does not start on a missing or wrong-version one. The full
+# set is the test runner's to report.
 # shellcheck source=scripts/lib/tool-report.sh
 source scripts/lib/tool-report.sh
-tool_report node python3 sqlite3 ffmpeg
+tool_report node python3 sqlite3 ffmpeg || exit 1
 
 # 2. Python venv + requirements
 # Built or repaired, installed and proved by the shared seeder-environment step.

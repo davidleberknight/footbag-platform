@@ -233,9 +233,10 @@ export const adminCuratorController = {
         // poster). Capping at 2 silently dropped the poster. 4 has headroom
         // for the 3 expected parts without admitting genuinely abusive
         // multi-file submissions.
-        // fields: 24 — the upload form posts up to 10 non-file fields today
-        // (mediaType, newCategory, videoPlatform, videoUrl, primarySlug,
-        // title, sourceId, caption, tags, externalUrl). A cap at or
+        // fields: 24 — the upload form posts 11 named non-file fields today
+        // (mediaType, category, newCategory, videoPlatform, videoUrl,
+        // primarySlug, title, sourceId, caption, tags, externalUrl), and
+        // each ticked category box posts its own category field. A cap at or
         // near the current count silently drops the trailing fields on the
         // wire, because busboy emits no warning when it truncates. 24 leaves
         // headroom for near-term form additions without re-tuning.

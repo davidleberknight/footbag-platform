@@ -233,10 +233,10 @@ export interface PublicClubMemberRow {
 export const db: SqliteDatabase = openDatabase(DB_FILENAME);
 
 // Graceful-shutdown hook: fold the WAL back into the main file and close the
-// connection so the on-disk DB is consistent for the final host backup that
-// runs after the container stops. Idempotent and best-effort; a failed
-// checkpoint never blocks the close (the host backup script checkpoints again
-// before its snapshot).
+// connection, so the database file on disk stands on its own once the container
+// stops. Idempotent and best-effort; a failed checkpoint never blocks the close
+// and loses nothing, because the host backup's copy reads the log as well as the
+// main file.
 export function checkpointAndCloseDatabase(): void {
   if (!db.open) return;
   try {

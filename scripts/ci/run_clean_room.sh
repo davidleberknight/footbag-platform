@@ -88,6 +88,9 @@ REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$REPO_ROOT"
 # shellcheck source=scripts/lib/verdict-banner.sh
 source scripts/lib/verdict-banner.sh
+# The pinned-version check the database gates refuse on.
+# shellcheck source=scripts/lib/tool-report.sh
+source scripts/lib/tool-report.sh
 
 FROM_HEAD=0
 QUICK=0
@@ -469,6 +472,8 @@ if (( QUICK == 0 )); then
   elif ! command -v sqlite3 >/dev/null 2>&1; then
     unrun db-load-smoke "sqlite3 is not installed"
     unrun freestyle-db-integrity "sqlite3 is not installed"
+  elif [[ -n "$(_tool_report_check sqlite3 "$REPO_ROOT")" ]]; then
+    room_refuse "$(_tool_report_check sqlite3 "$REPO_ROOT")"
   else
     gate db-load-smoke env FOOTBAG_DB_PATH=./database/footbag-ci.db \
       STUB_PASSWORD=clean-room-not-a-real-password \

@@ -248,8 +248,9 @@ with no deterministic check is handed there as a named defect class, never recor
    the tracked-work list, check whether the behavior is a frozen hold, and run any test
    pinning the behavior (a test refutes the candidate only if it asserts the recorded
    doctrine; a test that would still pass with the surface wrong refutes nothing, and is
-   itself a `write-tests` hand-off). Drop what cannot be reproduced, and list every dropped
-   candidate with its refutation in the report, so a mistaken refutation is visible. Check
+   itself a `write-tests` hand-off). Keep what cannot be reproduced as a Lead naming the
+   reproduction that would settle it, and list every refuted candidate with its refutation in
+   the report, so a mistaken refutation is visible. Check
    the lane's §F classifications against the catalog, and re-run one query or fetch per
    category to compare its count with the lane's. Every survivor above Low then gets
    the fresh-context refutation of absolute rule 11.

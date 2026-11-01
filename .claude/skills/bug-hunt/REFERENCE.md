@@ -141,7 +141,7 @@ Service-JSDoc, data-governance and user-story non-negotiables. A violation is a 
 
 #### 4.4.21 User-story success-criteria mismatch
 
-A deployed story that fails its own success criteria is a bug even when the code works mechanically. Build the traceability matrix from Lane 0's story classification; for each Complete deployed story verify every criterion against routes, services, templates, writes, audit rows and gates; for each Partial story verify the missing criteria are documented as accepted deviations. Write the expected outcome from the story text before reading the code. If the discrepancy may be a bad story rather than bad code, it is a discrepancy-lane finding naming which side looks wrong, or one maintainer question.
+A deployed story that fails its own success criteria is a bug even when the code works mechanically. Build the traceability matrix from the inventory's stories and the routes each serves; for each Complete deployed story verify every criterion against routes, services, templates, writes, audit rows and gates; for each Partial story verify the missing criteria are documented as accepted deviations. Write the expected outcome from the story text before reading the code. If the discrepancy may be a bad story rather than bad code, it is a discrepancy-lane finding naming which side looks wrong, or one maintainer question.
 
 #### 4.4.22 Design-level threat-model gaps
 
@@ -331,29 +331,4 @@ Calibration lenses for what classes to look for, never a compliance exercise, an
 
 ## High-signal static search recipes
 
-Accelerators, never substitutes for reading the call path. A grep hit alone is never a finding; trace `request input -> controller -> service -> DB/adapters/templates -> response/audit/outbox`.
-
-```bash
-# Routes, auth gates, limiters
-rg -n "router\.(get|post|put|patch|delete)|requireAuth|requireAdmin|requireTier1Benefits|requireOriginPin|rateLimitHit" src/
-# Redirects, cookies, headers
-rg -n "res\.redirect|res\.cookie|clearCookie|setHeader\(|Cache-Control|Content-Security-Policy" src/
-# SQL, transactions, ledger writes
-rg -n "db\.prepare|transaction\(|await .*transaction|UPDATE audit_entries|DELETE FROM audit_entries|UPDATE member_tier_grants" src/
-# Template escaping and logic in views
-rg -n "\{\{\{|<script|on[a-zA-Z]+=\"|style=\"|eq .*role|eq .*tier" src/views/
-# Secrets and PII in code and logs
-rg -n "password|token|secret|api[_-]?key|metadata_json|logger\.|redact|private[_-]?key|AKIA|sk_live|whsec|dob|birth|phone|address" src/ scripts/ --glob '!node_modules' --glob '!dist'
-# Member-state joins that skip the canonical views (4.4.49)
-rg -n "FROM members\b|JOIN members\b" src/db/db.ts
-# Outbound requests, shell and path hazards
-rg -n "fetch\(|axios|got\(|https?\.request|child_process|exec\(|spawn\(|readFile|writeFile|\.\.\/" src/
-# Runtime reads versus shipped image (4.4.42)
-rg -n "readFileSync|readdirSync|existsSync|resolve\(|path\.join\(" src/ | rg -n "exploration|legacy_data|curated|\.csv|\.json|process\.cwd"
-rg -n "^COPY" docker/*/Dockerfile
-# Infrastructure posture (4.4.43) and operational scripts (4.4.44)
-rg -n "\\*|AdministratorAccess|0\.0\.0\.0/0|prevent_destroy|SecureString" terraform/ --glob '*.tf'
-rg -n "set -e|pipefail|trap |rm -rf|DELETE FROM|--force" scripts/ --glob '*.sh'
-# Client-side JS (4.4.45)
-rg -n "innerHTML|insertAdjacentHTML|eval\(|localStorage|sessionStorage|fetch\(" src/public/js/
-```
+Accelerators, never substitutes for reading the call path. A recipe hit alone is never a finding; trace `request input -> controller -> service -> DB/adapters/templates -> response/audit/outbox`. The recipes live in `scripts/bug-hunt-inventory.ts`, which runs them once per hunt; each pack carries the hits in its own files, and each cross-cutting class pack the hits for its class.

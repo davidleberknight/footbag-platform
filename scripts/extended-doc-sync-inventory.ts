@@ -11,7 +11,7 @@
  * from the enumeration rather than from a reader's judgement of what matters.
  *
  * Modes:
- *   --inventory --out <file> [--ledger <file>]
+ *   --inventory --out <file> [--ledger <file>] [--private-root <dir>] [--units <file>]
  *       Build the vocabulary, enumerate every documentation section and every
  *       commented source file as units in extraction batches, run the mechanical
  *       checks and the existing read-only parity gates, and, given the previous
@@ -19,17 +19,29 @@
  *       file names, so a rerun reads only what moved. The vocabulary alone is also
  *       written beside the output as `<out>.vocab.json`, and each extraction batch's
  *       numbered text as `<out>.batches/<doc|comments>-<n>.txt`, for the extraction
- *       agents.
+ *       agents. `--private-root` names the private operations checkout's link inside
+ *       this repository; its canonical documents (the two operations documents and the
+ *       go-live plan) become units too, because they describe this code's operation and
+ *       launch and drift from it like any other document. Nothing else there is audited.
+ *       `--units` (a JSON array of unit ids) extracts only the named units, so one
+ *       domain's walk batches and pays for that domain alone; an unknown id is refused.
  *   --group --claims <file|dir> --out <dir>
  *       Bucket extracted claims (one file, or every extraction agent's file in a
  *       directory) by the entities they name, so the comparison stage sees every
- *       source's claims about one thing together. Writes one file per comparison
- *       batch, buckets carrying a requirement or a rationale going to the stronger
- *       model, plus coherence batches of every design claim and a summary.
- *   --record --results <file> --ledger <file> [--from <inventory file>]
+ *       source's claims about one thing together. A bucket too large for one careful
+ *       comparison is split by the other things its claims name. Each bucket carries
+ *       the code it is about (the table's definition, the route's registration, the
+ *       service's header), so a comparison judges instead of searching. Writes one
+ *       file per comparison batch, buckets carrying a requirement or a rationale
+ *       going to the stronger model, plus coherence batches of every design claim
+ *       and a summary.
+ *   --record --results <file> --ledger <file> [--from <inventory file>] [--units <file>]
  *       Fold one run's open findings and the maintainer's rulings, with the per-file
  *       content hashes of the inventory the run read, into the ledger the next run
- *       reads.
+ *       reads. `--units` (a JSON array of unit ids) records only what those units
+ *       cover, so a run that read part of the repository marks only that part checked:
+ *       a commented file whole, a document whole only when every section was read, and
+ *       otherwise each section read by the hash of its text.
  *
  * Read-only against the repository: it writes only the files named by its flags.
  * Refuses an unknown mode or a missing required flag.
@@ -41,10 +53,11 @@
  * Run: npx tsx scripts/extended-doc-sync-inventory.ts <mode> [flags]
  */
 import { execFileSync, spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 
-import { commentLines, entityKey, extractEntities } from './lib/doc-entities';
+import { commentLines, entityKey, extractEntities, isSearchable } from './lib/doc-entities';
 
 const env = (name: string, fallback: string): string => process.env[name] ?? fallback;
 const STORIES_DOC = env('EXTENDED_DOC_SYNC_STORIES_DOC', 'docs/USER_STORIES.md');
@@ -74,12 +87,22 @@ const COMMENT_BATCH_LINES = 800;
 const SECTION_MAX_LINES = 400;
 const COMPARE_BATCH_CLAIMS = 60;
 const COHERENCE_BATCH_CLAIMS = 150;
+// Evidence attached to one bucket stays a short read, not a second copy of the file.
+const EVIDENCE_MAX_LINES = 40;
+const EVIDENCE_MAX_HITS = 5;
+// The private operations documents the private-repository rule says public text must
+// mark as private whenever it names them.
+const PRIVATE_OPS_DOCS = ['AWS_OPERATIONS.md', 'DEVOPS_GUIDE.md', 'VAULT_GOVERNANCE.md']; // all three private
+// The private checkout's canonical documents, the only ones it audits: the operations
+// documents describe this code's operation and the go-live plan the launch it gates, where
+// the checkout's other files track or record work.
+const PRIVATE_AUDITED_DOCS = ['AWS_OPERATIONS.md', 'DEVOPS_GUIDE.md', 'GO_LIVE_PLAN.md']; // all private
 
 function usage(code: number): never {
   (code === 0 ? process.stdout : process.stderr).write(
-    'Usage: npx tsx scripts/extended-doc-sync-inventory.ts --inventory --out <file> [--ledger <file>]\n' +
+    'Usage: npx tsx scripts/extended-doc-sync-inventory.ts --inventory --out <file> [--ledger <file>] [--private-root <dir>] [--units <file>]\n' +
     '       npx tsx scripts/extended-doc-sync-inventory.ts --group --claims <file|dir> --out <dir>\n' +
-    '       npx tsx scripts/extended-doc-sync-inventory.ts --record --results <file> --ledger <file> [--from <inventory file>]\n',
+    '       npx tsx scripts/extended-doc-sync-inventory.ts --record --results <file> --ledger <file> [--from <inventory file>] [--units <file>]\n',
   );
   process.exit(code);
 }
@@ -94,7 +117,7 @@ function parseArgs(argv: string[]): { mode: string; flags: Record<string, string
     if (modes.includes(a)) {
       if (mode) usage(2);
       mode = a.slice(2);
-    } else if (['--out', '--ledger', '--claims', '--results', '--from'].includes(a) && argv[i + 1]) {
+    } else if (['--out', '--ledger', '--claims', '--results', '--from', '--private-root', '--units'].includes(a) && argv[i + 1]) {
       flags[a.slice(2)] = argv[++i];
     } else {
       process.stderr.write(`extended-doc-sync-inventory: unknown option '${a}'\n`);
@@ -108,6 +131,12 @@ function parseArgs(argv: string[]): { mode: string; flags: Record<string, string
       process.stderr.write(`extended-doc-sync-inventory: --${mode} needs --${f}\n`);
       process.exit(2);
     }
+  }
+  // Unit ids carry no file hashes; without the inventory they came from, a partial
+  // record would have nothing to write and would silently mark nothing checked.
+  if (mode === 'record' && flags.units && !flags.from) {
+    process.stderr.write('extended-doc-sync-inventory: --units needs --from\n');
+    process.exit(2);
   }
   return { mode, flags };
 }
@@ -142,7 +171,9 @@ function pathExists(root: string, p: string): boolean {
   return ['', '.ts', '.js', '.sh', '.py', '/index.ts'].some((ext) => existsSync(abs + ext));
 }
 
-interface Unit { id: string; file: string; start: number; end: number; heading: string; lines: number }
+// A documentation unit carries the hash of its own text, so a run that read only some
+// sections of a document can record those sections without marking the rest checked.
+interface Unit { id: string; file: string; start: number; end: number; heading: string; lines: number; hash?: string }
 interface Finding { check: string; file: string; line: number; detail: string }
 
 function vocabulary(root: string, codeFiles: string[]) {
@@ -152,7 +183,9 @@ function vocabulary(root: string, codeFiles: string[]) {
   const jobs = [...read(root, JOBS_DOC).matchAll(/^###\s+(SYS_\w+)/gm)].map((m) => m[1]);
   const decisions = [...read(root, DECISIONS_DOC).matchAll(/^##\s+(\d+\.\d+[a-z]?\s+.+)$/gm)].map((m) => m[1].trim());
   const dataModel = [...read(root, DATA_MODEL_DOC).matchAll(/^###?\s+(.+)$/gm)].map((m) => m[1].trim());
-  const glossary = [...read(root, GLOSSARY_DOC).matchAll(/^\*\*([^*]+?):\*\*/gm)].map((m) => m[1].trim());
+  // An entry is written either `**Term:**` or `**Term**:`; reading only one form loses
+  // most of the glossary.
+  const glossary = [...read(root, GLOSSARY_DOC).matchAll(/^\*\*([^*]+?)(?::\*\*|\*\*:)/gm)].map((m) => m[1].trim());
   const routes = [...read(root, 'tests/fixtures/crawl/routeStories.ts').matchAll(/'((?:GET|POST|PUT|PATCH|DELETE) \/[^']*)'/g)]
     .map((m) => m[1]);
   const services = codeFiles.filter((f) => /^src\/services\/[^/]+\.ts$/.test(f)).map((f) => path.basename(f, '.ts'));
@@ -180,7 +213,8 @@ function docUnits(root: string, docs: string[]): Unit[] {
       // A section too long for one careful read is split, never skipped.
       for (let a = s.line; a <= end; a += SECTION_MAX_LINES) {
         const b = Math.min(end, a + SECTION_MAX_LINES - 1);
-        units.push({ id: `doc:${file}#${a}`, file, start: a, end: b, heading: s.heading, lines: b - a + 1 });
+        const hash = createHash('sha256').update(lines.slice(a - 1, b).join('\n')).digest('hex');
+        units.push({ id: `doc:${file}#${a}`, file, start: a, end: b, heading: s.heading, lines: b - a + 1, hash });
       }
     });
   }
@@ -257,7 +291,9 @@ function batchText(root: string, units: BatchUnit[]): string {
   }).join('\n\n') + '\n';
 }
 
-function mechanical(root: string, docs: string[], vocab: ReturnType<typeof vocabulary>): Finding[] {
+function mechanical(
+  root: string, docs: string[], codeFiles: string[], vocab: ReturnType<typeof vocabulary>, privateFiles: Set<string>,
+): Finding[] {
   const findings: Finding[] = [];
   const anchors = new Map<string, Set<string>>();
   const anchorsOf = (file: string): Set<string> => {
@@ -328,7 +364,102 @@ function mechanical(root: string, docs: string[], vocab: ReturnType<typeof vocab
       findings.push({ check: 'table-absent-from-data-model', file: SCHEMA, line: 0, detail: `table ${t} is never named in ${DATA_MODEL_DOC}` });
     }
   }
+  findings.push(...quantityMismatches(root, docs, vocab.glossary));
+  findings.push(...unmarkedPrivateDocs(root, docs, codeFiles, privateFiles));
+  findings.push(...unreadColumns(root, codeFiles));
   return findings;
+}
+
+const escapeRe = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * One quantity stated with different values in different places: a glossary term's
+ * price, retention or period. A value restated in several documents drifts when one copy
+ * is updated, and the reader of a stale copy acts on a wrong number. The quantity is
+ * tied to the nearest glossary term before it in the same clause, because that term is
+ * what the number is about; a number with no such term is the model stages' to read.
+ * One finding per quantity, listing every value with where it is stated.
+ */
+function quantityMismatches(root: string, docs: string[], terms: string[]): Finding[] {
+  const usable = terms.filter((t) => t.length >= 3);
+  if (usable.length === 0) return [];
+  const termRe = new RegExp(`\\b(${usable.map(escapeRe).join('|')})\\b`, 'g');
+  // A money amount (a range such as $50-100 is not one value), or a count of days, months or years.
+  const amountRe = /\\?\$\s?(\d[\d,]*(?:\.\d+)?)(?![\d,]*\s*-\s*\d)|\b(\d[\d,]*)[\s-](days?|months?|years?)\b/g;
+  const seen = new Map<string, Array<{ value: number; file: string; line: number }>>();
+  for (const file of docs) {
+    let fence = false;
+    read(root, file).split('\n').forEach((text, i) => {
+      if (/^\s*```/.test(text)) fence = !fence;
+      if (fence) return;
+      const hits = [...text.matchAll(termRe)].map((m) => ({ term: m[1], end: (m.index ?? 0) + m[0].length }));
+      for (const a of text.matchAll(amountRe)) {
+        const at = a.index ?? 0;
+        const before = hits.filter((h) => h.end <= at && at - h.end <= 60 && !/[.;,]/.test(text.slice(h.end, at)));
+        const owner = before[before.length - 1];
+        if (!owner) continue;
+        const unit = a[1] !== undefined ? 'money' : a[3].replace(/s$/, '');
+        const value = Number((a[1] ?? a[2]).replace(/,/g, ''));
+        const key = `${owner.term} (${unit})`;
+        if (!seen.has(key)) seen.set(key, []);
+        seen.get(key)!.push({ value, file, line: i + 1 });
+      }
+    });
+  }
+  const findings: Finding[] = [];
+  for (const [key, uses] of seen) {
+    if (new Set(uses.map((u) => u.value)).size < 2) continue;
+    const where = uses.map((u) => `${u.value} at ${u.file}:${u.line}`).join('; ');
+    findings.push({ check: 'quantity-mismatch', file: uses[0].file, line: uses[0].line, detail: `${key} is stated as ${where}` });
+  }
+  return findings;
+}
+
+/**
+ * Public text that names a private operations document without saying it is private.
+ * The private-repository rule requires the word on the same line, because the bare name
+ * reads as a file in this repository that a reader will then fail to find. The private
+ * documents themselves are exempt: they are the files.
+ */
+function unmarkedPrivateDocs(root: string, docs: string[], codeFiles: string[], privateFiles: Set<string>): Finding[] {
+  const nameRe = new RegExp(`\\b(${PRIVATE_OPS_DOCS.map(escapeRe).join('|')})\\b`);
+  const findings: Finding[] = [];
+  for (const file of [...docs, ...codeFiles]) {
+    if (privateFiles.has(file)) continue;
+    read(root, file).split('\n').forEach((text, i) => {
+      const m = nameRe.exec(text);
+      if (m && !/private/i.test(text)) {
+        findings.push({ check: 'unmarked-private-doc', file, line: i + 1, detail: `${m[1]} named without marking it private` });
+      }
+    });
+  }
+  return findings;
+}
+
+/**
+ * A schema column no application code, script or loader names. A column nothing reads or
+ * writes is either dead, so its data-model entry describes nothing, or read under a name
+ * built at run time, which a reader of the code cannot follow either. Tests and the schema's
+ * own migrations do not count as use. Generic and single-word names are skipped, as the
+ * per-change doc sync skips them, because a search for them finds the word, not the column.
+ */
+function unreadColumns(root: string, codeFiles: string[]): Finding[] {
+  const schemaLines = read(root, SCHEMA).split('\n');
+  const columns = new Map<string, number>();
+  schemaLines.forEach((l, i) => {
+    for (const e of extractEntities(l, SCHEMA)) {
+      if (e.kind === 'column' && isSearchable(e) && !columns.has(e.name)) columns.set(e.name, i + 1);
+    }
+  });
+  if (columns.size === 0) return [];
+  const used = new Set<string>();
+  for (const f of codeFiles) {
+    if (f === SCHEMA || f.startsWith('database/') || f.startsWith('tests/')) continue;
+    for (const m of read(root, f).matchAll(/\b[a-z][a-z0-9]*_[a-z0-9_]+\b/g)) used.add(m[0]);
+  }
+  return [...columns].filter(([c]) => !used.has(c)).map(([c, line]) => ({
+    check: 'column-unread', file: SCHEMA, line, detail: `column ${c} is named by no code outside the schema and tests`,
+  }));
 }
 
 function runGates(root: string): Array<{ gate: string; status: number | null; tail: string }> {
@@ -339,20 +470,63 @@ function runGates(root: string): Array<{ gate: string; status: number | null; ta
   });
 }
 
-function inventory(root: string, out: string, ledgerPath?: string): void {
+/**
+ * The private checkout's canonical documents, as paths through its link in this
+ * repository, read only where the checkout tracks them. Its other plans, tracker guide,
+ * working files, archived history and records of past runs describe work rather than the
+ * system, and stay out. A link that is missing or
+ * is not a git checkout is refused, so a run never reports the private documents
+ * consistent without having read them.
+ */
+function privateDocs(root: string, privateRoot: string): string[] {
+  const dir = path.join(root, privateRoot);
+  const r = spawnSync('git', ['ls-files', '--cached', '--others', '--exclude-standard'], { cwd: dir, encoding: 'utf8' });
+  if (!existsSync(dir) || r.status !== 0) {
+    process.stderr.write(`extended-doc-sync-inventory: --private-root ${privateRoot} is not a git checkout\n`);
+    process.exit(2);
+  }
+  return r.stdout.split('\n').filter((f) => PRIVATE_AUDITED_DOCS.includes(f))
+    .map((f) => `${privateRoot.replace(/\/$/, '')}/${f}`);
+}
+
+/** Unit ids read from a JSON array file; an id the inventory does not hold is refused. */
+function namedUnits(unitsPath: string, all: Unit[]): Set<string> {
+  const ids: string[] = JSON.parse(readFileSync(unitsPath, 'utf8'));
+  const known = new Set(all.map((u) => u.id));
+  const unknown = ids.filter((id) => !known.has(id));
+  if (unknown.length) {
+    process.stderr.write(`extended-doc-sync-inventory: units not in the inventory: ${unknown.join(', ')}\n`);
+    process.exit(2);
+  }
+  return new Set(ids);
+}
+
+function inventory(root: string, out: string, ledgerPath?: string, privateRoot?: string, unitsPath?: string): void {
   const tracked = git(['ls-files', '--cached', '--others', '--exclude-standard'], root).split('\n')
     .filter((f) => f && !SKIP.test(f) && existsSync(path.join(root, f)));
-  const docs = tracked.filter((f) => f.endsWith('.md'));
+  const privateFiles = new Set(privateRoot ? privateDocs(root, privateRoot) : []);
+  const docs = [...tracked.filter((f) => f.endsWith('.md')), ...privateFiles];
   const codeFiles = tracked.filter((f) => CODE_TREES.test(f) && !f.endsWith('.md'));
   const vocab = vocabulary(root, codeFiles);
   const dUnits = docUnits(root, docs);
   const cUnits = commentUnits(root, codeFiles);
-  const hashes = contentHashes(root, [...new Set([...docs, ...codeFiles])]);
+  // git refuses a path that passes through a symbolic link, so the private documents,
+  // reached through the checkout's link, are hashed here instead.
+  const hashes = {
+    ...contentHashes(root, [...new Set([...docs, ...codeFiles])].filter((f) => !privateFiles.has(f))),
+    ...Object.fromEntries([...privateFiles].map((f) => [f, createHash('sha256').update(read(root, f)).digest('hex')])),
+  };
 
   const previous = ledgerPath && existsSync(ledgerPath) ? JSON.parse(readFileSync(ledgerPath, 'utf8')) : null;
   const prevHashes: Record<string, string> = previous?.files ?? {};
+  const prevSections: Record<string, string[]> = previous?.sections ?? {};
   const changedFiles = new Set(Object.keys(hashes).filter((f) => prevHashes[f] !== hashes[f]));
-  const isChanged = (u: Unit): boolean => !previous || changedFiles.has(u.file);
+  // A section recorded on its own is unchanged while its text is, whatever else in its
+  // document moved. A named-unit run extracts only the units it names.
+  const named = unitsPath ? namedUnits(unitsPath, [...dUnits, ...cUnits]) : null;
+  const isChanged = (u: Unit): boolean =>
+    (!named || named.has(u.id)) &&
+    (!previous || (changedFiles.has(u.file) && !(u.hash && (prevSections[u.file] ?? []).includes(u.hash))));
   // A changed code file reopens every bucket for the entities it names, even when no
   // document changed: the document can be what went stale.
   const reopen = new Set<string>();
@@ -364,7 +538,7 @@ function inventory(root: string, out: string, ledgerPath?: string): void {
 
   const changedDocs = dUnits.filter(isChanged);
   const changedComments = cUnits.filter(isChanged);
-  const findings = mechanical(root, docs, vocab);
+  const findings = mechanical(root, docs, codeFiles, vocab, privateFiles);
   const result = {
     head: git(['rev-parse', 'HEAD'], root).trim(),
     vocabulary: vocab,
@@ -400,7 +574,107 @@ function inventory(root: string, out: string, ledgerPath?: string): void {
   );
 }
 
-interface Claim { id: string; entities?: string[]; type?: string; unit?: string }
+interface Claim { id: string; entities?: string[]; type?: string; unit?: string; line?: number }
+interface Evidence { file: string; line: number; text: string }
+
+/** Lines `from`..`to` of a file, numbered, capped so evidence stays a short read. */
+function excerpt(root: string, file: string, from: number, to: number): Evidence {
+  const lines = read(root, file).split('\n');
+  const end = Math.min(to, from + EVIDENCE_MAX_LINES - 1, lines.length);
+  return { file, line: from, text: lines.slice(from - 1, end).map((l, i) => `${from + i}: ${l}`).join('\n') };
+}
+
+/**
+ * The code a bucket's entity names, handed to the comparison with the claims so it reads
+ * the definition instead of searching for it: a table's definition, a column's definition
+ * and the first code naming it, a route's registration, a service's header and exports, an
+ * export's declaration, an environment variable's reads. Kinds with no code home (a story,
+ * a decision, a term, a rule) carry their claims' own quotes and get none.
+ */
+function evidenceFor(root: string, entity: string, codeIndex: Map<string, string[]>): Evidence[] {
+  const [kind, ...rest] = entity.split(':');
+  const name = rest.join(':');
+  const hitsFor = (re: RegExp, files: string[]): Evidence[] => {
+    const out: Evidence[] = [];
+    for (const f of files) {
+      const lines = codeIndex.get(f) ?? [];
+      for (let i = 0; i < lines.length && out.length < EVIDENCE_MAX_HITS; i++) {
+        if (re.test(lines[i])) out.push({ file: f, line: i + 1, text: `${i + 1}: ${lines[i]}` });
+      }
+      if (out.length >= EVIDENCE_MAX_HITS) break;
+    }
+    return out;
+  };
+  const files = [...codeIndex.keys()];
+  const word = new RegExp(`\\b${escapeRe(name)}\\b`);
+  if (kind === 'table') {
+    const lines = codeIndex.get(SCHEMA) ?? [];
+    const at = lines.findIndex((l) => new RegExp(`CREATE\\s+TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?["\`]?${escapeRe(name)}\\b`, 'i').test(l));
+    if (at < 0) return [];
+    const close = lines.findIndex((l, i) => i > at && /^\s*\);/.test(l));
+    return [excerpt(root, SCHEMA, at + 1, (close < 0 ? at : close) + 1)];
+  }
+  if (kind === 'column') {
+    return [...hitsFor(word, [SCHEMA]).slice(0, 1), ...hitsFor(word, files.filter((f) => f !== SCHEMA && !f.startsWith('tests/')))];
+  }
+  if (kind === 'route') {
+    const p = name.replace(/^(GET|POST|PUT|PATCH|DELETE)\s+/, '');
+    return hitsFor(new RegExp(`['"\`]${escapeRe(p)}['"\`]`), files.filter((f) => f.startsWith('src/')));
+  }
+  if (kind === 'service') {
+    const f = `src/services/${name}.ts`;
+    const lines = codeIndex.get(f);
+    if (!lines) return [];
+    const headerEnd = lines.findIndex((l) => l.includes('*/'));
+    const exports = hitsFor(/^export\s/, [f]);
+    return [excerpt(root, f, 1, headerEnd + 1), ...exports];
+  }
+  if (kind === 'export') {
+    return hitsFor(new RegExp(`\\bexport\\s+(?:default\\s+)?(?:async\\s+)?(?:function\\*?|const|let|class|interface|type|enum)\\s+${escapeRe(name)}\\b`),
+      files.filter((f) => !f.startsWith('tests/')));
+  }
+  if (kind === 'env') return hitsFor(new RegExp(`process\\.env\\.${escapeRe(name)}\\b`), files.filter((f) => !f.startsWith('tests/')));
+  return [];
+}
+
+/**
+ * A bucket over the comparison budget split into parts one agent can compare carefully.
+ * Claims are grouped by the other thing each names (a table's claims by column), because
+ * claims about one column are the ones that can contradict each other; claims naming
+ * nothing else, and a per-file bucket's claims, are cut in line order so neighbouring
+ * claims stay together. Nothing is dropped: every claim lands in exactly one part.
+ */
+function splitBucket(entity: string, ids: string[], byId: Map<string, Claim>): Array<[string, string[]]> {
+  if (ids.length <= COMPARE_BATCH_CLAIMS) return [[entity, ids]];
+  const byOther = new Map<string, string[]>();
+  const rest: string[] = [];
+  for (const id of ids) {
+    const other = entity.startsWith('unit:') ? undefined : (byId.get(id)?.entities ?? []).find((e) => e !== entity);
+    if (other) {
+      if (!byOther.has(other)) byOther.set(other, []);
+      byOther.get(other)!.push(id);
+    } else {
+      rest.push(id);
+    }
+  }
+  // A lone claim about some other thing has nothing in its part to be compared with.
+  for (const [other, members] of byOther) {
+    if (members.length < 2) {
+      rest.push(...members);
+      byOther.delete(other);
+    }
+  }
+  const lineOf = (id: string): number => byId.get(id)?.line ?? Number(/@(\d+)/.exec(id)?.[1] ?? 0);
+  rest.sort((a, b) => lineOf(a) - lineOf(b));
+  const parts: Array<[string, string[]]> = [];
+  for (const [other, members] of byOther) {
+    for (let i = 0; i < members.length; i += COMPARE_BATCH_CLAIMS) parts.push([`${entity} > ${other}`, members.slice(i, i + COMPARE_BATCH_CLAIMS)]);
+  }
+  for (let i = 0; i < rest.length; i += COMPARE_BATCH_CLAIMS) {
+    parts.push([`${entity} > part ${i / COMPARE_BATCH_CLAIMS + 1}`, rest.slice(i, i + COMPARE_BATCH_CLAIMS)]);
+  }
+  return parts;
+}
 
 /** Claims from one file, or merged from every extraction agent's file in a directory. */
 function loadClaims(claimsPath: string): Claim[] {
@@ -409,7 +683,7 @@ function loadClaims(claimsPath: string): Claim[] {
     .flatMap((f) => JSON.parse(readFileSync(path.join(claimsPath, f), 'utf8')) as Claim[]);
 }
 
-function group(claimsPath: string, outDir: string): void {
+function group(root: string, claimsPath: string, outDir: string): void {
   const claims = loadClaims(claimsPath);
   mkdirSync(outDir, { recursive: true });
   const buckets = new Map<string, Set<string>>();
@@ -422,13 +696,21 @@ function group(claimsPath: string, outDir: string): void {
       buckets.get(k)!.add(c.id);
     }
   }
-  const list = [...buckets].map(([entity, ids]) => {
-    const claimIds = [...ids].sort();
+  const list = [...buckets].flatMap(([entity, ids]) => splitBucket(entity, [...ids].sort(), byId).map(([name, claimIds]) => {
     const strong = claimIds.some((id) => ['requirement', 'rationale'].includes(byId.get(id)?.type ?? ''));
-    return { entity, claimIds, model: strong ? 'opus' : 'sonnet' };
+    return { entity: name, root: entity, claimIds: [...claimIds].sort(), model: strong ? 'opus' : 'sonnet' };
   // A lone claim about a named entity is still checked against the code; a lone
   // claim naming nothing has nothing to be compared with.
-  }).filter((b) => b.claimIds.length > 1 || !b.entity.startsWith('unit:'));
+  })).filter((b) => b.claimIds.length > 1 || !b.root.startsWith('unit:'));
+  // Every tracked code file once, so each bucket's evidence is looked up, not re-read.
+  const codeIndex = new Map(
+    git(['ls-files', '--cached', '--others', '--exclude-standard'], root).split('\n')
+      .filter((f) => f && !SKIP.test(f) && CODE_TREES.test(f) && CODE_EXT.test(f) && existsSync(path.join(root, f)))
+      .map((f) => [f, read(root, f).split('\n')] as [string, string[]]),
+  );
+  if (!codeIndex.has(SCHEMA) && existsSync(path.join(root, SCHEMA))) codeIndex.set(SCHEMA, read(root, SCHEMA).split('\n'));
+  const evidence = new Map<string, Evidence[]>();
+  for (const b of list) if (!evidence.has(b.root)) evidence.set(b.root, evidenceFor(root, b.root, codeIndex));
   const pack = (model: string): string[][] => {
     const out2: string[][] = [];
     let cur: string[] = [];
@@ -452,7 +734,10 @@ function group(claimsPath: string, outDir: string): void {
   for (const model of ['opus', 'sonnet']) {
     pack(model).forEach((entities, i) => {
       const file = path.join(outDir, `${model}-${i + 1}.json`);
-      const body = entities.map((e) => ({ entity: e, claims: bucketByEntity.get(e)!.claimIds.map((id) => byId.get(id)) }));
+      const body = entities.map((e) => {
+        const b = bucketByEntity.get(e)!;
+        return { entity: e, evidence: evidence.get(b.root) ?? [], claims: b.claimIds.map((id) => byId.get(id)) };
+      });
       writeFileSync(file, `${JSON.stringify(body, null, 2)}\n`);
       files[model].push(file);
     });
@@ -471,14 +756,34 @@ function group(claimsPath: string, outDir: string): void {
   );
 }
 
-function record(resultsPath: string, ledgerPath: string, inventoryPath?: string): void {
+function record(resultsPath: string, ledgerPath: string, inventoryPath?: string, unitsPath?: string): void {
   const results = JSON.parse(readFileSync(resultsPath, 'utf8'));
   // The file hashes come from the inventory the run read, never through a model.
   const inv = inventoryPath ? JSON.parse(readFileSync(inventoryPath, 'utf8')) : {};
   const prior = existsSync(ledgerPath) ? JSON.parse(readFileSync(ledgerPath, 'utf8')) : {};
+  let invFiles: Record<string, string> = inv.files ?? {};
+  const sections: Record<string, string[]> = { ...(prior.sections ?? {}) };
+  if (unitsPath) {
+    // Only what the run's units cover is marked checked; an id the inventory does not
+    // hold is refused, because recording it would mark nothing and say nothing. A
+    // commented file is one unit, so it is marked whole. A document is marked whole only
+    // when every one of its sections was read; otherwise each section read is recorded
+    // by its text's hash, so the sections not read stay unread.
+    const docs: Unit[] = inv.units?.docs ?? [];
+    const all: Unit[] = [...docs, ...(inv.units?.comments ?? [])];
+    const ids = namedUnits(unitsPath, all);
+    const wanted = new Set<string>();
+    for (const u of all.filter((x) => ids.has(x.id))) {
+      const fileDocs = docs.filter((d) => d.file === u.file);
+      if (!u.hash || fileDocs.every((d) => ids.has(d.id))) wanted.add(u.file);
+      else sections[u.file] = [...new Set([...(sections[u.file] ?? []), u.hash])];
+    }
+    invFiles = Object.fromEntries(Object.entries(invFiles).filter(([f]) => wanted.has(f)));
+  }
   const ledger = {
     head: inv.head ?? results.head,
-    files: { ...(prior.files ?? {}), ...(results.files ?? {}), ...(inv.files ?? {}) },
+    sections,
+    files: { ...(prior.files ?? {}), ...(results.files ?? {}), ...invFiles },
     findings: results.findings ?? [],
     rulings: [...(prior.rulings ?? []), ...(results.rulings ?? [])],
   };
@@ -489,9 +794,9 @@ function record(resultsPath: string, ledgerPath: string, inventoryPath?: string)
 function main(): void {
   const { mode, flags } = parseArgs(process.argv.slice(2));
   const root = git(['rev-parse', '--show-toplevel'], process.cwd()).trim();
-  if (mode === 'inventory') inventory(root, flags.out, flags.ledger);
-  else if (mode === 'group') group(flags.claims, flags.out);
-  else record(flags.results, flags.ledger, flags.from);
+  if (mode === 'inventory') inventory(root, flags.out, flags.ledger, flags['private-root'], flags.units);
+  else if (mode === 'group') group(root, flags.claims, flags.out);
+  else record(flags.results, flags.ledger, flags.from, flags.units);
 }
 
 main();

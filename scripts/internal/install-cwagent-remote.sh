@@ -18,7 +18,7 @@
 #                    CWAGENT_KEEP_CREDENTIALS=1, the upgrade, which keeps the
 #                    credentials file the host holds and sends no key)
 #   CWAGENT_SAK      AWS secret access key for the cwagent IAM user (likewise)
-#   CWAGENT_VERSION  the pinned agent version, from ops/host-tools.env
+#   CWAGENT_VERSION  the pinned agent version, from ops/tool-versions.env
 #   CWAGENT_URL      where that version's package is published
 #   CWAGENT_SHA256   the digest the package must match before it is installed
 #

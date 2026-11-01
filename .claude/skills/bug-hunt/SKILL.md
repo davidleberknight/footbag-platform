@@ -1,15 +1,17 @@
 ---
 name: bug-hunt
 disable-model-invocation: true
-description: Runs a bounded adversarial bug hunt over the footbag-platform repository for defects against the design intent - implementation (security and correctness, checked against expected outcomes written from the stories before the code is read), unsafe design on the highest-risk surfaces, and code that breaks clear intent, including harness guards that do not guard. Runs after an extended doc sync, which owns document drift. Orchestrates read-only in plan mode in the MAIN session, dispatches lanes to read-only subagents, reproduces and refutes every candidate, and writes findings to BUGS.md only after plan approval; remediation happens in later sessions. Invoke ONLY when the user explicitly asks for a "bug hunt", "bug sweep" or "design bug hunt" by name. Do NOT infer it from "adversarial review", "security pass", "review the code", or "doc sync". Not a testing strategy, not a documentation audit and not browser QA.
+description: Runs an adversarial bug hunt over every hunted file in the footbag-platform repository for defects against the design intent - implementation (security and correctness, checked against expected outcomes written from the stories before the code is read), unsafe design on the highest-risk surfaces, and code that breaks clear intent, including harness guards that do not guard. Runs after an extended doc sync, which owns document drift. Orchestrates in plan mode in the MAIN session through a saved workflow whose hunters probe their own candidates against the local dev stack, has every candidate refuted in fresh context, and writes findings to BUGS.md only after plan approval; remediation happens in later sessions. Invoke ONLY when the user explicitly asks for a "bug hunt", "bug sweep" or "design bug hunt" by name. Do NOT infer it from "adversarial review", "security pass", "review the code", or "doc sync". Not a testing strategy, not a documentation audit and not browser QA.
 ---
 
 # Bug Hunt: adversarial defect hunt across design, code and the discrepancies between them
 
 
 **This skill orchestrates; it does not read the catalogs itself.** The method detail lives
-in two briefs, each read by the subagent that sweeps that layer, never by the orchestrator,
-which keeps the main session's context lean:
+in four briefs, each read by the agent that needs it, never by the orchestrator, which keeps
+the main session's context lean. `HUNT_BRIEF.md` is each hunter's checklist and
+`REFUTE_BRIEF.md` each refuter's; the saved workflow `.claude/workflows/bug-hunt-stages.js`
+hands them out. The other two:
 
 - `REFERENCE.md`: the implementation-layer category catalog (4.4.1 to 4.4.54, the last
   being the UI/UX lane's method), the design-pattern divergence catalog (4.4B),
@@ -60,9 +62,9 @@ finding reproduced, every ambiguity resolved by the maintainer before the file i
 
 **Success criteria for the hunt itself:** the deployed surface re-derived this run and every
 story classified per `.claude/skills/deployed-surface/SKILL.md`, each deployed story's
-expected outcomes written from its text before the code was read (the oracle lane); each
-lane's one bounded pass run (section 11); every candidate reproduced and refuted by the
-orchestrator, every survivor above Low refuted again in fresh context; a coverage ledger
+expected outcomes written from its text before the code was read (the oracle); every unit in
+the inventory hunted with every category that applies (section 11); every candidate probed
+where it can be and judged real or not by a fresh-context refuter; a coverage ledger
 for every success criterion of a deployed story; every question resolved one at a time
 before the plan was finalized; output restricted to `BUGS.md`.
 
@@ -72,10 +74,11 @@ finding-count target: a short findings list is a valid result.
 
 ## 3. Hard constraints
 
-- **Plan mode, read-only, end to end, in the MAIN session.** The orchestrator is not a
-  forked skill, because only the main session can ask the human. The sole writes are
-  `BUGS.md`, after the maintainer approves the finalized plan, and in a chunked walk the
-  chunk's Walked line in `footbag_private_repo/BUG_HUNT_REVIEW.md`.
+- **Plan mode, end to end, in the MAIN session.** The orchestrator is not a forked skill,
+  because only the main session can ask the human. The repository is never written: the
+  sole writes are the hunters' throwaway probes in the session scratchpad, the run directory
+  `footbag_private_repo/bug-hunt-run/<date>/`, `BUGS.md` after the maintainer approves the
+  finalized plan, and the run position in `position.md` inside the run directory.
 - **Single deliverable, then a clean handoff.** Triage and fresh-context re-verification
   happen in a later session; the `BUGS.md` header carries the standing re-audit
   instruction (section 9).
@@ -86,17 +89,18 @@ finding-count target: a short findings list is a valid result.
   step also fixes: every fact about the site a question states (a page, its title and address,
   a button or link label, a notice, who sees it) is read this turn from the template, route and
   service and quoted verbatim, or checked by a fresh-context subagent; never stated from memory.
-- **Dispatch research, verify centrally.** Read-only subagents each sweep one lane and read
-  that lane's brief. A subagent conclusion is a lead, never a finding: the main session
-  re-verifies every candidate against the cited lines. Subagents have no channel to the
-  human; they return questions with context and a recommendation.
+- **The workflow hunts, a fresh refuter judges.** Each hunter sweeps one pack and probes its
+  own candidates; a refuter that never saw the hunter's reasoning judges each one real or
+  not. The main session reads the verdicts and re-verifies only a finding above Low that
+  has no failing probe. Agents have no channel to the human; they return questions with
+  context and a recommendation.
 - **Reproduce before recording.** An implementation finding carries one concrete
-  reproduction: a request against the local dev server (`./run_dev.sh`, local database
-  only), a `sqlite3 -readonly` query against the local real-data build, a run of an existing
-  test with `npx vitest run <file>`, or a throwaway probe in the session scratchpad that is
-  never committed. Never staging or production. The hunters are read-only and cannot run
-  one; the reproducer lane does (section 6). A candidate with no reproduction is a Lead
-  naming the reproduction that would settle it.
+  reproduction, run by the hunter that found it: a request against the local dev server
+  (`./run_dev.sh`, which the orchestrator starts before the hunt, local database only), a
+  `sqlite3 -readonly` query against the local real-data build, a run of an existing test
+  with `npx vitest run <file>`, or a throwaway probe in the session scratchpad, never
+  committed. Never staging or production. A candidate with no reproduction is a Lead naming
+  the reproduction that would settle it.
 - **Rendered confirmation for visitor-facing claims stays in the main session.** A finding
   about what a visitor sees is CONFIRMED only against rendered output, never templates
   alone; static tracing locates, the orchestrator renders. When the kickoff does not
@@ -108,14 +112,13 @@ finding-count target: a short findings list is a valid result.
 
 ## 4. Scope
 
-- **Chunked walk, the default.** "Run the bug hunt" hunts one chunk: read
-  `footbag_private_repo/BUG_HUNT_REVIEW.md`, take the first chunk in its hunt order with no
-  Walked line, and take that chunk's scope from `EXTENDED_DOC_SYNC_REVIEW.md` beside it. Its
-  commented files are the implementation surface and its sections the governing passages; hunt
-  it as a narrow ask, under the last bullet below. A freestyle chunk goes to
-  `freestyle-bug-hunt`. A whole-repository hunt runs only when the maintainer asks for one by
-  name. When the private checkout is absent, say so in one line and hunt the domain the
-  maintainer names.
+- **Whole-repository run, the default.** "Run the bug hunt" hunts every unit the inventory
+  (`scripts/bug-hunt-inventory.ts`) lists, or on a rerun every unit its ledger
+  (`footbag_private_repo/BUG_HUNT_LEDGER.json`) shows changed. A unit the inventory marks for
+  the freestyle hunt goes to `freestyle-bug-hunt`, and a pipeline unit is hunted under the
+  pipeline invariant gate. The run directory's `position.md` holds the run position.
+  When the private checkout is absent, say so in one line, keep the run directory and ledger
+  in the session scratchpad, and hunt as usual.
 - **Implementation layer:** the deployed surface, derived fresh every run per
   `.claude/skills/deployed-surface/SKILL.md`.
 - **Design layer:** the threat model over the five-ranked surfaces and the stories behind
@@ -138,128 +141,43 @@ finding-count target: a short findings list is a valid result.
 
 1. This file and the two briefs' tables of contents.
 2. Root `CLAUDE.md`: the authority order (do not restate it).
-3. Dispatch **Lane 0** to build the tracked-work exclusion list: open issues from the
+3. Run `npx tsx scripts/bug-hunt-inventory.ts --inventory --out <run>/inventory.json --ledger <ledger>`,
+   then `--pack --inventory <run>/inventory.json --out <run>/packs`. Read the summary lines;
+   every unparsed route is read by the auth-gate class pack, and say how many there are.
+4. One Sonnet agent builds the tracked-work exclusion list: open issues from the
    maintainers' private tracker (`gh issue list -R "$FOOTBAG_PRIVATE_REPO" --state open`,
-   read-only) plus `footbag_private_repo/BUGS.md`. The label taxonomy lives in
-   `TRACKER_GUIDE.md` (private GitHub repo). If `FOOTBAG_PRIVATE_REPO` is unset, say one
-   line that the tracker is not wired on this machine, proceed with `BUGS.md` alone, never
-   hard-fail.
-4. Have Lane 0 audit every existing `BUGS.md` entry against the current repo (re-resolve
-   each location, confirm the defect persists, mark landed fixes for removal) and verify the
-   results centrally. Corrections land in the final approved write.
-5. Have Lane 0 rank the deployed surface for the bounded pass (section 11), by rule, not by
-   judgement: five, any file on auth and session, member privacy, payments, identity claim,
-   erasure, or a destructive, irreversible or outward-facing action; four, any other write
-   path or anything that shapes member or migrated data; three, a read path rendering
-   member data; two, any other deployed read path; one, content modules and static pages.
-6. Check the drift pass ran: run the extended doc sync inventory against its ledger
-   (`footbag_private_repo/DOC_SYNC_LEDGER.json`); if it lists any document as changed since
-   the ledger's content hashes, say so in one line and recommend running
-   `extended-doc-sync` first, because the oracle reads those documents. In a chunked walk,
-   check instead for the chunk's Walked line in `EXTENDED_DOC_SYNC_REVIEW.md`, and if it has
-   none, say so in one line and recommend walking that chunk's doc sync first.
+   read-only) plus `footbag_private_repo/BUGS.md`, and audits every existing `BUGS.md` entry
+   against the current repo (re-resolve each location, confirm the defect persists, mark
+   landed fixes for removal). If `FOOTBAG_PRIVATE_REPO` is unset, say one line that the
+   tracker is not wired here and proceed with `BUGS.md` alone. Corrections land in the
+   final approved write.
+5. Check the drift pass ran: run the extended doc sync inventory against its ledger
+   (`footbag_private_repo/DOC_SYNC_LEDGER.json`); if the ledger is missing or lists any
+   document as changed, say so in one line and recommend running `extended-doc-sync`
+   first, because the oracle reads those documents.
+6. Start the dev stack (`./run_dev.sh`) for the hunters' probes, unless the kickoff says
+   not to; then every probe is recorded not-run and unreproduced candidates stay Leads.
 
 Governance and IFPA pre-reads (`docs/DATA_GOVERNANCE.md`, `ifpa/*`) are loaded by the lane
 whose candidate touches them and re-read by the orchestrator when it verifies.
 
-## 6. Method: dispatch, verify, resolve
+## 6. Method: oracle, hunt, refute, resolve
 
-Each lane is a read-only subagent (`auditor` for code and config, `Explore` for surface
-mapping) that reads its brief, sweeps its dimension once, and returns a structured **lead
-list**: candidate, cited lines, reproduction attempted, refutation attempted, its
-read-or-sampled inventory, and any human-owned question. Never file dumps.
-
-### Dispatch table
-
-| Lane | Subagent, model | Brief | Returns |
-|------|-----------------|-------|---------|
-| 0 Orient and surface | `auditor` / `Explore`, Sonnet | `.claude/skills/deployed-surface/SKILL.md` | deployed surface, story classification, file ranking, existing-`BUGS.md` audit, tracked-work exclusion list |
-| O Oracle | `auditor`, Opus medium, reads no code | `DESIGN.md` "Oracle" | the expectation table: one row per success criterion of each deployed story, and per design decision a five-ranked surface rests on: story or decision, criterion, expected observable, probe; a criterion it cannot turn into an observable is a gap row |
-| 1 Design | `auditor`, Opus medium | `DESIGN.md` | threat-model candidates on the five-ranked surfaces, and the migration gate-index audit |
-| 2 Implementation | `auditor`, one per feature domain (auth and session, membership and payments, clubs and events, media, admin, public read paths) | `REFERENCE.md` 4.4 and 4.4B, plus the domain's oracle rows | implementation candidates traced input to controller to service to DB to response, each naming the oracle row or invariant it breaks |
-| 3 Discrepancy | `auditor`, Opus medium | section 7 of this file and `REFERENCE.md` 4.4.48 | code-breaks-intent candidates and harness guards that do not guard, deduped against the self-check |
-| 4 UI/UX | `general-purpose` with the Playwright MCP tools, dev stack running | `REFERENCE.md` 4.4.54 | layout and usability candidates: page, viewport (390px and 1280px), offending selector, measured number; measured with the rendered-style helper, one snapshot per page per viewport, no screenshots |
-| R Reproducer | `general-purpose`, Sonnet, dev stack and a scratch copy of the local database | the candidate block and its oracle row | a failing probe or test in the session scratchpad, its command and output, or "could not reproduce" with what was tried |
-
-Models: in Lane 2, a five-ranked domain gets two independent hunters at Opus high, which
-never see each other's leads; fours get one at Opus medium; ones to threes one at Sonnet.
-
-Lanes 4 and R run only when the kickoff authorizes the dev stack (`./run_dev.sh`); otherwise
-the ledger records them as not run and unreproduced candidates stay Leads. They are the
-lanes that are not read-only in the browser sense: Lane 4 loads pages and signs in through
-the persona switch and submits no form; Lane R may submit forms, only against the local dev
-stack and its scratch database, never staging or production. Every Catastrophic and High
-candidate goes to Lane R; Medium and Low ones are spot-checked, and the ledger says which.
+1. Oracle: `Workflow({ name: 'bug-hunt-stages', args: { stage: 'oracle', stories: <the inventory's changed stories>, oracleDir: 'footbag_private_repo/bug-hunt-run/oracle' } })`.
+   The oracle directory persists across runs, so an unchanged story keeps its rows.
+2. Hunt: `Workflow({ name: 'bug-hunt-stages', args: { stage: 'hunt', packs: <the pack summary's packs>, oracleDir, probes: <true unless the kickoff says not>, devUrl, scratchDir: <session scratchpad>/probes, tracked: <the exclusion list>, resultsPath: '<run>/results.json' } })`.
+   It hunts every pack, keeps candidates below the confidence floor as Leads, pools the rest
+   to fresh-context refuters, and writes the proposed findings, Leads and questions.
+3. Every unit it returns as not reached is hunted again in a pack of its own, until none is.
+4. The UI/UX pass (`REFERENCE.md` 4.4.54) runs as its own agent on the dev stack:
+   `general-purpose` with the Playwright MCP tools, one snapshot per page per viewport,
+   measured with the rendered-style helper, no screenshots.
+5. Re-verify in the main session only a finding above Low with no failing probe, and spot-
+   check a sample of classifications against the catalog. Then calibrate against the
+   do-not-flag list (section 10).
 
 The orchestrator owns the coverage ledger, one row per success criterion of a deployed
-story: probe-verified, test-verified (an existing test asserts it), traced (followed
-through the code, not run) or unchecked. It also owns rendered confirmation (section 3)
-and calibration (section 10); briefs carry the do-not-flag list only as a pre-filter.
-
-### Briefing a subagent
-
-Nothing in the main session reaches a subagent: not memory, not this conversation, not the
-rules already loaded here. The brief carries everything the agent needs, and nothing it
-does not. One lane per agent, and the same shape for a lane hunter and a refuter:
-
-Spawn every agent with the Agent tool at the model and effort the dispatch table gives its
-lane (refuters: Opus medium for a Catastrophic or High candidate, Sonnet below), and say so
-in the brief, so the budget is explicit on both sides. The skill and its briefs
-are written for that reader: no step waits on long deliberation; every decision is a
-checklist item or a measurement, and a question the checklist cannot settle goes back to
-the orchestrator as a marked item rather than being thought through in the lane.
-
-```
-Model: <the lane's>. Work through the checklist in the brief; do not deliberate
-past it. Anything the checklist cannot settle is a marked question, not a guess.
-Task: <one lane, one sentence>. Read-only: Read, Grep, Glob, Bash reads only; edit nothing.
-Brief to read first: <this skill's brief for the lane, by repo path>.
-Rules to read, by path, not restated: <.claude/rules/*.md the surface attaches>.
-Surface: <the exact file list or route list, ranked one to five; never "the codebase">.
-Governing passages: <quoted verbatim, or named by path and heading; never summarised>.
-Oracle rows: <the expectation-table rows for this surface, verbatim>.
-Already covered, skip: <the named sweeps and tracked issues whose ground is taken>.
-Stop: fours and fives in full with every applicable class; ones to threes by recipe
-only; one pass; stop when the list is walked. A count is never a target.
-Return, and nothing else, one block per candidate:
-  title | file:line | trace (oracle row, decision or invariant broken) | class number |
-  expected severity | the reproduction that would prove it |
-  the one-line break that would prove it | refutation attempted
-Then, for each oracle row you were given: traced (with the file:line that meets or
-breaks it) or not reached.
-Then: the files read in full, the files sampled, and any human-owned question as a
-marked item with context, options and your recommendation. Never guess an answer.
-```
-
-A refuter gets only the candidate block, its reproduction and the governing passage, and
-is asked one question: is this real and does it matter. A lane hunter never sees another
-lane's leads. Keep the brief under a screen; a brief that restates a rule the agent could
-read is context spent twice.
-
-### Phase G: verify every candidate
-
-No candidate becomes a finding until the orchestrator refutes it. Verify in per-lane
-batches and prune before dispatching the next lane:
-
-1. Construct the counterfactual the finding implies and test it against the code: every
-   consumer and every control-flow effect (middleware order, fall-through, the absence
-   path), not only the obvious caller. For a dead-code claim, prove removal changes nothing
-   observable, or drop it.
-2. Have Lane R run the reproduction, re-run its command yourself, or run the existing test
-   that drives the exact input and state. A test refutes the finding only if it asserts the design intent; a test that would
-   still pass with the behavior broken refutes nothing. A passing test that contradicts
-   clear design intent reclassifies the candidate: the test, and possibly the code, is the
-   bug, and that is a `write-tests` hand-off plus a finding here.
-3. Confirm the suggested fix is behavior-neutral except for the defect it removes.
-4. Spot-check a sample of the lane's classifications against the cited catalog; the
-   orchestrator has not read the catalogs, so a drifting classification is caught here.
-5. Every survivor above Low gets one independent refutation pass in fresh context: one
-   read-only subagent per lane batch that did not produce the candidates, given only the
-   candidate, its reproduction and the governing passage, asked whether each is real and
-   matters. The main session re-verifies each verdict.
-6. Calibrate against the do-not-flag list (section 10) before recording.
-
-A suspicion that survives only as a suspicion goes to the Leads section (section 9).
+story, from the rows the hunters return: probe-verified, test-verified, traced or unchecked.
 
 ### Phase H: resolve, then finalize
 
@@ -402,30 +320,24 @@ yes or no.
 - A pattern `scripts/ci/assert_conventions.sh` already gates: a hit means the gate is
   broken, a configuration defect, never a pattern finding.
 
-## 11. Stopping condition: bounded, not exhaustive
+## 11. Stopping condition: every unit, once
 
-One pass per lane. Lane 0 ranks every in-scope file one to five by the cost of a defect
-there; fours and fives are read in full with every applicable category applied; ones to
-threes are swept by the search recipes and by the categories their surface class invites,
-and the ledger says so. The hunt is done when:
+Every unit the inventory lists for this run is hunted with every category that applies. Rank
+decides the model, effort, read budget and order, never whether a unit is hunted. The hunt is
+done when:
 
-- (a) every surface class in the coverage ledger is marked read in full, sampled, or
-  not-read with reason;
-- (b) every category applicable to a four or five has been applied to it;
-- (c) each lane's one pass has returned and been verified, and a final sweep for each
-  major noun in the findings has run;
-- (d) no criterion of a story behind a five-ranked surface is unchecked in the coverage
-  ledger.
+- (a) every pack has returned, and every unit is marked read (none not-reached);
+- (b) every cross-cutting class pack has returned over the whole route matrix;
+- (c) every candidate is judged real, not real, or kept as a Lead, and a final sweep for
+  each major noun in the findings has run;
+- (d) no success criterion of a story behind a five-ranked surface is unchecked in the
+  coverage ledger.
 
-One discipline is mandatory. **Invert the question**: for every invariant and control,
-construct the concrete input or request sequence that would violate it and show why the
-code or design defeats the attempt; the failed construction is the evidence. The scenario
-tabletop in `DESIGN.md` is optional: run it when the kickoff names a design area, or when a
-lane's leads cluster on one flow.
-
-A short findings list is a valid result. Never re-sweep to reach a count. Before closing,
-confirm from the ledger that the auth, anti-enumeration, CSRF and member-state categories
-were applied to every five.
+One discipline is mandatory: **invert the question** (the hunt brief's first step). The
+scenario tabletop in `DESIGN.md` is optional: run it when the kickoff names a design area, or
+when the leads cluster on one flow. A short findings list is a valid result; never re-sweep
+to reach a count. After the approved write, record the ledger:
+`npx tsx scripts/bug-hunt-inventory.ts --record --ledger <ledger> --from <run>/inventory.json`.
 
 ## 12. After the write
 
@@ -442,7 +354,7 @@ a new class becomes a proposed catalog category. A false positive that survived
 verification names the verification step that should have caught it.
 
 **Calibration.** Every escaped defect becomes a seeded one in the replay corpus
-(`footbag_private_repo/BUG_HUNT_CORPUS.md`): the one-line break that reintroduces it, its
+(`footbag_private_repo/BUG_HUNT_CORPUS.md`, created with the first): the one-line break that reintroduces it, its
 file, its trace and the lane that should have caught it. After a change to this skill or
 its briefs, apply each break to a scratch copy of the current tree, run the changed lanes
 on it, and record each lane's recall in the corpus file. A lane or a discipline earns its
@@ -468,5 +380,3 @@ place by what it catches there.
 
 - No live AWS contact and no GitHub-side settings visibility: record a narrow Lead or ask
   one question rather than guess.
-- The bounded pass samples ones to threes; the ledger says what was sampled, and a defect
-  there surfaces through the oracle rows, the noun sweep or a later hunt.

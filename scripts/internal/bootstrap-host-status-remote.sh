@@ -81,7 +81,12 @@ emit ARCH "$(uname -m)"
 emit DOCKER_ACTIVE "$(systemctl is-active docker 2>/dev/null || true)"
 emit DOCKER_ENABLED "$(systemctl is-enabled docker 2>/dev/null || true)"
 emit COMPOSE_VERSION "$(docker compose version --short 2>/dev/null || echo none)"
-emit SQLITE "$(yes_if command -v sqlite3)"
+# The versions the tool-version list pins are judged against these: the sqlite3
+# the backup and deploy call, the distribution docker package, and the Amazon
+# Linux release the package repositories are locked to.
+emit SQLITE_VERSION "$(sqlite3 --version 2>/dev/null | cut -d' ' -f1)"
+emit DOCKER_RPM "$(rpm -q --qf '%{VERSION}-%{RELEASE}' docker 2>/dev/null | grep -v 'not installed' || true)"
+emit AL_RELEASE "$(sed -n 's/^Amazon Linux release \([0-9][0-9.]*\).*/\1/p' /etc/amazon-linux-release 2>/dev/null || true)"
 emit RSYNC "$(yes_if command -v rsync)"
 emit AWSCLI "$(yes_if command -v aws)"
 

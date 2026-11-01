@@ -38,7 +38,7 @@
 #       account that logs in and whose sudo refuses the password is reported and
 #       never repaired, and an existing account's usable password is never
 #       changed.
-#    4  host tools from the pinned manifest, ops/host-tools.env: docker from the
+#    4  host tools from the tool-version list, ops/tool-versions.env: docker from the
 #       distribution unless an engine is already installed, the Compose plugin
 #       checked against its SHA-256, sqlite, rsync, the AWS CLI where the image
 #       has none.
@@ -86,7 +86,7 @@
 #     run mints and retires keys and applies the identity tree.
 #   - A run with no terminal, before anything changes: it asks for typed
 #     confirmations and shows each minted key once.
-#   - A host-tools manifest still holding a placeholder pin, before anything
+#   - A tool-version list still holding a placeholder pin, before anything
 #     changes.
 #   - An alias whose HostName is not the address Terraform reports.
 #   - A host recording the other environment, at any step.
@@ -133,7 +133,7 @@
 # FOOTBAG_HOST_SSH_BIN (the ssh client, from the shared wire library),
 # BOOTSTRAP_HOST_TF_BIN, BOOTSTRAP_HOST_AWS_BIN, BOOTSTRAP_HOST_SCRIPTS_DIR (the
 # directory the sibling scripts are run from), BOOTSTRAP_HOST_TFVARS,
-# FOOTBAG_HOST_TOOLS_MANIFEST, and BOOTSTRAP_HOST_POLL_SECS (the pause between
+# FOOTBAG_TOOL_VERSIONS, and BOOTSTRAP_HOST_POLL_SECS (the pause between
 # polls of a snapshot or a reboot).
 set -euo pipefail
 
@@ -149,8 +149,8 @@ source "${SCRIPT_DIR}/lib/aws-profile.sh"
 source "${SCRIPT_DIR}/lib/aws-identity.sh"
 # shellcheck source=lib/terraform-output.sh
 source "${SCRIPT_DIR}/lib/terraform-output.sh"
-# shellcheck source=internal/bootstrap-host-tools.sh
-source "${SCRIPT_DIR}/internal/bootstrap-host-tools.sh"
+# shellcheck source=lib/tool-versions.sh
+source "${SCRIPT_DIR}/lib/tool-versions.sh"
 # shellcheck source=internal/bootstrap-host-steps.sh
 source "${SCRIPT_DIR}/internal/bootstrap-host-steps.sh"
 
@@ -516,29 +516,54 @@ terminal_present || {
 require_operator_stdin "scripts/bootstrap-host.sh --target ${TARGET}" "$ALIAS" "$TARGET" || exit 1
 
 # Every pin the run installs from, refused before anything changes.
-host_tool_pinned COMPOSE_VERSION COMPOSE_URL COMPOSE_SHA256 CWAGENT_VERSION CWAGENT_URL CWAGENT_SHA256 || exit 1
+tool_pins_ok COMPOSE_VERSION COMPOSE_URL COMPOSE_SHA256 CWAGENT_VERSION CWAGENT_URL CWAGENT_SHA256 \
+  DOCKER_ENGINE_HOST AMAZON_LINUX_RELEASE SQLITE_VERSION || exit 1
 bh_manifest_pins
 pin_assignments() {
   local k
-  for k in DOCKER_PACKAGE SQLITE_PACKAGE RSYNC_PACKAGE AWSCLI_PACKAGE COMPOSE_VERSION COMPOSE_URL COMPOSE_SHA256; do
-    host_tool "$k" || return 1
-    printf '%s=%q\n' "$k" "$HOST_TOOL_VALUE"
+  for k in DOCKER_PACKAGE DOCKER_ENGINE_HOST AMAZON_LINUX_RELEASE SQLITE_VERSION RSYNC_PACKAGE AWSCLI_PACKAGE \
+           COMPOSE_VERSION COMPOSE_URL COMPOSE_SHA256; do
+    tool_pin "$k" || return 1
+    printf '%s=%q\n' "$k" "$TOOL_PIN_VALUE"
   done
 }
 PIN_ASSIGNMENTS="$(pin_assignments)" || exit 1
+
+# The pinned sqlite3 the host installs, built here and shipped over the install
+# pipe, so the host needs no compiler. Built only when the packages step runs,
+# because the build takes a container and a minute. Test seam: a run with
+# BOOTSTRAP_HOST_SQLITE3_BIN set ships that file instead, and says so.
+SQLITE3_WORK=""
+trap '[[ -n "$SQLITE3_WORK" ]] && rm -rf "$SQLITE3_WORK"' EXIT
+trap "trap '' HUP INT TERM; exit 130" INT
+trap "trap '' HUP INT TERM; exit 143" TERM
+sqlite3_assignment() {
+  local bin="${BOOTSTRAP_HOST_SQLITE3_BIN:-}"
+  if [[ -n "$bin" ]]; then
+    echo "SYNTHETIC: BOOTSTRAP_HOST_SQLITE3_BIN is set; the shipped sqlite3 is a stand-in." >&2
+  else
+    SQLITE3_WORK="$(mktemp -d)"
+    bin="${SQLITE3_WORK}/sqlite3"
+    bash "${SCRIPT_DIR}/build-sqlite3.sh" --output "$bin" >&2 || return 1
+  fi
+  printf 'SQLITE3_B64=%s\n' "$(base64 -w0 < "$bin")"
+}
 
 PROVISION_HALF="${SCRIPT_DIR}/internal/bootstrap-host-provision-remote.sh"
 ACCOUNT_HALF="${SCRIPT_DIR}/internal/bootstrap-host-account-remote.sh"
 REBOOT_HALF="${SCRIPT_DIR}/internal/bootstrap-host-reboot-remote.sh"
 
 provision() {
-  local mode="$1"
+  local mode="$1" sqlite_line=""
   require_host_ssh_opts || return 1
+  if [[ "$mode" == "packages" ]]; then
+    sqlite_line="$(sqlite3_assignment)" || { echo "ERROR: the pinned sqlite3 could not be built; nothing was sent to the host." >&2; return 1; }
+  fi
   {
     printf '%s\n' "$SUDO_PASS"
     printf 'MODE=%q\n' "$mode"
     printf 'APP_UID=%q\n' "$BH_APP_UID"
-    [[ "$mode" == "packages" ]] && printf '%s\n' "$PIN_ASSIGNMENTS"
+    [[ "$mode" == "packages" ]] && printf '%s\n%s\n' "$PIN_ASSIGNMENTS" "$sqlite_line"
     cat "$PROVISION_HALF"
   } | "$HOST_SSH_BIN" "${HOST_SSH_OPTS[@]}" "$ALIAS" 'sudo -k -S -p "" bash -s footbag-bootstrap-provision'
 }

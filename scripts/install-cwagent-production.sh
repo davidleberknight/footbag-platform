@@ -179,8 +179,8 @@ source "${SCRIPT_DIR}/lib/iam-access-key.sh"
 # shellcheck source=lib/host-env-remote.sh
 source "${SCRIPT_DIR}/lib/host-env-remote.sh"
 # The pinned agent package, and the refusal a rebuilt host gets.
-# shellcheck source=internal/bootstrap-host-tools.sh
-source "${SCRIPT_DIR}/internal/bootstrap-host-tools.sh"
+# shellcheck source=lib/tool-versions.sh
+source "${SCRIPT_DIR}/lib/tool-versions.sh"
 # shellcheck source=internal/bootstrap-host-rebuild-keys.sh
 source "${SCRIPT_DIR}/internal/bootstrap-host-rebuild-keys.sh"
 
@@ -189,10 +189,10 @@ source "${SCRIPT_DIR}/internal/bootstrap-host-rebuild-keys.sh"
 # The agent package is pinned to one version and one digest. Checked before
 # anything is minted or any host is reached, so an unfilled pin costs nothing.
 if [[ "$ACTION" == "install" ]]; then
-  host_tool_pinned CWAGENT_VERSION CWAGENT_URL CWAGENT_SHA256 || exit 1
-  host_tool CWAGENT_VERSION; CWAGENT_VERSION="$HOST_TOOL_VALUE"
-  host_tool CWAGENT_URL;     CWAGENT_URL="$HOST_TOOL_VALUE"
-  host_tool CWAGENT_SHA256;  CWAGENT_SHA256="$HOST_TOOL_VALUE"
+  tool_pins_ok CWAGENT_VERSION CWAGENT_URL CWAGENT_SHA256 || exit 1
+  tool_pin CWAGENT_VERSION; CWAGENT_VERSION="$TOOL_PIN_VALUE"
+  tool_pin CWAGENT_URL;     CWAGENT_URL="$TOOL_PIN_VALUE"
+  tool_pin CWAGENT_SHA256;  CWAGENT_SHA256="$TOOL_PIN_VALUE"
 fi
 
 if [[ -n "$AWS_PROFILE_ARG" ]]; then

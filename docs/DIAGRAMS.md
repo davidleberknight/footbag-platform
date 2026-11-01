@@ -213,7 +213,7 @@ Visual aids for understanding the system design. Six diagrams cover production i
 
 ═══════════════════════  PASSWORD CHANGE FLOW  ════════════════════════
 
-  Browser:  POST /account/password  { currentPassword, newPassword }
+  Browser:  POST /members/:memberKey/edit/password  { currentPassword, newPassword }
   ↓
 ┌─────────────────────────────────────────────────────────────────────┐
 │  identityAccessService  (inside a db transaction)                   │
@@ -228,7 +228,12 @@ Visual aids for understanding the system design. Six diagrams cover production i
 │       appendAuditEntry({ actionType: 'auth.password_change' })      │
 │     })                                                              │
 │  4. Issue fresh JWT for current device  (new passwordVersion)       │
-│     Set-Cookie: session=<new JWT>  (HttpOnly, Secure, SameSite=Lax) │
+└─────────────────────────────────────────────────────────────────────┘
+  ↓
+┌─────────────────────────────────────────────────────────────────────┐
+│  memberController  (after the service returns)                      │
+│  5. Set-Cookie: __Host-footbag_session=<new JWT>                    │
+│     HttpOnly · Secure · SameSite=Lax                                │
 └─────────────────────────────────────────────────────────────────────┘
 
   Effect: all other devices receive 401 on next request.

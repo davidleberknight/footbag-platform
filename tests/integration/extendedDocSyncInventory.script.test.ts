@@ -11,7 +11,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
@@ -89,8 +89,46 @@ beforeAll(() => {
   write('jobs.md', '# Jobs\n\n### SYS_Do_Thing\n\nDoes the thing.\n');
   write('decisions.md', '# Decisions\n\n## 1.1 Things Are Rows\n\nRationale.\n');
   write('model.md', '# Model\n\n### things\n\nThe `things` table.\n');
-  write('glossary.md', '**Thing:** a row.\n');
+  // Both entry forms the real glossary uses.
+  write('glossary.md', '**Thing:** a row.\n**Gizmo**: a part.\n');
   write('schema.sql', 'CREATE TABLE things (\n  thing_name TEXT\n);\nCREATE TABLE orphans (\n  orphan_code TEXT\n);\n');
+  // One quantity restated with two values, one restated consistently, and the forms a
+  // careless check would misread: a range, and an amount in another clause.
+  write('costs-a.md', '# Costs A\n\nA Thing instance ($5/month).\nA Thing in bulk costs $6-9.\n');
+  write('costs-b.md', '# Costs B\n\nEach Thing ($7/month) and a Gizmo for $3/month.\nA Thing, and separately $8/month for hosting.\n');
+  write('costs-c.md', '# Costs C\n\n- Gizmo: $3.00\n');
+  write('src/read.ts', "export const q = 'SELECT thing_name FROM things';\n");
+  write('src/ops.ts', '// Recovery steps are in AWS_OPERATIONS.md.\nexport const ops = 1;\n');
+  write('notes.md', '# Notes\n\nRotation is in AWS_OPERATIONS.md (private GitHub repo).\n');
+  write('tests/orphan.test.ts', "// Reads orphan_code only to check the fixture.\nexport const t = 'orphan_code';\n");
+  write('src/services/thingService.ts', [
+    '/**',
+    ' * Owns things: creates and lists them.',
+    ' */',
+    'export function listThings() { return []; }',
+    '',
+  ].join('\n'));
+  // The private checkout lives outside this repository and is reached through a link
+  // this repository ignores, as the real one is.
+  const privy = join(scratch, 'private');
+  mkdirSync(privy, { recursive: true });
+  const pgit = (...args: string[]): void => {
+    const r = spawnSync('git', args, { cwd: privy, encoding: 'utf8', ...SPAWN_GUARD });
+    if (r.status !== 0) throw new Error(`git ${args.join(' ')} failed: ${r.stderr}`);
+  };
+  pgit('init', '-q');
+  // The operations document the audit reads, naming itself bare as the real one does.
+  writeFileSync(join(privy, 'AWS_OPERATIONS.md'), '# Operations\n\nThe Thing ($9/month). See AWS_OPERATIONS.md below.\n');
+  writeFileSync(join(privy, 'WALK.md'), '# Walk position\n');
+  writeFileSync(join(privy, '.gitignore'), 'WALK.md\n');
+  // A tracked plan and archived history: work records, not descriptions of the system.
+  writeFileSync(join(privy, 'PLAN.md'), '# Plan\n\nThe Thing ($12/month).\n');
+  mkdirSync(join(privy, 'archive'), { recursive: true });
+  writeFileSync(join(privy, 'archive', 'OLD.md'), '# Old plan\n\nThe Thing ($11/month).\n');
+  pgit('add', 'AWS_OPERATIONS.md', 'PLAN.md', '.gitignore', 'archive/OLD.md');
+  pgit('-c', 'user.email=f@example.com', '-c', 'user.name=F', '-c', 'commit.gpgsign=false', 'commit', '-q', '-m', 'p');
+  symlinkSync(privy, join(repo, 'privy'));
+  write('.gitignore', 'privy\n');
   write('guide.md', GUIDE);
   write('src/app.ts', '// Builds a thing from its row.\nexport function buildThing() { return 1; }\n');
   write('src/plain.ts', 'export const plain = 2;\n');
@@ -179,6 +217,36 @@ describe('extended-doc-sync-inventory: mechanical checks', () => {
     expect(has('table things is never named')).toBe(false);
   });
 
+  it('flags a quantity restated with two values, and only the values that belong to it', () => {
+    // A price or retention period copied into several documents drifts when one copy is
+    // updated, and a reader of the stale copy plans with the wrong number; a range, or an
+    // amount in another clause, attributed to the term would raise a mismatch that is not one.
+    const inv = inventory('quantities');
+    expect(inv.vocabulary.glossary).toEqual(['Thing', 'Gizmo']);
+    const q = inv.mechanical.filter((f: { check: string }) => f.check === 'quantity-mismatch');
+    expect(q.map((f: { detail: string }) => f.detail)).toEqual([
+      'Thing (money) is stated as 5 at costs-a.md:3; 7 at costs-b.md:3',
+    ]);
+  });
+
+  it('flags a private ops document named without the word private, and leaves a marked mention alone', () => {
+    // A private runbook named bare reads as a file in this repository, and a reader goes
+    // looking for a runbook that is not here.
+    const inv = inventory('private-marks');
+    const hits = inv.mechanical.filter((f: { check: string }) => f.check === 'unmarked-private-doc')
+      .map((f: { file: string; line: number }) => `${f.file}:${f.line}`);
+    expect(hits).toEqual(['src/ops.ts:1']);
+  });
+
+  it('flags a schema column no code outside the schema and tests names, and leaves a column code reads', () => {
+    // A column nothing reads leaves its data-model entry describing nothing; a test naming
+    // it is not use, or a dead column would pass because its own test mentions it.
+    const inv = inventory('columns');
+    const unread = inv.mechanical.filter((f: { check: string }) => f.check === 'column-unread')
+      .map((f: { detail: string }) => f.detail);
+    expect(unread).toEqual(['column orphan_code is named by no code outside the schema and tests']);
+  });
+
   it('records a failing parity gate with its output and a passing one as passing', () => {
     // A failing gate dropped from the report hides drift a deterministic check had
     // already found.
@@ -221,6 +289,141 @@ describe('extended-doc-sync-inventory: incremental reruns', () => {
   });
 });
 
+describe('extended-doc-sync-inventory: private documents', () => {
+  it('makes the private checkout\'s operations documents units only when asked, nothing else there, and refuses a link that is not a checkout', () => {
+    // An operations document in the private checkout describes this code and drifts from
+    // it; left out, it is never compared. Its plans, working files and archive record work,
+    // not the system, and would bury the real findings; a missing link reported as
+    // consistent would hide that nothing was read.
+    const without = inventory('no-private');
+    expect(without.units.docs.some((u: { file: string }) => u.file.startsWith('privy/'))).toBe(false);
+    const out = join(scratch, 'with-private.json');
+    const r = run(['--inventory', '--out', out, '--private-root', 'privy']);
+    expect(r.status, r.stderr).toBe(0);
+    const inv = JSON.parse(readFileSync(out, 'utf8'));
+    const files = [...new Set(inv.units.docs.map((u: { file: string }) => u.file))]
+      .filter((f) => (f as string).startsWith('privy/'));
+    expect(files).toEqual(['privy/AWS_OPERATIONS.md']);
+    expect(inv.files['privy/AWS_OPERATIONS.md']).toMatch(/^[0-9a-f]{64}$/);
+    // Its quantities are compared with the public documents', and the file itself, which
+    // is the private document, is not asked to call itself private.
+    const q = inv.mechanical.find((f: { check: string }) => f.check === 'quantity-mismatch');
+    expect(q.detail).toContain('9 at privy/AWS_OPERATIONS.md:3');
+    expect(q.detail).not.toContain('12 at');
+    expect(q.detail).not.toContain('11 at');
+    expect(inv.mechanical.some((f: { check: string; file: string }) => f.check === 'unmarked-private-doc' && f.file.startsWith('privy/')))
+      .toBe(false);
+
+    const refused = run(['--inventory', '--out', join(scratch, 'x.json'), '--private-root', 'nope']);
+    expect(refused.status).toBe(2);
+    expect(refused.stderr).toContain('--private-root nope is not a git checkout');
+  });
+});
+
+describe('extended-doc-sync-inventory: recording part of a run', () => {
+  it('marks only the files of the units a run read, so the rest are read next time', () => {
+    // A walk that read one part of the repository and recorded every file would mark the
+    // unread part checked, and its drift would never be looked at.
+    inventory('partial');
+    const results = join(scratch, 'partial-results.json');
+    const units = join(scratch, 'partial-units.json');
+    const ledger = join(scratch, 'partial-ledger.json');
+    writeFileSync(results, JSON.stringify({ findings: [], rulings: [] }));
+    writeFileSync(units, JSON.stringify(['comments:src/app.ts']));
+    const r = run(['--record', '--results', results, '--ledger', ledger, '--from', join(scratch, 'partial.json'), '--units', units]);
+    expect(r.status, r.stderr).toBe(0);
+    expect(Object.keys(JSON.parse(readFileSync(ledger, 'utf8')).files)).toEqual(['src/app.ts']);
+    const next = inventory('after-partial', ledger);
+    const ids = [...next.extract.docBatches.flat(), ...next.extract.commentBatches.flat()].map((u: { id: string }) => u.id);
+    expect(ids).not.toContain('comments:src/app.ts');
+    expect(ids).toContain('comments:src/long.ts');
+  });
+
+  it('records a partly read document by section, so its unread sections and any edited one are read next time', () => {
+    // Marking a whole document checked after one section was read would leave every other
+    // section's drift unread for good; keying the record to line numbers would lose it the
+    // moment an earlier edit shifted them.
+    const from = join(scratch, 'sections.json');
+    const first = run(['--inventory', '--out', from]);
+    expect(first.status, first.stderr).toBe(0);
+    const docIds = (file: string): string[] =>
+      JSON.parse(readFileSync(from, 'utf8')).units.docs.filter((u: { file: string }) => u.file === file).map((u: { id: string }) => u.id);
+    const [guideFirst, guideSecond] = docIds('guide.md');
+    expect(guideSecond, 'the fixture guide has two sections').toBeDefined();
+    const results = join(scratch, 'sections-results.json');
+    const units = join(scratch, 'sections-units.json');
+    const ledger = join(scratch, 'sections-ledger.json');
+    writeFileSync(results, JSON.stringify({ findings: [], rulings: [] }));
+    // One section of the guide, and every section of the stories document.
+    writeFileSync(units, JSON.stringify([guideFirst, ...docIds('stories.md')]));
+    const rec = run(['--record', '--results', results, '--ledger', ledger, '--from', from, '--units', units]);
+    expect(rec.status, rec.stderr).toBe(0);
+    expect(Object.keys(JSON.parse(readFileSync(ledger, 'utf8')).files).sort()).toEqual(['stories.md']);
+
+    const extracted = (name: string): string[] => {
+      const inv = inventory(name, ledger);
+      return inv.extract.docBatches.flat().map((u: { id: string }) => u.id);
+    };
+    const after = extracted('after-sections');
+    expect(after).toContain(guideSecond);
+    expect(after).not.toContain(guideFirst);
+    expect(after.filter((id) => id.startsWith('doc:stories.md'))).toEqual([]);
+
+    const before = readFileSync(join(repo, 'guide.md'), 'utf8');
+    try {
+      // An edit to the unread section leaves the recorded one recorded.
+      write('guide.md', `${before}More on the second section.\n`);
+      expect(extracted('second-edited')).not.toContain(guideFirst);
+      // An edit inside the recorded section reopens it.
+      write('guide.md', before.replace('Last updated: today.', 'Last updated: yesterday.'));
+      expect(extracted('first-edited')).toContain(guideFirst);
+    } finally {
+      // Other cases read this file; leave it as the fixture built it.
+      write('guide.md', before);
+    }
+  });
+
+  it('extracts only the named units, with batch texts numbered for that subset, and refuses an unknown one', () => {
+    // A domain walk handed whole batches pays for every unrelated unit packed beside its
+    // own, and a subset of batches handed to the workflow would be read under the wrong
+    // batch numbers.
+    const all = inventory('named-all');
+    const docId = all.units.docs.find((u: { file: string }) => u.file === 'guide.md').id;
+    const units = join(scratch, 'named-units.json');
+    writeFileSync(units, JSON.stringify([docId, 'comments:src/app.ts']));
+    const out = join(scratch, 'named.json');
+    const r = run(['--inventory', '--out', out, '--units', units]);
+    expect(r.status, r.stderr).toBe(0);
+    const inv = JSON.parse(readFileSync(out, 'utf8'));
+    expect(inv.extract.docBatches.flat().map((u: { id: string }) => u.id)).toEqual([docId]);
+    expect(inv.extract.commentBatches.flat().map((u: { id: string }) => u.id)).toEqual(['comments:src/app.ts']);
+    expect(readFileSync(join(scratch, 'named.batches', 'doc-0.txt'), 'utf8')).toContain('# Guide');
+    // The full unit list still describes the whole repository, so a later record can resolve any id.
+    expect(inv.units.docs.length).toBe(all.units.docs.length);
+
+    const ghost = join(scratch, 'named-ghost.json');
+    writeFileSync(ghost, JSON.stringify(['comments:src/ghost.ts']));
+    const bad = run(['--inventory', '--out', join(scratch, 'named-bad.json'), '--units', ghost]);
+    expect(bad.status).toBe(2);
+    expect(bad.stderr).toContain('units not in the inventory: comments:src/ghost.ts');
+  });
+
+  it('refuses a unit the inventory does not hold, and unit ids without the inventory', () => {
+    // A mistyped id would record nothing for it while the run believed it was recorded.
+    inventory('partial-refusals');
+    const results = join(scratch, 'refusal-results.json');
+    const units = join(scratch, 'bad-units.json');
+    writeFileSync(results, JSON.stringify({ findings: [], rulings: [] }));
+    writeFileSync(units, JSON.stringify(['comments:src/ghost.ts']));
+    const ghost = run(['--record', '--results', results, '--ledger', join(scratch, 'g.json'), '--from', join(scratch, 'partial-refusals.json'), '--units', units]);
+    expect(ghost.status).toBe(2);
+    expect(ghost.stderr).toContain('units not in the inventory: comments:src/ghost.ts');
+    const bare = run(['--record', '--results', results, '--ledger', join(scratch, 'g.json'), '--units', units]);
+    expect(bare.status).toBe(2);
+    expect(bare.stderr).toContain('--units needs --from');
+  });
+});
+
 describe('extended-doc-sync-inventory: grouping claims', () => {
   it('buckets claims by entity, sends requirement buckets to the stronger model and drops a lone claim naming nothing', () => {
     // Two sources' claims about one table compared apart can never be seen to
@@ -253,6 +456,82 @@ describe('extended-doc-sync-inventory: grouping claims', () => {
     // The coherence pass sees the requirement, and only design claims.
     const coherence = JSON.parse(readFileSync(g.files.coherence[0], 'utf8'));
     expect(coherence.map((c: { id: string }) => c.id)).toEqual(['c1']);
+  });
+});
+
+describe('extended-doc-sync-inventory: large buckets and evidence', () => {
+  // Over the comparison budget of 60 claims a bucket is too large for one careful read.
+  const BUDGET = 60;
+
+  function groupClaims(name: string, claims: object[]) {
+    const claimsFile = join(scratch, `${name}-claims.json`);
+    const out = join(scratch, name);
+    writeFileSync(claimsFile, JSON.stringify(claims));
+    const r = run(['--group', '--claims', claimsFile, '--out', out]);
+    expect(r.status, r.stderr).toBe(0);
+    const summary = JSON.parse(readFileSync(join(out, 'summary.json'), 'utf8'));
+    const batchFiles = [...summary.files.opus, ...summary.files.sonnet] as string[];
+    const entries = batchFiles.flatMap((f) => JSON.parse(readFileSync(f, 'utf8')));
+    return { summary, entries };
+  }
+
+  it('splits an oversized bucket by the other thing its claims name, losing and doubling no claim', () => {
+    // One agent handed hundreds of claims compares them carelessly or runs out of room;
+    // a split that dropped or repeated a claim would leave it unread or asked twice.
+    const withColumn = Array.from({ length: 40 }, (_, i) => ({
+      id: `w${String(i).padStart(2, '0')}`, unit: 'doc:model.md#3', entities: ['table:things', 'column:thing_name'], type: 'behavior',
+    }));
+    const tableOnly = Array.from({ length: 30 }, (_, i) => ({
+      id: `t${String(i).padStart(2, '0')}`, unit: 'doc:model.md#3', entities: ['table:things'], type: 'behavior',
+    }));
+    const { summary } = groupClaims('split', [...withColumn, ...tableOnly]);
+    const parts = summary.buckets.filter((b: { entity: string }) => b.entity.startsWith('table:things'));
+    expect(parts.map((b: { entity: string }) => b.entity).sort()).toEqual([
+      'table:things > column:thing_name', 'table:things > part 1',
+    ]);
+    for (const p of parts) expect(p.claimIds.length).toBeLessThanOrEqual(BUDGET);
+    const placed = parts.flatMap((b: { claimIds: string[] }) => b.claimIds).sort();
+    expect(placed).toEqual([...withColumn, ...tableOnly].map((c) => c.id).sort());
+    // A bucket within the budget is left whole.
+    const column = summary.buckets.find((b: { entity: string }) => b.entity === 'column:thing_name');
+    expect(column.claimIds).toHaveLength(40);
+  });
+
+  it('cuts an oversized per-file bucket in line order, so neighbouring claims are compared together', () => {
+    // Cutting by id order would put a claim beside unrelated ones from the far end of
+    // the file and part it from the lines around it.
+    const claims = Array.from({ length: 65 }, (_, i) => ({
+      id: `comments:src/long.ts@${65 - i}`, unit: 'comments:src/long.ts', line: 65 - i, entities: [], type: 'comment',
+    }));
+    const { summary } = groupClaims('split-unit', claims);
+    const part1 = summary.buckets.find((b: { entity: string }) => b.entity === 'unit:comments:src/long.ts > part 1');
+    const part2 = summary.buckets.find((b: { entity: string }) => b.entity === 'unit:comments:src/long.ts > part 2');
+    const lines = (b: { claimIds: string[] }): number[] => b.claimIds.map((id) => Number(id.split('@')[1])).sort((a, c) => a - c);
+    expect(lines(part1)).toEqual(Array.from({ length: BUDGET }, (_, i) => i + 1));
+    expect(lines(part2)).toEqual([61, 62, 63, 64, 65]);
+  });
+
+  it('hands each bucket the code its entity names, and none to a kind with no code home', () => {
+    // Without the definition beside the claims, each comparison agent searches the
+    // repository itself, which was most of the audit's cost; evidence from a test file
+    // would show a fixture, not the application.
+    const pair = (entity: string, n: number) => [0, 1].map((i) => ({
+      id: `${entity}-${n}-${i}`, unit: 'doc:model.md#3', entities: [entity], type: 'behavior',
+    }));
+    const { entries } = groupClaims('evidence', [
+      ...pair('table:things', 1), ...pair('column:orphan_code', 2), ...pair('service:thingService', 3),
+      ...pair('export:buildThing', 4), ...pair('story:V_Browse_Things', 5),
+    ]);
+    const ev = (entity: string): string => entries.find((e: { entity: string }) => e.entity === entity)
+      .evidence.map((x: { file: string; text: string }) => `${x.file}\n${x.text}`).join('\n');
+    expect(ev('table:things')).toContain('1: CREATE TABLE things (\n2:   thing_name TEXT\n3: );');
+    expect(ev('table:things')).not.toContain('orphans');
+    expect(ev('column:orphan_code')).toContain('schema.sql\n5:   orphan_code TEXT');
+    expect(ev('column:orphan_code')).not.toContain('tests/orphan.test.ts');
+    expect(ev('service:thingService')).toContain(' * Owns things: creates and lists them.');
+    expect(ev('service:thingService')).toContain('4: export function listThings()');
+    expect(ev('export:buildThing')).toContain('src/app.ts\n2: export function buildThing()');
+    expect(ev('story:V_Browse_Things')).toBe('');
   });
 });
 

@@ -199,7 +199,7 @@ Precedence across all three is `deny > ask > allow`: a `deny` at any scope wins,
 | `.claude/rules/*.md` | per-path conventions (controllers, services, views, db, db write safety, adapters, tests, comments, script secrets, operator scripts, infrastructure, private repo, docs, the harness) and the one shared rule (asking) | when a matching file is Read/Edited; at launch for a rule without `paths:` |
 | `.claude/skills/*` | repeatable playbooks (add a public page, run a review, sync docs) | when invoked, or automatically when a file matching the skill's `paths:` glob is worked on (`freestyle-dictionary-surface` carries one for the freestyle templates and partials) |
 | `.claude/hooks/*` | deterministic guardrails that block, not advise | on the matching tool call |
-| `.claude/workflows/*` | saved multi-agent workflow scripts a skill runs by name (`extended-doc-sync-stages`) | when the skill that names them runs |
+| `.claude/workflows/*` | saved multi-agent workflow scripts a skill runs by name (`extended-doc-sync-stages`, `bug-hunt-stages`) | when the skill that names them runs |
 | `.claude/agents/*` | read-only subagents that isolate context (`auditor`, `researcher`), both pinned to `model: sonnet` | when spawned |
 | `.claude/settings.json` | permission allow/ask/deny and hook wiring | always (enforced by the runtime) |
 | `.mcp.json` | the Playwright MCP server (a pinned devDependency running headless Chromium with `.claude/playwright/config.json`), enabled by `enabledMcpjsonServers` in `settings.json` | at session start |
@@ -216,6 +216,7 @@ The skills, by purpose:
 - Freestyle and data: `footbag-freestyle-dictionary`, `freestyle-dictionary-surface`, `footbag-curated-media`, `pipeline-invariant-enforcer`.
 - Explicit-only reviews: `extended-doc-sync` (the whole-repository drift audit, run before a bug hunt), `bug-hunt`, `freestyle-bug-hunt`, `audit-memory`.
 - Bug intake: `file-bug`, `triage-bugs`.
+- Operations, explicit-only: `patch-versions` (security patching, on the maintainer's request).
 - The harness: `update-config`.
 
 `claude-harness-governance.md` is itself path-scoped with a glob covering `.claude/**` plus every `CLAUDE.md` (root and nested), `PROJECT_SUMMARY_CONCISE.md`, and this guide, so the rules for changing the harness attach automatically whenever a harness file is opened for editing.

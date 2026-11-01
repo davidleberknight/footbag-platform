@@ -55,8 +55,8 @@ async function probeImageWorkerForDev(): Promise<void> {
 // deploy must make zero third-party network callouts. Probing hundreds of
 // seeded club/gallery URLs at boot also stalls the health check that the reverse
 // proxy depends on, so the proxy never starts and the site 504s. Seeded rows
-// render as-is until a separate, non-boot verification path stamps a
-// quarantine_reason; the public read hides only rows that carry one.
+// carry the verdict stamped at data-prep time; the public read shows a row only
+// once it is verified and not quarantined.
 // Two signing backends and the captcha secret preload BEFORE the server accepts
 // requests, and a failed preload refuses to start rather than reporting healthy
 // while every login fails:

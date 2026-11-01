@@ -38,6 +38,8 @@ import { join } from 'node:path';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 
 const REPO = process.cwd();
+// The machine's own jq, which the jq stand-in hands every call but --version to.
+const REAL_JQ = (spawnSync('bash', ['-c', 'command -v jq'], { encoding: 'utf-8', ...SPAWN_GUARD }).stdout ?? '').trim();
 
 /**
  * A venv interpreter that behaves like a working one: it reports the pinned
@@ -95,8 +97,12 @@ function stubCompleteMachine() {
   stub('terraform', 'echo "Terraform v1.14.7"');
   stub('docker', 'exit 0');
   stub('dpkg-query', 'printf "install ok installed"');
-  // jq is the real one: the script reads the browser manifest with it.
-  for (const tool of ['sqlite3', 'ffmpeg', 'ffprobe', 'age']) stub(tool, 'exit 0');
+  // sqlite3, jq, age, ffmpeg and ffprobe answer with their pinned versions. jq
+  // is otherwise the real one: the script reads the browser manifest with it.
+  stub('sqlite3', 'echo "3.51.2 2026-01-09 17:27:48 stub"');
+  stub('age', 'echo v1.1.1');
+  stub('jq', `[ "$1" = --version ] && { echo jq-1.7.1; exit 0; }\nexec ${REAL_JQ} "$@"`);
+  for (const tool of ['ffmpeg', 'ffprobe']) stub(tool, `echo "${tool} version 8.1.3 Copyright (c) 2000-2026"`);
   file(join(home, '.cache', 'ms-playwright', 'chromium-1234', 'INSTALLATION_COMPLETE'), '');
   writeNpmState();
   file(
@@ -166,7 +172,7 @@ beforeEach(() => {
     ].join('\n'),
     0o755,
   );
-  for (const rel of ['scripts/setup-dev-workstation.sh', '.github/workflows/ci.yml', '.nvmrc']) {
+  for (const rel of ['scripts/setup-dev-workstation.sh', '.github/workflows/ci.yml', '.nvmrc', 'ops/tool-versions.env']) {
     mkdirSync(join(repo, rel, '..'), { recursive: true });
     copyFileSync(join(REPO, rel), join(repo, rel));
   }
@@ -189,6 +195,23 @@ describe('setup-dev-workstation.sh — the pins must agree', () => {
     expect(r.status).toBe(1);
     expect(r.stderr).toContain('.python-version says 3.11.9; this script installs 3.12.12.');
     expect(r.stderr).toContain('Nothing changed.');
+  });
+
+  // Defect caught: a download whose checksum in the tool-version list is still a
+  // placeholder was fetched and installed anyway, so the workstation ran
+  // whatever the publisher's address served that day. The same run with the
+  // committed list is the positive control: --check gets past the pins.
+  it('refuses a placeholder checksum in the tool-version list before installing anything', () => {
+    const list = join(repo, 'ops', 'tool-versions.env');
+    const pinned = run(['--check']);
+    file(list, readFileSync(list, 'utf8').replace(/^TERRAFORM_SHA256=.*$/m, 'TERRAFORM_SHA256=REPLACE_WITH_SHA256'));
+
+    const r = run(['--check']);
+
+    expect(pinned.stderr).not.toContain('still a placeholder');
+    expect(r.status).toBe(1);
+    expect(r.stderr).toMatch(/TERRAFORM_SHA256 .* still a placeholder/);
+    expect(existsSync(aptLog) ? readFileSync(aptLog, 'utf8').trim() : '').toBe('');
   });
 
   it('refuses an unknown argument rather than ignoring it', () => {
@@ -230,7 +253,7 @@ describe('setup-dev-workstation.sh — what it will not do unasked', () => {
 
   it('still installs when apt update reports an error, and says so', () => {
     stubCompleteMachine();
-    stub('dpkg-query', '[ "$3" = age ] && exit 1; printf "install ok installed"');
+    stub('dpkg-query', '[ "$3" = rsync ] && exit 1; printf "install ok installed"');
     file(
       join(root, 'apt'),
       `#!/bin/bash\necho "$@" >> ${aptLog}\n[ "$1" = update ] && exit 100\nexit 0\n`,
@@ -238,16 +261,16 @@ describe('setup-dev-workstation.sh — what it will not do unasked', () => {
     );
     const r = run(['--yes']);
     expect(r.stderr).toContain('apt update reported errors (above); installing from the package lists apt has.');
-    expect(readFileSync(aptLog, 'utf-8')).toContain('install -y age');
+    expect(readFileSync(aptLog, 'utf-8')).toContain('install -y rsync');
   });
 
   it('asks apt only for the packages that are missing', () => {
     stubCompleteMachine();
-    stub('dpkg-query', '[ "$3" = age ] && exit 1; printf "install ok installed"');
+    stub('dpkg-query', '[ "$3" = rsync ] && exit 1; printf "install ok installed"');
     stub('python3.12', 'echo 3.12.3');
     run(['--yes']);
     const calls = readFileSync(aptLog, 'utf-8');
-    expect(calls).toContain('install -y age');
+    expect(calls).toContain('install -y rsync');
     expect(calls).not.toContain('ffmpeg');
   });
 });

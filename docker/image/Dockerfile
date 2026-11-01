@@ -41,8 +41,11 @@ WORKDIR /app
 # the admin act-as upload path. It is a runtime dependency of the transcode, not
 # a build tool, which is why it stays when the compiler toolchain does not: this
 # container executes untrusted media, so the less of a build environment it
-# carries, the less an escape from that decoder can reach for.
-RUN apk add --no-cache ffmpeg
+# carries, the less an escape from that decoder can reach for. Held to the exact
+# package version FFMPEG_VERSION pins in ops/tool-versions.env, so a rebuild
+# never picks up a different decoder unannounced; the build fails instead once
+# the base's repository stops serving it, which is the moment to re-pin.
+RUN apk add --no-cache ffmpeg=8.1.3-r0
 
 # Production dependencies, including sharp's musl binaries, arrive prebuilt from
 # the builder stage.

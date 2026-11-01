@@ -1563,8 +1563,9 @@ export const mediaService = {
     viewer: ViewerContext = { authenticated: false },
   ): PageViewModel<MediaBrowseContent> {
     return runSqliteRead('mediaService.getMediaBrowsePage', () => {
-      // Context tokens (`?context=`, e.g. a club/event gallery) are locked
-      // includes; visitor `?tag=` are removable includes. Both join the AND set.
+      // Context tokens (`?context=`, e.g. a club/event gallery) and visitor
+      // `?tag=` are includes; both join the AND set. Only an owner-scoping
+      // `#by_*` context tag is locked; every other tag is removable.
       const contextNormalized = uniqStrings((args.rawContext ?? []).map(normalizeTagToken).filter(notEmpty));
       const includeNormalized = uniqStrings(args.rawTags.map(normalizeTagToken).filter(notEmpty))
         .filter((t) => !contextNormalized.includes(t));

@@ -72,6 +72,9 @@ is_exempt() {
     # Each asserts a footbag-*-runtime identity, which the operator profile
     # would fail by design.
     scripts/verify-prod-email.sh|scripts/rehearse-bulk-send.sh) return 0 ;;
+    # It runs `terraform version` only to read the installed version against its
+    # pin, which reaches no AWS account, so it needs no operator identity.
+    scripts/check-versions.sh) return 0 ;;
     # They run on the deployed host, on its own credential chain.
     scripts/backup-db.sh|scripts/staging_diagnostics.sh) return 0 ;;
     scripts/take-pre-cutover-snapshot.sh) return 0 ;;

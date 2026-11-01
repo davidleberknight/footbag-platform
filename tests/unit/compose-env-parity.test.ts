@@ -256,9 +256,8 @@ const PRODUCTION_FIXTURE: Record<string, string> = {
   ...DEV_FIXTURE,
   PUBLIC_BASE_URL: 'https://footbag.org',
   X_ORIGIN_VERIFY_SECRET: 'stub-prod-origin-verify-secret',
-  // Production chain while the legacy front door proxies the apex into
-  // CloudFront: legacy proxy -> CloudFront -> nginx = 3 hops.
-  TRUST_PROXY: '3',
+  // Production chain: CloudFront -> nginx = 2 hops.
+  TRUST_PROXY: '2',
   AWS_PROFILE: 'stub-production-runtime',
   AWS_REGION: 'us-east-1',
   JWT_SIGNER: 'kms',

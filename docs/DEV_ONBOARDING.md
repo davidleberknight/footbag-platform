@@ -93,10 +93,11 @@ macOS and native-Linux contributors are fully supported. The simplest Mac path i
 
 ### 1.3 Required tools
 
-One canonical, idempotent script installs every tool the repository needs, at the version the push gate pins, and nothing you already have: `bash scripts/setup-dev-workstation.sh`, run from inside the clone (§1.5). It covers:
+One canonical, idempotent script installs every tool the repository needs, at the version `ops/tool-versions.env` (or `.nvmrc` and `.python-version`) pins, and nothing you already have: `bash scripts/setup-dev-workstation.sh`, run from inside the clone (§1.5). It covers:
 
 - the system `python3` pointed back at Ubuntu's own interpreter if it was changed, because apt's own tools only load under that one (the project always names its pinned interpreter instead)
-- the apt baseline: `build-essential`, `python3`, `python3-venv`, `python3-pip`, `sqlite3`, `ffmpeg`, `git`, `unzip`, `zip`, `jq`, `ca-certificates`, `curl`, `openssh-client`, `rsync`, `gpg`, `age`, and `lsof`
+- the apt baseline: `build-essential`, `python3`, `python3-venv`, `python3-pip`, `git`, `unzip`, `zip`, `ca-certificates`, `curl`, `openssh-client`, `rsync`, `gpg`, and `lsof`
+- `sqlite3` at exactly the version the app's database engine bundles, built from checksum-verified source inside the pinned image container (Docker must be running), `jq` and `age` at their pinned versions from checksum-verified release files, and `ffmpeg` and `ffprobe` at production's version, run through the image container's own pinned ffmpeg (Docker must be running)
 - Python at exactly the version in `.python-version`, as a checksum-verified standalone build under `~/.local`
 - Node at exactly the version in `.nvmrc`, through a pinned, checksum-verified `nvm`
 - the `gitleaks` secret scanner at the push gate's version, unless a running Docker can supply it
@@ -126,7 +127,7 @@ For the local Docker parity check (§1.13), also have:
   out-of-memory message. Free memory is what counts, not installed memory, so close the browser
   before a deploy on a smaller machine.
 
-**Every version is pinned.** The npm dependencies are exact in `package.json` and locked in `package-lock.json`, so install them with `npm ci`, never `npm install`, and change a version or an override only with `scripts/pin-npm-package.sh`. Node comes from `.nvmrc` (22.22.1), which `package.json` `engines` requires exactly; Python comes from `.python-version` (3.12.12). The Python packages come from hash-pinned `requirements.txt` files, compiled from their `requirements.in` files by `scripts/lock-python-deps.sh` and installed with `--require-hashes`. Terraform is pinned exactly (1.14.7). A convention gate refuses any unpinned version.
+**Every version is pinned.** The npm dependencies are exact in `package.json` and locked in `package-lock.json`, so install them with `npm ci`, never `npm install`, and change a version or an override only with `scripts/pin-npm-package.sh`. Node comes from `.nvmrc` (22.22.1), which `package.json` `engines` requires exactly; Python comes from `.python-version` (3.12.12). The Python packages come from hash-pinned `requirements.txt` files, compiled from their `requirements.in` files by `scripts/lock-python-deps.sh` and installed with `--require-hashes`. Terraform is pinned exactly (1.14.7). A convention gate refuses any unpinned version. Every other tool's version, with its download checksum, is in `ops/tool-versions.env`, and a tool at any other version is refused.
 
 Notes:
 
@@ -280,7 +281,7 @@ To pull committed freestyle input changes into the database you already have, ru
 ./run_dev.sh
 ```
 
-Before launching, it installs the npm dependencies with `npm ci` unless `node_modules` already holds every package at the version `package-lock.json` pins, activates the git hooks, reports any missing tool, builds the seeder and legacy pipeline Python environments, and builds the local database if `database/footbag.db` is missing. It then launches three processes: the web app (port 3000), the image worker (port 4001), and the outbox worker. Avatar, photo, and curator video uploads route through the image worker over HTTP, mirroring the deployed four-container topology (nginx, web, worker, image); `npm run dev` alone fails uploads because no image worker is listening. `./run_dev.sh` keeps all three alive and tears them down on Ctrl+C; `npm run dev`, `npm run dev:image`, and `npm run dev:worker` run them individually for debugging.
+Before launching, it installs the npm dependencies with `npm ci` unless `node_modules` already holds every package at the version `package-lock.json` pins, activates the git hooks, refuses to start on a missing tool or one at a version other than its pin, builds the seeder and legacy pipeline Python environments, and builds the local database if `database/footbag.db` is missing. It then launches three processes: the web app (port 3000), the image worker (port 4001), and the outbox worker. Avatar, photo, and curator video uploads route through the image worker over HTTP, mirroring the deployed four-container topology (nginx, web, worker, image); `npm run dev` alone fails uploads because no image worker is listening. `./run_dev.sh` keeps all three alive and tears them down on Ctrl+C; `npm run dev`, `npm run dev:image`, and `npm run dev:worker` run them individually for debugging.
 
 Open the running site in your browser. Pick the block for your machine; all paths reach the same `http://localhost:3000`.
 

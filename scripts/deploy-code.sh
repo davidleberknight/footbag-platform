@@ -159,9 +159,21 @@ PRUNE_LIB="${SCRIPT_DIR}/internal/prune-db-copies.sh"
 # Travels the same way and declares every host value with its owner, plus the
 # sync the remote half calls to write the Terraform-published ones.
 HOST_VALUES_LIB="${SCRIPT_DIR}/lib/host-values.sh"
+# Travels the same way and defines the comparison the remote half runs before it
+# changes anything: the host's sqlite3, docker and Amazon Linux release against
+# the pins sent below.
+HOST_TOOL_VERSIONS_LIB="${SCRIPT_DIR}/internal/host-tool-versions-remote.sh"
 
 # shellcheck source=lib/terminal.sh
 source "${REPO_ROOT}/scripts/lib/terminal.sh"
+# shellcheck source=lib/tool-versions.sh
+source "${REPO_ROOT}/scripts/lib/tool-versions.sh"
+# The pins the host's tools are held to, read from the one version list before
+# anything is shipped, so a list with a placeholder stops the deploy here.
+tool_pins_ok SQLITE_VERSION DOCKER_ENGINE_HOST AMAZON_LINUX_RELEASE || exit 1
+tool_pin SQLITE_VERSION;       PIN_SQLITE_VERSION="$TOOL_PIN_VALUE"
+tool_pin DOCKER_ENGINE_HOST;   PIN_DOCKER_ENGINE="$TOOL_PIN_VALUE"
+tool_pin AMAZON_LINUX_RELEASE; PIN_AMAZON_LINUX_RELEASE="$TOOL_PIN_VALUE"
 
 # A production deploy stops for a person, in every mode, including this one.
 #
@@ -592,10 +604,13 @@ echo "==> Running remote-as-root deploy (promote, restart)..."
   printf 'MIGRATION_CHECKSUM=%q\n'          "${MIGRATION_CHECKSUM:-}"
   printf 'DEPLOY_ACTOR=%q\n'                "$DEPLOY_ACTOR"
   printf 'FIRST_INSTALL=%q\n'               "$FIRST_INSTALL"
+  printf 'EXPECTED_SQLITE_VERSION=%q\n'     "$PIN_SQLITE_VERSION"
+  printf 'EXPECTED_DOCKER_ENGINE=%q\n'      "$PIN_DOCKER_ENGINE"
+  printf 'EXPECTED_AMAZON_LINUX_RELEASE=%q\n' "$PIN_AMAZON_LINUX_RELEASE"
   # The pruning helper and the host-value catalogue define data and functions and
   # run nothing, so the remote half can call them: the pruner once the new
   # release reports ready, the catalogue's sync where the parameters land.
-  cat "$PRUNE_LIB" "$HOST_VALUES_LIB" "$REMOTE_HALF"
+  cat "$PRUNE_LIB" "$HOST_TOOL_VERSIONS_LIB" "$HOST_VALUES_LIB" "$REMOTE_HALF"
 } | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'
 
 # Nothing is serving yet, so there is nothing to smoke-check and the env file is

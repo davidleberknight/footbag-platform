@@ -40,8 +40,8 @@ five-ranked surface rests on, write one row:
 
 A criterion that yields no observable (too vague, two readings, no actor, no failure case)
 is a gap row naming what is missing. A gap row is a coverage gap in this hunt, never a
-design finding: wording is the extended doc sync's. Group the rows by feature domain, the
-way Lane 2 is split.
+design finding: wording is the extended doc sync's. Write each story's rows to a file of
+its own, named for the story, so a hunter reads only the stories its routes serve.
 
 ## Definition of a design bug
 

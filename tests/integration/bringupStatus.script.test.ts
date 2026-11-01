@@ -536,11 +536,12 @@ describe('bringup-status.sh — the deployed runtime is all four containers heal
 
 describe('bringup-status.sh — one row per host bootstrap step', () => {
   // The facts a finished host reports through the bootstrap status body, plus
-  // the workstation-side reads. A stand-in manifest pins the versions.
+  // the workstation-side reads. A stand-in tool-version list pins the versions.
   const FINISHED_HOST = [
     'HOST_REACHED=yes', 'ACCOUNT_USER=footbag', 'ACCOUNT_WHEEL=yes', 'ACCOUNT_KEYS=1', 'SSHD_PORTS=22 2222',
     'SSHD_ROOT=no', 'SSHD_PASSWORD=no', 'SSHD_KBD=no', 'SSHD_REVERT_PENDING=no', 'ARCH=x86_64',
-    'DOCKER_ACTIVE=active', 'DOCKER_ENABLED=enabled', 'COMPOSE_VERSION=2.29.7', 'SQLITE=yes', 'RSYNC=yes',
+    'DOCKER_ACTIVE=active', 'DOCKER_ENABLED=enabled', 'COMPOSE_VERSION=2.29.7', 'SQLITE_VERSION=3.51.2',
+    'DOCKER_RPM=25.0.16-1.amzn2023.0.5', 'AL_RELEASE=2023.12.20261021', 'RSYNC=yes',
     'AWSCLI=yes', 'SRV_DIR=root:root 755', 'ENV_FILE=root:root 600', 'DB_DIR=1000:1000', 'FOOTBAG_ENV=production',
     'CRED_CHAIN=ok', 'CRED_KEY_ID=AKIAEXAMPLEEXAMPLE01', 'CWAGENT_ACTIVE=active', 'CWAGENT_ENABLED=enabled',
     'CWAGENT_VERSION=1.300050.0b1', 'CWAGENT_KEY_ID=AKIAEXAMPLEEXAMPLE01',
@@ -553,9 +554,12 @@ describe('bringup-status.sh — one row per host bootstrap step', () => {
   ];
 
   function manifestEnv(): NodeJS.ProcessEnv {
-    const p = join(tmpDir, 'host-tools.env');
-    writeFileSync(p, 'COMPOSE_VERSION=v2.29.7\nCWAGENT_VERSION=1.300050.0b1\n');
-    return { ...process.env, FOOTBAG_HOST_TOOLS_MANIFEST: p };
+    const p = join(tmpDir, 'tool-versions.env');
+    writeFileSync(p, [
+      'COMPOSE_VERSION=v2.29.7', 'CWAGENT_VERSION=1.300050.0b1', 'SQLITE_VERSION=3.51.2',
+      'DOCKER_ENGINE_HOST=25.0.16-1.amzn2023.0.5', 'AMAZON_LINUX_RELEASE=2023.12.20261021',
+    ].join('\n') + '\n');
+    return { ...process.env, FOOTBAG_TOOL_VERSIONS: p };
   }
   function render(lines: string[]): string {
     return runScript(['--target', 'production', '--probe-file', writeProbeFile([...ALL_DONE_PRODUCTION, ...lines])], manifestEnv()).stdout;
@@ -583,7 +587,7 @@ describe('bringup-status.sh — one row per host bootstrap step', () => {
   const removals: Array<[string, string[], RegExp, RegExp]> = [
     ['the pin', override('PIN', 'stale'), /Pinned host key\s+PENDING/, /install-known-hosts\.sh --target production/],
     ['the shared account', override('HOST_REACHED', 'no'), /Shared account, sshd ports\s+PENDING/, /bootstrap-host\.sh --target production/],
-    ['the host tools', override('SQLITE', 'no'), /Host tools\s+PENDING/, /bootstrap-host\.sh --target production/],
+    ['the host tools', override('SQLITE_VERSION', '3.40.0'), /Host tools\s+PENDING/, /bootstrap-host\.sh --target production/],
     ['the env file', override('ENV_FILE', 'absent'), /\/srv\/footbag and env file\s+PENDING/, /bootstrap-host\.sh/],
     ['the environment record', override('FOOTBAG_ENV', ''), /Host environment record\s+PENDING/, /set-host-env\.sh --target production/],
     ['the env file the verifier passes', override('HOST_ENV_VERIFY', 'fail'), /Host environment record\s+PENDING/, /verify-host-env\.sh --target production/],

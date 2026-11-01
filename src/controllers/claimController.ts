@@ -21,10 +21,10 @@ const HP_FORM_VM = {
 // Uniform render for any failed HP claim attempt, regardless of underlying
 // reason (HP not found, already claimed, surname mismatch, incompatible
 // legacy linkage, ...). Anti-enumeration: a single observable response
-// shape across every failure mode, with the specific reason captured in
-// the application log at the caller. The contact-admin link is part of that
-// single shape (identical on every failure), so the page's own instruction
-// to contact an administrator carries a working control.
+// shape across every failure mode. The specific reason is logged at info at
+// the caller, which development and staging logs keep and production does
+// not; in production an administrator sees why a record was not offered on
+// the member's link-help card.
 // Both claim entry points redirect a member who has finished onboarding to the
 // admin request form before any lookup runs, so everyone who reaches this page
 // is still a registrant. That is why it offers no route to an administrator:

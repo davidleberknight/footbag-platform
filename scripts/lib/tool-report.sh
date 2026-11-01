@@ -6,20 +6,20 @@
 # from the cause: a skipped secret scan, a Terraform gate that could not start, a
 # clean-room gate that failed on a missing encoder and read as a test failure.
 # This reports every missing or wrong-version tool up front, each with the fix,
-# the way the operator workstation script reports its tools. For sqlite3,
-# ffmpeg, jq and age a version other than the push gate's recorded one is a
-# [note], never a problem; tool_report_require, for CI, fails only on a missing
-# tool and turns a version difference into a warning annotation.
+# the way the operator workstation script reports its tools. sqlite3, jq, age,
+# ffmpeg and ffprobe must be at the version ops/tool-versions.env pins,
+# everywhere, and any other version is a problem; ffmpeg's pin is production's,
+# which the pinned-ffmpeg runner (scripts/ffmpeg-pinned.sh) supplies.
 #
 # What this refuses to do:
 #
 #   - Install anything. scripts/setup-dev-workstation.sh installs what this
 #     reports, and uses this same check to decide what is missing.
-#   - Hold its own copy of a version. Where the push gate pins one, it is read
-#     from the continuous-integration workflow or from .nvmrc and
-#     .python-version, the files that workflow reads, so the two cannot drift.
-#   - Decide a run's verdict. It reports; each gate still decides for itself
-#     whether a missing tool is a skip or a failure.
+#   - Hold its own copy of a version. Each is read from ops/tool-versions.env,
+#     from .nvmrc and .python-version, or from the continuous-integration
+#     workflow, so a pin and its check cannot drift.
+#   - Let a run go ahead on the wrong tools. tool_report returns 1 on any
+#     missing or wrong-version tool, and the runners that call it stop.
 #
 # Usage, sourced:
 #
@@ -49,6 +49,12 @@ _tool_report_pin() {
   { grep -m1 "${key}:" "$workflow" 2>/dev/null || true; } | tr -d " '\"" | cut -d: -f2
 }
 
+# A pin from the one tool-version list, read with grep and never sourced.
+_tool_report_list_pin() {
+  local key="$1" root="$2"
+  sed -n "s/^${key}=//p" "${root}/ops/tool-versions.env" 2>/dev/null | sed -n '$p'
+}
+
 # One line per problem; nothing for a tool that is fine.
 _tool_report_check() {
   local tool="$1" root="$2" workflow="$2/.github/workflows/ci.yml" pin have
@@ -74,8 +80,16 @@ _tool_report_check() {
     python3)
       command -v python3 >/dev/null 2>&1 || echo "python3 is not installed. Install python3, python3-venv and python3-pip."
       ;;
-    ffprobe)
-      command -v ffprobe >/dev/null 2>&1 || echo "ffprobe is not installed; it ships with ffmpeg. Install ffmpeg."
+    ffmpeg|ffprobe)
+      # The pin is the image container's package (8.1.3-r0); the tool reports
+      # the upstream version without Alpine's package revision.
+      pin="$(_tool_report_list_pin FFMPEG_VERSION "$root" | sed 's/-r[0-9]*$//')"
+      if ! command -v "$tool" >/dev/null 2>&1; then
+        echo "${tool} is not installed; the pinned version is ${pin}, production's (FFMPEG_VERSION in ops/tool-versions.env). bash scripts/setup-dev-workstation.sh installs it."
+      else
+        have="$("$tool" -version 2>/dev/null | sed -n "1s/^${tool} version \([0-9][0-9.]*\).*/\1/p")"
+        [ "$have" = "$pin" ] || echo "${tool} ${have:-of unknown version} is installed; production runs ${pin} (FFMPEG_VERSION in ops/tool-versions.env), and encodes differ between versions. bash scripts/setup-dev-workstation.sh installs the pinned one."
+      fi
       ;;
     docker)
       if ! command -v docker >/dev/null 2>&1; then
@@ -105,8 +119,19 @@ _tool_report_check() {
         [ "$have" = "$pin" ] || echo "terraform ${have} is installed; the push gate runs ${pin}, and formatting can differ between versions. Install Terraform ${pin}."
       fi
       ;;
-    sqlite3|ffmpeg|jq|age)
-      command -v "$tool" >/dev/null 2>&1 || echo "${tool} is not installed. Install the ${tool} package."
+    sqlite3|jq|age)
+      case "$tool" in sqlite3) key=SQLITE_VERSION ;; jq) key=JQ_VERSION ;; age) key=AGE_VERSION ;; esac
+      pin="$(_tool_report_list_pin "$key" "$root")"
+      if ! command -v "$tool" >/dev/null 2>&1; then
+        echo "${tool} is not installed; the pinned version is ${pin} (${key} in ops/tool-versions.env). bash scripts/setup-dev-workstation.sh installs it."
+      else
+        case "$tool" in
+          sqlite3) have="$(sqlite3 --version 2>/dev/null | cut -d' ' -f1)" ;;
+          jq)      have="$(jq --version 2>/dev/null | sed 's/^jq-//')" ;;
+          age)     have="$(age --version 2>/dev/null | sed 's/^v//')" ;;
+        esac
+        [ "$have" = "$pin" ] || echo "${tool} ${have:-of unknown version} is installed; the pinned version is ${pin} (${key} in ops/tool-versions.env), and output formats differ between versions. bash scripts/setup-dev-workstation.sh installs the pinned one."
+      fi
       ;;
     *)
       echo "tool-report: unknown tool '${tool}'." >&2
@@ -115,33 +140,10 @@ _tool_report_check() {
   esac
 }
 
-# The installed version against the push gate's recorded one; one line when
-# they differ, nothing when they match or nothing is recorded. Kept apart from
-# _tool_report_check, which answers only whether a tool is usable here: a
-# workstation's operating-system packages are its own, so a different version
-# is worth knowing and never a reason to reinstall.
-_tool_report_version_note() {
-  local tool="$1" root="$2" workflow="$2/.github/workflows/ci.yml" key pin have
-  case "$tool" in sqlite3|ffmpeg|jq|age) ;; *) return 0 ;; esac
-  command -v "$tool" >/dev/null 2>&1 || return 0
-  key="TOOL_$(printf '%s' "$tool" | tr 'a-z' 'A-Z')_VERSION"
-  pin="$(_tool_report_pin "$key" "$workflow")"
-  [ -n "$pin" ] || return 0
-  case "$tool" in
-    sqlite3) have="$(sqlite3 --version 2>/dev/null | cut -d' ' -f1)" ;;
-    ffmpeg)  have="$(ffmpeg -version 2>/dev/null | sed -n '1s/^ffmpeg version \([0-9][0-9.]*\).*/\1/p')" ;;
-    jq)      have="$(jq --version 2>/dev/null | sed 's/^jq-//')" ;;
-    age)     have="$(age --version 2>/dev/null | sed 's/^v//')" ;;
-  esac
-  case "$have" in
-    "$pin"|"$pin".*) ;;
-    *) echo "${tool} ${have:-of unknown version} is installed; the push gate runs ${pin} (${key} in the CI workflow). Output formats can differ between versions, so a suite can pass here and fail there." ;;
-  esac
-}
-
-# Prints a heading, every problem found, and a one-line total. Always returns 0:
-# the report informs, it does not gate. A version other than the push gate's is
-# a note, not a problem.
+# Prints a heading, every problem found, and a one-line total. Returns 1 when
+# any tool is missing or at a version other than its pin, so a caller that
+# gates on it refuses rather than running against tools CI and the hosts do not
+# run.
 tool_report() {
   local root tool line problems=0
   root="$(_tool_report_root)"
@@ -152,31 +154,27 @@ tool_report() {
       echo "  [missing] ${line}"
       problems=$((problems + 1))
     done < <(_tool_report_check "$tool" "$root")
-    while IFS= read -r line; do
-      if [ -n "$line" ]; then echo "  [note] ${line}"; fi
-    done < <(_tool_report_version_note "$tool" "$root")
   done
   if [ "$problems" -eq 0 ]; then
     echo "  all ${#} tools present"
   else
-    echo "  ${problems} tool problem(s) above; the gates that need them will skip or fail."
+    echo "  ${problems} tool problem(s) above; nothing runs until they are fixed."
     echo "  bash scripts/setup-dev-workstation.sh installs them at the pinned versions."
+    return 1
   fi
   return 0
 }
 
-# For CI. Fails only when a tool is missing, because a suite then skips cases
-# the runner is meant to execute. A version other than the recorded one is a
-# GitHub warning annotation, never a failure: the runner image moves on its own
-# schedule, and when to follow it is the maintainer's call.
+# For CI. Fails when a tool is missing, because a suite then skips cases the
+# runner is meant to execute, and when sqlite3, jq, age, ffmpeg or ffprobe is at
+# any version but its pin, because CI installs the pinned ones itself rather
+# than taking the runner image's.
 tool_report_require() {
   local root missing="" t line
   root="$(_tool_report_root)"
   for t in "$@"; do
     line="$(_tool_report_check "$t" "$root")"
     if [ -n "$line" ]; then missing="${missing}${line}"$'\n'; fi
-    line="$(_tool_report_version_note "$t" "$root")"
-    if [ -n "$line" ]; then echo "::warning title=Tool version::${line}"; fi
   done
   if [ -n "$missing" ]; then
     printf '%s' "$missing" | sed 's/^/  [missing] /' >&2

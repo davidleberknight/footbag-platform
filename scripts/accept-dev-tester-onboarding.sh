@@ -193,8 +193,11 @@ delivery_require_tools "age=${AGE_BIN}" "ssh=${SSH_BIN}" ssh-keygen=ssh-keygen \
 # and each pin is read from the one place that sets it rather than copied here.
 # shellcheck source=lib/tool-report.sh
 source "${SCRIPT_DIR}/lib/tool-report.sh"
+# shellcheck source=lib/tool-versions.sh
+source "${SCRIPT_DIR}/lib/tool-versions.sh"
 WRONG_VERSIONS=()
-AWS_PIN="$(sed -n 's/^AWS_CLI_VERSION="\(.*\)"$/\1/p' "${SCRIPT_DIR}/setup-dev-workstation.sh")"
+tool_pin AWS_CLI_VERSION || exit 1
+AWS_PIN="$TOOL_PIN_VALUE"
 if [[ "$("$AWS_BIN" --version 2>&1)" != "aws-cli/${AWS_PIN} "* ]]; then
   WRONG_VERSIONS+=("the AWS CLI is not ${AWS_PIN}, the version the scripts are written for")
 fi

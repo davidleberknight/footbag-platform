@@ -7,8 +7,12 @@ Your task names a batch file: buckets, each an entity and every claim about it, 
 design passages and code comments. For each bucket:
 
 1. Compare the claims with each other. Two claims that cannot both be true are a candidate.
-2. Check each `behavior` and `comment` claim against the code it describes, opening only the
-   cited lines and the code they name. A claim the code contradicts is a candidate.
+2. Check each `behavior` and `comment` claim against the code it describes. Each bucket carries
+   `evidence`, the code its entity names (a table's definition, a route's registration, a
+   service's header and exports); judge from it first. Open a file only where the evidence does
+   not settle a claim, then only the cited lines and the code they name, and no more than about
+   ten file reads for the whole batch. A claim the code contradicts is a candidate; one still
+   unsettled when the reads run out is a candidate with `wrongSide` `unclear`, never dropped.
 3. Check each `requirement` claim against the code that should honour it. A requirement with
    nothing behind it in the code is a candidate unless the tracker or the story marks it not
    yet built; say which.

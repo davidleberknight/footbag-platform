@@ -15,11 +15,11 @@ const JPEG_QUALITY = 85;
 // Bound Sharp's decode memory so the image worker cannot be OOM-killed by a
 // decompression-bomb upload: Sharp's footprint is pixels times bytes-per-pixel,
 // not file size, and the upload byte caps do not bound decoded dimensions.
-// 4096 x 4096 keeps the worst-case simultaneous footprint within the image
-// container's memory limit: up to IMAGE_MAX_CONCURRENT uploads each decode
-// their thumbnail and display variants in parallel (2 x 2 = 4 decodes at
-// 4 bytes/pixel, about 268 MB), leaving headroom for the runtime, in-flight
-// upload buffers, and a co-resident video transcode.
+// 4096 x 4096 is sized for the production image container with two uploads
+// at once: each decodes its thumbnail and display variants in parallel
+// (2 x 2 = 4 decodes at 4 bytes/pixel, about 268 MB), leaving headroom for
+// the runtime, in-flight upload buffers, and a co-resident video transcode.
+// A smaller host lowers its memory limit and IMAGE_MAX_CONCURRENT together.
 // Every sharp() construction takes these, including the metadata probes: the
 // probe decodes enough of the input to answer, so a probe without the limit
 // would be the one unbounded decode on the path, reached before any of the

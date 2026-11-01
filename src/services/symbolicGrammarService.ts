@@ -269,7 +269,8 @@ function loadOnce(): Cache | null {
 
 export const symbolicGrammarService = {
   /**
-   * All 18 equivalence clusters from staging CSV. Returns [] when missing.
+   * Every equivalence cluster held in the symbolic tables. Returns [] when
+   * the tables are absent.
    */
   getEquivalenceClusters(): SymbolicEquivalenceCluster[] {
     const c = loadOnce();
@@ -287,7 +288,8 @@ export const symbolicGrammarService = {
   },
 
   /**
-   * All 11 movement archetypes from staging CSV.
+   * Every movement archetype held in the symbolic tables. Returns [] when
+   * the tables are absent.
    */
   getMovementArchetypes(): SymbolicMovementArchetype[] {
     const c = loadOnce();

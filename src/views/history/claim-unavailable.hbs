@@ -7,8 +7,10 @@
     incompatible legacy record, or any other validation failure. The page
     intentionally does NOT distinguish between these cases: all failure
     reasons map to the same response so the page cannot confirm which
-    person IDs exist (anti-enumeration). The operator can resolve the
-    specific cause from the application log written at render time.
+    person IDs exist (anti-enumeration). The specific cause is logged at info
+    when the page renders, which development and staging logs keep and
+    production does not; in production an administrator sees why a record
+    was not offered on the member's link-help card.
 
     Because it is uniform, the copy has to be true and useful for every one
     of those reasons. It leads with the two self-serve remedies, which are

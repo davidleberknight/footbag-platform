@@ -175,8 +175,8 @@
  *   - Auto-link revert is idempotent: a second revert returns
  *     `already_reverted` without state change.
  *   - No member is given a permanent public profile address that carries
- *     nothing of their name. The address must contain the recorded family
- *     name, folded on both sides to the letters and digits a URL can hold. A
+ *     nothing of their name. The address must contain the final word of the
+ *     recorded family name, folded on both sides to the letters and digits a URL can hold. A
  *     family name with no Latin form folds to nothing, so that rule cannot
  *     apply to it and any well-formed address is accepted instead; in exchange
  *     registration refuses a blank one from that member, because neither random

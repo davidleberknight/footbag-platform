@@ -1,6 +1,6 @@
 /**
  * Shared HTTP-layer helper for setting the session cookies. Centralizes the
- * cookie-option block (httpOnly, sameSite, maxAge, secure detection) so
+ * cookie-option block (httpOnly, sameSite, maxAge, the Secure flag) so
  * cookie-attribute changes happen in one place. Also marks the response
  * no-store: a response that carries Set-Cookie must never be stored by a
  * browser or shared cache, otherwise one member's session could be replayed
@@ -8,8 +8,8 @@
  * verify, password reset) that the request-level no-store middleware misses
  * because the request itself is not yet authenticated.
  *
- * Where a deployment configures an archive cookie signer, every issue also
- * mints the three CloudFront-* cookies the archive edge validates, scoped by
+ * Where a deployment configures an archive cookie signer and archive address,
+ * every issue for a member also mints the three CloudFront-* cookies the archive edge validates, scoped by
  * a custom policy to the archive base URL with expiry equal to the session
  * cookie's, so archive access and main-site access share one staleness
  * boundary. That shared lifetime is administrator-configurable and is read here

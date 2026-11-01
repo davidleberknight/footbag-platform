@@ -633,7 +633,12 @@ CLEAN_ROOM_RESULTS="${GATE_LOG_DIR}/clean-room-results.tsv"
 # kept, so the problems it names reappear in the notices at the end.
 # shellcheck source=scripts/lib/tool-report.sh
 source scripts/lib/tool-report.sh
-tool_report node python python3 sqlite3 ffmpeg ffprobe jq age docker gitleaks terraform 2>&1 | tee "$PREFLIGHT_LOG"
+if ! tool_report node python python3 sqlite3 ffmpeg ffprobe jq age docker gitleaks terraform 2>&1 | tee "$PREFLIGHT_LOG"; then
+  echo "ERROR: a tool above is missing or not at its pinned version, so no gate runs: a" >&2
+  echo "       result here would not predict CI or the hosts. Fix it with" >&2
+  echo "       bash scripts/setup-dev-workstation.sh, then re-run." >&2
+  exit 1
+fi
 
 # The legacy pipeline's Python environment, which the integration suite and the
 # pytest gate run under. Reported, never built: it lives inside legacy_data/, and

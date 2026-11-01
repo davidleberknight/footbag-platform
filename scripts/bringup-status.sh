@@ -62,8 +62,8 @@ source "${SCRIPT_DIR}/lib/email-template-digest.sh"
 source "${SCRIPT_DIR}/lib/host-env-remote.sh"
 # The host bootstrap's steps and what proves each, shared with
 # scripts/bootstrap-host.sh so the two never disagree about "done".
-# shellcheck source=internal/bootstrap-host-tools.sh
-source "${SCRIPT_DIR}/internal/bootstrap-host-tools.sh"
+# shellcheck source=lib/tool-versions.sh
+source "${SCRIPT_DIR}/lib/tool-versions.sh"
 # shellcheck source=internal/bootstrap-host-steps.sh
 source "${SCRIPT_DIR}/internal/bootstrap-host-steps.sh"
 
@@ -371,7 +371,7 @@ else
   PROBES_RUN="${PROBES_RUN:-none}"
 fi
 
-# The versions the host-tools manifest pins, which the tools and agent rows are
+# The versions the tool-version list pins, which the tools and agent rows are
 # judged against. Read after a probe file, which may not override them: the pin
 # is the repository's, not a probe result.
 bh_manifest_pins

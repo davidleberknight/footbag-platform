@@ -50,6 +50,9 @@ const HEALTHY_CONTAINERS =
 const COMPOSE = 'v2.29.7';
 const CWAGENT = '1.300050.0b1';
 const DIGEST = 'a'.repeat(64);
+const SQLITE_PIN = '3.51.2';
+const DOCKER_PIN = '25.0.16-1.amzn2023.0.5';
+const AL_PIN = '2023.12.20261021';
 
 /** A host every bootstrap step has finished on, as the status body reports it. */
 function finishedHost(target: 'staging' | 'production'): Record<string, string> {
@@ -67,7 +70,9 @@ function finishedHost(target: 'staging' | 'production'): Record<string, string> 
     DOCKER_ACTIVE: 'active',
     DOCKER_ENABLED: 'enabled',
     COMPOSE_VERSION: COMPOSE.slice(1),
-    SQLITE: 'yes',
+    SQLITE_VERSION: SQLITE_PIN,
+    DOCKER_RPM: DOCKER_PIN,
+    AL_RELEASE: AL_PIN,
     RSYNC: 'yes',
     AWSCLI: 'yes',
     SRV_DIR: 'root:root 755',
@@ -307,14 +312,18 @@ beforeEach(() => {
   writeFileSync(join(work, 'known_hosts'), `${IP} ssh-ed25519 AAAAstub\n`, { mode: 0o600 });
   writeFileSync(join(work, 'tfvars'), 'enable_feed_queues = false\n');
   writeFileSync(
-    join(work, 'host-tools.env'),
+    join(work, 'tool-versions.env'),
     [
-      'DOCKER_PACKAGE=docker', 'SQLITE_PACKAGE=sqlite', 'RSYNC_PACKAGE=rsync', 'AWSCLI_PACKAGE=awscli-2',
+      'DOCKER_PACKAGE=docker', `DOCKER_ENGINE_HOST=${DOCKER_PIN}`, `AMAZON_LINUX_RELEASE=${AL_PIN}`,
+      `SQLITE_VERSION=${SQLITE_PIN}`, 'RSYNC_PACKAGE=rsync', 'AWSCLI_PACKAGE=awscli-2',
       `COMPOSE_VERSION=${COMPOSE}`, 'COMPOSE_URL=https://example.test/compose', `COMPOSE_SHA256=${DIGEST}`,
       `CWAGENT_VERSION=${CWAGENT}`, 'CWAGENT_URL=https://example.test/agent.rpm', `CWAGENT_SHA256=${DIGEST}`,
     ].join('\n') + '\n',
   );
   writeFileSync(join(work, 'credential.txt'), 'stub-sudo-pass\nSECOND-LINE-MARKER\n', { mode: 0o600 });
+  // The binary the workstation would build and ship; its bytes only have to
+  // survive the trip, so a marker stands in for the real build.
+  writeFileSync(join(work, 'sqlite3-built'), 'BUILT-SQLITE3-MARKER\n');
   writeHost(finishedHost('staging'));
 });
 
@@ -336,8 +345,9 @@ function env(extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
     BOOTSTRAP_HOST_SCRIPTS_DIR: join(work, 'siblings'),
     BOOTSTRAP_HOST_TFVARS: join(work, 'tfvars'),
     BOOTSTRAP_HOST_POLL_SECS: '0',
-    FOOTBAG_HOST_TOOLS_MANIFEST: join(work, 'host-tools.env'),
+    FOOTBAG_TOOL_VERSIONS: join(work, 'tool-versions.env'),
     FOOTBAG_KNOWN_HOSTS: join(work, 'known_hosts'),
+    BOOTSTRAP_HOST_SQLITE3_BIN: join(work, 'sqlite3-built'),
     ...extra,
   };
 }
@@ -682,6 +692,40 @@ describe('bootstrap-host.sh: the bootstrap', () => {
     expect(p!.stream.split('\n')[0]).toBe('stub-sudo-pass');
   });
 
+  it('ships the pinned sqlite3 the workstation built, with every host pin, over the install pipe', () => {
+    // Defect caught: the host installs whatever sqlite3 its distribution serves,
+    // or a docker and release the list does not pin, because the pins never
+    // reached the host's install step.
+    writeHost({ ...finishedHost('staging'), SQLITE_VERSION: '3.40.0' });
+    onEvent('provision-packages', { SQLITE_VERSION: SQLITE_PIN });
+    const r = runTty(['--target', 'staging']);
+    expect(r.status, r.out).toBe(0);
+    const p = sessions().find((s) => s.args.includes('footbag-bootstrap-provision'));
+    const shipped = /^SQLITE3_B64=(\S+)$/m.exec(p!.stream);
+    expect(shipped, p!.stream).not.toBeNull();
+    expect(Buffer.from(shipped![1], 'base64').toString()).toBe('BUILT-SQLITE3-MARKER\n');
+    for (const pin of [`SQLITE_VERSION=${SQLITE_PIN}`, `DOCKER_ENGINE_HOST=${DOCKER_PIN}`, `AMAZON_LINUX_RELEASE=${AL_PIN}`]) {
+      expect(p!.stream, pin).toMatch(new RegExp(`^${pin.replace(/[.]/g, '\\.')}$`, 'm'));
+    }
+  });
+
+  it('reads the tools step pending while the host\'s sqlite3, docker or release differs from the list', () => {
+    // Defect caught: a host on the distribution's older sqlite3, or an engine or
+    // release other than the pinned one, reads as done because the tool exists.
+    const offPins: Array<Record<string, string>> = [
+      { SQLITE_VERSION: '3.40.0' }, { DOCKER_RPM: '25.0.14-1.amzn2023.0.1' }, { AL_RELEASE: '2023.11.20260901' },
+    ];
+    for (const off of offPins) {
+      writeHost({ ...finishedHost('staging'), ...off });
+      const r = run(['--target', 'staging', '--status']);
+      const row = rowFor(r.stdout, 'Host tools');
+      expect(row.line, JSON.stringify(off)).toMatch(/\sPENDING\s/);
+    }
+    writeHost(finishedHost('staging'));
+    const ok = run(['--target', 'staging', '--status']);
+    expect(rowFor(ok.stdout, 'Host tools').line).not.toMatch(/\sPENDING\s/);
+  });
+
   it('refuses when the tools still read missing after their install', () => {
     writeHost({ ...finishedHost('staging'), COMPOSE_VERSION: 'none' });
     const r = runTty(['--target', 'staging']);
@@ -690,8 +734,8 @@ describe('bootstrap-host.sh: the bootstrap', () => {
   });
 
   it('refuses a placeholder pin before anything changes', () => {
-    writeFileSync(join(work, 'host-tools.env'),
-      readFileSync(join(work, 'host-tools.env'), 'utf-8').replace(`COMPOSE_SHA256=${DIGEST}`, 'COMPOSE_SHA256=REPLACE_WITH_SHA256'));
+    writeFileSync(join(work, 'tool-versions.env'),
+      readFileSync(join(work, 'tool-versions.env'), 'utf-8').replace(`COMPOSE_SHA256=${DIGEST}`, 'COMPOSE_SHA256=REPLACE_WITH_SHA256'));
     const r = runTty(['--target', 'staging']);
     expect(r.status).toBe(1);
     expect(r.out).toMatch(/COMPOSE_SHA256 .* still a placeholder/);
@@ -1196,41 +1240,96 @@ describe('bootstrap-host remote halves, against stand-in host tools', () => {
   });
 
   describe('the host tools', () => {
-    function provisionTools(engine: 'none' | 'docker-ce'): void {
+    type Engine = 'none' | 'docker-ce' | 'pinned' | 'other';
+    interface HostTools { engine: Engine; release: string; distroSqlite: boolean; installedSqlite?: string }
+    let releaseFile: string;
+    let sqliteTarget: string;
+
+    /** A host in the given state; the stand-ins answer the way the real tools do. */
+    function provisionTools(h: HostTools): void {
+      releaseFile = join(work, 'amazon-linux-release');
+      sqliteTarget = join(work, 'usr-bin-sqlite3');
+      writeFileSync(releaseFile, `Amazon Linux release ${h.release} (Amazon Linux)\n`);
+      rmSync(sqliteTarget, { force: true });
+      if (h.installedSqlite) sh(sqliteTarget, [`echo "${h.installedSqlite} 2026-01-09 stub"`]);
       tool('uname', ['echo x86_64']);
-      // The distribution's docker package is not installed; on a host built from
-      // the older runbook, Docker CE is, and nothing provides "docker".
-      tool('rpm', ['[[ "$*" == *docker* ]] && exit 1', 'exit 0']);
+      const dockerVer = h.engine === 'pinned' ? DOCKER_PIN : '25.0.14-1.amzn2023.0.1';
+      const dockerRpm = h.engine === 'pinned' || h.engine === 'other';
+      tool('rpm', [
+        `if [[ "$*" == *--qf*docker* ]]; then ${dockerRpm ? `echo -n ${dockerVer}; exit 0` : 'echo "package docker is not installed"; exit 1'}; fi`,
+        `[[ "$*" == "-q docker" ]] && exit ${dockerRpm ? 0 : 1}`,
+        `[[ "$*" == "-q sqlite" ]] && exit ${h.distroSqlite ? 0 : 1}`,
+        '[[ "$*" == *docker-* ]] && exit 1',
+        'exit 0',
+      ]);
       tool('docker', [
-        '[[ "$1" == --version ]] && { ' + (engine === 'docker-ce' ? 'echo "Docker version 25.0.3, build 4debf41"; exit 0' : 'exit 127') + '; }',
+        '[[ "$1" == --version ]] && { ' + (h.engine === 'none' ? 'exit 127' : 'echo "Docker version 25.0.3, build 4debf41"; exit 0') + '; }',
         `[[ "$1 $2" == "compose version" ]] && { echo ${COMPOSE.slice(1)}; exit 0; }`,
         'exit 0',
       ]);
-      tool('dnf', ['exit 0']);
+      // Stepping the release rewrites the release file, as the system-release
+      // package does when the upgrade lands.
+      tool('dnf', [`[[ "$1" == upgrade ]] && echo "Amazon Linux release ${AL_PIN} (Amazon Linux)" > ${JSON.stringify(releaseFile)}`, 'exit 0']);
+      tool('install', ['[[ "$1" == -d ]] && { mkdir -p "${*: -1}"; exit 0; }', 'cp "${@: -2:1}" "${@: -1}"']);
       tool('systemctl', ['exit 0']);
       tool('id', ['exit 1']);
       tool('aws', ['exit 0']);
     }
-    const PINS = [
-      'MODE=packages', 'DOCKER_PACKAGE=docker', 'SQLITE_PACKAGE=sqlite', 'RSYNC_PACKAGE=rsync', 'AWSCLI_PACKAGE=awscli-2',
-      `COMPOSE_VERSION=${COMPOSE}`, 'COMPOSE_URL=https://example.test/compose', `COMPOSE_SHA256=${DIGEST}`,
-    ].join('\n') + '\n';
+    /** The pins the workstation sends, with a shipped binary reporting `reports`. */
+    function pins(reports = SQLITE_PIN): string {
+      const shipped = Buffer.from(`#!/bin/sh\necho "${reports} 2026-01-09 shipped"\n`).toString('base64');
+      return [
+        'MODE=packages', 'DOCKER_PACKAGE=docker', `DOCKER_ENGINE_HOST=${DOCKER_PIN}`, `AMAZON_LINUX_RELEASE=${AL_PIN}`,
+        `SQLITE_VERSION=${SQLITE_PIN}`, `SQLITE3_B64=${shipped}`, 'RSYNC_PACKAGE=rsync', 'AWSCLI_PACKAGE=awscli-2',
+        `COMPOSE_VERSION=${COMPOSE}`, 'COMPOSE_URL=https://example.test/compose', `COMPOSE_SHA256=${DIGEST}`,
+        `AL_RELEASE_FILE=${releaseFile}`, `SQLITE_INSTALL_PATH=${sqliteTarget}`,
+      ].join('\n') + '\n';
+    }
 
-    it('does not install the distribution docker over an engine that is already there', () => {
-      // Defect caught: a host carrying Docker CE from the older runbook is asked
-      // to install the distribution's docker, replacing the engine every
-      // container runs on.
-      provisionTools('docker-ce');
-      const r = runHalf(PROVISION_HALF, PINS);
+    it('brings a fresh host to every pin: the release, docker, and the shipped sqlite3', () => {
+      // Defect caught: a host installs whatever its distribution serves today, so
+      // its engine, its sqlite3 and its packages differ from the ones the suite
+      // and staging proved.
+      provisionTools({ engine: 'none', release: '2023.6.20241010', distroSqlite: true });
+      const r = runHalf(PROVISION_HALF, pins());
       expect(r.status, r.out).toBe(0);
-      expect(logged()).not.toMatch(/^dnf .*docker/m);
+      const log = logged();
+      expect(log).toMatch(new RegExp(`^dnf upgrade -y --releasever=${AL_PIN.replace(/[.]/g, '\\.')}$`, 'm'));
+      expect(log).toMatch(new RegExp(`^dnf install -y docker-${DOCKER_PIN.replace(/[.]/g, '\\.')}$`, 'm'));
+      expect(log).toMatch(/^dnf remove -y sqlite$/m);
+      expect(readFileSync(sqliteTarget, 'utf-8')).toContain(`${SQLITE_PIN} 2026-01-09 shipped`);
     });
 
-    it('installs the distribution docker on a host with no engine', () => {
-      provisionTools('none');
-      const r = runHalf(PROVISION_HALF, PINS);
+    it('changes nothing on a host already at every pin', () => {
+      provisionTools({ engine: 'pinned', release: AL_PIN, distroSqlite: false, installedSqlite: SQLITE_PIN });
+      const r = runHalf(PROVISION_HALF, pins());
       expect(r.status, r.out).toBe(0);
-      expect(logged()).toMatch(/^dnf install -y docker$/m);
+      expect(logged()).not.toMatch(/^dnf /m);
+      expect(readFileSync(sqliteTarget, 'utf-8')).toContain('stub');
+    });
+
+    it('refuses an engine that is not the pinned distribution package, replacing nothing', () => {
+      // Defect caught: a host carrying Docker CE from an older runbook, or the
+      // distribution's docker at another version, has its engine swapped by a
+      // bootstrap, under every running container, as a side effect.
+      for (const engine of ['docker-ce', 'other'] as const) {
+        rmSync(log, { force: true });
+        provisionTools({ engine, release: AL_PIN, distroSqlite: false, installedSqlite: SQLITE_PIN });
+        const r = runHalf(PROVISION_HALF, pins());
+        expect(r.status, engine).toBe(1);
+        expect(r.out, engine).toMatch(/Nothing installed/);
+        expect(logged(), engine).not.toMatch(/^dnf (install|remove)/m);
+      }
+    });
+
+    it('refuses a shipped sqlite3 that reports any version but the pin', () => {
+      // Defect caught: a binary built from the wrong source lands where the
+      // backup and the deploy call it.
+      provisionTools({ engine: 'pinned', release: AL_PIN, distroSqlite: false });
+      const r = runHalf(PROVISION_HALF, pins('3.40.0'));
+      expect(r.status).toBe(1);
+      expect(r.out).toMatch(/not the pinned 3\.51\.2; nothing installed/);
+      expect(existsSync(sqliteTarget)).toBe(false);
     });
   });
 

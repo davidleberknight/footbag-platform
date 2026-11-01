@@ -144,7 +144,7 @@ Current implementation status and accepted temporary deviations are tracked in t
 
 All application state (except media objects) are stored in a single SQLite database file (footbag.db). All data access occurs through single database module (db.ts) that exports database connection, prepared SQL statements, and transaction helper. Services call prepared statements directly with parameters (see below for the Data Access Pattern). All statements prepared once at startup for maximum performance. Unless explicitly noted for integrity or tamper-resistance reasons, the database enforces structural integrity while application services enforce workflow and business rules, the goal being to keep the database as simple as possible.
 
-Configuration: the platform uses only 5 startup configuration PRAGMAs. Operational PRAGMAs like wal_checkpoint (used during backups) are executed at runtime and are separate from these 5 startup settings:
+Configuration: the platform uses only 5 startup configuration PRAGMAs. Operational PRAGMAs like wal_checkpoint (used at shutdown and before a migration) are executed at runtime and are separate from these 5 startup settings:
 
 - journal_mode=WAL: Write-Ahead Logging for concurrent reads during writes.
 
@@ -232,11 +232,11 @@ PostgreSQL on RDS: Rejected for monthly cost, connection management complexity, 
 
 ## 1.2 Backup Strategy
 
-A host systemd timer runs the backup script every five minutes: (1) PRAGMA wal_checkpoint(TRUNCATE) commits WAL to the main file, (2) the SQLite backup API creates a consistent snapshot, (3) upload to S3 with retry (3 attempts, exponential backoff), (4) refresh the health timestamp and emit the backup-age and consecutive-failure metrics that drive the staleness and repeated-failure alarms. Each snapshot is written under its own timestamped key, and the recovery window comes from those objects and the lifecycle rules that thin them by age (§9.4), not from object versioning. The backup runs as a host-side script rather than inside the application process so it operates on a quiescent file and is decoupled from container lifecycle.
+A host systemd timer runs the backup script every five minutes: (1) `VACUUM INTO` writes a consistent snapshot from one read transaction, the write-ahead log included, (2) upload to S3 with retry (3 attempts, exponential backoff), (3) refresh the health timestamp and emit the backup-age and consecutive-failure metrics that drive the staleness and repeated-failure alarms. Each snapshot is written under its own timestamped key, and the recovery window comes from those objects and the lifecycle rules that thin them by age (§9.4), not from object versioning. The backup runs as a host-side script rather than inside the application process so it operates on a quiescent file and is decoupled from container lifecycle.
 
 Transaction timeout: All transactions must complete within 30 seconds, enforced by application code. Code in db.ts wraps transaction execution and throws an error if the timeout is exceeded (defaults to 30000 ms). When timeout occurs, the wrapper executes ROLLBACK explicitly before throwing, ensuring the transaction releases locks immediately. This prevents indefinite database locks and ensures graceful failure for long-running operations.
 
-Container shutdown (SIGTERM): Stop accepting new requests, wait up to 30 seconds for all in-flight transactions to complete (same timeout value for consistency). Any transaction still running after 30 seconds is aborted. Then checkpoint WAL, close connection, perform final S3 backup upload, and exit gracefully.
+Container shutdown (SIGTERM): Stop accepting new requests, wait up to 30 seconds for all in-flight transactions to complete (same timeout value for consistency). Any transaction still running after 30 seconds is aborted. Then checkpoint WAL, close connection, and exit gracefully; once the containers have stopped, the host's service unit takes one final backup of the quiescent database.
 
 Requirements:
 
@@ -861,6 +861,8 @@ One class is deliberately not held anywhere but the host: a secret generated on 
 
 One value is the host's own record of which environment it is. The first bring-up step writes it once, and every deploy and host script then checks it rather than writes it, refusing a host whose record is missing or differs. It cannot come from the committed per-environment file, which that record selects, and a deploy that wrote it would stamp the workstation's answer onto whichever host it reached.
 
+One class carries personal data that can be neither committed nor written into Terraform: the dev and staging admin allowlist. Its owner is the maintainers' deploy, which sends it from the private operations checkout and writes it whole on each such deploy, an empty file clearing it. A deploy from a machine without that checkout leaves the host's value as it is, and the deploy refuses to write it to a production host. The host's value is therefore always the private file's last delivered content, never a hand edit or an absence-only seed.
+
 Rules:
 
 - Terraform owns a value when an operator could legitimately want the other value without a code change, or when the value names a resource Terraform creates. The committed per-environment file owns it otherwise.
@@ -1284,7 +1286,7 @@ Requirements:
 
 - Every S3 bucket holding application data sets a default-encryption rule that selects SSE-S3 (AES-256), so any object written by any client lands encrypted at rest with no application-side encryption code.
 - Public access is blocked on every application-data bucket; object access is granted only to the runtime assumed role and approved administrator principals.
-- Customer-managed KMS keys are reserved for the cases that need non-exportable key custody or application-level secrecy: session-JWT signing, ballot encryption (§3.7), and SSM SecureString parameters.
+- Customer-managed KMS keys are reserved for the cases that need non-exportable key custody or application-level secrecy: session-JWT signing, ballot encryption (§3.7), and SSM SecureString parameters. The environment's SecureString key also encrypts the two notification topics, the alarm topic and the mail feedback topic, and its key policy grants the mail, monitoring and EventBridge services use of the key so they can publish into them.
 - Every bucket, without exception, carries a bucket policy denying any request where `aws:SecureTransport` is false. Encryption at rest and encryption in transit are separate obligations and this is the second one: the framework names the bucket policy as the mechanism, and a posture where every client happens to use TLS is not the same as one where plaintext is refused. It costs nothing, because every access path is already TLS, and `scripts/ci/check_bucket_baseline.sh` fails a tree where a bucket lacks it, alongside its encryption configuration and its public access block. One consequence is load-bearing rather than incidental: CloudFront reaches an origin-access-control bucket over HTTPS only while `signing_behavior` is `always`, so downgrading that setting on any distribution would start taking 403s from S3.
 - The Terraform state bucket is governed by this decision too. It holds no application data, but it is the account's densest concentration of secret material: state records resource attributes in plaintext, so any secret a provider generates or reads back lands in it. It takes SSE-S3, the transit deny, versioning and a public access block like every other bucket. Two stronger controls were considered and declined. A customer-managed key would add a second gate, but the operator identity that reads state holds full administrative access today, so the same principal would hold the bucket and the key — the identical reasoning that declines customer keys above, and the answer changes once that identity is scoped down. Object-level access logging was declined because nothing in this account consumes such a log, and a log with no reader is a cost and a false assurance rather than a control; the answer changes when a detection or query pipeline exists to read it.
 
@@ -1419,7 +1421,7 @@ Rationale:
 Requirements:
 
 - `legacy_members` rows are exempt; the import preserves names as delivered.
-- Member-declared former surnames (stored as declared anchors, always private to the member and admin) extend the surname-matching surface across all claim paths; the variants table covers first-name equivalences only, never surname changes.
+- Member-declared former surnames (stored as declared anchors, always private to the member and admin) extend the surname-matching surface across all claim paths; the first-name nickname table (`given_name_variants`) covers first-name equivalences only, never surname changes.
 
 Trade-offs:
 
@@ -1497,7 +1499,7 @@ Impact:
 
 - The group audience resolver replaces its not-yet-built invariant error with the roster read, filtered to verified and deliverable mailboxes like every other audience.
 
-- Voting is version-two scope, so the ballot that reads the voting marker is not built at launch. The marker is recorded in v1 regardless: who holds a vote on the board is part of the board's record whether or not the platform is yet the place a vote is cast.
+- Voting is a later build than groups, so the ballot that reads the voting marker is not built when the board roster ships. The marker is recorded on the roster from the moment it ships, before any ballot reads it: who holds a vote on the board is part of the board's record whether or not the platform is yet the place a vote is cast.
 
 ## 2.13 Administrator Correction of Member-generated Data
 
@@ -1585,7 +1587,7 @@ The system does not support targeted revocation of one JWT while leaving other J
 
 1. Per-device cookie deletion at logout.
 2. Global invalidation of every JWT issued before a password change, via increment of `members.password_version`. The authorization middleware compares `member.password_version` against the JWT's `passwordVersion` claim on every authenticated request; a mismatch rejects the token immediately. The password-change response also re-issues a fresh JWT to the originating browser so the member is not logged out on the device that performed the change. The replacement token is signed before the increment commits, and the increment, its audit row, and the confirmation-email outbox row commit as one transaction, so a signing failure or a refused enqueue ends the request with nothing changed rather than committing an invalidation whose replacement session can no longer be issued. A notification the template registry suppresses, or an account with no deliverable address, commits without mail rather than failing the change, but records the missing notification as an operational failure in the same transaction, so a password that changed with nobody told is never silent.
-3. KMS key rotation, which makes every JWT signed with the prior key fail verification once the prior key is disabled.
+3. KMS key rotation, which makes every JWT signed with the prior key fail verification once the host loads the new key.
 
 Three cookie surfaces:
 
@@ -1692,7 +1694,7 @@ Unsigned display-state cookies. Rejected: the receiving GET handler branches its
 
 Decision:
 
-The session JWT (§3.2) has a 24-hour lifetime by default (`exp = iat + 86400` seconds), administrator-configurable through the `jwt_expiry_hours` parameter and read at every issue, so a change reaches the next sign-in without a redeploy. The rationale below is for that default. The signing key is an AWS KMS asymmetric RSA-2048 key in production and a local PEM keypair in dev and test (JWT Signing with AWS KMS Asymmetric Keys). The JOSE header carries `alg: RS256` and `kid` (the active signing-key identifier), which names the key that signed the token, so a token outliving its key is refused. The payload carries `sub` (member id), `passwordVersion`, `role`, and the standard `iat` and `exp` claims. The platform does not issue refresh tokens; instead, the authorization middleware re-issues the session JWT in place when the existing token is within 6 hours of expiry, replacing the cookie with a freshly-signed token carrying the configured lifetime on the same response that performed the check. The re-issue window is fixed, so a configured lifetime at or below six hours re-issues on every authenticated request rather than once per session. A token allowed to expire without an intervening authenticated request is not renewed; the next request lands unauthenticated and the user must authenticate again. The session cookie's transport attributes are defined in §3.2 and not restated here.
+The session JWT (§3.2) has a 24-hour lifetime by default (`exp = iat + 86400` seconds), administrator-configurable through the `jwt_expiry_hours` parameter and read at every issue, so a change reaches the next sign-in without a redeploy. The rationale below is for that default. The signing key is an AWS KMS asymmetric RSA-2048 key in production and a local PEM keypair in dev and test (JWT Signing with AWS KMS Asymmetric Keys). The JOSE header carries `alg: RS256` and `kid`, which carries the configured key alias; a token signed by a replaced key fails signature verification against the current public key and is refused. The payload carries `sub` (member id), `passwordVersion`, `role`, and the standard `iat` and `exp` claims. The platform does not issue refresh tokens; instead, the authorization middleware re-issues the session JWT in place when the existing token is within 6 hours of expiry, replacing the cookie with a freshly-signed token carrying the configured lifetime on the same response that performed the check. The re-issue window is fixed, so a configured lifetime at or below six hours re-issues on every authenticated request rather than once per session. A token allowed to expire without an intervening authenticated request is not renewed; the next request lands unauthenticated and the user must authenticate again. The session cookie's transport attributes are defined in §3.2 and not restated here.
 
 Rationale (24-hour TTL):
 
@@ -1738,7 +1740,7 @@ Session refresh:
 Key rotation:
 
 - The signing key carries a `kid` in every JWT header. The verifier caches the one current public key in process, fetched from KMS `GetPublicKey` at startup and refreshed every 24 hours.
-- A rotation replaces the signing key outright: the new key signs from the moment it is installed, and a token naming the prior key is refused immediately, so every active session ends and members sign in again. The prior key is disabled in KMS once the rotation is recorded.
+- A rotation replaces the signing key outright: the new key signs from the moment the host loads it, and a token signed by the prior key fails signature verification against the new public key, so every active session ends and members sign in again. The prior key is scheduled for deletion, with a thirty-day window in which the deletion can be cancelled.
 - The verifier never calls KMS `Sign` and never calls `Decrypt`. Only `GetPublicKey` on cache miss. Steady-state verification is in-process RS256 against the cached public key.
 
 Password-change atomicity:
@@ -1758,30 +1760,30 @@ Authorization decisions read from JWT claims (no per-request DB read). Rejected:
 
 Stateless JWT with no `passwordVersion` claim. Rejected: a stolen JWT would remain valid for its full 24-hour TTL with no invalidation mechanism short of KMS key rotation (which logs every member out). `passwordVersion` is a per-member invalidation lever that does not require a token blacklist or a global key rotation.
 
-No `kid` in the JWT header (single static signing key). Rejected: without `kid` a token signed by a key that has since been replaced cannot be told apart from one signed by the current key. `kid` names the signing key, so a token outliving its key is refused rather than checked against the wrong one.
+No `kid` in the JWT header (single static signing key). Rejected: `kid` carries the configured key alias, and the verifier refuses a token whose `kid` is not that alias before checking its signature, so a token stamped for another key is never checked against the current one; a token signed by a replaced key under the same alias fails signature verification against the current public key.
 
 ## 3.5 JWT Signing with AWS KMS Asymmetric Keys
 
 Decision:
 
-The session JWT (§3.2, JWT Token Lifecycle and Configuration) is signed with `RS256` (RSASSA-PKCS1-v1_5 over SHA-256) using an AWS KMS customer-managed asymmetric RSA-2048 key. Every session-issue and re-issue path calls KMS `Sign` to produce the signature: login, email-verify completion, password-reset completion, password-change response, and the near-expiry refresh defined in JWT Token Lifecycle and Configuration. Verification uses the corresponding public key, fetched from KMS `GetPublicKey` and cached in process with a 24-hour refresh; a steady-state verification never calls KMS. The JOSE header carries `kid`, which names the signing key, so a token outliving its key is refused. The `JwtSigningAdapter` interface (`src/adapters/jwtSigningAdapter.ts`) lets production wire to KMS and dev and test wire to a local PEM keypair; both implementations produce identically-shaped tokens.
+The session JWT (§3.2, JWT Token Lifecycle and Configuration) is signed with `RS256` (RSASSA-PKCS1-v1_5 over SHA-256) using an AWS KMS customer-managed asymmetric RSA-2048 key. Every session-issue and re-issue path calls KMS `Sign` to produce the signature: login, email-verify completion, password-reset completion, password-change response, and the near-expiry refresh defined in JWT Token Lifecycle and Configuration. Verification uses the corresponding public key, fetched from KMS `GetPublicKey` and cached in process with a 24-hour refresh; a steady-state verification never calls KMS. The JOSE header carries `kid`, the configured key alias; a token signed by a replaced key fails signature verification against the current public key and is refused. The `JwtSigningAdapter` interface (`src/adapters/jwtSigningAdapter.ts`) lets production wire to KMS and dev and test wire to a local PEM keypair; both implementations produce identically-shaped tokens.
 
 Rationale:
 
 - Private key material never leaves the KMS HSM. A container compromise that obtains the runtime AWS credentials can still call KMS `Sign` while those credentials remain valid, but cannot exfiltrate a reusable signing key. Once the runtime credentials are revoked or the KMS key is disabled, the attacker can no longer forge tokens. A symmetric secret shipped to the container (the HS256 alternative below) would survive credential revocation as long as the attacker retained the captured copy and would require key rotation, not credential revocation, to end the forge window.
 - Verification is fast and runs entirely in process. The hot path (every authenticated request) does in-process RS256 verification against a cached public key; the KMS round-trip cost is paid only at startup and on key-rotation events. The verify-side cost profile is comparable to HMAC despite the asymmetric algorithm.
-- The `kid` header names the signing key that produced a token, so a token outliving its key is refused rather than verified against the wrong one. Verification accepts one key at a time: a token whose `kid` is not the current one is rejected, in both the KMS-backed adapter and its local counterpart. Rotation is therefore a flag day by design — every active session ends the moment the key changes, and members sign in again. That is the ruled trade rather than an omission. Rotation here is a deliberate operator action, taken for cause, the signing key is asymmetric and so unsupported by KMS automatic rotation in any case, and in the case that matters most, a suspected key compromise, ending every session at once is the wanted behaviour rather than one to work around. Holding several public keys through an overlap window would remove the logout at the cost of a two-phase rotation and a verification path that must decide which of several keys to trust; that was considered and declined.
+- The `kid` header carries the configured key alias. Verification accepts one key at a time: a token whose `kid` is not the configured one is rejected, in both the KMS-backed adapter and its local counterpart, and a token signed by a replaced key fails signature verification against the current public key. Rotation is therefore a flag day by design — every active session ends the moment the host loads the new key, and members sign in again. That is the ruled trade rather than an omission. Rotation here is a deliberate operator action, taken for cause, the signing key is asymmetric and so unsupported by KMS automatic rotation in any case, and in the case that matters most, a suspected key compromise, ending every session at once is the wanted behaviour rather than one to work around. Holding several public keys through an overlap window would remove the logout at the cost of a two-phase rotation and a verification path that must decide which of several keys to trust; that was considered and declined.
 
 Requirements:
 
 - The KMS key policy grants the runtime IAM role only the specific actions it needs: `kms:Sign`, `kms:GetPublicKey`, and `kms:DescribeKey`. Alongside that statement the key policy keeps an account-root statement matching the one AWS writes into every default key policy, declared explicitly in the Terraform, and keeping it is deliberate. Naming `arn:aws:iam::<account>:root` as a principal is not a grant to the root user; it is what delegates authorization for the key to account-level IAM. Remove it and every IAM policy naming the key becomes inert, leaving only the principals the key policy names explicitly. The runtime role's own IAM policy grants `kms:Sign` and `kms:GetPublicKey` on the signing key as a second path to the same permission, and the runtime role's grant to decrypt SSM SecureString parameters has no key-policy counterpart at all, so it resolves through the delegation alone. The least-privilege control on the signing key is therefore the narrow explicit runtime-role statement, not the absence of the root delegation.
 - The signing key is rotated for cause, never on a clock: there is no cadence, no interval and nothing to fall behind on. Any reason is valid — a suspected exposure, an operator leaving, a key that has been somewhere it should not — and time passing is not one. Rotation timing is therefore not alarmed and could not usefully be: an alarm on a date would need a key-age metric no part of the system publishes, which would either sit permanently in insufficient-data or report a figure nothing maintains. The control is the documented rotation procedure and the reason that invokes it, not a monitor. What IS alarmed is failure rather than schedule: a key that stops working takes authentication down, and the KMS error alarm catches that.
 - The adapter interface is invariant across implementations: `KmsJwtAdapter` (production) and `LocalJwtAdapter` (dev and test) produce JWTs with identical JOSE header shape and identical claim shape. An integration test asserts shape parity (`tests/integration/adapter-parity.test.ts`).
-- Startup-time `GetPublicKey` failure fails the container fast (the process exits non-zero before serving requests). After startup, a `GetPublicKey` failure on a `kid` not yet in the cache is logged at error level and the affected verification returns "unauthenticated"; the process does not crash on a single missing-key event.
+- Startup-time `GetPublicKey` failure fails the container fast (the process exits non-zero before serving requests). After startup, a `GetPublicKey` failure when the cached key is refreshed is logged at error level and the affected verification returns "unauthenticated"; the process does not crash on a single missing-key event.
 
 Trade-offs:
 
-- A compromise of the runtime AWS credentials gives the attacker the ability to call KMS `Sign` for any payload (and therefore to forge a JWT against any member id) for as long as those credentials remain valid. The mitigation is that runtime credentials are short-lived via the assumed-role chain (§3.6), every KMS call is logged in CloudTrail for forensic reconstruction, and credential revocation immediately ends the forge window without requiring key rotation. The non-exportable property prevents the attacker from carrying the signing key off the host.
+- A compromise of the runtime AWS credentials gives the attacker the ability to call KMS `Sign` for any payload (and therefore to forge a JWT against any member id) for as long as those credentials remain valid. The assumed-role sessions are short-lived, but the long-lived source-profile key they are obtained from is readable inside the container (§3.6), so the forge window lasts until that source key is rotated or the role's access to the signing key is revoked. Every KMS call is logged in CloudTrail for forensic reconstruction, and either step ends the forge window without requiring signing-key rotation. The non-exportable property prevents the attacker from carrying the signing key off the host.
 - KMS key deletion is irreversible and would force a mass re-authentication. AWS gates key deletion behind a 7-to-30-day pending-deletion window, which is the period in which an accidental deletion can still be cancelled. Nothing watches for it: alarming a rotation date needs a key-age metric no part of this system publishes, so a deletion surfaces as the KMS error alarm firing once signing stops. An accidentally-deleted key forces every active session to re-authenticate; this is a known cost of the non-exportable property.
 - KMS `Sign` is billed per signing operation. The 6-hour refresh window (JWT Token Lifecycle and Configuration) bounds the cost at roughly one re-issue per active session. Very high session turnover would increase KMS spend, but the cost is predictable and easy to model from authenticated-request volume.
 
@@ -1789,9 +1791,9 @@ Impact:
 
 Adapter contract (`src/adapters/jwtSigningAdapter.ts`):
 
-- `signJwt(claims, header)` returns a serialized JWT. Production: KMS `Sign` with `SigningAlgorithm: RSASSA_PKCS1_V1_5_SHA_256`. Dev and test: in-process RSA signature against the local PEM keypair.
+- `signJwt(claims, ttlSeconds?)` returns a serialized JWT, building the header itself. Production: KMS `Sign` with `SigningAlgorithm: RSASSA_PKCS1_V1_5_SHA_256`. Dev and test: in-process RSA signature against the local PEM keypair.
 - `verifyJwt(token)` returns the verified claims or `null`. Production: RS256 verification against the one cached current public key, refusing a token whose `kid` names another key. Dev and test: the same RS256 verification against the local public key.
-- `getKid()` returns the active signing key's identifier; embedded in every emitted JWT header.
+- `kid`, a read-only property, is the active signing key's identifier; embedded in every emitted JWT header.
 
 Sign-side call sites (controllers and middleware that issue or re-issue a session JWT):
 
@@ -1829,14 +1831,14 @@ In-house JWT signing (not via the `JwtSigningAdapter`). Rejected: production-ver
 
 Decision:
 
-Sensitive credentials (e.g., Stripe API keys, Stripe webhook secret, administrative bootstrap tokens) are stored in AWS SSM Parameter Store as SecureString parameters and retrieved at container startup via SecretsAdapter. Cryptographic operations that must not allow key exfiltration use AWS KMS (JWT signing and ballot encryption). No secrets are stored in source code, Dockerfiles, committed environment files, or version control.
+Sensitive credentials (e.g., Stripe API keys, Stripe webhook secret, administrative bootstrap tokens) are stored in AWS SSM Parameter Store as SecureString parameters and retrieved via SecretsAdapter on first use, then cached for the life of the process. Cryptographic operations that must not allow key exfiltration use AWS KMS (JWT signing and ballot encryption). No secrets are stored in source code, Dockerfiles, committed environment files, or version control.
 
 In production, the workload reads Parameter Store by using the runtime assumed role. The host-level source credential/config material used to assume that role is root-owned and is not the authoritative runtime principal.
 
 Rationale:
 
 - Lightsail has no EC2 instance profile. Parameter Store reads require activating an AWS runtime credential path (long-lived IAM-user keys in `/root/.aws/credentials`, root-owned and mode 0640 inside a 0750 directory owned by a dedicated credential group, used as a source profile to assume the runtime role, or SSM Hybrid Activation); on EC2 an instance profile handles this automatically. The group read is what lets the unprivileged web and worker containers, which are joined to that group, resolve the profile without the file being handed to the service account outright; the deploy mounts the directory into them read-only. The consequence is stated in the threat model below rather than left to be inferred from the mode. The host env file `/srv/footbag/env` carries only the runtime profile name (`AWS_PROFILE`) and other non-secret config, never the access keys themselves. The Lightsail credential-path cost is accepted for secrets where rotation-without-redeploy or multi-consumer access justifies it.
-- Encryption at rest via AWS-managed KMS keys (transparent to application).
+- Encryption at rest under the environment's customer-managed KMS key (transparent to application).
 - IAM access control with a least-privilege runtime assumed role.
 - Parameter versioning enables rollback and controlled rotation.
 - Simple API (GetParameter) with values cached in memory after retrieval.
@@ -1858,7 +1860,7 @@ Implementation: Parameter paths are organized by environment (`/footbag/producti
 
 In development, the secret-source split mirrors production. Env-var secrets and host runtime config carry development defaults in the config loader, each refused on a deployed host, so a checkout runs with no environment file at all; a gitignored `.env` at the repo root remains an optional override, and a committed `.env.example` documents what can be overridden (the literal substring `changeme` is reserved for placeholder text and is rejected by production startup guards on `SESSION_SECRET`). Parameter-Store-class secrets (Stripe keys, Safe Browsing API key, admin bootstrap tokens) load through `SecretsAdapter`, which resolves to the in-memory stub in development and test: every consumer of those secrets runs its own stub locally and asks for nothing, so no credential file exists on a developer workstation. A developer who needs a real value points the adapter at Parameter Store. Per-host operational secrets like `SESSION_SECRET` live in `/srv/footbag/env` on the production host (root:root 0600).
 
-Secrets are fetched once at container startup via SecretsAdapter (SSM GetParameter in production, an in-memory stub in development and test). SecretsAdapter is a Node module; only Node consumers (web, worker, image worker, tests) read through it. Non-Node consumers (nginx config rendering, CloudFront origin-request injection) read SSM-stored values via a deploy-time env-file mirror written by the deploy remote-half rather than at runtime via the adapter. `X_ORIGIN_VERIFY_SECRET` is the canonical example of the mirror path: CloudFront reads it via the Terraform `data.aws_ssm_parameter` lookup at apply time, nginx reads it from `/srv/footbag/env` via the docker entrypoint shim at container startup, and no Node code path consumes it.
+Each secret is fetched via SecretsAdapter (SSM GetParameter in production, an in-memory stub in development and test) on first use and cached for the life of the process; the archive-cookie signing key and the captcha secret are loaded, alongside the session-JWT signer's first KMS call, before the server accepts requests, so a broken one refuses the start. SecretsAdapter is a Node module; only Node consumers (web, worker, image worker, tests) read through it. Non-Node consumers (nginx config rendering, CloudFront origin-request injection) read SSM-stored values via a deploy-time env-file mirror written by the deploy remote-half rather than at runtime via the adapter. `X_ORIGIN_VERIFY_SECRET` is the canonical example of the mirror path: CloudFront reads it via the Terraform `data.aws_ssm_parameter` lookup at apply time, nginx reads it from `/srv/footbag/env` via the docker entrypoint shim at container startup, and no Node code path consumes it.
 
 Parameter Store contains:
 
@@ -1872,6 +1874,7 @@ KMS is used for:
 
 - JWT signing (`kms:Sign`, `kms:GetPublicKey`) – no JWT signing secret is stored in Parameter Store.
 - Ballot envelope encryption (`kms:GenerateDataKey`, `kms:Decrypt` in tally role only) – no ballot master key is stored in Parameter Store.
+- SecureString encryption at rest (`kms:Decrypt` on the environment's secrets key, the web runtime's only grant on that key) – the same key encrypts the alarm and mail feedback notification topics.
 
 Requirements:
 
@@ -1993,7 +1996,7 @@ Privacy is part of the platform's security model. Current member data, discovera
 
 The platform preserves and publicly exposes official footbag history, including public event results, year archives, permanent honors such as Hall of Fame and Big Add Posse, and other explicitly approved historical-record surfaces such as world records.
 
-Public historical discoverability does not authorize a public current-member directory, public current-member search, public current-member profiles, or public contact discovery. The single exception is a Hall of Fame or Big Add Posse honoree, whose public page publishes the honor record and not a member profile; its exact fields are specified by `M_View_Profile`.
+Public historical discoverability does not authorize a public current-member directory, public current-member search, public current-member profiles, or public contact discovery. The single exception is a Hall of Fame or Big Add Posse honoree, whose profile a signed-out visitor can open and sees only the honor record there; its exact fields are specified by `M_View_Profile`.
 
 Imported historical people and result-linked identities may appear publicly only as historical-record surfaces. They do not thereby become activated members, profile owners, searchable current members, or publicly contactable accounts.
 
@@ -2175,11 +2178,11 @@ Failure response shape:
 - JSON: `{error: {code: "VALIDATION_ERROR", fields: {displayName: "Display name exceeds maximum length"}}}`.
 - HTML form re-render with inline error messages for no-JS flows.
 
-Prohibited input patterns rejected at the boundary:
+Prohibited input patterns:
 
-- HTML tags in text fields (stripped during sanitization per §3.15).
-- Control characters except newlines and tabs in multi-line fields.
-- Excessively long inputs (hard limit 10x the normal maximum to prevent DoS).
+- HTML tags in text fields: stripped during sanitization per §3.15.
+- Control characters except newlines and tabs in multi-line fields: stripped during sanitization per §3.15.
+- Excessively long inputs: rejected at the boundary (hard limit 10x the normal maximum to prevent DoS).
 
 Rationale:
 
@@ -4868,7 +4871,7 @@ Requirements:
 
 - Dependency versions are reviewed and bumped by hand. No bot opens or merges a version bump.
 
-- Repository-level vulnerability alerting is enabled, so the maintainer is notified when a dependency carries a published advisory.
+- Patching happens when the maintainer decides. Repository-level vulnerability alerting is off; the advisory and staleness reports over the pinned versions run on request.
 
 - The dependency audit reports advisories at moderate severity and above, and the pull-request dependency review inspects what each change introduces. Both report as warnings and never fail CI: an advisory is published upstream on its own schedule and can land on a commit that changed nothing, so acting on it is the maintainer's patching decision, not a red build.
 
@@ -4880,7 +4883,7 @@ Trade-offs:
 
 Impact:
 
-- Patching is System Administrator work and the user stories assign it there.
+- Patching is System Administrator work, assigned to the System Administrator patching story in DEVOPS_GUIDE.md (private GitHub repo).
 
 ## 7.9 Production Release Gate
 
@@ -5181,7 +5184,7 @@ Continuous Database Backup (every 5 minutes):
 
 Purpose: Fast recovery from common issues (corruption, bugs, accidental deletion).
 
-Process: A host systemd timer executes: (1) PRAGMA wal_checkpoint(TRUNCATE) commits WAL to main database file, (2) the SQLite backup API creates a consistent snapshot, (3) upload to the primary S3 bucket with retry (3 attempts, exponential backoff), (4) update the health timestamp and emit the backup-age and consecutive-failure metrics.
+Process: A host systemd timer executes: (1) `VACUUM INTO` writes a consistent snapshot from one read transaction, the write-ahead log included, (2) upload to the primary S3 bucket with retry (3 attempts, exponential backoff), (3) update the health timestamp and emit the backup-age and consecutive-failure metrics.
 
 Retention thins with age rather than keeping every snapshot for one flat window. Each upload lands in the fine-grained stream; the first of each hour and the first of each day are additionally copied into an hourly and a daily generation, server-side. Lifecycle rules keep the fine-grained stream for two days, the hourly generation for a month, and the daily generation for just over a year. Each object is a complete database, so any one of them restores on its own with no chain to replay. A promotion that fails leaves the run successful, because the snapshot is already safe and the next run in the same window promotes in its place; a promotion failing on every run for an hour raises its own alarm, because that is the state in which the generations stop advancing and the recovery window collapses to the fine-grained stream's two days.
 
@@ -5213,7 +5216,7 @@ Recovery: restore the instance from a snapshot and reattach the static IP, then 
 
 S3 bucket configuration: point-in-time recovery comes from the snapshots themselves, each written under its own timestamped key and aged out by the lifecycle rules for its generation. Versioning is enabled on the primary backup bucket as a safety net against an overwrite or a stray delete, with its own expiry for superseded versions; it is not the mechanism that provides the recovery window. The cross-region backup bucket uses Object Lock (WORM - Write Once Read Many) in governance mode, so a compromised production credential cannot remove a copy, and carries lifecycle rules matched to that lock. Cross-region protection is provided by continuous replication of the promoted generations.
 
-Container shutdown (SIGTERM): On shutdown signal, the application performs graceful shutdown to prevent data loss: (1) Stop accepting new requests. (2) Wait for in-flight transactions to complete (30-second timeout). (3) Execute PRAGMA wal_checkpoint(TRUNCATE) to commit final transactions. (4) Close database connection cleanly. (5) Perform final S3 backup upload. (6) Exit. This ensures no data loss during planned restarts or deployments.
+Container shutdown (SIGTERM): On shutdown signal, the application performs graceful shutdown to prevent data loss: (1) Stop accepting new requests. (2) Wait for in-flight transactions to complete (30-second timeout). (3) Execute PRAGMA wal_checkpoint(TRUNCATE) to commit final transactions. (4) Close database connection cleanly. (5) Exit. Once the containers have stopped, the host's service unit takes one final backup of the quiescent database. This ensures no data loss during planned restarts or deployments.
 
 Backup failure handling: Retry with exponential backoff (3 attempts: 1s, 2s, 4s delays). Alert CRITICAL after 3 consecutive failures. CloudWatch alarm if backup age exceeds 15 minutes. This ensures operators are immediately aware of backup issues.
 
@@ -5223,7 +5226,7 @@ Continuous replication verification: CloudWatch alarms watch the S3 replication 
 
 Restoration drills, run when there is a reason (before go-live, after any change to the backup or restore path, after an incident that touched the database): on the production host, `scripts/restore-db.sh --drill` restores a snapshot from the primary bucket or the off-region bucket into a scratch copy that is never served, verifies its integrity, confirms the member and payment data answer queries, records how recent the restored point is and how long the restore took, and destroys the copy. Production data never leaves the production host for a drill, and no person handles it. Each drill's results are recorded and the runbooks updated from what it found. These drills validate that recovery procedures work correctly and identify gaps in runbooks.
 
-Rationale: Five minute backup interval provides acceptable RPO (Recovery Point Objective), which is acceptable for community site operations. SQLite backup API guarantees consistency by handling WAL files correctly during snapshot creation. Single file upload is simple and reliable compared to multi-file or incremental approaches. Timestamped snapshots aged by per-generation lifecycle rules provide point-in-time recovery. Graceful shutdown with final WAL checkpoint prevents data loss during deployments and restarts.
+Rationale: Five minute backup interval provides acceptable RPO (Recovery Point Objective), which is acceptable for community site operations. `VACUUM INTO` guarantees consistency by copying from one read transaction that sees the write-ahead log, and unlike the page-by-page backup API it never restarts when another process commits, so it finishes while members are writing. Single file upload is simple and reliable compared to multi-file or incremental approaches. Timestamped snapshots aged by per-generation lifecycle rules provide point-in-time recovery. Graceful shutdown with final WAL checkpoint prevents data loss during deployments and restarts.
 
 The selected approach keeps snapshots in S3 Standard and thins them by age, which costs approximately $1/month while providing acceptable RPO (5-10 minutes) and recovery points reaching back just over a year, at a cost appropriate for a volunteer-maintained platform. Storage-class automation is not used: the fine-grained stream is deleted at two days, well inside the thirty days any automatic tiering waits before moving an object, so it would transition nothing while adding a per-object monitoring charge, and the off-region copy already sits in a cheaper class than tiering would select.
 
@@ -5249,7 +5252,7 @@ Integration tests validate the S3 upload contract (retry logic, error handling, 
 
 Backup retention windows support data deletion policy. On the primary snapshot bucket the recovery window is set by the per-generation lifecycle rules: in production, two days of the fine-grained stream, thirty days of the hourly generation, four hundred days of the daily one; staging keeps deliberately shorter windows. The Object Lock retention on the cross-region disaster-recovery bucket is 90 days, set in Terraform beside the bucket it governs rather than in the configuration store, because nothing in the application reads or changes it.
 
-WAL checkpoint failure handling: If a long-running transaction holds locks, the WAL checkpoint cannot complete. The backup worker attempts wal_checkpoint(TRUNCATE) with busy_timeout=10000 (10 seconds). If checkpoint fails, the worker logs a warning, skips that backup cycle, and retries in the next five-minute interval. After three consecutive checkpoint failures, an administrator alert is sent indicating potential database contention issues. Backups only proceed after successful WAL checkpoint to ensure consistency.
+Write-ahead log handling: the copy needs no checkpoint first, because `VACUUM INTO` reads every committed change still in the log, so a reader holding the database open never delays or skips a backup. A copy that fails, or a run killed by a signal (the final backup on stop included), counts as a failed run toward the three-consecutive-failures alarm.
 
 Alternative considered: The AWS free tier does not provide viable continuous database backup at required RPO. Free tier S3 includes 5GB storage and 20,000 GET requests monthly, which a several-minute backup cadence exceeds on both counts within days: each snapshot is a complete database, so the stream is measured in gigabytes a day rather than megabytes. Trade-off analysis: Free tier would require hour-scale backup intervals (unacceptable RPO). The paid solution is appropriate given budget constraints, and the tiered retention is what holds it at roughly a dollar a month rather than the cost of keeping every snapshot at full grain.
 

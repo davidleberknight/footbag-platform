@@ -21,17 +21,9 @@ concurrency:
 permissions:
   contents: read
 
-# The command-line tools the jobs install, recorded once; each version is a
-# prefix the installed one must start with. Each job that installs one checks it
-# against this: a missing tool fails the job, a different version is a warning
-# annotation only, because the runner image moves on its own schedule.
-# scripts/lib/tool-report.sh reads the same lines and prints a notice on a
-# workstation.
-env:
-  TOOL_FFMPEG_VERSION: "6.1"
-  TOOL_SQLITE3_VERSION: "3.45"
-  TOOL_JQ_VERSION: "1.7"
-  TOOL_AGE_VERSION: "1.1"
+# sqlite3, jq, age and ffmpeg are installed at the versions ops/tool-versions.env
+# pins, never taken from the runner image, and a job fails on any other version;
+# ffmpeg is production's own, run through the image container's pinned package.
 
 # Third-party actions are pinned to commit SHAs (tag comments are for humans):
 # a force-pushed tag must not be able to swap the code CI executes.
@@ -209,12 +201,14 @@ jobs:
           node-version-file: '.nvmrc'
           cache: 'npm'
 
-      - name: Install ffmpeg + sqlite3 + jq + age
+      - name: Install the pinned sqlite3, jq, age and ffmpeg
         # The overlay-geometry cases derive their expected frame from the media,
-        # and the transcode parity cases encode a real clip; the sealed-delivery
+        # the transcode parity cases encode a real clip, and the sealed-delivery
         # case seals a file with age and opens it. Without these the suites skip
-        # those cases and report green having executed none of them.
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends ffmpeg sqlite3 jq age
+        # those cases and report green having executed none.
+        run: |
+          bash scripts/ci/install-pinned-tools.sh --bin-dir "$HOME/.local/bin" sqlite3 jq age ffmpeg
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Setup Terraform
         # The base-address case evaluates the production locals with
@@ -267,9 +261,11 @@ jobs:
           node-version-file: '.nvmrc'
           cache: 'npm'
 
-      - name: Install sqlite3 CLI
+      - name: Install the pinned sqlite3 CLI
         # scripts/e2e/start-stack.sh applies database/schema.sql via sqlite3.
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends sqlite3
+        run: |
+          bash scripts/ci/install-pinned-tools.sh --bin-dir "$HOME/.local/bin" sqlite3
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Check tool versions against the recorded pins
         run: source scripts/lib/tool-report.sh && tool_report_require sqlite3
@@ -309,9 +305,11 @@ jobs:
           node-version-file: '.nvmrc'
           cache: 'npm'
 
-      - name: Install sqlite3 CLI
+      - name: Install the pinned sqlite3 CLI
         # scripts/e2e/start-stack.sh applies database/schema.sql via sqlite3.
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends sqlite3
+        run: |
+          bash scripts/ci/install-pinned-tools.sh --bin-dir "$HOME/.local/bin" sqlite3
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Check tool versions against the recorded pins
         run: source scripts/lib/tool-report.sh && tool_report_require sqlite3
@@ -351,9 +349,11 @@ jobs:
           node-version-file: '.nvmrc'
           cache: 'npm'
 
-      - name: Install sqlite3 CLI
+      - name: Install the pinned sqlite3 CLI
         # scripts/e2e/start-stack.sh applies database/schema.sql via sqlite3.
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends sqlite3
+        run: |
+          bash scripts/ci/install-pinned-tools.sh --bin-dir "$HOME/.local/bin" sqlite3
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
 
       - name: Check tool versions against the recorded pins
         run: source scripts/lib/tool-report.sh && tool_report_require sqlite3

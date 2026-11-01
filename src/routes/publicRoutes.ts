@@ -218,19 +218,19 @@ publicRouter.post('/members/:memberKey/purchase-tier', requireMember, memberCont
 // is somebody else: the path names the member being vouched for, the signed-in
 // member is the voucher, and the handler's ownership check is inverted because
 // of it. The tier gate sits beside the member gate, as it does for the
-// organizer announcement above.
+// organizer announcement below.
 publicRouter.post('/members/:memberKey/vouch', requireMember, requireTier2Plus(), memberVouchController.postVouch);
 publicRouter.get('/members/:memberKey/payments',       requireMember, paymentController.getPaymentHistory);
 publicRouter.get('/members/:memberKey/recurring-donations/:stripeSubscriptionId/cancel',
   requireMember, paymentController.getCancelRecurringDonation);
 publicRouter.post('/members/:memberKey/recurring-donations/:stripeSubscriptionId/cancel',
   requireMember, paymentController.postCancelRecurringDonation);
-// The member's own mailing choices. The signed-in member is who the write acts
-// on; the path's member key must be theirs, and a mismatch is a 404.
 // The community announcement an organizer-tier member sends. The tier gate sits
 // beside the member gate; ownership of the member key is checked in the handler.
 publicRouter.get('/members/:memberKey/announce',  requireMember, requireTier2Plus(), memberAnnounceController.getForm);
 publicRouter.post('/members/:memberKey/announce', requireMember, requireTier2Plus(), memberAnnounceController.postSend);
+// The member's own mailing choices. The signed-in member is who the write acts
+// on; the path's member key must be theirs, and a mismatch is a 404.
 publicRouter.get('/members/:memberKey/email-preferences',  requireMember, emailPreferenceController.getSubscriptions);
 publicRouter.post('/members/:memberKey/email-preferences', requireMember, emailPreferenceController.postSubscription);
 publicRouter.post('/members/:memberKey/email-preferences/recover', requireMember, emailPreferenceController.postRecover);
@@ -259,7 +259,7 @@ publicRouter.post('/members/:memberKey/galleries/:id/delete',    requireMember, 
 
 // Owner-only member upload. Same anti-enumeration 404 pattern as the
 // gallery routes above. POST is multipart/form-data (busboy in the
-// controller); the service layer auto-applies #<slug> as the
+// controller); the service layer auto-applies #by_<slug> as the
 // uploader tag and materializes the per-member Personal Gallery on
 // first upload. Defense in depth behind the gate:
 // curatorMediaService.assertTier1Benefits enforces the same predicate at
@@ -352,8 +352,7 @@ publicRouter.post(
 publicRouter.get('/payments/success', requireMember, paymentController.getPaymentSuccess);
 publicRouter.get('/payments/cancel',  requireMember, paymentController.getPaymentCancel);
 
-// Donations. Signed-in only: a donation is attributed to a member record, and
-// the note defaults from the member's honors.
+// Donations. Signed-in only: a donation is attributed to a member record.
 publicRouter.get('/donate',  requireMember, paymentController.getDonate);
 publicRouter.post('/donate', requireMember, paymentController.postDonate);
 

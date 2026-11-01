@@ -30,9 +30,10 @@ ExecStart=/usr/bin/env bash scripts/backup-db.sh
 # writes two small state files beside it, and uploads a snapshot.
 #
 # The whole file system is read-only apart from the database directory. That
-# directory has to be writable, not merely readable: the backup checkpoints the
-# write-ahead log into the main database file before snapshotting it, and it
-# records the last-success timestamp and the consecutive-failure count there.
+# directory has to be writable, not merely readable: even a read of a database
+# in write-ahead-log mode writes the log's shared-memory index beside it, and
+# the backup records the last-success timestamp and the consecutive-failure
+# count there.
 # The path is written out literally rather than following the environment
 # variable the script accepts, so the sandbox and the script cannot drift apart
 # silently; if that variable is ever repointed, this line moves with it.

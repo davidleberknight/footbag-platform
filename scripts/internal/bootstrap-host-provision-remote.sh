@@ -31,8 +31,15 @@
 #
 # Required shell variables:
 #   MODE                        packages | layout | dbdir
-#   for packages: DOCKER_PACKAGE SQLITE_PACKAGE RSYNC_PACKAGE AWSCLI_PACKAGE
+#   for packages: DOCKER_PACKAGE DOCKER_ENGINE_HOST AMAZON_LINUX_RELEASE
+#                 SQLITE_VERSION SQLITE3_B64 RSYNC_PACKAGE AWSCLI_PACKAGE
 #                 COMPOSE_VERSION COMPOSE_URL COMPOSE_SHA256
+#                 SQLITE3_B64 is the pinned sqlite3 binary the workstation built,
+#                 base64 on one line; no compiler is installed on the host.
+#                 AL_RELEASE_FILE names the release file to read (default
+#                 /etc/amazon-linux-release) and SQLITE_INSTALL_PATH the
+#                 binary's path (default /usr/bin/sqlite3); only the suite
+#                 sets either.
 #   for dbdir:    APP_UID (the containers' numeric account)
 
 set -euo pipefail
@@ -40,8 +47,10 @@ set -euo pipefail
 : "${MODE:?remote half requires MODE}"
 
 work=""
+sqlite_work=""
 cleanup() {
   [[ -n "$work" && -d "$work" ]] && rm -rf "$work"
+  [[ -n "$sqlite_work" && -d "$sqlite_work" ]] && rm -rf "$sqlite_work"
   return 0
 }
 trap cleanup EXIT
@@ -56,7 +65,8 @@ PLUGIN_DIR="/usr/local/lib/docker/cli-plugins"
 
 case "$MODE" in
   packages)
-    for v in DOCKER_PACKAGE SQLITE_PACKAGE RSYNC_PACKAGE AWSCLI_PACKAGE COMPOSE_VERSION COMPOSE_URL COMPOSE_SHA256; do
+    for v in DOCKER_PACKAGE DOCKER_ENGINE_HOST AMAZON_LINUX_RELEASE SQLITE_VERSION SQLITE3_B64 \
+             RSYNC_PACKAGE AWSCLI_PACKAGE COMPOSE_VERSION COMPOSE_URL COMPOSE_SHA256; do
       [[ -n "${!v:-}" ]] || { echo "ERROR: remote half requires ${v}" >&2; exit 1; }
     done
     if [[ "${COMPOSE_VERSION}${COMPOSE_URL}${COMPOSE_SHA256}" == *REPLACE_WITH_* \
@@ -70,16 +80,42 @@ case "$MODE" in
       exit 1
     }
 
-    # The container engine counts as present when any package provides it or a
-    # docker client already runs. A host built from the older runbook carries the
-    # Docker CE package, whose name is not the distribution's, and asking the
-    # package manager for the distribution's docker there would try to replace
-    # the engine every container runs on.
-    want=("$SQLITE_PACKAGE" "$RSYNC_PACKAGE")
-    if rpm -q --whatprovides "$DOCKER_PACKAGE" >/dev/null 2>&1 || docker --version >/dev/null 2>&1; then
-      echo "    a container engine is already installed; ${DOCKER_PACKAGE} is not installed over it"
+    # The package repositories are locked to the pinned Amazon Linux release, so
+    # every package below, docker included, comes from that one release. Stepping
+    # forward is the same command step-amazon-linux.sh runs later.
+    release_file="${AL_RELEASE_FILE:-/etc/amazon-linux-release}"
+    release_now() { sed -n 's/^Amazon Linux release \([0-9][0-9.]*\).*/\1/p' "$release_file" 2>/dev/null || true; }
+    rel="$(release_now)"
+    if [[ "$rel" == "$AMAZON_LINUX_RELEASE" ]]; then
+      echo "    Amazon Linux already at the pinned release ${AMAZON_LINUX_RELEASE}"
     else
-      want=("$DOCKER_PACKAGE" "${want[@]}")
+      echo "==> Stepping Amazon Linux from ${rel:-an unknown release} to the pinned release ${AMAZON_LINUX_RELEASE}"
+      dnf upgrade -y --releasever="$AMAZON_LINUX_RELEASE"
+      rel="$(release_now)"
+      [[ "$rel" == "$AMAZON_LINUX_RELEASE" ]] || {
+        echo "ERROR: after the upgrade the host reports Amazon Linux ${rel:-unknown}, not ${AMAZON_LINUX_RELEASE}." >&2
+        exit 1
+      }
+    fi
+
+    # The engine is the distribution's package at the pinned version and nothing
+    # else. One at any other version, or an engine from another source such as
+    # the Docker CE package an older runbook installed, is refused rather than
+    # replaced: the package manager would swap the engine every container runs
+    # on, and that is a deliberate step, not a side effect of a bootstrap.
+    want=("$RSYNC_PACKAGE")
+    if rpm -q "$DOCKER_PACKAGE" >/dev/null 2>&1; then
+      have_docker="$(rpm -q --qf '%{VERSION}-%{RELEASE}' "$DOCKER_PACKAGE")"
+      if [[ "$have_docker" != "$DOCKER_ENGINE_HOST" ]]; then
+        echo "ERROR: ${DOCKER_PACKAGE} ${have_docker} is installed; the version list pins ${DOCKER_ENGINE_HOST}. Nothing installed." >&2
+        exit 1
+      fi
+      echo "    ${DOCKER_PACKAGE} already at the pinned ${DOCKER_ENGINE_HOST}"
+    elif docker --version >/dev/null 2>&1; then
+      echo "ERROR: a container engine not from the distribution is installed ($(docker --version)); the version list pins ${DOCKER_PACKAGE} ${DOCKER_ENGINE_HOST}. Nothing installed." >&2
+      exit 1
+    else
+      want=("${DOCKER_PACKAGE}-${DOCKER_ENGINE_HOST}" "${want[@]}")
     fi
     command -v aws >/dev/null 2>&1 || want+=("$AWSCLI_PACKAGE")
     missing=()
@@ -91,6 +127,32 @@ case "$MODE" in
       dnf install -y "${missing[@]}"
     else
       echo "    distribution packages already installed: ${want[*]}"
+    fi
+
+    # sqlite3 is the pinned static build the workstation made, at the version the
+    # application's engine bundles. It goes where the distribution's package put
+    # it, because the root shells the deploy and restore halves run under search
+    # only the system directories; the distribution's package is removed first so
+    # nothing reinstalls its older binary over this one.
+    sqlite_target="${SQLITE_INSTALL_PATH:-/usr/bin/sqlite3}"
+    have_sqlite="$("$sqlite_target" --version 2>/dev/null | cut -d' ' -f1 || true)"
+    if [[ "$have_sqlite" == "$SQLITE_VERSION" ]] && ! rpm -q sqlite >/dev/null 2>&1; then
+      echo "    sqlite3 already at the pinned ${SQLITE_VERSION}"
+    else
+      if rpm -q sqlite >/dev/null 2>&1; then
+        echo "==> Removing the distribution sqlite package; the pinned build replaces it"
+        dnf remove -y sqlite
+      fi
+      sqlite_work="$(mktemp -d)"
+      printf '%s' "$SQLITE3_B64" | base64 -d > "${sqlite_work}/sqlite3"
+      chmod 755 "${sqlite_work}/sqlite3"
+      got="$("${sqlite_work}/sqlite3" --version 2>/dev/null | cut -d' ' -f1 || true)"
+      [[ "$got" == "$SQLITE_VERSION" ]] || {
+        echo "ERROR: the shipped sqlite3 reports '${got:-nothing}', not the pinned ${SQLITE_VERSION}; nothing installed." >&2
+        exit 1
+      }
+      install -m 755 -o root -g root "${sqlite_work}/sqlite3" "$sqlite_target"
+      echo "    sqlite3 ${SQLITE_VERSION} installed at ${sqlite_target} and verified"
     fi
 
     systemctl enable --now docker

@@ -72,7 +72,7 @@ const OPERATOR_CRED =
   '[footbag-operator]\naws_access_key_id = AKIAOPERATORFIXTURE0\naws_secret_access_key = operator-fixture-secret\n';
 const OPERATOR_CONFIG = '[profile footbag-operator]\nregion = us-east-1\n';
 // The pins the run is held to, read from where the repository sets them.
-const AWS_PIN = /^AWS_CLI_VERSION="(.+)"$/m.exec(readFileSync(join(process.cwd(), 'scripts/setup-dev-workstation.sh'), 'utf-8'))![1];
+const AWS_PIN = /^AWS_CLI_VERSION=(.+)$/m.exec(readFileSync(join(process.cwd(), 'ops/tool-versions.env'), 'utf-8'))![1];
 const TF_PIN = /terraform_version:\s*(\S+)/.exec(readFileSync(join(process.cwd(), '.github/workflows/ci.yml'), 'utf-8'))![1];
 
 let dir: string;

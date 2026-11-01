@@ -7,7 +7,7 @@
  *   - This controller asserts req.user.slug === req.params.memberKey;
  *     a mismatch returns 404 (anti-enumeration; matches the existing
  *     member-route convention).
- *   - Service-layer auto-applies the uploader tag (#<slug>) and
+ *   - Service-layer auto-applies the uploader tag (#by_<slug>) and
  *     materializes the per-member Personal Gallery on first upload.
  *
  * Tier gating: both the GET form and the POST are gated by

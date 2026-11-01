@@ -2,9 +2,11 @@
  * SiteMetaService -- crawler and AI-agent discoverability surfaces (read-only).
  *
  * Serves (all public):
- *   - GET /robots.txt: crawl policy. Production allows every user-agent and points
- *     at the sitemap; every non-production environment disallows all crawling so
- *     staging and development never reach a search index.
+ *   - GET /robots.txt: crawl policy. The production build on its canonical www
+ *     host allows every user-agent and points at the sitemap; every other
+ *     deployment, including production on a temporary pre-cutover hostname,
+ *     disallows all crawling, so only the canonical public site reaches a
+ *     search index.
  *   - GET /sitemap.xml: every public, indexable URL as an absolute <loc> entry.
  *   - GET /llms.txt: a Markdown map of the site for AI agents.
  *
@@ -22,8 +24,8 @@
  *     excluded too -- high-volume and reachable from the named-gallery and
  *     browse pages already listed. Auth, admin, internal, webhook, and health
  *     routes are never listed.
- *   - robots.txt allows all crawlers (search engines and AI agents alike) in
- *     production. Private content is kept out of search by per-response noindex
+ *   - robots.txt allows all crawlers (search engines and AI agents alike) on
+ *     the canonical production host. Private content is kept out of search by per-response noindex
  *     headers and per-page noindex meta, never by naming paths here: a Disallow
  *     line is publicly readable and would advertise the very paths it hides.
  */
@@ -120,7 +122,9 @@ function collectPublicPaths(): string[] {
     paths.add(`/clubs/${keyFromTag(row.tag_normalized)}`);
   }
 
-  // Net: every team with at least one canonical appearance.
+  // Net: every team with at least one canonical appearance whose two players
+  // are both named; a team with an 'Unknown' player is left out, as the teams
+  // list leaves it out.
   for (const row of netTeams.listAll.all() as Array<{ team_id: number | string }>) {
     paths.add(`/net/teams/${row.team_id}`);
   }

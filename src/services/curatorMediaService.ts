@@ -1236,8 +1236,8 @@ export interface CuratorGalleryEditView {
   currentItemsTruncated: boolean;
   // External URLs already attached to the gallery; pre-fills the edit
   // form's external-link fieldset. Empty when none have been set.
-  // `quarantineReason` is non-null when the runtime boot scan rejected the
-  // URL via Safe Browsing; the admin form surfaces these inline with a
+  // `quarantineReason` is non-null when the URL failed verification (a Safe
+  // Browsing match) at data-prep or submit time; the admin form surfaces these inline with a
   // warning so the operator can replace the URL or remove the link.
   externalLinks: Array<{
     label: string;

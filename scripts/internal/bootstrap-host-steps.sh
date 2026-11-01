@@ -295,11 +295,14 @@ bh_tfvars_flag() {
 }
 
 # bh_manifest_pins
-# The versions the host-tools manifest pins, which the packages and agent steps
+# The versions the tool-version list pins, which the packages and agent steps
 # are judged against.
 bh_manifest_pins() {
-  host_tool COMPOSE_VERSION 2>/dev/null && P[PIN_COMPOSE_VERSION]="$HOST_TOOL_VALUE"
-  host_tool CWAGENT_VERSION 2>/dev/null && P[PIN_CWAGENT_VERSION]="$HOST_TOOL_VALUE"
+  tool_pin COMPOSE_VERSION 2>/dev/null && P[PIN_COMPOSE_VERSION]="$TOOL_PIN_VALUE"
+  tool_pin CWAGENT_VERSION 2>/dev/null && P[PIN_CWAGENT_VERSION]="$TOOL_PIN_VALUE"
+  tool_pin SQLITE_VERSION 2>/dev/null && P[PIN_SQLITE_VERSION]="$TOOL_PIN_VALUE"
+  tool_pin DOCKER_ENGINE_HOST 2>/dev/null && P[PIN_DOCKER_ENGINE_HOST]="$TOOL_PIN_VALUE"
+  tool_pin AMAZON_LINUX_RELEASE 2>/dev/null && P[PIN_AMAZON_LINUX_RELEASE]="$TOOL_PIN_VALUE"
   return 0
 }
 
@@ -485,11 +488,14 @@ bh_verdict() {
       [[ "${P[DOCKER_ACTIVE]:-}" == "active" && "${P[DOCKER_ENABLED]:-}" == "enabled" ]] || missing+="docker running and enabled; "
       local want="${P[PIN_COMPOSE_VERSION]:-}" have="${P[COMPOSE_VERSION]:-none}"
       [[ -n "$want" && "v${have#v}" == "$want" ]] || missing+="Compose plugin ${want:-<unpinned>} (host has ${have}); "
-      [[ "${P[SQLITE]:-}" == "yes" ]] || missing+="sqlite3; "
+      local pin_sqlite="${P[PIN_SQLITE_VERSION]:-}" pin_docker="${P[PIN_DOCKER_ENGINE_HOST]:-}" pin_al="${P[PIN_AMAZON_LINUX_RELEASE]:-}"
+      [[ -n "$pin_sqlite" && "${P[SQLITE_VERSION]:-}" == "$pin_sqlite" ]] || missing+="sqlite3 ${pin_sqlite:-<unpinned>} (host has ${P[SQLITE_VERSION]:-none}); "
+      [[ -n "$pin_docker" && "${P[DOCKER_RPM]:-}" == "$pin_docker" ]] || missing+="docker ${pin_docker:-<unpinned>} (host has ${P[DOCKER_RPM]:-none}); "
+      [[ -n "$pin_al" && "${P[AL_RELEASE]:-}" == "$pin_al" ]] || missing+="Amazon Linux ${pin_al:-<unpinned>} (host is ${P[AL_RELEASE]:-unknown}); "
       [[ "${P[RSYNC]:-}" == "yes" ]] || missing+="rsync; "
       [[ "${P[AWSCLI]:-}" == "yes" ]] || missing+="the aws CLI; "
       if [[ -z "$missing" ]]; then
-        BH_STATE=DONE; BH_DETAIL="docker running, Compose ${want}, sqlite3, rsync, aws"
+        BH_STATE=DONE; BH_DETAIL="docker ${pin_docker} running, Compose ${want}, sqlite3 ${pin_sqlite}, Amazon Linux ${pin_al}, rsync, aws"
       else
         BH_STATE=PENDING; BH_DETAIL="missing: ${missing%; }"
       fi

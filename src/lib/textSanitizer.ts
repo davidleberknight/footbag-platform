@@ -12,8 +12,9 @@
  * Three shapes:
  * - single_line: names, titles, labels, short reasons. Any whitespace run,
  *   including a stray newline or tab, becomes one space.
- * - multi_line: bios, descriptions, messages, notes. Line breaks and tabs
- *   survive; space and tab runs within a line collapse, line ends are trimmed,
+ * - multi_line: bios, descriptions, messages, notes. Line breaks survive and
+ *   tabs pass the control-character step, but every run of spaces or tabs
+ *   within a line, a single tab included, becomes one space; line ends are trimmed,
  *   and at most one blank line is kept between paragraphs, so a paragraph
  *   break the writer meant is kept while a stack of empty lines is not.
  * - notation: freestyle notation, where `<`, `>` and `[ ]` are syntax. Treated

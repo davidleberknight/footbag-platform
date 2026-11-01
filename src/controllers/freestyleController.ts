@@ -143,8 +143,9 @@ export const freestyleController = {
    *
    * Renders the dictionary landing surface when no ?view= and no ?family=
    * parameter is supplied. Otherwise renders the browse-view chain
-   * (?view=add, ?view=family, ?view=set, ?view=modifier; any other value
-   * renders the default ADD view).
+   * (?view=add, ?view=family, ?view=set, ?view=modifier). ?view=emerging
+   * redirects permanently to /freestyle/observational, and any other value
+   * renders the default ADD view.
    */
   tricksIndex(req: Request, res: Response, next: NextFunction): void {
     try {

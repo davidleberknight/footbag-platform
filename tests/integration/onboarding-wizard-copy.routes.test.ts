@@ -8,7 +8,8 @@
  *  - the no-confident-match banner speaks to members who never had an old
  *    account as well as those who did;
  *  - the completion page ends without an unrelated display-name warning;
- *  - the region field is marked optional;
+ *  - the region field follows the country on file: a required state list in
+ *    the USA, no field at all where no list applies;
  *  - the wizard's country browse link falls back to the all-clubs index when
  *    the member's free-text country matches no country page.
  */
@@ -60,28 +61,36 @@ function pendingDetailsCookie(): string {
   return `__Host-footbag_session=${createTestSessionJwt({ memberId: 'copy-pd-member' })}`;
 }
 
-describe('personal-details region marker', () => {
-  // The marker follows the country: a state or province is part of the address
-  // in some countries and meaningless in others, so the form tells the member
-  // which case they are in instead of stating one rule for everyone.
-  it('the region field is marked required for a member in the USA', async () => {
+describe('personal-details region field for a country already on file', () => {
+  // The field follows the country on file: a state or province is part of the
+  // address in some countries and meaningless in others.
+  function regionSelect(html: string): string {
+    return /<select id="region"[^>]*>[\s\S]*?<\/select>/.exec(html)?.[0] ?? '';
+  }
+
+  it('a member in the USA meets a visible, required list of US states', async () => {
     const res = await request(createApp())
       .get('/register/wizard/personal_details')
       .set('Cookie', pendingDetailsCookie());
     expect(res.status).toBe(200);
-    expect(res.text).toMatch(/Region \/ State\s*<span class="fw-600">\(required\)<\/span>/);
-    // A US member is offered the state list rather than a free-text box.
-    expect(res.text).toContain('Select your state or province');
-    expect(res.text).toContain('>Oregon<');
+    expect(res.text).not.toMatch(/data-region-field\s+hidden/);
+    expect(res.text).not.toMatch(/<input[^>]*id="region"/);
+    const select = regionSelect(res.text);
+    expect(select).toMatch(/<select id="region"[^>]*\srequired/);
+    expect(select).toContain('value="US-OR"');
+    const values = select.match(/value="[^"]+"/g) ?? [];
+    for (const value of values) expect(value, value).toMatch(/^value="US-/);
   });
 
-  it('the region field is marked optional for a member outside the USA and Canada', async () => {
+  it('a member outside the lists meets no state field and no required region', async () => {
     const res = await request(createApp())
       .get('/register/wizard/personal_details')
       .set('Cookie', `__Host-footbag_session=${createTestSessionJwt({ memberId: 'copy-pd-intl' })}`);
     expect(res.status).toBe(200);
-    expect(res.text).toMatch(/Region \/ State\s*<span class="text-muted">\(optional\)<\/span>/);
-    expect(res.text).not.toContain('Select your state or province');
+    expect(res.text).toMatch(/data-region-field\s+hidden/);
+    const select = regionSelect(res.text);
+    expect(select).not.toMatch(/\srequired/);
+    expect(select.match(/value="[^"]+"/g) ?? []).toHaveLength(0);
   });
 });
 

@@ -1,5 +1,13 @@
 /**
- * Thinning the snapshot history as it ages.
+ * The routine database backup: taking the copy, counting a killed run, and
+ * thinning the snapshot history as it ages.
+ *
+ * The copy has to finish while members are writing and has to carry every
+ * committed change, including the ones still in the write-ahead log, because a
+ * snapshot that never completes or that silently drops recent changes is a
+ * recovery point that is not there when it is needed. A run the service manager
+ * kills has to count as a failed run, or a backup that is killed every time
+ * looks exactly like one that was never asked to run.
  *
  * Every run writes a full snapshot under routine/, which is deleted within days.
  * What survives longer is whatever the run copies into hourly/ and daily/ when it
@@ -18,13 +26,14 @@
  * bucket paths exactly as the real role does, so the permission-safe form is a
  * property under test rather than a detail of how the script happens to be written.
  */
-import { describe, it, expect, beforeEach, afterAll } from 'vitest';
-import { spawnSync } from 'node:child_process';
+import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { spawn, spawnSync } from 'node:child_process';
 import {
   mkdtempSync, mkdirSync, rmSync, writeFileSync, readFileSync, existsSync, chmodSync,
 } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { gunzipSync } from 'node:zlib';
 import BetterSqlite3 from 'better-sqlite3';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 
@@ -77,6 +86,13 @@ beforeEach(() => {
       ' GetObjectTagging operation" >&2',
     '    exit 1',
     '  fi',
+    // An upload that never returns, standing in for a run the service manager
+    // signals while it is still working. It announces itself on stderr so the
+    // test sends the signal on that event rather than after a guessed delay.
+    '  if [[ "$dst" == s3://* && -n "${AWS_STUB_UPLOAD_BLOCKS:-}" ]]; then',
+    '    echo "aws-stub: upload blocking" >&2',
+    '    exec sleep 60',
+    '  fi',
     '  if [[ "$dst" == s3://* ]]; then',
     '    out="$S3/${dst#s3://}"; mkdir -p "$(dirname "$out")"; cp "$src" "$out"; exit $?',
     '  fi',
@@ -128,7 +144,9 @@ beforeEach(() => {
   chmodSync(join(binDir, 'aws'), 0o755);
 });
 
-afterAll(() => {
+// Every case gets its own directory, and one of them holds a database at
+// production scale, so each is removed as soon as its case ends.
+afterEach(() => {
   rmSync(workDir, { recursive: true, force: true });
 });
 
@@ -297,5 +315,142 @@ describe('backing up while a restore\'s erasure replay is pending', () => {
     expect(calls()).toContain('--metric-name BackupConsecutiveFailures --value 1');
     expect(readFileSync(join(dbDir, '.backup-consecutive-failures'), 'utf8').trim()).toBe('1');
     expect(res.stderr).toContain('--resume-erasure-replay');
+  });
+});
+
+/** The one routine snapshot the run uploaded, decompressed beside the bucket. */
+function uploadedSnapshot(): string {
+  const keys = keysUnder('routine/');
+  expect(keys).toHaveLength(1);
+  const out = join(workDir, 'restored.db');
+  writeFileSync(out, gunzipSync(readFileSync(join(s3Dir, BUCKET, keys[0]))));
+  return out;
+}
+
+function rowsAndIntegrity(path: string, table: string): { rows: number; integrity: string } {
+  const db = new BetterSqlite3(path, { readonly: true });
+  try {
+    const rows = (db.prepare(`SELECT count(*) AS n FROM ${table}`).get() as { n: number }).n;
+    const integrity = db.pragma('integrity_check', { simple: true }) as string;
+    return { rows, integrity };
+  } finally {
+    db.close();
+  }
+}
+
+describe('taking the copy while the application is using the database', () => {
+  // Defect caught: a restore from the newest snapshot silently loses the most
+  // recent member changes, because the copy read only the main database file
+  // and missed the committed transactions still waiting in the write-ahead log.
+  it('carries every committed change that is still only in the write-ahead log', () => {
+    const live = new BetterSqlite3(join(dbDir, 'footbag.db'));
+    live.pragma('journal_mode = WAL');
+    // No automatic checkpoint, and the connection stays open through the run,
+    // so these rows exist only in the log when the backup starts.
+    live.pragma('wal_autocheckpoint = 0');
+    const insert = live.prepare('INSERT INTO backup_probe (id) VALUES (?)');
+    live.transaction(() => { for (let i = 1; i <= 500; i += 1) insert.run(i); })();
+    expect(existsSync(join(dbDir, 'footbag.db-wal'))).toBe(true);
+
+    try {
+      const res = runBackup();
+      expect(res.status).toBe(0);
+    } finally {
+      live.close();
+    }
+
+    expect(rowsAndIntegrity(uploadedSnapshot(), 'backup_probe')).toEqual({ rows: 500, integrity: 'ok' });
+  });
+
+  // Defect caught: while members are writing, the backup never finishes, so no
+  // snapshot is taken for as long as the site is busy and the staleness alarm is
+  // the only sign. A page-by-page copy restarts from the beginning whenever
+  // another process commits, and at production scale it is overtaken every time.
+  //
+  // The database is built at production scale because the restart is a property
+  // of the copy's length: the locally built database measured 56,688,640 bytes
+  // on 2026-11-01, so this one is about 55 MB of 900-byte rows. The writer
+  // commits continuously from a separate process, which is what the application
+  // containers are to the host's backup.
+  it('finishes with a sound snapshot while another process keeps committing', async () => {
+    const big = new BetterSqlite3(join(dbDir, 'footbag.db'));
+    big.pragma('journal_mode = WAL');
+    big.exec('CREATE TABLE filler (id INTEGER PRIMARY KEY, v BLOB NOT NULL)');
+    const fill = big.prepare('INSERT INTO filler (v) VALUES (randomblob(900))');
+    big.transaction(() => { for (let i = 0; i < 60_000; i += 1) fill.run(); })();
+    big.pragma('wal_checkpoint(TRUNCATE)');
+    big.close();
+
+    const writerScript = join(workDir, 'writer.cjs');
+    writeFileSync(writerScript, [
+      `const Database = require(${JSON.stringify(join(process.cwd(), 'node_modules', 'better-sqlite3'))});`,
+      `const db = new Database(${JSON.stringify(join(dbDir, 'footbag.db'))}, { timeout: 30000 });`,
+      "const add = db.prepare('INSERT INTO backup_probe (id) VALUES (NULL)');",
+      'add.run();',
+      "process.stdout.write('ready\\n');",
+      'for (;;) { add.run(); }',
+    ].join('\n'));
+    const writer = spawn(process.execPath, [writerScript], { stdio: ['ignore', 'pipe', 'inherit'] });
+    const exited = new Promise<void>((resolve) => { writer.once('exit', () => resolve()); });
+    try {
+      await new Promise<void>((resolve, reject) => {
+        writer.stdout.once('data', () => resolve());
+        writer.once('exit', (code) => reject(new Error(`writer exited early (${code})`)));
+      });
+
+      const res = runBackup();
+
+      expect(res.stderr).toBe('');
+      expect(res.status).toBe(0);
+    } finally {
+      writer.kill('SIGKILL');
+      await exited;
+    }
+
+    const snap = rowsAndIntegrity(uploadedSnapshot(), 'filler');
+    expect(snap).toEqual({ rows: 60_000, integrity: 'ok' });
+  });
+});
+
+describe('a run the service manager kills', () => {
+  // Defect caught: the final backup the service unit takes on stop, or any run
+  // the service manager terminates, was killed without counting as a failure, so
+  // a backup that dies every time raised neither the failure counter nor its
+  // metric, and only a journal line recorded it.
+  it('counts the killed run as a failure and publishes the failure metric', async () => {
+    const child = spawn('bash', [BACKUP_SCRIPT], {
+      env: {
+        ...process.env,
+        PATH: `${binDir}:${process.env.PATH ?? ''}`,
+        FOOTBAG_DB_DIR: dbDir,
+        BACKUP_S3_BUCKET: BUCKET,
+        FOOTBAG_ENV: 'test',
+        AWS_STUB_UPLOAD_BLOCKS: '1',
+      },
+      // Its own process group, so the signal reaches the script and the upload
+      // it is waiting on together, as the service manager's stop does.
+      detached: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    let stderr = '';
+    const blocked = new Promise<void>((resolve) => {
+      child.stderr.on('data', (chunk: Buffer) => {
+        stderr += chunk.toString();
+        if (stderr.includes('aws-stub: upload blocking')) resolve();
+      });
+    });
+    const exited = new Promise<number | null>((resolve) => {
+      child.once('exit', (code) => resolve(code));
+    });
+
+    await blocked;
+    process.kill(-(child.pid as number), 'SIGTERM');
+    const code = await exited;
+
+    expect(code).not.toBe(0);
+    expect(readFileSync(join(dbDir, '.backup-consecutive-failures'), 'utf8').trim()).toBe('1');
+    expect(calls()).toContain('--metric-name BackupConsecutiveFailures --value 1');
+    expect(stderr).toContain('SIGTERM');
+    expect(keysUnder('')).toEqual([]);
   });
 });

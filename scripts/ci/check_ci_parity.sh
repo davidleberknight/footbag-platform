@@ -390,7 +390,13 @@ done
 
 # Commands a workflow step runs that no local gate can or should reproduce.
 # Adding a name here accepts that the local run cannot speak for that step.
-declare -A CI_ONLY_COMMANDS=()
+declare -A CI_ONLY_COMMANDS=(
+  # Installs the pinned sqlite3, jq and age onto the runner, which carries its
+  # own versions. A workstation gets the same pins from the workstation setup
+  # script, and a local run must not install tools; the installer's refusals and
+  # its pinned path are driven locally by its own integration suite.
+  ["scripts/ci/install-pinned-tools.sh"]="installs the runner's pinned tools"
+)
 
 WORKFLOW_CODE="$(sed -n '/^jobs:/,$p' "$WORKFLOW" | sed 's/#.*//')"
 LOCAL_CODE="$(sed 's/#.*//' "$RUNNER"; sed 's/#.*//' "$CLEAN_ROOM"; printf '%s\n' "$QUICK_SCRIPT")"

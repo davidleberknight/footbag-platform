@@ -619,7 +619,7 @@ Story: The system continuously backs up the SQLite database to the primary S3 bu
 Success Criteria:
 
 - The host timer runs the backup every 5 minutes.
-- Process executes: (1) WAL checkpoint commits pending writes to the main database file, (2) SQLite backup API creates a consistent point-in-time snapshot, (3) Upload snapshot to primary S3 bucket with retry (3 attempts, exponential backoff), (4) Update health timestamp. The technical implementation of the WAL checkpoint (including specific PRAGMA commands and busy-timeout handling) is specified in Design Decisions.
+- Process executes: (1) `VACUUM INTO` creates a consistent point-in-time snapshot that includes every committed change still in the write-ahead log, (2) Upload snapshot to primary S3 bucket with retry (3 attempts, exponential backoff), (3) Update health timestamp. The technical implementation of the copy (including busy-timeout handling) is specified in Design Decisions.
 - Every run writes a timestamped snapshot to the primary bucket, and lifecycle rules thin the history by age: in production the fine-grained stream is kept two days, the hourly generation thirty days, and the daily generation four hundred days; staging keeps deliberately shorter windows.
 - Upload failures trigger retry with exponential backoff (max 3 attempts per cycle).
 - Health timestamp tracks last successful backup for monitoring dashboard.
@@ -631,7 +631,7 @@ Operation:
 
 - Cadence: every 5 minutes, by the host timer.
 - Configuration: the host timer.
-- Catch-up: the timer is persistent, so a run missed while the host was down runs at boot; promotion into the hourly and daily generations checks whether each window already holds a point.
+- Catch-up: the timer runs two minutes after boot, so a run missed while the host was down happens then; promotion into the hourly and daily generations checks whether each window already holds a point.
 - Run record: the backup age, consecutive-failure and promotion-failure metrics, and the health timestamp.
 - Failure alarm: the consecutive backup failure alarm, after 3 consecutive failures, and the promotion failure alarm.
 - Missed-run alarm: the backup age alarm, which fires when the age metric stops refreshing.

@@ -21,7 +21,8 @@
 #      pointed elsewhere: apt's own tools are built for that one only, and a
 #      python3 they cannot load breaks every apt update. The project never uses
 #      the system python3 for its work; it names the pinned interpreter.
-#   1. The apt baseline: build tools, sqlite3, ffmpeg, jq, age and the rest.
+#   1. The apt baseline: build tools and the rest (sqlite3, jq, age and ffmpeg
+#      are installed at their pins, never from apt).
 #   2. Python at exactly the version in .python-version: a pinned standalone
 #      CPython build, checksum-verified, under ~/.local.
 #   3. Node at exactly the version in .nvmrc, through a pinned nvm whose
@@ -178,30 +179,27 @@ fi
 
 # ── Pinned downloads ─────────────────────────────────────────────────────────
 #
-# Each is the exact file this script installs and the SHA-256 its publisher
-# lists for it. Bumping a version means changing the version file or workflow
-# pin AND the matching lines here; the guard below refuses one without the other.
-PYTHON_VERSION="3.12.12"
-PYTHON_URL="https://github.com/astral-sh/python-build-standalone/releases/download/20260211/cpython-3.12.12+20260211-x86_64-unknown-linux-gnu-install_only.tar.gz"
-PYTHON_SHA256="4a867ae3436e9d7c3558a8fd2bd82e13dd0de59282e2f4e20e5c879f9085fe86"
-NVM_VERSION="0.40.3"
-NVM_URL="https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh"
-NVM_SHA256="2d8359a64a3cb07c02389ad88ceecd43f2fa469c06104f92f98df5b6f315275f"
-GITLEAKS_VERSION="8.24.3"
-GITLEAKS_URL="https://github.com/gitleaks/gitleaks/releases/download/v8.24.3/gitleaks_8.24.3_linux_x64.tar.gz"
-GITLEAKS_SHA256="9991e0b2903da4c8f6122b5c3186448b927a5da4deef1fe45271c3793f4ee29c"
-TERRAFORM_VERSION="1.14.7"
-TERRAFORM_URL="https://releases.hashicorp.com/terraform/1.14.7/terraform_1.14.7_linux_amd64.zip"
-TERRAFORM_SHA256="e8bbcefea8015156e04e2a325cde37a0b2fb761728bda548e2fe3b8ad7c18c96"
-# AWS publishes no checksum list for the CLI; this one was computed from the
-# versioned installer when the pin was set, so it holds the download to that
-# exact file like every other pin here.
-AWS_CLI_VERSION="2.34.8"
-AWS_CLI_URL="https://awscli.amazonaws.com/awscli-exe-linux-x86_64-2.34.8.zip"
-AWS_CLI_SHA256="de4a8f35c5d19e120e6b5403bbebbf356459ae17af78941ae74e37a78f44aef3"
+# Each is the exact file this script installs and the checksum it must match,
+# read from the one tool-version list, ops/tool-versions.env, rather than held
+# here, so a bump moves one line. A placeholder or a malformed digest stops the
+# run before anything is installed; the guard below refuses a list that
+# disagrees with .python-version, .nvmrc or the workflow.
+# shellcheck source=lib/tool-versions.sh
+source "${REPO_ROOT}/scripts/lib/tool-versions.sh"
+PINNED_DOWNLOADS=(PYTHON_VERSION PYTHON_URL PYTHON_SHA256 NVM_VERSION NVM_URL NVM_SHA256
+  GITLEAKS_VERSION GITLEAKS_URL GITLEAKS_SHA256 TERRAFORM_VERSION TERRAFORM_URL TERRAFORM_SHA256
+  AWS_CLI_VERSION AWS_CLI_URL AWS_CLI_SHA256 JQ_VERSION JQ_URL JQ_SHA256
+  AGE_VERSION AGE_URL AGE_SHA256 SQLITE_VERSION FFMPEG_VERSION)
+tool_pins_ok "${PINNED_DOWNLOADS[@]}" || exit 1
+for pin_key in "${PINNED_DOWNLOADS[@]}"; do
+  tool_pin "$pin_key"
+  printf -v "$pin_key" '%s' "$TOOL_PIN_VALUE"
+done
 
-APT_PACKAGES=(build-essential python3 python3-venv python3-pip sqlite3 ffmpeg git unzip zip
-  jq ca-certificates curl openssh-client rsync gpg age lsof)
+# sqlite3, jq, age and ffmpeg are not here: each is installed at its pinned
+# version below, because apt offers whatever version the release carries.
+APT_PACKAGES=(build-essential python3 python3-venv python3-pip git unzip zip
+  ca-certificates curl openssh-client rsync gpg lsof)
 
 # ── Seams ────────────────────────────────────────────────────────────────────
 #
@@ -234,7 +232,7 @@ want_terraform="$(_tool_report_pin terraform_version .github/workflows/ci.yml)"
 [[ "$want_gitleaks" == "$GITLEAKS_VERSION" ]] || { echo "ERROR: the workflow pins gitleaks ${want_gitleaks}; this script installs ${GITLEAKS_VERSION}." >&2; pin_mismatch=1; }
 [[ "$want_terraform" == "$TERRAFORM_VERSION" ]] || { echo "ERROR: the workflow pins Terraform ${want_terraform}; this script installs ${TERRAFORM_VERSION}." >&2; pin_mismatch=1; }
 if (( pin_mismatch )); then
-  echo "       Update the pinned download lines at the top of this script to match. Nothing changed." >&2
+  echo "       Update the pinned lines in ops/tool-versions.env to match. Nothing changed." >&2
   exit 1
 fi
 
@@ -413,6 +411,11 @@ python_ok || PLAN+=("python: install CPython ${PYTHON_VERSION} as ${BIN_DIR}/pyt
 node_ok || PLAN+=("node: install Node ${want_node} with nvm ${NVM_VERSION}")
 tool_ok gitleaks || PLAN+=("gitleaks: install ${GITLEAKS_VERSION} into ${BIN_DIR}")
 tool_ok terraform || PLAN+=("terraform: install ${TERRAFORM_VERSION} into ${BIN_DIR}")
+tool_ok jq || PLAN+=("jq: install ${JQ_VERSION} into ${BIN_DIR}")
+tool_ok age || PLAN+=("age: install ${AGE_VERSION} into ${BIN_DIR}")
+tool_ok sqlite3 || PLAN+=("sqlite3: build ${SQLITE_VERSION} into ${BIN_DIR} (scripts/build-sqlite3.sh; needs docker)")
+{ tool_ok ffmpeg && tool_ok ffprobe; } \
+  || PLAN+=("ffmpeg: install production's ${FFMPEG_VERSION} into ${BIN_DIR} (scripts/ffmpeg-pinned.sh; needs docker)")
 npm_deps_current "$REPO_ROOT" || PLAN+=("npm: install dependencies from the lockfile (npm ci)")
 chromium_ok || PLAN+=("playwright: install Chromium with its system libraries")
 legacy_env_ok || PLAN+=("python env: build or repair the legacy pipeline environment")
@@ -529,6 +532,28 @@ if ! tool_ok terraform; then
   install -m 0755 "$WORK/terraform" "${BIN_DIR}/terraform"
 fi
 
+# ── 5a. jq, age and sqlite3, each at its pinned version ──────────────────────
+if ! tool_ok jq; then
+  echo "==> jq ${JQ_VERSION}"
+  fetch_verified "$JQ_URL" "$JQ_SHA256" "$WORK/jq"
+  install -m 0755 "$WORK/jq" "${BIN_DIR}/jq"
+fi
+if ! tool_ok age; then
+  echo "==> age ${AGE_VERSION}"
+  fetch_verified "$AGE_URL" "$AGE_SHA256" "$WORK/age.tar.gz"
+  tar -xzf "$WORK/age.tar.gz" -C "$WORK" age/age age/age-keygen
+  install -m 0755 "$WORK/age/age" "${BIN_DIR}/age"
+  install -m 0755 "$WORK/age/age-keygen" "${BIN_DIR}/age-keygen"
+fi
+if ! tool_ok sqlite3; then
+  echo "==> sqlite3 ${SQLITE_VERSION}"
+  bash "${REPO_ROOT}/scripts/build-sqlite3.sh" --install-dir "$BIN_DIR"
+fi
+if ! { tool_ok ffmpeg && tool_ok ffprobe; }; then
+  echo "==> ffmpeg ${FFMPEG_VERSION}"
+  bash "${REPO_ROOT}/scripts/ffmpeg-pinned.sh" --install "$BIN_DIR"
+fi
+
 # ── 6. npm dependencies ──────────────────────────────────────────────────────
 if ! npm_deps_current "$REPO_ROOT"; then
   echo "==> npm ci"
@@ -608,7 +633,8 @@ if [[ -n "$DEVTESTER_ACTION" ]] && ! git -C "$DEVTESTER_LINK" rev-parse --git-di
   echo "  still missing: ${DEVTESTER_LINK}, the link to the dev-tester clone" >&2
   remaining=1
 fi
-tool_report node python3 sqlite3 ffmpeg ffprobe jq age docker gitleaks terraform
+# The report names what is left; the loop below is what decides the verdict.
+tool_report node python3 sqlite3 ffmpeg ffprobe jq age docker gitleaks terraform || true
 for tool in sqlite3 ffmpeg ffprobe jq age gitleaks terraform; do
   tool_ok "$tool" || remaining=1
 done

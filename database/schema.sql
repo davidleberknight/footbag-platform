@@ -2312,8 +2312,8 @@ CREATE TABLE members (
   -- two surnames, a name particle, or a family name written first, so it is
   -- stored rather than inferred.
   --
-  -- Either part may be absent, and the application requires only that one of
-  -- them is present. A legal name that is a single word is common in Indonesia
+  -- The family name is required at registration and the given names are
+  -- optional; a single-word legal name is recorded as the family name. A legal name that is a single word is common in Indonesia
   -- and parts of southern India and is not an edge case; requiring both parts
   -- would refuse those members outright. There is deliberately no CHECK
   -- enforcing the pair, because the PII purge clears both columns and a
@@ -2882,8 +2882,8 @@ CREATE TABLE gallery_external_links (
   label      TEXT NOT NULL,
   url        TEXT NOT NULL,
   validated_at TEXT,
-  -- Non-NULL when the runtime boot scan rejected the URL (Safe Browsing match
-  -- or post-write threat-list change). Public render skips quarantined rows;
+  -- Non-NULL when the URL failed verification (a Safe Browsing match) at
+  -- data-prep or submit time. Public render skips quarantined rows;
   -- admin UI surfaces them with a warning + remove control. Operator clears
   -- the row by replacing the URL or deleting the link.
   quarantine_reason TEXT,
@@ -4542,8 +4542,9 @@ CREATE UNIQUE INDEX ux_legacy_members_claimed_by
   ON legacy_members(claimed_by_member_id)
   WHERE claimed_by_member_id IS NOT NULL;
 
--- Claim-flow lookup indexes: claim resolution matches by legacy_email (and its
--- two secondary columns), legacy_user_id, and claimed_by_member_id.
+-- Claim-flow lookup indexes: claim matching reads legacy_email (and its two
+-- secondary columns) and the date of birth. The legacy_user_id index only
+-- keeps old-site usernames unique; usernames are not a claim matching key.
 -- The email columns are non-unique: one address may legitimately appear as the
 -- primary on one account and a secondary on another, and cross-account email
 -- uniqueness (an address must not identify two different legacy accounts) is

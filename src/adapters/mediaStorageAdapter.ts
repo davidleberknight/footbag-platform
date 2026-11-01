@@ -87,8 +87,8 @@ export interface MediaStorageAdapter {
 
 export function createLocalMediaStorageAdapter(opts: {
   baseDir: string;
-  // Read-only second lane checked on get/exists (and removed on delete) but
-  // never written by put(). Lets dev serve curated media, which is built into a
+  // Read-only second lane checked on get/exists, never written by put() and
+  // never touched by delete(). Lets dev serve curated media, which is built into a
   // separate dir from runtime uploads, without mixing the two lanes on disk.
   fallbackDir?: string;
 }): MediaStorageAdapter {

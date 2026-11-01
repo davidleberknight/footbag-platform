@@ -127,9 +127,10 @@ fi
 PARAM="/footbag/${TARGET_ENV}/secrets/${SECRET_NAME}"
 KMS_ALIAS="alias/footbag-${TARGET_ENV}"
 
-# Terraform seeds every operator-supplied secret shell with this prefix, and the
-# deploy's own shape gate and the application's boot check both reject a value
-# carrying it. Reading it here is what lets status tell an environment that was
+# Terraform seeds every operator-supplied secret shell with this prefix. The
+# deploy's own shape gate rejects a value carrying it, and the application's
+# boot check refuses the placeholder because it is shorter than the
+# 32-character minimum. Reading it here is what lets status tell an environment that was
 # applied but never provisioned from one that is genuinely ready.
 PLACEHOLDER_PREFIX="TODO-"
 
@@ -205,9 +206,10 @@ do_store() {
     exit 1
   fi
 
-  # Overwriting a real value is a rotation. For the session secret that signs
-  # every cookie, it logs every member out at the next request, so it is not a
-  # thing to discover afterwards.
+  # Overwriting a real value is a rotation. For the session secret it signs no
+  # one out, but it voids in-flight notices and outstanding unsubscribe links
+  # and breaks claim-address matching across the rotation, so it is not a thing
+  # to discover afterwards.
   if [[ "$state" == set:* ]]; then
     if ! (exec 3< /dev/tty) 2>/dev/null; then
       echo "ERROR: ${PARAM} already holds a real value, and rotating it needs a typed" >&2
@@ -217,9 +219,9 @@ do_store() {
     echo "${PARAM} already holds a value (${state#set:} characters)."
     case "$SECRET_NAME" in
       session_secret)
-        echo "Rotating it invalidates every active session on ${TARGET_ENV}: each member"
-        echo "is signed out at their next request, and the host serves the old value"
-        echo "until a deploy runs."
+        echo "Rotating it on ${TARGET_ENV} signs no one out, but voids in-flight notices"
+        echo "and outstanding unsubscribe links and breaks claim-address matching across"
+        echo "the rotation, and the host serves the old value until a deploy runs."
         ;;
     esac
     printf 'Type ROTATE to continue, anything else to abort: ' > /dev/tty

@@ -238,6 +238,16 @@ seed_committed_host_config() {
   echo "==> Reconciled committed host config for '$FOOTBAG_ENV' from $cfg"
 }
 
+# Tool-version preflight, before anything on the host changes: the host's
+# sqlite3, docker package and Amazon Linux release must be the versions the
+# version list pins, which the sending script read and sent. The comparison is
+# the helper shipped ahead of this half.
+if ! host_tool_versions_match; then
+  echo "       Nothing was deployed. Re-run scripts/bootstrap-host.sh for this host, or" >&2
+  echo "       step its release with scripts/step-amazon-linux.sh, then deploy again." >&2
+  exit 1
+fi
+
 # Disk-space preflight: rsync of release dir + docker layer churn can land
 # 200 MB at peak. Refuse to start if /srv/footbag has under 500 MB free.
 # The `|| echo ''` keeps a df failure from aborting the whole script at this line.
@@ -765,8 +775,8 @@ unset ORIGIN_VERIFY_SECRET_VAL
 # scripts/provision-ssm-secret.sh writes the real value out of band, so it
 # stays out of Terraform state. This fetch keeps the host env in sync after
 # a fresh `store`.
-# A rotation invalidates every active session (cookie signatures fail
-# under the new secret), which is the intended security behavior.
+# A rotation signs no one out: it voids in-flight notices and outstanding
+# unsubscribe links and breaks claim-address matching across the rotation.
 echo "==> Syncing SESSION_SECRET from SSM to $ENV_PATH..."
 ssm_session_param="/footbag/${FOOTBAG_ENV_VAL}/secrets/session_secret"
 SESSION_SECRET_VAL=$(
@@ -1571,12 +1581,12 @@ if [[ -n "${MIGRATION_SQL:-}" ]]; then
   systemctl stop footbag
   service_stopped_for_migration=1
 
-  # Folded into the main file before the copy is taken, the same idiom the
-  # backup producer uses. The stop above normally checkpoints twice over, once
-  # as each container takes SIGTERM and again in the unit's ExecStopPost backup,
-  # but the stop ends in SIGKILL after its timeout and that backup is
-  # best-effort by design. A WAL that outlives either one holds committed
-  # transactions the copy would not carry, and the restore below deletes the WAL
+  # Folded into the main file before the copy is taken. The stop above normally
+  # checkpoints as each container takes SIGTERM, but the stop ends in SIGKILL
+  # after its timeout, so a container killed there never checkpoints, and the
+  # unit's final backup copies the log rather than folding it into the main
+  # file. A WAL that outlives the stop holds committed transactions the raw
+  # copy below would not carry, and the restore below deletes the WAL
   # on its way to putting the copy back, so those transactions would be lost by
   # the very step meant to preserve them. The copy has to stand on its own.
   # Read the checkpoint's own result, not just sqlite3's exit status.

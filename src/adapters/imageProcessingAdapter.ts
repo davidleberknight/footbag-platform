@@ -123,12 +123,11 @@ function resolveSingleton(): ImageProcessingAdapter {
   return singleton;
 }
 
-// Lazy proxy: resolution of the underlying singleton (and the
-// INTERNAL_EVENT_SECRET fail-fast check) is deferred to the first
-// process call. Read paths (gallery list, browse pages) that build a
-// service depending on this adapter but never invoke a process method
-// must succeed even when the secret is absent, so getting the adapter
-// must not throw.
+// Lazy proxy: the underlying singleton is resolved at each process call,
+// not when the adapter is obtained. A service built before an adapter is
+// installed or reset through the test hooks below therefore still reaches
+// the current one, and building a service that never processes an image
+// constructs no HTTP client.
 export function getImageProcessingAdapter(): ImageProcessingAdapter {
   return {
     processAvatar: (data) => resolveSingleton().processAvatar(data),

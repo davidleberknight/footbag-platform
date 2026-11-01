@@ -1,15 +1,22 @@
 export const meta = {
   name: 'extended-doc-sync-stages',
-  description: 'Extended doc sync stages: extract claims, or compare, verify and cluster them',
+  description: 'Extended doc sync stages: extract claims; compare, verify and cluster them; or draft the questions',
   whenToUse: 'Only from the extended-doc-sync skill, which passes the stage and its inputs in args',
   phases: [
     { title: 'Extract', detail: 'Sonnet, one pass per batch text', model: 'sonnet' },
     { title: 'Compare', detail: 'per entity bucket, Opus for requirement buckets, Sonnet for the rest' },
     { title: 'Coherence', detail: 'Opus over every design claim', model: 'opus' },
-    { title: 'Verify', detail: 'Opus, blind to the finder, tries to refute', model: 'opus' },
+    { title: 'Verify', detail: 'Opus, blind to the finder, tries to refute, pooled across batches', model: 'opus' },
     { title: 'Cluster', detail: 'Sonnet, one ruling one item', model: 'sonnet' },
+    { title: 'Draft', detail: 'Opus, each question written with its homework done', model: 'opus' },
   ],
 }
+
+// Candidates per verifier, drawn from any batch, so a batch with two candidates does not
+// pay for a verifier of its own.
+const VERIFY_POOL = 25
+// Clusters per drafting agent.
+const DRAFT_SLICE = 8
 
 // The brief path comes first and the varying input last, so agents of one role share a
 // cached prefix.
@@ -104,47 +111,51 @@ if (args.stage === 'compare') {
     ...args.files.sonnet.map((file) => ({ file, model: 'sonnet', brief: 'COMPARE', phase: 'Compare' })),
     ...args.files.coherence.map((file) => ({ file, model: 'opus', brief: 'COHERENCE', phase: 'Coherence' })),
   ]
-  const verified = await pipeline(
-    work,
-    (w) => agent(
-      `Read ${BRIEFS}${w.brief}_BRIEF.md and follow it.\nBatch file: ${w.file}${reopen}${ruled}`,
-      { label: `${w.brief.toLowerCase()}:${w.file.split('/').pop()}`, phase: w.phase, model: w.model, effort: 'medium', schema: CANDIDATES },
-    ),
-    (found, w) => {
-      if (!found || found.candidates.length === 0) return { candidates: [], omissions: found ? found.omissions : 0, verdicts: [] }
-      // Blind: the verifier sees the sides and the intent, never the finder's reasoning.
-      const blind = found.candidates.map(({ id, kind, sideA, sideB, intent }) => ({ id, kind, sideA, sideB, intent }))
-      return agent(
-        `Read ${BRIEFS}VERIFY_BRIEF.md and follow it.\nCandidates:\n${JSON.stringify(blind, null, 1)}`,
-        { label: `verify:${w.file.split('/').pop()}`, phase: 'Verify', model: 'opus', effort: 'medium', schema: VERDICTS },
-      ).then((v) => ({ candidates: found.candidates, omissions: found.omissions, verdicts: v ? v.verdicts : [] }))
-    },
-  )
+  const found = await parallel(work.map((w) => () => agent(
+    `Read ${BRIEFS}${w.brief}_BRIEF.md and follow it.\nBatch file: ${w.file}${reopen}${ruled}`,
+    { label: `${w.brief.toLowerCase()}:${w.file.split('/').pop()}`, phase: w.phase, model: w.model, effort: 'medium', schema: CANDIDATES },
+  )))
+  const missing = found.filter((f) => !f).length
+  if (missing) log(`${missing} batch(es) produced nothing and were not verified`)
+  // Each finder numbers its own candidates, so ids are prefixed with the batch before pooling.
+  const candidates = found.flatMap((f, i) => (f ? f.candidates.map((c) => ({ ...c, id: `${i}:${c.id}` })) : []))
+  let omissions = found.reduce((n, f) => n + (f ? f.omissions : 0), 0)
 
-  const done = verified.filter(Boolean)
-  if (done.length < work.length) log(`${work.length - done.length} batch(es) produced nothing and were not verified`)
+  phase('Verify')
+  const pools = []
+  for (let i = 0; i < candidates.length; i += VERIFY_POOL) pools.push(candidates.slice(i, i + VERIFY_POOL))
+  const verdictSets = await parallel(pools.map((pool, i) => () => {
+    // Blind: the verifier sees the sides and the intent, never the finder's reasoning.
+    const blind = pool.map(({ id, kind, sideA, sideB, intent }) => ({ id, kind, sideA, sideB, intent }))
+    return agent(
+      `Read ${BRIEFS}VERIFY_BRIEF.md and follow it.\nCandidates:\n${JSON.stringify(blind, null, 1)}`,
+      { label: `verify:${i + 1}`, phase: 'Verify', model: 'opus', effort: 'medium', schema: VERDICTS },
+    )
+  }))
+  const byId = new Map(verdictSets.filter(Boolean).flatMap((v) => v.verdicts).map((v) => [v.id, v]))
   const survivors = []
   let refuted = 0
-  let omissions = 0
-  for (const r of done) {
-    omissions += r.omissions
-    const byId = new Map(r.verdicts.map((v) => [v.id, v]))
-    for (const c of r.candidates) {
-      const v = byId.get(c.id)
-      // A candidate the verifier never answered is kept and labelled, never dropped.
-      const verdict = v ? v.verdict : 'unverified'
-      if (verdict === 'refuted') refuted++
-      else survivors.push({ ...c, verdict, verdictQuote: v ? v.quote : '' })
-    }
+  for (const c of candidates) {
+    const v = byId.get(c.id)
+    // A candidate the verifier never answered is kept and labelled, never dropped.
+    const verdict = v ? v.verdict : 'unverified'
+    if (verdict === 'refuted') refuted++
+    else survivors.push({ ...c, verdict, verdictQuote: v ? v.quote : '' })
   }
 
   phase('Cluster')
   const clustered = survivors.length === 0 ? null : await agent(
     'Group these verified drift findings so that one maintainer ruling settles each group: ' +
     'the same renamed term or moved fact drifting in several places is one group; unrelated ' +
-    'findings are their own groups. Rank groups by severity: wrong requirement or decision ' +
-    'first, then wrong behaviour description, then stale comment, then wording. Keep every ' +
-    'finding\'s fields unchanged. Write one JSON object { "clusters": [ { "title", "severity", ' +
+    'findings are their own groups. Give each group a "severity": "S1" when code breaks a ' +
+    'requirement or decision, the design contradicts itself, an IFPA governing document is a ' +
+    'side, or a security, privacy or operations document is wrong; "S2" when a service header, ' +
+    'comment or data-model entry misdescribes behaviour, or one rule is stated differently in ' +
+    'two homes; "S3" for a stale fact with no effect on behaviour (a path, count, cost or ' +
+    'term); "S4" for form. Give each a "resolution": "settled" when every finding was ' +
+    'confirmed and its quoted intent decides which side is wrong, otherwise "disputed". Order ' +
+    'S1 first; severity sets order only, so keep every group. Keep every ' +
+    'finding\'s fields unchanged. Write one JSON object { "clusters": [ { "title", "severity", "resolution", ' +
     `"findings": [...] } ] } to ${args.resultsPath}, then return the counts and the path.\n` +
     `Findings:\n${JSON.stringify(survivors, null, 1)}`,
     { label: 'cluster', phase: 'Cluster', model: 'sonnet', effort: 'low', schema: CLUSTERED },
@@ -161,4 +172,18 @@ if (args.stage === 'compare') {
   }
 }
 
-throw new Error(`extended-doc-sync: unknown stage '${args && args.stage}'; expected extract or compare`)
+if (args.stage === 'draft') {
+  phase('Draft')
+  const slices = []
+  for (let a = 0; a < args.clusters; a += DRAFT_SLICE) slices.push([a, Math.min(args.clusters, a + DRAFT_SLICE) - 1])
+  const done = await parallel(slices.map(([a, b]) => () => agent(
+    `Read ${BRIEFS}DRAFT_BRIEF.md and follow it.\nResults file: ${args.resultsPath}\n` +
+    `Clusters: ${a} to ${b}, counted from 0 in file order\nOutput file: ${args.draftsDir}/draft-${a}.json`,
+    { label: `draft:${a}-${b}`, phase: 'Draft', model: 'opus', effort: 'medium', schema: WRITTEN },
+  )))
+  const failed = slices.filter((_, i) => !done[i]).map(([a, b]) => `${a}-${b}`)
+  if (failed.length) log(`drafting failed for cluster slice(s): ${failed.join(', ')}`)
+  return { slices: slices.length, drafted: done.filter(Boolean).reduce((n, r) => n + r.written, 0), failed }
+}
+
+throw new Error(`extended-doc-sync: unknown stage '${args && args.stage}'; expected extract, compare or draft`)

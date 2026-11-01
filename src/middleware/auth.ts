@@ -61,8 +61,8 @@ interface SessionMemberRow {
 
 /**
  * Sliding-session refresh window: when a verified token is within this many
- * seconds of expiry, the middleware re-issues a fresh 24-hour token on the
- * same response. No refresh tokens exist; a token allowed to expire is not
+ * seconds of expiry, the middleware re-issues a fresh token carrying the
+ * configured session lifetime (24 hours by default) on the same response. No refresh tokens exist; a token allowed to expire is not
  * renewed and the next request lands unauthenticated.
  */
 export const SESSION_REFRESH_WINDOW_SECONDS = 6 * 60 * 60;

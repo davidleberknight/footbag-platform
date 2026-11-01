@@ -2504,6 +2504,12 @@ fi
 # own suite can run it against fixture repositories.
 delegate "every package, library, runtime and image pinned exactly" check_version_pins.sh
 
+# Rule: every tool version the workstations, CI, the images and the hosts install
+# lives in ops/tool-versions.env and nowhere else, apart from the copies the
+# delegated gate's header records with their owners. Delegated so its own suite
+# can run it against a stand-in tree.
+delegate "every tool version has one home, the version list" check_tool_versions_single_home.sh
+
 # Rule: every static import of a production-stripped subtree has a no-op stub in
 # the web image.
 # Reason: the production web image deletes dist/testkit and dist/dev-bootstrap,

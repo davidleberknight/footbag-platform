@@ -1,27 +1,24 @@
 /**
- * SNS envelope authentication for the public server-to-server webhooks (mail
- * feedback and platform alarms).
+ * SNS envelope checks for the feeds the worker reads off a queue (mail
+ * feedback and platform alarms). The platform exposes no endpoint for these
+ * notices: they are published to a topic, delivered to a queue, and read by
+ * the worker under its runtime role, so no URL or shared secret is involved.
  *
- * Two checks, and BOTH are required. The URL's shared-secret query key is the
- * outer gate, but the URL (and therefore the key) lands in instance access logs
- * on every delivery, so it must not be sufficient on its own.
+ * The queue-delivered feeds rely on two helpers here:
  *
- *   1. The publishing topic must be the one we expect. A valid signature proves
- *      only that SOME SNS topic in SOME AWS account signed the payload, so an
- *      attacker holding the leaked key can publish from a topic they own and
- *      obtain a genuinely-signed forgery. AWS's own signature-verification
- *      guidance carries "reject any message with an unexpected TopicArn to
- *      prevent spoofing" as a step alongside verifying the signature; this is
- *      that step. Unconfigured fails closed: a feed whose expected topic is
- *      unknown cannot be authenticated at all.
- *   2. The payload signature must verify against the AWS signing certificate.
- *      `sns-validator` (AWS-maintained) checks that SigningCertURL points at an
- *      sns.<region>.amazonaws.com host before fetching it, then verifies the
- *      payload signature against that certificate.
+ *   1. `publishedByExpectedTopic`: the envelope must name the topic the feed
+ *      expects, so a message delivered onto the same queue by another
+ *      subscription is not read as this feed's. Unconfigured fails closed.
+ *   2. `safeSubscribeUrlForLog`: a subscription confirmation's URL, logged only
+ *      when it is a genuine SNS endpoint over HTTPS.
  *
- * The certificate fetch is bounded by a timeout: the library issues it with no
- * deadline of its own, so a hung fetch would park the webhook request (and the
- * sender's connection) indefinitely.
+ * `verifySnsSignature` checks the expected topic and then the payload signature
+ * against the AWS signing certificate: `sns-validator` (AWS-maintained) checks
+ * that SigningCertURL points at an sns.<region>.amazonaws.com host before
+ * fetching it. The certificate fetch is bounded by a timeout, because the
+ * library issues it with no deadline of its own. A queue-delivered feed does
+ * not need the signature, since the authorized queue read already establishes
+ * what it would.
  *
  * Tests inject a verifier via the setter so route tests run without network
  * access or real AWS signatures. The topic check deliberately runs BEFORE the

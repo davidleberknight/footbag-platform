@@ -6,8 +6,9 @@
  * is consistent: members get `/members/{slug}`, everyone else gets
  * `/history/{personId}`.
  *
- * The SQL layer is responsible for resolving the member slug via the
- * claim chain (historical_persons.legacy_member_id → members.legacy_member_id).
+ * The SQL layer is responsible for resolving the member slug through the
+ * member's direct link to the historical-person record
+ * (members.historical_person_id = historical_persons.person_id).
  * This helper only formats the already-resolved values.
  */
 export function personHref(

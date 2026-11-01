@@ -468,7 +468,7 @@ Reserved names for designed surfaces that do not emit yet (account lifecycle, vo
 This list is the authoritative inventory; new action_types must be added here as part of any code change that introduces a new event type, and the owning service's file-header JSDoc must declare its audit emissions in its Side effects section.
 
 #### Erasure log
-`erasure_log` is an append-only ledger of applied PII erasures (UPDATE and DELETE blocked by DB triggers). Each row records one erasure shape applied to one entity: `erasure_kind` is `account_pii_purge` (full anonymization of a deleted account) or `deceased_contact_scrub` (contact-only erasure of a deceased member's record). The ledger serves two purposes. First, any restore from backup re-applies it before restored data becomes reachable, so an erasure cannot be silently undone by routine recovery (DD §1.2). Second, it is the authority on which erasure shapes a member row has received, since both shapes must set `personal_data_purged_at` to satisfy the members credential CHECK; a contact-scrubbed row can still receive the full purge, and a fully purged row receives nothing further.
+`erasure_log` is an append-only ledger of applied PII erasures (UPDATE and DELETE blocked by DB triggers). Each row records one erasure shape applied to one entity: `erasure_kind` is `account_pii_purge` (full anonymization of a deleted account) or `deceased_contact_scrub` (contact-only erasure of a deceased member's record). The ledger serves two purposes. First, any restore from backup re-applies, before restored data becomes reachable, every erasure the restored data shows as due (an account still soft-deleted or still flagged deceased, past its grace window), so an erasure cannot be silently undone by routine recovery (DD §1.2); the ledger rows are rolled back with the snapshot, so the replay works from that restored state rather than from the ledger. Second, it is the authority on which erasure shapes a member row has received, since both shapes must set `personal_data_purged_at` to satisfy the members credential CHECK; a contact-scrubbed row can still receive the full purge, and a fully purged row receives nothing further.
 
 #### Alarms
 `system_alarm_events` tracks infrastructure and operational alarms. `acknowledgment_note` is set alongside `acknowledged_at` when an admin acknowledges an alarm. `sns_alarm_events` claims each inbound alarm-notification message identifier so a redelivery is processed exactly once, parallel to `ses_events` for SES feedback and `stripe_events` for payment webhooks.
@@ -832,7 +832,7 @@ Imported legacy accounts live in `legacy_members` (§4.14b), not as placeholder 
 
 `ifpa_join_date` and `legacy_is_admin` may be retained post-purge as non-identifying administrative metadata.
 
-**Deletion timestamps.** `deleted_at` and `deleted_by` are set by the member's own deletion request, alongside `deletion_requested_at` and `deletion_grace_expires_at`. The first two are what every member-facing view filters on; the second two are for the administrator's record, which displays when the request was made and when the grace period ends. The stored expiry is a snapshot of what the member was told, not the deadline the platform acts on: the purge scan recomputes its own cutoff from `deleted_at` and the current `member_cleanup_grace_days`, so an administrator changing that parameter moves the real deadline and the stored value goes stale by design. All four are cleared by nothing; the platform offers no restore, and the row proceeds to the anonymising purge.
+**Deletion timestamps.** `deleted_at` and `deleted_by` are set when the account is deleted, by the member or by an administrator, with `deleted_by` naming whoever acted, alongside `deletion_requested_at` and `deletion_grace_expires_at`. The first two are what every member-facing view filters on; the second two are for the administrator's record, which displays when the request was made and when the grace period ends. The stored expiry is a snapshot of what the member was told, not the deadline the platform acts on: the purge scan recomputes its own cutoff from `deleted_at` and the current `member_cleanup_grace_days`, so an administrator changing that parameter moves the real deadline and the stored value goes stale by design. All four are cleared by nothing; the platform offers no restore, and the row proceeds to the anonymising purge.
 
 Two erasure shapes set `personal_data_purged_at` (the credential CHECK requires it once credentials are NULL). The anonymized-stub requirement above describes the full account purge (`erasure_log` kind `account_pii_purge`). The deceased contact scrub (`deceased_contact_scrub`) clears credentials, contact channels (`phone`, `whatsapp`, `legacy_email`), private address lines (`street_address`, `postal_code`), and demographics (`gender`, `birth_date`) and deletes the member's declared anchors, while preserving identity, locale, honors, and both identity-linkage FKs; the legacy claim is not released. The `erasure_log` kind, not `personal_data_purged_at`, is the authority on which shapes a row has received; a contact-scrubbed row can still receive the full purge.
 
@@ -859,7 +859,7 @@ The legacy dump's committee tables record the IFPA Board of Directors. When they
 - Rows are **never deleted**, except a seeded fixture row the account rulings collapse into another account, which the merge deletes once its references move to the survivor. A `legacy_members` row is the permanent archival record of a legacy account's fields at import time.
 - Rows are **never mutated post-import** for the legacy fields (real_name, display_name, bio, country, honor flags, etc.). Import sets these; nothing else writes them.
 - **Claim marks, does not remove.** When a prospective member completes the onboarding wizard with a held claim, the application sets `claimed_by_member_id` (FK to `members(id)`) and `claimed_at`. The `legacy_members` row persists. `M_Claim_Legacy_Account` merge rules still govern what fields copy from `legacy_members` to `members` at claim time (COALESCE / OR-merge / fill-if-empty); the member then edits their own copy.
-- **Unclaim on PII purge** (DD §2.4 rule 5): when a claiming member is purged, `claimed_by_member_id` and `claimed_at` are cleared (both NULL). The legacy account becomes claimable again.
+- **Unclaim on PII purge** (DD §2.4 rule 5): when a claiming member is purged, `claimed_by_member_id` and `claimed_at` are cleared (both NULL). The legacy account becomes claimable again. A HoF or BAP honoree is exempt: their claim stays in place.
 
 #### Columns
 
@@ -1159,6 +1159,7 @@ Required default rows are included at the end of `schema.sql` (Section 23) and a
 | `event-notifications` | Event Notifications | `1` |
 | `technical-updates` | Technical Updates | `1` |
 | `active-player-reminders` | Active Player Reminders | `1` |
+| `announce` | Community Announcements | `1` |
 
 #### System config defaults
 
@@ -1184,7 +1185,7 @@ To change any value: INSERT a new row into `system_config` with the desired `val
 | `email_verify_expiry_hours` | `24` | Email verification token TTL (hours) |
 | `member_search_rate_limit_max_per_ip` | `60` | Max authenticated member-search queries per source IP per window |
 | `member_search_rate_limit_max_per_member` | `30` | Max authenticated member-search queries per member per window |
-| `member_search_rate_limit_window_minutes` | `1` | Sliding window (minutes) for member-search rate limiting |
+| `member_search_rate_limit_window_minutes` | `1` | Fixed window (minutes), opened at the first counted attempt, for member-search rate limiting |
 | `active_player_duration_days` | `730` | Active Player grant duration in days (IFPA-rule-derived) |
 | `active_player_expiry_reminder_days_1` | `30` | First Active Player expiry reminder offset (days before expiry) |
 | `active_player_expiry_reminder_days_2` | `7` | Second Active Player expiry reminder offset (days before expiry) |
@@ -1201,18 +1202,18 @@ To change any value: INSERT a new row into `system_config` with the desired `val
 | `token_cleanup_threshold_days` | `7` | Age threshold (days) for cleanup of expired/consumed account tokens |
 | `deceased_cleanup_grace_days` | `30` | Grace period (days) before PII removal after member marked deceased |
 | `login_rate_limit_max_attempts` | `10` | Max failed login attempts within window before lockout |
-| `login_rate_limit_window_minutes` | `15` | Sliding window (minutes) for counting failed login attempts |
+| `login_rate_limit_window_minutes` | `15` | Fixed window (minutes), opened at the first counted attempt, for counting failed login attempts |
 | `login_cooldown_minutes` | `30` | Lockout duration (minutes) after rate-limit threshold exceeded |
 | `register_rate_limit_max_attempts` | `10` | Max registration attempts per source IP per window |
-| `register_rate_limit_window_minutes` | `15` | Sliding window (minutes) for counting registration attempts |
+| `register_rate_limit_window_minutes` | `15` | Fixed window (minutes), opened at the first counted attempt, for counting registration attempts |
 | `login_account_rate_limit_max_attempts` | `30` | Max login attempts per account across all source IPs per window (distributed credential-stuffing cap) |
-| `login_account_rate_limit_window_minutes` | `60` | Sliding window (minutes) for the per-account login cap |
+| `login_account_rate_limit_window_minutes` | `60` | Fixed window (minutes), opened at the first counted attempt, for the per-account login cap |
 | `password_reset_rate_limit_max_attempts` | `5` | Max password reset requests per email per window |
-| `password_reset_rate_limit_window_minutes` | `60` | Sliding window (minutes) for counting password reset requests |
+| `password_reset_rate_limit_window_minutes` | `60` | Fixed window (minutes), opened at the first counted attempt, for counting password reset requests |
 | `password_change_rate_limit_max_attempts` | `10` | Max authenticated password-change attempts per member per window |
-| `password_change_rate_limit_window_minutes` | `15` | Sliding window (minutes) for counting password-change attempts per member |
+| `password_change_rate_limit_window_minutes` | `15` | Fixed window (minutes), opened at the first counted attempt, for counting password-change attempts per member |
 | `verify_resend_rate_limit_max_attempts` | `3` | Max verify-email resend requests per email per window |
-| `verify_resend_rate_limit_window_minutes` | `60` | Sliding window (minutes) for counting verify-email resend requests |
+| `verify_resend_rate_limit_window_minutes` | `60` | Fixed window (minutes), opened at the first counted attempt, for counting verify-email resend requests |
 | `jwt_expiry_hours` | `24` | Session JWT lifetime (hours); governs archive access expiry |
 | `photo_upload_rate_limit_per_hour` | `10` | Max photo uploads per member per hour |
 | `avatar_upload_rate_limit_per_hour` | `10` | Max avatar uploads per member per hour |
@@ -1233,16 +1234,16 @@ To change any value: INSERT a new row into `system_config` with the desired `val
 | `admin_inactivity_alert_days` | `180` | Days without a sign-in before an administrator is surfaced for recruitment follow-up |
 | `system_health_window_hours` | `24` | Recent window (hours) the admin system-health view aggregates outbound-email and scheduled-job counts over |
 | `declared_anchor_rate_limit_max_per_member` | `10` | Max declared-anchor additions per member per window |
-| `declared_anchor_rate_limit_window_minutes` | `60` | Sliding window (minutes) for declared-anchor writes |
+| `declared_anchor_rate_limit_window_minutes` | `60` | Fixed window (minutes), opened at the first counted attempt, for declared-anchor writes |
 | `link_help_request_rate_limit_max_per_member` | `3` | Max admin link help requests per member per window |
-| `link_help_request_rate_limit_window_minutes` | `1440` | Sliding window (minutes) for link help requests |
+| `link_help_request_rate_limit_window_minutes` | `1440` | Fixed window (minutes), opened at the first counted attempt, for link help requests |
 | `onboarding_birth_date_change_max` | `3` | Max date-of-birth changes a member may make before onboarding completes |
 | `hp_claim_rate_limit_max_per_member` | `5` | Max claim confirmations (direct record claim, wizard card claim) per requesting member, and per target record, per window |
 | `hp_claim_rate_limit_max_per_ip` | `10` | Max claim confirmations per source IP per window (silent) |
-| `hp_claim_rate_limit_window_minutes` | `60` | Sliding window (minutes) for claim-confirmation rate limiting |
+| `hp_claim_rate_limit_window_minutes` | `60` | Fixed window (minutes), opened at the first counted attempt, for claim-confirmation rate limiting |
 | `bootstrap_claim_rate_limit_max_per_member` | `5` | Max first-admin bootstrap-claim attempts per member per window |
 | `bootstrap_claim_rate_limit_max_per_ip` | `5` | Max first-admin bootstrap-claim attempts per source IP per window (silent) |
-| `bootstrap_claim_rate_limit_window_minutes` | `60` | Sliding window (minutes) for bootstrap-claim attempts |
+| `bootstrap_claim_rate_limit_window_minutes` | `60` | Fixed window (minutes), opened at the first counted attempt, for bootstrap-claim attempts |
 | `bulk_send_paused` | `0` | Operator switch stopping the bulk stream only, leaving transactional mail flowing (`0` = releasing, `1` = stopped) |
 | `bulk_halt_min_sent_in_window` | `50` | Messages that must have been sent inside the health window before bounce and complaint rates are judged at all, so one bounce against an idle sender cannot stop a run |
 | `bounce_rate_alarm_threshold_per_10k` | `500` | Bulk mail stops at or above this bounce rate, in ten-thousandths of messages sent (5%, the rate at which the provider places an account under review) |
@@ -1272,13 +1273,13 @@ Permanent operational table recording live club membership for members. Written 
 
 **Table:** `club_viability_signals`
 
-Append-only table recording crowdsourced activity signals for clubs and club candidates. Written only when a prospective member completes the onboarding wizard (answers collected at stages 1A and 1B). One row per member per target per submission.
+Append-only table recording crowdsourced activity signals for clubs and club candidates. Written only when a prospective member completes the onboarding wizard (answers collected at stages 1A and 1B). One row per member per target per stage.
 
 - `club_id` is nullable. A row is either club-keyed (`club_id` set; feeds the `crowdsource_club_viability` gates) or candidate-keyed (`club_id` NULL; an activity signal about an unpromoted `legacy_club_candidates` row, surfaced on the admin cleanup queue's candidate-flag group). A table CHECK requires candidate-keyed rows to carry `source_entity_type = 'legacy_club_candidate'` with the candidate id in `source_entity_id`. Promoting the candidate stamps the new club id onto its candidate-keyed rows, moving those signals to the live club's gates so a signal never counts on both surfaces.
 - `source_stage` enum: `stage1a_contact`, `stage1b_affiliated`. The onboarding wizard is the only surface that collects activity signals, so the vocabulary admits only its two stages.
 - `activity_signal` enum: `active`, `not_active`. The wizard's activity question offers exactly these two answers, so every recorded signal feeds the `crowdsource_club_viability` predicate: `active` (S1) and `not_active` (S2/S3).
 - `source_entity_type` and `source_entity_id`: traceability to the wizard card. Club-keyed rows carry `legacy_person_club_affiliation` or `club_bootstrap_leader`, or `legacy_club_candidate` for a row that began candidate-keyed and had the club id stamped onto it at promotion; candidate-keyed rows carry `legacy_club_candidate` with the candidate id.
-- No `updated_at`/`version`: append-only, except for the promotion stamp on `club_id`. A member who submits again writes a new row; the predicate counts one signal per member, taking the member's latest row per target.
+- No `updated_at`/`version`: append-only, except for the promotion stamp on `club_id`. A repeated answer to a card already answered writes no row; the predicate counts one signal per member, taking the member's latest row per target.
 
 **Table:** `club_insight_notes`
 
