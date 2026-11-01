@@ -74,7 +74,8 @@ function stubPackagedTools(kind: 'pinned' | 'older') {
 function writeToolVersions() {
   mkdirSync(join(root, 'ops'), { recursive: true });
   writeFileSync(join(root, 'ops', 'tool-versions.env'),
-    'SQLITE_VERSION=3.51.2\nJQ_VERSION=1.7.1\nAGE_VERSION=1.1.1\nFFMPEG_VERSION=8.1.3-r0\n');
+    'SQLITE_VERSION=3.51.2\nJQ_VERSION=1.7.1\nAGE_VERSION=1.1.1\nFFMPEG_VERSION=8.1.3-r0\n'
+    + 'DOCKER_ENGINE_WORKSTATION=5:29.3.0-1~ubuntu.22.04~jammy\n');
 }
 
 function run(fn: 'tool_report' | 'tool_report_require', tools: string[]) {
@@ -178,6 +179,26 @@ describe('tool-report.sh — the secret scanner', () => {
     stub('gitleaks', 'echo 8.30.1');
     const r = report(['gitleaks']);
     expect(r.stdout).toContain('[missing] gitleaks 8.30.1 is installed but the push gate runs 8.24.3');
+  });
+});
+
+describe('tool-report.sh — the docker engine must be the pinned workstation engine', () => {
+  beforeEach(() => writeToolVersions());
+
+  it('passes an engine at the pinned version', () => {
+    stub('docker', '[ "$1" = version ] && echo 29.3.0; exit 0');
+    const r = report(['docker']);
+    expect(r.status, r.stdout).toBe(0);
+    expect(r.stdout).not.toContain('[missing]');
+  });
+
+  // Defect caught: a workstation on another Docker engine runs the dev stack and
+  // the suites, so local container runs are trusted as the pinned environment.
+  it('refuses an engine at another version, naming the pin', () => {
+    stub('docker', '[ "$1" = version ] && echo 28.0.0; exit 0');
+    const r = report(['docker']);
+    expect(r.status).toBe(1);
+    expect(r.stdout).toContain('[missing] the docker engine is 28.0.0; the pinned workstation engine is 29.3.0');
   });
 });
 

@@ -544,6 +544,7 @@ describe('bringup-status.sh — one row per host bootstrap step', () => {
     'DOCKER_RPM=25.0.16-1.amzn2023.0.5', 'AL_RELEASE=2023.12.20261021', 'RSYNC=yes',
     'AWSCLI=yes', 'SRV_DIR=root:root 755', 'ENV_FILE=root:root 600', 'DB_DIR=1000:1000', 'FOOTBAG_ENV=production',
     'CRED_CHAIN=ok', 'CRED_KEY_ID=AKIAEXAMPLEEXAMPLE01', 'CWAGENT_ACTIVE=active', 'CWAGENT_ENABLED=enabled',
+    'CWAGENT_SUBSTATE=running', 'CWAGENT_NRESTARTS=0', 'CWAGENT_LAST_ERROR=',
     'CWAGENT_VERSION=1.300050.0b1', 'CWAGENT_KEY_ID=AKIAEXAMPLEEXAMPLE01',
     'LOG_DRIVERS=footbag-web-1:awslogs footbag-worker-1:awslogs footbag-nginx-1:awslogs', 'SERVICE_ENABLED=enabled',
     'TIMER_ENABLED=enabled', 'ZRAM_ACTIVE=yes', 'ZRAM_SUPPRESSED=no', 'SWAPFILE=yes',
@@ -594,7 +595,9 @@ describe('bringup-status.sh — one row per host bootstrap step', () => {
     ['sshd listening on its second port', override('SSHD_LISTEN', '22'), /Shared account, sshd ports\s+PENDING/, /bootstrap-host\.sh --target production/],
     ['the database directory', override('DB_DIR', '0:0'), /Database directory\s+PENDING/, /bootstrap-host\.sh/],
     ['the credential chain', override('CRED_CHAIN', 'fail'), /Host credential chain\s+PENDING/, /install-host-credentials\.sh --target production --rotate/],
-    ['the agent', override('CWAGENT_ENABLED', 'disabled'), /CloudWatch agent\s+PENDING/, /install-cwagent-production\.sh --rotate/],
+    // A stopped agent on a host holding the publisher's key is diagnosed and
+    // re-installed in place, never given a new key for a fault a key cannot fix.
+    ['the agent', override('CWAGENT_ENABLED', 'disabled'), /CloudWatch agent\s+FAILED/, /diagnose-cwagent\.sh --target production, then .*install-cwagent-production\.sh --upgrade/],
     ['log shipping', override('LOG_DRIVERS', 'footbag-web-1:awslogs'), /Deployed runtime\s+PENDING\s+not yet: worker shipping/, /deploy_to_aws\.sh/],
     ['the sshd posture', override('SSHD_ROOT', 'prohibit-password'), /sshd posture\s+PENDING/, /harden-sshd\.sh --target production --apply/],
     ['the swap file', override('SWAPFILE', 'no'), /Swap\s+PENDING/, /bootstrap-host\.sh/],

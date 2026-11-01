@@ -242,7 +242,7 @@ render_all() {
     i=$(( i + 1 ))
     render_row "$i" "$step"
     case "$BH_STATE" in
-      PENDING|UNKNOWN) [[ "$step" == "snapshot" ]] || pending=$(( pending + 1 )) ;;
+      PENDING|UNKNOWN|FAILED) [[ "$step" == "snapshot" ]] || pending=$(( pending + 1 )) ;;
     esac
   done
   echo ""
@@ -866,7 +866,12 @@ if [[ "${P[CWAGENT_ACTIVE]:-}" != "active" || "${P[CWAGENT_ENABLED]:-}" != "enab
   refresh_host; refresh_aws
 fi
 bh_verdict cwagent
-if [[ "${P[CW_METRICS]:-}" == "ok" && "${P[IAM_CW_KEYS]-unknown}" != "unknown" && "${P[IAM_CW_INACTIVE]-unknown}" != "unknown" ]]; then
+if [[ "$BH_STATE" == "FAILED" ]]; then
+  # A stopped agent is not "metrics not arriving yet": a re-run would only
+  # restart it into the same failure, so the cause and its remedy are stated.
+  echo "    FAILED: ${BH_DETAIL}"
+  echo "    next: ${BH_NEXT}"
+elif [[ "${P[CW_METRICS]:-}" == "ok" && "${P[IAM_CW_KEYS]-unknown}" != "unknown" && "${P[IAM_CW_INACTIVE]-unknown}" != "unknown" ]]; then
   retire_dead_keys "$CW_INSTALLER" "${P[IAM_CW_KEYS]}" "${P[IAM_CW_INACTIVE]}" "${P[CWAGENT_KEY_ID]:-}" \
     || { echo "ERROR: the publisher's dead key was not retired." >&2; exit 1; }
   refresh_aws
@@ -1052,8 +1057,8 @@ render_all
 bh_milestones "$TARGET"
 echo ""
 if (( RENDER_PENDING > 0 )); then
-  echo "${RENDER_PENDING} step(s) still pending; each names its command above. A re-run"
-  echo "proves what is done and finishes the rest."
+  echo "${RENDER_PENDING} step(s) still pending or failed; each names its command above. A re-run"
+  echo "proves what is done and finishes what is pending; a failed step needs its named command."
   exit 1
 fi
 echo "The host is bootstrapped."

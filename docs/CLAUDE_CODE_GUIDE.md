@@ -196,7 +196,7 @@ Precedence across all three is `deny > ask > allow`: a `deny` at any scope wins,
 |---|---|---|
 | root `CLAUDE.md` | process, the three orders, non-negotiable rules | always |
 | nested `CLAUDE.md` (`src/db`, `tests`, `freestyle`, `legacy_data`) | subtree-specific orientation | when a subtree file is opened |
-| `.claude/rules/*.md` | per-path conventions (controllers, services, views, db, db write safety, adapters, tests, comments, script secrets, operator scripts, infrastructure, private repo, docs, the harness) and the one shared rule (asking) | when a matching file is Read/Edited; at launch for a rule without `paths:` |
+| `.claude/rules/*.md` | per-path conventions (controllers, services, views, db, db write safety, adapters, tests, comments, script secrets, operator scripts, script closing reports, infrastructure, private repo, docs, the harness) and the one shared rule (asking) | when a matching file is Read/Edited; at launch for a rule without `paths:` |
 | `.claude/skills/*` | repeatable playbooks (add a public page, run a review, sync docs) | when invoked, or automatically when a file matching the skill's `paths:` glob is worked on (`freestyle-dictionary-surface` carries one for the freestyle templates and partials) |
 | `.claude/hooks/*` | deterministic guardrails that block, not advise | on the matching tool call |
 | `.claude/workflows/*` | saved multi-agent workflow scripts a skill runs by name (`extended-doc-sync-stages`, `bug-hunt-stages`) | when the skill that names them runs |

@@ -158,6 +158,12 @@ jobs:
         with:
           persist-credentials: false
 
+      # The Python the gates and tests run is the pinned one, never the runner
+      # image's, so CI proves the version every workstation runs.
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: '.python-version'
+
       - name: Run convention gate
         run: bash scripts/ci/assert_conventions.sh
 
@@ -174,6 +180,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      # The Python the gates and tests run is the pinned one, never the runner
+      # image's, so CI proves the version every workstation runs.
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: '.python-version'
 
       # The hook fixture suite runs once, as the next step, not again inside the
       # self-check.
@@ -194,6 +206,12 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      # The Python the gates and tests run is the pinned one, never the runner
+      # image's, so CI proves the version every workstation runs.
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version-file: '.python-version'
 
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0

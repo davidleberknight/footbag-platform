@@ -577,8 +577,20 @@ bh_verdict() {
       host_gate || return 0
       local cw="scripts/install-cwagent-${t}.sh" want="${P[PIN_CWAGENT_VERSION]:-}"
       if [[ "${P[CWAGENT_ACTIVE]:-}" != "active" || "${P[CWAGENT_ENABLED]:-}" != "enabled" ]]; then
-        BH_STATE=PENDING; BH_DETAIL="the agent is not running and enabled"
-        BH_NEXT="< ${cred} bash ${cw} --rotate"
+        # A stopped agent is a failure with a cause, and the cause decides the
+        # remedy: only refused credentials, or a host holding none of the
+        # publisher's keys, call for a new key. A config the agent cannot
+        # translate, or anything else, is diagnosed and re-installed in place.
+        local why="${P[CWAGENT_LAST_ERROR]:-}" state="${P[CWAGENT_ACTIVE]:-unknown}"
+        BH_STATE=FAILED
+        if [[ "$why" =~ AccessDenied|403|ExpiredToken|InvalidClientTokenId|SignatureDoesNotMatch|UnrecognizedClient ]] \
+            || { [[ "${P[IAM_CW_KEYS]-unknown}" != "unknown" ]] && ! bh_cwagent_key_in_service; }; then
+          BH_DETAIL="the agent is ${state}: its credentials do not publish${why:+ (${why})}"
+          BH_NEXT="< ${cred} bash ${cw} --rotate"
+        else
+          BH_DETAIL="the agent is ${state} (${P[CWAGENT_SUBSTATE]:-?}, ${P[CWAGENT_NRESTARTS]:-?} restarts): ${why:-no error in its log}"
+          BH_NEXT="< ${cred} bash scripts/diagnose-cwagent.sh --target ${t}, then < ${cred} bash ${cw} --upgrade"
+        fi
       elif [[ -z "$want" || "${P[CWAGENT_VERSION]:-}" != "$want" ]]; then
         BH_STATE=PENDING; BH_DETAIL="the agent runs ${P[CWAGENT_VERSION]:-an unknown version}, not the pinned ${want:-<unpinned>}"
         # A version bump is a package change, not a credential change: a host

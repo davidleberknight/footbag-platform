@@ -84,6 +84,9 @@ beforeAll(async () => {
   // Unverified placeholder (email_verified_at = null)
   insertMember(db, { display_name: 'Jane Placeholder', real_name: 'Jane Placeholder', slug: 'jane_placeholder', email_verified_at: null });
 
+  // The system member: no login address and so no verification date, by design.
+  insertMember(db, { display_name: 'Footbag Hacky', real_name: 'Footbag Hacky', slug: 'footbag_hacky', is_system: 1 });
+
   // Historical persons (legacy data)
   insertHistoricalPerson(db, { person_id: 'person-dave-001', person_name: 'Dave Mockingbird', country: 'US' });
   insertHistoricalPerson(db, { person_id: 'person-zane-001', person_name: 'Zane Footbag', country: 'CA' });
@@ -283,6 +286,14 @@ describe('GET /members/<slug>?q= — member search on personal home', () => {
     const app = createApp();
     const res = await request(app).get(`/members/${SEARCHER_SLUG}?q=jane`).set('Cookie', searcherCookie());
     expect(res.text).not.toContain('Jane Placeholder');
+  });
+
+  it('finds the system member, which has no address to verify', async () => {
+    // A member searching for the platform's own account would otherwise find nothing, because the
+    // verified-address condition that keeps out unconfirmed registrants also caught it.
+    const app = createApp();
+    const res = await request(app).get(`/members/${SEARCHER_SLUG}?q=hacky`).set('Cookie', searcherCookie());
+    expect(resultsBlock(res.text)).toContain('href="/members/footbag_hacky"');
   });
 
   it('matches substring anywhere in name', async () => {

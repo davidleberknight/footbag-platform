@@ -15,14 +15,18 @@
  * alias connects as, so both branches are exercised with that account supplied
  * rather than read from whichever machine the suite happens to run on.
  *
- * The remote half is a root shell on a deployed host and is not reachable from
- * here; a suite that appeared to reach one would have proved nothing about one.
+ * The root-side half is driven against a stand-in agent tree, as a plain user,
+ * for what it reports: every config the translator merges, the translator's own
+ * verdict on them written to a throwaway directory, and the credentials file by
+ * shape only, never its values.
  */
 import { describe, it, expect } from 'vitest';
 import { spawnSync } from 'node:child_process';
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
+import { createScratchDir, removeScratch } from '../fixtures/scratchDir';
 import { connectingAs, SHARED_ACCOUNT, NAMED_ACCOUNT } from '../fixtures/sshConfigStub';
 
 const SCRIPT = join(process.cwd(), 'scripts/diagnose-cwagent.sh');
@@ -110,5 +114,57 @@ describe('diagnose-cwagent.sh — the credential it names', () => {
     expect(result.exitCode).toBe(1);
     expect(result.stderr).toMatch(/expected the host sudo password/);
     expect(result.stdout).not.toMatch(/Diagnosing the CloudWatch agent/);
+  });
+});
+
+describe('diagnose-cwagent-remote.sh: what the translator merges, and its verdict', () => {
+  // Defect caught: the agent's log only ever says "exit status 1", so a stale
+  // drop-in merged with the installer's config stopped the agent and nothing
+  // named it. The diagnostic shows every merged config and the translator's
+  // own message, without touching the agent's translated config.
+  it('prints every merged config and the translator message, leaves no temp dir, and never prints the credentials', () => {
+    const dir = createScratchDir('diagnose-cwagent');
+    try {
+      const agent = join(dir, 'agent');
+      for (const sub of ['bin', 'etc/amazon-cloudwatch-agent.d', 'logs']) mkdirSync(join(agent, sub), { recursive: true });
+      writeFileSync(join(agent, 'etc', 'amazon-cloudwatch-agent.json'), '{"metrics": {"namespace": "CWAgent"}}\n');
+      writeFileSync(join(agent, 'etc', 'amazon-cloudwatch-agent.d', 'file_amazon-cloudwatch-agent.json'), '{"metrics": {"stale": true}}\n');
+      const outputs = join(dir, 'translator-outputs');
+      // The translator's merge refusal as staging's translator printed it on 2026-11-01.
+      writeFileSync(join(agent, 'bin', 'config-translator'), [
+        '#!/usr/bin/env bash',
+        'while (( $# )); do [[ "$1" == --output ]] && echo "$2" >> ' + JSON.stringify(outputs) + '; shift; done',
+        'echo "Failed to merge multiple json config files."',
+        'echo "Under path : /metrics/metrics_collected/cpu | Error : Different values are specified for cpu"',
+        'exit 1',
+      ].join('\n'));
+      chmodSync(join(agent, 'bin', 'config-translator'), 0o755);
+      const creds = join(dir, 'credentials');
+      writeFileSync(creds, '[footbag-staging-cwagent]\naws_access_key_id = AKIAEXAMPLEEXAMPLE01\naws_secret_access_key = stub-secret-never-printed\n');
+      const bin = join(dir, 'stub-bin');
+      mkdirSync(bin);
+      writeFileSync(join(bin, 'systemctl'), '#!/usr/bin/env bash\necho stub\n');
+      chmodSync(join(bin, 'systemctl'), 0o755);
+
+      const r = spawnSync('bash', [join(process.cwd(), 'scripts/internal/diagnose-cwagent-remote.sh')], {
+        encoding: 'utf-8',
+        env: { ...process.env, PATH: `${bin}:${process.env.PATH ?? ''}`, CWAGENT_AGENT_DIR: agent, CWAGENT_CREDS_FILE: creds, TMPDIR: dir },
+        ...SPAWN_GUARD,
+      });
+      const out = (r.stdout ?? '') + (r.stderr ?? '');
+      expect(out).toContain('"stale": true');
+      expect(out).toContain('"namespace": "CWAgent"');
+      expect(out).toContain('Different values are specified for cpu');
+      expect(out).toContain('translator exit: 1');
+      // Its output went to a throwaway directory, removed on exit, and never to
+      // the agent's own translated config.
+      const written = readFileSync(outputs, 'utf-8').trim();
+      expect(written).not.toBe(join(agent, 'etc', 'amazon-cloudwatch-agent.toml'));
+      expect(existsSync(written)).toBe(false);
+      expect(out).not.toContain('stub-secret-never-printed');
+      expect(out).toContain('secret lines: 1');
+    } finally {
+      removeScratch(dir);
+    }
   });
 });

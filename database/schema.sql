@@ -2533,14 +2533,16 @@ CREATE VIEW members_of_record AS
 -- registrants never appear, then filters four more conditions that must exclude
 -- a member from search: deceased, opted-out (searchable=0), PII-purged, and
 -- unverified (email_verified_at IS NULL), which keeps out registrants who never
--- verified their address. Do not add extra WHERE clauses on top of members or
--- the bare table.
+-- verified their address. The system member has no address by design, since no
+-- one signs in as it, and is searchable like any other member, so it passes the
+-- verified-address condition on is_system. Do not add extra WHERE clauses on top
+-- of members or the bare table.
 CREATE VIEW members_searchable AS
   SELECT * FROM members_onboarded
   WHERE is_deceased = 0
     AND searchable = 1
     AND personal_data_purged_at IS NULL
-    AND email_verified_at IS NOT NULL;
+    AND (email_verified_at IS NOT NULL OR is_system = 1);
 
 -- =============================================================================
 -- SECTION 15: MEMBER LINKS

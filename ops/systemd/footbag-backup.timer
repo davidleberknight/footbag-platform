@@ -15,7 +15,6 @@ Description=Footbag SQLite backup every 5 minutes
 OnBootSec=2min
 OnUnitActiveSec=5min
 RandomizedDelaySec=20s
-Persistent=true
 Unit=footbag-backup.service
 
 [Install]

@@ -96,6 +96,12 @@ _tool_report_check() {
         echo "docker is not installed. Install the container runtime per the developer onboarding guide."
       elif ! timeout 10 docker info >/dev/null 2>&1; then
         echo "docker is installed but its daemon is not answering. Start it (Docker Desktop, or: sudo service docker start)."
+      else
+        # The pin is the apt version string (epoch:version-revision); the
+        # running engine reports only the version part.
+        pin="$(_tool_report_list_pin DOCKER_ENGINE_WORKSTATION "$root" | sed 's/^[0-9]*://; s/-.*//')"
+        have="$(timeout 10 docker version --format '{{.Server.Version}}' 2>/dev/null || true)"
+        [ "$have" = "$pin" ] || echo "the docker engine is ${have:-of unknown version}; the pinned workstation engine is ${pin} (DOCKER_ENGINE_WORKSTATION in ops/tool-versions.env). Install that version per the developer onboarding guide's Docker section."
       fi
       ;;
     gitleaks)

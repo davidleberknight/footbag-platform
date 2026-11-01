@@ -46,9 +46,11 @@ Run directory: `footbag_private_repo/doc-sync-run/<date>/`, gitignored there, wr
 Ledger: `footbag_private_repo/DOC_SYNC_LEDGER.json`; when the private checkout is absent,
 `<run>/ledger.json`, said in one line. No ledger means a full baseline run.
 
-**Whole-repository run, the default.** "Run the extended doc sync" runs the steps below over
-every unit once: one inventory, one extraction, one grouping, one comparison, one draft. The
-asking then runs over as many fresh sessions as it takes, in the domain order
+**Domain by domain.** "Run the extended doc sync" walks the repository one domain at a time,
+each only on the maintainer's approval, with its token cost reported before the next is
+offered: the inventory limited to that domain's exact units with `--units`, then one
+extraction, one grouping, one comparison, one draft. The asking then runs over as many fresh
+sessions as it takes, in the domain order
 `footbag_private_repo/EXTENDED_DOC_SYNC_REVIEW.md` sets, S1 first within each, until every
 cluster has a ruling; that file records which are ruled, and "continue the extended doc sync"
 resumes there. A later run extracts only what the ledger shows changed. When the private
@@ -61,10 +63,10 @@ the public repository only.
    pattern never buries a single instance that changes meaning.
 2. **Pilot first** whenever this skill or its briefs changed since the last run, and on the
    first run: take one slice (one story group, its data-model section, its service, controller
-   and their comments) by passing only those units' batches, then report units read,
-   candidates, verified findings and tokens spent, and stop for the maintainer to decide on the
-   full run. A pilot never records the ledger: recording marks every inventoried file checked,
-   and a pilot read one slice. Otherwise run what the inventory batched.
+   and their comments) by passing its unit ids to `--units`, never the batches that happen to
+   hold them, then report units read, candidates, verified findings and tokens spent, and stop
+   for the maintainer to decide on the next domain. A pilot's units are recorded with
+   `--record --units`, which marks only what it read.
 3. Extract: `Workflow({ name: 'extended-doc-sync-stages', args: { stage: 'extract', docBatches, commentBatches, vocabPath: '<run>/inventory.vocab.json', textDir: '<run>/inventory.batches', claimsDir: '<run>/claims' } })`,
    the batches taken from the inventory's `extract` field. It returns counts and any batch that
    failed; rerun only those.
@@ -76,15 +78,15 @@ the public repository only.
 6. Ask, from a fresh session. Once the drafts are written, end the run by giving the
    maintainer `<run>`; each asking session reads only the results, the drafts, the review
    file's position and the cards, so every question is asked from a small context. A draft's
-   `unconfirmed` fact is checked by a fresh-context subagent before it is used. First, one
-   ratify-only message lists every settled cluster below S1, one plain sentence each naming
-   what changes and its recommended record (handover file or card); one approval covers the
-   list and its triage, and any item the maintainer names is pulled out, moved or asked on its
-   own. Then every S1 cluster and every disputed one, one at a time, from its draft. For each,
-   re-derive the
-   recommendation yourself with the `design-intent` skill from the passages, never copying the
-   worker's, and put it to the maintainer under the asking rule, written for someone reading on
-   a phone who saw none of the run:
+   `unconfirmed` fact is checked by a fresh-context subagent before it is used. Before any
+   cluster reaches the maintainer, settled or disputed, re-derive it yourself with the
+   `design-intent` skill: read its governing passage and the code this session, never copying
+   the worker's verdict or recommendation, and drop, saying so, any cluster the intent does
+   not bear out. Then one ratify-only message lists every re-derived settled cluster below S1,
+   one plain sentence each naming what changes; one approval covers that list, and any item
+   the maintainer names is pulled out or asked on its own. Then every S1 cluster and every
+   disputed one, one at a time, from its re-derivation, put to the maintainer under the asking
+   rule, written for someone reading on a phone who saw none of the run:
    - One discrepancy per message, in plain sentences; never a table.
    - Every message has the same shape, in this order, so a new topic is unmistakable:
      1. First line, a bold heading: "Question N of M: <plain title>".
@@ -104,17 +106,18 @@ the public repository only.
      cannot be confirmed that way is checked by a fresh-context subagent before the question is
      asked, never put to the maintainer as an assumption.
    Mechanical findings and failing gates are asked the same way.
-7. Record each ruling as work; never carry it out in the review session, which would grow too
-   long. Each ruling's question recommends where its fix is recorded, and the maintainer
-   triages it: a tiny fix, a document's or comment's wording with no change of behaviour or
-   design, goes into `footbag_private_repo/HANDOVER_DOC_SYNC.md`; anything larger becomes a
-   step on a private-tracker card (the `tracker-ops` skill). Either names the losing side, the
-   winning passage and the exact change. Batch cards so one card is one session's work: every
-   card-sized ruling in one domain (a service and its pages) goes on one card, added as a step
-   when its ruling lands, and a new card starts only for another domain or for work too large
-   for one session. A feature not yet built is recorded and left.
+7. The maintainer triages every ruling; no record is assumed. A tiny fix, a document's or
+   comment's wording with no change of behaviour or design, is applied when the maintainer
+   says so or goes into `footbag_private_repo/HANDOVER_DOC_SYNC.md`. For anything larger, a
+   card is one option, not the default: each new card, and each step added to an existing
+   card (the `tracker-ops` skill), is its own question, asked one at a time after its finding
+   is re-derived against the design intent. Any record names the losing side, the winning
+   passage and the exact change; card-sized rulings the maintainer puts on cards share one
+   card per domain (a service and its pages). A feature not yet built is recorded and left.
+   No doc-sync session changes public page wording; wording on the freestyle pages goes to the
+   freestyle maintainer.
 8. Record: write the run's remaining findings and every ruling into the results file, then
-   `npx tsx scripts/extended-doc-sync-inventory.ts --record --results <run>/results.json --ledger <ledger> --from <run>/inventory.json`,
+   `npx tsx scripts/extended-doc-sync-inventory.ts --record --results <run>/results.json --ledger <ledger> --from <run>/inventory.json --units <run>/units.json`,
    so the next run reads only what changed and never re-asks a ruling.
 
 ## Sensitive data

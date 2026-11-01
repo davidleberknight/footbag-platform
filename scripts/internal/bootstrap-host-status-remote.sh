@@ -125,6 +125,12 @@ emit CRED_KEY_ID "$([[ -n "$env_record" ]] && key_id_in /root/.aws/credentials "
 # The monitoring agent and the container log shipping.
 emit CWAGENT_ACTIVE "$(systemctl is-active amazon-cloudwatch-agent 2>/dev/null || true)"
 emit CWAGENT_ENABLED "$(systemctl is-enabled amazon-cloudwatch-agent 2>/dev/null || true)"
+# Why an agent is down: a service restarting every minute reads "activating",
+# and the agent's own last error says whether its config or its credentials
+# stopped it. The log line carries no secret.
+emit CWAGENT_SUBSTATE "$(systemctl show -p SubState --value amazon-cloudwatch-agent 2>/dev/null || true)"
+emit CWAGENT_NRESTARTS "$(systemctl show -p NRestarts --value amazon-cloudwatch-agent 2>/dev/null || true)"
+emit CWAGENT_LAST_ERROR "$(grep ' E! ' /opt/aws/amazon-cloudwatch-agent/logs/amazon-cloudwatch-agent.log 2>/dev/null | tail -1 | cut -c1-240 || true)"
 emit CWAGENT_VERSION "$(/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a status 2>/dev/null \
   | grep -oE '"version"[[:space:]]*:[[:space:]]*"[^"]+"' | grep -oE '"[^"]+"$' | tr -d '"')"
 emit CWAGENT_KEY_ID "$([[ -n "$env_record" ]] && key_id_in /etc/amazon-cloudwatch-agent.aws/credentials "footbag-${env_record}-cwagent")"

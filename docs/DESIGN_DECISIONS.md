@@ -4861,9 +4861,11 @@ Impact:
 
 Decision:
 
-Patching is a reviewed human action on every surface: dependencies, the hash-pinned Python requirement files, the pinned runtimes (`.nvmrc`, `.python-version`), Terraform, pinned GitHub Actions, the CI runner image, host operating-system packages, container base images, and the scan images scripts run. Automated detection covers dependency advisories; every other surface is reviewed by hand on the operational cadence. No bot opens a version bump on any surface. The cadence and the per-surface procedure live in DEVOPS_GUIDE.md (private GitHub repo), "Routine Security and Platform Operations".
+Patching runs on the System Administrator's judgment, never on a schedule. Whenever they choose, they run the on-demand vulnerability report, which checks every pinned version against published advisories and ranks each finding by known exploitation and exposure; they pick the versions to patch, and a person reviews each bump before it lands. No scan runs on a schedule and no bot opens a version bump. The procedure lives in DEVOPS_GUIDE.md (private GitHub repo), "Routine Security and Platform Operations".
 
 Rationale:
+
+- The practice follows AWS Well-Architected's "Perform vulnerability management" (SEC06-BP01), with on-request scans in place of continuous ones, and holds remediation to the deadlines of CISA's Binding Operational Directive 26-04: three days for a known-exploited flaw on a publicly exposed system.
 
 - A bot that opens version bumps replaces a deliberate review step with an unreviewed upstream change, which is the opposite of why dependencies are pinned at all.
 

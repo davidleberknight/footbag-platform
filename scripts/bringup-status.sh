@@ -9,7 +9,7 @@
 # environment record, the database directory, the host credential chain, the
 # CloudWatch agent, log shipping and start at boot, the sshd posture, swap, the
 # administrators' keys and a recent host snapshot. Each step is
-# reported as DONE / PENDING / UNKNOWN / N-A / INFO with the exact next
+# reported as DONE / PENDING / FAILED / UNKNOWN / N-A / INFO with the exact next
 # command when something is pending, so the operator never has to remember
 # the sequence. The script mutates nothing and always exits 0 (usage errors
 # excepted); it is a dashboard, not a gate.

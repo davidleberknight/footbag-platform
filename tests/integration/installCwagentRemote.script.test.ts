@@ -41,6 +41,23 @@ let binDir: string;
 let hostTmp: string;
 let fifo: string;
 let installLog: string;
+let agentDir: string;
+
+/**
+ * What every run shares: the stand-in tools first on the PATH, the temp
+ * directory and the agent's tree in scratch, and an outcome check bounded to a
+ * second or two so a case that never becomes healthy fails promptly.
+ */
+function baseEnv(extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    PATH: `${binDir}:${process.env.PATH ?? ''}`,
+    TMPDIR: hostTmp,
+    CWAGENT_AGENT_DIR: agentDir,
+    CWAGENT_VERIFY_TIMEOUT_S: '2',
+    ...extra,
+  };
+}
 
 function stub(name: string, body: string[]): void {
   const p = join(binDir, name);
@@ -54,8 +71,12 @@ beforeEach(() => {
   hostTmp = join(work, 'host-tmp');
   fifo = join(work, 'release');
   installLog = join(work, 'install-calls.log');
+  agentDir = join(work, 'agent');
   mkdirSync(binDir);
   mkdirSync(hostTmp);
+  for (const sub of ['bin', 'etc/amazon-cloudwatch-agent.d', 'logs']) {
+    mkdirSync(join(agentDir, sub), { recursive: true });
+  }
   spawnSync('mkfifo', [fifo], SPAWN_GUARD);
 
   stub('findmnt', ['echo xfs']);
@@ -95,8 +116,7 @@ describe('install-cwagent-remote.sh: an interrupt during a privileged write', ()
     const child = spawn('bash', [REMOTE_HALF], {
       env: {
         ...process.env,
-        PATH: `${binDir}:${process.env.PATH ?? ''}`,
-        TMPDIR: hostTmp,
+        ...baseEnv(),
         CWAGENT_AKID: 'stub-key-id',
         CWAGENT_SAK: 'stub-secret-not-real',
         ...PINS,
@@ -144,8 +164,7 @@ describe('install-cwagent-remote.sh: an interrupt during a privileged write', ()
       encoding: 'utf8',
       env: {
         ...process.env,
-        PATH: `${binDir}:${process.env.PATH ?? ''}`,
-        TMPDIR: hostTmp,
+        ...baseEnv(),
         CWAGENT_AKID: 'stub-key-id',
         CWAGENT_SAK: 'stub-secret-not-real',
         ...PINS,
@@ -153,7 +172,7 @@ describe('install-cwagent-remote.sh: an interrupt during a privileged write', ()
       ...SPAWN_GUARD,
     });
     expect(res.status).toBe(1);
-    expect(res.stderr).toContain('not running after the restart');
+    expect(res.stderr).toContain('not running with a freshly translated config');
     // The package matched its pin and went to the package manager.
     expect(res.stdout).toContain('Package matches the pinned SHA-256');
     expect(readFileSync(installLog, 'utf8')).toContain('/etc/amazon-cloudwatch-agent.aws/credentials');
@@ -177,8 +196,7 @@ describe('install-cwagent-remote.sh: the package is pinned and checked', () => {
       encoding: 'utf8',
       env: {
         ...process.env,
-        PATH: `${binDir}:${process.env.PATH ?? ''}`,
-        TMPDIR: hostTmp,
+        ...baseEnv(),
         CWAGENT_AKID: 'stub-key-id',
         CWAGENT_SAK: 'stub-secret-not-real',
         ...pins,
@@ -234,8 +252,7 @@ describe('install-cwagent-remote.sh: an upgrade keeps the host\'s credentials', 
       encoding: 'utf8',
       env: {
         ...process.env,
-        PATH: `${binDir}:${process.env.PATH ?? ''}`,
-        TMPDIR: hostTmp,
+        ...baseEnv(),
         CWAGENT_KEEP_CREDENTIALS: '1',
         CWAGENT_CREDS_FILE: credsFile,
         ...PINS,
@@ -261,5 +278,159 @@ describe('install-cwagent-remote.sh: an upgrade keeps the host\'s credentials', 
     expect(res.status).toBe(1);
     expect(res.stderr).toMatch(/holds no\s+\[footbag-staging-cwagent\] profile/);
     expect(res.stdout).not.toContain('Package matches');
+  });
+});
+
+describe('install-cwagent-remote.sh: the run is judged by the agent it leaves running', () => {
+  const AGENT_CMD = '/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent -config /x.toml';
+  const WRAPPER_CMD = '/opt/aws/amazon-cloudwatch-agent/bin/start-amazon-cloudwatch-agent';
+  // The translator's failure as the agent's log records it, captured from a
+  // staging host on 2026-11-01.
+  const TRANSLATE_FAIL = [
+    '2026/11/01 01:34:42 I! Return exit error: exit code=1',
+    '2026/11/01 01:34:42 E! Cannot translate JSON, ERROR is exit status 1',
+  ];
+
+  type Restart = 'healthy' | 'translator-fails' | 'no-fresh-config';
+
+  /**
+   * Stand-ins for the service manager, the process table and the agent's
+   * control script. A restart does what the scenario says: write a freshly
+   * translated config and leave the agent binary as the unit's main process, or
+   * log the translator's failure and leave its start wrapper there, or leave the
+   * agent running on a config it never translated.
+   */
+  function host(restart: Restart, opts: { fetchRc?: number; runningVersion?: string } = {}) {
+    writeFileSync(`${fifo}.released`, '');
+    const state = join(work, 'main-process');
+    const log = join(agentDir, 'logs', 'amazon-cloudwatch-agent.log');
+    const toml = join(agentDir, 'etc', 'amazon-cloudwatch-agent.toml');
+    const onRestart = {
+      healthy: [`printf '[agent]\\n' > ${JSON.stringify(toml)}`,
+        `echo "2026-11-01T02:00:00Z I! started" >> ${JSON.stringify(log)}`,
+        `echo ${JSON.stringify(AGENT_CMD)} > ${JSON.stringify(state)}`],
+      'translator-fails': [...TRANSLATE_FAIL.map((l) => `echo ${JSON.stringify(l)} >> ${JSON.stringify(log)}`),
+        `echo ${JSON.stringify(WRAPPER_CMD)} > ${JSON.stringify(state)}`],
+      'no-fresh-config': [`echo ${JSON.stringify(AGENT_CMD)} > ${JSON.stringify(state)}`],
+    }[restart];
+    stub('systemctl', [
+      'case "$1" in',
+      `  restart) ${onRestart.join('; ')} ;;`,
+      '  show) case "$*" in *MainPID*) echo 4242 ;; *NRestarts*) echo 0 ;; esac ;;',
+      '  status) echo "stub service status" ;;',
+      'esac',
+      'exit 0',
+    ]);
+    stub('ps', [`cat ${JSON.stringify(state)} 2>/dev/null`]);
+    stub('journalctl', ['echo "stub journal"']);
+    const ctl = join(agentDir, 'bin', 'amazon-cloudwatch-agent-ctl');
+    writeFileSync(ctl, [
+      '#!/usr/bin/env bash',
+      'case "$*" in',
+      `  *"-a status"*) echo '{"status": "running", "version": "${opts.runningVersion ?? PINS.CWAGENT_VERSION}"}' ;;`,
+      '  *fetch-config*) echo "E! please make sure the credentials and region set correctly on your hosts"',
+      `                  exit ${opts.fetchRc ?? 0} ;;`,
+      'esac',
+    ].join('\n'));
+    chmodSync(ctl, 0o755);
+    return { log, toml };
+  }
+
+  function run() {
+    const res = spawnSync('bash', [REMOTE_HALF], {
+      encoding: 'utf8',
+      env: { ...process.env, ...baseEnv(), CWAGENT_AKID: 'stub-key-id', CWAGENT_SAK: 'stub-secret-not-real', ...PINS },
+      ...SPAWN_GUARD,
+    });
+    return { status: res.status, stdout: res.stdout ?? '', stderr: res.stderr ?? '' };
+  }
+
+  it('passes, with its closing report, when the agent itself runs on a freshly translated config', () => {
+    host('healthy');
+    const r = run();
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toContain('=== Closing report ===');
+    expect(r.stdout).toContain(`running version:  ${PINS.CWAGENT_VERSION}`);
+    expect(r.stdout).toContain('VERDICT: translated and running; publishing is not proven by this step.');
+  });
+
+  // Defect caught: a translator that fails leaves its start wrapper restarting
+  // every minute while the service reads active, and the run reported success
+  // over an agent that never started.
+  it('fails at once, showing the evidence, when the translator fails after the restart', () => {
+    host('translator-fails');
+    const r = run();
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain("ERROR: the agent's config translator failed.");
+    expect(r.stderr).toContain('E! Cannot translate JSON');
+    expect(r.stderr).toContain('VERDICT: FAILED');
+    expect(r.stdout).not.toContain('VERDICT: translated and running');
+  });
+
+  // Defect caught: an agent left on a config the run never translated (or none
+  // at all) passes as if the new one were in force.
+  it.each([['a stale translated config', true], ['no translated config', false]] as const)(
+    'fails, not proven within the bound, on %s', (_label, stale) => {
+      const { toml } = host('no-fresh-config');
+      if (stale) writeFileSync(toml, '[agent]\n');
+      const r = run();
+      expect(r.status).toBe(1);
+      expect(r.stderr).toContain('not running with a freshly translated config within 2s');
+      expect(r.stdout).not.toContain('VERDICT: translated and running');
+    });
+
+  // Defect caught: a failure from before this run, still in the log, fails a run
+  // that left a healthy agent, so a fixed host can never be reported fixed.
+  it('ignores translator errors logged before this run began', () => {
+    const { log } = host('healthy');
+    writeFileSync(log, `${TRANSLATE_FAIL.join('\n')}\n`);
+    const r = run();
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toContain('VERDICT: translated and running');
+  });
+
+  // Defect caught: fetch-config's failure was swallowed with a fixed message,
+  // so a real translation error behind it was never seen.
+  it('reports a failed fetch-config without letting it decide the run', () => {
+    host('healthy', { fetchRc: 1 });
+    const r = run();
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stdout).toMatch(/- fetch-config exited 1 \(not the verdict; the outcome check decides\): E! please make sure/);
+  });
+
+  // Defect caught: the installer's own earlier fetch-config copy, left in the
+  // drop-in directory, is merged with the config it just wrote, and one that
+  // disagrees stops the translator, so the agent never starts.
+  it("removes its own earlier fetch-config copy before the agent starts, and names it in the report", () => {
+    host('healthy');
+    const stale = join(agentDir, 'etc', 'amazon-cloudwatch-agent.d', 'file_amazon-cloudwatch-agent.json');
+    writeFileSync(stale, '{"metrics": {}}\n');
+    const r = run();
+    expect(r.status, r.stderr).toBe(0);
+    expect(existsSync(stale)).toBe(false);
+    expect(r.stdout).toContain(`- removed this installer's earlier fetch-config copy ${stale}`);
+  });
+
+  // Defect caught: a drop-in someone else put there is deleted, or merged into
+  // the agent's config unseen.
+  it('refuses, deleting nothing and restarting nothing, on a drop-in it did not write', () => {
+    host('healthy');
+    const foreign = join(agentDir, 'etc', 'amazon-cloudwatch-agent.d', 'someone-elses.json');
+    writeFileSync(foreign, '{"logs": {}}\n');
+    const r = run();
+    expect(r.status).toBe(1);
+    expect(existsSync(foreign)).toBe(true);
+    expect(r.stdout).toContain(`- ERROR: ${foreign} was not written by this installer`);
+    expect(r.stderr).toContain('the agent was not restarted');
+    expect(existsSync(join(work, 'main-process'))).toBe(false);
+  });
+
+  // Defect caught: the package step reported the pin while the agent kept
+  // running the old version, and the run passed.
+  it('fails when the running agent is not the pinned version', () => {
+    host('healthy', { runningVersion: '1.300049.0b1' });
+    const r = run();
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain(`reports version 1.300049.0b1, not the pinned ${PINS.CWAGENT_VERSION}`);
   });
 });

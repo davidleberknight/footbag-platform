@@ -599,7 +599,7 @@ Docker is part of the required workflow because the deployed origin is container
 
 Do this before anyone touches AWS.
 
-**Install Docker, the container runtime, first (if you have not already).** The setup script reports Docker's state but does not install it.
+**Install Docker, the container runtime, first (if you have not already).** The setup script reports Docker's state but does not install it. The engine must be the pinned workstation version, `DOCKER_ENGINE_WORKSTATION` in `ops/tool-versions.env` (29.3.0): `./run_dev.sh` and the test runner refuse any other. On native Linux, install that exact package version from Docker's apt repository; with Docker Desktop, use the release that ships that engine.
 
 On **native Linux**, install Docker Engine from Docker's own apt repository rather than the distribution's `docker.io` package, which lags and ships an older Compose. Follow Docker's "Install Docker Engine on Ubuntu" instructions for the repository setup, then `sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin`. Add yourself to the `docker` group (`sudo usermod -aG docker "$USER"`) and open a new shell so the membership applies; without it every command below needs `sudo`. There is no Docker Desktop in this path and none is needed.
 

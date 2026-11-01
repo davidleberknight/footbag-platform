@@ -345,10 +345,14 @@ if (( UPGRADE )); then
     printf 'CWAGENT_URL=%q\n' "$CWAGENT_URL"
     printf 'CWAGENT_SHA256=%q\n' "$CWAGENT_SHA256"
     cat "$REMOTE_HALF"
-  } | "$HOST_SSH_BIN" "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'
+  } | "$HOST_SSH_BIN" "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash' || {
+    echo >&2
+    echo "FAILED: the agent on $REMOTE is not running on its new config; the closing report above names every error." >&2
+    exit 1
+  }
   echo
-  echo "CloudWatch Agent upgraded on $REMOTE; no key was minted or changed."
-  echo "Prove the metrics still bind:  scripts/verify-cwagent-metrics.sh --target staging"
+  echo "The agent on $REMOTE translated its config and is running ${CWAGENT_VERSION}; no key was minted or changed."
+  echo "Publishing is not yet proven. Prove it:  scripts/verify-cwagent-metrics.sh --target staging"
   exit 0
 fi
 
@@ -380,12 +384,16 @@ echo "==> Running remote-as-root cwagent install via cat-pipe..."
   printf 'CWAGENT_URL=%q\n' "$CWAGENT_URL"
   printf 'CWAGENT_SHA256=%q\n' "$CWAGENT_SHA256"
   cat "$REMOTE_HALF"
-} | "$HOST_SSH_BIN" "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'
+} | "$HOST_SSH_BIN" "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash' || {
+  echo >&2
+  echo "FAILED: the agent on $REMOTE is not running on its new config; the closing report above names every error." >&2
+  exit 1
+}
 
 iam_key_commit
 
 echo
-echo "CloudWatch Agent install complete on $REMOTE."
+echo "The agent on $REMOTE translated its config and is running ${CWAGENT_VERSION}; publishing is not yet proven."
 echo
 echo "Next, and before arming anything, prove the metrics bind to the alarms:"
 echo "  scripts/verify-cwagent-metrics.sh --target staging"

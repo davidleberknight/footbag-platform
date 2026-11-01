@@ -87,6 +87,9 @@ function finishedHost(target: 'staging' | 'production'): Record<string, string> 
     CRED_KEY_ID: HOST_KEY,
     CWAGENT_ACTIVE: 'active',
     CWAGENT_ENABLED: 'enabled',
+    CWAGENT_SUBSTATE: 'running',
+    CWAGENT_NRESTARTS: '0',
+    CWAGENT_LAST_ERROR: '',
     CWAGENT_VERSION: CWAGENT,
     CWAGENT_KEY_ID: HOST_KEY,
     LOG_DRIVERS: 'footbag-web-1:awslogs footbag-worker-1:awslogs footbag-nginx-1:awslogs footbag-image-1:json-file',
@@ -488,7 +491,6 @@ describe('bootstrap-host.sh --status: a finished host, then each step taken away
     { step: 'the database directory owner', title: 'Database directory', next: /bootstrap-host\.sh/, take: () => writeHost({ ...finishedHost('staging'), DB_DIR: '0:0' }) },
     { step: 'the credential chain', title: 'Host credential chain', next: /install-host-credentials\.sh --target staging --rotate/, take: () => writeHost({ ...finishedHost('staging'), CRED_CHAIN: 'fail' }) },
     { step: "the dead host's source key", title: 'Host credential chain', next: new RegExp(`--retire <id>.*${DEAD_KEY}`), take: () => writeFileSync(join(state, 'keys-footbag-staging-source-profile'), `${HOST_KEY}\t${DEAD_KEY}\n`) },
-    { step: 'the agent', title: 'CloudWatch agent', next: /install-cwagent-staging\.sh --rotate/, take: () => writeHost({ ...finishedHost('staging'), CWAGENT_ACTIVE: 'inactive' }) },
     // A version bump on a host already publishing with the publisher's key is an
     // upgrade that keeps the key; only a host holding none needs a rotation.
     { step: 'the pinned agent version, on a host holding the publisher key', title: 'CloudWatch agent', next: /install-cwagent-staging\.sh --upgrade/, take: () => writeHost({ ...finishedHost('staging'), CWAGENT_VERSION: '1.0.0' }) },
@@ -521,6 +523,41 @@ describe('bootstrap-host.sh --status: a finished host, then each step taken away
     const row = rowFor(r.stdout, title);
     expect(row.line, row.line).toMatch(/\sPENDING\s/);
     expect(row.next, row.line).toMatch(next);
+  });
+
+  // A stopped agent is a failure with a cause, and the cause decides the
+  // remedy. Defect caught: every stopped agent was advised a key rotation, so a
+  // config the agent could not translate was answered with a new key and the
+  // same failure.
+  const stoppedAgent: Array<{ cause: string; facts: Record<string, string>; next: RegExp; notNext: RegExp }> = [
+    {
+      cause: 'a config its translator rejects, on a host holding the publisher key',
+      facts: { CWAGENT_LAST_ERROR: '2026/11/01 01:34:42 E! Cannot translate JSON, ERROR is exit status 1' },
+      next: /diagnose-cwagent\.sh --target staging, then .*install-cwagent-staging\.sh --upgrade/,
+      notNext: /--rotate/,
+    },
+    {
+      cause: 'credentials the service refuses',
+      facts: { CWAGENT_LAST_ERROR: '2026-11-01T02:00:00Z E! cloudwatch: AccessDenied: User is not authorized to perform: cloudwatch:PutMetricData' },
+      next: /install-cwagent-staging\.sh --rotate/,
+      notNext: /--upgrade/,
+    },
+    {
+      cause: 'a host holding none of the publisher keys',
+      facts: { CWAGENT_KEY_ID: DEAD_KEY },
+      next: /install-cwagent-staging\.sh --rotate/,
+      notNext: /--upgrade/,
+    },
+  ];
+  it.each(stoppedAgent)('reports a stopped agent FAILED, counted, with the remedy for $cause', ({ facts, next, notNext }) => {
+    writeHost({ ...finishedHost('staging'), CWAGENT_ACTIVE: 'activating', CWAGENT_SUBSTATE: 'auto-restart', CWAGENT_NRESTARTS: '14', ...facts });
+    const r = run(['--target', 'staging', '--status']);
+    expect(r.status, r.stdout).toBe(1);
+    const row = rowFor(r.stdout, 'CloudWatch agent');
+    expect(row.line, row.line).toMatch(/\sFAILED\s/);
+    expect(row.next, row.line).toMatch(next);
+    expect(row.next, row.line).not.toMatch(notNext);
+    expect(r.stdout).toMatch(/1 step\(s\) pending or unread/);
   });
 
   it('reports a missing recent snapshot pending, without counting it against a fresh host', () => {

@@ -76,7 +76,7 @@ function pinnedManifest(sha = 'b'.repeat(64)): string {
  * stand-in IAM listing the publisher's keys. Nothing reaches a terminal, so a
  * run that got past every check would stop at the vault prompt instead.
  */
-function runInstall(script: string, environment: string, opts: { hostKey?: string; userKeys?: string; manifest?: string; args?: string[] }) {
+function runInstall(script: string, environment: string, opts: { hostKey?: string; userKeys?: string; manifest?: string; args?: string[]; remoteExit?: number }) {
   const ssh = join(stubDir, 'ssh-host.sh');
   writeFileSync(ssh, [
     '#!/usr/bin/env bash',
@@ -85,6 +85,9 @@ function runInstall(script: string, environment: string, opts: { hostKey?: strin
     'case "$*" in',
     `  *footbag-host-identity*) printf -- "---FOOTBAG-HOST-ENV---\\n${environment}\\n---FOOTBAG-HOST-URL---\\n\\n---FOOTBAG-END---\\n" ;;`,
     `  *footbag-host-key-id*) printf -- "---FOOTBAG-KEY-ID---\\n%s\\n---FOOTBAG-END---\\n" ${JSON.stringify(opts.hostKey ?? '')} ;;`,
+    // Any other session is the root-side install, which answers with the exit
+    // its outcome check would give.
+    `  *) exit ${opts.remoteExit ?? 0} ;;`,
     'esac',
     'exit 0',
   ].join('\n'));
@@ -153,6 +156,18 @@ describe.each(INSTALLERS)('$script — the pinned agent package and a rebuilt ho
     expect(streams).toMatch(/^CWAGENT_KEEP_CREDENTIALS=1$/m);
     expect(streams).not.toMatch(/^CWAGENT_(AKID|SAK)=/m);
     expect(readFileSync(join(stubDir, 'calls.log'), 'utf-8')).not.toMatch(/create-access-key/);
+    expect(r.stdout).toContain('translated its config and is running');
+    expect(r.stdout).toContain('Publishing is not yet proven');
+  });
+
+  // Defect caught: the wrapper's closing line claimed the agent was upgraded
+  // whatever the host-side half concluded, so an agent that never started was
+  // reported done.
+  it('reports failure, with no success line, when the host-side install fails its outcome check', () => {
+    const r = runInstall(script, environment, { hostKey: 'AKIAEXAMPLEEXAMPLE01', userKeys: 'AKIAEXAMPLEEXAMPLE01', args: ['--upgrade'], remoteExit: 1 });
+    expect(r.status).not.toBe(0);
+    expect(r.stderr).toContain('FAILED: the agent on');
+    expect(r.stdout).not.toContain('translated its config and is running');
   });
 
   it('refuses an upgrade on a host that holds none of the publisher\'s keys', () => {

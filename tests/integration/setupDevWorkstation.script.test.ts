@@ -95,7 +95,9 @@ function stubCompleteMachine() {
   stub('node', `[ "$1" = -v ] && { echo v22.22.1; exit 0; }\nexec ${process.execPath} "$@"`);
   stub('gitleaks', 'echo 8.24.3');
   stub('terraform', 'echo "Terraform v1.14.7"');
-  stub('docker', 'exit 0');
+  // The engine answers at the pinned workstation version (the version part of
+  // the apt pin), which the closing report compares.
+  stub('docker', '[ "$1" = version ] && echo 29.3.0; exit 0');
   stub('dpkg-query', 'printf "install ok installed"');
   // sqlite3, jq, age, ffmpeg and ffprobe answer with their pinned versions. jq
   // is otherwise the real one: the script reads the browser manifest with it.

@@ -69,6 +69,18 @@ CWAGENT_CREDS="${CWAGENT_CREDS_FILE:-/etc/amazon-cloudwatch-agent.aws/credential
 if [[ -n "${CWAGENT_CREDS_FILE:-}" ]]; then
   echo "SYNTHETIC: CWAGENT_CREDS_FILE='${CWAGENT_CREDS_FILE}' -- this run proves nothing about the estate." >&2
 fi
+# The agent's tree, and how long the outcome check waits. Test seams, each
+# announced, because a run against a stand-in tree or a shortened wait proves
+# nothing about the host.
+AGENT_DIR="${CWAGENT_AGENT_DIR:-/opt/aws/amazon-cloudwatch-agent}"
+VERIFY_TIMEOUT_S="${CWAGENT_VERIFY_TIMEOUT_S:-120}"
+[[ -n "${CWAGENT_AGENT_DIR:-}" ]] && echo "SYNTHETIC: CWAGENT_AGENT_DIR='${CWAGENT_AGENT_DIR}' -- this run proves nothing about the estate." >&2
+[[ -n "${CWAGENT_VERIFY_TIMEOUT_S:-}" ]] && echo "SYNTHETIC: CWAGENT_VERIFY_TIMEOUT_S='${CWAGENT_VERIFY_TIMEOUT_S}' -- the outcome check's wait is shortened." >&2
+
+# Every warning and error the run meets, for the closing report: the operator
+# reads one list at the end instead of hunting a long log for what went wrong.
+REPORT=()
+note() { REPORT+=("$1"); echo "  $1" >&2; }
 
 # Checked before anything is installed: an upgrade that restarted the agent with
 # no credential to publish with would stop the host's metrics.
@@ -135,9 +147,7 @@ echo "=== Pre-flight 1: root fstype ==="
 fstype=$(findmnt -no FSTYPE /)
 echo "  Root fstype: ${fstype}"
 if [[ "${fstype}" != "xfs" ]]; then
-  echo "  WARNING: fstype is ${fstype}, not xfs. Update" >&2
-  echo "  terraform/staging/cloudwatch.tf high_disk.dimensions.fstype before" >&2
-  echo "  setting enable_cwagent_alarms = true." >&2
+  note "WARNING: root fstype is ${fstype}, not xfs; the disk alarm's fstype dimension in cloudwatch.tf must match before enable_cwagent_alarms = true."
 fi
 
 echo
@@ -149,6 +159,7 @@ else
   imds_id=$(curl -sf http://169.254.169.254/latest/meta-data/instance-id || echo 'UNKNOWN')
 fi
 echo "  IMDS instance-id: ${imds_id}"
+[[ "$imds_id" == UNKNOWN || -z "$imds_id" ]] && note "WARNING: the instance metadata service did not answer; the instance id is unknown."
 
 echo
 echo "=== Step 1: install amazon-cloudwatch-agent ${CWAGENT_VERSION} (rpm) ==="
@@ -156,7 +167,7 @@ echo "=== Step 1: install amazon-cloudwatch-agent ${CWAGENT_VERSION} (rpm) ==="
 # publisher files the package under. Empty when no agent is installed.
 installed_version=""
 if rpm -q amazon-cloudwatch-agent >/dev/null 2>&1; then
-  installed_version="$(/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl -a status 2>/dev/null \
+  installed_version="$("${AGENT_DIR}/bin/amazon-cloudwatch-agent-ctl" -a status 2>/dev/null \
     | grep -oE '"version"[[:space:]]*:[[:space:]]*"[^"]+"' | grep -oE '"[^"]+"$' | tr -d '"' || true)"
 fi
 if [[ -n "$installed_version" && "$installed_version" == "$CWAGENT_VERSION" ]]; then
@@ -205,8 +216,8 @@ echo
 # for a host that is publishing normally. Hosts are told apart by namespace,
 # which is what the alarms scope by.
 echo "=== Step 2: write agent JSON config ==="
-install -d -m 0755 -o root -g root /opt/aws/amazon-cloudwatch-agent/etc
-install_via_tmp /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json 0644 <<JSON
+install -d -m 0755 -o root -g root "${AGENT_DIR}/etc"
+install_via_tmp "${AGENT_DIR}/etc/amazon-cloudwatch-agent.json" 0644 <<JSON
 {
   "agent": {
     "region": "us-east-1",
@@ -247,7 +258,7 @@ aws_secret_access_key = $CWAGENT_SAK
 CREDS
 fi
 
-install_via_tmp /opt/aws/amazon-cloudwatch-agent/etc/common-config.toml 0644 <<CC
+install_via_tmp "${AGENT_DIR}/etc/common-config.toml" 0644 <<CC
 [credentials]
    shared_credential_file = "/etc/amazon-cloudwatch-agent.aws/credentials"
    shared_credential_profile = "$CWAGENT_PROFILE"
@@ -269,24 +280,66 @@ install_via_tmp /etc/logrotate.d/amazon-cloudwatch-agent 0644 <<'LR'
 LR
 logrotate --debug /etc/logrotate.d/amazon-cloudwatch-agent >/dev/null 2>&1 \
   && echo "  logrotate config installed and validated." \
-  || echo "  WARNING: logrotate validation failed; check /etc/logrotate.d/amazon-cloudwatch-agent" >&2
+  || note "WARNING: logrotate validation failed; check /etc/logrotate.d/amazon-cloudwatch-agent."
+
+echo
+echo "=== Step 3c: the drop-in directory holds nothing but this config ==="
+# The service's start wrapper translates the JSON above together with every file
+# in the drop-in directory, and a drop-in that disagrees with it stops the
+# translator outright ("Different values are specified for cpu"), so the agent
+# never starts. The one drop-in this installer creates is the copy its own
+# fetch-config writes from the JSON above, named after it; an older copy is
+# superseded by the JSON just written, so it is removed and named. Any other
+# drop-in was put there by something else, so it is not deleted: the run stops
+# before the restart and names it, leaving the running agent as it was.
+DROPIN_DIR="${AGENT_DIR}/etc/amazon-cloudwatch-agent.d"
+OWN_DROPIN="${DROPIN_DIR}/file_amazon-cloudwatch-agent.json"
+foreign_dropins=()
+for dropin in "${DROPIN_DIR}"/*; do
+  [[ -e "$dropin" ]] || continue
+  if [[ "$dropin" == "$OWN_DROPIN" ]]; then
+    rm -f "$dropin"
+    note "removed this installer's earlier fetch-config copy ${dropin}; the JSON just written supersedes it."
+  else
+    foreign_dropins+=("$dropin")
+    note "ERROR: ${dropin} was not written by this installer, and the agent merges every drop-in with this config."
+  fi
+done
+if (( ${#foreign_dropins[@]} )); then
+  echo
+  echo "=== Closing report ==="
+  printf '    - %s\n' "${REPORT[@]}"
+  echo "  VERDICT: FAILED -- a drop-in this installer did not write would be merged into the agent's config." >&2
+  echo "  Nothing was deleted and the agent was not restarted. Run scripts/diagnose-cwagent.sh to see what it holds." >&2
+  exit 1
+fi
 
 echo
 echo "=== Step 4: fetch-config and start agent (onPremise mode) ==="
 # fetch-config is the documented way to load a config, and on this stack it
 # exits nonzero even when the config is good: the agent's own control script
-# fails its validation step and reports a credentials or region complaint. That
-# is a known property of this build here rather than a signal about the config,
-# and treating its exit status as the install's verdict would abort the run
-# after the config and credentials were already written, leaving a
-# half-installed agent and a withdrawn key. Its failure is therefore tolerated
-# and systemd is what actually starts the agent.
-/opt/aws/amazon-cloudwatch-agent/bin/amazon-cloudwatch-agent-ctl \
+# fails its validation step and reports a credentials or region complaint. Its
+# exit is therefore not the verdict, but what it printed goes into the closing
+# report, and the outcome check below is what decides the run.
+fetch_rc=0
+fetch_out="$("${AGENT_DIR}/bin/amazon-cloudwatch-agent-ctl" \
   -a fetch-config \
   -m onPremise \
-  -c file:/opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json \
-  -s \
-  || echo "  fetch-config exited nonzero, which is expected on this host; systemd starts the agent below."
+  -c "file:${AGENT_DIR}/etc/amazon-cloudwatch-agent.json" \
+  -s 2>&1)" || fetch_rc=$?
+printf '%s\n' "$fetch_out" | sed 's/^/  /'
+if (( fetch_rc != 0 )); then
+  note "fetch-config exited ${fetch_rc} (not the verdict; the outcome check decides): $(printf '%s\n' "$fetch_out" | grep -E 'E!|ERROR' | tail -1)"
+fi
+
+# The outcome check reads only what this start produces: the log from here on,
+# and a translated config newer than this marker.
+LOG="${AGENT_DIR}/logs/amazon-cloudwatch-agent.log"
+TOML="${AGENT_DIR}/etc/amazon-cloudwatch-agent.toml"
+log_offset="$(stat -c %s "$LOG" 2>/dev/null || echo 0)"
+marker="$(mktemp)"
+CWAGENT_TMPS+=("$marker")
+started_at="$(date +%s)"
 
 # enable as well as start, so the agent comes back after a reboot. Without it a
 # restarted host publishes nothing, and the alarms would report insufficient
@@ -294,18 +347,76 @@ echo "=== Step 4: fetch-config and start agent (onPremise mode) ==="
 systemctl enable amazon-cloudwatch-agent
 systemctl restart amazon-cloudwatch-agent
 
-if ! systemctl is-active --quiet amazon-cloudwatch-agent; then
-  echo "ERROR: the CloudWatch agent is not running after the restart." >&2
-  systemctl status amazon-cloudwatch-agent --no-pager >&2 || true
-  tail -n 50 /opt/aws/amazon-cloudwatch-agent/logs/amazon-cloudwatch-agent.log >&2 || true
-  exit 1
+echo
+echo "=== Step 5: the agent translated its config and is running ==="
+# A running service is not a running agent: the unit starts a wrapper that runs
+# the config translator first, and a translator that fails leaves the wrapper
+# restarting every minute while the service reads active. So the check waits,
+# bounded, for the agent binary itself to be the unit's main process with a
+# freshly translated config, and fails at once on a translator error.
+new_log() { tail -c +"$((log_offset + 1))" "$LOG" 2>/dev/null || true; }
+agent_pid() { systemctl show -p MainPID --value amazon-cloudwatch-agent 2>/dev/null || true; }
+agent_cmd() { local pid="$1"; [[ -n "$pid" && "$pid" != 0 ]] && ps -o args= -p "$pid" 2>/dev/null | cut -d' ' -f1; }
+verdict="" healthy_pid=""
+deadline=$(( $(date +%s) + VERIFY_TIMEOUT_S ))
+while (( $(date +%s) < deadline )); do
+  # Read from a substitution, not a pipe: under pipefail, grep closing the pipe
+  # on its first match would turn a found error into a failed test.
+  if grep -qE 'Cannot translate JSON|Return exit error' < <(new_log); then
+    verdict="the agent's config translator failed"
+    break
+  fi
+  pid="$(agent_pid)"
+  if [[ "$(basename "$(agent_cmd "$pid")" 2>/dev/null)" == amazon-cloudwatch-agent \
+        && -s "$TOML" && "$TOML" -nt "$marker" ]]; then
+    # Healthy once is not healthy: seen again on the next poll with the same
+    # process, so a wrapper that is about to fail cannot pass.
+    if [[ "$pid" == "$healthy_pid" ]]; then verdict=ok; break; fi
+    healthy_pid="$pid"
+  else
+    healthy_pid=""
+  fi
+  sleep 1
+done
+[[ -n "$verdict" ]] || verdict="the agent was not running with a freshly translated config within ${VERIFY_TIMEOUT_S}s"
+
+running_version="$("${AGENT_DIR}/bin/amazon-cloudwatch-agent-ctl" -a status 2>/dev/null \
+  | grep -oE '"version"[[:space:]]*:[[:space:]]*"[^"]+"' | grep -oE '"[^"]+"$' | tr -d '"' || true)"
+if [[ "$verdict" == ok && "$running_version" != "$CWAGENT_VERSION" ]]; then
+  verdict="the agent reports version ${running_version:-unknown}, not the pinned ${CWAGENT_VERSION}"
 fi
-systemctl status amazon-cloudwatch-agent --no-pager || true
+
+while IFS= read -r line; do
+  [[ -n "$line" ]] && REPORT+=("agent log: ${line}")
+done < <(new_log | grep -E ' (E|W)! ' || true)
+
+if [[ "$verdict" != ok ]]; then
+  echo "ERROR: ${verdict}." >&2
+  echo "  --- agent log since the restart" >&2
+  new_log | tail -n 60 | sed 's/^/  /' >&2
+  echo "  --- service" >&2
+  systemctl status amazon-cloudwatch-agent --no-pager >&2 || true
+  echo "  --- journal" >&2
+  journalctl -u amazon-cloudwatch-agent --since "@${started_at}" -n 80 --no-pager >&2 || true
+fi
 
 echo
-echo "=== Step 5: agent log tail (look for 403/AccessDenied/ExpiredToken) ==="
-sleep 5
-tail -n 50 /opt/aws/amazon-cloudwatch-agent/logs/amazon-cloudwatch-agent.log || true
+echo "=== Closing report ==="
+echo "  pinned version:   ${CWAGENT_VERSION}"
+echo "  running version:  ${running_version:-unknown}"
+echo "  main process:     $(agent_cmd "$(agent_pid)" || true) (pid $(agent_pid), restarts $(systemctl show -p NRestarts --value amazon-cloudwatch-agent 2>/dev/null || echo unknown))"
+echo "  translated config: $(stat -c '%y' "$TOML" 2>/dev/null || echo absent)"
+if (( ${#REPORT[@]} )); then
+  echo "  every warning and error this run met:"
+  printf '    - %s\n' "${REPORT[@]}"
+else
+  echo "  no warnings or errors"
+fi
+if [[ "$verdict" != ok ]]; then
+  echo "  VERDICT: FAILED -- ${verdict}. The config and credentials written above were left in place." >&2
+  exit 1
+fi
+echo "  VERDICT: translated and running; publishing is not proven by this step."
 
 echo
 echo "=== Capture for your local operator AWS specifics ==="

@@ -52,6 +52,8 @@ mutating step in the middle of it. In practice:
   or agent session can deploy production unattended. Staging is deliberately not gated this way.
 - **Verification proves the outcome.** Not that a command was invoked, and not that a service is
   running, if what matters is that it is configured and doing its job.
+- **The closing report states every error and warning the run met**; the requirement is the
+  script closing-report rule, `.claude/rules/script-closing-report.md`.
 - **Cleanup is on a trap**, covering EXIT, INT and TERM, so an interrupt leaves nothing behind
   that a successful run would not have left.
 

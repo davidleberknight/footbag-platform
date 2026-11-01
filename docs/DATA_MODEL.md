@@ -840,7 +840,7 @@ Two erasure shapes set `personal_data_purged_at` (the credential CHECK requires 
 `ON DELETE SET NULL`: deleting a media item automatically detaches it as the member's avatar without requiring a before-delete trigger.
 
 #### `members_searchable` view
-**The member search endpoint MUST query this view.** It applies six exclusion conditions: soft-deleted, deceased, opted-out (`searchable = 0`), PII-purged, unverified (`email_verified_at IS NULL`), and pending (fewer than three completed `member_onboarding_tasks` rows, so an account still in the onboarding wizard is not yet a member and never appears). The `email_verified_at IS NULL` condition keeps out registrants who never verified their address. Do not add extra `WHERE` clauses on top of `members_active` or the bare `members` table for search.
+**The member search endpoint MUST query this view.** It applies six exclusion conditions: soft-deleted, deceased, opted-out (`searchable = 0`), PII-purged, unverified (`email_verified_at IS NULL`), and pending (fewer than three completed `member_onboarding_tasks` rows, so an account still in the onboarding wizard is not yet a member and never appears). The `email_verified_at IS NULL` condition keeps out registrants who never verified their address; the system member, which has no address by design, passes it on `is_system = 1`. Do not add extra `WHERE` clauses on top of `members_active` or the bare `members` table for search.
 
 `searchable = 1` means the member is **eligible for authenticated current-member lookup only**. It does not mean publicly discoverable, publicly contactable, or visible on public historical-person pages. Member search is authenticated Tier 0+, anti-enumeration, and never public.
 
@@ -1497,7 +1497,7 @@ These apply a meaningful `WHERE` clause; always understand the filter before usi
 
 | View | Filter | Use case |
 |------|--------|----------|
-| `members_searchable` | `members_onboarded` plus `is_deceased = 0 AND searchable = 1 AND personal_data_purged_at IS NULL AND email_verified_at IS NOT NULL` | **Member search endpoint only.** Applies six exclusion conditions; `email_verified_at IS NULL` keeps out registrants who never verified their address. |
+| `members_searchable` | `members_onboarded` plus `is_deceased = 0 AND searchable = 1 AND personal_data_purged_at IS NULL AND (email_verified_at IS NOT NULL OR is_system = 1)` | **Member search endpoint only.** Applies six exclusion conditions; `email_verified_at IS NULL` keeps out registrants who never verified their address, and the system member, which has none, passes on `is_system = 1`. |
 
 ### Admin full-rowset views
 
