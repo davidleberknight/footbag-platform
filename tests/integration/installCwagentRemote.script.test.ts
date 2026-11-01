@@ -336,10 +336,18 @@ describe('install-cwagent-remote.sh: the run is judged by the agent it leaves ru
     return { log, toml };
   }
 
-  function run() {
+  // A healthy agent passes only once seen on two polls a second apart, against a
+  // whole-second deadline, so a two-second bound leaves a loaded machine between
+  // one and two seconds for both polls and fails a healthy run. A run that
+  // reaches its verdict returns at once, so its bound is slack below the spawn
+  // guard; only a case whose verdict is the bound running out passes the short one.
+  function run(verifyTimeoutS = '15') {
     const res = spawnSync('bash', [REMOTE_HALF], {
       encoding: 'utf8',
-      env: { ...process.env, ...baseEnv(), CWAGENT_AKID: 'stub-key-id', CWAGENT_SAK: 'stub-secret-not-real', ...PINS },
+      env: {
+        ...process.env, ...baseEnv(), CWAGENT_VERIFY_TIMEOUT_S: verifyTimeoutS,
+        CWAGENT_AKID: 'stub-key-id', CWAGENT_SAK: 'stub-secret-not-real', ...PINS,
+      },
       ...SPAWN_GUARD,
     });
     return { status: res.status, stdout: res.stdout ?? '', stderr: res.stderr ?? '' };
@@ -373,7 +381,7 @@ describe('install-cwagent-remote.sh: the run is judged by the agent it leaves ru
     'fails, not proven within the bound, on %s', (_label, stale) => {
       const { toml } = host('no-fresh-config');
       if (stale) writeFileSync(toml, '[agent]\n');
-      const r = run();
+      const r = run('2');
       expect(r.status).toBe(1);
       expect(r.stderr).toContain('not running with a freshly translated config within 2s');
       expect(r.stdout).not.toContain('VERDICT: translated and running');

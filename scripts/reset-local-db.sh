@@ -317,6 +317,29 @@ if [[ "${CURATOR_SEED:-yes}" != "no" ]]; then
   # violation in what the curator seed produced fails the reset.
   echo "  → Checking the media-tag invariant over the seeded curator media..."
   "${PYTHON}" freestyle/loaders/25_qc_media_tag_invariant.py --db "${DB_FILE}" --require-items
+  # Rows and bytes are written by the same seed but read by different things: the
+  # page by row, the browser by file. A row whose file is missing renders a
+  # broken card and fails nothing else, so prove every stored-bytes reference and
+  # every fixed page slot resolves through the storage the app reads. 1 means
+  # files are missing; anything else means the check never reached a verdict.
+  # Test seam: RESET_MEDIA_CHECK_CMD replaces the checker, announced on stderr.
+  echo "  → Checking that every seeded media row's files are present..."
+  MEDIA_CHECK_CMD="${RESET_MEDIA_CHECK_CMD:-scripts/check-media-integrity.sh}"
+  if [[ -n "${RESET_MEDIA_CHECK_CMD:-}" ]]; then
+    echo "SYNTHETIC: media integrity check replaced by RESET_MEDIA_CHECK_CMD=${RESET_MEDIA_CHECK_CMD}" >&2
+  fi
+  MEDIA_CHECK_STATUS=0
+  FOOTBAG_DB_PATH="${DB_FILE}" bash "${MEDIA_CHECK_CMD}" || MEDIA_CHECK_STATUS=$?
+  if (( MEDIA_CHECK_STATUS == 1 )); then
+    echo "ERROR: seeded media rows name files the local media store does not hold." >&2
+    echo "       Those images, posters or videos will not load. The missing keys are" >&2
+    echo "       listed above; re-run this reset once the curator seed can write them." >&2
+    exit 1
+  elif (( MEDIA_CHECK_STATUS != 0 )); then
+    echo "ERROR: the media integrity check could not run (exit ${MEDIA_CHECK_STATUS})." >&2
+    echo "       Whether the seeded media resolves is unknown; the reason is above." >&2
+    exit 1
+  fi
 else
   echo "  → Skipping FH/curator seed (CURATOR_SEED=no; --no-curator-seed was passed)."
 fi

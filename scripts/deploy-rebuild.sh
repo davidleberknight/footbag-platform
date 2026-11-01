@@ -350,33 +350,27 @@ unset _dev_only_rows
 # database with no member load or failing any data-quality check, judged below
 # once the last seed has written the file.
 
-# Curator seed: build the curated media set fresh from /curated/**/*.meta.json
-# sidecars into an ephemeral, curated-only build dir, and refresh media_items
-# rows against the local DB before shipping. The build dir is the ONLY media the
-# deploy ships to S3; the local s3-adapter-local store (dev stand-in for the
-# bucket) is never shipped. Idempotent (DELETE + INSERT OR REPLACE pattern in
-# seed_fh_curator.py). Runs unconditionally so every deploy that ships a DB
-# picks up the latest sidecars.
-# The name is fixed rather than made with mktemp, and has to be: the rsync include
-# below is the anchored literal /.curated-build/***, the remote half names the
-# same path three times including the --delete exclude that protects the live
-# tree, and .gitignore covers exactly this directory.
-CURATED_BUILD_DIR="${REPO_ROOT}/.curated-build"
+# Curator seed: refresh media_items rows in the local DB from the
+# /curated/**/*.meta.json sidecars, and build the curated media set those rows
+# name into .curated-build/. That folder is the ONLY media the deploy ships to
+# S3; the local s3-adapter-local store (dev stand-in for the bucket) is never
+# shipped. Idempotent (DELETE + INSERT OR REPLACE pattern in seed_fh_curator.py).
+# Runs unconditionally so every deploy that ships a DB picks up the latest
+# sidecars.
+# .curated-build/ is also the local app's curated store, and the local DB is the
+# one the app serves, so the folder is refreshed in place and never removed: the
+# library seeds into scratch and mirrors a finished seed over it. The name is
+# fixed: the rsync include below is the anchored literal /.curated-build/***, and
+# the remote half names the same path three times, including the --delete
+# exclude that protects the live tree.
 if [[ "${CURATOR_SEED:-yes}" != "no" ]]; then
   echo "==> Building curator media from /curated → .curated-build (sidecars → media_items)..."
-  rm -rf "${CURATED_BUILD_DIR}"
-  mkdir -p "${CURATED_BUILD_DIR}"
-  # Armed here rather than above, and covering the signals an interrupt actually
-  # sends. Installed before this branch, the handler would remove a directory
-  # this run never created whenever curator seeding is off, which is the one
-  # thing a trap must never do; EXIT alone would leave the build tree behind when
-  # the Python seed below is interrupted.
-  trap 'rm -rf "${CURATED_BUILD_DIR}"' EXIT INT TERM
-  _venv="${REPO_ROOT}/scripts/.venv"
   # shellcheck source=lib/seeder-env.sh
   source "${REPO_ROOT}/scripts/lib/seeder-env.sh"
   seeder_env_ensure "$REPO_ROOT" || exit 1
-  "${_venv}/bin/python3" "${REPO_ROOT}/scripts/seed_fh_curator.py" --db "${LOCAL_DB}" --media-dir "${CURATED_BUILD_DIR}"
+  # shellcheck source=lib/curated-media-build.sh
+  source "${REPO_ROOT}/scripts/lib/curated-media-build.sh"
+  curated_media_build "$REPO_ROOT" "$LOCAL_DB" || exit 1
 else
   echo "==> Skipping curator seed (CURATOR_SEED=no)"
 fi
@@ -661,78 +655,90 @@ else
 fi
 
 # Media integrity gate. The rebuild reseeded curated media and minted
-# content-addressed storage keys, then synced the bytes to the bucket. Those are
-# two operations against two systems, and nothing else compares them: a row whose
-# object never arrived renders as a 404 on the live site with no error anywhere in
-# this deploy. The checker resolves every stored-bytes reference through the same
+# content-addressed storage keys, and the bytes reach the bucket only through
+# the media sync. Those are two operations against two systems, and nothing else
+# compares them: a row whose object never arrived renders as a 404 on the live
+# site with no error anywhere in this deploy. It runs whether or not this deploy
+# synced media, because the rows ship with the database either way: a deploy
+# without the sync is exactly the one that can ship a new clip whose bytes are
+# not in the bucket. The checker resolves every stored-bytes reference through the same
 # storage adapter the app uses, so it answers the only question that matters here,
 # which is whether the site can actually serve what the database now claims.
 #
 # The database it reads is the local one this deploy just built and shipped, which
 # is byte-identical to the one now installed on the host, so this is a true check
 # of the deployed state without needing tooling on the host.
-if [[ "${SYNC_MEDIA:-no}" == "yes" ]]; then
-  echo "==> Verifying media integrity against the $FOOTBAG_ENV bucket ..."
-  tf_output_read "$REPO_ROOT/terraform/$FOOTBAG_ENV" media_bucket_name || true
-  MEDIA_BUCKET="$TF_OUTPUT_VALUE"
-  if [[ -z "$MEDIA_BUCKET" ]]; then
-    echo "ERROR: could not read media_bucket_name from terraform/$FOOTBAG_ENV." >&2
-    echo "       The media sync ran, so the rows now reference objects this deploy" >&2
-    echo "       cannot verify." >&2
-    tf_output_explain "terraform/$FOOTBAG_ENV" media_bucket_name
-    echo "" >&2
-    echo "       Then re-run the check:" >&2
-    echo "         MEDIA_STORAGE_ADAPTER=s3 MEDIA_STORAGE_S3_BUCKET=<bucket> \\" >&2
-    echo "           AWS_REGION=<region> bash $REPO_ROOT/scripts/check-media-integrity.sh" >&2
-    exit 1
-  fi
+#
+# Test seam: DEPLOY_MEDIA_CHECK_CMD replaces the checker, announced on stderr.
+MEDIA_CHECK_CMD="${DEPLOY_MEDIA_CHECK_CMD:-$REPO_ROOT/scripts/check-media-integrity.sh}"
+if [[ -n "${DEPLOY_MEDIA_CHECK_CMD:-}" ]]; then
+  echo "SYNTHETIC: media integrity check replaced by DEPLOY_MEDIA_CHECK_CMD=$DEPLOY_MEDIA_CHECK_CMD" >&2
+fi
+echo "==> Verifying media integrity against the $FOOTBAG_ENV bucket ..."
+tf_output_read "$REPO_ROOT/terraform/$FOOTBAG_ENV" media_bucket_name || true
+MEDIA_BUCKET="$TF_OUTPUT_VALUE"
+if [[ -z "$MEDIA_BUCKET" ]]; then
+  echo "ERROR: could not read media_bucket_name from terraform/$FOOTBAG_ENV." >&2
+  echo "       The rows this deploy shipped reference objects it cannot verify." >&2
+  tf_output_explain "terraform/$FOOTBAG_ENV" media_bucket_name
+  echo "" >&2
+  echo "       Then re-run the check:" >&2
+  echo "         MEDIA_STORAGE_ADAPTER=s3 MEDIA_STORAGE_S3_BUCKET=<bucket> \\" >&2
+  echo "           AWS_REGION=<region> bash $REPO_ROOT/scripts/check-media-integrity.sh" >&2
+  exit 1
+fi
 
-  # Forcing the check into S3 mode below makes a region mandatory, and the values
-  # file it loads is a workstation dev file with no reason to carry one. So resolve
-  # it from the same AWS configuration the media sync itself just used, and refuse
-  # here rather than let the check fail to boot: the boot failure exits 1, which is
-  # the check's code for objects being absent, so the operator was told the rows
-  # this deploy shipped were broken when nothing had been compared at all.
-  # The fallback reads the workstation's own AWS configuration, so the identity
-  # has to be settled for it to read anything. Cheap to ask again: the library
-  # answers once per run and every terraform read above has already been through
-  # it.
-  aws_profile_ensure || exit 1
-  MEDIA_CHECK_REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-$(aws configure get region 2>/dev/null || true)}}"
-  if [[ -z "$MEDIA_CHECK_REGION" ]]; then
-    echo "ERROR: no AWS region is configured, so the media integrity check cannot run." >&2
-    echo "       The media sync ran, so the rows now reference objects this deploy" >&2
-    echo "       cannot verify. Give the workstation's AWS profile a region (or export" >&2
-    echo "       AWS_REGION), then re-run the check against the bucket just synced:" >&2
-    echo "         FOOTBAG_DB_PATH=$LOCAL_DB MEDIA_STORAGE_ADAPTER=s3 \\" >&2
-    echo "           MEDIA_STORAGE_S3_BUCKET=$MEDIA_BUCKET AWS_REGION=<region> \\" >&2
-    echo "           bash $REPO_ROOT/scripts/check-media-integrity.sh" >&2
-    exit 1
-  fi
+# Forcing the check into S3 mode below makes a region mandatory, and the values
+# file it loads is a workstation dev file with no reason to carry one. So resolve
+# it from the workstation's AWS configuration, the one the media sync uses, and
+# refuse here rather than let the check fail to boot: the boot failure exits 1,
+# which is the check's code for objects being absent, so the operator was told
+# the rows this deploy shipped were broken when nothing had been compared at all.
+# The fallback reads the workstation's own AWS configuration, so the identity
+# has to be settled for it to read anything. Cheap to ask again: the library
+# answers once per run and every terraform read above has already been through
+# it.
+aws_profile_ensure || exit 1
+MEDIA_CHECK_REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-$(aws configure get region 2>/dev/null || true)}}"
+if [[ -z "$MEDIA_CHECK_REGION" ]]; then
+  echo "ERROR: no AWS region is configured, so the media integrity check cannot run." >&2
+  echo "       The rows this deploy shipped reference objects it cannot verify." >&2
+  echo "       Give the workstation's AWS profile a region (or export AWS_REGION)," >&2
+  echo "       then re-run the check against the bucket:" >&2
+  echo "         FOOTBAG_DB_PATH=$LOCAL_DB MEDIA_STORAGE_ADAPTER=s3 \\" >&2
+  echo "           MEDIA_STORAGE_S3_BUCKET=$MEDIA_BUCKET AWS_REGION=<region> \\" >&2
+  echo "           bash $REPO_ROOT/scripts/check-media-integrity.sh" >&2
+  exit 1
+fi
 
-  # The verdict is the exit code, and the two failures are different news: 1 is a
-  # real comparison that found objects absent, anything else is a check that never
-  # reached one. Treating both as the first is what made a crash read as missing
-  # media, with a remedy that would not have fixed it.
-  MEDIA_CHECK_STATUS=0
-  FOOTBAG_DB_PATH="$LOCAL_DB" \
-    MEDIA_STORAGE_ADAPTER="s3" \
-    MEDIA_STORAGE_S3_BUCKET="$MEDIA_BUCKET" \
-    AWS_REGION="$MEDIA_CHECK_REGION" \
-    bash "$REPO_ROOT/scripts/check-media-integrity.sh" || MEDIA_CHECK_STATUS=$?
-  if (( MEDIA_CHECK_STATUS == 1 )); then
-    echo "ERROR: media integrity check failed against s3://$MEDIA_BUCKET." >&2
-    echo "       The live database references objects that are not in the bucket, so" >&2
-    echo "       those images, posters or videos will 404. Re-run the deploy with the" >&2
-    echo "       media sync (it rides a rebuild by default; --no-media turns it off)." >&2
-    exit 1
-  elif (( MEDIA_CHECK_STATUS != 0 )); then
-    echo "ERROR: the media integrity check could not run (exit $MEDIA_CHECK_STATUS)." >&2
-    echo "       It reached no verdict, so whether the rows this deploy shipped resolve" >&2
-    echo "       in s3://$MEDIA_BUCKET is unknown rather than bad. The reason is in the" >&2
-    echo "       output above, and re-running the deploy will not change it." >&2
-    exit 1
+# The verdict is the exit code, and the two failures are different news: 1 is a
+# real comparison that found objects absent, anything else is a check that never
+# reached one. Treating both as the first is what made a crash read as missing
+# media, with a remedy that would not have fixed it.
+MEDIA_CHECK_STATUS=0
+FOOTBAG_DB_PATH="$LOCAL_DB" \
+  MEDIA_STORAGE_ADAPTER="s3" \
+  MEDIA_STORAGE_S3_BUCKET="$MEDIA_BUCKET" \
+  AWS_REGION="$MEDIA_CHECK_REGION" \
+  bash "$MEDIA_CHECK_CMD" || MEDIA_CHECK_STATUS=$?
+if (( MEDIA_CHECK_STATUS == 1 )); then
+  echo "ERROR: media integrity check failed against s3://$MEDIA_BUCKET." >&2
+  echo "       The live database references objects that are not in the bucket, so" >&2
+  echo "       those images, posters or videos will 404." >&2
+  if [[ "${SYNC_MEDIA:-no}" == "yes" ]]; then
+    echo "       This deploy synced media, so the sync itself did not deliver them;" >&2
+    echo "       the sync output above says why. Re-run the deploy with the sync." >&2
+  else
+    echo "       This deploy did not sync media. Re-run it with -m / --sync-media" >&2
+    echo "       (it rides a rebuild by default; --no-media turns it off)." >&2
   fi
+  exit 1
+elif (( MEDIA_CHECK_STATUS != 0 )); then
+  echo "ERROR: the media integrity check could not run (exit $MEDIA_CHECK_STATUS)." >&2
+  echo "       It reached no verdict, so whether the rows this deploy shipped resolve" >&2
+  echo "       in s3://$MEDIA_BUCKET is unknown rather than bad. The reason is in the" >&2
+  echo "       output above, and re-running the deploy will not change it." >&2
+  exit 1
 fi
 
 # The host's whole env file, verified after the deploy. Mirrors deploy-code.sh,
