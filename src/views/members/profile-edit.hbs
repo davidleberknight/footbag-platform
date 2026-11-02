@@ -41,7 +41,7 @@
       <legend>Avatar</legend>
 
       {{#if content.avatarError}}
-        <p class="form-field-error" role="alert">{{content.avatarError}}</p>
+        {{> outcome-notice text=content.avatarError tone='no'}}
       {{/if}}
       {{> outcome-notice text=content.avatarSuccess tone='ok'}}
 

@@ -57,6 +57,11 @@ const ALLOWED: Record<string, string> = {
   'legacy_data/scripts/publish_legacy_repo_data.py':
     "reads the refresh manifest, whose source column is the vetted dump's path; opens no dump",
   'legacy_data/tests/test_publish_legacy_repo_data.py': 'writes that manifest in its fixture',
+  'legacy_data/scripts/check_legacy_chain.py':
+    "compares the clone's commit with the refresh manifest; opens no dump",
+  'legacy_data/tests/test_check_legacy_chain.py': 'writes that manifest and a stand-in clone',
+  'legacy_data/scripts/run_legacy_delivery.sh': 'runs the refresh; reads nothing itself',
+  'tests/integration/deploy-script.test.ts': 'writes a refresh manifest in its fixture',
   'scripts/setup_private_repo.sh': "wires the checkout's symlinks",
   'tests/integration/setupPrivateRepo.script.test.ts': 'drives the symlink wiring',
   'scripts/ci/test_hooks.sh': 'exercises the hooks that guard the legacy paths',

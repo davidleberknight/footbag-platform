@@ -316,6 +316,20 @@ run_all_data() {
   local py="${REPO_ROOT}/legacy_data/footbag_venv/bin/python"
   [[ -x "$py" ]] || py="python3"
 
+  # The legacy chain check, read-only, before the first destructive step: the
+  # export, the published member CSV, the audited figures and the account rulings
+  # must all come from one delivery, or the member load reads a mix and fails only
+  # after rows are written. A deploy also refuses a newer pulled delivery; a local
+  # rebuild only warns. Uncommitted private changes are refused for production by
+  # the deploy entry point, which names the target, before its confirmation.
+  local chain_args=()
+  [[ "${FOOTBAG_DATA_BUILD_ENTRY:-}" == "deploy" ]] && chain_args+=(--strict)
+  echo "==> legacy chain: one delivery throughout"
+  if ! "$py" "${REPO_ROOT}/legacy_data/scripts/check_legacy_chain.py" \
+      "${chain_args[@]+"${chain_args[@]}"}"; then
+    exit 1
+  fi
+
   # The enrichment build, identical to --from-csv (no mirror). This builds the
   # database (historical_persons included) that the member intake reads.
   run_from_csv

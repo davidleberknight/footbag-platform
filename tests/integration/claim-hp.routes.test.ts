@@ -720,6 +720,9 @@ describe('claim of a record held by a deceased contact-scrubbed member', () => {
       .set('Cookie', cookie).type('form').send({});
     expect(res.status).toBe(422);
     expect(res.text).toContain(NO_LONGER_AVAILABLE);
+    // A refused claim takes the refusal banner every refused form shows, not the small
+    // per-field text that reads as a note on one input.
+    expect(res.text).toContain('<div class="form-error-banner" role="alert">');
 
     const row = testDb.prepare('SELECT historical_person_id FROM members WHERE id = ?')
       .get(claimantId) as { historical_person_id: string | null };
@@ -779,6 +782,9 @@ describe('claim of a record held by an erased honoree', () => {
       .set('Cookie', cookie).type('form').send({});
     expect(res.status).toBe(422);
     expect(res.text).toContain(NO_LONGER_AVAILABLE);
+    // A refused claim takes the refusal banner every refused form shows, not the small
+    // per-field text that reads as a note on one input.
+    expect(res.text).toContain('<div class="form-error-banner" role="alert">');
 
     const row = testDb.prepare('SELECT historical_person_id FROM members WHERE id = ?')
       .get(claimantId) as { historical_person_id: string | null };

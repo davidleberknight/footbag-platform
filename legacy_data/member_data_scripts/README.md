@@ -77,6 +77,21 @@ The Goldberg member-account data family lives here:
   rulings, all fingerprinted and failing closed on drift, and every ruling row
   must be applied; the final merge also refuses to build artifacts while no row
   carries an active Tier 1 annual, so an OR-merge cannot drop a grant.
+- `refit_rulings.py` re-fits the recorded Stage B rulings to a new delivery. A
+  ruling whose own facts still hold, where only the delivery's account boundary
+  moved, is restamped with `--apply` (the fingerprint alone changes); a ruling
+  whose facts changed, or whose subject is gone, is listed for a person and never
+  dropped. It records the delivery the rulings fit in the private
+  `FITTED_EXPORT.tsv`. The runner runs it read-only before Stage A, so one run lists
+  every ruling that no longer fits.
+- `propose_person_dispositions.py` drafts a disposition for each membership-only
+  person: `no_account`, or `duplicate_person` when another row holds the one
+  account bearing the name or a variant of it with a middle name or initial added.
+  With `--rulings` it writes a maintainer's decisions, including `account_holder`
+  for a person who holds one account only a variant of the name reaches, each with
+  the fingerprint the load expects. With `--stage-a-rulings` it writes
+  duplicate-account rulings for the Stage A adjudication file the same way,
+  fingerprinted over the raw account values and refused when one would not apply.
 - `snapshot_legacy_members.py` captures the pre-load state of every row the
   member load could touch, as an audit CSV plus rollback SQL, so an applied
   load can be fully reverted.
@@ -105,7 +120,9 @@ The Goldberg member-account data family lives here:
   the load on any finding; the real-data test row and every production deploy that
   ships a database run it too. An uncovered row or an unbacked account assertion
   with no recorded decision fails it; the platform's own Footbag Hacky account is
-  covered by design and needs none.
+  covered by design and needs none. With `--pre-build` it runs only the checks that
+  need no database, including that the figures carry this export's checksum
+  (`export_sha256`), which the data build runs before it resets the database.
 - `crosscheck_member_profile_ids.py` reconciles the dump member-id namespace
   against the mirror profile-URL ids.
 - The two read-only reports (`crosscheck_member_profile_ids.py`,

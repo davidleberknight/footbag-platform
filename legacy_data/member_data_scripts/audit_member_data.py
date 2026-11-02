@@ -21,13 +21,20 @@ Output is counts and PASS/FAIL lines only: no member id, name or address is
 ever printed, because the runner withholds and fails any output carrying an
 address. Exit status is 0 when every check passes and 1 otherwise.
 
+With --pre-build it runs only the checks that need no built database: that the
+figures were audited for this export (their export_sha256), the export size, the
+name-encoding repair and the account-assertion population. The data build runs
+that before it resets the database, so stale figures refuse before anything is
+destroyed.
+
 Usage:
-    audit_member_data.py [--db PATH]
+    audit_member_data.py [--db PATH] [--pre-build]
 """
 from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import importlib.util
 import json
 import sqlite3
@@ -133,6 +140,31 @@ def check_delivery_size(ctx: dict) -> str:
            f"the delivered export holds {n} records, not the audited {audited}; "
            "re-audit rather than adjusting the figures")
     return f"{n} records"
+
+
+def check_figures_audited_for_this_export(ctx: dict) -> str:
+    """The figures name the export they were audited against by the checksum of its
+    members CSV, so figures carried forward from an older delivery fail here, before
+    any build, instead of half way through a load."""
+    audited = figure(ctx, "export_sha256")
+    actual = hashlib.sha256(DELIVERED_MEMBERS.read_bytes()).hexdigest()
+    expect(audited == actual,
+           f"the figures were audited against export {str(audited)[:12]}, but the delivered "
+           f"export is {actual[:12]}; re-audit {FIGURES.name} for this delivery and record "
+           "its export_sha256")
+    return f"audited for export {actual[:12]}"
+
+
+def check_assertion_population(ctx: dict) -> str:
+    """The account-assertion population, which needs only the canonical persons."""
+    require(CANONICAL_PERSONS, "the canonical persons CSV (run_pipeline.sh canonical_only)")
+    population = len({r["member_id"].strip() for r in _rows(CANONICAL_PERSONS)
+                      if r.get("member_id", "").strip()}) + 1
+    audited = figure(ctx, "historical_person_assertions")
+    expect(population == audited,
+           f"{population} account assertions in the canonical persons, audited {audited}; "
+           "explain the difference and re-audit")
+    return f"{population} account assertions"
 
 
 def check_uncovered_row_ruling(ctx: dict) -> str:
@@ -361,6 +393,7 @@ def check_historical_person_assertions(ctx: dict) -> str:
 
 
 CHECKS = [
+    ("figures audited for this export", check_figures_audited_for_this_export),
     ("delivered export size", check_delivery_size),
     ("uncovered member row ruling", check_uncovered_row_ruling),
     ("name encoding repair", check_name_encoding_repair),
@@ -368,24 +401,37 @@ CHECKS = [
     ("historical-person account assertions", check_historical_person_assertions),
 ]
 
+# The checks that read only the delivered export, the curated encodings and the
+# canonical persons, so the data build runs them before it destroys the database.
+PRE_BUILD_CHECKS = [
+    ("figures audited for this export", check_figures_audited_for_this_export),
+    ("delivered export size", check_delivery_size),
+    ("name encoding repair", check_name_encoding_repair),
+    ("account assertion population", check_assertion_population),
+]
 
-def main() -> int:
+
+def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--db", type=Path, default=ROOT / "database" / "footbag.db")
-    args = ap.parse_args()
+    ap.add_argument("--pre-build", action="store_true",
+                    help="run only the checks that need no built database")
+    args = ap.parse_args(argv)
 
     failed = 0
     ctx: dict = {"db": args.db}
+    checks = PRE_BUILD_CHECKS if args.pre_build else CHECKS
     try:
         require(DELIVERED_MEMBERS, "the vetted members CSV (refresh_legacy_repo_data.py)")
-        require(args.db, "the built database")
+        if not args.pre_build:
+            require(args.db, "the built database")
         ctx["figures"] = load_figures(FIGURES)
         ctx["delivered"] = _rows(DELIVERED_MEMBERS)
     except AuditFailure as err:
         print(f"FAIL member-data audits: {err}")
         return 1
-    for name, check in CHECKS:
+    for name, check in checks:
         try:
             print(f"PASS {name}: {check(ctx)}")
         except AuditFailure as err:
@@ -397,7 +443,7 @@ def main() -> int:
             failed += 1
             print(f"FAIL {name}: stopped by {type(err).__name__}; run the check "
                   "by hand on this machine to see the detail")
-    print(f"member-data audits: {len(CHECKS) - failed} passed, {failed} failed")
+    print(f"member-data audits: {len(checks) - failed} passed, {failed} failed")
     return 1 if failed else 0
 
 

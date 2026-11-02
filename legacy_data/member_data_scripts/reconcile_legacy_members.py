@@ -1607,7 +1607,8 @@ def _build_person_disposition_descriptors(proposed: list[dict[str, str]],
                                           review: list[dict[str, str]],
                                           accounts: list[dict[str, str]],
                                           hps: list[dict[str, str]],
-                                          cohort_person_ids: "set[str] | None" = None) -> list[dict]:
+                                          cohort_person_ids: "set[str] | None" = None,
+                                          boundary: "str | None" = None) -> list[dict]:
     """One descriptor per person eligible for a person-scoped disposition: unlinked,
     carrying no proposed link, and in no review group, so nothing mechanical will
     say anything about them again.
@@ -1621,9 +1622,13 @@ def _build_person_disposition_descriptors(proposed: list[dict[str, str]],
     accounts bearing that name. That last part is empty when a no-account ruling is
     made and stops being empty the moment a delivery introduces a matching account,
     which is exactly when the ruling has to be revisited.
+
+    `boundary` defaults to the frozen input boundary of `accounts`. The re-fit tool
+    passes the boundary of the delivery a ruling was fitted to, to tell a ruling
+    whose own facts still hold from one whose facts changed.
     """
     import person_link_hold as plh
-    boundary = _boundary_fingerprint(accounts)
+    boundary = boundary or _boundary_fingerprint(accounts)
     spoken_for = {p["historical_person_id"] for p in proposed}
     if cohort_person_ids is None:
         # Unbounded: a review row is a queue somebody works, so it counts as
@@ -1669,13 +1674,15 @@ def _build_person_disposition_descriptors(proposed: list[dict[str, str]],
 def _build_link_hold_descriptors(proposed: list[dict[str, str]],
                                  accounts: list[dict[str, str]],
                                  hps: list[dict[str, str]],
-                                 provenance: dict) -> list[dict]:
+                                 provenance: dict,
+                                 boundary: "str | None" = None) -> list[dict]:
     """One descriptor per current proposed link, carrying the full decision boundary
     a person-link hold binds to: the survivor's underlying account set, the candidate
     person, the candidate set (all unlinked persons by that name), the proposal
-    method, the normalized match facts, and the frozen input boundary fingerprint."""
+    method, the normalized match facts, and the frozen input boundary fingerprint
+    (`boundary`, defaulting to that of `accounts`)."""
     import person_link_hold as plh
-    boundary = _boundary_fingerprint(accounts)
+    boundary = boundary or _boundary_fingerprint(accounts)
     cand_by_name: dict[str, list[str]] = defaultdict(list)
     for hp in hps:
         if not (hp.get("legacy_member_id") or "").strip():
@@ -1704,11 +1711,13 @@ def _build_link_hold_descriptors(proposed: list[dict[str, str]],
 def _build_review_resolution_descriptors(review: list[dict[str, str]],
                                          proposed: list[dict[str, str]],
                                          accounts: list[dict[str, str]],
-                                         survivor_view: "StageASurvivorView | None") -> list[dict]:
+                                         survivor_view: "StageASurvivorView | None",
+                                         boundary: "str | None" = None) -> list[dict]:
     """One descriptor per current Stage B review group, carrying the full decision
-    boundary a review resolution binds to."""
+    boundary a review resolution binds to (`boundary`, defaulting to that of
+    `accounts`)."""
     import review_resolution as rr
-    boundary = _boundary_fingerprint(accounts)
+    boundary = boundary or _boundary_fingerprint(accounts)
     by_id = {(r.get("legacy_member_id") or "").strip(): r for r in accounts}
     survmap = survivor_view.loser_to_survivor if survivor_view is not None else {}
     prop_accts = {p["legacy_member_id"] for p in proposed}
@@ -1785,7 +1794,9 @@ def stage_b_link_historical_persons(
             cohort_person_ids=membership_provisional_person_ids(hps))
         person_disposition_audit = plh.apply_person_dispositions(
             pdesc, person_link_holds,
-            known_person_ids={(hp.get("person_id") or "") for hp in hps})
+            known_person_ids={(hp.get("person_id") or "") for hp in hps},
+            known_account_ids={(a.get("legacy_member_id") or "").strip()
+                               for a in _valid_rows(accounts)})
         if require_complete_dispositions:
             plh.assert_every_person_dispositioned(pdesc, person_link_holds)
     review_resolution_audit: list = []

@@ -286,6 +286,47 @@ def test_report_states_the_cutover_date_and_the_dump_date(tree):
     assert "Members dump taken: 2026-05-29 15:46:52" in report
 
 
+def _stamp(private_files, private) -> dict[str, str]:
+    text = private_files[private / "legacy-publish" / "PUBLISH_STAMP.tsv"]
+    return dict(line.split("\t", 1) for line in text.splitlines())
+
+
+def test_stamp_binds_the_publish_to_its_delivery_and_both_member_files(tree):
+    # A stamp that names the wrong delivery or the wrong bytes lets a build load
+    # a published member CSV made from another delivery than the export beside it.
+    private, mirror = tree
+    (private / "legacy-export/REFRESH_MANIFEST.tsv").write_text(
+        "original_head\taaa111\nlive_head\tbbb222\n"
+        "source\tsha256\tbytes\tdialect\tdump_completed\n"
+        "members/backups/latest.sql\tccc333\t1\tmariadb\t2026-10-29 18:17:42\n",
+        encoding="utf-8")
+    private_files = pub.build(private, mirror, CUTOVER)[0]
+    stamp = _stamp(private_files, private)
+    export_bytes = (private / "legacy-export/members/members.csv").read_bytes()
+    published = private_files[private / "legacy-publish/legacy_members.csv"].encode("utf-8")
+    assert stamp == {
+        "refresh_live_head": "bbb222", "refresh_original_head": "aaa111",
+        "members_dump_sha256": "ccc333", "members_dump_completed": "2026-10-29 18:17:42",
+        "export_members_csv_sha256": pub.hashlib.sha256(export_bytes).hexdigest(),
+        "published_members_csv_sha256": pub.hashlib.sha256(published).hexdigest(),
+        "cutover_date": CUTOVER, "member_rows": "5"}
+    report = private_files[private / "legacy-publish/PUBLISH_REPORT.md"]
+    assert "bbb222" in report and stamp["published_members_csv_sha256"] in report
+
+
+def test_a_manifest_without_the_delivery_commit_refuses(tree):
+    # Without the commit the stamp cannot tie the publish to a delivery, and the
+    # build's preflight would have nothing to compare.
+    private, mirror = tree
+    (private / "legacy-export/REFRESH_MANIFEST.tsv").write_text(
+        "original_head\taaa111\n"
+        "source\tsha256\tbytes\tdialect\tdump_completed\n"
+        "members/backups/latest.sql\tccc333\t1\tmariadb\t2026-10-29 18:17:42\n",
+        encoding="utf-8")
+    with pytest.raises(pub.Refused, match="live_head"):
+        pub.build(private, mirror, CUTOVER)
+
+
 def _tally_rows(private_files, private, name):
     text = private_files[private / "legacy-publish" / "vote-tallies" / name]
     return list(csv.DictReader(io.StringIO(text)))

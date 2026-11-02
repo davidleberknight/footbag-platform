@@ -203,6 +203,20 @@ if (( FINAL_MEMBER_LOAD_ASKED == 1 )) && \
   exit 1
 fi
 
+# The legacy chain check, read-only: the export, the published member CSV, the
+# audited figures and the account rulings must come from one delivery. The data
+# build runs it again before it resets the database; running it here as well means
+# a stale chain refuses before the production gate asks for anything.
+if (( ALL_DATA_ASKED == 1 )); then
+  CHAIN_ARGS=(--strict)
+  [[ "$DEPLOY_TARGET" == "footbag-production" ]] && CHAIN_ARGS+=(--require-committed)
+  CHAIN_PY="${SCRIPT_DIR}/legacy_data/footbag_venv/bin/python"
+  [[ -x "$CHAIN_PY" ]] || CHAIN_PY="python3"
+  if ! "$CHAIN_PY" "${SCRIPT_DIR}/legacy_data/scripts/check_legacy_chain.py" "${CHAIN_ARGS[@]}"; then
+    exit 1
+  fi
+fi
+
 # Production has exactly two modes: code-only, and code with a database built in
 # this run by --all-data, which is all the data except the test personas, from
 # committed inputs. Refused here, ahead of the production gate, so the mistake

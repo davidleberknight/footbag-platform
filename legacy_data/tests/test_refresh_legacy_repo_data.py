@@ -199,7 +199,8 @@ def test_a_dump_the_original_carried_that_is_now_missing_is_reported_and_its_csv
     assert (checkout.out / "gallery" / "images.csv").exists()
     (checkout.live / GALLERY).unlink()
     commit_all(checkout.live, "gallery dump dropped")
-    assert_reported(checkout.run(), f"{GALLERY}: the dump the original carried is missing")
+    assert_reported(checkout.run(), f"{GALLERY}: the dump the last accepted delivery carried "
+                                    "is missing")
     # Written as delivered: nothing left behind looks as current as the rest.
     assert not list((checkout.out / "gallery").glob("*.csv"))
 
@@ -231,6 +232,74 @@ def test_a_new_column_is_held_until_a_maintainer_accepts_it(checkout):
     assert_refused(checkout.run(), checkout.out, "--accept-new members.members.Notes")
     assert checkout.run("--accept-new", "members.members.Notes").returncode == 0
     assert "v-a" in (checkout.out / "members" / "members.csv").read_text()
+
+
+NOTES = "  `Notes` varchar(40) DEFAULT NULL,\n"
+
+
+def accept_and_commit(checkout, *accept: str) -> None:
+    """Refresh and commit the export, as the maintainer accepts a delivery."""
+    result = checkout.run(*accept)
+    assert result.returncode == 0, result.stdout + result.stderr
+    if not (checkout.out / ".git").exists():
+        git(checkout.out, "init", "-q")
+    commit_all(checkout.out, "accepted delivery")
+
+
+def test_an_accepted_and_committed_column_is_not_asked_about_again(checkout):
+    # Judged against the first delivery, every later refresh would demand the
+    # same acceptance again, training the maintainer to pass it blind.
+    checkout.deliver(MEMBERS, members_dump("(1,'Ann','v-a','pw-a')", extra_column=NOTES))
+    accept_and_commit(checkout, "--accept-new", "members.members.Notes")
+    checkout.deliver(MEMBERS, members_dump("(1,'Ann','v-a','pw-a'),(2,'Bo','v-b','pw-b')",
+                                           extra_column=NOTES))
+    result = checkout.run()
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "v-b" in (checkout.out / "members" / "members.csv").read_text()
+
+
+def test_a_column_accepted_then_dropped_is_reported_lost(checkout):
+    # Judged against the first delivery, which never had it, the loss of an
+    # accepted column would never be reported.
+    checkout.deliver(MEMBERS, members_dump("(1,'Ann','v-a','pw-a')", extra_column=NOTES))
+    accept_and_commit(checkout, "--accept-new", "members.members.Notes")
+    checkout.deliver(MEMBERS, members_dump("(1,'Ann','pw-a')"))
+    assert_reported(checkout.run(), f"{MEMBERS}: table members lost column(s) Notes")
+
+
+def test_an_uncaptured_file_is_reported_once_and_not_after_it_is_accepted(checkout):
+    write(checkout.live, "notes.txt", "x\n")
+    commit_all(checkout.live, "a stray file")
+    assert_reported(checkout.run(), "(top level): 1 other tracked file(s) added or changed")
+    accept_and_commit(checkout)
+    checkout.deliver(MEMBERS, members_dump("(1,'Ann','pw-a'),(2,'Bo','pw-b'),(3,'Cy','pw-c')"))
+    result = checkout.run()
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "outside the captured set" not in result.stdout
+
+
+def test_a_recorded_last_delivery_outside_the_live_history_is_refused(checkout):
+    # A manifest naming a commit the clone does not hold means the delivery
+    # history was rewritten since the maintainer last accepted it.
+    accept_and_commit(checkout)
+    manifest = checkout.out / "REFRESH_MANIFEST.tsv"
+    manifest.write_text(manifest.read_text().replace(
+        manifest.read_text().split("live_head\t")[1].split("\n")[0], "ab" * 20))
+    commit_all(checkout.out, "manifest naming a commit the clone lacks")
+    result = checkout.run()
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert "is not in the live clone's history" in result.stderr
+    assert "Nothing was written." in result.stderr
+
+
+def test_an_invalid_utf8_byte_is_written_with_a_replacement_and_reported(checkout):
+    # One undecodable byte in a frozen export must not stop the cutover; it
+    # costs one character, which the report makes visible.
+    raw = members_dump("(1,'Ann','pw-a'),(2,'B@o','pw-b')").encode().replace(b"B@o", b"B\xffo")
+    (checkout.live / MEMBERS).write_bytes(raw)
+    commit_all(checkout.live, "a byte that is not UTF-8")
+    assert_reported(checkout.run(), f"{MEMBERS}: invalid UTF-8 lines rose from 0 to 1")
+    assert "B�o" in (checkout.out / "members" / "members.csv").read_text(encoding="utf-8")
 
 
 def with_second_table(name: str, rows: str = "(1,'Ann','pw-a')") -> str:
@@ -684,6 +753,10 @@ def added(row: int, values: tuple) -> dict:
     (changed(2, MemberFirstName="B" + chr(0x200B) + "o"), "2", "zero-width character"),
     (changed(2, MemberFirstName="<script>x"), "2", "active markup"),
     (changed(2, MemberFirstName="=cmd()"), "2", "leading formula character"),
+    (changed(2, MemberFirstName="+cmd|' /C calc'!A0"), "2", "leading formula character"),
+    (changed(2, MemberFirstName="-2+3+cmd|x!A0"), "2", "leading formula character"),
+    (changed(2, MemberFirstName="\t=1+1"), "2", "leading formula character"),
+    (changed(2, MemberFirstName=chr(0xFF1D) + "HYPERLINK(1)"), "2", "leading formula character"),
     (added(6, ("1", "<script>x", "Fu", "f@example.org", "1975", "9", "9", "0", BEFORE_DUMP,
                "0", "0")), "6", "active markup"),
     (changed(2, MemberModified="yesterday"), "2", "modification time is not a timestamp"),
@@ -717,6 +790,20 @@ def test_an_unchanged_delivery_raises_no_flag(checkout):
     assert result.returncode == 0, result.stdout + result.stderr
     assert flags(checkout) == set()
     assert "Flags for review: 0" in (checkout.out / "REFRESH_REPORT.md").read_text()
+
+
+@pytest.mark.parametrize("phone", ["+44 20 7946 0000", "+1(555)0100-200", "+49 30- 1234/56",
+                                   "-5.5"])
+def test_a_phone_number_or_signed_number_is_not_flagged_as_a_formula(checkout, phone):
+    # Nearly every leading-sign flag on a real delivery was an international
+    # phone number, which can only evaluate arithmetic; flagging them buries
+    # the genuine formula among them.
+    first_delivery(checkout)
+    checkout.deliver(MEMBERS, rich_members_dump(changed(2, MemberFirstName=phone)))
+    result = checkout.run()
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert ("2", "leading formula character") not in flags(checkout)
+    assert ("2", "identity changed at an existing id") in flags(checkout)
 
 
 def test_a_renewal_is_counted_and_not_flagged(checkout):

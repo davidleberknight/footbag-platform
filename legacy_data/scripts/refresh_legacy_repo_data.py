@@ -5,8 +5,11 @@ This is the one program that reads the legacy webmaster's repository. Everything
 downstream reads the CSVs it writes, so whatever this script accepts is what the
 member load, the clubs merge and the crawl believe. The delivery is presumed an
 honest update and is verified rather than trusted. It reads every
-file from the delivered commit, never from the working tree, compares that
-commit against an untouched copy of the first delivery, and refuses only what
+file from the delivered commit, never from the working tree, checks that its
+history extends an untouched copy of the first delivery, compares it with the
+last accepted delivery (the live commit recorded in the REFRESH_MANIFEST.tsv
+committed in the export's repository, or the first delivery when none is
+committed), and refuses only what
 would make the delivery unreadable or unsafe to write. Everything else a
 delivery changes is reported for the maintainer to review before anything
 downstream reads the CSVs.
@@ -17,8 +20,8 @@ Refused, with the reason and nothing written:
   that differs from its own commit, a tracked symbolic link that points outside
   the clone, a submodule, and an added or changed attribute, submodule or
   large-file-storage control file.
-- New material a maintainer has not classified: a new module, a new table or a
-  new column. A new column is how a renamed password column would arrive, so it
+- New material a maintainer has not classified: a module, table or column the
+  last accepted delivery did not carry. A new column is how a renamed password column would arrive, so it
   is held until a maintainer names it with --accept-new after looking at it. An
   acceptance that names nothing new is refused too, because it is a typo or a
   stale flag that would otherwise wave through whatever later matches it.
@@ -26,8 +29,10 @@ Refused, with the reason and nothing written:
   including a compressed dump whose compression is corrupt.
 - A row the delivery added or changed that carries insert statement text in a
   value, which is the shape of a row smuggled in through free text. Rows are
-  matched to the original's by their values, so a row that only moved is not
-  treated as new.
+  matched to the last accepted delivery's by their values, so a row that only
+  moved is not treated as new.
+- A recorded last accepted delivery that is not in the live clone's history
+  between the first delivery and this one.
 - Two dumps producing one table name into the same output directory.
 - A gallery file field that could climb out of the site tree: a parent-directory
   segment or a backslash, checked both as stored and after URL-decoding the
@@ -39,12 +44,13 @@ Refused, with the reason and nothing written:
 - An --out directory inside either legacy clone, or inside the public checkout
   anywhere but the private checkout reached through it.
 
-Reported, and written as delivered: a dump the original carried that is now
-missing, a table that disappeared or emptied, a column that disappeared, copied
-material the delivery dropped (pruned from the export), growth in a dump's
-raw control characters, invalid UTF-8 lines or end-of-dump footers against the
-original, and tracked files the delivery added or changed that are neither
-converted nor copied. The previous CSVs survive in the private repository's
+Reported against the last accepted delivery, and written as delivered: a dump
+it carried that is now missing, a table that disappeared or emptied, a column
+that disappeared, growth in a dump's raw control characters, invalid UTF-8
+lines (each read with replacement characters) or end-of-dump footers, and
+tracked files the delivery added or changed that are neither converted nor
+copied. Copied material the delivery dropped is reported and pruned from the
+export. The previous CSVs survive in the private repository's
 history. A run that fails once writing has begun says the export is partial and
 prints the git commands that restore the last accepted delivery.
 
@@ -94,11 +100,10 @@ ORIGINAL = REPO_ROOT / 'footbag_legacy_repo_original_data'
 PRIVATE = REPO_ROOT / 'footbag_private_repo'
 
 # Each source, its output directory and the dialect that wrote it. Ordered
-# smallest and least sensitive first. The FAQ dump already carries four lines
-# that are not valid UTF-8; that count is its declared tolerance, so a delivery
-# that adds more is refused rather than silently replaced.
+# smallest and least sensitive first. A line that is not valid UTF-8 is read
+# with replacement characters and counted, never refused (see read_sources).
 MODULES: list[tuple[str, str, sp.Dialect]] = [
-    ('faq/backups/latest.sql',            'faq',           sp.tolerating(sp.MARIADB, 4)),
+    ('faq/backups/latest.sql',            'faq',           sp.MARIADB),
     ('poll/backups/latest.sql',           'poll',          sp.MARIADB),
     ('index2/backups/latest.sql',         'index2',        sp.MYSQL4_UTF8),
     ('moves2/backups/latest.sql',         'moves2',        sp.MARIADB),
@@ -264,6 +269,26 @@ def check_git(live: Path, original: Path) -> tuple[Commit, Commit]:
             Commit(original, original_head, original_objects))
 
 
+def last_accepted(export: Path, live: Commit, original: Commit) -> Commit:
+    """The last accepted delivery: the live commit recorded in the refresh
+    manifest committed in the export's repository, which is what the maintainer
+    last reviewed. With no committed manifest it is the original copy."""
+    manifest = refresh_report.committed_bytes(export / 'REFRESH_MANIFEST.tsv')
+    head = None
+    for line in (manifest or b'').decode('utf-8').splitlines():
+        if line.startswith('live_head\t'):
+            head = line.split('\t', 1)[1].strip()
+    if not head or head == original.head:
+        return original
+    # The first check also finds a commit the clone does not hold at all.
+    if not (is_ancestor(live.repo, head, live.head)
+            and is_ancestor(live.repo, original.head, head)):
+        raise Refused(f'the last accepted delivery {head[:12]}, recorded in the committed '
+                      'REFRESH_MANIFEST.tsv, is not in the live clone\'s history between '
+                      'the original copy and this delivery')
+    return Commit(live.repo, head, tracked_objects(live.repo, head))
+
+
 def read_sources(commit: Commit, label: str) -> dict[str, Source]:
     """Every module dump the commit carries, read from git once."""
     sources = {}
@@ -283,8 +308,10 @@ def read_sources(commit: Commit, label: str) -> dict[str, Source]:
                 data = gzip.decompress(raw)
             except (OSError, EOFError, zlib.error) as err:
                 raise Refused(f'{rel}: the compression is corrupt ({err})') from err
+        # An undecodable byte loses one character, which a delivery can carry
+        # without being unreadable; the count is compared and reported instead.
         try:
-            dump = sp.parse(data, dialect, f'{label}:{rel}')
+            dump = sp.parse(data, sp.tolerating(dialect, None), f'{label}:{rel}')
         except sp.DumpRefused as err:
             raise Refused(str(err)) from err
         sources[rel] = Source(rel, out_name, dialect, raw, dump)
@@ -296,9 +323,11 @@ def _row_key(table: sp.Table, row: list, columns: list[str]) -> tuple:
                  for c in columns)
 
 
-def check_against_original(live: dict[str, Source], original: dict[str, Source],
+def check_against_accepted(live: dict[str, Source], original: dict[str, Source],
                            accepted: set[str], report: list[str]) -> None:
-    """Refuse unclassified new material and smuggled rows; report losses."""
+    """Refuse unclassified new material and smuggled rows; report losses.
+    `original` is the last accepted delivery's sources, so material a
+    maintainer accepted and committed is not asked about again."""
     used: set[str] = set()
 
     def held(key: str, what: str) -> None:
@@ -310,14 +339,14 @@ def check_against_original(live: dict[str, Source], original: dict[str, Source],
                       f'--accept-new {key}')
 
     for rel in sorted(set(original) - set(live)):
-        report.append(f'{rel}: the dump the original carried is missing from this '
-                      'delivery; its CSVs are removed from the export')
+        report.append(f'{rel}: the dump the last accepted delivery carried is missing '
+                      'from this delivery; its CSVs are removed from the export')
 
     for rel, after in live.items():
         module = after.out_name
         before = original.get(rel)
         if before is None:
-            held(module, f'{rel} is a module the original did not carry')
+            held(module, f'{rel} is a module the last accepted delivery did not carry')
         for name, new in after.dump.tables.items():
             old = before.dump.tables.get(name) if before else None
             if before is not None and old is None:
@@ -327,8 +356,8 @@ def check_against_original(live: dict[str, Source], original: dict[str, Source],
                     if c not in old.columns:
                         held(f'{module}.{name}.{c}',
                              f'{rel}: table {name} gained column {c}')
-            # Insert statement text is allowed only on a row the original
-            # carried with the same values in the original's columns; rows are
+            # Insert statement text is allowed only on a row the baseline
+            # carried with the same values in the baseline's columns; rows are
             # matched as a multiset, so a reordered table is not a changed one.
             known = Counter()
             if old is not None:
@@ -439,7 +468,8 @@ _DUMP_LIKE = re.compile(r'sql|dump', re.IGNORECASE)
 
 
 def report_uncaptured(live: Commit, original: Commit, report: list[str]) -> None:
-    """Tracked files the delivery added or changed that the refresh neither
+    """Tracked files the delivery added or changed since the last accepted
+    delivery (`original`) that the refresh neither
     converts nor copies. A dump arriving under a name the refresh does not read
     would otherwise never be seen, so each dump-like file is named; the rest,
     mostly site code, are counted by top-level folder."""
@@ -594,13 +624,16 @@ def main() -> int:
     try:
         check_out_dir(export)
         live_commit, original_commit = check_git(LIVE, ORIGINAL)
+        accepted_commit = last_accepted(export, live_commit, original_commit)
         original = read_sources(original_commit, 'original')
+        accepted = (original if accepted_commit is original_commit
+                    else read_sources(accepted_commit, 'accepted'))
         live = read_sources(live_commit, 'live')
-        check_against_original(live, original, set(args.accept_new), report)
+        check_against_accepted(live, accepted, set(args.accept_new), report)
         check_output_names(live)
         check_gallery_paths(live)
         copied = copied_entries(live_commit)
-        report_uncaptured(live_commit, original_commit, report)
+        report_uncaptured(live_commit, accepted_commit, report)
     except Refused as err:
         print(f'REFUSED: {err}', file=sys.stderr)
         print('Nothing was written.', file=sys.stderr)

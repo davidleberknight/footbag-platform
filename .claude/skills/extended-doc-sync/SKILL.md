@@ -25,16 +25,17 @@ A script does everything mechanical and enumerates every unit; models only read 
    table, route, story or service, together; split where too large, each bucket carrying the
    code its entity names.
 4. **Compare** (Opus, medium effort, for buckets holding a requirement or rationale; Sonnet for the rest)
-   and **coherence** (Opus, over every design claim). Report everything; quote both sides.
-5. **Verify** (Opus, medium, fresh context). Sees the two sides and the intent passage, never
+   and **coherence** (Opus, over every design claim). Report everything; quote both sides. A
+   lone claim with no code to read beside it is not compared.
+5. **Verify** (Sonnet, medium, fresh context). Sees the two sides and the intent passage, never
    the finder's reasoning, and tries to refute each candidate. Candidates are pooled across
    batches, about 25 to a verifier, each with a read budget; one it cannot settle is kept as
    unverified.
 6. **Cluster** (Sonnet, low). One ruling, one item, each with a severity (S1 requirement or
    design breach, S2 misdescription Claude would treat as design, S3 stale fact, S4 form) and
    settled or disputed. Severity sets the order questions are asked in, never whether.
-7. **Draft** (Opus, medium). Each cluster's question written with its homework done, and its
-   handover-or-card recommendation.
+7. **Draft** (Sonnet, medium). Each cluster's question written with its homework done, and its
+   apply-or-card recommendation; the asking session re-derives it before asking.
 
 Steps 2 and 4 to 7 run in the saved workflow `.claude/workflows/extended-doc-sync-stages.js`; the
 briefs beside this file are what its agents read.
@@ -48,16 +49,18 @@ Ledger: `footbag_private_repo/DOC_SYNC_LEDGER.json`; when the private checkout i
 
 **Domain by domain.** "Run the extended doc sync" walks the repository one domain at a time,
 each only on the maintainer's approval, with its token cost reported before the next is
-offered: the inventory limited to that domain's exact units with `--units`, then one
-extraction, one grouping, one comparison, one draft. The asking then runs over as many fresh
-sessions as it takes, in the domain order
-`footbag_private_repo/EXTENDED_DOC_SYNC_REVIEW.md` sets, S1 first within each, until every
-cluster has a ruling; that file records which are ruled, and "continue the extended doc sync"
-resumes there. A later run extracts only what the ledger shows changed. When the private
+offered: the inventory limited to that domain with `--domain <id>`, then one extraction, one
+grouping, one comparison, one draft. The ledger holds the domain map and the asking order;
+`--status --ledger <ledger>` names the next domain and its carried notes, and "continue the
+extended doc sync" starts there. The asking runs over as many fresh sessions as it takes, S1
+first within each domain, until every cluster has a ruling. A cluster whose findings fall in
+several domains is asked with the first of them in the asking order. A unit the map does not place is a
+mechanical finding: add it to its domain in the ledger and say so in one line. A later run
+extracts only what the ledger shows changed. When the private
 checkout is absent, say so in one line, put `<run>` under the session scratchpad, and run over
 the public repository only.
 
-1. `npx tsx scripts/extended-doc-sync-inventory.ts --inventory --out <run>/inventory.json --ledger <ledger> --private-root footbag_private_repo`.
+1. `npx tsx scripts/extended-doc-sync-inventory.ts --inventory --domain <id> --out <run>/inventory.json --ledger <ledger> --private-root footbag_private_repo`.
    Read its summary line, its failing gates and its mechanical findings. A detector that fires
    many times in one document is one finding with a count and two or three examples, so a
    pattern never buries a single instance that changes meaning.
@@ -107,8 +110,8 @@ the public repository only.
      asked, never put to the maintainer as an assumption.
    Mechanical findings and failing gates are asked the same way.
 7. The maintainer triages every ruling; no record is assumed. A tiny fix, a document's or
-   comment's wording with no change of behaviour or design, is applied when the maintainer
-   says so or goes into `footbag_private_repo/HANDOVER_DOC_SYNC.md`. For anything larger, a
+   comment's wording with no change of behaviour or design, is applied in the asking session
+   once the maintainer says so; nothing is parked in a handover. For anything larger, a
    card is one option, not the default: each new card, and each step added to an existing
    card (the `tracker-ops` skill), is its own question, asked one at a time after its finding
    is re-derived against the design intent. Any record names the losing side, the winning
@@ -119,7 +122,7 @@ the public repository only.
 8. Record: write the run's remaining findings and every standing ruling (not drift, recorded
    and left, or carried to a card) into the results file; an applied fix needs none, because the
    drift it fixed no longer appears. Then
-   `npx tsx scripts/extended-doc-sync-inventory.ts --record --results <run>/results.json --ledger <ledger> --from <run>/inventory.json --units <run>/units.json`,
+   `npx tsx scripts/extended-doc-sync-inventory.ts --record --results <run>/results.json --ledger <ledger> --from <run>/inventory.json --domain <id>`,
    so the next run reads only what changed and never re-asks a ruling.
 
 ## Sensitive data
@@ -132,7 +135,6 @@ table, column, route, service and test names.
 ## Stop when
 
 Every cluster, mechanical finding and failing gate has a ruling or an explicit deferral from
-the maintainer, every ruling is triaged by the maintainer and recorded as a card step or a
-handover entry, and the ledger is recorded. A chunk walk stops
-at the same point for its own units, with the chunk's Walked line recorded in place of the
-ledger.
+the maintainer, every ruling is triaged by the maintainer and applied or recorded as a card step,
+and the ledger is recorded. A domain walk stops at the same point for its own units, and
+`--status` then shows it walked.

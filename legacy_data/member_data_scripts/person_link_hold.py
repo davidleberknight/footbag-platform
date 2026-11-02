@@ -13,8 +13,13 @@ against:
   * duplicate_person -- this row is the same human as another person row, so it
                       must never take a link or be claimed independently. Names
                       the row it duplicates.
+  * account_holder -- this person is the holder of one named account, which a
+                      variant of the name reaches and no mechanical rule could pick
+                      out. Records the account; creates no link, because a claim
+                      attaches an account only to a results-derived person, and the
+                      account imports and is claimable like any other.
 
-The last two exist because a person with no proposed link and a person nobody has
+The last three exist because a person with no proposed link and a person nobody has
 looked at are indistinguishable otherwise, and the final load has to be able to
 tell an accepted absence from an unreviewed one.
 
@@ -56,17 +61,24 @@ NO_ACCOUNT = "no_account"
 # Records that a person row is the same human as another person row, so it must
 # never take a link or be claimed independently. Carries the row it duplicates.
 DUPLICATE_PERSON = "duplicate_person"
+# Records that a person holds one named account that only a variant of the name
+# reaches. Carries that one account in survivor_account_ids.
+ACCOUNT_HOLDER = "account_holder"
 
-VALID_DECISIONS = frozenset({HOLD_LINK, NO_ACCOUNT, DUPLICATE_PERSON})
-# Dispositions about a person rather than about one proposed link. These carry no
-# account set and are checked against the person population, not the proposals.
-PERSON_SCOPED_DECISIONS = frozenset({NO_ACCOUNT, DUPLICATE_PERSON})
+VALID_DECISIONS = frozenset({HOLD_LINK, NO_ACCOUNT, DUPLICATE_PERSON, ACCOUNT_HOLDER})
+# Dispositions about a person rather than about one proposed link, checked against
+# the person population, not the proposals. Only account_holder names an account.
+PERSON_SCOPED_DECISIONS = frozenset({NO_ACCOUNT, DUPLICATE_PERSON, ACCOUNT_HOLDER})
 
 UNRESOLVED_PENDING_EXTERNAL_CORROBORATION = "unresolved_pending_external_corroboration"
 UNRESOLVED_PENDING_CORRECTED_SOURCE = "unresolved_pending_corrected_source_or_identity_evidence"
 NO_VALID_ACCOUNT_IN_MEMBER_POPULATION = "no_valid_account_in_member_population"
 DUPLICATE_SPELLING_VARIANT = "duplicate_of_canonical_person_spelling_variant"
 DUPLICATE_STROKE_LETTER_VARIANT = "duplicate_of_canonical_person_stroke_letter_variant"
+# The other row holds the one account whose name is this name with a middle name or
+# initial added, and the account's standing matches this person's.
+DUPLICATE_MIDDLE_NAME_VARIANT = "duplicate_of_person_holding_middle_name_variant_account"
+HOLDS_NAME_VARIANT_ACCOUNT = "holds_account_bearing_a_variant_of_this_name"
 
 # A reason has to belong to its decision. Sharing one flat vocabulary would let a
 # no-account ruling wear a hold_link reason and read as adjudicated when it is not.
@@ -75,7 +87,9 @@ REASONS_BY_DECISION: dict[str, frozenset[str]] = {
                           UNRESOLVED_PENDING_CORRECTED_SOURCE}),
     NO_ACCOUNT: frozenset({NO_VALID_ACCOUNT_IN_MEMBER_POPULATION}),
     DUPLICATE_PERSON: frozenset({DUPLICATE_SPELLING_VARIANT,
-                                 DUPLICATE_STROKE_LETTER_VARIANT}),
+                                 DUPLICATE_STROKE_LETTER_VARIANT,
+                                 DUPLICATE_MIDDLE_NAME_VARIANT}),
+    ACCOUNT_HOLDER: frozenset({HOLDS_NAME_VARIANT_ACCOUNT}),
 }
 VALID_REASONS = frozenset().union(*REASONS_BY_DECISION.values())
 
@@ -103,6 +117,14 @@ class PersonLinkHold:
     @property
     def is_person_scoped(self) -> bool:
         return self.decision in PERSON_SCOPED_DECISIONS
+
+    @property
+    def boundary_target(self) -> str:
+        """What the person-scoped fingerprint binds besides the person: the row it
+        duplicates, or the account it holds."""
+        if self.decision == ACCOUNT_HOLDER:
+            return "account:" + next(iter(self.survivor_account_ids))
+        return self.duplicate_of_person_id
 
 
 def person_boundary_fingerprint(candidate_person_id: str, normalized_name: str,
@@ -195,7 +217,13 @@ def load_holds(path: Path | None) -> list[PersonLinkHold]:
             # A person-scoped disposition is about a person with no proposal, so
             # there is no survivor account set to bind to and naming one would be
             # a claim the ruling does not make.
-            if decision in PERSON_SCOPED_DECISIONS:
+            if decision == ACCOUNT_HOLDER:
+                accounts = parse_account_ids(row.get("survivor_account_ids") or "")
+                if len(accounts) != 1:
+                    raise PersonLinkHoldError(
+                        f"line {i}: an {ACCOUNT_HOLDER} decision names exactly one "
+                        f"account in survivor_account_ids; got {sorted(accounts)}")
+            elif decision in PERSON_SCOPED_DECISIONS:
                 if (row.get("survivor_account_ids") or "").strip():
                     raise PersonLinkHoldError(
                         f"line {i}: {decision!r} is about a person, so "
@@ -271,7 +299,8 @@ def apply_holds(descriptors: list[dict], holds: list[PersonLinkHold]) -> tuple[l
 
 def apply_person_dispositions(person_descriptors: list[dict],
                               holds: list[PersonLinkHold],
-                              known_person_ids: Iterable[str]) -> list[dict]:
+                              known_person_ids: Iterable[str],
+                              known_account_ids: "Iterable[str] | None" = None) -> list[dict]:
     """Validate every person-scoped disposition against current state, and return
     the audit. `person_descriptors` is one dict per person eligible for a
     disposition: {candidate_person_id, normalized_name, account_ids_bearing_name,
@@ -287,6 +316,7 @@ def apply_person_dispositions(person_descriptors: list[dict],
     """
     by_id = {d["candidate_person_id"]: d for d in person_descriptors}
     known = set(known_person_ids)
+    accounts = set(known_account_ids) if known_account_ids is not None else None
 
     seen: set[str] = set()
     audit: list[dict] = []
@@ -306,7 +336,15 @@ def apply_person_dispositions(person_descriptors: list[dict],
             raise PersonLinkHoldError(
                 f"{h.decision} for {h.candidate_person_id}: the row it duplicates "
                 f"({h.duplicate_of_person_id}) is not in the person population")
-        expected = d["fingerprint_for"](h.duplicate_of_person_id)
+        if h.decision == ACCOUNT_HOLDER:
+            held = next(iter(h.survivor_account_ids))
+            # Unchecked, a holder ruling could name an account the delivery no
+            # longer carries, or never did, and still read as settled.
+            if accounts is None or held not in accounts:
+                raise PersonLinkHoldError(
+                    f"{h.decision} for {h.candidate_person_id}: account {held} is not a "
+                    "valid account in the delivered member population")
+        expected = d["fingerprint_for"](h.boundary_target)
         if h.fingerprint != expected:
             raise PersonLinkHoldError(
                 f"stale decision boundary for {h.decision} on {h.candidate_person_id}: "
@@ -317,6 +355,8 @@ def apply_person_dispositions(person_descriptors: list[dict],
             "decision": h.decision,
             "reason": h.reason,
             "duplicate_of_person_id": h.duplicate_of_person_id,
+            "held_account_id": (next(iter(h.survivor_account_ids))
+                                if h.decision == ACCOUNT_HOLDER else ""),
             "normalized_name": d["normalized_name"],
             "account_ids_bearing_name": sorted(d["account_ids_bearing_name"]),
             "link_created": False,

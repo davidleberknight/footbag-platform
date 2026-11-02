@@ -27,6 +27,9 @@ Written, private (the private checkout, committed there after review):
   rows, and their reconciliation against the stored totals and the secretary's
   live-site capture. Aggregates only; no member id leaves the ballots.
 - legacy-publish/PUBLISH_REPORT.md: the inputs and counts behind the above.
+- legacy-publish/PUBLISH_STAMP.tsv: the delivery commit, the members dump
+  checksum, and the checksums of the export members CSV read and the member CSV
+  written, which the data build checks before it touches the database.
 - private-custody/ifpa-group-files/CRAWL_EXCLUSIONS.txt: the crawler's
   mandatory exclusion list of committee-scoped group content.
 - private-custody/ifpa-group-files/GROUP_FILES_INVENTORY.csv: every legacy group
@@ -56,6 +59,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import hashlib
 import io
 import os
 import re
@@ -893,17 +897,44 @@ def admin_ids(export: Path) -> set[str] | None:
             if r['AdminValid'] == '1' and r['AdminID'].strip()}
 
 
-def dump_completed(export: Path) -> str:
-    """When the members dump was taken, as the refresh recorded it."""
+def refresh_provenance(export: Path) -> dict[str, str]:
+    """The delivery the export was refreshed from, as the refresh's manifest records
+    it: both clones' commits, and the members dump's checksum and dump time."""
     path = export / 'REFRESH_MANIFEST.tsv'
     if not path.is_file():
         raise Refused(f'{path} is missing. Run legacy_data/scripts/refresh_legacy_repo_data.py '
                       'to write the export, then re-run.')
+    found: dict[str, str] = {}
     for line in path.read_text(encoding='utf-8').splitlines():
         cols = line.split('\t')
-        if cols[0] == MEMBERS_SOURCE and len(cols) > 4:
-            return cols[4]
-    raise Refused(f'{path} records no {MEMBERS_SOURCE}; the export is incomplete.')
+        if cols[0] in ('original_head', 'live_head') and len(cols) > 1:
+            found[cols[0]] = cols[1]
+        elif cols[0] == MEMBERS_SOURCE and len(cols) > 4:
+            found['members_dump_sha256'] = cols[1]
+            found['members_dump_completed'] = cols[4]
+    missing = [k for k in ('original_head', 'live_head', 'members_dump_completed')
+               if not found.get(k)]
+    if missing:
+        raise Refused(f'{path} records no {", ".join(missing)}; the export is incomplete. '
+                      'Re-run legacy_data/scripts/refresh_legacy_repo_data.py.')
+    return found
+
+
+def sha256_hex(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
+
+
+# The stamp the deploy preflight compares against the refresh manifest and the
+# files on disk, so a build cannot load a published member CSV that was made from
+# a different delivery than the export it sits beside.
+STAMP_NAME = 'PUBLISH_STAMP.tsv'
+STAMP_FIELDS = ('refresh_live_head', 'refresh_original_head', 'members_dump_sha256',
+                'members_dump_completed', 'export_members_csv_sha256',
+                'published_members_csv_sha256', 'cutover_date', 'member_rows')
+
+
+def stamp_text(stamp: dict[str, str]) -> str:
+    return ''.join(f'{k}\t{stamp[k]}\n' for k in STAMP_FIELDS)
 
 
 def cutover_epoch(cutover_date: str | None) -> int:
@@ -968,9 +999,11 @@ def member_csvs(members: list[dict], epoch: int, admins: set[str] | None,
     return out.getvalue(), prob.getvalue(), stats
 
 
-def report_text(cutover_date: str, dumped: str, stats: dict, admins: set[str] | None,
-                board_current: bool, board_ids: list[str], seeds: dict[str, list[str]],
-                events: list[str], exclusions: str, tallies: dict) -> str:
+def report_text(cutover_date: str, stamp: dict[str, str], stats: dict,
+                admins: set[str] | None, board_current: bool, board_ids: list[str],
+                seeds: dict[str, list[str]], events: list[str], exclusions: str,
+                tallies: dict) -> str:
+    dumped = stamp['members_dump_completed']
     f = stats['flags']
     board = (f'PASS: the roster carries the CTO record, so its {len(board_ids)} account(s) '
              'carry the board flag' if board_current else
@@ -981,7 +1014,10 @@ def report_text(cutover_date: str, dumped: str, stats: dict, admins: set[str] | 
              'Written by `legacy_data/scripts/publish_legacy_repo_data.py` from the legacy',
              'export. Counts only; no member data.', '',
              f'- Cutover date (annual memberships measured at): {cutover_date}',
+             f'- Delivery commit: `{stamp["refresh_live_head"]}`',
              f'- Members dump taken: {dumped}',
+             f'- Export members CSV sha256: `{stamp["export_members_csv_sha256"]}`',
+             f'- Published members CSV sha256: `{stamp["published_members_csv_sha256"]}`',
              f'- Member rows: {stats["rows"]}',
              f'- Ever held Tier 2: {f["legacy_ever_paid_tier2"]}',
              f'- Tier 1 lifetime: {f["legacy_ever_paid_tier1_lifetime"]}',
@@ -1031,6 +1067,10 @@ cutover date, rather than editing anything here.
   number, because which is right is a records question, not an arithmetic one.
 - `PUBLISH_REPORT.md`: the cutover date, the dump date and the counts behind all
   of the above.
+- `PUBLISH_STAMP.tsv`: the delivery commit, the members dump checksum and the
+  checksums of the export members CSV this publish read and the member CSV it
+  wrote. The data build refuses when any of them no longer matches what is on
+  disk, so a member load cannot read a publish made from another delivery.
 - `audit/`: the one authored part, never written by this script. It holds the
   figures audited for the delivery, which the member-data audit checks every
   built database against; a new delivery is re-audited there as a data edit.
@@ -1049,7 +1089,7 @@ def build(private: Path, mirror: Path, cutover_date: str | None) -> tuple[dict, 
     members = read_table(export, 'members/members.csv')
     admins = admin_ids(export)
     board_current, board_ids = board_roster(export)
-    dumped = dump_completed(export)
+    provenance = refresh_provenance(export)
     try:
         name_encodings = load_member_name_encodings()
     except SystemExit as err:
@@ -1061,14 +1101,26 @@ def build(private: Path, mirror: Path, cutover_date: str | None) -> tuple[dict, 
     exclusions = crawl_exclusions(export)
     tallies_csv, reconciliation_csv, tally_stats = vote_tallies(export, private)
     publish = private / PUBLISH_DIR
+    stamp = {
+        'refresh_live_head': provenance['live_head'],
+        'refresh_original_head': provenance['original_head'],
+        'members_dump_sha256': provenance.get('members_dump_sha256', ''),
+        'members_dump_completed': provenance['members_dump_completed'],
+        'export_members_csv_sha256': sha256_hex(
+            (export / 'members/members.csv').read_bytes()),
+        'published_members_csv_sha256': sha256_hex(members_csv.encode('utf-8')),
+        'cutover_date': cutover_date,
+        'member_rows': str(stats['rows']),
+    }
     private_files = {
         publish / 'legacy_members.csv': members_csv,
         publish / 'legacy_members_encoding_problems.csv': problems_csv,
         publish / TALLIES_DIR / 'ifpa_issue_vote_tallies.csv': tallies_csv,
         publish / TALLIES_DIR / 'tally_reconciliation.csv': reconciliation_csv,
         publish / 'PUBLISH_REPORT.md': report_text(
-            cutover_date, dumped, stats, admins, board_current, board_ids, seeds,
+            cutover_date, stamp, stats, admins, board_current, board_ids, seeds,
             events, exclusions, tally_stats),
+        publish / STAMP_NAME: stamp_text(stamp),
         publish / 'README.md': README,
         private / EXCLUSIONS_REL: exclusions,
         private / INVENTORY_REL: group_file_inventory(export),

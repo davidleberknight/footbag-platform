@@ -331,6 +331,22 @@ def test_the_refusals_name_the_symlink_rather_than_a_variable_to_export() -> Non
         assert "Set FOOTBAG_" not in message, marker
 
 
+def test_every_ruling_is_checked_against_the_delivery_before_stage_a_and_never_restamped() -> None:
+    # Stage B stops at the first stale ruling, so without this check a new delivery
+    # costs one failed run per ruling. Restamping inside the load would let a build
+    # rewrite the human record of a decision; only the maintainer's --apply may.
+    i_check = TEXT.index('refit_rulings.py" --members-csv "${CSV}" --db "${DB}"')
+    i_stage_a = TEXT.index('reconcile_legacy_members.py" --stage-a')
+    assert TEXT.index("dry-run complete") < i_check < i_stage_a
+    guard = TEXT.rindex('if [[ "${ADJUDICATIONS_READY}" -eq 1 ]]', 0, i_check)
+    assert TEXT.index("\n  fi\n", guard) > i_check
+    after = TEXT[i_check:TEXT.index("NOTFITTED\n      exit 1", i_check) + 40]
+    assert "exit 1" in after and "refit_rulings.py --apply" in after
+    for line in TEXT.splitlines():
+        if "refit_rulings.py" in line and '"${PY}"' in line:
+            assert "--apply" not in line, line
+
+
 def test_every_run_reports_the_resolved_path_whether_it_found_the_inputs_or_not() -> None:
     # An input resolved silently is as hard to audit as one that silently stayed
     # unset, and the absent case is the one that matters: a run that applied no

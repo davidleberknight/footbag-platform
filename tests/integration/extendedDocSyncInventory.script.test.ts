@@ -118,7 +118,17 @@ beforeAll(() => {
   };
   pgit('init', '-q');
   // The operations document the audit reads, naming itself bare as the real one does.
-  writeFileSync(join(privy, 'AWS_OPERATIONS.md'), '# Operations\n\nThe Thing ($9/month). See AWS_OPERATIONS.md below.\n');
+  // Its section locators in the forms a private document may not use, beside their titled forms.
+  writeFileSync(join(privy, 'AWS_OPERATIONS.md'), [
+    '# Operations',
+    '',
+    'The Thing ($9/month). See AWS_OPERATIONS.md below.',
+    'Journal logs (§6.5 covers the common commands).',
+    'Journal logs (§6.6 Reading the journal).',
+    'Apply the §4.7 update first.',
+    'Recover the host using §4.8 first.',
+    '',
+  ].join('\n'));
   writeFileSync(join(privy, 'WALK.md'), '# Walk position\n');
   writeFileSync(join(privy, '.gitignore'), 'WALK.md\n');
   // A tracked plan and archived history: work records, not descriptions of the system.
@@ -130,6 +140,16 @@ beforeAll(() => {
   symlinkSync(privy, join(repo, 'privy'));
   write('.gitignore', 'privy\n');
   write('guide.md', GUIDE);
+  // Section locators in the parenthetical and inline forms, each beside its titled form.
+  write('locators.md', [
+    '# Locators',
+    '',
+    'Journal logs (§6.5 covers the common commands).',
+    'Journal logs (§6.6 Reading the journal).',
+    'Apply the §4.7 update first.',
+    'Apply the §4.8 `restart` step first.',
+    '',
+  ].join('\n'));
   write('src/app.ts', '// Builds a thing from its row.\nexport function buildThing() { return 1; }\n');
   write('src/plain.ts', 'export const plain = 2;\n');
   write('src/long.ts', [
@@ -213,6 +233,9 @@ describe('extended-doc-sync-inventory: mechanical checks', () => {
     expect(has('GO_LIVE_PLAN')).toBe(false);
     expect(has('stale-token: "Last updated:"')).toBe(true);
     expect(has('bare-locator: "per §4"')).toBe(true);
+    // A public document may keep a bracketed or "the §N" number beside a full sentence.
+    expect(has('"(§6.5"')).toBe(false);
+    expect(has('"the §4.7"')).toBe(false);
     expect(has('table orphans is never named')).toBe(true);
     expect(has('table things is never named')).toBe(false);
   });
@@ -313,6 +336,13 @@ describe('extended-doc-sync-inventory: private documents', () => {
     expect(q.detail).not.toContain('11 at');
     expect(inv.mechanical.some((f: { check: string; file: string }) => f.check === 'unmarked-private-doc' && f.file.startsWith('privy/')))
       .toBe(false);
+    // A private document cites sections by title only, so any section number with no title
+    // is flagged there, in whatever words it sits, and the titled form beside it is not.
+    const locators = inv.mechanical.filter((f: { check: string; file: string }) => f.check === 'bare-locator' && f.file.startsWith('privy/'))
+      .map((f: { detail: string }) => f.detail);
+    expect(locators).toEqual([
+      '"§6.5" has no title beside it', '"§4.7" has no title beside it', '"§4.8" has no title beside it',
+    ]);
 
     const refused = run(['--inventory', '--out', join(scratch, 'x.json'), '--private-root', 'nope']);
     expect(refused.status).toBe(2);
@@ -424,6 +454,108 @@ describe('extended-doc-sync-inventory: recording part of a run', () => {
   });
 });
 
+describe('extended-doc-sync-inventory: the domain map', () => {
+  // Two domains: one placing a guide section and a source file, and one placing a directory,
+  // the same guide section again, and a document that does not exist.
+  const DOMAINS = [
+    { id: 'guides', title: 'Guides', scope: [{ doc: 'guide.md', sections: ['Second'] }, { dir: 'src/', files: ['app.ts'] }] },
+    { id: 'code', title: 'Code', scope: [{ dir: 'src/services/' }, { doc: 'guide.md', sections: ['Second'] }, { doc: 'gone.md', whole: true }] },
+  ];
+
+  function mapLedger(name: string, extra: object = {}): string {
+    const p = join(scratch, `${name}-ledger.json`);
+    writeFileSync(p, JSON.stringify({ files: {}, sections: {}, findings: [], rulings: [], domains: DOMAINS, askOrder: ['guides', 'code'], ...extra }));
+    return p;
+  }
+
+  it('extracts only one domain\'s units and reports units the map misplaces, beside the ones it places', () => {
+    // A domain walk handed every unit pays for the whole repository; a unit no domain
+    // names is never walked, one two domains name is asked twice, and an entry naming a
+    // renamed section silently drops it.
+    const ledger = mapLedger('domain-run');
+    const out = join(scratch, 'domain-run.json');
+    const r = run(['--inventory', '--out', out, '--ledger', ledger, '--domain', 'guides']);
+    expect(r.status, r.stderr).toBe(0);
+    const inv = JSON.parse(readFileSync(out, 'utf8'));
+    const second = inv.units.docs.find((u: { file: string; heading: string }) => u.file === 'guide.md' && u.heading === 'Second').id;
+    expect(inv.extract.docBatches.flat().map((u: { id: string }) => u.id)).toEqual([second]);
+    expect(inv.extract.commentBatches.flat().map((u: { id: string }) => u.id)).toEqual(['comments:src/app.ts']);
+
+    const map = (check: string): string[] => inv.mechanical.filter((f: { check: string }) => f.check === check)
+      .map((f: { detail: string }) => f.detail);
+    expect(map('domain-overlap')).toEqual([`${second} is in domains guides and code`]);
+    expect(map('domain-stale-scope')).toEqual(['domain code names gone.md (whole document), which holds no unit']);
+    const unclaimed = map('domain-unclaimed');
+    expect(unclaimed.some((d) => d.startsWith('comments:src/long.ts '))).toBe(true);
+    expect(unclaimed.some((d) => d.startsWith('comments:src/services/thingService.ts '))).toBe(false);
+    expect(unclaimed.some((d) => d.startsWith('comments:src/app.ts '))).toBe(false);
+  });
+
+  it('records one domain, keeps the map and the notes not yet ruled, and reports the walk position from it', () => {
+    // A record that dropped the map would lose the walk's partition on its first run; a
+    // carried note never cleared would be asked again after its ruling; a position kept by
+    // hand drifts from what the ledger actually holds.
+    const ledger = mapLedger('domain-record', {
+      carried: [
+        { id: 'note-ruled', domain: 'guides', note: 'settled this run' },
+        { id: 'note-open', domain: 'code', note: 'the code domain has a carried question' },
+      ],
+    });
+    const from = join(scratch, 'domain-record.json');
+    expect(run(['--inventory', '--out', from, '--ledger', ledger]).status).toBe(0);
+    const results = join(scratch, 'domain-record-results.json');
+    writeFileSync(results, JSON.stringify({
+      findings: [{ check: 'bare-locator', file: 'guide.md', line: 11, detail: '"per §4" has no title beside it' }],
+      rulings: [{ id: 'note-ruled', ruling: 'not drift' }],
+    }));
+    const rec = run(['--record', '--results', results, '--ledger', ledger, '--from', from, '--domain', 'guides']);
+    expect(rec.status, rec.stderr).toBe(0);
+    const after = JSON.parse(readFileSync(ledger, 'utf8'));
+    expect(after.domains).toEqual(DOMAINS);
+    expect(after.askOrder).toEqual(['guides', 'code']);
+    expect(after.carried.map((c: { id: string }) => c.id)).toEqual(['note-open']);
+    // Only the guides domain's commented file is marked whole; its guide section is
+    // recorded alone, because the guide's other section was not read.
+    expect(Object.keys(after.files)).toEqual(['src/app.ts']);
+    expect(after.sections['guide.md']).toHaveLength(1);
+
+    const st = run(['--status', '--ledger', ledger]);
+    expect(st.status, st.stderr).toBe(0);
+    expect(st.stdout).toContain('walked guides: 2/2 units recorded');
+    expect(st.stdout).toMatch(/open {3}code: 1\/\d+ units recorded/);
+    expect(st.stdout).toContain('next domain: code');
+    expect(st.stdout).toContain('carried note-open: the code domain has a carried question');
+    expect(st.stdout).not.toContain('note-ruled');
+    // A fresh session sees the open findings waiting to be asked before the next domain.
+    expect(st.stdout).toContain('open findings: bare-locator: 1');
+  });
+
+  it('refuses a domain the map lacks, two unit selections at once, and a domain run without its ledger', () => {
+    // An unknown domain would extract nothing and record nothing while the run believed it
+    // had walked it; two selections leave unclear which one was recorded.
+    const ledger = mapLedger('domain-refusals');
+    const out = join(scratch, 'domain-refusals.json');
+    const ghost = run(['--inventory', '--out', out, '--ledger', ledger, '--domain', 'ghost']);
+    expect(ghost.status).toBe(2);
+    expect(ghost.stderr).toContain("no domain 'ghost' in the ledger's domain map");
+    const units = join(scratch, 'domain-refusals-units.json');
+    writeFileSync(units, JSON.stringify(['comments:src/app.ts']));
+    const both = run(['--inventory', '--out', out, '--ledger', ledger, '--domain', 'guides', '--units', units]);
+    expect(both.status).toBe(2);
+    expect(both.stderr).toContain('--units and --domain cannot be given together');
+    const noLedger = run(['--inventory', '--out', out, '--domain', 'guides']);
+    expect(noLedger.status).toBe(2);
+    expect(noLedger.stderr).toContain('--domain needs --ledger');
+    const valid = run(['--inventory', '--out', out, '--ledger', ledger, '--domain', 'code']);
+    expect(valid.status, valid.stderr).toBe(0);
+    const noMap = join(scratch, 'domain-nomap-ledger.json');
+    writeFileSync(noMap, JSON.stringify({ files: {} }));
+    const st = run(['--status', '--ledger', noMap]);
+    expect(st.status).toBe(2);
+    expect(st.stderr).toContain('the ledger holds no domain map');
+  });
+});
+
 describe('extended-doc-sync-inventory: grouping claims', () => {
   it('buckets claims by entity, sends requirement buckets to the stronger model and drops a lone claim naming nothing', () => {
     // Two sources' claims about one table compared apart can never be seen to
@@ -440,6 +572,8 @@ describe('extended-doc-sync-inventory: grouping claims', () => {
     writeFileSync(join(claimsDir, 'comments-0.json'), JSON.stringify([
       { id: 'c2', unit: 'comments:src/app.ts', entities: ['table:things'], type: 'comment' },
       { id: 'c3', unit: 'comments:src/app.ts', entities: ['export:buildThing'], type: 'comment' },
+      // A lone claim about a story has no code to be compared with.
+      { id: 'c5', unit: 'doc:guide.md#9', entities: ['story:V_Browse_Things'], type: 'behavior' },
     ]));
     expect(run(['--group', '--claims', claimsDir, '--out', out]).status).toBe(0);
     const g = JSON.parse(readFileSync(join(out, 'summary.json'), 'utf8'));
@@ -449,6 +583,9 @@ describe('extended-doc-sync-inventory: grouping claims', () => {
     const build = g.buckets.find((b: { entity: string }) => b.entity === 'export:buildThing');
     expect(build.model).toBe('sonnet');
     expect(g.buckets.some((b: { claimIds: string[] }) => b.claimIds.includes('c4'))).toBe(false);
+    // A comparison of a lone claim with nothing beside it costs a model read and can find
+    // nothing; the lone claim about an export is kept, because its code is read beside it.
+    expect(g.buckets.some((b: { claimIds: string[] }) => b.claimIds.includes('c5'))).toBe(false);
     // The strong batch file carries both sources' claims about the table in full.
     const strong = JSON.parse(readFileSync(g.files.opus[0], 'utf8'));
     expect(strong[0].entity).toBe('table:things');

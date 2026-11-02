@@ -188,6 +188,9 @@ describe('POST /members/:memberKey/avatar -- file upload', () => {
       .attach('avatar', notAnImage, 'test.txt');
     expect(res.status).toBe(422);
     expect(res.text).toContain('Only JPEG and PNG images are accepted');
+    // A refused upload takes the same refusal banner as every refused form, beside the
+    // success banner the same form shows, not the small per-field text.
+    expect(res.text).toContain('<div class="form-error-banner" role="alert">');
   });
 
   it('no file submitted -> 422 with error', async () => {

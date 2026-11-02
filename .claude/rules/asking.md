@@ -112,9 +112,8 @@ Covers documentation, `.github/` and the harness (`.claude/`, every `CLAUDE.md`)
   wording, `.github/` or the harness, unless the human names that class. Each of those gets its own
   ask; a harness ask carries the literal before/after, under the harness governance rule. A
   tool-level "allow edits to .claude this session" answer is not a pre-approval.
-- One standing pre-approval: the maintainer's working walk files in the private operations
-  checkout, `footbag_private_repo/issue_review.md` and `EXTENDED_DOC_SYNC_REVIEW.md`,
-  are edited without an ask, whatever the edit.
+- One standing pre-approval: the maintainer's working walk file in the private operations
+  checkout, `footbag_private_repo/issue_review.md`, is edited without an ask, whatever the edit.
 - Every applied edit is surgical: the smallest change, untouched text left as it was. In the same
   turn that applies them, show every applied edit in the message itself as literal BEFORE/AFTER,
   with the document and enough context to locate it; never a summary, a file or a link. A change or

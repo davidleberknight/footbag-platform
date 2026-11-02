@@ -64,12 +64,27 @@ CONTENT_CHECKS = (
     ('active markup', re.compile(r'<\s*/?\s*(?:script|iframe|object|embed|svg|style|link|meta)\b'
                                  r'|javascript:|\son[a-z]+\s*=', re.IGNORECASE)),
 )
-_FORMULA_RE = re.compile(r'[=+\-@]')
-_NUMBER_RE = re.compile(r'[-+]?\d+(?:\.\d+)?')
+# A spreadsheet treats a cell starting with any of these as a formula: the
+# OWASP CSV injection list, its full-width forms written as escapes.
+_FORMULA_RE = re.compile('[=+\\-@\t\r\n＝＋－＠]')
+# A sign followed only by digits, spaces and phone punctuation, such as an
+# international phone number. OWASP flags every leading sign; this departs
+# from it because such a value can at most evaluate arithmetic: calling a
+# function or reaching outside the sheet needs a letter, a pipe or a bang.
+_ARITHMETIC_RE = re.compile(r'[+\-][\d ().\-/]*\d[\d ().\-/]*')
 
 
 def committed_csv(path: Path) -> list[list[str]] | None:
     """The CSV as committed at HEAD in the repository holding it, or None when
+    it is not in a repository or not committed there."""
+    data = committed_bytes(path)
+    if data is None:
+        return None
+    return list(csv.reader(io.StringIO(data.decode('utf-8'), newline='')))
+
+
+def committed_bytes(path: Path) -> bytes | None:
+    """The file as committed at HEAD in the repository holding it, or None when
     it is not in a repository or not committed there."""
     anchor = path
     while not anchor.exists():
@@ -87,7 +102,7 @@ def committed_csv(path: Path) -> list[list[str]] | None:
                            capture_output=True)
     if shown.returncode != 0:
         return None
-    return list(csv.reader(io.StringIO(shown.stdout.decode('utf-8'), newline='')))
+    return shown.stdout
 
 
 def load_baselines(export: Path, live: dict, original: dict, kept) -> dict:
@@ -156,7 +171,7 @@ def _content_flags(row: dict, columns) -> list[tuple[str, str]]:
         for kind, pattern in CONTENT_CHECKS:
             if pattern.search(value):
                 found.append((kind, col))
-        if _FORMULA_RE.match(value) and not _NUMBER_RE.fullmatch(value):
+        if _FORMULA_RE.match(value) and not _ARITHMETIC_RE.fullmatch(value):
             found.append(('leading formula character', col))
     return found
 

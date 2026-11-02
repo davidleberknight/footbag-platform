@@ -21,11 +21,50 @@ import { spawnSync } from 'child_process';
 
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { requireToolInCI } from '../fixtures/toolAvailability';
+import crypto from 'crypto';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
+
+// A small, consistent legacy delivery inside a temp root, so the real legacy chain
+// check runs and passes there: the refresh manifest, an export members CSV, the
+// published member CSV and the publish stamp whose checksums match them, and a
+// stand-in for the database-free member audit that passes. A test that needs the
+// check to refuse edits one of these after calling this.
+function writeConsistentLegacyChain(tmpRoot: string): void {
+  const sha = (b: string) => crypto.createHash('sha256').update(b).digest('hex');
+  const priv = path.join(tmpRoot, 'footbag_private_repo');
+  const exportMembers = 'MemberID\n1\n';
+  const published = 'header\n';
+  fs.mkdirSync(path.join(priv, 'legacy-export/members'), { recursive: true });
+  fs.writeFileSync(path.join(priv, 'legacy-export/members/members.csv'), exportMembers);
+  fs.writeFileSync(
+    path.join(priv, 'legacy-export/REFRESH_MANIFEST.tsv'),
+    `original_head\t${'a'.repeat(40)}\nlive_head\t${'b'.repeat(40)}\n` +
+      'source\tsha256\tbytes\tdialect\tdump_completed\n' +
+      `members/backups/latest.sql\t${'d'.repeat(64)}\t1\tmariadb\t2026-01-01\n`,
+  );
+  fs.mkdirSync(path.join(priv, 'legacy-publish'), { recursive: true });
+  fs.writeFileSync(path.join(priv, 'legacy-publish/legacy_members.csv'), published);
+  fs.writeFileSync(
+    path.join(priv, 'legacy-publish/PUBLISH_STAMP.tsv'),
+    `refresh_live_head\t${'b'.repeat(40)}\nmembers_dump_sha256\t${'d'.repeat(64)}\n` +
+      `export_members_csv_sha256\t${sha(exportMembers)}\n` +
+      `published_members_csv_sha256\t${sha(published)}\n`,
+  );
+  fs.mkdirSync(path.join(tmpRoot, 'legacy_data/scripts'), { recursive: true });
+  fs.copyFileSync(
+    path.join(REPO_ROOT, 'legacy_data/scripts/check_legacy_chain.py'),
+    path.join(tmpRoot, 'legacy_data/scripts/check_legacy_chain.py'),
+  );
+  fs.mkdirSync(path.join(tmpRoot, 'legacy_data/member_data_scripts'), { recursive: true });
+  fs.writeFileSync(
+    path.join(tmpRoot, 'legacy_data/member_data_scripts/audit_member_data.py'),
+    'import sys\nsys.exit(0)\n',
+  );
+}
 
 function run(
   cmd: string,
@@ -52,7 +91,10 @@ const HAS_DOCKER = requireToolInCI('docker', '--version');
 function scaffoldWrapperRoot(withPrivateCheckout = true): string {
   const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-wrapper-'));
   fs.copyFileSync(path.join(REPO_ROOT, 'deploy_to_aws.sh'), path.join(tmpRoot, 'deploy_to_aws.sh'));
-  if (withPrivateCheckout) fs.mkdirSync(path.join(tmpRoot, 'footbag_private_repo'));
+  if (withPrivateCheckout) {
+    fs.mkdirSync(path.join(tmpRoot, 'footbag_private_repo'));
+    writeConsistentLegacyChain(tmpRoot);
+  }
   return tmpRoot;
 }
 
@@ -586,7 +628,7 @@ describe('scripts/deploy-local-data.sh member-intake dispatch', () => {
     if (privateCheckout) {
       const publish = path.join(tmpRoot, 'footbag_private_repo/legacy-publish');
       fs.mkdirSync(publish, { recursive: true });
-      if (publishedCsv) fs.writeFileSync(path.join(publish, 'legacy_members.csv'), 'header\n');
+      if (publishedCsv) writeConsistentLegacyChain(tmpRoot);
     }
     const ci = path.join(tmpRoot, 'legacy_data/event_results/canonical_input');
     fs.mkdirSync(ci, { recursive: true });
@@ -605,6 +647,27 @@ describe('scripts/deploy-local-data.sh member-intake dispatch', () => {
     fs.mkdirSync(path.join(tmpRoot, 'footbag_legacy_mirror'), { recursive: true });
     return tmpRoot;
   }
+
+  it('--all-data refuses before touching the database when the publish no longer matches the delivery', () => {
+    // A build that loaded a member CSV from another delivery fails only after rows
+    // are written; refused here, it costs nothing and names the publish to re-run.
+    const tmpRoot = scaffoldAllDataRoot();
+    try {
+      fs.writeFileSync(
+        path.join(tmpRoot, 'footbag_private_repo/legacy-publish/legacy_members.csv'),
+        'header\nedited\n',
+      );
+      const r = run('bash', ['scripts/deploy-local-data.sh', '--all-data'], {
+        cwd: tmpRoot,
+        env: ENTRY,
+      });
+      expect(r.status).toBe(1);
+      expect((r.stderr ?? '') + (r.stdout ?? '')).toMatch(/not the one the publish wrote/);
+      expect(fs.existsSync(path.join(tmpRoot, 'SLATE_RAN'))).toBe(false);
+    } finally {
+      fs.rmSync(tmpRoot, { recursive: true, force: true });
+    }
+  });
 
   it('--all-data without --apply-members previews the member load (runner gets --load --dry-run)', () => {
     const tmpRoot = scaffoldAllDataRoot();

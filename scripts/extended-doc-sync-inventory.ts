@@ -25,6 +25,9 @@
  *       launch and drift from it like any other document. Nothing else there is audited.
  *       `--units` (a JSON array of unit ids) extracts only the named units, so one
  *       domain's walk batches and pays for that domain alone; an unknown id is refused.
+ *       `--domain <id>` does the same for one domain of the ledger's domain map. Given a
+ *       ledger with a map, the mechanical checks also report a unit no domain places, a
+ *       unit two domains place, and a map entry that places nothing.
  *   --group --claims <file|dir> --out <dir>
  *       Bucket extracted claims (one file, or every extraction agent's file in a
  *       directory) by the entities they name, so the comparison stage sees every
@@ -41,7 +44,13 @@
  *       reads. `--units` (a JSON array of unit ids) records only what those units
  *       cover, so a run that read part of the repository marks only that part checked:
  *       a commented file whole, a document whole only when every section was read, and
- *       otherwise each section read by the hash of its text.
+ *       otherwise each section read by the hash of its text. `--domain <id>` records that
+ *       domain's units the same way. The ledger's domain map, asking order and carried
+ *       notes are kept; a carried note is dropped once a ruling carries its id.
+ *   --status --ledger <file> [--private-root <dir>]
+ *       Print the walk's position from the ledger: each domain walked or open, the next
+ *       domain in the asking order, the notes carried to it, and the map's coverage
+ *       findings. Writes nothing.
  *
  * Read-only against the repository: it writes only the files named by its flags.
  * Refuses an unknown mode or a missing required flag.
@@ -100,15 +109,16 @@ const PRIVATE_AUDITED_DOCS = ['AWS_OPERATIONS.md', 'DEVOPS_GUIDE.md', 'GO_LIVE_P
 
 function usage(code: number): never {
   (code === 0 ? process.stdout : process.stderr).write(
-    'Usage: npx tsx scripts/extended-doc-sync-inventory.ts --inventory --out <file> [--ledger <file>] [--private-root <dir>] [--units <file>]\n' +
+    'Usage: npx tsx scripts/extended-doc-sync-inventory.ts --inventory --out <file> [--ledger <file>] [--private-root <dir>] [--units <file> | --domain <id>]\n' +
     '       npx tsx scripts/extended-doc-sync-inventory.ts --group --claims <file|dir> --out <dir>\n' +
-    '       npx tsx scripts/extended-doc-sync-inventory.ts --record --results <file> --ledger <file> [--from <inventory file>] [--units <file>]\n',
+    '       npx tsx scripts/extended-doc-sync-inventory.ts --record --results <file> --ledger <file> [--from <inventory file>] [--units <file> | --domain <id>]\n' +
+    '       npx tsx scripts/extended-doc-sync-inventory.ts --status --ledger <file> [--private-root <dir>]\n',
   );
   process.exit(code);
 }
 
 function parseArgs(argv: string[]): { mode: string; flags: Record<string, string> } {
-  const modes = ['--inventory', '--group', '--record'];
+  const modes = ['--inventory', '--group', '--record', '--status'];
   let mode = '';
   const flags: Record<string, string> = {};
   for (let i = 0; i < argv.length; i++) {
@@ -117,7 +127,7 @@ function parseArgs(argv: string[]): { mode: string; flags: Record<string, string
     if (modes.includes(a)) {
       if (mode) usage(2);
       mode = a.slice(2);
-    } else if (['--out', '--ledger', '--claims', '--results', '--from', '--private-root', '--units'].includes(a) && argv[i + 1]) {
+    } else if (['--out', '--ledger', '--claims', '--results', '--from', '--private-root', '--units', '--domain'].includes(a) && argv[i + 1]) {
       flags[a.slice(2)] = argv[++i];
     } else {
       process.stderr.write(`extended-doc-sync-inventory: unknown option '${a}'\n`);
@@ -125,19 +135,20 @@ function parseArgs(argv: string[]): { mode: string; flags: Record<string, string
     }
   }
   if (!mode) usage(2);
-  const need: Record<string, string[]> = { inventory: ['out'], group: ['claims', 'out'], record: ['results', 'ledger'] };
+  const need: Record<string, string[]> = {
+    inventory: ['out'], group: ['claims', 'out'], record: ['results', 'ledger'], status: ['ledger'],
+  };
   for (const f of need[mode]) {
-    if (!flags[f]) {
-      process.stderr.write(`extended-doc-sync-inventory: --${mode} needs --${f}\n`);
-      process.exit(2);
-    }
+    if (!flags[f]) refuse(`--${mode} needs --${f}`);
   }
+  // Two selections of the units to read would leave it unclear which one was recorded.
+  if (flags.units && flags.domain) refuse('--units and --domain cannot be given together');
+  // A domain is resolved from the ledger's map, so a one-domain inventory needs the ledger.
+  if (mode === 'inventory' && flags.domain && !flags.ledger) refuse('--domain needs --ledger');
   // Unit ids carry no file hashes; without the inventory they came from, a partial
   // record would have nothing to write and would silently mark nothing checked.
-  if (mode === 'record' && flags.units && !flags.from) {
-    process.stderr.write('extended-doc-sync-inventory: --units needs --from\n');
-    process.exit(2);
-  }
+  if (mode === 'record' && flags.units && !flags.from) refuse('--units needs --from');
+  if (mode === 'record' && flags.domain && !flags.from) refuse('--domain needs --from');
   return { mode, flags };
 }
 
@@ -350,9 +361,17 @@ function mechanical(
           findings.push({ check: 'stale-token-candidate', file, line, detail: '"currently" (drift only if it states build status)' });
         }
       }
-      for (const m of text.matchAll(/\b(?:see|per|under|from)\s+§\s?\d+(?:\.\d+)*/gi)) {
+      // A locator after "see", "per", "under" or "from" names a section by number alone
+      // unless a title follows it: a parenthesis, a dash, a quote, or a capitalised or
+      // code-quoted heading word. Public documents may keep a bracketed or "the §N" number
+      // beside a self-contained sentence; the private documents cite sections by title
+      // only, so there every section number is flagged.
+      const locator = privateFiles.has(file)
+        ? /§\s?\d+(?:\.\d+)*[a-z]?/gi
+        : /\b(?:see|per|under|from)\s+§\s?\d+(?:\.\d+)*[a-z]?/gi;
+      for (const m of text.matchAll(locator)) {
         const after = text.slice((m.index ?? 0) + m[0].length, (m.index ?? 0) + m[0].length + 3);
-        if (!/^\s*[(—"]/.test(after) && !/^,?\s+the\b/.test(after)) {
+        if (!/^\s*[(—"“]/.test(after) && !/^,?\s+the\b/.test(after) && !/^\s+[A-Z`*"“]/.test(after)) {
           findings.push({ check: 'bare-locator', file, line, detail: `"${m[0]}" has no title beside it` });
         }
       }
@@ -490,40 +509,166 @@ function privateDocs(root: string, privateRoot: string): string[] {
 }
 
 /** Unit ids read from a JSON array file; an id the inventory does not hold is refused. */
+function refuse(message: string): never {
+  process.stderr.write(`extended-doc-sync-inventory: ${message}\n`);
+  process.exit(2);
+}
+
 function namedUnits(unitsPath: string, all: Unit[]): Set<string> {
   const ids: string[] = JSON.parse(readFileSync(unitsPath, 'utf8'));
   const known = new Set(all.map((u) => u.id));
   const unknown = ids.filter((id) => !known.has(id));
-  if (unknown.length) {
-    process.stderr.write(`extended-doc-sync-inventory: units not in the inventory: ${unknown.join(', ')}\n`);
-    process.exit(2);
-  }
+  if (unknown.length) refuse(`units not in the inventory: ${unknown.join(', ')}`);
   return new Set(ids);
 }
 
-function inventory(root: string, out: string, ledgerPath?: string, privateRoot?: string, unitsPath?: string): void {
+/**
+ * The domain map the ledger carries: the audit is walked and asked one domain at a time, and
+ * each domain names its units by document section, whole document, whole directory or files
+ * in a directory. A directory entry names commented files at any depth, never the documents
+ * under it, which are named on their own.
+ */
+interface ScopeEntry { doc?: string; sections?: string[]; whole?: boolean; dir?: string; files?: string[] }
+interface Domain { id: string; title: string; scope: ScopeEntry[] }
+interface Ledger {
+  head?: string;
+  sections?: Record<string, string[]>;
+  files?: Record<string, string>;
+  findings?: unknown[];
+  rulings?: Array<{ id: string }>;
+  domains?: Domain[];
+  askOrder?: string[];
+  carried?: Array<{ id: string; domain: string; note: string }>;
+}
+
+const scopeLabel = (e: ScopeEntry): string =>
+  e.doc ? `${e.doc}${e.whole ? ' (whole document)' : `: ${(e.sections ?? []).join('; ')}`}`
+    : `${e.dir}${e.files ? `: ${e.files.join(', ')}` : ' (whole directory)'}`;
+
+/** Each scope entry's units, one list per entry and per named section or file. */
+function scopeUnits(e: ScopeEntry, units: Unit[]): Array<{ label: string; ids: string[] }> {
+  const docs = units.filter((u) => u.id.startsWith('doc:'));
+  const comments = units.filter((u) => u.id.startsWith('comments:'));
+  if (e.doc && e.whole) return [{ label: scopeLabel(e), ids: docs.filter((u) => u.file === e.doc).map((u) => u.id) }];
+  if (e.doc) {
+    return (e.sections ?? []).map((s) => ({
+      label: `${e.doc}: ${s}`,
+      ids: docs.filter((u) => u.file === e.doc && u.heading === s).map((u) => u.id),
+    }));
+  }
+  const dir = (e.dir ?? '').replace(/\/?$/, '/');
+  if (e.files) {
+    return e.files.map((f) => ({ label: `${dir}${f}`, ids: comments.filter((u) => u.file === `${dir}${f}`).map((u) => u.id) }));
+  }
+  return [{ label: scopeLabel(e), ids: comments.filter((u) => u.file.startsWith(dir)).map((u) => u.id) }];
+}
+
+function domainUnits(d: Domain, units: Unit[]): Set<string> {
+  return new Set(d.scope.flatMap((e) => scopeUnits(e, units)).flatMap((s) => s.ids));
+}
+
+function findDomain(ledger: Ledger | null, id: string): Domain {
+  const d = ledger?.domains?.find((x) => x.id === id);
+  if (!d) refuse(`no domain '${id}' in the ledger's domain map`);
+  return d;
+}
+
+/**
+ * The map checked against the units that exist: a unit no domain places is never walked, a
+ * unit two domains place is asked twice, and a scope entry that places nothing names a
+ * section or file that was renamed or removed.
+ */
+function domainFindings(domains: Domain[], units: Unit[]): Finding[] {
+  const findings: Finding[] = [];
+  const owner = new Map<string, string>();
+  for (const d of domains) {
+    for (const e of d.scope) {
+      for (const s of scopeUnits(e, units)) {
+        if (s.ids.length === 0) {
+          findings.push({ check: 'domain-stale-scope', file: e.doc ?? e.dir ?? '', line: 0, detail: `domain ${d.id} names ${s.label}, which holds no unit` });
+        }
+        for (const id of s.ids) {
+          const prior = owner.get(id);
+          if (prior && prior !== d.id) {
+            findings.push({ check: 'domain-overlap', file: id, line: 0, detail: `${id} is in domains ${prior} and ${d.id}` });
+          } else owner.set(id, d.id);
+        }
+      }
+    }
+  }
+  for (const u of units.filter((x) => !owner.has(x.id))) {
+    findings.push({ check: 'domain-unclaimed', file: u.file, line: u.start, detail: `${u.id} (${u.heading}) is in no domain` });
+  }
+  return findings;
+}
+
+function enumerate(root: string, privateRoot?: string) {
   const tracked = git(['ls-files', '--cached', '--others', '--exclude-standard'], root).split('\n')
     .filter((f) => f && !SKIP.test(f) && existsSync(path.join(root, f)));
   const privateFiles = new Set(privateRoot ? privateDocs(root, privateRoot) : []);
   const docs = [...tracked.filter((f) => f.endsWith('.md')), ...privateFiles];
   const codeFiles = tracked.filter((f) => CODE_TREES.test(f) && !f.endsWith('.md'));
-  const vocab = vocabulary(root, codeFiles);
   const dUnits = docUnits(root, docs);
   const cUnits = commentUnits(root, codeFiles);
   // git refuses a path that passes through a symbolic link, so the private documents,
   // reached through the checkout's link, are hashed here instead.
-  const hashes = {
+  const hashes: Record<string, string> = {
     ...contentHashes(root, [...new Set([...docs, ...codeFiles])].filter((f) => !privateFiles.has(f))),
     ...Object.fromEntries([...privateFiles].map((f) => [f, createHash('sha256').update(read(root, f)).digest('hex')])),
   };
+  return { privateFiles, docs, codeFiles, dUnits, cUnits, hashes };
+}
 
-  const previous = ledgerPath && existsSync(ledgerPath) ? JSON.parse(readFileSync(ledgerPath, 'utf8')) : null;
+/** Whether a unit is recorded in the ledger as read and has not changed since. */
+function recordedUnchanged(ledger: Ledger, hashes: Record<string, string>): (u: Unit) => boolean {
+  return (u) => (ledger.files ?? {})[u.file] === hashes[u.file] || Boolean(u.hash && (ledger.sections?.[u.file] ?? []).includes(u.hash));
+}
+
+/**
+ * The walk's position, derived from the ledger rather than kept by hand: a domain is walked
+ * when every one of its units is recorded and unchanged, and the next domain is the first in
+ * the asking order that is not, with the notes carried to it.
+ */
+function status(root: string, ledgerPath: string, privateRoot?: string): void {
+  if (!existsSync(ledgerPath)) refuse(`no ledger at ${ledgerPath}`);
+  const ledger: Ledger = JSON.parse(readFileSync(ledgerPath, 'utf8'));
+  if (!ledger.domains?.length) refuse('the ledger holds no domain map');
+  const { dUnits, cUnits, hashes } = enumerate(root, privateRoot);
+  const units = [...dUnits, ...cUnits];
+  const byId = new Map(units.map((u) => [u.id, u]));
+  const done = recordedUnchanged(ledger, hashes);
+  const order = ledger.askOrder?.length ? ledger.askOrder : ledger.domains.map((d) => d.id);
+  let next: string | null = null;
+  for (const id of order) {
+    const d = findDomain(ledger, id);
+    const ids = [...domainUnits(d, units)];
+    const open = ids.filter((x) => !done(byId.get(x)!)).length;
+    process.stdout.write(`${open === 0 ? 'walked' : 'open  '} ${d.id}: ${ids.length - open}/${ids.length} units recorded\n`);
+    if (open > 0 && !next) next = d.id;
+  }
+  const map = domainFindings(ledger.domains, units);
+  for (const f of map) process.stdout.write(`map: ${f.check}: ${f.detail}\n`);
+  process.stdout.write(`next domain: ${next ?? 'none, every domain is walked'}\n`);
+  for (const c of (ledger.carried ?? []).filter((x) => x.domain === next)) process.stdout.write(`carried ${c.id}: ${c.note}\n`);
+  // Open findings are asked before the next domain, one batched list per check.
+  const open = new Map<string, number>();
+  for (const f of (ledger.findings ?? []) as Array<{ check?: string }>) open.set(f.check ?? 'unsorted', (open.get(f.check ?? 'unsorted') ?? 0) + 1);
+  for (const [check, n] of [...open].sort()) process.stdout.write(`open findings: ${check}: ${n}\n`);
+  process.stdout.write(`map findings: ${map.length}\n`);
+}
+
+function inventory(root: string, out: string, ledgerPath?: string, privateRoot?: string, unitsPath?: string, domainId?: string): void {
+  const { privateFiles, docs, codeFiles, dUnits, cUnits, hashes } = enumerate(root, privateRoot);
+  const vocab = vocabulary(root, codeFiles);
+
+  const previous: Ledger | null = ledgerPath && existsSync(ledgerPath) ? JSON.parse(readFileSync(ledgerPath, 'utf8')) : null;
   const prevHashes: Record<string, string> = previous?.files ?? {};
   const prevSections: Record<string, string[]> = previous?.sections ?? {};
   const changedFiles = new Set(Object.keys(hashes).filter((f) => prevHashes[f] !== hashes[f]));
   // A section recorded on its own is unchanged while its text is, whatever else in its
-  // document moved. A named-unit run extracts only the units it names.
-  const named = unitsPath ? namedUnits(unitsPath, [...dUnits, ...cUnits]) : null;
+  // document moved. A named-unit or one-domain run extracts only the units it names.
+  const named = unitsPath ? namedUnits(unitsPath, [...dUnits, ...cUnits])
+    : domainId ? domainUnits(findDomain(previous, domainId), [...dUnits, ...cUnits]) : null;
   const isChanged = (u: Unit): boolean =>
     (!named || named.has(u.id)) &&
     (!previous || (changedFiles.has(u.file) && !(u.hash && (prevSections[u.file] ?? []).includes(u.hash))));
@@ -538,7 +683,10 @@ function inventory(root: string, out: string, ledgerPath?: string, privateRoot?:
 
   const changedDocs = dUnits.filter(isChanged);
   const changedComments = cUnits.filter(isChanged);
-  const findings = mechanical(root, docs, codeFiles, vocab, privateFiles);
+  const findings = [
+    ...mechanical(root, docs, codeFiles, vocab, privateFiles),
+    ...(previous?.domains?.length ? domainFindings(previous.domains, [...dUnits, ...cUnits]) : []),
+  ];
   const result = {
     head: git(['rev-parse', 'HEAD'], root).trim(),
     vocabulary: vocab,
@@ -696,12 +844,10 @@ function group(root: string, claimsPath: string, outDir: string): void {
       buckets.get(k)!.add(c.id);
     }
   }
-  const list = [...buckets].flatMap(([entity, ids]) => splitBucket(entity, [...ids].sort(), byId).map(([name, claimIds]) => {
+  const all = [...buckets].flatMap(([entity, ids]) => splitBucket(entity, [...ids].sort(), byId).map(([name, claimIds]) => {
     const strong = claimIds.some((id) => ['requirement', 'rationale'].includes(byId.get(id)?.type ?? ''));
     return { entity: name, root: entity, claimIds: [...claimIds].sort(), model: strong ? 'opus' : 'sonnet' };
-  // A lone claim about a named entity is still checked against the code; a lone
-  // claim naming nothing has nothing to be compared with.
-  })).filter((b) => b.claimIds.length > 1 || !b.root.startsWith('unit:'));
+  }));
   // Every tracked code file once, so each bucket's evidence is looked up, not re-read.
   const codeIndex = new Map(
     git(['ls-files', '--cached', '--others', '--exclude-standard'], root).split('\n')
@@ -710,7 +856,11 @@ function group(root: string, claimsPath: string, outDir: string): void {
   );
   if (!codeIndex.has(SCHEMA) && existsSync(path.join(root, SCHEMA))) codeIndex.set(SCHEMA, read(root, SCHEMA).split('\n'));
   const evidence = new Map<string, Evidence[]>();
-  for (const b of list) if (!evidence.has(b.root)) evidence.set(b.root, evidenceFor(root, b.root, codeIndex));
+  for (const b of all) if (!evidence.has(b.root)) evidence.set(b.root, evidenceFor(root, b.root, codeIndex));
+  // A lone claim is compared only against the code its entity names; a lone claim with
+  // no code to read beside it has nothing to disagree with, and a comparison of it is
+  // paid for and finds nothing.
+  const list = all.filter((b) => b.claimIds.length > 1 || (evidence.get(b.root) ?? []).length > 0);
   const pack = (model: string): string[][] => {
     const out2: string[][] = [];
     let cur: string[] = [];
@@ -756,14 +906,14 @@ function group(root: string, claimsPath: string, outDir: string): void {
   );
 }
 
-function record(resultsPath: string, ledgerPath: string, inventoryPath?: string, unitsPath?: string): void {
+function record(resultsPath: string, ledgerPath: string, inventoryPath?: string, unitsPath?: string, domainId?: string): void {
   const results = JSON.parse(readFileSync(resultsPath, 'utf8'));
   // The file hashes come from the inventory the run read, never through a model.
   const inv = inventoryPath ? JSON.parse(readFileSync(inventoryPath, 'utf8')) : {};
-  const prior = existsSync(ledgerPath) ? JSON.parse(readFileSync(ledgerPath, 'utf8')) : {};
+  const prior: Ledger = existsSync(ledgerPath) ? JSON.parse(readFileSync(ledgerPath, 'utf8')) : {};
   let invFiles: Record<string, string> = inv.files ?? {};
   const sections: Record<string, string[]> = { ...(prior.sections ?? {}) };
-  if (unitsPath) {
+  if (unitsPath || domainId) {
     // Only what the run's units cover is marked checked; an id the inventory does not
     // hold is refused, because recording it would mark nothing and say nothing. A
     // commented file is one unit, so it is marked whole. A document is marked whole only
@@ -771,7 +921,7 @@ function record(resultsPath: string, ledgerPath: string, inventoryPath?: string,
     // by its text's hash, so the sections not read stay unread.
     const docs: Unit[] = inv.units?.docs ?? [];
     const all: Unit[] = [...docs, ...(inv.units?.comments ?? [])];
-    const ids = namedUnits(unitsPath, all);
+    const ids = unitsPath ? namedUnits(unitsPath, all) : domainUnits(findDomain(prior, domainId!), all);
     const wanted = new Set<string>();
     for (const u of all.filter((x) => ids.has(x.id))) {
       const fileDocs = docs.filter((d) => d.file === u.file);
@@ -780,23 +930,34 @@ function record(resultsPath: string, ledgerPath: string, inventoryPath?: string,
     }
     invFiles = Object.fromEntries(Object.entries(invFiles).filter(([f]) => wanted.has(f)));
   }
-  const ledger = {
+  const rulings = [...(prior.rulings ?? []), ...(results.rulings ?? [])];
+  // A note carried to a later domain is settled once a ruling carries its id.
+  const ruled = new Set(rulings.map((r) => r.id));
+  const ledger: Ledger = {
     head: inv.head ?? results.head,
     sections,
     files: { ...(prior.files ?? {}), ...(results.files ?? {}), ...invFiles },
     findings: results.findings ?? [],
-    rulings: [...(prior.rulings ?? []), ...(results.rulings ?? [])],
+    rulings,
+    // The domain map and the asking order are the maintainer's, kept across every record.
+    ...(prior.domains ? { domains: prior.domains } : {}),
+    ...(prior.askOrder ? { askOrder: prior.askOrder } : {}),
+    ...(prior.carried ? { carried: prior.carried.filter((c) => !ruled.has(c.id)) } : {}),
   };
   writeFileSync(ledgerPath, `${JSON.stringify(ledger, null, 2)}\n`);
-  process.stdout.write(`ledger: ${Object.keys(ledger.files).length} files, ${ledger.findings.length} open findings, ${ledger.rulings.length} rulings\n`);
+  process.stdout.write(
+    `ledger: ${Object.keys(ledger.files ?? {}).length} files, ${ledger.findings?.length ?? 0} open findings, ` +
+    `${rulings.length} rulings, ${ledger.carried?.length ?? 0} carried notes\n`,
+  );
 }
 
 function main(): void {
   const { mode, flags } = parseArgs(process.argv.slice(2));
   const root = git(['rev-parse', '--show-toplevel'], process.cwd()).trim();
-  if (mode === 'inventory') inventory(root, flags.out, flags.ledger, flags['private-root'], flags.units);
+  if (mode === 'inventory') inventory(root, flags.out, flags.ledger, flags['private-root'], flags.units, flags.domain);
   else if (mode === 'group') group(root, flags.claims, flags.out);
-  else record(flags.results, flags.ledger, flags.from, flags.units);
+  else if (mode === 'status') status(root, flags.ledger, flags['private-root']);
+  else record(flags.results, flags.ledger, flags.from, flags.units, flags.domain);
 }
 
 main();

@@ -119,6 +119,9 @@ describe('POST /login — DB-backed auth', () => {
 
     expect(res.status).toBe(200);
     expect(res.text).toContain('Invalid email or password. Please try again.');
+    // The refusal is the outcome of the whole form, so it takes the refusal banner every
+    // refused form shows, not the small per-field text that reads as a note on one input.
+    expect(res.text).toContain('<div class="form-error-banner" role="alert">');
     expect(res.headers['set-cookie']).toBeUndefined();
   });
 

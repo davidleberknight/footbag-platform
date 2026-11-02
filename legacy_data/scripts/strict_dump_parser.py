@@ -30,8 +30,9 @@ What is refused, and why each matters:
 - An unterminated string or row, a missing end-of-dump footer where the dialect
   writes one, and anything after a footer other than the start of the next
   concatenated dump: each is a truncated or appended file.
-- Undecodable text beyond the per-file tolerance declared for that file, because
-  a silent replacement character is data lost without anyone being told.
+- Undecodable text beyond the tolerance the caller declares for that file,
+  because a silent replacement character is data lost without anyone being
+  told. A caller that reports the count itself may declare no limit.
 
 Raw carriage returns, NUL bytes and Ctrl-Z inside string values are counted: the
 dump tool always escapes them, so the count of raw ones is a format fingerprint
@@ -59,10 +60,10 @@ class Dialect:
     encoding: str
     footer_required: bool
     terminator: str
-    # Lines that may fail to decode as UTF-8 before the read is refused. Zero
-    # except where a delivered file is already known to be mixed, so growth in
-    # that count is itself a finding.
-    invalid_utf8_lines_allowed: int = 0
+    # Lines that may fail to decode as UTF-8 before the read is refused. None
+    # means never refuse: each bad line is decoded with replacement characters
+    # and counted, for a caller that reports the count instead.
+    invalid_utf8_lines_allowed: int | None = 0
 
 
 MARIADB = Dialect('mariadb', 'utf-8', True, ';')
@@ -90,7 +91,7 @@ def _mariadb_latin1_table() -> dict[int, str]:
 _MARIADB_LATIN1 = _mariadb_latin1_table()
 
 
-def tolerating(dialect: Dialect, invalid_utf8_lines: int) -> Dialect:
+def tolerating(dialect: Dialect, invalid_utf8_lines: int | None) -> Dialect:
     return replace(dialect, invalid_utf8_lines_allowed=invalid_utf8_lines)
 
 
@@ -177,7 +178,8 @@ def decode(raw: bytes, dialect: Dialect, source: str) -> tuple[str, int]:
             line.decode('utf-8')
         except UnicodeDecodeError:
             bad.append(number)
-    if len(bad) > dialect.invalid_utf8_lines_allowed:
+    allowed = dialect.invalid_utf8_lines_allowed
+    if allowed is not None and len(bad) > allowed:
         raise DumpRefused(
             source, bad[0],
             f'{len(bad)} line(s) are not valid UTF-8, more than the '

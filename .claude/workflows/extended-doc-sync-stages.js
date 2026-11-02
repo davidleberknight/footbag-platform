@@ -6,9 +6,9 @@ export const meta = {
     { title: 'Extract', detail: 'Sonnet, one pass per batch text', model: 'sonnet' },
     { title: 'Compare', detail: 'per entity bucket, Opus for requirement buckets, Sonnet for the rest' },
     { title: 'Coherence', detail: 'Opus over every design claim', model: 'opus' },
-    { title: 'Verify', detail: 'Opus, blind to the finder, tries to refute, pooled across batches', model: 'opus' },
+    { title: 'Verify', detail: 'Sonnet, blind to the finder, tries to refute, pooled across batches', model: 'sonnet' },
     { title: 'Cluster', detail: 'Sonnet, one ruling one item', model: 'sonnet' },
-    { title: 'Draft', detail: 'Opus, each question written with its homework done', model: 'opus' },
+    { title: 'Draft', detail: 'Sonnet, each question written with its homework done', model: 'sonnet' },
   ],
 }
 
@@ -129,7 +129,7 @@ if (args.stage === 'compare') {
     const blind = pool.map(({ id, kind, sideA, sideB, intent }) => ({ id, kind, sideA, sideB, intent }))
     return agent(
       `Read ${BRIEFS}VERIFY_BRIEF.md and follow it.\nCandidates:\n${JSON.stringify(blind, null, 1)}`,
-      { label: `verify:${i + 1}`, phase: 'Verify', model: 'opus', effort: 'medium', schema: VERDICTS },
+      { label: `verify:${i + 1}`, phase: 'Verify', model: 'sonnet', effort: 'medium', schema: VERDICTS },
     )
   }))
   const byId = new Map(verdictSets.filter(Boolean).flatMap((v) => v.verdicts).map((v) => [v.id, v]))
@@ -179,7 +179,7 @@ if (args.stage === 'draft') {
   const done = await parallel(slices.map(([a, b]) => () => agent(
     `Read ${BRIEFS}DRAFT_BRIEF.md and follow it.\nResults file: ${args.resultsPath}\n` +
     `Clusters: ${a} to ${b}, counted from 0 in file order\nOutput file: ${args.draftsDir}/draft-${a}.json`,
-    { label: `draft:${a}-${b}`, phase: 'Draft', model: 'opus', effort: 'medium', schema: WRITTEN },
+    { label: `draft:${a}-${b}`, phase: 'Draft', model: 'sonnet', effort: 'medium', schema: WRITTEN },
   )))
   const failed = slices.filter((_, i) => !done[i]).map(([a, b]) => `${a}-${b}`)
   if (failed.length) log(`drafting failed for cluster slice(s): ${failed.join(', ')}`)

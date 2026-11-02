@@ -213,7 +213,7 @@ The skills, by purpose:
 - Building: `add-public-page`, `add-browse-view`, `extend-service-contract`, `write-tests`, `page-check` (the routine page check after a change), `browser-qa` (screenshots and named QA, on request).
 - Design and scope: `design-intent`, `deployed-surface` (background method), `tracker-ops`.
 - Docs and pull requests: `doc-sync`, `prepare-pr`.
-- Freestyle and data: `footbag-freestyle-dictionary`, `freestyle-dictionary-surface`, `footbag-curated-media`, `pipeline-invariant-enforcer`.
+- Freestyle and data: `footbag-freestyle-dictionary`, `freestyle-dictionary-surface`, `footbag-curated-media`, `pipeline-invariant-enforcer`, `legacy-delivery` (processing a legacy webmaster delivery end to end, started only by the maintainer).
 - Explicit-only reviews: `extended-doc-sync` (the whole-repository drift audit, run before a bug hunt), `bug-hunt`, `freestyle-bug-hunt`, `audit-memory`.
 - Bug intake: `file-bug`, `triage-bugs`.
 - Operations, explicit-only: `check-vulnerabilities` (the on-request vulnerability report, ranked most urgent first) and `patch-versions` (security patching, on the maintainer's request).

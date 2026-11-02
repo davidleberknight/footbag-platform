@@ -268,6 +268,9 @@ describe('POST /register', () => {
       });
     expect(res.status).toBe(422);
     expect(res.text).toContain('at least 8 characters');
+    // The refusal is the outcome of the whole form, so it takes the refusal banner every
+    // refused form shows, not the small per-field text that reads as a note on one input.
+    expect(res.text).toContain('<div class="form-error-banner" role="alert">');
   });
 
   it('mismatched passwords → 422 with error', async () => {

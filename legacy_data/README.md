@@ -440,16 +440,18 @@ recorded videos and repair their referring pages from that manifest.
 
 `legacy_data/scripts/refresh_legacy_repo_data.py` checks each delivery of the
 legacy webmaster's repository and writes the vetted per-table CSVs. It reads the
-`footbag_legacy_repo` clone from its delivered commit, compares it against the
-untouched `footbag_legacy_repo_original_data` copy of the first delivery, parses
+`footbag_legacy_repo` clone from its delivered commit, checks that its history
+extends the untouched `footbag_legacy_repo_original_data` copy of the first
+delivery, parses
 every dump through `legacy_data/scripts/strict_dump_parser.py`, refuses only what
 makes a delivery unreadable or unsafe to write, and reports everything else the
 delivery changes. Output goes to the private checkout's `legacy-export/`,
 owner-only, with `REFRESH_MANIFEST.tsv` and a findings report (`REFRESH_REPORT.md`
 and `REFRESH_REPORT_DETAIL.tsv`, written by `legacy_data/scripts/refresh_report.py`)
 comparing every table with the last accepted delivery, the CSVs committed at the
-private checkout's HEAD. A new module, table or column is held
-until a maintainer accepts it with `--accept-new`. `--out` writes the export to
+private checkout's HEAD. A module, table or column that delivery did not carry
+is held until a maintainer accepts it with `--accept-new`, and losses, format
+counts and tracked files outside the captured set are reported against it too. `--out` writes the export to
 another directory; it refuses a target inside either legacy clone, or inside this
 public checkout, because member data belongs in the private checkout. The
 script's header is the authoritative list of what is refused and what is
@@ -472,6 +474,27 @@ because only then is that roster the sitting board. To check a publish against t
 files already on disk, compare bytes: quoted bio fields carry `\r\n`, and a
 text-mode read turns it into `\n` and reports a difference that is not there. The
 script's header is the authoritative list of what it writes and what it refuses.
+Beside the report it writes `PUBLISH_STAMP.tsv`: the delivery commit, the members
+dump checksum, and the checksums of the export members CSV it read and the member
+CSV it wrote, which the data build checks before it touches the database.
+
+### The delivery run
+
+`legacy_data/scripts/run_legacy_delivery.sh --cutover-date YYYY-MM-DD` processes one
+delivery in order: the refresh, a second refresh that must leave the export
+byte-identical, the publish, the member-data checks that need no database, the
+local data build with the member load and the final-load gate, and the
+account-ruling re-fit check. It stops at the first step that needs a person and
+says what; it never commits, re-fits, edits a ruling or a figure, or deploys. It is
+run through the `legacy-delivery` skill, which settles each finding from the
+sources and asks the maintainer only genuine person or club judgements.
+
+Every `--all-data` build and deploy first runs
+`legacy_data/scripts/check_legacy_chain.py`, read-only, which refuses before any
+database work when the export, the published member CSV, the audited figures and
+the account rulings do not all come from one delivery. A deploy also refuses a
+legacy clone pulled past the refreshed delivery, and a production deploy refuses
+uncommitted private changes.
 
 ### The member-data scripts
 

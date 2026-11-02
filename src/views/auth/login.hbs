@@ -18,7 +18,7 @@
       <p class="notice-card notice-card--info">{{content.authReason}}</p>
     {{/if}}
     {{#if content.error}}
-      <p class="form-field-error" role="alert">{{content.error}}</p>
+      {{> outcome-notice text=content.error tone='no'}}
     {{/if}}
 
     <div class="card-grid card-grid-2col">

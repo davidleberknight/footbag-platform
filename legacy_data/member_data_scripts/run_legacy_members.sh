@@ -250,6 +250,28 @@ with open(sys.argv[1], newline="", encoding="utf-8") as fh:
   # ones aside; the QC gate fails if the proposals would duplicate a link or
   # auto-apply a set-aside candidate. All three read only and write git-ignored
   # artifacts under out/; none writes to the database.
+  # The recorded Stage B rulings are fingerprinted against the delivery they were
+  # fitted to, and the Stage B run stops at the first that no longer fits. Check
+  # them all first, read-only, so one run lists every ruling that needs restamping
+  # or a person instead of failing on them one at a time. This run never restamps:
+  # that is the maintainer's explicit refit_rulings.py --apply.
+  if [[ "${ADJUDICATIONS_READY}" -eq 1 ]]; then
+    echo "==> account rulings: check every ruling fits this delivery"
+    if ! "${PY}" "${MDS}/refit_rulings.py" --members-csv "${CSV}" --db "${DB}"; then
+      cat >&2 <<'NOTFITTED'
+
+run_legacy_members --load: REFUSING. The recorded account rulings do not all fit this delivery.
+
+  The list above names each one. Rulings marked only for restamping need
+    legacy_data/footbag_venv/bin/python legacy_data/member_data_scripts/refit_rulings.py --apply
+  and every ruling marked "needs a person" is re-adjudicated in its file under
+  private_data/stage_a_overrides/ in the private checkout. Then re-run --load.
+  Nothing was written.
+NOTFITTED
+      exit 1
+    fi
+  fi
+
   echo "==> reconcile: Stage A duplicate-account review"
   "${PY}" "${MDS}/reconcile_legacy_members.py" --stage-a --csv "${CSV}"
 

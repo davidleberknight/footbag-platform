@@ -20,7 +20,7 @@
     <p class="mb-4"><strong>Had an account on the old footbag.org?</strong> Start here. After creating your account, the setup wizard will help you link to your historical data, such as event results, club affiliation, and any paid membership tier you held.</p>
 
     {{#if content.error}}
-      <p class="form-field-error" role="alert">{{content.error}}</p>
+      {{> outcome-notice text=content.error tone='no'}}
     {{/if}}
 
     <form method="POST" action="/register" class="login-form register-form">

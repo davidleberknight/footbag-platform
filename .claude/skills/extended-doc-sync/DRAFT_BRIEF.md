@@ -13,8 +13,8 @@ Read the results file your task names, and only the clusters in your slice. For 
    route and the page-shaping service. A fact you cannot confirm goes under `unconfirmed`, never
    into the question.
 3. Write the question in the shape the asking step of the extended doc sync skill sets out.
-4. Recommend where the fix is recorded: `handover` for a document's or comment's wording with
-   no change of behaviour or design, `card` for anything else.
+4. Recommend where the fix goes: `apply` for a document's or comment's wording with no change
+   of behaviour or design, applied in the asking session, `card` for anything else.
 
 Write one JSON array to the output file, per cluster: `index`, `severity`, `resolution`,
 `recommendation` (one sentence), `record`, `question` (the full message text), `unconfirmed`.

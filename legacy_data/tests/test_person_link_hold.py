@@ -376,3 +376,69 @@ def test_a_cohort_review_row_is_unresolved_not_spoken_for():
 
     outside = rlm._build_person_disposition_descriptors([], review, accounts, hps)
     assert outside == []
+
+
+# --- account holder ---------------------------------------------------------
+#
+# A roster person who plainly holds one account that only a variant of the name
+# reaches. The ruling names that account, creates no link, and must stop holding
+# the moment the account leaves the delivery or the evidence changes.
+
+def _holder(pid, account, fingerprint):
+    return plh.PersonLinkHold(plh.ACCOUNT_HOLDER, frozenset({account}), pid,
+                              plh.HOLDS_NAME_VARIANT_ACCOUNT, fingerprint, "synthetic")
+
+
+def test_an_account_holder_ruling_records_the_account_and_creates_no_link():
+    # Without this decision the only true record for such a person was none at all,
+    # and "no account" would have been false.
+    d = _person()
+    audit = plh.apply_person_dispositions(
+        [d], [_holder("P9", "700", d["fingerprint_for"]("account:700"))],
+        known_person_ids={"P9"}, known_account_ids={"700"})
+    assert audit[0]["held_account_id"] == "700" and audit[0]["link_created"] is False
+
+
+def test_an_account_holder_ruling_naming_an_account_the_delivery_lacks_refuses():
+    # A holder ruling must not outlive the account it names.
+    d = _person()
+    with pytest.raises(plh.PersonLinkHoldError, match="not a valid account"):
+        plh.apply_person_dispositions(
+            [d], [_holder("P9", "700", d["fingerprint_for"]("account:700"))],
+            known_person_ids={"P9"}, known_account_ids={"701"})
+
+
+def test_an_account_holder_fingerprint_binds_the_account_it_names():
+    # Moving the ruling to another account without re-deciding it must fail.
+    d = _person()
+    with pytest.raises(plh.PersonLinkHoldError, match="stale"):
+        plh.apply_person_dispositions(
+            [d], [_holder("P9", "701", d["fingerprint_for"]("account:700"))],
+            known_person_ids={"P9"}, known_account_ids={"700", "701"})
+
+
+def test_an_account_holder_ruling_satisfies_the_completeness_gate():
+    # The final load refuses a cohort person with no ruling; a holder ruling is one.
+    d = _person()
+    plh.assert_every_person_dispositioned(
+        [d], [_holder("P9", "700", d["fingerprint_for"]("account:700"))])
+
+
+def test_load_requires_exactly_one_account_on_an_account_holder_row(tmp_path):
+    # Two accounts would be an undecided choice dressed as a ruling.
+    p = tmp_path / "h.csv"
+    _write(p, [[plh.ACCOUNT_HOLDER, "700|701", "P9",
+                plh.HOLDS_NAME_VARIANT_ACCOUNT, "a" * 64, "n"]])
+    with pytest.raises(plh.PersonLinkHoldError, match="exactly one"):
+        plh.load_holds(p)
+    _write(p, [[plh.ACCOUNT_HOLDER, "700", "P9",
+                plh.HOLDS_NAME_VARIANT_ACCOUNT, "a" * 64, "n"]])
+    assert plh.load_holds(p)[0].boundary_target == "account:700"
+
+
+def test_the_middle_name_reason_belongs_to_duplicate_person_only(tmp_path):
+    # A reason borrowed by another decision would read as adjudicated when it is not.
+    p = tmp_path / "h.csv"
+    _write(p, [[plh.NO_ACCOUNT, "", "P9", plh.DUPLICATE_MIDDLE_NAME_VARIANT, "a" * 64, "n"]])
+    with pytest.raises(plh.PersonLinkHoldError, match="not valid for decision"):
+        plh.load_holds(p)
