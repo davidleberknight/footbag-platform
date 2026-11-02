@@ -128,6 +128,16 @@ OPTIONAL_CHECKS = [
         "severity": "hard",
         "needs_workbook": False,
     },
+    # A person name in the canonical output is only a name. A decorated one misses
+    # the alias lookup and mints a second person for the player, so anything the
+    # export's cleaning lets through stops the build. Severity=hard: the export
+    # strips every decoration in current data, so a hit is a new one to handle.
+    {
+        "name": "participant_name_text",
+        "path": "pipeline/qc/check_participant_name_text.py",
+        "severity": "hard",
+        "needs_workbook": False,
+    },
     # Committed seed text hygiene. A seed CSV is an input the production load
     # consumes, so encoding damage in one reaches members. Detects double-encoded
     # values and undecoded HTML numeric character references, both decidable

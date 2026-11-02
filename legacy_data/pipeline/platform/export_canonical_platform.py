@@ -191,6 +191,14 @@ _AKA_RE = re.compile(r"\s+aka\b.*$", re.IGNORECASE)
 # Strip trailing prize-amount suffixes from display_names: "$25", "$350", "$$$"
 _PRIZE_SUFFIX_RE = re.compile(r"\s*\$[\d,.$]+\s*$")
 
+# Strip what a result list puts ahead of a name: a medal emoji, a medal word such
+# as "Gold:", or a dash that reached us as a control character. Left on, the name
+# misses the alias lookup and the seed build mints a second person for the player.
+_RESULT_PREFIX_RE = re.compile(
+    r"^(?:\s|[\x80-\x9f]|[\U0001F947-\U0001F949]|(?:Gold|Silver|Bronze)\s*:)+",
+    re.IGNORECASE,
+)
+
 # display_name patterns that are clearly not person names; drop participant row
 # (person_id nulled, display_name set to "Unknown" so result entry is preserved)
 _JUNK_DISPLAY_PATTERNS: list[re.Pattern] = [
@@ -461,10 +469,16 @@ def main() -> None:
     # ── 3a. Display-name artifact cleanup ────────────────────────────────────
     n_prize_stripped = 0
     n_junk_dropped   = 0
+    n_prefix_stripped = 0
     for r in participants:
         dn = r.get("display_name", "").strip()
         if not dn or dn == "Unknown" or _is_club_standing(r):
             continue
+        cleaned = _RESULT_PREFIX_RE.sub("", dn)
+        if cleaned != dn:
+            r["display_name"] = cleaned or "Unknown"
+            n_prefix_stripped += 1
+            dn = r["display_name"]
         # Strip trailing prize-amount suffixes before any other check
         cleaned = _PRIZE_SUFFIX_RE.sub("", dn).strip()
         if cleaned != dn:
@@ -476,6 +490,8 @@ def main() -> None:
             r["display_name"] = "Unknown"
             r["person_id"]    = ""
             n_junk_dropped += 1
+    if n_prefix_stripped:
+        print(f"Display-name result-prefix strip: {n_prefix_stripped} row(s) cleaned")
     if n_prize_stripped:
         print(f"Display-name prize-suffix strip: {n_prize_stripped} row(s) cleaned")
     if n_junk_dropped:

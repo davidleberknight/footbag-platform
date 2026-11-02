@@ -323,6 +323,18 @@ Encoding-damage and leftover-markup check for the committed club seed CSVs
 (`seed/clubs.csv`, `seed/club_members.csv`) only. Runs inside `run_qc.py` as a
 hard gate.
 
+#### `legacy_data/pipeline/qc/check_character_loss_pairs.py`
+Finds two person records whose names differ only by lost or changed characters,
+such as a dropped letter or accent, including records that hold an account. Every
+pair needs a ruling in `overrides/identity_review_queue.csv`. Runs inside
+`run_qc.py` as a hard gate, and again after the persons master is built, because
+provisional people exist only from that point.
+
+#### `legacy_data/pipeline/qc/check_participant_name_text.py`
+Fails on a symbol glyph, control character, medal prefix or untrimmed whitespace in
+a canonical person name, because such a name misses the alias lookup and splits the
+player's results onto a second person. Runs inside `run_qc.py` as a hard gate.
+
 #### `legacy_data/event_results/scripts/26_qc_hof_coverage.py`
 Hall of Fame coverage. Every honoree carrying a person id must exist in
 `historical_persons` with the honor flag set and no split-identity twin, because

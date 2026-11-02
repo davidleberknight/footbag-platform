@@ -738,7 +738,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 1998_worlds_montreal,intermediate_singles_freestyle,Intermediate Singles Freestyle,freestyle,singles,3,complete,,0
 1998_worlds_montreal,mens_individual_overall,Men's Individual Overall,,singles,4,complete,,1
 1998_worlds_montreal,mens_open_doubles_footbag_net,Men's Open Doubles Footbag Net,net,doubles,5,complete,,0
-1998_worlds_montreal,open_doubles_5_minute_timed_consecutives,Open Doubles 5-Minute Timed Consecutives,net,singles,6,partial,,0
+1998_worlds_montreal,open_doubles_5_minute_timed_consecutives,Open Doubles 5-Minute Timed Consecutives,sideline,singles,6,partial,,0
 1998_worlds_montreal,open_doubles_distance_one_pass,Open Doubles Distance One-Pass,sideline,doubles,7,complete,,0
 1998_worlds_montreal,open_doubles_freestyle,Open Doubles Freestyle,freestyle,doubles,8,unresolved,,0
 1998_worlds_montreal,open_mixed_doubles_footbag_net,Open Mixed Doubles Footbag Net,net,doubles,9,unresolved,,0
@@ -747,8 +747,8 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 1998_worlds_montreal,open_singles_freestyle,Open Singles Freestyle,freestyle,singles,12,complete,,0
 1998_worlds_montreal,womens_individual_overall,Women's Individual Overall,,singles,13,complete,,1
 1998_worlds_montreal,womens_intermediate_singles_footbag_net,Women's Intermediate Singles Footbag Net,net,singles,14,complete,,0
-1998_worlds_montreal,womens_open_5_minute_timed_consecutives,Women's Open 5-Minute Timed Consecutives,freestyle,singles,15,partial,,0
-1998_worlds_montreal,womens_open_doubles_distance_one_pass,Women's Open Doubles Distance One-Pass,net,doubles,16,partial,,0
+1998_worlds_montreal,womens_open_5_minute_timed_consecutives,Women's Open 5-Minute Timed Consecutives,sideline,singles,15,partial,,0
+1998_worlds_montreal,womens_open_doubles_distance_one_pass,Women's Open Doubles Distance One-Pass,sideline,doubles,16,partial,,0
 1998_worlds_montreal,womens_open_doubles_footbag_net,Women's Open Doubles Footbag Net,net,doubles,17,partial,,0
 1998_worlds_montreal,womens_open_doubles_freestyle,Women's Open Doubles Freestyle,freestyle,doubles,18,partial,,0
 1998_worlds_montreal,womens_open_singles_footbag_net,Women's Open Singles Footbag Net,net,singles,19,complete,,0
@@ -1387,10 +1387,14 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2002_de_france_de,sick_3_at_3am_in_the_bar,Sick 3 At 3Am In The Bar,freestyle,singles,7,complete,,0
 2002_de_france_de,team_freestyle,Team Freestyle,freestyle,doubles,8,complete,,0
 2002_de_france_de,unknown,Overall Champions,,singles,9,mostly_complete,,1
-2002_cinco_de_mayo,intermediate_net,Intermediate Net,net,singles,1,complete,,0
-2002_cinco_de_mayo,novice_net,Novice Net,net,singles,2,unresolved,,0
-2002_cinco_de_mayo,shred_30,Shred 30,freestyle,singles,3,complete,,0
-2002_cinco_de_mayo,sick_one,Sick One,freestyle,singles,4,complete,,0
+2002_cinco_de_mayo,novice_4_square,Novice 4 Square,sideline,singles,1,complete,,0
+2002_cinco_de_mayo,novice_timed_3_minute_consecutives,Novice Timed 3 Minute Consecutives,sideline,singles,2,complete,,0
+2002_cinco_de_mayo,intermediate_big_3,Intermediate Big 3,freestyle,singles,3,complete,,0
+2002_cinco_de_mayo,intermediate_timed_3_minute_consecutives,Intermediate Timed 3 Minute Consecutives,sideline,singles,4,complete,,0
+2002_cinco_de_mayo,intermediate_shred_30,Intermediate Shred 30,freestyle,singles,5,complete,,0
+2002_cinco_de_mayo,open_shred_30,Open Shred 30,freestyle,singles,6,complete,,0
+2002_cinco_de_mayo,open_big_3,Open Big 3,freestyle,singles,7,complete,,0
+2002_cinco_de_mayo,open_sick_one,Open Sick One,freestyle,singles,8,complete,,0
 2002_czech,30sec_shred,30Sec Shred,freestyle,singles,1,complete,,0
 2002_czech,doubles_freestyle,Doubles Freestyle,freestyle,doubles,2,complete,,0
 2002_czech,girls_freestyle,Girl's Freestyle,freestyle,singles,3,complete,,0
@@ -1492,7 +1496,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2003_montreal,women_singles_net,Women Singles Net,net,singles,6,complete,,0
 2003_shred_zero_summer,intermediate_30_second_shred,Intermediate 30 Second Shred,freestyle,doubles,1,complete,,0
 2003_shred_zero_summer,open_30_second_shred,Open 30 Second Shred,freestyle,singles,2,complete,,0
-2003_southeastern,intermediate_big_3_net,Intermediate Big 3 Net,net,singles,1,complete,,0
+2003_southeastern,intermediate_big_3,Intermediate Big 3,freestyle,singles,1,complete,,0
 2003_southeastern,intermediate_freestyle_routines,Intermediate Freestyle Routines,freestyle,singles,2,complete,,0
 2003_southeastern,intermediate_shred_30,Intermediate Shred 30,freestyle,singles,3,complete,,0
 2003_southeastern,novice_consecutive_kicks,Novice Consecutive Kicks,sideline,singles,4,partial,,0
@@ -1500,7 +1504,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2003_southeastern,open_freestyle_routines,Open Freestyle Routines,freestyle,singles,6,partial,,0
 2003_southeastern,open_shred_30,Open Shred 30,freestyle,singles,7,partial,,0
 2003_southeastern,open_sick_trick,Open Sick Trick,freestyle,singles,8,partial,,0
-2003_footbagjam_ambridge,intermediate_big_3_net,Intermediate Big 3 Net,net,singles,1,unresolved,,0
+2003_footbagjam_ambridge,intermediate_big_3,Intermediate Big 3,freestyle,singles,1,unresolved,,0
 2003_footbagjam_ambridge,intermediate_shred30,Intermediate Shred30,freestyle,singles,2,complete,,0
 2003_footbagjam_ambridge,open_shred30,Open Shred30,freestyle,singles,3,complete,,0
 2003_beaver_open,freestyle,Freestyle,freestyle,singles,1,complete,,0
@@ -1534,7 +1538,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2003_eastregion_australia,open_sick_three,Open Sick Three,freestyle,singles,9,complete,,0
 2003_eastregion_australia,open_sick_trick,Open Sick Trick,freestyle,singles,10,unresolved,,0
 2003_colorado_shred_symposium,intermediate_shred_30,Intermediate Shred 30,freestyle,singles,1,complete,,0
-2003_colorado_shred_symposium,open_big_3_net,Open Big 3 Net,net,singles,2,complete,,0
+2003_colorado_shred_symposium,open_big_3,Open Big 3,freestyle,singles,2,complete,,0
 2003_colorado_shred_symposium,open_most_rippin_run_net,Open Most Rippin' Run Net,net,singles,3,complete,,0
 2003_colorado_shred_symposium,open_shred_30,Open Shred 30,freestyle,singles,4,complete,,0
 2003_colorado_shred_symposium,sick_trick,Sick Trick,freestyle,singles,5,complete,,0
@@ -1659,15 +1663,15 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2004_seattle_juggling,intermediate_shred_30,Intermediate Shred 30,freestyle,singles,1,complete,,0
 2004_seattle_juggling,intermediate_rippin_run_net,Intermediate Rippin Run Net,net,singles,2,complete,,0
 2004_seattle_juggling,intermediate_rippin_run_all_around_net,Intermediate Rippin Run All Around Net,net,singles,3,complete,,0
-2004_seattle_juggling,intermediate_big_3_net,Intermediate Big 3 Net,net,singles,4,complete,,0
+2004_seattle_juggling,intermediate_big_3,Intermediate Big 3,freestyle,singles,4,complete,,0
 2004_seattle_juggling,open_shred_30,Open Shred 30,freestyle,singles,5,complete,,0
 2004_seattle_juggling,open_sick_3,Open Sick 3,freestyle,singles,6,complete,,0
 2004_seattle_juggling,open_rippen_run_net,Open Rippen Run Net,net,singles,7,complete,,0
-2004_colorado_shred_symposium,intermediate_big_3_net,Intermediate Big 3 Net,net,singles,1,complete,,0
+2004_colorado_shred_symposium,intermediate_big_3,Intermediate Big 3,freestyle,singles,1,complete,,0
 2004_colorado_shred_symposium,intermediate_most_rippin_run_net,Intermediate Most Rippin' Run Net,net,singles,2,complete,,0
 2004_colorado_shred_symposium,intermediate_shred_30,Intermediate Shred 30,freestyle,singles,3,complete,,0
 2004_colorado_shred_symposium,intermediate_sick_trick,Intermediate Sick Trick,freestyle,singles,4,complete,,0
-2004_colorado_shred_symposium,open_big_3_net,Open Big 3 Net,net,singles,5,complete,,0
+2004_colorado_shred_symposium,open_big_3,Open Big 3,freestyle,singles,5,complete,,0
 2004_colorado_shred_symposium,open_most_rippin_run_net,Open Most Rippin' Run Net,net,singles,6,complete,,0
 2004_colorado_shred_symposium,open_shred_30,Open Shred 30,freestyle,singles,7,complete,,0
 2004_colorado_shred_symposium,open_sick_trick,Open Sick Trick,freestyle,singles,8,complete,,0
@@ -1764,7 +1768,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2004_russian_4,net_doubles,Net Doubles,net,singles,2,unresolved,,0
 2004_russian_5_brooks,freestyle,Freestyle,freestyle,singles,1,complete,,0
 2004_russian_5_brooks,net,Net,net,singles,2,complete,,0
-2004_souf_southeastern,big_3_net,Big 3 Net,net,singles,1,complete,,0
+2004_souf_southeastern,big_3,Big 3,freestyle,singles,1,complete,,0
 2004_souf_southeastern,routines,Routines,freestyle,singles,2,complete,,0
 2004_souf_southeastern,shred_30,Shred 30,freestyle,singles,3,complete,,0
 2004_shercle_session_1,ironman,Ironman,freestyle,singles,1,complete,,0
@@ -1968,7 +1972,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2006_jersey_spike_shred,intermediate_shred_30,Intermediate Shred 30,freestyle,singles,5,complete,,0
 2006_jersey_spike_shred,intermediate_singles_net,Intermediate Singles Net,net,singles,6,complete,,0
 2006_jersey_spike_shred,open_battle_royal,Open Battle Royal,freestyle,singles,7,complete,,0
-2006_jersey_spike_shred,open_big_3_net,Open Big 3 Net,net,singles,8,complete,,0
+2006_jersey_spike_shred,open_big_3,Open Big 3,freestyle,singles,8,complete,,0
 2006_jersey_spike_shred,open_doubles_net,Open Doubles Net,net,doubles,9,complete,,0
 2006_jersey_spike_shred,open_freestyle_routines,Open Freestyle Routines,freestyle,singles,10,complete,,0
 2006_jersey_spike_shred,open_shred_30,Open Shred 30,freestyle,singles,11,complete,,0
@@ -1976,7 +1980,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2006_southeast,net_doubles,Net Doubles,net,doubles,1,mostly_complete,,0
 2006_southeast,shred_30,Shred 30,freestyle,singles,2,complete,,0
 2006_southeast,sick_3,Sick 3,freestyle,singles,3,complete,,0
-2006_steel_city_shred,intermediate_big_3_net,Intermediate Big 3 Net,net,singles,1,complete,,0
+2006_steel_city_shred,intermediate_big_3,Intermediate Big 3,freestyle,singles,1,complete,,0
 2006_steel_city_shred,intermediate_sick_1,Intermediate Sick 1,freestyle,singles,2,complete,,0
 2006_steel_city_shred,open_rippin_run_net,Open Rippin' Run Net,net,singles,3,complete,,0
 2006_steel_city_shred,open_shred_30,Open Shred 30,freestyle,singles,4,complete,,0
@@ -2194,7 +2198,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2007_usopen_portland,b_division_doubles_net,"""B"" Division Doubles Net",net,doubles,1,complete,,0
 2007_usopen_portland,b_division_singles_net,"""B"" Division Singles Net",net,singles,2,complete,,0
 2007_usopen_portland,circle,Circle,freestyle,singles,3,complete,,0
-2007_usopen_portland,intermediate_big_3_net,Intermediate Big 3 Net,net,singles,4,mostly_complete,,0
+2007_usopen_portland,intermediate_big_3,Intermediate Big 3,freestyle,singles,4,mostly_complete,,0
 2007_usopen_portland,intermediate_rippin_run_net,Intermediate Rippin' Run Net,net,singles,5,complete,,0
 2007_usopen_portland,intermediate_routines,Intermediate Routines,freestyle,singles,6,complete,,0
 2007_usopen_portland,intermediate_shred_30,Intermediate Shred 30,freestyle,singles,7,complete,,0
@@ -2231,7 +2235,7 @@ event_key,discipline_key,discipline_name,discipline_category,team_type,sort_orde
 2007_montana,open_sick3,Open Sick3,freestyle,singles,8,complete,,0
 2007_footbagjam_warsaw,circle_contest,Circle Contest,freestyle,singles,1,complete,,0
 2007_footbagjam_warsaw,doubles_routines,Doubles Routines,freestyle,doubles,2,complete,,0
-2007_footbagjam_warsaw,four_square,Four Square,freestyle,singles,3,complete,,0
+2007_footbagjam_warsaw,four_square,Four Square,sideline,singles,3,complete,,0
 2007_footbagjam_warsaw,freestyle_big_3,Freestyle Big 3,freestyle,singles,4,complete,,0
 2007_footbagjam_warsaw,freestyle_most_rippin_run,Freestyle Most Rippin' Run,freestyle,singles,5,complete,,0
 2007_footbagjam_warsaw,freestyle_routines,Freestyle Routines,freestyle,singles,6,mostly_complete,,0
