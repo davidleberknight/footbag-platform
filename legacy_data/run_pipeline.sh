@@ -701,6 +701,9 @@ run_phase_f() {
     echo "║  PHASE F: PERSONS MASTER                             ║"
     echo "╚══════════════════════════════════════════════════════╝"
     python persons/scripts/05_build_persons_master.py
+    # Provisional people exist only from here on, so the QC gate cannot see them:
+    # a blocking second run of the same check compares them with the lock.
+    python pipeline/qc/check_character_loss_pairs.py --persons-master persons/out/persons_master.csv
     echo ""
 }
 

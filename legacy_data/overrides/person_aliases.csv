@@ -301,7 +301,7 @@ Benedek Lukacs,4c9b0c6d-c6db-5680-b4f1-5493c3534d26,Benedek Lukacs,verified,
 Benett Baranyai,6a424f0f-2462-5745-ba85-28ece78311fb,Benett Baranyai,verified,
 Beni Zahner,a47d1872-8a14-5644-80a7-1b4ea47b202d,Beni Zahner,verified,
 Benjamin Alston,76079f4a-40db-5e3c-97e1-99e590791839,Benjamin Alston,verified,
-Benjamin Babyak,ede0da6c-0e27-576f-abe5-6a20a004343b,Benjamin Babyak,verified,
+Benjamin Babyak,c5297bc0-0f46-5f3f-b165-c6f4901f8838,Ben Babyak,verified,
 Benjamin Barrows,e6a0e992-b745-5624-b67f-55237f5c0a34,Benjamin Barrows,verified,
 Benjamin Benulis,7afe03a1-08a3-5ea2-a884-f56589aeea38,Benjamin Benulis,verified,
 Benjamin De Bastos,df248674-08b9-5252-80f6-d4abc558b0a3,Benjamin De Bastos,verified,
@@ -706,7 +706,7 @@ Emmanuel Bouchard,3ef63282-9e9c-5f57-94c5-e1b5c4fe8c3c,Emmanuel Bouchard,verifie
 Emmanuel Bouchard-,3ef63282-9e9c-5f57-94c5-e1b5c4fe8c3c,Emmanuel Bouchard,verified,
 Emmanuel Bouchard.,3ef63282-9e9c-5f57-94c5-e1b5c4fe8c3c,Emmanuel Bouchard,verified,
 Emmanuel Bourchard,3ef63282-9e9c-5f57-94c5-e1b5c4fe8c3c,Emmanuel Bouchard,verified,
-Emmanuelle Bouvier,620a8311-2a3a-5cdb-a5e3-c83a82f0bff1,Emmanuelle Bouvier,verified,
+Emmanuelle Bouvier,8e905f65-2782-500e-89d9-73bf26d459bc,Emmanuelle Vincendeau,verified,
 Emmanuelle Vincendeau,8e905f65-2782-500e-89d9-73bf26d459bc,Emmanuelle Vincendeau,verified,
 Eric Burgess,051c1b5e-f34d-5e7b-a27c-50f94324c96d,Eric Burgess,verified,
 Eric Burgess -,051c1b5e-f34d-5e7b-a27c-50f94324c96d,Eric Burgess,verified,
@@ -802,7 +802,7 @@ Forest Shrodt,a8489587-4463-53fe-b8d2-4717ee6ef01a,Forest Schrodt,verified,
 Francesca Ryan,7e147fbe-27a7-514e-9bd5-fbb1bcd6f389,Francesca Ryan,verified,
 Franck Remy,d31e8ab0-0924-5e2c-b3f8-560279e37c9a,Franck Remy,verified,
 Franck Rémy,d31e8ab0-0924-5e2c-b3f8-560279e37c9a,Franck Remy,candidate,
-François D.,87e0d502-d749-53dd-997b-f266371d1474,François Depatie,verified,gate4:identified
+François D.,9d9b7019-1c24-54b4-8dfb-75bc689657e2,Francois Pelletier,verified,gate4:identified
 François Depatie Pelletier,9d9b7019-1c24-54b4-8dfb-75bc689657e2,Francois Pelletier,verified,redirected:39728695-e778-54e8-81fa-0a250d900d50->9d9b7019
 François Depatie-Pelletier,9d9b7019-1c24-54b4-8dfb-75bc689657e2,Francois Pelletier,verified,redirected:39728695-e778-54e8-81fa-0a250d900d50->9d9b7019
 Francois Leh,27569bfc-a9e1-58c3-845b-ba0a01f4d9d7,Francois Leh,verified,
@@ -869,8 +869,8 @@ Gosia Dębska,a737859a-35f6-51c8-9cd1-d5f54f88b8dd,Gosia Debska,verified,
 Gosia Dêbska,a737859a-35f6-51c8-9cd1-d5f54f88b8dd,Gosia Debska,verified,
 Gosia Debski,a737859a-35f6-51c8-9cd1-d5f54f88b8dd,Gosia Debska,candidate,
 Gosia Deska,a737859a-35f6-51c8-9cd1-d5f54f88b8dd,Gosia Debska,candidate,
-Gosia Nyc,e6f5c3f9-b642-52a2-a6b4-9d8037fa5a83,Małgorzata Nycz,verified,truncated_name
-Gosia Nycz,e6f5c3f9-b642-52a2-a6b4-9d8037fa5a83,Małgorzata Nycz,verified,
+Gosia Nyc,a737859a-35f6-51c8-9cd1-d5f54f88b8dd,Gosia Debska,verified,truncated_name
+Gosia Nycz,a737859a-35f6-51c8-9cd1-d5f54f88b8dd,Gosia Debska,verified,
 Gosia Oledzka,dc19ddb6-e563-5c1c-a11d-4c3716b3befc,Gosia Oledzska,verified,
 Gosia Oledzska,dc19ddb6-e563-5c1c-a11d-4c3716b3befc,Gosia Oledzska,verified,
 Gosia Szpulecka,9d1a8bfb-8715-58d6-b58d-d12713de8a24,Gosia Szpuleczka,verified,
@@ -1076,22 +1076,22 @@ Jan Zimmermann,4122d672-aba7-5e34-a94f-df9602413736,Jan Zimmerman,verified,
 Jan Zimmermann,4122d672-aba7-5e34-a94f-df9602413736,Jan Zimmermann,verified,stale_id_recovery
 Jana ?a??áková,bd0010df-d5b7-5860-a1c0-fb5ed7523815,Jana Čačáková,verified,
 Jana Riisalo,f91f76bc-1b7b-5965-a815-3d18ddc87759,Jana Riisalo,verified,
-Jana Sassakova,02095322-bd6e-52a6-9f2d-6b5a7a527eae,Jana Sassakova,verified,
-Jana Sassákova,02095322-bd6e-52a6-9f2d-6b5a7a527eae,Jana Sassakova,verified,
-Jana Sassáková,02095322-bd6e-52a6-9f2d-6b5a7a527eae,Jana Sassakova,verified,
+Jana Sassakova,f91f76bc-1b7b-5965-a815-3d18ddc87759,Jana Riisalo,verified,
+Jana Sassákova,f91f76bc-1b7b-5965-a815-3d18ddc87759,Jana Riisalo,verified,
+Jana Sassáková,f91f76bc-1b7b-5965-a815-3d18ddc87759,Jana Riisalo,verified,
 Janar Stamm,9a853a14-ce9c-597a-9610-e0e857a723c6,Janar Stamm,verified,
 Jane Jones,9d69ef20-b1c0-5b65-91f2-4da140883053,Jane Jones,verified,
 Jani Lirkki,3d1a7216-f5c6-58ef-b850-743fe1db4cc9,Jani Lirkki,verified,
-Jani Markanen,0dee73bb-caed-5f5c-9c20-5ea946939871,Jani Sakari Markkanen,verified,
-Jani Markkanen,0dee73bb-caed-5f5c-9c20-5ea946939871,Jani Sakari Markkanen,verified,
-Jani Markkanen ?,0dee73bb-caed-5f5c-9c20-5ea946939871,Jani Markkanen,verified,
-Jani Sakari Markkanen,0dee73bb-caed-5f5c-9c20-5ea946939871,Jani Sakari Markkanen,verified,
+Jani Markanen,bd8f51fb-7188-58b6-96ef-720edd7c8a61,Jani Säntti,verified,
+Jani Markkanen,bd8f51fb-7188-58b6-96ef-720edd7c8a61,Jani Säntti,verified,
+Jani Markkanen ?,bd8f51fb-7188-58b6-96ef-720edd7c8a61,Jani Säntti,verified,
+Jani Sakari Markkanen,bd8f51fb-7188-58b6-96ef-720edd7c8a61,Jani Säntti,verified,
 Janis Thal,9a67acb8-d69e-565c-9a52-ca308a6babc0,Janis Thal,verified,
 Janne Pesonen,0f6326d1-3099-5489-b003-2e4b9d876292,Janne Pesonen,verified,
 Janne Uusitalo,628bd3b2-335d-5fdb-bad2-b794d74ede90,Janne Uusitalo,verified,
 Janne Villikka,8cba711a-5cb2-5043-bb5b-b9a1540bdecb,Janne Villikka,verified,
 Janne Villikkka,8cba711a-5cb2-5043-bb5b-b9a1540bdecb,Janne Villikka,verified,
-Janni Markkanen,0dee73bb-caed-5f5c-9c20-5ea946939871,Jani Sakari Markkanen,verified,
+Janni Markkanen,bd8f51fb-7188-58b6-96ef-720edd7c8a61,Jani Säntti,verified,
 Jared Clark,eae65632-12ed-58d4-910c-b301f1ef7329,Jared Clark,verified,
 Jared Clorfeine,64cd7879-34c9-5207-be3d-a0208af9e00b,Jared Clorfeine,verified,
 Jared W.,da859b67-50c8-5341-8a49-c76f17b0ce72,Jared W.,verified,stub:abbreviated_name
@@ -1200,7 +1200,7 @@ Joel Dion,c2b71e3c-4ffb-5b75-b92f-cfbb4f0c9bb4,Joel Dion,verified,
 Joel Murray,df3f3136-675e-551d-b940-0991d6295c57,Joël Murray,verified,
 Joël Murray,df3f3136-675e-551d-b940-0991d6295c57,Joël Murray,verified,
 Joey Monti,f839fd7d-f3d4-5582-a47d-19838389afab,Joey Monti,verified,
-Joey Vu,320a02aa-961a-57f9-a2e5-81fe6fec03e1,Joey Vu,verified,
+Joey Vu,f839fd7d-f3d4-5582-a47d-19838389afab,Joey Monti,verified,
 Johan Gonzalez,db02f5ef-a2ac-52a1-bc6f-fc4ceeaf4bd0,Johan Gonzalez,verified,
 Johanna Nigisch,ea605f22-107e-5bb7-9a85-a608e167038e,Johanna Nigisch,verified,
 Johannes Korff,a751368f-dee2-50a8-98b1-6942a8d1ac1a,Johannes Korff,verified,
@@ -1493,7 +1493,7 @@ Luká? Bla?ek,dcd4f256-409a-5afe-b320-98c10b762aec,Lukáš Blažek,verified,
 Luke Legault,b3b2232e-40c2-5a99-bf1f-aa3e4f5b569c,Luke Legault,verified,
 Luke Legaut,b3b2232e-40c2-5a99-bf1f-aa3e4f5b569c,Luke Legault,verified,redirected:bb0bdb60-138e-52d1-afa4-d16542122546->b3b2232e
 Lynton Stephens,8a740aac-66c5-5fe2-a482-2acd1d1cdc11,Lynton Stephens,verified,
-Ma?gorzata Nycz,e6f5c3f9-b642-52a2-a6b4-9d8037fa5a83,Małgorzata Nycz,verified,
+Ma?gorzata Nycz,a737859a-35f6-51c8-9cd1-d5f54f88b8dd,Gosia Debska,verified,
 Ma?gorzata Ol?dzka,2bc5d866-5451-56f0-9fd9-3e5010a689db,Ma?gorzata Ol?dzka,verified,
 Maciej Bujko,28f922a5-5d62-5473-b08e-3cd2ef6f74fe,Maciej Bujko,verified,
 Maciej Niczyporuk,401af1f3-a976-5403-9740-210e2849f159,Maciej Niczyporuk,verified,
@@ -1512,7 +1512,7 @@ Magyar Balint,f8ae8997-cb26-56cd-93ad-91a0324cac16,Magyar Bálint,verified,
 Magyar Bálint,f8ae8997-cb26-56cd-93ad-91a0324cac16,Magyar Bálint,verified,
 Mai Jakob,d9aecda1-b6f6-5445-9a48-4a47f0f66bd4,Jakob Mai,verified,merged: Last-First format swap or confirmed variant
 Malgorzata Debska,8340d924-f9ab-5b34-baa9-9f799b607030,Malgorzata Debska,verified,
-Małgorzata Nycz,e6f5c3f9-b642-52a2-a6b4-9d8037fa5a83,Małgorzata Nycz,verified,encoding_corruption
+Małgorzata Nycz,a737859a-35f6-51c8-9cd1-d5f54f88b8dd,Gosia Debska,verified,encoding_corruption
 Malgorzata Oledzka,21e3e2db-cc50-541f-9ce9-928da111bb6a,Malgorzata Oledzka,verified,
 Manna Mpepo,9cd9cd3b-f4f9-5444-8dcc-46f60e41fb59,Manna Mpepo,verified,
 Manna Mpepo-,9cd9cd3b-f4f9-5444-8dcc-46f60e41fb59,Manna Mpepo,verified,
@@ -1799,7 +1799,7 @@ Nora Lochen,2147dbe3-da70-55cd-a988-43bcec841389,Nora Locher,verified,
 Nora Locher,2147dbe3-da70-55cd-a988-43bcec841389,Nora Locher,verified,
 Norek,6513b145-8a4a-556a-a04f-981d95db2d70,Arkadiusz Dudzinski,verified,nickname
 Nori Daigle,9bc8e838-c9ac-5561-955d-4375cc1db672,Nori Daigle,verified,
-Nycz Gosia,e6f5c3f9-b642-52a2-a6b4-9d8037fa5a83,Małgorzata Nycz,verified,reversed-name merge
+Nycz Gosia,a737859a-35f6-51c8-9cd1-d5f54f88b8dd,Gosia Debska,verified,reversed-name merge
 Oishi Keita,291d5062-d8d2-5fcb-90d4-ddc31be14399,Keita Oishi,verified,merged: Last-First format swap or confirmed variant
 Olaf Piwowar,70f7b4f9-e8e3-5a08-b540-0924c68a4b20,Olaf Piwowar,verified,
 Ole Schnack,246cf8ea-f186-5e7e-a781-3fc4205a702e,Ole Schnack,verified,
@@ -2209,7 +2209,7 @@ Stan Sagalovskiy,aef1fce3-d6e2-5f7b-9469-d4bd175cf0d1,Stan Sagalovskiy,verified,
 Stan Sagalovsky,aef1fce3-d6e2-5f7b-9469-d4bd175cf0d1,Stan Sagalovskiy,verified,
 Stefan Nold,e2ad332e-4635-5c13-9bc3-9cd157eaee8d,Stefan Nold,verified,
 Stefan Siegert,78d0c91f-b1ec-572e-855b-a7d3f706f8b7,Stefan Siegert,verified,
-Stefan Stuff Nold,62f27d60-f401-51d8-8da4-5903c7766893,Stefan Stuff Nold,verified,
+Stefan Stuff Nold,e2ad332e-4635-5c13-9bc3-9cd157eaee8d,Stefan Nold,verified,
 Stefane Comeau,bb062ead-e9ba-5969-889f-f3f429a2abd7,Stefane Comeau,verified,
 STEPAN KLIMEK,064f7ed6-a0b7-5510-b9ab-869395a112fd,STEPAN KLIMEK,verified,
 Stepane Tailleur,0295db32-9628-5fdd-9420-212a8adc5b6d,Stéphane Tailleur,verified,
@@ -2347,7 +2347,7 @@ TOMAS TUCEK,511f8154-a9df-5bbd-8375-1164c1e266e2,Tomas Tucek,verified,
 Tomas Tucek,511f8154-a9df-5bbd-8375-1164c1e266e2,Tomas Tucek,verified,
 Tomas Tyrpekl,97b4db80-0f51-5701-9dc2-aba083758a58,Tomas Tyrpekl,verified,
 TOMAS ZEMAN,1cfc9274-37e6-5b1b-9915-18619abc8b08,TOMAS ZEMAN,verified,
-Tomasz Kocio?kowski,b073c3b7-95e2-5b0b-b66c-4f86649fd5d4,Tomasz Kocio?kowski,verified,
+Tomasz Kocio?kowski,b073c3b7-95e2-5b0b-b66c-4f86649fd5d4,Tomasz Kociołkowski,verified,
 Tomasz Ostrowski,7921325b-8eab-5f32-aaa9-38578c2760bc,Tomas Ostrowski,verified,
 Tommy Carls,2e1caa5f-1d20-5c6d-9fb8-6e7cbf24dc41,Tommy Carls,verified,
 Tompos Zoltan,55054239-3566-5580-9a9f-7a893e3442a0,Tompos Zoltán,verified,
@@ -2528,7 +2528,7 @@ Marcin Ka³czor,cf77df18-0e51-52e5-8ffa-24d2fbdfe827,Marcin Kalczor,verified,moj
 Pawe³ Ro¿ek,0b3ffb10-2257-510e-a69a-26ff2fc87508,Pawel Rozek,verified,mojibake: Windows-1250 ³→ł ¿→ż
 Robin P¸chel,3c50ab0f-2056-50ce-a5f2-c7c95e96702f,Robin Puchel,verified,mojibake: Windows-1250 encoding
 Szymon Ka³wak,4ae1304e-960b-554f-8ce7-c59e0d7607b2,Szymon Kalwak,verified,mojibake: Windows-1250 ³→ł
-Tomasz Kocio³kowski,b073c3b7-95e2-5b0b-b66c-4f86649fd5d4,Tomasz Kociolkowski,verified,mojibake: Windows-1250 ³→ł
+Tomasz Kocio³kowski,b073c3b7-95e2-5b0b-b66c-4f86649fd5d4,Tomasz Kociołkowski,verified,mojibake: Windows-1250 ³→ł
 Tomá¹ Tuèek,511f8154-a9df-5bbd-8375-1164c1e266e2,Tomas Tucek,verified,mojibake: Windows-1250 ¹→š è→č
 A GRAVEL,55584eb9-ab8b-517f-b514-1e08f8852a31,Alexandre Gravel,verified,abbreviated_name:single_match
 A Inteman,71ae4086-3d7f-5fdb-812b-778eda4da0cf,Anthony Intemann,verified,abbreviated_name:single_match
@@ -2616,7 +2616,7 @@ K. Somolinos,d1aace44-cd92-5b85-9ed1-fe4afb2cd502,Ken Somolinos,verified,dotted_
 L. W.-Lavallée,206eaac4-f28d-5cad-b334-c0ea07752736,Luka W.-Lavallée,verified,dotted_initial:single_match
 M. Daniels,33e83366-7b1e-5c4a-99a9-8eba0d3988ca,Mark Daniels,verified,dotted_initial:single_match
 M. Payant,df233ab3-492d-5dac-a854-d79a7f53cb76,Mathieu Payant,verified,dotted_initial:single_match
-O. B.-Bergé,8842db90-a28e-52d6-87e1-8466adcc548a,Olivier B.-Bergé,verified,dotted_initial:single_match
+O. B.-Bergé,78e060c9-3854-5b49-a5da-130392b333ea,Olivier Berthiaume,verified,dotted_initial:single_match
 P. Tomecek,3ee1e348-8cd4-57f0-9677-a6c3cdccb466,Pascal Tomecek,verified,dotted_initial:single_match
 S. Johnson,4c16387a-d825-5e9c-a012-317c4b4a16f8,Steve Johnson,verified,dotted_initial:single_match
 T. Aeberli,6c84f5b5-7da4-5b72-bdd7-453421a3c3d8,Tina Aeberli,verified,dotted_initial:single_match
@@ -2634,7 +2634,7 @@ Eugeny Shiryaev,24fb402d-fa5a-53c4-9d1a-e2c4667ccd4d,Evgeni Shiryaev,verified,ty
 Evgeny Shiryaev,24fb402d-fa5a-53c4-9d1a-e2c4667ccd4d,Evgeni Shiryaev,verified,typo:events_1_vs_18
 Francios Leh,27569bfc-a9e1-58c3-845b-ba0a01f4d9d7,François Leh,verified,typo:events_1_vs_18
 Gerg Lima,c7a23f15-f2ed-5f2b-ac50-bb1adb185475,Greg Lima,verified,typo:events_2_vs_54
-Gozia Nycz,e6f5c3f9-b642-52a2-a6b4-9d8037fa5a83,Małgorzata Nycz,verified,typo:events_1_vs_14
+Gozia Nycz,a737859a-35f6-51c8-9cd1-d5f54f88b8dd,Gosia Debska,verified,typo:events_1_vs_14
 Hanneé Daniel,edcbfbae-aae6-51bf-aef4-41ae3cab0d19,Hannés Daniel,verified,typo:events_1_vs_31
 Hirsto Marev,cc9b2a6b-4d13-586f-a640-fc7f55a2c267,Hristo Marev,verified,typo:events_1_vs_13
 Ilja Sernov,a812c3d4-7d7c-5f0f-899f-29c39da709df,Ilya Sernov,verified,typo:events_1_vs_3
@@ -2675,7 +2675,7 @@ Valerie Davidson,77d78830-84f5-520d-99d7-105a2b455eb3,Valeria Davidson,verified,
 Anthony Raymond Intemann,71ae4086-3d7f-5fdb-812b-778eda4da0cf,Anthony Intemann,verified,full_name:events_1_vs_22
 Ben Baybak,c5297bc0-0f46-5f3f-b165-c6f4901f8838,Ben Babyak,verified,typo:scan_match
 Benjamin Babiak,c5297bc0-0f46-5f3f-b165-c6f4901f8838,Ben Babyak,verified,typo:scan_match
-Benjamin J. Babyak,ede0da6c-0e27-576f-abe5-6a20a004343b,Benjamin Babyak,verified,scan_match
+Benjamin J. Babyak,c5297bc0-0f46-5f3f-b165-c6f4901f8838,Ben Babyak,verified,scan_match
 Alex Zeke Ibardaloza,be0d9849-db58-5aa2-90cc-df475a8c43bd,Alex Ibardaloza,verified,nickname:scan_match
 Andreas Grandi Peier,1df65a5e-fdb5-5385-a31e-4ac28b916b28,Andreas Peier,verified,nickname:scan_match
 Boris J. Ollivier,7150e55f-c6bd-5d27-a08b-9617313cac5e,Boris Ollivier,verified,scan_match
@@ -2710,7 +2710,7 @@ Garry G. Griggs,1de22070-477b-5209-8f40-561ce8784b7a,Garry Griggs,verified,middl
 Thomas tomtom Jouan,383d34a4-3fcf-5661-96ab-aed75a430d5f,Thomas Jouan,verified,nickname
 Khoa Dao Anh Nguyen,f06b66e5-bc34-5a71-9eec-1a176fec790e,Khoa Nguyen,verified,extra_middle_names
 Jaakko Inkinen 4. Juha-Matti Rytilahti,023c695b-ef02-51dd-89bb-0eb3ef0841c6,Juha-Matti Rytilahti,verified,ranking_artifact
-Erik Chan : Reverse Mailstrom,1bedfc1b-885c-5426-a93f-6fe033fd5f3e,Erik Chang,verified,colon_trick_suffix
+Erik Chan : Reverse Mailstrom,1bedfc1b-885c-5426-a93f-6fe033fd5f3e,Erik Chan,verified,colon_trick_suffix
 David Kaufmann O,2cf525b7-ae53-56ff-98f2-0f845d6d998f,David Kaufmann,verified,suffix_junk
 Jean-Franois Lemieux,184a06bb-be96-5120-9a7c-1676f2b01a2a,Jean-Francois Lemieux,verified,typo
 Jim Toes Fitzgerald,b54020bc-1a1a-5d23-89e1-34617b3514fa,Jim Fitzgerald,verified,nickname
@@ -2865,3 +2865,50 @@ Maël LeGall,e3de11aa-d25a-509d-ba0f-11b14f609cb6,Mael Le Gall,verified,spelling
 Ilija Sernov,a812c3d4-7d7c-5f0f-899f-29c39da709df,Ilya Sernov,verified,spelling variant of the same player; minted as an unclaimable duplicate and merged into the established record
 Allen Gumasing Paule,66b159b0-39cb-5ddc-b1df-fc2dfeba0b02,Allen Paule,verified,fuller name of the same player; minted as an unclaimable duplicate and merged into the record holding the player's account
 Jean-Marie Letort,8e1f2923-dd1a-5e9a-95e2-d99c720b065c,Jean Letort,verified,fuller name of the same player; minted as an unclaimable duplicate and merged into the record holding the player's account
+Jacob Wren,67f14498-b4d7-54f4-ad8a-3a4d95ccbd24,Jake Wren,verified,another name of the same player; ruled one person on evidence beyond the name
+Ben Benulis,7afe03a1-08a3-5ea2-a884-f56589aeea38,Benjamin Benulis,verified,another name of the same player; ruled one person on evidence beyond the name
+Yulia Klouda,7bd253f8-dc8a-5e21-a2e3-b27899ebc2e2,Julia Klouda,verified,another name of the same player; ruled one person on evidence beyond the name
+Carlos Funes,da5c610b-299f-521a-8d5a-8281ddb1810c,Carlos Acosta,verified,another name of the same player; ruled one person on evidence beyond the name
+Roberto Abel,cd277323-fc63-5adf-bb0c-e05ab57a46e8,Roberto Da Silva,verified,another name of the same player; ruled one person on evidence beyond the name
+Zhong Jia Yong,4420f12f-009b-574a-8d87-52aa7a7d76e3,Zhong Jia Yao,verified,another name of the same player; ruled one person on evidence beyond the name
+François Depatie,9d9b7019-1c24-54b4-8dfb-75bc689657e2,Francois Pelletier,verified,another name of the same player; ruled one person on evidence beyond the name
+David Tibocha,d38d6a95-920f-5c38-86a9-1c291109c12c,David Castillo,verified,another name of the same player; ruled one person on evidence beyond the name
+Ramon Zambrano De La Torre,f70bd897-f2ee-5333-ad21-fb153c1647ab,Ramón Zambrano,verified,another name of the same player; ruled one person on evidence beyond the name
+Ronald Ańez Mora,eb607281-73de-5a25-962f-f507d49e01bb,Ronald Ańez,verified,another name of the same player; ruled one person on evidence beyond the name
+Christopher Cleaver,ae007583-9bf0-520a-ba7c-b2e6f52b12ef,Chris Cleaver,verified,another name of the same player; ruled one person on evidence beyond the name
+David L. Bernard III,e8e44ba7-c704-5b37-bb6b-1c97ec405c21,Dave Bernard,verified,another name of the same player; ruled one person on evidence beyond the name
+Dave Boatz Beyers,7f79d397-3a3f-5fa1-8af5-4e789480098d,David Beyers,verified,another name of the same player; ruled one person on evidence beyond the name
+Greg Raymond,debefe3b-6054-5ee1-88e4-b9ac7f00f3cb,Gregory Raymond,verified,another name of the same player; ruled one person on evidence beyond the name
+Matthew Cross,bc7525cb-8eb2-5cf2-a11e-1b072fede923,Matt Cross,verified,another name of the same player; ruled one person on evidence beyond the name
+Mike Lopez,5aea8767-8f47-540d-80f3-69f67abace35,Michael Lopez,verified,another name of the same player; ruled one person on evidence beyond the name
+Michael Scheele,ee312ddb-1d0b-5e91-b59f-1860309e0c67,Mike Scheele,verified,another name of the same player; ruled one person on evidence beyond the name
+Michael Bellman,3207e42c-e99e-58e4-9c8c-d722dec54bed,Mike Bellmen,verified,another name of the same player; ruled one person on evidence beyond the name
+Olivier B.-Bergé,78e060c9-3854-5b49-a5da-130392b333ea,Olivier Berthiaume,verified,another name of the same player; ruled one person on evidence beyond the name
+Simon Voß,04253241-2763-57c5-a946-fa08f4b8d8e0,Simon Voss,verified,another name of the same player; ruled one person on evidence beyond the name
+Uli Cazzaro,6cf992d3-bd66-551e-9c08-82136518bd03,Ulli Cazzaro,verified,another name of the same player; ruled one person on evidence beyond the name
+Stephan Müller,4f30afe3-3cc9-5781-8f31-cad3a87d30ae,Stefan Müller,verified,another name of the same player; ruled one person on evidence beyond the name
+Said Shaheen,b0d9cc85-7974-55b2-918a-538fc48484e4,Saiid Shaheen,verified,another name of the same player; ruled one person on evidence beyond the name
+Leimar Romero,70f84b64-5ac5-5082-91ac-8ad71f54b127,Leimar Salas,verified,another name of the same player; ruled one person on evidence beyond the name
+Taku Muira,aefb17e0-f604-552c-8584-02e84b558563,Taku Miura,verified,another name of the same player; ruled one person on evidence beyond the name
+Timothy Kersey,de16af96-461d-5ed8-8534-39b958304a41,Tim Kersey,verified,another name of the same player; ruled one person on evidence beyond the name
+Tom Bergamasco,c0bc24e3-dd5f-5ad7-8570-77d685dd5638,Thomas Bergamasco,verified,another name of the same player; ruled one person on evidence beyond the name
+Stuff Nold,e2ad332e-4635-5c13-9bc3-9cd157eaee8d,Stefan Nold,verified,another name of the same player; ruled one person on evidence beyond the name
+Gary Yao,4420f12f-009b-574a-8d87-52aa7a7d76e3,Zhong Jia Yao,verified,another name of the same player; ruled one person on evidence beyond the name
+Marilou Roy,5b56ba95-212f-50c9-8679-c43966fffa44,Marie-Lou Roy,verified,another name of the same player; ruled one person on evidence beyond the name
+Marielou Roy,5b56ba95-212f-50c9-8679-c43966fffa44,Marie-Lou Roy,verified,another name of the same player; ruled one person on evidence beyond the name
+Marie-Lou Roy,5b56ba95-212f-50c9-8679-c43966fffa44,Marie-Lou Roy,verified,another name of the same player; ruled one person on evidence beyond the name
+Erik Chang,1bedfc1b-885c-5426-a93f-6fe033fd5f3e,Erik Chan,verified,another name of the same player; ruled one person on evidence beyond the name
+Erik Chan,1bedfc1b-885c-5426-a93f-6fe033fd5f3e,Erik Chan,verified,another name of the same player; ruled one person on evidence beyond the name
+Otto Remi,03607deb-e269-5775-b8c3-36873c6aa3b6,Otto Remis,verified,another name of the same player; ruled one person on evidence beyond the name
+Otto Remis,03607deb-e269-5775-b8c3-36873c6aa3b6,Otto Remis,verified,another name of the same player; ruled one person on evidence beyond the name
+Tomasz Kociolkowski,b073c3b7-95e2-5b0b-b66c-4f86649fd5d4,Tomasz Kociołkowski,verified,another name of the same player; ruled one person on evidence beyond the name
+Tomasz Kociołkowski,b073c3b7-95e2-5b0b-b66c-4f86649fd5d4,Tomasz Kociołkowski,verified,another name of the same player; ruled one person on evidence beyond the name
+Marcus Lohman,5a19cfbc-f788-545f-815c-e861708686b8,Marcus Lohmann,verified,another name of the same player; ruled one person on evidence beyond the name
+Marcus Lohmann,5a19cfbc-f788-545f-815c-e861708686b8,Marcus Lohmann,verified,another name of the same player; ruled one person on evidence beyond the name
+Daniel Schlaepfer,1631fe5a-47d0-50ef-a901-07d8a09ab51a,Daniel Schläpfer,verified,another name of the same player; ruled one person on evidence beyond the name
+Fred Noinaj,e2be0e02-89b3-5d92-a51f-9bc013c0b29f,Freddy Noinaj,verified,another name of the same player; ruled one person on evidence beyond the name
+Marco Doebeli,5fc5f6c4-2883-5af7-9870-04d8c9378031,Marco Döbeli,verified,another name of the same player; ruled one person on evidence beyond the name
+Mili Rumpf,6edf1a1d-2066-557a-b820-c1e15787f2fd,Milli Rumpf,verified,another name of the same player; ruled one person on evidence beyond the name
+Slawek Brzezinski,6d1c6944-8a56-59c2-a9dc-2af1f9b42f6c,Sławek Brzeziński,verified,another name of the same player; ruled one person on evidence beyond the name
+Jani Markannen,bd8f51fb-7188-58b6-96ef-720edd7c8a61,Jani Säntti,verified,misspelling on doubles results with Jukka Peltola; these rows already belonged to this player before the merge
+Klouda Vasek,98ce4e04-05ca-56ca-b8c6-83f51c164c89,Vaclav Klouda,verified,reversed name on a doubles result with Jan Weber; this row already belonged to this player before the merge

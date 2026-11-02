@@ -48,7 +48,6 @@ Beatrice Jager,Beatrice Jäger,high,manual
 Becca English Ross,Becca English-Ross,high,alias
 Becca Ross,Becca English-Ross,high,alias
 Ben Kuhner,Ben Kühner,high,manual
-Benjamin J. Babyak,Benjamin Babyak,high,alias
 Benoit Dugovic,Benoît Dugovic,high,manual
 Bjorn Stenzel,Björn Stenzel,high,manual
 Boris Belouin Ollivier,Boris Belouin,high,display_name
@@ -109,7 +108,6 @@ François Depatie Pelletier,Francois Depatie-Pelletier,high,display_name
 Franois Pelletier,Francois Pelletier,high,display_name
 François Depatie Pelletier,Francois Pelletier,high,alias
 François Pelletier,Francois Pelletier,high,display_name
-Francois Depatie,François Depatie,high,manual
 Francois Grignard,François Grignard,high,manual
 Francois Leh,François Leh,high,manual
 Francois Parayre,François Parayre,high,manual
@@ -158,7 +156,6 @@ Jan Dexter Struz,Jan Struz,high,alias
 Jan Honza Weber,Jan Weber,high,alias
 Jana Cacakova,Jana Čačáková,high,manual
 Jane Jones-Zerbe,Jane Zerbe,high,alias
-Jani Markkanen,Jani Sakari Markkanen,high,alias
 Jani Santti,Jani Säntti,high,manual
 Javier Andres Osorio Morales,Javier Andrés Osorio Morales,high,manual
 Jairo Lagos,Jaíro Lagos,high,manual
@@ -265,7 +262,6 @@ Nikolle Valentina Florez Mora,Nikolle Valentina Flórez Mora,high,manual
 Noemie Verdon,Noémie Verdon,high,manual
 Olda Platenik,Olda Pláteník,high,manual
 Oldøich Platenik,Oldøich Pláteník,high,manual
-Olivier B.-Berge,Olivier B.-Bergé,high,manual
 Olivier Zitoun Baillon,Olivier Baillon,high,alias
 Olli Karki,Olli Kärki,high,manual
 Oledzka Gosia,Olędzka Gosia,high,manual
@@ -306,7 +302,6 @@ Robin Pchel,Robin Puchel,high,display_name
 Robin Puechel,Robin Puchel,high,display_name
 Robin Püchel,Robin Puchel,high,display_name
 Ronald Anez,Ronald Ańez,high,manual
-Ronald Anez Mora,Ronald Ańez Mora,high,manual
 Rune Petersen,Rune Lau Petersen,high,alias
 Remy Pouliot,Rémy Pouliot,high,manual
 Repasi Csaba,Répási Csaba,high,manual
@@ -324,6 +319,7 @@ Simon Blanco,Simón Blanco,high,manual
 Lon Skyler Smith,Skyler Lon Smith,high,alias
 Lon Smith,Skyler Lon Smith,high,alias
 Stefan Muller,Stefan Müller,high,manual
+Stefan Stuff Nold,Stefan Nold,high,alias
 Stephane Roy,Stéphane Roy,high,manual
 Stephane Tailleur,Stéphane Tailleur,high,manual
 Sunil Tsunami Jani,Sunil Jani,high,alias
@@ -367,8 +363,9 @@ Tuomas Kärki,Tuomas Karki,high,display_name
 Ulrike Haßler,Ulrike Häßler,high,manual
 Unai Perez,Unai Pérez,high,manual
 Vaclav (Vasek) Klouda,Vaclav Klouda,high,alias
+Vasek Klouda,Vaclav Klouda,high,display_name
+Václav Klouda,Vaclav Klouda,high,display_name
 Valtteri Ahlstrom,Valtteri Ahlström,high,manual
-Vasek Klouda,Vašek Klouda,high,display_name
 Vesa Hytonen,Vesa Hytönen,high,manual
 Viktor Kratochvil,Viktor Kratochvíl,high,manual
 V Bradley,Vincent Bradley,high,display_name

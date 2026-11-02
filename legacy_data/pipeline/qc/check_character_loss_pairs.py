@@ -11,12 +11,19 @@ row carrying no legacy account link, and sometimes player ids of its own. That
 row can never be claimed by the real player, and it splits their competition
 record.
 
-This check reports those rows. It looks for a person whose normalized name is
-a character-deletion of another person's normalized name, in either direction,
-within two characters, where the reported row carries no legacy account link.
-Player ids do not exempt a row: a split twin minted with ids of its own is the
-same harm, and is the shape that once escaped a check restricted to rows
-without them.
+This check reports those rows. It looks for two people whose folded names are
+identical, or where one is a character-deletion of the other, in either
+direction, within two characters. Folding starts from the shared name
+normalization and also maps the letters it leaves alone, such as the Polish
+stroke l, so 'Rafał' and 'Rafal' compare as one name. Neither player ids nor an
+account link exempt a row: a split twin minted with ids of its own is the same
+harm, and two records each able to hold an account are the shape that splits a
+player's results from their claim.
+
+The identity lock is read at the QC gate, before the persons master exists. A
+second run after the persons master is built passes --persons-master, which adds
+the provisional people who hold an account but have no results. A provisional
+row already matched to a historical person is that person, so it is skipped.
 
 ## Why this blocks, and what a ruling may say
 
@@ -73,6 +80,17 @@ RULED_STATUSES = frozenset({"SAME", "DIFFERENT", "CANNOT_TELL", "RESOLVED"})
 # a different question.
 MAX_LOST_CHARACTERS = 2
 
+# Letters with no combining-mark decomposition, which the shared normalization
+# leaves as they are. This only decides what gets compared for a human to rule on;
+# no identity is resolved from it.
+UNDECOMPOSED_LETTERS = str.maketrans({
+    "ł": "l", "đ": "d", "ø": "o", "ß": "ss", "æ": "ae", "œ": "oe", "ı": "i", "ħ": "h",
+})
+
+
+def fold_name(name: str) -> str:
+    return normalize_name(name or "").translate(UNDECOMPOSED_LETTERS)
+
 
 def is_initialled(normalized: str) -> bool:
     """A name reduced to an initial, such as 'D Kramer' beside 'Dan Kramer'.
@@ -94,9 +112,22 @@ def load_rows(path: Path) -> list[dict]:
         return list(csv.DictReader(f))
 
 
-def is_unclaimed(row: dict) -> bool:
-    """A row no legacy account is linked to, which its player can never claim."""
-    return not (row.get("legacyid") or "").strip()
+def load_provisional_people(path: Path, known_ids: set[str]) -> list[dict]:
+    """Persons-master rows the lock does not hold, in the lock's column names."""
+    people = []
+    with open(path, newline="", encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            person_id = (row.get("person_id") or row.get("master_person_id") or "").strip()
+            if not person_id or person_id in known_ids:
+                continue
+            if (row.get("matched_historical_person_id") or "").strip():
+                continue
+            people.append({
+                "effective_person_id": person_id,
+                "person_canon": row.get("person_name") or "",
+                "legacyid": (row.get("legacy_member_id") or "").strip(),
+            })
+    return people
 
 
 def load_register(path: Path) -> set[frozenset]:
@@ -112,8 +143,8 @@ def load_register(path: Path) -> set[frozenset]:
             canon_pid = (row.get("canon_pid") or "").strip()
             if alias_pid and canon_pid:
                 seen.add(frozenset((alias_pid, canon_pid)))
-            alias_name = normalize_name(row.get("alias_name") or "")
-            canon_name = normalize_name(row.get("canon_name") or "")
+            alias_name = fold_name(row.get("alias_name"))
+            canon_name = fold_name(row.get("canon_name"))
             if alias_name and canon_name:
                 seen.add(frozenset((alias_name, canon_name)))
     return seen
@@ -122,36 +153,34 @@ def load_register(path: Path) -> set[frozenset]:
 def find_pairs(rows: list[dict]) -> list[tuple[dict, dict, int]]:
     by_length: dict[int, list[tuple[dict, str]]] = defaultdict(list)
     for r in rows:
-        n = normalize_name(r.get("person_canon") or "")
+        n = fold_name(r.get("person_canon"))
         if n:
             by_length[len(n)].append((r, n))
 
     found: list[tuple[dict, dict, int]] = []
-    # Two orphans can be each other's counterpart; report that pair once.
+    # Each side of a pair meets the other in this loop; report that pair once.
     reported: set[frozenset] = set()
-    for orphan in rows:
-        if not is_unclaimed(orphan):
+    for person in rows:
+        p_norm = fold_name(person.get("person_canon"))
+        if not p_norm or is_initialled(p_norm):
             continue
-        o_norm = normalize_name(orphan.get("person_canon") or "")
-        if not o_norm or is_initialled(o_norm):
-            continue
-        for delta in range(1, MAX_LOST_CHARACTERS + 1):
-            for length in (len(o_norm) - delta, len(o_norm) + delta):
+        for delta in range(0, MAX_LOST_CHARACTERS + 1):
+            for length in {len(p_norm) - delta, len(p_norm) + delta}:
                 for other, c_norm in by_length.get(length, []):
-                    if other["effective_person_id"] == orphan["effective_person_id"]:
+                    if other["effective_person_id"] == person["effective_person_id"]:
                         continue
                     if is_initialled(c_norm):
                         continue
-                    shorter, longer = sorted((o_norm, c_norm), key=len)
+                    shorter, longer = sorted((p_norm, c_norm), key=len)
                     if not is_subsequence(shorter, longer):
                         continue
                     key = frozenset(
-                        (orphan["effective_person_id"], other["effective_person_id"])
+                        (person["effective_person_id"], other["effective_person_id"])
                     )
                     if key in reported:
                         continue
                     reported.add(key)
-                    found.append((orphan, other, delta))
+                    found.append((person, other, delta))
     return found
 
 
@@ -163,6 +192,8 @@ def main() -> int:
                         help="identity-lock person truth file")
     parser.add_argument("--register", type=Path, default=DEFAULT_REGISTER,
                         help="register of pairs a human has already ruled on")
+    parser.add_argument("--persons-master", type=Path, default=None,
+                        help="also compare the provisional people in this persons master")
     args = parser.parse_args()
 
     truth = args.truth.resolve()
@@ -171,8 +202,8 @@ def main() -> int:
     print("=== character-loss duplicate persons ===")
     print(f"truth file: {truth}")
     print(f"register:   {register}")
-    print("Reports a person carrying no legacy account link whose name is a deletion")
-    print(f"of another person's name by up to {MAX_LOST_CHARACTERS} characters.")
+    print("Reports two people whose folded names match, or differ by a deletion of up")
+    print(f"to {MAX_LOST_CHARACTERS} characters, with or without an account link.")
 
     if not truth.exists():
         print(f"\nSKIP: identity lock not found (expected at {truth}).")
@@ -190,14 +221,28 @@ def main() -> int:
         print(f"\nERROR: failed to read {register}: {e}", file=sys.stderr)
         return 2
 
+    if args.persons_master is not None:
+        master = args.persons_master.resolve()
+        print(f"persons master: {master}")
+        if not master.exists():
+            print(f"\nERROR: {master} not found. persons/scripts/05_build_persons_master.py "
+                  "writes it; run ./run_pipeline.sh full.", file=sys.stderr)
+            return 2
+        try:
+            known = {r["effective_person_id"] for r in rows}
+            rows = rows + load_provisional_people(master, known)
+        except Exception as e:
+            print(f"\nERROR: failed to read {master}: {e}", file=sys.stderr)
+            return 2
+
     pairs = find_pairs(rows)
 
     unregistered = []
     for orphan, other, delta in pairs:
         by_id = frozenset((orphan["effective_person_id"], other["effective_person_id"]))
         by_name = frozenset((
-            normalize_name(orphan["person_canon"]),
-            normalize_name(other["person_canon"]),
+            fold_name(orphan["person_canon"]),
+            fold_name(other["person_canon"]),
         ))
         if by_id in ruled or by_name in ruled:
             continue

@@ -129,7 +129,7 @@ _PERSONS_BLOCKLIST: set[str] = {
     "Pawe\u00b3 Ro\u00bfek",      # → Pawel Rozek
     "Robin P\u00b8chel",           # → Robin Puchel
     "Szymon Ka\u00b3wak",          # → Szymon Kalwak
-    "Tomasz Kocio\u00b3kowski",    # → Tomasz Kociolkowski
+    "Tomasz Kocio\u00b3kowski",    # → Tomasz Kociołkowski
     "Tom\u00e1\u00b9 Tu\u00e8ek",  # → Tomas Tucek
     # Incomplete names — unresolvable first-name-only with "?"
     "Axel ?",
