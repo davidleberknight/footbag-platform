@@ -24,4 +24,7 @@ success is a failed check.
 - The closing line names what was proven and what was not; it never claims an outcome nothing
   checked.
 - A remote half reports its problems to its caller, which lists them in its own report.
+- The mechanism is `scripts/lib/closing-report.sh` (and `closing-report-remote.sh` for a remote
+  half); the conventions gate refuses an in-scope script that does not use it, against a baseline
+  that only shrinks.
 - Sourced libraries, and CI gates whose single verdict line is their whole output, are exempt.

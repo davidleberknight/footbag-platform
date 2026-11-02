@@ -43,6 +43,13 @@ describe('detectVideoFormat', () => {
     expect(detectVideoFormat(mov)).toBe('mov');
   });
 
+  it('detects a QuickTime file that opens on a classic atom with no ftyp', () => {
+    // The leading bytes of a curated clip written that way: an atom size, then
+    // the movie header atom.
+    const classic = Buffer.from([0, 0, 0x04, 0xd9, ...Buffer.from('moovlmvhd', 'ascii'), 0, 0, 0]);
+    expect(detectVideoFormat(classic)).toBe('mov');
+  });
+
   it('returns null for buffers under 12 bytes', () => {
     expect(detectVideoFormat(Buffer.alloc(8))).toBeNull();
   });

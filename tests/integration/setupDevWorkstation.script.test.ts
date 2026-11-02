@@ -38,6 +38,9 @@ import { join } from 'node:path';
 import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 
 const REPO = process.cwd();
+// The Node pin, read from the committed file the script checks against, so a
+// Node bump never leaves this suite's "every tool at its pin" machine behind.
+const NODE_PIN = readFileSync(join(REPO, '.nvmrc'), 'utf8').trim().replace(/^v/, '');
 // The machine's own jq, which the jq stand-in hands every call but --version to.
 const REAL_JQ = (spawnSync('bash', ['-c', 'command -v jq'], { encoding: 'utf-8', ...SPAWN_GUARD }).stdout ?? '').trim();
 
@@ -92,7 +95,7 @@ function stubCompleteMachine() {
   stub('python3.12', 'echo 3.12.12');
   // The version answer is the stand-in; everything else is the real node, which
   // the dependency check runs.
-  stub('node', `[ "$1" = -v ] && { echo v22.22.1; exit 0; }\nexec ${process.execPath} "$@"`);
+  stub('node', `[ "$1" = -v ] && { echo v${NODE_PIN}; exit 0; }\nexec ${process.execPath} "$@"`);
   stub('gitleaks', 'echo 8.24.3');
   stub('terraform', 'echo "Terraform v1.14.7"');
   // The engine answers at the pinned workstation version (the version part of

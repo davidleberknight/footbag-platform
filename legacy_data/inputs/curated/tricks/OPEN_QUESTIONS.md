@@ -14,7 +14,7 @@ Scope: outstanding questions and current state for the freestyle trick dictionar
 | atom-smasher | adds=4, locked (X-Dex contributes the +1) |
 | flurry | adds=4, locked (3 dexes + 1 stall) |
 | double-leg-over | adds=3, curated, active. Canonical: "Double Leg Over". Aliases: dlo, miraging legover |
-| sumo | adds=5, base=mirage, modifier_links=nuclear, expert_reviewed, active. Resolved Red pt9 2026-05-09 (Nuclear Mirage via X-Dex escalation on the Mirage; see §1B). Alias: nuclear mirage |
+| sumo | adds=5, base=mirage, modifier_links=nuclear, expert_reviewed, active. Resolved Red pt9 2026-05-09 (Nuclear Mirage via X-Dex escalation on the Mirage; see the Post-pt9 resolutions integrated section). Alias: nuclear mirage |
 | baroque | alias on `barraging-osis` (canonical) |
 | silo | alias on `atomic-torque` (canonical) |
 | barroque | typo absorbed via alias to `barraging-osis` |
@@ -31,7 +31,7 @@ Scope: outstanding questions and current state for the freestyle trick dictionar
 | nuclear | RESOLVED by pt10 (2026-05-10): generic Nuclear modifier value confirmed +2 (Yes to "Should Nuclear itself still be treated as a flat +2 set modifier generally?"). Structural definition volunteered: "Nuclear is a Paradox Atomic set" (= Paradox(+1) + Atomic(+1) = +2). trick_modifiers.csv nuclear (+2,+2) Uncertain caveat retired. Sumo (Nuclear Mirage=5) X-Dex construction-specific escalation per pt9 still applies; not subsumed by the generic rule. |
 | backside | new row in trick_modifiers: backside,1,1,body. Red pt9 promotes from pending (modifier vs naming-adjective) to confirmed +1 body modifier. The "Stepping Paradox Symposium Mirage" expansion is explanatory decomposition for the "Backside Blur" compound, NOT additive +3 (James adjudication 2026-05-09). |
 | sailing | new row in red_additions: sailing,2,sailing,set, expert_reviewed, active. Red pt9: "Sailing as a set is 2 ADDS. It is Pixie Quantum set." Set-as-modifier behavior NOT yet classified (Red's wording was set-only). |
-| blistering | NOT resolved by pt9 (Red grouped with sailing but answered only for sailing). Promoted to lone pt9-pending item — see §2 HIGH. |
+| blistering | NOT resolved by pt9 (Red grouped with sailing but answered only for sailing). Promoted to lone pt9-pending item — see the HIGH list in the Remaining dictionary questions section. |
 
 Audit log: `red_corrections_pt9.csv`. Strong recommendation per James 2026-05-09: pt9 wave is ontology enrichment; do NOT rebuild parser logic, alter policy-dependent machinery, or change rotational escalation weights yet.
 

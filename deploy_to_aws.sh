@@ -349,6 +349,7 @@ if [[ "${DEPLOY_TARGET:-footbag-staging}" == "footbag-production" ]]; then
     fi
     echo "" >&2
   fi
+  production_staging_first_reminder
   printf "  Type 'APPLY' to confirm: " >&2
   if ! read -r _ack </dev/tty 2>/dev/null; then
     echo "" >&2

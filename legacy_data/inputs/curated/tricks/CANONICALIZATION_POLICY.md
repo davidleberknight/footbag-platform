@@ -215,7 +215,7 @@ Stands alone as a 0–2 ADD entity AND acts as a +0 to +3 modifier on a base.
 Remove an alias only when ALL of:
 
 - The target does not resolve, AND
-- No higher-tier source (per §2) supports the mapping, AND
+- No higher-tier source (per the Evidence hierarchy and source precedence section) supports the mapping, AND
 - The mapping was inferred, not Red-stated.
 
 Document every removal in `red_corrections_pt*.csv` with the disposing pt batch and reason. Example: pt8 removed `jani walker → furious butterfly` (was inferred without Red confirmation; Red declined to endorse the mapping).
@@ -226,7 +226,7 @@ Document every removal in `red_corrections_pt*.csv` with the disposing pt batch 
 
 ### Authority
 
-**Red Husted's stated answers override ALL inferred decomposition.** Tier 1 absolute (per §2).
+**Red Husted's stated answers override ALL inferred decomposition.** Tier 1 absolute (per the Evidence hierarchy and source precedence section).
 
 ### Provenance preservation (mandatory)
 
@@ -356,7 +356,7 @@ The distinction is not visible from the name alone, the ADD value, or even the p
 In the absence of clear community-fixed identity, productive multiplicity rows default to:
 
 - **`is_active=0` external residue** — visible in the coverage-diff workbook, NOT in the canonical dictionary.
-- The base trick (where it exists) handles the rendering. E.g. records labeled "Double X" can resolve via alias to canonical `X` if and when the alias is curator-approved (NOT automatic — see §6 Alias policy).
+- The base trick (where it exists) handles the rendering. E.g. records labeled "Double X" can resolve via alias to canonical `X` if and when the alias is curator-approved (NOT automatic — see the Alias policy section).
 
 ### Detection tooling
 
@@ -387,11 +387,11 @@ In the absence of clear community-fixed identity, productive multiplicity rows d
 | `legacy_data/inputs/curated/tricks/red-correction-pt*.txt` | Raw Red Husted expert-review responses |
 | `legacy_data/inputs/curated/tricks/red_corrections_consolidated.csv` | Adjudication audit log (consolidated, pt1–pt4) |
 | `legacy_data/inputs/curated/tricks/red_corrections_pt*.csv` | Pt-specific adjudication audit logs (pt5, pt8) |
-| `legacy_data/inputs/curated/tricks/red_additions_2026_04_20.csv` | Canonical UPSERT overlay channel (Red-authoritative add/update) |
-| `legacy_data/inputs/curated/tricks/red_corrections_2026_04_20.csv` | Field-level UPDATE channel for `tricks.csv` rows |
-| `legacy_data/inputs/noise/tricks.csv` | Legacy canonical baseline (Tier 6; do not edit directly) |
-| `legacy_data/inputs/noise/trick_aliases.csv` | Dedicated alias rows |
-| `legacy_data/inputs/noise/trick_modifiers.csv` | Modifier ADD-bonus table |
+| `freestyle/inputs/curated/tricks/red_additions_2026_04_20.csv` | Canonical UPSERT overlay channel (Red-authoritative add/update) |
+| `freestyle/inputs/curated/tricks/red_corrections_2026_04_20.csv` | Field-level UPDATE channel for `tricks.csv` rows |
+| `freestyle/inputs/base_dictionary/tricks.csv` | Legacy canonical baseline (Tier 6; do not edit directly) |
+| `freestyle/inputs/base_dictionary/trick_aliases.csv` | Dedicated alias rows |
+| `freestyle/inputs/base_dictionary/trick_modifiers.csv` | Modifier ADD-bonus table |
 | `legacy_data/out/scraped_footbag_moves.csv` | fb.org candidate pool (Tier 4) |
 
 ---

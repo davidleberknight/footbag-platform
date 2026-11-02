@@ -6,8 +6,13 @@
 #
 # Invoked as:
 #   { printf 'FOOTBAG_PASSWORD=%q\n' "$SUDO_PASS";
+#     cat scripts/lib/closing-report-remote.sh;
 #     cat scripts/internal/bootstrap-host-account-remote.sh;
 #   } | ssh -p 22 -l ec2-user REMOTE 'sudo -n bash -s footbag-bootstrap-account'
+#
+# Every refusal is marked with crr_error, from the remote reporting library the
+# caller sends ahead of this body, so it lands in the caller's closing report;
+# crr_finish ends the run, non-zero when any was an error.
 #
 # Why this account and this port. A fresh instance carries only the image's
 # default account, holding the key Terraform injected through the Lightsail key
@@ -78,9 +83,8 @@ if [[ " $ports " == *" 22 "* && " $ports " == *" 2222 "* ]]; then
   echo "    sshd already listens on 22 and 2222"
 else
   grep -qE "^[[:space:]]*Include[[:space:]]+${SSHD_DROPIN_DIR}/\*\.conf" "$SSHD_CONFIG" || {
-    echo "ERROR: ${SSHD_CONFIG} does not include ${SSHD_DROPIN_DIR}/*.conf, so a port drop-in" >&2
-    echo "       would change nothing. Nothing changed." >&2
-    exit 1
+    crr_error "${SSHD_CONFIG} does not include ${SSHD_DROPIN_DIR}/*.conf, so a port drop-in would change nothing. Nothing changed."
+    crr_finish
   }
   # A Port line anywhere replaces the default of 22 rather than adding to it, so
   # the drop-in names 22 too unless the main file already does.
@@ -89,16 +93,16 @@ else
   BOOTSTRAP_UNDO="$PORTS_DROPIN"
   printf '%s\n' "$wanted" > "$PORTS_DROPIN"
   chmod 600 "$PORTS_DROPIN"
-  if ! sshd -t; then
-    echo "ERROR: sshd rejected the port drop-in; it has been removed and nothing was reloaded." >&2
-    exit 1
+  if ! sshd_said="$(sshd -t 2>&1)"; then
+    crr_error "sshd rejected the port drop-in (${sshd_said##*$'\n'}); it has been removed and nothing was reloaded."
+    crr_finish
   fi
   BOOTSTRAP_UNDO=""
   systemctl reload "$sshd_unit"
   ports="$(listening_ports)"
   if [[ " $ports " != *" 22 "* || " $ports " != *" 2222 "* ]]; then
-    echo "ERROR: after the reload sshd reports ports '${ports}', not 22 and 2222." >&2
-    exit 1
+    crr_error "after the reload sshd reports ports '${ports}', not 22 and 2222."
+    crr_finish
   fi
   echo "    sshd now listens on ${ports}"
 fi
@@ -121,8 +125,8 @@ fi
 
 # ── its keys, copied rather than typed ───────────────────────────────────────
 [[ -s "$SOURCE_KEYS" ]] && grep -qE '^(ssh-|ecdsa-)' "$SOURCE_KEYS" || {
-  echo "ERROR: ${SOURCE_KEYS} holds no key to copy, so the new account would admit nobody." >&2
-  exit 1
+  crr_error "${SOURCE_KEYS} holds no key to copy, so the new account would admit nobody."
+  crr_finish
 }
 home="$(getent passwd "$ACCOUNT" | cut -d: -f6)"
 install -d -o "$ACCOUNT" -g "$ACCOUNT" -m 700 "${home}/.ssh"
@@ -159,9 +163,8 @@ else
       echo "    ${ACCOUNT} already has a usable password; left as it is"
       ;;
     *)
-      echo "ERROR: could not read whether ${ACCOUNT} has a password (passwd -S reported '${pw_status}')." >&2
-      echo "       Its password was not changed." >&2
-      exit 1
+      crr_error "could not read whether ${ACCOUNT} has a password (passwd -S reported '${pw_status}'). Its password was not changed."
+      crr_finish
       ;;
   esac
 fi
@@ -170,3 +173,5 @@ if (( set_password )); then
   echo "    ${ACCOUNT} password set"
 fi
 FOOTBAG_PASSWORD=""
+
+crr_finish

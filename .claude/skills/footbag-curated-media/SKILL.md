@@ -36,7 +36,7 @@ public gallery page at /media/<gallery_id>
 
 The `snippet_candidates.csv` schema is `source_id,url,trick_slug,start_seconds,end_seconds,player_name,clip_type,confidence,reviewer,notes`. New rows must conform exactly.
 
-For record-categories that have no canonical `freestyle_tricks.slug`, see §4: those go to a **separate** staging file (`passback_record_categories.csv`), not into `snippet_candidates.csv`.
+For record-categories that have no canonical `freestyle_tricks.slug`, see PassBack-specific lessons below: those go to a **separate** staging file (`passback_record_categories.csv`), not into `snippet_candidates.csv`.
 
 ## 2. Hard rules
 

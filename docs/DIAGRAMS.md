@@ -213,11 +213,11 @@ Visual aids for understanding the system design. Six diagrams cover production i
 
 ═══════════════════════  PASSWORD CHANGE FLOW  ════════════════════════
 
-  Browser:  POST /members/:memberKey/edit/password  { currentPassword, newPassword }
+  Browser:  POST /members/:memberKey/edit/password  { oldPassword, newPassword, confirmPassword }
   ↓
 ┌─────────────────────────────────────────────────────────────────────┐
 │  identityAccessService  (inside a db transaction)                   │
-│  1. Verify currentPassword  (same argon2id check as login)          │
+│  1. Verify oldPassword  (same argon2id check as login)              │
 │  2. Hash newPassword with argon2id                                  │
 │  3. transaction(() => {                                             │
 │       queries.updateMemberPassword.run({                            │
@@ -270,7 +270,8 @@ Visual aids for understanding the system design. Six diagrams cover production i
 │    GET  /events             →  EventController.listEvents           │
 │    POST /events             →  EventController.createEvent          │
 │    POST /events/:id         →  EventController.updateEvent          │
-│    POST /account/password   →  AuthController.changePassword        │
+│    POST /members/:memberKey/edit/password                           │
+│                             →  MemberController.postPasswordEdit    │
 │    POST /media/upload       →  MediaController.upload               │
 │    …                                                                │
 │                                                                     │

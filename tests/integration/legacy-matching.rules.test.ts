@@ -418,6 +418,25 @@ describe('R15 to R23 status', () => {
 
     const recOnly = insertHistoricalPerson(db, { person_name: `Kay ${married}` });
     expect(candidateFor(k, { recordId: recOnly })).toMatchObject({ status: 'claimable', refusal: null });
+
+    // Defect caught: a curated whole-name variant row reaching across a family
+    // name lets a member claim the other record without the surname rule ever
+    // deciding. The variant only surfaces the candidate; the claim waits on the
+    // differing surname being declared as a former one, and becomes claimable
+    // only once it is.
+    const vNow = surname();
+    const vThen = surname();
+    insertNameVariant(db, {
+      canonical_normalized: `dee ${vNow}`.toLowerCase(), variant_normalized: `delia ${vThen}`.toLowerCase(),
+    });
+    const dee = insertMember(db, { real_name: `Dee ${vNow}` });
+    const deliaRecord = insertHistoricalPerson(db, { person_name: `Delia ${vThen}` });
+    expect(candidateFor(dee, { recordId: deliaRecord })).toMatchObject({
+      status: 'needs_former_surname', refusal: 'surname_mismatch',
+      surname: { passes: false, differingSurname: vThen },
+    });
+    insertMemberDeclaredAnchor(db, { member_id: dee, anchor_type: 'former_surname', anchor_value: vThen });
+    expect(candidateFor(dee, { recordId: deliaRecord })).toMatchObject({ status: 'claimable', refusal: null });
   });
 
   // Defect caught: declaring a surname makes an account claimable that nothing

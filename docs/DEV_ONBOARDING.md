@@ -8,8 +8,8 @@ This guide helps contributors understand how the platform is structured and get 
 >
 > - **New developer** — run it locally and learn the architecture. Lanes: Path A, then B.
 > - **New tester** — run it locally; browse and switch between seeded personas at `/dev/personas` and read captured dev mail without a real inbox. Lanes: Path A, then the testing guide, TESTING_GUIDE.md (private dev-tester repository).
-> - **Initial operator / AWS maintainer** — owns AWS, applies Terraform, performs production activation, and claims the first admin. Starts here at Path A and Path B; AWS work is outside this guide (see §3).
-> - **Other actors** — the historical-data and freestyle pipeline maintainer and docs/design contributors work mostly outside this guide; start at Path B for orientation, then their domain: the pipeline maintainer runs `legacy_data/run_pipeline.sh` and `freestyle/run_freestyle.sh` (and loads the full dataset, from the maintainers' private repository and the mirror, per §1.10A), while design and content contributors work in `docs/` and `src/views/`.
+> - **Initial operator / AWS maintainer** — owns AWS, applies Terraform, performs production activation, and claims the first admin. Starts here at Path A and Path B; AWS work is outside this guide (see the AWS deployment and operations section).
+> - **Other actors** — the historical-data and freestyle pipeline maintainer and docs/design contributors work mostly outside this guide; start at Path B for orientation, then their domain: the pipeline maintainer runs `legacy_data/run_pipeline.sh` and `freestyle/run_freestyle.sh` (and loads the full dataset, from the maintainers' private repository and the mirror, per the Optional: load the full operator dataset section), while design and content contributors work in `docs/` and `src/views/`.
 
 > **Choose your path**
 >
@@ -89,7 +89,7 @@ Recommended Windows + WSL working model:
 - enable the WSL 2 backend and WSL integration for your Ubuntu distro (essential).
 - run Node, npm, sqlite3, Git, SSH, and Claude Code from the WSL Ubuntu shell.
 
-macOS and native-Linux contributors are fully supported. The simplest Mac path is an Ubuntu VM (for example UTM); every step works the same except reaching the running site in your browser, which uses an SSH tunnel into the VM (see §1.8). The setup script (§1.5) supports x86_64 Ubuntu, native or under WSL. On an ARM machine, such as an Apple Silicon Mac or an ARM Ubuntu VM, adapt its steps by hand to the same pinned versions; there the Python loaders use Python's built-in SQLite module, because the pinned SQLite wheel is published for x86_64 only. **Deploy from an x86_64 machine only.** The deploy builds the container images for the processor it runs on, and the hosts are x86_64, so on an ARM machine the deploy refuses after the build and sends nothing. An Intel Mac running an x86_64 Ubuntu VM deploys like any Ubuntu machine. Only §1.4 step 1 (WSL) is Windows-specific; on any non-Windows Ubuntu, start at §1.4 step 2.
+macOS and native-Linux contributors are fully supported. The simplest Mac path is an Ubuntu VM (for example UTM); every step works the same except reaching the running site in your browser, which uses an SSH tunnel into the VM (see the Run the dev server section). The setup script (§1.5) supports x86_64 Ubuntu, native or under WSL. On an ARM machine, such as an Apple Silicon Mac or an ARM Ubuntu VM, adapt its steps by hand to the same pinned versions; there the Python loaders use Python's built-in SQLite module, because the pinned SQLite wheel is published for x86_64 only. **Deploy from an x86_64 machine only.** The deploy builds the container images for the processor it runs on, and the hosts are x86_64, so on an ARM machine the deploy refuses after the build and sends nothing. An Intel Mac running an x86_64 Ubuntu VM deploys like any Ubuntu machine. Only §1.4 step 1 (WSL) is Windows-specific; on any non-Windows Ubuntu, start at §1.4 step 2.
 
 ### 1.3 Required tools
 
@@ -127,7 +127,7 @@ For the local Docker parity check (§1.13), also have:
   out-of-memory message. Free memory is what counts, not installed memory, so close the browser
   before a deploy on a smaller machine.
 
-**Every version is pinned.** The npm dependencies are exact in `package.json` and locked in `package-lock.json`, so install them with `npm ci`, never `npm install`, and change a version or an override only with `scripts/pin-npm-package.sh`. Node comes from `.nvmrc` (22.22.1), which `package.json` `engines` requires exactly; Python comes from `.python-version` (3.12.12). The Python packages come from hash-pinned `requirements.txt` files, compiled from their `requirements.in` files by `scripts/lock-python-deps.sh` and installed with `--require-hashes`. Terraform is pinned exactly (1.14.7). A convention gate refuses any unpinned version. Every other tool's version, with its download checksum, is in `ops/tool-versions.env`, and a tool at any other version is refused.
+**Every version is pinned.** The npm dependencies are exact in `package.json` and locked in `package-lock.json`, so install them with `npm ci`, never `npm install`, and change a version or an override only with `scripts/pin-npm-package.sh`. Node comes from `.nvmrc` (22.23.4), which `package.json` `engines` requires exactly; Python comes from `.python-version` (3.12.12). The Python packages come from hash-pinned `requirements.txt` files, compiled from their `requirements.in` files by `scripts/lock-python-deps.sh` and installed with `--require-hashes`. Terraform is pinned exactly (1.14.7). A convention gate refuses any unpinned version. Every other tool's version, with its download checksum, is in `ops/tool-versions.env`, and a tool at any other version is refused.
 
 Notes:
 
@@ -605,7 +605,7 @@ On **native Linux**, install Docker Engine from Docker's own apt repository rath
 
 On **Windows**, install Docker Desktop, enable the **WSL 2 based engine**, and enable WSL integration for your Ubuntu distro.
 
-On **macOS**, if you are using the Ubuntu VM path from §1.2, install Docker Engine inside the VM as for native Linux.
+On **macOS**, if you are using the Ubuntu VM path from the Supported machine setup section, install Docker Engine inside the VM as for native Linux.
 
 Then verify from the Ubuntu shell:
 
@@ -684,7 +684,7 @@ With hello world running and the tests green, here is where to go next:
 - **More tests:** `./run_all_tests.sh` is the complete local gate: the full suite once, with the unit and integration tiers run as the coverage run inside the clean room, plus the security probes and the pentest's scriptable probes; the OWASP ZAP scan runs only with `--zap`, before a production deploy. It needs nothing but the checkout and contacts no deployed environment; the real-data rows report "not required" without the full member load, and the staging checks run only with `--staging` and at minimum the dev-tester role: read-only with `--quick`, and the destructive staging tier as well in the bare run.
 - **The full dataset:** load the full dataset (§1.10A) when you need the real event archive and member roster; the roster comes with access to the maintainers' private repository, and the mirror is a maintainer handoff.
 - **Testers:** browse and switch between seeded personas at `/dev/personas` and read captured dev/staging mail without a real inbox; the step-by-step is TESTING_GUIDE.md (private dev-tester repository).
-- **AWS deployment and operations:** see §3. Get the application running locally and under Docker first: infrastructure is stood up after the app it serves, never before.
+- **AWS deployment and operations:** see the AWS deployment and operations section. Get the application running locally and under Docker first: infrastructure is stood up after the app it serves, never before.
 
 ## 2. Path B — Orientation: what this project is and how to think about it
 

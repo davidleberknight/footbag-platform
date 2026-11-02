@@ -30,7 +30,7 @@ const CATALOG: CatalogEntry[] = [
     { params: { verifyUrl: 'https://x/verify/t', ttlHours: 24 }, variant: 'account_verify' },
   ] },
   { template: 'account_exists_notice', services: ['identityAccessService'], samples: [
-    { params: { loginUrl: 'https://x/login', resetUrl: 'https://x/password/forgot' }, variant: 'account_exists_notice' },
+    { params: {}, variant: 'account_exists_notice' },
   ] },
   { template: 'password_changed', services: ['identityAccessService'], samples: [
     { params: {}, variant: 'password_changed' },

@@ -45,6 +45,7 @@ The Footbag Website Modernization Project upgrades footbag.org into the global c
   - [7.4 Infrastructure as Code](#74-infrastructure-as-code)
   - [7.5 Testing](#75-testing)
   - [7.6 Continuous Integration](#76-continuous-integration)
+  - [7.7 Security Patching](#77-security-patching)
 - [8. Legacy Archive](#8-legacy-archive)
 - [9. Volunteer Development](#9-volunteer-development)
 
@@ -832,6 +833,10 @@ Every push to any branch, and every pull request to main, runs the GitHub Action
 A production deploy ships only a commit on main whose CI run is green, so CI on that exact commit is the release's test proof. Adapter parity is proved in CI against stubs and injected fakes, and separately by a read-only staging smoke against the real AWS and third-party services that can be probed safely.
 
 This approach enables rapid local development (no AWS credentials needed) with high confidence in production deployment.
+
+## 7.7 Security Patching
+
+Patching is the System Administrator's decision, made on evidence rather than on a schedule. On request, a vulnerability report checks every pinned version, from the Node runtime and the container images to the host's Amazon Linux packages, against published advisories, and ranks each finding by whether it is known to be exploited and whether the affected system faces the internet, so the most urgent fixes go first; fixes are made on a best-effort basis, with no deadline. Each chosen fix is a reviewed pin change that travels the same path as any release: continuous integration, then staging, then production. Once production is live, staging runs a copy of production's database, so a patch is proven against real data before it ships, and production takes it as a code-only deploy. An operating-system step first snapshots the host and proves a fresh database backup, so neither the host nor any member's data is lost if the step goes wrong; visitors see the maintenance page for the few minutes the service is down.
 
 ---
 

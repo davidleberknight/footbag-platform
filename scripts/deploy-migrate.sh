@@ -244,6 +244,7 @@ if [[ "$ASSUME_YES" != "yes" ]]; then
   # the prompt dies on its own redirection instead of refusing.
   { true >/dev/tty; } 2>/dev/null \
     || die "no terminal available to confirm on, and a production migration has no unattended form; on staging, pass --yes deliberately instead"
+  [[ "$DEPLOY_TARGET" == "footbag-production" ]] && production_staging_first_reminder
   printf 'Type APPLY to continue: ' > /dev/tty
   IFS= read -r reply < /dev/tty
   [[ "$reply" == "APPLY" ]] || die "not confirmed; nothing was deployed and nothing was migrated"

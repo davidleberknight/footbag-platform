@@ -102,6 +102,14 @@ function fixture(): Fixture {
   return { work, bin, env, head, answerCi };
 }
 
+/** The staging-first reminder the shipped library exports. */
+function reminder(): string {
+  const lib = join(REPO_ROOT, 'scripts/lib/production-release-gate.sh');
+  const res = spawnSync('bash', ['-c', `source "${lib}"; printf '%s' "$PRODUCTION_STAGING_FIRST_REMINDER"`], { encoding: 'utf8', ...SPAWN_GUARD });
+  expect(res.stdout, 'the library exports the reminder').not.toBe('');
+  return res.stdout;
+}
+
 function runGate(f: Fixture, extraEnv: Record<string, string> = {}): { status: number | null; stdout: string; stderr: string } {
   const res = spawnSync('bash', [join(f.work, 'scripts/verify-production-release.sh')], {
     cwd: f.work, encoding: 'utf8', env: { ...process.env, ...f.env, ...extraEnv }, ...SPAWN_GUARD,
@@ -178,6 +186,25 @@ describe('the production release gate', () => {
     expect(res.status, res.stderr).toBe(0);
     expect(res.stderr).toContain('is an earlier commit of main, not its tip');
     expect(res.stderr).toContain('rolls production back');
+    // Defect caught: a rollback ships an earlier commit nobody re-proved on
+    // staging, because the warning never says staging comes first for it.
+    const warning = res.stderr.split('\n').find((l) => l.includes('is an earlier commit of main')) ?? '';
+    expect(warning).toContain(reminder());
+  });
+
+  // Defect caught: the reminder is printed on stdout, where a wrapper, a CI job
+  // or an agent session capturing the deploy's output swallows it, or reads
+  // staging to decide whether to print.
+  it('prints the staging-first reminder on stderr only, reading nothing', () => {
+    const lib = join(REPO_ROOT, 'scripts/lib/production-release-gate.sh');
+    // No command reachable once sourced, so a reminder that asked git, ssh or
+    // anything else about staging fails here.
+    const res = spawnSync('bash', ['-c', `source "${lib}"; PATH=/nonexistent; production_staging_first_reminder`], {
+      encoding: 'utf8', ...SPAWN_GUARD,
+    });
+    expect(res.status, res.stderr).toBe(0);
+    expect(res.stdout).toBe('');
+    expect(res.stderr).toContain(reminder());
   });
 
   // Defect caught: an unreachable remote is taken as "HEAD is on main".
@@ -280,6 +307,31 @@ function runDeploy(f: Fixture, extraEnv: Record<string, string> = {}): { rc: str
   });
   return { rc: (res.stdout ?? '').trim(), stderr: res.stderr ?? '' };
 }
+
+describe('the pins a production host is held to', () => {
+  // Defect caught: a caller that does not stop on an unset value takes the
+  // reader's success and sends an empty pin, or the reader quietly takes the
+  // commit's own list for a key main lacks.
+  it('reads them from main, and refuses, naming it, a key only the commit carries', () => {
+    const f = fixture();
+    mkdirSync(join(f.work, 'ops'));
+    writeFileSync(join(f.work, 'ops/tool-versions.env'), 'SQLITE_VERSION=3.51.2\n');
+    sh(f.work, 'git', ['add', '-A']);
+    sh(f.work, 'git', ['commit', '-q', '-m', 'main pins sqlite only']);
+    sh(f.work, 'git', ['push', '-q', 'origin', 'main']);
+    writeFileSync(join(f.work, 'ops/tool-versions.env'), 'SQLITE_VERSION=3.40.0\nCOMPOSE_VERSION=v5.1.0\n');
+    sh(f.work, 'git', ['commit', '-q', '-am', 'the commit carries more']);
+    const lib = join(f.work, 'scripts/lib/production-release-gate.sh');
+    const read = (keys: string) => spawnSync('bash', ['-c',
+      `source "${lib}"; production_main_tool_pins "$1" ${keys}; echo "rc=$? sqlite=\${PRG_MAIN_PINS[SQLITE_VERSION]:-}"`, 'reader', f.work,
+    ], { encoding: 'utf8', ...SPAWN_GUARD });
+    const ok = read('SQLITE_VERSION');
+    expect(ok.stdout.trim(), ok.stderr).toBe('rc=0 sqlite=3.51.2');
+    const refused = read('SQLITE_VERSION COMPOSE_VERSION');
+    expect(refused.stdout.trim()).toMatch(/^rc=1 /);
+    expect(refused.stderr).toContain('no real value for COMPOSE_VERSION');
+  });
+});
 
 describe('the release rules on a production deploy', () => {
   // Defect caught: a deploy ships what CI never proved: uncommitted changes, a

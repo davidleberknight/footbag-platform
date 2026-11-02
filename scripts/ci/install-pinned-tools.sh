@@ -29,6 +29,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 # shellcheck source=../lib/tool-versions.sh
 source "${REPO_ROOT}/scripts/lib/tool-versions.sh"
+# shellcheck source=../lib/fetch-pinned.sh
+source "${REPO_ROOT}/scripts/lib/fetch-pinned.sh"
 
 BIN_DIR=""
 TOOLS=()
@@ -44,7 +46,7 @@ done
   exit 2
 }
 
-FETCH="${FOOTBAG_INSTALL_PINNED_FETCH:-curl -fsSL}"
+FETCH_PINNED_CMD="${FOOTBAG_INSTALL_PINNED_FETCH:-curl -fsSL}"
 [[ -n "${FOOTBAG_INSTALL_PINNED_FETCH:-}" ]] \
   && echo "SYNTHETIC: FOOTBAG_INSTALL_PINNED_FETCH is set -- this run proves nothing about this machine." >&2
 
@@ -54,29 +56,14 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 mkdir -p "$BIN_DIR"
 
-# fetch_pinned <KEY_PREFIX> <out>: downloads <PREFIX>_URL and refuses it unless
-# it matches <PREFIX>_SHA256.
-fetch_pinned() {
-  local prefix="$1" out="$2" url sha got
-  tool_pins_ok "${prefix}_VERSION" "${prefix}_URL" "${prefix}_SHA256" || exit 1
-  tool_pin "${prefix}_URL"; url="$TOOL_PIN_VALUE"
-  tool_pin "${prefix}_SHA256"; sha="$TOOL_PIN_VALUE"
-  $FETCH "$url" > "$out"
-  got="$(sha256sum "$out" | cut -d' ' -f1)"
-  if [[ "$got" != "$sha" ]]; then
-    echo "ERROR: ${url} does not match ${prefix}_SHA256; nothing from it was installed." >&2
-    exit 1
-  fi
-}
-
 for tool in "${TOOLS[@]}"; do
   case "$tool" in
     jq)
-      fetch_pinned JQ "${WORK}/jq"
+      fetch_pinned JQ "${WORK}/jq" || exit 1
       install -m 0755 "${WORK}/jq" "${BIN_DIR}/jq"
       ;;
     age)
-      fetch_pinned AGE "${WORK}/age.tar.gz"
+      fetch_pinned AGE "${WORK}/age.tar.gz" || exit 1
       tar -xzf "${WORK}/age.tar.gz" -C "$WORK" age/age age/age-keygen
       install -m 0755 "${WORK}/age/age" "${BIN_DIR}/age"
       install -m 0755 "${WORK}/age/age-keygen" "${BIN_DIR}/age-keygen"

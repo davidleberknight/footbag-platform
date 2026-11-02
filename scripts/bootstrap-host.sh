@@ -41,7 +41,9 @@
 #    4  host tools from the tool-version list, ops/tool-versions.env: docker from the
 #       distribution unless an engine is already installed, the Compose plugin
 #       checked against its SHA-256, sqlite, rsync, the AWS CLI where the image
-#       has none.
+#       has none. On a host whose containers are running, stepping the Amazon
+#       Linux release first counts the packages the step would change and asks
+#       for its own typed APPLY: the upgrade runs under the serving site.
 #    5  /srv/footbag and an empty env file, root:root, mode 600.
 #    6  set-host-env.sh: the host's FOOTBAG_ENV record. From here every step
 #       first asks the host which environment it is.
@@ -68,9 +70,12 @@
 #       done once the host holds both queue addresses.
 #   13  harden-sshd.sh --apply, and --confirm for a change left unconfirmed.
 #   14  the administrators' keys: named, not run (see below).
-#   15  one reboot on staging, behind its own typed APPLY, so the deploy's
-#       suppression of compressed in-RAM swap takes effect; production keeps
-#       it, so it needs none.
+#   15  one reboot, behind its own typed APPLY, when the host needs one: when
+#       `dnf needs-restarting -r` reports a kernel or core library installed
+#       since boot, on either environment, and on staging so the deploy's
+#       suppression of compressed in-RAM swap takes effect (production keeps
+#       that swap, so it needs none for it). Done once the host is back with a
+#       new boot id, every container healthy, and no reboot still reported.
 #   Then it names the milestone-gated steps (payments activation, first admin,
 #   the cutover login alarm) and stops before them.
 #
@@ -78,6 +83,11 @@
 # private operations checkout holds the one key Terraform injects, and who else
 # holds host access is read live from the host. The step is named with its
 # command rather than skipped in silence.
+#
+# Every run ends with one closing report (scripts/lib/closing-report.sh) listing
+# each error and warning it met, its own, its siblings' and those the host
+# halves marked on their streams, with what it proved; the exit status follows
+# from that list.
 #
 # WHAT IT REFUSES.
 #
@@ -95,7 +105,8 @@
 # --status reads every step's outcome and prints each as DONE, PENDING (with the
 # command that finishes it), UNKNOWN, N-A or INFO. It changes nothing and exits
 # non-zero while any step is pending or unread, the snapshot excepted, which
-# appears on its own a day after an instance is created.
+# appears on its own a day after an instance is created. A reboot the host
+# reports needed is listed in its closing report.
 #
 # --replace-instance is the only route that replaces aws_lightsail_instance.web,
 # the instance Terraform records, under whatever name a restore gave it. It asks
@@ -132,15 +143,18 @@
 # Test seams (CI only; operators never set these), each announced on stderr:
 # FOOTBAG_HOST_SSH_BIN (the ssh client, from the shared wire library),
 # BOOTSTRAP_HOST_TF_BIN, BOOTSTRAP_HOST_AWS_BIN, BOOTSTRAP_HOST_SCRIPTS_DIR (the
-# directory the sibling scripts are run from), BOOTSTRAP_HOST_TFVARS,
-# FOOTBAG_TOOL_VERSIONS, and BOOTSTRAP_HOST_POLL_SECS (the pause between
-# polls of a snapshot or a reboot).
+# directory the sibling scripts are run from, the sqlite3 build among them),
+# BOOTSTRAP_HOST_TFVARS, FOOTBAG_TOOL_VERSIONS, BOOTSTRAP_HOST_SQLITE3_BIN (a
+# file shipped in place of the built sqlite3), and BOOTSTRAP_HOST_POLL_SECS (the
+# pause between polls of a snapshot or a reboot).
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "$REPO_ROOT"
 
+# shellcheck source=lib/closing-report.sh
+source "${SCRIPT_DIR}/lib/closing-report.sh"
 # shellcheck source=lib/host-env-remote.sh
 source "${SCRIPT_DIR}/lib/host-env-remote.sh"
 # shellcheck source=lib/aws-profile.sh
@@ -151,6 +165,8 @@ source "${SCRIPT_DIR}/lib/aws-identity.sh"
 source "${SCRIPT_DIR}/lib/terraform-output.sh"
 # shellcheck source=lib/tool-versions.sh
 source "${SCRIPT_DIR}/lib/tool-versions.sh"
+# shellcheck source=lib/host-reboot.sh
+source "${SCRIPT_DIR}/lib/host-reboot.sh"
 # shellcheck source=internal/bootstrap-host-steps.sh
 source "${SCRIPT_DIR}/internal/bootstrap-host-steps.sh"
 
@@ -159,25 +175,25 @@ MODE="apply"
 
 usage() {
   sed -n '2,/^set -eu/{/^set -eu/d;p;}' "${BASH_SOURCE[0]}"
-  exit "${1:-0}"
+  cr_finish
 }
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --target)
       TARGET="${2:-}"
-      shift 2 || { echo "ERROR: --target requires an argument" >&2; exit 2; }
+      shift 2 || { cr_error "--target requires an argument"; exit 2; }
       ;;
-    --status) [[ "$MODE" == "apply" ]] || { echo "ERROR: --status and --replace-instance are separate runs." >&2; exit 2; }
+    --status) [[ "$MODE" == "apply" ]] || { cr_error "--status and --replace-instance are separate runs."; exit 2; }
               MODE="status"; shift ;;
-    --replace-instance) [[ "$MODE" == "apply" ]] || { echo "ERROR: --status and --replace-instance are separate runs." >&2; exit 2; }
+    --replace-instance) [[ "$MODE" == "apply" ]] || { cr_error "--status and --replace-instance are separate runs."; exit 2; }
               MODE="replace"; shift ;;
-    -h|--help) usage 0 ;;
-    *) echo "ERROR: unknown argument '$1'" >&2; exit 2 ;;
+    -h|--help) usage ;;
+    *) cr_error "unknown argument '$1'"; exit 2 ;;
   esac
 done
 
-require_target "$TARGET" staging production || exit 2
+require_target "$TARGET" staging production || { cr_error "no environment to run against"; exit 2; }
 
 BH_TARGET="$TARGET"
 ALIAS="footbag-${TARGET}"
@@ -192,6 +208,13 @@ if [[ -n "${BOOTSTRAP_HOST_POLL_SECS:-}" ]]; then
 fi
 bh_announce_seams
 
+# The reporting library every host half that reports problems is sent behind:
+# a body arriving on stdin cannot source it.
+REMOTE_REPORT_LIB="${SCRIPT_DIR}/lib/closing-report-remote.sh"
+# This run's own scratch, for the streams it keeps to read the halves' reports.
+BH_WORK="$(mktemp -d)"
+cr_cleanup rm -rf "$BH_WORK"
+
 declare -A P=()
 BH_CRED="<operator credential file>"
 operator_credential_select "$ALIAS" "$TARGET" 2>/dev/null && BH_CRED="$OPERATOR_CREDENTIAL_DISPLAY"
@@ -200,19 +223,39 @@ operator_credential_select "$ALIAS" "$TARGET" 2>/dev/null && BH_CRED="$OPERATOR_
 # else, and held to the directly authenticated operator user: this run applies
 # the identity tree, mints access keys and retires them, none of which the job
 # role may do, and a run that discovered that partway would leave half a host.
-aws_profile_ensure || exit 1
-aws_identity_require_direct_user footbag-operator || exit 1
+aws_profile_ensure || cr_die "the AWS profile for this run could not be settled; nothing was read or changed"
+aws_identity_require_direct_user footbag-operator \
+  || cr_die "this run needs the directly authenticated footbag-operator user; nothing was read or changed"
 
 # ── Shared pieces ────────────────────────────────────────────────────────────
 
 say() { printf '\n==> %s\n' "$*"; }
-proved() { printf '    proved: %s\n' "$*"; }
+proved() {
+  printf '    proved: %s\n' "$*"
+  cr_proved "$*"
+}
 
 # One line of the password into a sibling script's stdin, never the operator's
 # whole credential file, and never this run's own stdin, which the sibling would
 # otherwise inherit and read further lines from.
 with_pass() {
   printf '%s\n' "$SUDO_PASS" | bash "$@"
+}
+
+# capture_send <label> <send> [args...]
+# Runs a host send whose output the caller reads afterwards, shows what it
+# printed, and folds every problem the half marked on its stream into this run's
+# closing report. Sets SEND_OUT; returns the send's status.
+SEND_OUT=""
+capture_send() {
+  local label="$1" rc=0 log
+  shift
+  SEND_OUT="$("$@" 2>&1)" || rc=$?
+  if [[ -n "$SEND_OUT" ]]; then printf '%s\n' "$SEND_OUT"; fi
+  log="$(mktemp "${BH_WORK}/send.XXXXXX")"
+  printf '%s\n' "$SEND_OUT" > "$log"
+  cr_harvest --sentinels-only "$label" "$log"
+  return "$rc"
 }
 
 # The steps judged from a fresh read, so a step is skipped only on its outcome as
@@ -253,6 +296,18 @@ host_answers_as_other_env() {
   [[ "${P[HOST_REACHED]:-}" == "yes" && -n "${P[FOOTBAG_ENV]:-}" && "${P[FOOTBAG_ENV]}" != "$TARGET" ]]
 }
 
+# Whether the packages installed since the host booted need a reboot to be the
+# running ones, as the status probe read it. A check that could not answer is
+# an error, never read as either answer.
+report_reboot_need() {
+  [[ "${P[HOST_REACHED]:-}" == "yes" ]] || return 0
+  case "${P[REBOOT_NEEDED]:-}" in
+    no) cr_proved "${ALIAS} needs no reboot for the packages installed since it booted" ;;
+    yes) cr_warn "${ALIAS} needs a reboot: dnf needs-restarting -r reports a kernel or core library installed since boot. A run of this script offers it as its last step." ;;
+    *) cr_error "could not read whether ${ALIAS} needs a reboot: ${P[REBOOT_NEEDED_SAID]:-the status probe reported nothing}" ;;
+  esac
+}
+
 # ── --status ─────────────────────────────────────────────────────────────────
 
 if [[ "$MODE" == "status" ]]; then
@@ -264,8 +319,10 @@ if [[ "$MODE" == "status" ]]; then
     echo "Skipping the host probe: it needs the host sudo password on stdin."
     echo "  Re-run as: < ${BH_CRED} bash scripts/bootstrap-host.sh --target ${TARGET} --status"
     P[HOST_REACHED]=unknown
+    cr_unproved "the host rows: the run had no sudo password to read them with"
   else
-    require_operator_stdin "scripts/bootstrap-host.sh --target ${TARGET} --status" "$ALIAS" "$TARGET" || exit 1
+    require_operator_stdin "scripts/bootstrap-host.sh --target ${TARGET} --status" "$ALIAS" "$TARGET" \
+      || cr_die "no host sudo password on stdin"
     refresh_host
     # The verifier is asked only of a host that says it is this environment:
     # held against another environment's values it would report that host's.
@@ -274,40 +331,33 @@ if [[ "$MODE" == "status" ]]; then
   refresh_aws
   render_all
   if host_answers_as_other_env; then
-    echo "WARNING: ${ALIAS} records FOOTBAG_ENV=${P[FOOTBAG_ENV]}. The rows above describe that host, not ${TARGET}'s." >&2
-    exit 1
+    cr_die "${ALIAS} records FOOTBAG_ENV=${P[FOOTBAG_ENV]}. The rows above describe that host, not ${TARGET}'s."
   fi
+  report_reboot_need
   if (( RENDER_PENDING > 0 )); then
     echo "${RENDER_PENDING} step(s) pending or unread."
-    exit 1
+    cr_die "${RENDER_PENDING} step(s) pending or unread on ${ALIAS}; each row above names its command"
   fi
   echo "Every step is done."
-  exit 0
+  cr_proved "every bootstrap step reads done on ${ALIAS}"
+  cr_finish
 fi
 
 # ── --replace-instance ───────────────────────────────────────────────────────
 
 if [[ "$MODE" == "replace" ]]; then
-  terminal_present || {
-    echo "ERROR: --replace-instance asks for a typed confirmation and needs a terminal." >&2
-    echo "       Nothing was changed." >&2
-    exit 1
-  }
+  terminal_present || cr_die "--replace-instance asks for a typed confirmation and needs a terminal. Nothing was changed."
 
   say "The instance to replace"
-  tf_instance_name "$TARGET" || { echo "       Nothing was changed." >&2; exit 1; }
+  tf_instance_name "$TARGET" || cr_die "could not read the ${TARGET} web instance from Terraform. Nothing was changed."
   INSTANCE="$TF_INSTANCE_NAME"
   inst_row="$("$BH_AWS_BIN" lightsail get-instance --region us-east-1 --instance-name "$INSTANCE" \
-      --query 'instance.[state.name,createdAt]' --output text </dev/null 2>/dev/null)" || {
-    echo "ERROR: could not read ${INSTANCE} from Lightsail. Nothing was changed." >&2
-    exit 1
-  }
+      --query 'instance.[state.name,createdAt]' --output text </dev/null 2>"${BH_WORK}/aws.err")" \
+    || cr_die "could not read ${INSTANCE} from Lightsail ($(tail -n 1 "${BH_WORK}/aws.err")). Nothing was changed."
   IFS=$'\t' read -r inst_state inst_created <<< "$inst_row"
   echo "    ${INSTANCE}: ${inst_state}, created ${inst_created}"
-  inst_epoch="$(date -u -d "$inst_created" +%s 2>/dev/null)" || {
-    echo "ERROR: ${INSTANCE} reports no readable creation time. Nothing was changed." >&2
-    exit 1
-  }
+  inst_epoch="$(date -u -d "$inst_created" +%s 2>/dev/null)" \
+    || cr_die "${INSTANCE} reports no readable creation time ('${inst_row}'). Nothing was changed."
 
   # On production after go-live the instance holds the member database, and the
   # only copy younger than the last backup is on its disk. A snapshot captures
@@ -315,34 +365,31 @@ if [[ "$MODE" == "replace" ]]; then
   # be there and fresh before the host is taken away.
   LIVE=0
   if [[ "$TARGET" == "production" ]]; then
+    marker_rc=0
     marker="$("$BH_AWS_BIN" ssm get-parameter --name /footbag/production/app/production_live \
-      --region us-east-1 --query Parameter.Value --output text </dev/null 2>/dev/null || true)"
+      --region us-east-1 --query Parameter.Value --output text </dev/null 2>"${BH_WORK}/aws.err")" || marker_rc=$?
+    (( marker_rc == 0 )) || marker="unreadable, exit ${marker_rc}: $(tail -n 1 "${BH_WORK}/aws.err")"
     case "$marker" in
       false) echo "    production-live marker: false (pre-live); no backup freshness required" ;;
       true)
         LIVE=1
         # One interval plus the timer's own jitter is the oldest a healthy host's
         # newest backup can be.
-        bh_backup_limit || {
-          echo "ERROR: could not read the backup interval from ops/systemd/footbag-backup.timer. Nothing was changed." >&2
-          exit 1
-        }
+        bh_backup_limit \
+          || cr_die "could not read the backup interval from ops/systemd/footbag-backup.timer. Nothing was changed."
         limit="$BH_BACKUP_LIMIT"
-        tf_output_read terraform/production snapshots_bucket_name || {
-          echo "ERROR: could not read the snapshots bucket from Terraform. Nothing was changed." >&2
-          exit 1
-        }
+        tf_output_read terraform/production snapshots_bucket_name \
+          || cr_die "could not read the snapshots bucket from Terraform. Nothing was changed."
         bucket="$TF_OUTPUT_VALUE"
-        bh_newest_backup "$bucket" || {
-          echo "ERROR: could not list ${bucket}. Nothing was changed." >&2
-          exit 1
-        }
-        newest="$BH_NEWEST_BACKUP"
-        newest_epoch="$(date -u -d "$newest" +%s 2>/dev/null || echo 0)"
-        age=$(( $(date -u +%s) - newest_epoch ))
+        host_newest_backup "$BH_AWS_BIN" "$bucket" || cr_die "${HS_ERROR}. Nothing was changed."
+        newest="$HS_NEWEST_BACKUP"
+        if [[ -n "$newest" ]]; then
+          newest_epoch="$(date -u -d "$newest" +%s 2>/dev/null)" \
+            || cr_die "the newest database backup in ${bucket} reports a time that cannot be read ('${newest}'), so its age is unknown. Nothing was changed."
+          age=$(( $(date -u +%s) - newest_epoch ))
+        fi
         if [[ -z "$newest" ]] || (( age > limit )); then
-          echo "ERROR: production is live and the newest database backup in ${bucket} is" >&2
-          echo "       ${newest:-absent}, older than one backup interval (${limit}s)." >&2
+          cr_error "production is live and the newest database backup in ${bucket} is ${newest:-absent}, older than one backup interval (${limit}s)."
           echo "       The database between that backup and now lives only on this host's" >&2
           echo "       disk. Find why the backups stopped before replacing it:" >&2
           echo "         < ${BH_CRED} bash scripts/bringup-status.sh --target production --profile <prod-profile>" >&2
@@ -352,9 +399,7 @@ if [[ "$MODE" == "replace" ]]; then
         echo "    newest database backup: ${newest} (${age}s old, within ${limit}s)"
         ;;
       *)
-        echo "ERROR: could not read the production-live marker, which decides whether a fresh" >&2
-        echo "       backup is required first. Nothing was changed." >&2
-        exit 1
+        cr_die "could not read the production-live marker (${marker}), which decides whether a fresh backup is required first. Nothing was changed."
         ;;
     esac
   fi
@@ -362,8 +407,9 @@ if [[ "$MODE" == "replace" ]]; then
   # A live host is stopped and backed up below, which needs the host and its
   # password, so both are settled before anything is asked or changed.
   if (( LIVE )); then
-    require_operator_stdin "scripts/bootstrap-host.sh --target ${TARGET} --replace-instance" "$ALIAS" "$TARGET" || exit 1
-    require_host_is "$ALIAS" "$TARGET" || { echo "       Nothing was changed." >&2; exit 1; }
+    require_operator_stdin "scripts/bootstrap-host.sh --target ${TARGET} --replace-instance" "$ALIAS" "$TARGET" \
+      || cr_die "no host sudo password on stdin. Nothing was changed."
+    require_host_is "$ALIAS" "$TARGET" || cr_die "${ALIAS} is not the ${TARGET} host. Nothing was changed."
   fi
 
   # How old a snapshot may be when the apply wrapper reads it. The wrapper
@@ -377,28 +423,22 @@ if [[ "$MODE" == "replace" ]]; then
   # one already started instead of starting another. One taken of an earlier
   # instance under the same name predates this one's creation and is never
   # reused, and the name carries the instance as Terraform records it, which is
-  # the prefix the apply wrapper accepts.
+  # the prefix the apply wrapper accepts. A listing that fails is not "none to
+  # reuse": it is reported, and a fresh snapshot is taken.
   SNAP_REUSE_SECS=3600
   prefix="${INSTANCE}-pre-replace-"
   snap=""
-  snap_epoch=0
   reused=0
-  existing="$("$BH_AWS_BIN" lightsail get-instance-snapshots --region us-east-1 \
-      --query "instanceSnapshots[?fromInstanceName=='${INSTANCE}' && starts_with(name, '${prefix}') && (state=='available' || state=='pending')].[name,createdAt,state]" \
-      --output text </dev/null 2>/dev/null || true)"
-  while IFS=$'\t' read -r s_name s_created s_state; do
-    [[ -n "$s_name" ]] || continue
-    s_epoch="$(date -u -d "$s_created" +%s 2>/dev/null || echo 0)"
-    if (( s_epoch > inst_epoch && s_epoch > snap_epoch && $(date -u +%s) - s_epoch < SNAP_REUSE_SECS )); then
-      snap="$s_name"; snap_epoch="$s_epoch"; snap_found_state="$s_state"
+  if host_snapshot_recent "$BH_AWS_BIN" "$INSTANCE" "$prefix" "$inst_epoch" "$SNAP_REUSE_SECS"; then
+    if [[ -n "$HS_NAME" ]]; then
+      snap="$HS_NAME"
+      reused=1
+      echo "    reusing ${snap}, a snapshot of this instance from the last hour (${HS_STATE})"
     fi
-  done <<< "$existing"
-  if [[ -n "$snap" ]]; then
-    reused=1
-    echo "    reusing ${snap}, a snapshot of this instance from the last hour (${snap_found_state})"
   else
-    snap="${prefix}$(date -u +%Y%m%dT%H%M%SZ)"
+    cr_warn "${HS_ERROR}; no snapshot is reused, and a fresh one is taken"
   fi
+  [[ -n "$snap" ]] || snap="${prefix}$(date -u +%Y%m%dT%H%M%SZ)"
 
   echo ""
   echo "This REPLACES ${INSTANCE}. Terraform destroys the running instance and creates"
@@ -415,16 +455,15 @@ if [[ "$MODE" == "replace" ]]; then
   echo "and the replacement goes ahead only once that snapshot is complete. The"
   echo "snapshot is kept: it is the way back to the host as it is now."
   echo ""
-  confirm_from_tty "Type 'APPLY' to snapshot and replace ${INSTANCE}: " "APPLY" || {
-    echo "Not confirmed. Nothing was changed." >&2
-    exit 1
-  }
+  confirm_from_tty "Type 'APPLY' to snapshot and replace ${INSTANCE}: " "APPLY" \
+    || cr_die "not confirmed. Nothing was changed."
 
   QUIESCE_HALF="${SCRIPT_DIR}/internal/bootstrap-host-quiesce-remote.sh"
-  quiesce() {
+  quiesce_send() {
     {
       printf '%s\n' "$SUDO_PASS"
       printf 'MODE=%q\n' "$1"
+      cat "$REMOTE_REPORT_LIB"
       cat "$QUIESCE_HALF"
     } | "$HOST_SSH_BIN" "${HOST_SSH_OPTS[@]}" "$ALIAS" 'sudo -k -S -p "" bash -s footbag-bootstrap-quiesce'
   }
@@ -432,13 +471,12 @@ if [[ "$MODE" == "replace" ]]; then
   # so a host this run stopped is started again on the way out.
   stopped=0
   refuse_before_replace() {
-    echo "ERROR: $1 Nothing was replaced." >&2
+    cr_error "$1 Nothing was replaced."
     if (( stopped )); then
-      if quiesce resume; then
+      if capture_send "start footbag.service again" quiesce_send resume; then
         echo "       footbag.service was started again." >&2
       else
-        echo "       footbag.service could NOT be started again: the site is DOWN. Start it" >&2
-        echo "       with: < ${BH_CRED} bash scripts/host-diagnostics.sh --target ${TARGET}" >&2
+        cr_error "footbag.service could NOT be started again: the site is DOWN. Start it with: < ${BH_CRED} bash scripts/host-diagnostics.sh --target ${TARGET}"
       fi
     fi
     exit 1
@@ -448,49 +486,33 @@ if [[ "$MODE" == "replace" ]]; then
     say "Stopping ${ALIAS}'s writes and taking its last backup"
     quiesce_from="$(date -u +%s)"
     stopped=1
-    stream="$(quiesce stop)" || refuse_before_replace "stopping the service or its last backup failed on ${ALIAS}."
-    grep -qx -- '---FOOTBAG-QUIESCED---' <<< "$stream" \
+    capture_send "stop ${ALIAS} and take its last backup" quiesce_send stop \
+      || refuse_before_replace "stopping the service or its last backup failed on ${ALIAS}."
+    grep -qx -- '---FOOTBAG-QUIESCED---' <<< "$SEND_OUT" \
       || refuse_before_replace "${ALIAS} did not report its last backup complete."
-    bh_newest_backup "$bucket" || refuse_before_replace "could not list ${bucket} to find the last backup."
-    last_epoch="$(date -u -d "${BH_NEWEST_BACKUP:-}" +%s 2>/dev/null || echo 0)"
-    [[ -n "$BH_NEWEST_BACKUP" ]] && (( last_epoch >= quiesce_from )) \
-      || refuse_before_replace "no backup object in ${bucket} is newer than the stop (newest: ${BH_NEWEST_BACKUP:-none})."
-    proved "footbag.service stopped; the last backup, ${BH_NEWEST_BACKUP}, is in ${bucket}"
+    host_newest_backup "$BH_AWS_BIN" "$bucket" || refuse_before_replace "${HS_ERROR}, so the last backup could not be found."
+    [[ -n "$HS_NEWEST_BACKUP" ]] \
+      || refuse_before_replace "no backup object in ${bucket} is newer than the stop (newest: none)."
+    last_epoch="$(date -u -d "$HS_NEWEST_BACKUP" +%s 2>/dev/null)" \
+      || refuse_before_replace "the newest backup object in ${bucket} reports a time that cannot be read ('${HS_NEWEST_BACKUP}')."
+    (( last_epoch >= quiesce_from )) \
+      || refuse_before_replace "no backup object in ${bucket} is newer than the stop (newest: ${HS_NEWEST_BACKUP})."
+    proved "footbag.service stopped; the last backup, ${HS_NEWEST_BACKUP}, is in ${bucket}"
   fi
 
   if (( ! reused )); then
     say "Snapshotting ${INSTANCE} as ${snap}"
-    "$BH_AWS_BIN" lightsail create-instance-snapshot --region us-east-1 \
-      --instance-name "$INSTANCE" --instance-snapshot-name "$snap" </dev/null >/dev/null \
-      || refuse_before_replace "Lightsail refused the snapshot."
+    host_snapshot_create "$BH_AWS_BIN" "$INSTANCE" "$snap" || refuse_before_replace "${HS_ERROR}."
   fi
   # Polled until complete, failed, or too old for the apply wrapper to accept,
   # whichever comes first, so the wait and the wrapper's limit cannot disagree.
-  snap_state=""
-  snap_age=0
-  while :; do
-    snap_row="$("$BH_AWS_BIN" lightsail get-instance-snapshot --region us-east-1 \
-        --instance-snapshot-name "$snap" --query 'instanceSnapshot.[state,createdAt]' --output text </dev/null 2>/dev/null || true)"
-    IFS=$'\t' read -r snap_state snap_created <<< "$snap_row"
-    created_epoch="$(date -u -d "${snap_created:-}" +%s 2>/dev/null)" && [[ -n "${snap_created:-}" ]] \
-      || refuse_before_replace "snapshot ${snap} reports no readable creation time ('${snap_row}')."
-    snap_age=$(( $(date -u +%s) - created_epoch ))
-    [[ "$snap_state" == "available" || "$snap_state" == "error" ]] && break
-    (( snap_age < SNAP_USABLE_SECS )) || break
-    sleep "$POLL_SECS"
-  done
-  if [[ "$snap_state" != "available" ]]; then
-    refuse_before_replace "snapshot ${snap} is '${snap_state:-unknown}', not complete, after $(( snap_age / 60 )) minutes. It is left as it is."
-  fi
-  if (( snap_age >= SNAP_USABLE_SECS )); then
-    refuse_before_replace "snapshot ${snap} is $(( snap_age / 60 )) minutes old, too old for the apply wrapper's two-hour limit; a re-run takes a fresh one."
-  fi
-  proved "Lightsail reports ${snap} complete, $(( snap_age / 60 )) minutes old"
+  host_snapshot_wait "$BH_AWS_BIN" "$snap" "$SNAP_USABLE_SECS" "$POLL_SECS" || refuse_before_replace "${HS_ERROR}."
+  proved "Lightsail reports ${snap} complete, $(( HS_AGE / 60 )) minutes old"
 
   say "Replacing ${INSTANCE} through the apply wrapper"
   bash "${BH_SCRIPTS}/terraform-apply.sh" --target "$TARGET" \
     --replace aws_lightsail_instance.web --instance-snapshot "$snap" </dev/null || {
-    echo "ERROR: the replacement apply did not complete. The snapshot ${snap} is kept." >&2
+    cr_error "the replacement apply did not complete. The snapshot ${snap} is kept."
     if (( stopped )); then
       echo "       footbag.service on ${ALIAS} is still stopped, deliberately: what the apply" >&2
       echo "       changed is not known from here. Read the plan's output above, then either" >&2
@@ -498,26 +520,27 @@ if [[ "$MODE" == "replace" ]]; then
     fi
     exit 1
   }
+  proved "the apply wrapper replaced ${INSTANCE} from ${snap}"
   echo ""
   echo "Replaced. The new instance is empty; bootstrap it next:"
   echo "  < ${BH_CRED} bash scripts/bootstrap-host.sh --target ${TARGET}"
-  exit 0
+  cr_unproved "the new instance: it is empty until this script bootstraps it"
+  cr_finish
 fi
 
 # ── The bootstrap ────────────────────────────────────────────────────────────
 
 # Refused before anything changes: the confirmations below are typed, and each
 # minted key is shown once on a terminal.
-terminal_present || {
-  echo "ERROR: the bootstrap asks for typed confirmations and shows each minted key once," >&2
-  echo "       so it needs a terminal. Nothing was changed." >&2
-  exit 1
-}
-require_operator_stdin "scripts/bootstrap-host.sh --target ${TARGET}" "$ALIAS" "$TARGET" || exit 1
+terminal_present \
+  || cr_die "the bootstrap asks for typed confirmations and shows each minted key once, so it needs a terminal. Nothing was changed."
+require_operator_stdin "scripts/bootstrap-host.sh --target ${TARGET}" "$ALIAS" "$TARGET" \
+  || cr_die "no host sudo password on stdin. Nothing was changed."
 
 # Every pin the run installs from, refused before anything changes.
 tool_pins_ok COMPOSE_VERSION COMPOSE_URL COMPOSE_SHA256 CWAGENT_VERSION CWAGENT_URL CWAGENT_SHA256 \
-  DOCKER_ENGINE_HOST AMAZON_LINUX_RELEASE SQLITE_VERSION || exit 1
+  DOCKER_ENGINE_HOST AMAZON_LINUX_RELEASE SQLITE_VERSION \
+  || cr_die "the tool-version list is not ready to install from. Nothing was changed."
 bh_manifest_pins
 pin_assignments() {
   local k
@@ -527,24 +550,24 @@ pin_assignments() {
     printf '%s=%q\n' "$k" "$TOOL_PIN_VALUE"
   done
 }
-PIN_ASSIGNMENTS="$(pin_assignments)" || exit 1
+PIN_ASSIGNMENTS="$(pin_assignments)" || cr_die "a host pin could not be read from the tool-version list. Nothing was changed."
 
 # The pinned sqlite3 the host installs, built here and shipped over the install
 # pipe, so the host needs no compiler. Built only when the packages step runs,
-# because the build takes a container and a minute. Test seam: a run with
-# BOOTSTRAP_HOST_SQLITE3_BIN set ships that file instead, and says so.
+# because the build takes a container and a minute. Its directory is made here,
+# in this shell, and registered for cleanup before the build runs in the
+# subshell that reads its output, so the cleanup knows it whatever the build
+# does. Test seam: a run with BOOTSTRAP_HOST_SQLITE3_BIN set ships that file
+# instead, and says so.
 SQLITE3_WORK=""
-trap '[[ -n "$SQLITE3_WORK" ]] && rm -rf "$SQLITE3_WORK"' EXIT
-trap "trap '' HUP INT TERM; exit 130" INT
-trap "trap '' HUP INT TERM; exit 143" TERM
+SQLITE_LINE=""
 sqlite3_assignment() {
   local bin="${BOOTSTRAP_HOST_SQLITE3_BIN:-}"
   if [[ -n "$bin" ]]; then
     echo "SYNTHETIC: BOOTSTRAP_HOST_SQLITE3_BIN is set; the shipped sqlite3 is a stand-in." >&2
   else
-    SQLITE3_WORK="$(mktemp -d)"
     bin="${SQLITE3_WORK}/sqlite3"
-    bash "${SCRIPT_DIR}/build-sqlite3.sh" --output "$bin" >&2 || return 1
+    bash "${BH_SCRIPTS}/build-sqlite3.sh" --output "$bin" </dev/null >&2 || return 1
   fi
   printf 'SQLITE3_B64=%s\n' "$(base64 -w0 < "$bin")"
 }
@@ -553,32 +576,74 @@ PROVISION_HALF="${SCRIPT_DIR}/internal/bootstrap-host-provision-remote.sh"
 ACCOUNT_HALF="${SCRIPT_DIR}/internal/bootstrap-host-account-remote.sh"
 REBOOT_HALF="${SCRIPT_DIR}/internal/bootstrap-host-reboot-remote.sh"
 
-provision() {
-  local mode="$1" sqlite_line=""
-  require_host_ssh_opts || return 1
-  if [[ "$mode" == "packages" ]]; then
-    sqlite_line="$(sqlite3_assignment)" || { echo "ERROR: the pinned sqlite3 could not be built; nothing was sent to the host." >&2; return 1; }
-  fi
+provision_send() {
+  local mode="$1"
   {
     printf '%s\n' "$SUDO_PASS"
     printf 'MODE=%q\n' "$mode"
     printf 'APP_UID=%q\n' "$BH_APP_UID"
-    [[ "$mode" == "packages" ]] && printf '%s\n%s\n' "$PIN_ASSIGNMENTS" "$sqlite_line"
+    if [[ "$mode" == "packages" || "$mode" == "preview" ]]; then printf '%s\n' "$PIN_ASSIGNMENTS"; fi
+    if [[ "$mode" == "packages" ]]; then printf '%s\n' "$SQLITE_LINE"; fi
+    cat "$REMOTE_REPORT_LIB"
     cat "$PROVISION_HALF"
   } | "$HOST_SSH_BIN" "${HOST_SSH_OPTS[@]}" "$ALIAS" 'sudo -k -S -p "" bash -s footbag-bootstrap-provision'
+}
+
+provision() {
+  local mode="$1"
+  require_host_ssh_opts || cr_die "the pinned host key for ${ALIAS} is not installed"
+  SQLITE_LINE=""
+  if [[ "$mode" == "packages" ]]; then
+    if [[ -z "${BOOTSTRAP_HOST_SQLITE3_BIN:-}" && -z "$SQLITE3_WORK" ]]; then
+      SQLITE3_WORK="$(mktemp -d)"
+      cr_cleanup rm -rf "$SQLITE3_WORK"
+    fi
+    SQLITE_LINE="$(sqlite3_assignment)" || cr_die "the pinned sqlite3 could not be built; nothing was sent to the host."
+  fi
+  cr_run --sentinels-only "provision ${mode}" -- provision_send "$mode"
 }
 
 # A host step that changes something is preceded by this. Before the record
 # exists the pinned key is the identity proof; after, the host is asked.
 confirm_identity() {
   if host_answers_as_other_env; then
-    echo "ERROR: ${ALIAS} records FOOTBAG_ENV=${P[FOOTBAG_ENV]}, but this run is --target ${TARGET}." >&2
+    cr_error "${ALIAS} records FOOTBAG_ENV=${P[FOOTBAG_ENV]}, but this run is --target ${TARGET}."
     echo "       Nothing more was changed. Check the HostName for ${ALIAS} in ~/.ssh/config." >&2
     exit 1
   fi
   if [[ "${P[FOOTBAG_ENV]:-}" == "$TARGET" ]]; then
-    require_host_is "$ALIAS" "$TARGET" || exit 1
+    require_host_is "$ALIAS" "$TARGET" || cr_die "${ALIAS} did not confirm it is the ${TARGET} host."
   fi
+}
+
+# Stepping the Amazon Linux release upgrades every package on the host, and on
+# a host whose containers are running that happens under the serving site. So
+# there, and only there, the packages it would change are counted in a
+# separate read first and the operator confirms that count with a typed APPLY.
+# A fresh host has nothing running and is stepped without asking, so a first
+# bootstrap still runs through.
+confirm_release_step() {
+  local pin="${P[PIN_AMAZON_LINUX_RELEASE]:-}" count
+  [[ -n "$pin" && "${P[AL_RELEASE]:-}" != "$pin" ]] || return 0
+  [[ "${P[CONTAINERS]:-}" == *" Up "* ]] || return 0
+  say "Counting what stepping ${ALIAS} to Amazon Linux ${pin} would change"
+  capture_send "release preview" provision_send preview \
+    || cr_die "could not count the packages stepping ${ALIAS} to Amazon Linux ${pin} would change; nothing was upgraded."
+  count="$(grep -A1 -e '^---FOOTBAG-UPGRADE-COUNT---$' <<< "$SEND_OUT" | tail -1)"
+  [[ "$count" =~ ^[0-9]+$ ]] \
+    || cr_die "${ALIAS} reported no package count for Amazon Linux ${pin}; nothing was upgraded."
+  if (( count == 0 )); then
+    echo "    no package would change; nothing to confirm"
+    return 0
+  fi
+  echo ""
+  echo "${ALIAS} is serving: its containers are running. Stepping it from Amazon Linux"
+  echo "${P[AL_RELEASE]:-an unknown release} to the pinned ${pin} upgrades the ${count} package(s) listed above"
+  echo "under the running site, and an upgrade of docker's own package may restart the"
+  echo "engine and the containers with it. A new kernel or core library takes effect"
+  echo "only after a reboot, which this run offers at its end."
+  confirm_from_tty "Type 'APPLY' to upgrade ${count} package(s) on ${ALIAS} to Amazon Linux ${pin}: " "APPLY" \
+    || cr_die "not confirmed; nothing on ${ALIAS} was upgraded. Re-run this script to step it."
 }
 
 # Run a host step through the provision half unless it is already done, then
@@ -593,10 +658,11 @@ host_step() {
   fi
   say "$title"
   confirm_identity
-  provision "$mode" || { echo "ERROR: ${title} did not complete on ${ALIAS}." >&2; exit 1; }
+  if [[ "$step" == "packages" ]]; then confirm_release_step; fi
+  provision "$mode" || cr_die "${title} did not complete on ${ALIAS}."
   refresh_host
   bh_verdict "$step"
-  [[ "$BH_STATE" == "DONE" ]] || { echo "ERROR: ${title} still reads ${BH_STATE}: ${BH_DETAIL}" >&2; exit 1; }
+  [[ "$BH_STATE" == "DONE" ]] || cr_die "${title} still reads ${BH_STATE}: ${BH_DETAIL}"
   proved "${title}: ${BH_DETAIL}"
 }
 
@@ -616,8 +682,7 @@ retire_dead_keys() {
   shift 4
   local args=("$@")
   if [[ -z "$host_key" ]]; then
-    echo "ERROR: the host's own key id reads empty, so the key it uses cannot be told" >&2
-    echo "       apart from the ones it does not. Nothing was retired." >&2
+    cr_error "the host's own key id reads empty, so the key it uses cannot be told apart from the ones it does not. Nothing was retired."
     return 1
   fi
   for k in $(bh_extra_keys "$keys" "$host_key"); do
@@ -669,14 +734,12 @@ free_key_slot() {
 
 # 1. Terraform.
 say "Terraform: shared, identity, then ${TARGET}"
-bash "${BH_SCRIPTS}/terraform-apply-all.sh" --target "$TARGET" </dev/null || {
-  echo "ERROR: the Terraform step did not complete; nothing on the host was changed." >&2
-  exit 1
-}
+bash "${BH_SCRIPTS}/terraform-apply-all.sh" --target "$TARGET" </dev/null \
+  || cr_die "the Terraform step did not complete; nothing on the host was changed."
 
 # Read only now: before the apply a brand-new environment's tree records no
 # instance at all.
-tf_instance_name "$TARGET" || exit 1
+tf_instance_name "$TARGET" || cr_die "could not read the ${TARGET} web instance from Terraform."
 INSTANCE="$TF_INSTANCE_NAME"
 P[INSTANCE]="$INSTANCE"
 proved "the ${TARGET} web instance is ${INSTANCE}"
@@ -689,10 +752,8 @@ proved "the ${TARGET} web instance is ${INSTANCE}"
 # store stay apart.
 BASE_URL_PARAM="/footbag/${TARGET}/app/public_base_url"
 missing_param="$("$BH_AWS_BIN" ssm get-parameters --names "$BASE_URL_PARAM" --region us-east-1 \
-    --query 'InvalidParameters' --output text </dev/null 2>/dev/null)" || {
-  echo "ERROR: could not read ${BASE_URL_PARAM} from Parameter Store. Nothing on the host was changed." >&2
-  exit 1
-}
+    --query 'InvalidParameters' --output text </dev/null 2>"${BH_WORK}/aws.err")" \
+  || cr_die "could not read ${BASE_URL_PARAM} from Parameter Store ($(tail -n 1 "${BH_WORK}/aws.err")). Nothing on the host was changed."
 if grep -qF -- "$BASE_URL_PARAM" <<< "$missing_param"; then
   echo "" >&2
   echo "STOPPED: ${TARGET} publishes no ${BASE_URL_PARAM} yet, because CloudFront is not" >&2
@@ -708,25 +769,26 @@ if grep -qF -- "$BASE_URL_PARAM" <<< "$missing_param"; then
   echo "           2. re-run: < ${BH_CRED} bash scripts/bootstrap-host.sh --target ${TARGET}" >&2
   echo "         The re-run's Terraform step creates the distribution and publishes the" >&2
   echo "         address. Nothing on the host was changed." >&2
-  exit 1
+  cr_die "stopped: ${TARGET} publishes no ${BASE_URL_PARAM} until CloudFront is enabled; the next steps are above"
 fi
 proved "Terraform publishes ${BASE_URL_PARAM}"
 
 # 2. The alias points where Terraform says, and the host key is pinned.
 say "Pinned host key"
 tf_output_read "terraform/${TARGET}" lightsail_static_ip || {
-  echo "ERROR: could not read the ${TARGET} host address from Terraform." >&2
+  cr_error "could not read the ${TARGET} host address from Terraform."
   tf_output_explain "terraform/${TARGET}" lightsail_static_ip
   exit 1
 }
 TF_IP="$TF_OUTPUT_VALUE"
 ALIAS_HOST="$(ssh -G "$ALIAS" 2>/dev/null | grep '^hostname ' | tail -1 | cut -d' ' -f2 || true)"
 if [[ "$ALIAS_HOST" != "$TF_IP" ]]; then
-  echo "ERROR: ${ALIAS} in ~/.ssh/config names '${ALIAS_HOST}', but Terraform reports ${TF_IP}." >&2
+  cr_error "${ALIAS} in ~/.ssh/config names '${ALIAS_HOST}', but Terraform reports ${TF_IP}."
   echo "       Set its HostName to ${TF_IP}, then re-run. Nothing on the host was changed." >&2
   exit 1
 fi
-bash "${BH_SCRIPTS}/install-known-hosts.sh" --target "$TARGET" </dev/null || exit 1
+bash "${BH_SCRIPTS}/install-known-hosts.sh" --target "$TARGET" </dev/null \
+  || cr_die "the host key for ${ALIAS} could not be pinned; nothing on the host was changed."
 
 # 3. The shared account and the second port, through ec2-user the first time.
 refresh_host
@@ -737,38 +799,48 @@ elif [[ "${P[HOST_PROBE]:-}" == "sudo-refused" ]]; then
   # footbag logs in, so the account exists and people use it. Whatever is wrong
   # with the password, the first-login path is not the repair: it would set the
   # account's password to whatever line 1 of this run's file holds.
-  echo "ERROR: ${BH_DETAIL}." >&2
+  cr_error "${BH_DETAIL}."
   echo "       Next: ${BH_NEXT}." >&2
   echo "       Nothing on the host was changed." >&2
   exit 1
 else
   say "First login as ec2-user"
   echo "    footbag did not answer: ${P[HOST_PROBE]:-unknown}${P[HOST_PROBE_SAID]:+ (${P[HOST_PROBE_SAID]})}"
-  require_host_ssh_opts || exit 1
+  require_host_ssh_opts || cr_die "the pinned host key for ${ALIAS} is not installed"
   # Port 22 is the only one a fresh instance listens on. 2222 is tried second,
   # for an operator whose network drops 22 and who has added 2222 from the
   # browser console; both are covered by the pin.
   first_login() {
     {
       printf 'FOOTBAG_PASSWORD=%q\n' "$SUDO_PASS"
+      cat "$REMOTE_REPORT_LIB"
       cat "$ACCOUNT_HALF"
     } | "$HOST_SSH_BIN" "${HOST_SSH_OPTS[@]}" -p "$1" -l ec2-user "$ALIAS" 'sudo -n bash -s footbag-bootstrap-account'
   }
-  if ! first_login 22 && ! first_login 2222; then
-    echo "ERROR: the first login as ec2-user on port 22 did not complete." >&2
-    echo "       If port 22 timed out, your network may drop it. Open the Lightsail" >&2
-    echo "       browser console (Lightsail, the instance, Connect), which reaches the" >&2
-    echo "       host from inside AWS, and add the second port there:" >&2
-    echo "         printf 'Port 22\\nPort 2222\\n' | sudo tee /etc/ssh/sshd_config.d/05-footbag-ports.conf >/dev/null && sudo systemctl reload sshd" >&2
-    echo "       then re-run; the first login goes through on 2222 after that." >&2
-    exit 1
+  if ! capture_send "first login (port 22)" first_login 22; then
+    said_22="$(grep -v -e '^[[:space:]]*$' -e "^${CRR_SENTINEL}" <<< "$SEND_OUT" | tail -1 || true)"
+    if capture_send "first login (port 2222)" first_login 2222; then
+      cr_warn "the first login on port 22 did not complete (${said_22:-no reason given}); it went through on 2222, so this network may drop port 22"
+    else
+      # The one step left to the operator, and why it cannot be a script step:
+      # at this point nothing in the estate answers. footbag has no account
+      # yet, ec2-user answers on neither port, and Lightsail offers no other
+      # way to run a command on the instance from here (no agent, no user_data
+      # on an instance already running). The browser console reaches it from
+      # inside AWS, and the one line it needs is stated in full.
+      cr_error "the first login as ec2-user on port 22 did not complete (${said_22:-no reason given}), and neither did port 2222."
+      echo "       If port 22 timed out, your network may drop it. Open the Lightsail" >&2
+      echo "       browser console (Lightsail, the instance, Connect), which reaches the" >&2
+      echo "       host from inside AWS, and add the second port there:" >&2
+      echo "         printf 'Port 22\\nPort 2222\\n' | sudo tee /etc/ssh/sshd_config.d/05-footbag-ports.conf >/dev/null && sudo systemctl reload sshd" >&2
+      echo "       then re-run; the first login goes through on 2222 after that." >&2
+      exit 1
+    fi
   fi
   refresh_host
   bh_verdict account
-  [[ "$BH_STATE" == "DONE" ]] || {
-    echo "ERROR: footbag still does not log in on ${ALIAS} with sudo taking its password: ${BH_DETAIL}" >&2
-    exit 1
-  }
+  [[ "$BH_STATE" == "DONE" ]] \
+    || cr_die "footbag still does not log in on ${ALIAS} with sudo taking its password: ${BH_DETAIL}"
   proved "shared account: ${BH_DETAIL}"
 fi
 confirm_identity
@@ -786,9 +858,10 @@ if [[ "${P[FOOTBAG_ENV]:-}" == "$TARGET" ]]; then
 else
   confirm_identity
   say "The host's environment record"
-  with_pass "${BH_SCRIPTS}/set-host-env.sh" --target "$TARGET" || exit 1
+  with_pass "${BH_SCRIPTS}/set-host-env.sh" --target "$TARGET" \
+    || cr_die "the host's environment record was not written."
 fi
-require_host_is "$ALIAS" "$TARGET" || exit 1
+require_host_is "$ALIAS" "$TARGET" || cr_die "${ALIAS} did not confirm it is the ${TARGET} host."
 
 # 7. The database directory.
 host_step dbdir dbdir
@@ -798,7 +871,7 @@ refresh_host; refresh_aws
 bh_verdict credentials
 if [[ "${P[CRED_CHAIN]:-}" != "ok" ]]; then
   [[ "${P[IAM_SRC_KEYS]-unknown}" != "unknown" && "${P[IAM_SRC_INACTIVE]-unknown}" != "unknown" ]] \
-    || { echo "ERROR: could not read the source-profile user's keys." >&2; exit 1; }
+    || cr_die "could not read the source-profile user's keys."
   slot=0
   free_key_slot install-host-credentials.sh "${P[IAM_SRC_KEYS]}" "${P[IAM_SRC_INACTIVE]}" "${P[CRED_KEY_ID]:-}" \
     --target "$TARGET" || slot=$?
@@ -810,24 +883,22 @@ if [[ "${P[CRED_CHAIN]:-}" != "ok" ]]; then
       echo "only once a later run has seen it inactive. Re-run this script; it deletes the"
       echo "key and then gives the host its own:"
       echo "  < ${BH_CRED} bash scripts/bootstrap-host.sh --target ${TARGET}"
-      exit 1
+      cr_die "stopped: a source-profile key was retired to free a slot; a re-run deletes it and gives the host its own"
       ;;
-    *) echo "ERROR: could not free a key for this host." >&2; exit 1 ;;
+    *) cr_die "could not free a key for this host." ;;
   esac
   refresh_aws
   say "Host credential chain: a key of its own for this host"
-  with_pass "${BH_SCRIPTS}/install-host-credentials.sh" --target "$TARGET" --rotate || exit 1
+  with_pass "${BH_SCRIPTS}/install-host-credentials.sh" --target "$TARGET" --rotate \
+    || cr_die "the host's own key was not installed."
   refresh_host; refresh_aws
-  [[ "${P[CRED_CHAIN]:-}" == "ok" ]] || {
-    echo "ERROR: the host still does not resolve its runtime role after the install." >&2
-    exit 1
-  }
+  [[ "${P[CRED_CHAIN]:-}" == "ok" ]] || cr_die "the host still does not resolve its runtime role after the install."
 fi
 proved "the host resolves its runtime role with ${P[CRED_KEY_ID]:-its key}"
 [[ "${P[IAM_SRC_KEYS]-unknown}" != "unknown" && "${P[IAM_SRC_INACTIVE]-unknown}" != "unknown" ]] \
-  || { echo "ERROR: could not read the source-profile user's keys." >&2; exit 1; }
+  || cr_die "could not read the source-profile user's keys."
 retire_dead_keys install-host-credentials.sh "${P[IAM_SRC_KEYS]}" "${P[IAM_SRC_INACTIVE]}" "${P[CRED_KEY_ID]:-}" \
-  --target "$TARGET" || { echo "ERROR: the dead host's key was not retired." >&2; exit 1; }
+  --target "$TARGET" || cr_die "the dead host's key was not retired."
 refresh_aws
 
 # 9. The CloudWatch agent. Its metrics take minutes to arrive after an install,
@@ -843,10 +914,10 @@ if [[ "${P[CWAGENT_ACTIVE]:-}" != "active" || "${P[CWAGENT_ENABLED]:-}" != "enab
     # bump or a stopped agent is a package and service change, and minting a key
     # for it would leave a rotation half-done for nothing.
     say "CloudWatch agent ${want_cw}: upgraded in place, keeping ${P[CWAGENT_KEY_ID]}"
-    with_pass "${BH_SCRIPTS}/${CW_INSTALLER}" --upgrade || exit 1
+    with_pass "${BH_SCRIPTS}/${CW_INSTALLER}" --upgrade || cr_die "the CloudWatch agent upgrade did not complete."
   else
     [[ "${P[IAM_CW_KEYS]-unknown}" != "unknown" && "${P[IAM_CW_INACTIVE]-unknown}" != "unknown" ]] \
-      || { echo "ERROR: could not read the publisher's keys." >&2; exit 1; }
+      || cr_die "could not read the publisher's keys."
     slot=0
     free_key_slot "$CW_INSTALLER" "${P[IAM_CW_KEYS]}" "${P[IAM_CW_INACTIVE]}" "${P[CWAGENT_KEY_ID]:-}" || slot=$?
     case "$slot" in
@@ -856,12 +927,12 @@ if [[ "${P[CWAGENT_ACTIVE]:-}" != "active" || "${P[CWAGENT_ENABLED]:-}" != "enab
         echo "STOPPED: a publisher key was retired to make room for this host's own, and it is"
         echo "deleted only once a later run has seen it inactive. Re-run this script:"
         echo "  < ${BH_CRED} bash scripts/bootstrap-host.sh --target ${TARGET}"
-        exit 1
+        cr_die "stopped: a publisher key was retired to free a slot; a re-run deletes it and gives the host its own"
         ;;
-      *) echo "ERROR: could not free a publisher key for this host." >&2; exit 1 ;;
+      *) cr_die "could not free a publisher key for this host." ;;
     esac
     say "CloudWatch agent ${want_cw}: a key of its own for this host"
-    with_pass "${BH_SCRIPTS}/${CW_INSTALLER}" --rotate || exit 1
+    with_pass "${BH_SCRIPTS}/${CW_INSTALLER}" --rotate || cr_die "the CloudWatch agent's own key was not installed."
   fi
   refresh_host; refresh_aws
 fi
@@ -873,7 +944,7 @@ if [[ "$BH_STATE" == "FAILED" ]]; then
   echo "    next: ${BH_NEXT}"
 elif [[ "${P[CW_METRICS]:-}" == "ok" && "${P[IAM_CW_KEYS]-unknown}" != "unknown" && "${P[IAM_CW_INACTIVE]-unknown}" != "unknown" ]]; then
   retire_dead_keys "$CW_INSTALLER" "${P[IAM_CW_KEYS]}" "${P[IAM_CW_INACTIVE]}" "${P[CWAGENT_KEY_ID]:-}" \
-    || { echo "ERROR: the publisher's dead key was not retired." >&2; exit 1; }
+    || cr_die "the publisher's dead key was not retired."
   refresh_aws
 else
   echo "    pending: the agent's metrics are not arriving yet, so its predecessor key is"
@@ -888,12 +959,12 @@ else
   confirm_identity
   if [[ "$TARGET" == "staging" ]]; then
     say "First deploy: a rebuild from the committed data"
-    bash "$BH_DEPLOY" --target staging --from-csv </dev/tty || exit 1
+    bash "$BH_DEPLOY" --target staging --from-csv </dev/tty || cr_die "the first deploy did not complete."
   else
     case "${P[MARKER]:-unknown}" in
       false)
         say "First deploy: the full rebuild production takes before go-live"
-        bash "$BH_DEPLOY" --target production --all-data -W </dev/tty || exit 1
+        bash "$BH_DEPLOY" --target production --all-data -W </dev/tty || cr_die "the first deploy did not complete."
         ;;
       true)
         say "Production is live: the database comes back from its backup, never a rebuild"
@@ -910,36 +981,32 @@ else
           echo "This promotes the working tree onto ${ALIAS}, loads its images and installs"
           echo "footbag.service without starting or enabling it. The site stays down until the"
           echo "restore that follows has re-applied the erasures its snapshot records."
-          confirm_from_tty "Type 'APPLY' to install the release on ${ALIAS} without starting it: " "APPLY" || {
-            echo "Not confirmed. Nothing was deployed." >&2
-            exit 1
-          }
-          with_pass "$BH_DEPLOY_CODE" --first-install --target production || exit 1
-          with_pass "${BH_SCRIPTS}/restore-db.sh" --target production --onto-empty || exit 1
+          confirm_from_tty "Type 'APPLY' to install the release on ${ALIAS} without starting it: " "APPLY" \
+            || cr_die "not confirmed. Nothing was deployed."
+          with_pass "$BH_DEPLOY_CODE" --first-install --target production \
+            || cr_die "the release was not installed on ${ALIAS}."
+          with_pass "${BH_SCRIPTS}/restore-db.sh" --target production --onto-empty \
+            || cr_die "the database was not restored onto ${ALIAS}."
           refresh_host
-          [[ "${P[DB_FILE]:-}" == "present" && "${P[REPLAY_PENDING]:-}" == "no" ]] || {
-            echo "ERROR: after the restore ${ALIAS} reports database ${P[DB_FILE]:-unknown}, erasure replay pending ${P[REPLAY_PENDING]:-unknown}." >&2
-            exit 1
-          }
+          [[ "${P[DB_FILE]:-}" == "present" && "${P[REPLAY_PENDING]:-}" == "no" ]] \
+            || cr_die "after the restore ${ALIAS} reports database ${P[DB_FILE]:-unknown}, erasure replay pending ${P[REPLAY_PENDING]:-unknown}."
           proved "the database is restored and its erasures re-applied"
         elif [[ "${P[REPLAY_PENDING]:-}" == "yes" ]]; then
-          echo "ERROR: a restore's erasure replay is pending on ${ALIAS}, which holds the site down" >&2
-          echo "       until it completes. Finish it, then re-run this script:" >&2
+          cr_error "a restore's erasure replay is pending on ${ALIAS}, which holds the site down until it completes."
+          echo "       Finish it, then re-run this script:" >&2
           echo "         < ${BH_CRED} bash scripts/restore-db.sh --target production --resume-erasure-replay" >&2
           exit 1
         fi
-        bash "$BH_DEPLOY" --target production </dev/tty || exit 1
+        bash "$BH_DEPLOY" --target production </dev/tty || cr_die "the production code deploy did not complete."
         ;;
       *)
-        echo "ERROR: could not read the production-live marker, which decides between the" >&2
-        echo "       rebuild deploy and a restore. Nothing was deployed." >&2
-        exit 1
+        cr_die "could not read the production-live marker, which decides between the rebuild deploy and a restore. Nothing was deployed."
         ;;
     esac
   fi
   refresh_host
   bh_verdict deploy
-  [[ "$BH_STATE" == "DONE" ]] || { echo "ERROR: after the deploy: ${BH_DETAIL}" >&2; exit 1; }
+  [[ "$BH_STATE" == "DONE" ]] || cr_die "after the deploy: ${BH_DETAIL}"
   proved "deployed runtime: ${BH_DETAIL}"
 fi
 
@@ -949,12 +1016,12 @@ if verdict_is_done backup; then
   proved "backup timer: ${BH_DETAIL}"
 else
   say "Backup timer"
-  with_pass "${BH_SCRIPTS}/install-backup-timer.sh" --target "$TARGET" || exit 1
+  with_pass "${BH_SCRIPTS}/install-backup-timer.sh" --target "$TARGET" || cr_die "the backup timer was not installed."
   # The install runs the first backup itself, so the object it wrote is in the
   # bucket by now; the step is done on that object, not on the install's word.
   refresh_host; refresh_aws
   bh_verdict backup
-  [[ "$BH_STATE" == "DONE" ]] || { echo "ERROR: backup timer still reads ${BH_STATE}: ${BH_DETAIL}" >&2; exit 1; }
+  [[ "$BH_STATE" == "DONE" ]] || cr_die "backup timer still reads ${BH_STATE}: ${BH_DETAIL}"
   proved "backup timer: ${BH_DETAIL}"
 fi
 
@@ -966,13 +1033,14 @@ case "$BH_STATE" in
   DONE|N-A) proved "notification feeds: ${BH_DETAIL}" ;;
   *)
     say "Notification feeds"
-    with_pass "${BH_SCRIPTS}/activate-notification-feeds.sh" --target "$TARGET" --state on || exit 1
+    with_pass "${BH_SCRIPTS}/activate-notification-feeds.sh" --target "$TARGET" --state on \
+      || cr_die "the notification feeds were not activated."
     # Its own deploy is what writes the queue addresses onto the host, so the
     # step is done once the host holds them and Terraform subscribes the queue.
     refresh_host
     bh_probe_terraform "$TARGET"
     bh_verdict feeds
-    [[ "$BH_STATE" == "DONE" ]] || { echo "ERROR: notification feeds still read ${BH_STATE}: ${BH_DETAIL}" >&2; exit 1; }
+    [[ "$BH_STATE" == "DONE" ]] || cr_die "notification feeds still read ${BH_STATE}: ${BH_DETAIL}"
     proved "notification feeds: ${BH_DETAIL}"
     ;;
 esac
@@ -985,16 +1053,16 @@ if [[ "$BH_STATE" == "DONE" ]]; then
 else
   if [[ "${P[SSHD_REVERT_PENDING]:-no}" != "yes" ]]; then
     say "sshd posture"
-    with_pass "${BH_SCRIPTS}/harden-sshd.sh" --target "$TARGET" --apply || exit 1
+    with_pass "${BH_SCRIPTS}/harden-sshd.sh" --target "$TARGET" --apply || cr_die "the sshd hardening did not complete."
     refresh_host
   fi
   if [[ "${P[SSHD_REVERT_PENDING]:-no}" == "yes" ]]; then
     say "Confirming the sshd change"
-    with_pass "${BH_SCRIPTS}/harden-sshd.sh" --target "$TARGET" --confirm || exit 1
+    with_pass "${BH_SCRIPTS}/harden-sshd.sh" --target "$TARGET" --confirm || cr_die "the sshd change was not confirmed."
     refresh_host
   fi
   bh_verdict sshd
-  [[ "$BH_STATE" == "DONE" ]] || { echo "ERROR: sshd posture still reads: ${BH_DETAIL}" >&2; exit 1; }
+  [[ "$BH_STATE" == "DONE" ]] || cr_die "sshd posture still reads: ${BH_DETAIL}"
   proved "sshd posture: ${BH_DETAIL}"
 fi
 
@@ -1004,49 +1072,51 @@ say "Administrator keys"
 echo "    ${BH_DETAIL}."
 echo "    Add each administrator's key with:"
 echo "      ${BH_NEXT}"
+cr_unproved "which administrators need a key on ${ALIAS}: no record lists them"
 
-# 15. One reboot on staging, so compressed in-RAM swap is gone.
+# 15. One reboot, when the host needs one: for the packages installed since it
+# booted, on either environment, or on staging so compressed in-RAM swap is
+# gone. Either reason alone is enough, and one reboot serves both.
 refresh_host
 bh_verdict swap
-if [[ "$BH_STATE" == "DONE" ]]; then
-  proved "swap: ${BH_DETAIL}"
-elif [[ "$TARGET" == "staging" && "${P[ZRAM_ACTIVE]:-}" == "yes" &&"${P[ZRAM_SUPPRESSED]:-}" == "yes" ]]; then
-  say "Rebooting ${ALIAS} once, so the compressed-swap suppression takes effect"
+swap_state="$BH_STATE"
+swap_detail="$BH_DETAIL"
+reboot_why=""
+if [[ "$swap_state" != "DONE" && "$TARGET" == "staging" && "${P[ZRAM_ACTIVE]:-}" == "yes" && "${P[ZRAM_SUPPRESSED]:-}" == "yes" ]]; then
+  reboot_why="so the compressed-swap suppression takes effect"
+fi
+case "${P[REBOOT_NEEDED]:-}" in
+  yes) reboot_why="${reboot_why:+${reboot_why}, and }because dnf needs-restarting -r reports a kernel or core library installed since boot" ;;
+  no) ;;
+  *) cr_error "could not read whether ${ALIAS} needs a reboot, so it was not rebooted for its packages: ${P[REBOOT_NEEDED_SAID]:-the status probe reported nothing}" ;;
+esac
+if [[ "$swap_state" == "DONE" ]]; then
+  proved "swap: ${swap_detail}"
+fi
+if [[ -n "$reboot_why" ]]; then
+  say "Rebooting ${ALIAS} once, ${reboot_why}"
   # Its own confirmation: a reboot takes the site down for its length, and no
   # earlier answer in this run was about that.
   echo "This reboots ${ALIAS}. The site is down until the host is back and every"
   echo "container reports healthy again, usually a minute or two."
-  confirm_from_tty "Type 'APPLY' to reboot ${ALIAS}: " "APPLY" || {
-    echo "Not confirmed; ${ALIAS} was not rebooted. Re-run this script to reboot it." >&2
-    exit 1
-  }
-  require_host_ssh_opts || exit 1
-  stream="$(
-    {
-      printf '%s\n' "$SUDO_PASS"
-      cat "$REBOOT_HALF"
-    } | "$HOST_SSH_BIN" "${HOST_SSH_OPTS[@]}" "$ALIAS" 'sudo -k -S -p "" bash -s footbag-bootstrap-reboot'
-  )" || { echo "ERROR: could not schedule the reboot." >&2; exit 1; }
-  old_boot="$(grep -A1 '^---FOOTBAG-BOOT-ID---$' <<< "$stream" | tail -1)"
-  new_boot=""
-  for (( i = 1; i <= 60; i++ )); do
-    sleep "$POLL_SECS"
-    new_boot="$("$HOST_SSH_BIN" "${HOST_SSH_OPTS[@]}" "$ALIAS" 'cat /proc/sys/kernel/random/boot_id' </dev/null 2>/dev/null || true)"
-    [[ -n "$new_boot" && "$new_boot" != "$old_boot" ]] && break
-  done
-  [[ -n "$new_boot" && "$new_boot" != "$old_boot" ]] || {
-    echo "ERROR: ${ALIAS} has not come back with a new boot id." >&2
-    exit 1
-  }
-  proved "${ALIAS} rebooted (boot id ${new_boot})"
+  confirm_from_tty "Type 'APPLY' to reboot ${ALIAS}: " "APPLY" \
+    || cr_die "not confirmed; ${ALIAS} was not rebooted. Re-run this script to reboot it."
+  require_host_ssh_opts || cr_die "the pinned host key for ${ALIAS} is not installed"
+  host_reboot_and_wait "$ALIAS" "$REBOOT_HALF" "$POLL_SECS" 60 || cr_die "${HR_ERROR}"
+  proved "${ALIAS} rebooted (boot id ${HR_BOOT_ID})"
   # The service starts at boot; wait for every container to report healthy.
   for (( i = 1; i <= 40; i++ )); do
     refresh_host
     verdict_is_done deploy && break
     sleep "$POLL_SECS"
   done
-  verdict_is_done deploy || { echo "ERROR: after the reboot: ${BH_DETAIL}" >&2; exit 1; }
+  verdict_is_done deploy || cr_die "after the reboot: ${BH_DETAIL}"
   proved "deployed runtime after the reboot: ${BH_DETAIL}"
+  case "${P[REBOOT_NEEDED]:-}" in
+    no) proved "${ALIAS} needs no further reboot for its packages" ;;
+    yes) cr_error "${ALIAS} still reports a reboot needed after rebooting: the kernel or core library it was for is not the running one" ;;
+    *) cr_error "could not read whether ${ALIAS} needs a reboot after rebooting: ${P[REBOOT_NEEDED_SAID]:-the status probe reported nothing}" ;;
+  esac
 fi
 
 # The record of where the host stands, from a fresh read of every step.
@@ -1059,7 +1129,9 @@ echo ""
 if (( RENDER_PENDING > 0 )); then
   echo "${RENDER_PENDING} step(s) still pending or failed; each names its command above. A re-run"
   echo "proves what is done and finishes what is pending; a failed step needs its named command."
-  exit 1
+  cr_die "${RENDER_PENDING} step(s) still pending or failed on ${ALIAS}"
 fi
 echo "The host is bootstrapped."
-exit 0
+cr_proved "every bootstrap step reads done on ${ALIAS}"
+cr_unproved "the milestone-gated steps named above: each waits on its milestone"
+cr_finish

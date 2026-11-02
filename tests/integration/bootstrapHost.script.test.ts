@@ -100,6 +100,8 @@ function finishedHost(target: 'staging' | 'production'): Record<string, string> 
     ZRAM_ACTIVE: 'no',
     ZRAM_SUPPRESSED: target === 'staging' ? 'yes' : 'no',
     SWAPFILE: 'yes',
+    REBOOT_NEEDED: 'no',
+    REBOOT_NEEDED_SAID: '',
   };
 }
 
@@ -183,10 +185,20 @@ beforeEach(() => {
     '    printf -- "---FOOTBAG-HOST-ENV---\\n%s\\n---FOOTBAG-HOST-URL---\\nhttps://example.test\\n---FOOTBAG-END---\\n" "$(fact FOOTBAG_ENV)" ;;',
     '  *footbag-bootstrap-account*)',
     '    [[ -e "$STATE/exit/account" ]] && exit "$(cat "$STATE/exit/account")"',
+    '    if [[ -e "$STATE/exit/account-22" && "$*" == *"-p 22 "* ]]; then echo "ssh: connect to host 203.0.113.10 port 22: Connection timed out" >&2; exit 255; fi',
     '    rm -f "$STATE/unreachable" "$STATE/login-refused"; apply_fix account ;;',
+    // The provision half: the release preview answers the package count the
+    // case sets, and a case can have the half report a problem on its stream.
     '  *footbag-bootstrap-provision*)',
-    '    apply_fix "provision-$(grep "^MODE=" "$f" | cut -d= -f2)" ;;',
-    '  *footbag-bootstrap-reboot*)',
+    '    mode="$(grep "^MODE=" "$f" | cut -d= -f2)"',
+    '    echo "provision $mode" >> "$STATE/calls.log"',
+    '    if [[ "$mode" == preview ]]; then',
+    '      [[ -e "$STATE/exit/preview" ]] && { echo "---FOOTBAG-PROBLEM--- ERROR preview stand-in: dnf check-update failed" >&2; exit "$(cat "$STATE/exit/preview")"; }',
+    '      printf -- "---FOOTBAG-UPGRADE-COUNT---\\n%s\\n---FOOTBAG-END---\\n" "$(cat "$STATE/upgrade-count" 2>/dev/null || echo 0)"; exit 0',
+    '    fi',
+    '    [[ -e "$STATE/provision-problem" ]] && cat "$STATE/provision-problem" >&2',
+    '    apply_fix "provision-$mode" ;;',
+    '  *footbag-reboot*)',
     '    printf -- "---FOOTBAG-BOOT-ID---\\nold-boot\\n---FOOTBAG-END---\\n"; apply_fix reboot ;;',
     // Stopping the live host's writes: its last backup lands in the bucket now,
     // unless the case says the backup service fails.
@@ -252,13 +264,14 @@ beforeEach(() => {
     // Lines are name, createdAt, state. The listing honours the query's state
     // filter and its column list, as Lightsail would.
     '  "lightsail get-instance-snapshots")',
+    '    [[ -e "$STATE/snapshots-list-fails" ]] && { echo "An error occurred (AccessDeniedException) when calling the GetInstanceSnapshots operation: stand-in refusal" >&2; exit 254; }',
     '    [[ -e "$STATE/snapshots" ]] || exit 0',
     '    want="available"; [[ "$*" == *"\'pending\'"* ]] && want="available|pending"',
     '    grep -E "\\s(${want})$" "$STATE/snapshots" | { if [[ "$*" == *",state]"* ]]; then cat; else cut -f1,2; fi; }',
     '    exit 0 ;;',
     '  "lightsail create-instance-snapshot") date -u -d "-${FAKE_SNAP_CREATED_AGO:-0} seconds" +%Y-%m-%dT%H:%M:%S+00:00 > "$STATE/snapcreated"; exit 0 ;;',
     '  "lightsail get-instance-snapshot") printf "%s\\t%s\\n" "$(cat "$STATE/snapstate" 2>/dev/null || echo available)" "$(cat "$STATE/snapcreated" 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%S+00:00)"; exit 0 ;;',
-    '  "s3api list-objects-v2") if [[ -e "$STATE/backup-age" ]]; then date -u -d "-$(cat "$STATE/backup-age") seconds" +%Y-%m-%dT%H:%M:%S+00:00; else echo None; fi; exit 0 ;;',
+    '  "s3api list-objects-v2") if [[ -e "$STATE/backup-time" ]]; then cat "$STATE/backup-time"; elif [[ -e "$STATE/backup-age" ]]; then date -u -d "-$(cat "$STATE/backup-age") seconds" +%Y-%m-%dT%H:%M:%S+00:00; else echo None; fi; exit 0 ;;',
     'esac',
     'exit 0',
   ]);
@@ -270,6 +283,7 @@ beforeEach(() => {
     'install-host-credentials.sh', 'install-cwagent-staging.sh', 'install-cwagent-production.sh',
     'deploy_to_aws.sh', 'deploy-code.sh', 'restore-db.sh', 'install-backup-timer.sh', 'activate-notification-feeds.sh',
     'harden-sshd.sh', 'verify-cwagent-metrics.sh', 'verify-host-snapshots.sh', 'verify-host-env.sh',
+    'build-sqlite3.sh',
   ];
   for (const name of siblings) {
     sh(join(work, 'siblings', name), [
@@ -447,6 +461,19 @@ function sessions(): Array<{ args: string; stream: string }> {
 
 function setExit(event: string, code: number): void {
   writeFileSync(join(state, 'exit', event), `${code}\n`);
+}
+
+/** The closing report: everything from its heading to the end of the output. */
+function closingReport(out: string): string {
+  const at = out.lastIndexOf('Closing report');
+  return at < 0 ? '' : out.slice(at);
+}
+
+/** The provision half's modes, in the order the run sent them. */
+function provisionModes(): string[] {
+  const p = join(state, 'calls.log');
+  if (!existsSync(p)) return [];
+  return readFileSync(p, 'utf-8').split('\n').filter((l) => l.startsWith('provision ')).map((l) => l.slice('provision '.length));
 }
 
 /** The row for one step, and the next-command line under it if there is one. */
@@ -665,7 +692,7 @@ describe('bootstrap-host.sh: the bootstrap', () => {
     const calls = siblingCalls().map((c) => c.split(' ')[0]);
     expect(calls.filter((c) => !['terraform-apply-all.sh', 'install-known-hosts.sh', 'verify-cwagent-metrics.sh', 'verify-host-snapshots.sh', 'verify-host-env.sh'].includes(c))).toEqual([]);
     const labels = sessions().map((s) => s.args);
-    expect(labels.some((a) => /footbag-bootstrap-(account|provision|reboot)/.test(a))).toBe(false);
+    expect(labels.some((a) => /footbag-bootstrap-(account|provision)|footbag-reboot/.test(a))).toBe(false);
     expect(r.out).toMatch(/Stopped before the milestone-gated steps/);
     expect(r.out).toMatch(/The host is bootstrapped/);
   });
@@ -946,7 +973,7 @@ describe('bootstrap-host.sh: the bootstrap', () => {
     onEvent('reboot', { ZRAM_ACTIVE: 'no' });
     const r = runTty(['--target', 'staging'], 'APPLY\\n');
     expect(r.status, r.out).toBe(0);
-    expect(sessions().filter((s) => s.args.includes('footbag-bootstrap-reboot'))).toHaveLength(1);
+    expect(sessions().filter((s) => s.args.includes('footbag-reboot'))).toHaveLength(1);
     expect(r.out).toMatch(/Type 'APPLY' to reboot footbag-staging/);
     expect(r.out).toMatch(/rebooted \(boot id new-boot\)/);
   });
@@ -957,7 +984,7 @@ describe('bootstrap-host.sh: the bootstrap', () => {
     writeHost({ ...finishedHost('staging'), ZRAM_ACTIVE: 'yes' });
     const r = runTty(['--target', 'staging'], 'no\\n');
     expect(r.status).toBe(1);
-    expect(sessions().some((s) => s.args.includes('footbag-bootstrap-reboot'))).toBe(false);
+    expect(sessions().some((s) => s.args.includes('footbag-reboot'))).toBe(false);
   });
 
   it('activates the feeds the values file turns on, and is done only once the host holds the queue addresses', () => {
@@ -1179,6 +1206,218 @@ describe('bootstrap-host.sh --replace-instance', () => {
   });
 });
 
+describe('bootstrap-host.sh: the closing report', () => {
+  it('fails the run when the provision half reports a problem mid-stream, though every step then reads done', () => {
+    // Defect caught: a package scriptlet error the host printed scrolls past,
+    // the steps all read done afterwards, and the run ends green. The passing
+    // control is the run without the problem, which exits 0.
+    writeHost({ ...finishedHost('staging'), COMPOSE_VERSION: 'none' });
+    onEvent('provision-packages', { COMPOSE_VERSION: COMPOSE.slice(1) });
+    writeFileSync(join(state, 'provision-problem'),
+      '---FOOTBAG-PROBLEM--- ERROR dnf install: warning: %post(docker-stand-in) scriptlet failed, exit status 1\n');
+    const r = runTty(['--target', 'staging']);
+    expect(r.status, r.out).toBe(1);
+    expect(closingReport(r.out)).toContain('%post(docker-stand-in) scriptlet failed');
+
+    rmSync(join(state, 'provision-problem'));
+    writeHost({ ...finishedHost('staging'), COMPOSE_VERSION: 'none' });
+    const clean = runTty(['--target', 'staging']);
+    expect(clean.status, clean.out).toBe(0);
+  });
+
+  it('sends the remote reporting library ahead of every half that reports through it', () => {
+    // Defect caught: a half calls the reporting functions the stream never
+    // defined, so on the host it dies at its first problem with "command not
+    // found" in place of the problem.
+    writeHost({ ...finishedHost('staging'), COMPOSE_VERSION: 'none' });
+    onEvent('provision-packages', { COMPOSE_VERSION: COMPOSE.slice(1) });
+    writeFileSync(join(state, 'unreachable'), '');
+    runTty(['--target', 'staging']);
+    for (const label of ['footbag-bootstrap-provision', 'footbag-bootstrap-account']) {
+      const s = sessions().find((x) => x.args.includes(label));
+      expect(s, label).toBeTruthy();
+      expect(s!.stream.indexOf('crr_finish()'), label).toBeGreaterThan(0);
+      expect(s!.stream.indexOf('crr_finish()'), label).toBeLessThan(s!.stream.lastIndexOf('crr_finish'));
+    }
+  });
+
+  it('lists a first login that failed on port 22 and went through on 2222', () => {
+    // Defect caught: the operator's network drops port 22 and nothing says so,
+    // so the next host's first login fails with no clue why.
+    writeFileSync(join(state, 'unreachable'), '');
+    setExit('account-22', 255);
+    const r = runTty(['--target', 'staging']);
+    expect(r.status, r.out).toBe(0);
+    expect(closingReport(r.out)).toContain('port 22: Connection timed out');
+  });
+
+  it('removes the sqlite3 build directory it made, and gives the build no stdin', () => {
+    // Defects caught: the build directory was made inside a subshell, so the
+    // cleanup never saw it and every packages run left one behind; and the
+    // build inherited the credential file as its stdin.
+    hook('build-sqlite3.sh', [
+      'out=""; prev=""; for a in "$@"; do [[ "$prev" == --output ]] && out="$a"; prev="$a"; done',
+      'printf "BUILT-SQLITE3-MARKER\\n" > "$out"',
+      'printf "%s\\n" "$out" > "$STATE/built-at"',
+    ]);
+    writeHost({ ...finishedHost('staging'), SQLITE_VERSION: '3.40.0' });
+    onEvent('provision-packages', { SQLITE_VERSION: SQLITE_PIN });
+    const r = runTty(['--target', 'staging'], '', { BOOTSTRAP_HOST_SQLITE3_BIN: '' });
+    expect(r.status, r.out).toBe(0);
+    const builtAt = readFileSync(join(state, 'built-at'), 'utf-8').trim();
+    const p = sessions().find((s) => s.args.includes('footbag-bootstrap-provision'));
+    expect(Buffer.from(/^SQLITE3_B64=(\S+)$/m.exec(p!.stream)![1], 'base64').toString()).toBe('BUILT-SQLITE3-MARKER\n');
+    expect(existsSync(builtAt), builtAt).toBe(false);
+    expect(existsSync(join(builtAt, '..')), builtAt).toBe(false);
+    expect(siblingCalls().find((c) => c.startsWith('build-sqlite3.sh'))).toMatch(/\| stdin=$/);
+  });
+});
+
+describe('bootstrap-host.sh: stepping the release on a host that is serving', () => {
+  const OLD_RELEASE = '2023.11.20260901';
+
+  it('previews the package count and asks for a typed APPLY before stepping the release', () => {
+    // Defect caught: a re-run on a serving host upgrades every package under
+    // the running containers with no warning of how much will change.
+    writeHost({ ...finishedHost('staging'), AL_RELEASE: OLD_RELEASE });
+    onEvent('provision-packages', { AL_RELEASE: AL_PIN });
+    writeFileSync(join(state, 'upgrade-count'), '37\n');
+    const r = runTty(['--target', 'staging'], 'APPLY\\n');
+    expect(r.status, r.out).toBe(0);
+    expect(provisionModes()).toEqual(['preview', 'packages']);
+    expect(r.out).toMatch(/APPLY[^\n]*\b37\b/);
+  });
+
+  it('steps nothing without the typed APPLY', () => {
+    writeHost({ ...finishedHost('staging'), AL_RELEASE: OLD_RELEASE });
+    writeFileSync(join(state, 'upgrade-count'), '37\n');
+    const r = runTty(['--target', 'staging'], 'no\\n');
+    expect(r.status).toBe(1);
+    expect(provisionModes()).toEqual(['preview']);
+  });
+
+  it('asks nothing on a host with no containers running, which a fresh host is', () => {
+    // The passing control: the confirmation guards a serving host, and a fresh
+    // instance must still bootstrap unattended past it.
+    writeHost({ ...finishedHost('staging'), AL_RELEASE: OLD_RELEASE, CONTAINERS: '' });
+    onEvent('provision-packages', { AL_RELEASE: AL_PIN });
+    onEvent('deploy_to_aws.sh', { CONTAINERS: HEALTHY_CONTAINERS });
+    const r = runTty(['--target', 'staging']);
+    expect(r.status, r.out).toBe(0);
+    expect(provisionModes()).toEqual(['packages']);
+  });
+
+  it('steps nothing when the package count cannot be read, and reports why', () => {
+    // Defect caught: a failed count reads as zero packages, and the upgrade
+    // runs without the operator having seen what it would change.
+    writeHost({ ...finishedHost('staging'), AL_RELEASE: OLD_RELEASE });
+    setExit('preview', 1);
+    const r = runTty(['--target', 'staging'], 'APPLY\\n');
+    expect(r.status).toBe(1);
+    expect(provisionModes()).toEqual(['preview']);
+    expect(closingReport(r.out)).toContain('dnf check-update failed');
+  });
+});
+
+describe('bootstrap-host.sh: a reboot the updated packages need', () => {
+  it('reports a pending reboot in the status closing report, and nothing on a host that needs none', () => {
+    writeHost({ ...finishedHost('staging'), REBOOT_NEEDED: 'yes' });
+    const r = run(['--target', 'staging', '--status']);
+    expect(r.status, r.stderr).toBe(0);
+    expect(closingReport(r.stderr)).toMatch(/needs-restarting/);
+
+    writeHost(finishedHost('staging'));
+    const none = run(['--target', 'staging', '--status']);
+    expect(closingReport(none.stderr)).not.toMatch(/needs-restarting/);
+  });
+
+  it('reports an unreadable reboot check as an error, never as a reboot needed', () => {
+    // Defect caught: a host without the check, or one where it failed, is told
+    // it needs a reboot, or is reported fine.
+    writeHost({ ...finishedHost('staging'), REBOOT_NEEDED: 'error', REBOOT_NEEDED_SAID: 'stand-in: No such command' });
+    const r = run(['--target', 'staging', '--status']);
+    expect(r.status).toBe(1);
+    expect(closingReport(r.stderr)).toContain('stand-in: No such command');
+  });
+
+  it('reboots production when the packages need it, behind its own typed APPLY, and proves the new boot loaded them', () => {
+    writeHost({ ...finishedHost('production'), REBOOT_NEEDED: 'yes' });
+    onEvent('reboot', { REBOOT_NEEDED: 'no' });
+    const r = runTty(['--target', 'production'], 'APPLY\\n');
+    expect(r.status, r.out).toBe(0);
+    expect(sessions().filter((s) => s.args.includes('footbag-reboot'))).toHaveLength(1);
+    expect(r.out).toMatch(/rebooted \(boot id new-boot\)/);
+  });
+
+  it('does not reboot production without the typed APPLY', () => {
+    writeHost({ ...finishedHost('production'), REBOOT_NEEDED: 'yes' });
+    const r = runTty(['--target', 'production'], 'no\\n');
+    expect(r.status).toBe(1);
+    expect(sessions().some((s) => s.args.includes('footbag-reboot'))).toBe(false);
+  });
+
+  it('fails a reboot after which the host still reports one needed', () => {
+    // Defect caught: the reboot is reported done on the new boot id alone,
+    // while the kernel or libraries it was for are still not the running ones.
+    writeHost({ ...finishedHost('production'), REBOOT_NEEDED: 'yes' });
+    const r = runTty(['--target', 'production'], 'APPLY\\n');
+    expect(r.status).toBe(1);
+    expect(sessions().filter((s) => s.args.includes('footbag-reboot'))).toHaveLength(1);
+  });
+
+  it('never reboots on an unreadable reboot check', () => {
+    writeHost({ ...finishedHost('production'), REBOOT_NEEDED: 'error', REBOOT_NEEDED_SAID: 'stand-in: check failed' });
+    const r = runTty(['--target', 'production'], 'APPLY\\n');
+    expect(r.status).toBe(1);
+    expect(sessions().some((s) => s.args.includes('footbag-reboot'))).toBe(false);
+    expect(closingReport(r.out)).toContain('stand-in: check failed');
+  });
+});
+
+describe('bootstrap-host.sh: the reasons a check gives are kept', () => {
+  it('shows the host env verifier\'s FAIL lines in its row', () => {
+    // Defect caught: the row says the verifier failed and drops what it said,
+    // so the operator has to run it again to learn which value differs.
+    setExit('verify-host-env.sh', 1);
+    hook('verify-host-env.sh', ['echo "  PASS  FOOTBAG_ENV matches"', 'echo "  FAIL  STAND_IN_KEY differs from Terraform"']);
+    const r = run(['--target', 'staging', '--status']);
+    const row = rowFor(r.stdout, 'Host environment record').line;
+    expect(row).toContain('STAND_IN_KEY differs from Terraform');
+    expect(row).not.toContain('FOOTBAG_ENV matches');
+  });
+
+  it('shows the metrics check\'s reason in the agent row', () => {
+    setExit('verify-cwagent-metrics.sh', 1);
+    hook('verify-cwagent-metrics.sh', ['echo "  FAIL  stand_in_metric        footbag-staging          no datapoints"']);
+    const r = run(['--target', 'staging', '--status']);
+    expect(rowFor(r.stdout, 'CloudWatch agent').line).toContain('stand_in_metric');
+  });
+});
+
+describe('bootstrap-host.sh --replace-instance: problems the old code swallowed', () => {
+  it('takes a fresh snapshot when the existing ones cannot be listed, and says why', () => {
+    // Defect caught: a failed listing read as "no snapshot to reuse", in
+    // silence, so a permissions fault went unseen until it mattered.
+    writeFileSync(join(state, 'snapshots-list-fails'), '');
+    const r = runTty(['--target', 'staging', '--replace-instance'], 'APPLY\\n');
+    expect(r.status, r.out).toBe(0);
+    expect(readFileSync(join(state, 'calls.log'), 'utf-8')).toMatch(/lightsail create-instance-snapshot/);
+    expect(closingReport(r.out)).toContain('AccessDeniedException');
+  });
+
+  it('refuses a newest backup whose time cannot be read, rather than calling it decades old', () => {
+    // Defect caught: an unreadable time parsed as epoch 0, so the operator was
+    // told the backups had stopped and sent to find out why.
+    writeFileSync(join(state, 'marker'), 'true\n');
+    writeFileSync(join(state, 'backup-time'), 'stand-in-not-a-time\n');
+    const r = runTty(['--target', 'production', '--replace-instance'], 'APPLY\\n');
+    expect(r.status).toBe(1);
+    expect(closingReport(r.out)).toContain('stand-in-not-a-time');
+    expect(r.out).not.toMatch(/older than one backup interval/);
+    expect(readFileSync(join(state, 'calls.log'), 'utf-8')).not.toMatch(/create-instance-snapshot/);
+  });
+});
+
 /**
  * The root-side halves, run as an ordinary user against stand-ins for the host
  * tools they call, so what each decides is read from what it ran.
@@ -1192,9 +1431,11 @@ describe('bootstrap-host remote halves, against stand-in host tools', () => {
   function tool(name: string, lines: string[]): void {
     sh(join(tools, name), [`LOG=${JSON.stringify(log)}`, 'printf "%s %s\\n" "$(basename "$0")" "$*" >> "$LOG"', ...lines]);
   }
+  // Every half is sent behind the remote reporting library, as the caller sends it.
+  const REMOTE_LIB = join(process.cwd(), 'scripts/lib/closing-report-remote.sh');
   function runHalf(half: string, input: string, extra: NodeJS.ProcessEnv = {}) {
     const r = spawnSync('bash', ['-s'], {
-      input: input + readFileSync(half, 'utf-8'),
+      input: input + readFileSync(REMOTE_LIB, 'utf-8') + readFileSync(half, 'utf-8'),
       encoding: 'utf-8',
       env: { ...process.env, PATH: `${tools}:${process.env.PATH ?? ''}`, ...extra },
       ...SPAWN_GUARD,
@@ -1278,14 +1519,25 @@ describe('bootstrap-host remote halves, against stand-in host tools', () => {
 
   describe('the host tools', () => {
     type Engine = 'none' | 'docker-ce' | 'pinned' | 'other';
-    interface HostTools { engine: Engine; release: string; distroSqlite: boolean; installedSqlite?: string }
+    interface HostTools {
+      engine: Engine; release: string; distroSqlite: boolean; installedSqlite?: string;
+      /** /etc/dnf/dnf.conf as the host holds it. */
+      dnfConf?: string;
+      /** A line dnf prints during an install. */
+      dnfSays?: string;
+      /** How `dnf check-update` answers: its exit status and its listing. */
+      checkUpdate?: { rc: number; out: string };
+    }
     let releaseFile: string;
     let sqliteTarget: string;
+    let dnfConf: string;
 
     /** A host in the given state; the stand-ins answer the way the real tools do. */
     function provisionTools(h: HostTools): void {
       releaseFile = join(work, 'amazon-linux-release');
       sqliteTarget = join(work, 'usr-bin-sqlite3');
+      dnfConf = join(work, 'dnf.conf');
+      writeFileSync(dnfConf, h.dnfConf ?? '[main]\ngpgcheck=1\ninstallonly_limit=3\n');
       writeFileSync(releaseFile, `Amazon Linux release ${h.release} (Amazon Linux)\n`);
       rmSync(sqliteTarget, { force: true });
       if (h.installedSqlite) sh(sqliteTarget, [`echo "${h.installedSqlite} 2026-01-09 stub"`]);
@@ -1306,17 +1558,24 @@ describe('bootstrap-host remote halves, against stand-in host tools', () => {
       ]);
       // Stepping the release rewrites the release file, as the system-release
       // package does when the upgrade lands.
-      tool('dnf', [`[[ "$1" == upgrade ]] && echo "Amazon Linux release ${AL_PIN} (Amazon Linux)" > ${JSON.stringify(releaseFile)}`, 'exit 0']);
+      tool('dnf', [
+        `[[ "$1" == upgrade ]] && echo "Amazon Linux release ${AL_PIN} (Amazon Linux)" > ${JSON.stringify(releaseFile)}`,
+        h.dnfSays ? `[[ "$1" == install ]] && echo ${JSON.stringify(h.dnfSays)}` : ':',
+        h.checkUpdate
+          ? `[[ "$1" == check-update ]] && { printf '%b' ${JSON.stringify(h.checkUpdate.out)}; exit ${h.checkUpdate.rc}; }`
+          : ':',
+        'exit 0',
+      ]);
       tool('install', ['[[ "$1" == -d ]] && { mkdir -p "${*: -1}"; exit 0; }', 'cp "${@: -2:1}" "${@: -1}"']);
       tool('systemctl', ['exit 0']);
       tool('id', ['exit 1']);
       tool('aws', ['exit 0']);
     }
     /** The pins the workstation sends, with a shipped binary reporting `reports`. */
-    function pins(reports = SQLITE_PIN): string {
+    function pins(reports = SQLITE_PIN, mode = 'packages'): string {
       const shipped = Buffer.from(`#!/bin/sh\necho "${reports} 2026-01-09 shipped"\n`).toString('base64');
       return [
-        'MODE=packages', 'DOCKER_PACKAGE=docker', `DOCKER_ENGINE_HOST=${DOCKER_PIN}`, `AMAZON_LINUX_RELEASE=${AL_PIN}`,
+        `MODE=${mode}`, `DNF_CONF=${dnfConf}`, 'DOCKER_PACKAGE=docker', `DOCKER_ENGINE_HOST=${DOCKER_PIN}`, `AMAZON_LINUX_RELEASE=${AL_PIN}`,
         `SQLITE_VERSION=${SQLITE_PIN}`, `SQLITE3_B64=${shipped}`, 'RSYNC_PACKAGE=rsync', 'AWSCLI_PACKAGE=awscli-2',
         `COMPOSE_VERSION=${COMPOSE}`, 'COMPOSE_URL=https://example.test/compose', `COMPOSE_SHA256=${DIGEST}`,
         `AL_RELEASE_FILE=${releaseFile}`, `SQLITE_INSTALL_PATH=${sqliteTarget}`,
@@ -1338,12 +1597,19 @@ describe('bootstrap-host remote halves, against stand-in host tools', () => {
     });
 
     it('changes nothing on a host already at every pin', () => {
-      provisionTools({ engine: 'pinned', release: AL_PIN, distroSqlite: false, installedSqlite: SQLITE_PIN });
+      const conf = '[main]\ngpgcheck=1\nexcludepkgs=sqlite\n';
+      provisionTools({ engine: 'pinned', release: AL_PIN, distroSqlite: false, installedSqlite: SQLITE_PIN, dnfConf: conf });
       const r = runHalf(PROVISION_HALF, pins());
       expect(r.status, r.out).toBe(0);
       expect(logged()).not.toMatch(/^dnf /m);
       expect(readFileSync(sqliteTarget, 'utf-8')).toContain('stub');
+      expect(readFileSync(dnfConf, 'utf-8')).toBe(conf);
     });
+
+    /** The half's marked error lines. */
+    function problems(out: string): string[] {
+      return out.split('\n').filter((l) => l.startsWith('---FOOTBAG-PROBLEM--- ERROR '));
+    }
 
     it('refuses an engine that is not the pinned distribution package, replacing nothing', () => {
       // Defect caught: a host carrying Docker CE from an older runbook, or the
@@ -1354,19 +1620,114 @@ describe('bootstrap-host remote halves, against stand-in host tools', () => {
         provisionTools({ engine, release: AL_PIN, distroSqlite: false, installedSqlite: SQLITE_PIN });
         const r = runHalf(PROVISION_HALF, pins());
         expect(r.status, engine).toBe(1);
-        expect(r.out, engine).toMatch(/Nothing installed/);
+        expect(problems(r.out), engine).toHaveLength(1);
         expect(logged(), engine).not.toMatch(/^dnf (install|remove)/m);
       }
     });
 
-    it('refuses a shipped sqlite3 that reports any version but the pin', () => {
-      // Defect caught: a binary built from the wrong source lands where the
-      // backup and the deploy call it.
-      provisionTools({ engine: 'pinned', release: AL_PIN, distroSqlite: false });
+    it('names the release step it already took when it then refuses the engine', () => {
+      // Defect caught: the refusal said nothing was installed after the release
+      // upgrade had already changed every package on the host, so the operator
+      // believed the host was as it had been.
+      provisionTools({ engine: 'docker-ce', release: '2023.6.20241010', distroSqlite: false, installedSqlite: SQLITE_PIN });
+      const r = runHalf(PROVISION_HALF, pins());
+      expect(r.status).toBe(1);
+      expect(problems(r.out)).toHaveLength(1);
+      expect(problems(r.out)[0]).toContain(AL_PIN);
+      expect(problems(r.out)[0]).toContain('2023.6.20241010');
+
+      // At the pin already, the same refusal names no release step.
+      rmSync(log, { force: true });
+      provisionTools({ engine: 'docker-ce', release: AL_PIN, distroSqlite: false, installedSqlite: SQLITE_PIN });
+      const atPin = runHalf(PROVISION_HALF, pins());
+      expect(problems(atPin.out)[0]).not.toContain(AL_PIN);
+    });
+
+    it('refuses a shipped sqlite3 that reports any version but the pin, before removing the distribution one', () => {
+      // Defects caught: a binary built from the wrong source lands where the
+      // backup and the deploy call it; or the distribution's sqlite3 is removed
+      // first, so a bad shipment leaves the host with no sqlite3 at all.
+      provisionTools({ engine: 'pinned', release: AL_PIN, distroSqlite: true });
       const r = runHalf(PROVISION_HALF, pins('3.40.0'));
       expect(r.status).toBe(1);
-      expect(r.out).toMatch(/not the pinned 3\.51\.2; nothing installed/);
+      expect(problems(r.out).join('\n')).toContain('3.40.0');
       expect(existsSync(sqliteTarget)).toBe(false);
+      expect(logged()).not.toMatch(/^dnf remove/m);
+    });
+
+    it('keeps dnf from reinstalling the distribution sqlite, once, whatever else dnf.conf excludes', () => {
+      // Defect caught: a later dnf transaction pulls the distribution sqlite
+      // back in, and its older binary replaces the pinned one the backup runs.
+      const cases: Array<{ before: string; expect: RegExp }> = [
+        { before: '[main]\ngpgcheck=1\n', expect: /^excludepkgs=sqlite$/m },
+        { before: '[main]\ngpgcheck=1\nexcludepkgs=kernel-debug\n', expect: /^excludepkgs=kernel-debug,sqlite$/m },
+        // A package that only begins with the name is not the one excluded.
+        { before: '[main]\nexcludepkgs=sqlite-tools\n', expect: /^excludepkgs=sqlite-tools,sqlite$/m },
+      ];
+      for (const c of cases) {
+        rmSync(log, { force: true });
+        provisionTools({ engine: 'pinned', release: AL_PIN, distroSqlite: true, dnfConf: c.before });
+        const first = runHalf(PROVISION_HALF, pins());
+        expect(first.status, `${c.before}\n${first.out}`).toBe(0);
+        const after = readFileSync(dnfConf, 'utf-8');
+        expect(after, c.before).toMatch(c.expect);
+        // A re-run adds nothing more.
+        const again = runHalf(PROVISION_HALF, pins());
+        expect(again.status, again.out).toBe(0);
+        expect(readFileSync(dnfConf, 'utf-8'), c.before).toBe(after);
+      }
+    });
+
+    it('refuses rather than reports dnf.conf fixed when its own read-back cannot find the exclusion', () => {
+      // Defect caught: the edit lands after a comment on the excludepkgs line,
+      // where the read-back cannot see it, and the half reports the host safe
+      // from a reinstall it has not shown is blocked.
+      provisionTools({ engine: 'pinned', release: AL_PIN, distroSqlite: true, dnfConf: '[main]\nexcludepkgs=kernel-debug # stand-in note\n' });
+      const r = runHalf(PROVISION_HALF, pins());
+      expect(r.status, r.out).toBe(1);
+      expect(problems(r.out).join('\n')).toContain(dnfConf);
+      expect(logged()).not.toMatch(/^dnf remove/m);
+    });
+
+    it('marks a scriptlet failure dnf prints and fails the half, though dnf itself exits 0', () => {
+      // Defect caught: dnf reports a package's install script failing and exits
+      // 0, and the half reports the host provisioned.
+      provisionTools({
+        engine: 'none', release: AL_PIN, distroSqlite: false, installedSqlite: SQLITE_PIN,
+        dnfSays: 'warning: %post(docker-25.0.16) scriptlet failed, exit status 1',
+      });
+      const r = runHalf(PROVISION_HALF, pins());
+      expect(r.status, r.out).toBe(1);
+      expect(problems(r.out).join('\n')).toContain('%post(docker-25.0.16) scriptlet failed');
+    });
+
+    it('counts the packages a release step would change, and reports a failed count as an error', () => {
+      // Defect caught: a count that failed reads as nothing to upgrade, and the
+      // confirmation the operator sees understates what the step changes. The
+      // listing is in the name.arch version repo layout dnf prints.
+      const listing = [
+        '',
+        'docker.x86_64                 25.0.16-1.amzn2023.0.6        amazonlinux',
+        'kernel.x86_64                 6.1.150-170.amzn2023          amazonlinux',
+        'openssl-libs.x86_64           1:3.2.2-1.amzn2023.0.3        amazonlinux',
+        '',
+      ].join('\n');
+      const count = (out: string) => /---FOOTBAG-UPGRADE-COUNT---\n(\S*)/.exec(out)?.[1];
+
+      provisionTools({ engine: 'pinned', release: '2023.6.20241010', distroSqlite: false, checkUpdate: { rc: 100, out: listing } });
+      const some = runHalf(PROVISION_HALF, pins(SQLITE_PIN, 'preview'));
+      expect(some.status, some.out).toBe(0);
+      expect(count(some.out)).toBe('3');
+      expect(logged()).not.toMatch(/^dnf upgrade/m);
+
+      provisionTools({ engine: 'pinned', release: '2023.6.20241010', distroSqlite: false, checkUpdate: { rc: 0, out: '' } });
+      expect(count(runHalf(PROVISION_HALF, pins(SQLITE_PIN, 'preview')).out)).toBe('0');
+
+      provisionTools({ engine: 'pinned', release: '2023.6.20241010', distroSqlite: false, checkUpdate: { rc: 1, out: 'Error: stand-in repository unreachable' } });
+      const failed = runHalf(PROVISION_HALF, pins(SQLITE_PIN, 'preview'));
+      expect(failed.status).toBe(1);
+      expect(count(failed.out)).toBeUndefined();
+      expect(problems(failed.out).join('\n')).toContain('stand-in repository unreachable');
     });
   });
 
@@ -1388,6 +1749,9 @@ describe('bootstrap-host remote halves, against stand-in host tools', () => {
       const failed = runHalf(QUIESCE_HALF, 'MODE=stop\n');
       expect(failed.status).toBe(1);
       expect(failed.out).not.toMatch(/---FOOTBAG-QUIESCED---/);
+      // The caller lists the failure in its own report only if it is marked.
+      expect(failed.out).toMatch(/^---FOOTBAG-PROBLEM--- ERROR /m);
+      expect(ok.out).not.toMatch(/---FOOTBAG-PROBLEM---/);
     });
   });
 
@@ -1409,6 +1773,30 @@ describe('bootstrap-host remote halves, against stand-in host tools', () => {
       for (const t of ['sshd', 'systemctl', 'docker', 'aws', 'swapon']) tool(t, ['exit 1']);
       const r = runHalf(STATUS_HALF, '');
       expect(r.out).toMatch(/^SSHD_LISTEN=22 2222$/m);
+    });
+
+    it('reads a needed reboot from the exit status of needs-restarting -r, and any other answer as an error', () => {
+      // Defect caught: a host where the check is missing or failed is reported
+      // as needing a reboot, or as needing none.
+      for (const t of ['sshd', 'systemctl', 'docker', 'aws', 'swapon', 'ss']) tool(t, ['exit 1']);
+      const cases: Array<{ help: number; rc: number; want: string; said?: RegExp }> = [
+        { help: 0, rc: 1, want: 'yes' },
+        { help: 0, rc: 0, want: 'no' },
+        { help: 0, rc: 2, want: 'error', said: /stand-in check output/ },
+        { help: 1, rc: 1, want: 'error', said: /stand-in: No such command/ },
+      ];
+      for (const c of cases) {
+        tool('dnf', [
+          '[[ "$*" == "needs-restarting --help" ]] && { ' + (c.help ? 'echo "stand-in: No such command: needs-restarting"; ' : '') + `exit ${c.help}; }`,
+          `[[ "$*" == "needs-restarting -r" ]] && { echo "stand-in check output"; exit ${c.rc}; }`,
+          'exit 1',
+        ]);
+        const r = runHalf(STATUS_HALF, '');
+        expect(r.out, JSON.stringify(c)).toMatch(new RegExp(`^REBOOT_NEEDED=${c.want}$`, 'm'));
+        const said = /^REBOOT_NEEDED_SAID=(.*)$/m.exec(r.out)?.[1] ?? '';
+        if (c.said) expect(said, JSON.stringify(c)).toMatch(c.said);
+        else expect(said, JSON.stringify(c)).toBe('');
+      }
     });
   });
 });

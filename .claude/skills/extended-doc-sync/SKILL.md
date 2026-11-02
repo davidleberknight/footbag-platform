@@ -116,7 +116,9 @@ the public repository only.
    card per domain (a service and its pages). A feature not yet built is recorded and left.
    No doc-sync session changes public page wording; wording on the freestyle pages goes to the
    freestyle maintainer.
-8. Record: write the run's remaining findings and every ruling into the results file, then
+8. Record: write the run's remaining findings and every standing ruling (not drift, recorded
+   and left, or carried to a card) into the results file; an applied fix needs none, because the
+   drift it fixed no longer appears. Then
    `npx tsx scripts/extended-doc-sync-inventory.ts --record --results <run>/results.json --ledger <ledger> --from <run>/inventory.json --units <run>/units.json`,
    so the next run reads only what changed and never re-asks a ruling.
 

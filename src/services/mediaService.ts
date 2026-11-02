@@ -1893,7 +1893,8 @@ function buildBrowseQueryString(includeNormalized: string[], excludeNormalized: 
 }
 
 // Locked-context tokens as repeated `?context=` params. Context tags are part
-// of the AND set but render non-removable; carrying them in every filter href
+// of the AND set; an owner-scoping `#by_*` context tag renders locked and every
+// other one renders as a removable include; carrying them in every filter href
 // keeps a viewer inside the surface's gallery (e.g. a club's media) while they
 // refine within it.
 function buildContextQueryString(contextNormalized: string[]): string {

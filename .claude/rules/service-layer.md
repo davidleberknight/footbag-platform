@@ -42,7 +42,7 @@ All thrown errors are subclasses of `ServiceError` from `src/services/serviceErr
 - `ValidationError` -- user-fixable input errors; carries optional `fieldErrors: Record<string,string>`.
 - `NotFoundError` -- missing resources (controller maps to 404, including anti-enumeration cases).
 - `ServiceUnavailableError` -- a transient outage the caller can retry (database contention, a dependency down); controller maps to 503.
-- `ConflictError` -- unique-constraint or business-conflict situations. A repeat of an action whose result already holds is not a conflict: the method returns `own_repeat` or `already_held` instead of throwing.
+- `ConflictError` -- unique-constraint or business-conflict situations. A repeat of an action whose result already holds is not a conflict and never throws: on a path the submitted-twice rule covers, the method returns `own_repeat` or `already_held`; elsewhere it returns its own no-op result (an administrator's second revert of an automatic link answers `already_reverted`).
 - `RateLimitedError` -- throttle hits; carries `retryAfterSeconds`.
 - `ForbiddenError` -- explicit authorization denials.
 

@@ -82,7 +82,10 @@ const RECURRING_DONATION_STARTED_FIELDS = [
 
 export const TEMPLATE_VARIANTS = {
   account_verify:                  v('restricted',   ['verifyUrl', 'ttlPhrase']),
-  account_exists_notice:           v('restricted',   ['loginUrl', 'resetUrl']),
+  // A notice a stranger's registration attempt sets off: it tells the owner how
+  // to reach the site and carries no link, so members are never taught to
+  // follow a sign-in link arriving in mail.
+  account_exists_notice:           v('restricted',   []),
   password_reset_request:          v('restricted',   ['resetUrl', 'ttlPhrase']),
   account_deletion_requested:      v('restricted',   ['memberName', 'gracePhrase']),
   account_deleted_by_admin:        v('restricted',   ['memberName', 'gracePhrase', 'note']),
@@ -167,9 +170,9 @@ const SHAPERS = {
     variant: 'account_verify',
     merge: { verifyUrl: p.verifyUrl, ttlPhrase: hourPhrase(p.ttlHours) },
   }),
-  account_exists_notice: (p: { loginUrl: string; resetUrl: string }): ShapedEmail => ({
+  account_exists_notice: (_p: Empty): ShapedEmail => ({
     variant: 'account_exists_notice',
-    merge: { loginUrl: p.loginUrl, resetUrl: p.resetUrl },
+    merge: {},
   }),
   password_reset_request: (p: { resetUrl: string; ttlHours: number }): ShapedEmail => ({
     variant: 'password_reset_request',

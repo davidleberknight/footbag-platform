@@ -18,7 +18,7 @@ This file does not duplicate:
 
 ## 2. Philosophy and non-negotiables
 
-The operational non-negotiables (tests verify user-story intent and not accidental current code behavior, tests describe long-term contracts not sprint-scoped probes, coverage thresholds set in `vitest.config.ts` are floors enforced by a CI job and raised deliberately, `.skip` and `.todo` and `xit` are forbidden) live in `.claude/rules/testing.md` and `.claude/rules/doc-governance.md` and apply unchanged. The two non-negotiables that belong specifically to this strategic document are stated below.
+The operational non-negotiables (tests verify user-story intent and not accidental current code behavior, tests describe long-term contracts, coverage thresholds set in `vitest.config.ts` are floors enforced by a CI job and raised deliberately, `.skip` and `.todo` and `xit` are forbidden) live in `.claude/rules/testing.md` and `.claude/rules/doc-governance.md` and apply unchanged. The two non-negotiables that belong specifically to this strategic document are stated below.
 
 ### 2.1 Privacy and secrets handling are part of the test contract
 
@@ -42,7 +42,7 @@ Nearly every test in this suite is written by an AI agent, usually the agent tha
 
 This is the single most important rule in the entire strategy, and it is absolute. Every test in the suite exists to prove the system does what its **intent** requires: the success criteria in `docs/USER_STORIES.md`, the decisions in `docs/DESIGN_DECISIONS.md`, and the security and privacy principles in `docs/DATA_GOVERNANCE.md`. A test earns its place only by tracing to one of those sources of intent. The success criterion is the oracle; the code is the thing under test, never the standard the test is measured against.
 
-The forbidden anti-pattern, stated plainly so it cannot be mistaken: **a test that asserts the code does exactly what the code currently does.** Reading an implementation and writing assertions that mirror it produces a test that passes by construction, blesses whatever behavior happens to exist (bugs included), and fails only when someone later fixes the code. Such a test manufactures false confidence and actively resists correction. It is worse than no test, because it disguises an untested surface as a tested one.
+The forbidden anti-pattern, stated plainly so it cannot be mistaken: **a test that asserts the code does exactly what the code does.** Reading an implementation and writing assertions that mirror it produces a test that passes by construction, blesses whatever behavior happens to exist (bugs included), and fails only when someone later fixes the code. Such a test manufactures false confidence and actively resists correction. It is worse than no test, because it disguises an untested surface as a tested one.
 
 The consequences are non-negotiable:
 
@@ -163,7 +163,7 @@ Standard techniques to draw from when shaping a test:
 - Property-based testing: invariant-shaped assertions ("for all inputs, property P holds"). Selective use for validators, encoders, security pure functions, anti-enumeration helpers. Not a universal requirement.
 - Scenario tests with explicit state transitions: state-machine-shaped concerns (multi-step wizard, token lifecycle, audit emission on state-changing paths).
 - Selective fuzzing: parsers, validators, complex input handlers. Targeted at the specific module. Name pathological-input timing (catastrophic regex backtracking / ReDoS) as an explicit goal for any hand-written regex validator — the freestyle notation grammar, slug and URL validators.
-- Rate-limit + resource-bound assertions: denial-of-service concerns. Configuration verification, not load testing (load is deferred per §14).
+- Rate-limit + resource-bound assertions: denial-of-service concerns. Configuration verification, not load testing (load is deferred per the Accessibility and explicit deferrals section).
 - Query-count / N+1 detection: for a list or detail read path, wrap the database and assert the executed-statement count is bounded and stays constant as the row count grows (seed one row versus many; the count must not scale with the data), and that list-returning service methods carry a `LIMIT`. Catches a page whose query count grows with the table before it becomes a production incident, which no row-count or shape assertion reveals.
 - Metamorphic / differential testing: assert a relation between related inputs or outputs rather than one fixed oracle — a migration reconciliation whose aggregate counts are independent of input row order, a sort stable under a repeated secondary key, or two adapter implementations (stub versus live) producing identically-structured output.
 - Money as integer minor units: monetary amounts stay integer cents through every calculation. Test cents-versus-dollars representation, summation with no floating-point arithmetic, and currency-mismatch rejection.
@@ -172,7 +172,7 @@ The technique catalog is a vocabulary, not a checklist. Pick what fits the asser
 
 ### 4.4 Baseline coverage from operational rules
 
-`.claude/rules/testing.md` enumerates per-route and per-service-method baseline coverage (happy path, auth gate, authz gate, not-found, invalid input, draft and unpublished, route ordering, anti-enumeration, rate-limit, CSRF, shape, business rules, atomicity, idempotency, errors, boundaries) and a baseline adversarial list (oversized payloads, unicode mischief, SQL injection, XSS, timing attacks, race conditions, token replay). A test for a new route satisfies the baseline list first; threat-aware additions per §4.2 layer on for catastrophic surfaces.
+`.claude/rules/testing.md` enumerates per-route and per-service-method baseline coverage (happy path, auth gate, authz gate, not-found, invalid input, draft and unpublished, route ordering, anti-enumeration, rate-limit, CSRF, shape, business rules, atomicity, idempotency, errors, boundaries) and a baseline adversarial list (oversized payloads, unicode mischief, SQL injection, XSS, timing attacks, race conditions, token replay). A test for a new route satisfies the baseline list first; threat-aware additions per the STRIDE as a threat-modeling framework section layer on for catastrophic surfaces.
 
 ### 4.5 Catastrophic-surface verification floor
 
@@ -180,13 +180,13 @@ The technique catalog is a vocabulary, not a checklist. Pick what fits the asser
 
 What follows is the depth expected on top of that floor, not an alternative to it. In addition to baseline coverage (§4.4) and STRIDE-aware threat coverage (§4.2), catastrophic-severity surfaces carry:
 
-- ASVS Level 3 verification depth (per §3.4) for the categories that apply.
+- ASVS Level 3 verification depth (per the OWASP ASVS calibration section) for the categories that apply.
 - Every applicable item from the baseline adversarial list and per-route baseline in `.claude/rules/testing.md`, covered with no skip.
 - The canonical invariants -- anti-enumeration response equivalence, session cookie attribute completeness, and idempotency where the surface declares it -- covered by scenario tests with shared assertion helpers in `tests/fixtures/`, so a future refactor that breaks an invariant fails the route's own test. CSRF presence on every state-changing verb is proven by the CSRF sweep over the live route table, so a route's row in that sweep is its CSRF case.
 
   Anti-enumeration equivalence means the two responses are the same, compared whole under a normalization that redacts only what legitimately varies per request. It does not mean the same within a tolerance. A tolerance cannot fail: the login check was once a plus-or-minus five percent comparison of body *lengths*, and appending the submitted address to the refusal message -- a one-character difference in a multi-kilobyte page -- passed it. `tests/fixtures/normalizeAntiEnumerationBody.ts` is the shared helper and the shape to copy. Timing is a separate assertion with its own test, not a clause inside this one.
 
-Property-based testing is an available technique for catastrophic surfaces when a specific surface justifies the cost. It is not mandated per catastrophic surface. Selective adoption per §12.2 governs when and where it applies.
+Property-based testing is an available technique for catastrophic surfaces when a specific surface justifies the cost. It is not mandated per catastrophic surface. Selective adoption per the Selective heavier tooling section governs when and where it applies.
 
 A catastrophic surface that lacks any floor item carries an issue in the maintainers' private tracker: surface name plus the missing floor item. The issue is closed when the gap closes. No rigor levels, no target field, no per-test ceremony; one issue per gap, closed with the gap.
 
@@ -204,7 +204,7 @@ Deriving the persona suite:
 
 4. Map each class to a concrete, named, seedable persona. A dimension that combines with another to change a gate outcome yields a separate persona (a Tier 1 club co-leader and a Tier 1 club member who is not a co-leader are two personas), but combinations that never change an outcome are not multiplied out.
 
-Controlling combinatorial growth: the axes are orthogonal, so the full cartesian product is large and most cells are uninteresting. Catastrophic and high-severity surfaces (auth, session, member privacy, payments, identity claim, per §3) are covered exhaustively across the relevant axes; the rest is sampled with pairwise (all-pairs) selection so every pair of axis values appears in at least one persona without enumerating every triple. Risk severity, not convenience, decides which surfaces are exhaustive.
+Controlling combinatorial growth: the axes are orthogonal, so the full cartesian product is large and most cells are uninteresting. Catastrophic and high-severity surfaces (auth, session, member privacy, payments, identity claim, per the Risk classification and OWASP ASVS levels section) are covered exhaustively across the relevant axes; the rest is sampled with pairwise (all-pairs) selection so every pair of axis values appears in at least one persona without enumerating every triple. Risk severity, not convenience, decides which surfaces are exhaustive.
 
 The matrix: the deployed-route inventory is crossed with the persona suite, and every cell asserts the expected gate outcome, an allow cell for each authorized persona and a deny cell for each unauthorized one. An unasserted route-by-persona cell is a visible candidate authorization gap rather than a silent one, so the matrix doubles as a coverage ledger. The deny half is mandatory: a route that asserts only its allow cells has not been tested for authorization.
 
@@ -313,7 +313,7 @@ Does not belong:
 
 ### 5.5 E2E lightweight (Playwright)
 
-`tests/e2e/`, Playwright config at `tests/playwright.config.ts`. Real browser. Single worker, chromium, headless. Test set is small and business-critical. Tests may carry `@smoke`, `@security`, `@a11y`, or `@migration` tags per §6.3.
+`tests/e2e/`, Playwright config at `tests/playwright.config.ts`. Real browser. Single worker, chromium, headless. Test set is small and business-critical. Tests may carry `@smoke`, `@security`, `@a11y`, or `@migration` tags per the Tag taxonomy section.
 
 Belongs:
 
@@ -341,7 +341,7 @@ A class, not a folder. Lives wherever the assertion most efficiently lives (unit
 - CSRF presence on every state-changing verb (scenario test reused per state-changing route via shared helper; a property-based formulation is an optional upgrade when the surface justifies it)
 - Rate-limit boundary assertions
 - Session cookie attribute assertions
-- Secret and PII leakage regression tests (see §10)
+- Secret and PII leakage regression tests (see the Test data, privacy, secrets, and artifacts section)
 - Testing-shortcut regression tests (§7.5)
 
 Cross-cutting regression classes (cookie attributes, anti-enumeration response equivalence) are implemented via shared assertion helpers in `tests/fixtures/` that the route's own test imports and invokes, so a future refactor that changes the cookie-issuance helper to drop a flag fails the route's own test rather than only a centralized middleware test. CSRF presence on every state-changing verb is proven by the CSRF sweep over the live route table, which also catches a sub-router mounted outside the perimeter.
@@ -354,7 +354,7 @@ A named sub-class of security regression. Any dev-or-staging-only code path that
 
 ### 5.8 Penetration testing
 
-See §9.
+See the Security and penetration testing section.
 
 ### 5.9 Email testing
 
@@ -419,7 +419,7 @@ Belongs in the lightweight suite:
 - Single-worker-safe wizard flows
 - Onboarding, club-cleanup, and legacy-claim wizard happy paths plus the one negative case per wizard that only a browser can reveal; each happy path starts from a fresh account with nothing on file and fills the form through the controls a first visit renders, choosing the case the form most often meets (a US registrant picking a state) rather than one that avoids a control
 - A business rule whose failure shows in the rendered control (an option missing from a select, a refused value offered back as an option, a field drawn for the wrong country) gets a browser case beside its integration cases, because a posted body never sees the control
-- Accessibility automated checks via `@axe-core/playwright` on business-critical surfaces, tagged `@a11y` (per §14.1)
+- Accessibility automated checks via `@axe-core/playwright` on business-critical surfaces, tagged `@a11y` (per the Accessibility as a first-class layer section)
 - The one template-deduplicated browser spec, the rendered-style check (`npm run test:rendered-style`), in its own configuration and continuous-integration job. It seeds the crawl corpus and walks the site by links as each persona to find one page per view; a view no link reaches is listed by URL, or by the URL of the page whose form renders it together with the fields to submit, and an unlisted view fails. Each page renders at 390px and 1280px and is checked with axe, for page problems (console, CSP and script errors, failed same-origin requests), and for rendered style through the shared rendered-style helper: hidden elements still displayed, bordered fieldsets, contrast against the composited background, heading against body text, the text-size floor, prose width and colour, prose links with no cue besides colour, form fields without a visible label (a search box named by its accessible name beside its own submit button counts as labelled), empty states naming a table, the spacing rhythm (every gap between stacked blocks and inside drawn boxes on a role step), target size, overflow and unlabelled scroll boxes at 390px, and table fit at 1280px. It also reports text drawn over other text, text cut off with no ellipsis, colours no root token holds, prose set tighter than 1.4 times its type size, images with no declared shape, and a colour the contrast check cannot read; at 1280px it tabs through each page and reports any control whose keyboard focus draws nothing. Content inside a closed disclosure is not judged, because the browser lays it out without drawing it. Known findings sit in a shrink-only baseline of rule, view, viewport, count and a short hash of the elements found: a new or larger finding fails, as does the same count found on other elements, and a fixed one never does. Run on its own on a workstation, the check lowers the baseline file itself; in CI and inside the full local runner it only reports that the baseline could be lowered. Running with `RENDERED_STYLE_WRITE_BASELINE=1` is the one deliberate way to accept a new finding as known. Running with `RENDERED_STYLE_VIEWS` set to a comma-separated list of views measures only those views against the same baseline; such a run never writes the baseline and refuses `RENDERED_STYLE_WRITE_BASELINE`, because it cannot speak for the views it skipped. Every finding in full is written to `tests/test-results/rendered-style-findings.txt`. A URL that renders a view other than the one it was listed for always fails and can never be accepted into the baseline. Every offending page is reported in one failure, each rule is proven red on a planted page, and the check first confirms the site's own fonts rendered, in every weight the stylesheet uses and for accented letters, so its measurements match on every machine.
 
 Does not belong:
@@ -472,7 +472,7 @@ The three-test contract from `.claude/rules/adapter-conventions.md` applies to e
 - Interface parity test (`tests/integration/adapter-parity.test.ts`): both implementations satisfy the TypeScript interface with identical observable output structure, exercised via an injected fake client.
 - Staging-smoke test (`tests/smoke/`): hits real staging AWS via the assumed-role chain, gated by `RUN_STAGING_SMOKE=1`.
 
-These tests describe permanent contracts. They are not sprint-scoped.
+These tests describe permanent contracts.
 
 A stub refuses every input the live implementation would refuse without contacting the provider: an absent captcha field, an address on the provider's suppression list, an unsigned payload. A stub that accepts what live refuses hides the defect from every environment below production, so the interface-parity test asserts the refusal on both sides. Stubs stay permissive about everything else, so development convenience is unaffected.
 
@@ -554,7 +554,7 @@ A new dev/staging-only affordance lands with all of:
 - *image-strip test.* The production Dockerfile removes both the `dist/testkit` and `dist/dev-bootstrap` subtrees from the production image. Model: `tests/unit/dockerfile-dev-shortcuts-strip.test.ts`.
 - *initial-admins parity test* where applicable. Model: `tests/unit/devShortcuts.initialAdminEmails.test.ts`.
 
-These tests describe long-term contracts on the affordance's safety properties, not sprint-scoped probes. They are tagged `@security`.
+These tests describe long-term contracts on the affordance's safety properties. They are tagged `@security`.
 
 ### 7.6 Test-only HTTP endpoints live behind the env-gated dev router
 
@@ -590,7 +590,7 @@ Staging is loaded with the real footbag.org dataset and is the environment where
 
 Dev and continuous integration keep the unit, route and service integration, the route-by-persona authorization matrix, and the security-regression floor — fast, deterministic, synthetic-only.
 
-**Environment-and-data boundary (absolute).** The real dataset lives only on staging and on the maintainer's local operator load. It never flows into a committed fixture, snapshot, seed file, trace, or any continuous-integration run, and never into application or test logs, screenshots, or a bug-report attachment. Every committed test artifact stays synthetic, unchanged from §2.1 and §10. Real member data on staging never travels downward into the repo or the shared pipeline.
+**Environment-and-data boundary (absolute).** The real dataset lives only on staging and on the maintainer's local operator load. It never flows into a committed fixture, snapshot, seed file, trace, or any continuous-integration run, and never into application or test logs or test screenshots. Real member details may appear in a bug report and its screenshots, because reports live only in the private dev-tester repository and are never public; secrets never do. Every committed test artifact stays synthetic, unchanged from the Privacy and secrets handling are part of the test contract section and the Test data, privacy, secrets, and artifacts section. Real member data on staging never travels downward into the repo or the shared pipeline.
 
 **Protection model.** Staging matches production's network posture — a public site with no edge access control — because parity with production and operational simplicity are first-order goals, and a staging-only gate would break both. Real member data on staging is protected by the same mechanisms that protect it in production: the application's own authentication and the public-versus-member visibility model (public surfaces expose only public historical records; member data requires a session). The environment is additionally kept out of search indexes. The anonymous persona switch (§7.5, §7.6) remains the tester's full-access affordance. The residual exposure this leaves is a risk the maintainer, as risk owner, accepts; data masking and a staging edge gate were both considered and deliberately not adopted. Any IFPA authorization for using real member data in testing is a private governance record kept out of the repo, and no committed doc names the staging address.
 
@@ -628,7 +628,7 @@ Every matching rule lives in one matching component, and every rule has its own 
 
 ### 8.3 Club affiliation and cleanup
 
-Club affiliation tests cover four cases: legacy affiliations that point to known clubs, legacy affiliations that point to ambiguous clubs, members who appear in multiple clubs, and members who appear in no clubs after import. Club cleanup is a state-machine surface; tests are scenario-based per §4.4 with property tests for invariants ("a member is always a member of zero or more confirmed clubs at any point in the cleanup state machine").
+Club affiliation tests cover four cases: legacy affiliations that point to known clubs, legacy affiliations that point to ambiguous clubs, members who appear in multiple clubs, and members who appear in no clubs after import. Club cleanup is a state-machine surface; tests are scenario-based per the Baseline coverage from operational rules section with property tests for invariants ("a member is always a member of zero or more confirmed clubs at any point in the cleanup state machine").
 
 ### 8.4 Loader pipeline regression
 
@@ -757,7 +757,7 @@ The internal QC subsystem was operator tooling for reviewing imported net result
 
 ## 9. Security and penetration testing
 
-The platform's security testing strategy has three classes of automated and tooled testing plus a fourth class of third-party periodic pentest before major launches. The OWASP WSTG (Web Security Testing Guide) is the canonical reference for techniques; the OWASP ASVS (per §3.4) is the canonical reference for verification requirements. WSTG describes how to test; ASVS describes what to verify.
+The platform's security testing strategy has three classes of automated and tooled testing plus a fourth class of third-party periodic pentest before major launches. The OWASP WSTG (Web Security Testing Guide) is the canonical reference for techniques; the OWASP ASVS (per the OWASP ASVS calibration section) is the canonical reference for verification requirements. WSTG describes how to test; ASVS describes what to verify.
 
 ### 9.1 Regression-grade automated security tests
 
@@ -793,7 +793,7 @@ Invoked via `npm run test:pentest:heavy`, which boots a throwaway local stack an
 - Session-cookie attribute coverage: the session cookie is HttpOnly, sets SameSite, and is Secure under https.
 - Internal-surface probing: the `/internal/*` admin tooling redirects an unauthenticated request to login and returns 403 to an authenticated non-admin; the shared-secret `/ipc/*` channel rejects a missing and a wrong secret alike, so the two are indistinguishable.
 - Audit of any reachable dev-only scaffolding callsite (persona harness / dev-bootstrap) from staging or production (the audit script in §9.5 is the canonical mechanism).
-- Report-only legs for maintainer triage rather than pass/fail gates: an OWASP ZAP passive baseline against the local stack or a dedicated pentest staging environment, an opt-in OWASP ZAP active scan, and an opt-in dependency / supply-chain scan (`npm audit` plus an equivalent third-party scanner). Findings feed regression tests per §9.6.
+- Report-only legs for maintainer triage rather than pass/fail gates: an OWASP ZAP passive baseline against the local stack or a dedicated pentest staging environment, an opt-in OWASP ZAP active scan, and an opt-in dependency / supply-chain scan (`npm audit` plus an equivalent third-party scanner). Findings feed regression tests per the Penetration findings produce regression tests section.
 
 Heavyweight pentest:
 
@@ -815,7 +815,7 @@ A qualified external security tester is engaged for periodic review before:
 - Public registration launch, if the project enables self-service registration without legacy claim.
 - Any other feature handling sensitive member data at scale.
 
-The third-party engagement scope is mapped to OWASP ASVS L3 categories that apply (per §3.4). Findings result in regression tests at the cheapest appropriate layer (§4.5 plus §13).
+The third-party engagement scope is mapped to OWASP ASVS L3 categories that apply (per the OWASP ASVS calibration section). Findings result in regression tests at the cheapest appropriate layer (§4.5 plus §13).
 
 ### 9.5 The production-residue audit is the canonical zero-residue gate
 
@@ -837,7 +837,7 @@ Every finding from any class of pentest results in a regression test at the chea
 
 ## 10. Test data, privacy, secrets, and artifacts
 
-The factories pattern in `tests/CLAUDE.md` (`factories.ts` plus `testDb.ts`) is canonical for synthetic test data. The privacy and secrets handling from §2.1 applies to every test artifact. This section adds the strategic policies that follow from those.
+The factories pattern in `tests/CLAUDE.md` (`factories.ts` plus `testDb.ts`) is canonical for synthetic test data. The privacy and secrets handling from the Privacy and secrets handling are part of the test contract section applies to every test artifact. This section adds the strategic policies that follow from those.
 
 ### 10.1 Synthetic only
 
@@ -896,7 +896,7 @@ Not every test runs every time. This section defines the named gates, what runs 
 - *On-demand deep audits.* The ZAP scan, the dependency scan, and the production-residue audit against the live production database. Operator-invoked when a covered surface changes or ahead of a production deploy. Reports, does not block.
 - *Post-deploy smoke gate.* Runs automatically inside both deploy scripts (`scripts/smoke-local.sh` + `scripts/smoke-security.sh`) against the deployed target: health and route smoke plus the blocking security probes — auth-gate enforcement, anti-enumeration response equivalence, and the dev-surface environment contract (dev harness present on staging, absent in production). Sub-1min. Blocks deploy promotion on failure. Distinct from the staging-AWS adapter smoke (§5.4), which exercises live-AWS adapters, not the deployed HTTP surface.
 - *On-demand heavyweight pentest.* Human invokes (`npm run test:pentest:heavy`). May include OWASP ZAP baseline, upload-abuse probes, internal-route probes, header checks, dependency scanning. Browser-driven attack flows are operator-invoked via the `browser-qa` skill. Never runs against production unless explicitly authorized.
-- *Periodic third-party pentest.* At major launches (per §9.4). Reports findings; findings produce regression tests at the cheapest appropriate layer.
+- *Periodic third-party pentest.* At major launches (per the Third-party periodic pentest section). Reports findings; findings produce regression tests at the cheapest appropriate layer.
 
 The db-load smoke gate runs the loader pipeline against fixed fixtures in every bare local run; it carries no path filter, so a loader regression is caught regardless of which files a change touches. Class-specific gating (running a gate only when the surface it covers has changed) is a pattern the suite may adopt for other gates as tooling permits.
 
@@ -906,7 +906,7 @@ The db-load smoke gate runs the loader pipeline against fixed fixtures in every 
 
 - *Test impact analysis* for the local fast loop. `scripts/test-targets.sh` over the git-diff file list, by naming convention, grep and route tracing rather than the import graph. The fast loop runs only tests that own or name the changed code. A module no test names is followed to the modules that import it, up to two hops, and those are mapped in its place, so a content or library module reaches the suites requesting the pages it feeds. The rendered-style check is chosen the same way, by the page views a change can reach: a page template its own view, a partial every page including it, a controller the pages it renders, a service the pages its controllers render; the stylesheet or a layout reaches the whole site.
 - *Tag-based selection* across all gates. The tag taxonomy in §6.3 (`@smoke`, `@security`, `@a11y`, `@migration`) drives which tests run at each gate.
-- *Risk-severity-based selection* for the on-demand deep audits. Catastrophic and high surfaces (per §3) run in CI on every push. Medium and low surfaces run when the surface changes; a periodic sweep is optional future depth on top of the on-push gate.
+- *Risk-severity-based selection* for the on-demand deep audits. Catastrophic and high surfaces (per the Risk classification and OWASP ASVS levels section) run in CI on every push. Medium and low surfaces run when the surface changes; a periodic sweep is optional future depth on top of the on-push gate.
 - *Parallel workers* where the test runner supports it. Vitest workers for unit and integration; Playwright runs one worker, constrained by SQLite WAL serialization.
 - *Skip-on-unchanged-inputs* where tooling supports it. Layers whose inputs have not changed since the last green can be skipped.
 
@@ -1085,14 +1085,14 @@ Operational anti-patterns (no DB mocking, no framework mocking, no timestamp lea
 - *Depending on real production data in committed or CI tests.* Committed and continuous-integration tests never read or assume real member records; they are synthetic-only and deterministic. Real-data testing is the separate, human-driven staging activity in §7.8, whose output is governed by the PII discipline there and never becomes a committed or CI test.
 - *Depending on real email receipt for routine tests.* The persona switch and the simulated-email card exist to avoid this. Routine tests do not poll a mailbox.
 - *Writing to a deployed environment from a test.* No test writes to production. A test writes to staging only inside the destructive staging tier (§5.11), on persona-owned targets or the named curated-content exception, with each change undone.
-- *Running penetration tests against production without explicit authorization.* Forbidden per §9.3 and §9.4.
-- *Attacking third-party services.* Forbidden per §9.3.
-- *Using brute force against real accounts.* Forbidden per §9.3.
+- *Running penetration tests against production without explicit authorization.* Forbidden per the Heavyweight human-invoked pentest and Third-party periodic pentest sections.
+- *Attacking third-party services.* Forbidden per the Heavyweight human-invoked pentest section.
+- *Using brute force against real accounts.* Forbidden per the Heavyweight human-invoked pentest section.
 - *Weakening tests to make them pass.* If a test fails, the code is fixed. The exception is when the test was wrong about intent; then the user story is updated first, with explicit human consent, and the test is rewritten against the corrected story. Weakening assertions to admit failing code is forbidden.
 - *Overusing snapshots.* Snapshot tests are brittle. Prefer explicit assertions on shape or content. Snapshots are acceptable only when the assertion structure is genuinely too large to enumerate (rare).
 - *Ignoring migration edge cases.* Migration testing covers every outcome class in the identity-claim section; ignoring the uncorroborated, surname-differing or never-offered cases is forbidden.
 - *Blurring groups and committees into clubs.* Groups and committees (when implemented) are distinct from clubs per `docs/USER_STORIES.md` and `docs/DESIGN_DECISIONS.md`. Tests preserve the distinction.
-- *Introducing a test-only HTTP endpoint outside `src/testkit/` or `src/dev-bootstrap/`.* Forbidden per §7.6.
+- *Introducing a test-only HTTP endpoint outside `src/testkit/` or `src/dev-bootstrap/`.* Forbidden per the Test-only HTTP endpoints live behind the env-gated dev router section.
 - *A test double written from memory for unstructured tool output.* A stub wrote Terraform's lock error as plain lines; the real error is boxed and coloured even when redirected, so the parser matched nothing and told an operator their own stale lock belonged to another machine, and an unparsed timestamp read as midnight and cleared the staleness floor. Forty-two tests passed against the same fiction.
 - *A fixture smaller than what it stands for.* A cap on the logged mail-provider confirmation URL was set at 300 characters while real URLs run 450 to 500, so every genuine confirmation was refused; the unit fixture was 74 characters and the route fixture 52, and both stayed green.
 - *A factory that fills what the pipeline drops.* Every US and Canadian club candidate reached the database without its state, because the candidate builder and loader dropped the column the seed carried; every app test built candidates through a factory that set the state by hand, so none saw the pipeline's rows (§4.7).
@@ -1113,9 +1113,9 @@ The platform's testing toolchain consists of:
 - *@vitest/coverage-v8.* Coverage measurement. Thresholds set in `vitest.config.ts`.
 - *Playwright.* Browser automation. Config at `tests/playwright.config.ts`. Single-worker chromium-only headless lightweight suite.
 - *Test fixtures.* `tests/fixtures/factories.ts` (synthetic row factories), `tests/fixtures/testDb.ts` (DB setup and teardown), `tests/fixtures/personas.ts` (member plus tier grant plus JWT plus Playwright cookie composition). Shared assertion helpers, by purpose: `cachedGet.ts` (many assertions on one rendered page), `queryCount.ts` (bounded statement counts), `routeTable.ts` (the live route table the generative sweeps enumerate), `clock.ts` (runtime-relative time), `expectCsrfReject.ts` (the CSRF refusal), `assertSecureSessionCookie.ts` (session cookie attributes), and `assertAppendOnly.ts` (ledger immutability).
-- *@axe-core/playwright.* Accessibility automated checks for the lightweight Playwright suite per §14.1, tagged `@a11y`, plus the smoke-tagged subset on high-traffic public pages.
-- *OWASP ZAP.* Heavyweight pentest scanner. Used in the on-demand heavyweight pentest gate per §9.3. Scripted invocation against the local stack or a dedicated pentest staging environment; report aggregation; findings produce regression tests per §9.6.
-- *Pairwise generator.* PICT, ACTS, or an equivalent. Used by the technique reference per §4.3 for matrix-shaped threats. May be hand-derived for small matrices.
+- *@axe-core/playwright.* Accessibility automated checks for the lightweight Playwright suite per the Accessibility as a first-class layer section, tagged `@a11y`, plus the smoke-tagged subset on high-traffic public pages.
+- *OWASP ZAP.* Heavyweight pentest scanner. Used in the on-demand heavyweight pentest gate per the Heavyweight human-invoked pentest section. Scripted invocation against the local stack or a dedicated pentest staging environment; report aggregation; findings produce regression tests per the Penetration findings produce regression tests section.
+- *Pairwise generator.* PICT, ACTS, or an equivalent. Used by the technique reference per the Test technique reference section for matrix-shaped threats. May be hand-derived for small matrices.
 - *Dependency vulnerability scanner.* `npm audit` is built in; a third-party scanner (Snyk, Socket, or equivalent) supplements with supply-chain signal. Integrated into the on-demand heavyweight pentest gate.
 
 #### 15.2.2 Tools explicitly not adopted
@@ -1123,7 +1123,7 @@ The platform's testing toolchain consists of:
 - *Jest.* Vitest is the platform test runner. No Jest dependency.
 - *Cypress.* Playwright is the platform browser automation tool. No Cypress.
 - *Cucumber and other BDD frameworks.* Tests describe long-term contracts in straightforward TypeScript; no Gherkin or feature files. Test names describe user-visible behavior; no separate spec layer is maintained.
-- *Snapshot-driven UI testing libraries that produce committed image diffs.* Per §14.3.
+- *Snapshot-driven UI testing libraries that produce committed image diffs.* Per the Explicit deferrals section.
 - *Load testing or chaos tooling (k6, Locust, Chaos Monkey, equivalent).* Still not adopted. The staging calibration run in §14.3 drives the platform's own routes with the tooling already in the tree and adds no dependency; chaos tooling remains deferred.
 - *Whole-suite mutation tools (Stryker, mutmut, equivalent).* Their run time and noise outweigh what they add here. The bounded break probe in the selective heavier tooling section is the targeted form, chosen by an independent reviewer and run against the affected test files only.
 
@@ -1273,7 +1273,7 @@ Each of these surfaces gains its full charter when its routes land; the dimensio
 - **Voting** (A_Create_Vote, A_Cancel_Vote, A_Publish_Vote_Results, M_View_Vote_Options, M_Vote, M_Verify_Vote_And_View_Results, SYS_Open_Vote, SYS_Close_Vote): dims 5, 9, 10, 11, 12, 15. Eligibility-snapshot and ballot immutability, open and close windows, one-vote idempotency, a verifiable receipt, and eligibility by inclusion list, tier, or honor flag.
 - **Groups** (A_Create_Group, A_Edit_Group_Properties, A_Archive_Group, A_Reassign_Group_Owner, GO_Edit_Group, GO_Manage_Members, GO_Manage_CoOwners, GO_Moderate_Email_Queue, M_View_Group, M_Join_Group, M_Leave_Group, M_View_Group_Files, M_Upload_Group_File): dims 5, 9, 14. Owner and co-owner authorization, private-group privacy, the sole-owner handoff race, and the group-versus-club distinction.
 - **Event organizer** (EO_View_Participants, EO_Close_Registration, EO_Export_Participants, EO_Email_Participants, EO_Upload_Results, EO_Play_Routine_Music, EO_Manage_CoOrganizers): dims 5, 9, 16. Organizer and co-organizer authorization, registration windows, results upload, and participant-export privacy.
-- **System and background jobs** (SYS_Check_Active_Player_Expiry, SYS_Send_Email, SYS_Cleanup_Expired_Tokens, SYS_Cleanup_Soft_Deleted_Records, SYS_Purge_Audit_Entries, the backup jobs): dims 10, 12, 13. Injected-clock determinism, idempotent re-runs, and operational-error alerting. The Active-Player expiry job runs under an injected now, while the live `is_active_player` gate compares the stored expiry to the SQL clock, so its fixtures use runtime-relative offsets per §10.8. The email-sending path (SYS_Send_Email) carries its layered charter (template conformance and shaping, per-email enqueue, the shared drain and idempotency mechanics, and the catalog firing sweep) in §5.9.
+- **System and background jobs** (SYS_Check_Active_Player_Expiry, SYS_Send_Email, SYS_Cleanup_Expired_Tokens, SYS_Cleanup_Soft_Deleted_Records, SYS_Purge_Audit_Entries, the backup jobs): dims 10, 12, 13. Injected-clock determinism, idempotent re-runs, and operational-error alerting. The Active-Player expiry job runs under an injected now, while the live `is_active_player` gate compares the stored expiry to the SQL clock, so its fixtures use runtime-relative offsets per the Brittle dates avoided section. The email-sending path (SYS_Send_Email) carries its layered charter (template conformance and shaping, per-email enqueue, the shared drain and idempotency mechanics, and the catalog firing sweep) in §5.9.
 
 ---
 

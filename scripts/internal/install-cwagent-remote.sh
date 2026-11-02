@@ -13,6 +13,15 @@
 # + assignments + body. sudo -S consumes the password; bash inherits the rest
 # and runs the assignments and this body as root.)
 #
+# The caller sends scripts/lib/closing-report-remote.sh on the same stream just
+# ahead of this body, because a body arriving on stdin cannot source anything.
+# Every warning and error this half meets is marked with crr_warn or crr_error,
+# so it lands in the caller's own closing report rather than in a list printed
+# here that the operator has to find above the caller's last line; crr_finish
+# ends the run, non-zero when any was an error. The half keeps its own traps:
+# the caller's library is not on this host, and the cleanup registry below is
+# what removes the secret key's temp file on an interrupt.
+#
 # Required shell variables (provided by the caller's prepended assignments):
 #   CWAGENT_AKID     AWS access key id for the cwagent IAM user (not with
 #                    CWAGENT_KEEP_CREDENTIALS=1, the upgrade, which keeps the
@@ -47,12 +56,12 @@ fi
 # installs, and a caller that skipped its own check must still not install an
 # unverified package.
 if [[ "${CWAGENT_VERSION}${CWAGENT_URL}${CWAGENT_SHA256}" == *REPLACE_WITH_* ]]; then
-  echo "ERROR: the CloudWatch agent pin is still a placeholder; nothing installed." >&2
-  exit 1
+  crr_error "the CloudWatch agent pin is still a placeholder; nothing installed."
+  crr_finish
 fi
 if [[ ! "$CWAGENT_SHA256" =~ ^[0-9a-f]{64}$ ]]; then
-  echo "ERROR: CWAGENT_SHA256 is not a SHA-256 digest; nothing installed." >&2
-  exit 1
+  crr_error "CWAGENT_SHA256 is not a SHA-256 digest; nothing installed."
+  crr_finish
 fi
 
 # Operator can override per env; defaults match staging. Production install
@@ -77,18 +86,12 @@ VERIFY_TIMEOUT_S="${CWAGENT_VERIFY_TIMEOUT_S:-120}"
 [[ -n "${CWAGENT_AGENT_DIR:-}" ]] && echo "SYNTHETIC: CWAGENT_AGENT_DIR='${CWAGENT_AGENT_DIR}' -- this run proves nothing about the estate." >&2
 [[ -n "${CWAGENT_VERIFY_TIMEOUT_S:-}" ]] && echo "SYNTHETIC: CWAGENT_VERIFY_TIMEOUT_S='${CWAGENT_VERIFY_TIMEOUT_S}' -- the outcome check's wait is shortened." >&2
 
-# Every warning and error the run meets, for the closing report: the operator
-# reads one list at the end instead of hunting a long log for what went wrong.
-REPORT=()
-note() { REPORT+=("$1"); echo "  $1" >&2; }
-
 # Checked before anything is installed: an upgrade that restarted the agent with
 # no credential to publish with would stop the host's metrics.
 if [[ "$CWAGENT_KEEP_CREDENTIALS" == "1" ]] \
      && ! grep -qE "^[[:space:]]*\[${CWAGENT_PROFILE}\][[:space:]]*$" "$CWAGENT_CREDS" 2>/dev/null; then
-  echo "ERROR: an upgrade keeps the host's credentials, and ${CWAGENT_CREDS} holds no" >&2
-  echo "       [${CWAGENT_PROFILE}] profile. Nothing installed; give the host a key with --rotate." >&2
-  exit 1
+  crr_error "an upgrade keeps the host's credentials, and ${CWAGENT_CREDS} holds no [${CWAGENT_PROFILE}] profile. Nothing installed; give the host a key with --rotate."
+  crr_finish
 fi
 
 # Write stdin to a destination file via a user-owned tmpfile, then promote
@@ -109,6 +112,10 @@ fi
 # left it behind with nothing watching. A per-function trap cannot coexist with a
 # file-level one; a registry can.
 CWAGENT_TMPS=()
+# The report library keeps its error tally in a temp file of its own, removed by
+# crr_finish; an interrupt never reaches crr_finish, so the file is registered
+# here too and the one handler removes it.
+[[ -n "${CRR_ERROR_FILE:-}" ]] && CWAGENT_TMPS+=("$CRR_ERROR_FILE")
 cwagent_remote_cleanup() {
   local t
   for t in "${CWAGENT_TMPS[@]+"${CWAGENT_TMPS[@]}"}"; do
@@ -147,7 +154,7 @@ echo "=== Pre-flight 1: root fstype ==="
 fstype=$(findmnt -no FSTYPE /)
 echo "  Root fstype: ${fstype}"
 if [[ "${fstype}" != "xfs" ]]; then
-  note "WARNING: root fstype is ${fstype}, not xfs; the disk alarm's fstype dimension in cloudwatch.tf must match before enable_cwagent_alarms = true."
+  crr_warn "root fstype is ${fstype}, not xfs; the disk alarm's fstype dimension in cloudwatch.tf must match before enable_cwagent_alarms = true."
 fi
 
 echo
@@ -159,7 +166,9 @@ else
   imds_id=$(curl -sf http://169.254.169.254/latest/meta-data/instance-id || echo 'UNKNOWN')
 fi
 echo "  IMDS instance-id: ${imds_id}"
-[[ "$imds_id" == UNKNOWN || -z "$imds_id" ]] && note "WARNING: the instance metadata service did not answer; the instance id is unknown."
+if [[ "$imds_id" == UNKNOWN || -z "$imds_id" ]]; then
+  crr_warn "the instance metadata service did not answer; the instance id is unknown."
+fi
 
 echo
 echo "=== Step 1: install amazon-cloudwatch-agent ${CWAGENT_VERSION} (rpm) ==="
@@ -182,10 +191,8 @@ else
   # leaves whatever agent was already there untouched.
   if ! printf '%s  %s\n' "$CWAGENT_SHA256" "${tmpdir}/amazon-cloudwatch-agent.rpm" \
        | sha256sum -c --quiet - >/dev/null 2>&1; then
-    echo "ERROR: the downloaded agent package does not match the pinned SHA-256; nothing installed." >&2
-    echo "       pinned:     ${CWAGENT_SHA256}" >&2
-    echo "       downloaded: $(sha256sum "${tmpdir}/amazon-cloudwatch-agent.rpm" | cut -d' ' -f1)" >&2
-    exit 1
+    crr_error "the downloaded agent package does not match the pinned SHA-256; nothing installed. pinned: ${CWAGENT_SHA256}; downloaded: $(sha256sum "${tmpdir}/amazon-cloudwatch-agent.rpm" | cut -d' ' -f1)"
+    crr_finish
   fi
   echo "  Package matches the pinned SHA-256."
   # install takes a newer package over an older one; downgrade covers a pin
@@ -278,9 +285,11 @@ install_via_tmp /etc/logrotate.d/amazon-cloudwatch-agent 0644 <<'LR'
     copytruncate
 }
 LR
-logrotate --debug /etc/logrotate.d/amazon-cloudwatch-agent >/dev/null 2>&1 \
-  && echo "  logrotate config installed and validated." \
-  || note "WARNING: logrotate validation failed; check /etc/logrotate.d/amazon-cloudwatch-agent."
+if logrotate_out="$(logrotate --debug /etc/logrotate.d/amazon-cloudwatch-agent 2>&1)"; then
+  echo "  logrotate config installed and validated."
+else
+  crr_warn "logrotate validation of /etc/logrotate.d/amazon-cloudwatch-agent failed: $(printf '%s\n' "$logrotate_out" | tail -n 1)"
+fi
 
 echo
 echo "=== Step 3c: the drop-in directory holds nothing but this config ==="
@@ -299,19 +308,16 @@ for dropin in "${DROPIN_DIR}"/*; do
   [[ -e "$dropin" ]] || continue
   if [[ "$dropin" == "$OWN_DROPIN" ]]; then
     rm -f "$dropin"
-    note "removed this installer's earlier fetch-config copy ${dropin}; the JSON just written supersedes it."
+    crr_warn "removed this installer's earlier fetch-config copy ${dropin}; the JSON just written supersedes it."
   else
     foreign_dropins+=("$dropin")
-    note "ERROR: ${dropin} was not written by this installer, and the agent merges every drop-in with this config."
+    crr_error "${dropin} was not written by this installer, and the agent merges every drop-in with this config."
   fi
 done
 if (( ${#foreign_dropins[@]} )); then
-  echo
-  echo "=== Closing report ==="
-  printf '    - %s\n' "${REPORT[@]}"
   echo "  VERDICT: FAILED -- a drop-in this installer did not write would be merged into the agent's config." >&2
   echo "  Nothing was deleted and the agent was not restarted. Run scripts/diagnose-cwagent.sh to see what it holds." >&2
-  exit 1
+  crr_finish
 fi
 
 echo
@@ -329,7 +335,7 @@ fetch_out="$("${AGENT_DIR}/bin/amazon-cloudwatch-agent-ctl" \
   -s 2>&1)" || fetch_rc=$?
 printf '%s\n' "$fetch_out" | sed 's/^/  /'
 if (( fetch_rc != 0 )); then
-  note "fetch-config exited ${fetch_rc} (not the verdict; the outcome check decides): $(printf '%s\n' "$fetch_out" | grep -E 'E!|ERROR' | tail -1)"
+  crr_warn "fetch-config exited ${fetch_rc} (not the verdict; the outcome check decides): $(printf '%s\n' "$fetch_out" | grep -E 'E!|ERROR' | tail -1)"
 fi
 
 # The outcome check reads only what this start produces: the log from here on,
@@ -386,12 +392,20 @@ if [[ "$verdict" == ok && "$running_version" != "$CWAGENT_VERSION" ]]; then
   verdict="the agent reports version ${running_version:-unknown}, not the pinned ${CWAGENT_VERSION}"
 fi
 
+# The agent's own error and warning lines since this restart, marked for the
+# caller's report: an error the agent logged fails the run even where the outcome
+# check above passed, because a running agent that is refusing its writes is not
+# an installed one. grep finding nothing is the ordinary case, not a failure.
+agent_logged_error=0
 while IFS= read -r line; do
-  [[ -n "$line" ]] && REPORT+=("agent log: ${line}")
-done < <(new_log | grep -E ' (E|W)! ' || true)
+  case "$line" in
+    *' E! '*) crr_error "agent log: ${line}"; agent_logged_error=1 ;;
+    *' W! '*) crr_warn "agent log: ${line}" ;;
+  esac
+done < <(new_log | grep -E ' (E|W)! ' || [[ $? == 1 ]])
 
 if [[ "$verdict" != ok ]]; then
-  echo "ERROR: ${verdict}." >&2
+  crr_error "${verdict}."
   echo "  --- agent log since the restart" >&2
   new_log | tail -n 60 | sed 's/^/  /' >&2
   echo "  --- service" >&2
@@ -406,15 +420,14 @@ echo "  pinned version:   ${CWAGENT_VERSION}"
 echo "  running version:  ${running_version:-unknown}"
 echo "  main process:     $(agent_cmd "$(agent_pid)" || true) (pid $(agent_pid), restarts $(systemctl show -p NRestarts --value amazon-cloudwatch-agent 2>/dev/null || echo unknown))"
 echo "  translated config: $(stat -c '%y' "$TOML" 2>/dev/null || echo absent)"
-if (( ${#REPORT[@]} )); then
-  echo "  every warning and error this run met:"
-  printf '    - %s\n' "${REPORT[@]}"
-else
-  echo "  no warnings or errors"
-fi
+echo "  warnings and errors: each is marked above for the caller's closing report"
 if [[ "$verdict" != ok ]]; then
   echo "  VERDICT: FAILED -- ${verdict}. The config and credentials written above were left in place." >&2
-  exit 1
+  crr_finish
+fi
+if (( agent_logged_error )); then
+  echo "  VERDICT: FAILED -- the agent is running, but logged the error(s) marked above. The config and credentials written above were left in place." >&2
+  crr_finish
 fi
 echo "  VERDICT: translated and running; publishing is not proven by this step."
 
@@ -432,3 +445,4 @@ echo
 echo "It asks for recent datapoints on the exact dimensions the alarms bind to."
 echo "These metrics carry no instance dimension, so a listing filtered on one"
 echo "returns nothing even from a healthy host."
+crr_finish

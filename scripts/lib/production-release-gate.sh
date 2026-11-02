@@ -36,7 +36,25 @@
 #
 # WARNED, and allowed: a HEAD that is an earlier commit of main rather than its
 # tip. That is a rollback to a commit CI already proved, the fastest safe answer
-# to a bad release.
+# to a bad release. The warning carries the staging-first reminder below, for
+# that earlier commit.
+#
+# Staging first, as a reminder and never as a check. No production script reads
+# staging, because what staging runs is no evidence about the tree being
+# released. What an operator owes production instead is to have deployed and
+# proven the same commit and the same host versions on staging first, and
+# nothing here can verify that, so every production deploy and every production
+# host step prints production_staging_first_reminder above its typed APPLY (or,
+# with no prompt, before it first touches the host).
+#
+# The host's tools are held to main's pins, not the commit's. The host's
+# sqlite3, docker package, Compose plugin and Amazon Linux release are host
+# state, stepped independently of any code release, so the version list a
+# production host must match is the one at the tip of main:
+# production_main_tool_pins reads it from the main the gate has just fetched.
+# Held to the deployed commit's own list instead, a rollback to a commit from
+# before the last host step would be refused against a host that is exactly
+# where main says it should be.
 #
 # Every outside call runs non-interactively with a time limit: git never asks for
 # a username or a key passphrase, and an offline machine is a refusal rather
@@ -50,6 +68,48 @@
 PRODUCTION_RELEASE_CI_CHECK="Type-check and test"
 PRODUCTION_RELEASE_CANONICAL_SLUG="davidleberknight/footbag-platform"
 PRODUCTION_RELEASE_TIMEOUT=60
+PRODUCTION_STAGING_FIRST_REMINDER="Staging first: this commit and these host versions must already be deployed and proven on staging before production."
+
+# production_staging_first_reminder
+# Prints the staging-first reminder as a banner on stderr. Takes no arguments and
+# reads nothing: the reminder is the same on every production path, whatever
+# staging holds.
+production_staging_first_reminder() {
+  echo "" >&2
+  echo "═══════════════════════════════════════════════════════════════" >&2
+  echo "WARNING: ${PRODUCTION_STAGING_FIRST_REMINDER}" >&2
+  echo "═══════════════════════════════════════════════════════════════" >&2
+  echo "" >&2
+}
+
+# production_main_tool_pins <repo-root> <KEY>...
+# Fills the associative array PRG_MAIN_PINS with each KEY's value in
+# ops/tool-versions.env at the tip of main (refs/remotes/origin/main, which
+# production_release_gate_deploy fetches), parsed with grep as the version-list
+# reader parses the tree's copy, so no line of it runs as code. Returns 1, naming
+# every key that is missing or still a placeholder, or when main's list cannot be
+# read; the tree's own copy is never a fallback.
+production_main_tool_pins() {
+  local root="$1" list key line value bad=0
+  shift
+  declare -gA PRG_MAIN_PINS=()
+  if ! list="$(git -C "$root" show refs/remotes/origin/main:ops/tool-versions.env 2>/dev/null)" || [[ -z "$list" ]]; then
+    echo "ERROR: could not read ops/tool-versions.env at the tip of main (origin/main); a production host is held to main's pins." >&2
+    return 1
+  fi
+  for key in "$@"; do
+    line="$(grep -E "^${key}=" <<< "$list" | tail -1 || true)"
+    value="${line#*=}"
+    if [[ -z "$line" || -z "$value" || "$value" == *REPLACE_WITH_* ]]; then
+      echo "ERROR: the version list at the tip of main has no real value for ${key}." >&2
+      bad=1
+      continue
+    fi
+    PRG_MAIN_PINS["$key"]="$value"
+  done
+  (( bad )) && return 1
+  return 0
+}
 
 # _prg_slug <url> -- owner/repo from a GitHub remote URL, or empty.
 _prg_slug() {
@@ -147,7 +207,7 @@ _prg_collect() {
     elif [[ "$head" == "$main" ]]; then
       :
     elif git -C "$root" merge-base --is-ancestor "$head" refs/remotes/origin/main </dev/null 2>/dev/null; then
-      warnings+=("HEAD (${head:0:12}) is an earlier commit of main, not its tip (${main:0:12}); this deploy rolls production back to it")
+      warnings+=("HEAD (${head:0:12}) is an earlier commit of main, not its tip (${main:0:12}); this deploy rolls production back to it. ${PRODUCTION_STAGING_FIRST_REMINDER}")
     else
       blockers+=("HEAD (${head:0:12}) is not on main (${main:0:12}); push the change to main, let CI pass, and deploy that commit")
     fi

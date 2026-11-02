@@ -17,6 +17,11 @@
 # the repository's own ERROR, REFUSED and violation lines.
 FOOTBAG_FAILURE_GRAMMAR='FAIL|FAILED|ERROR|Error:|error TS[0-9]|AssertionError|Traceback|✕|✗|✘|✖|×|[Vv]iolat|VIOLAT|REFUSED|not ok|[[:space:]]error[[:space:]]|npm (error|ERR)|command not found|[1-9][0-9]* failed|^E  '
 
+# The lines worth reading that a passing step printed and nobody saw: a warning,
+# a check that did not run, a stubbed seam, a deprecation. The runner collects
+# them from every gate; scripts/lib/closing-report.sh lists them as warnings.
+FOOTBAG_NOTICE_GRAMMAR='WARNING|WARN[: ]|\[missing\]|NOT RUN|INCOMPLETE|[Nn]ote:|SYNTHETIC|deprecated|skipping|still missing|not installed|absent|[0-9]+ skipped|^SKIPPED'
+
 # verdict_banner <WORD> <exit-code> [line ...]
 verdict_banner() {
   local word="$1" code="$2" line

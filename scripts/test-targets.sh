@@ -726,6 +726,9 @@ map_path() {
     scripts/*.sh|run_all_tests.sh|run_dev.sh|*.sh)
       add_check "bash scripts/ci/assert_conventions.sh"
       collect script_tests "$base" || no_tests "$p"
+      if grep -qxF -- "$p" scripts/ci/closing-report-baseline.txt 2>/dev/null; then
+        note "$p is on the closing-report baseline: move it onto scripts/lib/closing-report.sh and delete its line"
+      fi
       return ;;
     scripts/*)
       add_check "bash scripts/ci/assert_conventions.sh"

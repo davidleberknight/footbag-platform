@@ -5,9 +5,10 @@
 # integrity, gzips it, uploads it to the primary snapshots bucket under
 # routine/YYYY/MM/DD/ with bounded retry, and emits three CloudWatch metrics:
 # BackupAgeMinutes (the db-backup-stale alarm watches it; threshold 15 minutes,
-# treat_missing_data=breaching), BackupConsecutiveFailures (raised once a run
-# fails three times in a row so a persistently failing backup surfaces even
-# while older snapshots keep the age metric healthy), and
+# treat_missing_data=breaching), BackupConsecutiveFailures (the count of
+# consecutive failed runs, published on every run and zero on success; the
+# db-backup-failing alarm fires at three, so a persistently failing backup
+# surfaces even while older snapshots keep the age metric healthy), and
 # BackupPromotionFailures (the db-backup-promotion-failing alarm watches it, and
 # fires only when every run in an hour failed to promote; see the retention
 # generations below).

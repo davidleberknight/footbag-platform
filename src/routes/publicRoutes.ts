@@ -244,8 +244,10 @@ publicRouter.post('/members/:memberKey/questions/:messageId/answer',
 // Owner-only named-gallery management. Order matters: literal `new`
 // must precede `:id`; literal `edit`/`delete` sub-paths sit at a deeper
 // level than `:id` so are unambiguous, but registering them explicitly
-// keeps intent clear. All routes 404 (anti-enumeration) when the
-// authenticated user's slug does not match :memberKey.
+// keeps intent clear. Once past the tier gate, a non-owner gets the 404
+// (anti-enumeration). The tier gate reads only the viewer's own tier, so it
+// answers the same way whoever owns the address and reveals nothing about
+// which members exist.
 // The list stays open to every owner: a member whose benefits lapsed keeps the
 // read of what they own, and it is the page that tells them what they no longer
 // hold. Every form behind it carries the gate, so no member is handed a form
@@ -299,8 +301,8 @@ publicRouter.post('/verify/resend',         authController.postVerifyResend);
 // Every task exit is an explicit answer: there is no skip, dismiss, or detour
 // route.
 // The claim routes carry the guard; the personal-details and club steps do not.
-// Answering a club card can complete the club task and with it onboarding, so a
-// member part-way through a set of cards would be locked out of the rest.
+// The club steps also serve a member answering club cards after onboarding,
+// whose answers are written at once, so they carry no wizard-open guard.
 publicRouter.post('/register/wizard/personal_details/submit',           requireAuth, memberOnboardingController.postPersonalDetailsSubmit);
 publicRouter.post('/register/wizard/legacy_claim/claim',                requireAuth, requireWizardOpen, memberOnboardingController.postClaimCandidate);
 publicRouter.post('/register/wizard/legacy_claim/claim-with-surname',   requireAuth, requireWizardOpen, memberOnboardingController.postClaimWithSurname);

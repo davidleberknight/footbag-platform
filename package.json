@@ -5,7 +5,7 @@
   "license": "Apache-2.0",
   "description": "IFPA Footbag Platform — current deployed public baseline and long-term community platform",
   "engines": {
-    "node": "22.22.1"
+    "node": "22.23.4"
   },
   "scripts": {
     "dev": "tsx watch src/server.ts",

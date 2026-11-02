@@ -175,6 +175,20 @@ describe('POST /register', () => {
     expect(memberCount.c).toBe(1);
     expect(notice).toHaveLength(1);
     expect(notice[0].recipient_member_id).toBe('member-existing-001');
+
+    // Defect caught: a stranger's registration attempt mails the owner a
+    // clickable sign-in link, the shape a phishing mail copies. The request
+    // drains its own mail through the stub sender, which scrubs the outbox body
+    // once sent, so the delivered message is read from the stub: it has a body,
+    // and that body carries no web address at all.
+    const { getStubSesAdapterForTests } = await import('../../src/adapters/sesAdapter');
+    const delivered = (getStubSesAdapterForTests()?.sentMessages ?? [])
+      .filter((m) => m.to === 'existing@example.com');
+    expect(delivered.length).toBeGreaterThan(0);
+    for (const m of delivered) {
+      expect(m.bodyText.length).toBeGreaterThan(0);
+      expect(m.bodyText).not.toMatch(/https?:\/\/|\/login\b|\/password\//);
+    }
   });
 
   // Defect caught: the notice's key carries the time of the attempt rather than

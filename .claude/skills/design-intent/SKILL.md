@@ -70,6 +70,12 @@ files, tracker status and any summary show what exists, never what is intended.
    only truth, curated content is authored in the app, a marker in the database refuses any
    destructive rebuild, and changes reach it by rehearsed migration. Every behaviour that changes
    at go-live is rehearsed on staging first. At launch this principle is rewritten.
+9. Established practice by default: where it applies, the intent is the AWS Well-Architected
+   Framework, and elsewhere the recognised best practice for the area (OWASP for web security,
+   the vendor's published guidance for a service or library). Where a passage is silent or
+   unclear on such a point, research the current practice online in the turn and cite the page
+   fetched; never answer it from memory. A decision may depart from that practice only by saying
+   so with its reason and remaining risk; an unstated departure fails the step 4 test.
 
 ## Where intent lives (read only the matching entry)
 

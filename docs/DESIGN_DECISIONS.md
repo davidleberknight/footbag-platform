@@ -14,6 +14,8 @@ follows the allocation rather than setting it.
 
 Current implementation status and accepted temporary deviations are tracked in the maintainers' private tracker. This document is the long-term architecture reference only.
 
+Established practice: where it applies, the design follows the AWS Well-Architected Framework, and elsewhere the established security and technology best practice for each area, such as OWASP guidance for web application security and a vendor's own published guidance for its service or library. Where a decision here is silent or unclear on such a point, that practice is the intent, established from its current published source rather than from recollection. A decision that departs from it says so, with its reason and remaining risk, rather than claiming compliance.
+
 ## Table of Contents
 
 - [1. Architectural Foundations](#1-architectural-foundations)
@@ -198,7 +200,7 @@ Schema Design: refer to Data_Model md file.
 
 Minimum Indexes (added when query \>500ms): members(login_email_normalized), members(display_name), events(start_date), events(hashtag), audit_entries(occurred_at), media(member_id), registrations(event_id, member_id).
 
-Monitoring: Query latency P95, slow query log (\>500ms), transaction duration (alert if P95 \>10s), backup success rate and age (alert if \>15 min), database size (alert at 80%), WAL size (alert if \>1GB), checkpoint latency (alert if \>5s), SQLITE_BUSY frequency (alert if \>5%).
+Monitoring: backup age (alert if \>15 min), consecutive backup failures (alert at three), and generation promotion failures; database file growth is watched through host disk use. The full alert set and its severities are in the Monitoring and Alerting decision's Alert Severities.
 
 Health Endpoints: `/health/live` is a process check. `/health/ready` validates the dependencies required to serve traffic: SQLite connectivity with the schema present, so a missing or empty database is not ready, and container memory pressure (§7.6). Broader readiness coverage (backup freshness, dependency fan-out) remains later-phase operational design.
 
@@ -261,7 +263,7 @@ Local development and deployed environments use the same application code, the s
 
 Decision:
 
-Media is stored separately from the SQLite database. The database stores media metadata (gallery name, paths, captions, tags, ownership) in a `media_items` table. Media objects (photo thumbnail and display variants; system-account video bytes and posters per §2.8) are stored in Amazon S3 (production/staging) or local filesystem (development). The media storage adapter provides environment abstraction.
+Media is stored separately from the SQLite database. The database stores media metadata (gallery name, paths, captions, tags, ownership) in a `media_items` table. Media objects (photo thumbnail and display variants; system-account video bytes and posters per the System Member Account section) are stored in Amazon S3 (production/staging) or local filesystem (development). The media storage adapter provides environment abstraction.
 
 Rationale:
 
@@ -273,7 +275,7 @@ Paths are stored as data, not calculated at runtime based on the member id and g
 
 CloudFront serves media directly from the primary bucket via the `/media-store/*` cache behavior on the single site distribution. The `/media-store/` URL prefix is dedicated to binary storage and is disjoint from the `/media` user-facing app section so app routes and storage URLs do not share a namespace. The cache-bust mechanism is URL-versioned via a `?v={media_id}` query string (a fresh UUID per upload), and the cache key includes the query string. S3 PUT sets `Cache-Control: public, max-age=31536000, immutable`. Media objects are immutable from any cache's point of view because each emitted URL is unique to its upload; the URL is the cache identity, the S3 key is the storage location, decoupled.
 
-Scope: member-uploaded photo objects and system-account-owned media (photo + video) are stored in S3. Member video remains embed-only (YouTube/Vimeo per `M_Submit_Video`); only the system member account uploads video bytes (see §2.8 and `A_Upload_Curated_Media`). The legacy mirror at archive.footbag.org is a separate static bucket per §6.4. Pre-loaded system-account content (landing-page demo loops, page illustrations and cartoon images, well-known event photos, and similar curator items used across the platform) is written by an operator-run seeding mechanism that uses the same media storage adapter as interactive uploads. The same mechanism extends to tutorials, historical content, and any future curator categories without additional schema or render-path work. Operational specifics in DEVOPS_GUIDE.md (private GitHub repo).
+Scope: member-uploaded photo objects and system-account-owned media (photo + video) are stored in S3. Member video remains embed-only (YouTube/Vimeo per `M_Submit_Video`); only the system member account uploads video bytes (see the System Member Account section and `A_Upload_Curated_Media`). The legacy mirror at archive.footbag.org is a separate static bucket per the Legacy Archive (old footbag.org) section. Pre-loaded system-account content (landing-page demo loops, page illustrations and cartoon images, well-known event photos, and similar curator items used across the platform) is written by an operator-run seeding mechanism that uses the same media storage adapter as interactive uploads. The same mechanism extends to tutorials, historical content, and any future curator categories without additional schema or render-path work. Operational specifics in DEVOPS_GUIDE.md (private GitHub repo).
 
 Local filesystem mounted as Docker volume mirrors production S3 directory structure exactly. The media storage adapter reads identical database paths and constructs local URLs. No AWS credentials required for basic media operations in development. Path literals deferred alongside the adapter and env-var rename.
 
@@ -281,7 +283,7 @@ Backup and Replication:
 
 Photos are backed up separately from database via S3 cross-region replication. The primary media bucket (us-east-1) replicates automatically to a dedicated media disaster-recovery bucket (us-west-2) using One Zone-IA storage class. Delete markers are replicated so account-erasure deletions propagate. Replication is continuous; per-object propagation typically completes within minutes. S3 Replication Time Control (RTC) is not enabled, so there is no formal RPO SLA. No backup job required; S3 native cross-region replication handles this automatically. Bucket names follow the `<env>-media` (primary) and `<env>-media-dr` (DR) Terraform convention; the SQLite-snapshot DR bucket is a separate `<env>-dr` resource.
 
-Deletion and Retention: No referential integrity concerns from media deletion because media items are leaf nodes in the data model. When a member deletes their account, their media is automatically hard-deleted. System-account-owned media is not affected by member-erasure (see §2.8).
+Deletion and Retention: No referential integrity concerns from media deletion because media items are leaf nodes in the data model. When a member deletes their account, their media is automatically hard-deleted. System-account-owned media is not affected by member-erasure (see the System Member Account section).
 
 Access Control:
 
@@ -488,7 +490,7 @@ Anti-patterns:
 
 - Reading `req`/`res` inside a service. Services receive their dependencies as arguments from controllers.
 
-- Reading `process.env` inside a service or any `src/` module outside `src/config/env.ts`. See §1.11 Configuration Model.
+- Reading `process.env` inside a service or any `src/` module outside `src/config/env.ts`. See the Configuration Model section.
 
 - Mixing HTTP constants (cookie names, cookie maxAge) into service files. HTTP constants belong in the HTTP layer (controllers or middleware).
 
@@ -594,7 +596,7 @@ Impact:
 
 - Services and controllers import from `config` (env.ts) or call `readIntConfig(...)` (runtime config). Never `process.env`.
 - Secrets-handling rules (§3.6) apply to env-var secrets; system_config is not a secret store.
-- SESSION_SECRET is the canonical example of an env-var secret that lives in the host's `/srv/footbag/env` outside Git. See §3.6.
+- SESSION_SECRET is the canonical example of an env-var secret that lives in the host's `/srv/footbag/env` outside Git. See the Secrets Management via AWS Parameter Store section.
 - This section governs how the application reads a deploy-time value; who owns that value on the host it is read from, and how it gets there, is the Deploy-time Host Value Ownership decision (§1.17).
 
 ## 1.12 Internal-only Subtrees
@@ -1058,7 +1060,7 @@ Transaction Pattern: Transaction helper executes BEGIN IMMEDIATE, runs provided 
 
 Testing Strategy: Integration tests import db module and execute against test database (:memory: or temporary file). Setup creates schema, seeds test data. Teardown closes connection and deletes file. Unit tests that need to mock database use test doubles or module mocking (jest.mock, sinon). Each test resets database state for isolation.
 
-Monitoring and Debugging: All database errors logged with error.code, query name, and parameters (sanitized). Slow query monitoring wraps statement execution with timing (log if \>500ms). SQLITE_BUSY errors tracked in metrics (alert if \>5% of operations). Query execution counts tracked per statement name for optimization analysis.
+Monitoring and Debugging: All database errors logged with error.code, query name, and parameters (sanitized). A busy or locked database is retried by the shared SQLite retry helper and, when retries run out, surfaces as a transient-outage error the caller can retry.
 
 ## 2.3 Soft Deletes
 
@@ -1110,7 +1112,7 @@ Member personal data: retained for a configurable grace period (Administrator-co
 
 - Unfinished accounts: a prospective member's account (registered, onboarding not finished) idle for a configurable period (parameter key: `unfinished_account_cleanup_days`, default 90) is hard-deleted with every row it owns. It holds no shared row, because everything reaching beyond the account is held on its onboarding task rows until onboarding completes, so nothing is anonymized or kept, and no audit row is written about it.
 
-- Club records: Club records are never permanently deleted and do not use the deleted_at soft-delete pattern. Club archival is performed by setting status = 'archived'. The deleted_at column is not present on the clubs database table. A club persists whether or not it currently has co-leaders, and a successful leadership claim or a new current affiliation returns a club of any status to `'active'`.  
+- Club records: Club records are never permanently deleted and do not use the deleted_at soft-delete pattern. Club archival is performed by setting status = 'archived'. The deleted_at column is not present on the clubs database table. A club persists whether or not it has co-leaders, and a successful leadership claim or a new current affiliation returns a club of any status to `'active'`.  
 
 - Media, news items, and events without published results: hard-deleted under the hard-delete pattern above, with no grace period; events with published results are never deleted. Deleted media persists in backups until backup retention expiry (operational constraint).
 
@@ -1156,9 +1158,9 @@ Rules:
 
 4. Claimed historical persons redirect to member profile. When `members.historical_person_id` is non-NULL for a given historical person, the canonical URL is the member's `/members/{slug}`. `GET /history/{personId}` for a claimed historical person redirects (301) to `/members/{slug}`.
 
-5. Reversion on account deletion. When a member's PII is purged (after the grace period per §2.3 Soft Deletes), the application, in one transaction: (a) sets `members.historical_person_id = NULL` and `members.legacy_member_id = NULL` on the anonymized row; (b) clears the claim pointer on the corresponding `legacy_members` row by setting `claimed_by_member_id = NULL` and `claimed_at = NULL`, returning that legacy account to the claimable pool. Subsequent `personHref()` resolution reverts from `/members/{slug}` to `/history/{personId}`. A HoF or BAP honoree is exempt from both: the honor is for life, so the links and the claim survive the purge and their record goes on resolving to `/members/{slug}`. Returning an honoree's legacy account to the pool would offer their identity, and the honors that come with it, to the next person who shares the name.
+5. Reversion on account deletion. When a member's PII is purged (after the grace period per the Soft Deletes section), the application, in one transaction: (a) sets `members.historical_person_id = NULL` and `members.legacy_member_id = NULL` on the anonymized row; (b) clears the claim pointer on the corresponding `legacy_members` row by setting `claimed_by_member_id = NULL` and `claimed_at = NULL`, returning that legacy account to the claimable pool. Subsequent `personHref()` resolution reverts from `/members/{slug}` to `/history/{personId}`. A HoF or BAP honoree is exempt from both: the honor is for life, so the links and the claim survive the purge and their record goes on resolving to `/members/{slug}`. Returning an honoree's legacy account to the pool would offer their identity, and the honors that come with it, to the next person who shares the name.
 
-6. Historical persons confer no member capabilities. A row in `historical_persons`; whether claimed or unclaimed; does NOT confer authentication, inclusion in member search, contactability, profile ownership, mailing-list subscriptions, or any current-member privilege. See §3.9 and DATA_GOVERNANCE.md §3. A `historical_persons` row also carries its own admin-settable `is_deceased` flag, independent of `members.is_deceased`; its effect on claiming is specified in `M_Claim_Legacy_Account` and `A_Mark_Member_Deceased`.
+6. Historical persons confer no member capabilities. A row in `historical_persons`; whether claimed or unclaimed; does NOT confer authentication, inclusion in member search, contactability, profile ownership, mailing-list subscriptions, or any current-member privilege. See the Security, Privacy, and Historical Record Governance section and DATA_GOVERNANCE.md §3. A `historical_persons` row also carries its own admin-settable `is_deceased` flag, independent of `members.is_deceased`; its effect on claiming is specified in `M_Claim_Legacy_Account` and `A_Mark_Member_Deceased`.
 
 7. Imported legacy accounts live in `legacy_members`, never in `members`. Legacy migration imports old footbag.org user-account rows into the `legacy_members` table (§4.14b of DATA_MODEL). `legacy_members` rows are permanent archival records; they are never deleted, apart from a seeded stand-in the account rulings collapse. They do not grant authentication and are not visible on current-member surfaces. When a current member completes the claim flow (§6.5 and the `IdentityAccessService` entry in SC) for a legacy account, the application sets `legacy_members.claimed_by_member_id` and `claimed_at`, copies merge-eligible fields to the claiming `members` row (fill-if-empty merge semantics; the live account always wins for login and auth fields), and (if the legacy account's `legacy_member_id` matches a `historical_persons.legacy_member_id`) also sets the claiming member's `historical_person_id`. The `legacy_members` row itself is not mutated at claim beyond the two claim-state columns.
 
@@ -1421,7 +1423,7 @@ Rationale:
 Requirements:
 
 - `legacy_members` rows are exempt; the import preserves names as delivered.
-- Member-declared former surnames (stored as declared anchors, always private to the member and admin) extend the surname-matching surface across all claim paths; the first-name nickname table (`given_name_variants`) covers first-name equivalences only, never surname changes.
+- Member-declared former surnames (stored as declared anchors, always private to the member and admin) extend the surname-matching surface across all claim paths; the first-name nickname table (`given_name_variants`) covers first-name equivalences only, never surname changes. A curated whole-name variant row (`name_variants`) may reach a candidate whose surname differs; the claim step then offers to record that surname as a declared former surname, so the surname rule still decides the claim, and corroboration still binds an old account that carries an email or date of birth.
 
 Trade-offs:
 
@@ -2043,7 +2045,7 @@ For normative policy detail, implementation rules, and reference tables, see `do
 Requirements:
 
 - Historical-pipeline outputs that feed the database carry no member email addresses. Email addresses arrive only via member self-claim. The pipeline's intermediate artifacts and committed CSVs are scrubbed of email columns before they enter the working tree. If a pipeline output reaches the working tree containing email PII, the leak is purged from history (filter-repo, force-push, GitHub Support cache invalidation) before any public exposure.
-- A working GDPR Article 17 erasure path exists pre-launch covering the primary database, any read replicas, backup snapshots (via re-application on restore of the erasures the restored snapshot records, from §1.2), and any search or derived-stat indices. Erasure that fails on any of those surfaces is a launch-blocker.
+- A working GDPR Article 17 erasure path exists pre-launch covering the primary database, any read replicas, backup snapshots (via re-application on restore of the erasures the restored snapshot records, from the Backup Strategy section), and any search or derived-stat indices. Erasure that fails on any of those surfaces is a launch-blocker.
 - Production member data never leaves AWS: it exists only in production and its encrypted backups, restore drills run inside AWS, and it never reaches a workstation. Staging runs on the legacy footbag.org dataset, the public historical data and synthetic personas, and no production data is shared with developers or third parties. Once production is live, 1.18 governs where copies of production data may live.
 
 ## 3.10 Trust-proxy strategy
@@ -2180,9 +2182,9 @@ Failure response shape:
 
 Prohibited input patterns:
 
-- HTML tags in text fields: stripped during sanitization per §3.15.
-- Control characters except newlines and tabs in multi-line fields: stripped during sanitization per §3.15.
-- Excessively long inputs: rejected at the boundary (hard limit 10x the normal maximum to prevent DoS).
+- HTML tags in text fields: stripped during sanitization per the Text Sanitization Pipeline section.
+- Control characters except newlines and tabs in multi-line fields: stripped during sanitization per the Text Sanitization Pipeline section.
+- Excessively long inputs: the form-body parser's size ceiling refuses an oversized request before any field is read, and each field's maximum then refuses an over-length value, so no oversized input reaches a service.
 
 Rationale:
 
@@ -2193,12 +2195,12 @@ Rationale:
 Requirements:
 
 - Every controller route validates body, query parameters, and route parameters against a schema before invoking the service layer.
-- A route's guard is required whether or not the interface currently offers a path that reaches it. Reachability is a property of today's templates and routes, so a missing server-side check is a defect on an authenticated surface as much as an anonymous one, and is never closed on the grounds that no form submits the malformed value today.
+- A route's guard is required whether or not the interface offers a path that reaches it. Reachability is a property of today's templates and routes, so a missing server-side check is a defect on an authenticated surface as much as an anonymous one, and is never closed on the grounds that no form submits the malformed value today.
 - Schemas live alongside the route handler so the contract and the consumer stay in sync.
 - HTML form re-renders preserve the user's submitted values on validation failure so a single typo does not erase a long form.
 - The post-login redirect-path validator (`isSafePath` and equivalents) rejects any path containing a backslash or a control character in addition to its existing scheme and prefix rules, closing the Windows-style path-confusion class that pure forward-slash checks miss and the class where a browser strips a tab or line break from a rendered link, so that `/<TAB>/evil.com` opens `//evil.com`.
 - Every `sharp(...)` constructor passes `limitInputPixels` bounded to a documented maximum (default 4096 x 4096) so a maliciously dimensioned image cannot allocate a multi-gigabyte pixel buffer before downstream validation runs.
-- nginx `client_max_body_size` is set to match the application-layer upload limits, so the perimeter never accepts a body larger than the application is willing to process.
+- nginx `client_max_body_size` (160 MB) sits just above the largest application-layer upload limit (the configured video limit, 120 MB by default), so the perimeter refuses only a body far beyond what the application accepts, and the application answers an oversized upload with its own message.
 
 Trade-offs:
 
@@ -2251,7 +2253,7 @@ Requirements:
 - Template engine configuration enforces escape-by-default. An integration test asserts that a known XSS payload appears HTML-encoded in rendered output.
 - Sanitization-pipeline unit tests cover each step's edge cases (invalid UTF-8, decomposed Unicode, embedded HTML, control characters, oversized inputs, RTL, combining diacriticals).
 - Templates render hrefs through escape-by-default `{{href}}`. Triple-mustache `{{{href}}}` is reserved for trusted admin-controlled content and is not used for anything derived from user input or external URLs.
-- `marked` output is server-side sanitized (DOMPurify-equivalent allowlist) before reaching the template. Rendered markdown is treated as untrusted regardless of the source field, so a future field that opts into markdown does not bypass the sanitizer.
+- Markdown the maintainers commit (the IFPA governance documents and the sport rules) is trusted content and renders as written, raw HTML included. A field whose Markdown a member or administrator writes on the site is sanitized server-side against an allowlist before it reaches a template; no such field exists in v1.
 - JSON data islands serialized into HTML escape `</` to `<\/` so a script-close substring inside payload data cannot terminate the surrounding `<script>` block. The escaping helper is centralized; ad-hoc `JSON.stringify` calls inside templates are not used for data-island emission.
 
 Trade-offs:
@@ -2315,7 +2317,7 @@ Impact:
 
 Decision:
 
-User-supplied external URLs are validated through one shared validation pipeline. The validation contract applies to all external URL fields: member profile external links, club URL, event URL, gallery URL, and per-media external URL (media_items.external_url). Interactive ingestion (member, admin, and curator form writes) runs the pipeline at the service boundary at submit time. Seeded and curated-sidecar ingestion does not pass through a form: the club seed built from the legacy mirror and the curator gallery sidecars run the same pipeline at data-prep / authoring time, and the resulting verdict is committed beside the data and stamped onto the row at load. Application startup and deploys therefore make no external-URL network callout. YouTube and Vimeo curator-content URLs use the oEmbed availability check from §6.8 instead and are not subject to the generic reachability policy below.
+User-supplied external URLs are validated through one shared validation pipeline. The validation contract applies to all external URL fields: member profile external links, club URL, event URL, gallery URL, and per-media external URL (media_items.external_url). Interactive ingestion (member, admin, and curator form writes) runs the pipeline at the service boundary at submit time. Seeded and curated-sidecar ingestion does not pass through a form: the club seed built from the legacy mirror and the curator gallery sidecars run the same pipeline at data-prep / authoring time, and the resulting verdict is committed beside the data and stamped onto the row at load. Application startup and deploys therefore make no external-URL network callout. YouTube and Vimeo curator-content URLs use the oEmbed availability check from the Image Processing section instead and are not subject to the generic reachability policy below.
 
 Scheme allowlist:
 
@@ -2335,7 +2337,8 @@ Reachability check (optional, configurable):
 - HTTP HEAD request with 10-second timeout.
 - Follow up to 5 redirects. The IP-block check above is re-applied at each redirect hop; a redirect that resolves to a private, loopback, or link-local IP rejects the URL even if the original host did not.
 - Accept 2xx status codes.
-- Warn on 3xx, 4xx, or 5xx but allow (the URL may be temporarily unavailable).
+- Warn on 4xx or 5xx but allow (the URL may be temporarily unavailable).
+- Refuse as unreachable a chain longer than five redirects, or a redirect that names no destination, since neither can lead a visitor anywhere.
 - Validation results cached for 24 hours keyed by URL hash.
 
 Safe Browsing lookup:
@@ -3021,7 +3024,7 @@ Rationale:
 Trade-offs:
 
 - Express does not provide a DI container, validation framework, or built-in error-mapping pipeline; each is wired explicitly. The wiring lives in `src/middleware/*` and `src/lib/controllerErrors.ts`, both small.
-- Thin-controller discipline must be maintained at review time. A controller that grows business logic produces a slow shift away from the property. Code review (and service-contract/JSDoc drift checks per §1.10) is the enforcement mechanism.
+- Thin-controller discipline must be maintained at review time. A controller that grows business logic produces a slow shift away from the property. Code review (and service-contract/JSDoc drift checks per the Code-primary Rule Home with Markdown Overview section) is the enforcement mechanism.
 
 Impact:
 
@@ -3077,7 +3080,7 @@ What controllers MAY do:
 What controllers MUST NOT do:
 
 - Access `db`, `queries`, `db.prepare`, or `transaction` directly. Every database read or write is a service method call.
-- Import adapter getters from `src/adapters/`. Adapters are wired by the service layer (see §1.9). The only accepted exception is a documented lazy-resolution wrapper for an adapter whose getter throws at module-load time.
+- Import adapter getters from `src/adapters/`. Adapters are wired by the service layer (see the Layered Architecture: Controllers, Services, Middleware, Adapters section). The only accepted exception is a documented lazy-resolution wrapper for an adapter whose getter throws at module-load time.
 - Compose page-models beyond trivial glue. Trivial glue is: assigning the response's own URL fields (`formAction`, `cancelHref`, a redirect target) onto a service result, shallow-spreading a service result into a `PageViewModel<TContent>`, and selecting between N render variants on a single discriminant. An href a page displays comes from the builder, not from the controller. Anything else (iterating service rows through a per-row transform, deriving a label from a domain code, merging two service results, filtering tags or fields based on a domain rule) is page-model composition and belongs in the service or in a service-owned page-model builder.
 - Mutate a service-returned view model based on auth state. When a page varies by viewer role, the controller passes viewer context into the service and the service returns the shaped response.
 - Branch on domain fields of a service result. Controllers branch only on the `kind` discriminant. If a controller needs to choose between two render paths based on a non-`kind` field, the service is missing a discriminant.
@@ -3166,7 +3169,7 @@ Impact:
 
 - The adapter set covers: JWT signing (§3.5), secrets resolution (§3.6), ballot encryption (§3.7), email send (§5.4), notification-feed polling (the queues carrying bounce, complaint and alarm notifications), media storage, image processing (§6.8), video transcoding, payments (§6.1), Safe Browsing URL screening, CAPTCHA verification, and outbound HTTP reachability. Each adapter defines one interface; dev and test use an in-process stub, a local backend, or an injected double, while staging and production use the live AWS or third-party backend (image processing and video transcoding instead call the in-cluster worker in every environment). Four backends differ by intent: SES email send, CAPTCHA verification and payments stay stubbed on staging and go live in production only (§5.6, and for payments the arming switch); outbound HTTP reachability has a disabled backend for deployments that opt out of all outbound probes from the validation path.
 
-- Adapters fail fast at boot when a required environment variable is absent, so a misconfigured deployment cannot start in a half-wired state. Adapter contract parity is verified per §5.7.
+- Adapters fail fast at boot when a required environment variable is absent, so a misconfigured deployment cannot start in a half-wired state. Adapter contract parity is verified per the Adapter contract parity for security-sensitive paths section.
 
 ## 5.4 Outbox Pattern for Emails
 
@@ -3273,7 +3276,7 @@ Decision:
 
 The platform uses a small, enumerated set of `@footbag.org` addresses with distinct, non-overlapping purposes. All platform code, documentation, and terraform configuration references these canonical addresses. New email addresses are added to this list before they are introduced into the codebase.
 
-Outbound platform mail is sent by AWS SES (see §5.4); mail a person sends from a Workspace-hosted address goes out through Google Workspace. Inbound receive for all role addresses is handled by Google Workspace, which delivers or forwards each address per its configured mailbox or alias. SES is not used for inbound ingestion. `ifpa.footbag.org`, the legacy IFPA list domain, is held in the same Workspace as a secondary domain so that the legacy addresses the IFPA secretary keeps continue as aliases on these groups; it carries no canonical address and no accounts, and nothing sends from it.
+Outbound platform mail is sent by AWS SES (see the Outbox Pattern for Emails section); mail a person sends from a Workspace-hosted address goes out through Google Workspace. Inbound receive for all role addresses is handled by Google Workspace, which delivers or forwards each address per its configured mailbox or alias. SES is not used for inbound ingestion. `ifpa.footbag.org`, the legacy IFPA list domain, is held in the same Workspace as a secondary domain so that the legacy addresses the IFPA secretary keeps continue as aliases on these groups; it carries no canonical address and no accounts, and nothing sends from it.
 
 | Address | Purpose | Direction | Used by |
 |---|---|---|---|
@@ -3536,7 +3539,7 @@ Impact:
 
 Decision:
 
-Member obligations are derived when a page is drawn, never stored. Each domain that can be waiting on a member implements one source role, returning the items it currently holds for that member. An aggregating service asks every source and hands back one ordered collection that both the member's action block and the cross-page banner read. Nothing is published, queued, or persisted on the dashboard's behalf.
+Member obligations are derived when a page is drawn, never stored. Each domain that can be waiting on a member implements one source role, returning the items it holds for that member. An aggregating service asks every source and hands back one ordered collection that both the member's action block and the cross-page banner read. Nothing is published, queued, or persisted on the dashboard's behalf.
 
 Rationale:
 
@@ -3550,7 +3553,7 @@ Rationale:
 
 Requirements:
 
-- The source role is a single method: given a member, return the items currently held for them. Implementations live in the domain that owns the obligation, never beside the aggregator.
+- The source role is a single method: given a member, return the items held for them at that moment. Implementations live in the domain that owns the obligation, never beside the aggregator.
 
 - An item carries kind, urgency, headline, an optional non-private detail line, its options, and an optional deadline. It carries no free-form body, so private content cannot reach either surface.
 
@@ -3777,7 +3780,7 @@ Impact:
 
 Decision:
 
-A single CloudFront distribution fronts the main site with different cache behaviors; the legacy archive at archive.footbag.org is served by a separate CloudFront distribution (§6.4). All HTML responses from the Lightsail origin (public, mixed-state, and authenticated) use the AWS managed `CachingDisabled` cache policy (TTL 0/0/0): server-rendered HTML in this app frequently shapes content by viewer state (auth, role, tier, ownership), and per-route classification of cacheability would be brittle as the route surface grows; routing all HTML to the origin keeps cache decisions out of CloudFront and lets the Express middleware at `src/app.ts` enforce `Cache-Control: private, no-store` on every authenticated response without coordination with edge config. Static assets (CSS, JS, images, fonts) are served from the Lightsail origin and edge-cached under a custom cache policy that includes the `?v=` content-hash token in the cache key, for long-lived caching of immutable versioned URLs (see §6.7). Health probes use `CachingDisabled`. The separate archive distribution uses a 1-year TTL on its S3 archive-bucket origin with members-only (signed-cookie) access (§6.4). Cache behaviors targeting S3 origins must omit `origin_request_policy_id` (or use only a policy that excludes `Host`).
+A single CloudFront distribution fronts the main site with different cache behaviors; the legacy archive at archive.footbag.org is served by a separate CloudFront distribution (§6.4). All HTML responses from the Lightsail origin (public, mixed-state, and authenticated) use the AWS managed `CachingDisabled` cache policy (TTL 0/0/0): server-rendered HTML in this app frequently shapes content by viewer state (auth, role, tier, ownership), and per-route classification of cacheability would be brittle as the route surface grows; routing all HTML to the origin keeps cache decisions out of CloudFront and lets the Express middleware at `src/app.ts` enforce `Cache-Control: private, no-store` on every authenticated response without coordination with edge config. Static assets (CSS, JS, images, fonts) are served from the Lightsail origin and edge-cached under a custom cache policy that includes the `?v=` content-hash token in the cache key, for long-lived caching of immutable versioned URLs (see the Static Assets and CDN Strategy section). Health probes use `CachingDisabled`. The separate archive distribution uses a 1-year TTL on its S3 archive-bucket origin with members-only (signed-cookie) access (§6.4). Cache behaviors targeting S3 origins must omit `origin_request_policy_id` (or use only a policy that excludes `Host`).
 
 Rationale:
 
@@ -3901,13 +3904,13 @@ Requirements:
 
 - The archive CloudFront cache behavior names the key group in `trusted_key_groups` so all requests under that behavior require a valid signed cookie.
 
-- The main app sets the signed cookie at every login and at every JWT refresh of a member, in the same middleware that re-issues the session JWT; a prospective member's session carries none. Cookie expiry equals the JWT TTL (24h default per §3.4) so archive access and main-site access share the same staleness boundary.
+- The main app sets the signed cookie at every login and at every JWT refresh of a member, in the same middleware that re-issues the session JWT; a prospective member's session carries none. Cookie expiry equals the JWT TTL (24h default per the JWT Token Lifecycle and Configuration section) so archive access and main-site access share the same staleness boundary.
 
 - The S3 archive bucket is private behind Origin Access Control. The bucket policy permits only the archive CloudFront distribution to read, granting it `s3:ListBucket` alongside `s3:GetObject` so a key the mirror does not hold returns 404; an object-only grant makes S3 answer 403 for a missing key, which the edge cannot tell apart from a refused credential.
 
 - The archive bucket is replicated cross-region exactly as the media bucket is.
 
-- The archive CloudFront distribution uses 1-year edge TTL on its content (immutable archive per §6.2). A request with no signed cookies, or whose cookie is expired or invalid, draws CloudFront's 403, which a custom error response maps to a denied-access page served from a dedicated unauthenticated cache behavior carrying the login link. CloudFront validates the cookie signature before the viewer-request function runs, and custom error responses serve a page from the distribution's own origins and cannot redirect to an external URL, so no edge login redirect is possible; the denied-access page is the whole refusal surface. A request for a path the archive does not hold draws a 404, mapped to its own not-found page on that same unauthenticated behavior, so a broken link inside the mirror reads as a missing page rather than as a refused sign-in.
+- The archive CloudFront distribution uses 1-year edge TTL on its content (immutable archive per the CloudFront CDN section). A request with no signed cookies, or whose cookie is expired or invalid, draws CloudFront's 403, which a custom error response maps to a denied-access page served from a dedicated unauthenticated cache behavior carrying the login link. CloudFront validates the cookie signature before the viewer-request function runs, and custom error responses serve a page from the distribution's own origins and cannot redirect to an external URL, so no edge login redirect is possible; the denied-access page is the whole refusal surface. A request for a path the archive does not hold draws a 404, mapped to its own not-found page on that same unauthenticated behavior, so a broken link inside the mirror reads as a missing page rather than as a refused sign-in.
 
 - DNS for archive.footbag.org is a Route 53 record pointing at the archive distribution.
 
@@ -4154,7 +4157,7 @@ Curator Media Processing:
 
 Curator-uploaded photos go through the standard Sharp pipeline (the same re-encoding, metadata stripping, and variant generation applied to all uploaded photos). The Sharp-based malware mitigation (pixel-roundtrip re-encoding) applies uniformly regardless of uploader.
 
-Curator-uploaded video (uploaded by the system member account, see §2.8) goes through an ffmpeg full-transcode pipeline that provides the equivalent malware-mitigation property: re-encoding the streams through ffmpeg, with explicit stream selection and metadata stripping, destroys container-, codec-, and metadata-level malware by rebuilding the bytes from the essential signal. Pipeline:
+Curator-uploaded video (uploaded by the system member account, see the System Member Account section) goes through an ffmpeg full-transcode pipeline that provides the equivalent malware-mitigation property: re-encoding the streams through ffmpeg, with explicit stream selection and metadata stripping, destroys container-, codec-, and metadata-level malware by rebuilding the bytes from the essential signal. Pipeline:
 
 - Input format whitelist: mp4, webm, mov (operator/admin-provided; a code constant).
 
@@ -4383,7 +4386,7 @@ Trade-offs:
 
 - Rotation requires app restart. Acceptable: rotation is infrequent
   (incident-driven, not scheduled), restart is fast (under 30
-  seconds per §1.8 container memory allocation), and the alternative
+  seconds per the Container Memory Allocation section), and the alternative
   (live secret reload with thread-safe state) adds complexity for
   negligible operational benefit.
 - Local dev requires the Stripe CLI installed and running alongside
@@ -4706,6 +4709,7 @@ Requirements:
 - Every Terraform tree declares an exact `required_version`, equal to the version CI runs.
 - A remote image a script runs (the secret-scan container, the ZAP scanner) is pinned by digest, and a CLI a script fetches is pinned by version.
 - Operating-system packages are pinned through the image that carries them (the named CI runner release, the base image digest) rather than by per-package `package=version` pins. Packages on a deployed host follow the security-patching cadence.
+- ffmpeg, with ffprobe, is the one operating-system program whose version decides what the platform serves, so it runs at production's version wherever it runs. The video transcode is the malware-stripping step, and before go-live part of the media production serves is encoded off the servers: the curator seeder runs on the operator's workstation, transcodes each curated video through the application's own transcode function, the one the image worker runs, and the deploy ships the result to the media bucket as is; the legacy mirror program also encodes archive video on a workstation. The transcode tests and the development image worker also run on workstations and CI runners. Those machines carry their own operating system's ffmpeg, a different release from the image container's, so their encodes and test results would say nothing about production. `scripts/ffmpeg-pinned.sh` therefore puts `ffmpeg` and `ffprobe` shims first on the PATH of every workstation and CI runner; each runs the image container's pinned package on its pinned base, so the calling code is the same everywhere and a pin bump moves every environment together. No other dependency needs this: npm and Python packages are pinned by their lockfiles (Sharp carries its own image library as an npm package), and nginx runs only in its container. Staging needs no shim, since it runs the image container itself, but testing there does not cover the seeder: a server's image container transcodes only videos uploaded through the website, while the seeder encodes its videos on the operator's machine and the deploy uploads them ready to serve. After go-live the seeder and the mirror program retire, and every curated video enters through the admin upload page, on staging to test and on production for real, and is transcoded by the deployed image container; no media production serves is then encoded on a workstation, and the shim serves only local development and the tests.
 - Developer workstation tools are installed by `scripts/setup-dev-workstation.sh`: idempotent, installing each tool at its pinned version only when absent, verifying every download against a pinned checksum, and changing nothing without a typed confirmation. No install step is left as hand-typed commands in a document.
 - A transitive dependency carrying an advisory is patched through an `overrides` entry rather than by upgrading the package that pulls it in. The alternative that tooling proposes is usually a major upgrade of the direct dependency, which is a body of work with its own risk, offered as if it were a version bump. An override states the intent exactly: this one transitive package, at this one version, for a stated reason.
 - The application does not use `qs`, and its query parser is set to `simple` so that Express does not either. Express defaults `query parser` to `extended`, which routes every request through `qs` with `allowPrototypes: true` — the option that lets an attacker-supplied key name reach `constructor` and prototype names, and the stated precondition of more than one advisory against that library. Nothing here needs what it provides: every query parameter the application reads is a flat scalar, and no route, view or link uses bracket notation. Request bodies already made the same choice with `express.urlencoded({ extended: false })`. Repeated keys still arrive as an array, which is the only multi-value shape in use.
@@ -4865,9 +4869,11 @@ Patching runs on the System Administrator's judgment, never on a schedule. Whene
 
 Rationale:
 
-- The practice follows AWS Well-Architected's "Perform vulnerability management" (SEC06-BP01), with on-request scans in place of continuous ones, and holds remediation to the deadlines of CISA's Binding Operational Directive 26-04: three days for a known-exploited flaw on a publicly exposed system.
+- The practice follows AWS Well-Architected's "Perform vulnerability management" (SEC06-BP01), with on-request scans in place of continuous ones. Fixes are made on a best-effort basis with no deadline, the most urgent first: a known-exploited flaw on a publicly exposed system ahead of the rest.
 
 - A bot that opens version bumps replaces a deliberate review step with an unreviewed upstream change, which is the opposite of why dependencies are pinned at all.
+
+- Once production is live its database is the only copy of members' data, so every way back from a patch must keep every write: the snapshot recovers the host, and the backup proved after the stop holds every write up to it. Checking the host against main's tip rather than the deployed commit keeps the host and the code CI proved in step, and allows a code rollback without moving the host.
 
 Requirements:
 
@@ -4879,9 +4885,19 @@ Requirements:
 
 - Host operating-system packages and container base images are patched when an advisory or an upstream fix applies to them, with the health endpoints and logs verified after any restart.
 
+- A patch reaches production by the release path: the changed pins land on main with CI green, are deployed and proven on staging, then ship to production through the release gate. Once production is live, staging runs a copy of production's database and production takes the patch as a code-only deploy; a dependency change that needs a schema change arrives as a numbered migration.
+
+- A host release moves with `scripts/step-amazon-linux.sh`, staging first. On production the step holds the release gate, takes a manual instance snapshot and a proved database backup, stops the service behind the maintenance page CloudFront serves for any origin error, reboots when the new kernel or core libraries need it, and reports success only once the host matches the pins and the readiness endpoint answers.
+
+- Every production deploy compares the host with the pins at the tip of main and refuses on any difference, so production's host is stepped as soon as staging proves a host-pin bump. The host never moves backwards: its only way back is the snapshot taken before the step. A code rollback to an earlier commit reaches production only after that commit is deployed and proven on staging on the same host versions.
+
+- Every production deploy and production host step reminds the operator that the commit and host versions must already be proven on staging. The reminder reads nothing from staging.
+
 Trade-offs:
 
 - Bumping by hand is slower than merging a generated pull request. The project accepts the delay in exchange for every dependency change being read by a person before it lands.
+
+- Between merging a host-pin bump and stepping production, production deploys are refused. The project keeps the window short by stepping production as soon as staging proves the bump.
 
 Impact:
 
@@ -4993,7 +5009,7 @@ Impact:
 
 Decision:
 
-In-process rate limiting via an in-memory bucket service (not a route middleware; see §1.9): state-changing actions are bucketed per action and request-derived key (per-member, per-IP, per-target), with bucket sizes and windows from system config. App-side rate limiting state (including IP-based counters for login/reset) is kept in memory only and is not persisted to the database or logs. Cloudflare Turnstile CAPTCHA gates login, register, password-reset, and verify-email-resend form submissions; the server verifies the Turnstile response token before any DB read. Turnstile runs in Managed mode (Cloudflare-recommended default), which completes without user interaction for low-risk sessions and escalates to a checkbox challenge for higher-risk sessions. AWS Shield Standard, automatic on the CloudFront distribution, covers volumetric L3/L4 DDoS at no additional cost. A CloudWatch origin-spike alarm notifies the operator when sustained per-minute origin request volume exceeds the configured threshold. No edge-layer application abuse rule engine. No managed WAF or AI-based bot detection beyond Turnstile's risk scoring. The bucket store is bounded twice: expired buckets are swept on a schedule amortised across ordinary writes, and a hard ceiling evicts when a flood outruns the sweep. Every bucket is judged against its own action's window, because one store holds all of them and the windows differ by action. A caller may also set a cooldown, a lockout that outlives the counting window and runs from the attempt that crossed the ceiling; login uses one, so the penalty for exhausting the attempts does not shrink the later in a window an attacker starts. A bucket serving a cooldown counts as actively refusing and is not evicted. Eviction takes buckets that are not currently refusing attempts ahead of any that are, so reaching the ceiling can never clear a limit that is actively being enforced. A free account's first club join is the one self-service way to Tier 1 benefits such as media upload, so the club's co-leaders are its human check: their join email asks them to report a name they do not recognise, and a club with no co-leader refuses a join from a member without Tier 1 benefits.
+In-process rate limiting via an in-memory bucket service (not a route middleware; see the Layered Architecture: Controllers, Services, Middleware, Adapters section): state-changing actions are bucketed per action and request-derived key (per-member, per-IP, per-target), with bucket sizes and windows from system config. App-side rate limiting state (including IP-based counters for login/reset) is kept in memory only and is not persisted to the database or logs. Cloudflare Turnstile CAPTCHA gates login, register, password-reset, and verify-email-resend form submissions; the server verifies the Turnstile response token before any DB read. Turnstile runs in Managed mode (Cloudflare-recommended default), which completes without user interaction for low-risk sessions and escalates to a checkbox challenge for higher-risk sessions. AWS Shield Standard, automatic on the CloudFront distribution, covers volumetric L3/L4 DDoS at no additional cost. A CloudWatch origin-spike alarm notifies the operator when sustained per-minute origin request volume exceeds the configured threshold. No edge-layer application abuse rule engine. No managed WAF or AI-based bot detection beyond Turnstile's risk scoring. The bucket store is bounded twice: expired buckets are swept on a schedule amortised across ordinary writes, and a hard ceiling evicts when a flood outruns the sweep. Every bucket is judged against its own action's window, because one store holds all of them and the windows differ by action. A caller may also set a cooldown, a lockout that outlives the counting window and runs from the attempt that crossed the ceiling; login uses one, so the penalty for exhausting the attempts does not shrink the later in a window an attacker starts. A bucket serving a cooldown counts as actively refusing and is not evicted. Eviction takes buckets that are not refusing attempts ahead of any that are, so reaching the ceiling can never clear a limit that is actively being enforced. A free account's first club join is the one self-service way to Tier 1 benefits such as media upload, so the club's co-leaders are its human check: their join email asks them to report a name they do not recognise, and a club with no co-leader refuses a join from a member without Tier 1 benefits.
 
 Rationale:
 
@@ -5042,7 +5058,7 @@ Impact:
 
 - Turnstile site key rendered server-side into the protected forms; secret key held in Parameter Store (read at boot, never logged); siteverify called server-side from the route handler before any DB read.
 
-- CloudWatch origin-spike alarm fires to the existing operator SNS topic per §28.2 baseline.
+- CloudWatch origin-spike alarm fires to the existing operator SNS topic, the one every other platform alarm uses.
 
 ## 8.4 Content Moderation Policy
 
@@ -5364,7 +5380,7 @@ Trade-offs:
 
 Impact:
 
-- Terraform must remain the authority for IAM roles, policies, Parameter Store structure (per §3.6), KMS resources, CloudWatch resources, Lightsail instance configuration, Lightsail firewall rules, and any infrastructure-side inputs required by the SSH operator-access posture and the runtime-credential model in §7.2.
+- Terraform must remain the authority for IAM roles, policies, Parameter Store structure (per the Secrets Management via AWS Parameter Store section), KMS resources, CloudWatch resources, Lightsail instance configuration, Lightsail firewall rules, and any infrastructure-side inputs required by the SSH operator-access posture and the runtime-credential model in §7.2.
 - Deployment/bootstrap documentation must clearly separate one-time bootstrap actions from steady-state Terraform-managed infrastructure.
 - Workspace layout: `terraform/shared/` for one-time bootstrap (state bucket, account baseline); `terraform/staging/` and `terraform/production/` for per-environment resources, each with its own remote state; and one account-level tree, `terraform/identity/`, which declares what a dev-and-tester may do and is applied only by the directly authenticated bootstrap principal, because a role able to rewrite its own policy has no least-privilege story. Who the dev-and-testers are is not a tree, because joining and leaving mint and revoke key material that must not enter Terraform state, and revoking somebody's access must never be the slower half.
 - Resources are created only by Terraform: one made outside it is declared with an import block beside its definition and taken in through `scripts/terraform-apply.sh`, never by a hand-typed terraform import and never deleted to be recreated. The plan-clean drift check lives in DEVOPS_GUIDE.md (private GitHub repo). A clean `terraform plan` is the check for drift within declared resources, and it is not a completeness check: a policy, role, or rule created outside Terraform is invisible to it, because a plan reconciles only what the configuration declares. Detecting an undeclared resource requires enumerating what the account actually holds and comparing it against the configuration, which is an audit step rather than a plan.

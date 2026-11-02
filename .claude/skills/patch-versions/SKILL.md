@@ -14,9 +14,8 @@ management section in DEVOPS_GUIDE.md (private GitHub repo); read both first, th
 
 ## Procedure
 
-1. Report, on request: `bash scripts/check-versions.sh --advisories` (add `--image <ref>` for a
-   built image). Present each finding with the fixed version, the CISA tier it falls in, and one
-   recommended set of bumps; the maintainer picks.
+1. Report, on request: run `/check-vulnerabilities` first, or take the bump set the maintainer
+   names; the maintainer picks.
 2. Bump one tool per change, through its owner, never by hand:
    - a tool in the list: `bash scripts/bump-tool.sh <KEY> <version>`, then again with `--apply`
      once the diff is shown;

@@ -160,20 +160,14 @@ PRUNE_LIB="${SCRIPT_DIR}/internal/prune-db-copies.sh"
 # sync the remote half calls to write the Terraform-published ones.
 HOST_VALUES_LIB="${SCRIPT_DIR}/lib/host-values.sh"
 # Travels the same way and defines the comparison the remote half runs before it
-# changes anything: the host's sqlite3, docker and Amazon Linux release against
-# the pins sent below.
+# changes anything: the host's sqlite3, docker, Compose plugin and Amazon Linux
+# release against the pins sent below.
 HOST_TOOL_VERSIONS_LIB="${SCRIPT_DIR}/internal/host-tool-versions-remote.sh"
 
 # shellcheck source=lib/terminal.sh
 source "${REPO_ROOT}/scripts/lib/terminal.sh"
 # shellcheck source=lib/tool-versions.sh
 source "${REPO_ROOT}/scripts/lib/tool-versions.sh"
-# The pins the host's tools are held to, read from the one version list before
-# anything is shipped, so a list with a placeholder stops the deploy here.
-tool_pins_ok SQLITE_VERSION DOCKER_ENGINE_HOST AMAZON_LINUX_RELEASE || exit 1
-tool_pin SQLITE_VERSION;       PIN_SQLITE_VERSION="$TOOL_PIN_VALUE"
-tool_pin DOCKER_ENGINE_HOST;   PIN_DOCKER_ENGINE="$TOOL_PIN_VALUE"
-tool_pin AMAZON_LINUX_RELEASE; PIN_AMAZON_LINUX_RELEASE="$TOOL_PIN_VALUE"
 
 # A production deploy stops for a person, in every mode, including this one.
 #
@@ -211,6 +205,32 @@ if [[ "$REMOTE" == "footbag-production" ]]; then
   # shellcheck source=lib/production-release-gate.sh
   source "${REPO_ROOT}/scripts/lib/production-release-gate.sh"
   production_release_gate_deploy "$REPO_ROOT" || exit 1
+fi
+
+# The pins the host's tools are held to, read before anything is shipped, so a
+# list with a placeholder stops the deploy here. Production reads the list at
+# the tip of main, which the gate above has just fetched, not this commit's
+# copy: the host's tools are stepped independently of code releases, so a
+# rollback to an earlier commit must still meet the host where main says it is.
+# Staging reads the working tree's list, where a pin change is tried first.
+if [[ "$REMOTE" == "footbag-production" ]]; then
+  production_main_tool_pins "$REPO_ROOT" SQLITE_VERSION DOCKER_ENGINE_HOST COMPOSE_VERSION AMAZON_LINUX_RELEASE || exit 1
+  PIN_SQLITE_VERSION="${PRG_MAIN_PINS[SQLITE_VERSION]}"
+  PIN_DOCKER_ENGINE="${PRG_MAIN_PINS[DOCKER_ENGINE_HOST]}"
+  PIN_COMPOSE_VERSION="${PRG_MAIN_PINS[COMPOSE_VERSION]}"
+  PIN_AMAZON_LINUX_RELEASE="${PRG_MAIN_PINS[AMAZON_LINUX_RELEASE]}"
+else
+  tool_pins_ok SQLITE_VERSION DOCKER_ENGINE_HOST COMPOSE_VERSION AMAZON_LINUX_RELEASE || exit 1
+  tool_pin SQLITE_VERSION;       PIN_SQLITE_VERSION="$TOOL_PIN_VALUE"
+  tool_pin DOCKER_ENGINE_HOST;   PIN_DOCKER_ENGINE="$TOOL_PIN_VALUE"
+  tool_pin COMPOSE_VERSION;      PIN_COMPOSE_VERSION="$TOOL_PIN_VALUE"
+  tool_pin AMAZON_LINUX_RELEASE; PIN_AMAZON_LINUX_RELEASE="$TOOL_PIN_VALUE"
+fi
+
+# Staging first, said before this leaf first reaches the host. It has no prompt
+# of its own; the reminder is fixed and reads nothing about staging.
+if [[ "$REMOTE" == "footbag-production" ]]; then
+  production_staging_first_reminder
 fi
 
 # shellcheck source=lib/image-transfer.sh
@@ -606,6 +626,7 @@ echo "==> Running remote-as-root deploy (promote, restart)..."
   printf 'FIRST_INSTALL=%q\n'               "$FIRST_INSTALL"
   printf 'EXPECTED_SQLITE_VERSION=%q\n'     "$PIN_SQLITE_VERSION"
   printf 'EXPECTED_DOCKER_ENGINE=%q\n'      "$PIN_DOCKER_ENGINE"
+  printf 'EXPECTED_COMPOSE_VERSION=%q\n'    "$PIN_COMPOSE_VERSION"
   printf 'EXPECTED_AMAZON_LINUX_RELEASE=%q\n' "$PIN_AMAZON_LINUX_RELEASE"
   # The pruning helper and the host-value catalogue define data and functions and
   # run nothing, so the remote half can call them: the pruner once the new

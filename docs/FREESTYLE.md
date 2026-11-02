@@ -85,45 +85,10 @@ authority order in the root `CLAUDE.md`.
 
 ## 3. The data model (table level)
 
-Column-level detail lives in the inline comments in `database/schema.sql`; this
-section is the table-level home that `docs/DATA_MODEL.md` points to. Fifteen
-tables are freestyle-owned: nine `freestyle_*` tables, `consecutive_kicks_records`,
-and five `symbolic_*` tables.
-
-- **`freestyle_tricks`** - the trick corpus. Load-bearing columns: `adds` (the ADD
-  value; may be numeric, blank, or the literal `modifier`), `review_status` and
-  `is_active` (only `is_active = 1` rows render publicly), `trick_family`,
-  `base_trick`, `category`, the editorial-prose fields, and the structural-parse
-  columns (`structural_parse_json`, `computed_adds`, `add_formula_status`)
-  populated by the notation parser.
-- **`freestyle_trick_aliases`** - first-class aliases, each with a semantic
-  class (`alias_type`) and a display flag (`alias_display`). How the two decide
-  search and display is in the `freestyle-dictionary-surface` skill.
-- **`freestyle_trick_sources`** and **`freestyle_trick_source_links`** - the
-  provenance registry and its many-to-many trick-to-source links, which preserve
-  per-source assertions that may diverge from canonical.
-- **`freestyle_trick_modifiers`** and **`freestyle_trick_modifier_links`** - the
-  operator/modifier registry (the data-side mirror of the operator reference) and
-  its per-trick apply-ordered links.
-- **`freestyle_ev_adjudications`** - the Emerging Vocabulary ruling record: one
-  row per adjudicated observational name, carrying what the name is, what it
-  resolved to, what evidence exists, what blocks it, and who owns the next step.
-  Seeded from the committed ruling ledger and writable afterwards, so a ruling
-  made once the rebuild pipeline retires still has a home. It is the ruling
-  authority, never the observational row source: the corpus is composed from the
-  committed corpus inputs and this table supplies each composed row's ruling, so
-  the two counts differ by design. It carries no workflow-state column; public
-  placement stays a derived projection, and publication is expressed by the
-  nullable `published_trick_slug` link plus the disposition transition, with the
-  live trick row deciding whether a linked name is still a candidate.
-- **`freestyle_records`** and **`consecutive_kicks_records`** - the world-record
-  and consecutive-kicks corpora; world records also carry confidence and
-  superseded-by state.
-- **The five `symbolic_*` tables** - `symbolic_equivalence_clusters`,
-  `symbolic_movement_archetypes`,
-  `symbolic_topology_groups`, `symbolic_modifier_groups`, and
-  `symbolic_glossary_crosslinks`. The observational symbolic-grammar layer; a
-  public research overlay, never the canonical family classification.
+Fifteen tables are freestyle-owned: nine `freestyle_*` tables,
+`consecutive_kicks_records`, and five `symbolic_*` tables. Each one's role is
+described in `docs/DATA_MODEL.md` (Pipeline-produced canonical content), and
+column-level detail lives in the inline comments in `database/schema.sql`.
 
 ## 4. In-app curation surfaces and the code-managed exceptions
 

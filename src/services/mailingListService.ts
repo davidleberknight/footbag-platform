@@ -114,7 +114,9 @@ export type ArchiveOutcome =
   /** The list was active and is now archived. */
   | { status: 'archived' }
   /** The list was already archived, so nothing moved. */
-  | { status: 'noop'; reason: 'already_archived' };
+  | { status: 'noop'; reason: 'already_archived' }
+  /** The list takes its recipients from a group roster, so the group retires it, not this page. */
+  | { status: 'refused'; reason: 'group_backed' };
 
 export type SubscriptionAdjustmentOutcome =
   /** The subscription row moved to the requested status. */
@@ -363,8 +365,8 @@ export interface MailingListDetailContent {
 /** What each administrative outcome says on the page it redirects back to. */
 /**
  * What each outcome says on the detail page it returns to, and the tone it
- * takes. Nine outcomes share one field: five acts that happened, three that
- * found the work already done, and one refusal. Rendered in a single treatment
+ * takes. Ten outcomes share one field: five acts that happened, three that
+ * found the work already done, and two refusals. Rendered in a single treatment
  * they were indistinguishable, so a send that reached nobody read exactly like
  * a send that went out.
  */
@@ -378,6 +380,7 @@ const DETAIL_NOTICES: Record<string, [OutcomeTone, string]> = {
   sent:             ['ok',   'Message queued for the list. It goes out in paced batches, and it is recorded under Broadcasts.'],
   already_sent:     ['info', 'That message was already sent. Nothing went out a second time.'],
   no_recipients:    ['no',   'Nothing was sent: this list resolved to no deliverable subscribers.'],
+  group_backed:     ['no',   'This list takes its recipients from a group roster, so it is retired by turning off that group\'s mail, not here.'],
 };
 
 /**
@@ -601,7 +604,8 @@ export const mailingListService = {
         archiveAction: `/admin/mailing-lists/${row.slug}/archive`,
         adjustAction: `/admin/mailing-lists/${row.slug}/subscriptions/adjust`,
         backHref: '/admin/mailing-lists',
-        canArchive: !isArchived,
+        // A group-backed list is retired by turning off its group's mail.
+        canArchive: !isArchived && !isGroupBacked,
         // A group-backed list's membership is the group roster, so there is no
         // subscription here for an administrator to move.
         canAdjust: !isGroupBacked,
@@ -728,13 +732,19 @@ export const mailingListService = {
   /**
    * Archives a list. Every subscription and every past send is preserved; the
    * list simply stops being offered to members and to new sends. Archiving one
-   * that is already archived changes nothing and is reported as such.
+   * that is already archived changes nothing and is reported as such. A
+   * group-backed list is refused: it is retired with its group's mail.
    */
   archiveList(slug: string, actorMemberId: string): ArchiveOutcome {
     const current = mailingLists.getBySlug.get(slug) as MailingListRow | undefined;
     if (!current) throw new NotFoundError(`No mailing list "${slug}"`);
     if (current.status === 'archived') {
       return { status: 'noop', reason: 'already_archived' };
+    }
+    // A group's roster is the record of who is on its list, so the list is
+    // retired with the group's mail, never archived here on its own.
+    if (current.recipient_source === 'group') {
+      return { status: 'refused', reason: 'group_backed' };
     }
 
     const now = new Date().toISOString();

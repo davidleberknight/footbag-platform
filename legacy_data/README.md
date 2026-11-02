@@ -129,7 +129,7 @@ into the same private checkout and the published member CSV the legacy publish w
 |---|---|---|---|
 | `membership/inputs/membership_input_normalized.csv` | **gitignored** | `membership/scripts/01_build_membership_enrichment.py` (phase C) | IFPA member roster (names and membership status, no contact data); lives in the maintainers' private repository; not regenerable |
 | `stage_a_adjudication.csv`, `entitlement_dispositions.csv` (in `private_data/stage_a_overrides/`) | **private checkout, never committed here** | `member_data_scripts/run_legacy_members.sh` (which resolves them by canonical path and passes them to the reconciler's final merge) | recorded human rulings about which duplicate legacy accounts are the same person, and the entitlement disposition per merged set; fingerprinted, failing closed against an extract they were not adjudicated on |
-| `legacy-publish/legacy_members.csv` (private checkout) | **private checkout, never committed here** | `member_data_scripts/run_legacy_members.sh` | the published member CSV, written by `scripts/publish_legacy_repo_data.py`: tier flags measured at the cutover date, repaired names, the admin flag, and the board flag, set only when the delivery's Board of Directors roster carries the CTO record |
+| `legacy-publish/legacy_members.csv` (private checkout) | **private checkout, never committed here** | `member_data_scripts/run_legacy_members.sh` | the published member CSV, written by `legacy_data/scripts/publish_legacy_repo_data.py`: tier flags measured at the cutover date, repaired names, the admin flag, and the board flag, set only when the delivery's Board of Directors roster carries the CTO record |
 | `person_link_holds.csv`, `review_resolutions.csv` (same private directory) | **private checkout, never committed here** | `member_data_scripts/run_legacy_members.sh`, which passes them to the reconciler's Stage B so a held link never reaches the proposed links | recorded holds on historical-person links, and review-outcome rulings |
 | `event_results/canonical_input/*.csv` (5 files) | committed | `reset-local-db.sh`, `run_pipeline.sh` canonical loaders | real committed competitor event data (event results and historical persons, `legacy_email` empty); the maintainer regenerates it from the mirror |
 | `seed/clubs.csv`, `seed/club_members.csv`, `seed/clubs_url_verdicts.csv` | committed | `load_clubs_seed.py`, `load_club_members_seed.py`, `load_legacy_members_seed.py` | mirror-derived club seed (names and locations) |
@@ -199,8 +199,9 @@ the mode exits early.
 
 ### Net enrichment (`net_enrichment` / included in `full`)
 
-Additive layer that reads canonical tables read-only and populates net-specific
-enrichment tables (discipline groups, teams, appearances). QC findings from the
+Additive layer that reads canonical tables read-only and populates the Net
+enrichment tables, each described in `docs/DATA_MODEL.md` (Pipeline-produced
+canonical content). QC findings from the
 team builder are written to `out/net_team_qc_issues.jsonl`, not to a table.
 Requires the canonical DB to already be loaded.
 

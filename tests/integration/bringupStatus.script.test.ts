@@ -548,6 +548,7 @@ describe('bringup-status.sh — one row per host bootstrap step', () => {
     'CWAGENT_VERSION=1.300050.0b1', 'CWAGENT_KEY_ID=AKIAEXAMPLEEXAMPLE01',
     'LOG_DRIVERS=footbag-web-1:awslogs footbag-worker-1:awslogs footbag-nginx-1:awslogs', 'SERVICE_ENABLED=enabled',
     'TIMER_ENABLED=enabled', 'ZRAM_ACTIVE=yes', 'ZRAM_SUPPRESSED=no', 'SWAPFILE=yes',
+    'REBOOT_NEEDED=no', 'REBOOT_NEEDED_SAID=',
     'SSHD_LISTEN=22 2222', 'DB_FILE=present', 'REPLAY_PENDING=no', 'FEED_SES_QUEUE=set', 'FEED_ALARM_QUEUE=set',
     'HOST_ENV_VERIFY=ok',
     'PIN=current', 'IAM_SRC_KEYS=AKIAEXAMPLEEXAMPLE01', 'IAM_CW_KEYS=AKIAEXAMPLEEXAMPLE01', 'CW_METRICS=ok',

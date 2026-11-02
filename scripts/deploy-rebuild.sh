@@ -93,6 +93,12 @@ REMOTE_HALF="${SCRIPT_DIR}/internal/deploy-rebuild-remote.sh"
 # value with its owner, plus the sync the remote half calls to write the
 # Terraform-published ones. Defines data and functions and runs nothing.
 HOST_VALUES_LIB="${SCRIPT_DIR}/lib/host-values.sh"
+# Travels the same way and defines the comparison the remote half runs before it
+# changes anything: the host's sqlite3, docker, Compose plugin and Amazon Linux
+# release against the pins sent below. Mirrors deploy-code.sh.
+HOST_TOOL_VERSIONS_LIB="${SCRIPT_DIR}/internal/host-tool-versions-remote.sh"
+# shellcheck source=lib/tool-versions.sh
+source "${REPO_ROOT}/scripts/lib/tool-versions.sh"
 # shellcheck source=lib/image-transfer.sh
 source "${REPO_ROOT}/scripts/lib/image-transfer.sh"
 # Prepended ahead of the remote half in the root ssh stream: refuses the
@@ -153,6 +159,30 @@ if [[ "$REMOTE" == "footbag-production" ]]; then
   # shellcheck source=lib/production-release-gate.sh
   source "${REPO_ROOT}/scripts/lib/production-release-gate.sh"
   production_release_gate_deploy "$REPO_ROOT" || exit 1
+fi
+
+# The pins the host's tools are held to, read before anything is built or
+# shipped, exactly as deploy-code.sh reads them: production from the list at the
+# tip of main, which the gate above has just fetched, because the host is stepped
+# independently of code releases; staging from the working tree's list.
+if [[ "$REMOTE" == "footbag-production" ]]; then
+  production_main_tool_pins "$REPO_ROOT" SQLITE_VERSION DOCKER_ENGINE_HOST COMPOSE_VERSION AMAZON_LINUX_RELEASE || exit 1
+  PIN_SQLITE_VERSION="${PRG_MAIN_PINS[SQLITE_VERSION]}"
+  PIN_DOCKER_ENGINE="${PRG_MAIN_PINS[DOCKER_ENGINE_HOST]}"
+  PIN_COMPOSE_VERSION="${PRG_MAIN_PINS[COMPOSE_VERSION]}"
+  PIN_AMAZON_LINUX_RELEASE="${PRG_MAIN_PINS[AMAZON_LINUX_RELEASE]}"
+else
+  tool_pins_ok SQLITE_VERSION DOCKER_ENGINE_HOST COMPOSE_VERSION AMAZON_LINUX_RELEASE || exit 1
+  tool_pin SQLITE_VERSION;       PIN_SQLITE_VERSION="$TOOL_PIN_VALUE"
+  tool_pin DOCKER_ENGINE_HOST;   PIN_DOCKER_ENGINE="$TOOL_PIN_VALUE"
+  tool_pin COMPOSE_VERSION;      PIN_COMPOSE_VERSION="$TOOL_PIN_VALUE"
+  tool_pin AMAZON_LINUX_RELEASE; PIN_AMAZON_LINUX_RELEASE="$TOOL_PIN_VALUE"
+fi
+
+# Staging first, said before this leaf first reaches the host. It has no prompt
+# of its own; the reminder is fixed and reads nothing about staging.
+if [[ "$REMOTE" == "footbag-production" ]]; then
+  production_staging_first_reminder
 fi
 
 # SSH connection options. Parallel to scripts/deploy-code.sh; see that file
@@ -231,6 +261,7 @@ fi
 
 [[ -r "$REMOTE_HALF" ]] || { echo "ERROR: missing remote-half: $REMOTE_HALF" >&2; exit 1; }
 [[ -r "$CUTOVER_GUARD" ]] || { echo "ERROR: missing cutover guard: $CUTOVER_GUARD" >&2; exit 1; }
+[[ -r "$HOST_TOOL_VERSIONS_LIB" ]] || { echo "ERROR: missing host tool-version check: $HOST_TOOL_VERSIONS_LIB" >&2; exit 1; }
 [[ -r "$PROD_LIVE_GUARD" ]] || { echo "ERROR: missing production-live guard: $PROD_LIVE_GUARD" >&2; exit 1; }
 command -v docker >/dev/null || { echo "ERROR: docker required locally for image build" >&2; exit 1; }
 
@@ -614,10 +645,15 @@ echo "==> Running remote-as-root rebuild deploy via cat-pipe..."
   printf 'FOOTBAG_DEV_INITIAL_ADMIN_MANAGED=%q\n' "$INITIAL_ADMIN_MANAGED"
   printf 'SEED_TEST_PERSONAS=%q\n'          "${SEED_TEST_PERSONAS:-no}"
   printf 'DEPLOY_PROVENANCE=%q\n'            "$DEPLOY_PROVENANCE"
+  printf 'EXPECTED_SQLITE_VERSION=%q\n'     "$PIN_SQLITE_VERSION"
+  printf 'EXPECTED_DOCKER_ENGINE=%q\n'      "$PIN_DOCKER_ENGINE"
+  printf 'EXPECTED_COMPOSE_VERSION=%q\n'    "$PIN_COMPOSE_VERSION"
+  printf 'EXPECTED_AMAZON_LINUX_RELEASE=%q\n' "$PIN_AMAZON_LINUX_RELEASE"
   # The guards run first inside the root session: on a post-cutover host, a
   # live-marked production, or a production database holding real members,
-  # they exit non-zero before the remote half, so nothing live is touched.
-  cat "$CUTOVER_GUARD" "$PROD_LIVE_GUARD" "$HOST_VALUES_LIB" "$REMOTE_HALF"
+  # they exit non-zero before the remote half, so nothing live is touched. The
+  # tool-version helper defines one function and runs nothing.
+  cat "$CUTOVER_GUARD" "$PROD_LIVE_GUARD" "$HOST_TOOL_VERSIONS_LIB" "$HOST_VALUES_LIB" "$REMOTE_HALF"
 } | ssh "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'
 
 # Smoke runs against the address the host records it serves (its

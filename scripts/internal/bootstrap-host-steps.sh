@@ -20,9 +20,13 @@
 BH_STEPS_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 BH_REPO_ROOT="$(cd "${BH_STEPS_DIR}/../.." && pwd)"
 BH_STATUS_HALF="${BH_STEPS_DIR}/bootstrap-host-status-remote.sh"
-# The backup probe reads the bucket's name from Terraform.
+# The backup probe reads the bucket's name from Terraform, and the bucket's
+# newest backup through the shared snapshot library, which the replacement in
+# scripts/bootstrap-host.sh uses too, so the two read one backup the same way.
 # shellcheck source=../lib/terraform-output.sh
 declare -F tf_output_read >/dev/null || source "${BH_REPO_ROOT}/scripts/lib/terraform-output.sh"
+# shellcheck source=../lib/host-snapshot.sh
+source "${BH_STEPS_DIR}/../lib/host-snapshot.sh"
 
 # The containers the deployed runtime consists of. A deploy that brought up some
 # of them is not a deployed runtime: a missing worker sends no mail, a missing
@@ -132,11 +136,31 @@ bh_probe_host() {
 # answered, with the one password line; P[HOST_ENV_VERIFY] stays unset otherwise,
 # and the row says the verifier was not run rather than calling the record done.
 bh_probe_host_env() {
-  local rc=0
+  local rc=0 out
   [[ "${P[HOST_REACHED]:-}" == "yes" ]] || return 0
-  printf '%s\n' "$SUDO_PASS" | bash "${BH_SCRIPTS}/verify-host-env.sh" --target "$1" >/dev/null 2>&1 || rc=$?
-  (( rc == 0 )) && P[HOST_ENV_VERIFY]=ok || P[HOST_ENV_VERIFY]=fail
+  out="$(printf '%s\n' "$SUDO_PASS" | bash "${BH_SCRIPTS}/verify-host-env.sh" --target "$1" 2>&1)" || rc=$?
+  P[HOST_ENV_VERIFY_SAID]=""
+  if (( rc == 0 )); then
+    P[HOST_ENV_VERIFY]=ok
+  else
+    P[HOST_ENV_VERIFY]=fail
+    P[HOST_ENV_VERIFY_SAID]="$(bh_reason "$out")"
+  fi
   return 0
+}
+
+# bh_reason <output>
+# What a check printed about why it failed, on one line: its FAIL lines, or its
+# last non-blank line when it prints none. A probe keeps this rather than only
+# the exit status, so a row reads the reason and not merely that one exists.
+bh_reason() {
+  local out="$1" said
+  said="$(grep -E '^[[:space:]]*FAIL[[:space:]]' <<< "$out" \
+    | sed -E 's/^[[:space:]]*FAIL[[:space:]]+//; s/[[:space:]]+/ /g; s/ $//' | paste -sd ';' - | sed 's/;/; /g' || true)"
+  if [[ -z "$said" ]]; then
+    said="$(grep -v '^[[:space:]]*$' <<< "$out" | tail -1 | sed -E 's/[[:space:]]+/ /g; s/^ //; s/ $//' || true)"
+  fi
+  printf '%s' "${said:0:400}"
 }
 
 # bh_backup_limit
@@ -160,37 +184,17 @@ bh_backup_limit() {
   BH_BACKUP_LIMIT=$(( interval + ${jitter:-0} ))
 }
 
-# bh_newest_backup <bucket>
-# Sets BH_NEWEST_BACKUP to the LastModified time of the newest routine backup
-# object written today or yesterday (UTC), empty when there is none. Returns 1
-# when the bucket could not be listed, which is not the same as no backup.
-bh_newest_backup() {
-  local bucket="$1" day newest
-  BH_NEWEST_BACKUP=""
-  for day in "$(date -u +%Y/%m/%d)" "$(date -u -d '1 day ago' +%Y/%m/%d)"; do
-    # Every time, sorted here: an empty prefix has no Contents, which a projection
-    # reads as None where a function over it would fail the whole call. The ISO
-    # timestamps the listing returns sort as text.
-    newest="$("$BH_AWS_BIN" s3api list-objects-v2 --bucket "$bucket" --prefix "routine/${day}/" \
-      --query 'Contents[].LastModified' --output text </dev/null 2>/dev/null)" || return 1
-    newest="$(tr -s '[:space:]' '\n' <<< "$newest" | grep -v -e '^$' -e '^None$' | sort | tail -1 || true)"
-    if [[ -n "$newest" ]]; then
-      BH_NEWEST_BACKUP="$newest"
-      return 0
-    fi
-  done
-  return 0
-}
-
 # bh_probe_pin <target>
 bh_probe_pin() {
-  local rc=0
-  bash "${BH_SCRIPTS}/install-known-hosts.sh" --target "$1" --check </dev/null >/dev/null 2>&1 || rc=$?
+  local rc=0 out
+  out="$(bash "${BH_SCRIPTS}/install-known-hosts.sh" --target "$1" --check </dev/null 2>&1)" || rc=$?
   case "$rc" in
     0) P[PIN]=current ;;
     1) P[PIN]=stale ;;
     *) P[PIN]=unknown ;;
   esac
+  P[PIN_SAID]=""
+  (( rc == 0 )) || P[PIN_SAID]="$(bh_reason "$out")"
 }
 
 # bh_probe_terraform <target>
@@ -202,12 +206,14 @@ bh_probe_terraform() {
     [[ "$tree" == shared ]] && key=TF_PLAN_SHARED
     [[ "$tree" == identity ]] && key=TF_PLAN_IDENTITY
     rc=0
-    "$BH_TF_BIN" -chdir="${BH_REPO_ROOT}/terraform/${tree}" plan -detailed-exitcode -input=false -lock=false \
-      </dev/null >/dev/null 2>&1 || rc=$?
+    local out
+    out="$("$BH_TF_BIN" -chdir="${BH_REPO_ROOT}/terraform/${tree}" plan -detailed-exitcode -input=false -lock=false \
+      -no-color </dev/null 2>&1)" || rc=$?
+    P[${key}_SAID]=""
     case "$rc" in
       0) P[$key]=insync ;;
       2) P[$key]=drift ;;
-      *) P[$key]=unknown ;;
+      *) P[$key]=unknown; P[${key}_SAID]="$(bh_reason "$out")" ;;
     esac
   done
   local state
@@ -249,23 +255,26 @@ bh_probe_aws() {
   # active and enabled whose runs all fail reads done on its own state alone.
   P[BACKUP_AGE]=unknown
   if tf_output_read "${BH_REPO_ROOT}/terraform/${target}" snapshots_bucket_name 2>/dev/null \
-       && [[ -n "$TF_OUTPUT_VALUE" ]] && bh_newest_backup "$TF_OUTPUT_VALUE"; then
-    if [[ -z "$BH_NEWEST_BACKUP" ]]; then
+       && [[ -n "$TF_OUTPUT_VALUE" ]] && host_newest_backup "$BH_AWS_BIN" "$TF_OUTPUT_VALUE"; then
+    if [[ -z "$HS_NEWEST_BACKUP" ]]; then
       P[BACKUP_AGE]=none
     else
       local newest_epoch
-      newest_epoch="$(date -u -d "$BH_NEWEST_BACKUP" +%s 2>/dev/null)" \
+      newest_epoch="$(date -u -d "$HS_NEWEST_BACKUP" +%s 2>/dev/null)" \
         && P[BACKUP_AGE]=$(( $(date -u +%s) - newest_epoch ))
     fi
   fi
 
+  local out
   rc=0
-  bash "${BH_SCRIPTS}/verify-cwagent-metrics.sh" --target "$target" </dev/null >/dev/null 2>&1 || rc=$?
-  (( rc == 0 )) && P[CW_METRICS]=ok || P[CW_METRICS]=fail
+  out="$(bash "${BH_SCRIPTS}/verify-cwagent-metrics.sh" --target "$target" </dev/null 2>&1)" || rc=$?
+  P[CW_METRICS_SAID]=""
+  if (( rc == 0 )); then P[CW_METRICS]=ok; else P[CW_METRICS]=fail; P[CW_METRICS_SAID]="$(bh_reason "$out")"; fi
 
   rc=0
-  bash "${BH_SCRIPTS}/verify-host-snapshots.sh" --target "$target" </dev/null >/dev/null 2>&1 || rc=$?
-  (( rc == 0 )) && P[SNAPSHOT]=ok || P[SNAPSHOT]=fail
+  out="$(bash "${BH_SCRIPTS}/verify-host-snapshots.sh" --target "$target" </dev/null 2>&1)" || rc=$?
+  P[SNAPSHOT_SAID]=""
+  if (( rc == 0 )); then P[SNAPSHOT]=ok; else P[SNAPSHOT]=fail; P[SNAPSHOT_SAID]="$(bh_reason "$out")"; fi
 
   P[FEEDS_FLAG]="$(bh_tfvars_flag "$target" enable_feed_queues)"
 
@@ -424,6 +433,9 @@ bh_verdict() {
         BH_STATE=PENDING; BH_DETAIL="pending changes in: ${pending% }"
       elif [[ -n "$unread" ]]; then
         BH_STATE=UNKNOWN; BH_DETAIL="plan not read for: ${unread% }"
+        for k in shared:TF_PLAN_SHARED identity:TF_PLAN_IDENTITY "${t}:TF_PLAN"; do
+          if [[ -n "${P[${k#*:}_SAID]:-}" ]]; then BH_DETAIL+=" (${k%%:*}: ${P[${k#*:}_SAID]})"; fi
+        done
       else
         BH_STATE=DONE; BH_DETAIL="no changes pending in shared, identity or ${t}"
       fi
@@ -437,6 +449,7 @@ bh_verdict() {
         stale) BH_STATE=PENDING; BH_DETAIL="the pin is missing, stale, or still carries a previous address" ;;
         *) BH_STATE=UNKNOWN; BH_DETAIL="the pin was not checked" ;;
       esac
+      if [[ "$BH_STATE" != DONE && -n "${P[PIN_SAID]:-}" ]]; then BH_DETAIL+=": ${P[PIN_SAID]}"; fi
       BH_NEXT="bash scripts/install-known-hosts.sh --target ${t}"
       ;;
 
@@ -527,7 +540,7 @@ bh_verdict() {
           case "${P[HOST_ENV_VERIFY]:-}" in
             ok) BH_STATE=DONE; BH_DETAIL="the host records FOOTBAG_ENV=${t}, and scripts/verify-host-env.sh passes" ;;
             fail) BH_STATE=PENDING
-                  BH_DETAIL="the host records FOOTBAG_ENV=${t}, but scripts/verify-host-env.sh fails: a value on the host differs from what the estate declares"
+                  BH_DETAIL="the host records FOOTBAG_ENV=${t}, but scripts/verify-host-env.sh fails: ${P[HOST_ENV_VERIFY_SAID]:-a value on the host differs from what the estate declares}"
                   BH_NEXT="< ${cred} bash scripts/verify-host-env.sh --target ${t}   (each FAIL names its fix; most are closed by a deploy)" ;;
             *) BH_STATE=UNKNOWN
                BH_DETAIL="the host records FOOTBAG_ENV=${t}; the host env verifier was not run, so the rest of the file was not checked"
@@ -601,7 +614,7 @@ bh_verdict() {
           BH_NEXT="< ${cred} bash ${cw} --rotate"
         fi
       elif [[ "${P[CW_METRICS]:-}" != "ok" ]]; then
-        BH_STATE=PENDING; BH_DETAIL="the agent runs, but its metrics are not arriving where the alarms read them"
+        BH_STATE=PENDING; BH_DETAIL="the agent runs, but its metrics are not arriving where the alarms read them${P[CW_METRICS_SAID]:+: ${P[CW_METRICS_SAID]}}"
         BH_NEXT="bash scripts/verify-cwagent-metrics.sh --target ${t}   (allow a few minutes after an install)"
       elif [[ "${P[IAM_CW_KEYS]-unknown}" == "unknown" ]]; then
         BH_STATE=UNKNOWN; BH_DETAIL="the agent publishes; the publisher's keys were not read"
@@ -761,7 +774,7 @@ bh_verdict() {
       BH_NEXT="bash scripts/verify-host-snapshots.sh --target ${t}   (the daily automatic snapshot appears within a day of the instance's creation)"
       case "${P[SNAPSHOT]:-unknown}" in
         ok) BH_STATE=DONE; BH_DETAIL="an automatic snapshot younger than a day and two hours" ;;
-        fail) BH_STATE=PENDING; BH_DETAIL="no automatic snapshot younger than a day and two hours" ;;
+        fail) BH_STATE=PENDING; BH_DETAIL="no automatic snapshot younger than a day and two hours${P[SNAPSHOT_SAID]:+: ${P[SNAPSHOT_SAID]}}" ;;
         *) BH_STATE=UNKNOWN; BH_DETAIL="not read" ;;
       esac
       ;;

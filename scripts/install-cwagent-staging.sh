@@ -82,6 +82,13 @@
 
 set -euo pipefail
 
+# One closing report for the whole run, the host's half included: the remote
+# half marks each of its problems on the stream and the send below folds them
+# into this report. The library owns the exit and signal traps, so this script
+# registers its cleanup with it rather than setting a trap of its own.
+# shellcheck source=lib/closing-report.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/lib/closing-report.sh"
+
 PUBLISHER_USER="footbag-staging-cwagent-publisher"
 VAULT_ENTRY="aws-footbag-staging-cwagent-publisher"
 ENVIRONMENT="staging"
@@ -173,6 +180,8 @@ if [[ "$ACTION" != "delete" && -t 0 ]]; then
   exit 1
 fi
 REMOTE_HALF="${SCRIPT_DIR}/internal/install-cwagent-remote.sh"
+# Sent ahead of the remote half on the same stream: the half cannot source it.
+REMOTE_REPORT_LIB="${SCRIPT_DIR}/lib/closing-report-remote.sh"
 VERIFY_METRICS="${SCRIPT_DIR}/verify-cwagent-metrics.sh"
 
 # shellcheck source=lib/ssh-known-hosts.sh
@@ -187,7 +196,8 @@ source "${SCRIPT_DIR}/lib/tool-versions.sh"
 # shellcheck source=internal/bootstrap-host-rebuild-keys.sh
 source "${SCRIPT_DIR}/internal/bootstrap-host-rebuild-keys.sh"
 
-[[ -r "$REMOTE_HALF" ]] || { echo "ERROR: missing remote-half: $REMOTE_HALF" >&2; exit 1; }
+[[ -r "$REMOTE_HALF" ]] || cr_die "missing remote-half: $REMOTE_HALF"
+[[ -r "$REMOTE_REPORT_LIB" ]] || cr_die "missing remote-half report library: $REMOTE_REPORT_LIB"
 
 # The agent package is pinned to one version and one digest. Checked before
 # anything is minted or any host is reached, so an unfilled pin costs nothing.
@@ -287,7 +297,8 @@ if [[ "$ACTION" != "install" ]]; then
       echo "Observe before deleting. Anything still holding the old key now fails"
       echo "visibly rather than silently, which is the point of the window."
       echo "Then:  bash scripts/install-cwagent-${ENVIRONMENT}.sh --delete ${OLD_KEY}"
-      exit 0
+      cr_proved "IAM accepted the deactivation of ${OLD_KEY} on ${PUBLISHER_USER}"
+      cr_finish
       ;;
     delete)
       echo "==> Deleting ${OLD_KEY} on ${PUBLISHER_USER}"
@@ -300,7 +311,8 @@ if [[ "$ACTION" != "install" ]]; then
       iam_key_retire "$PUBLISHER_USER" "$OLD_KEY" delete || exit 1
       echo ""
       echo "Record the rotation date and the reason on the vault entry."
-      exit 0
+      cr_proved "IAM accepted the deletion of ${OLD_KEY} from ${PUBLISHER_USER}"
+      cr_finish
       ;;
   esac
 fi
@@ -315,6 +327,25 @@ SSH_OPTS=("${FOOTBAG_SSH_PIN_OPTS[@]}" -o "ConnectTimeout=10" -o "ServerAliveInt
 echo "==> Deploy target: $REMOTE"
 IFS= read -r SUDO_PASS
 require_host_is "$REMOTE" staging || exit 1
+
+# install_on_host <send-function>
+# Runs the root-side install and folds every problem the half marked into this
+# run's report. Only marked lines are read: the half's output is a package
+# manager's and an agent's, whose ordinary lines carry words the default grammar
+# would take for errors. The run is judged by both the half's exit and the
+# errors it marked, so a half that marked an error and then exited zero still
+# fails here, and no success line follows a failed half.
+install_on_host() {
+  if ! cr_run --sentinels-only "agent install on ${REMOTE}" -- "$1" \
+       || (( ${#CR_ERRORS[@]} )); then
+    echo >&2
+    echo "FAILED: the agent on $REMOTE is not running on its new config; the closing report below names every error." >&2
+    cr_unproved "the agent on ${REMOTE} running ${CWAGENT_VERSION} on a freshly translated config"
+    cr_finish
+  fi
+  cr_proved "the agent on ${REMOTE} translated its config and runs ${CWAGENT_VERSION} (the host half's outcome check)"
+  cr_unproved "publishing: scripts/verify-cwagent-metrics.sh --target ${ENVIRONMENT} proves the metrics bind to the alarms"
+}
 
 # A bare install onto a host holding none of the publisher's keys, while the
 # publisher already holds one, is a rebuilt host: say so and name the rotation,
@@ -338,25 +369,38 @@ if (( UPGRADE )); then
     exit 1
   fi
   echo "==> Upgrading the agent to ${CWAGENT_VERSION}, keeping ${HOST_KEY_ID}"
-  {
-    printf '%s\n' "$SUDO_PASS"
-    printf 'CWAGENT_KEEP_CREDENTIALS=%q\n' 1
-    printf 'CWAGENT_VERSION=%q\n' "$CWAGENT_VERSION"
-    printf 'CWAGENT_URL=%q\n' "$CWAGENT_URL"
-    printf 'CWAGENT_SHA256=%q\n' "$CWAGENT_SHA256"
-    cat "$REMOTE_HALF"
-  } | "$HOST_SSH_BIN" "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash' || {
-    echo >&2
-    echo "FAILED: the agent on $REMOTE is not running on its new config; the closing report above names every error." >&2
-    exit 1
+  send_upgrade() {
+    {
+      printf '%s\n' "$SUDO_PASS"
+      printf 'CWAGENT_KEEP_CREDENTIALS=%q\n' 1
+      printf 'CWAGENT_VERSION=%q\n' "$CWAGENT_VERSION"
+      printf 'CWAGENT_URL=%q\n' "$CWAGENT_URL"
+      printf 'CWAGENT_SHA256=%q\n' "$CWAGENT_SHA256"
+      cat "$REMOTE_REPORT_LIB" "$REMOTE_HALF"
+    } | "$HOST_SSH_BIN" "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'
   }
+  install_on_host send_upgrade
   echo
   echo "The agent on $REMOTE translated its config and is running ${CWAGENT_VERSION}; no key was minted or changed."
   echo "Publishing is not yet proven. Prove it:  scripts/verify-cwagent-metrics.sh --target staging"
-  exit 0
+  cr_finish
 fi
 
-trap iam_key_cleanup EXIT INT TERM
+# The key library's cleanup decides from how far the key travelled whether an
+# unfinished run may withdraw it, and what it prints is an instruction the
+# operator must see: a key it could not delete, or a vaulted one it kept. So a
+# key an unfinished run leaves in either state is listed in the report as well
+# as printed.
+cwagent_key_cleanup() {
+  local state="$IAM_KEY_STATE" akid="${IAM_KEY_AKID:-}"
+  iam_key_cleanup
+  case "$state" in
+    minted|vaulted)
+      cr_warn "the run stopped with the access key ${akid} ${state}; the lines above say whether it was deleted or kept"
+      ;;
+  esac
+}
+cr_cleanup cwagent_key_cleanup
 iam_key_provision "$PUBLISHER_USER" "$VAULT_ENTRY" "$ROTATE" || exit 1
 
 echo "==> Running remote-as-root cwagent install via cat-pipe..."
@@ -376,19 +420,18 @@ echo "==> Running remote-as-root cwagent install via cat-pipe..."
 # host check above used, so the session that carries the key goes where the
 # confirmed one went, and a stand-in client under test is announced by the
 # shared library.
-{
-  printf '%s\n' "$SUDO_PASS"
-  printf 'CWAGENT_AKID=%q\n' "$IAM_KEY_AKID"
-  printf 'CWAGENT_SAK=%q\n' "$IAM_KEY_SAK"
-  printf 'CWAGENT_VERSION=%q\n' "$CWAGENT_VERSION"
-  printf 'CWAGENT_URL=%q\n' "$CWAGENT_URL"
-  printf 'CWAGENT_SHA256=%q\n' "$CWAGENT_SHA256"
-  cat "$REMOTE_HALF"
-} | "$HOST_SSH_BIN" "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash' || {
-  echo >&2
-  echo "FAILED: the agent on $REMOTE is not running on its new config; the closing report above names every error." >&2
-  exit 1
+send_install() {
+  {
+    printf '%s\n' "$SUDO_PASS"
+    printf 'CWAGENT_AKID=%q\n' "$IAM_KEY_AKID"
+    printf 'CWAGENT_SAK=%q\n' "$IAM_KEY_SAK"
+    printf 'CWAGENT_VERSION=%q\n' "$CWAGENT_VERSION"
+    printf 'CWAGENT_URL=%q\n' "$CWAGENT_URL"
+    printf 'CWAGENT_SHA256=%q\n' "$CWAGENT_SHA256"
+    cat "$REMOTE_REPORT_LIB" "$REMOTE_HALF"
+  } | "$HOST_SSH_BIN" "${SSH_OPTS[@]}" "$REMOTE" 'sudo -k -S -p "" bash'
 }
+install_on_host send_install
 
 iam_key_commit
 
@@ -402,3 +445,4 @@ if (( ROTATE == 1 )); then
   echo "This was a rotation. The previous key is still active, deliberately, so"
   echo "metrics never stopped. Deactivate and delete it once that check passes."
 fi
+cr_finish

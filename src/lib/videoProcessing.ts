@@ -116,6 +116,12 @@ const MP4_MAGIC_OFFSET = 4;
 const MP4_BRAND_FTYP = Buffer.from('ftyp', 'ascii');
 const WEBM_MAGIC = Buffer.from([0x1a, 0x45, 0xdf, 0xa3]);
 const MOV_BRAND_QT = Buffer.from('qt  ', 'ascii');
+// A QuickTime file written before the ftyp atom existed opens straight on one
+// of the classic top-level atoms instead: the movie header, the media data, or
+// a padding or preview atom. Those are still .mov files, and curated clips of
+// that age are among the platform's own media.
+const MOV_CLASSIC_FIRST_ATOMS = ['moov', 'mdat', 'wide', 'free', 'skip', 'pnot']
+  .map((atom) => Buffer.from(atom, 'ascii'));
 
 export type CuratorVideoFormat = 'mp4' | 'webm' | 'mov';
 
@@ -170,11 +176,13 @@ export async function detectVideoFormatFile(
  */
 export function detectVideoFormat(data: Buffer): CuratorVideoFormat | null {
   if (data.length < 12) return null;
-  if (data.subarray(MP4_MAGIC_OFFSET, MP4_MAGIC_OFFSET + 4).equals(MP4_BRAND_FTYP)) {
+  const firstAtom = data.subarray(MP4_MAGIC_OFFSET, MP4_MAGIC_OFFSET + 4);
+  if (firstAtom.equals(MP4_BRAND_FTYP)) {
     const brand = data.subarray(8, 12);
     if (brand.equals(MOV_BRAND_QT)) return 'mov';
     return 'mp4';
   }
+  if (MOV_CLASSIC_FIRST_ATOMS.some((atom) => firstAtom.equals(atom))) return 'mov';
   if (data.subarray(0, 4).equals(WEBM_MAGIC)) return 'webm';
   return null;
 }
@@ -275,9 +283,9 @@ export async function transcodeCuratorVideoFile(
 /**
  * Transcode an input video buffer to a sanitized MP4 buffer, via temp files
  * and transcodeCuratorVideoFile. Holds the whole input and output in memory,
- * so it is only for callers on hosts with adequate memory (the operator
- * seeder, local development, tests); the storage-fed worker route uses the
- * file variant and never buffers video bytes.
+ * so it is only for callers on hosts with adequate memory (local development,
+ * tests); the storage-fed worker route and the curator seeder use the file
+ * variant and never buffer video bytes.
  *
  * Errors: same as transcodeCuratorVideoFile.
  */

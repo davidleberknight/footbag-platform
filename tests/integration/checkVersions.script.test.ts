@@ -5,8 +5,10 @@
  * list, .nvmrc or .python-version pins; one that differs reads MISMATCH and the
  * run fails, beside a run where every row matches and it passes; the pins that
  * must agree with each other (the sqlite pin and the engine the app bundles,
- * the ffmpeg pin and the image) are rows too; and the advisory scan runs the
- * pinned scanner image, only when asked.
+ * the ffmpeg pin and the image, the hosts' release and the release image, the
+ * host engine pin and what that release serves) are rows too; and a failure part way
+ * through never ends the run early: every row is still checked and the closing
+ * report names every one that failed.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
@@ -29,6 +31,28 @@ function stub(name: string, out: string): void {
   chmodSync(join(bin, name), 0o755);
 }
 
+/**
+ * The workstation's own docker: the engine answers `docker version`, and the
+ * Compose plugin answers `docker compose version --short`, which prints the
+ * version without the leading v the pin carries (seen from Compose v5.1.0 on a
+ * workstation: `5.1.0`).
+ */
+function workstationDocker(engine: string, compose: string): void {
+  writeFileSync(join(bin, 'docker'), [
+    '#!/usr/bin/env bash',
+    'case "$*" in',
+    `  "compose version --short") echo ${JSON.stringify(compose)} ;;`,
+    `  version*) echo ${JSON.stringify(engine)} ;;`,
+    '  *) exit 1 ;;',
+    'esac',
+  ].join('\n'));
+  chmodSync(join(bin, 'docker'), 0o755);
+}
+
+// The engine reports the version part of the apt pin (epoch:version-revision).
+const ENGINE = pin('DOCKER_ENGINE_WORKSTATION').replace(/^\d+:/, '').replace(/-.*$/, '');
+const COMPOSE = pin('COMPOSE_VERSION').replace(/^v/, '');
+
 /** Every workstation tool answering at its pinned version. */
 function pinnedTools(): void {
   stub('sqlite3', `${pin('SQLITE_VERSION')} 2026-01-09 stub`);
@@ -37,8 +61,20 @@ function pinnedTools(): void {
   stub('node', `v${NODE}`);
   stub(`python${PY.replace(/\.\d+$/, '')}`, PY);
   stub('terraform', `Terraform v${pin('TERRAFORM_VERSION')}`);
-  // The engine reports the version part of the apt pin (epoch:version-revision).
-  stub('docker', pin('DOCKER_ENGINE_WORKSTATION').replace(/^\d+:/, '').replace(/-.*$/, ''));
+  workstationDocker(ENGINE, COMPOSE);
+}
+
+/** The real list with one key's line replaced, as a stand-in list. */
+function listWith(key: string, value: string): NodeJS.ProcessEnv {
+  const path = join(dir, 'tool-versions.env');
+  writeFileSync(path, LIST.replace(new RegExp(`^${key}=.*$`, 'm'), `${key}=${value}`));
+  return { FOOTBAG_TOOL_VERSIONS: path };
+}
+
+/** The closing report: everything from its heading to the end of the output. */
+function report(out: string): string {
+  const at = out.lastIndexOf('Closing report');
+  return at < 0 ? '' : out.slice(at);
 }
 
 beforeEach(() => {
@@ -63,13 +99,13 @@ describe('check-versions.sh', () => {
   it('passes when every tool and every pair of pins agrees', () => {
     const r = check(['--quick']);
     expect(r.status, r.out).toBe(0);
-    for (const tool of ['sqlite3', 'jq', 'age', 'node', 'python', 'terraform', 'docker', 'sqlite engine (app)', 'ffmpeg (Dockerfile)']) {
+    for (const tool of ['sqlite3', 'jq', 'age', 'node', 'python', 'terraform', 'docker', 'compose', 'sqlite engine (app)', 'ffmpeg (Dockerfile)', 'amazon linux (image)']) {
       const line = r.out.split('\n').find((l) => l.startsWith(tool + ' '));
       expect(line, tool).toMatch(/\sok$/);
     }
   });
 
-  it('fails, naming the row, when one tool is at another version', () => {
+  it('fails, naming the row in the closing report, when one tool is at another version', () => {
     // Defect caught: a workstation on apt's older jq passes the check, so a
     // patch is declared proven on a machine that never ran the pinned version.
     stub('jq', 'jq-1.6');
@@ -77,64 +113,124 @@ describe('check-versions.sh', () => {
     expect(r.status).toBe(1);
     expect(r.out.split('\n').find((l) => l.startsWith('jq '))).toMatch(/\s1\.6\s+MISMATCH$/);
     expect(r.out.split('\n').find((l) => l.startsWith('sqlite3 '))).toMatch(/\sok$/);
+    // Defect caught: the mismatch scrolls past in the table and the end of the
+    // run, which is what the operator reads, never names it.
+    expect(report(r.out)).toContain(`jq: pinned ${pin('JQ_VERSION')}, found 1.6`);
   });
 
   it('fails, naming the row, when the docker engine is at another version', () => {
     // Defect caught: a workstation on another Docker engine passes the check, so
     // local container runs are trusted as the pinned environment when they are not.
-    stub('docker', '28.0.0');
+    workstationDocker('28.0.0', COMPOSE);
     const r = check(['--quick']);
     expect(r.status).toBe(1);
     expect(r.out.split('\n').find((l) => l.startsWith('docker '))).toMatch(/\s28\.0\.0\s+MISMATCH$/);
   });
 
-  it('runs the pinned scanner image only when asked, and refuses an image without the scan', () => {
-    // Defect caught: the advisory scan runs a floating scanner tag, or runs at
-    // all without the maintainer asking for it.
-    const log = join(dir, 'docker.log');
-    writeFileSync(join(dir, 'docker'), `#!/usr/bin/env bash\necho "$*" >> ${JSON.stringify(log)}\n`);
-    chmodSync(join(dir, 'docker'), 0o755);
-    const env = { FOOTBAG_CHECK_VERSIONS_DOCKER: join(dir, 'docker') };
-    expect(check(['--quick'], env).status).toBe(0);
-    expect(() => readFileSync(log, 'utf-8')).toThrow();
+  it('fails, naming the row, when the Compose plugin is at another version', () => {
+    // Defect caught: a workstation builds and runs the stack with another
+    // Compose than the hosts install, and the check says nothing.
+    workstationDocker(ENGINE, '2.29.7');
+    const r = check(['--quick']);
+    expect(r.status).toBe(1);
+    expect(r.out.split('\n').find((l) => l.startsWith('compose '))).toMatch(/\s2\.29\.7\s+MISMATCH$/);
+  });
 
-    const r = check(['--quick', '--advisories', '--image', 'footbag-web:test'], env);
+  it('reads a Compose plugin that prints a leading v as the same version', () => {
+    // Defect caught: the v is stripped on one side only, so a workstation on
+    // exactly the pinned plugin reads MISMATCH and the check teaches the
+    // operator to ignore it.
+    workstationDocker(ENGINE, `v${COMPOSE}`);
+    const r = check(['--quick']);
     expect(r.status, r.out).toBe(0);
-    const calls = readFileSync(log, 'utf-8');
-    expect(calls).toContain(`${pin('TRIVY_IMAGE')} fs --scanners vuln`);
-    expect(calls).toContain(`${pin('TRIVY_IMAGE')} image --exit-code 0 footbag-web:test`);
-    // Defect caught: the hosts' operating-system packages are never scanned,
-    // or are scanned at a release the hosts do not run.
-    expect(calls).toContain(`${pin('TRIVY_IMAGE')} image --exit-code 0 ${pin('AMAZONLINUX_IMAGE')}`);
+    expect(r.out.split('\n').find((l) => l.startsWith('compose '))).toMatch(/\sok$/);
+  });
 
-    expect(check(['--quick', '--image', 'footbag-web:test'], env).status).toBe(2);
+  it('fails when the Amazon Linux image is not at the hosts\' pinned release', () => {
+    // Defect caught: the release moves and the image the vulnerability report
+    // and the release query read stays behind, so both answer for a release
+    // the hosts no longer run.
+    const stale = pin('AMAZONLINUX_IMAGE').replace(/:[^@]*@/, ':2023.11.20260101.0@');
+    const r = check(['--quick'], listWith('AMAZONLINUX_IMAGE', stale));
+    expect(r.status).toBe(1);
+    expect(r.out.split('\n').find((l) => l.startsWith('amazon linux (image) ')))
+      .toMatch(new RegExp(`\\s${pin('AMAZON_LINUX_RELEASE').replace(/\./g, '\\.')}\\s+2023\\.11\\.20260101\\s+MISMATCH$`));
   });
 });
 
 describe('asking the built images from the inside', () => {
-  /** A docker stand-in: builds succeed, and each image answers at the given versions. */
-  function images(answers: { node?: string; ffmpeg?: string }): NodeJS.ProcessEnv {
+  /**
+   * A docker stand-in: builds succeed unless told otherwise, each image answers
+   * at the given versions, and the release query answers with the given docker
+   * package. Every call is logged.
+   */
+  function images(answers: { node?: string; ffmpeg?: string; hostDocker?: string; buildFails?: boolean; testsFail?: boolean }): NodeJS.ProcessEnv {
     const docker = join(dir, 'docker');
     writeFileSync(docker, [
       '#!/usr/bin/env bash',
+      `echo "$*" >> ${JSON.stringify(join(dir, 'docker.log'))}`,
       'case "$*" in',
-      '  compose*build*) exit 0 ;;',
+      answers.buildFails
+        ? '  compose*build*) echo "ERROR: failed to solve: process did not complete"; exit 17 ;;'
+        : '  compose*build*) exit 0 ;;',
       `  *"--entrypoint node"*) echo "v${answers.node ?? NODE}" ;;`,
       // The installed-package list's real shape, captured 2026-11-01 from
       // `apk info -v` in the pinned node:22-alpine base after `apk add
       // ffmpeg=8.1.3-r0`: the bare package line among its library packages.
       `  *"apk info -v"*) v="${answers.ffmpeg ?? pin('FFMPEG_VERSION')}"; printf '%s\\n' "ffmpeg-$v" "ffmpeg-libavcodec-$v" "ffmpeg-libavformat-$v" "ffmpeg-libswscale-$v" ;;`,
+      // The query's real answer, captured 2026-11-02 from `dnf repoquery
+      // --quiet --releasever=2023.12.20261021 --latest-limit=1 --qf
+      // '%{version}-%{release}' docker` in the pinned amazonlinux image: one
+      // line, the package's version-release, the pull progress on stderr.
+      `  *"dnf repoquery"*) echo "Unable to find image locally" >&2; echo "${answers.hostDocker ?? pin('DOCKER_ENGINE_HOST')}" ;;`,
       'esac',
     ].join('\n'));
     chmodSync(docker, 0o755);
     const vitest = join(dir, 'vitest');
-    writeFileSync(vitest, '#!/usr/bin/env bash\nexit 0\n');
+    writeFileSync(vitest, answers.testsFail
+      ? '#!/usr/bin/env bash\necho " FAIL  tests/unit/imageToolPins.test.ts"\nexit 1\n'
+      : '#!/usr/bin/env bash\nexit 0\n');
     chmodSync(vitest, 0o755);
     return { FOOTBAG_CHECK_VERSIONS_DOCKER: docker, FOOTBAG_CHECK_VERSIONS_VITEST: vitest };
   }
 
   const line = (out: string, tool: string): string | undefined =>
     out.split('\n').find((l) => l.startsWith(tool + ' '));
+
+  // Defect caught: the host engine pin names a docker package the pinned
+  // release does not serve, so a host stepped to that release installs another
+  // engine than the one every check was proven against.
+  it('asks the pinned release, inside the pinned image, which docker package it serves', () => {
+    const ok = check([], images({}));
+    expect(ok.status, ok.out).toBe(0);
+    expect(line(ok.out, 'docker (host release)')).toMatch(/\sok$/);
+    const calls = readFileSync(join(dir, 'docker.log'), 'utf-8');
+    expect(calls).toContain(`run --rm ${pin('AMAZONLINUX_IMAGE')} dnf repoquery`);
+    expect(calls).toContain(`--releasever=${pin('AMAZON_LINUX_RELEASE')}`);
+
+    const bad = check([], images({ hostDocker: '25.0.14-1.amzn2023.0.1' }));
+    expect(bad.status).toBe(1);
+    expect(line(bad.out, 'docker (host release)')).toMatch(/\s25\.0\.14-1\.amzn2023\.0\.1\s+MISMATCH$/);
+  });
+
+  // Defect caught: a failure part way through (the images not building) is
+  // printed mid-stream and the run either stops there, skipping the tests
+  // after it, or finishes on a line that does not name it.
+  it('carries on past an image build that failed, runs the tests, and fails naming the build', () => {
+    const r = check([], images({ buildFails: true }));
+    expect(r.status).toBe(1);
+    expect(r.out).toContain('==> The tests where pinned things meet');
+    expect(report(r.out)).toMatch(/image build: exit 17/);
+    expect(report(r.out)).toMatch(/Not proven:[\s\S]*the images did not build/);
+  });
+
+  // Defect caught: a failing pinned-tool test is shown in the runner's output
+  // and the check still exits zero with every row ok.
+  it('fails, naming the tests, when the tests where pinned things meet fail', () => {
+    const r = check([], images({ testsFail: true }));
+    expect(r.status).toBe(1);
+    expect(report(r.out)).toMatch(/the tests where pinned things meet: exit 1/);
+  });
 
   // Defect caught: the check passes on what the Dockerfile asks for while the
   // built image holds something else, so a patch is declared proven on bytes

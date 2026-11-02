@@ -27,6 +27,20 @@ import { SPAWN_GUARD } from '../fixtures/spawnGuard';
 import { createScratchDir } from '../fixtures/scratchDir';
 
 const REMOTE_HALF = resolve(__dirname, '..', '..', 'scripts', 'internal', 'install-cwagent-remote.sh');
+const REMOTE_REPORT_LIB = resolve(__dirname, '..', '..', 'scripts', 'lib', 'closing-report-remote.sh');
+// How the installers mark a host-side problem for their own closing report.
+const PROBLEM = '---FOOTBAG-PROBLEM---';
+
+/**
+ * The body as the installers send it: the report library, then the half, as
+ * one script. The half cannot source the library on the host, so a run of the
+ * half alone would prove nothing about the stream that reaches one.
+ */
+function streamed(): string {
+  const p = join(work, 'stream.sh');
+  writeFileSync(p, `${readFileSync(REMOTE_REPORT_LIB, 'utf8')}\n${readFileSync(REMOTE_HALF, 'utf8')}`);
+  return p;
+}
 
 // The stand-in download writes "package\n"; the pin is that content's digest,
 // so a run that verifies goes through and a run with any other digest does not.
@@ -113,7 +127,7 @@ describe('install-cwagent-remote.sh: an interrupt during a privileged write', ()
   // TERM is an operator's kill; HUP is the ssh session dropping, which is how a
   // remote half is most often interrupted.
   it.each(['SIGTERM', 'SIGHUP'] as const)('on %s, stops the run and leaves neither the temp file nor the package directory behind', async (signal) => {
-    const child = spawn('bash', [REMOTE_HALF], {
+    const child = spawn('bash', [streamed()], {
       env: {
         ...process.env,
         ...baseEnv(),
@@ -134,9 +148,10 @@ describe('install-cwagent-remote.sh: an interrupt during a privileged write', ()
     });
 
     // At this moment the writer's temp file and the downloaded package's
-    // directory both exist, so an empty directory afterwards is the cleanup's
-    // doing and not an artefact of nothing having been created.
-    expect(readdirSync(hostTmp)).toHaveLength(2);
+    // directory both exist (beside the report library's tally of errors), so an
+    // empty directory afterwards is the cleanup's doing and not an artefact of
+    // nothing having been created.
+    expect(readdirSync(hostTmp).length).toBeGreaterThanOrEqual(2);
 
     // The signal goes to the run alone, as an operator's kill would, and the
     // promotion it interrupted is then allowed to return.
@@ -160,7 +175,7 @@ describe('install-cwagent-remote.sh: an interrupt during a privileged write', ()
     // only on an interrupt.
     writeFileSync(`${fifo}.released`, '');
     stub('systemctl', ['[[ "$1" == is-active ]] && exit 1', 'exit 0']);
-    const res = spawnSync('bash', [REMOTE_HALF], {
+    const res = spawnSync('bash', [streamed()], {
       encoding: 'utf8',
       env: {
         ...process.env,
@@ -192,7 +207,7 @@ describe('install-cwagent-remote.sh: the package is pinned and checked', () => {
       '[[ -n "$out" ]] && { echo package > "$out"; exit 0; }',
       'exit 1',
     ]);
-    const res = spawnSync('bash', [REMOTE_HALF], {
+    const res = spawnSync('bash', [streamed()], {
       encoding: 'utf8',
       env: {
         ...process.env,
@@ -248,7 +263,7 @@ describe('install-cwagent-remote.sh: an upgrade keeps the host\'s credentials', 
     stub('systemctl', ['[[ "$1" == is-active ]] && exit 1', 'exit 0']);
     const credsFile = join(work, 'cwagent-credentials');
     if (creds !== null) writeFileSync(credsFile, creds);
-    const res = spawnSync('bash', [REMOTE_HALF], {
+    const res = spawnSync('bash', [streamed()], {
       encoding: 'utf8',
       env: {
         ...process.env,
@@ -300,7 +315,7 @@ describe('install-cwagent-remote.sh: the run is judged by the agent it leaves ru
    * log the translator's failure and leave its start wrapper there, or leave the
    * agent running on a config it never translated.
    */
-  function host(restart: Restart, opts: { fetchRc?: number; runningVersion?: string } = {}) {
+  function host(restart: Restart, opts: { fetchRc?: number; runningVersion?: string; agentLogs?: string[] } = {}) {
     writeFileSync(`${fifo}.released`, '');
     const state = join(work, 'main-process');
     const log = join(agentDir, 'logs', 'amazon-cloudwatch-agent.log');
@@ -308,6 +323,7 @@ describe('install-cwagent-remote.sh: the run is judged by the agent it leaves ru
     const onRestart = {
       healthy: [`printf '[agent]\\n' > ${JSON.stringify(toml)}`,
         `echo "2026-11-01T02:00:00Z I! started" >> ${JSON.stringify(log)}`,
+        ...(opts.agentLogs ?? []).map((l) => `echo ${JSON.stringify(l)} >> ${JSON.stringify(log)}`),
         `echo ${JSON.stringify(AGENT_CMD)} > ${JSON.stringify(state)}`],
       'translator-fails': [...TRANSLATE_FAIL.map((l) => `echo ${JSON.stringify(l)} >> ${JSON.stringify(log)}`),
         `echo ${JSON.stringify(WRAPPER_CMD)} > ${JSON.stringify(state)}`],
@@ -342,7 +358,7 @@ describe('install-cwagent-remote.sh: the run is judged by the agent it leaves ru
   // reaches its verdict returns at once, so its bound is slack below the spawn
   // guard; only a case whose verdict is the bound running out passes the short one.
   function run(verifyTimeoutS = '15') {
-    const res = spawnSync('bash', [REMOTE_HALF], {
+    const res = spawnSync('bash', [streamed()], {
       encoding: 'utf8',
       env: {
         ...process.env, ...baseEnv(), CWAGENT_VERIFY_TIMEOUT_S: verifyTimeoutS,
@@ -369,7 +385,7 @@ describe('install-cwagent-remote.sh: the run is judged by the agent it leaves ru
     host('translator-fails');
     const r = run();
     expect(r.status).toBe(1);
-    expect(r.stderr).toContain("ERROR: the agent's config translator failed.");
+    expect(r.stderr).toContain(`${PROBLEM} ERROR the agent's config translator failed.`);
     expect(r.stderr).toContain('E! Cannot translate JSON');
     expect(r.stderr).toContain('VERDICT: FAILED');
     expect(r.stdout).not.toContain('VERDICT: translated and running');
@@ -403,7 +419,9 @@ describe('install-cwagent-remote.sh: the run is judged by the agent it leaves ru
     host('healthy', { fetchRc: 1 });
     const r = run();
     expect(r.status, r.stderr).toBe(0);
-    expect(r.stdout).toMatch(/- fetch-config exited 1 \(not the verdict; the outcome check decides\): E! please make sure/);
+    // Marked as a warning for the caller's report, so it is listed without
+    // failing the run.
+    expect(r.stderr).toContain(`${PROBLEM} WARN fetch-config exited 1 (not the verdict; the outcome check decides): E! please make sure`);
   });
 
   // Defect caught: the installer's own earlier fetch-config copy, left in the
@@ -416,7 +434,7 @@ describe('install-cwagent-remote.sh: the run is judged by the agent it leaves ru
     const r = run();
     expect(r.status, r.stderr).toBe(0);
     expect(existsSync(stale)).toBe(false);
-    expect(r.stdout).toContain(`- removed this installer's earlier fetch-config copy ${stale}`);
+    expect(r.stderr).toContain(`${PROBLEM} WARN removed this installer's earlier fetch-config copy ${stale}`);
   });
 
   // Defect caught: a drop-in someone else put there is deleted, or merged into
@@ -428,9 +446,37 @@ describe('install-cwagent-remote.sh: the run is judged by the agent it leaves ru
     const r = run();
     expect(r.status).toBe(1);
     expect(existsSync(foreign)).toBe(true);
-    expect(r.stdout).toContain(`- ERROR: ${foreign} was not written by this installer`);
+    expect(r.stderr).toContain(`${PROBLEM} ERROR ${foreign} was not written by this installer`);
     expect(r.stderr).toContain('the agent was not restarted');
     expect(existsSync(join(work, 'main-process'))).toBe(false);
+  });
+
+  // The agent's log lines carry their level as a marker after the timestamp, as
+  // in the captured translator failure above; the half reads only that marker,
+  // so these lines keep the captured shape and change only the level and text.
+  const AGENT_ERROR = '2026/11/01 01:34:42 E! cloudwatch: refused the write for this run';
+  const AGENT_WARNING = '2026/11/01 01:34:42 W! cloudwatch: retrying a slow write for this run';
+
+  // Defect caught: an error the agent logged after the restart was listed in a
+  // report printed on the host and then followed by a passing verdict, so the
+  // operator's run ended green over an agent refusing its writes.
+  it('fails, marking the line for the caller, when the agent logs an error after a healthy start', () => {
+    host('healthy', { agentLogs: [AGENT_ERROR] });
+    const r = run();
+    expect(r.status).toBe(1);
+    expect(r.stderr).toContain(`${PROBLEM} ERROR agent log: ${AGENT_ERROR}`);
+    expect(r.stdout).not.toContain('VERDICT: translated and running');
+  });
+
+  // The passing side: a warning the agent logged is marked for the caller's
+  // report and does not fail an install whose outcome check passed.
+  it('passes, marking the line as a warning, when the agent logs only a warning', () => {
+    host('healthy', { agentLogs: [AGENT_WARNING] });
+    const r = run();
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.stderr).toContain(`${PROBLEM} WARN agent log: ${AGENT_WARNING}`);
+    expect(r.stderr).not.toContain(`${PROBLEM} ERROR`);
+    expect(r.stdout).toContain('VERDICT: translated and running');
   });
 
   // Defect caught: the package step reported the pin while the agent kept

@@ -1069,8 +1069,9 @@ dump_failures() {
 # Lines worth reading that a passing or skipped gate printed and nobody saw: a
 # warning, a check that did not run, a stubbed seam, a deprecation. They streamed
 # past an hour before the end, so they are collected here, from the preflight and
-# from every gate, whatever its result.
-NOTICE_GRAMMAR='WARNING|WARN[: ]|\[missing\]|NOT RUN|INCOMPLETE|[Nn]ote:|SYNTHETIC|deprecated|skipping|still missing|not installed|absent|[0-9]+ skipped|^SKIPPED'
+# from every gate, whatever its result. The grammar is scripts/lib/verdict-banner.sh's,
+# shared with the operator scripts' closing report.
+NOTICE_GRAMMAR="$FOOTBAG_NOTICE_GRAMMAR"
 
 notices_from() {
   local label="$1" log="$2" hits total

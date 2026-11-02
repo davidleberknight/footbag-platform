@@ -76,7 +76,7 @@ function pinnedManifest(sha = 'b'.repeat(64)): string {
  * stand-in IAM listing the publisher's keys. Nothing reaches a terminal, so a
  * run that got past every check would stop at the vault prompt instead.
  */
-function runInstall(script: string, environment: string, opts: { hostKey?: string; userKeys?: string; manifest?: string; args?: string[]; remoteExit?: number }) {
+function runInstall(script: string, environment: string, opts: { hostKey?: string; userKeys?: string; manifest?: string; args?: string[]; remoteExit?: number; remoteStderr?: string[] }) {
   const ssh = join(stubDir, 'ssh-host.sh');
   writeFileSync(ssh, [
     '#!/usr/bin/env bash',
@@ -85,9 +85,9 @@ function runInstall(script: string, environment: string, opts: { hostKey?: strin
     'case "$*" in',
     `  *footbag-host-identity*) printf -- "---FOOTBAG-HOST-ENV---\\n${environment}\\n---FOOTBAG-HOST-URL---\\n\\n---FOOTBAG-END---\\n" ;;`,
     `  *footbag-host-key-id*) printf -- "---FOOTBAG-KEY-ID---\\n%s\\n---FOOTBAG-END---\\n" ${JSON.stringify(opts.hostKey ?? '')} ;;`,
-    // Any other session is the root-side install, which answers with the exit
-    // its outcome check would give.
-    `  *) exit ${opts.remoteExit ?? 0} ;;`,
+    // Any other session is the root-side install, which prints what its half
+    // marked and answers with the exit its outcome check would give.
+    `  *) ${(opts.remoteStderr ?? []).map((l) => `echo ${JSON.stringify(l)} >&2;`).join(' ')} exit ${opts.remoteExit ?? 0} ;;`,
     'esac',
     'exit 0',
   ].join('\n'));
@@ -168,6 +168,54 @@ describe.each(INSTALLERS)('$script — the pinned agent package and a rebuilt ho
     expect(r.status).not.toBe(0);
     expect(r.stderr).toContain('FAILED: the agent on');
     expect(r.stdout).not.toContain('translated its config and is running');
+  });
+
+  // The marked lines the host half prints for this run's report; the shape is
+  // the one scripts/lib/closing-report-remote.sh writes.
+  const HOST_ERROR = '---FOOTBAG-PROBLEM--- ERROR agent log: 2026/11/01 01:34:42 E! cloudwatch: refused the write';
+  const HOST_WARNING = '---FOOTBAG-PROBLEM--- WARN the instance metadata service did not answer';
+
+  /** The closing report: everything from its heading to the end of stderr. */
+  function closingReport(stderr: string): string {
+    const at = stderr.lastIndexOf('Closing report');
+    return at < 0 ? '' : stderr.slice(at);
+  }
+
+  // Defect caught: the operator's run read only the host half's exit, so an
+  // error the half met was printed on the host's stream and never listed in the
+  // operator's closing report, and a half that exited zero over it passed.
+  it('lists an error the host half marked in its own closing report and fails, even when the half exited zero', () => {
+    const r = runInstall(script, environment, {
+      hostKey: 'AKIAEXAMPLEEXAMPLE01', userKeys: 'AKIAEXAMPLEEXAMPLE01', args: ['--upgrade'],
+      remoteStderr: [HOST_ERROR], remoteExit: 0,
+    });
+    expect(r.status).not.toBe(0);
+    expect(closingReport(r.stderr)).toContain(`agent install on footbag-${environment}: agent log: 2026/11/01 01:34:42 E! cloudwatch: refused the write`);
+    expect(r.stdout).not.toContain('translated its config and is running');
+  });
+
+  // The passing side: a warning the half marked is listed and does not fail it.
+  it('lists a warning the host half marked and still passes', () => {
+    const r = runInstall(script, environment, {
+      hostKey: 'AKIAEXAMPLEEXAMPLE01', userKeys: 'AKIAEXAMPLEEXAMPLE01', args: ['--upgrade'],
+      remoteStderr: [HOST_WARNING],
+    });
+    expect(r.status, r.stderr).toBe(0);
+    expect(closingReport(r.stderr)).toContain(`agent install on footbag-${environment}: the instance metadata service did not answer`);
+    expect(r.stdout).toContain('translated its config and is running');
+  });
+
+  // Defect caught: the half arrives on the host without the functions it marks
+  // its problems with, so its first warning ends the install as an unknown
+  // command.
+  it('sends the remote report library ahead of the half on the install stream', () => {
+    runInstall(script, environment, { hostKey: 'AKIAEXAMPLEEXAMPLE01', userKeys: 'AKIAEXAMPLEEXAMPLE01', args: ['--upgrade'] });
+    const streams = readFileSync(join(stubDir, 'streams.log'), 'utf-8');
+    const lib = streams.indexOf('\ncrr_warn() {');
+    const half = streams.indexOf('# Root-side body of scripts/install-cwagent-staging.sh.');
+    expect(lib, 'the report library never travelled').toBeGreaterThan(-1);
+    expect(half, 'the remote half never travelled').toBeGreaterThan(-1);
+    expect(lib).toBeLessThan(half);
   });
 
   it('refuses an upgrade on a host that holds none of the publisher\'s keys', () => {

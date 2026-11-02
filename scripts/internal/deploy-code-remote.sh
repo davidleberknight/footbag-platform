@@ -239,9 +239,10 @@ seed_committed_host_config() {
 }
 
 # Tool-version preflight, before anything on the host changes: the host's
-# sqlite3, docker package and Amazon Linux release must be the versions the
-# version list pins, which the sending script read and sent. The comparison is
-# the helper shipped ahead of this half.
+# sqlite3, docker package, Compose plugin and Amazon Linux release must be the
+# versions the version list pins, which the sending script read and sent: on
+# production the list at the tip of main, on staging the working tree's. The
+# comparison is the helper shipped ahead of this half.
 if ! host_tool_versions_match; then
   echo "       Nothing was deployed. Re-run scripts/bootstrap-host.sh for this host, or" >&2
   echo "       step its release with scripts/step-amazon-linux.sh, then deploy again." >&2

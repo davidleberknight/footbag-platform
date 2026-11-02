@@ -980,7 +980,8 @@ function validateSlug(
 /**
  * When registration hits an already-registered email, notify the real account
  * address out of band instead of revealing the collision to the submitter. The
- * notice offers sign-in and password-reset links; the person who submitted the
+ * notice tells the owner how to sign in or reset the password from the site
+ * and carries no link, per the email link policy; the person who submitted the
  * form gets the identical "check your email" response either way. Strict
  * enqueue so an outbox outage fails the same way the new-account verify enqueue
  * does (503 on both branches), never a status difference that leaks existence.
@@ -989,7 +990,6 @@ function enqueueAccountExistsNotice(
   existing: { id: string; login_email: string },
   attemptHash: string,
 ): void {
-  const baseUrl = config.publicBaseUrl.replace(/\/+$/, '');
   // One notice per attempt, keyed on the member and a keyed hash of what the
   // attempt submitted: the same attempt sent again collapses onto the notice
   // already queued, and a different attempt still reaches the owner. A
@@ -997,7 +997,7 @@ function enqueueAccountExistsNotice(
   // no audit row; the outbox row is the record that the notice went.
   emailService.send({
     template: 'account_exists_notice',
-    params: { loginUrl: `${baseUrl}/login`, resetUrl: `${baseUrl}/password/forgot` },
+    params: {},
     recipientEmail: existing.login_email,
     recipientMemberId: existing.id,
     idempotencyKey: `account_exists_notice:${existing.id}:${attemptHash}`,

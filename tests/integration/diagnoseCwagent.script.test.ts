@@ -168,3 +168,85 @@ describe('diagnose-cwagent-remote.sh: what the translator merges, and its verdic
     }
   });
 });
+
+/**
+ * The namespace lines. On a host that publishes nothing, the next question is
+ * which of three states the agent's configs are in: never translated (no TOML),
+ * unreadable, or translated with no namespace (so it publishes to the agent's
+ * default, which no alarm reads). Each sends the operator somewhere different,
+ * so the diagnostic must not print one word for all three.
+ *
+ * The TOML lines below are written to the TOML grammar (indentation, spacing
+ * round the equals sign, basic and literal strings), not captured from an agent:
+ * no translated config from a real host is held in the tree.
+ */
+describe('diagnose-cwagent-remote.sh: the namespace each config names', () => {
+  type Shape = { toml?: string | 'dir'; json?: string };
+  function namespaceSection(shape: Shape): string {
+    const dir = createScratchDir('diagnose-cwagent-ns');
+    try {
+      const agent = join(dir, 'agent');
+      for (const sub of ['bin', 'etc/amazon-cloudwatch-agent.d', 'logs']) mkdirSync(join(agent, sub), { recursive: true });
+      if (shape.json !== undefined) writeFileSync(join(agent, 'etc', 'amazon-cloudwatch-agent.json'), shape.json);
+      const toml = join(agent, 'etc', 'amazon-cloudwatch-agent.toml');
+      // A directory at the config's path is unreadable as a file to any user,
+      // root included, which is the user this half runs as on a host.
+      if (shape.toml === 'dir') mkdirSync(toml);
+      else if (shape.toml !== undefined) writeFileSync(toml, shape.toml);
+      const bin = join(dir, 'stub-bin');
+      mkdirSync(bin);
+      writeFileSync(join(bin, 'systemctl'), '#!/usr/bin/env bash\necho stub\n');
+      chmodSync(join(bin, 'systemctl'), 0o755);
+      const r = spawnSync('bash', [join(process.cwd(), 'scripts/internal/diagnose-cwagent-remote.sh')], {
+        encoding: 'utf-8',
+        env: { ...process.env, PATH: `${bin}:${process.env.PATH ?? ''}`, CWAGENT_AGENT_DIR: agent, CWAGENT_CREDS_FILE: join(dir, 'none'), TMPDIR: dir },
+        ...SPAWN_GUARD,
+      });
+      const out = r.stdout ?? '';
+      const from = out.indexOf('=== namespace the agent was told to publish to ===');
+      const to = out.indexOf('=== credentials wiring');
+      expect(from, out).toBeGreaterThan(-1);
+      return out.slice(from, to);
+    } finally {
+      removeScratch(dir);
+    }
+  }
+
+  it('names a namespace line, in any TOML spelling, and says nothing of absence', () => {
+    const section = namespaceSection({
+      json: '{"metrics": {"namespace": "CWAgent/production", "metrics_collected": {}}}\n',
+      toml: '[outputs]\n\n  [[outputs.cloudwatch]]\n    namespace="CWAgent/production"\n    region = \'us-east-1\'\n',
+    });
+    expect(section).toContain('json: "namespace": "CWAgent/production"');
+    expect(section).toMatch(/toml: +namespace="CWAgent\/production"/);
+    expect(section).not.toMatch(/absent|unreadable|no namespace line/);
+  });
+
+  it('reads a literal-string namespace too', () => {
+    const section = namespaceSection({ json: '{}\n', toml: "[[outputs.cloudwatch]]\nnamespace = 'CWAgent'\n" });
+    expect(section).toMatch(/toml: namespace = 'CWAgent'/);
+  });
+
+  // Defect caught: a translated config with no namespace was reported as no
+  // config at all, sending the operator to rerun a translator that had worked.
+  it('tells a config with no namespace line apart from no config at all', () => {
+    const present = namespaceSection({ json: '{"metrics": {}}\n', toml: '[agent]\n  interval = "60s"\n' });
+    expect(present).toMatch(/json: present, no namespace line/);
+    expect(present).toMatch(/toml: present, no namespace line/);
+    expect(present).not.toMatch(/absent|unreadable/);
+
+    const missing = namespaceSection({});
+    expect(missing).toMatch(/json: absent \(no file at /);
+    expect(missing).toMatch(/toml: absent \(no file at /);
+    expect(missing).not.toMatch(/no namespace line|unreadable/);
+  });
+
+  // Defect caught: a config that exists but cannot be read was reported as
+  // absent, sending the operator to rerun a translator rather than to look at
+  // the file.
+  it('tells an unreadable config apart from an absent one', () => {
+    const section = namespaceSection({ json: '{"metrics": {}}\n', toml: 'dir' });
+    expect(section).toMatch(/toml: unreadable \(/);
+    expect(section).not.toMatch(/toml: absent|toml: present/);
+  });
+});

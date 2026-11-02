@@ -115,7 +115,7 @@ This schema is intentionally minimal for a volunteer-maintained SQLite project.
 
 - **Minimal view surface.** Views are defined only when they provide a semantic filter, a multi-condition search surface, or a computed projection from effective-dated or history data. Identity aliases over physical tables are not used; the table name itself serves as the direct query surface for unrestricted access.
 
-- **Soft-delete pattern.** Tables with `deleted_at` provide a `_active` view that filters deleted rows and an `_all` view for admin queries. Tables without soft-delete use the bare table name as the query surface; semantic filter views are named with explicit suffixes (e.g., `clubs_open`, `recurring_donation_subscriptions_active`). **`clubs` is an explicit exception:** it uses status-based archival (`status = 'archived'`) instead of `deleted_at`; see §4.2.
+- **Soft-delete pattern.** Tables with `deleted_at` provide a `_active` view that filters deleted rows and an `_all` view for admin queries. Tables without soft-delete use the bare table name as the query surface; semantic filter views are named with explicit suffixes (e.g., `clubs_open`, `recurring_donation_subscriptions_active`). **`clubs` is an explicit exception:** it uses status-based archival (`status = 'archived'`) instead of `deleted_at`; see the Clubs section.
 
 - **Timestamps.** All timestamps are `TEXT` in ISO-8601 UTC format: `YYYY-MM-DDTHH:MM:SS.sssZ`. This format sorts lexically and chronologically identically, enabling correct `MAX()` and `WHERE … <= now` comparisons in views and triggers. Writers **must** use `strftime('%Y-%m-%dT%H:%M:%fZ','now')` (not `datetime('now')`, which produces a space-separated format that breaks sort ordering).
 
@@ -142,7 +142,7 @@ Append-only tables omit `updated_at`, `updated_by`, and `version` because they a
 
 Tables with soft-delete carry `deleted_at TEXT` and `deleted_by TEXT`. The `_active` view filters `WHERE deleted_at IS NULL`. Soft-deleted rows are never physically removed; use the `_all` view for admin queries.
 
-> **Exception; Clubs:** `clubs` does **not** carry `deleted_at` or `deleted_by`. Club archival sets `status = 'archived'`. The `clubs_open` view filters `WHERE status IN ('active', 'inactive')`; `clubs_all` includes archived rows. See §4.2.
+> **Exception; Clubs:** `clubs` does **not** carry `deleted_at` or `deleted_by`. Club archival sets `status = 'archived'`. The `clubs_open` view filters `WHERE status IN ('active', 'inactive')`; `clubs_all` includes archived rows. See the Clubs section.
 
 ### Enum values
 
@@ -213,7 +213,7 @@ All rules in §6. Key items:
 
 **Table:** `tags`
 
-Tags are globally unique normalized strings prefixed with `#`. The `UNIQUE INDEX ux_tags_normalized` enforces uniqueness for all currently-existing rows with no `WHERE` clause.
+Tags are globally unique normalized strings prefixed with `#`. The `UNIQUE INDEX ux_tags_normalized` enforces uniqueness for all existing rows with no `WHERE` clause.
 
 Standard tags (`is_standard = 1`) follow platform patterns:
 - Events: `#event_{year}_{event_slug}`
@@ -262,7 +262,7 @@ none → pending → approved | rejected
 #### Payment state
 `payment_enabled` is set by an admin; `competitor_fee_cents` and `attendee_fee_cents` are nullable (free events).
 
-The US uses the term "completed" for a succeeded one-time payment. The schema uses `'succeeded'` to align with Stripe's `payment_intent` vocabulary. See §4.10.
+The US uses the term "completed" for a succeeded one-time payment. The schema uses `'succeeded'` to align with Stripe's `payment_intent` vocabulary. See the Payments section.
 
 ### 4.4 Active Player Vouches
 
@@ -392,7 +392,7 @@ For a group-backed list these rows are not only a send log: they are the group's
 `email_templates` stores admin-editable subject and body templates keyed by `template_key`, each carrying a `pii_classification` (`public` / `internal` / `confidential` / `restricted`) that bounds how much of a sent message an admin viewer may reveal. The `email_templates_enabled` view exposes only templates where `is_enabled = 1`. Setting `is_enabled = 0` suppresses the corresponding automated email type without deleting the content.
 
 #### Mailing list columns
-`mailing_lists.is_member_manageable` controls whether members can self-subscribe/unsubscribe. It also decides whether a bulk send to the list carries the one-click unsubscribe headers: a list members cannot leave through the interface must not offer a mail-client button that leaves it, which is what would otherwise remove an administrator from the operational alert lists. Seven core lists are seeded at initialization; see §4.23.
+`mailing_lists.is_member_manageable` controls whether members can self-subscribe/unsubscribe. It also decides whether a bulk send to the list carries the one-click unsubscribe headers: a list members cannot leave through the interface must not offer a mail-client button that leaves it, which is what would otherwise remove an administrator from the operational alert lists. Seven core lists are seeded at initialization; see the Seed Data section.
 
 `mailing_lists.recipient_source` says where a list's recipients come from: `subscription` reads the `mailing_list_subscriptions` rows, and `group` reads the current roster of the group named in `source_group_id`. `CHECK` constraints tie the two columns together, so a group-backed list always names its group and a subscription-backed one never does. For a group-backed list the roster is the only record of membership and no subscription row mirrors it; subscription rows on such a list carry deliverability state (`bounced`, `complained`, `suppressed`) rather than membership. Such a list also sends from a no-reply `from_identity`, which is not configurable: the platform takes no inbound mail, and a reachable reply address would put part of a group's record beyond the group's reach. Replies are composed on the group page.
 
@@ -416,7 +416,7 @@ The subject, the body and the member's note are owner-and-admin-private content 
 
 `system_config_current` is the authoritative read surface for all runtime config lookups. All background jobs and application code MUST use this view for config reads; never query `system_config` directly unless building admin history UIs or audit reports.
 
-Config values are admin-configurable. Numeric limits and time windows are stored here rather than hardcoded (US §1 Global Behaviors). Background jobs and application code read their thresholds from `system_config_current` at runtime, falling back to a built-in default where a key has no row. See §4.23 for the config keys and their default values.
+Config values are admin-configurable. Numeric limits and time windows are stored here rather than hardcoded (US §1 Global Behaviors). Background jobs and application code read their thresholds from `system_config_current` at runtime, falling back to a built-in default where a key has no row. See the Seed Data section for the config keys and their default values.
 
 `changed_by_member_id` is a typed FK to `members` (not free-form text). System-seeded rows at initialization use NULL for this field with a documented `reason_text` explaining the system origin.
 
@@ -696,7 +696,7 @@ All source FK columns are nullable. At most one of `related_registration_id`, `r
 - Apply the no-shorten rule on every grant or extend: an older qualifying source must not write a row whose `new_active_player_expires_at` is earlier than the existing latest expiry. Compare against the latest row before inserting.
 - For the one-time club-join grant, verify the member has never previously been Active Player (no prior grant rows of any kind under any reason code), not merely that they have not previously used the club-grant index. The unique index is the last-line safety net; the service is the primary control.
 - Treat vouches against Tier 1, Tier 2, or Tier 3 targets as no-ops: do not write a row to `active_player_grants` and surface the no-op UI message to the voucher.
-- When a Tier 0 Active Player member transitions to Tier 1, Tier 2, or Tier 3, write an `end` row in the same transaction as the `member_tier_grants` write (see §4.12 application responsibilities).
+- When a Tier 0 Active Player member transitions to Tier 1, Tier 2, or Tier 3, write an `end` row in the same transaction as the `member_tier_grants` write (see the Member Tier Grants section's application responsibilities).
 - Audit-log every grant, extend, expire, and end action.
 
 ### 4.13b Active Player Current View
@@ -756,7 +756,7 @@ Deceased members are excluded from this operational roster because US `A_Mark_Me
 
 **Table:** `active_player_reminder_sent`
 
-Append-only ledger recording that an Active Player expiry notice was sent to a member under a given offset label, either one of the two configured pre-expiry reminders or the built-in notice that the status has ended, so the same notice is not re-sent for the same expiry. Columns: `member_id` (FK to `members`), `expires_at` (the AP expiry the notice concerns), `offset_label` (CHECK: `days_1`, `days_2`, `day_of`), and `sent_at`. Rows are immutable; UPDATE and DELETE are blocked by triggers (see §7).
+Append-only ledger recording that an Active Player expiry notice was sent to a member under a given offset label, either one of the two configured pre-expiry reminders or the built-in notice that the status has ended, so the same notice is not re-sent for the same expiry. Columns: `member_id` (FK to `members`), `expires_at` (the AP expiry the notice concerns), `offset_label` (CHECK: `days_1`, `days_2`, `day_of`), and `sent_at`. Rows are immutable; UPDATE and DELETE are blocked by triggers (see the Retained DB Triggers section).
 
 ### 4.14 Members & Authentication
 
@@ -866,7 +866,7 @@ The legacy dump's committee tables record the IFPA Board of Directors. When they
 - `legacy_member_id` (`TEXT`, PK): the old-site user-account id.
 - `legacy_user_id`, `legacy_email`, `legacy_email2`, `legacy_email3`: migration metadata from the mirror/dump. A legacy account could hold up to three email addresses; all three participate in M_Claim_Legacy_Account matching as keys only. None is ever mailed, and none is ever a login credential.
 - Profile snapshot; `real_name`, `display_name`, `display_name_normalized`, `city`, `region`, `country`, `bio`, `birth_date`, `street_address`, `postal_code`, `ifpa_join_date`, `first_competition_year`.
-- Honor flags; `is_hof`, `is_bap` (legacy-source honors; copied to members at claim per §8 OR-merge rule).
+- Honor flags; `is_hof`, `is_bap` (legacy-source honors; copied to members at claim per the `M_Claim_Legacy_Account` OR-merge rule).
 - `legacy_is_admin`; old-site admin flag. Retained for audit; never grants live admin privilege.
 - Import audit; `import_source` ('legacy_site_data' | 'system_fixture' | 'test'), `imported_at`, `version`. 'legacy_site_data' marks a row the legacy member load imported from the published member CSV, and is the only authoritative value. 'system_fixture' marks a row the platform seeded rather than imported: the Footbag Hacky system account, and the stand-ins every database build seeds, one per member id the club rosters or the canonical historical persons name, holding an id and a display name so `historical_persons.legacy_member_id` has a parent before the member load. The load updates each stand-in its CSV covers to 'legacy_site_data'; one it leaves uncovered keeps 'system_fixture' and needs a recorded decision before a production database ships, and Footbag Hacky is covered by design. 'test' marks the development and staging test personas, which never ship to production. The column is nullable, but nothing writes NULL.
 - Claim state; `claimed_by_member_id` (nullable FK to `members(id)` with `ON DELETE NO ACTION`), `claimed_at`. A CHECK constraint enforces the two-column invariant: both NULL (unclaimed) or both set (claimed).
@@ -1086,7 +1086,7 @@ The application must prevent an event organizer from removing themselves if they
 
 #### Bootstrap leadership
 
-`club_bootstrap_leaders` rows are real leaders who have not yet registered. When the leader registers and confirms (or the first affiliated member accepts leadership during onboarding), the bootstrap row is promoted to a `club_leaders` row when onboarding completes, because only a member leads a club. See §4.27 Migration Staging and Bootstrap Tables.
+`club_bootstrap_leaders` rows are real leaders who have not yet registered. When the leader registers and confirms (or the first affiliated member accepts leadership during onboarding), the bootstrap row is promoted to a `club_leaders` row when onboarding completes, because only a member leads a club. See the Migration Staging and Bootstrap Tables section.
 
 ### 4.19 Account Tokens
 
@@ -1387,7 +1387,7 @@ May be dropped together with `club_bootstrap_leaders` once all bootstrap rows re
 
 #### `name_variants` — permanent, not migration-only
 
-Name-equivalence pairs that support claim matching across `legacy_members`, `historical_persons`, and `members` (see `M_Claim_Legacy_Account`). Seeded from mirror-mined pairs (~290) and kept live thereafter, so admins and members may record further equivalences as new name collisions surface.
+Name-equivalence pairs that support claim matching across `legacy_members`, `historical_persons`, and `members` (see `M_Claim_Legacy_Account`). Seeded from mirror-mined pairs (~290) and kept live thereafter, so admins and members may record further equivalences as new name collisions surface. A member-submitted pair takes effect only once an administrator approves it, because a curated variant can surface a claim candidate across a surname difference.
 
 - **Columns**: `canonical_normalized` TEXT, `variant_normalized` TEXT, `source` TEXT with CHECK in (`mirror_mined`, `admin_added`, `member_submitted`), `created_at` TEXT default `strftime('%Y-%m-%dT%H:%M:%fZ','now')`. Composite primary key on (`canonical_normalized`, `variant_normalized`).
 - **Symmetric lookup**: storing `('robert', 'bob')` is equivalent to storing `('bob', 'robert')`. Lookups must check both columns. Never insert both directions; the self-pair CHECK and the PRIMARY KEY enforce uniqueness.
@@ -1396,7 +1396,7 @@ Name-equivalence pairs that support claim matching across `legacy_members`, `his
 
 #### Naming-convention note
 
-This table is NOT prefixed `legacy_*`. The `legacy_*` prefix in this schema is reserved for migration-scope staging (`legacy_club_candidates`, `legacy_person_club_affiliations`) or archival data of legacy origin (`legacy_members`). Name-variant pairs are a permanent platform utility that grows over the life of the platform and has no "resolution" step, so the pairs themselves are the permanent artifact and the table is unprefixed. See §2 Schema Conventions for the general rule.
+This table is NOT prefixed `legacy_*`. The `legacy_*` prefix in this schema is reserved for migration-scope staging (`legacy_club_candidates`, `legacy_person_club_affiliations`) or archival data of legacy origin (`legacy_members`). Name-variant pairs are a permanent platform utility that grows over the life of the platform and has no "resolution" step, so the pairs themselves are the permanent artifact and the table is unprefixed. See the Schema Conventions section for the general rule.
 
 ### 4.29 Member Onboarding Tasks
 
@@ -1428,7 +1428,61 @@ Former surnames and old email addresses declared by members to broaden the claim
 
 ### 4.31 Pipeline-produced canonical content (out of this enumeration)
 
-The freestyle trick dictionary (`freestyle_tricks` and related tables), the Net team-appearance tables (`net_team` and related), and the cross-discipline records tables (`freestyle_records`, `consecutive_kicks_records`), and the five symbolic-grammar tables (`symbolic_*`) are populated before go-live by the pre-go-live data-load pipelines and read by `FreestyleService`, `NetService`, `ConsecutivesService`, and `SymbolicGrammarService` for the public `/freestyle/*`, `/net/*`, `/consecutives`, and `/freestyle/learn` surfaces. After cutover the database is their only source: freestyle and records content is changed through the audited admin curation surfaces, the symbolic tables are frozen (a trick page's educational links are decided from the trick's own fields when it renders), and the code-managed registries change through a reviewed database migration. The freestyle, records, and symbolic tables' table-level semantics are owned by the freestyle maintainer guide, `docs/FREESTYLE.md` (column-level detail in `database/schema.sql`); the Net team-appearance tables stay with the legacy_data track (`legacy_data/README.md`, the net enrichment phase). The freestyle taxonomy is governed as reversible/observational and is intentionally not hardened in this document. `given_name_variants` is a name-matching utility alongside §4.28.
+The freestyle trick dictionary (`freestyle_tricks` and related tables), the Net team-appearance tables (`net_team` and related), and the cross-discipline records tables (`freestyle_records`, `consecutive_kicks_records`), and the five symbolic-grammar tables (`symbolic_*`) are populated before go-live by the pre-go-live data-load pipelines and read by `FreestyleService`, `NetService`, `ConsecutivesService`, and `SymbolicGrammarService` for the public `/freestyle/*`, `/net/*`, `/consecutives`, and `/freestyle/learn` surfaces. After cutover the database is their only source: freestyle and records content is changed through the audited admin curation surfaces, the symbolic tables are frozen (a trick page's educational links are decided from the trick's own fields when it renders), and the code-managed registries change through a reviewed database migration. Each table's role is below; column-level detail is in the inline comments in `database/schema.sql`. How the freestyle tables are curated and rendered is in the freestyle maintainer guide, `docs/FREESTYLE.md`, and how the pipeline fills the Net tables is in `legacy_data/README.md`, the net enrichment phase. The freestyle taxonomy is governed as reversible/observational and is intentionally not hardened in this document. `given_name_variants` is a name-matching utility alongside the Name-matching utilities section.
+
+Freestyle, records and symbolic tables (fifteen):
+
+- **`freestyle_tricks`** - the trick corpus. Load-bearing columns: `adds` (the ADD
+  value; may be numeric, blank, or the literal `modifier`), `review_status` and
+  `is_active` (only `is_active = 1` rows render publicly), `trick_family`,
+  `base_trick`, `category`, the editorial-prose fields, and the structural-parse
+  columns (`structural_parse_json`, `computed_adds`, `add_formula_status`)
+  populated by the notation parser.
+- **`freestyle_trick_aliases`** - first-class aliases, each with a semantic
+  class (`alias_type`) and a display flag (`alias_display`). How the two decide
+  search and display is in the `freestyle-dictionary-surface` skill.
+- **`freestyle_trick_sources`** and **`freestyle_trick_source_links`** - the
+  provenance registry and its many-to-many trick-to-source links, which preserve
+  per-source assertions that may diverge from canonical.
+- **`freestyle_trick_modifiers`** and **`freestyle_trick_modifier_links`** - the
+  operator/modifier registry (the data-side mirror of the operator reference) and
+  its per-trick apply-ordered links.
+- **`freestyle_ev_adjudications`** - the Emerging Vocabulary ruling record: one
+  row per adjudicated observational name, carrying what the name is, what it
+  resolved to, what evidence exists, what blocks it, and who owns the next step.
+  Seeded from the committed ruling ledger and writable afterwards, so a ruling
+  made once the rebuild pipeline retires still has a home. It is the ruling
+  authority, never the observational row source: the corpus is composed from the
+  committed corpus inputs and this table supplies each composed row's ruling, so
+  the two counts differ by design. It carries no workflow-state column; public
+  placement stays a derived projection, and publication is expressed by the
+  nullable `published_trick_slug` link plus the disposition transition, with the
+  live trick row deciding whether a linked name is still a candidate.
+- **`freestyle_records`** and **`consecutive_kicks_records`** - the world-record
+  and consecutive-kicks corpora; world records also carry confidence and
+  superseded-by state.
+- **The five `symbolic_*` tables** - `symbolic_equivalence_clusters`,
+  `symbolic_movement_archetypes`,
+  `symbolic_topology_groups`, `symbolic_modifier_groups`, and
+  `symbolic_glossary_crosslinks`. The observational symbolic-grammar layer; a
+  public research overlay, never the canonical family classification.
+
+Net tables (five):
+
+- **`net_discipline_group`** - maps each Net event discipline to one of thirteen
+  canonical division groups (open, mixed, women's, intermediate, novice, masters
+  and other, doubles and singles, plus uncategorized) with how it matched. A row
+  whose name matched several patterns carries `conflict_flag = 1` and is reviewed
+  before its group is trusted; the table annotates `event_disciplines` and never
+  overrides it.
+- **`net_team`** and **`net_team_member`** - a stable doubles team, keyed by its
+  sorted pair of historical persons, and its two member rows, which index a
+  person's teams. A pair reforming after a long gap is the same team.
+- **`net_team_appearance`** - one row per team per event discipline, carrying the
+  placement and its evidence class. Public routes read it only through
+  `net_team_appearance_canonical`, which keeps the `canonical_only` rows.
+- **`net_stat_policy`** - for each evidence class, its display label, whether it
+  may be shown publicly or counted in statistics, and the disclaimer it needs.
 
 ---
 
@@ -1445,7 +1499,7 @@ Governance, working-group, and social entities distinct from clubs, per Group Me
 - **Columns**: `slug` PK (URL identity); standard metadata columns; `name` NOT NULL; `description`; `notes` (owner-maintained, member-facing); `type` CHECK in (`group`, `committee`, `board`, `panel`, `fellows`); `is_official` INTEGER 0/1; `policy` CHECK in (`public`, `private`); `restrict_membership` INTEGER 0/1 default 1; `email_enabled` INTEGER 0/1 default 0; `state` CHECK in (`active`, `inactive`, `archived`) default `active`; `parent_group_id` FK to `groups(slug)` NULL.
 - **One board**: `ux_groups_single_board`, a partial UNIQUE index over `type WHERE type = 'board'`, so a second board group cannot be created. The board group's identity is its type, never a hard-coded slug.
 - **`state` is the whole lifecycle** and replaces any separate active flag. `inactive` hides the group from the public directory and keeps everything else; `archived` ends it. Groups are never deleted and do not use the soft-delete (`deleted_at`) pattern, so `state` is the only lifecycle column.
-- **Mail**: when `email_enabled = 1` the group has exactly one group-backed `mailing_lists` row naming it through `source_group_id`, sending from a no-reply `from_identity`. Disabling mail archives that list rather than deleting it. See §4.8.
+- **Mail**: when `email_enabled = 1` the group has exactly one group-backed `mailing_lists` row naming it through `source_group_id`, sending from a no-reply `from_identity`. Disabling mail archives that list rather than deleting it. See the Mailing Lists & Email section.
 
 **`group_member_affiliations`**
 
@@ -1668,7 +1722,7 @@ The DB does not CHECK `reason_code` semantics; the application is the primary va
 **Schema initialization (`schema.sql`) includes all required seed rows.** Do not skip Section 23 of the schema file. The following tables must have seed rows before the application can function:
 
 - `mailing_lists`: `admin-alerts`, `all-members`, `newsletter`, `announce`, `board-announcements`, `event-notifications`, `technical-updates`, `active-player-reminders` (verify by `slug`); admin notification and member subscription workflows depend on these slugs. The reconciliation digest is not a list: it goes to the fixed IFPA treasurer contact address, so the treasurer receives it without holding any platform account.
-- `system_config`: the seeded keys listed in §4.23 (verify by `config_key`); the application reads these at startup and during operations. A key with no seed row resolves to its built-in code fallback (per §4.23), so it does not error.
+- `system_config`: the seeded keys listed in the Seed Data section (verify by `config_key`); the application reads these at startup and during operations. A key with no seed row resolves to its built-in code fallback (per the Seed Data section), so it does not error.
 
 **To verify seed data is present after initialization:**
 ```sql
@@ -1710,7 +1764,7 @@ Requirements:
 
 ### APP-024 — Standard tags must not be hard-deleted
 
-**Tags with `is_standard = 1` are permanent identities and MUST NOT be hard-deleted.** The `UNIQUE INDEX ux_tags_normalized` enforces uniqueness for currently-existing rows but cannot prevent a deleted tag's normalized form from being recreated under a different `id` if the original row is deleted.
+**Tags with `is_standard = 1` are permanent identities and MUST NOT be hard-deleted.** The `UNIQUE INDEX ux_tags_normalized` enforces uniqueness for existing rows but cannot prevent a deleted tag's normalized form from being recreated under a different `id` if the original row is deleted.
 
 The application must reject any delete request targeting a `tags` row where `is_standard = 1`; the retirement statement carries that refusal in its own `WHERE` clause rather than trusting a caller to check. No `tags` row is deleted at all, whatever its kind: an abusive freeform tag is retired in place, and the surviving row is what holds its normalized form against recreation. Permanent reservation of standard-tag normalized forms (and therefore their redirect and identity semantics) rests on that, and on the application-layer delete discipline that keeps it true.
 

@@ -22,8 +22,9 @@ http {
 
     # App enforces per-type size in src/controllers/adminCuratorController.ts
     # (Busboy fileSize) and src/services/curatorMediaService.ts (per-buffer).
-    # Set nginx ceiling above the app's max (video 150 MB) so the app — not
-    # nginx — renders a friendly error when a user exceeds the limit.
+    # Set nginx ceiling above the app's max (video, VIDEO_MAX_BYTES, default
+    # 120 MB) so the app — not nginx — renders a friendly error when a user
+    # exceeds the limit.
     client_max_body_size 160m;
 
     # ── Logging ───────────────────────────────────────────────────────────────

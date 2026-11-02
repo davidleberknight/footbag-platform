@@ -13,6 +13,8 @@
  *   - an unknown list is a 404 on every route that names one
  *   - an archived list offers no archive action, and a group-backed list offers
  *     no subscription change, because its membership is the group roster
+ *   - a group-backed list offers no archive action and refuses a direct one,
+ *     because it is retired with its group's mail
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import request from '../fixtures/supertestWithOrigin';
@@ -447,6 +449,35 @@ describe('archiving a list through the surface', () => {
       .get(res.headers.location)
       .set('Cookie', `${adminCookie()}; ${flashCookieOf(res)}`);
     expect(detail.text).toMatch(/already archived/);
+  });
+
+  // A group's roster is the record of who is on its list, so archiving the list
+  // on its own would leave the group mailing into a retired list. The detail
+  // page offers no archive form for one, and a direct post is refused.
+  it('offers no archive action on a group-backed list, and refuses a direct archive of one', async () => {
+    withDb((db) => {
+      insertMailingList(db, {
+        slug: 'board-list', name: 'Board List',
+        recipient_source: 'group', source_group_id: 'group_3',
+      });
+      insertMailingList(db, { slug: 'own-list', name: 'Own List' });
+    });
+
+    const groupDetail = await request(createApp()).get('/admin/mailing-lists/board-list').set('Cookie', adminCookie());
+    const ownDetail = await request(createApp()).get('/admin/mailing-lists/own-list').set('Cookie', adminCookie());
+    expect(ownDetail.text).toContain('action="/admin/mailing-lists/own-list/archive"');
+    expect(groupDetail.text).not.toContain('action="/admin/mailing-lists/board-list/archive"');
+
+    const res = await request(createApp())
+      .post('/admin/mailing-lists/board-list/archive')
+      .set('Cookie', adminCookie())
+      .type('form')
+      .send({});
+
+    expect(res.status).toBe(303);
+    expect(res.headers.location).toBe('/admin/mailing-lists/board-list');
+    expect(flashValueOf(res)).toBe('mailing_list_result:group_backed');
+    expect(listRow('board-list')!.status).toBe('active');
   });
 
   it('404s an unknown list', async () => {

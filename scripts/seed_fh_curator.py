@@ -117,18 +117,13 @@ GALLERY_LINK_URL_MAX = 2048
 # surface ahead of asset delivery), but has none today.
 CURATOR_ITEMS: list[dict] = []
 
-# ── ffmpeg options: canonical malware-stripping pipeline (DD §6.8) ────────
-FFMPEG_OPTS = [
-    "-map", "0:v",
-    "-map", "0:a?",
-    "-map_metadata", "-1",
-    "-map_chapters", "-1",
-    "-c:v", "libx264",
-    "-c:a", "aac",
-    "-pix_fmt", "yuv420p",
-    "-movflags", "+faststart",
-    "-y",
-]
+# ── Video transcode: the platform's own malware-stripping pipeline ────────
+# The seeder holds no ffmpeg options of its own. It runs the application's
+# transcode, the function the image worker runs, so the options and the time
+# limit have one definition and a seeded video is stripped exactly as an
+# uploaded one is.
+TSX = REPO_ROOT / "node_modules" / ".bin" / "tsx"
+TRANSCODE_CLI = REPO_ROOT / "scripts" / "transcode-curator-video.ts"
 
 # ── PIL JPEG settings: parallel to Sharp pipeline (DD §6.8) ───────────────
 JPEG_QUALITY = 85
@@ -170,32 +165,26 @@ def media_id_for_item(id_seed: str, *content_paths: Path) -> str:
     return f"media_{sha.hexdigest()[:24]}"
 
 
-# Ceiling on one ffmpeg run, overridable for a slow host or an unusually long
-# source. Ten minutes is far above any legitimate curator transcode.
-FFMPEG_TIMEOUT_SECONDS = int(os.environ.get("FOOTBAG_FFMPEG_TIMEOUT_SECONDS", 10 * 60))
-
-
 def transcode_video(input_path: Path, output_path: Path) -> None:
-    """Re-encode video through ffmpeg with malware-stripping options.
+    """Re-encode one video through the platform's malware-stripping transcode.
 
-    Time-bounded: a malformed input can put the encoder into a loop that
-    consumes a core and produces nothing, and an unbounded call then hangs the
-    seeding run indefinitely on one file instead of failing it. A curator video
-    is a minute or two of real work, so the ceiling only ever fires on a file
-    that was never going to finish.
+    Time-bounded inside the transcode itself: a malformed input can put the
+    encoder into a loop that consumes a core and produces nothing, and the
+    application's limit kills it, so the seeding run fails on that file rather
+    than hanging. FFMPEG_TIMEOUT_SECONDS raises the limit for a slow machine.
     """
-    cmd = ["ffmpeg", "-i", str(input_path), *FFMPEG_OPTS, str(output_path)]
-    try:
-        result = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=FFMPEG_TIMEOUT_SECONDS
-        )
-    except subprocess.TimeoutExpired as exc:
+    if not TSX.exists():
         raise RuntimeError(
-            f"ffmpeg timed out after {FFMPEG_TIMEOUT_SECONDS}s for {input_path}"
-        ) from exc
+            f"{TSX} is missing, so the platform's video transcode cannot run; "
+            "run npm ci first."
+        )
+    result = subprocess.run(
+        [str(TSX), str(TRANSCODE_CLI), str(input_path), str(output_path)],
+        capture_output=True, text=True,
+    )
     if result.returncode != 0:
         raise RuntimeError(
-            f"ffmpeg failed for {input_path}: exit {result.returncode}\n"
+            f"video transcode failed for {input_path}: exit {result.returncode}\n"
             f"stderr: {result.stderr[-2000:]}"
         )
 

@@ -57,7 +57,7 @@ corroboration; nothing links an account to a record automatically.
 
 - **QC:** `pipeline/qc/check_name_variants.py` runs under `run_qc.py` as a
   hard check, so a structurally broken CSV fails the run.
-- **Loader:** `scripts/load_name_variants_seed.py` loads only HIGH rows
+- **Loader:** `legacy_data/scripts/load_name_variants_seed.py` loads only HIGH rows
   with `source='mirror_mined'`; MEDIUM rows go to
   `out/name_variants_deferred.csv` for review and are never inserted.
   `run_pipeline.sh` (PHASE V) and `scripts/reset-local-db.sh` both run it.

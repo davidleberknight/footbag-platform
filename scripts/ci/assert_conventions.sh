@@ -2043,6 +2043,7 @@ fi
 delegate "synthetic-only identifiers" check_synthetic_identifiers.sh
 delegate "script credential handling" check_script_credentials.sh
 delegate "EXIT traps paired with INT and TERM traps" check_signal_traps.sh
+delegate "every operator script ends with the shared closing report" check_closing_report.sh
 delegate "AWS identity resolution" check_aws_identity.sh
 delegate "append-only triggers present" check_append_only_triggers.sh
 delegate "GitHub Actions SHA-pinning" check_action_pinning.sh

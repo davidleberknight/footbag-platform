@@ -216,7 +216,7 @@ The skills, by purpose:
 - Freestyle and data: `footbag-freestyle-dictionary`, `freestyle-dictionary-surface`, `footbag-curated-media`, `pipeline-invariant-enforcer`.
 - Explicit-only reviews: `extended-doc-sync` (the whole-repository drift audit, run before a bug hunt), `bug-hunt`, `freestyle-bug-hunt`, `audit-memory`.
 - Bug intake: `file-bug`, `triage-bugs`.
-- Operations, explicit-only: `patch-versions` (security patching, on the maintainer's request).
+- Operations, explicit-only: `check-vulnerabilities` (the on-request vulnerability report, ranked most urgent first) and `patch-versions` (security patching, on the maintainer's request).
 - The harness: `update-config`.
 
 `claude-harness-governance.md` is itself path-scoped with a glob covering `.claude/**` plus every `CLAUDE.md` (root and nested), `PROJECT_SUMMARY_CONCISE.md`, and this guide, so the rules for changing the harness attach automatically whenever a harness file is opened for editing.

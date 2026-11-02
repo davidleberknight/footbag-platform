@@ -98,7 +98,7 @@ export const ROUTE_STORIES: Readonly<Record<string, RouteStory>> = {
   'GET /history/:personId': { none: 'needs-ruling', why: 'The historical-person detail page is linked from several stories but no story owns its content or access rules as success criteria.' },
 
   // Member profile and account
-  'GET /members/:memberKey': { stories: ['M_View_Profile', 'M_View_Dashboard', 'M_View_Tier_Status'] },
+  'GET /members/:memberKey': { stories: ['M_View_Profile', 'M_View_Dashboard', 'M_View_Tier_Status', 'M_Search_Members'] },
   'GET /members/:memberKey/edit': { stories: ['M_Edit_Profile'] },
   'POST /members/:memberKey/edit': { stories: ['M_Edit_Profile'] },
   'GET /members/:memberKey/edit/password': { stories: ['M_Change_Password'] },
@@ -380,7 +380,6 @@ export const STORIES_WITHOUT_ROUTE: Readonly<Record<string, { status: StoryWitho
 
   // Member account and profile
   'M_Restore_Account': { status: 'no-route-of-its-own', why: 'The story specifies that no restore flow is offered, so it has nothing to route.' },
-  'M_Search_Members': { status: 'designed-not-deployed', why: 'No member search route is mounted.' },
   'M_Active_Player_Expiry': { status: 'runtime-only', why: 'Expiry reminders and processing run in the daily worker job; the status itself shows on the profile mapped to other stories.' },
 
   // Event participation

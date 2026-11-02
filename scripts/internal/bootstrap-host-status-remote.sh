@@ -156,4 +156,27 @@ emit ZRAM_ACTIVE "$(grep -q '^/dev/zram' <<< "$swaps" && echo yes || echo no)"
 emit ZRAM_SUPPRESSED "$([[ -f /etc/systemd/zram-generator.conf && ! -s /etc/systemd/zram-generator.conf ]] && echo yes || echo no)"
 emit SWAPFILE "$(grep -qx /swapfile <<< "$swaps" && echo yes || echo no)"
 
+# Whether the packages installed since boot need a reboot to be the ones
+# running: a new kernel, or a core library every process holds open. `dnf
+# needs-restarting -r` exits 1 when a reboot is needed and 0 when it is not, but
+# dnf also exits 1 for a command it does not have, so the command is asked for
+# its help first: without it, or with any other exit, the answer is an error and
+# never "a reboot is needed". The text it printed travels with an error.
+reboot_needed=error
+reboot_said=""
+if ! reboot_said="$(dnf needs-restarting --help 2>&1)"; then
+  reboot_said="dnf needs-restarting is not available: $(grep -v '^[[:space:]]*$' <<< "$reboot_said" | tail -1)"
+else
+  reboot_said=""
+  nr_rc=0
+  nr_out="$(dnf needs-restarting -r 2>&1)" || nr_rc=$?
+  case "$nr_rc" in
+    0) reboot_needed=no ;;
+    1) reboot_needed=yes ;;
+    *) reboot_said="dnf needs-restarting -r exited ${nr_rc}: $(grep -v '^[[:space:]]*$' <<< "$nr_out" | tail -1)" ;;
+  esac
+fi
+emit REBOOT_NEEDED "$reboot_needed"
+emit REBOOT_NEEDED_SAID "$reboot_said"
+
 echo "---FOOTBAG-END---"

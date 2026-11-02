@@ -35,8 +35,32 @@ ls -l "${AGENT_DIR}/etc/amazon-cloudwatch-agent.d/" 2>&1 | sed 's/^/  /'
 
 echo
 echo "=== namespace the agent was told to publish to ==="
-grep -o '"namespace"[^,]*' "${AGENT_DIR}/etc/amazon-cloudwatch-agent.json" 2>/dev/null | sed 's/^/  json: /' || echo "  json: unreadable"
-grep -o 'namespace *= *"[^"]*"' "${AGENT_DIR}/etc/amazon-cloudwatch-agent.toml" 2>/dev/null | head -3 | sed 's/^/  toml: /' || echo "  toml: absent"
+# namespace_lines <label> <file> <ERE>
+# Three answers that mean different things on a host, and are kept apart: no
+# file at all (the translator never ran), a file that cannot be read, and a file
+# that is there but names no namespace (the translator ran and wrote a config
+# that publishes to the agent's default). The matches are read into a variable
+# first and grep's own status decides, so a pipe closing early can never print a
+# second verdict after the real lines.
+namespace_lines() {
+  local label="$1" file="$2" ere="$3" found rc
+  if [[ ! -e "$file" ]]; then
+    echo "  ${label}: absent (no file at ${file})"
+    return 0
+  fi
+  found="$(grep -oE -m 3 -- "$ere" "$file" 2>&1)"
+  rc=$?
+  case "$rc" in
+    0) printf '%s\n' "$found" | sed "s/^/  ${label}: /" ;;
+    1) echo "  ${label}: present, no namespace line (${file})" ;;
+    *) echo "  ${label}: unreadable (${file}): ${found##*$'\n'}" ;;
+  esac
+}
+namespace_lines json "${AGENT_DIR}/etc/amazon-cloudwatch-agent.json" '"namespace"[^,}]*'
+# TOML allows any indentation, any spacing around the equals sign, and either
+# basic ("...") or literal ('...') strings; the key may sit in any table.
+namespace_lines toml "${AGENT_DIR}/etc/amazon-cloudwatch-agent.toml" \
+  "^[[:space:]]*namespace[[:space:]]*=[[:space:]]*(\"[^\"]*\"|'[^']*')"
 
 echo
 echo "=== credentials wiring (shape only, no values) ==="
