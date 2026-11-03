@@ -100,13 +100,12 @@ describe('near and far are other names for SAME and OP on every surface that def
   });
 
   it('the Glossary near and far entries map near to SAME and far to OP, never a separate axis', () => {
-    const far = lineWith(terms, '(Far Whirl)');
-    const near = lineWith(terms, 'the counterpart of "far"');
-    expect(far).toMatch(/opposite-side \(OP\)/);
-    expect(near).toMatch(/same-side \(SAME\)/);
+    const far = lineWith(terms, 'opposite-side (OP) relation');
+    const near = lineWith(terms, 'same-side (SAME) relation');
     for (const def of [far, near]) {
+      expect(def).toMatch(/Another name/);
       expect(def).not.toMatch(/separate axis/);
-      expect(def).toMatch(/neither adds difficulty/);
+      expect(def).toMatch(/adds no difficulty/);
     }
   });
 });

@@ -140,7 +140,7 @@ import {
   isCoreAtom,
 } from '../content/freestyleCoreAtomEducational';
 import { GLOSSARY_CORE_CONCEPTS_BY_KEY } from '../content/freestyleGlossaryCoreConcepts';
-import { GLOSSARY_TERMS, GLOSSARY_CROSS_REFERENCES, type GlossaryTerm, type GlossaryCrossReference } from '../content/freestyleGlossaryTerms';
+import { GLOSSARY_TERMS, type GlossaryTerm } from '../content/freestyleGlossaryTerms';
 import {
   getDoctrineDivergence,
 } from '../content/freestyleTrickDoctrine';
@@ -3603,15 +3603,10 @@ function shapeMovementNeighbors(allDictRows: FreestyleTrickRow[]): GlossaryMovem
 // The A–Z Glossary (/freestyle/glossary): one alphabetical list of terms, each
 // a short definition plus an optional deeper link. Grouped by first letter so
 // the template renders letter headings without deriving them.
-// One line of the A–Z list: either a defined term or a "see X" cross-reference
-// (isSee) that carries no definition and points at the canonical entry.
 export interface FreestyleGlossaryEntry {
   term:       string;
-  anchorId:   string;        // term-{slug} for a definition, see-{slug} for a pointer
-  isSee:      boolean;
-  seeTerm:    string | null; // the canonical entry's term, pointers only
-  seeHref:    string | null; // #term-{slug} of the canonical entry, pointers only
-  definition: string;        // empty for a pointer
+  anchorId:   string;        // term-{slug}
+  definition: string;
   // Other spellings / abbreviations, joined for display ("also: ss, near");
   // empty string when the term has none, so the template branches on hasAliases.
   hasAliases: boolean;
@@ -3641,40 +3636,18 @@ function compareGlossaryLines(a: { term: string; slug: string }, b: { term: stri
 
 export function shapeGlossaryLetterGroups(
   terms: readonly GlossaryTerm[],
-  crossReferences: readonly GlossaryCrossReference[] = [],
 ): FreestyleGlossaryLetterGroup[] {
-  const bySlug = new Map(terms.map(t => [t.slug, t]));
   const lines: { term: string; slug: string; entry: FreestyleGlossaryEntry }[] = [];
   for (const t of terms) {
     lines.push({ term: t.term, slug: t.slug, entry: {
       term:       t.term,
       anchorId:   `term-${t.slug}`,
-      isSee:      false,
-      seeTerm:    null,
-      seeHref:    null,
       definition: t.definition,
       hasAliases: (t.aliases?.length ?? 0) > 0,
       aliasText:  (t.aliases ?? []).join(', '),
       hasMore:    t.moreHref !== undefined,
       moreHref:   t.moreHref ?? null,
       moreLabel:  t.moreLabel ?? null,
-    } });
-  }
-  for (const x of crossReferences) {
-    const target = bySlug.get(x.seeSlug);
-    if (!target) continue; // the content module already asserts this never happens
-    lines.push({ term: x.term, slug: x.slug, entry: {
-      term:       x.term,
-      anchorId:   `see-${x.slug}`,
-      isSee:      true,
-      seeTerm:    target.term,
-      seeHref:    `#term-${target.slug}`,
-      definition: '',
-      hasAliases: false,
-      aliasText:  '',
-      hasMore:    false,
-      moreHref:   null,
-      moreLabel:  null,
     } });
   }
   lines.sort(compareGlossaryLines);
@@ -9102,7 +9075,7 @@ export const freestyleService = {
   },
 
   getGlossaryPage(): PageViewModel<FreestyleGlossaryContent> {
-    const letters = shapeGlossaryLetterGroups(GLOSSARY_TERMS, GLOSSARY_CROSS_REFERENCES);
+    const letters = shapeGlossaryLetterGroups(GLOSSARY_TERMS);
     return {
       seo: {
         title: 'Freestyle Glossary',
@@ -9113,7 +9086,7 @@ export const freestyleService = {
         sectionKey: 'freestyle',
         pageKey:    'freestyle_glossary',
         title:      'Freestyle Glossary',
-        intro:      'Short definitions of the terms players use when describing tricks, A to Z. Each entry links to the page that explains it in depth.',
+        intro:      'Short definitions of the terms players use, A to Z.',
       },
       navigation: {
         breadcrumbs: [

@@ -39,14 +39,6 @@
     <h2 class="glossary-az-letter-heading" id="letter-heading-{{letter}}">{{letter}}</h2>
     <dl class="glossary-term-list">
       {{#each entries}}
-      {{#if isSee}}
-      {{! A cross-reference: the word as a reader looks it up, pointing at the
-          one entry that defines it. Lighter than a definition on purpose. }}
-      <div class="glossary-az-entry glossary-az-see" id="{{anchorId}}">
-        <dt>{{term}}</dt>
-        <dd>see <a href="{{seeHref}}">{{seeTerm}}</a></dd>
-      </div>
-      {{else}}
       <div class="glossary-az-entry" id="{{anchorId}}">
         <dt>{{term}}{{#if hasAliases}} <span class="glossary-az-aliases">also: {{aliasText}}</span>{{/if}}</dt>
         <dd>
@@ -54,7 +46,6 @@
           {{#if hasMore}} <a href="{{moreHref}}">{{moreLabel}}</a>{{/if}}
         </dd>
       </div>
-      {{/if}}
       {{/each}}
     </dl>
   </section>

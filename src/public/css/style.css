@@ -5507,12 +5507,6 @@ a.hashtag--media:hover {
   font-size: 0.9rem;
   color: var(--text-muted);
 }
-/* A "see X" cross-reference is a pointer, not a definition: its term stays in
-   the list's normal weight and its one-line body sits in the muted colour, so
-   the eye reads it as a signpost between real entries. */
-.glossary-az-see dt { font-weight: 500; }
-.glossary-az-see dd { color: var(--text-muted); }
-
 /* ── Trick-detail scoring notes ────────────
    Where competition doctrine diverges, the note stays factual, brief, and
    muted; rendered on trick-detail ONLY (browse

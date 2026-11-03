@@ -33,7 +33,6 @@ const page = cachedGet(() => createApp());
 // src/ modules are imported after setTestEnv so the config singleton sees the
 // test database path.
 let GLOSSARY_TERMS: readonly GlossaryTerm[];
-let GLOSSARY_CROSS_REFERENCES: typeof import('../../src/content/freestyleGlossaryTerms').GLOSSARY_CROSS_REFERENCES;
 let shapeGlossaryLetterGroups: typeof import('../../src/services/freestyleService').shapeGlossaryLetterGroups;
 
 beforeAll(async () => {
@@ -49,7 +48,7 @@ beforeAll(async () => {
   }
   db.close();
   createApp = await importApp();
-  ({ GLOSSARY_TERMS, GLOSSARY_CROSS_REFERENCES } = await import('../../src/content/freestyleGlossaryTerms'));
+  ({ GLOSSARY_TERMS } = await import('../../src/content/freestyleGlossaryTerms'));
   ({ shapeGlossaryLetterGroups } = await import('../../src/services/freestyleService'));
 });
 
@@ -97,8 +96,7 @@ describe('GET /freestyle/glossary — the A to Z Glossary', () => {
       expect(slice, t.term).toContain(`also: ${t.aliases!.join(', ').replace(/&/g, '&amp;').replace(/'/g, '&#x27;')}`);
     }
     // No alias appears as a canonical defined <dt> term (case-insensitive)
-    // except a case variant of its own entry; an alias may appear only as a
-    // "see" cross-reference line.
+    // except a case variant of its own entry.
     const definedDts = [...html.matchAll(/<div class="glossary-az-entry" id="term-[^"]+">\s*<dt>([^<]+?)(?:<\/dt>| <span)/g)].map(m => m[1]!.toLowerCase());
     expect(definedDts.length).toBe(GLOSSARY_TERMS.length);
     for (const t of GLOSSARY_TERMS) {
@@ -109,7 +107,7 @@ describe('GET /freestyle/glossary — the A to Z Glossary', () => {
     }
   });
 
-  it('alias integrity: every alias belongs to exactly one entry, is not another entry\'s term, and every "see" pointer restates an alias of its target', () => {
+  it('alias integrity: every alias belongs to exactly one entry and is not another entry\'s term', () => {
     const termKeys = new Map(GLOSSARY_TERMS.map(t => [t.term.toLowerCase(), t]));
     const aliasOwner = new Map<string, string>();
     for (const t of GLOSSARY_TERMS) {
@@ -122,38 +120,12 @@ describe('GET /freestyle/glossary — the A to Z Glossary', () => {
         aliasOwner.set(key, t.term);
       }
     }
-    const bySlug = new Map(GLOSSARY_TERMS.map(t => [t.slug, t]));
-    for (const x of GLOSSARY_CROSS_REFERENCES) {
-      const target = bySlug.get(x.seeSlug)!;
-      expect(target, `${x.term} target`).toBeDefined();
-      expect(termKeys.has(x.term.toLowerCase()), `pointer "${x.term}" is also a defined term`).toBe(false);
-      expect(aliasOwner.get(x.term.toLowerCase()), `pointer "${x.term}" is an alias of ${target.term}`).toBe(target.term);
-    }
-  });
-
-  it('renders each cross-reference as a one-line "see" pointer to a defined entry, never as a definition', async () => {
-    const html = await get('/freestyle/glossary');
-    expect(GLOSSARY_CROSS_REFERENCES.length).toBeGreaterThan(5);
-    const bySlug = new Map(GLOSSARY_TERMS.map(t => [t.slug, t]));
-    for (const x of GLOSSARY_CROSS_REFERENCES) {
-      const target = bySlug.get(x.seeSlug)!;
-      expect(target, `${x.term} target`).toBeDefined();
-      const start = html.indexOf(`id="see-${x.slug}"`);
-      expect(start, `${x.term} rendered`).toBeGreaterThan(-1);
-      const slice = html.slice(start, html.indexOf('</div>', start));
-      expect(slice).toContain(`<dt>${x.term.replace(/'/g, '&#x27;')}</dt>`);
-      expect(slice).toContain(`see <a href="#term-${target.slug}">${target.term.replace(/'/g, '&#x27;')}</a>`);
-      expect(slice).not.toContain('also:');
-      // The pointer's own id is never a term- anchor, so it can't be mistaken for a definition.
-      expect(html.split(`id="term-${x.slug}"`).length - 1).toBe(0);
-    }
   });
 
   it('renders terms in deterministic case-insensitive alphabetical order, grouped by letter', async () => {
     const html = await get('/freestyle/glossary');
-    // Definitions and "see" pointers share one alphabetical sequence.
     const renderedTerms = [...html.matchAll(/<dt>([^<]+?)(?:<\/dt>| <span class="glossary-az-aliases">)/g)].map(m => m[1]!);
-    expect(renderedTerms.length).toBe(GLOSSARY_TERMS.length + GLOSSARY_CROSS_REFERENCES.length);
+    expect(renderedTerms.length).toBe(GLOSSARY_TERMS.length);
     const sorted = [...renderedTerms].sort((a, b) =>
       a.localeCompare(b, 'en', { sensitivity: 'base', numeric: true }));
     expect(renderedTerms).toEqual(sorted);
@@ -168,13 +140,9 @@ describe('GET /freestyle/glossary — the A to Z Glossary', () => {
   });
 
   it('shapeGlossaryLetterGroups is deterministic and tiebreaks on slug', () => {
-    const a = shapeGlossaryLetterGroups(GLOSSARY_TERMS, GLOSSARY_CROSS_REFERENCES);
-    const b = shapeGlossaryLetterGroups([...GLOSSARY_TERMS].reverse(), [...GLOSSARY_CROSS_REFERENCES].reverse());
+    const a = shapeGlossaryLetterGroups(GLOSSARY_TERMS);
+    const b = shapeGlossaryLetterGroups([...GLOSSARY_TERMS].reverse());
     expect(a).toEqual(b);
-    // A pointer sorts by its own word, and lands under that word's letter.
-    const stringLine = a.find(g => g.letter === 'S')!.entries.find(e => e.term === 'String')!;
-    expect(stringLine.isSee).toBe(true);
-    expect(stringLine.seeHref).toBe('#term-run');
     const tie = shapeGlossaryLetterGroups([
       { term: 'Zeta', slug: 'zeta-b', definition: 'x' },
       { term: 'zeta', slug: 'zeta-a', definition: 'y' },

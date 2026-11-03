@@ -7,9 +7,8 @@
  * its own confidence in it as low.
  *
  * It is one concept here because of what this site's own vocabulary says: a run
- * is a continuous flow of linked tricks, "players also call it a string", the
- * run entry carries string as an alias, and the separate string entry is a
- * pointer to run. Under those definitions the two expansions name the same
+ * is a continuous flow of linked tricks, and the run entry carries string as an
+ * alias with no string entry of its own. Under those definitions the two expansions name the same
  * continuous sequence, so the two abbreviations describe the same achievement.
  *
  * That reasoning is the thing worth pinning. If the definition of a run ever
@@ -17,7 +16,7 @@
  * following and this entry would need reopening rather than quietly standing.
  */
 import { describe, it, expect } from 'vitest';
-import { GLOSSARY_TERMS, GLOSSARY_CROSS_REFERENCES } from '../../src/content/freestyleGlossaryTerms';
+import { GLOSSARY_TERMS } from '../../src/content/freestyleGlossaryTerms';
 
 const bsos = GLOSSARY_TERMS.find(t => t.slug === 'bsos');
 const run = GLOSSARY_TERMS.find(t => t.slug === 'run');
@@ -51,11 +50,7 @@ describe('the reason the equivalence holds', () => {
     expect(run!.aliases ?? []).toContain('string');
   });
 
-  it('and that the string entry points at run rather than defining a smaller unit', () => {
-    const stringEntry = GLOSSARY_CROSS_REFERENCES.find(s => s.slug === 'string');
-    expect(stringEntry, 'the string see-also entry').toBeDefined();
-    expect(stringEntry!.seeSlug).toBe('run');
-    // And it is a pointer, not a term with a definition of its own.
+  it('and that string has no entry defining it as a smaller unit', () => {
     expect(GLOSSARY_TERMS.some(t => t.slug === 'string')).toBe(false);
   });
 });
