@@ -44,7 +44,8 @@
 #     the gitignored real-data trees a maintainer cannot regenerate are simply
 #     absent. The safety rule is about what the loader can
 #     overwrite, and in that worktree the answer is nothing.
-#   - As defense-in-depth it fingerprints legacy_data/ and curated/ before and
+#   - As defense-in-depth it fingerprints legacy_data/, curated/ and
+#     freestyle/inputs/ before and
 #     after the run and ABORTS non-zero if any changed, so a future gate that
 #     writes real data fails the run instead of clobbering.
 #   The test suites themselves write only to os.tmpdir() / mktemp.
@@ -875,7 +876,7 @@ bash scripts/clean_up_rubbish.sh --stale-only
 # The find segment tolerates its own non-zero exit (broken symlinks etc.) so a
 # fingerprint is always produced under 'set -o pipefail'.
 # -----------------------------------------------------------------------------
-REAL_DATA_DIRS=(legacy_data curated)
+REAL_DATA_DIRS=(legacy_data curated freestyle/inputs)
 fingerprint() {
   local dir="$1"
   if [[ -e "$dir" ]]; then

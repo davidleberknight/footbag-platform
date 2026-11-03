@@ -117,7 +117,9 @@
  * freestyle.trick_source_link.created/deleted,
  * freestyle.trick_modifier_link.created/deleted,
  * freestyle.trick_source.created, and freestyle.adjudication_notation.authored
- * to audit_entries.
+ * to audit_entries. A trick edit also goes through the curated-authoring adapter,
+ * which writes the committed save file first on a developer machine before go-live
+ * and writes nothing elsewhere; a file that cannot be written refuses the save.
  */
 import {
   freestyleTricks,
@@ -131,7 +133,7 @@ import {
   transaction,
 } from '../db/db';
 import { appendAuditEntry, findStandingOwnAct } from './auditService';
-import { ForbiddenError, NotFoundError, ValidationError } from './serviceErrors';
+import { ForbiddenError, NotFoundError, ServiceUnavailableError, ValidationError } from './serviceErrors';
 import { PageViewModel } from '../types/page';
 import type { OutcomeNoticeView } from '../lib/outcomeNotice';
 import type { ActionEnding } from '../lib/actionOutcome';
@@ -162,6 +164,8 @@ import {
 } from '../content/freestyleNotationProvenance';
 import { countScoringBrackets } from '../lib/freestyleNotation';
 import { config } from '../config/env';
+import { logger } from '../config/logger';
+import { getCuratedAuthoringAdapter, type CuratedSaveReceipt } from '../adapters/curatedAuthoringAdapter';
 import { isSeededTestPersonaMemberId } from '../lib/personaGuards';
 import {
   cleanUserText,
@@ -2186,35 +2190,65 @@ export const freestyleCurationService = {
     // contradicts itself, and a second transaction is how that happens.
     const publishing = publicationCrossed(current, { isActive, reviewStatus });
 
-    transaction(() => {
-      freestyleTricks.updateScalars.run(
-        canonicalName, adds, movementNotation, executionNotation,
-        family, baseTrick, category, isActive, sortOrder, reviewStatus,
-        description, shortDescription, executionSummary, learningNotes,
-        prerequisiteNotes, pronunciation, operationalNotationSource, slug,
-      );
-      if (parseInputsChanged) {
-        freestyleTricks.clearDerivedParse.run(slug);
+    // The authoring file is written first, carrying only what this save changed.
+    // A save that reached only the database would look done and be lost at the
+    // next rebuild, so a file that cannot be written refuses the save.
+    const submitted: Record<string, string | number | null> = {
+      canonical_name: canonicalName, adds, notation: movementNotation,
+      operational_notation: executionNotation, trick_family: family, base_trick: baseTrick,
+      category, is_active: isActive, sort_order: sortOrder, review_status: reviewStatus,
+      description, short_description: shortDescription, execution_summary: executionSummary,
+      learning_notes: learningNotes, prerequisite_notes: prerequisiteNotes, pronunciation,
+      operational_notation_source: operationalNotationSource,
+    };
+    const savedFields = Object.fromEntries(changedFields.map((field) => [field, submitted[field] ?? null]));
+    let receipt: CuratedSaveReceipt | null = null;
+    if (changedFields.length > 0) {
+      try {
+        receipt = getCuratedAuthoringAdapter().saveTrickFields(slug, savedFields);
+      } catch (err) {
+        logger.warn('freestyle trick save refused: the authoring file could not be written', {
+          slug, errorClass: (err as Error).constructor.name,
+        });
+        throw new ServiceUnavailableError('The authoring file could not be written, so nothing was saved.');
       }
-      const resolvedAdjudication = publishing
-        ? resolveAdjudicationOnPublication(slug, canonicalName, actorMemberId)
-        : null;
-      appendAuditEntry({
-        actionType:    'freestyle.trick.updated',
-        actorType:     'admin',
-        actorMemberId,
-        entityType:    'freestyle_trick',
-        entityId:      slug,
-        metadata:      {
-          changedFields,
-          derivedParseCleared: parseInputsChanged,
-          published: publishing,
-          // Present only when a ruling was resolved, so the trail says which
-          // record moved rather than only that a publication happened.
-          ...(resolvedAdjudication ? { resolvedAdjudication } : {}),
-        },
+    }
+
+    try {
+      transaction(() => {
+        freestyleTricks.updateScalars.run(
+          canonicalName, adds, movementNotation, executionNotation,
+          family, baseTrick, category, isActive, sortOrder, reviewStatus,
+          description, shortDescription, executionSummary, learningNotes,
+          prerequisiteNotes, pronunciation, operationalNotationSource, slug,
+        );
+        if (parseInputsChanged) {
+          freestyleTricks.clearDerivedParse.run(slug);
+        }
+        const resolvedAdjudication = publishing
+          ? resolveAdjudicationOnPublication(slug, canonicalName, actorMemberId)
+          : null;
+        appendAuditEntry({
+          actionType:    'freestyle.trick.updated',
+          actorType:     'admin',
+          actorMemberId,
+          entityType:    'freestyle_trick',
+          entityId:      slug,
+          metadata:      {
+            changedFields,
+            derivedParseCleared: parseInputsChanged,
+            published: publishing,
+            // Present only when a ruling was resolved, so the trail says which
+            // record moved rather than only that a publication happened.
+            ...(resolvedAdjudication ? { resolvedAdjudication } : {}),
+          },
+        });
       });
-    });
+    } catch (err) {
+      // A refused save leaves nothing for the next rebuild to apply.
+      receipt?.undo();
+      throw err;
+    }
   },
 
   // Add one alias to a trick. The alias slug is derived from the submitted display

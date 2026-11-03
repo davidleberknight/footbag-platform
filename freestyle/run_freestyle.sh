@@ -99,6 +99,11 @@ echo "→ Rebuilding freestyle tables into ${DB}"
 # targets are rows 17, 19 and 21 create.
 "${PY}" "${L}/28_load_ev_adjudications.py"          --db "${DB}"
 
+# Curator saves: what the admin screens wrote to committed files on a developer
+# machine. Last of the content writers, so a save wins over every base input, and
+# before the parser, which reads the notation a save may have changed.
+"${PY}" "${L}/29_apply_curator_saves.py"            --db "${DB}"
+
 # Parser population (structural_parse_json + computed_adds)
 "${PY}" "${S}/parse_freestyle_notation.py" --apply --db "${DB}"
 

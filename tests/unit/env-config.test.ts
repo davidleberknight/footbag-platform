@@ -1846,6 +1846,38 @@ describe('env config: ALLOW_CURATED_SIDECAR_WRITES', () => {
     expect(config.allowCuratedSidecarWrites).toBe(true);
   });
 
+  // Defect: a host writes authoring files to a disk the next deploy replaces, and
+  // the save looks durable.
+  it('refuses the writes on a deployed host', async () => {
+    baselineRequired();
+    clearAwsWiring();
+    process.env.NODE_ENV = 'production';
+    process.env.FOOTBAG_ENV = 'staging';
+    process.env.JWT_SIGNER = 'local';
+    process.env.SES_ADAPTER = 'stub';
+    process.env.SAFE_BROWSING_ADAPTER = 'stub';
+    process.env.HTTP_REACHABILITY_ADAPTER = 'stub';
+    process.env.SECRETS_ADAPTER = 'stub';
+    process.env.IMAGE_PROCESSOR_URL = 'http://image:4000';
+    process.env.MEDIA_STORAGE_ADAPTER = 'local';
+    process.env.PAYMENT_ADAPTER = 'stub';
+    process.env.STRIPE_WEBHOOK_SECRET_STUB = 'whsec_stub_abababababababababababababababababababababababab';
+    process.env.CAPTCHA_ADAPTER = 'stub';
+    process.env.ALLOW_CURATED_SIDECAR_WRITES = '1';
+    await expect(import('../../src/config/env')).rejects.toThrow(
+      /ALLOW_CURATED_SIDECAR_WRITES must not be on when FOOTBAG_ENV=staging/,
+    );
+  });
+
+  it('allows the writes on a machine marked as development', async () => {
+    baselineRequired();
+    process.env.NODE_ENV = 'development';
+    process.env.FOOTBAG_ENV = 'development';
+    process.env.ALLOW_CURATED_SIDECAR_WRITES = '1';
+    const { config } = await import('../../src/config/env');
+    expect(config.allowCuratedSidecarWrites).toBe(true);
+  });
+
   it('honors explicit override to false in development', async () => {
     baselineRequired();
     clearAwsWiring();

@@ -38,6 +38,7 @@ const { dbPath } = setTestEnv('3438');
 
 process.env.NODE_ENV                  = 'production';
 process.env.FOOTBAG_ENV               = 'staging';
+process.env.ALLOW_CURATED_SIDECAR_WRITES = '0';
 process.env.SESSION_SECRET            = 'a'.repeat(48);
 process.env.JWT_SIGNER                = 'local';
 process.env.SES_ADAPTER               = 'stub';

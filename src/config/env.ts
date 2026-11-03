@@ -152,6 +152,10 @@ export interface AppConfig {
   // staging/prod admin edits mutate the DB but skip the file write
   // because the deployed /curated/ tree is part of the build artifact.
   allowCuratedSidecarWrites: boolean;
+  // Absolute path overriding the folder a freestyle curator save is written to,
+  // so a test or the e2e stack never writes the committed inputs. Null when unset;
+  // a developer machine falls through to <repo-root>/freestyle/inputs/curator_saves.
+  curatorSavesDirOverride: string | null;
   // Absolute path overriding the curated-media root directory. Lets a
   // non-test process (the e2e stack) redirect curated reads and writes to
   // a throwaway directory so they never touch the committed /curated/
@@ -706,6 +710,18 @@ function loadConfig(): AppConfig {
       `ALLOW_CURATED_SIDECAR_WRITES must be '1', '0', 'true', or 'false', got: ${rawAllowCuratedSidecar}`,
     );
   }
+  // A deployed host carries no authoring tree, and a save written to a host's disk
+  // would look durable and be gone at the next deploy.
+  if (isDeployedEnv && allowCuratedSidecarWrites) {
+    throw new Error(
+      `ALLOW_CURATED_SIDECAR_WRITES must not be on when FOOTBAG_ENV=${footbagEnv}; authoring files are written only on a developer machine`,
+    );
+  }
+
+  const rawCuratorSavesDir = trimmedEnv('CURATOR_SAVES_DIR');
+  const curatorSavesDirOverride = rawCuratorSavesDir === undefined || rawCuratorSavesDir === ''
+    ? null
+    : rawCuratorSavesDir;
 
   const rawCuratedRootDir = process.env.CURATED_ROOT_DIR;
   const curatedRootDirOverride =
@@ -1193,6 +1209,7 @@ function loadConfig(): AppConfig {
     ssmPrefix,
     httpReachabilityAdapter,
     allowCuratedSidecarWrites,
+    curatorSavesDirOverride,
     curatedRootDirOverride,
     galleryMaxExternalLinks,
     imageProcessorUrl,

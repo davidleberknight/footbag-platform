@@ -53,6 +53,9 @@ export ALLOW_CURATED_SIDECAR_WRITES="1"
 # getCuratedRootDir via config.curatedRootDirOverride) so an e2e curator
 # write lands in a throwaway dir, removed by the cleanup trap.
 export CURATED_ROOT_DIR="${CURATED_ROOT}"
+# The same for a freestyle curator save, which otherwise lands in the committed
+# freestyle inputs. Inside the curated throwaway, so the same trap removes it.
+export CURATOR_SAVES_DIR="${CURATED_ROOT}/curator_saves"
 
 WEB_PID=""
 IMAGE_PID=""

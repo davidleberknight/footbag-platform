@@ -85,6 +85,12 @@ import {
   type MediaStorageAdapter,
 } from '../../src/adapters/mediaStorageAdapter';
 import {
+  createDatabaseOnlyCuratedAuthoringAdapter,
+  createFileCuratedAuthoringAdapter,
+  type CuratedAuthoringAdapter,
+  type TrickSaveFields,
+} from '../../src/adapters/curatedAuthoringAdapter';
+import {
   createHttpImageAdapter,
   ImageProcessingError,
 } from '../../src/adapters/imageProcessingAdapter';
@@ -1108,6 +1114,49 @@ describe('adapter-parity: HttpReachabilityAdapter (Stub vs. Live vs. Disabled)',
     await expect(stub.check('https://example.com/')).rejects.toThrow('boom');
     const after = await stub.check('https://example.com/');
     expect(after.reachable).toBe(true);
+  });
+});
+
+describe('adapter-parity: CuratedAuthoringAdapter contract', () => {
+  let tmpDir: string;
+  let backends: readonly (readonly [string, CuratedAuthoringAdapter])[];
+  beforeEach(() => {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'footbag-test-authoring-parity-'));
+    backends = [
+      ['file', createFileCuratedAuthoringAdapter({ rootDir: tmpDir })],
+      ['database-only', createDatabaseOnlyCuratedAuthoringAdapter()],
+    ];
+  });
+  afterEach(() => fs.rmSync(tmpDir, { recursive: true, force: true }));
+
+  it('both backends return a receipt that can be undone', () => {
+    for (const [name, adapter] of backends) {
+      const receipt = adapter.saveTrickFields('parity_trick', { description: 'x' });
+      expect(() => receipt.undo(), name).not.toThrow();
+    }
+  });
+
+  it('both backends refuse a slug that could leave the folder and a field no save may carry', () => {
+    // Defect: only a developer machine notices, so a bad caller passes on a host.
+    const unknownField = { loaded_at: 'x' } as unknown as TrickSaveFields;
+    for (const [name, adapter] of backends) {
+      expect(() => adapter.saveTrickFields('../escape', { description: 'x' }), name).toThrow(/invalid trick slug/);
+      expect(() => adapter.saveTrickFields('parity_trick', unknownField), name).toThrow(/not a trick field/);
+    }
+    expect(fs.existsSync(path.join(tmpDir, 'tricks'))).toBe(false);
+  });
+
+  it('the file backend undoes a first save by removing the file and a later save by restoring it', () => {
+    const [, adapter] = backends[0]!;
+    const filePath = path.join(tmpDir, 'tricks', 'parity_trick.json');
+    const first = adapter.saveTrickFields('parity_trick', { description: 'first' });
+    first.undo();
+    expect(fs.existsSync(filePath)).toBe(false);
+    adapter.saveTrickFields('parity_trick', { description: 'first' });
+    const held = fs.readFileSync(filePath, 'utf8');
+    const second = adapter.saveTrickFields('parity_trick', { description: 'second' });
+    second.undo();
+    expect(fs.readFileSync(filePath, 'utf8')).toBe(held);
   });
 });
 

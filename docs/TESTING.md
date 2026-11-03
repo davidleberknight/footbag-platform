@@ -466,7 +466,7 @@ The platform targets four environments. Each has parity contracts that tests ver
 
 ### 7.2 Adapter parity tests are mandatory
 
-The three-test contract from `.claude/rules/adapter-conventions.md` applies to every adapter (`JwtSigningAdapter`, `SesAdapter`, `MediaStorageAdapter`, `ImageProcessingAdapter`, `VideoTranscodingAdapter`, `SecretsAdapter`, `SafeBrowsingAdapter`, `CaptchaAdapter`, `HttpReachabilityAdapter`, `PaymentAdapter`, and any future adapter):
+The three-test contract from `.claude/rules/adapter-conventions.md` applies to every adapter (`JwtSigningAdapter`, `SesAdapter`, `MediaStorageAdapter`, `ImageProcessingAdapter`, `VideoTranscodingAdapter`, `SecretsAdapter`, `SafeBrowsingAdapter`, `CaptchaAdapter`, `HttpReachabilityAdapter`, `PaymentAdapter`, `CuratedAuthoringAdapter`, and any future adapter):
 
 - Boot-time config test (`tests/unit/env-config.test.ts`): module-load fails fast when required prod-mode env vars are absent.
 - Interface parity test (`tests/integration/adapter-parity.test.ts`): both implementations satisfy the TypeScript interface with identical observable output structure, exercised via an injected fake client.
@@ -483,6 +483,8 @@ The staging-smoke leg applies to adapters that reach an external service over th
 `SesAdapter` carries boot-config and interface-parity tests but no staging-smoke. On staging, email is the adapter stub and nothing else, and staging's runtime role holds no send permission, so there is no staging send to probe. Its live path is verified on production by the operator-run `scripts/verify-prod-email.sh`, run deliberately, not by a suite.
 
 `MediaStorageAdapter` carries boot-config and interface-parity tests but no workstation staging-smoke. Its live implementation writes and deletes objects in a real bucket, and no test writes to cloud object storage in any environment, so the put, head, and delete path is proved by the interface-parity tests against an injected S3 client and by the e2e upload round-trip. Verifying the live bucket path is operator tooling, run deliberately, not a suite.
+
+`CuratedAuthoringAdapter` carries boot-config and interface-parity tests but no staging-smoke. It reaches no external service: its file backend writes the committed authoring files on a developer machine, and a deployed host refuses at boot to run that backend, so staging has nothing to probe. The round trip is proved by an integration test that saves through the service and then rebuilds a fresh database with the real freestyle loaders.
 
 `PaymentAdapter` carries boot-config and interface-parity tests but no workstation staging-smoke. Its live implementation reaches Stripe, but a smoke test that created a real Checkout session or delivered a real charge has side effects no read-only probe should: the live path is instead verified by the signed-webhook integration tests (signature acceptance, tamper rejection, and replay idempotency against the real verifier) and by the stub checkout pass-through that drives the same handler. Live-Stripe end-to-end exercise is the operator-run production-only verification in §7.7, not the smoke suite.
 

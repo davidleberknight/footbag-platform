@@ -18,6 +18,7 @@ const { dbPath } = setTestEnv('3213');
 // requirement matter here.
 process.env.NODE_ENV = 'production';
 process.env.FOOTBAG_ENV = 'production';
+process.env.ALLOW_CURATED_SIDECAR_WRITES = '0';
 process.env.SESSION_SECRET = 'a'.repeat(48);
 process.env.INTERNAL_EVENT_SECRET = 'c'.repeat(48);
 process.env.JWT_SIGNER = 'kms';

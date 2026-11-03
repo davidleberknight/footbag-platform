@@ -54,6 +54,9 @@ export function setTestEnv(port: string): { dbPath: string; sessionSecret: strin
   // Tests exercise the FH-owned gallery sidecar write/delete contract;
   // enable explicitly because the prod default for non-dev is off.
   process.env.ALLOW_CURATED_SIDECAR_WRITES = '1';
+  // With those writes on, a curator save needs somewhere that is not the committed
+  // inputs. Its own folder per file, removed by cleanupTestDb.
+  process.env.CURATOR_SAVES_DIR = path.join(os.tmpdir(), `footbag-test-saves-${port}-${Date.now()}-${uniq}`);
   // Expected publishing topic per SNS feed. Both webhooks fail closed when these
   // are unset, so the route suites need them to match their envelope fixtures;
   // a suite asserting spoof rejection overrides the envelope, not these.
@@ -228,6 +231,9 @@ export function createTestDb(dbPath: string): BetterSqlite3.Database {
 export function cleanupTestDb(dbPath: string): void {
   for (const ext of ['', '-wal', '-shm']) {
     try { fs.unlinkSync(dbPath + ext); } catch { /* ignore */ }
+  }
+  if (process.env.CURATOR_SAVES_DIR) {
+    fs.rmSync(process.env.CURATOR_SAVES_DIR, { recursive: true, force: true });
   }
 }
 

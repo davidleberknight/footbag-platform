@@ -34,6 +34,7 @@ loader without running the corrections again. Both leave the ledger unapplied,
 which is what this reads.
 """
 import csv
+import json
 import re
 import sqlite3
 from collections import OrderedDict
@@ -43,6 +44,18 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 CORRECTIONS_CSV = (
     REPO_ROOT / "freestyle" / "inputs" / "curated" / "tricks" / "red_corrections_2026_04_20.csv"
 )
+
+# What curators saved through the admin screens, applied after every other input.
+CURATOR_SAVES_DIR = REPO_ROOT / "freestyle" / "inputs" / "curator_saves"
+
+# The trick columns a save file may carry: the ones the trick editor writes. An
+# unknown name would otherwise reach SQL and stop a rebuild on a typo.
+TRICK_SAVE_FIELDS = frozenset({
+    "canonical_name", "adds", "notation", "operational_notation", "trick_family",
+    "base_trick", "category", "is_active", "sort_order", "review_status", "description",
+    "short_description", "execution_summary", "learning_notes", "prerequisite_notes",
+    "pronunciation", "operational_notation_source",
+})
 
 # A new_value of \N clears the column to SQL NULL. The loader's rule; restated
 # here only because the comparison has to know what the row asked for.
@@ -80,14 +93,40 @@ def last_wins_corrections(csv_path: Path = CORRECTIONS_CSV):
     return rulings
 
 
-def corrections_not_in_effect(db_path, csv_path: Path = CORRECTIONS_CSV):
+def read_trick_saves(saves_dir: Path = CURATOR_SAVES_DIR):
+    """Every saved trick, as {slug: {column: value}}. Raises ValueError naming a bad file."""
+    saves = {}
+    for path in sorted((saves_dir / "tricks").glob("*.json")):
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except ValueError as err:
+            raise ValueError(f"{path} is not valid JSON: {err}") from err
+        slug = data.get("slug") if isinstance(data, dict) else None
+        fields = data.get("fields") if isinstance(data, dict) else None
+        if slug != path.stem or not isinstance(fields, dict):
+            raise ValueError(f"{path} must name its own trick as slug and carry a fields object")
+        unknown = sorted(set(fields) - TRICK_SAVE_FIELDS)
+        if unknown:
+            raise ValueError(f"{path} carries fields a save may not set: {', '.join(unknown)}")
+        if fields:
+            saves[slug] = fields
+    return saves
+
+
+def corrections_not_in_effect(db_path, csv_path: Path = CORRECTIONS_CSV, saves_dir: Path = CURATOR_SAVES_DIR):
     """Rulings the database does not carry, as (slug, field, expected, actual).
 
     A ruling naming a trick the database does not hold is not drift: nothing
     could have applied it, and whether that trick should exist is a curator
     question. Those are reported by the ledger-hygiene test rather than here.
+
+    Nor is a ruling a curator save overrides: the save is applied after the ledger
+    on purpose, and the database carrying it is the rebuild working.
     """
     rulings = last_wins_corrections(csv_path)
+    for slug, fields in read_trick_saves(saves_dir).items():
+        for field in fields:
+            rulings.pop((slug, field), None)
     conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
     try:
         columns = {r[1] for r in conn.execute("PRAGMA table_info(freestyle_tricks)")}

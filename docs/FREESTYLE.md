@@ -152,6 +152,13 @@ each owned:
 - The curated expert-review addition and correction overlays.
 - The records masters.
 - The footbag.org moves snapshot.
+- The curator save files under `freestyle/inputs/curator_saves/`, one JSON file per
+  item a curator saved through an admin screen on a developer machine, naming its
+  target and only the fields overridden, with a null marking a deliberate clear. The
+  final loader, `29_apply_curator_saves.py`, applies them after every other input, so
+  a save wins over a base input that says otherwise. It lists each base value it
+  overrides on its output and in `freestyle/reports/curator_save_overrides.csv`, and a
+  file it cannot apply stops the rebuild.
 - The legacy footbag.org member tips are not a site input. Their useful coaching
   was folded into the trick pages' Technique Notes, and the per-tip grading
   behind that is private evidence listed in DATA_INVENTORY.md (private GitHub

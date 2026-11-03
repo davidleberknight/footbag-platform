@@ -27,6 +27,7 @@ DOCKERFILE="docker/web/Dockerfile"
 # runtime image. A new entry needs a real reason on the same line.
 allowlist=$(cat <<'EOF'
 src/services/curatorMediaService.ts	curated content is served from the database and object store in production; the on-disk sidecar tree is dev-only
+src/adapters/curatedAuthoringAdapter.ts	it writes the freestyle authoring files on a developer machine only; the boot refuses those writes on a deployed host
 src/adapters/secretsAdapter.ts	local-only secrets file; production injects secrets at deploy time
 src/adapters/jwtSigningAdapter.ts	JWT signing keypair path is env-provided runtime config, not committed repo data
 src/adapters/cloudFrontSigningAdapter.ts	archive cookie-signing local PEM path is env-provided dev/test config ('local' backend only; staging/production use the 'ssm' backend), not committed repo data

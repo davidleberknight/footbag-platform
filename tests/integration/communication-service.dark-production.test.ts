@@ -25,6 +25,7 @@ const { dbPath } = setTestEnv('3099');
 // sender.
 process.env.NODE_ENV = 'production';
 process.env.FOOTBAG_ENV = 'production';
+process.env.ALLOW_CURATED_SIDECAR_WRITES = '0';
 process.env.SES_ADAPTER = 'stub';
 process.env.EMAIL_SEND_ARMED = 'dark';
 process.env.SESSION_SECRET = 'a'.repeat(48);
